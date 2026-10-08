@@ -689,19 +689,16 @@ def run(
 
     if use_prebuilt_binaries:
         s3_uri = os.environ.get("E2E_PREBUILD_S3_URI", "")
-        if s3_uri and targets:
-            # New flow: download per-package tarballs from S3
-            if not _download_prebuilt_binaries(ctx, s3_uri, targets):
-                print("WARNING: Failed to download pre-built binaries from S3, disabling use_prebuilt_binaries")
-                use_prebuilt_binaries = False
-        elif not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
-            print(
-                "WARNING: required artifacts test-binaries.tar.zst and manifest.json not found, disabling use_prebuilt_binaries"
-            )
+        if not s3_uri or not targets:
+            print("WARNING: E2E_PREBUILD_S3_URI or targets not set, disabling use_prebuilt_binaries")
+            use_prebuilt_binaries = False
+        elif not _download_prebuilt_binaries(ctx, s3_uri, targets):
+            print("WARNING: Failed to download pre-built binaries from S3, disabling use_prebuilt_binaries")
             use_prebuilt_binaries = False
 
     if use_prebuilt_binaries:
-        ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
+        # Run through the bazel wrapper so the taskset CPU pin (see tools/bazel, #56994) applies
+        bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"
 
@@ -711,7 +708,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- {{verbose}} -mod={{go_mod}} -vet=off -test.timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
 
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []

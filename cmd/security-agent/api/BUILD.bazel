@@ -10,10 +10,12 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/security-agent/api/agent",
+        "//comp/api/api/apiimpl/observability",
         "//comp/core/ipc/def",
         "//comp/core/secrets/def",
         "//comp/core/settings/def",
         "//comp/core/status",
+        "//comp/core/telemetry/def",
         "//comp/core/workloadmeta/def",
         "//pkg/config/helper",
         "//pkg/config/setup",

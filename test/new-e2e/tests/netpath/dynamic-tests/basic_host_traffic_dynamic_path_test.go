@@ -24,14 +24,14 @@ type basicHostTrafficDynamicPathSuite struct {
 	hostTrafficDynamicPathSuite
 }
 
-// TestBasicHostTrafficDynamicPathSuite verifies basic tests from packaged Agent configuration through fakeintake.
+// TestBasicHostTrafficDynamicPathSuite verifies a CNM host gets a basic path
+// without setting basic_tests_enabled, through fakeintake.
 func TestBasicHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &basicHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("basicHostTrafficDynamicPath", basicHostTrafficDynamicPathAgentConfig)))
+	e2e.Run(t, &basicHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("basicHostTrafficDynamicPath", basicHostTrafficDynamicPathAgentConfig, hostTrafficSystemProbeConfig)))
 }
 
 func (s *basicHostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()

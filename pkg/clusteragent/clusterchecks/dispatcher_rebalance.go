@@ -8,10 +8,11 @@
 package clusterchecks
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
@@ -39,10 +40,6 @@ type Weight struct {
 
 // Weights is an array of node weights
 type Weights []Weight
-
-func (w Weights) Len() int           { return len(w) }
-func (w Weights) Less(i, j int) bool { return w[i].busyness > w[j].busyness }
-func (w Weights) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
 
 func (d *dispatcher) calculateAvg() (int, error) {
 	busyness := 0
@@ -276,7 +273,7 @@ func (d *dispatcher) rebalanceUsingBusyness() []types.RebalanceResponse {
 
 	checksMoved := []types.RebalanceResponse{}
 	diffMap, weights := d.getDiffAndWeights(totalAvg)
-	sort.Sort(weights)
+	slices.SortFunc(weights, func(a, b Weight) int { return cmp.Compare(b.busyness, a.busyness) })
 
 	for _, nodeWeight := range weights {
 		for diffMap[nodeWeight.nodeName] > 0 {

@@ -97,7 +97,7 @@ func (s *linuxPARSplitSuite) TestMonolithToSplitMigration() {
 	_ = s.runProcmgr("stop", parControlProcess)
 	s.waitForProcessInactive(parControlProcess, 30*time.Second)
 	_ = s.runProcmgr("stop", parExecutorProcess)
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Stopped", "Exited", "Failed"}, 30*time.Second)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Skipped", "Stopped", "Exited", "Failed"}, 30*time.Second)
 	host.MustExecute("sudo rm -f " + parIdentityPath)
 	s.Require().NoError(client.FlushPAR())
 	s.resetSigningKeyState()
@@ -490,7 +490,7 @@ func (s *linuxPARSplitSuite) waitForProcessStates(name string, states []string, 
 
 func (s *linuxPARSplitSuite) waitForProcessInactive(name string, timeout time.Duration) {
 	s.T().Helper()
-	s.waitForProcessStates(name, []string{"Created", "Stopped", "Exited", "Failed"}, timeout)
+	s.waitForProcessStates(name, []string{"Created", "Skipped", "Stopped", "Exited", "Failed"}, timeout)
 }
 
 func (s *linuxPARSplitSuite) waitForStableProcessState(name, state string, stableFor, timeout time.Duration) {

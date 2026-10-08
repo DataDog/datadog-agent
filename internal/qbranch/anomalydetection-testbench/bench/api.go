@@ -562,12 +562,13 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		if a.DetectorName == "" || a.Timestamp == 0 {
 			continue
 		}
+		title, _ := observerdef.FormatAnomaly(a)
 		markers = append(markers, anomalyMarker{
 			Timestamp:         a.Timestamp,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			SourceSeriesID:    originalID,
-			Title:             a.Title,
+			Title:             title,
 		})
 	}
 
@@ -706,12 +707,13 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 				seriesID, a.DetectorName, a.Timestamp)
 			continue
 		}
+		title, _ := observerdef.FormatAnomaly(a)
 		markers = append(markers, anomalyMarker{
 			Timestamp:         a.Timestamp,
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			SourceSeriesID:    seriesID,
-			Title:             a.Title,
+			Title:             title,
 		})
 	}
 
@@ -781,31 +783,16 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
-	sv := api.tb.getStateView()
-
-	resolveCompactID := func(a observerdef.Anomaly) string {
-		if a.SourceRef != nil {
-			return a.SourceRef.CompactID()
-		}
-		if sv != nil && a.DetectorName != "" && a.Source.Name != "" {
-			storage := &stateViewStorage{sv: sv}
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			key := seriesKey("telemetry", telemetryName+":avg", "", nil)
-			if compactID := storage.compactSeriesID(key); compactID != key {
-				return compactID
-			}
-		}
-		return a.Source.Key()
-	}
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
+		title, description := observerdef.FormatAnomaly(a)
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
-			SourceSeriesID:    resolveCompactID(a),
+			SourceSeriesID:    a.SourceRef.CompactID(),
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
-			Title:             a.Title,
-			Description:       a.Description,
+			Title:             title,
+			Description:       description,
 			Host:              a.Source.Host,
 			Tags:              a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:         a.Timestamp,
@@ -875,11 +862,12 @@ func (api *BenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) 
 
 	response := make([]logAnomalyResponse, 0, len(anomalies))
 	for _, a := range anomalies {
+		title, description := observerdef.FormatAnomaly(a)
 		response = append(response, logAnomalyResponse{
 			Source:       a.Source.String(),
 			DetectorName: a.DetectorName,
-			Title:        a.Title,
-			Description:  a.Description,
+			Title:        title,
+			Description:  description,
 			Tags:         a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:    a.Timestamp,
 			Score:        a.Score,
@@ -1052,10 +1040,11 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 			if tgs == nil {
 				tgs = []string{}
 			}
+			title, description := observerdef.FormatAnomaly(a)
 			anomalies[j] = anomalyOutput{
 				Source:      a.Source.String(),
-				Title:       a.Title,
-				Description: a.Description,
+				Title:       title,
+				Description: description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
 				Host:        a.Source.Host,
@@ -1067,7 +1056,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		for k, m := range c.Members {
 			// Find SourceRef for this member.
 			for _, a := range c.Anomalies {
-				if a.Source.Key() == m.Key() && a.SourceRef != nil {
+				if a.Source.Key() == m.Key() {
 					memberIDs[k] = a.SourceRef.CompactID()
 					break
 				}
@@ -1351,8 +1340,13 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 				if meta == nil {
 					continue
 				}
+				contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+				var context *observerdef.MetricContext
+				if hasContext {
+					context = &contextValue
+				}
 				report.Contributors = append(report.Contributors, scorerReportContributor{
-					Name:  scorerReportContributorName(meta, storage.GetContext(contributor.Handle.Ref), contributor.Handle.Aggregate),
+					Name:  scorerReportContributorName(meta, context, contributor.Handle.Aggregate),
 					Share: contributor.Share,
 				})
 			}

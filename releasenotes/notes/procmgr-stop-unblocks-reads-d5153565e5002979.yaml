@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    When **dd-procmgrd** cannot deliver the graceful stop signal to a supervised
+    process, it now force-kills the process after a short grace period instead of
+    waiting out the full ``stop_timeout`` (90 seconds by default).
+  - |
+    **dd-procmgrd** keeps answering ``dd-procmgr list``, ``describe``, ``status``
+    and ``config`` while a process is stopping. Those commands used to wait on the
+    same lock the stop held for its whole duration, so a slow stop made the daemon
+    look unresponsive even though it was running normally. The same applied to a
+    ``reload`` that restarted a process whose configuration had changed.
