@@ -53,12 +53,6 @@ instances:
     #
     # max_requests_per_second: 0
 
-    ## @param rate_limit_burst - integer - optional - default: 1
-    ## Max number of requests that can be sent at once to Cisco Manager API before being rate limited.
-    ## Only used when `max_requests_per_second` is set.
-    #
-    # rate_limit_burst: 1
-
     ## @param lookback_time_window_minutes - integer - optional - default: 10
     ## The time window to query when polling Cisco Manager metrics.
     #

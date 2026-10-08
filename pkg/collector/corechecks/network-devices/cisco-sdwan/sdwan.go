@@ -29,6 +29,9 @@ const (
 	// CheckName is the name of the check
 	CheckName            = "cisco_sdwan"
 	defaultCheckInterval = 1 * time.Minute
+	// rateLimitBurst paces requests strictly. It is not configurable so the rate limiter
+	// implementation can change without breaking the check configuration.
+	rateLimitBurst = 1
 )
 
 // Configuration for the Cisco SD-WAN check
@@ -42,7 +45,6 @@ type checkCfg struct {
 	MaxCount                        int     `yaml:"max_count"`
 	LookbackTimeWindowMinutes       int     `yaml:"lookback_time_window_minutes"`
 	MaxRequestsPerSecond            float64 `yaml:"max_requests_per_second"`
-	RateLimitBurst                  int     `yaml:"rate_limit_burst"`
 	UseHTTP                         bool    `yaml:"use_http"`
 	Insecure                        bool    `yaml:"insecure"`
 	CAFile                          string  `yaml:"ca_file"`
@@ -304,13 +306,8 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 	}
 
 	if c.config.MaxRequestsPerSecond > 0 {
-		// A burst of 0 would never allow any request, default to strict pacing
-		burst := c.config.RateLimitBurst
-		if burst <= 0 {
-			burst = 1
-		}
 		// A rate limiter wait must not outlast a check run
-		clientOptions = append(clientOptions, client.WithRateLimit(c.config.MaxRequestsPerSecond, burst, c.interval))
+		clientOptions = append(clientOptions, client.WithRateLimit(c.config.MaxRequestsPerSecond, rateLimitBurst, c.interval))
 	}
 
 	return clientOptions, nil
