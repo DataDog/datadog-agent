@@ -58,8 +58,13 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 	} else {
 		apikey = "aaaaaaaaaa"
 
-		// If the API key is not provided, disable the telemetry to avoid 403 errors
-		commandLine += " DD_INSTRUMENTATION_TELEMETRY_ENABLED=false "
+		if params.MajorVersion == "5" {
+			// Agent 5's install script blocks on a real "waiting for metrics" check that fails with a dummy key, so skip its start.
+			commandLine += " DD_INSTALL_ONLY=true "
+		} else {
+			// If the API key is not provided, disable the telemetry to avoid 403 errors
+			commandLine += " DD_INSTRUMENTATION_TELEMETRY_ENABLED=false "
+		}
 	}
 
 	t.Run("Installing the agent", func(tt *testing.T) {

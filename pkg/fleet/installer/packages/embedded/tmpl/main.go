@@ -221,6 +221,27 @@ var (
 		PIDDir:           "",
 		Stable:           true,
 	}
+	windowsProcessCodegenData = installerTemplateData{
+		InstallDir:       "__PROCESS_INSTALL_ROOT__",
+		EtcDir:           "__PROCESS_ETC_ROOT__",
+		FleetPoliciesDir: "__PROCESS_FLEET_POLICIES_DIR__",
+		PIDDir:           "__PROCESS_INSTALL_ROOT__",
+		Stable:           true,
+	}
+	windowsSysprobeCodegenData = installerTemplateData{
+		InstallDir:       "__SYSPROBE_INSTALL_ROOT__",
+		EtcDir:           "__SYSPROBE_ETC_ROOT__",
+		FleetPoliciesDir: "__SYSPROBE_FLEET_POLICIES_DIR__",
+		PIDDir:           "__SYSPROBE_INSTALL_ROOT__",
+		Stable:           true,
+	}
+	windowsTraceCodegenData = installerTemplateData{
+		InstallDir:       "__TRACE_INSTALL_ROOT__",
+		EtcDir:           "__TRACE_ETC_ROOT__",
+		FleetPoliciesDir: "__TRACE_FLEET_POLICIES_DIR__",
+		PIDDir:           "__TRACE_INSTALL_ROOT__",
+		Stable:           true,
+	}
 
 	// Ideally the folder names would be systemd and procmgr (instead of sd and pm)
 	// and -nocap (instead of -nc)
@@ -248,6 +269,10 @@ var (
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-ddot.yaml", "datadog-agent-ddot-windows.yaml", windowsDDOTCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-data-plane.yaml", "datadog-agent-data-plane-windows.yaml", windowsADPCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action.yaml", "datadog-agent-action-windows.yaml", windowsPARCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-process.yaml", "datadog-agent-process-windows.yaml", windowsProcessCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-sysprobe.yaml", "datadog-agent-sysprobe-windows.yaml", windowsSysprobeCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-trace.yaml", "datadog-agent-trace-windows.yaml", windowsTraceCodegenData)},
 		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-action-executor.yaml", "datadog-agent-action-executor-windows.yaml", windowsPARCodegenData)},
+		{subdir: "windows", units: windowsProcmgrYAMLFile("datadog-agent-par-control.yaml", "datadog-agent-par-control-windows.yaml", windowsPARCodegenData)},
 	}
 )

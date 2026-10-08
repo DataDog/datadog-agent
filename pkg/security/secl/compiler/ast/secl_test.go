@@ -9,6 +9,9 @@ package ast
 import (
 	"encoding/json"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func parseRule(rule string) (*Rule, error) {
@@ -73,6 +76,32 @@ func TestCompareString(t *testing.T) {
 	printJSON(t, rule)
 }
 
+func TestEscapedQuoteInString(t *testing.T) {
+	rule, err := parseRule(`process.name == "a\"b"`)
+	require.NoError(t, err)
+
+	sc := rule.BooleanExpression.Expression.Comparison.ScalarComparison
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Next)
+	primary := sc.Next.ArithmeticOperation.First.Unary.Primary
+	require.NotNil(t, primary.String)
+	require.Equal(t, `a\"b`, *primary.String)
+}
+
+func TestEscapedNewlineInString(t *testing.T) {
+	rule, err := parseRule(`process.name == "a\
+b"`)
+	require.NoError(t, err)
+
+	sc := rule.BooleanExpression.Expression.Comparison.ScalarComparison
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Next)
+	primary := sc.Next.ArithmeticOperation.First.Unary.Primary
+	require.NotNil(t, primary.String)
+	require.Equal(t, `a\
+b`, *primary.String)
+}
+
 func TestCompareComplex(t *testing.T) {
 	rule, err := parseRule(`process.name != "/usr/bin/vipw" && open.pathname == "/etc/passwd" && (open.mode == O_TRUNC || open.mode == O_CREAT || open.mode == O_WRONLY)`)
 	if err != nil {
@@ -98,6 +127,15 @@ func TestIntAnd(t *testing.T) {
 	}
 
 	printJSON(t, rule)
+}
+
+func TestBitwiseXor(t *testing.T) {
+	rule, err := parseRule(`open.flags ^ 1 == 0`)
+	require.NoError(t, err)
+
+	bitOp := rule.BooleanExpression.Expression.Comparison.ArithmeticOperation.First
+	require.NotNil(t, bitOp.Op)
+	require.Equal(t, "^", *bitOp.Op)
 }
 
 func TestBoolAnd(t *testing.T) {
@@ -180,6 +218,12 @@ func TestMultiline(t *testing.T) {
 	}
 }
 
+func TestCommentNoTrailingNewline(t *testing.T) {
+	rule, err := parseRule("process.name == \"a\" # trailing comment, no newline")
+	require.NoError(t, err)
+	require.NotNil(t, rule)
+}
+
 func TestPattern(t *testing.T) {
 	rule, err := parseRule(`process.name == ~"/usr/bin/ls"`)
 	if err != nil {
@@ -223,6 +267,16 @@ func TestArrayRegexp(t *testing.T) {
 	printJSON(t, rule)
 }
 
+func TestPatternMismatchOperator(t *testing.T) {
+	rule, err := parseRule(`process.name !~ r"a"`)
+	require.NoError(t, err)
+
+	sc := rule.BooleanExpression.Expression.Comparison.ScalarComparison
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Op)
+	require.Equal(t, "!~", *sc.Op)
+}
+
 func TestDuration(t *testing.T) {
 	rule, err := parseRule(`process.start > 10s`)
 	if err != nil {
@@ -230,6 +284,18 @@ func TestDuration(t *testing.T) {
 	}
 
 	printJSON(t, rule)
+}
+
+func TestDurationHours(t *testing.T) {
+	rule, err := parseRule(`process.start > 2h`)
+	require.NoError(t, err)
+
+	sc := rule.BooleanExpression.Expression.Comparison.ScalarComparison
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Next)
+	primary := sc.Next.ArithmeticOperation.First.Unary.Primary
+	require.NotNil(t, primary.Duration)
+	require.Equal(t, int((2 * time.Hour).Nanoseconds()), *primary.Duration)
 }
 
 func TestNumberVariable(t *testing.T) {

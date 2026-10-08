@@ -6,28 +6,46 @@
 #![allow(clippy::result_large_err)]
 
 use crate::command::{Command, CreateResult, ReloadResult, StartResult, StopResult};
-use crate::config::{self, ConfigLoader, ProcessDefinition};
+use crate::config::{self, ConfigLoader, InvalidConfigEntry, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
 use crate::platform;
-use crate::process::{ManagedProcess, ProcessOrigin};
+use crate::process::{ExitEvent, ManagedProcess, ProcessOrigin};
 use crate::shutdown;
+use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
+use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc, oneshot};
 use tonic::Status;
 
-pub(crate) struct ExitEvent {
+/// Catalog stub for a `processes.d` file that did not produce a `ProcessConfig`.
+#[derive(Debug, Clone)]
+pub(crate) struct InvalidProcess {
+    pub uuid: String,
     pub name: String,
-    pub pid: u32,
-    pub status: std::process::ExitStatus,
+    pub path: PathBuf,
+    pub error: String,
+}
+
+impl InvalidProcess {
+    fn from_entry(entry: InvalidConfigEntry, uuid: String) -> Self {
+        Self {
+            uuid,
+            name: entry.name,
+            path: entry.path,
+            error: entry.error,
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct ProcessManager {
     processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    invalid: Arc<RwLock<Vec<InvalidProcess>>>,
     /// Indices into the `processes` Vec in dependency-resolved startup order.
     /// Recomputed on config reload so that indices stay in sync with the Vec.
     startup_order: Arc<RwLock<Vec<usize>>>,
@@ -37,14 +55,21 @@ pub struct ProcessManager {
 
 impl ProcessManager {
     pub fn new(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
-        let configs = config_loader.load();
-        let processes: Vec<ManagedProcess> = configs
+        let catalog = config_loader.load();
+        let processes: Vec<ManagedProcess> = catalog
+            .processes
             .into_iter()
             .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
+            .collect();
+        let invalid: Vec<InvalidProcess> = catalog
+            .invalid
+            .into_iter()
+            .map(|entry| InvalidProcess::from_entry(entry, uuid_gen.generate()))
             .collect();
         let startup_result = recompute_startup_order(&processes);
         Self {
             processes: Arc::new(RwLock::new(processes)),
+            invalid: Arc::new(RwLock::new(invalid)),
             startup_order: Arc::new(RwLock::new(startup_result.order)),
             config_loader,
             uuid_gen,
@@ -54,15 +79,8 @@ impl ProcessManager {
     async fn start(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
-        for &idx in order.iter() {
-            let proc = &mut procs[idx];
-            if proc.should_start() {
-                match proc.spawn() {
-                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-                    Err(e) => warn!("{e:#}"),
-                }
-            }
-        }
+        let decided = run_start_pass(&mut procs, &order, exit_tx, |_| true);
+        finalize_start_holds(&mut procs, &order, &decided);
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -125,6 +143,12 @@ impl ProcessManager {
         self.processes.read().await
     }
 
+    pub(crate) async fn invalid_configs(
+        &self,
+    ) -> tokio::sync::RwLockReadGuard<'_, Vec<InvalidProcess>> {
+        self.invalid.read().await
+    }
+
     pub(crate) fn config_source(&self) -> &str {
         self.config_loader.source()
     }
@@ -178,9 +202,17 @@ impl ProcessManager {
             info!("[{name}] already running, skipping queued restart");
             return;
         }
-        match proc.spawn() {
-            Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-            Err(e) => warn!("[{}] restart failed: {e:#}", proc.name()),
+        // `handle_restart` decided at exit time; the gate can close during the
+        // backoff delay, so re-check it here.
+        let holds = proc.evaluate_respawn();
+        if !holds.is_empty() {
+            info!("[{name}] restart skipped: start conditions not met");
+            proc.mark_restart_blocked_already_accounted();
+            proc.record_start_hold(holds, &[]);
+            return;
+        }
+        if let Err(e) = proc.spawn(exit_tx.clone()) {
+            warn!("[{}] restart failed: {e:#}", proc.name());
         }
     }
 
@@ -207,7 +239,8 @@ impl ProcessManager {
         let uuid;
         {
             let mut procs = self.processes.write().await;
-            if procs.iter().any(|p| p.name() == name) {
+            let invalid = self.invalid.read().await;
+            if procs.iter().any(|p| p.name() == name) || invalid.iter().any(|p| p.name == name) {
                 return Err(Status::already_exists(format!(
                     "process '{name}' already exists"
                 )));
@@ -216,15 +249,16 @@ impl ProcessManager {
             uuid = proc.uuid().to_owned();
             info!("[{name}] created via RPC (uuid={uuid})");
             procs.push(proc);
-            let proc = procs.last_mut().unwrap();
-            if proc.should_start() {
-                match proc.spawn() {
-                    Ok(()) => spawn_watcher(proc, exit_tx.clone()),
-                    Err(e) => warn!("[{name}] auto-start failed: {e:#}"),
-                }
-            }
         }
+        // The start pass runs on the resolved order, so a process whose `after`
+        // forms a cycle rests in `Skipped` instead of starting.
         let warnings = self.update_startup_order().await;
+        {
+            let order = self.startup_order.read().await;
+            let mut procs = self.processes.write().await;
+            let decided = run_start_pass(&mut procs, &order, exit_tx, |p| p.name() == name);
+            finalize_start_holds(&mut procs, &order, &decided);
+        }
         Ok(CreateResult { uuid, warnings })
     }
 
@@ -233,8 +267,20 @@ impl ProcessManager {
         name_or_uuid: &str,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<StartResult, Status> {
+        {
+            let procs = self.processes.read().await;
+            let invalid = self.invalid.read().await;
+            if let Some(inv) = find_invalid(&invalid, &procs, name_or_uuid)? {
+                return Err(Status::failed_precondition(format!(
+                    "process '{}' has invalid config, cannot start: {}",
+                    inv.name, inv.error
+                )));
+            }
+        }
         let mut procs = self.processes.write().await;
-        let idx = resolve_index(&procs, name_or_uuid)?;
+        let invalid = self.invalid.read().await;
+        let idx = resolve_index(&procs, &invalid, name_or_uuid)?;
+        drop(invalid);
         let proc = &mut procs[idx];
 
         if proc.is_running() {
@@ -243,29 +289,57 @@ impl ProcessManager {
                 proc.name()
             )));
         }
-        proc.spawn()
+        proc.spawn(exit_tx.clone())
             .map_err(|e| Status::internal(format!("failed to start '{}': {e:#}", proc.name())))?;
         let uuid = proc.uuid().to_owned();
         let pid = proc.pid();
         let state = proc.state();
-        spawn_watcher(proc, exit_tx.clone());
         Ok(StartResult { uuid, pid, state })
     }
 
+    /// Stop a process, holding the lock only to start and to record the stop.
+    ///
+    /// The wait in between runs for as long as `stop_timeout`, and `list`,
+    /// `describe`, `status`, and `config` answer straight from the same lock
+    /// rather than through this command channel, so holding it across the wait
+    /// makes every read hang for the duration.
     pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
-        let mut procs = self.processes.write().await;
-        let idx = resolve_index(&procs, name_or_uuid)?;
-        let proc = &mut procs[idx];
+        let (uuid, wait) = {
+            let mut procs = self.processes.write().await;
+            let invalid = self.invalid.read().await;
+            if let Some(inv) = find_invalid(&invalid, &procs, name_or_uuid)? {
+                return Err(Status::failed_precondition(format!(
+                    "process '{}' has invalid config, cannot stop",
+                    inv.name
+                )));
+            }
+            let idx = resolve_index(&procs, &invalid, name_or_uuid)?;
+            drop(invalid);
+            let proc = &mut procs[idx];
 
-        if !proc.is_running() {
-            return Err(Status::failed_precondition(format!(
-                "process '{}' is not running",
-                proc.name()
-            )));
+            if !proc.is_running() {
+                return Err(Status::failed_precondition(format!(
+                    "process '{}' is not running",
+                    proc.name()
+                )));
+            }
+            proc.request_stop();
+            (proc.uuid().to_owned(), proc.take_stop_wait())
+        };
+
+        if let Some(wait) = wait {
+            wait.run().await;
         }
-        let uuid = proc.uuid().to_owned();
-        proc.request_stop();
-        proc.wait_for_stop().await;
+
+        // Re-resolved rather than kept as an index: nothing else may reorder
+        // the list while the event loop is parked on this command, but only
+        // the uuid says so at the point of use.
+        let mut procs = self.processes.write().await;
+        let invalid = self.invalid.read().await;
+        let idx = resolve_index(&procs, &invalid, &uuid)?;
+        drop(invalid);
+        let proc = &mut procs[idx];
+        proc.finish_stop();
         let state = proc.state();
         Ok(StopResult { uuid, state })
     }
@@ -274,18 +348,34 @@ impl ProcessManager {
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
-        let new_configs = self.config_loader.load();
-        let new_names: std::collections::HashSet<&str> =
-            new_configs.iter().map(|c| c.name.as_str()).collect();
+        let catalog = self.config_loader.load();
+        let valid_order: Vec<String> = catalog.processes.iter().map(|pd| pd.name.clone()).collect();
+        let invalid_order: Vec<String> = catalog.invalid.iter().map(|e| e.name.clone()).collect();
+        let mut valid: std::collections::HashMap<String, config::ProcessConfig> = catalog
+            .processes
+            .into_iter()
+            .map(|pd| (pd.name, pd.config))
+            .collect();
+        let mut incoming_invalid: std::collections::HashMap<String, InvalidConfigEntry> = catalog
+            .invalid
+            .into_iter()
+            .map(|entry| (entry.name.clone(), entry))
+            .collect();
+        let catalog_names: std::collections::HashSet<String> = valid
+            .keys()
+            .cloned()
+            .chain(incoming_invalid.keys().cloned())
+            .collect();
 
         let mut removed = Vec::new();
         let mut stopped_procs = Vec::new();
+        let mut valid_to_invalid = Vec::new();
         {
             let mut procs = self.processes.write().await;
             let mut i = 0;
             while i < procs.len() {
                 if procs[i].origin() == ProcessOrigin::Config
-                    && !new_names.contains(procs[i].name())
+                    && !catalog_names.contains(procs[i].name())
                 {
                     let mut proc = procs.remove(i);
                     info!("[{}] config removed, stopping", proc.name());
@@ -300,67 +390,311 @@ impl ProcessManager {
             }
         }
 
+        // A previously valid file that no longer parses: stop the child, then
+        // keep the name as InvalidConfig instead of treating it as removed. A
+        // live child holds on to its `ManagedProcess` until the stop below
+        // finishes, so reads taken meanwhile report `Stopping` with its real pid
+        // rather than a pid-0 InvalidConfig row for a workload still up.
+        let mut stopping_to_invalid: Vec<(String, InvalidConfigEntry)> = Vec::new();
+        {
+            let mut procs = self.processes.write().await;
+            let mut invalid = self.invalid.write().await;
+            let mut i = 0;
+            while i < procs.len() {
+                if procs[i].origin() != ProcessOrigin::Config
+                    || !incoming_invalid.contains_key(procs[i].name())
+                {
+                    i += 1;
+                    continue;
+                }
+                let name = procs[i].name().to_owned();
+                let entry = incoming_invalid
+                    .get(&name)
+                    .cloned()
+                    .expect("name was present");
+                info!("[{name}] config is no longer valid, stopping");
+                if procs[i].is_running() {
+                    procs[i].request_stop();
+                    stopping_to_invalid.push((name.clone(), entry));
+                    valid_to_invalid.push(name);
+                    i += 1;
+                    continue;
+                }
+                // Nothing to wait for, so the name can change hands right here.
+                let proc = procs.remove(i);
+                invalid.retain(|e| e.name != name);
+                invalid.push(InvalidProcess::from_entry(entry, proc.uuid().to_owned()));
+                valid_to_invalid.push(name);
+            }
+        }
+
         for proc in &mut stopped_procs {
             proc.wait_for_stop().await;
         }
 
+        // The stub takes over the name once the child is down, keeping the uuid
+        // so clients holding it can still describe the row. The lock goes back
+        // between each one for the same reason as in `handle_stop`: reads must
+        // not queue behind the wait.
+        for (name, entry) in stopping_to_invalid {
+            let wait = {
+                let mut procs = self.processes.write().await;
+                procs
+                    .iter_mut()
+                    .find(|p| p.name() == name)
+                    .and_then(|proc| proc.take_stop_wait())
+            };
+            if let Some(wait) = wait {
+                wait.run().await;
+            }
+
+            let mut procs = self.processes.write().await;
+            let mut invalid = self.invalid.write().await;
+            let Some(idx) = procs.iter().position(|p| p.name() == name) else {
+                continue;
+            };
+            let mut proc = procs.remove(idx);
+            proc.finish_stop();
+            invalid.retain(|e| e.name != name);
+            invalid.push(InvalidProcess::from_entry(entry, proc.uuid().to_owned()));
+        }
+
         let mut added = Vec::new();
-        let mut modified = Vec::new();
+        let mut modified = valid_to_invalid;
         let mut modified_running: Vec<String> = Vec::new();
         let mut unchanged = Vec::new();
+        // Invalid→valid rows report as `modified` but still need the deferred
+        // start pass used for newly added configs (ordering / cycle rules).
+        let mut recovered_from_invalid: Vec<String> = Vec::new();
+
         {
             let mut procs = self.processes.write().await;
-            for np in new_configs {
-                if let Some(existing) = procs.iter_mut().find(|p| p.name() == np.name) {
-                    if *existing.config() != np.config {
-                        info!("[{}] config changed, updating", np.name);
+            let mut invalid = self.invalid.write().await;
+            let mut i = 0;
+            while i < invalid.len() {
+                let name = invalid[i].name.clone();
+                if let Some(config) = valid.remove(&name) {
+                    let uuid = invalid.remove(i).uuid;
+                    if procs.iter().any(|p| p.name() == name) {
+                        warn!(
+                            "[{name}] valid config not loaded as a new process: a process with this name already exists"
+                        );
+                        valid.insert(name, config);
+                        continue;
+                    }
+                    info!("[{name}] config is valid again, loading");
+                    // Started further down via start pass, once order is known.
+                    let proc = ManagedProcess::new_config(name.clone(), uuid, config);
+                    procs.push(proc);
+                    modified.push(name.clone());
+                    recovered_from_invalid.push(name);
+                } else if let Some(entry) = incoming_invalid.remove(&name) {
+                    if modified.iter().any(|n| n == &name) {
+                        i += 1;
+                        continue;
+                    }
+                    if invalid[i].error != entry.error || invalid[i].path != entry.path {
+                        invalid[i].error = entry.error;
+                        invalid[i].path = entry.path;
+                        modified.push(name);
+                    } else {
+                        unchanged.push(name);
+                    }
+                    i += 1;
+                } else {
+                    invalid.remove(i);
+                    removed.push(name);
+                }
+            }
+        }
+
+        {
+            let mut procs = self.processes.write().await;
+            for name in &valid_order {
+                let Some(config) = valid.remove(name) else {
+                    continue;
+                };
+                if let Some(existing) = procs.iter_mut().find(|p| p.name() == name) {
+                    if *existing.config() != config {
+                        info!("[{name}] config changed, updating");
                         if existing.is_running() {
                             existing.request_stop();
-                            modified_running.push(np.name.clone());
+                            modified_running.push(name.clone());
                         }
-                        existing.set_config(np.config);
-                        modified.push(np.name);
+                        existing.set_config(config);
+                        modified.push(name.clone());
                     } else {
-                        unchanged.push(np.name);
+                        unchanged.push(name.clone());
                     }
                 } else {
-                    info!("[{}] new config found, adding", np.name);
-                    let mut proc = ManagedProcess::new_config(
-                        np.name.clone(),
-                        self.uuid_gen.generate(),
-                        np.config,
-                    );
-                    if proc.should_start() {
-                        if let Err(e) = proc.spawn() {
-                            warn!("[{}] failed to start: {e:#}", np.name);
-                        } else {
-                            spawn_watcher(&mut proc, exit_tx.clone());
-                        }
-                    }
-                    added.push(np.name);
+                    info!("[{name}] new config found, adding");
+                    // Started further down, once the order is resolved: a
+                    // dependency cycle this reload introduces must keep its
+                    // members from starting, exactly as it does at boot.
+                    let proc =
+                        ManagedProcess::new_config(name.clone(), self.uuid_gen.generate(), config);
+                    added.push(name.clone());
                     procs.push(proc);
                 }
             }
         }
 
-        // Wait for modified processes that were running to stop, then restart
-        // with the new config.
         {
-            let mut procs = self.processes.write().await;
-            for name in &modified_running {
-                if let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) {
-                    proc.wait_for_stop().await;
-                    info!("[{name}] restarting with updated config");
-                    if let Err(e) = proc.spawn() {
-                        warn!("[{name}] failed to restart: {e:#}");
-                    } else {
-                        spawn_watcher(proc, exit_tx.clone());
-                    }
+            let procs = self.processes.read().await;
+            let mut invalid = self.invalid.write().await;
+            for name in &invalid_order {
+                let Some(entry) = incoming_invalid.remove(name) else {
+                    continue;
+                };
+                if procs.iter().any(|p| p.name() == name) {
+                    warn!(
+                        "[{name}] invalid config ignored: a process with this name already exists"
+                    );
+                    continue;
                 }
+                info!("[{name}] invalid config, not starting");
+                invalid.push(InvalidProcess::from_entry(entry, self.uuid_gen.generate()));
+                added.push(name.clone());
             }
         }
 
+        // Stop modified running processes first; restart after order is known
+        // so a new cycle or `after` edge cannot be bypassed. Drop the lock
+        // across each wait so reads are not blocked (same as `handle_stop`).
+        let mut held_by_decision: Vec<String> = Vec::new();
+        let mut pending_restart: Vec<String> = Vec::new();
+        for name in &modified_running {
+            let wait = {
+                let mut procs = self.processes.write().await;
+                let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
+                    continue;
+                };
+                proc.take_stop_wait()
+            };
+            if let Some(wait) = wait {
+                wait.run().await;
+            }
+
+            let mut procs = self.processes.write().await;
+            let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
+                continue;
+            };
+            proc.finish_stop();
+            let holds = proc.evaluate_respawn();
+            if !holds.is_empty() {
+                info!("[{name}] not restarting after reload: start conditions not met");
+                proc.mark_restart_blocked_already_accounted();
+                proc.record_start_hold(holds, &[]);
+                held_by_decision.push(name.clone());
+                continue;
+            }
+            pending_restart.push(name.clone());
+        }
+
+        // Before start pass, deferred restarts, and gate re-eval (all walk order).
         self.update_startup_order().await;
+
+        // Added rows: start pass. Pending modified: restart in order. Then
+        // recover holds that have cleared. Loops walk `order`, so cycle
+        // members stay out. `Skipped` recovers when its hold opens; bare
+        // `Created` without conditions does not (never blocked). Terminal
+        // rows recover only when `restart_blocked_by_conditions` (not state
+        // alone): `may_respawn` ignores `auto_start`. Burst is re-checked
+        // only for exit-time skips.
+        {
+            let candidates: HashSet<&str> = unchanged
+                .iter()
+                .chain(modified.iter())
+                .map(String::as_str)
+                .collect();
+            let added_names: HashSet<&str> = added.iter().map(String::as_str).collect();
+            let recovered_names: HashSet<&str> =
+                recovered_from_invalid.iter().map(String::as_str).collect();
+            let held_names: HashSet<&str> = held_by_decision.iter().map(String::as_str).collect();
+            let pending_restart_names: HashSet<&str> =
+                pending_restart.iter().map(String::as_str).collect();
+            let order = self.startup_order.read().await;
+            let mut procs = self.processes.write().await;
+            let mut decided = run_start_pass(&mut procs, &order, exit_tx, |p| {
+                added_names.contains(p.name()) || recovered_names.contains(p.name())
+            });
+            for &idx in order.iter() {
+                let proc = &mut procs[idx];
+                if !pending_restart_names.contains(proc.name()) {
+                    continue;
+                }
+                let name = proc.name().to_owned();
+                info!("[{name}] restarting with updated config");
+                if let Err(e) = proc.spawn(exit_tx.clone()) {
+                    warn!("[{name}] failed to restart: {e:#}");
+                }
+                decided.insert(idx);
+            }
+            // Not in `order`: cycle. Mark restart-blocked so a later reload
+            // that breaks the cycle can recover via the gate path.
+            for (idx, proc) in procs.iter_mut().enumerate() {
+                if !pending_restart_names.contains(proc.name()) || decided.contains(&idx) {
+                    continue;
+                }
+                info!(
+                    "[{}] not restarting after reload: dependency cycle",
+                    proc.name()
+                );
+                proc.mark_restart_blocked_already_accounted();
+                proc.record_start_hold(Vec::new(), &[ManagedProcess::SKIP_REASON_ORDERING]);
+                decided.insert(idx);
+            }
+            for (idx, proc) in procs.iter_mut().enumerate() {
+                if !held_names.contains(proc.name()) {
+                    continue;
+                }
+                // Keep condition labels; add `ordering` if also cycle-excluded.
+                if !order.contains(&idx) {
+                    let reasons = proc.skip_reasons().to_vec();
+                    proc.record_start_hold(reasons, &[ManagedProcess::SKIP_REASON_ORDERING]);
+                }
+                decided.insert(idx);
+            }
+            for &idx in order.iter() {
+                let proc = &mut procs[idx];
+                if !candidates.contains(proc.name()) {
+                    continue;
+                }
+                let eligible = match proc.state() {
+                    ProcessState::Created if proc.has_start_conditions() => {
+                        let holds = proc.evaluate_start_pass();
+                        let spawn = holds.is_empty();
+                        if !spawn {
+                            proc.record_start_hold(holds, &[]);
+                            decided.insert(idx);
+                        }
+                        spawn
+                    }
+                    ProcessState::Skipped => proc.start_pass_would_spawn(),
+                    ProcessState::Exited
+                    | ProcessState::Crashed
+                    | ProcessState::Failed
+                    | ProcessState::Stopped => {
+                        proc.restart_blocked_by_conditions()
+                            && proc.may_respawn()
+                            && !proc.recovered_restart_exceeds_burst()
+                    }
+                    _ => false,
+                };
+                if !eligible {
+                    continue;
+                }
+                let name = proc.name().to_owned();
+                info!("[{name}] start conditions now met after reload, starting");
+                // After burst check; before `spawn` (clears the skip reason).
+                proc.record_recovered_restart();
+                if let Err(e) = proc.spawn(exit_tx.clone()) {
+                    warn!("[{name}] failed to start after gate re-eval: {e:#}");
+                }
+            }
+            finalize_start_holds(&mut procs, &order, &decided);
+        }
+
         Ok(ReloadResult {
             added,
             removed,
@@ -393,64 +727,82 @@ pub fn looks_like_uuid_prefix(s: &str) -> bool {
     s.len() >= 8 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
 }
 
-fn resolve_by_uuid_prefix(procs: &[ManagedProcess], prefix: &str) -> Option<Result<usize, Status>> {
-    let mut matches: Vec<usize> = procs
+fn ambiguous_uuid_prefix(prefix: &str, matches: usize) -> Status {
+    Status::invalid_argument(format!(
+        "UUID prefix '{prefix}' is ambiguous ({matches} matches)"
+    ))
+}
+
+/// Indices into the valid and invalid halves for a unique UUID prefix match.
+type UuidCatalogIndices = (Option<usize>, Option<usize>);
+type UuidCatalogPrefixResolve = Option<Result<UuidCatalogIndices, Status>>;
+
+fn resolve_uuid_prefix_across_catalog(
+    procs: &[ManagedProcess],
+    invalid: &[InvalidProcess],
+    prefix: &str,
+) -> UuidCatalogPrefixResolve {
+    let proc_matches: Vec<usize> = procs
         .iter()
         .enumerate()
         .filter(|(_, p)| p.uuid().starts_with(prefix))
         .map(|(i, _)| i)
         .collect();
-    match matches.len() {
+    let inv_matches: Vec<usize> = invalid
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.uuid.starts_with(prefix))
+        .map(|(i, _)| i)
+        .collect();
+    let total = proc_matches.len() + inv_matches.len();
+    match total {
         0 => None,
-        1 => Some(Ok(matches.remove(0))),
-        _ => Some(Err(Status::invalid_argument(format!(
-            "UUID prefix '{prefix}' is ambiguous ({} matches)",
-            matches.len()
-        )))),
+        1 => Some(Ok((
+            proc_matches.first().copied(),
+            inv_matches.first().copied(),
+        ))),
+        _ => Some(Err(ambiguous_uuid_prefix(prefix, total))),
     }
 }
 
-fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, Status> {
-    if looks_like_uuid_prefix(name_or_uuid)
-        && let Some(result) = resolve_by_uuid_prefix(procs, name_or_uuid)
-    {
-        return result;
+pub(crate) fn find_invalid<'a>(
+    invalid: &'a [InvalidProcess],
+    procs: &[ManagedProcess],
+    name_or_uuid: &str,
+) -> Result<Option<&'a InvalidProcess>, Status> {
+    if looks_like_uuid_prefix(name_or_uuid) {
+        match resolve_uuid_prefix_across_catalog(procs, invalid, name_or_uuid) {
+            Some(Ok((_, Some(i)))) => return Ok(Some(&invalid[i])),
+            Some(Ok((_, None))) => return Ok(None),
+            Some(Err(status)) => return Err(status),
+            None => {}
+        }
+    }
+    Ok(invalid.iter().find(|p| p.name == name_or_uuid))
+}
+
+fn resolve_index(
+    procs: &[ManagedProcess],
+    invalid: &[InvalidProcess],
+    name_or_uuid: &str,
+) -> Result<usize, Status> {
+    if looks_like_uuid_prefix(name_or_uuid) {
+        match resolve_uuid_prefix_across_catalog(procs, invalid, name_or_uuid) {
+            Some(Ok((Some(i), None))) => return Ok(i),
+            Some(Ok((None, Some(_)))) => {
+                return Err(Status::not_found(format!(
+                    "process '{name_or_uuid}' not found"
+                )));
+            }
+            Some(Err(status)) => return Err(status),
+            None => {}
+            Some(Ok(_)) => return Err(ambiguous_uuid_prefix(name_or_uuid, 2)),
+        }
     }
     procs
         .iter()
         .position(|p| p.name() == name_or_uuid)
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
-}
-
-/// Spawn a background task that awaits the child's exit and sends the result.
-fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
-    if let Some(child) = proc.take_child() {
-        let name = proc.name().to_owned();
-        let pid = proc.pid().unwrap_or(0);
-        let handle = tokio::spawn(async move {
-            let mut child = child;
-            let status = match child.wait().await {
-                Ok(status) => status,
-                Err(e) => {
-                    warn!("[{name}] wait error: {e}, killing process");
-                    let _ = child.kill().await;
-                    match child.wait().await {
-                        Ok(s) => s,
-                        Err(e2) => {
-                            warn!("[{name}] failed to reap after kill: {e2}");
-                            return;
-                        }
-                    }
-                }
-            };
-            let _ = tx.try_send(ExitEvent {
-                name: name.clone(),
-                pid,
-                status,
-            });
-        });
-        proc.set_watcher_handle(handle);
-    }
 }
 
 /// Build `ProcessDefinition`s from the live processes Vec and resolve their
@@ -459,6 +811,84 @@ fn spawn_watcher(proc: &mut ManagedProcess, tx: mpsc::Sender<ExitEvent>) {
 struct StartupOrderResult {
     order: Vec<usize>,
     warnings: Vec<String>,
+}
+
+/// Run a start pass over the rows of `order` that `selected` accepts: spawn the
+/// ones no hold denies, and record on the others the holds that denied them.
+/// Returns the indices it decided, which `finalize_start_holds` must be told
+/// about so it leaves their labels alone.
+///
+/// Only rows in `order` are considered, and that is what keeps a dependency
+/// cycle from starting: its members are excluded from the order, so they reach
+/// `finalize_start_holds` untouched and rest in `Skipped` with `ordering`.
+/// Resolve the order before calling this, or a cycle introduced by the config
+/// being loaded will start anyway.
+fn run_start_pass(
+    procs: &mut [ManagedProcess],
+    order: &[usize],
+    exit_tx: &mpsc::Sender<ExitEvent>,
+    selected: impl Fn(&ManagedProcess) -> bool,
+) -> HashSet<usize> {
+    let mut decided = HashSet::new();
+    for &idx in order {
+        let proc = &mut procs[idx];
+        if !selected(proc) {
+            continue;
+        }
+        let holds = proc.evaluate_start_pass();
+        if holds.is_empty() {
+            if let Err(e) = proc.spawn(exit_tx.clone()) {
+                warn!("{e:#}");
+            }
+        } else {
+            proc.record_start_hold(holds, &[]);
+        }
+        decided.insert(idx);
+    }
+    decided
+}
+
+/// After a start pass, never-spawned rows that were declined (or excluded for
+/// a dependency cycle) rest in `Skipped` with every applying reason label.
+///
+/// `decided` names the rows this pass just ruled on. Their labels come from the
+/// evaluation that made the decision and are left untouched, so a hold that
+/// opens right after cannot erase the reason the row was skipped for.
+///
+/// Every other held row has its labels rebuilt, including cleared, so a
+/// runtime-only process whose hold later opens cannot keep a stale reason after
+/// reload excludes it from the candidate set. Terminal rows stranded by a
+/// closed condition keep their state, but labels are rebuilt the same way.
+fn finalize_start_holds(procs: &mut [ManagedProcess], order: &[usize], decided: &HashSet<usize>) {
+    let in_order: HashSet<usize> = order.iter().copied().collect();
+    for (idx, proc) in procs.iter_mut().enumerate() {
+        if decided.contains(&idx) {
+            continue;
+        }
+        let cycle = !in_order.contains(&idx);
+        let extra: &[&str] = if cycle {
+            &[ManagedProcess::SKIP_REASON_ORDERING]
+        } else {
+            &[]
+        };
+        match proc.state() {
+            ProcessState::Created => {
+                proc.apply_start_hold(extra);
+            }
+            ProcessState::Skipped => {
+                proc.apply_start_hold(extra);
+            }
+            ProcessState::Exited
+            | ProcessState::Crashed
+            | ProcessState::Failed
+            | ProcessState::Stopped => {
+                if proc.restart_blocked_by_conditions() {
+                    proc.apply_start_hold(extra);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
@@ -487,7 +917,10 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{MutableConfigLoader, ProcessConfig, StaticConfigLoader};
+    use crate::config::{
+        InvalidConfigEntry, LoadedCatalog, MutableConfigLoader, ProcessConfig, StaticConfigLoader,
+    };
+    use crate::process::ExitEvent;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, V4UuidGenerator};
 
@@ -500,19 +933,162 @@ mod tests {
     }
 
     fn sleep_def(name: &str) -> ProcessDefinition {
-        sleep_def_secs(name, 60)
+        sleep_def_secs(name, test_helpers::TEST_SLEEP_SECS)
     }
 
     fn sleep_def_secs(name: &str, secs: u32) -> ProcessDefinition {
-        let (cmd, args) = test_helpers::sleep_cmd(secs);
         ProcessDefinition {
             name: name.to_string(),
-            config: ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                ..Default::default()
-            },
+            config: test_helpers::sleep_test_config(secs),
         }
+    }
+
+    fn true_def(name: &str) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::true_cmd();
+        ProcessDefinition {
+            name: name.to_string(),
+            config: test_helpers::make_config(cmd, args),
+        }
+    }
+
+    #[test]
+    fn test_resolve_index_ambiguous_uuid_prefix() {
+        let mk = |name: &str, uuid: &str| {
+            ManagedProcess::new_config(
+                name.to_string(),
+                uuid.to_string(),
+                test_helpers::make_config("true", vec![]),
+            )
+        };
+        let procs = vec![
+            mk("svc-a", "aabbccdd-1111-0000-0000-000000000000"),
+            mk("svc-b", "aabbccdd-2222-0000-0000-000000000000"),
+        ];
+
+        let err = resolve_index(&procs, &[], "aabbccdd").unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        assert!(
+            err.message().contains("ambiguous"),
+            "error should mention ambiguity: {}",
+            err.message()
+        );
+        assert_eq!(resolve_index(&procs, &[], "aabbccdd-1").unwrap(), 0);
+        assert_eq!(resolve_index(&procs, &[], "aabbccdd-2").unwrap(), 1);
+    }
+
+    #[test]
+    fn test_uuid_prefix_ambiguous_across_valid_and_invalid() {
+        let proc = ManagedProcess::new_config(
+            "svc-a".to_string(),
+            "aabbccdd-1111-0000-0000-000000000000".to_string(),
+            test_helpers::make_config("true", vec![]),
+        );
+        let inv = InvalidProcess {
+            uuid: "aabbccdd-2222-0000-0000-000000000000".to_string(),
+            name: "svc-b".to_string(),
+            path: PathBuf::from("/tmp/svc-b.yaml"),
+            error: "parse failed".to_string(),
+        };
+        let procs = vec![proc];
+        let invalid = vec![inv];
+
+        let err = find_invalid(&invalid, &procs, "aabbccdd").unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        assert!(
+            err.message().contains("ambiguous"),
+            "shared prefix across catalog sides must be ambiguous: {}",
+            err.message()
+        );
+        assert!(
+            err.message().contains("2 matches"),
+            "error should count both sides: {}",
+            err.message()
+        );
+
+        let err = resolve_index(&procs, &invalid, "aabbccdd").unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+
+        assert_eq!(
+            find_invalid(&invalid, &procs, "aabbccdd-2")
+                .unwrap()
+                .map(|e| e.name.as_str()),
+            Some("svc-b")
+        );
+        assert_eq!(resolve_index(&procs, &invalid, "aabbccdd-1").unwrap(), 0);
+    }
+
+    /// A child that ignores the graceful stop, so the stop runs for the whole
+    /// `stop_timeout` rather than returning at once. It creates `ready` once it
+    /// is safe to signal.
+    #[cfg(unix)]
+    fn ignores_stop_def(
+        name: &str,
+        stop_timeout_secs: u64,
+        ready: &std::path::Path,
+    ) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::trap_term_sleep_ready(ready);
+        let mut config = test_helpers::make_config(cmd, args);
+        config.stop_timeout = Some(stop_timeout_secs);
+        ProcessDefinition {
+            name: name.to_string(),
+            config,
+        }
+    }
+
+    /// `list`, `describe`, `status`, and `config` read the process table
+    /// directly rather than through the command channel, so a stop that holds
+    /// the write lock while it waits takes all of them down with it: the daemon
+    /// is alive and answers nothing (AGENTRUN-1507).
+    ///
+    /// Unix-only for want of a portable child, not because the lock scope is
+    /// platform-specific: `handle_stop` is the same code everywhere. The test
+    /// needs one that provably ignores its graceful stop, so the stop outlasts
+    /// the reads taken around it.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_stop_leaves_reads_answerable() -> anyhow::Result<()> {
+        use std::time::{Duration, Instant};
+
+        let dir = tempfile::tempdir()?;
+        let ready = dir.path().join("ready");
+        let mgr = ProcessManager::new(
+            loader(vec![ignores_stop_def("svc", 60, &ready)]),
+            uuid_gen(),
+        );
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_start("svc", &exit_tx).await?;
+        let pid = mgr.processes().await[0].pid().expect("spawned pid");
+        test_helpers::wait_for_file(&ready, Duration::from_secs(10)).await;
+
+        let stopping = tokio::spawn({
+            let mgr = mgr.clone();
+            async move { mgr.handle_stop("svc").await }
+        });
+
+        // Reads before the stop takes the lock still see Running, so poll for
+        // the state the stop sets. Each read is bounded on its own: under the
+        // old lock scope the first read after the stop started would hang for
+        // the whole 60s timeout.
+        let started = Instant::now();
+        loop {
+            let read = tokio::time::timeout(Duration::from_secs(5), mgr.processes()).await;
+            let procs =
+                read.map_err(|_| anyhow::anyhow!("a read queued behind an in-flight stop"))?;
+            if procs[0].state() == ProcessState::Stopping {
+                break;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "a read taken mid-stop should report Stopping, got {}",
+                procs[0].state()
+            );
+            drop(procs);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        stopping.abort();
+        test_helpers::cleanup_process(pid);
+        Ok(())
     }
 
     #[tokio::test]
@@ -536,44 +1112,92 @@ mod tests {
         Ok(())
     }
 
+    async fn reload_modified_running_svc_a(
+        mgr: &ProcessManager,
+        config_loader: &MutableConfigLoader,
+        exit_tx: &mpsc::Sender<ExitEvent>,
+    ) -> anyhow::Result<ReloadResult> {
+        mgr.handle_start("svc-a", exit_tx).await?;
+        config_loader.set(vec![sleep_def_secs(
+            "svc-a",
+            test_helpers::ALT_TEST_SLEEP_SECS,
+        )]);
+        mgr.handle_reload_config(exit_tx).await.map_err(Into::into)
+    }
+
+    fn alt_sleep_args() -> Vec<String> {
+        sleep_def_secs("_", test_helpers::ALT_TEST_SLEEP_SECS)
+            .config
+            .args
+    }
+
+    async fn cleanup_first_process(mgr: &ProcessManager) {
+        let procs = mgr.processes().await;
+        if let Some(pid) = procs.first().and_then(|p| p.pid()) {
+            test_helpers::cleanup_process(pid);
+        }
+    }
+
     #[tokio::test]
-    async fn test_reload_updates_modified_config() -> anyhow::Result<()> {
+    async fn test_reload_modified_01_result_contains_service() -> anyhow::Result<()> {
         let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
         let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
-        mgr.handle_start("svc-a", &exit_tx).await?;
-        let old_pid = {
-            let procs = mgr.processes().await;
-            assert!(procs[0].is_running());
-            let expected_args = sleep_def("_").config.args;
-            assert_eq!(procs[0].config().args, expected_args);
-            procs[0].pid().unwrap()
-        };
+        let result = reload_modified_running_svc_a(&mgr, &config_loader, &exit_tx).await?;
 
-        // Reload with modified config (different args)
-        config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
-        let result = mgr.handle_reload_config(&exit_tx).await?;
-        assert!(result.modified.contains(&"svc-a".to_string()));
-        assert!(result.added.is_empty());
-        assert!(result.removed.is_empty());
-        assert!(result.unchanged.is_empty());
+        assert!(
+            result.modified.contains(&"svc-a".to_string()),
+            "modified: {:?}",
+            result.modified
+        );
+        assert!(result.added.is_empty(), "added: {:?}", result.added);
+        assert!(result.removed.is_empty(), "removed: {:?}", result.removed);
+        assert!(
+            result.unchanged.is_empty(),
+            "unchanged: {:?}",
+            result.unchanged
+        );
 
-        // Config should be updated and process restarted with a new PID
+        cleanup_first_process(&mgr).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_02_updates_stored_config() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        reload_modified_running_svc_a(&mgr, &config_loader, &exit_tx).await?;
+
         let procs = mgr.processes().await;
-        let expected_args = sleep_def_secs("_", 120).config.args;
-        assert_eq!(procs[0].config().args, expected_args);
+        assert_eq!(
+            procs[0].config().args,
+            alt_sleep_args(),
+            "stored config args after reload"
+        );
+
+        cleanup_first_process(&mgr).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_modified_03_restarts_running_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        reload_modified_running_svc_a(&mgr, &config_loader, &exit_tx).await?;
+
+        let procs = mgr.processes().await;
         assert!(
             procs[0].is_running(),
-            "modified running process should be restarted"
+            "modified running process should be restarted (state={})",
+            procs[0].state()
         );
-        assert_ne!(
-            procs[0].pid().unwrap(),
-            old_pid,
-            "restarted process should have a different PID"
-        );
-
-        test_helpers::cleanup_process(procs[0].pid().unwrap());
+        let pid = procs[0].pid().expect("restarted process should have a PID");
+        test_helpers::cleanup_process(pid);
         Ok(())
     }
 
@@ -584,12 +1208,17 @@ mod tests {
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         // Don't start svc-a — leave it in Created state
-        config_loader.set(vec![sleep_def_secs("svc-a", 120)]);
+        config_loader.set(vec![sleep_def_secs(
+            "svc-a",
+            test_helpers::ALT_TEST_SLEEP_SECS,
+        )]);
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.modified.contains(&"svc-a".to_string()));
 
         let procs = mgr.processes().await;
-        let expected_args = sleep_def_secs("_", 120).config.args;
+        let expected_args = sleep_def_secs("_", test_helpers::ALT_TEST_SLEEP_SECS)
+            .config
+            .args;
         assert_eq!(procs[0].config().args, expected_args);
         assert!(
             !procs[0].is_running(),
@@ -609,6 +1238,280 @@ mod tests {
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(result.modified.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_invalid_config_is_catalogued_not_spawned() {
+        let catalog = LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "broken".to_string(),
+                path: PathBuf::from("/tmp/broken.yaml"),
+                error: "parsing /tmp/broken.yaml: missing field `command`".to_string(),
+            }],
+        };
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::with_catalog(catalog)),
+            uuid_gen(),
+        );
+        assert!(mgr.processes().await.is_empty());
+        let invalid = mgr.invalid_configs().await;
+        assert_eq!(invalid.len(), 1);
+        assert_eq!(invalid[0].name, "broken");
+        assert!(!invalid[0].error.is_empty());
+        assert!(!invalid[0].uuid.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_start_and_stop_reject_invalid_config() {
+        let catalog = LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "broken".to_string(),
+                path: PathBuf::from("/tmp/broken.yaml"),
+                error: "bad yaml".to_string(),
+            }],
+        };
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::with_catalog(catalog)),
+            uuid_gen(),
+        );
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let start_err = mgr.handle_start("broken", &exit_tx).await.unwrap_err();
+        assert_eq!(start_err.code(), tonic::Code::FailedPrecondition);
+        assert!(start_err.message().contains("invalid config"));
+        let stop_err = mgr.handle_stop("broken").await.unwrap_err();
+        assert_eq!(stop_err.code(), tonic::Code::FailedPrecondition);
+    }
+
+    #[tokio::test]
+    async fn test_reload_created_to_invalid_drops_managed_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let uuid = mgr.processes().await[0].uuid().to_owned();
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc-a".to_string(),
+                path: PathBuf::from("/tmp/svc-a.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(result.modified, vec!["svc-a".to_string()]);
+        assert!(mgr.processes().await.is_empty());
+        let invalid = mgr.invalid_configs().await;
+        assert_eq!(invalid[0].name, "svc-a");
+        assert_eq!(
+            invalid[0].uuid, uuid,
+            "a uuid a client already holds must keep resolving across the transition"
+        );
+        Ok(())
+    }
+
+    /// The stub must not take over the name while the child is still shutting
+    /// down: consumers read InvalidConfig as "nothing is running under it", so
+    /// publishing it early reports a live workload as gone.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_reload_to_invalid_publishes_only_once_the_child_is_down() -> anyhow::Result<()> {
+        use std::time::{Duration, Instant};
+
+        let dir = tempfile::tempdir()?;
+        let ready = dir.path().join("ready");
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ignores_stop_def(
+            "svc", 60, &ready,
+        )]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_start("svc", &exit_tx).await?;
+        let (pid, uuid) = {
+            let procs = mgr.processes().await;
+            (
+                procs[0].pid().expect("spawned pid"),
+                procs[0].uuid().to_owned(),
+            )
+        };
+        test_helpers::wait_for_file(&ready, Duration::from_secs(10)).await;
+
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc".to_string(),
+                path: PathBuf::from("/tmp/svc.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        let reloading = tokio::spawn({
+            let mgr = mgr.clone();
+            let exit_tx = exit_tx.clone();
+            async move { mgr.handle_reload_config(&exit_tx).await }
+        });
+
+        // The child ignores its graceful stop, so the reload sits in the stop
+        // wait long enough to read the state it publishes meanwhile.
+        let started = Instant::now();
+        loop {
+            let procs = tokio::time::timeout(Duration::from_secs(5), mgr.processes())
+                .await
+                .map_err(|_| anyhow::anyhow!("a read queued behind an in-flight reload"))?;
+            if procs[0].state() == ProcessState::Stopping {
+                assert_eq!(procs[0].uuid(), uuid);
+                assert!(
+                    mgr.invalid_configs().await.is_empty(),
+                    "InvalidConfig must wait for the child it replaces"
+                );
+                break;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "a read taken mid-reload should report Stopping, got {}",
+                procs[0].state()
+            );
+            drop(procs);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        reloading.abort();
+        test_helpers::cleanup_process(pid);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_invalid_to_valid_loads_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc-a".to_string(),
+                path: PathBuf::from("/tmp/svc-a.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        assert_eq!(mgr.invalid_configs().await.len(), 1);
+        config_loader.set(vec![ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }]);
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(result.modified, vec!["svc-a".to_string()]);
+        assert!(mgr.invalid_configs().await.is_empty());
+        assert_eq!(mgr.processes().await[0].name(), "svc-a");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_invalid_config_does_not_collide_with_runtime() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let mut config = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        config.auto_start = false;
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_create("svc".to_string(), config, &exit_tx)
+            .await?;
+        mgr.handle_start("svc", &exit_tx).await?;
+
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc".to_string(),
+                path: PathBuf::from("/tmp/svc.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        mgr.handle_reload_config(&exit_tx).await?;
+        assert!(
+            mgr.invalid_configs().await.is_empty(),
+            "invalid yaml must not hide a runtime process of the same name"
+        );
+        assert_eq!(mgr.processes().await.len(), 1);
+        mgr.handle_stop("svc").await?;
+
+        config_loader.set(vec![ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }]);
+        mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(
+            mgr.processes().await.len(),
+            1,
+            "recovered yaml must not spawn a second process with the runtime name"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_adds_catalog_entries_in_load_order() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![
+                ProcessDefinition {
+                    name: "alpha".to_string(),
+                    config: ProcessConfig {
+                        auto_start: false,
+                        command: "/bin/true".to_string(),
+                        ..Default::default()
+                    },
+                },
+                ProcessDefinition {
+                    name: "bravo".to_string(),
+                    config: ProcessConfig {
+                        auto_start: false,
+                        command: "/bin/true".to_string(),
+                        ..Default::default()
+                    },
+                },
+            ],
+            invalid: vec![
+                InvalidConfigEntry {
+                    name: "charlie".to_string(),
+                    path: PathBuf::from("/tmp/charlie.yaml"),
+                    error: "parse failed".to_string(),
+                },
+                InvalidConfigEntry {
+                    name: "delta".to_string(),
+                    path: PathBuf::from("/tmp/delta.yaml"),
+                    error: "parse failed".to_string(),
+                },
+            ],
+        });
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(
+            result.added,
+            vec![
+                "alpha".to_string(),
+                "bravo".to_string(),
+                "charlie".to_string(),
+                "delta".to_string()
+            ]
+        );
+        let procs = mgr.processes().await;
+        let proc_names: Vec<String> = procs.iter().map(|p| p.name().to_owned()).collect();
+        assert_eq!(proc_names, vec!["alpha", "bravo"]);
+        let invalid = mgr.invalid_configs().await;
+        let invalid_names: Vec<String> = invalid.iter().map(|p| p.name.clone()).collect();
+        assert_eq!(invalid_names, vec!["charlie", "delta"]);
         Ok(())
     }
 
@@ -749,18 +1652,10 @@ mod tests {
         mgr.handle_start("svc-a", &exit_tx).await?;
 
         // Create a runtime process
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        mgr.handle_create(
-            "runtime-svc".to_string(),
-            ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                auto_start: false,
-                ..Default::default()
-            },
-            &exit_tx,
-        )
-        .await?;
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.auto_start = false;
+        mgr.handle_create("runtime-svc".to_string(), cfg, &exit_tx)
+            .await?;
         mgr.handle_start("runtime-svc", &exit_tx).await?;
 
         // Reload removes svc-a but preserves runtime-svc
@@ -799,19 +1694,11 @@ mod tests {
     async fn test_create_includes_runtime_process_in_startup_order() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![sleep_def("svc-a")]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        mgr.handle_create(
-            "svc-b".to_string(),
-            ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                after: vec!["svc-a".to_string()],
-                auto_start: false,
-                ..Default::default()
-            },
-            &exit_tx,
-        )
-        .await?;
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.after = vec!["svc-a".to_string()];
+        cfg.auto_start = false;
+        mgr.handle_create("svc-b".to_string(), cfg, &exit_tx)
+            .await?;
 
         let order = mgr.startup_order.read().await;
         let procs = mgr.processes().await;
@@ -828,58 +1715,45 @@ mod tests {
     async fn test_create_auto_start_spawns_process() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        mgr.handle_create(
-            "auto-svc".to_string(),
-            ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                auto_start: true,
-                ..Default::default()
-            },
-            &exit_tx,
-        )
-        .await?;
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.auto_start = true;
+        mgr.handle_create("auto-svc".to_string(), cfg, &exit_tx)
+            .await?;
 
-        {
+        let pid = {
             let procs = mgr.processes().await;
             assert_eq!(procs.len(), 1);
             assert!(
                 procs[0].is_running(),
                 "process with auto_start=true should be running after create"
             );
-            assert!(
-                procs[0].pid().is_some(),
-                "running process should have a PID"
-            );
-        }
-
-        mgr.shutdown().await;
+            procs[0].pid().expect("running process should have a PID")
+        };
+        test_helpers::cleanup_process(pid);
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_create_auto_start_false_stays_created() -> anyhow::Result<()> {
+    async fn test_create_auto_start_false_is_skipped() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        mgr.handle_create(
-            "manual-svc".to_string(),
-            ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                auto_start: false,
-                ..Default::default()
-            },
-            &exit_tx,
-        )
-        .await?;
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.auto_start = false;
+        mgr.handle_create("manual-svc".to_string(), cfg, &exit_tx)
+            .await?;
 
         let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
         assert!(
             !procs[0].is_running(),
             "process with auto_start=false should not be running after create"
+        );
+        assert_eq!(procs[0].state(), ProcessState::Skipped);
+        assert!(
+            procs[0]
+                .skip_reasons()
+                .iter()
+                .any(|r| r == ManagedProcess::SKIP_REASON_AUTO_START_FALSE)
         );
         Ok(())
     }
@@ -915,19 +1789,11 @@ mod tests {
     async fn test_create_auto_start_condition_not_met() -> anyhow::Result<()> {
         let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        mgr.handle_create(
-            "cond-svc".to_string(),
-            ProcessConfig {
-                command: cmd.to_string(),
-                args,
-                auto_start: true,
-                condition_path_exists: Some("/nonexistent/path/that/should/not/exist".to_string()),
-                ..Default::default()
-            },
-            &exit_tx,
-        )
-        .await?;
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.auto_start = true;
+        cfg.condition_path_exists = Some("/nonexistent/path/that/should/not/exist".to_string());
+        mgr.handle_create("cond-svc".to_string(), cfg, &exit_tx)
+            .await?;
 
         let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
@@ -936,6 +1802,246 @@ mod tests {
             "process should not start when condition_path_exists is not met"
         );
         Ok(())
+    }
+
+    /// Runtime-created rows are not reload candidates. When their path hold
+    /// opens, reload must still clear the stale `path_missing` label.
+    #[tokio::test]
+    async fn test_reload_clears_skip_reasons_on_runtime_skipped_process() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let gate = dir.path().join("ready");
+        let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.auto_start = true;
+        cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+        mgr.handle_create("runtime-cond".to_string(), cfg, &exit_tx)
+            .await?;
+
+        {
+            let procs = mgr.processes().await;
+            assert_eq!(procs[0].state(), ProcessState::Skipped);
+            assert_eq!(
+                procs[0].skip_reasons(),
+                &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()]
+            );
+        }
+
+        std::fs::write(&gate, b"")?;
+        mgr.handle_reload_config(&exit_tx).await?;
+
+        let procs = mgr.processes().await;
+        assert_eq!(
+            procs[0].state(),
+            ProcessState::Skipped,
+            "runtime-only rows stay Skipped: reload does not auto-start them"
+        );
+        assert!(
+            procs[0].skip_reasons().is_empty(),
+            "cleared holds must not keep a stale path_missing label"
+        );
+        Ok(())
+    }
+
+    /// A cycle introduced by reload must keep its members from starting, the
+    /// same way one present at boot does. The start pass therefore runs after
+    /// the order is resolved, since the resolver is what excludes them.
+    #[tokio::test]
+    async fn test_reload_does_not_start_added_processes_in_a_cycle() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        let mut b = sleep_def("svc-b");
+        let mut c = sleep_def("svc-c");
+        b.config.after = vec!["svc-c".to_string()];
+        c.config.after = vec!["svc-b".to_string()];
+        config_loader.set(vec![sleep_def("svc-a"), b, c]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(
+            result.added.contains(&"svc-b".to_string())
+                && result.added.contains(&"svc-c".to_string()),
+            "added: {:?}",
+            result.added
+        );
+
+        let procs = mgr.processes().await;
+        for proc in procs.iter().filter(|p| p.name() != "svc-a") {
+            assert!(
+                !proc.is_running(),
+                "{} is in a cycle, so reload must not start it",
+                proc.name()
+            );
+            assert_eq!(proc.state(), ProcessState::Skipped);
+            assert!(
+                proc.skip_reasons()
+                    .iter()
+                    .any(|r| r == ManagedProcess::SKIP_REASON_ORDERING),
+                "{} should carry ordering, got {:?}",
+                proc.name(),
+                proc.skip_reasons()
+            );
+        }
+        Ok(())
+    }
+
+    /// Modified running processes pulled into a cycle must not restart.
+    #[tokio::test]
+    async fn test_reload_does_not_restart_modified_process_in_a_cycle() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.handle_start("svc-a", &exit_tx).await?;
+        assert!(mgr.processes().await[0].is_running());
+
+        let mut a = sleep_def_secs("svc-a", test_helpers::ALT_TEST_SLEEP_SECS);
+        let mut b = sleep_def("svc-b");
+        a.config.after = vec!["svc-b".to_string()];
+        b.config.after = vec!["svc-a".to_string()];
+        config_loader.set(vec![a, b]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(
+            result.modified.contains(&"svc-a".to_string()),
+            "modified: {:?}",
+            result.modified
+        );
+        assert!(
+            result.added.contains(&"svc-b".to_string()),
+            "added: {:?}",
+            result.added
+        );
+
+        let procs = mgr.processes().await;
+        for proc in procs.iter() {
+            assert!(
+                !proc.is_running(),
+                "{} is in a cycle, so reload must not (re)start it",
+                proc.name()
+            );
+            assert!(
+                proc.skip_reasons()
+                    .iter()
+                    .any(|r| r == ManagedProcess::SKIP_REASON_ORDERING),
+                "{} should carry ordering, got {:?}",
+                proc.name(),
+                proc.skip_reasons()
+            );
+        }
+        assert_eq!(
+            procs.iter().find(|p| p.name() == "svc-a").unwrap().state(),
+            ProcessState::Stopped,
+            "svc-a was running, so the cycle hold keeps it Stopped with labels"
+        );
+        assert_eq!(
+            procs.iter().find(|p| p.name() == "svc-b").unwrap().state(),
+            ProcessState::Skipped,
+            "svc-b never started, so the cycle hold rests in Skipped"
+        );
+        Ok(())
+    }
+
+    /// Modified restart waits for a newly added `after` predecessor.
+    #[tokio::test]
+    async fn test_reload_restarts_modified_process_after_new_predecessor() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("svc-a")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.handle_start("svc-a", &exit_tx).await?;
+        assert!(mgr.processes().await[0].is_running());
+
+        let mut a = sleep_def_secs("svc-a", test_helpers::ALT_TEST_SLEEP_SECS);
+        a.config.after = vec!["svc-b".to_string()];
+        config_loader.set(vec![a, sleep_def("svc-b")]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.modified.contains(&"svc-a".to_string()));
+        assert!(result.added.contains(&"svc-b".to_string()));
+
+        let procs = mgr.processes().await;
+        let a = procs.iter().find(|p| p.name() == "svc-a").unwrap();
+        let b = procs.iter().find(|p| p.name() == "svc-b").unwrap();
+        assert!(
+            b.is_running(),
+            "new predecessor must start before the modified restart"
+        );
+        assert!(
+            a.is_running(),
+            "modified process must restart once its predecessor is in order"
+        );
+
+        for proc in procs.iter() {
+            if let Some(pid) = proc.pid() {
+                test_helpers::cleanup_process(pid);
+            }
+        }
+        Ok(())
+    }
+
+    /// `handle_create` resolves the order before its start pass for the same
+    /// reason, so a runtime process whose `after` cannot be satisfied rests in
+    /// `Skipped` rather than starting.
+    #[tokio::test]
+    async fn test_create_in_a_dependency_cycle_is_skipped() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.after = vec!["self-dep".to_string()];
+        mgr.handle_create("self-dep".to_string(), cfg, &exit_tx)
+            .await?;
+
+        let procs = mgr.processes().await;
+        assert!(
+            !procs[0].is_running(),
+            "a self-dependency is a cycle, so the create must not start it"
+        );
+        assert_eq!(procs[0].state(), ProcessState::Skipped);
+        assert_eq!(
+            procs[0].skip_reasons(),
+            &[ManagedProcess::SKIP_REASON_ORDERING.to_string()]
+        );
+        Ok(())
+    }
+
+    /// Finalization must leave the labels of a row the start pass just ruled on
+    /// alone: a hold that opens right after the decision would otherwise erase
+    /// the reason the row was skipped for. Rows nobody decided are still
+    /// refreshed, so a stale reason cannot outlive its hold.
+    #[test]
+    fn test_finalize_keeps_decided_labels_and_refreshes_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("ready");
+        let uuids = uuid_gen();
+        let mut procs: Vec<ManagedProcess> = ["decided", "untouched"]
+            .iter()
+            .map(|name| {
+                let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+                cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+                ManagedProcess::new_config((*name).to_string(), uuids.generate(), cfg)
+            })
+            .collect();
+        for proc in &mut procs {
+            let holds = proc.evaluate_start_pass();
+            proc.record_start_hold(holds, &[]);
+        }
+
+        // The hold opens after both decisions, as it could between a start
+        // pass and its finalizer.
+        std::fs::write(&gate, b"").unwrap();
+        finalize_start_holds(&mut procs, &[0, 1], &HashSet::from([0]));
+
+        assert_eq!(procs[0].state(), ProcessState::Skipped);
+        assert_eq!(
+            procs[0].skip_reasons(),
+            &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()],
+            "the decision owns the labels of the row it declined"
+        );
+        assert_eq!(procs[1].state(), ProcessState::Skipped);
+        assert!(
+            procs[1].skip_reasons().is_empty(),
+            "a row no decision claimed is refreshed, got {:?}",
+            procs[1].skip_reasons()
+        );
     }
 
     #[tokio::test]
@@ -951,16 +2057,12 @@ mod tests {
 
         // Reload with a new process that has an after-dependency, which
         // forces a non-alphabetical order (svc-b before svc-api).
-        let (cmd, args) = test_helpers::sleep_cmd(60);
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.after = vec!["svc-b".to_string()];
         config_loader.set(vec![
             ProcessDefinition {
                 name: "svc-api".to_string(),
-                config: ProcessConfig {
-                    command: cmd.to_string(),
-                    args,
-                    after: vec!["svc-b".to_string()],
-                    ..Default::default()
-                },
+                config: cfg,
             },
             sleep_def("svc-b"),
         ]);
@@ -985,10 +2087,7 @@ mod tests {
             "aabbccdd-1111-0000-0000-000000000000",
             "aabbccdd-2222-0000-0000-000000000000",
         ]));
-        let mgr = ProcessManager::new(
-            loader(vec![sleep_def("svc-a"), sleep_def("svc-b")]),
-            uuid_gen,
-        );
+        let mgr = ProcessManager::new(loader(vec![true_def("svc-a"), true_def("svc-b")]), uuid_gen);
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
         let err: Status = mgr.handle_start("aabbccdd", &exit_tx).await.unwrap_err();
@@ -999,12 +2098,744 @@ mod tests {
             err.message()
         );
 
-        // A longer, unambiguous prefix should resolve correctly.
-        mgr.handle_start("aabbccdd-1", &exit_tx)
+        // A longer, unambiguous prefix should resolve through handle_start.
+        // Use an immediate-exit child so this test does not depend on ping stop
+        // behavior on Windows (see test_resolve_index_ambiguous_uuid_prefix).
+        let start = mgr
+            .handle_start("aabbccdd-1", &exit_tx)
             .await
             .expect("unambiguous prefix should resolve");
+        assert_eq!(start.uuid, "aabbccdd-1111-0000-0000-000000000000");
+    }
 
-        // Clean up the spawned process.
-        let _: Result<_, _> = mgr.handle_stop("aabbccdd-1").await;
+    #[cfg(not(windows))]
+    mod config_gate {
+        use super::*;
+        use crate::config::RestartPolicy;
+        use crate::config_gate::{ConditionConfigFile, TestEnvGuard, test_env_guard};
+        use std::io::Write;
+
+        /// Every test in this module evaluates gates, which read the live process
+        /// environment, so each one needs the shared guard that excludes the
+        /// `config_gate` tests mutating `DD_*` values.
+        fn gate_env() -> (TestEnvGuard, tempfile::TempDir) {
+            (test_env_guard(), tempfile::tempdir().unwrap())
+        }
+
+        fn gate_on_process_collection(agent_yaml: &str) -> Vec<ConditionConfigFile> {
+            vec![ConditionConfigFile {
+                path: agent_yaml.to_string(),
+                keys: vec!["process_config.process_collection.enabled".into()],
+            }]
+        }
+
+        fn gated_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+            gated_sleep_def_secs(name, agent_yaml, test_helpers::TEST_SLEEP_SECS)
+        }
+
+        fn gated_sleep_def_secs(name: &str, agent_yaml: &str, secs: u32) -> ProcessDefinition {
+            let (cmd, args) = test_helpers::sleep_cmd(secs);
+            ProcessDefinition {
+                name: name.to_string(),
+                config: ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    condition_config_any: gate_on_process_collection(agent_yaml),
+                    ..Default::default()
+                },
+            }
+        }
+
+        fn gated_on_failure_sleep_def(name: &str, agent_yaml: &str) -> ProcessDefinition {
+            let (cmd, args) = test_helpers::sleep_cmd(test_helpers::TEST_SLEEP_SECS);
+            ProcessDefinition {
+                name: name.to_string(),
+                config: ProcessConfig {
+                    command: cmd.to_string(),
+                    args,
+                    restart: RestartPolicy::OnFailure,
+                    restart_sec: Some(2.0),
+                    condition_config_any: gate_on_process_collection(agent_yaml),
+                    ..Default::default()
+                },
+            }
+        }
+
+        /// `container_collection` and `process_discovery` both default to true
+        /// and both enable process collection, so they have to be pinned false
+        /// or the gate is open regardless of the key under test.
+        fn write_agent_yaml(dir: &std::path::Path, process_collection_enabled: bool) -> String {
+            let path = dir.join("datadog.yaml");
+            let body = format!(
+                "process_config:\n  process_collection:\n    enabled: {process_collection_enabled}\n  container_collection:\n    enabled: false\n  process_discovery:\n    enabled: false\n"
+            );
+            let mut file = std::fs::File::create(&path).unwrap();
+            file.write_all(body.as_bytes()).unwrap();
+            path.to_string_lossy().into_owned()
+        }
+
+        fn exit_status(success: bool) -> std::process::ExitStatus {
+            let (cmd, args) = if success {
+                test_helpers::true_cmd()
+            } else {
+                test_helpers::false_cmd()
+            };
+            std::process::Command::new(cmd)
+                .args(args)
+                .status()
+                .expect("shell builtin should run")
+        }
+
+        /// Kills the child and reports an unsuccessful exit to the manager,
+        /// which is what a dead child looks like from `run`'s point of view.
+        ///
+        /// The reported status is a plain non-zero exit, so these tests land in
+        /// `Failed`, not `Crashed`. The gate accounting under test is the same
+        /// for both, and keeping the synthetic status decoupled from how the
+        /// child actually died is what makes the result identical on Windows.
+        async fn crash(mgr: &ProcessManager, name: &str, restart_tx: &mpsc::Sender<String>) {
+            let pid = mgr.processes().await[0]
+                .pid()
+                .expect("process should be running");
+            test_helpers::cleanup_process(pid);
+            let event = ExitEvent {
+                name: name.to_string(),
+                pid,
+                status: exit_status(false),
+            };
+            mgr.handle_exit(event, restart_tx).await;
+        }
+
+        async fn assert_stranded_by_gate(mgr: &ProcessManager, expected: ProcessState) {
+            let procs = mgr.processes().await;
+            assert_eq!(procs[0].state(), expected);
+            assert!(
+                procs[0].restart_blocked_by_conditions(),
+                "the closed gate is the reason the respawn was skipped, and reload needs it recorded"
+            );
+        }
+
+        #[tokio::test]
+        async fn test_auto_start_runs_when_config_gate_open() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "process should auto-start when condition_config_any is met"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_auto_start_skips_when_config_gate_closed() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            let procs = mgr.processes().await;
+            assert!(
+                !procs[0].is_running(),
+                "process should not auto-start when condition_config_any is not met"
+            );
+            assert_eq!(
+                procs[0].state(),
+                ProcessState::Skipped,
+                "a gated process that never started is Skipped"
+            );
+            assert!(
+                procs[0]
+                    .skip_reasons()
+                    .iter()
+                    .any(|r| r == ManagedProcess::SKIP_REASON_CONFIG_GATE)
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_on_failure_restart_skips_when_config_gate_closes() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_on_failure_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            let pid = {
+                let procs = mgr.processes().await;
+                assert!(procs[0].is_running());
+                procs[0].pid().unwrap()
+            };
+
+            // The gate closes between the exit and the queued restart firing.
+            write_agent_yaml(dir.path(), false);
+            {
+                let mut procs = mgr.processes.write().await;
+                let (cmd, args) = test_helpers::false_cmd();
+                let status = std::process::Command::new(cmd).args(args).status()?;
+                procs[0].set_last_status(status);
+            }
+            test_helpers::cleanup_process(pid);
+
+            mgr.complete_restart("gated-svc", &exit_tx).await;
+            assert!(
+                !mgr.processes().await[0].is_running(),
+                "on-failure restart should skip when the config gate is closed"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_starts_created_process_when_gate_opens() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
+                "gated-svc",
+                &yaml,
+            )]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(!mgr.processes().await[0].is_running());
+
+            // Only the gated yaml changes; the process config is untouched.
+            write_agent_yaml(dir.path(), true);
+            let result = mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                result.unchanged.contains(&"gated-svc".to_string()),
+                "process config did not change, so reload should report it unchanged (modified: {:?})",
+                result.modified
+            );
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "reload should start a Skipped process whose gate has opened"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_does_not_start_cycle_skipped_process() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let mut a = gated_sleep_def("svc-a", &yaml);
+            let mut b = gated_sleep_def("svc-b", &yaml);
+            a.config.after = vec!["svc-b".to_string()];
+            b.config.after = vec!["svc-a".to_string()];
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![a, b]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            let procs = mgr.processes().await;
+            assert!(
+                procs.iter().all(|p| !p.is_running()),
+                "reload must not start processes the dependency resolver excluded for a cycle"
+            );
+            for proc in procs.iter() {
+                assert_eq!(proc.state(), ProcessState::Skipped);
+                assert!(
+                    proc.skip_reasons()
+                        .iter()
+                        .any(|r| r == ManagedProcess::SKIP_REASON_ORDERING),
+                    "{} should carry ordering, got {:?}",
+                    proc.name(),
+                    proc.skip_reasons()
+                );
+            }
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_does_not_restart_stopped_process() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
+                "gated-svc",
+                &yaml,
+            )]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(mgr.processes().await[0].is_running());
+            mgr.handle_stop("gated-svc").await?;
+
+            let result = mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(result.unchanged.contains(&"gated-svc".to_string()));
+            let procs = mgr.processes().await;
+            assert!(
+                !procs[0].is_running(),
+                "reload must not resurrect a process an operator stopped (state={})",
+                procs[0].state()
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_manual_start_bypasses_closed_gate() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), false);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(!mgr.processes().await[0].is_running());
+
+            // An explicit operator command is not a boot-time policy decision.
+            mgr.handle_start("gated-svc", &exit_tx).await?;
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "an explicit start should run even with a closed gate"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        // Recovery: a gate that closes while the process is restarting strands
+        // it outside `Created`, and reopening the gate has to bring it back.
+        // One test per site that can skip the respawn.
+
+        #[tokio::test]
+        async fn test_reload_restarts_process_stranded_at_exit() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_on_failure_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+
+            mgr.start(&exit_tx).await;
+            assert!(mgr.processes().await[0].is_running());
+
+            // The gate closes before the crash is handled, so `handle_restart`
+            // skips without queueing a backoff or recording the restart.
+            write_agent_yaml(dir.path(), false);
+            crash(&mgr, "gated-svc", &restart_tx).await;
+            assert!(
+                restart_rx.try_recv().is_err(),
+                "a closed gate must not queue a restart"
+            );
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                0,
+                "a skipped restart must not consume burst budget"
+            );
+
+            write_agent_yaml(dir.path(), true);
+            let result = mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(result.unchanged.contains(&"gated-svc".to_string()));
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "reload must restart a process the closed gate stranded at exit"
+            );
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "recovering an exit-time skip owes the restart accounting the gate deferred"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_refreshes_skip_reasons_on_stranded_process() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let config_loader =
+                Arc::new(MutableConfigLoader::new(vec![gated_on_failure_sleep_def(
+                    "gated-svc",
+                    &yaml,
+                )]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+
+            mgr.start(&exit_tx).await;
+            write_agent_yaml(dir.path(), false);
+            crash(&mgr, "gated-svc", &restart_tx).await;
+            assert!(restart_rx.try_recv().is_err());
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+            assert_eq!(
+                mgr.processes().await[0].skip_reasons(),
+                &[ManagedProcess::SKIP_REASON_CONFIG_GATE.to_string()]
+            );
+
+            // The gate opens, but the process YAML now requires a missing path.
+            // Reload must not respawn, and must not keep reporting config_gate.
+            write_agent_yaml(dir.path(), true);
+            let mut next = gated_on_failure_sleep_def("gated-svc", &yaml);
+            next.config.condition_config_any.clear();
+            next.config.condition_path_exists =
+                Some("/nonexistent/path/that/should/not/exist".to_string());
+            config_loader.set(vec![next]);
+            let result = mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(result.modified.contains(&"gated-svc".to_string()));
+            let procs = mgr.processes().await;
+            assert_eq!(procs[0].state(), ProcessState::Failed);
+            assert!(
+                !procs[0].is_running(),
+                "a missing path must still decline the recovered spawn"
+            );
+            assert_eq!(
+                procs[0].skip_reasons(),
+                &[ManagedProcess::SKIP_REASON_PATH_MISSING.to_string()]
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_restarts_process_stranded_during_backoff() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_on_failure_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+
+            mgr.start(&exit_tx).await;
+
+            // The crash is handled with the gate still open, so `handle_restart`
+            // records the restart and queues it. The gate then closes before the
+            // backoff fires.
+            crash(&mgr, "gated-svc", &restart_tx).await;
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "the exit-time decision recorded this restart"
+            );
+            write_agent_yaml(dir.path(), false);
+            mgr.complete_restart("gated-svc", &exit_tx).await;
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "reload must restart a process whose gate closed during the backoff"
+            );
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "this restart was already accounted for at exit, so recovery must not count it twice"
+            );
+
+            // The queued restart is dropped rather than delivered, which is the
+            // condition this recovery exists to undo.
+            let _ = restart_rx.try_recv();
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        /// The restart that fills the burst window is recorded before the backoff
+        /// runs. Closing the gate during that delay must not turn the admission
+        /// into a refusal: the slot was spent on this restart, and `is_burst_limited`
+        /// is true the moment it is recorded.
+        #[tokio::test]
+        async fn test_reload_restarts_backoff_skip_that_filled_the_burst() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mut def = gated_on_failure_sleep_def("gated-svc", &yaml);
+            def.config.start_limit_burst = Some(1);
+            def.config.start_limit_interval_sec = Some(3600);
+            let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+
+            mgr.start(&exit_tx).await;
+
+            crash(&mgr, "gated-svc", &restart_tx).await;
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "this crash is the one restart the burst allows, so it is recorded"
+            );
+            write_agent_yaml(dir.path(), false);
+            mgr.complete_restart("gated-svc", &exit_tx).await;
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "recovery must spawn a restart the burst limit already admitted"
+            );
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "the restart was recorded at exit, so recovery must not count it again"
+            );
+
+            let _ = restart_rx.try_recv();
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_restarts_process_stranded_by_its_own_reload() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let config_loader = Arc::new(MutableConfigLoader::new(vec![gated_sleep_def(
+                "gated-svc",
+                &yaml,
+            )]));
+            let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            mgr.start(&exit_tx).await;
+            assert!(mgr.processes().await[0].is_running());
+
+            // A config change and a gate close land in the same reload: the
+            // process is stopped for the restart, then the gate blocks it.
+            write_agent_yaml(dir.path(), false);
+            config_loader.set(vec![gated_sleep_def_secs(
+                "gated-svc",
+                &yaml,
+                test_helpers::ALT_TEST_SLEEP_SECS,
+            )]);
+            let result = mgr.handle_reload_config(&exit_tx).await?;
+            assert!(result.modified.contains(&"gated-svc".to_string()));
+            assert_stranded_by_gate(&mgr, ProcessState::Stopped).await;
+
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "reload must restart a process its own earlier reload left Stopped behind a gate"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_gate_flap_recovers_manually_started_no_auto_start_process()
+        -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mut def = gated_on_failure_sleep_def("manual-svc", &yaml);
+            def.config.auto_start = false;
+            let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+
+            mgr.start(&exit_tx).await;
+            assert_eq!(mgr.processes().await[0].state(), ProcessState::Skipped);
+
+            mgr.handle_start("manual-svc", &exit_tx).await?;
+            write_agent_yaml(dir.path(), false);
+            crash(&mgr, "manual-svc", &restart_tx).await;
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+            assert_eq!(
+                mgr.processes().await[0].skip_reasons(),
+                &[ManagedProcess::SKIP_REASON_CONFIG_GATE.to_string()],
+                "auto_start_false is a start-pass label, not why this respawn was declined"
+            );
+
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "recovery must use may_respawn, so auto_start=false cannot strand a process an operator started"
+            );
+
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        // Negatives: the other routes into a terminal state reach the same
+        // guard, and reload must leave every one of them alone. Together with
+        // `test_reload_does_not_restart_stopped_process` above, which covers an
+        // operator stop, these are what keep the recovery narrow.
+
+        #[tokio::test]
+        async fn test_reload_does_not_rerun_completed_one_shot() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let (cmd, args) = test_helpers::true_cmd();
+            let mut config = test_helpers::make_config(cmd, args);
+            config.condition_config_any = gate_on_process_collection(&yaml);
+            let mgr = ProcessManager::new(
+                loader(vec![ProcessDefinition {
+                    name: "one-shot".to_string(),
+                    config,
+                }]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+
+            mgr.start(&exit_tx).await;
+            let pid = mgr.processes().await[0].pid().unwrap();
+            let event = ExitEvent {
+                name: "one-shot".to_string(),
+                pid,
+                status: exit_status(true),
+            };
+            mgr.handle_exit(event, &restart_tx).await;
+            assert_eq!(mgr.processes().await[0].state(), ProcessState::Exited);
+
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            let procs = mgr.processes().await;
+            assert_eq!(
+                procs[0].state(),
+                ProcessState::Exited,
+                "a restart=never one-shot that ran to completion must not re-run on reload"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_does_not_bypass_burst_limit() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mut def = gated_on_failure_sleep_def("crasher", &yaml);
+            def.config.start_limit_burst = Some(1);
+            def.config.start_limit_interval_sec = Some(3600);
+            let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+
+            // The gate stays open throughout: the burst limit is the only
+            // reason the second crash does not restart.
+            mgr.start(&exit_tx).await;
+            crash(&mgr, "crasher", &restart_tx).await;
+            mgr.handle_start("crasher", &exit_tx).await?;
+            crash(&mgr, "crasher", &restart_tx).await;
+
+            {
+                let procs = mgr.processes().await;
+                assert_eq!(procs[0].state(), ProcessState::Failed);
+                assert!(
+                    !procs[0].restart_blocked_by_conditions(),
+                    "the burst limit is not a condition skip"
+                );
+            }
+
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                !mgr.processes().await[0].is_running(),
+                "reload must not restart a crash loop the burst limit stopped"
+            );
+            Ok(())
+        }
+
+        /// A binary that spawns only once it is written, so that a reload
+        /// retrying the spawn is visible as a `Running` process. Asserting
+        /// only that the process is not running would pass either way: a
+        /// retried bad spawn lands back in `Failed`.
+        fn write_late_binary(path: &std::path::Path) {
+            use std::os::unix::fs::PermissionsExt;
+            let (cmd, args) = test_helpers::sleep_cmd(test_helpers::TEST_SLEEP_SECS);
+            std::fs::write(path, format!("#!/bin/sh\nexec {cmd} {}\n", args.join(" "))).unwrap();
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        /// The gate check runs before the burst limit, so a crash behind a closed
+        /// gate consumes no budget and records no restart. Recovery must therefore
+        /// re-check the budget itself, or a gate flap hands back a restart the
+        /// burst limit had already spent.
+        #[tokio::test]
+        async fn test_reload_does_not_bypass_burst_limit_after_gate_flap() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mut def = gated_on_failure_sleep_def("crasher", &yaml);
+            def.config.start_limit_burst = Some(1);
+            def.config.start_limit_interval_sec = Some(3600);
+            let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+
+            // One crash with the gate open spends the whole budget.
+            mgr.start(&exit_tx).await;
+            crash(&mgr, "crasher", &restart_tx).await;
+            assert_eq!(mgr.processes().await[0].restart_count(), 1);
+
+            // The next crash finds the gate closed, so it is attributed to the
+            // gate and leaves the spent budget untouched.
+            mgr.handle_start("crasher", &exit_tx).await?;
+            write_agent_yaml(dir.path(), false);
+            crash(&mgr, "crasher", &restart_tx).await;
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                !mgr.processes().await[0].is_running(),
+                "recovery must not hand back a restart the burst limit already refused"
+            );
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_reload_does_not_restart_after_spawn_failure() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let binary = dir.path().join("late-binary");
+            let mut def = gated_on_failure_sleep_def("broken", &yaml);
+            def.config.command = binary.to_string_lossy().into_owned();
+            def.config.args = vec![];
+            let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+            // The gate is open, so the failure is the spawn itself.
+            mgr.start(&exit_tx).await;
+            {
+                let procs = mgr.processes().await;
+                assert_eq!(procs[0].state(), ProcessState::Failed);
+                assert!(!procs[0].restart_blocked_by_conditions());
+            }
+
+            write_late_binary(&binary);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            let procs = mgr.processes().await;
+            assert!(
+                !procs[0].is_running(),
+                "reload must not hot-loop a binary that cannot be spawned"
+            );
+            Ok(())
+        }
     }
 }

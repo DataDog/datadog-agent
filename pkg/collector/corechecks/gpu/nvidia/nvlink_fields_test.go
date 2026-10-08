@@ -209,7 +209,7 @@ func TestNVLinkFieldsCollectorAddsTotals(t *testing.T) {
 	require.Equal(t, 1, rawTXTotalCount, "expected exactly one raw TX total metric")
 }
 
-func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
+func TestNVLinkFieldsCollectorSkipsUnsupportedFieldEnrollment(t *testing.T) {
 	var requestedFieldsByScope = make(map[uint32][]uint32)
 	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
 		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
@@ -245,6 +245,12 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	for _, request := range collector.requests {
+		require.NotEqual(t, uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS), request.field.FieldId,
+			"unsupported fields should not be enrolled")
+	}
+
 	collected, err := collector.Collect()
 	require.NoError(t, err)
 
@@ -253,7 +259,89 @@ func TestNVLinkFieldsCollectorDiscardsUnsupportedFieldMetrics(t *testing.T) {
 	}
 
 	require.Contains(t, requestedFieldsByScope[0], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
-	require.NotContains(t, requestedFieldsByScope[1], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
+	require.Contains(t, requestedFieldsByScope[1], uint32(nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS))
+}
+
+func TestNVLinkFieldsCollectorInactivePortsDoNotRemoveActivePortMetrics(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
+			for i := range fv {
+				if fv[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+					testutil.ApplyMockFieldValue(&fv[i], testutil.NewFieldValue(6))
+					continue
+				}
+				if fv[i].ScopeId >= 4 {
+					fv[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
+					continue
+				}
+				testutil.ApplyMockFieldValue(&fv[i], testutil.DefaultFieldValues[fv[i].FieldId])
+			}
+			return nvml.SUCCESS
+		}
+	}), testutil.WithNVLinkLinkCount(6))
+
+	collector, err := newNVLinkFieldsCollectorWithMetrics(device, map[uint32]nvlinkFieldValueMetric{
+		nvml.FI_DEV_NVLINK_GET_SPEED: {
+			name:         "nvlink.speed",
+			fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED,
+			priority:     MediumLow,
+			metricType:   metrics.GaugeType,
+		},
+	})
+	require.NoError(t, err)
+
+	collected, err := collector.Collect()
+	require.NoError(t, err)
+
+	speedMetrics := 0
+	for _, metric := range requireMetrics(t, collected) {
+		if metric.Name == "nvlink.speed" {
+			speedMetrics++
+		}
+	}
+	require.Equal(t, 4, speedMetrics, "active NVLink ports should still emit nvlink.speed")
+}
+
+func TestNVLinkFieldsCollectorEnrollsFieldsDespiteTransientDiscoveryErrors(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetFieldValuesFunc = func(fv []nvml.FieldValue) nvml.Return {
+			for i := range fv {
+				if fv[i].FieldId == nvml.FI_DEV_NVLINK_LINK_COUNT {
+					testutil.ApplyMockFieldValue(&fv[i], testutil.NewFieldValue(2))
+					continue
+				}
+				if fv[i].ScopeId == 1 && fv[i].FieldId == nvml.FI_DEV_NVLINK_GET_SPEED {
+					fv[i].NvmlReturn = uint32(nvml.ERROR_UNKNOWN)
+					continue
+				}
+				testutil.ApplyMockFieldValue(&fv[i], testutil.DefaultFieldValues[fv[i].FieldId])
+			}
+			return nvml.SUCCESS
+		}
+	}), testutil.WithNVLinkLinkCount(2))
+
+	collector, err := newNVLinkFieldsCollectorWithMetrics(device, map[uint32]nvlinkFieldValueMetric{
+		nvml.FI_DEV_NVLINK_GET_SPEED: {
+			name:         "nvlink.speed",
+			fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED,
+			priority:     MediumLow,
+			metricType:   metrics.GaugeType,
+		},
+	})
+	require.NoError(t, err)
+
+	var enrolledPort2Speed bool
+	for _, request := range collector.requests {
+		if request.field.FieldId == nvml.FI_DEV_NVLINK_GET_SPEED && request.field.ScopeId == 1 {
+			enrolledPort2Speed = true
+			require.Contains(t, request.ports, 2)
+		}
+	}
+	require.True(t, enrolledPort2Speed, "port 2 speed should be enrolled despite transient discovery error")
+
+	_, err = collector.Collect()
+	require.Error(t, err)
+	require.ErrorContains(t, err, nvml.ErrorString(nvml.ERROR_UNKNOWN))
 }
 
 func TestNVLinkFieldsCollectorReturnsErrorsForUnsupportedCollectedFields(t *testing.T) {
@@ -332,7 +420,7 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 			}
 			device := setupMockDevice(t, opts...)
 
-			collector, err := newNVLinkFieldsCollector(device, nil)
+			collector, err := newNVLinkFieldsCollector(device, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			collected, err := collector.Collect()
@@ -357,21 +445,156 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 	}
 }
 
+func TestFieldsCollector_NvlinkErrorCounterPriority(t *testing.T) {
+	tests := []struct {
+		name             string
+		metricName       string
+		unsupportedField uint32
+		expectPriority   MetricPriority
+		expectValue      float64
+	}{
+		{
+			name:           "replay newer wins after dedup",
+			metricName:     "nvlink.errors.replay",
+			expectPriority: MediumLow,
+			expectValue:    float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_ERROR_DL_REPLAY].Value),
+		},
+		{
+			name:             "replay legacy selected when newer unsupported",
+			metricName:       "nvlink.errors.replay",
+			unsupportedField: nvml.FI_DEV_NVLINK_ERROR_DL_REPLAY,
+			expectPriority:   Low,
+			expectValue:      float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL].Value),
+		},
+		{
+			name:           "crc.flit newer wins after dedup",
+			metricName:     "nvlink.errors.crc.flit",
+			expectPriority: MediumLow,
+			expectValue:    float64(testutil.DefaultFieldValues[nvml.FI_DEV_NVLINK_ERROR_DL_CRC].Value),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := []testutil.NvmlMockOption{testutil.WithNVLinkLinkCount(1)}
+			if tt.unsupportedField != 0 {
+				opts = append(opts, testutil.WithUnsupportedFields(tt.unsupportedField))
+			}
+			device := setupMockDevice(t, opts...)
+
+			collector, err := newNVLinkFieldsCollector(device, nil)
+			require.NoError(t, err)
+
+			collected, err := collector.Collect()
+			require.NoError(t, err)
+
+			deduped := requireMetrics(t, RemoveDuplicateSamples(map[CollectorName][]Sample{
+				nvlinkFields: collected,
+			}))
+
+			var matches []*Metric
+			for _, m := range deduped {
+				if m.Name == tt.metricName {
+					matches = append(matches, m)
+				}
+			}
+
+			require.Len(t, matches, 1, "exactly one %s metric should survive dedup", tt.metricName)
+			require.Equal(t, tt.expectPriority, matches[0].Priority())
+			require.Equal(t, tt.expectValue, matches[0].Value)
+		})
+	}
+}
+
 func TestNVlinkFieldsCollectorTreatsInvalidArgumentAsUnsupportedOnlyWhenConfigured(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithInvalidArgumentFields(nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS), testutil.WithNVLinkLinkCount(1))
 
-	collector, err := newNVLinkFieldsCollector(device, nil)
+	collector, err := newNVLinkFieldsCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	fc, ok := collector.(*nvlinkFieldsCollector)
 	require.True(t, ok, "expected *nvlinkFieldsCollector")
+	require.NotEmpty(t, fc.requests)
 
-	foundNvlinkEffective := false
-	for _, metric := range fc.metrics {
-		if metric.name == "nvlink.errors.effective" {
-			foundNvlinkEffective = true
-		}
+	for _, request := range fc.requests {
+		require.NotEqual(t, uint32(nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_ERRORS), request.field.FieldId,
+			"nvlink.errors.effective should not be enrolled when INVALID_ARGUMENT is mapped to unsupported")
+	}
+}
+
+func TestDecodeNvlinkBER(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       uint64
+		valueType nvml.ValueType
+		expected  float64
+	}{
+		{name: "healthy link sentinel 0xFFF", raw: 0xFFF, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 15e-255},
+		{name: "zero", raw: 0, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 0},
+		{name: "1.5e-12", raw: 15<<8 | 13, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 15e-13},
+		{name: "exponent zero", raw: 3 << 8, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 3},
+		{name: "ignores bits above mantissa", raw: 0xF000 | 2<<8 | 9, valueType: nvml.VALUE_TYPE_UNSIGNED_LONG_LONG, expected: 2e-9},
+		{name: "unsigned int value type", raw: 7<<8 | 5, valueType: nvml.VALUE_TYPE_UNSIGNED_INT, expected: 7e-5},
 	}
 
-	require.False(t, foundNvlinkEffective, "nvlink.errors.effective should be removed when INVALID_ARGUMENT is explicitly mapped to unsupported")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var fv nvml.FieldValue
+			testutil.ApplyMockFieldValue(&fv, testutil.MockFieldValue{Value: tt.raw, ValueType: tt.valueType, Return: nvml.SUCCESS})
+
+			value, err := decodeNvlinkBER(nvml.ValueType(fv.ValueType), fv.Value)
+			require.NoError(t, err)
+			if tt.expected == 0 {
+				require.Zero(t, value)
+				return
+			}
+			// Use a relative tolerance: absolute deltas are meaningless at these magnitudes.
+			require.InEpsilon(t, tt.expected, value, 1e-9)
+		})
+	}
+}
+
+func TestNVLinkFieldsCollectorDecodesBERFields(t *testing.T) {
+	values := map[uint32]map[uint32]testutil.MockFieldValue{
+		nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER: {
+			0: testutil.NewFieldValue(0xFFF),
+			1: testutil.NewFieldValue(15<<8 | 13),
+		},
+		nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER: {
+			0: testutil.NewFieldValue(1<<8 | 20),
+			1: testutil.NewFieldValue(9<<8 | 3),
+		},
+	}
+	device := setupMockDevice(t, testutil.WithScopedFieldValues(values), testutil.WithNVLinkLinkCount(2))
+
+	collector, err := newNVLinkFieldsCollectorWithMetrics(device, map[uint32]nvlinkFieldValueMetric{
+		nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER: nvlinkFieldsMetrics[nvml.FI_DEV_NVLINK_COUNT_EFFECTIVE_BER],
+		nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER:    nvlinkFieldsMetrics[nvml.FI_DEV_NVLINK_COUNT_SYMBOL_BER],
+	})
+	require.NoError(t, err)
+
+	collected, err := collector.Collect()
+	require.NoError(t, err)
+
+	got := make(map[string]map[string]float64)
+	for _, metric := range requireMetrics(t, collected) {
+		require.Equal(t, metrics.GaugeType, metric.Type)
+		if got[metric.Name] == nil {
+			got[metric.Name] = make(map[string]float64)
+		}
+		require.Len(t, metric.Tags(), 1)
+		got[metric.Name][metric.Tags()[0]] = metric.Value
+	}
+
+	expected := map[string]map[string]float64{
+		"nvlink.ber.effective": {nvlinkPortTag(1): 15e-255, nvlinkPortTag(2): 15e-13},
+		"nvlink.ber.symbol":    {nvlinkPortTag(1): 1e-20, nvlinkPortTag(2): 9e-3},
+	}
+	require.Len(t, got, len(expected))
+	for name, byPort := range expected {
+		require.Len(t, got[name], len(byPort), "metric %s", name)
+		for port, value := range byPort {
+			require.InEpsilon(t, value, got[name][port], 1e-9, "metric %s port %s", name, port)
+		}
+	}
 }

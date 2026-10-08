@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -89,19 +89,19 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 func (s statusProvider) populateStatus(stats map[string]interface{}) {
 	parStatus := make(map[string]interface{})
 
-	enabled := s.config.GetBool(par.PAREnabled)
+	enabled := s.config.GetBool(par.Enabled)
 	parStatus["Enabled"] = enabled
 
 	if enabled {
-		urn := s.config.GetString(par.PARUrn)
+		urn := s.config.GetString(par.URN)
 		if urn == "" {
 			urn = "(not set)"
 		}
 		parStatus["URN"] = urn
-		parStatus["SelfEnroll"] = s.config.GetBool(par.PARSelfEnroll)
-		defaultActionsEnabled := s.config.GetBool(par.PARDefaultActionsEnabled)
+		parStatus["SelfEnroll"] = s.config.GetBool(par.SelfEnroll)
+		defaultActionsEnabled := s.config.GetBool(par.DefaultActionsEnabled)
 		parStatus["DefaultActionsEnabled"] = defaultActionsEnabled
-		allowlist := s.config.GetStringSlice(par.PARActionsAllowlist)
+		allowlist := s.config.GetStringSlice(par.ActionsAllowlist)
 		if defaultActionsEnabled {
 			if flavor.GetFlavor() == flavor.ClusterAgent {
 				allowlist = append(allowlist, parconfig.DefaultClusterAgentActionFQNs...)

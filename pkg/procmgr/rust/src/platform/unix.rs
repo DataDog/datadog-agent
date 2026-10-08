@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod spawn;
+
 use anyhow::{Context, Result};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
@@ -42,8 +44,34 @@ pub fn last_signal(status: &std::process::ExitStatus) -> Option<i32> {
     status.signal()
 }
 
+/// Whether the process died without returning a value.
+///
+/// Killed by a signal means no exit code was ever produced, which is the
+/// definition exactly. An external SIGTERM therefore counts as a crash even
+/// though it is not a fault: the process still returned nothing, and procmgr's
+/// own stops never reach here because `set_last_status` resolves
+/// `stop_requested` first. The alternative, an allowlist of fault signals, has
+/// to pick a side for SIGKILL, which is the OOM-killer case we specifically
+/// want reported as a crash.
+pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
+    status.signal().is_some()
+}
+
 pub fn default_config_dir() -> PathBuf {
     PathBuf::from("/opt/datadog-agent/processes.d")
+}
+
+/// Fleet policies directory to fall back on when no config source names one.
+///
+/// Unix has no equivalent of the Windows registry hint, so config gates rely on
+/// `DD_FLEET_POLICIES_DIR` or `fleet_policies_dir` in the gated file.
+pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
+    None
+}
+
+/// Per-service environment overrides, which only the Windows SCM provides.
+pub fn agent_service_env_var(_name: &str) -> Option<String> {
+    None
 }
 
 pub fn stdout_inheritable() -> bool {

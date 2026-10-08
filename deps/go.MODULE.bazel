@@ -29,15 +29,15 @@ go_deps.gazelle_default_attributes(
     ],
 )
 go_deps.gazelle_override(
-    directives = [
-        "gazelle:build_file_generation on",
-    ],
+    directives = ["gazelle:go_naming_convention go_default_library"],
+    path = "cel.dev/cel-go",
+)
+go_deps.gazelle_override(
+    directives = ["gazelle:build_file_generation on"],
     path = "github.com/coreos/etcd",
 )
 go_deps.gazelle_override(
-    directives = [
-        "gazelle:go_naming_convention go_default_library",
-    ],
+    directives = ["gazelle:go_naming_convention go_default_library"],
     path = "github.com/google/cel-go",
 )
 go_deps.gazelle_override(
@@ -70,7 +70,7 @@ use_repo(
     "cc_mvdan_sh_v3",
     "com_github_aarzilli_whydeadcode",
     "com_github_acobaugh_osrelease",
-    "com_github_alecthomas_participle",
+    "com_github_alecthomas_participle_v2",
     "com_github_alecthomas_units",
     "com_github_apache_arrow_go_v18",
     "com_github_aptly_dev_aptly",
@@ -79,6 +79,7 @@ use_repo(
     "com_github_aws_aws_sdk_go_v2",
     "com_github_aws_aws_sdk_go_v2_config",
     "com_github_aws_aws_sdk_go_v2_credentials",
+    "com_github_aws_aws_sdk_go_v2_service_cloudwatchlogs",
     "com_github_aws_aws_sdk_go_v2_service_ec2",
     "com_github_aws_aws_sdk_go_v2_service_ecr",
     "com_github_aws_aws_sdk_go_v2_service_ecs",
@@ -134,7 +135,6 @@ use_repo(
     "com_github_datadog_go_tuf",
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
-    "com_github_datadog_orchestrion",
     "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",
@@ -148,7 +148,6 @@ use_repo(
     "com_github_elastic_go_libaudit_v2",
     "com_github_elastic_go_seccomp_bpf",
     "com_github_envoyproxy_gateway",
-    "com_github_envoyproxy_go_control_plane_envoy",
     "com_github_evanphx_json_patch_v5",
     "com_github_fatih_color",
     "com_github_fatih_structtag",
@@ -176,7 +175,6 @@ use_repo(
     "com_github_golang_mock",
     "com_github_golangci_golangci_lint_v2",
     "com_github_google_btree",
-    "com_github_google_cel_go",
     "com_github_google_go_cmp",
     "com_github_google_go_containerregistry",
     "com_github_google_gofuzz",
@@ -262,6 +260,7 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_pkg_sampling",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_processor_deltatorateprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_groupbyattrsprocessor",
     "com_github_open_telemetry_opentelemetry_collector_contrib_processor_k8sattributesprocessor",
@@ -274,9 +273,12 @@ use_repo(
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_filelogreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_fluentforwardreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_hostmetricsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_httpcheckreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_jaegerreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sclusterreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8seventsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_k8sobjectsreceiver",
+    "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kafkareceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_kubeletstatsreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_podmanreceiver",
     "com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver",
@@ -301,21 +303,21 @@ use_repo(
     "com_github_protonmail_go_crypto",
     "com_github_pulumi_pulumi_aws_sdk_v7",
     "com_github_pulumi_pulumi_awsx_sdk_v3",
-    "com_github_pulumi_pulumi_azure_native_sdk_authorization_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_compute_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_containerservice_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_managedidentity_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_network_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_v2",
+    "com_github_pulumi_pulumi_azure_native_sdk_authorization_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_compute_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_containerservice_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_managedidentity_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_network_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_v3",
     "com_github_pulumi_pulumi_command_sdk",
-    "com_github_pulumi_pulumi_docker_sdk_v4",
+    "com_github_pulumi_pulumi_docker_sdk_v5",
     "com_github_pulumi_pulumi_eks_sdk_v4",
     "com_github_pulumi_pulumi_gcp_sdk_v9",
     "com_github_pulumi_pulumi_kubernetes_sdk_v4",
     "com_github_pulumi_pulumi_libvirt_sdk",
     "com_github_pulumi_pulumi_random_sdk_v4",
     "com_github_pulumi_pulumi_sdk_v3",
-    "com_github_pulumi_pulumi_tls_sdk_v4",
+    "com_github_pulumi_pulumi_tls_sdk_v5",
     "com_github_pulumiverse_pulumi_time_sdk",
     "com_github_qri_io_jsonpointer",
     "com_github_rabbitmq_amqp091_go",
@@ -364,12 +366,12 @@ use_repo(
     "com_github_xi2_xz",
     "com_github_xor_gate_ar",
     "com_github_yusufpapurcu_wmi",
-    "com_gitlab_gitlab_org_api_client_go",
+    "com_gitlab_gitlab_org_api_client_go_v3",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
+    "dev_cel_cel_go",
     "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
-    "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",
@@ -527,6 +529,14 @@ go_deps.gazelle_override(
     path = "github.com/DataDog/zstd",
 )
 
+# go-nvml exposes generated cgo bindings for the full NVML API surface, including
+# functions that NVIDIA marks deprecated in nvml.h. Compiling those bindings emits
+# -Wdeprecated-declarations warnings.
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -Wno-deprecated-declarations"],
+    path = "github.com/NVIDIA/go-nvml",
+)
+
 # sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
 # time, but the hermetic toolchain sysroot ships no libsystemd headers. Patch the
 # Gazelle-generated BUILD to pull them from the vendored @systemd archive via cdeps.
@@ -562,7 +572,20 @@ go_deps.module_override(
     path = "sigs.k8s.io/kustomize/api",
 )
 
-inject_repo(go_deps, "systemd")
+# gopacket/pcap links -lpcap, but the hermetic Linux sysroot ships neither pcap.h
+# nor libpcap. Link the vendored static @libpcap instead; other platforms keep
+# the system library (e.g. the macOS SDK).
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/patches:gopacket-pcap-libpcap-cdeps.patch"],
+    path = "github.com/google/gopacket",
+)
+
+inject_repo(go_deps, "systemd", "libpcap")
+
+register_toolchains("@go_civisibility_sdk//:go_civisibility_linux_amd64")
+
+use_repo_rule("//bazel/rules/go_civisibility_sdk:repo.bzl", "go_civisibility_sdk")(name = "go_civisibility_sdk")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 

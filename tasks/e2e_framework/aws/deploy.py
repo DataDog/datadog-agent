@@ -49,7 +49,7 @@ def deploy(
 
     # Keep ~/.aws/config in sync: add the SSO profile if it's missing (e.g. after a role
     # rename like account-admin -> account-admin-8h). No-op if already present.
-    from tasks.e2e_framework.setup.aws import setup_aws_sso_config
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE, setup_aws_sso_config
 
     setup_aws_sso_config(cfg, interactive=False)
 
@@ -87,7 +87,8 @@ def deploy(
         flags["ddagent:imagePullRegistry"] = "669783387624.dkr.ecr.us-east-1.amazonaws.com"
         flags["ddagent:imagePullUsername"] = "AWS"
         flags["ddagent:imagePullPassword"] = ctx.run(
-            "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password --region us-east-1", hide=True
+            f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
+            hide=True,
         ).stdout.strip()
     elif (
         full_image_path is not None

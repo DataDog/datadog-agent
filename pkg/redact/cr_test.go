@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build kubeapiserver
 
 package redact
 
@@ -119,6 +119,18 @@ func TestScrubEnv(t *testing.T) {
 			"name":  "API_KEY",
 			"value": "secret1",
 		},
+		map[string]interface{}{
+			"name":  "HF_TOKEN",
+			"value": "secret2",
+		},
+		map[string]interface{}{
+			"name":  "MAX_TOKENS",
+			"value": "1024",
+		},
+		map[string]interface{}{
+			"name":  "DD_AUTH_TOKEN_FILE_PATH",
+			"value": "/var/run/datadog/token",
+		},
 	}
 	scrubEnv(env, scrubber, false)
 	assert.Equal(t, []interface{}{
@@ -130,6 +142,37 @@ func TestScrubEnv(t *testing.T) {
 			"name":  "API_KEY",
 			"value": "********",
 		},
+		map[string]interface{}{
+			"name":  "HF_TOKEN",
+			"value": "********",
+		},
+		map[string]interface{}{
+			"name":  "MAX_TOKENS",
+			"value": "1024",
+		},
+		map[string]interface{}{
+			"name":  "DD_AUTH_TOKEN_FILE_PATH",
+			"value": "/var/run/datadog/token",
+		},
+	}, env)
+}
+
+func TestScrubEnvMap(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	env := map[string]interface{}{
+		"MODEL_NAME":              "model",
+		"API_KEY":                 "secret1",
+		"HF_TOKEN":                "secret2",
+		"MAX_TOKENS":              "1024",
+		"DD_AUTH_TOKEN_FILE_PATH": "/var/run/datadog/token",
+	}
+	scrubEnvMap(env, scrubber, false)
+	assert.Equal(t, map[string]interface{}{
+		"MODEL_NAME":              "model",
+		"API_KEY":                 "********",
+		"HF_TOKEN":                "********",
+		"MAX_TOKENS":              "1024",
+		"DD_AUTH_TOKEN_FILE_PATH": "/var/run/datadog/token",
 	}, env)
 }
 
@@ -145,6 +188,36 @@ func TestScrubCRManifest(t *testing.T) {
 		})
 	}
 }
+
+func TestScrubCRManifestTopLevelFields(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords([]string{"private_value"})
+	r := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "configuration.konghq.com/v1",
+		"kind":       "KongPlugin",
+		"metadata":   map[string]interface{}{"name": "secret-plugin"},
+		"plugin":     "openid-connect",
+		"config": map[string]interface{}{
+			"client_secret": []interface{}{"inline-secret"},
+			"issuer":        "https://example.com",
+			"nested":        map[string]interface{}{"private_value": "custom-secret"},
+		},
+		"password": "top-level-secret",
+		"status":   map[string]interface{}{"client_secret": "status-secret"},
+	}}
+	expected := r.DeepCopy()
+	expected.Object["config"] = map[string]interface{}{
+		"client_secret": []interface{}{"********"},
+		"issuer":        "https://example.com",
+		"nested":        map[string]interface{}{"private_value": "********"},
+	}
+	expected.Object["password"] = "********"
+	expected.Object["status"] = map[string]interface{}{"client_secret": "********"}
+
+	ScrubCRManifest(r, scrubber)
+	assert.Equal(t, expected, r)
+}
+
 func getCRScrubCases() map[string]struct {
 	input    *unstructured.Unstructured
 	expected *unstructured.Unstructured
@@ -230,6 +303,30 @@ func getCRScrubCases() map[string]struct {
 								"name":  "API_KEY",
 								"value": "********",
 							},
+						},
+					},
+				},
+			},
+		},
+		"sensitive map-form env": {
+			input: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"env": map[string]interface{}{
+							"MODEL_NAME": "model",
+							"API_KEY":    "secret1",
+							"HF_TOKEN":   "secret2",
+						},
+					},
+				},
+			},
+			expected: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"env": map[string]interface{}{
+							"MODEL_NAME": "model",
+							"API_KEY":    "********",
+							"HF_TOKEN":   "********",
 						},
 					},
 				},

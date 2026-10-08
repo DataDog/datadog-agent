@@ -128,7 +128,7 @@ func TestTracerMemfd(t *testing.T) {
 		},
 	}))
 	require.NoError(t, err)
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	require.NoError(t, err)

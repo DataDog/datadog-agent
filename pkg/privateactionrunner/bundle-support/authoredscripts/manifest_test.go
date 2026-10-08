@@ -18,23 +18,19 @@ import (
 )
 
 const validManifest = `
-schema-version: v1
-dd-package: dd-par-scripts-echo
-version: 0.0.1
-title: Echo
-description: Prints a message to stdout.
-fqn: com.datadoghq.authoredscripts.echo
-config:
-  command: ["run.sh"]
-  allowedEnvVars: ["HOME"]
+{
+  "schema-version": "v1",
+  "version": "0.0.1",
+  "fqn": "com.datadoghq.authoredscripts.echo",
+  "command": {"entrypoint": "run.sh"},
+  "allowedEnvVars": ["HOME"]
+}
 `
 
 func writeManifest(t *testing.T, contents string) string {
 	t.Helper()
 	artifactDirectory := t.TempDir()
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
-	require.NoError(t, os.MkdirAll(scriptDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, manifestFile), []byte(contents), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, manifestFile), []byte(contents), 0o644))
 	return artifactDirectory
 }
 
@@ -45,24 +41,30 @@ func TestLoadManifest_Valid(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "v1", manifest.SchemaVersion)
-	assert.Equal(t, "dd-par-scripts-echo", manifest.Package)
-	assert.Equal(t, []string{"run.sh"}, manifest.Config.Command)
-	assert.Equal(t, []string{"HOME"}, manifest.Config.AllowedEnvVars)
+	assert.Equal(t, "run.sh", manifest.Command.Entrypoint)
+	assert.Equal(t, []string{"HOME"}, manifest.AllowedEnvVars)
 }
 
 func TestLoadManifest_WithSessionEnvVars(t *testing.T) {
-	artifactDirectory := writeManifest(t, validManifest+`
-  setSessionEnvVars:
-    - name: SESSION_EXAMPLE_VALUE
-      value: example-session-value
-      kind: value
-`)
+	contents := `
+{
+  "schema-version": "v1",
+  "version": "0.0.1",
+  "fqn": "com.datadoghq.authoredscripts.echo",
+  "command": {"entrypoint": "run.sh"},
+  "allowedEnvVars": ["HOME"],
+  "setSessionEnvVars": [
+    {"name": "SESSION_EXAMPLE_VALUE", "value": "example-session-value", "kind": "value"}
+  ]
+}
+`
+	artifactDirectory := writeManifest(t, contents)
 
 	manifest, err := loadManifest(artifactDirectory)
 
 	require.NoError(t, err)
-	require.Len(t, manifest.Config.SetSessionEnvVars, 1)
-	assert.Equal(t, environmentKindValue, manifest.Config.SetSessionEnvVars[0].Kind)
+	require.Len(t, manifest.SetSessionEnvVars, 1)
+	assert.Equal(t, environmentKindValue, manifest.SetSessionEnvVars[0].Kind)
 }
 
 func TestLoadManifest_MissingManifestFile(t *testing.T) {
@@ -74,7 +76,16 @@ func TestLoadManifest_MissingManifestFile(t *testing.T) {
 }
 
 func TestLoadManifest_RejectsUnknownField(t *testing.T) {
-	artifactDirectory := writeManifest(t, validManifest+"\nunexpectedField: true\n")
+	contents := `
+{
+  "schema-version": "v1",
+  "version": "0.0.1",
+  "fqn": "com.datadoghq.authoredscripts.echo",
+  "command": {"entrypoint": "run.sh"},
+  "unexpectedField": true
+}
+`
+	artifactDirectory := writeManifest(t, contents)
 
 	_, err := loadManifest(artifactDirectory)
 
@@ -82,17 +93,17 @@ func TestLoadManifest_RejectsUnknownField(t *testing.T) {
 }
 
 func TestLoadManifest_RejectsMultipleDocuments(t *testing.T) {
-	artifactDirectory := writeManifest(t, validManifest+"\n---\nschema-version: v1\n")
+	artifactDirectory := writeManifest(t, validManifest+"\n{\"schema-version\": \"v1\"}\n")
 
 	_, err := loadManifest(artifactDirectory)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "exactly one YAML document")
+	assert.Contains(t, err.Error(), "exactly one JSON document")
 }
 
 func TestLoadManifest_RejectsOversizedManifest(t *testing.T) {
 	padding := strings.Repeat("a", maxManifestSize+1)
-	artifactDirectory := writeManifest(t, validManifest+"\n# "+padding+"\n")
+	artifactDirectory := writeManifest(t, validManifest+"\n"+padding+"\n")
 
 	_, err := loadManifest(artifactDirectory)
 
@@ -101,7 +112,7 @@ func TestLoadManifest_RejectsOversizedManifest(t *testing.T) {
 }
 
 func TestValidateManifest(t *testing.T) {
-	validCommand := []string{"run.sh"}
+	validCommand := Command{Entrypoint: "run.sh"}
 
 	tests := []struct {
 		name        string
@@ -112,30 +123,18 @@ func TestValidateManifest(t *testing.T) {
 			name: "unsupported schema version",
 			manifest: &Manifest{
 				SchemaVersion: "v2",
-				Package:       "dd-par-scripts-echo",
 				Version:       "0.0.1",
 				FQN:           "com.datadoghq.authoredscripts.echo",
-				Config:        ScriptConfig{Command: validCommand},
+				Command:       validCommand,
 			},
 			expectError: "unsupported authored-script manifest schema version",
-		},
-		{
-			name: "missing package",
-			manifest: &Manifest{
-				SchemaVersion: manifestSchemaVersion,
-				Version:       "0.0.1",
-				FQN:           "com.datadoghq.authoredscripts.echo",
-				Config:        ScriptConfig{Command: validCommand},
-			},
-			expectError: "package is required",
 		},
 		{
 			name: "missing version",
 			manifest: &Manifest{
 				SchemaVersion: manifestSchemaVersion,
-				Package:       "dd-par-scripts-echo",
 				FQN:           "com.datadoghq.authoredscripts.echo",
-				Config:        ScriptConfig{Command: validCommand},
+				Command:       validCommand,
 			},
 			expectError: "version is required",
 		},
@@ -143,9 +142,8 @@ func TestValidateManifest(t *testing.T) {
 			name: "missing fqn",
 			manifest: &Manifest{
 				SchemaVersion: manifestSchemaVersion,
-				Package:       "dd-par-scripts-echo",
 				Version:       "0.0.1",
-				Config:        ScriptConfig{Command: validCommand},
+				Command:       validCommand,
 			},
 			expectError: "FQN is required",
 		},
@@ -153,48 +151,40 @@ func TestValidateManifest(t *testing.T) {
 			name: "missing command",
 			manifest: &Manifest{
 				SchemaVersion: manifestSchemaVersion,
-				Package:       "dd-par-scripts-echo",
 				Version:       "0.0.1",
 				FQN:           "com.datadoghq.authoredscripts.echo",
 			},
 			expectError: "command is required",
 		},
 		{
-			name: "empty first command argument",
+			name: "empty entrypoint",
 			manifest: &Manifest{
 				SchemaVersion: manifestSchemaVersion,
-				Package:       "dd-par-scripts-echo",
 				Version:       "0.0.1",
 				FQN:           "com.datadoghq.authoredscripts.echo",
-				Config:        ScriptConfig{Command: []string{""}},
+				Command:       Command{Entrypoint: ""},
 			},
 			expectError: "command is required",
 		},
 		{
 			name: "unsupported session env var kind",
 			manifest: &Manifest{
-				SchemaVersion: manifestSchemaVersion,
-				Package:       "dd-par-scripts-echo",
-				Version:       "0.0.1",
-				FQN:           "com.datadoghq.authoredscripts.echo",
-				Config: ScriptConfig{
-					Command:           validCommand,
-					SetSessionEnvVars: []EnvironmentVariable{{Name: "X", Value: "y", Kind: "socket"}},
-				},
+				SchemaVersion:     manifestSchemaVersion,
+				Version:           "0.0.1",
+				FQN:               "com.datadoghq.authoredscripts.echo",
+				Command:           validCommand,
+				SetSessionEnvVars: []EnvironmentVariable{{Name: "X", Value: "y", Kind: "socket"}},
 			},
 			expectError: "session environment variable",
 		},
 		{
 			name: "incomplete session env var",
 			manifest: &Manifest{
-				SchemaVersion: manifestSchemaVersion,
-				Package:       "dd-par-scripts-echo",
-				Version:       "0.0.1",
-				FQN:           "com.datadoghq.authoredscripts.echo",
-				Config: ScriptConfig{
-					Command:           validCommand,
-					SetSessionEnvVars: []EnvironmentVariable{{Name: "X", Kind: environmentKindValue}},
-				},
+				SchemaVersion:     manifestSchemaVersion,
+				Version:           "0.0.1",
+				FQN:               "com.datadoghq.authoredscripts.echo",
+				Command:           validCommand,
+				SetSessionEnvVars: []EnvironmentVariable{{Name: "X", Kind: environmentKindValue}},
 			},
 			expectError: "session environment variables require",
 		},
@@ -202,22 +192,31 @@ func TestValidateManifest(t *testing.T) {
 			name: "dependency missing version",
 			manifest: &Manifest{
 				SchemaVersion: manifestSchemaVersion,
-				Package:       "dd-par-scripts-echo",
 				Version:       "0.0.1",
 				FQN:           "com.datadoghq.authoredscripts.echo",
-				Config:        ScriptConfig{Command: validCommand},
+				Command:       validCommand,
 				Dependencies:  []Dependency{{Name: "jq"}},
 			},
-			expectError: "dependencies require a name and version",
+			expectError: "requires a version",
+		},
+		{
+			name: "dependency name contains path components",
+			manifest: &Manifest{
+				SchemaVersion: manifestSchemaVersion,
+				Version:       "0.0.1",
+				FQN:           "com.datadoghq.authoredscripts.echo",
+				Command:       validCommand,
+				Dependencies:  []Dependency{{Name: "../jq", Version: "1.7.1"}},
+			},
+			expectError: "dependency name",
 		},
 		{
 			name: "valid manifest",
 			manifest: &Manifest{
 				SchemaVersion: manifestSchemaVersion,
-				Package:       "dd-par-scripts-echo",
 				Version:       "0.0.1",
 				FQN:           "com.datadoghq.authoredscripts.echo",
-				Config:        ScriptConfig{Command: validCommand},
+				Command:       validCommand,
 				Dependencies:  []Dependency{{Name: "jq", Version: "1.7.1"}},
 			},
 			expectError: "",

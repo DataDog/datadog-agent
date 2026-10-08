@@ -1,22 +1,14 @@
-# Compiles the SELinux system-probe policy source (.te) into a packaged
-# policy module (.pp), mirroring `dda inv selinux.compile-system-probe-policy-file`
-# (see tasks/selinux.py).
-#
-# NOTE: this shells out to `checkmodule` and `semodule_package` found on
-# PATH. These are the SELinux userspace policy tools (package `checkpolicy`
-# and `policycoreutils` on most distros);
-# TODO(agent-build): Add MODULE level tool wrappers for these and a selinux toolchain.
-genrule(
+load("//bazel/rules/selinux:selinux.bzl", "compile_selinux_policy")
+
+# Compiles the system-probe policy source (.te) into a packaged module (.pp)
+compile_selinux_policy(
     name = "system_probe_policy",
-    srcs = ["system_probe_policy.te"],
-    outs = ["system_probe_policy.pp"],
+    src = "system_probe_policy.te",
+    out = "system_probe_policy.pp",
     # Compile the module targeting modular policy version 19, the highest version
     # supported by libsepol on RHEL 7 (range 4-19). Newer distributions remain
     # backward-compatible, so a v19 module loads on all supported RHEL releases.
-    cmd = """
-        /usr/bin/checkmodule -M -m -c 19 -o system_probe_policy.mod $(location system_probe_policy.te)
-        /usr/bin/semodule_package -o $@ -m system_probe_policy.mod
-    """,
+    policy_version = 19,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

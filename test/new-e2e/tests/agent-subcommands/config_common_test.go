@@ -9,7 +9,7 @@ import (
 	_ "embed"
 
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -29,13 +29,13 @@ func (v *baseConfigSuite) GetOs() scenec2.Option {
 	return v.osOption
 }
 
-func getFullConfig(v *baseConfigSuite) map[interface{}]interface{} {
+func getFullConfig(v *baseConfigSuite) map[string]interface{} {
 	output, err := v.Env().Agent.Client.ConfigWithError(
 		agentclient.WithArgs([]string{"--all"}),
 	)
 	require.NoError(v.T(), err)
 
-	var config map[interface{}]interface{}
+	var config map[string]interface{}
 	err = yaml.Unmarshal([]byte(output), &config)
 	require.NoError(v.T(), err)
 

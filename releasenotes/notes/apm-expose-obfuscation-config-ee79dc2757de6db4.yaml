@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    APM : Expand the trace agent ``/info`` endpoint to report the effective
+    obfuscation configuration.

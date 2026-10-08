@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -70,8 +71,11 @@ type Profile struct {
 
 	Header   ActivityDumpHeader
 	Metadata mtdt.Metadata
-	selector cgroupModel.WorkloadSelector
-	tags     []string
+	// SecurityContexts holds the declared SecurityContexts observed for this
+	// image, keyed by workload-template slot.
+	SecurityContexts map[securitycontext.Key]*securitycontext.SecurityContext
+	selector         cgroupModel.WorkloadSelector
+	tags             []string
 
 	versionContexts map[string]*VersionContext
 
@@ -90,6 +94,9 @@ type Profile struct {
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
 	isEnabled          bool
+	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
+	observedRollups bool
+	seededSyscalls  []uint32
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -98,6 +105,20 @@ func (p *Profile) IsEnabled() bool {
 	defer p.Unlock()
 
 	return p.isEnabled
+}
+
+// SaveSecurityContext stores sc under key. Zero-value keys and nil values
+// are dropped. Last write wins per key.
+func (p *Profile) SaveSecurityContext(key securitycontext.Key, sc *securitycontext.SecurityContext) {
+	if sc == nil || key.IsZero() {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	if p.SecurityContexts == nil {
+		p.SecurityContexts = make(map[securitycontext.Key]*securitycontext.SecurityContext, 1)
+	}
+	p.SecurityContexts[key] = sc
 }
 
 // Disable disables the profile and drops its activity tree to free the memory it held.
@@ -142,6 +163,21 @@ func WithWorkloadSelector(selector cgroupModel.WorkloadSelector) Opts {
 func WithEventTypes(eventTypes []model.EventType) Opts {
 	return func(p *Profile) {
 		p.eventTypes = eventTypes
+	}
+}
+
+// WithObservedRollups makes the encoder derive per-version syscall/capability
+// lists from the activity tree (V2 only; V1 keeps the backend-supplied list).
+func WithObservedRollups() Opts {
+	return func(p *Profile) {
+		p.observedRollups = true
+	}
+}
+
+// WithSeededSyscalls sets syscall ids to union into the profile's reported syscall lists.
+func WithSeededSyscalls(ids []uint32) Opts {
+	return func(p *Profile) {
+		p.seededSyscalls = ids
 	}
 }
 
@@ -683,7 +719,30 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.ActivityTree.ComputeSyscallsList()
+	return unionSyscalls(p.ActivityTree.ComputeSyscallsList(), p.seededSyscalls)
+}
+
+// unionSyscalls returns base ∪ extra, deduplicated and sorted.
+func unionSyscalls(base, extra []uint32) []uint32 {
+	if len(extra) == 0 {
+		return base
+	}
+	seen := make(map[uint32]struct{}, len(base)+len(extra))
+	out := make([]uint32, 0, len(base)+len(extra))
+	for _, s := range base {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	for _, s := range extra {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // MatchesSelector is used to control how an event should be added to a profile

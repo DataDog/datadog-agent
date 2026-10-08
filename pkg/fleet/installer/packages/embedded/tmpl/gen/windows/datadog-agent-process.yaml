@@ -1,0 +1,29 @@
+description: Datadog Process Agent
+command: '__PROCESS_INSTALL_ROOT__/bin/agent/process-agent.exe'
+args:
+  - --cfgpath
+  - '__PROCESS_ETC_ROOT__/datadog.yaml'
+# dd-procmgr is the only supervisor for process-agent on Windows: whenever this file exists
+# and process_manager.enabled is set, the core Agent skips the legacy datadog-process-agent
+# service. Setting this back to false would leave process-agent unsupervised entirely.
+auto_start: true
+condition_path_exists: '__PROCESS_INSTALL_ROOT__/bin/agent/process-agent.exe'
+# Transcribes the legacy SCM decision in cmd/agent/subcommands/run/dependent_services_windows.go:
+# any-of over these keys, the first four from datadog.yaml and the last two from system-probe.yaml.
+condition_config_any:
+  - path: '__PROCESS_ETC_ROOT__/datadog.yaml'
+    keys:
+      - process_config.enabled
+      - process_config.process_collection.enabled
+      - process_config.container_collection.enabled
+      - process_config.process_discovery.enabled
+  - path: '__PROCESS_ETC_ROOT__/system-probe.yaml'
+    keys:
+      - network_config.enabled
+      - system_probe_config.enabled
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+stdout: inherit
+stderr: inherit

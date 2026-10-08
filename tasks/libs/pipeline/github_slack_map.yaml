@@ -307,12 +307,12 @@
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
-'@datadog/gpu-monitoring-agent':
+'@datadog/accelerator-telemetry':
   notification:
-    name: '#gpu-monitoring-agent-ops'
+    name: '#accelerator-telemetry-ops'
     id: 'C0APTNVCC04'
   review:
-    name: '#gpu-monitoring-agent-reviews'
+    name: '#accelerator-telemetry-reviews'
     id: 'C0B7VF7LKGT'
 '@datadog/injection-platform':
   notification:
@@ -323,11 +323,11 @@
     id: 'C06UEUW9A75'
 '@datadog/kubernetes-experiences':
   notification:
-    name: '#kubernetes-experiences'
-    id: 'CSY06FKSP'
+    name: '#kxp-ops'
+    id: 'C0135179MGA'
   review:
-    name: '#kubernetes-experiences'
-    id: 'CSY06FKSP'
+    name: '#kxp-prs'
+    id: 'C03LTNY5Q5N'
 '@datadog/metrics-aggregation':
   notification:
     name: '#metrics-aggregation'

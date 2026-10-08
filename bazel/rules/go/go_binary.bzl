@@ -1,38 +1,31 @@
 """Datadog Agent wrapper around rules_go go_binary.
 
-Injects standard version x_defs and run-path linker flags into every agent
-binary so callers don't have to repeat them.  The x_defs at binary level
+Injects standard version x_defs and linker flags into every agent binary so
+callers don't have to repeat them.  The x_defs at binary level
 override the placeholder values set in //pkg/version:version (x_defs there
 default to "0.0.0-dev").
 
-Version string strategy (mirrors package_naming.bzl):
-- In CI: PACKAGE_VERSION env var is set by `dda inv agent.version --url-safe`,
-  producing the URL-safe dotted form e.g. "7.81.0-devel.git.635.e3326d4.pipeline.102267660".
-  AgentVersionURLSafe uses this directly; AgentVersion converts it back to standard
-  SemVer form with '+' via _url_safe_to_standard().
-- Locally: fall back to release_json current_milestone + "-localbuild" for both.
+Version string strategy:
+- Build default version based on release.json values
 - The agent_version parameter, when passed, overrides both AgentVersion and AgentVersionURLSafe
   so the two stay in sync. Used by callers that compute their own version outside of
   PACKAGE_VERSION, e.g. host-profiler's nightly/dev-branch build.
 
-Run-path strategy, selected via //:linux_and_release and @platforms//os:linux:
-- Linux + release (//:linux_and_release): /opt/datadog-packages/run
-- Linux + dev    (@platforms//os:linux):  dev/lib
-- Non-Linux      (//conditions:default):  no "-r" flag (ELF RPATH is Linux-specific)
+x_defs values may reference any of the common variables Python-style format
+placeholders, e.g. {"some/pkg.appVersion": "{agent_version}"}.
 
-The run path is injected two ways:
-1. As a Go variable via x_defs (pkg/config/setup.defaultRunPath).
-2. As a gc_linkopts "-r" flag — embeds the ELF RPATH (Linux only).
+The Go run directory (pkg/util/defaultpaths.runPath) is not set here: it is
+binary-specific, so callers that need it pass their own x_defs.
 
-The Commit symbol is intentionally omitted: it requires git information that
-must come from a future repository rule (bazel/repo/git_info.bzl) and should
-only be set when Bazel is invoked with the --stamp flag.
+Commit and FullCommit come from CI_COMMIT_SHA in package builds only (see
+compute_version_variables); elsewhere the //pkg/version placeholders remain.
+AgentPackageVersion and, on Linux, defaultpaths.defaultInstallPath follow
+//:install_dir, as invoke's --install-path does.
 """
 
-load("@agent_volatile//:env_vars.bzl", "env_vars")
-load("@dd_release_json//:release_json.bzl", "release_json")
 load("@rules_go//go:def.bzl", "go_binary")
-load("//tasks:agent_payload_version.bzl", "AGENT_PAYLOAD_VERSION")
+load("@with_cfg.bzl", "with_cfg")
+load("//bazel/rules/variables:variables.bzl", "compute_version_variables", "standard_to_url_safe")
 load(
     "//tasks:build_tags.bzl",
     "COMMON_TAGS",
@@ -40,66 +33,28 @@ load(
     "FIPS_TAGS",
     "LINUX_ONLY_TAGS",
     "WINDOWS_EXCLUDED_TAGS",
-    "WINDOWS_INCLUDED_TAGS",
 )
 
 _REPO = "github.com/DataDog/datadog-agent"
 _VERSION_PKG = _REPO + "/pkg/version"
-_SETUP_PKG = _REPO + "/pkg/config/setup"
+_DEFAULTPATHS_PKG = _REPO + "/pkg/util/defaultpaths"
 
-_RUN_PATH_RELEASE = "/opt/datadog-packages/run"
-_RUN_PATH_DEV = "dev/lib"
+# rules_go ignores go.work, whose godebug directives `go build` turns into this
+# default. Keep in sync with go.work.
+_GODEBUG_DEFAULT = "tlsmlkem=0"
 
-def _url_safe_to_standard(url_safe):
-    """Convert a URL-safe agent version string to the standard SemVer form.
-
-    PACKAGE_VERSION is produced by `dda inv agent.version --url-safe`, which
-    replaces the SemVer '+' build-metadata separator with '.'.  AgentVersion
-    expects the standard form with '+'.
-
-    Examples:
-      "7.81.0-devel.git.635.e3326d4.pipeline.1" -> "7.81.0-devel+git.635.e3326d4.pipeline.1"
-      "7.81.0-rc.1.git.635.e3326d4"             -> "7.81.0-rc.1+git.635.e3326d4"
-      "7.81.0"                                   -> "7.81.0"  (clean release, no change)
-    """
-    idx = url_safe.find(".git.")
-    if idx < 0:
-        return url_safe
-    return url_safe[:idx] + "+git." + url_safe[idx + 5:]
-
-def _standard_to_url_safe(standard):
-    """Convert a standard SemVer agent version string to the URL-safe form.
-
-    Mirrors _url_safe_to_standard(): only the SemVer '+' build-metadata
-    separator is replaced with '.', matching the convention used by
-    `dda inv agent.version --url-safe`. No other character is touched.
-
-    Examples:
-      "7.81.0-devel+git.635.e3326d4.pipeline.1" -> "7.81.0-devel.git.635.e3326d4.pipeline.1"
-      "7.81.0-rc.1+git.635.e3326d4"             -> "7.81.0-rc.1.git.635.e3326d4"
-      "7.81.0"                                   -> "7.81.0"  (clean release, no change)
-    """
-    idx = standard.find("+git.")
-    if idx < 0:
-        return standard
-    return standard[:idx] + ".git." + standard[idx + 5:]
-
-def _make_agent_version_url_safe():
-    """Return the URL-safe agent version string.
-
-    Uses PACKAGE_VERSION from the environment when available (CI), otherwise
-    falls back to the current milestone from release.json with a "-localbuild"
-    suffix, matching the convention in packages/rules/package_naming.bzl.
-    """
-    if env_vars.PACKAGE_VERSION:
-        return env_vars.PACKAGE_VERSION
-    return release_json.get("current_milestone") + "-localbuild"
-
-def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = None, agent_version = None, **kwargs):
+def dd_agent_go_binary(
+        name,
+        gc_linkopts = None,
+        gotags = None,
+        exact_gotags = None,
+        agent_version = None,
+        x_defs = None,
+        **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
-    the version/run-path/strip definitions; caller-supplied values take
+    the version/strip definitions; caller-supplied values take
     precedence over the defaults provided here.
 
     Defaults applied automatically (override by passing the attribute explicitly):
@@ -107,45 +62,40 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
 
     Args:
       name: target name
-      gc_linkopts: Base set of link opts. rpath and stripping options are
-                   automatically added to these.
-                   On linux: add RPATH
-                   On release builds: add -s -w (strip symbol table and DWARF)
+      gc_linkopts: Base set of link opts. Stripping options are automatically
+                   added to these: on release builds, -s -w (strip symbol
+                   table and DWARF).
       gotags: Base set of gotags for this binary. COMMON tags are added, and
               per-platform adjustments are made.
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
       agent_version: overrides pkg/version.AgentVersion and AgentVersionURLSafe (URL-safe
                      encoded) instead of deriving them from PACKAGE_VERSION/release.json.
-      **kwargs: arguments to be forwarded to go_binary
+      x_defs: Additional x_defs. The values undergo variable expansion.
+      **kwargs: arguments to be forwarded to go_binary.
     """
-    # TODO: When --stamp support is in place, also inject:
-    #   _VERSION_PKG + ".Commit": "{STABLE_GIT_COMMIT}",
-    # The value must come from a stamp file produced by a git_info repository
-    # rule (planned: bazel/repo/git_info.bzl).
-
-    # Build two complete x_defs dicts — one per //:is_release branch.
-    # string_dict attributes do not support per-value select(); the select()
-    # must wrap the whole dict.
+    common = compute_version_variables()
     if agent_version:
-        agent_version_url_safe = _standard_to_url_safe(agent_version)
+        agent_version_url_safe = standard_to_url_safe(agent_version)
     else:
-        agent_version_url_safe = _make_agent_version_url_safe()
-        agent_version = _url_safe_to_standard(agent_version_url_safe)
-    release_x_defs = {
-        _VERSION_PKG + ".AgentPayloadVersion": AGENT_PAYLOAD_VERSION,
+        agent_version = common["agent_version"]
+        agent_version_url_safe = common["agent_version_url_safe"]
+
+    subs = dict(common)
+    subs["agent_version"] = agent_version
+    subs["agent_version_url_safe"] = agent_version_url_safe
+
+    all_x_defs = {
+        _VERSION_PKG + ".AgentPackageVersion": "$(AGENT_PACKAGE_VERSION)",
+        _VERSION_PKG + ".AgentPayloadVersion": common["agent_payload_version"],
         _VERSION_PKG + ".AgentVersion": agent_version,
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
-        _SETUP_PKG + ".defaultRunPath": _RUN_PATH_RELEASE,
+        "runtime.godebugDefault": _GODEBUG_DEFAULT,
     }
-    dev_x_defs = {
-        _VERSION_PKG + ".AgentPayloadVersion": AGENT_PAYLOAD_VERSION,
-        _VERSION_PKG + ".AgentVersion": agent_version,
-        _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
-        _SETUP_PKG + ".defaultRunPath": _RUN_PATH_DEV,
-    }
-    existing_x_defs = kwargs.pop("x_defs", {})
-    release_x_defs.update(existing_x_defs)
-    dev_x_defs.update(existing_x_defs)
+    if common["full_commit"]:
+        all_x_defs[_VERSION_PKG + ".Commit"] = common["commit"]
+        all_x_defs[_VERSION_PKG + ".FullCommit"] = common["full_commit"]
+    all_x_defs.update({k: v.format(**subs) for k, v in (x_defs or {}).items()})
+    linux_x_defs = {_DEFAULTPATHS_PKG + ".defaultInstallPath": "$(INSTALL_DIR)"} | all_x_defs
 
     # cgo must be enabled on Windows to link the .syso resource file produced
     # by win_resource().  Callers that need additional conditions (e.g. FIPS)
@@ -155,18 +105,6 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
             "@platforms//os:windows": True,
             "//conditions:default": False,
         })
-
-    # "-r <path>" embeds the ELF RPATH so shared libraries under the run path
-    # are found at runtime.  This flag is Linux-specific; non-Linux targets get
-    # an empty list.
-    # //:linux_and_release (Linux + release=True) is more specific than the plain
-    # @platforms//os:linux constraint, so Bazel's ambiguity resolution picks it
-    # first when both conditions hold.
-    run_path_linkopts = select({
-        "//:linux_and_release": ["-r", _RUN_PATH_RELEASE],
-        "@platforms//os:linux": ["-r", _RUN_PATH_DEV],
-        "//conditions:default": [],
-    })
 
     # Strip the symbol table and DWARF debug info in release builds to reduce
     # binary size.  Dev builds keep symbols for debugger and profiler use.
@@ -183,17 +121,32 @@ def dd_agent_go_binary(name, gc_linkopts = None, gotags = None, exact_gotags = N
         kwargs["gotags"] = select({
             "@platforms//os:macos": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
             "//packages/agent:linux_fips": sorted(COMMON_TAGS | gotags | FIPS_TAGS),
-            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
-            "//:windows_x86_64": sorted((COMMON_TAGS | gotags | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//:windows_x86_64": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
             "//conditions:default": sorted(COMMON_TAGS | gotags),
         })
 
     go_binary(
         name = name,
-        gc_linkopts = (gc_linkopts or []) + run_path_linkopts + strip_linkopts,
+        gc_linkopts = (gc_linkopts or []) + strip_linkopts,
+        toolchains = kwargs.pop("toolchains", []) + [
+            "//:install_dir",
+            "//bazel/rules/variables",
+        ],
         x_defs = select({
-            "//:is_release": release_x_defs,
-            "//conditions:default": dev_x_defs,
+            "@platforms//os:linux": linux_x_defs,
+            "//conditions:default": all_x_defs,
         }),
         **kwargs
     )
+
+# Bazel's default --strip=sometimes strips rules_go binaries in fastbuild mode.
+# We have cases (like fixture binaries for tests) that rely on having
+# unconditionally unstripped binaries. This creates a target with a transition
+# that enforces that.
+unstripped_go_binary, _unstripped_go_binary_internal = with_cfg(
+    go_binary,
+).set(
+    "strip",
+    "never",
+).build()

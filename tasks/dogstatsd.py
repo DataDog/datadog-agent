@@ -37,6 +37,7 @@ def build(
     build_exclude=None,
     go_mod="readonly",
     enable_bazel=False,
+    strip_binary=False,
 ):
     """
     Build Dogstatsd
@@ -58,6 +59,10 @@ def build(
             build="dogstatsd", flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
         )
         ldflags, gcflags, env = get_build_flags(ctx, static=static)
+
+        # static builds already get `-s -w` from get_build_flags
+        if strip_binary and not static:
+            ldflags += " -s -w"
 
         # generate windows resources
         if sys.platform == 'win32':

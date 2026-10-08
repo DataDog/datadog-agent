@@ -3,16 +3,17 @@
 
 #include "constants/enums.h"
 #include "helpers/network/context.h"
+#include "helpers/network/credentials.h"
 #include "helpers/process.h"
 #include "maps.h"
 
 
-__attribute__((always_inline)) struct imds_event_t *get_imds_event() {
+static __always_inline struct imds_event_t *get_imds_event() {
     u32 key = IMDS_EVENT_KEY;
     return bpf_map_lookup_elem(&imds_event, &key);
 }
 
-__attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk_buff *skb, struct packet_t *pkt) {
+static __always_inline struct imds_event_t *reset_imds_event(struct __sk_buff *skb, struct packet_t *pkt) {
     struct imds_event_t *evt = get_imds_event();
     if (evt == NULL) {
         // should never happen
@@ -36,6 +37,9 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
 
     // network context
     fill_network_context(&evt->network, skb, pkt);
+
+    // which credential endpoint served this event ?
+    evt->credential_source = get_credential_source(pkt);
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
     fill_cgroup_context(entry, &evt->cgroup);

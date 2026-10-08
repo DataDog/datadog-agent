@@ -1,4 +1,3 @@
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 package(default_visibility = ["//packages:__subpackages__"])
@@ -15,11 +14,4 @@ pkg_files(
         owner = "root",
     ),
     prefix = "etc/datadog-agent/private-action-runner",
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
 )

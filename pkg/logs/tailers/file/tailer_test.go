@@ -150,6 +150,20 @@ func (suite *TailerTestSuite) TestTailerTimeDurationConfig() {
 	tailer.Stop()
 }
 
+// The unread-bytes warning must name the setting that actually bounded the drain.
+func (suite *TailerTestSuite) TestTailerCloseTimeoutSetting() {
+	// To satisfy the suite level tailer
+	suite.tailer.StartFromBeginning()
+	suite.Equal("DD_LOGS_CONFIG_CLOSE_TIMEOUT", NewTailer(suite.createTailerOptions(nil)).closeTimeoutSetting)
+
+	suite.T().Setenv("DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ENABLED", "true")
+	suite.T().Setenv("DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ROTATION_DRAIN_TIMEOUT", "9")
+	configmock.New(suite.T())
+	tailer := NewTailer(suite.createTailerOptions(nil))
+	suite.Equal("DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ROTATION_DRAIN_TIMEOUT", tailer.closeTimeoutSetting)
+	suite.Equal(9*time.Second, tailer.closeTimeout)
+}
+
 func (suite *TailerTestSuite) TestTailFromBeginning() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
@@ -738,6 +752,142 @@ func TestMissedBytesIdentity(t *testing.T) {
 			source, service := missedBytesIdentity(tc.cfg)
 			require.Equal(t, tc.source, source)
 			require.Equal(t, tc.service, service)
+		})
+	}
+}
+
+func TestFileOpenerUsesCurrentSourcePolicy(t *testing.T) {
+	const testPath = "tailer.log"
+	makeSource := func(noFollow bool) *sources.LogSource {
+		return sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     testPath,
+			NoFollow: noFollow,
+		})
+	}
+
+	fileOpener := opener.NewMockFileOpener()
+	fileOpener.AddMockFile(opener.NewMockFile(testPath, [][]byte{[]byte("line\n")}))
+	file := NewFile(testPath, makeSource(false), false)
+	tailer := NewTailer(&TailerOptions{
+		File:       file,
+		Info:       status.NewInfoRegistry(),
+		FileOpener: fileOpener,
+	})
+
+	f, err := tailer.fileOpener.OpenLogFile(testPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	tailer.ReplaceSource(makeSource(true))
+	f, err = tailer.fileOpener.OpenLogFile(testPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	tailer.ReplaceSource(makeSource(false))
+	f, err = tailer.fileOpener.OpenLogFile(testPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	require.Equal(t, []opener.LogFileOpen{
+		{Path: testPath},
+		{Path: testPath, NoFollow: true},
+		{Path: testPath},
+	}, fileOpener.Opens())
+}
+
+func TestRotatedTailerUsesNewSourceOpenPolicy(t *testing.T) {
+	const testPath = "tailer.log"
+	makeFile := func(noFollow bool) *File {
+		return NewFile(testPath, sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     testPath,
+			NoFollow: noFollow,
+		}), false)
+	}
+
+	fileOpener := opener.NewMockFileOpener()
+	fileOpener.AddMockFile(opener.NewMockFile(testPath, [][]byte{[]byte("line\n")}))
+	tailer := NewTailer(&TailerOptions{
+		File:       makeFile(true),
+		Info:       status.NewInfoRegistry(),
+		FileOpener: fileOpener,
+	})
+	rotatedTailer := tailer.NewRotatedTailer(
+		makeFile(false),
+		nil,
+		nil,
+		nil,
+		status.NewInfoRegistry(),
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	f, err := rotatedTailer.fileOpener.OpenLogFile(testPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	require.Equal(t, []opener.LogFileOpen{{Path: testPath}}, fileOpener.Opens())
+}
+
+// TestWaitForRotationDrain exercises the drain timing without a file or a
+// running pipeline. Upper bounds carry seconds of slack for loaded CI hosts, and
+// cases with a growing file use quiet periods well above a scheduler stall.
+func TestWaitForRotationDrain(t *testing.T) {
+	const poll = 20 * time.Millisecond
+	const untilDrainEnds = -1
+
+	tests := []struct {
+		name                      string
+		closeTimeout, quietPeriod time.Duration
+		endWhenIdle               bool
+		produceFor                time.Duration // how long the file keeps growing
+		wantTimedOut              bool
+		wantMin, wantMax          time.Duration
+	}{
+		{"ends once the file goes idle", 30 * time.Second, 40 * time.Millisecond, true, 0, false, 40 * time.Millisecond, 5 * time.Second},
+		{"honors a longer quiet period", 30 * time.Second, time.Second, true, 0, false, time.Second, 6 * time.Second},
+		{"keeps reading while the file grows", 30 * time.Second, 250 * time.Millisecond, true, 600 * time.Millisecond, false, 600 * time.Millisecond, 6 * time.Second},
+		{"is bounded by the close timeout", 600 * time.Millisecond, 250 * time.Millisecond, true, untilDrainEnds, true, 600 * time.Millisecond, 6 * time.Second},
+		{"close timeout outranks the quiet period", 300 * time.Millisecond, 30 * time.Second, true, 0, true, 300 * time.Millisecond, 5 * time.Second},
+		{"without idle end waits out the close timeout", 300 * time.Millisecond, 40 * time.Millisecond, false, 0, true, 300 * time.Millisecond, 5 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tailer := &Tailer{
+				closeTimeout:               tt.closeTimeout,
+				sleepDuration:              poll,
+				rotationHandoffQuietPeriod: tt.quietPeriod,
+				bytesRead:                  status.NewCountInfo("Bytes Read"),
+			}
+
+			// Grow the file far more often than it is polled, so every poll in
+			// that window sees new data.
+			done := make(chan struct{})
+			defer close(done)
+			if tt.produceFor != 0 {
+				stopAt := time.Now().Add(tt.produceFor)
+				go func() {
+					for tt.produceFor == untilDrainEnds || time.Now().Before(stopAt) {
+						select {
+						case <-done:
+							return
+						case <-time.After(poll / 10):
+							tailer.bytesRead.Add(1)
+						}
+					}
+				}()
+			}
+
+			start := time.Now()
+			timedOut := tailer.waitForRotationDrain(tt.endWhenIdle)
+			elapsed := time.Since(start)
+
+			require.Equal(t, tt.wantTimedOut, timedOut)
+			require.GreaterOrEqual(t, elapsed, tt.wantMin)
+			require.LessOrEqual(t, elapsed, tt.wantMax)
 		})
 	}
 }

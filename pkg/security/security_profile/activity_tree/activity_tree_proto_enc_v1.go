@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"slices"
 	"time"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -74,8 +75,13 @@ func processActivityNodeToProto(pan *ProcessNode, tagIDToImageTag func(id uint64
 		ppan.Sockets = append(ppan.Sockets, socketNodeToProto(socket, tagIDToImageTag))
 	}
 
-	for _, sysc := range pan.Syscalls {
-		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(sysc, tagIDToImageTag))
+	syscallIDs := make([]int, 0, len(pan.Syscalls))
+	for id := range pan.Syscalls {
+		syscallIDs = append(syscallIDs, id)
+	}
+	slices.Sort(syscallIDs)
+	for _, id := range syscallIDs {
+		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(pan.Syscalls[id], tagIDToImageTag))
 	}
 
 	for _, networkDevice := range pan.NetworkDevices {
@@ -317,7 +323,7 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	}
 
 	for _, req := range dn.Requests {
-		pdn.Requests = append(pdn.Requests, dnsQuestionToProto(&req))
+		pdn.Requests = append(pdn.Requests, dnsRequestNodeToProto(&req))
 	}
 
 	pdn.NodeBase = nodeBaseToProto(&dn.NodeBase, tagIDToImageTag)
@@ -325,18 +331,42 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	return pdn
 }
 
-func dnsQuestionToProto(q *model.DNSQuestion) *adproto.DNSInfo {
-	if q == nil {
+func dnsRequestNodeToProto(req *DNSRequestNode) *adproto.DNSInfo {
+	if req == nil {
 		return nil
 	}
 
 	return &adproto.DNSInfo{
-		Name:  escape(q.Name),
-		Type:  uint32(q.Type),
-		Class: uint32(q.Class),
-		Size:  uint32(q.Size),
-		Count: uint32(q.Count),
+		Name:     escape(req.Question.Name),
+		Type:     uint32(req.Question.Type),
+		Class:    uint32(req.Question.Class),
+		Size:     uint32(req.Question.Size),
+		Count:    uint32(req.Question.Count),
+		Response: dnsResponseToProto(req.Response),
 	}
+}
+
+func dnsResponseToProto(resp *DNSResponseAggregate) *adproto.DNSResponseInfo {
+	if resp == nil {
+		return nil
+	}
+
+	presp := &adproto.DNSResponseInfo{
+		Ips:    make([]string, 0, len(resp.IPs)),
+		Cnames: make([]string, 0, len(resp.CNames)),
+	}
+
+	for _, ip := range resp.IPs {
+		if str := utils.GetIPStringFromIPNet(ip); str != "" {
+			presp.Ips = append(presp.Ips, str)
+		}
+	}
+
+	for _, cname := range resp.CNames {
+		presp.Cnames = append(presp.Cnames, escape(cname))
+	}
+
+	return presp
 }
 
 func imdsNodeToProto(in *IMDSNode, tagIDToImageTag func(id uint64) string) *adproto.IMDSNode {
@@ -387,8 +417,9 @@ func socketNodeToProto(sn *SocketNode, tagIDToImageTag func(id uint64) string) *
 	}
 
 	psn := &adproto.SocketNode{
-		Family: sn.Family,
-		Bind:   make([]*adproto.BindNode, 0, len(sn.Bind)),
+		Family:  sn.Family,
+		Bind:    make([]*adproto.BindNode, 0, len(sn.Bind)),
+		Connect: make([]*adproto.ConnectNode, 0, len(sn.Connect)),
 	}
 
 	for _, bn := range sn.Bind {
@@ -405,6 +436,22 @@ func socketNodeToProto(sn *SocketNode, tagIDToImageTag func(id uint64) string) *
 		}
 
 		psn.Bind = append(psn.Bind, pbn)
+	}
+
+	for _, cn := range sn.Connect {
+		pcn := &adproto.ConnectNode{
+			MatchedRules: make([]*adproto.MatchedRule, 0, len(cn.MatchedRules)),
+			Port:         uint32(cn.Port),
+			Ip:           cn.IP,
+			Protocol:     uint32(cn.Protocol),
+			NodeBase:     nodeBaseToProto(&cn.NodeBase, tagIDToImageTag),
+		}
+
+		for _, rule := range cn.MatchedRules {
+			pcn.MatchedRules = append(pcn.MatchedRules, matchedRuleToProto(rule))
+		}
+
+		psn.Connect = append(psn.Connect, pcn)
 	}
 
 	return psn
@@ -457,7 +504,7 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 		Seen: make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
 	}
 
-	nb.EachSeen(func(id uint64, times ImageTagTimes) {
+	nb.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
 		tag := tagIDToImageTag(id)
 		if tag == "" {
 			// ID is stale (slot was freed before this node was evicted); skip to avoid
@@ -465,8 +512,8 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 			return
 		}
 		pnb.Seen[tag] = &adproto.ImageTagTimes{
-			FirstSeen: TimestampToProto(&times.FirstSeen),
-			LastSeen:  TimestampToProto(&times.LastSeen),
+			FirstSeen: uint64(firstSeen),
+			LastSeen:  uint64(lastSeen),
 		}
 	})
 
@@ -479,8 +526,10 @@ func capabilityNodeToProto(cap *CapabilityNode, tagIDToImageTag func(id uint64) 
 	}
 
 	return &adproto.CapabilityNode{
-		NodeBase:   nodeBaseToProto(&cap.NodeBase, tagIDToImageTag),
-		Capability: cap.Capability,
-		IsCapable:  cap.Capable,
+		NodeBase:              nodeBaseToProto(&cap.NodeBase, tagIDToImageTag),
+		Capability:            cap.Capability,
+		IsCapable:             cap.Capable,
+		IsAttemptedHostUserns: cap.AttemptedHostUserNS,
+		IsCapableHostUserns:   cap.CapableHostUserNS,
 	}
 }

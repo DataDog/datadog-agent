@@ -347,6 +347,13 @@ func (b *VaultBackend) handleVaultURIFormat(ctx context.Context, secretString st
 			if dataField, ok := sec.Data["data"].(map[string]interface{}); ok {
 				// This is likely KV v2, evaluate the tail against the nested data
 				value, err = tail.Eval(dataField)
+				// KV v2 pointers may include an extra /data segment.
+				// Retry without it if the first lookup finds no value.
+				if value == nil && len(tail) > 1 {
+					if legacyHead := tail.Head(); legacyHead != nil && *legacyHead == "data" {
+						value, err = tail.Tail().Eval(dataField)
+					}
+				}
 			} else {
 				// This is likely KV v1, evaluate the tail against sec.Data directly
 				value, err = tail.Eval(sec.Data)

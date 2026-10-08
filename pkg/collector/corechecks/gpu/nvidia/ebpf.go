@@ -13,9 +13,9 @@ import (
 	"strconv"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -30,15 +30,18 @@ type SystemProbeCache struct {
 	stats  *model.GPUStats // nil indicates no valid data available
 }
 
-// NewSystemProbeCache creates a new stats cache that connects to system-probe using sysprobeclient.
-func NewSystemProbeCache() *SystemProbeCache {
+// NewSystemProbeClient creates a client for the GPU system-probe module.
+func NewSystemProbeClient() *sysprobeclient.CheckClient {
 	timeout := pkgconfigsetup.Datadog().GetDuration("gpu.sp_process_metrics_request_timeout")
-	client := sysprobeclient.GetCheckClient(
+	return sysprobeclient.GetCheckClient(
 		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 		sysprobeclient.WithCheckTimeout(timeout),
 		sysprobeclient.WithStartupCheckTimeout(timeout),
 	)
+}
 
+// NewSystemProbeCache creates a new stats cache that connects to system-probe using sysprobeclient.
+func NewSystemProbeCache(client *sysprobeclient.CheckClient) *SystemProbeCache {
 	return &SystemProbeCache{
 		client: client,
 		stats:  nil, // Start with no data
@@ -92,7 +95,8 @@ type ebpfCollector struct {
 }
 
 // newEbpfCollector creates a new eBPF-based collector for the given device.
-func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfCollector, error) {
+func newEbpfCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
+	cache := deps.SystemProbeCache
 	if cache == nil {
 		return nil, errors.New("system-probe cache cannot be nil")
 	}
@@ -218,7 +222,7 @@ func (c *ebpfCollector) Collect() ([]Sample, error) {
 		}
 	}
 
-	// Emit limit metrics with aggregated PID tags
+	// Emit core limit metric with aggregated PID tags
 	deviceSamples = append(deviceSamples,
 		&Metric{
 			baseSample: baseSample{priority: Medium, associatedWorkloads: allWorkloadIDs},
@@ -226,13 +230,15 @@ func (c *ebpfCollector) Collect() ([]Sample, error) {
 			Value:      float64(devInfo.CoreCount),
 			Type:       ddmetrics.GaugeType,
 		},
-		&Metric{
+	)
+	if devInfo.Memory > 0 {
+		deviceSamples = append(deviceSamples, &Metric{
 			baseSample: baseSample{associatedWorkloads: allWorkloadIDs},
 			Name:       "memory.limit",
 			Value:      float64(devInfo.Memory),
 			Type:       ddmetrics.GaugeType,
-		},
-	)
+		})
+	}
 
 	// Emit device-level utilization metrics as a fallback when no other
 	// sources are available (mainly Ampere MIG devices)

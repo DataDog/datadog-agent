@@ -80,37 +80,37 @@ static u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     return offset; // offsetof(struct mount, mnt_id)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mount_id_unique(void) {
+static __always_inline u32 get_mount_offset_of_mount_id_unique(void) {
     u64 offset;
     LOAD_CONSTANT("mount_id_unique_offset", offset);
     return offset; // offsetof(struct mount, mnt_id_unique)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mount_ns(void) {
+static __always_inline u32 get_mount_offset_of_mount_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mount_ns_offset", offset);
     return offset; // offsetof(struct mount, mnt_ns)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_parent(void) {
+static __always_inline u32 get_mount_offset_of_parent(void) {
     u64 offset;
     LOAD_CONSTANT("mount_parent_offset", offset);
     return offset; // offsetof(struct mount, mnt_parent)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mountpoint(void) {
+static __always_inline u32 get_mount_offset_of_mountpoint(void) {
     u64 offset;
     LOAD_CONSTANT("mount_mountpoint_offset", offset);
     return offset; // offsetof(struct mount, mnt_mp)
 }
 
-u32 __attribute__((always_inline)) get_mnt_namespace_ns(void) {
+static __always_inline u32 get_mnt_namespace_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mnt_namespace_ns", offset);
     return offset; // offsetof(struct mnt_namespace, ns)
 }
 
-u32 __attribute__((always_inline)) get_ns_common_inum_offset(void) {
+static __always_inline u32 get_ns_common_inum_offset(void) {
     u64 offset;
     LOAD_CONSTANT("ns_common_inum_offset", offset);
     return offset; // offsetof(struct ns_common, inum)
@@ -169,14 +169,14 @@ static struct dentry *__attribute__((always_inline)) get_mount_mountpoint_dentry
     return dentry;
 }
 
-u64 __attribute__((always_inline)) get_mount_mount_id_unique(void *mnt) {
+static __always_inline u64 get_mount_mount_id_unique(void *mnt) {
     u64 mount_id;
 
     bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id_unique());
     return mount_id;
 }
 
-u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
+static __always_inline u32 get_mount_mount_ns_inum(void *mnt) {
     void* mnt_ns = NULL;
     u32   inum = 0;
 
@@ -189,14 +189,31 @@ u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
     return inum;
 }
 
-struct mount * __attribute__((always_inline)) get_mount_parent(void *mnt) {
+static void * __attribute__((always_inline)) get_vfsmount_mount(struct vfsmount *mnt) {
+    return (void *)((char *)mnt - MNT_OFFSETOF_MNT);
+}
+
+// MNT_NS_INTERNAL, from fs/mount.h: the sentinel the kernel stores in mount.mnt_ns for mounts
+// that belong to no mount namespace at all.
+#define MNT_NS_INTERNAL_PTR ((void *)(long)-EINVAL)
+
+// is_internal_mount returns whether the mount is one the kernel keeps to itself.
+static int __attribute__((always_inline)) is_internal_mount(struct vfsmount *mnt) {
+    void *mnt_ns = NULL;
+
+    // on a failed read mnt_ns stays NULL and we report "not internal"
+    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), (char *)get_vfsmount_mount(mnt) + get_mount_offset_of_mount_ns());
+    return mnt_ns == MNT_NS_INTERNAL_PTR;
+}
+
+static __always_inline struct mount *get_mount_parent(void *mnt) {
     struct mount *mnt_parent = NULL;
 
     bpf_probe_read(&mnt_parent, sizeof(mnt_parent), mnt + get_mount_offset_of_parent());
     return mnt_parent;
 }
 
-struct mountpoint * __attribute__((always_inline)) get_mount_mountpoint(void *mnt) {
+static __always_inline struct mountpoint *get_mount_mountpoint(void *mnt) {
     struct mountpoint *mnt_mp = NULL;
 
     bpf_probe_read(&mnt_mp, sizeof(mnt_mp), mnt + get_mount_offset_of_mountpoint());

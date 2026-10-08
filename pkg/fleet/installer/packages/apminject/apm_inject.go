@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"go.uber.org/multierr"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
@@ -482,6 +482,11 @@ func (a *InjectorInstaller) enableTmpfsLink(ctx context.Context) (err error) {
 	return nil
 }
 
+// tmpfsLauncherPattern returns a regex that matches the launcher entry under tmpfsDir.
+func tmpfsLauncherPattern(tmpfsDir string) string {
+	return regexp.QuoteMeta(tmpfsDir) + launcherPatternSuffix
+}
+
 // allKnownLauncherPattern returns a regex that matches any known launcher path:
 // the legacy deb path, the persistent OCI path (with or without a dynamic subdir),
 // and the tmpfs symlink path. No whitespace anchors — use removeKnownLauncherEntries
@@ -492,7 +497,7 @@ func (a *InjectorInstaller) allKnownLauncherPattern() string {
 		regexp.QuoteMeta(path.Join(a.installPath, "inject")) + launcherPatternSuffix,
 	}
 	if a.tmpfsInjectDir != "" {
-		alts = append(alts, regexp.QuoteMeta(a.tmpfsInjectDir)+launcherPatternSuffix)
+		alts = append(alts, tmpfsLauncherPattern(a.tmpfsInjectDir))
 	}
 	return "(" + strings.Join(alts, "|") + ")"
 }
@@ -611,7 +616,7 @@ func (a *InjectorInstaller) UninstrumentLDPreloadTmpfs(ctx context.Context) (err
 	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_ld_preload_tmpfs")
 	defer func() { span.Finish(err) }()
 	if a.tmpfsInjectDir != "" {
-		tmpfsPattern := regexp.QuoteMeta(a.tmpfsInjectDir) + launcherPatternSuffix
+		tmpfsPattern := tmpfsLauncherPattern(a.tmpfsInjectDir)
 		matcher := regexp.MustCompile("^" + tmpfsPattern + "(\\s*)|(\\s*)" + tmpfsPattern)
 		found := false
 		mutator := newFileMutator(ldSoPreloadPath, func(_ context.Context, content []byte) ([]byte, error) {

@@ -21,7 +21,7 @@ def datadog_infra(ctx, audience, datacenter="us1.ddbuild.io"):
 
 
 @task
-def gitlab(ctx, repo='datadog-agent', verbose=False):
+def gitlab(ctx, repo='DataDog/datadog-agent', verbose=False):
     """
     Get a gitlab token scoped to the given repository.
 

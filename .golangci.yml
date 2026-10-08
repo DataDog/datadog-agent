@@ -231,6 +231,18 @@ linters:
             - "!**/pkg/network/go/lutgen/**"
             - "!$test"
             - "!**/tests/**"
+        zstdlibs:
+          deny:
+            - pkg: "github.com/DataDog/zstd"
+              desc: "Import github.com/DataDog/datadog-agent/pkg/zstd instead. It wraps the CGO libzstd backend and falls back to the pure-Go github.com/klauspost/compress/zstd when CGO is disabled, so a single build works in both environments."
+            - pkg: "github.com/klauspost/compress/zstd"
+              desc: "Import github.com/DataDog/datadog-agent/pkg/zstd instead. It wraps the CGO libzstd backend and falls back to the pure-Go github.com/klauspost/compress/zstd when CGO is disabled, so a single build works in both environments."
+          files:
+            - "**/cmd/**"
+            - "**/comp/**"
+            - "**/pkg/**"
+            - "!**/pkg/zstd/**"
+            - "!$test"
 
     errcheck:
       exclude-functions:

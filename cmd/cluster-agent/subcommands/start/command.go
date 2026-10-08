@@ -415,9 +415,10 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
+	apmTargetStore := instrumentationhandlers.NewAPMTargetStore()
 	var instrHandlers []instrumentation.Handler
 	if config.GetBool("instrumentation_crd_controller.enabled") {
-		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore)
+		instrHandlers = setupInstrumentationCRDHandler(le, ac, serviceTemplateStore, apmTargetStore)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
@@ -539,20 +540,14 @@ func start(log log.Component,
 		}
 	}
 
-	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
-	// don't import cmd/agent
-
-	// create and setup the autoconfig instance
-	// The autoconfig instance setup happens in the workloadmeta start hook
-	// create and setup the Collector and others.
-	common.LoadComponents(ac, config)
-
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
 
 	// start the autoconfig, this will immediately run any configured check
-	ac.LoadAndRun(mainCtx)
+	if err := ac.LoadAndRun(mainCtx); err != nil {
+		return err
+	}
 
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
@@ -664,7 +659,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions, secretResolver)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -691,8 +686,7 @@ func start(log log.Component,
 		}
 
 		var csiDriverWatcher libraryinjection.CSIDriverWatcher
-		if config.GetBool("admission_controller.auto_instrumentation.enabled") &&
-			config.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") {
 			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
 		}
 
@@ -709,6 +703,7 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
 			CSIDriverWatcher:             csiDriverWatcher,
+			DDITargets:                   apmTargetStore,
 			RcClient:                     rcClient,
 		}
 
@@ -808,12 +803,13 @@ func loopbackOnly(h http.Handler) http.HandlerFunc {
 	}
 }
 
-func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore) []instrumentation.Handler {
+func setupInstrumentationCRDHandler(le *leaderelection.LeaderEngine, ac autodiscovery.Component, serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore, apmStore *instrumentationhandlers.APMTargetStore) []instrumentation.Handler {
 	checkStore := instrumentationhandlers.NewCheckStore()
 	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
 		IsLeader:                  le.IsLeader,
 		CheckStore:                checkStore,
 		ServiceCheckTemplateStore: serviceTemplateStore,
+		APMTargetStore:            apmStore,
 	})
 
 	api.ModifyAPIRouter(func(r *http.ServeMux) {
@@ -856,7 +852,6 @@ func startPrivateActionRunner(
 	demux demultiplexer.Component,
 	ha helmactions.Component,
 	ka kubeactionscomp.Component,
-	secretResolver secrets.Component,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
@@ -874,7 +869,7 @@ func startPrivateActionRunner(
 		metricsClient = &ddgostatsd.NoOpClient{}
 	}
 
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, secretResolver, metricsClient, ha, ka)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha, ka)
 	if err != nil {
 		return nil, err
 	}

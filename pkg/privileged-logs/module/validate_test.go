@@ -810,3 +810,26 @@ func TestValidateAndOpenWithPrefixTOCTOUFileSymlink(t *testing.T) {
 	assert.Nil(t, file)
 	assert.True(t, toctouCalled)
 }
+
+func TestValidateAndOpenNoFollowWithPrefixRejectsSymlink(t *testing.T) {
+	testDir := t.TempDir()
+
+	logFile := filepath.Join(testDir, "app.log")
+	require.NoError(t, os.WriteFile(logFile, []byte("log content"), 0644))
+
+	targetLog := filepath.Join(testDir, "secret.log")
+	require.NoError(t, os.WriteFile(targetLog, []byte("secret content"), 0644))
+
+	require.NoError(t, os.Remove(logFile))
+	require.NoError(t, os.Symlink(targetLog, logFile))
+
+	file, err := validateAndOpenNoFollowWithPrefix(logFile, testDir+"/")
+	require.Error(t, err)
+	assert.Nil(t, file)
+	assert.ErrorIs(t, err, syscall.ELOOP)
+
+	file, err = validateAndOpenWithPrefix(logFile, testDir+"/", nil)
+	require.NoError(t, err)
+	require.NotNil(t, file)
+	require.NoError(t, file.Close())
+}

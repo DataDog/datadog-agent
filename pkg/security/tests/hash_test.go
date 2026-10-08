@@ -36,7 +36,7 @@ func TestHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("exec", func(t *testing.T) {
 		testFile, _, err := test.Path("test-hash-exec")

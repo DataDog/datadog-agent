@@ -13,14 +13,36 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	dogstatsdclientdropdetector "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/def"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
+type observedClientBytes struct {
+	clientLibrary   string
+	clientTransport string
+	metric          dogstatsdclientdropdetector.ClientByteMetric
+	bytes           float64
+}
+
+type recordingDropDetector struct {
+	observations []observedClientBytes
+}
+
+func (d *recordingDropDetector) ObserveClientBytes(clientLibrary, clientTransport string, metric dogstatsdclientdropdetector.ClientByteMetric, bytes float64) {
+	d.observations = append(d.observations, observedClientBytes{clientLibrary: clientLibrary, clientTransport: clientTransport, metric: metric, bytes: bytes})
+}
+
+func (*recordingDropDetector) CompleteFinalDogStatsDSerieFlush() {}
+
+func clientTags(transport, library string) tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice([]string{"client_transport:" + transport, "client:" + library})
+}
+
 func TestComponentObservesClientByteRateSeries(t *testing.T) {
 	telemetry := telemetrymock.New(t)
-	provides := NewComponent(Requires{Telemetry: telemetry})
+	provides := NewComponent(Requires{Telemetry: telemetry, DropDetector: &recordingDropDetector{}})
 
 	for _, test := range []struct {
 		name     string
@@ -52,7 +74,7 @@ func TestComponentObservesClientByteRateSeries(t *testing.T) {
 
 func TestComponentSumsRatePointsInFinalSeries(t *testing.T) {
 	telemetry := telemetrymock.New(t)
-	provides := NewComponent(Requires{Telemetry: telemetry})
+	provides := NewComponent(Requires{Telemetry: telemetry, DropDetector: &recordingDropDetector{}})
 
 	provides.Observer.ObserveFinalDogStatsDSerie(&metrics.Serie{
 		Name:     dogStatsDClientBytesSentMetric,
@@ -72,7 +94,7 @@ func TestComponentSumsRatePointsInFinalSeries(t *testing.T) {
 
 func TestComponentPreservesFractionalRecoveredByteTotal(t *testing.T) {
 	telemetry := telemetrymock.New(t)
-	provides := NewComponent(Requires{Telemetry: telemetry})
+	provides := NewComponent(Requires{Telemetry: telemetry, DropDetector: &recordingDropDetector{}})
 
 	provides.Observer.ObserveFinalDogStatsDSerie(&metrics.Serie{
 		Name:     dogStatsDClientBytesSentMetric,
@@ -89,7 +111,7 @@ func TestComponentPreservesFractionalRecoveredByteTotal(t *testing.T) {
 
 func TestComponentIgnoresUnsupportedOrInvalidSeries(t *testing.T) {
 	telemetry := telemetrymock.New(t)
-	provides := NewComponent(Requires{Telemetry: telemetry})
+	provides := NewComponent(Requires{Telemetry: telemetry, DropDetector: &recordingDropDetector{}})
 
 	provides.Observer.ObserveFinalDogStatsDSerie(&metrics.Serie{
 		Name:     "datadog.dogstatsd.client.bytes_sent",
@@ -131,4 +153,33 @@ func TestComponentIgnoresUnsupportedOrInvalidSeries(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, metrics, 1)
 	require.Equal(t, 10.0, metrics[0].Value())
+}
+
+func TestComponentSharesOnlyValidUDSClientBytesWithDetector(t *testing.T) {
+	telemetry := telemetrymock.New(t)
+	detector := &recordingDropDetector{}
+	provides := NewComponent(Requires{Telemetry: telemetry, DropDetector: detector})
+
+	for _, serie := range []*metrics.Serie{
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 5}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds-stream", "py"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 4}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds", "java"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 3}}},
+		{Name: dogStatsDClientBytesDroppedMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 1}}},
+		{Name: dogStatsDClientBytesDroppedQueueMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 0.6}}},
+		{Name: dogStatsDClientBytesDroppedWriterMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 0.4}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("uds", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: -1}}},
+		{Name: dogStatsDClientBytesSentMetric, Tags: clientTags("udp", "go"), MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 100}}},
+		{Name: "customer.metric", MType: metrics.APIRateType, Interval: 10, Points: []metrics.Point{{Value: 100}}},
+	} {
+		provides.Observer.ObserveFinalDogStatsDSerie(serie)
+	}
+
+	require.Equal(t, []observedClientBytes{
+		{clientLibrary: "go", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 50},
+		{clientLibrary: "py", clientTransport: "uds-stream", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 40},
+		{clientLibrary: "java", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricSent, bytes: 30},
+		{clientLibrary: "go", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricDropped, bytes: 10},
+		{clientLibrary: "go", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedQueue, bytes: 6},
+		{clientLibrary: "go", clientTransport: "uds", metric: dogstatsdclientdropdetector.ClientByteMetricDroppedWriter, bytes: 4},
+	}, detector.observations)
 }

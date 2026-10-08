@@ -78,15 +78,29 @@ func conditionTags(baseTags []string, conditionType string) []string {
 	return append(baseTags, "type:"+conditionType)
 }
 
-func applyModeTags(baseTags []string, applyMode, dimension string) []string {
-	return append(baseTags, dpaModeTagKey+":"+applyMode, dpaDimensionTagKey+":"+dimension)
+// applyModeTags generates tags for the apply mode metric. One dpa_dimension tag is added per
+// enabled dimension so that a multi-dimensional DPA stays a single timeseries carrying both
+// values, instead of splitting into one context per dimension.
+func applyModeTags(baseTags []string, applyMode string, dimensions []string) []string {
+	tags := append(baseTags, dpaModeTagKey+":"+applyMode)
+	for _, dimension := range dimensions {
+		tags = append(tags, dpaDimensionTagKey+":"+dimension)
+	}
+	return tags
 }
 
-func controlledResourceTags(baseTags []string, containerName string, resource corev1.ResourceName) []string {
+// controlledResourceTags generates tags for the controlled resources metric. One resource_name
+// tag is added per controlled resource so that a container controlling several resources stays a
+// single timeseries carrying every value, instead of splitting into one context per resource.
+func controlledResourceTags(baseTags []string, containerName string, resources []corev1.ResourceName) []string {
 	if containerName == "*" {
 		containerName = allContainersTagValue
 	}
-	return append(baseTags, taggerTags.KubeContainerName+":"+containerName, resourceNameTagKey+":"+string(resource))
+	tags := append(baseTags, taggerTags.KubeContainerName+":"+containerName)
+	for _, resource := range resources {
+		tags = append(tags, resourceNameTagKey+":"+string(resource))
+	}
+	return tags
 }
 
 func applyModeTagValue(spec *datadoghq.DatadogPodAutoscalerSpec) string {
@@ -105,23 +119,22 @@ func controlledResourcesForMetrics(resources []corev1.ResourceName) []corev1.Res
 }
 
 func appendApplyModeMetrics(metrics metricsstore.StructuredMetrics, internal *model.PodAutoscalerInternal, baseTags []string) metricsstore.StructuredMetrics {
-	applyMode := applyModeTagValue(internal.Spec())
+	var dimensions []string
 	if internal.IsHorizontalScalingEnabled() {
-		metrics = append(metrics, metricsstore.StructuredMetric{
-			Name:  metricPrefix + ".apply_mode",
-			Type:  metricsstore.MetricTypeGauge,
-			Value: 1.0,
-			Tags:  applyModeTags(baseTags, applyMode, dpaDimensionHorizontal),
-		})
+		dimensions = append(dimensions, dpaDimensionHorizontal)
 	}
 	if internal.IsVerticalScalingEnabled() {
+		dimensions = append(dimensions, dpaDimensionVertical)
+	}
+	if len(dimensions) > 0 {
 		metrics = append(metrics, metricsstore.StructuredMetric{
 			Name:  metricPrefix + ".apply_mode",
 			Type:  metricsstore.MetricTypeGauge,
 			Value: 1.0,
-			Tags:  applyModeTags(baseTags, applyMode, dpaDimensionVertical),
+			Tags:  applyModeTags(baseTags, applyModeTagValue(internal.Spec()), dimensions),
 		})
 	}
+
 	return metrics
 }
 
@@ -145,16 +158,20 @@ func appendControlledResourcesMetrics(metrics metricsstore.StructuredMetrics, in
 			continue
 		}
 		seenResources := make(map[corev1.ResourceName]struct{})
+		var resources []corev1.ResourceName
 		for _, resource := range controlledResourcesForMetrics(container.ControlledResources) {
 			if _, seen := seenResources[resource]; seen {
 				continue
 			}
 			seenResources[resource] = struct{}{}
+			resources = append(resources, resource)
+		}
+		if len(resources) > 0 {
 			metrics = append(metrics, metricsstore.StructuredMetric{
 				Name:  metricPrefix + ".vertical_scaling.controlled_resources",
 				Type:  metricsstore.MetricTypeGauge,
 				Value: 1.0,
-				Tags:  controlledResourceTags(baseTags, container.Name, resource),
+				Tags:  controlledResourceTags(baseTags, container.Name, resources),
 			})
 		}
 	}
@@ -259,12 +276,60 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		localFallbackValue = 1.0
 	}
 
+	// Distinguish a fallback forced by annotation from one triggered by stale product values,
+	// otherwise this metric becomes ambiguous now that both can switch it on.
+	fallbackTrigger := "stale"
+	if internal.IsFallbackForced() {
+		fallbackTrigger = "forced"
+	}
+
 	metrics = append(metrics, metricsstore.StructuredMetric{
 		Name:  metricPrefix + ".local.fallback_enabled",
 		Type:  metricsstore.MetricTypeGauge,
 		Value: localFallbackValue,
+		Tags:  append([]string{"fallback_trigger:" + fallbackTrigger}, baseTags...),
+	})
+
+	// Paused by the pause annotation
+	pausedValue := 0.0
+	if internal.IsPaused() {
+		pausedValue = 1.0
+	}
+
+	metrics = append(metrics, metricsstore.StructuredMetric{
+		Name:  metricPrefix + ".paused",
+		Type:  metricsstore.MetricTypeGauge,
+		Value: pausedValue,
 		Tags:  baseTags,
 	})
+
+	// Replica count pinned by the force-replicas annotation. Only emitted while a count is pinned, so
+	// that the many autoscalers without it do not each send a series.
+	if replicas, forced := internal.ForcedReplicas(); forced {
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".force_replicas",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: float64(replicas),
+			Tags:  baseTags,
+		})
+	}
+
+	// Whether the override set by the force-resources annotation is applied (1 or 0): paused or
+	// non-Apply autoscalers do not apply it. Only emitted while a valid override is set, so that the
+	// many autoscalers without it do not each send a series.
+	if len(internal.ForcedResources()) > 0 {
+		forcedResourcesValue := 0.0
+		if !internal.IsPaused() && applyModeTagValue(internal.Spec()) == strings.ToLower(string(datadoghq.DatadogPodAutoscalerApplyModeApply)) {
+			forcedResourcesValue = 1.0
+		}
+
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".force_resources",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: forcedResourcesValue,
+			Tags:  baseTags,
+		})
+	}
 
 	// 3. DPA apply mode
 	metrics = appendApplyModeMetrics(metrics, internal, baseTags)

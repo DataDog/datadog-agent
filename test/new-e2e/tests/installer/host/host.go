@@ -89,11 +89,15 @@ func (h *Host) ProcmgrEnabled() bool {
 const (
 	metricProcmgrDaemonReachable        = "runtime__procmgr_daemon_reachable"
 	metricProcmgrDaemonReady            = "runtime__procmgr_daemon_ready"
+	metricProcmgrDaemonServiceState     = "runtime__procmgr_daemon_service_state"
 	metricProcmgrProcessRunning         = "runtime__procmgr_process_running"
+	metricProcmgrProcessState           = "runtime__procmgr_process_state"
 	metricAgentServiceInstalled         = "runtime__agent_service_installed"
 	metricAgentServiceProcmgrConfigured = "runtime__agent_service_procmgr_configured"
 	metricAgentServiceManagementMode    = "runtime__agent_service_management_mode"
+	metricAgentServiceRunning           = "runtime__agent_service_running"
 	procmgrManagementModeProcmgr        = "procmgr"
+	procmgrProcessStateRunning          = "running"
 )
 
 // AssertProcmgrTelemetry verifies the agent's COAT gauges report serviceID/processName as managed
@@ -108,8 +112,17 @@ func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName strin
 
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReachable, nil)
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReady, nil)
+		// Reachable and ready come from the gRPC socket. This one comes from the systemd unit, so
+		// it stays reported when the daemon stops answering.
+		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonServiceState, map[string]string{
+			"state": procmgrProcessStateRunning,
+		})
 		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessRunning, map[string]string{
 			"process": processName,
+		})
+		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessState, map[string]string{
+			"process": processName,
+			"state":   procmgrProcessStateRunning,
 		})
 		assertTelemetryGaugeTrue(c, out, metricAgentServiceInstalled, map[string]string{
 			"service": serviceID,
@@ -120,6 +133,10 @@ func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName strin
 		assertTelemetryGaugeTrue(c, out, metricAgentServiceManagementMode, map[string]string{
 			"service": serviceID,
 			"mode":    procmgrManagementModeProcmgr,
+		})
+		assertTelemetryGaugeTrue(c, out, metricAgentServiceRunning, map[string]string{
+			"service":    serviceID,
+			"supervisor": procmgrManagementModeProcmgr,
 		})
 	}, 7*time.Minute, 10*time.Second, "procmgr telemetry gauges should be emitted")
 }
@@ -204,21 +221,29 @@ func (h *Host) ConfigureAptMirrors() {
 	// with long default TCP timeouts: Acquire::http::Timeout is a per-socket idle timeout,
 	// so a short bound turns a stalled mirror into a fast error that triggers failover.
 	h.remote.MustExecute(`printf 'Acquire::Retries "1";\nAcquire::http::Timeout "10";\nAcquire::https::Timeout "10";\n' | sudo tee /etc/apt/apt.conf.d/99datadog-e2e-fail-fast`)
+
+	switch h.os.Flavor {
 	// Ubuntu EC2 AMIs point at a single regional mirror with no fallback; add global mirrors.
-	if h.os.Flavor != e2eos.Ubuntu {
-		return
+	case e2eos.Ubuntu:
+		// The "mirror+file" transport used below only exists in apt >= 1.6 (Ubuntu >= 18.04). On
+		// older releases (e.g. Ubuntu 16.04, which ships apt 1.2) the method driver is absent, so
+		// rewriting the sources to "mirror+file:" makes every subsequent apt operation fail with
+		// "The method driver /usr/lib/apt/methods/mirror+file could not be found". Skip the source
+		// rewrite there; the Acquire retry/timeout hardening above still applies. See incident 59571.
+		if _, err := h.remote.Execute("test -e /usr/lib/apt/methods/mirror+file"); err != nil {
+			return
+		}
+		h.remote.MustExecute(`printf 'http://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
+		h.remote.MustExecute(`printf 'http://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
+		h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
+	case e2eos.Debian:
+		// Bullseye (Debian 11) is EOL and archived off the regular mirrors; other Debian
+		// releases still have live repositories, so only rewrite sources.list for 11.
+		if !strings.HasPrefix(h.os.Version, "11") {
+			return
+		}
+		h.remote.MustExecute(`printf 'deb http://archive.debian.org/debian bullseye main\ndeb-src http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian bullseye-updates main\ndeb-src http://archive.debian.org/debian bullseye-updates main\ndeb http://archive.debian.org/debian bullseye-backports main\ndeb-src http://archive.debian.org/debian bullseye-backports main\n' | sudo tee /etc/apt/sources.list`)
 	}
-	// The "mirror+file" transport used below only exists in apt >= 1.6 (Ubuntu >= 18.04). On
-	// older releases (e.g. Ubuntu 16.04, which ships apt 1.2) the method driver is absent, so
-	// rewriting the sources to "mirror+file:" makes every subsequent apt operation fail with
-	// "The method driver /usr/lib/apt/methods/mirror+file could not be found". Skip the source
-	// rewrite there; the Acquire retry/timeout hardening above still applies. See incident 59571.
-	if _, err := h.remote.Execute("test -e /usr/lib/apt/methods/mirror+file"); err != nil {
-		return
-	}
-	h.remote.MustExecute(`printf 'http://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n' | sudo tee /etc/apt/mirrorlist.main`)
-	h.remote.MustExecute(`printf 'http://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n' | sudo tee /etc/apt/mirrorlist.ports`)
-	h.remote.MustExecute(`for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do if [ -f "$f" ]; then sudo sed -i -e 's#https\?://[a-z0-9.-]*ec2\.archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://archive\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://security\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' -e 's#https\?://[a-z0-9.-]*ec2\.ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' -e 's#https\?://ports\.ubuntu\.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' "$f"; fi; done`)
 }
 
 // ConfigureYumMirrors is the yum counterpart to ConfigureAptMirrors. CentOS 7 is EOL and its
@@ -258,73 +283,28 @@ func (h *Host) configureDockerECRCredentialHelper() {
 	h.remote.MustExecute(`sudo mkdir -p /root/.docker && printf '{"credsStore":"ecr-login"}\n' | sudo tee /root/.docker/config.json > /dev/null`)
 }
 
-// installECRCredentialHelper installs the amazon-ecr-credential-helper binary if not already present.
-func (h *Host) installECRCredentialHelper() {
-	if _, err := h.remote.Execute("command -v docker-credential-ecr-login"); err == nil {
-		return
-	}
-	if h.pkgManager == "apt" {
-		h.remote.MustExecute("sudo apt-get install -y amazon-ecr-credential-helper")
-	} else {
-		// No official amazon-ecr-credential-helper package for non-apt distros (zypper, yum on CentOS, etc.);
-		// download the binary directly.
-		var helperArch string
-		helperVersion := "0.12.0"
-		switch h.arch {
-		case e2eos.AMD64Arch:
-			helperArch = "amd64"
-		case e2eos.ARM64Arch:
-			helperArch = "arm64"
-		default:
-			h.t().Fatalf("unsupported architecture for ECR credential helper: %s", h.arch)
-		}
-		helperURL := fmt.Sprintf("https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/%s/linux-%s/docker-credential-ecr-login", helperVersion, helperArch)
-		h.remote.MustExecute(fmt.Sprintf(`sudo curl -fsSL "%s" -o /usr/bin/docker-credential-ecr-login && sudo chmod +x /usr/bin/docker-credential-ecr-login`, helperURL))
-	}
-}
-
 // TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
-// InstallDocker installs Docker on the host if it is not already installed.
-func (h *Host) InstallDocker() {
-	defer func() {
-		// This defer will basically restart docker from a clean state, to avoid any issues in between tests.
-		// It will:
-		// - 1. Stop docker (if it's running)
-		// - 2. Reset failed status
-		// - 3. Remove the network directory to avoid network collision
-		// - 4. Start docker again
-		_, _ = h.remote.Execute("sudo systemctl stop docker")
-		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
-		if err != nil {
-			h.t().Logf("warn: failed to reset-failed for docker.d: %v", err)
-		}
-		_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
-		if err != nil {
-			h.t().Logf("warn: failed to remove /var/lib/docker/network: %v", err)
-		}
-		_, err = h.remote.Execute("sudo systemctl start docker")
-		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
-	}()
-	if _, err := h.remote.Execute("command -v docker"); err == nil {
-		h.installECRCredentialHelper()
-		h.configureDockerECRCredentialHelper()
-		return
-	}
-
-	switch h.pkgManager {
-	case "apt":
-		h.remote.MustExecute("sudo apt-get update -qq")
-		h.remote.MustExecute("sudo apt-get install -y docker.io")
-	case "yum":
-		h.remote.MustExecute("sudo yum install -y docker")
-	case "zypper":
-		h.remote.MustExecute("sudo zypper install -y docker")
-	default:
-		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
-	}
-
-	h.installECRCredentialHelper()
+// PrepareDocker configures the pre-baked Docker runtime and resets its network state.
+func (h *Host) PrepareDocker() {
+	h.remote.MustExecute("command -v docker && command -v docker-credential-ecr-login")
 	h.configureDockerECRCredentialHelper()
+	// Restart Docker from a clean state to avoid interference between tests.
+	// It will:
+	// - 1. Stop docker (if it's running)
+	// - 2. Reset failed status
+	// - 3. Remove the network directory to avoid network collision
+	// - 4. Start docker again
+	_, _ = h.remote.Execute("sudo systemctl stop docker")
+	_, err := h.remote.Execute("sudo systemctl reset-failed docker")
+	if err != nil {
+		h.t().Logf("warn: failed to reset-failed for docker.d: %v", err)
+	}
+	_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
+	if err != nil {
+		h.t().Logf("warn: failed to remove /var/lib/docker/network: %v", err)
+	}
+	_, err = h.remote.Execute("sudo systemctl start docker")
+	require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
@@ -798,8 +778,8 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 // SetupProxy sets up a Squid Proxy with Docker & adds iptables/nftables rules to redirect block all traffic
 // except for the proxy
 func (h *Host) SetupProxy() {
-	// Install Docker & the Squid Proxy
-	h.InstallDocker()
+	// Prepare Docker and start the Squid proxy.
+	h.PrepareDocker()
 	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 " +
 		h.dockerImage("ecr-public/ubuntu/squid:4.10-20.04_beta", "public.ecr.aws/ubuntu/squid:4.10-20.04_beta"))
 

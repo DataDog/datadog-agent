@@ -9,7 +9,8 @@ datadog:
           "rules": {
             "containers": [
               "container.name == \"redis\"",
-              "container.pod.namespace == \"filtered-ns\""
+              "container.pod.namespace == \"filtered-ns\"",
+              "container.pod.labels[\"app\"] == \"redis\""
             ]
           }
         }

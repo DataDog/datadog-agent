@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
@@ -178,7 +178,9 @@ func NewComponent(ctx context.Context, cfg *Config, telemetry component.Telemetr
 		}
 
 		providedConfig := conf.ToStringMap()
-		providedConfig = envConfMap.useEnvVarNames(providedConfig)
+		if envConfMap != nil {
+			providedConfig = envConfMap.useEnvVarNames(providedConfig)
+		}
 		if envbytes, err := yaml.Marshal(providedConfig); err == nil {
 			ext.configStore.setProvided(string(envbytes))
 		}

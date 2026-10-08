@@ -38,7 +38,6 @@ pub fn initialize_crypto_provider() -> Result<()> {
 pub async fn build_ipc_client_connector(
     ipc_cert_file: &Path,
 ) -> Result<tokio_rustls::TlsConnector> {
-    initialize_crypto_provider()?;
     let mut config =
         datadog_agent_commons::ipc::tls::build_ipc_client_ipc_tls_config(ipc_cert_file)
             .await
@@ -74,6 +73,7 @@ mod tests {
         let cert_file = dir.path().join("ipc_cert.pem");
         std::fs::write(&cert_file, test_support::IPC_IDENTITY_PEM).unwrap();
 
+        initialize_crypto_provider().unwrap();
         build_ipc_client_connector(&cert_file)
             .await
             .expect("Rustls should accept the Agent's SEC1-keyed IPC identity");
