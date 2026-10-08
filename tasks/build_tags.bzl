@@ -285,23 +285,15 @@ AIX_EXCLUDED_TAGS = set([
     "clusterchecks",
     "containerd",
     "cri",
-    "crio",
     "docker",
     "fargateprocess",
     "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
-    "bpf",
-    "netcgo",
     "npm",
-    "nvml",
-    "pcap",
-    "podman",
     "sharedlibrarycheck",
-    "systemd",
     "systemprobechecks",
-    "trivy",
 ])
 
 # List of tags to always remove when building on Windows
