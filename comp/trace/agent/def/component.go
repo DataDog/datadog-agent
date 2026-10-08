@@ -28,5 +28,7 @@ type Component interface {
 	// SendStatsPayload sends a stats payload to the Datadog backend.
 	SendStatsPayload(p *pb.StatsPayload)
 	// GetHTTPHandler returns the HTTP handler for the given endpoint.
+	// It must not be used to serve trace intake endpoints (e.g. /v0.4/traces):
+	// the agent's shutdown does not wait for requests served elsewhere.
 	GetHTTPHandler(endpoint string) http.Handler
 }
