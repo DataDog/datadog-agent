@@ -1805,6 +1805,7 @@ core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
 core,github.com/munnerz/goautoneg,BSD-3-Clause,"Copyright (c) 2011, Open Knowledge Foundation Ltd"
 core,github.com/mwitkow/go-conntrack,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,Copyright (c) 2014 The Go-FlowRate Authors. All rights reserved
+core,github.com/netresearch/go-cron,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/netsampler/goflow2/decoders,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow/templates,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
