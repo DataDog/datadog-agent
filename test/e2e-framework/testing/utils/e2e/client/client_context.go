@@ -9,8 +9,8 @@ package client
 // It has no dependency on *testing.T, so non-test callers can implement it.
 type Context interface {
 	Logf(format string, args ...any)
-	// FailNow logs the formatted message and immediately stops the current goroutine.
-	// In test contexts this calls t.Logf + t.FailNow(); in other contexts it panics.
+	// FailNow records the formatted message and immediately stops the current goroutine.
+	// In test contexts this emits a structured Testify assertion; in other contexts it logs and panics.
 	FailNow(format string, args ...any)
 	SessionOutputDir() string
 }

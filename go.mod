@@ -231,7 +231,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/apache/arrow-go/v18 v18.8.0
 	github.com/aptly-dev/aptly v1.6.3
-	github.com/aquasecurity/trivy v0.74.0
+	github.com/aquasecurity/trivy v0.75.0
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
@@ -528,7 +528,7 @@ require (
 	cloud.google.com/go/auth v0.23.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/cloudsqlconn v1.4.3 // indirect
-	cloud.google.com/go/compute v1.70.0 // indirect
+	cloud.google.com/go/compute v1.71.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	cloud.google.com/go/iam v1.12.0 // indirect
 	cloud.google.com/go/kms v1.32.0 // indirect
@@ -749,7 +749,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/wire v0.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.20 // indirect
-	github.com/googleapis/gax-go/v2 v2.24.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.26.2 // indirect
 	github.com/gophercloud/gophercloud v1.8.0 // indirect
 	github.com/gophercloud/gophercloud/v2 v2.12.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect

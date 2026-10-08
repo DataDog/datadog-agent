@@ -139,10 +139,10 @@ func (s *testSuiteWithTests) TestOrderA() {
 	// `Provide` will be called again on permanent provisioner.
 	// The call will fail because of missing resource `myWrapper2`.
 	//
-	// We call reconcileEnv directly here instead of UpdateEnv: UpdateEnv calls
-	// bs.T().Fail() before panicking on reconcile errors (added in PR #35167 for the
-	// skipDeleteOnFailure flow), which would mark this test as failed even though the
-	// failure is the expected outcome we're asserting against.
+	// We call reconcileEnv directly here instead of UpdateEnv: UpdateEnv records an
+	// assertion failure before panicking on reconcile errors (added in PR #35167 for
+	// the skipDeleteOnFailure flow), which would mark this test as failed even though
+	// the failure is the expected outcome we're asserting against.
 	s.tempProvisioner.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	expectedErr := fmt.Sprintf(
 		"unable to build env: *e2e.testEnv from resources for stack: %s, err: expected resource named: Wrapper2 with key: myWrapper2 but not returned by provisioners",
