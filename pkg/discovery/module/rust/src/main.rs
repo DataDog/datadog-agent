@@ -26,6 +26,7 @@ use std::os::fd::AsRawFd;
 use std::os::unix::fs::{PermissionsExt, chown};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use dd_discovery::{Params, get_services, privileged_logs};
@@ -474,9 +475,18 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<()> {
-    let args = Args::parse(env::args())?;
+fn main() -> Result<()> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let result = runtime.block_on(run(Args::parse(env::args())?));
+    // Don't wait for blocking tasks, such as a file open stuck on an
+    // unresponsive filesystem: exiting the process ends them.
+    runtime.shutdown_timeout(Duration::from_secs(1));
+    result
+}
+
+async fn run(args: Args) -> Result<()> {
     dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "SYS-PROBE-LITE",
         level: args.log_level,
