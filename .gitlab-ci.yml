@@ -1168,6 +1168,7 @@ workflow:
         - cmd/security-agent/**/*
         - cmd/system-probe/**/*
         - cmd/trace-agent/**/*
+        - pkg/procmgr/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
