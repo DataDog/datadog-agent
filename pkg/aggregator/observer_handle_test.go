@@ -17,6 +17,7 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // recordingHandle records every ObserveMetric call for test assertions.
@@ -234,7 +236,7 @@ func TestNoAggStreamWorkerObserverHandleUsesSerializedTags(t *testing.T) {
 	fakeTagger, ok := deps.Tagger.(taggermock.Mock)
 	require.True(ok)
 	fakeTagger.SetTags(coretaggertypes.NewEntityID(coretaggertypes.ContainerID, "container-a"), "test", []string{"env:prod"}, nil, nil, nil)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 	demux.statsd.noAggStreamWorkers[0].serializer = serializer
 	demux.statsd.noAggStreamWorkers[0].maxMetricsPerPayload = 0
 	handle := &recordingHandle{}
@@ -282,7 +284,7 @@ func TestSetObserverNilIsNoop(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	// Use initAgentDemultiplexer (not started) — no goroutines, no Stop() needed.
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	demux.SetObserver(nil)
 
@@ -298,7 +300,7 @@ func TestSetObserverConfigOff(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	// Use initAgentDemultiplexer (not started) — no goroutines, no Stop() needed.
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	// Observer gates are off by default — handle must not be wired.
 	comp := &recordingComponent{handle: &recordingHandle{}}
@@ -321,7 +323,7 @@ func TestSetObserverConfigOff(t *testing.T) {
 func TestSetObserverReportingEventsGateOn(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	cfg := pkgconfigsetup.Datadog()
 	cfg.Set("anomaly_detection.reporting.events.enabled", true, model.SourceAgentRuntime)
@@ -417,7 +419,7 @@ func TestCheckSamplerObserverHandleNil(t *testing.T) {
 func TestBufferedAggregatorObserverHandlePropagation(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	handle := &recordingHandle{}
 	demux.aggregator.SetObserverHandle(handle)

@@ -48,7 +48,6 @@ type Server struct {
 	pb.UnimplementedExecutorServer
 
 	executor      actionExecutor
-	localExecutor actionExecutor
 	version       string
 	controlConfig *pb.GetControlPlaneConfigResponse
 	controlCert   []byte
@@ -101,11 +100,6 @@ func (s *Server) authorizeSharedIPC(ctx context.Context) error {
 		return status.Error(codes.PermissionDenied, "shared IPC certificate required")
 	}
 	return nil
-}
-
-// SetLocalRemediationExecutor opts into agent-authored tasks before serving; action-platform review is required.
-func (s *Server) SetLocalRemediationExecutor(executor actionExecutor) {
-	s.localExecutor = executor
 }
 
 func (s *Server) touch() {

@@ -25,6 +25,7 @@ go_library(
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
+        "//comp/core/remoteagentregistry/def",
         "//comp/core/status",
         "//comp/core/tagger/def",
         "//comp/core/tagger/impl-noop",

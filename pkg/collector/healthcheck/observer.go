@@ -64,7 +64,7 @@ func (o *Observer) ObserveServiceCheck(id checkid.ID, scName string, status serv
 		return
 	}
 	select {
-	case o.input <- observation{id: id, name: scName, status: status, message: message, host: host, tags: tags, generation: registrationGeneration.Load(), at: time.Now()}:
+	case o.input <- observation{id: id, name: scName, status: status, message: message, host: host, tags: append([]string(nil), tags...), generation: registrationGeneration.Load(), at: time.Now()}:
 	default:
 		o.dropped.Add(1)
 	}
@@ -115,6 +115,18 @@ func statusKey(obs observation) string {
 	return obs.name + "\x1f" + obs.host + "\x1f" + strings.Join(tags, "\x1f")
 }
 
+// evictOldestContext removes the least-recently-updated context to keep the status map bounded.
+func evictOldestContext(statuses map[string]contextStatus) {
+	var oldestKey string
+	var oldestAt time.Time
+	for k, v := range statuses {
+		if oldestKey == "" || v.at.Before(oldestAt) {
+			oldestKey, oldestAt = k, v.at
+		}
+	}
+	delete(statuses, oldestKey)
+}
+
 func transition(obs observation) *integration.HealthCheckConfig {
 	registry.Lock()
 	defer registry.Unlock()
@@ -123,9 +135,12 @@ func transition(obs observation) *integration.HealthCheckConfig {
 		return nil
 	}
 	key := statusKey(obs)
-	previous, seen := entry.statuses[key]
-	entry.statuses[key] = obs.status
-	if !seen || previous != servicecheck.ServiceCheckOK || obs.status != servicecheck.ServiceCheckCritical {
+	prev, seen := entry.statuses[key]
+	if !seen && len(entry.statuses) >= maxTrackedContexts {
+		evictOldestContext(entry.statuses)
+	}
+	entry.statuses[key] = contextStatus{status: obs.status, at: obs.at}
+	if !seen || prev.status != servicecheck.ServiceCheckOK || obs.status != servicecheck.ServiceCheckCritical {
 		return nil
 	}
 	// Attempts share a cooldown window across all of a check's service-check contexts.

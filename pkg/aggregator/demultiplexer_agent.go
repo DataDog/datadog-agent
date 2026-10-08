@@ -16,6 +16,7 @@ import (
 	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/metricname"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
@@ -148,8 +150,9 @@ func InitAndStartAgentDemultiplexer(
 	compressor compression.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
-	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname)
+	hostname string,
+	remoteAgentRegistry option.Option[remoteagentregistry.Component]) *AgentDemultiplexer {
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname, remoteAgentRegistry)
 	go demux.run()
 	return demux
 }
@@ -163,7 +166,8 @@ func initAgentDemultiplexer(log log.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
 	filterList filterlist.Component,
-	hostname string) *AgentDemultiplexer {
+	hostname string,
+	remoteAgentRegistry option.Option[remoteagentregistry.Component]) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
@@ -182,7 +186,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, filterList)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, filterList, remoteAgentRegistry)
 
 	// statsd samplers
 	// ---------------

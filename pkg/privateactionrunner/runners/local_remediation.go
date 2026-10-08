@@ -5,7 +5,7 @@
 
 //go:build linux || darwin || windows
 
-package executor
+package runners
 
 import (
 	"context"
@@ -29,23 +29,17 @@ import (
 
 const maxLocalRemediationSteps = 32
 
-// RunLocalRemediation runs agent-authored remediation without a backend signature.
-// Trust caveat (action-platform review item): the shared IPC cert authorizes any PAR-family
-// client (incl. the control plane), not the health-check dispatcher specifically, so the
-// boundary is "holds the IPC cert", not "agent-only". Residual risk is bounded: non-privileged
-// rshell only, allowlist is default-deny intersected with the operator rshell restrictions, and
-// the whole path is off unless health_check_remediation.enabled. A distinct remediation identity
-// or executor-owned declarations would tighten this; deferred to action-platform.
-func (s *Server) RunLocalRemediation(ctx context.Context, req *pb.RunLocalRemediationRequest) (*pb.RunLocalRemediationResponse, error) {
-	if err := s.authorizeSharedIPC(ctx); err != nil {
-		return nil, err
-	}
-	if s.localExecutor == nil {
-		return nil, status.Error(codes.Unimplemented, "local remediation is disabled")
-	}
-	if !s.ready.Load() {
-		return nil, status.Error(codes.Unavailable, "executor is not ready")
-	}
+type remediationExecutor interface {
+	PrepareTask(context.Context, *types.Task) (*PreparedWorkflowTask, *types.Task, error)
+	RunPrepared(context.Context, *PreparedWorkflowTask) (interface{}, error)
+}
+
+// RunLocalRemediation runs agent-authored remediation through the local trust verifier.
+func (n *WorkflowRunner) RunLocalRemediation(ctx context.Context, req *pb.RunLocalRemediationRequest) (*pb.RunLocalRemediationResponse, error) {
+	return runLocalRemediation(ctx, n.taskExecutor.ForLocalRemediation(), req)
+}
+
+func runLocalRemediation(ctx context.Context, executor remediationExecutor, req *pb.RunLocalRemediationRequest) (*pb.RunLocalRemediationResponse, error) {
 	if len(req.GetCommands()) == 0 || len(req.GetCommands()) > maxLocalRemediationSteps {
 		return nil, status.Error(codes.InvalidArgument, "local remediation requires between 1 and 32 steps")
 	}
@@ -60,9 +54,6 @@ func (s *Server) RunLocalRemediation(ctx context.Context, req *pb.RunLocalRemedi
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	s.startActivity()
-	s.active.Add(1)
-	defer func() { s.active.Add(-1); s.finishActivity() }()
 	response := &pb.RunLocalRemediationResponse{}
 	id := uuid.NewString()
 	for i, command := range req.Commands {
@@ -81,12 +72,12 @@ func (s *Server) RunLocalRemediation(ctx context.Context, req *pb.RunLocalRemedi
 		}
 		result := &pb.RemediationStepResult{}
 		response.Steps = append(response.Steps, result)
-		prepared, _, err := s.localExecutor.PrepareTask(ctx, task)
+		prepared, _, err := executor.PrepareTask(ctx, task)
 		if err != nil {
 			result.Error = "local remediation preparation failed"
 			break
 		}
-		output, err := s.localExecutor.RunPrepared(ctx, prepared)
+		output, err := executor.RunPrepared(ctx, prepared)
 		if err != nil {
 			result.Error = "local remediation execution failed"
 			break

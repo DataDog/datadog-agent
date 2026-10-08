@@ -100,8 +100,6 @@ message RunLocalRemediationResponse {
 }
 
 service Executor {
-  // RunLocalRemediation trusts the shared IPC identity and never permits privilege escalation.
-  rpc RunLocalRemediation(RunLocalRemediationRequest) returns (RunLocalRemediationResponse);
   rpc GetControlPlaneConfig(GetControlPlaneConfigRequest) returns (GetControlPlaneConfigResponse);
   // RunAction runs a single action and streams updates ending in a final ActionResult.
   rpc RunAction(RunActionRequest) returns (stream RunActionResponse);

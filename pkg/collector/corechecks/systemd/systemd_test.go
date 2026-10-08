@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	inventorychecksmock "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/mock"
@@ -32,6 +33,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const systemdVersion = "241"
@@ -1226,7 +1228,7 @@ unit_names:
 func TestCheckID(t *testing.T) {
 	check1 := newCheck()
 	check2 := newCheck()
-	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
+	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour, filterlistimpl.NewNoopFilterList(), option.None[remoteagentregistry.Component]())
 
 	// language=yaml
 	rawInstanceConfig1 := []byte(`

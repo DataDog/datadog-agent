@@ -8,12 +8,14 @@
 package healthcheck
 
 import (
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // NewRemediationDispatcher uses event-only dispatch on platforms without rshell support.
-func NewRemediationDispatcher(config configmodel.Reader, out chan<- event.Event, hostname string) RemediationDispatcher {
+func NewRemediationDispatcher(config configmodel.Reader, out chan<- event.Event, hostname string, _ option.Option[remoteagentregistry.Component]) RemediationDispatcher {
 	if !config.GetBool("health_check_remediation.enabled") {
 		return nil
 	}

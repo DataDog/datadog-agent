@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -42,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func testDemuxSamples(_ *testing.T) metrics.MetricSampleBatch {
@@ -159,7 +161,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	opts.DogStatsDLookback = lookback
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	batch := testDemuxSamples(t)
 
@@ -184,7 +186,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer.On("AreSketchesEnabled").Return(true)
 	opts.NoAggregationPipelineWorkersCount = 1
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 	demux.statsd.noAggStreamWorkers[0].serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.run()
@@ -261,7 +263,7 @@ func TestDemuxNoAggWorkersCount(t *testing.T) {
 			opts.NoAggregationPipelineWorkersCount = tt.configured
 			deps := createDemultiplexerAgentTestDeps(t)
 
-			demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+			demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 			require.Len(t, demux.statsd.noAggStreamWorkers, tt.expectedCount)
 			require.Len(t, demux.noAggSerializers, tt.expectedCount)
@@ -282,7 +284,7 @@ func TestDemuxNoAggWorkersUseSharedQueue(t *testing.T) {
 	opts.NoAggregationPipelineWorkersCount = 3
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	for i := 0; i < 5; i++ {
 		demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{
@@ -311,7 +313,7 @@ func TestDemuxNoAggLookbackDoesNotReceiveNormalAggregationBatches(t *testing.T) 
 	opts.DogStatsDLookback = lookback
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	demux.AggregateSamples(TimeSamplerID(0), testDemuxSamples(t))
 
@@ -331,7 +333,7 @@ func TestDemuxNoAggLookbackFactoryReceivesSharedSerializer(t *testing.T) {
 	}
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	require.True(t, called)
 	require.Same(t, lookback, demux.options.DogStatsDLookback)
@@ -344,7 +346,7 @@ func TestSendSamplesWithoutAggregationDropsEmptyBatch(t *testing.T) {
 	opts.DogStatsDLookback = lookback
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	demux.SendSamplesWithoutAggregation(metrics.MetricSampleBatch{})
 
@@ -394,6 +396,7 @@ func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemulti
 		deps.Tagger,
 		deps.FilterList,
 		hostname,
+		option.None[remoteagentregistry.Component](),
 	)
 
 	s := &MockSerializerIterableSerie{}
@@ -464,6 +467,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 		deps.Tagger,
 		filterList,
 		"",
+		option.None[remoteagentregistry.Component](),
 	)
 
 	// Set up a mock serializer so we con examine the metrics sent to it.
@@ -574,6 +578,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 		deps.Tagger,
 		filterList,
 		"",
+		option.None[remoteagentregistry.Component](),
 	)
 
 	s := &MockSerializerSketch{}
@@ -674,6 +679,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		deps.Tagger,
 		filterList,
 		"",
+		option.None[remoteagentregistry.Component](),
 	)
 
 	// Set up a mock serializer so we con examine the metrics sent to it.

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/healthcheck"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type serviceCheckObservation struct {
@@ -118,7 +120,7 @@ func TestHealthCheckRemediationAggregatorFeatureFlag(t *testing.T) {
 			if enabled {
 				cfg.SetInTest("health_check_remediation.enabled", true)
 			}
-			agg := NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "test-host", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+			agg := NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "test-host", DefaultFlushInterval, filterlistmock.NewMockFilterList(), option.None[remoteagentregistry.Component]())
 			defer func() {
 				go agg.run()
 				agg.Stop()

@@ -57,6 +57,15 @@ linters:
               desc: "archived; use dario.cat/mergo instead (same author, same API)"
             - pkg: "golang.org/x/xerrors"
               desc: "superseded by stdlib since Go 1.13; use errors.New, fmt.Errorf with %w, or errors.Is/As instead"
+        coreremediation:
+          files:
+            - "**/pkg/collector/**"
+            - "**/pkg/aggregator/**"
+          deny:
+            - pkg: "github.com/DataDog/datadog-agent/pkg/privateactionrunner/"
+              desc: "Route remediation through the Remote Agent Registry; generated executor proto messages are allowed."
+            - pkg: "github.com/DataDog/datadog-agent/comp/privateactionrunner/"
+              desc: "Route remediation through the Remote Agent Registry; generated executor proto messages are allowed."
         multierror:
           files:
             - $all

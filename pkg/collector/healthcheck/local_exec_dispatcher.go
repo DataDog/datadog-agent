@@ -25,12 +25,28 @@ import (
 
 const localStepTimeout = 30 * time.Second
 
-// localWaitDelay bounds how long CombinedOutput blocks after the step times out, so a command that
-// backgrounds a child holding the output pipes cannot stall the dispatch (and the observer shutdown).
+// localWaitDelay bounds waiting for children holding output pipes after the step times out.
 const localWaitDelay = 5 * time.Second
+
+const localOutputLimit = 4096
+
+type localOutputBuffer struct {
+	data [localOutputLimit]byte
+	size int
+}
+
+// Write retains a bounded prefix and discards excess output without interrupting the command.
+func (b *localOutputBuffer) Write(p []byte) (int, error) {
+	b.size += copy(b.data[b.size:], p)
+	return len(p), nil
+}
 
 // scrubForLog redacts secrets and bounds size before step output reaches the Agent log.
 func scrubForLog(output string) string {
+	// A capped prefix may omit closing markers that secret scrubbers need to recognize a secret.
+	if len(output) >= localOutputLimit {
+		return "[redacted: output reached capture limit]"
+	}
 	scrubbed, err := scrubber.ScrubString(output)
 	if err != nil {
 		return "[redacted]"
@@ -45,7 +61,7 @@ func scrubForLog(output string) string {
 
 // LocalExecDispatcher runs remediation steps in-process on the host. Demo-only: it bypasses the
 // PAR rshell sandbox so a remediation's effect is directly visible on a bare host. Production uses
-// PARDispatcher; this path is reached only when execution_mode is "local".
+// RegistryDispatcher; this path is reached only when execution_mode is "local".
 type LocalExecDispatcher struct {
 	out      chan<- event.Event
 	hostname string
@@ -73,7 +89,7 @@ func (d *LocalExecDispatcher) Dispatch(ctx context.Context, id checkid.ID, scNam
 			result = "failed"
 			outcome = "escalate"
 		}
-		fmt.Fprintf(&text, "\n%d. %s -> %s (exit code %d)", i+1, step.Command, result, exitCode)
+		fmt.Fprintf(&text, "\n%d. %s -> %s (exit code %d)", i+1, scrubCommand(step.Command), result, exitCode)
 		log.Infof("Health-check remediation (local): check %s step %d -> exit %d err=%v output=%q", id, i+1, exitCode, err, scrubForLog(output))
 		if result == "failed" {
 			break
@@ -91,8 +107,12 @@ func (d *LocalExecDispatcher) run(ctx context.Context, command string) (int, str
 	} else {
 		cmd = exec.CommandContext(runCtx, "/bin/sh", "-c", command)
 	}
+	configureLocalCommand(cmd)
 	cmd.WaitDelay = localWaitDelay
-	output, err := cmd.CombinedOutput()
+	var output localOutputBuffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	err := cmd.Run()
 	exitCode := 0
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) {
@@ -100,7 +120,7 @@ func (d *LocalExecDispatcher) run(ctx context.Context, command string) (int, str
 	} else if err != nil {
 		exitCode = -1
 	}
-	return exitCode, string(output), err
+	return exitCode, string(output.data[:output.size]), err
 }
 
 func (d *LocalExecDispatcher) emit(ctx context.Context, id checkid.ID, scName, outcome, text string) {

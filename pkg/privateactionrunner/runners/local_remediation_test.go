@@ -61,3 +61,25 @@ func TestLocalRemediationUsesSharedExecutionWithoutChangingSigning(t *testing.T)
 	_, err = local.RunPrepared(context.Background(), prepared)
 	require.ErrorContains(t, err, "not allowlisted")
 }
+
+func TestLocalRemediationDoesNotRequireSignedRegistryBundle(t *testing.T) {
+	const bundle = "com.datadoghq.remoteaction.rshell"
+	cfg := &config.Config{
+		OrgId: 42, RunnerId: "runner", MetricsClient: &statsd.NoOpClient{},
+		ActionsAllowlist:      map[string]sets.Set[string]{bundle: sets.New("runRemediationCommand")},
+		RShellAllowedCommands: []string{"rshell:echo"}, RShellDisableDetailedTelemetry: true,
+	}
+	signed := &WorkflowTaskExecutor{config: cfg, registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{}}}
+	local := signed.ForLocalRemediation()
+	task := newWorkflowTask("local", bundle, "runRemediationCommand", "job")
+	task.Data.Attributes.Inputs = map[string]interface{}{"command": "echo remediated"}
+	task.Data.Attributes.SystemInputs = &pb.SystemInputs{Input: &pb.SystemInputs_RemoteAction{RemoteAction: &pb.RemoteAction{
+		AllowedCommands: []string{"rshell:echo"},
+	}}}
+	prepared, _, err := local.PrepareTask(context.Background(), task)
+	require.NoError(t, err)
+	output, err := local.RunPrepared(context.Background(), prepared)
+	require.NoError(t, err)
+	require.Equal(t, "remediated\n", output.(*rshell.RunCommandOutputs).Stdout)
+	require.Empty(t, signed.registry.Bundles)
+}

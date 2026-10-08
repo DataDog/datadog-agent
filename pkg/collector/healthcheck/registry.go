@@ -22,12 +22,21 @@ const (
 	defaultMaxAttempts = 3
 )
 
+// maxTrackedContexts bounds the per-check status map so a high-cardinality wildcard service check
+// (many host/tag contexts) cannot grow it without limit; the oldest context is evicted when full.
+const maxTrackedContexts = 1024
+
+type contextStatus struct {
+	status servicecheck.ServiceCheckStatus
+	at     time.Time
+}
+
 type registration struct {
 	generation  uint64
 	config      *integration.HealthCheckConfig
 	cooldown    time.Duration
 	maxAttempts int
-	statuses    map[string]servicecheck.ServiceCheckStatus
+	statuses    map[string]contextStatus
 	windowStart time.Time
 	attempts    int
 }
@@ -56,7 +65,7 @@ func Register(id checkid.ID, cfg *integration.HealthCheckConfig) {
 		config:      cloneConfig(cfg),
 		cooldown:    cooldown,
 		maxAttempts: maxAttempts,
-		statuses:    make(map[string]servicecheck.ServiceCheckStatus),
+		statuses:    make(map[string]contextStatus),
 	}
 	registry.Lock()
 	defer registry.Unlock()

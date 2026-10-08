@@ -15,8 +15,10 @@ import (
 	"go.uber.org/fx"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestStatsdDirect(t *testing.T) {
@@ -24,7 +26,7 @@ func TestStatsdDirect(t *testing.T) {
 	opts.FlushInterval = time.Hour
 	opts.DontStartForwarders = true
 	demuxDeps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(demuxDeps.Log, NewForwarderTest(demuxDeps.Log), demuxDeps.OrchestratorFwd, opts, demuxDeps.EventPlatform, demuxDeps.HaAgent, demuxDeps.Compressor, demuxDeps.Tagger, demuxDeps.FilterList, "")
+	demux := initAgentDemultiplexer(demuxDeps.Log, NewForwarderTest(demuxDeps.Log), demuxDeps.OrchestratorFwd, opts, demuxDeps.EventPlatform, demuxDeps.HaAgent, demuxDeps.Compressor, demuxDeps.Tagger, demuxDeps.FilterList, "", option.None[remoteagentregistry.Component]())
 
 	hostnameComp := fxutil.Test[hostnameinterface.Mock](t,
 		fx.Options(

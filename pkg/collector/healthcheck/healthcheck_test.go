@@ -188,6 +188,16 @@ func TestObserverWildcardUsesPerServiceEdgesAndSharedLimit(t *testing.T) {
 	})
 }
 
+func TestObserverOwnsServiceCheckTags(t *testing.T) {
+	o := &Observer{input: make(chan observation, 1), ctx: context.Background()}
+	tags := []string{"unit:b", "unit:a", "unit:a"}
+	o.ObserveServiceCheck("check:123", "health", servicecheck.ServiceCheckOK, "", "host", tags)
+	copy(tags, []string{"unit:a", "unit:b", "unit:b"})
+	obs := <-o.input
+	assert.Equal(t, []string{"unit:b", "unit:a", "unit:a"}, obs.tags)
+	assert.Equal(t, "health\x1fhost\x1funit:a\x1funit:a\x1funit:b", statusKey(obs))
+}
+
 func TestObserverTracksServiceCheckContextsSeparately(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cfg := healthConfig()
@@ -315,6 +325,32 @@ func TestEventDispatcherCancelsBlockedSend(t *testing.T) {
 		cancel()
 		<-done
 	})
+}
+
+func TestEventDispatcherScrubsCommandSecrets(t *testing.T) {
+	out := make(chan event.Event, 1)
+	d := NewEventDispatcher(out, "host")
+	cfg := healthConfig()
+	cfg.Remediation.Steps = []integration.RemediationStep{{Command: "curl https://user:sup3rs3cret@example.com/fix"}}
+	d.Dispatch(context.Background(), "check:1", cfg.ServiceCheck, "", cfg)
+	e := <-out
+	assert.NotContains(t, e.Text, "sup3rs3cret", "command secrets must be scrubbed from event text")
+}
+
+func TestStatusMapStaysBounded(t *testing.T) {
+	cfg := healthConfig()
+	cfg.ServiceCheck = ""
+	id := registerTestCheck(t, cfg)
+	registry.RLock()
+	gen := registry.checks[id].generation
+	registry.RUnlock()
+	for i := 0; i < maxTrackedContexts+500; i++ {
+		transition(observation{id: id, name: "svc", status: servicecheck.ServiceCheckOK, host: "host-" + strconv.Itoa(i), generation: gen, at: time.Now()})
+	}
+	registry.RLock()
+	n := len(registry.checks[id].statuses)
+	registry.RUnlock()
+	assert.LessOrEqual(t, n, maxTrackedContexts, "status map must stay bounded under high context cardinality")
 }
 
 //go:embed *.go

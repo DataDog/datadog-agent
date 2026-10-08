@@ -101,7 +101,7 @@ type Provides struct {
 }
 
 type PrivateActionRunner struct {
-	coreConfig     model.ReaderWriter
+	coreConfig     config.Component
 	hostnameGetter hostnameinterface.Component
 	rcClient       pkgrcclient.Client
 	logger         log.Component
@@ -118,6 +118,8 @@ type PrivateActionRunner struct {
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
+
+	remediationLifecycle remediationLifecycle
 
 	executorServer  *executor.Server
 	encryptionStore *encryptioncontext.Store
@@ -208,7 +210,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 
 func NewPrivateActionRunner(
 	_ context.Context,
-	coreConfig model.ReaderWriter,
+	coreConfig config.Component,
 	hostnameGetter hostnameinterface.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
@@ -409,10 +411,6 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, err
 	}
 	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
-	// Local remediation deliberately trusts the on-host agent; action-platform must review this boundary.
-	if p.coreConfig.GetBool("health_check_remediation.enabled") {
-		p.executorServer.SetLocalRemediationExecutor(taskExecutor.ForLocalRemediation())
-	}
 	go p.encryptionStore.Start()
 	keysManager.Start(runCtx)
 	go func() {
@@ -533,7 +531,13 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return p.commonRunner.Start(ctx)
+	if err := p.commonRunner.Start(ctx); err != nil {
+		return err
+	}
+	if err := p.startRemediationRemoteAgent(); err != nil {
+		p.logger.Warnf("Private Action Runner remediation registration failed: %v", err)
+	}
+	return nil
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
@@ -551,6 +555,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 	}
 
 	var stopErr error
+	stopErr = errors.Join(stopErr, p.remediationLifecycle.stop(ctx))
 	if p.workflowRunner != nil {
 		err := p.workflowRunner.Stop(ctx)
 		if err != nil {

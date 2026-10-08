@@ -965,9 +965,8 @@ const file_datadog_privateactionrunner_executor_proto_rawDesc = "" +
 	"\x06stderr\x18\x03 \x01(\tR\x06stderr\x12\x14\n" +
 	"\x05error\x18\x04 \x01(\tR\x05error\"p\n" +
 	"\x1bRunLocalRemediationResponse\x12Q\n" +
-	"\x05steps\x18\x01 \x03(\v2;.datadog.privateactionrunner.executor.RemediationStepResultR\x05steps2\xbf\x04\n" +
-	"\bExecutor\x12\x9a\x01\n" +
-	"\x13RunLocalRemediation\x12@.datadog.privateactionrunner.executor.RunLocalRemediationRequest\x1aA.datadog.privateactionrunner.executor.RunLocalRemediationResponse\x12\xa0\x01\n" +
+	"\x05steps\x18\x01 \x03(\v2;.datadog.privateactionrunner.executor.RemediationStepResultR\x05steps2\xa2\x03\n" +
+	"\bExecutor\x12\xa0\x01\n" +
 	"\x15GetControlPlaneConfig\x12B.datadog.privateactionrunner.executor.GetControlPlaneConfigRequest\x1aC.datadog.privateactionrunner.executor.GetControlPlaneConfigResponse\x12~\n" +
 	"\tRunAction\x126.datadog.privateactionrunner.executor.RunActionRequest\x1a7.datadog.privateactionrunner.executor.RunActionResponse0\x01\x12s\n" +
 	"\x06Health\x123.datadog.privateactionrunner.executor.HealthRequest\x1a4.datadog.privateactionrunner.executor.HealthResponseBNZLgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executorb\x06proto3"
@@ -1016,16 +1015,14 @@ var file_datadog_privateactionrunner_executor_proto_depIdxs = []int32{
 	10, // 7: datadog.privateactionrunner.executor.RunLocalRemediationRequest.allowlist:type_name -> datadog.privateactionrunner.executor.RemediationAllowlist
 	13, // 8: datadog.privateactionrunner.executor.RunLocalRemediationResponse.steps:type_name -> datadog.privateactionrunner.executor.RemediationStepResult
 	11, // 9: datadog.privateactionrunner.executor.RemediationAllowlist.AllowedServicesEntry.value:type_name -> datadog.privateactionrunner.executor.RemediationServiceActions
-	12, // 10: datadog.privateactionrunner.executor.Executor.RunLocalRemediation:input_type -> datadog.privateactionrunner.executor.RunLocalRemediationRequest
-	0,  // 11: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:input_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigRequest
-	6,  // 12: datadog.privateactionrunner.executor.Executor.RunAction:input_type -> datadog.privateactionrunner.executor.RunActionRequest
-	4,  // 13: datadog.privateactionrunner.executor.Executor.Health:input_type -> datadog.privateactionrunner.executor.HealthRequest
-	14, // 14: datadog.privateactionrunner.executor.Executor.RunLocalRemediation:output_type -> datadog.privateactionrunner.executor.RunLocalRemediationResponse
-	1,  // 15: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:output_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigResponse
-	7,  // 16: datadog.privateactionrunner.executor.Executor.RunAction:output_type -> datadog.privateactionrunner.executor.RunActionResponse
-	5,  // 17: datadog.privateactionrunner.executor.Executor.Health:output_type -> datadog.privateactionrunner.executor.HealthResponse
-	14, // [14:18] is the sub-list for method output_type
-	10, // [10:14] is the sub-list for method input_type
+	0,  // 10: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:input_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigRequest
+	6,  // 11: datadog.privateactionrunner.executor.Executor.RunAction:input_type -> datadog.privateactionrunner.executor.RunActionRequest
+	4,  // 12: datadog.privateactionrunner.executor.Executor.Health:input_type -> datadog.privateactionrunner.executor.HealthRequest
+	1,  // 13: datadog.privateactionrunner.executor.Executor.GetControlPlaneConfig:output_type -> datadog.privateactionrunner.executor.GetControlPlaneConfigResponse
+	7,  // 14: datadog.privateactionrunner.executor.Executor.RunAction:output_type -> datadog.privateactionrunner.executor.RunActionResponse
+	5,  // 15: datadog.privateactionrunner.executor.Executor.Health:output_type -> datadog.privateactionrunner.executor.HealthResponse
+	13, // [13:16] is the sub-list for method output_type
+	10, // [10:13] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name

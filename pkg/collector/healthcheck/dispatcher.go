@@ -15,7 +15,17 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+// scrubCommand redacts secrets from a remediation command before it is written into an event.
+func scrubCommand(command string) string {
+	scrubbed, err := scrubber.ScrubString(command)
+	if err != nil {
+		return "[redacted]"
+	}
+	return strings.TrimSpace(scrubbed)
+}
 
 // remediationSource is the event source_type_name; "datadog" renders as the datadog source in the UI.
 const remediationSource = "datadog"
@@ -41,7 +51,7 @@ func detectedText(scName, hostname, failureMessage string, id checkid.ID, cfg *i
 	}
 	fmt.Fprintf(&b, ". Running %d remediation step(s):", len(cfg.Remediation.Steps))
 	for i, step := range cfg.Remediation.Steps {
-		fmt.Fprintf(&b, "\n%d. %s", i+1, step.Command)
+		fmt.Fprintf(&b, "\n%d. %s", i+1, scrubCommand(step.Command))
 	}
 	return b.String()
 }
@@ -69,7 +79,7 @@ func (d *EventDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, f
 	}
 	text.WriteString(".\nSteps that would run:")
 	for i, step := range cfg.Remediation.Steps {
-		fmt.Fprintf(&text, "\n%d. %s", i+1, step.Command)
+		fmt.Fprintf(&text, "\n%d. %s", i+1, scrubCommand(step.Command))
 	}
 	e := event.Event{
 		Title:          "health-check remediation (dry-run)",

@@ -5,7 +5,6 @@ go_library(
     name = "executor",
     srcs = [
         "config.go",
-        "local_remediation.go",
         "server.go",
         "transport_unix.go",
         "transport_windows.go",
@@ -30,46 +29,8 @@ go_library(
         "@org_golang_google_grpc//peer",
         "@org_golang_google_grpc//status",
     ] + select({
-        "@rules_go//go/platform:android": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-            "//pkg/proto/pbgo/privateactionrunner/privateactions",
-            "//pkg/util/scrubber",
-            "@com_github_google_uuid//:uuid",
-            "@org_golang_google_protobuf//types/known/structpb",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-            "//pkg/proto/pbgo/privateactionrunner/privateactions",
-            "//pkg/util/scrubber",
-            "@com_github_google_uuid//:uuid",
-            "@org_golang_google_protobuf//types/known/structpb",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-            "//pkg/proto/pbgo/privateactionrunner/privateactions",
-            "//pkg/util/scrubber",
-            "@com_github_google_uuid//:uuid",
-            "@org_golang_google_protobuf//types/known/structpb",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-            "//pkg/proto/pbgo/privateactionrunner/privateactions",
-            "//pkg/util/scrubber",
-            "@com_github_google_uuid//:uuid",
-            "@org_golang_google_protobuf//types/known/structpb",
-        ],
         "@rules_go//go/platform:windows": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-            "//pkg/proto/pbgo/privateactionrunner/privateactions",
-            "//pkg/util/scrubber",
-            "@com_github_google_uuid//:uuid",
             "@com_github_microsoft_go_winio//:go-winio",
-            "@org_golang_google_protobuf//types/known/structpb",
         ],
         "//conditions:default": [],
     }),
@@ -79,7 +40,6 @@ dd_agent_go_test(
     name = "executor_test",
     srcs = [
         "config_test.go",
-        "local_remediation_test.go",
         "server_test.go",
         "testaddr_unix_test.go",
         "testaddr_windows_test.go",
@@ -104,27 +64,5 @@ dd_agent_go_test(
         "@org_golang_google_grpc//credentials/insecure",
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//proto",
-    ] + select({
-        "@rules_go//go/platform:android": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-        ],
-        "@rules_go//go/platform:windows": [
-            "//pkg/privateactionrunner/bundles/remoteaction/rshell",
-            "//pkg/privateactionrunner/task-verifier",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

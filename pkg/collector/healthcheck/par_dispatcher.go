@@ -9,40 +9,37 @@ package healthcheck
 
 import (
 	"context"
-	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
-	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
+	corepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-const executorProbeTimeout = time.Second
 const remediationTimeout = 30 * time.Second
 
-// PARDispatcher sends agent-authored remediation to the authenticated local executor.
-type PARDispatcher struct {
-	fallback  *EventDispatcher
-	address   string
-	tlsConfig func() (*tls.Config, error)
+// RegistryDispatcher routes agent-authored remediation through the Remote Agent Registry.
+type RegistryDispatcher struct {
+	fallback *EventDispatcher
+	registry remoteagentregistry.Component
 }
 
 // NewRemediationDispatcher selects local execution behind the operator's remediation flag.
-func NewRemediationDispatcher(config configmodel.Reader, out chan<- event.Event, hostname string) RemediationDispatcher {
+func NewRemediationDispatcher(config configmodel.Reader, out chan<- event.Event, hostname string, registry option.Option[remoteagentregistry.Component]) RemediationDispatcher {
 	if !config.GetBool("health_check_remediation.enabled") {
 		return nil
 	}
@@ -50,43 +47,21 @@ func NewRemediationDispatcher(config configmodel.Reader, out chan<- event.Event,
 	if config.GetString("health_check_remediation.execution_mode") == "local" {
 		return NewLocalExecDispatcher(out, hostname)
 	}
-	return &PARDispatcher{
+	component, _ := registry.Get()
+	return &RegistryDispatcher{
 		fallback: NewEventDispatcher(out, hostname),
-		address:  config.GetString(privateactionrunner.PARExecutorSocketPath),
-		tlsConfig: func() (*tls.Config, error) {
-			client, server, _, err := cert.FetchIPCCert(config)
-			if err != nil {
-				return nil, err
-			}
-			if len(server.Certificates) == 0 {
-				return nil, errors.New("shared IPC certificate is missing")
-			}
-			client = client.Clone()
-			client.Certificates = server.Certificates
-			client.ServerName = "localhost"
-			return client, nil
-		},
+		registry: component,
 	}
 }
 
-// Dispatch falls back before execution when PAR is unavailable and reports uncertain RPC outcomes as failures.
-func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, failureMessage string, cfg *integration.HealthCheckConfig) {
+// Dispatch routes remediation and falls back to dry-run only when non-execution is established.
+func (d *RegistryDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, failureMessage string, cfg *integration.HealthCheckConfig) {
 	if d == nil || cfg == nil || ctx.Err() != nil {
 		return
 	}
 	runCtx, cancel := context.WithTimeout(ctx, remediationTimeout)
 	defer cancel()
-	connection, err := d.connect()
-	if err != nil {
-		d.fallback.Dispatch(runCtx, id, scName, failureMessage, cfg)
-		return
-	}
-	defer connection.Close()
-	client := pb.NewExecutorClient(connection)
-	probeCtx, probeCancel := context.WithTimeout(runCtx, executorProbeTimeout)
-	health, err := client.Health(probeCtx, &pb.HealthRequest{})
-	probeCancel()
-	if err != nil || !health.GetReady() {
+	if d.registry == nil {
 		d.fallback.Dispatch(runCtx, id, scName, failureMessage, cfg)
 		return
 	}
@@ -99,8 +74,9 @@ func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, fai
 	for _, step := range cfg.Remediation.Steps {
 		request.Commands = append(request.Commands, step.Command)
 	}
-	response, err := client.RunLocalRemediation(runCtx, request)
-	if status.Code(err) == codes.Unimplemented {
+	response, exitCode, err := d.execute(runCtx, request)
+	code := status.Code(err)
+	if code == codes.NotFound || code == codes.Unimplemented {
 		d.fallback.Dispatch(runCtx, id, scName, failureMessage, cfg)
 		return
 	}
@@ -110,6 +86,9 @@ func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, fai
 		return
 	}
 	outcome := "remediated"
+	if exitCode != 0 {
+		outcome = "escalate"
+	}
 	var text strings.Builder
 	fmt.Fprintf(&text, "Remediation results for service check %q (check %s):", scName, id)
 	for i, step := range response.GetSteps() {
@@ -122,7 +101,7 @@ func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, fai
 		if i < len(cfg.Remediation.Steps) {
 			command = cfg.Remediation.Steps[i].Command
 		}
-		fmt.Fprintf(&text, "\n%d. %s -> %s (exit code %d)", i+1, command, result, step.GetExitCode())
+		fmt.Fprintf(&text, "\n%d. %s -> %s (exit code %d)", i+1, scrubCommand(command), result, step.GetExitCode())
 	}
 	if len(response.GetSteps()) != len(request.Commands) {
 		outcome = "escalate"
@@ -131,21 +110,56 @@ func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, fai
 	d.emit(ctx, id, scName, outcome, text.String())
 }
 
-func (d *PARDispatcher) connect() (*grpc.ClientConn, error) {
-	if d.address == "" {
-		return nil, errors.New("local executor address is missing")
-	}
-	tlsConfig, err := d.tlsConfig()
+func (d *RegistryDispatcher) execute(ctx context.Context, request *pb.RunLocalRemediationRequest) (*pb.RunLocalRemediationResponse, int32, error) {
+	payload, err := proto.Marshal(request)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return grpc.NewClient("passthrough:///localhost", grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return executor.Dial(ctx, d.address, executorProbeTimeout)
-		}))
+	command := &corepb.ExecuteCommandRequest{
+		ProviderName: "remediation",
+		Arguments: &structpb.Struct{Fields: map[string]*structpb.Value{
+			"request": structpb.NewStringValue(base64.StdEncoding.EncodeToString(payload)),
+		}},
+	}
+	var binaryOutput []byte
+	var exitCode int32
+	var receivedOutput, receivedExit bool
+	err = d.registry.ExecuteCommand(ctx, command, func(frame *corepb.ExecuteCommandResponse) error {
+		if receivedExit {
+			return errors.New("remediation output received after exit code")
+		}
+		switch value := frame.GetFrame().(type) {
+		case *corepb.ExecuteCommandResponse_BinaryOutput:
+			if receivedOutput {
+				return errors.New("multiple remediation response frames")
+			}
+			binaryOutput = value.BinaryOutput
+			receivedOutput = true
+		case *corepb.ExecuteCommandResponse_ExitCode:
+			if !receivedOutput {
+				return errors.New("remediation exit code received before response")
+			}
+			exitCode = value.ExitCode
+			receivedExit = true
+		default:
+			return errors.New("unexpected remediation output frame")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	if !receivedOutput || !receivedExit {
+		return nil, 0, errors.New("incomplete remediation response")
+	}
+	response := &pb.RunLocalRemediationResponse{}
+	if err := proto.Unmarshal(binaryOutput, response); err != nil {
+		return nil, 0, err
+	}
+	return response, exitCode, nil
 }
 
-func (d *PARDispatcher) emit(ctx context.Context, id checkid.ID, scName, outcome, text string) {
+func (d *RegistryDispatcher) emit(ctx context.Context, id checkid.ID, scName, outcome, text string) {
 	if d.fallback == nil || d.fallback.out == nil {
 		return
 	}

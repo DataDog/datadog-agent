@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -46,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -167,7 +169,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
-	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList(), option.None[remoteagentregistry.Component]())
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -200,7 +202,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList(), option.None[remoteagentregistry.Component]())
 
 	agg.addEvent(event.Event{
 		// only populate required fields
@@ -250,7 +252,7 @@ func TestDefaultData(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList(), option.None[remoteagentregistry.Component]())
 
 	start := time.Now()
 
@@ -296,7 +298,7 @@ func TestDefaultSeries(t *testing.T) {
 	mockHaAgent.SetEnabled(true)
 	mockHaAgent.SetState(haagent.Active)
 
-	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList(), option.None[remoteagentregistry.Component]())
 
 	start := time.Now()
 
@@ -652,7 +654,7 @@ func TestTags(t *testing.T) {
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 			mockHaAgent.SetEnabled(tt.haAgentEnabled)
 
-			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second, filterlistmock.NewMockFilterList())
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second, filterlistmock.NewMockFilterList(), option.None[remoteagentregistry.Component]())
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
@@ -684,7 +686,7 @@ func TestConfigIDTags(t *testing.T) {
 			taggerComponent := taggerfxmock.SetupFakeTagger(t)
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 
-			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second, filterlistmock.NewMockFilterList())
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second, filterlistmock.NewMockFilterList(), option.None[remoteagentregistry.Component]())
 			assert.ElementsMatch(t, tt.want, agg.configIDTags())
 		})
 	}
@@ -716,7 +718,7 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList())
+	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, filterlistmock.NewMockFilterList(), option.None[remoteagentregistry.Component]())
 
 	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
 		Name:   "datadog.djm.agent_host",

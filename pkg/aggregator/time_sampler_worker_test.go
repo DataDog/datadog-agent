@@ -12,7 +12,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // A sample sent right before WaitForPendingSamples must be processed by the
@@ -25,7 +27,7 @@ func TestWaitForPendingSamplesDrainsBeforeReturning(t *testing.T) {
 	// InitAndStartAgentDemultiplexer (not initAgentDemultiplexer) is required
 	// here: WaitForPendingSamples needs the worker's run() goroutine actually
 	// running to service drainChan.
-	demux := InitAndStartAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := InitAndStartAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 	defer demux.Stop()
 
 	worker := demux.statsd.workers[0]

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for this component.
@@ -52,10 +54,11 @@ type Dependencies struct {
 	Tagger                       tagger.Component
 	Hostname                     hostnameinterface.Component
 	FilterList                   filterlist.Component
-	Observer                     observer.Component                       `optional:"true"`
-	DogStatsDLookbackFactory     aggregator.DogStatsDLookbackFactory      `optional:"true"`
-	FinalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver `group:"dogstatsd_final_serie_observers"`
-	ClientDropDetector           dogstatsdclientdropdetector.Component    `optional:"true"`
+	RemoteAgentRegistry          option.Option[remoteagentregistry.Component] `optional:"true"`
+	Observer                     observer.Component                           `optional:"true"`
+	DogStatsDLookbackFactory     aggregator.DogStatsDLookbackFactory          `optional:"true"`
+	FinalDogStatsDSerieObservers []aggregator.FinalDogStatsDSerieObserver     `group:"dogstatsd_final_serie_observers"`
+	ClientDropDetector           dogstatsdclientdropdetector.Component        `optional:"true"`
 
 	Params Params
 }
@@ -97,6 +100,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 		deps.Tagger,
 		deps.FilterList,
 		hostnameDetected,
+		deps.RemoteAgentRegistry,
 	)
 	agentDemultiplexer.SetObserver(deps.Observer)
 	demultiplexer := demultiplexer{

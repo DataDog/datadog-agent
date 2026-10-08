@@ -14,7 +14,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // TestNoAggStreamWorkerSeriesDisabled is a regression test for a nil pointer
@@ -33,7 +35,7 @@ func TestNoAggStreamWorkerSeriesDisabled(t *testing.T) {
 	mockSerializer.On("AreSketchesEnabled").Return(false)
 
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 	demux.statsd.noAggStreamWorkers[0].serializer = mockSerializer
 
 	go demux.run()
@@ -88,7 +90,7 @@ func TestNoAggStreamWorkerSampleToSerieFields(t *testing.T) {
 	}
 
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "", option.None[remoteagentregistry.Component]())
 	demux.statsd.noAggStreamWorkers[0].serializer = serializer
 	// Flush as soon as the batch has been processed, instead of waiting for the
 	// idle ticker, so the test can wait on the flush rather than on a clock.

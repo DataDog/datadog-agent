@@ -2,10 +2,19 @@
 
 Enable `health_check_remediation.enabled` in `datadog.yaml` to remediate integration
 health checks through the local Private Action Runner (PAR). The flag defaults to
-`false`. PAR must be enabled, enrolled, ready, and running its split-deployment
-executor. The agent authenticates to the configured local executor socket with
-the shared IPC certificate. If PAR is unreachable, unready, or lacks the local
-remediation RPC, dispatch falls back to the Pass-1 dry-run event.
+`false`. The always-on PAR component registers a `remediation` command with the
+Remote Agent Registry when remediation and `remote_agent.registry.enabled` are
+enabled. Registration uses PAR's existing IPC authentication and a dedicated
+listener. The on-demand split executor does not register. If the registry is
+disabled or PAR is absent or lacks the command, dispatch falls back to a dry-run
+event. An unavailable provider or dropped stream has an uncertain outcome,
+even if no response frame has been received, because steps may have executed.
+
+The `remediation` command provider trusts agent-authored remediation and a
+caller-supplied allowlist carried over the authenticated Remote Agent Registry.
+This path runs non-privileged rshell with a default-deny allowlist and is gated
+by both `health_check_remediation.enabled` and `remote_agent.registry.enabled`.
+Only explicitly allowed commands, paths, and service actions can run.
 
 The PAR `private_action_runner.actions_allowlist` must explicitly permit
 `com.datadoghq.remoteaction.rshell.runRemediationCommand`. Missing action
@@ -34,7 +43,7 @@ health_check:
 Steps run sequentially in rshell remediation mode and stop on the first failure.
 Use rshell-supported command names, not arbitrary host executables or scripts.
 Execution is non-privileged: local tasks never grant escalation or carry a
-Director proof. Ordinary executor-process filesystem permissions still apply.
+Director proof. Ordinary PAR-process filesystem permissions still apply.
 
 The YAML provides the local substitute for normally signed
 `SystemInputs.remote_action` policy. `allowed_paths` is passed explicitly to
@@ -68,9 +77,12 @@ limits use three attempts.
 Events report `detected`, `remediated`, or `escalate`, with per-step status and
 exit codes. Raw command output and execution errors are omitted from these
 events. `remediated` means all steps succeeded; the health check's next result
-confirms recovery. A lost RPC after dispatch is reported as an uncertain outcome,
-never as a dry run. An attempt is bounded to 30 seconds, with a one-second
-readiness probe.
+confirms recovery. Registry `NotFound` and `Unimplemented` errors produce
+dry-run events. `Unavailable` always produces `detected` followed by an
+uncertain-outcome `escalate` event because steps may have run, even if no
+response frame has been received.
+Other transport errors and malformed or incomplete responses also produce an
+uncertain-outcome `escalate` event. An attempt is bounded to 30 seconds.
 
 The sender hands observations to a bounded queue without waiting. A full queue
 drops observations, so detection is best effort under backpressure.

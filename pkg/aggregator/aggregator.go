@@ -15,6 +15,7 @@ import (
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/metricname"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -336,7 +338,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component, remoteAgentRegistry option.Option[remoteagentregistry.Component]) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -395,7 +397,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagFilterList:     filterList.GetTagFilterList(),
 	}
 
-	aggregator.remediationObserver = healthcheck.NewObserver(healthcheck.NewRemediationDispatcher(pkgconfigsetup.Datadog(), aggregator.eventIn, hostname))
+	aggregator.remediationObserver = healthcheck.NewObserver(healthcheck.NewRemediationDispatcher(pkgconfigsetup.Datadog(), aggregator.eventIn, hostname, remoteAgentRegistry))
 	if aggregator.remediationObserver != nil {
 		aggregator.SetServiceCheckObserver(aggregator.remediationObserver)
 	}

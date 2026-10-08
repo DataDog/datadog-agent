@@ -41,6 +41,7 @@ dd_agent_go_test(
     data = ["//pkg/collector/corechecks/snmp/internal/test:testdata"],
     embed = [":checkconfig"],
     deps = [
+        "//comp/core/remoteagentregistry/def",
         "//comp/core/tagger/impl-noop",
         "//comp/filterlist/impl",
         "//pkg/aggregator",
@@ -52,6 +53,7 @@ dd_agent_go_test(
         "//pkg/remoteconfig/state",
         "//pkg/snmp/snmpintegration",
         "//pkg/util/cache",
+        "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",

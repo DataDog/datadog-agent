@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
+	rshell "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/rshell"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -69,6 +70,9 @@ func NewWorkflowTaskExecutor(
 // ForLocalRemediation isolates the agent-authorized trust model without changing the signed executor.
 func (e *WorkflowTaskExecutor) ForLocalRemediation() *localRemediationExecutor {
 	local := *e
+	local.registry = &privatebundles.Registry{Bundles: map[string]types.Bundle{
+		"com.datadoghq.remoteaction.rshell": rshell.NewRshellBundle(e.config),
+	}}
 	local.taskVerifier = taskverifier.NewLocalTrustVerifier(e.config)
 	return &localRemediationExecutor{WorkflowTaskExecutor: &local}
 }

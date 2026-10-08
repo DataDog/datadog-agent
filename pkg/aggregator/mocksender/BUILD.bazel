@@ -14,6 +14,7 @@ go_library(
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/impl",
+        "//comp/core/remoteagentregistry/def",
         "//comp/core/tagger/impl-noop",
         "//comp/filterlist/impl",
         "//comp/forwarder/defaultforwarder/def",

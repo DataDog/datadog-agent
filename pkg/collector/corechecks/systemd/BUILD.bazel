@@ -34,6 +34,7 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/remoteagentregistry/def",
         "//comp/core/tagger/impl-noop",
         "//comp/filterlist/impl",
         "//comp/metadata/inventorychecks/mock",
@@ -43,6 +44,7 @@ dd_agent_go_test(
         "//pkg/collector/check/id",
         "//pkg/collector/corechecks",
         "//pkg/metrics/servicecheck",
+        "//pkg/util/option",
         "@com_github_coreos_go_systemd_v22//dbus",
         "@com_github_godbus_dbus_v5//:dbus",
         "@com_github_stretchr_testify//assert",
