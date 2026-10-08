@@ -83,7 +83,7 @@ func TestInventoryUnsupportedWorkloadsDisabled(t *testing.T) {
 			provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
 				Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
 			})
-			serverlessInitInventory.Publish(provides.Comp, service, mode.Conf{SidecarMode: true}, conf, nil)
+			serverlessInitInventory.UpdateAndSubmit(provides.Comp, service, mode.Conf{SidecarMode: true}, conf, nil)
 			assert.Empty(t, serial.Payloads(), "an enabled flag must not submit unsupported inventory")
 			assert.Empty(t, provides.Comp.Get(), "the disabled component must not retain injected inventory")
 			assert.Nil(t, provides.Provider.Callback, "unsupported workloads must not register periodic collection")

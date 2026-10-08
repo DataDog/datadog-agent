@@ -121,7 +121,7 @@ func TestInventoryOneShotReadiness(t *testing.T) {
 				if len(serial.Payloads()) != 0 {
 					return fmt.Errorf("inventory emitted before initialization")
 				}
-				serverlessInitInventory.Publish(ia, service, mode.Conf{SidecarMode: true}, conf, map[string]string{
+				serverlessInitInventory.UpdateAndSubmit(ia, service, mode.Conf{SidecarMode: true}, conf, map[string]string{
 					"env": "test-env", "service": "test-service", "version": "test-version",
 				})
 				if len(serial.Payloads()) == 0 {
@@ -227,7 +227,7 @@ func TestInventoryIdentityGate(t *testing.T) {
 			provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
 				Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
 			})
-			serverlessInitInventory.Publish(provides.Comp, service, mode.Conf{}, conf, map[string]string{
+			serverlessInitInventory.UpdateAndSubmit(provides.Comp, service, mode.Conf{}, conf, map[string]string{
 				"env": "test-env", "service": "test-service", "version": "test-version",
 			})
 			if scenario != "valid" {
@@ -387,7 +387,7 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 				payloadCount := len(serial.Payloads())
 				before := time.Now().UnixNano()
 				if reason == "startup" {
-					serverlessInitInventory.Publish(provides.Comp, service, mode.Conf{SidecarMode: stage.sidecar}, conf, tags)
+					serverlessInitInventory.UpdateAndSubmit(provides.Comp, service, mode.Conf{SidecarMode: stage.sidecar}, conf, tags)
 				} else {
 					provides.Provider.Callback(context.Background())
 				}
