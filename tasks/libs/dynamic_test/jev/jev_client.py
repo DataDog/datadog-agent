@@ -10,11 +10,38 @@ import shlex
 import subprocess
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from tasks.libs.dynamic_test.jev.pr_context import MAX_DESCRIPTION_BYTES, truncate
 from tasks.libs.dynamic_test.jev.test_discovery import MAX_TEST_CODE_BYTES
 
 SYSTEMONE_PATH = "/v1/systemone"
+
+# The committed background summary of how the Datadog Agent works
+# (agent_primer.md, curated from the repo docs and the e2e run-all-paths
+# lists), included in every Jev state so the model can reason about the
+# repo architecture without any PR-specific input. Static content, so it
+# is committed and loaded once instead of being LLM-generated per run.
+PRIMER_PATH = Path(__file__).resolve().parent / "agent_primer.md"
+MAX_PRIMER_BYTES = 6_000
+_primer_cache: str | None = None
+
+
+def load_agent_primer() -> str:
+    """The agent architecture primer text, truncated to fit the state.
+
+    Returns "" when the file is missing or unreadable (the state is built
+    without it rather than failing).
+    """
+    global _primer_cache
+    if _primer_cache is None:
+        try:
+            _primer_cache = truncate(
+                PRIMER_PATH.read_text(encoding="utf-8", errors="ignore"), MAX_PRIMER_BYTES, "agent primer"
+            )
+        except OSError:
+            _primer_cache = ""
+    return _primer_cache
 
 
 QUESTIONS = {
@@ -109,10 +136,12 @@ def build_context_state(
     ddci: dict | None = None,
     suite_def_code: str = "",
     pr_summary: str = "",
+    primer: str = "",
 ) -> str:
     """The shared part of the System One state: the PR context (title,
-    description, changed files) and the suite provisioning definition -
-    everything every Jev call for the suite sees, without the per-test code.
+    description, changed files), the agent architecture primer and the suite
+    provisioning definition - everything every Jev call for the suite sees,
+    without the per-test code.
 
     When pr_summary is set (LLM-generated summary of the PR changes, see
     pr_summary.py), it replaces the full diff: the state carries the file
@@ -121,6 +150,7 @@ def build_context_state(
     """
     files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
     author = f", author: @{pr['author']}" if pr.get("author") else ""
+    primer_section = f"{primer}\n" if primer else ""
     impacted = ""
     if ddci and ddci.get("impacted_targets"):
         impacted = "\n\n## Impacted build targets (from DDCI build impact analysis)\n" + ", ".join(
@@ -144,6 +174,7 @@ def build_context_state(
         f"Title: {pr.get('title') or '(unknown)'}{author}\n"
         f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
         f"Owning team of the E2E suite: {team}\n\n"
+        f"{primer_section}"
         f"## Files changed in this PR (merge base {str(merge_base)[:12]}, {len(files)} files)\n"
         f"{files_section}{changes_section}{impacted}{suite_def_section}"
     )
@@ -162,11 +193,21 @@ def build_state(
     ddci: dict | None = None,
     suite_def_code: str = "",
     pr_summary: str = "",
+    primer: str = "",
 ) -> str:
     """Assemble the System One state sent to Jev for one test entry point: the shared context (see build_context_state) plus the test under evaluation."""
     return (
         build_context_state(
-            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code, pr_summary=pr_summary
+            suite,
+            team,
+            pr,
+            files,
+            merge_base,
+            diff,
+            ddci=ddci,
+            suite_def_code=suite_def_code,
+            pr_summary=pr_summary,
+            primer=primer,
         )
         + "\n\n## E2E test under evaluation\n"
         f"Test: {name}\n"
