@@ -153,7 +153,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, const struct pt_regs*
           header->goid, header->stack_byte_depth, params->probe_id);
       return;
     }
-    int remaining;
+    int remaining = 0;
     uint64_t entry_ktime_ns = 0;
     // Write directly into stack_machine_t fields where possible so the
     // verifier doesn't have to track extra stack-local addresses; this
