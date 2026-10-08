@@ -645,6 +645,19 @@ func TestRecordMissedBytes(t *testing.T) {
 	assert.EqualValues(t, 6, snapshot[0].Bytes)
 }
 
+// TestAssumeSize checks that a tailer counts as unread the bytes another
+// tailer of the file saw past its offset, before it sees the file itself.
+func TestAssumeSize(t *testing.T) {
+	share := fake.New()
+	id := share.Write(testPath, []byte("one\ntwo\n"))
+	tt := newTestTailer(t, share, id, 4)
+	assert.Zero(t, tt.UnreadBytes())
+	tt.AssumeSize(8)
+	assert.EqualValues(t, 4, tt.UnreadBytes())
+	tt.AssumeSize(6) // a smaller size changes nothing
+	assert.EqualValues(t, 4, tt.UnreadBytes())
+}
+
 func TestStopWithoutStart(t *testing.T) {
 	configmock.New(t)
 	source := sources.NewReplaceableSource(sources.NewLogSource("smb-test", &config.LogsConfig{Type: config.SMBType}))

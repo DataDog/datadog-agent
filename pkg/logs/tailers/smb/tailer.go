@@ -306,6 +306,15 @@ func (t *Tailer) Start(offset int64) {
 	t.decoder.Start()
 }
 
+// AssumeSize records that the file held size bytes when another tailer of it
+// last saw it, so that UnreadBytes counts the bytes past the offset before this
+// tailer sees the file itself.
+func (t *Tailer) AssumeSize(size int64) {
+	if size > t.lastSeenSize.Load() {
+		t.lastSeenSize.Store(size)
+	}
+}
+
 // Stop flushes the decoder and returns once every decoded message has been
 // forwarded. It is safe to call more than once, and on a tailer never started.
 func (t *Tailer) Stop() {

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -922,6 +923,191 @@ func TestSecretRefreshSpanningARotation(t *testing.T) {
 			assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the line the replaced scanner listed but did not read")
 		})
 	}
+}
+
+// TestSecretRefreshMidDrain replaces a source, as autodiscovery does when its
+// password secret is refreshed, while one of its rotated files is drained.
+func TestSecretRefreshMidDrain(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	st := startLauncher(t)
+	entry := func(password string) *sources.LogSource {
+		return newSMBSource("demo", func(c *config.LogsConfig) {
+			c.IntegrationSource = "file:/etc/datadog-agent/conf.d/demo.d/conf.yaml"
+			c.SMB.Password = password
+		})
+	}
+	st.share.Write("app/app.log", []byte(lines(1, 2)))
+	previous := entry("old-key")
+	st.sources.AddSource(previous)
+	st.out.waitLines(t, 2)
+
+	st.share.Append("app/app.log", []byte(lines(3, 3)))
+	require.NoError(t, st.share.Rename("app/app.log", "app/app.log.1"))
+	st.share.Write("app/app.log", []byte(lines(4, 4)))
+	st.share.FailNextPath(fake.OpReadAt, "app/app.log.1", fake.ErrSharing)
+	st.clock.Add(time.Second)
+	st.out.waitLines(t, 3) // lines 1, 2 and 4; line 3 waits in the drain
+
+	refreshed := entry("new-key")
+	st.sources.AddSource(refreshed)
+	st.waitFor(t, func() bool { return len(refreshed.GetInputs()) == 1 }, "the refreshed source tails the path")
+	st.share.Append("app/app.log", []byte(lines(5, 5)))
+	for range 3 {
+		st.clock.Add(time.Second)
+	}
+	st.out.waitLines(t, 4)
+
+	st.launcher.Stop()
+	st.out.flush()
+	// The new scanner goes on with the drain, with its own client: it reads
+	// line 3 once the file is no longer locked.
+	assert.ElementsMatch(t, want(1, 5), st.out.lines(), "each line once across the replacement")
+	assert.Empty(t, metrics.MissedBytesSnapshot())
+}
+
+// draining reports whether agent status lists a drain.
+func (st *started) draining() bool {
+	for _, tl := range st.tracker.All() {
+		if strings.Contains(tl.GetID(), "(rotated") {
+			return true
+		}
+	}
+	return false
+}
+
+// refreshableSource returns a source of the configuration entry
+// TestSecretRefreshMidDrain uses, with password: adding one with another
+// password replaces the previous one, as after a secret refresh.
+func refreshableSource(password string, opts ...func(*config.LogsConfig)) *sources.LogSource {
+	return newSMBSource("demo", append([]func(*config.LogsConfig){func(c *config.LogsConfig) {
+		c.IntegrationSource = "file:/etc/datadog-agent/conf.d/demo.d/conf.yaml"
+		c.SMB.Password = password
+	}}, opts...)...)
+}
+
+// TestSecretRefreshMidDrainHandsTheDrainOver replaces a source while the
+// rotated file it drains is locked, holding a line neither scanner reads: the
+// new scanner's drain knows the line is there and ends as the replaced one
+// would have, so the line is reported missed once, when the file disappears
+// or at the deadline set when the file rotated.
+func TestSecretRefreshMidDrainHandsTheDrainOver(t *testing.T) {
+	for _, deleted := range []bool{false, true} {
+		t.Run(fmt.Sprintf("rotated file deleted %t", deleted), func(t *testing.T) {
+			metrics.ResetMissedBytesForTest()
+			t.Cleanup(metrics.ResetMissedBytesForTest)
+			st := startLauncher(t)
+			var drainReads atomic.Int32
+			st.share.SetHook(func(op fake.Op, p string) {
+				if op == fake.OpReadAt && p == "app/app.log.1" {
+					drainReads.Add(1)
+				}
+			})
+			// scan runs one scan, one poll_interval later, and waits until
+			// its drain tried to read the rotated file.
+			scan := func() {
+				t.Helper()
+				reads := drainReads.Load()
+				st.clock.Add(time.Second)
+				st.waitFor(t, func() bool { return drainReads.Load() > reads }, "the drain polls the rotated file")
+			}
+			st.share.Write("app/app.log", []byte(lines(1, 2)))
+			st.sources.AddSource(refreshableSource("old-key"))
+			st.out.waitLines(t, 2)
+
+			st.share.Append("app/app.log", []byte(lines(3, 3)))
+			require.NoError(t, st.share.Rename("app/app.log", "app/app.log.1"))
+			st.share.Write("app/app.log", []byte(lines(4, 4)))
+			locked := make([]error, 200)
+			for i := range locked {
+				locked[i] = fake.ErrSharing
+			}
+			st.share.FailNextPath(fake.OpReadAt, "app/app.log.1", locked...)
+			scan() // the rotation is seen: the drain ends by closeTimeout (a minute) from now
+			st.out.waitLines(t, 3)
+			for range 30 {
+				scan()
+			}
+
+			if deleted {
+				require.NoError(t, st.share.Delete("app/app.log.1"))
+			}
+			reads := drainReads.Load()
+			refreshed := refreshableSource("new-key")
+			st.sources.AddSource(refreshed)
+			st.waitFor(t, func() bool { return len(refreshed.GetInputs()) == 1 }, "the refreshed source tails the path")
+			if !deleted {
+				st.waitFor(t, func() bool { return drainReads.Load() > reads }, "the new scanner polls the drain")
+				for range 29 {
+					scan()
+				}
+				assert.Empty(t, metrics.MissedBytesSnapshot(), "the drain goes on until its deadline")
+				st.clock.Add(time.Second) // a minute after the rotation, not after the replacement
+			}
+			st.waitFor(t, func() bool { return !st.draining() }, "the drain ends")
+			snapshot := metrics.MissedBytesSnapshot()
+			require.Len(t, snapshot, 1)
+			assert.Equal(t, int64(len(lines(3, 3))), snapshot[0].Bytes, "the line neither scanner could read")
+
+			st.launcher.Stop()
+			st.out.flush()
+			assert.Equal(t, []string{"line 1", "line 2", "line 4"}, st.out.lines())
+			assert.Len(t, metrics.MissedBytesSnapshot(), 1, "reported once")
+		})
+	}
+}
+
+// TestSecretRefreshAfterADrainEnded replaces a source right after the drain of
+// a file rotated to a matched name ended, before the tailer of that name
+// started: the new scanner's tailer resumes the file where the drain ended,
+// although the registry does not hold the drain's last offsets yet (the
+// pipeline has not delivered them).
+func TestSecretRefreshAfterADrainEnded(t *testing.T) {
+	st := startLauncher(t)
+	matchAll := func(c *config.LogsConfig) { c.Path = "app/*" }
+	var drainReads atomic.Int32
+	st.share.SetHook(func(op fake.Op, p string) {
+		if op == fake.OpReadAt && p == "app/app.log.1" {
+			drainReads.Add(1)
+		}
+	})
+	st.share.Write("app/app.log", []byte(lines(1, 2)))
+	st.sources.AddSource(refreshableSource("old-key", matchAll))
+	st.out.waitLines(t, 2)
+
+	st.share.Append("app/app.log", []byte(lines(3, 3)))
+	require.NoError(t, st.share.Rename("app/app.log", "app/app.log.1"))
+	st.share.Write("app/app.log", []byte(lines(4, 4)))
+	// The drain reads line 3, then two polls find nothing new: it ends. Each
+	// scan reads the rotated file once.
+	for scan := int32(1); scan <= 3; scan++ {
+		st.clock.Add(time.Second)
+		st.waitFor(t, func() bool { return drainReads.Load() == scan }, "the drain polls the rotated file")
+	}
+	st.waitFor(t, func() bool { return !st.draining() }, "the drain ends")
+	st.out.waitLines(t, 4)
+
+	refreshed := refreshableSource("new-key", matchAll)
+	st.sources.AddSource(refreshed)
+	st.waitFor(t, func() bool { return len(refreshed.GetInputs()) == 2 }, "the refreshed source tails both files")
+	st.launcher.Stop()
+	st.out.flush()
+	assert.ElementsMatch(t, want(1, 4), st.out.lines(), "each line once across the replacement")
+}
+
+// TestSecretRefreshMidDrainKeepsTheMatchedNamesItLeft is
+// TestRestartMidDrainResumesFromAMatchedNameItLeft with a secret refresh
+// after the drain committed offsets under the matched name: the new scanner's
+// drain knows that the registry entry of that name holds its file, so its
+// stop reports nothing missed either.
+func TestSecretRefreshMidDrainKeepsTheMatchedNamesItLeft(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+	h := newHarness(t, withPath("app/app.log*"), withExcludes("app/*.tmp"))
+	rotated := drainUnderAMatchedName(t, h)
+	refreshed := h.refresh()
+	moveDrainToAnExcludedName(t, refreshed)
+	restartAfterARotationToTheNameTheDrainLeft(t, refreshed, rotated)
 }
 
 // passwordServer is a dial function in front of a fake share that only

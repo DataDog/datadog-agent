@@ -108,6 +108,9 @@ type scanner struct {
 	// stoppedAt is where the tailers stopped reading, set once the scanner
 	// stopped, for a scanner that replaces this one (see Launcher.replace).
 	stoppedAt map[string]handoff
+	// stoppedDrains is where the drains stopped, set once the scanner stopped
+	// for a scanner that replaces this one, which goes on with them.
+	stoppedDrains []drainHandoff
 }
 
 type drain struct {
@@ -148,6 +151,19 @@ type handoff struct {
 	// of the file, even if the next tailer of the file forwards nothing
 	// there.
 	held bool
+}
+
+// drainHandoff is where a scanner stopped a drain, for the scanner that
+// replaces it: that scanner's drain reads the rest of the file from there with
+// its own client (see continueDrain).
+type drainHandoff struct {
+	handoff                    // the file, where the drain stopped reading it, its largest size seen and its committed offset (drain.committed)
+	path        string         // the path the file rotated away from
+	readPath    string         // where the file was found last
+	pattern     *regexp.Regexp // the multiline pattern its decoder detected
+	deadline    time.Time
+	caughtUp    int
+	resumePaths map[string]bool
 }
 
 // newScanner returns a scanner of source, which passed validation.
@@ -203,10 +219,10 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 
 // resumeFrom makes s, not started yet, continue the work of prev, a stopped
 // scanner of the same configuration: s's tailers resume prev's files where
-// prev's tailers stopped reading them, so nothing is read twice, the registry
-// offsets prev's drains recorded are not taken for positions stored before s
-// started (see drainedAt), and start_position does not apply again to files
-// prev found after it started.
+// prev's tailers stopped reading them, so nothing is read twice, s goes on
+// with prev's drains, the registry offsets prev's drains recorded are not
+// taken for positions stored before s started (see drainedAt), and
+// start_position does not apply again to files prev found after it started.
 func (s *scanner) resumeFrom(prev *scanner) {
 	for p, h := range prev.stoppedAt {
 		s.inherited[p] = h
@@ -216,6 +232,12 @@ func (s *scanner) resumeFrom(prev *scanner) {
 			s.drainedAt[p] = true
 		}
 	}
+	for _, h := range prev.stoppedDrains {
+		s.continueDrain(h)
+	}
+	for id, h := range prev.resume {
+		s.resume[id] = h
+	}
 	for p, pattern := range prev.patterns {
 		s.patterns[p] = pattern
 	}
@@ -223,6 +245,20 @@ func (s *scanner) resumeFrom(prev *scanner) {
 	for p := range prev.initial {
 		s.initial[p] = true
 	}
+}
+
+// continueDrain starts a drain that goes on with h, a drain of the scanner
+// this one replaces: from the same offset and with the same deadline, read
+// through this scanner's client.
+func (s *scanner) continueDrain(h drainHandoff) {
+	log.Infof("SMB rotation drain of %s (%s, read as %s) goes on at offset %d with the source's new configuration", tailer.Identifier(s.host, s.share, h.path), h.file, h.readPath, h.offset)
+	t := s.newTailer(h.path, h.file, h.pattern, false)
+	t.SetReadPath(h.readPath)
+	t.AssumeSize(h.size)
+	t.Start(h.offset)
+	t.StartDraining()
+	s.l.tailers.Add(t)
+	s.draining = append(s.draining, &drain{t: t, deadline: h.deadline, caughtUp: h.caughtUp, committed: h.committed, resumePaths: h.resumePaths})
 }
 
 func (s *scanner) start(ctx context.Context) {
@@ -269,13 +305,14 @@ func (s *scanner) run(ctx context.Context) {
 }
 
 // stopTailers stops every tailer of the scanner and waits for them. It records
-// where the active tailers stopped reading in stoppedAt.
+// where the active tailers stopped reading in stoppedAt and, when the scanner
+// is replaced, where its drains stopped in stoppedDrains.
 //
-// Unless the scanner is replaced, its stop is final: the bytes a drain did not
-// read are reported missed, unless an Agent restart can resume its file from
-// a registry entry that holds an offset of it (see drain.resumePaths). That is
-// decided once every tailer stopped: stopping flushes the decoders, whose last
-// messages may commit under the drain's paths.
+// Otherwise the stop is final: the bytes a drain did not read are reported
+// missed, unless an Agent restart can resume its file from a registry entry
+// that holds an offset of it (see drain.resumePaths). That is decided once
+// every tailer stopped: stopping flushes the decoders, whose last messages may
+// commit under the drain's paths.
 //
 // The decision rests on what the scanner knows when it stops, which is wrong
 // in two cases:
@@ -317,21 +354,33 @@ func (s *scanner) stopTailers() {
 		s.stoppedAt[t.Path()] = h
 		s.pathCommitted(t)
 	}
+	replaced := s.replaced.Load()
 	for _, d := range s.draining {
-		resumed := len(d.resumePaths) > 0
-		s.releaseCommitPath(d) // its last messages committed there
-		s.l.tailers.Remove(d.t)
-		if !s.replaced.Load() && !resumed {
+		switch {
+		case replaced:
+			s.stoppedDrains = append(s.stoppedDrains, s.handOver(d))
+		case len(d.resumePaths) == 0:
 			d.t.RecordMissedBytes("SMB source stopped while draining a rotated file")
 		}
-		// Nothing goes on with d: a scanner that replaces this one resumes
-		// d's file from the registry entries that hold an offset of it (see
-		// resumeRotatedAway), so their paths leave drainedAt.
-		for p := range d.resumePaths {
-			delete(s.drainedAt, p)
-		}
+		s.releaseCommitPath(d) // its last messages committed there
+		s.l.tailers.Remove(d.t)
 	}
 	s.draining = nil
+}
+
+// handOver returns where the stopped drain d left off, for the scanner that
+// replaces this one.
+func (s *scanner) handOver(d *drain) drainHandoff {
+	t := d.t
+	return drainHandoff{
+		handoff:     handoff{file: t.Identity(), offset: t.Offset(), size: t.Offset() + t.UnreadBytes(), committed: s.drainCommitted(d)},
+		path:        t.Path(),
+		readPath:    t.ReadPath(),
+		pattern:     t.GetDetectedPattern(),
+		deadline:    d.deadline,
+		caughtUp:    d.caughtUp,
+		resumePaths: d.resumePaths,
+	}
 }
 
 // scan lists the share once, then polls every tailer.
@@ -974,8 +1023,7 @@ func (s *scanner) endDrain(d *drain, v *view, offset int64, reason string) {
 // file sits at the path. The path's next tailer still resumes from there the
 // drained file itself, should the file come back without a resume point (see
 // startPosition). A scanner that replaces this one keeps those paths (see
-// resumeFrom), but for those it resumes the file of a drain this scanner
-// stopped from (see stopTailers).
+// resumeFrom).
 //
 // An Agent restart does not. What d reads once its file has left the path for
 // a name the pattern does not match is committed nowhere, so the path's
