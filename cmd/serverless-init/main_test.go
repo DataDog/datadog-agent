@@ -82,6 +82,10 @@ func TestInventoryIdentityGate(t *testing.T) {
 			}
 			conf.Set("inventories_first_run_delay", 0, configmodel.SourceAgentRuntime)
 			conf.Set("inventories_configuration_enabled", false, configmodel.SourceAgentRuntime)
+			conf.Set("site", "datadoghq.eu", configmodel.SourceAgentRuntime)
+			conf.Set("logs_enabled", true, configmodel.SourceAgentRuntime)
+			conf.Set("config_id", "local-fleet-config", configmodel.SourceAgentRuntime)
+			conf.Set("fleet_layers", []string{"local-fleet-policy"}, configmodel.SourceAgentRuntime)
 			service := inventoryTestCloudService{data: cloudservice.InventoryData{
 				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "azure_app_service",
 			}}
@@ -98,7 +102,9 @@ func TestInventoryIdentityGate(t *testing.T) {
 			provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
 				Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
 			})
-			serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{}, conf, nil)
+			serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{}, conf, map[string]string{
+				"env": "test-env", "service": "test-service", "version": "test-version",
+			})
 			serverlessInitInventory.Submit(provides.Comp, conf)
 			if scenario != "valid" {
 				assert.Empty(t, serial.payloads)
@@ -117,6 +123,22 @@ func TestInventoryIdentityGate(t *testing.T) {
 				}
 				require.NoError(t, json.Unmarshal(data, &payload))
 				assert.Equal(t, service.data.ResourceID, payload.Metadata["resource_id"])
+				assert.Equal(t, service.data.ResourceName, payload.Metadata["resource_name"])
+				assert.Equal(t, service.data.WorkloadType, payload.Metadata["workload_type"])
+				assert.Equal(t, "datadoghq.eu", payload.Metadata["dd_site"], "site is explicitly injected, not collected by the generic refresh")
+				assert.Equal(t, "test-env", payload.Metadata["dd_env"])
+				assert.Equal(t, "test-service", payload.Metadata["dd_service"])
+				assert.Equal(t, "test-version", payload.Metadata["dd_version"])
+				assert.Equal(t, float64(conf.StartTime().UnixMilli()), payload.Metadata["agent_startup_time_ms"])
+				assert.Contains(t, payload.Metadata, "install_method_tool")
+				assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
+				for _, field := range []string{
+					"config_site", "feature_logs_enabled", "fleet_policies_applied", "config_id",
+					"application_monitoring_config", "application_monitoring_config_fleet",
+				} {
+					assert.NotContains(t, payload.Metadata, field, "full-agent local refresh is intentionally skipped")
+				}
+				assert.NotContains(t, payload.Metadata, "full_configuration", "configuration payloads remain separately controlled")
 				assert.Equal(t, "serverless-init", payload.Metadata["flavor"])
 				assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version_base"])
 				assert.Equal(t, serverlessTag.GetExtensionVersion(), payload.Metadata["serverless_init_version"])
