@@ -236,16 +236,19 @@ type EnvVarControl interface {
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
-	// Update atomically computes and writes a setting while holding the config write lock. If
-	// source's layer sets the key, the callback receives a copy of that value with noValue=false
-	// and its result overwrites it. If the layer doesn't, the callback receives a copy of the
-	// current resolved value (what Get returns) with noValue=true and its result is inserted. The
-	// callback must only do bounded in-memory work and must not call back into the config: the
-	// lock is not reentrant, so that deadlocks. Returning apply=false leaves the setting
-	// unchanged. Update returns true only if source determines the resolved value after the
-	// write; false also covers apply=false, unknown keys (outside dynamic-schema test mode), and
-	// writes shadowed by a higher-priority source.
-	Update(key string, source Source, update func(oldValue interface{}, noValue bool) (newValue interface{}, apply bool)) bool
+	// SetWithLock writes a setting while holding the config lock.
+	//
+	// The callback receives the current value for that key from the required source or bellow if none exist yet.
+	// This allows the callback to compute a result without copying data from higher source into lower ones. For
+	// example, requesting an update on 'SourceSecret' will receive the value from that layer of bellow, never a
+	// higher one.
+	//
+	// The callback receives a copy of that value. The callback must only do bounded in-memory work and MUST NOT
+	// call back into the config: the lock is not reentrant. Returning apply=false cancel the update.
+	//
+	// SetWithLock returns true if key final value changed (ie: data was written to the config at the requested layer and
+	// is not shadow by a value at a higher layer).
+	SetWithLock(key string, source Source, update func(oldValue interface{}, oldSource Source) (newValue interface{}, apply bool)) bool
 	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
 	// DirectBulkSet writes settings already resolved by another config, keeping each one in the

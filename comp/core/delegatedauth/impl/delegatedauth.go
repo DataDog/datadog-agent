@@ -868,7 +868,7 @@ func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, api
 
 // mergeIntoAdditionalEndpoints writes apiKey into the map-shape config at
 // additionalEndpointsConfigKey under additionalEndpointDomain, replacing the previous value.
-// The config write is atomic via config.Update. Writes at SourceSecret (not
+// The config write is atomic via config.SetWithLock. Writes at SourceSecret (not
 // SourceAgentRuntime) to avoid permanently shadowing secret rotations.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string, isFallback bool) error {
 	d.additionalEndpointsMu.Lock()
@@ -878,7 +878,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 	domain := instance.additionalEndpointDomain
 	var updateErr error
 	wrote := false
-	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}, _ bool) (interface{}, bool) {
+	applied := d.config.SetWithLock(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}, _ pkgconfigmodel.Source) (interface{}, bool) {
 		endpoints, err := cast.ToStringMapStringSliceE(currentValue)
 		if err != nil {
 			updateErr = fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
@@ -952,7 +952,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 
 	var updateErr error
 	wrote := false
-	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}, _ bool) (interface{}, bool) {
+	applied := d.config.SetWithLock(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}, _ pkgconfigmodel.Source) (interface{}, bool) {
 		entries, ok := common.NormalizeListShapeEntries(currentValue)
 		if !ok {
 			updateErr = fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)

@@ -1383,8 +1383,8 @@ func TestMergeIntoAdditionalEndpointsListFallsBackToValueScanWhenIndexStale(t *t
 }
 
 // updateInjectingConfig completes another config write immediately before the atomic update.
-// Tests using it check the merge builds on the value Update hands it; Update's atomicity is
-// covered by TestUpdateSerializesConcurrentWriters in nodetreemodel.
+// Tests using it check the merge builds on the value SetWithLock hands it; SetWithLock's atomicity is
+// covered by TestSetWithLockSerializesConcurrentWriters in nodetreemodel.
 type updateInjectingConfig struct {
 	pkgconfigmodel.ReaderWriter
 	watchKey  string
@@ -1392,12 +1392,12 @@ type updateInjectingConfig struct {
 	triggered bool
 }
 
-func (r *updateInjectingConfig) Update(key string, source pkgconfigmodel.Source, update func(interface{}, bool) (interface{}, bool)) bool {
+func (r *updateInjectingConfig) SetWithLock(key string, source pkgconfigmodel.Source, update func(interface{}, pkgconfigmodel.Source) (interface{}, bool)) bool {
 	if key == r.watchKey && r.inject != nil && !r.triggered {
 		r.triggered = true
 		r.inject()
 	}
-	return r.ReaderWriter.Update(key, source, update)
+	return r.ReaderWriter.SetWithLock(key, source, update)
 }
 
 type failingProvider struct {

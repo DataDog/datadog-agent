@@ -760,7 +760,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	// `kubernetes_node_annotations_as_tags`, etc. Since these arbitrary keys can
 	// contain a '.' character, we are unable to use the standard `config.Set` method.
 	// Instead, we remove trailing elements from the end of the path until we find a known
-	// config field, then modify the compound object at that point through config.Update,
+	// config field, then modify the compound object at that point through config.SetWithLock,
 	// using the trailing elements to find the value to replace.
 	//
 	// Example with the follow configuration:
@@ -781,7 +781,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	//
 	// This function will effectively do:
 	//
-	// config.Update('process_config.additional_endpoints', SourceSecret, func(original, _) {
+	// config.SetWithLock('process_config.additional_endpoints', SourceSecret, func(original, _) {
 	//     original['http://url.com'][0] = 'password'
 	//     return original, true
 	// })
@@ -806,7 +806,7 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	slices.Reverse(trailingElements)
 
 	var updateErr error
-	config.Update(settingName, pkgconfigmodel.SourceSecret, func(startingValue interface{}, _ bool) (interface{}, bool) {
+	config.SetWithLock(settingName, pkgconfigmodel.SourceSecret, func(startingValue interface{}, _ pkgconfigmodel.Source) (interface{}, bool) {
 		iterateValue := startingValue
 		// Iterate down until we find the final object that we are able to modify.
 		for k, elem := range trailingElements {

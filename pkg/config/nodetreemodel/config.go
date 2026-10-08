@@ -230,16 +230,16 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.set(key, newValue, source, nil)
 }
 
-// Update computes and writes a setting while holding the config write lock.
-func (c *ntmConfig) Update(key string, source model.Source, update func(interface{}, bool) (interface{}, bool)) bool {
+// SetWithLock computes and writes a setting while holding the config write lock.
+func (c *ntmConfig) SetWithLock(key string, source model.Source, update func(interface{}, model.Source) (interface{}, bool)) bool {
 	if update == nil {
-		panicInTest("Update callback must not be nil")
+		panicInTest("SetWithLock callback must not be nil")
 		return false
 	}
 	return c.set(key, nil, source, update)
 }
 
-func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, update func(interface{}, bool) (interface{}, bool)) bool {
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, update func(interface{}, model.Source) (interface{}, bool)) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
@@ -268,14 +268,16 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 	}
 	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
 	if update != nil {
-		// Overwrite builds on source's own value; an insert into an empty layer builds on the
-		// resolved value, so the callback never reads another layer when overwriting.
-		current, inLayer := c.valueInSource(strings.ToLower(key), source)
-		if !inLayer {
-			current = previousValue
+		// Walk down from source to the first layer holding the key, so the callback never
+		// receives a value from a higher-priority layer.
+		lookupSource := source
+		current, inLayer := c.valueInSource(strings.ToLower(key), lookupSource)
+		for !inLayer && lookupSource.IsGreaterThan(model.SourceDefault) {
+			lookupSource = lookupSource.PreviousSource()
+			current, inLayer = c.valueInSource(strings.ToLower(key), lookupSource)
 		}
 		var apply bool
-		newValue, apply = update(copyIfNeeded(current), !inLayer)
+		newValue, apply = update(copyIfNeeded(current), lookupSource)
 		if !apply {
 			return false
 		}
