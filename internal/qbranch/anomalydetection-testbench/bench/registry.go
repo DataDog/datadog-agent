@@ -5,12 +5,6 @@
 
 package bench
 
-// ComponentDataProvider is implemented by components that expose extra data
-// beyond what their primary interface provides (e.g. edges, clusters, scores).
-type ComponentDataProvider interface {
-	GetExtraData() interface{}
-}
-
 // GetComponentData returns extra data for a named component (always nil in bench
 // since we no longer have direct access to component instances).
 // The enabled state is read from the current settings.

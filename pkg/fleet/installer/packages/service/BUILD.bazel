@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "service",
-    srcs = ["service.go"],
+    srcs = [
+        "service.go",
+        "service_darwin.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service",
     visibility = ["//visibility:public"],
     deps = select({
@@ -13,9 +16,6 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/env",
         ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/fleet/installer/env",
-        ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/env",
         ],
@@ -23,9 +23,6 @@ go_library(
             "//pkg/fleet/installer/env",
         ],
         "@rules_go//go/platform:illumos": [
-            "//pkg/fleet/installer/env",
-        ],
-        "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/env",
         ],
         "@rules_go//go/platform:js": [
@@ -69,10 +66,6 @@ dd_agent_go_test(
             "//pkg/fleet/installer/env",
             "@com_github_stretchr_testify//assert",
         ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/fleet/installer/env",
-            "@com_github_stretchr_testify//assert",
-        ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/env",
             "@com_github_stretchr_testify//assert",
@@ -82,10 +75,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:illumos": [
-            "//pkg/fleet/installer/env",
-            "@com_github_stretchr_testify//assert",
-        ],
-        "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/env",
             "@com_github_stretchr_testify//assert",
         ],

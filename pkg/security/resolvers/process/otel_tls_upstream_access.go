@@ -7,7 +7,7 @@
 // OpenTelemetry eBPF profiler as of PR #1229
 // (https://github.com/open-telemetry/opentelemetry-ebpf-profiler/pull/1229),
 // Copyright The OpenTelemetry Authors, SPDX-License-Identifier: Apache-2.0,
-// plus the tlsExport constant and the data struct that resolveTLSAccess returns,
+// plus the data struct that resolveTLSAccess returns,
 // both from that PR's interpreter/threadcontext/threadcontext.go.
 //
 // It exists because upstream keeps this classification unexported inside a
@@ -18,8 +18,7 @@
 // keep this file a copy so it can be diffed against upstream and dropped whole.
 //
 // Deviations from upstream, all mechanical:
-//   - the package, the imports, and the tlsExport value (this codebase names the
-//     symbol otelTLSSymbolName),
+//   - the package, the imports
 //   - VisitRelocations and DynValue are called as the free functions of
 //     otel_tls_upstream_pfelf.go, since the pinned pfelf has neither,
 //   - one nolint, for a fmt.Errorf this repo's linter wants as errors.New.
@@ -36,9 +35,6 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
 )
-
-// tlsExport defines the name of the thread info TLS export.
-const tlsExport = otelTLSSymbolName
 
 // tlsAccess identifies how the otel_thread_ctx_v1 TLS variable is accessed,
 // which determines how its address is resolved at attach time.
@@ -119,7 +115,7 @@ func resolveTLSAccess(ef *pfelf.File, sym *libpf.Symbol) (*data, error) {
 	if err := visitRelocations(ef, func(r ElfReloc, symName string,
 		relType RelocType) bool {
 		switch symName {
-		case tlsExport:
+		case string(sym.Name):
 			switch relType {
 			case RelTLSDESC:
 				tlsdescAddr = libpf.Address(r.Off)

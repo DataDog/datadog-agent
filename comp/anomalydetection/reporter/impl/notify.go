@@ -160,7 +160,11 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		if meta == nil {
 			continue
 		}
-		context := storage.GetContext(contributor.Handle.Ref)
+		contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+		var context *observerdef.MetricContext
+		if hasContext {
+			context = &contextValue
+		}
 		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
 		compactDisplay := fullDisplay
 		if meta.Tags.Len() > 0 {
@@ -569,14 +573,15 @@ func buildNewValue(c observerdef.ActiveCorrelation) map[string]any {
 func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]any {
 	var metricAnomalies, logAnomalies []any
 	for _, a := range c.Anomalies {
+		title, description := observerdef.FormatAnomaly(a)
 		entry := map[string]any{
 			"source":    a.Source.DisplayName(),
 			"detector":  a.DetectorName,
-			"title":     a.Title,
+			"title":     title,
 			"timestamp": a.Timestamp,
 		}
-		if a.Description != "" {
-			entry["description"] = a.Description
+		if description != "" {
+			entry["description"] = description
 		}
 		if a.Score != nil {
 			entry["score"] = *a.Score
@@ -653,10 +658,13 @@ func BuildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.Sto
 		} else if a.DebugInfo != nil {
 			display := anomalyDisplayKey(a)
 			anomalyLines = append(anomalyLines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
-		} else if a.Description != "" {
-			anomalyLines = append(anomalyLines, "- "+a.Description)
 		} else {
-			anomalyLines = append(anomalyLines, "- "+anomalyDisplayKey(a))
+			_, description := observerdef.FormatAnomaly(a)
+			if description != "" {
+				anomalyLines = append(anomalyLines, "- "+description)
+			} else {
+				anomalyLines = append(anomalyLines, "- "+anomalyDisplayKey(a))
+			}
 		}
 	}
 

@@ -40,6 +40,7 @@ type hooks struct {
 	postStartConfigExperiment   packageHook
 	preStopConfigExperiment     packageHook
 	postPromoteConfigExperiment packageHook
+	resumeConfigExperiment      packageHook
 
 	preInstallExtension  packageHook
 	preRemoveExtension   packageHook
@@ -62,6 +63,7 @@ type Hooks interface {
 	PostStartConfigExperiment(ctx context.Context, pkg string) error
 	PreStopConfigExperiment(ctx context.Context, pkg string) error
 	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
+	ResumeConfigExperiment(ctx context.Context, pkg string) error
 
 	PreInstallExtension(ctx context.Context, pkg string, extension string) error
 	PreRemoveExtension(ctx context.Context, pkg string, extension string) error
@@ -141,6 +143,11 @@ func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) 
 	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil, "")
 }
 
+// ResumeConfigExperiment calls the resume-config-experiment hook for the package.
+func (h *hooksCLI) ResumeConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "resumeConfigExperiment", PackageTypeOCI, false, nil, "")
+}
+
 // PreInstallExtension calls the pre-install-extension hook for the package.
 func (h *hooksCLI) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
 	return h.callHook(ctx, false, pkg, "preInstallExtension", h.extensionPackageType(pkg), false, nil, extension)
@@ -168,6 +175,8 @@ const (
 	PackageTypeRPM PackageType = "rpm"
 	// PackageTypeMSI is the type for MSI packages.
 	PackageTypeMSI PackageType = "msi"
+	// PackageTypeDMG is the type for the macOS .dmg (and the .pkg it ships).
+	PackageTypeDMG PackageType = "dmg"
 )
 
 // HookContext is the context passed to hooks during install/upgrade/uninstall.
@@ -363,6 +372,8 @@ func getHook(pkg string, name string) packageHook {
 		return h.preStopConfigExperiment
 	case "postPromoteConfigExperiment":
 		return h.postPromoteConfigExperiment
+	case "resumeConfigExperiment":
+		return h.resumeConfigExperiment
 	case "preInstallExtension":
 		return h.preInstallExtension
 	case "preRemoveExtension":
