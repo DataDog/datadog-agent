@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/encoding"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -26,11 +27,12 @@ import (
 // GRPCTransport dials one ClientConn per sender and opens StatefulStream
 // generations on that connection.
 type GRPCTransport struct {
-	mu    sync.Mutex
-	specs []SenderSpec
-	conns []*grpc.ClientConn
-	state int
-	enc   string
+	mu        sync.Mutex
+	specs     []SenderSpec
+	conns     []*grpc.ClientConn
+	state     int
+	enc       string
+	keepalive keepalive.ClientParameters
 }
 
 // NewGRPCTransport builds a transport for dest.
@@ -52,6 +54,12 @@ func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
 		conns: make([]*grpc.ClientConn, len(dest.Senders)),
 		state: dest.StateRequestBytes,
 		enc:   enc,
+		// Pings only while a stream is open: servers reject stream-less pings by
+		// default, and between streams there is nothing to detect a stall in.
+		keepalive: keepalive.ClientParameters{
+			Time:    dest.KeepaliveTime,
+			Timeout: dest.KeepaliveTimeout,
+		},
 	}
 }
 
@@ -90,6 +98,9 @@ func (t *GRPCTransport) conn(ctx context.Context, sender SenderID) (*grpc.Client
 	opts := []grpc.DialOption{
 		grpc.WithDefaultCallOptions(grpc.ForceCodec(statefulCodec{})),
 	}
+	if t.keepalive.Time > 0 {
+		opts = append(opts, grpc.WithKeepaliveParams(t.keepalive))
+	}
 	if spec.UseTLS {
 		host, _, _ := net.SplitHostPort(spec.Address)
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
@@ -124,8 +135,15 @@ type grpcStream struct {
 	cancel context.CancelFunc
 }
 
-func (s *grpcStream) Send(_ context.Context, batchID uint32, data []byte) error {
+// Send gives up when ctx ends by cancelling the whole stream: SendMsg ignores
+// any context but the stream's own, and is otherwise released from a
+// flow-control wait only by the intake granting window.
+func (s *grpcStream) Send(ctx context.Context, batchID uint32, data []byte) error {
+	stop := context.AfterFunc(ctx, s.cancel)
 	err := s.stream.SendMsg(&StatefulBatch{BatchID: batchID, Data: data})
+	if !stop() {
+		return fmt.Errorf("send batch %d: %w", batchID, ctx.Err())
+	}
 	return classifyGRPC(err)
 }
 
