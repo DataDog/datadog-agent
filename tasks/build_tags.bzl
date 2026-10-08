@@ -40,12 +40,10 @@ ALL_TAGS = set([
     "fargateprocess",
     "goexperiment.systemcrypto",  # used for FIPS mode
     "jetson",
-    "jmx",
     "kubeapiserver",
     "kubelet",
-    "kvstore",
+    "main_agent",
     "bpf",
-    "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
@@ -60,9 +58,7 @@ ALL_TAGS = set([
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
-    "sharedlibrarycheck",
     "systemd",
-    "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
     "zlib",
@@ -105,20 +101,16 @@ AGENT_TAGS = set([
     "ec2",
     "fargateprocess",
     "jetson",
-    "jmx",
     "kubeapiserver",
     "kubelet",
-    "kvstore",
-    "ncm",
+    "main_agent",
     "netcgo",
     "nvml",
     "oracle",
     "otlp",
     "podman",
     "python",
-    "sharedlibrarycheck",
     "systemd",
-    "systemprobechecks",
     "trivy",
     "zlib",
     "cel",
@@ -289,7 +281,6 @@ AIX_EXCLUDED_TAGS = set([
     "docker",
     "fargateprocess",
     "jetson",
-    "jmx",
     "kubeapiserver",
     "kubelet",
     "bpf",
@@ -298,9 +289,7 @@ AIX_EXCLUDED_TAGS = set([
     "nvml",
     "pcap",
     "podman",
-    "sharedlibrarycheck",
     "systemd",
-    "systemprobechecks",
     "trivy",
 ])
 

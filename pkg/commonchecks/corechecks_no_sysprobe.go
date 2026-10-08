@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // This combination of build tags ensures that this file is only included Agents that are not the Cluster Agent
-//go:build !(clusterchecks && kubeapiserver) && !systemprobechecks
+//go:build !(clusterchecks && kubeapiserver) && (!main_agent || aix)
 
 // Package commonchecks contains shared checks for multiple agent components
 package commonchecks

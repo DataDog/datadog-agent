@@ -5,7 +5,7 @@
 
 // noop implementation of the package for builds that don't use the tag 'sharedlibrarycheck'
 
-//go:build !sharedlibrarycheck
+//go:build !main_agent || aix
 
 // Package sharedlibrarycheck implements the layer to interact shared library-based checks
 package sharedlibrarycheck
