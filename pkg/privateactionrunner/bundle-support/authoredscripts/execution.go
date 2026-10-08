@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package authoredscripts
 
 import (
@@ -25,6 +23,11 @@ const (
 )
 
 var errOutputLimitExceeded = errors.New("authored-script output limit exceeded")
+
+type commandController interface {
+	cancel() error
+	terminate() error
+}
 
 // Result contains the observable result of an authored-script execution.
 type Result struct {
@@ -55,17 +58,16 @@ func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Resu
 		return Result{}, errors.New("authored-script output limit must be positive")
 	}
 
-	configureCommand(cmd)
-
 	stdout, stderr := util.NewLimitedStdoutStderrWritersPair(outputLimit)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
 	start := time.Now()
-	if err := cmd.Start(); err != nil {
+	controller, err := startCommand(cmd)
+	if err != nil {
 		result := Result{ExitCode: -1, Duration: time.Since(start)}
 		if errors.Is(err, os.ErrPermission) {
-			return result, fmt.Errorf("authored-script execution was denied by the host; check file permissions and application-allowlisting policies such as fapolicyd: %w", err)
+			return result, executionDeniedError(err)
 		}
 		return result, err
 	}
@@ -80,14 +82,14 @@ func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Resu
 	select {
 	case runErr = <-waitCh:
 	case <-ctx.Done():
-		cancellationErr = cancelCommand(cmd)
+		cancellationErr = controller.cancel()
 		runErr = <-waitCh
 	case <-stdout.LimitReachedSignal():
-		cancellationErr = cancelCommand(cmd)
+		cancellationErr = controller.cancel()
 		runErr = <-waitCh
 	}
 
-	terminationErr := terminateCommand(cmd)
+	terminationErr := controller.terminate()
 	result := Result{
 		ExitCode: -1,
 		Stdout:   stdout.String(),
@@ -107,13 +109,13 @@ func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Resu
 		return result, fmt.Errorf("could not cancel authored-script command: %w", cancellationErr)
 	}
 	if runErr != nil && terminationErr != nil {
-		return result, errors.Join(runErr, fmt.Errorf("could not terminate authored-script process group: %w", terminationErr))
+		return result, errors.Join(runErr, fmt.Errorf("could not terminate authored-script process tree: %w", terminationErr))
 	}
 	if runErr != nil {
 		return result, runErr
 	}
 	if terminationErr != nil {
-		return result, fmt.Errorf("could not terminate authored-script process group: %w", terminationErr)
+		return result, fmt.Errorf("could not terminate authored-script process tree: %w", terminationErr)
 	}
 	return result, nil
 }

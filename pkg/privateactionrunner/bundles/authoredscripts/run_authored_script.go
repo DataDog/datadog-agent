@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package com_datadoghq_authoredscripts
 
 import (
@@ -35,7 +33,7 @@ func NewRunAuthoredScriptHandler(catalog authoredscriptssupport.Catalog, agentHT
 	environment := installerenv.FromEnv()
 	materializer, err := authoredscriptsoci.NewMaterializer(environment, agentHTTPClient)
 	if err == nil {
-		handler.artifactResolver, err = authoredscriptssupport.NewUserArtifactResolver(materializer)
+		handler.artifactResolver, err = authoredscriptssupport.NewDefaultArtifactResolver(materializer)
 	}
 	handler.artifactResolverInitErr = err
 	return handler
