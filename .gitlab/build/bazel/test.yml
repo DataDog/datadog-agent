@@ -161,9 +161,7 @@ bazel:rc-x509-ffi:windows-amd64-noasm-debug:
   variables:
     POWERSHELL_SCRIPT: |-
       bazel version
-      $cmake = (Get-Command cmake.exe -CommandType Application -ErrorAction Stop).Path
-      Write-Host "Using CMake from $cmake"
-      bazel build -c dbg --jobs=8 --verbose_failures --remote_download_outputs=all "--action_env=CMAKE=$cmake" --platforms=//bazel/platforms:windows_x86_64_msvc_fips --extra_toolchains=@rust_toolchains//:rw-395021384 --extra_toolchains=@msvc_toolchains//:default_msvc-cl_hostx64_targetx64 @libdd_rc_source//:rc_x509_ffi
+      bazel build -c dbg --jobs=8 --verbose_failures --remote_download_outputs=all --action_env=PATH --platforms=//bazel/platforms:windows_x86_64_msvc_fips --extra_toolchains=@rust_toolchains//:rw-395021384 --extra_toolchains=@msvc_toolchains//:default_msvc-cl_hostx64_targetx64 @libdd_rc_source//:rc_x509_ffi
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
