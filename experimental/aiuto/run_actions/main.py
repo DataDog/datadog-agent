@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -91,6 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help=argparse.SUPPRESS,  # Described in the epilog; value only via '='.
     )
+    parser.add_argument(
+        "--ddci",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Report results with ddci",
+    )
     parser.add_argument("actions", nargs="*", metavar="action", help="[name=]command")
     return parser
 
@@ -123,10 +130,17 @@ def main(argv: list = None) -> int:
         results = runner.run_parallel(actions)
     sys.stdout.flush()
     render.render(results, args.show_errors_last, sys.stdout.buffer)
+    cmd = ["datadog-ci", "tag", "--level", "job"] 
+    overall_return = 0
     for result in results:
         if not result.passed():
-            return 1
-    return 0
+            overall_return = 1
+        cmd.append("--tags")
+        cmd.append("%s:%s" % (result.action.name, "passed" if result.passed() else "failed"))
+    if args.ddci:
+        print(cmd)
+        subprocess.run(cmd)
+    return overall_return
 
 
 if __name__ == "__main__":

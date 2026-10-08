@@ -47,7 +47,7 @@ echo runner=$runner
 
 # Action names are the GitLab job names. validate_modules had two script
 # lines, so it becomes two actions.
-python3 "${runner}" "${passthrough[@]+"${passthrough[@]}"}" \
+python3 "${runner}" "${passthrough[@]+"${passthrough[@]}"}" --ddci \
   lint_codeowners='dda inv -- -e github.lint-codeowner' \
   lint_components='dda inv -- -e lint-components lint-fxutil-oneshot-test' \
   lint_copyrights='dda inv -- -e linter.copyrights' \
