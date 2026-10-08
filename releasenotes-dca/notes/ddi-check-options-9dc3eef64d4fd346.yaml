@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    DatadogInstrumentation check configurations now support
+    ``ignoreAutodiscoveryTags``, ``checkTagCardinality``, and ``jmxMetrics``
+    for workload and Service targets, allowing control over automatic tagging
+    and inline JMX metric definitions.
