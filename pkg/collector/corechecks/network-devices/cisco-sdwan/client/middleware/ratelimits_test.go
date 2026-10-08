@@ -28,10 +28,19 @@ func (rt *stubTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok"))}, nil
 }
 
-func newTestRequest(t *testing.T, ctx context.Context) *http.Request {
+func newTestRequest(ctx context.Context, t *testing.T) *http.Request {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://sdwan.test/test", nil)
 	require.NoError(t, err)
 	return req
+}
+
+// roundTrip sends req through transport, closing the response body when there is one
+func roundTrip(transport http.RoundTripper, req *http.Request) error {
+	resp, err := transport.RoundTrip(req)
+	if err != nil {
+		return err
+	}
+	return resp.Body.Close()
 }
 
 func TestRateLimitedTransportPacesRequests(t *testing.T) {
@@ -42,7 +51,7 @@ func TestRateLimitedTransportPacesRequests(t *testing.T) {
 
 		var sent []time.Duration
 		for range 3 {
-			resp, err := transport.RoundTrip(newTestRequest(t, context.Background()))
+			resp, err := transport.RoundTrip(newTestRequest(context.Background(), t))
 			require.NoError(t, err)
 			resp.Body.Close()
 			sent = append(sent, time.Since(start))
@@ -59,11 +68,11 @@ func TestRateLimitedTransportMaxWait(t *testing.T) {
 		transport := NewRateLimitedTransport(next, rate.NewLimiter(0.001, 1), 100*time.Millisecond)
 		start := time.Now()
 
-		_, err := transport.RoundTrip(newTestRequest(t, context.Background()))
+		err := roundTrip(transport, newTestRequest(context.Background(), t))
 		require.NoError(t, err)
 
 		// The next token is ~1000s away, the transport fails without waiting for it
-		_, err = transport.RoundTrip(newTestRequest(t, context.Background()))
+		err = roundTrip(transport, newTestRequest(context.Background(), t))
 		require.ErrorIs(t, err, ErrRateLimitTimeout)
 		require.Zero(t, time.Since(start))
 		require.Len(t, next.requests, 1)
@@ -76,13 +85,13 @@ func TestRateLimitedTransportCancelled(t *testing.T) {
 		transport := NewRateLimitedTransport(next, rate.NewLimiter(0.01, 1), time.Hour)
 		start := time.Now()
 
-		_, err := transport.RoundTrip(newTestRequest(t, context.Background()))
+		err := roundTrip(transport, newTestRequest(context.Background(), t))
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		time.AfterFunc(100*time.Millisecond, cancel)
 
-		_, err = transport.RoundTrip(newTestRequest(t, ctx))
+		err = roundTrip(transport, newTestRequest(ctx, t))
 		require.ErrorIs(t, err, context.Canceled)
 		require.NotErrorIs(t, err, ErrRateLimitTimeout)
 		require.Equal(t, 100*time.Millisecond, time.Since(start))
