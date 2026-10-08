@@ -40,11 +40,13 @@ cc_library(
     srcs = ["sqlite3.c"],
     hdrs = _SQLITE3_PUBLIC_HEADERS,
     copts = [
-        "-Wall",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
         "-DSQLITE_THREADSAFE=1",
         "-O2",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wall"],
+    }),
     includes = ["."],
     linkstatic = True,
     local_defines = select({
