@@ -9,10 +9,11 @@ package module
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
+	"os"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
@@ -43,74 +44,52 @@ func sendError(w http.ResponseWriter, code int, message string) {
 	http.Error(w, message, code)
 }
 
-// openFileHandler handles requests to open a file and transfer its file descriptor
+// openFileHandler opens the requested log file and passes its file descriptor
+// to the client. Failures are plain HTTP error responses.
 func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Request) {
-	// We need to read the body fully before hijacking the connection
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorf("Failed to read body: %v", err)
-		return
-	}
-
 	var req common.OpenFileRequest
-	if err := json.Unmarshal(body, &req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse request: %v", err))
 		return
 	}
 
 	f.logFileAccess(req.Path)
 
-	file, err := openLogFile(req.Path, req.NoFollow)
+	var file *os.File
+	var err error
+	if req.NoFollow {
+		file, err = validateAndOpenNoFollow(req.Path)
+	} else {
+		file, err = validateAndOpen(req.Path)
+	}
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	defer file.Close()
 
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		return
+	if err := sendFile(w, file); err != nil {
+		log.Errorf("Failed to send file descriptor for %s: %v", req.Path, err)
 	}
+}
 
-	conn, _, err := hijacker.Hijack()
+// sendFile switches the connection to common.UpgradeProtocol, sends the file
+// descriptor as SCM_RIGHTS on a message of its own, and closes the connection.
+func sendFile(w http.ResponseWriter, file *os.File) error {
+	conn, _, err := http.NewResponseController(w).Hijack()
 	if err != nil {
-		log.Errorf("Failed to hijack connection: %v", err)
-		return
+		return err
 	}
 	defer conn.Close()
-
 	unixConn, ok := conn.(*net.UnixConn)
 	if !ok {
-		log.Errorf("Not a Unix connection")
-		return
+		return errors.New("not a Unix connection")
 	}
 
-	// The status line and the file descriptor are sent in separate writes, as
-	// system-probe-lite does, so the client must handle split delivery.
-	if _, err := unixConn.Write([]byte("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dd-privileged-logs\r\n\r\n")); err != nil {
-		log.Errorf("Failed to write response: %v", err)
-		return
+	header := "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: " + common.UpgradeProtocol + "\r\n\r\n"
+	if _, err := unixConn.Write([]byte(header)); err != nil {
+		return err
 	}
-
-	fd := int(file.Fd())
-	log.Tracef("Sending file descriptor %d for file %s", fd, req.Path)
-
-	response := common.OpenFileResponse{
-		Success: true,
-	}
-
-	responseBytes, err := json.Marshal(response)
-	if err != nil {
-		log.Errorf("Failed to marshal response: %v", err)
-		return
-	}
-
-	rights := syscall.UnixRights(fd)
-	_, _, err = unixConn.WriteMsgUnix(responseBytes, rights, nil)
-	if err != nil {
-		log.Errorf("WriteMsgUnix failed: %v", err)
-		return
-	}
-
-	log.Tracef("File descriptor sent successfully for %s", req.Path)
+	_, _, err = unixConn.WriteMsgUnix([]byte(`{"success":true}`), syscall.UnixRights(int(file.Fd())), nil)
+	return err
 }
