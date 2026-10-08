@@ -9,8 +9,10 @@
 package probe
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -658,7 +660,12 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+	if p.config.RuntimeSecurity.SecurityProfileV3Enabled {
+		p.profileManager, err = securityprofile.NewManagerV3(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetectionV3, p.NewEvent, p.hostname, p.opts.FilterStore)
+		if err != nil {
+			return err
+		}
+	} else if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
 		if err != nil {
 			return err
@@ -1199,6 +1206,79 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 	)
 }
 
+// anomalyDetectionV3Marshaler splices the v3 node hashes and piggybacked last_seen refreshes into
+// the serialized anomaly_detection event as sibling JSON fields, so the backend can index nodes by
+// hash and advance last_seen without the agent re-sending whole nodes. It avoids changing the
+// easyjson event schema for the PoC.
+type anomalyDetectionV3Marshaler struct {
+	inner      events.EventMarshaler
+	nodeHashes [][16]byte
+	refreshes  []securityprofile.NodeRefresh
+	snapshot   bool
+}
+
+func (m *anomalyDetectionV3Marshaler) ToJSON() ([]byte, error) {
+	data, err := m.inner.ToJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	hashes := make([][]byte, len(m.nodeHashes))
+	for i := range m.nodeHashes {
+		hashes[i] = m.nodeHashes[i][:]
+	}
+	type wireRefresh struct {
+		Hash     []byte `json:"hash"`
+		LastSeen int64  `json:"last_seen"`
+	}
+	refreshes := make([]wireRefresh, len(m.refreshes))
+	for i := range m.refreshes {
+		refreshes[i] = wireRefresh{Hash: m.refreshes[i].Hash[:], LastSeen: m.refreshes[i].LastSeen}
+	}
+
+	generation := ""
+	if m.snapshot {
+		generation = "snapshot"
+	}
+	extra, err := json.Marshal(struct {
+		NodeHashes [][]byte      `json:"security_profile_node_hashes,omitempty"`
+		Refreshes  []wireRefresh `json:"security_profile_refreshes,omitempty"`
+		Generation string        `json:"security_profile_generation,omitempty"`
+	}{NodeHashes: hashes, Refreshes: refreshes, Generation: generation})
+	if err != nil {
+		return data, nil
+	}
+
+	body := bytes.TrimRight(data, " \n\t")
+	if len(body) == 0 || body[len(body)-1] != '}' || len(extra) <= 2 {
+		return data, nil
+	}
+	body = body[:len(body)-1]
+	out := make([]byte, 0, len(body)+len(extra))
+	out = append(out, body...)
+	if !bytes.HasSuffix(bytes.TrimRight(body, " \n\t"), []byte("{")) {
+		out = append(out, ',')
+	}
+	out = append(out, extra[1:len(extra)-1]...)
+	out = append(out, '}')
+	return out, nil
+}
+
+func (p *EBPFProbe) sendAnomalyDetectionV3(event *model.Event, nodeHashes [][16]byte, refreshes []securityprofile.NodeRefresh, snapshot bool) {
+	tags := p.probe.GetEventTags(event.ProcessContext.Process.ContainerContext.ContainerID)
+	if service := p.probe.GetService(event); service != "" {
+		tags = append(tags, "service:"+service)
+	}
+
+	rule := events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc, p.evalOpts())
+	inner := p.EventMarshallerCtorWithRule(event, rule)
+	ctor := func() events.EventMarshaler {
+		return &anomalyDetectionV3Marshaler{inner: inner(), nodeHashes: nodeHashes, refreshes: refreshes, snapshot: snapshot}
+	}
+
+	p.probe.DispatchCustomEvent(rule, events.NewCustomEventLazy(event.GetEventType(), ctor, tags...))
+}
+
 // AddActivityDumpHandler set the probe activity dump handler
 func (p *EBPFProbe) AddActivityDumpHandler(handler backend.ActivityDumpHandler) {
 	p.activityDumpHandler = handler
@@ -1209,7 +1289,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	p.probe.logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
-	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled && !p.config.RuntimeSecurity.SecurityProfileV3Enabled {
 		p.profileManager.LookupEventInProfiles(event)
 
 		// mark the events that have an associated activity dump

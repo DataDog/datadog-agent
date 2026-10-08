@@ -479,6 +479,11 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SecurityProfileV2Enabled bool
 
+	// description: SecurityProfileManagerV3Enabled defines if the experimental v3 Security Profile manager should be used. v3 keeps no local activity tree or profile: it only emits anomaly_detection events for novel behavior (deduplicated by a per-workload hash set) and lets the backend rebuild the profile
+	// visibility: private
+	// default_value: true
+	SecurityProfileV3Enabled bool
+
 	// description: SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
 	// visibility: private
 	// default_value: 20
@@ -1054,6 +1059,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
 		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
+		SecurityProfileV3Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v3.enabled"),
 		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
 		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
