@@ -41,9 +41,11 @@ func TestIsAvailableReachable(t *testing.T) {
 		}
 	}()
 
-	exists, availErr := IsAvailable(pipePath, testTimeout)
-	assert.True(t, exists)
-	assert.NoError(t, availErr)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		exists, availErr := IsAvailable(pipePath, testTimeout)
+		assert.True(c, exists)
+		assert.NoError(c, availErr)
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 // TestIsAvailablePermissionDenied uses a security descriptor that denies the
