@@ -431,6 +431,18 @@ func (b *Builder) configToDictionary(source *sourcesPkg.LogSource) map[string]in
 	case config.WindowsEventType:
 		dictionary["ChannelPath"] = c.ChannelPath
 		dictionary["Query"] = c.Query
+	case config.SMBType:
+		// agent status output is not scrubbed: never add c.SMB.Password here.
+		dictionary["Path"] = c.Path
+		dictionary["TailingMode"] = source.GetTailingMode()
+		if c.SMB != nil {
+			dictionary["Host"] = c.SMB.Host
+			dictionary["Share"] = c.SMB.Share
+			dictionary["Username"] = c.SMB.Username
+			if c.SMB.Port != 0 {
+				dictionary["Port"] = c.SMB.Port
+			}
+		}
 	}
 	for k, v := range dictionary {
 		if v == "" {
