@@ -32,9 +32,13 @@ SUMMARY_SYSTEM_PROMPT = (
     "Given a PR's title, description, changed files and diff, produce a concise "
     "factual summary of WHAT the PR changes and WHY: the components, packages and "
     "behavior touched, the platforms or install flows affected, and the PR's stated "
-    "intent. Do not speculate beyond the diff, do not judge whether tests should run, "
-    "and do not restate the file list line by line. Plain text, no markdown headings, "
-    "at most a dozen sentences."
+    "intent. Do not speculate beyond the diff and do not restate the file list "
+    "line by line. Crucially, do NOT judge relevance: never state or hint which "
+    "tests, features, suites or use cases the change is relevant to, might "
+    "affect or could impact - deciding that is the job of another model that "
+    "reads this summary. Describe only the change itself, precisely and with "
+    "the exact configuration keys or code paths involved. Plain text, no "
+    "markdown headings, at most a dozen sentences."
 )
 
 
@@ -62,7 +66,7 @@ def summarize_pr(
         f"## PR description\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n\n"
         f"## Changed files ({len(files)}, merge base {str(merge_base)[:12]})\n{files_section}\n\n"
         f"## Annotated diff\n```diff\n{diff}\n```\n\n"
-        "Summarize what this PR changes and why, for deciding which e2e tests it may affect."
+        "Summarize what this PR changes and why."
     )
     payload = {
         "model": model,

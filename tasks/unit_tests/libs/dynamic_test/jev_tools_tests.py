@@ -296,7 +296,7 @@ class TestJevTools(unittest.TestCase):
         is embedded in the shared context of every Jev state."""
         primer = load_agent_primer()
         self.assertGreater(len(primer), 1_000)
-        self.assertLessEqual(len(primer.encode()), 6_000)
+        self.assertLessEqual(len(primer.encode()), 6_500)
         self.assertIn("Datadog Agent", primer)
         state = build_context_state("fleet", "fleet", {"title": "t"}, [], "base", "", primer=primer)
         self.assertIn("# Background: the Datadog Agent", state)

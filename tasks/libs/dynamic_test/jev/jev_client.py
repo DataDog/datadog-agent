@@ -23,7 +23,7 @@ SYSTEMONE_PATH = "/v1/systemone"
 # repo architecture without any PR-specific input. Static content, so it
 # is committed and loaded once instead of being LLM-generated per run.
 PRIMER_PATH = Path(__file__).resolve().parent / "agent_primer.md"
-MAX_PRIMER_BYTES = 6_000
+MAX_PRIMER_BYTES = 6_500
 _primer_cache: str | None = None
 
 
