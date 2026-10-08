@@ -293,6 +293,15 @@ type processMemoryKey struct {
 	uuid string
 }
 
+// processMemoryScan accumulates the VRAM of each process on each device. An
+// aggregate missing a contribution is incomplete: it is not reported, as a
+// partial sum would understate the memory the process holds.
+type processMemoryScan struct {
+	usage          map[processMemoryKey]uint64
+	incomplete     map[processMemoryKey]struct{}
+	incompletePIDs map[int]struct{} // a contribution on an unknown device is missing
+}
+
 // ReadProcessMemory returns the VRAM held by each process on each of the given
 // devices, from /sys/class/kfd/kfd/proc. Processes are reported with their PID
 // in the host PID namespace. Memory across partitions and secondary
@@ -304,8 +313,9 @@ type processMemoryKey struct {
 // complete distinguishes an empty snapshot from unavailable attribution. A KFD
 // node that could not be mapped (denied, unreadable or removed during discovery)
 // has unknown ownership, so no physical-GPU sums are returned until the topology
-// is fully mapped. Available results from other read errors are
-// returned with complete=false and an error.
+// is fully mapped. An aggregate missing a contribution (an unreadable vram_*
+// attribute or context) is omitted rather than reported short; the other
+// aggregates are returned with complete=false and an error.
 func ReadProcessMemory(sysRoot string, devices []*Device) ([]ProcessMemory, bool, error) {
 	var gpuIDToUUID map[uint64]string
 	for _, dev := range devices {
@@ -332,20 +342,30 @@ func ReadProcessMemory(sysRoot string, devices []*Device) ([]ProcessMemory, bool
 		return nil, false, fmt.Errorf("list %s: %w", procDir, err)
 	}
 
-	usage := make(map[processMemoryKey]uint64)
+	scan := processMemoryScan{
+		usage:          make(map[processMemoryKey]uint64),
+		incomplete:     make(map[processMemoryKey]struct{}),
+		incompletePIDs: make(map[int]struct{}),
+	}
 	var errs []error
 	for _, entry := range entries {
 		pid, err := strconv.ParseUint(entry.Name(), 10, 31)
 		if err != nil || pid == 0 || !entry.IsDir() {
 			continue
 		}
-		if err := readKFDProcessMemory(filepath.Join(procDir, entry.Name()), int(pid), gpuIDToUUID, usage, true); err != nil {
+		if err := scan.readProcess(filepath.Join(procDir, entry.Name()), int(pid), gpuIDToUUID, true); err != nil {
 			errs = append(errs, err)
 		}
 	}
 
-	result := make([]ProcessMemory, 0, len(usage))
-	for k, vram := range usage {
+	result := make([]ProcessMemory, 0, len(scan.usage))
+	for k, vram := range scan.usage {
+		if _, incomplete := scan.incomplete[k]; incomplete {
+			continue
+		}
+		if _, incomplete := scan.incompletePIDs[k.pid]; incomplete {
+			continue
+		}
 		result = append(result, ProcessMemory{PID: k.pid, DeviceUUID: k.uuid, VRAMBytes: vram})
 	}
 	slices.SortFunc(result, func(a, b ProcessMemory) int {
@@ -358,12 +378,14 @@ func ReadProcessMemory(sysRoot string, devices []*Device) ([]ProcessMemory, bool
 	return result, err == nil, err
 }
 
-func readKFDProcessMemory(dir string, pid int, gpuIDToUUID map[uint64]string, usage map[processMemoryKey]uint64, includeContexts bool) error {
+func (s *processMemoryScan) readProcess(dir string, pid int, gpuIDToUUID map[uint64]string, includeContexts bool) error {
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil // process or context exited
 		}
+		// The devices of the unread allocations are unknown.
+		s.incompletePIDs[pid] = struct{}{}
 		return err
 	}
 	var errs []error
@@ -379,7 +401,7 @@ func readKFDProcessMemory(dir string, pid int, gpuIDToUUID map[uint64]string, us
 			if _, err := strconv.ParseUint(id, 10, 32); err == nil {
 				// Secondary contexts are direct children of the primary PID;
 				// do not recurse into arbitrary or nested directories.
-				if err := readKFDProcessMemory(filepath.Join(dir, file.Name()), pid, gpuIDToUUID, usage, false); err != nil {
+				if err := s.readProcess(filepath.Join(dir, file.Name()), pid, gpuIDToUUID, false); err != nil {
 					errs = append(errs, err)
 				}
 			}
@@ -397,20 +419,22 @@ func readKFDProcessMemory(dir string, pid int, gpuIDToUUID map[uint64]string, us
 		if !known {
 			continue
 		}
+		key := processMemoryKey{pid, uuid}
 		vram, err := readUint(filepath.Join(dir, file.Name()))
 		if err != nil {
 			if !isUnsupported(err) {
+				s.incomplete[key] = struct{}{}
 				errs = append(errs, err)
 			}
 			continue
 		}
 		if vram > 0 {
-			key := processMemoryKey{pid, uuid}
-			if vram > math.MaxUint64-usage[key] {
+			if vram > math.MaxUint64-s.usage[key] {
+				s.incomplete[key] = struct{}{}
 				errs = append(errs, fmt.Errorf("%s: aggregate VRAM overflows uint64", dir))
 				continue
 			}
-			usage[key] += vram
+			s.usage[key] += vram
 		}
 	}
 	return errors.Join(errs...)

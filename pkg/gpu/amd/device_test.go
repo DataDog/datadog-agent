@@ -10,6 +10,7 @@ package amd
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,7 +61,7 @@ func TestDiscoverFiltersAndOrdersDevices(t *testing.T) {
 		{UUID: "amd-0000-11-00-0", Index: 0, Name: "AMD Instinct MI300X", PCIBusID: "0000:11:00.0", DeviceID: 0x74a1, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
 		{UUID: "amd-0000-41-00-0", Index: 1, Name: "AMD Radeon AI PRO R9700", PCIBusID: "0000:41:00.0", DeviceID: 0x7551, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
 		{UUID: "amd-0000-51-00-0", Index: 2, Name: "AMD GPU 0x7fff", PCIBusID: "0000:51:00.0", DeviceID: 0x7fff, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
-		{UUID: "amd-abcdef0123456789", Index: 3, Name: "AMD Instinct MI300X", PCIBusID: "0000:c1:00.0", DeviceID: 0x74a1, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
+		{UUID: "amd-abcdef0123456789", Index: 3, Name: "AMD Instinct MI300X", PCIBusID: "0000:c1:00.0", DeviceID: 0x74a1, DriverVersion: "6.14.14", MemoryTotal: 206141652992, serial: "abcdef0123456789"},
 	}
 	for i, dev := range devices {
 		got := *dev
@@ -167,4 +168,43 @@ func TestDiscoverSharedSerialKeepsDistinctPCIIdentities(t *testing.T) {
 		uuids = append(uuids, dev.UUID)
 	}
 	assert.Equal(t, []string{"amd-0000-27-00-0", "amd-0000-27-00-1", "amd-0000-27-00-2"}, uuids)
+}
+
+// A device keeps its PCI identity when the only other device sharing its
+// serial fails to probe or disappears, rather than taking over the serial.
+func TestDiscoverSharedSerialIdentitiesSurviveMissingDevices(t *testing.T) {
+	pcis := []string{"0000:27:00.0", "0000:41:00.0"}
+	for failing := range pcis {
+		t.Run(pcis[failing], func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			dirs := make([]string, len(pcis))
+			for i, pci := range pcis {
+				dirs[i] = fs.AddPCIDevice(pci, "amdgpu", MI300XAttributes("1111"))
+				fs.AddCard("card"+strconv.Itoa(i), dirs[i])
+			}
+			fs.AddCard("card9", fs.AddPCIDevice("0000:63:00.0", "amdgpu", MI300XAttributes("2222")))
+			uuids := func() map[string]string {
+				devices, _ := Discover(fs.Root)
+				byPCI := make(map[string]string, len(devices))
+				for _, dev := range devices {
+					byPCI[dev.PCIBusID] = dev.UUID
+				}
+				return byPCI
+			}
+			want := map[string]string{
+				"0000:27:00.0": "amd-0000-27-00-0",
+				"0000:41:00.0": "amd-0000-41-00-0",
+				"0000:63:00.0": "amd-2222",
+			}
+			require.Equal(t, want, uuids())
+
+			// The survivor is the only device left with serial 1111.
+			fs.WriteFiles(dirs[failing], map[string]string{"device": "invalid\n"}) // the probe fails
+			delete(want, pcis[failing])
+			assert.Equal(t, want, uuids(), "a failed probe")
+
+			require.NoError(t, os.Remove(filepath.Join(fs.Root, "class", "drm", "card"+strconv.Itoa(failing), "device")))
+			assert.Equal(t, want, uuids(), "a removed device")
+		})
+	}
 }

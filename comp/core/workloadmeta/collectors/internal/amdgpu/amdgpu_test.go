@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -258,6 +259,37 @@ func TestPullRemovesVanishedGPUs(t *testing.T) {
 	assert.Equal(t, "amd-00c0ffee00c0ffee", gpus[0].ID)
 }
 
+// GPUs sharing a serial keep one entity each, under their PCI identities, while
+// one of them fails to probe and after it disappears.
+func TestPullSharedSerialKeepsOneEntityPerGPU(t *testing.T) {
+	fs := amd.NewFakeSysfs(t)
+	fs.AddCard("card0", fs.AddPCIDevice("0000:27:00.0", "amdgpu", amd.MI300XAttributes("1111")))
+	second := fs.AddPCIDevice("0000:41:00.0", "amdgpu", amd.MI300XAttributes("1111"))
+	fs.AddCard("card1", second)
+	store := newStore(t)
+	c := newTestCollector(t, store, fs.Root)
+	ids := func() []string {
+		var ids []string
+		for _, gpu := range store.ListGPUs() {
+			ids = append(ids, gpu.ID)
+		}
+		slices.Sort(ids)
+		return ids
+	}
+	both := []string{"amd-0000-27-00-0", "amd-0000-41-00-0"}
+
+	require.NoError(t, c.Pull(context.Background()))
+	require.Equal(t, both, ids())
+
+	fs.WriteFiles(second, map[string]string{"device": "invalid\n"}) // the probe fails
+	require.Error(t, c.Pull(context.Background()))
+	assert.Equal(t, both, ids(), "an incomplete scan keeps the unobserved GPU")
+
+	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/drm/card1")))
+	require.NoError(t, c.Pull(context.Background()))
+	assert.Equal(t, []string{"amd-0000-27-00-0"}, ids())
+}
+
 func TestPullWithoutAMDGPUs(t *testing.T) {
 	store := newStore(t)
 	c := newTestCollector(t, store, t.TempDir())
@@ -374,4 +406,51 @@ func TestPullPreservesProcessesOnReadError(t *testing.T) {
 	assert.Equal(t, []int{100}, gpu.ActivePIDs)
 	_, err = store.GetProcess(200)
 	assert.Error(t, err)
+}
+
+// An incomplete process scan still publishes the associations it observed:
+// a new process on another GPU is added while an unreadable one keeps its
+// previous association, until a complete scan removes what is gone.
+func TestPullAddsObservedProcessesOnIncompleteScan(t *testing.T) {
+	fs := amd.NewFakeSysfs(t)
+	fs.AddCard("card0", fs.AddPCIDevice("0000:27:00.0", "amdgpu", amd.MI300XAttributes("")))
+	fs.AddCard("card1", fs.AddPCIDevice("0000:41:00.0", "amdgpu", amd.MI300XAttributes("")))
+	fs.AddKFDNode(1, 4101, 0, 0x2700, 90402)
+	fs.AddKFDNode(2, 5100, 0, 0x4100, 90402)
+	fs.AddKFDProcess(100, 4101, 10)
+	store := newStore(t)
+	c := newTestCollector(t, store, fs.Root)
+	require.NoError(t, c.Pull(context.Background()))
+	first, second := "amd-0000-27-00-0", "amd-0000-41-00-0"
+	assertGPUs := func(pid int, want ...string) {
+		t.Helper()
+		process, err := store.GetProcess(int32(pid))
+		require.NoError(t, err)
+		var got []string
+		for _, gpu := range process.GPUs {
+			got = append(got, gpu.ID)
+		}
+		assert.Equal(t, want, got, "GPUs of process %d", pid)
+	}
+
+	fs.WriteFiles(filepath.Join(fs.Root, "class/kfd/kfd/proc/100/context_1"), map[string]string{"vram_4101": "invalid\n"})
+	fs.AddKFDProcess(200, 5100, 7)
+	require.ErrorContains(t, c.Pull(context.Background()), "context_1")
+	gpu, err := store.GetGPU(second)
+	require.NoError(t, err)
+	assert.Equal(t, []int{200}, gpu.ActivePIDs, "a healthy new process is published")
+	assertGPUs(200, second)
+	gpu, err = store.GetGPU(first)
+	require.NoError(t, err)
+	assert.Equal(t, []int{100}, gpu.ActivePIDs, "the unreadable process keeps its association")
+	assertGPUs(100, first)
+
+	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/kfd/kfd/proc/100")))
+	require.NoError(t, c.Pull(context.Background()))
+	gpu, err = store.GetGPU(first)
+	require.NoError(t, err)
+	assert.Empty(t, gpu.ActivePIDs)
+	_, err = store.GetProcess(100)
+	assert.Error(t, err)
+	assertGPUs(200, second)
 }

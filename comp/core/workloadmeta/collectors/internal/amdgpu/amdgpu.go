@@ -10,6 +10,7 @@
 package amdgpu
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
@@ -107,7 +108,8 @@ func (c *collector) Pull(_ context.Context) error {
 	}
 
 	// An incomplete snapshot cannot establish that a device or process stopped
-	// using a GPU. Keep the previous associations until a successful pull.
+	// using a GPU: add the associations it observed to the previous ones, and
+	// defer removals to a complete pull.
 	processesComplete = processesComplete && discoveryErr == nil
 	events := make([]workloadmeta.CollectorEvent, 0, len(devices))
 	currentUUIDs := make(map[string]struct{}, len(devices))
@@ -115,9 +117,8 @@ func (c *collector) Pull(_ context.Context) error {
 		currentUUIDs[dev.UUID] = struct{}{}
 		pids := activePIDs[dev.UUID]
 		if !processesComplete {
-			pids = nil
 			if previous, err := c.store.GetGPU(dev.UUID); err == nil {
-				pids = slices.Clone(previous.ActivePIDs)
+				pids = union(previous.ActivePIDs, pids)
 			}
 		}
 		events = append(events, workloadmeta.CollectorEvent{
@@ -142,8 +143,8 @@ func (c *collector) Pull(_ context.Context) error {
 	}
 	c.seenUUIDs = currentUUIDs
 
-	if c.integrateWithWorkloadmetaProcesses && processesComplete {
-		events = append(events, c.processEvents(pidToGPUs)...)
+	if c.integrateWithWorkloadmetaProcesses {
+		events = append(events, c.processEvents(pidToGPUs, processesComplete)...)
 	}
 
 	c.store.Notify(events)
@@ -183,10 +184,17 @@ func gpuEntity(dev *amd.Device, pids []int) *workloadmeta.GPU {
 	}
 }
 
-// processEvents sets the GPUs of the processes using AMD GPUs, and unsets
-// them for processes that no longer do. Since the events use SourceAMDGPU,
-// the process entities reported by other sources are not removed.
-func (c *collector) processEvents(pidToGPUs map[int][]string) []workloadmeta.CollectorEvent {
+// processEvents sets the GPUs of the processes using AMD GPUs and, after a
+// complete pull, unsets them for processes that no longer do. After an
+// incomplete pull, observed GPUs are added to the previous ones and nothing is
+// unset. Since the events use SourceAMDGPU, the process entities reported by
+// other sources are not removed.
+func (c *collector) processEvents(pidToGPUs map[int][]string, complete bool) []workloadmeta.CollectorEvent {
+	if !complete {
+		for pid, uuids := range pidToGPUs {
+			pidToGPUs[pid] = union(c.seenPIDsToGPUs[pid], uuids)
+		}
+	}
 	events := make([]workloadmeta.CollectorEvent, 0, len(pidToGPUs)+len(c.seenPIDsToGPUs))
 	for pid, uuids := range pidToGPUs {
 		gpus := make([]workloadmeta.EntityID, 0, len(uuids))
@@ -203,6 +211,12 @@ func (c *collector) processEvents(pidToGPUs map[int][]string) []workloadmeta.Col
 			},
 		})
 	}
+	if !complete {
+		for pid, uuids := range pidToGPUs {
+			c.seenPIDsToGPUs[pid] = uuids
+		}
+		return events
+	}
 	for pid := range c.seenPIDsToGPUs {
 		if _, active := pidToGPUs[pid]; active {
 			continue
@@ -217,6 +231,13 @@ func (c *collector) processEvents(pidToGPUs map[int][]string) []workloadmeta.Col
 	}
 	c.seenPIDsToGPUs = pidToGPUs
 	return events
+}
+
+// union returns the sorted distinct elements of a and b.
+func union[T cmp.Ordered](a, b []T) []T {
+	all := append(slices.Clone(a), b...)
+	slices.Sort(all)
+	return slices.Compact(all)
 }
 
 func (c *collector) GetID() string {

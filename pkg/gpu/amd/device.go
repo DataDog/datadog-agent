@@ -24,6 +24,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -47,7 +49,8 @@ var (
 // Device is a physical AMD GPU bound to the amdgpu driver.
 type Device struct {
 	// UUID is a stable identifier: "amd-" followed by the unique_id attribute
-	// when it is a valid nonzero 64-bit hex serial, or by the PCI address otherwise.
+	// when it is a valid nonzero 64-bit hex serial, or by the PCI address
+	// otherwise, or when the serial is shared by several PCI functions.
 	UUID string
 	// Index is the position of the device when sorted by PCI address.
 	Index int
@@ -90,6 +93,8 @@ type Device struct {
 	// be mapped to a physical GPU, for any reason. Like KFDAccessDenied, it
 	// affects all discovered GPUs and withholds process sums.
 	kfdTopologyIncomplete bool
+	// serial is the valid unique_id the UUID is derived from, if any.
+	serial string
 }
 
 // Discover returns the AMD GPUs found under sysRoot (normally /sys), sorted
@@ -134,10 +139,14 @@ func Discover(sysRoot string) ([]*Device, error) {
 			// both devices PCI identities rather than merging their metrics.
 			previous.UUID = pciUUID(previous.PCIBusID)
 			dev.UUID = pciUUID(dev.PCIBusID)
+			foundSharedSerial.Store(true)
 		} else {
 			byUUID[dev.UUID] = dev
 		}
 		devices = append(devices, dev)
+	}
+	if foundSharedSerial.Load() {
+		keepSharedSerialIdentities(sysRoot, devices)
 	}
 
 	slices.SortFunc(devices, func(a, b *Device) int { return cmp.Compare(a.PCIBusID, b.PCIBusID) })
@@ -164,6 +173,46 @@ func Discover(sysRoot string) ([]*Device, error) {
 		}
 	}
 	return devices, errors.Join(errs...)
+}
+
+var (
+	// foundSharedSerial is set once any scan has found a shared serial; from
+	// then on, every scan checks for shared serials, and hosts without shared
+	// serials never take sharedSerialsMu.
+	foundSharedSerial atomic.Bool
+	sharedSerialsMu   sync.Mutex
+	// sharedSerials holds, by sysfs root, the serials seen on more than one
+	// PCI function since the process started.
+	sharedSerials = make(map[string]map[string]struct{})
+)
+
+// keepSharedSerialIdentities makes the PCI identities given to devices sharing
+// a serial last for the life of the process: it records the serials found
+// shared in this scan, and gives a PCI identity to a device whose serial was
+// found shared before. A device thus keeps its identity when another device
+// with the same serial fails to probe or disappears, instead of taking over the
+// serial and showing as a new GPU. Discover only calls it once a shared
+// serial has been found.
+func keepSharedSerialIdentities(sysRoot string, devices []*Device) {
+	sharedSerialsMu.Lock()
+	defer sharedSerialsMu.Unlock()
+	known := sharedSerials[sysRoot]
+	for _, dev := range devices {
+		if dev.serial == "" || dev.UUID == Vendor+"-"+dev.serial {
+			continue
+		}
+		// Given a PCI identity in this scan, as its serial is shared.
+		if known == nil {
+			known = make(map[string]struct{})
+			sharedSerials[sysRoot] = known
+		}
+		known[dev.serial] = struct{}{}
+	}
+	for _, dev := range devices {
+		if _, shared := known[dev.serial]; shared && dev.serial != "" {
+			dev.UUID = pciUUID(dev.PCIBusID)
+		}
+	}
 }
 
 // KFDAccessDeniedWarning describes incomplete process topology caused by a
@@ -240,6 +289,7 @@ func probeCard(linkPath string) (*Device, error) {
 	uniqueID := strings.ToLower(readTrimmed(filepath.Join(devicePath, "unique_id")))
 	serial, err := strconv.ParseUint(uniqueID, 16, 64)
 	if err == nil && serial != 0 && uniqueIDRegex.MatchString(uniqueID) {
+		dev.serial = uniqueID
 		dev.UUID = Vendor + "-" + uniqueID
 	} else {
 		dev.UUID = pciUUID(pciBusID)

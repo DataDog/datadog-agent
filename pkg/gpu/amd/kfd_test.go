@@ -413,7 +413,8 @@ func TestReadProcessMemoryAggregatesSecondaryContexts(t *testing.T) {
 	fs.WriteFiles(filepath.Join(fs.Root, "class/kfd/kfd/proc/100/context_2"), map[string]string{"vram_4101": "invalid\n"})
 	usage, _, err = ReadProcessMemory(fs.Root, devices)
 	require.ErrorContains(t, err, "context_2")
-	assert.Equal(t, uint64(60), usage[0].VRAMBytes, "a bad context must not discard readable allocations")
+	assert.Equal(t, []ProcessMemory{{PID: 200, DeviceUUID: "amd-0000-27-00-0", VRAMBytes: 40}}, usage,
+		"a process with an unreadable contribution is omitted rather than reported short; other processes are kept")
 	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/kfd/kfd/proc/100")))
 	usage, _, err = ReadProcessMemory(fs.Root, devices)
 	require.NoError(t, err)
@@ -430,7 +431,83 @@ func TestReadProcessMemoryRejectsAggregateOverflow(t *testing.T) {
 	require.NoError(t, err)
 	usage, _, err := ReadProcessMemory(fs.Root, devices)
 	require.ErrorContains(t, err, "overflows")
-	assert.Equal(t, []ProcessMemory{{PID: 100, DeviceUUID: "amd-0000-27-00-0", VRAMBytes: math.MaxUint64}}, usage)
+	assert.Empty(t, usage, "an overflowing aggregate is omitted rather than reported truncated")
+}
+
+// Each reported process aggregate is exact or absent: making any single
+// contribution unreadable omits only the aggregates it belongs to.
+func TestReadProcessMemoryOmitsOnlyIncompleteAggregates(t *testing.T) {
+	type key struct {
+		pid  int
+		uuid string
+	}
+	const first, second = "amd-0000-27-00-0", "amd-0000-41-00-0"
+	files := map[string]string{ // contribution path under proc/ -> device it belongs to
+		"100/vram_4101":           first,
+		"100/context_1/vram_4101": first,
+		"100/context_1/vram_5100": second,
+		"200/vram_5100":           second,
+	}
+	complete := map[key]uint64{{100, first}: 30, {100, second}: 5, {200, second}: 7}
+	build := func(t *testing.T) *FakeSysfs {
+		fs := NewFakeSysfs(t)
+		fs.AddCard("card0", fs.AddPCIDevice("0000:27:00.0", "amdgpu", MI300XAttributes("")))
+		fs.AddCard("card1", fs.AddPCIDevice("0000:41:00.0", "amdgpu", MI300XAttributes("")))
+		fs.AddKFDNode(1, 4101, 0, 0x2700, 90402)
+		fs.AddKFDNode(2, 5100, 0, 0x4100, 90402)
+		proc := filepath.Join(fs.Root, "class/kfd/kfd/proc")
+		fs.WriteFiles(filepath.Join(proc, "100"), map[string]string{"vram_4101": "10\n"})
+		fs.WriteFiles(filepath.Join(proc, "100/context_1"), map[string]string{"vram_4101": "20\n", "vram_5100": "5\n"})
+		fs.WriteFiles(filepath.Join(proc, "200"), map[string]string{"vram_5100": "7\n"})
+		return fs
+	}
+	for broken, device := range files {
+		t.Run(broken, func(t *testing.T) {
+			fs := build(t)
+			require.NoError(t, os.WriteFile(filepath.Join(fs.Root, "class/kfd/kfd/proc", broken), []byte("invalid\n"), 0o644))
+			devices, err := Discover(fs.Root)
+			require.NoError(t, err)
+			usage, ok, err := ReadProcessMemory(fs.Root, devices)
+			require.Error(t, err)
+			assert.False(t, ok)
+
+			pid, _ := strconv.Atoi(strings.Split(broken, "/")[0])
+			want := make(map[key]uint64)
+			for k, v := range complete {
+				if k != (key{pid, device}) {
+					want[k] = v
+				}
+			}
+			got := make(map[key]uint64)
+			for _, u := range usage {
+				got[key{u.PID, u.DeviceUUID}] = u.VRAMBytes
+			}
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+// An unlistable context hides allocations on unknown devices: the process is
+// omitted on every device, the other processes are kept.
+func TestReadProcessMemoryOmitsProcessWithUnreadableContext(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permissions are not enforced for root")
+	}
+	fs := NewFakeSysfs(t)
+	fs.AddCard("card0", fs.AddPCIDevice("0000:27:00.0", "amdgpu", MI300XAttributes("")))
+	fs.AddKFDNode(1, 4101, 0, 0x2700, 90402)
+	fs.AddKFDProcess(100, 4101, 10)
+	fs.AddKFDProcess(200, 4101, 7)
+	context := filepath.Join(fs.Root, "class/kfd/kfd/proc/100/context_1")
+	fs.WriteFiles(context, map[string]string{"vram_4101": "20\n"})
+	require.NoError(t, os.Chmod(context, 0))
+	t.Cleanup(func() { _ = os.Chmod(context, 0o755) })
+
+	devices, err := Discover(fs.Root)
+	require.NoError(t, err)
+	usage, _, err := ReadProcessMemory(fs.Root, devices)
+	require.Error(t, err)
+	assert.Equal(t, []ProcessMemory{{PID: 200, DeviceUUID: "amd-0000-27-00-0", VRAMBytes: 7}}, usage)
 }
 
 func TestDiscoverNonzeroPCIFunctionAndSiblingFunctions(t *testing.T) {
@@ -502,7 +579,7 @@ func FuzzReadProcessMemory(f *testing.F) {
 			assert.Empty(t, usage)
 		case value > math.MaxUint64/2:
 			require.ErrorContains(t, err, "overflows")
-			assert.Equal(t, []ProcessMemory{{PID: 100, DeviceUUID: "amd-0000-27-00-0", VRAMBytes: value}}, usage)
+			assert.Empty(t, usage, "an overflowing aggregate is omitted")
 		default:
 			require.NoError(t, err)
 			assert.Equal(t, []ProcessMemory{{PID: 100, DeviceUUID: "amd-0000-27-00-0", VRAMBytes: 2 * value}}, usage)
