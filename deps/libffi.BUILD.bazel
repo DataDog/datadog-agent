@@ -1,6 +1,6 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
@@ -270,4 +270,13 @@ cc_library(
     includes = ["."],
     linkstatic = True,
     visibility = ["//visibility:public"],
+)
+
+# Windows only: CPython ships libffi as libffi-8.dll next to _ctypes.pyd, as
+# upstream does; other platforms link :ffi statically.
+cc_shared_library(
+    name = "libffi-8",
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+    deps = [":ffi"],
 )
