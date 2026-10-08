@@ -48,13 +48,13 @@ type checkSender struct {
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
+	service                 string
+	noIndex                 bool
 	infraTagger             *infratags.Tagger // nil = no infra mode tagging
 	// infraModeEventTags is `infra_mode:<mode>` for marked modes, else nil.
 	// Resolved at construction and appended on Event only. Separate from
 	// infraTagger (metrics-only allowlist).
 	infraModeEventTags []string
-	service            string
-	noIndex            bool
 }
 
 // senderItem knows how the aggregator should handle it
