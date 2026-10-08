@@ -1,0 +1,74 @@
+# Minimal Buildbarn for local remote execution: one storage/frontend, one
+# scheduler and one Linux worker running actions in the dda dev env image.
+#
+#   podman compose -f bazel/tools/buildbarn/compose.yaml up -d
+#   bazel build --remote_executor=grpc://localhost:8980 --remote_cache=grpc://localhost:8980 \
+#     --remote_default_exec_properties=OSFamily=linux --noremote_local_fallback ...
+#
+# REAPI on :8980, scheduler UI on http://localhost:7982. Both are
+# unauthenticated: BB_BIND=0.0.0.0 exposes them to the whole network.
+name: dd-buildbarn
+
+services:
+  init:
+    image: docker.io/library/busybox:1.37
+    command: [mkdir, -p, /storage/ac/persistent_state, /storage/cas/persistent_state, /worker/build, /worker/cache]
+    volumes:
+      - storage:/storage
+      - worker:/worker
+
+  storage:
+    image: ghcr.io/buildbarn/bb-storage:20260906T092937Z-ae61334
+    command: [/config/storage.jsonnet]
+    ports:
+      - ${BB_BIND:-127.0.0.1}:8980:8980
+    volumes:
+      - ./config:/config:ro
+      - storage:/storage
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  scheduler:
+    image: ghcr.io/buildbarn/bb-scheduler:20260908T142432Z-77f7642
+    command: [/config/scheduler.jsonnet]
+    ports:
+      - ${BB_BIND:-127.0.0.1}:7982:7982
+    volumes:
+      - ./config:/config:ro
+
+  worker:
+    image: ghcr.io/buildbarn/bb-worker:20260908T142432Z-77f7642
+    command: [/config/worker.jsonnet]
+    environment:
+      BB_CONCURRENCY: ${BB_CONCURRENCY:-8}
+    volumes:
+      - ./config:/config:ro
+      - worker:/worker
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  runner-installer:
+    image: ghcr.io/buildbarn/bb-runner-installer:20260908T142432Z-77f7642
+    volumes:
+      - bb:/bb
+
+  runner:
+    image: ${BB_RUNNER_IMAGE:-docker.io/datadog/agent-dev-env-linux:latest}
+    pull_policy: missing
+    entrypoint: [sh, -c]
+    command: ["while ! test -f /bb/installed; do sleep 1; done; exec /bb/bb_runner /config/runner.jsonnet"]
+    network_mode: none
+    volumes:
+      - ./config:/config:ro
+      - bb:/bb:ro
+      - worker:/worker
+    depends_on:
+      - runner-installer
+      - worker
+
+volumes:
+  bb:
+  storage:
+  worker:
