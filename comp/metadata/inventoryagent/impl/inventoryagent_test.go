@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"errors"
 	"maps"
+	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"sort"
@@ -117,7 +119,7 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, 1234, payload.Metadata["test"])
 }
 
-func TestCapabilitiesCrossProcessEnrichment(t *testing.T) {
+func TestCapabilitiesFullAgentMetadataRefresh(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
 		capabilities *iainterface.Capabilities
@@ -155,26 +157,75 @@ func TestCapabilitiesCrossProcessEnrichment(t *testing.T) {
 			}
 			p := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil, options...)
 			ia := p.Comp.(*inventoryagent)
+			configDir := t.TempDir()
+			configmock.New(t).SetConfigFile(filepath.Join(configDir, "datadog.yaml"))
+			fleetDir := filepath.Join(configDir, "managed", "datadog-agent", "stable")
+			if err := os.MkdirAll(fleetDir, 0700); err != nil {
+				t.Fatal(err)
+			}
 			ia.Set("resource_id", "test-resource")
-			payload := ia.getPayload().(*Payload)
+			ia.Set("flavor", "embedded-test")
+			ia.Set("config_dd_url", "explicit-url")
+			for index, value := range []string{"first", "second"} {
+				ia.conf.Set("site", value+".example.com", pkgconfigmodel.SourceAgentRuntime)
+				ia.conf.Set("logs_enabled", index == 0, pkgconfigmodel.SourceAgentRuntime)
+				ia.conf.Set("config_id", value, pkgconfigmodel.SourceAgentRuntime)
+				ia.conf.Set("fleet_layers", []string{value}, pkgconfigmodel.SourceAgentRuntime)
+				applicationConfig := []byte("service: " + value)
+				fleetConfig := []byte("service: fleet-" + value)
+				for path, contents := range map[string][]byte{
+					filepath.Join(configDir, "application_monitoring.yaml"): applicationConfig,
+					filepath.Join(fleetDir, "application_monitoring.yaml"):  fleetConfig,
+				} {
+					if err := os.WriteFile(path, contents, 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				payload := ia.getPayload().(*Payload)
 
-			assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
-			assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
-			assert.Equal(t, flavor.GetFlavor(), payload.Metadata["flavor"])
-			assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
-			assert.Equal(t, uuid.GetUUID(), payload.UUID)
-			assert.Contains(t, payload.Metadata, "full_configuration")
-			for name, field := range map[string]string{
-				"security":     "feature_cspm_enabled",
-				"process":      "feature_process_enabled",
-				"trace":        "feature_apm_enabled",
-				"system-probe": "feature_networks_enabled",
-			} {
-				assert.Equal(t, tt.wantFetches, fetches[name], name)
+				assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
+				assert.Equal(t, version.AgentPackageVersion, payload.Metadata["package_version"])
+				assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
+				assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
+				assert.Contains(t, payload.Metadata, "install_method_tool")
+				assert.Equal(t, "embedded-test", payload.Metadata["flavor"])
+				assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
+				assert.Equal(t, uuid.GetUUID(), payload.UUID)
+				for _, field := range []string{"full_configuration", "agent_runtime_configuration"} {
+					assert.Contains(t, payload.Metadata[field], "site: "+value+".example.com", field)
+				}
+				for name, field := range map[string]string{
+					"security":     "feature_cspm_enabled",
+					"process":      "feature_process_enabled",
+					"trace":        "feature_apm_enabled",
+					"system-probe": "feature_networks_enabled",
+				} {
+					assert.Equal(t, (index+1)*tt.wantFetches, fetches[name], name)
+					if tt.wantFetches == 0 {
+						assert.NotContains(t, payload.Metadata, field)
+					} else {
+						assert.Equal(t, true, payload.Metadata[field], field)
+					}
+				}
+				// Local collectors are intentionally skipped too, even with populated inputs.
+				for field, expected := range map[string]any{
+					"config_site":                         value + ".example.com",
+					"feature_logs_enabled":                index == 0,
+					"fleet_policies_applied":              []string{value},
+					"config_id":                           value,
+					"application_monitoring_config":       applicationConfig,
+					"application_monitoring_config_fleet": fleetConfig,
+				} {
+					if tt.wantFetches == 0 {
+						assert.NotContains(t, payload.Metadata, field)
+					} else {
+						assert.Equal(t, expected, payload.Metadata[field], field)
+					}
+				}
 				if tt.wantFetches == 0 {
-					assert.NotContains(t, payload.Metadata, field)
+					assert.Equal(t, "explicit-url", payload.Metadata["config_dd_url"], "skipping refresh must not filter explicitly set fields")
 				} else {
-					assert.Equal(t, true, payload.Metadata[field], field)
+					assert.Equal(t, ia.conf.GetString("dd_url"), payload.Metadata["config_dd_url"], "default refresh replaces explicitly set collector fields")
 				}
 			}
 		})
