@@ -278,9 +278,15 @@ func TestStopWithBlockedHandler(t *testing.T) {
 					resp.Body.Close()
 				}
 			}()
-			// Once the handler holds a decoder slot it is running and will
-			// block on the out channel, which nothing reads.
-			require.Eventually(t, func() bool { return len(r.recvsem) == 1 }, 5*time.Second, 10*time.Millisecond)
+			// The handler creates its tag stats right after decoding the
+			// payload. From there it does no more network reads before
+			// blocking on the out channel, which nothing reads, so closing
+			// the connection in Stop can no longer make it fail early.
+			require.Eventually(t, func() bool {
+				r.Stats.RLock()
+				defer r.Stats.RUnlock()
+				return len(r.Stats.Stats) > 0
+			}, 5*time.Second, 10*time.Millisecond)
 
 			err = r.Stop()
 			assert.ErrorIs(t, err, context.DeadlineExceeded)
