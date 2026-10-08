@@ -577,7 +577,6 @@ func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
 	assert.Contains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
 }
 
-
 // TestCheckSenderInfraTagger_SystemCPUUserExactlyOneMark regresses the former
 // double-tag where the cpu check injected infra_mode and the sender appended it again.
 func TestCheckSenderInfraTagger_SystemCPUUserExactlyOneMark(t *testing.T) {
