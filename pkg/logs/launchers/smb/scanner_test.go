@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build test && smb && !goexperiment.systemcrypto && !goexperiment.boringcrypto && !requirefips
 
 package smb
 
@@ -202,7 +202,6 @@ func newTestLauncher(share *fake.Share, clk clock.Clock) *Launcher {
 	l := NewLauncher(closeTimeout)
 	l.clock = clk
 	l.dial = share.Dial
-	l.builtForFIPS = func() bool { return false }
 	l.forceReadEvery = 3
 	return l
 }

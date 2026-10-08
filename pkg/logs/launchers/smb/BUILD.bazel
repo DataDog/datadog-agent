@@ -4,7 +4,9 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "smb",
     srcs = [
+        "config_entry.go",
         "launcher.go",
+        "launcher_nosmb.go",
         "scanner.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/smb",
@@ -30,16 +32,19 @@ go_library(
 dd_agent_go_test(
     name = "smb_test",
     srcs = [
+        "launcher_nosmb_test.go",
         "launcher_test.go",
         "scanner_test.go",
     ],
     embed = [":smb"],
+    gotags_sets = [["smb"]],
     deps = [
         "//comp/logs-library/metrics",
         "//comp/logs-library/pipeline/mock",
         "//comp/logs/agent/config",
         "//comp/logs/auditor/mock",
         "//pkg/config/mock",
+        "//pkg/fips",
         "//pkg/logs/internal/smb/client/fake",
         "//pkg/logs/message",
         "//pkg/logs/sources",
