@@ -95,6 +95,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		ActionsAllowlist:                   makeActionsAllowlist(config),
 		Allowlist:                          config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:                  config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
 		RShellAllowedPaths:                 rshellAllowedPaths(config),
 		RShellAllowedCommands:              rshellAllowedCommands(config),
 		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
@@ -114,6 +115,16 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Urn:                                urn,
 		DatadogSite:                        ddSite,
 	}, nil
+}
+
+// kubernetesAllowedCustomResources preserves nil for an unset allowlist so custom
+// resource actions can distinguish compatibility mode from an explicit
+// empty-list deny-all policy.
+func kubernetesAllowedCustomResources(config config.Component) []string {
+	if !config.IsConfigured(setup.PARKubernetesAllowedCustomResources) {
+		return nil
+	}
+	return config.GetStringSlice(setup.PARKubernetesAllowedCustomResources)
 }
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {

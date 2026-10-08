@@ -91,6 +91,22 @@ properties:
     visibility: public
     description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
       endpoints.
+  kubernetes_allowed_custom_resources:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: json_list_or_comma_separated
+    items:
+      type: string
+    visibility: public
+    description: |-
+      Optional list of Kubernetes resources that custom resource actions may access.
+      Each entry identifies an exact Kubernetes resource. Use group/version/resource
+      for named API groups, for example cert-manager.io/v1/certificates, and
+      version/resource for the core API group, for example v1/secrets. When unset,
+      custom resource actions allow non-native API groups and deny Kubernetes native API
+      groups. When explicitly set, including to an empty list, only exact matches are
+      allowed.
   api_key_only_enrollment:
     node_type: setting
     type: boolean
@@ -142,6 +158,8 @@ properties:
   restricted_shell:
     node_type: section
     type: object
+    visibility: public
+    description: Configuration for restricted shell actions executed by the Private Action Runner.
     properties:
       allowed_commands:
         node_type: setting
