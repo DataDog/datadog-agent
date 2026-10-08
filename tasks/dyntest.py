@@ -91,6 +91,7 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
         "selector": "coverage (default) or jev",
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
         "ignore-sha-mismatch": "Evaluate a pipeline whose commit differs from the checkout: the Jev decisions are computed from the current checkout's PR context instead of the pipeline's (local experiments; the mismatch is always an error in CI)",
+        "jev-head-ref": "Jev only: compute the PR context (diff, PR info, LLM summary, Jev decisions) from this ref (branch or SHA) instead of the current checkout's HEAD, keeping the local evaluation code and locally discovered tests. Combine with --ignore-sha-mismatch to replay an arbitrary pipeline against another branch's changes",
     }
 )
 def evaluate_index(
@@ -101,6 +102,7 @@ def evaluate_index(
     selector: str = "coverage",
     send_stats: bool = True,
     ignore_sha_mismatch: bool = False,
+    jev_head_ref: str = "HEAD",
 ):
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
@@ -111,7 +113,10 @@ def evaluate_index(
     pipeline's executed tests: the evaluation therefore also shows which
     tests and jobs Jev would run but the pipeline did not (over-selection),
     without requiring coverage data or S3 access. Jev must run from the
-    evaluated pipeline's checkout.
+    evaluated pipeline's checkout; --jev-head-ref evaluates another branch's
+    PR context from the local checkout instead (local experiments, combine
+    with --ignore-sha-mismatch; the discovered test code and the evaluation
+    code stay from the local checkout).
 
     Requires DD_API_KEY/DD_APP_KEY with CI Visibility read access (and DD_SITE
     when not datadoghq.com). Jev additionally uses the standard GitLab task
@@ -139,7 +144,9 @@ def evaluate_index(
         # the coverage executors keep theirs in S3). The shared evaluator owns
         # the CI Visibility queries; the executor's GitLab jobs fetch
         # supplies the allow-failure set.
-        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch)
+        executor = JevDynTestExecutor(
+            ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch, head_ref=jev_head_ref
+        )
         executors = [executor]
         changes = []  # Jev gathers the richer PR diff/context from this checkout.
     else:

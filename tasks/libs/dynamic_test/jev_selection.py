@@ -39,17 +39,21 @@ class NothingToEvaluateError(RuntimeError):
     """The pipeline has no completed E2E test jobs to evaluate (not an error)."""
 
 
-def jev_selection(suite: str) -> dict:
+def jev_selection(suite: str, head: str = "HEAD") -> dict:
     """Run the Jev selector for a suite in-process; return {} on any failure.
 
-    Jev calls run concurrently inside the selector, with a per-request timeout.
-    Any failure fails open to run all the suite's tests.
+    head is the ref whose changes are evaluated (--jev-head-ref, HEAD by
+    default): another branch's PR context can be evaluated from this
+    checkout's local code. Jev calls run concurrently inside the selector,
+    with a per-request timeout. Any failure fails open to run all the
+    suite's tests.
     """
     try:
         summary = select_suite(
             suite,
             dc=os.environ.get("JEV_DC", "us1.ddbuild.io"),
             token_cmd=os.environ.get("JEV_TOKEN_CMD"),
+            head=head,
         )
         if not isinstance(summary, dict) or not all(
             isinstance(summary.get(key), list) and all(isinstance(name, str) for name in summary[key])
@@ -145,13 +149,20 @@ class JevDynTestExecutor(DynTestExecutor):
     candidates (the selector gathers its own PR context from this checkout).
     """
 
-    def __init__(self, ctx, commit_sha: str, pipeline_id: str, require_pipeline_commit: bool = True):
+    def __init__(
+        self, ctx, commit_sha: str, pipeline_id: str, require_pipeline_commit: bool = True, head_ref: str = "HEAD"
+    ):
         super().__init__(ctx, None, IndexKind.JEV, commit_sha)
         self.pipeline_id = pipeline_id
         # False (local experiments, --ignore-sha-mismatch): allow evaluating a
         # pipeline whose commit differs from the checkout - the Jev decisions
         # are then computed from the current checkout's PR context.
         self.require_pipeline_commit = require_pipeline_commit
+        # The ref whose changes are evaluated (--jev-head-ref, HEAD by
+        # default): with another branch, the Jev decisions are computed from
+        # that branch's PR context (diff, PR info, LLM summary) while the
+        # evaluation code and test discovery stay from the local checkout.
+        self.head_ref = head_ref
         self.jobs: list[str] = []
         self.job_ids: dict[str, str] = {}
         self._run: set[str] | None = None
@@ -222,7 +233,7 @@ class JevDynTestExecutor(DynTestExecutor):
             print(f"[jev] deciding {len(names)} tests with Jev; suites: {', '.join(sorted(suites))}")
             run: set[str] = set()
             for suite, entries in sorted(suites.items()):
-                summary = jev_selection(suite)
+                summary = jev_selection(suite, self.head_ref)
                 skip = set(summary.get("skip", [])) - set(summary.get("run", []))
                 run.update(entries - skip)
                 print(f"[jev] {suite}: {len(entries - skip)} run / {len(entries & skip)} skip")

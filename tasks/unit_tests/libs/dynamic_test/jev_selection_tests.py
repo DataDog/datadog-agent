@@ -23,7 +23,18 @@ class TestJevSelection(unittest.TestCase):
             self.assertEqual(jev_selection("installer"), select.return_value)
         # In-process call, no interpreter/module/output-file arguments
         self.assertEqual(select.call_args.args, ("installer",))
-        self.assertEqual(select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token"})
+        self.assertEqual(select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token", "head": "HEAD"})
+
+    @patch(f"{MODULE}.select_suite")
+    def test_selector_evaluates_another_head_ref(self, select):
+        """The head ref (--jev-head-ref) is passed through to the selector, to
+        evaluate another branch's PR context from this checkout."""
+        select.return_value = {"run": ["TestA"], "skip": [], "decisions": []}
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(jev_selection("fleet", head="feature/other"), select.return_value)
+            self.assertEqual(
+                select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": None, "head": "feature/other"}
+            )
 
     @patch(f"{MODULE}.select_suite")
     def test_selector_failures_return_no_skip_decisions(self, select):

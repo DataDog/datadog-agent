@@ -90,11 +90,11 @@ def _annotate_diff(diff: str, shortstat: str = "") -> str:
     return full
 
 
-def pr_diff(merge_base: str) -> str:
-    """Annotated, truncated full diff of the working tree vs `merge_base`."""
+def pr_diff(merge_base: str, head: str = "HEAD") -> str:
+    """Annotated, truncated full diff of `head` vs `merge_base`."""
     try:
-        diff = git("diff", "--no-color", merge_base, "HEAD")
-        shortstat = git("diff", "--no-color", "--shortstat", merge_base, "HEAD")
+        diff = git("diff", "--no-color", merge_base, head)
+        shortstat = git("diff", "--no-color", "--shortstat", merge_base, head)
     except RuntimeError as e:
         print(f"[warn] could not compute the full PR diff: {e}")
         return ""

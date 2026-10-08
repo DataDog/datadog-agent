@@ -80,6 +80,7 @@ def select_suite(
     output: str | None = None,
     dry_run: bool = False,
     summary_model: str | None = None,
+    head: str = "HEAD",
 ) -> dict | None:
     """Run the Jev selection for one suite and return its summary dict.
 
@@ -90,13 +91,19 @@ def select_suite(
     shared by every suite of the run; that summary replaces the raw diff in
     every per-test Jev state. If the summary call fails, the selector fails
     open to the raw diff. The
-    summary is {"suite", "team", "base", "pr", "changed_files", "run", "skip",
+    summary is {"suite", "team", "base", "head", "pr", "changed_files", "run", "skip",
     "decisions"}. The shared context (PR, diff, suite definition - everything
     but the per-test code) is printed once per run (per unique base/merge
     base) so the passed diff is inspectable; the per-test states are not
     printed (use --dry-run for those). Fail-open is per test: a failed Jev
     call yields a RUN decision, never a skip. Raises ValueError on invalid
     arguments.
+
+    head is the ref (branch or SHA) whose changes are evaluated: it defaults
+    to the current checkout's HEAD, but can be any other branch or SHA, to
+    evaluate that branch's PR context (diff, PR info, LLM summary, Jev
+    decisions) while keeping the local evaluation code and the locally
+    discovered tests - see the executor's --jev-head-ref.
     """
     if workers < 1 or not 0 <= run_threshold <= 1:
         raise ValueError("workers must be positive and run_threshold must be between 0 and 1")
@@ -107,12 +114,12 @@ def select_suite(
         raise ValueError(f"no e2e suite at {suite_dir}")
     team = team or suite
 
-    print(f"[info] suite={suite} team={team} base={base}")
+    print(f"[info] suite={suite} team={team} base={base}" + (f" head={head}" if head != "HEAD" else ""))
     ddci = fetch_ddci_metadata()
-    pr = fetch_pr_info(base, ddci)
-    files, merge_base = changed_files(base, ddci)
+    pr = fetch_pr_info(base, ddci, head=head)
+    files, merge_base = changed_files(base, ddci, head=head)
     print(f"[info] {len(files)} changed files (merge base {str(merge_base)[:8]})")
-    diff = pr_diff(merge_base)
+    diff = pr_diff(merge_base, head=head)
     print(f"[info] full diff: {len(diff)} chars (per-file cap {MAX_DIFF_PER_FILE}, total cap {MAX_DIFF_BYTES})")
 
     suites = list_suites(suite_dir)
@@ -236,6 +243,7 @@ def select_suite(
         "suite": suite,
         "team": team,
         "base": base,
+        "head": head,
         "pr": pr.get("number"),
         "changed_files": files,
         "run": to_run,

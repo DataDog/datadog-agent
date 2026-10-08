@@ -120,6 +120,63 @@ class TestJevTools(unittest.TestCase):
             )
             self.assertEqual([entry[0] for entry in list_suites(directory)], ["TestSuite"])
 
+    @patch("tasks.libs.dynamic_test.jev.pr_context.git")
+    def test_changed_files_can_target_another_head_ref(self, git):
+        """Evaluating another branch (head != HEAD) ignores DDCI's file list
+        - it describes the CI pipeline's PR, not the target - and diffs that
+        ref against its own merge base instead."""
+        git.side_effect = ["main", "feature/other", "0c339c19", "a.go\nb.go\n"]  # base, head, merge-base, diff
+        files, merge_base = changed_files("main", {"changed_files": [("x.go", "added")]}, head="feature/other")
+        self.assertEqual(files, [("a.go", ""), ("b.go", "")])
+        self.assertEqual(merge_base, "0c339c19")
+        self.assertEqual(git.call_args_list[2][0], ("merge-base", "feature/other", "main"))
+        self.assertEqual(git.call_args_list[3][0], ("diff", "--name-only", "0c339c19", "feature/other"))
+
+    @patch("tasks.libs.dynamic_test.jev.pr_context.GithubAPI")
+    @patch("tasks.libs.dynamic_test.jev.pr_context.git", return_value="feature/other")
+    def test_pr_info_for_another_head_ref_ignores_ci_env_and_ddci(self, _, github_api):
+        """With head set to another branch, the PR is looked up by that
+        branch - not via the CI env branch name or DDCI's pipeline PR number."""
+        github_api.return_value.get_pr_for_branch.return_value = iter(
+            [SimpleNamespace(number=12, title="Title", body="Description")]
+        )
+        ddci = {"pr_number": 7, "author": "someone"}
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "fake", "CI_COMMIT_REF_NAME": "current-ci-branch"}, clear=True):
+            info = fetch_pr_info("main", ddci, head="feature/other")
+        self.assertEqual(info["number"], 12)
+        self.assertEqual(info["title"], "Title")
+        self.assertNotIn("author", info)  # DDCI describes the pipeline's PR, not the target
+        github_api.return_value.get_pr_for_branch.assert_called_once_with(head_branch_name="feature/other")
+
+    def test_selector_evaluates_another_head_ref(self):
+        """select_suite(head=...) evaluates that ref's PR context (PR info,
+        changed files, diff) instead of the checkout's HEAD, and records it
+        in the summary."""
+        module = "tasks.libs.dynamic_test.jev.jev_e2e_selector"
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch(f"{module}.os.path.isdir", return_value=True),
+                patch(f"{module}.fetch_ddci_metadata", return_value=None),
+                patch(f"{module}.fetch_pr_info", return_value={}) as fetch_pr,
+                patch(f"{module}.changed_files", return_value=([("a.go", "modified")], "base")) as files_mock,
+                patch(f"{module}.pr_diff", return_value="") as diff_mock,
+                patch(f"{module}.suite_definition", return_value=("", "")),
+                patch(f"{module}.get_ai_gateway_token", return_value="fake"),
+                patch(f"{module}.summarize_pr", return_value="a summary"),
+                patch(f"{module}.gitlab_section"),
+                patch(f"{module}._printed_contexts", set()),
+                patch(f"{module}._pr_summaries", {}),
+                patch(f"{module}.list_suites", return_value=[("TestOne", "one_test.go", "code")]),
+                patch(f"{module}.ask_jev", return_value={"answers": answers()}),
+            ):
+                summary = select_suite(
+                    "fleet", base="main", workers=1, head="feature/other", output=str(Path(directory, "decisions.json"))
+                )
+            fetch_pr.assert_called_with("main", None, head="feature/other")
+            files_mock.assert_called_with("main", None, head="feature/other")
+            diff_mock.assert_called_with("base", head="feature/other")
+            self.assertEqual(summary["head"], "feature/other")
+
     def test_selector_fails_open_on_malformed_response_and_duplicate_names(self):
         module = "tasks.libs.dynamic_test.jev.jev_e2e_selector"
         with tempfile.TemporaryDirectory() as directory:
