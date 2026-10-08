@@ -129,7 +129,7 @@ bazel:test:windows-amd64:go:
   variables:
     POWERSHELL_SCRIPT: >-
       bazel test --config=dd-agent-go-tests-only --build_tests_only --keep_going
-        //cmd/... //comp/... pkg/... //test/... //tools/...
+      //cmd/... //comp/... //internal/... pkg/... //test/... //tools/...
 
 bazel:coverage:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
