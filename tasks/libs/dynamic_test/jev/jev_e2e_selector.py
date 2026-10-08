@@ -45,7 +45,7 @@ from tasks.libs.dynamic_test.jev.jev_client import (
 )
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
 from tasks.libs.dynamic_test.jev.pr_summary import CHAT_COMPLETIONS_PATH, summarize_pr
-from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
+from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, package_configs, suite_definition
 
 # The context (what every Jev call for a suite sees: the PR, the diff, the
 # suite definition) is printed once per unique (base, merge base): all the
@@ -57,6 +57,10 @@ _printed_contexts: set[tuple[str, str]] = set()
 # selection run against the same (base, merge base): computed once, reused
 # by the later select_suite calls of the same run
 _pr_summaries: dict[tuple[str, str], str] = {}
+
+# The embedded test configs are per entry-point file; several entry points
+# share a file, so they are read once per path per run
+_config_cache: dict[str, str] = {}
 
 # The AI Gateway model generating the PR summary (chat completions endpoint,
 # same gateway and token as the Jev calls); an empty value disables the
@@ -193,6 +197,13 @@ def select_suite(
 
     def select_test(entry):
         name, path, code = entry
+        # The YAML configs the test's package embeds (test_discovery.package_configs):
+        # what the agent/system-probe actually runs with in this test - the
+        # test code alone does not show which features are enabled. Several
+        # entry points share a file/package, so cache per path.
+        test_configs = _config_cache.get(path)
+        if test_configs is None:
+            test_configs = _config_cache[path] = package_configs(path)
         state = build_state(
             name,
             path,
@@ -206,6 +217,7 @@ def select_suite(
             ddci=ddci,
             suite_def_code=suite_def_code,
             pr_summary=pr_summary,
+            test_configs=test_configs,
         )
         if dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")

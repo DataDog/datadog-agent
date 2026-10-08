@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import tempfile
 import unittest
@@ -6,11 +7,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from tasks.libs.dynamic_test.jev.jev_client import build_context_state, decide, get_ai_gateway_token
+from tasks.libs.dynamic_test.jev.jev_client import build_context_state, build_state, decide, get_ai_gateway_token
 from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_pr_info
 from tasks.libs.dynamic_test.jev.pr_summary import summarize_pr
-from tasks.libs.dynamic_test.jev.test_discovery import list_suites
+from tasks.libs.dynamic_test.jev.test_discovery import list_suites, package_configs
 
 
 def answers(should=0.5, relation="code_under_test", confidence=0.8):
@@ -284,6 +285,42 @@ class TestJevTools(unittest.TestCase):
         self.assertIn("## LLM summary of the changes in this PR", summarized)
         self.assertIn("summary text", summarized)
         self.assertNotIn("## Full PR diff", summarized)
+
+    def test_package_configs(self):
+        """The YAML configs embedded by the test's package (config/ subdir and
+        the package dir itself) are discovered with their names, capped."""
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, "npm_test.go").write_text("package npm\n")
+            Path(directory, "config").mkdir()
+            Path(directory, "config", "npm.yaml").write_text("network_config:\n  enabled: true\n")
+            Path(directory, "config", "npm-helm-values.yaml").write_text(
+                "datadog:\n  networkMonitoring:\n    enabled: true\n"
+            )
+            Path(directory, "compose.yaml").write_text("services: {}\n")
+            Path(directory, "other.txt").write_text("ignored\n")
+            configs = package_configs(os.path.join(directory, "npm_test.go"))
+        self.assertIn("// config/npm.yaml\nnetwork_config:\n  enabled: true", configs)
+        self.assertIn("// config/npm-helm-values.yaml", configs)
+        self.assertIn("// compose.yaml\nservices: {}", configs)
+        self.assertNotIn("ignored", configs)
+        self.assertEqual(package_configs("one_test.go"), "")  # no package dir
+
+    def test_build_state_includes_test_configs(self):
+        state = build_state(
+            "TestOne",
+            "one_test.go",
+            "code",
+            "suite",
+            "team",
+            {"title": "t"},
+            [],
+            "base",
+            "",
+            test_configs="network_config:\n  enabled: true",
+        )
+        self.assertIn("## Configuration files embedded by this test's package", state)
+        self.assertIn("```yaml\nnetwork_config:\n  enabled: true\n```", state)
+        self.assertNotIn("Configuration files embedded", build_state("T", "p", "c", "s", "t", {}, [], "base", ""))
 
     @patch("tasks.libs.dynamic_test.jev.pr_summary.urllib.request.urlopen")
     def test_summarize_pr_calls_the_ai_gateway_chat_completions(self, urlopen):

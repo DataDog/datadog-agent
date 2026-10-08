@@ -162,8 +162,9 @@ def build_state(
     ddci: dict | None = None,
     suite_def_code: str = "",
     pr_summary: str = "",
+    test_configs: str = "",
 ) -> str:
-    """Assemble the System One state sent to Jev for one test entry point: the shared context (see build_context_state) plus the test under evaluation."""
+    """Assemble the System One state sent to Jev for one test entry point: the shared context (see build_context_state) plus the test under evaluation, with the YAML configs its package embeds."""
     return (
         build_context_state(
             suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code, pr_summary=pr_summary
@@ -171,7 +172,15 @@ def build_state(
         + "\n\n## E2E test under evaluation\n"
         f"Test: {name}\n"
         f"Suite: {suite} ({path})\n"
-        f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```\n\n"
+        f"Code:\n```go\n{truncate(code, MAX_TEST_CODE_BYTES, 'test code')}\n```\n"
+        + (
+            "\n## Configuration files embedded by this test's package "
+            "(what the agent/system-probe runs with in this test)\n"
+            f"```yaml\n{test_configs}\n```\n"
+            if test_configs
+            else ""
+        )
+        + "\n"
         "Context: this is a test in the datadog-agent repository, a large Go monorepo. "
         "E2E tests provision real VMs and are expensive to run. Decide whether this PR "
         "plausibly affects what this test verifies."
