@@ -33,6 +33,7 @@ ssl.create_default_context()
 assert hashlib.sha256(b"x").hexdigest().startswith("2d711642b726b044")
 assert zlib.decompress(zlib.compress(b"x" * 100)) == b"x" * 100
 assert sqlite3.connect(":memory:").execute("select 1").fetchone() == (1,)
+sqlite3.connect(":memory:").execute("create virtual table t using fts5(x)")
 assert str(decimal.Decimal(1) / 4) == "0.25"
 assert ctypes.windll.kernel32.GetCurrentProcessId() > 0
 print("OK", ssl.OPENSSL_VERSION)
