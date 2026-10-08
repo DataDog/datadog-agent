@@ -11,7 +11,7 @@ import (
 )
 
 // chunkSize is the number of addresses sent to the connectivity engine in one request.
-const chunkSize = 256
+const chunkSize = 64
 
 // probeChunk is one unit of work: a contiguous slice of a range's addresses.
 type probeChunk struct {

@@ -62,7 +62,7 @@ func TestSchedulerSweepsOnAdd(t *testing.T) {
 	s.start(context.Background())
 	defer s.stop()
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 	assert.Equal(t, 1, s.count())
 
 	require.Eventually(t, func() bool { return len(scanner.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond,
@@ -81,7 +81,7 @@ func TestSchedulerKeepsARangeWhoseProbeCannotBeResolved(t *testing.T) {
 	s.start(context.Background())
 	defer s.stop()
 
-	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
+	cfg := testRangeConfig("ad-1", "10.0.0.0/26")
 	cfg.Probes.SNMP.CredIDs = []string{"cred-missing"}
 
 	require.NoError(t, s.set(cfg), "a missing credential no longer rejects the range")
@@ -96,7 +96,7 @@ func TestSchedulerResolvesEveryProbeEachCycle(t *testing.T) {
 	s.start(context.Background())
 	defer s.stop()
 
-	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
+	cfg := testRangeConfig("ad-1", "10.0.0.0/26")
 	cfg.Probes.Ping = &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second}
 	require.NoError(t, s.set(cfg))
 
@@ -112,7 +112,7 @@ func TestSchedulerDropsOnlyTheProbeItCannotResolve(t *testing.T) {
 	s.start(context.Background())
 	defer s.stop()
 
-	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
+	cfg := testRangeConfig("ad-1", "10.0.0.0/26")
 	cfg.Probes.Ping = &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second}
 	cfg.Probes.SNMP.CredIDs = []string{"cred-missing"}
 	require.NoError(t, s.set(cfg))
@@ -137,7 +137,7 @@ func TestSchedulerRejectsOversizedRange(t *testing.T) {
 func TestSchedulerSetBeforeStartIsRejected(t *testing.T) {
 	s, _, _ := newTestScheduler(t, answerAll(), 10)
 
-	err := s.set(testRangeConfig("ad-1", "10.0.0.0/24"))
+	err := s.set(testRangeConfig("ad-1", "10.0.0.0/26"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not running")
 	assert.Equal(t, 0, s.count())
@@ -149,7 +149,7 @@ func TestSchedulerRemoveStopsTheRange(t *testing.T) {
 	s.start(context.Background())
 	defer s.stop()
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 	require.Eventually(t, func() bool { return len(scanner.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
 
 	s.remove("ad-1")
@@ -166,10 +166,10 @@ func TestSchedulerReplacesRangeOnUpdate(t *testing.T) {
 	s.start(context.Background())
 	defer s.stop()
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 	require.Eventually(t, func() bool { return len(scanner.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.1.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.1.0/26")))
 	assert.Equal(t, 1, s.count(), "the same autodiscovery ID replaces its range rather than adding one")
 
 	require.Eventually(t, func() bool {
@@ -210,7 +210,7 @@ func TestSchedulerStopIsIdempotentAndDrains(t *testing.T) {
 	s, _, _ := newTestScheduler(t, scanner, 10)
 	s.start(context.Background())
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 	require.Eventually(t, func() bool { return len(scanner.recorded()) >= 1 }, 5*time.Second, 10*time.Millisecond)
 
 	s.stop()
@@ -224,7 +224,7 @@ func TestSchedulerResolvesTheProbesPerCycle(t *testing.T) {
 	s.start(context.Background())
 	defer s.stop()
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 
 	require.Eventually(t, func() bool { return len(scanner.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)
 	assert.GreaterOrEqual(t, store.loadCount(), 1,
@@ -249,19 +249,19 @@ func TestSchedulerFloorsIntervalsBelowTheMinimum(t *testing.T) {
 
 	floor := time.Duration(minIntervalSec) * time.Second
 
-	zero := testRangeConfig("ad-zero", "10.0.0.0/24")
+	zero := testRangeConfig("ad-zero", "10.0.0.0/26")
 	zero.IntervalSec = 0
 	require.NoError(t, s.set(zero))
 	assert.Equal(t, floor, <-intervals, "a zero interval ticks at the floor instead of panicking")
 
-	negative := testRangeConfig("ad-negative", "10.0.1.0/24")
+	negative := testRangeConfig("ad-negative", "10.0.1.0/26")
 	negative.IntervalSec = -5
 	require.NoError(t, s.set(negative))
 	assert.Equal(t, floor, <-intervals, "a negative interval ticks at the floor instead of panicking")
 
 	// parseRange clamps upstream, but a config reaching the scheduler by
 	// another route must not out-tick the floor either.
-	tooFast := testRangeConfig("ad-too-fast", "10.0.2.0/24")
+	tooFast := testRangeConfig("ad-too-fast", "10.0.2.0/26")
 	tooFast.IntervalSec = 1
 	require.NoError(t, s.set(tooFast))
 	assert.Equal(t, floor, <-intervals, "an interval below the floor is raised to it")
@@ -325,15 +325,15 @@ func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 	s.start(context.Background())
 	defer s.stop()
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 	<-scanner.entered
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.1.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.1.0/26")))
 	require.Never(t, func() bool { return scanner.sawTarget("10.0.1.0") }, 200*time.Millisecond, 10*time.Millisecond,
 		"the replacement cycle waits for the cancelled one to unwind")
 
 	// A third replacement, while the first cycle is stuck and the second waits.
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.2.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.2.0/26")))
 	require.Never(t, func() bool { return scanner.sawTarget("10.0.2.0") }, 200*time.Millisecond, 10*time.Millisecond,
 		"the newest cycle waits for the whole chain ahead of it, not just its immediate predecessor")
 
@@ -348,7 +348,7 @@ func TestSchedulerRemoveDuringACycleDrainsOnStop(t *testing.T) {
 	s, _, _ := newTestScheduler(t, &scanner.recordingScanner, 10)
 	s.start(context.Background())
 
-	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/24")))
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 	<-scanner.entered
 
 	s.remove("ad-1")

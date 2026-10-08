@@ -80,6 +80,7 @@ func (s *persistentCursorStore) Clear(autodiscoveryID string) error {
 func rangeDigest(cfg rangeConfig, fingerprints []string) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "network_address=%s\n", cfg.NetworkAddress)
+	fmt.Fprintf(h, "chunk_size=%d\n", chunkSize)
 
 	ignored := append([]string(nil), cfg.IgnoredIPAddresses...)
 	sort.Strings(ignored)
