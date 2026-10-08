@@ -47,6 +47,16 @@ cc_library(
     ],
     includes = ["."],
     linkstatic = True,
+    local_defines = select({
+        "@platforms//os:windows": [
+            "SQLITE_API=__declspec(dllexport)",
+            "SQLITE_ENABLE_FTS4",
+            "SQLITE_ENABLE_FTS5",
+            "SQLITE_ENABLE_RTREE",
+            "SQLITE_OMIT_AUTOINIT",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
 
