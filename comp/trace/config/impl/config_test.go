@@ -423,8 +423,8 @@ func TestConfigHostname(t *testing.T) {
 			}
 			srcpath := filepath.Join(os.TempDir(), stat.Name())
 			binpath := strings.TrimSuffix(srcpath, ".go")
-			if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
-				t.Fatal(err)
+			if output, err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).CombinedOutput(); err != nil {
+				t.Fatalf("failed to build hostname test program: %v\n%s", err, output)
 			}
 			os.Remove(srcpath)
 			return binpath

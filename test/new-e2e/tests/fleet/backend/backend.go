@@ -45,7 +45,30 @@ type RemoteConfigStatePackage struct {
 	StableConfigVersion     string            `json:"stable_config_version"`
 	ExperimentConfigVersion string            `json:"experiment_config_version"`
 	ProcessStates           map[string]string `json:"process_states"`
+	// Task is the last remote task the daemon executed for the package.
+	Task *RemoteConfigStateTask `json:"task,omitempty"`
 }
+
+// RemoteConfigStateTask is the state of the last remote task the daemon executed for a package.
+type RemoteConfigStateTask struct {
+	ID string `json:"id"`
+	// State is the numeric value of pbgo.TaskState: the daemon encodes its protobuf state with
+	// encoding/json, which writes enums as numbers.
+	State int                         `json:"state"`
+	Error *RemoteConfigStateTaskError `json:"error,omitempty"`
+}
+
+// RemoteConfigStateTaskError is the error a failed remote task reported.
+type RemoteConfigStateTaskError struct {
+	Code    uint64 `json:"code"`
+	Message string `json:"message"`
+}
+
+// Task states, mirroring pbgo.TaskState.
+const (
+	TaskStateDone  = 2
+	TaskStateError = 4
+)
 
 // Backend is the fake fleet backend.
 type Backend struct {

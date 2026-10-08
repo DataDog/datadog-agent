@@ -295,8 +295,8 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 
 	// A rejected privileged spawn leaves the process not running, so restoring the file is
 	// not enough on its own: reload restarts only processes that were running when their
-	// config changed, and auto-starts only ones still in Created. Neither covers a process
-	// that failed to spawn, so the restore has to start it explicitly.
+	// config changed, and auto-starts only ones still in Created or Skipped. Neither covers
+	// a process that failed to spawn, so the restore has to start it explicitly.
 	//
 	// Only the file write is required to succeed. start reports an error when the process
 	// is already running, which is the usual case for the deferred pass, and a dd-procmgr

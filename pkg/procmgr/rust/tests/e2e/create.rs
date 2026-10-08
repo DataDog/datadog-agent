@@ -45,7 +45,7 @@ fn test_cli_create_no_auto_start() {
 
     env.cli_list()
         .assert_success()
-        .assert_table_row("manual", &[("STATE", "Created"), ("PID", "-")]);
+        .assert_table_row("manual", &[("STATE", "Skipped"), ("PID", "-")]);
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn test_cli_create_then_describe() {
     let out = env.cli_describe("svc");
     out.assert_success()
         .assert_field("Name", "svc")
-        .assert_field("State", "Created")
+        .assert_field("State", "Skipped")
         .assert_field("Command", test_helpers::sleep_cmd(300).0)
         .assert_field("Args", &test_helpers::sleep_args_display())
         .assert_field("PID", "-")
@@ -179,8 +179,8 @@ fn test_cli_create_with_dependencies() {
     env.cli_list()
         .assert_success()
         .assert_table_row_count(2)
-        .assert_table_row("backend", &[("STATE", "Created"), ("PID", "-")])
-        .assert_table_row("frontend", &[("STATE", "Created"), ("PID", "-")]);
+        .assert_table_row("backend", &[("STATE", "Skipped"), ("PID", "-")])
+        .assert_table_row("frontend", &[("STATE", "Skipped"), ("PID", "-")]);
 
     env.cli_start("backend").assert_success();
     env.daemon().wait_for_log_default("[backend] spawned");
@@ -262,7 +262,7 @@ fn test_cli_full_lifecycle() {
 
     env.cli_list()
         .assert_success()
-        .assert_table_row("svc", &[("STATE", "Created"), ("PID", "-")]);
+        .assert_table_row("svc", &[("STATE", "Skipped"), ("PID", "-")]);
 
     env.cli_start("svc").assert_success();
     env.daemon().wait_for_log_default("[svc] spawned");

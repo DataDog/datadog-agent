@@ -61,6 +61,7 @@ type Installer interface {
 	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
+	ResumeConfigExperiments(ctx context.Context) error
 
 	InstallExtensions(ctx context.Context, url string, extensionList []string) error
 	RemoveExtensions(ctx context.Context, pkg string, extensionList []string) error
@@ -591,6 +592,16 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
 
+// ResumeConfigExperiments recovers any configuration experiment left running unsupervised by a
+// prior process of this daemon that did not shut down cleanly (crash, kill, reboot). Called once
+// on daemon startup; a no-op on platforms or packages with no experiment to recover.
+func (i *installerImpl) ResumeConfigExperiments(ctx context.Context) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	return i.hooks.ResumeConfigExperiment(ctx, packageDatadogAgent)
+}
+
 // Purge removes all packages.
 func (i *installerImpl) Purge(ctx context.Context) {
 	i.m.Lock()
@@ -965,9 +976,11 @@ func ensureRepositoriesExist() error {
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}
-	err = os.MkdirAll(paths.ConfigsPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating configs directory: %w", err)
+	if paths.ConfigsPath != "" {
+		err = os.MkdirAll(paths.ConfigsPath, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating configs directory: %w", err)
+		}
 	}
 	err = os.MkdirAll(paths.RootTmpDir, 0755)
 	if err != nil {

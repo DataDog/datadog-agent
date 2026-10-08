@@ -41,6 +41,12 @@ func init() {
 }
 
 func child() {
+	// Child process: Listen for signals and notify parent
+	sigs := make(chan os.Signal, 1)
+	defer close(sigs)
+	signal.Notify(sigs) // before writing PID, which triggers forwarding, to not miss 1st signal
+	defer signal.Reset()
+
 	// Open the FIFO for writing
 	fifo, err := os.OpenFile(fifoPath, os.O_WRONLY, os.ModeNamedPipe)
 	if err != nil {
@@ -52,12 +58,10 @@ func child() {
 	// Send PID to parent
 	binary.Write(fifo, binary.LittleEndian, int32(os.Getpid()))
 
-	// Child process: Listen for signals and notify parent
-	sigs := make(chan os.Signal, 1)
-	defer close(sigs)
-	signal.Notify(sigs)
-	defer signal.Reset()
 	for sig := range sigs {
+		if sig == syscall.SIGURG {
+			continue // spurious Go runtime preemptions otherwise shift parent's reads
+		}
 		_, err := fmt.Fprintf(fifo, "%v\n", sig)
 		if err != nil {
 			os.Exit(1)

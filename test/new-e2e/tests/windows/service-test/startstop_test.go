@@ -207,10 +207,9 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
-		"datadog-trace-agent",
-		// dd-procmgr supervises process-agent and system-probe, so both legacy services are
-		// already Stopped. Stopping dd-procmgr-service is what stops those two workloads,
-		// including the system-probe shutdown that unloads the kernel drivers.
+		// dd-procmgr supervises process-agent, system-probe, and trace-agent, so those
+		// legacy services are already Stopped. Stopping dd-procmgr-service is what stops
+		// those workloads, including the system-probe shutdown that unloads the kernel drivers.
 		"dd-procmgr-service",
 		"datadog-security-agent",
 		// stop core agent last since it will trigger stop of other services
@@ -386,7 +385,7 @@ func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderP
 
 	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
 	s.Require().NoError(err)
-	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+	s.Require().Equal("Skipped", procmgrDescribeField(out, "State"),
 		"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
 
 	out, err = host.Execute(
@@ -417,6 +416,45 @@ func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 
 type agentServiceDisabledTraceAgentSuite struct {
 	agentServiceDisabledSuite
+}
+
+// Legacy SCM Stopped is expected under procmgr; assert the config gate also leaves trace-agent unspawned.
+func (s *agentServiceDisabledTraceAgentSuite) TestTraceAgentNotRunningUnderProcmgrWhenDisabled() {
+	host := s.Env().RemoteHost
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(host)
+	s.Require().NoError(err)
+	procmgrCLI := filepath.Join(installPath, "bin", "agent", "dd-procmgr.exe")
+
+	logsFolder, err := host.GetLogsFolder()
+	s.Require().NoError(err)
+	waitForLogLine := func(logFile, line, msg string) {
+		s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+			content, err := host.ReadFile(filepath.Join(logsFolder, logFile))
+			if !assert.NoError(ct, err) {
+				return
+			}
+			assert.Contains(ct, string(content), line, msg)
+		}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+	}
+
+	s.startAgent()
+	s.assertServiceState("Running", "dd-procmgr-service", nil)
+
+	waitForLogLine("dd-procmgr.log", "[datadog-agent-trace] condition_config_any not met",
+		"dd-procmgr should evaluate the trace-agent config gate and find it closed")
+	waitForLogLine("agent.log", "Service apm is disabled, not starting",
+		"the core Agent should decide not to start the legacy trace-agent service")
+
+	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-trace"))
+	s.Require().NoError(err)
+	s.Require().Equal("Skipped", procmgrDescribeField(out, "State"),
+		"dd-procmgr should leave a disabled trace-agent unspawned: %s", out)
+
+	out, err = host.Execute(
+		`$p = Get-Process -Name 'trace-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
+	s.Require().NoError(err)
+	s.Require().Equal("Absent", strings.TrimSpace(out),
+		"trace-agent must not run when APM and Error Tracking standalone are off")
 }
 
 func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
@@ -1028,6 +1066,7 @@ func (s *baseStartStopSuite) legacySCMServices() []string {
 	return []string{
 		"datadog-process-agent",
 		"datadog-system-probe",
+		"datadog-trace-agent",
 	}
 }
 

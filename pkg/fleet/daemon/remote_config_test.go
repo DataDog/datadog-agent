@@ -8,10 +8,13 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
@@ -225,4 +228,29 @@ func TestRemoteAPIRequestIgnoresAlreadyExecutedRequests(t *testing.T) {
 	}, callback.applyStateCallback)
 
 	callback.AssertExpectations(t)
+}
+
+// TestStartSubscribesToTasks pins when the daemon subscribes to UPDATER_TASK. macOS subscribes
+// immediately: the backend serves it no catalog, and config experiments arrive as tasks. Elsewhere
+// the subscription waits for the first catalog, as it always has.
+func TestStartSubscribesToTasks(t *testing.T) {
+	c := newTestRemoteConfigClient(t)
+	rc := &remoteConfig{client: c}
+	rc.Start(
+		func(map[string]installerConfig) error { return nil },
+		func(catalog) error { return nil },
+		func(remoteAPIRequest) error { return nil },
+	)
+
+	if runtime.GOOS == "darwin" {
+		require.True(t, c.subscribedToRequests(), "macOS should subscribe to tasks without a catalog")
+		c.SubmitCatalog(testAgentCatalog)
+		c.Lock()
+		defer c.Unlock()
+		assert.Len(t, c.listeners[state.ProductUpdaterTask], 1, "a catalog must not add a second task subscription")
+		return
+	}
+	require.False(t, c.subscribedToRequests(), "tasks must wait for the first catalog")
+	c.SubmitCatalog(testAgentCatalog)
+	require.Eventually(t, c.subscribedToRequests, time.Second, 10*time.Millisecond)
 }

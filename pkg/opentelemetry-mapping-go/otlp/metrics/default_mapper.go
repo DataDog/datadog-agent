@@ -330,11 +330,14 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 				agentSketch.Basic.Max = histInfo.sum
 			}
 		}
+		// The sketch min/max are approximate, so clamp them against the exact ones.
 		if delta && p.HasMin() {
 			agentSketch.Basic.Min = p.Min()
+			agentSketch.Basic.Max = math.Max(agentSketch.Basic.Max, p.Min())
 		}
 		if delta && p.HasMax() {
 			agentSketch.Basic.Max = p.Max()
+			agentSketch.Basic.Min = math.Min(agentSketch.Basic.Min, p.Max())
 		}
 
 		consumer.ConsumeSketch(ctx, pointDims, ts, 0, agentSketch)
@@ -495,6 +498,15 @@ func (m *defaultMapper) getSketchBuckets(
 		} else if p.HasMax() {
 			// Clamp maximum with global maximum (p.Max()) to account for sketch mapping error.
 			sketch.Basic.Max = math.Min(p.Max(), sketch.Basic.Max)
+		}
+
+		// Inf bounds buckets can make min > max; keep the one from the point, which bounds the values.
+		if sketch.Basic.Min > sketch.Basic.Max {
+			if p.HasMin() && sketch.Basic.Min == p.Min() {
+				sketch.Basic.Max = sketch.Basic.Min
+			} else {
+				sketch.Basic.Min = sketch.Basic.Max
+			}
 		}
 
 		var interval int64

@@ -26,36 +26,32 @@ end
 
 install_dir ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
 
-if ohai['platform'] == "windows"
-  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
-else
-  if redhat_target? || suse_target?
-    maintainer 'Datadog, Inc <package@datadoghq.com>'
+if redhat_target? || suse_target?
+  maintainer 'Datadog, Inc <package@datadoghq.com>'
 
-    # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
-    # because these would be used in a kickstart during package installation phase.
-    # All of the packages that we depend on in prerm/postrm scripts always have to be
-    # installed on all distros that we support, so we don't have to depend on them
-    # explicitly.
+  # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
+  # because these would be used in a kickstart during package installation phase.
+  # All of the packages that we depend on in prerm/postrm scripts always have to be
+  # installed on all distros that we support, so we don't have to depend on them
+  # explicitly.
 
-    # postinst and posttrans scripts use a subset of preinst script deps, so we don't
-    # have to list them, because they'll already be there because of preinst
-    runtime_script_dependency :pre, "coreutils"
-    runtime_script_dependency :pre, "grep"
-    if redhat_target?
-      runtime_script_dependency :pre, "glibc-common"
-      runtime_script_dependency :pre, "shadow-utils"
-    else
-      runtime_script_dependency :pre, "glibc"
-      runtime_script_dependency :pre, "shadow"
-    end
+  # postinst and posttrans scripts use a subset of preinst script deps, so we don't
+  # have to list them, because they'll already be there because of preinst
+  runtime_script_dependency :pre, "coreutils"
+  runtime_script_dependency :pre, "grep"
+  if redhat_target?
+    runtime_script_dependency :pre, "glibc-common"
+    runtime_script_dependency :pre, "shadow-utils"
   else
-    maintainer 'Datadog Packages <package@datadoghq.com>'
+    runtime_script_dependency :pre, "glibc"
+    runtime_script_dependency :pre, "shadow"
   end
+else
+  maintainer 'Datadog Packages <package@datadoghq.com>'
+end
 
-  if debian_target?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
-  end
+if debian_target?
+  runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
 end
 
 # build_version is computed by an invoke command/function.
@@ -134,80 +130,31 @@ package :rpm do
   end
 end
 
-
-# Windows .msi specific flags
-package :zip do
-  skip_packager true
-end
-
 package :xz do
   skip_packager do_package
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
 
-package :msi do
-
-  # For a consistent package management, please NEVER change this code
-  # NOTE: We no longer build for 32 bit windows, so we always use the x64 code.
-  # x86 32 bit upgrade_code 'a8c5b8ae-ac27-4d66-b63f-edba0e5ea477'
-  arch = "x64"
-  upgrade_code 'dd60e9df-487b-415c-ba2f-dba19ddc7ebd'
-  wix_candle_extension 'WixUtilExtension'
-  wix_light_extension 'WixUtilExtension'
-
-  additional_sign_files [
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\dogstatsd.exe"
-    ]
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    dd_wcssign true
-    dd_wcs_cert ENV['WINDOWS_SIGNING_CERT'] if ENV['WINDOWS_SIGNING_CERT']
-    dd_wcs_config ENV['WINDOWS_SIGNING_CONFIG'] if ENV['WINDOWS_SIGNING_CONFIG']
-  end
-
-  parameters({
-    'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent",
-    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-dogstatsd",
-    'Platform' => "#{arch}",
-  })
-end
-# OSX .pkg specific flags
-package :pkg do
-  identifier 'com.datadoghq.dogstatsd'
-  #signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
-end
-compress :dmg do
-  window_bounds '200, 200, 750, 600'
-  pkg_position '10, 10'
-end
-
 # package scripts
-if linux_target?
-  if !do_package
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
+if !do_package
+  extra_package_file "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
+  extra_package_file "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
+else
+  if debian_target?
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
   else
-    if debian_target?
-      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
-    else
-      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
-    end
+    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
   end
 end
 
-if linux_target?
-  extra_package_file '/etc/init/datadog-dogstatsd.conf'
-  extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
-  extra_package_file '/etc/datadog-dogstatsd/'
-  extra_package_file '/var/log/datadog/'
-end
+extra_package_file '/etc/init/datadog-dogstatsd.conf'
+extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
+extra_package_file '/etc/datadog-dogstatsd/'
+extra_package_file '/var/log/datadog/'
 
 exclude '\.git*'
 exclude 'bundler\/git'
 
-if linux_target? or windows_target?
-  strip_build windows_target? || !do_package
-  debug_path '.debug'
-end
+strip_build !do_package
+debug_path '.debug'

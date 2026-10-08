@@ -77,6 +77,7 @@ dd_agent_go_test(
     name = "activity_tree_test",
     srcs = [
         "activity_tree_test.go",
+        "dns_node_test.go",
         "paths_reducer_test.go",
         "process_node_snapshot_test.go",
         "size_test.go",

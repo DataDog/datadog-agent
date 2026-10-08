@@ -102,6 +102,12 @@ var (
 	MetricDNSSameIDDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
 	// MetricDiscardedDNSPackets DNS responses that were discarded because of not matching a rule
 	MetricDiscardedDNSPackets = newRuntimeMetric(".dns_response_collector.dns_discarded_packets")
+	// MetricDNSADCorrelationHits DNS responses attributed back to the process that asked the question
+	MetricDNSADCorrelationHits = newRuntimeMetric(".dns_response_collector.ad_correlation_hits")
+	// MetricDNSADCorrelationMisses DNS responses whose question was unknown, stale, or ambiguous
+	MetricDNSADCorrelationMisses = newRuntimeMetric(".dns_response_collector.ad_correlation_misses")
+	// MetricDNSADCorrelationCollisions DNS questions dropped because two processes were in flight on the same key
+	MetricDNSADCorrelationCollisions = newRuntimeMetric(".dns_response_collector.ad_correlation_collisions")
 
 	// filtering metrics
 

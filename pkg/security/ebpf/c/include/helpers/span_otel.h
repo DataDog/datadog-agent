@@ -11,7 +11,7 @@
 // publish per thread through the otel_thread_ctx_v1 ELF TLS variable, whose
 // access model user space has already resolved into struct otel_tls_t.
 
-int __attribute__((always_inline)) unregister_otel_tls() {
+static __always_inline int unregister_otel_tls() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
@@ -242,7 +242,7 @@ static u32 __attribute__((always_inline)) otel_fill_from_record(
 
 // Fills span from the record the current thread's otel_thread_ctx_v1 points at.
 // Returns SPAN_CTX_EVENT_OK on success, or the reason nothing was filled otherwise.
-u32 __attribute__((always_inline)) fill_span_context_otel(
+static __always_inline u32 fill_span_context_otel(
         struct span_context_t *span, struct otel_tls_t *otls) {
     u64 tsd_base = read_thread_pointer();
     if (tsd_base == 0) {

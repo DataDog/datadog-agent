@@ -143,10 +143,34 @@ func TestServicedefIsEnabled_procmgrManagedServices(t *testing.T) {
 	}
 }
 
+func TestAPMServicedefMatchesIsAPMEnabled(t *testing.T) {
+	coreConf := configmock.New(t)
+	sysprobeConf := configmock.NewSystemProbe(t)
+	svc, ok := findService(subservices(coreConf, sysprobeConf), "apm")
+	require.True(t, ok)
+	require.Contains(t, svc.configKeys, "apm_config.enabled")
+	require.Contains(t, svc.configKeys, "apm_config.error_tracking_standalone.enabled")
+
+	coreConf.Set("apm_config.enabled", false, model.SourceDefault)
+	coreConf.Set("apm_config.error_tracking_standalone.enabled", false, model.SourceDefault)
+	assert.False(t, svc.isEnabledByConfig())
+
+	coreConf.Set("apm_config.error_tracking_standalone.enabled", true, model.SourceDefault)
+	assert.True(t, svc.isEnabledByConfig(),
+		"standalone Error Tracking must start the SCM service when dd-procmgr is down")
+
+	installRoot := writeProcmgrDefinitionFile(t, traceProcmgrDefinitionFile)
+	withProcmgrInstallRoot(t, installRoot, func() {
+		assert.True(t, svc.IsEnabled(true, false))
+		assert.False(t, svc.IsEnabled(true, true))
+	})
+}
+
 // The fleet templates ship auto_start: true for these, so the SCM service must be
 // suppressed or both supervisors would run one. The two are only ever correct together.
 func TestServicesAreProcmgrManaged(t *testing.T) {
 	cases := map[string]string{
+		"apm":      traceProcmgrDefinitionFile,
 		"process":  processProcmgrDefinitionFile,
 		"sysprobe": sysprobeProcmgrDefinitionFile,
 	}
@@ -268,8 +292,17 @@ func TestServicedefNeedsProcmgrStartupGate(t *testing.T) {
 
 	t.Run("false without definition file field", func(t *testing.T) {
 		cfg.Set("process_manager.enabled", true, model.SourceDefault)
-		apmSvc := Servicedef{name: "apm"}
-		assert.False(t, apmSvc.needsProcmgrStartupGate(cfg))
+		ungated := Servicedef{name: "cws"}
+		assert.False(t, ungated.needsProcmgrStartupGate(cfg))
+	})
+
+	t.Run("true for apm when process manager enabled", func(t *testing.T) {
+		cfg.Set("process_manager.enabled", true, model.SourceDefault)
+		apmSvc := Servicedef{
+			name:                  "apm",
+			procmgrDefinitionFile: traceProcmgrDefinitionFile,
+		}
+		assert.True(t, apmSvc.needsProcmgrStartupGate(cfg))
 	})
 
 	t.Run("false when process manager disabled", func(t *testing.T) {

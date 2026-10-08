@@ -21,7 +21,6 @@
         - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor*.yaml.tmpl
         - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control*.yaml.tmpl
         - pkg/fleet/installer/packages/processmanager/par_procmgr_config_windows.go
-        - pkg/config/setup/privateactionrunner.go
         - pkg/fleet/installer/packages/datadog_agent_linux.go
         - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.service.tmpl
         - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.socket.tmpl

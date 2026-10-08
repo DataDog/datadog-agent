@@ -852,7 +852,7 @@ func (s *CoreAgentService) refresh() error {
 	s.mu.lastUpdateErr = nil
 	if err != nil {
 		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
-		s.mu.lastUpdateErr = fmt.Errorf("api: %v", err)
+		s.mu.lastUpdateErr = fmt.Errorf("api: %w", err)
 		if s.mu.lastFetchErrorType != err {
 			s.mu.lastFetchErrorType = err
 			s.mu.fetchErrorCount = 0

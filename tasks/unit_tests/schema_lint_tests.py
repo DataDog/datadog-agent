@@ -424,5 +424,72 @@ class TestCheckRenamedFrom(unittest.TestCase):
             )
 
 
+class TestCheckSnakeCaseNames(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_snake_case_names, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_non_snake_case_names_are_errors(self):
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        for path in (
+            "camelCase",
+            "UPPER_prefix",
+            "double__underscore",
+            "_leading_underscore",
+            "trailing_underscore_",
+            "kebab-case",
+            "BadSection",
+            "valid_section.nestedBad",
+        ):
+            self.assertTrue(
+                any(f"[{path}]" in e and "is not snake_case" in e for e in errors),
+                f"Expected error for {path}, got: {errors}",
+            )
+
+    def test_only_offending_name_is_reported(self):
+        # A non snake_case section does not make its snake_case children fail.
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        self.assertFalse(any("good_child" in e for e in errors), f"Unexpected error for good_child, got: {errors}")
+
+    def test_valid_names_pass(self):
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        for path in ("[valid_section]", "valid_v2_setting", "[valid_setting]"):
+            self.assertFalse(any(path in e for e in errors), f"Unexpected error for {path}, got: {errors}")
+
+    def test_excepted_names_pass(self):
+        errors = errors_for(
+            lint.check_snake_case_names, "bad_snake_case.yaml", {"camelCase", "valid_section.nestedBad"}
+        )
+        self.assertFalse(any("camelCase" in e or "nestedBad" in e for e in errors), f"Got: {errors}")
+        self.assertTrue(any("UPPER_prefix" in e for e in errors))
+
+
+class TestCheckTemplateSectionOnPublic(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_template_section_on_public, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_private_setting_with_template_section_is_error(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertTrue(
+            any("private_setting" in e and "only valid on public nodes" in e for e in errors),
+            f"Expected error for private_setting, got: {errors}",
+        )
+
+    def test_private_section_with_template_section_is_error(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertTrue(
+            any("[private_section]" in e for e in errors),
+            f"Expected error for private_section, got: {errors}",
+        )
+
+    def test_public_setting_with_template_section_passes(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertFalse(
+            any("public_setting" in e for e in errors),
+            f"public_setting should not produce an error, got: {errors}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

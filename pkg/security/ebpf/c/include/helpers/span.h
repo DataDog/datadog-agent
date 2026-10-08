@@ -53,7 +53,7 @@ static int __attribute__((always_inline)) fill_span_context_thread_ctx(struct sp
 // context to an event. is_span_tracking_enabled() is backed by a load-time
 // constant, so the verifier folds the branch below and drops both readers
 // entirely when the feature is off.
-void __attribute__((always_inline)) fill_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
+static __always_inline void fill_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
     span->span_id = 0;
     span->trace_id[0] = span->trace_id[1] = 0;
     span->extra_attrs_id = 0;
@@ -75,7 +75,7 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
     }
 }
 
-void __attribute__((always_inline)) reset_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
+static __always_inline void reset_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
     span->span_id = 0;
     span->trace_id[0] = 0;
     span->trace_id[1] = 0;
@@ -85,7 +85,7 @@ void __attribute__((always_inline)) reset_span_context(struct span_context_t *sp
 
 // Hand the thread-context registrations of a forking process down to the child,
 // which inherits both the address space they describe and the records in it.
-void __attribute__((always_inline)) inherit_span_context(u32 ppid, u32 pid) {
+static __always_inline void inherit_span_context(u32 ppid, u32 pid) {
     if (!is_span_tracking_enabled()) {
         return;
     }
@@ -94,12 +94,12 @@ void __attribute__((always_inline)) inherit_span_context(u32 ppid, u32 pid) {
     inherit_go_labels(ppid, pid);
 }
 
-void __attribute__((always_inline)) unregister_span_context() {
+static __always_inline void unregister_span_context() {
     unregister_otel_tls();
     unregister_go_labels();
 }
 
-void __attribute__((always_inline)) copy_span_context(
+static __always_inline void copy_span_context(
     struct span_context_t *src, struct span_context_t *dst,
     struct go_labels_context_t *go_labels_src, struct go_labels_context_t *go_labels_dst)
 {

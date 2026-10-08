@@ -5,10 +5,7 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/internal/tools/gotest-custom",
     visibility = ["//visibility:private"],
-    deps = [
-        "@com_github_google_shlex//:shlex",
-        "@com_github_klauspost_compress//zstd",
-    ],
+    deps = ["@com_github_google_shlex//:shlex"],
 )
 
 go_binary(

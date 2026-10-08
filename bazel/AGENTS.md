@@ -358,7 +358,7 @@ This only applies when the canonical set and the constraint can coexist. A const
 contradicts a canonical set produces no combination at all, and its sources stay out of the wildcard
 test runs. For example `//go:build kubeapiserver && !kubelet` grows to include `kubelet`, because
 `kubeapiserver` and `kubelet` share the canonical set
-`cel clusterchecks kubeapiserver kubelet orchestrator` — and the result then fails the constraint's
+`cel clusterchecks kubeapiserver kubelet` — and the result then fails the constraint's
 own `!kubelet`.
 
 Combinations built this way can be long, and target names are budgeted against the Windows runfiles
@@ -927,11 +927,10 @@ symlink creation without administrator elevation. The `.bazelrc` sets `--enable_
 
 **Runfiles file junctions.** `--enable_runfiles` builds the runfiles tree with directory junctions. Windows junctions
 cannot point at files, so a file runfile shows up as a directory (`d----l`) and `open()` fails with `Permission
-denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path;
-`bazel/patches/rules_pkg-windows-junction-copy.patch` makes the copier follow the reparse point. For generated trees
-that must be reachable as a directory (not file-by-file), `copy_to_directory` so the runfiles entry is one directory
-junction to a real directory of real files (see `//rtloader/test:dir_with_python_home`). Prefer the runfiles library
-over constructing paths under `*.runfiles`.
+denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path. For
+generated trees that must be reachable as a directory (not file-by-file), `copy_to_directory` so the runfiles entry is
+one directory junction to a real directory of real files (see `//rtloader/test:dir_with_python_home`). Prefer the
+runfiles library over constructing paths under `*.runfiles`.
 
 **No sandbox.** Windows uses `--strategy=standalone`. Builds are less hermetic by default — undeclared dependencies that
 happen to be present locally will succeed locally and fail in CI or RBE.

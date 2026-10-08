@@ -175,9 +175,18 @@ func (w *Worker) Run(ctx context.Context) {
 	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
 	defer cancel()
 
-	for check := range w.pendingChecksChan {
+	// The worker exits after an interval-zero check, whether the check ran or
+	// was skipped: the collector adds an extra worker for each such check, so
+	// exiting returns the pool to its size. exitAfterCheck is set before the
+	// skips below, so their `continue` also ends the loop.
+	for exitAfterCheck := false; !exitAfterCheck; {
+		check, ok := <-w.pendingChecksChan
+		if !ok {
+			break
+		}
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
+		exitAfterCheck = longRunning
 
 		if w.haAgent.Enabled() && check.IsHASupported() && !w.haAgent.IsActive() {
 			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
@@ -308,6 +317,9 @@ func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTrac
 			workerUtilization.Set(value, name)
 		}
 		expvars.DeleteWorkerStats(name)
+		// Workers exit after interval-zero checks while the Agent runs, and
+		// worker names are never reused, so remove the series with the worker.
+		workerUtilization.Delete(name)
 	}()
 }
 

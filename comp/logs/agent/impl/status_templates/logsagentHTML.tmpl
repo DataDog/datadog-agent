@@ -18,13 +18,14 @@
         {{$metric_name}}: {{$metric_value}}<br>
       {{- end }}
     {{- end }}
-    {{- if .ComponentUtilization }}
+    {{- if or .ComponentUtilization .Backpressure.Reason }}
       <span class="stat_subtitle">Logs Agent Backpressure</span>
       <span class="stat_subdata">
         <strong>Overall state:</strong> {{ .Backpressure.State }}<br>
         {{- if .Backpressure.Reason }}
         <strong>Reason:</strong> {{ .Backpressure.Reason }}<br>
         {{- end }}
+        {{- if .ComponentUtilization }}
         <table style="border-collapse:collapse;margin-top:6px;font-family:monospace;font-size:12px">
           <tr style="text-align:left;border-bottom:1px solid #ccc">
             <th style="padding:2px 8px">Component</th>
@@ -53,6 +54,7 @@
           </tr>
           {{- end }}
         </table>
+        {{- end }}
       </span>
     {{- end }}
     {{- if .Errors }}

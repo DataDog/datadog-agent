@@ -40,7 +40,6 @@ dd_agent_go_test(
         "docker",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [

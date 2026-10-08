@@ -64,9 +64,13 @@ func (dc *DeviceContext) Lock(ctx context.Context, timeout time.Duration) error 
 		// writing a bool locks it, because the channel only holds one element.
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		select {
+		case dc.lock <- true: // if both became ready together, prefer the lock
+			return nil
+		default:
+			return ctx.Err()
+		}
 	}
-
 }
 
 // Unlock unlocks this device. It returns an error if the device is not locked.

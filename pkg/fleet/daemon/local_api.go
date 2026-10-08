@@ -65,7 +65,7 @@ type localAPIImpl struct {
 
 // Start starts the LocalAPI.
 func (l *localAPIImpl) Start(_ context.Context) error {
-	l.server.Handler = l.handler()
+	l.server.Handler = requireRootForChanges(rootOnlyChanges, l.handler())
 	go func() {
 		err := l.server.Serve(l.listener)
 		if err != nil {
@@ -78,6 +78,28 @@ func (l *localAPIImpl) Start(_ context.Context) error {
 // Stop stops the LocalAPI.
 func (l *localAPIImpl) Stop(ctx context.Context) error {
 	return l.server.Shutdown(ctx)
+}
+
+// peerUIDKey is the request context key under which connContext stores the caller's uid.
+type peerUIDKey struct{}
+
+// requireRootForChanges, when enabled, lets any caller read the daemon's status and reserves
+// every other route for callers running as root. A caller whose uid is unknown is not root.
+func requireRootForChanges(enabled bool, next http.Handler) http.Handler {
+	if !enabled {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/status" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if uid, ok := r.Context().Value(peerUIDKey{}).(uint32); !ok || uid != 0 {
+			http.Error(w, "this route is reserved for root", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (l *localAPIImpl) handler() http.Handler {

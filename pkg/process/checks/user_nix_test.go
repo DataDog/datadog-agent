@@ -8,111 +8,196 @@
 package checks
 
 import (
+	"errors"
+	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-func TestLookupUserWithId(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetInTest("process_config.cache_lookupid", true)
-
+func TestLookupIDCacheSetting(t *testing.T) {
+	t.Setenv("HOST_ETC", "")
+	lookupErr := errors.New("unknown user")
 	for _, tc := range []struct {
-		name          string
-		expectedUser  *user.User
-		expectedError error
-		ttl           time.Duration
+		name       string
+		cache      bool
+		initialErr error
 	}{
-		{
-			name:         "user found",
-			expectedUser: &user.User{Name: "steve"},
-			ttl:          cache.NoExpiration,
-		},
-		{
-			name:          "user not found",
-			expectedError: user.UnknownUserIdError(0),
-			ttl:           cache.NoExpiration,
-		},
+		{name: "cached user", cache: true},
+		{name: "uncached user"},
+		{name: "cached error", cache: true, initialErr: lookupErr},
+		{name: "uncached error", initialErr: lookupErr},
 	} {
-		const testUID = "0"
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewLookupIDProbe(cfg)
-
-			checkResult := func(u *user.User, err error) {
-				t.Helper()
-
-				if tc.expectedUser != nil {
-					assert.Equal(t, tc.expectedUser.Name, u.Name)
-				} else {
-					assert.Nil(t, tc.expectedUser)
+			cfg := configmock.New(t)
+			cfg.SetInTest("process_config.cache_lookupid", tc.cache)
+			probe := NewLookupIDProbe(cfg)
+			initialUser := &user.User{Username: "before"}
+			if tc.initialErr != nil {
+				initialUser = nil
+			}
+			updatedUser := &user.User{Username: "after"}
+			calls := 0
+			probe.lookupID = func(string) (*user.User, error) {
+				calls++
+				if calls == 1 {
+					return initialUser, tc.initialErr
 				}
-
-				assert.ErrorIs(t, tc.expectedError, err)
+				return updatedUser, nil
 			}
 
-			checkCacheResult := func(res interface{}, ok bool) {
-				t.Helper()
+			u, err := probe.LookupID("123")
+			require.ErrorIs(t, err, tc.initialErr)
+			require.Equal(t, initialUser, u)
 
-				assert.True(t, ok)
-				switch v := res.(type) {
-				case *user.User:
-					assert.Equal(t, tc.expectedUser.Name, v.Name)
-				case error:
-					assert.ErrorIs(t, v, tc.expectedError)
-				}
+			u, err = probe.LookupID("123")
+			if tc.cache {
+				require.ErrorIs(t, err, tc.initialErr)
+				assert.Equal(t, initialUser, u)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, updatedUser, u)
 			}
-
-			var timesCalled int
-			p.lookupID = func(inputUID string) (*user.User, error) {
-				// Make sure this function is called once despite the fact that we call `lookupIDWithCache`.
-				// This should simulate a cache hit vs a miss.
-				timesCalled++
-				assert.Equal(t, 1, timesCalled)
-
-				assert.Equal(t, testUID, inputUID)
-				if tc.expectedError != nil {
-					return nil, tc.expectedError
-				}
-				return tc.expectedUser, nil
-			}
-
-			checkResult(p.LookupID(testUID))
-			checkCacheResult(p.lookupIDCache.Get(testUID))
-			checkResult(p.LookupID(testUID))
 		})
 	}
 }
 
-func TestLookupIDConfigSetting(t *testing.T) {
-	testLookupIDFunc := func(_ string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
+func TestLookupIDHostPasswdCacheSetting(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cache    bool
+		expected string
+	}{
+		{name: "cached", cache: true, expected: "before"},
+		{name: "uncached", expected: "after"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writePasswd(t, dir, "before:x:42:4::/:/bin/sh\n")
+			t.Setenv("HOST_ETC", dir)
+			cfg := configmock.New(t)
+			cfg.SetInTest("process_config.cache_lookupid", tc.cache)
+			probe := NewLookupIDProbe(cfg)
+			probe.lookupID = func(string) (*user.User, error) {
+				return &user.User{Username: "local-user"}, nil
+			}
 
-	t.Run("enabled", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.SetInTest("process_config.cache_lookupid", true)
+			u, err := probe.LookupID("42")
+			require.NoError(t, err)
+			require.Equal(t, "before", u.Username)
 
-		p := NewLookupIDProbe(cfg)
-		p.lookupID = testLookupIDFunc
+			writePasswd(t, dir, "after:x:42:4::/:/bin/sh\n")
+			u, err = probe.LookupID("42")
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, u.Username)
+		})
+	}
+}
 
-		_, _ = p.LookupID("1234") // testLookupIDFunc should be called and "1234" added to the cache
-		u, ok := p.lookupIDCache.Get("1234")
-		assert.Equal(t, "jojo", u.(*user.User).Name)
-		assert.True(t, ok)
-	})
+func TestLookupIDFallsBackWhenHostUIDIsAbsent(t *testing.T) {
+	dir := t.TempDir()
+	writePasswd(t, dir, "host-user:x:42:4::/:/bin/sh\n")
+	t.Setenv("HOST_ETC", dir)
+	cfg := configmock.New(t)
+	cfg.SetInTest("process_config.cache_lookupid", false)
+	probe := NewLookupIDProbe(cfg)
+	localUsers := map[string]*user.User{
+		"0":   {Username: "root"},
+		"123": {Username: "local-user"},
+	}
+	probe.lookupID = func(uid string) (*user.User, error) {
+		if u, ok := localUsers[uid]; ok {
+			return u, nil
+		}
+		return nil, errors.New("unknown user")
+	}
 
-	t.Run("disabled", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.SetInTest("process_config.cache_lookupid", false)
+	u, err := probe.LookupID("123")
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	assert.Equal(t, "local-user", u.Username)
+}
 
-		p := NewLookupIDProbe(cfg)
-		p.lookupID = testLookupIDFunc
+func TestLookupIDCachedFallbackPrecedesNewHostEntry(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		user *user.User
+		err  error
+	}{
+		{name: "cached username", user: &user.User{Username: "local-user"}},
+		{name: "cached error", err: errors.New("unknown user")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("HOST_ETC", dir)
+			cfg := configmock.New(t)
+			cfg.SetInTest("process_config.cache_lookupid", true)
+			probe := NewLookupIDProbe(cfg)
+			probe.lookupID = func(string) (*user.User, error) {
+				return tc.user, tc.err
+			}
 
-		_, _ = p.LookupID("1234")
-		_, ok := p.lookupIDCache.Get("1234")
-		assert.False(t, ok)
-	})
+			u, err := probe.LookupID("123")
+			require.ErrorIs(t, err, tc.err)
+			require.Equal(t, tc.user, u)
+
+			writePasswd(t, dir, "host-user:x:123:123::/:/bin/sh\n")
+			u, err = probe.LookupID("123")
+			require.ErrorIs(t, err, tc.err)
+			assert.Equal(t, tc.user, u)
+
+			// Disabling the existing cache must bypass cached results and errors.
+			cfg.SetInTest("process_config.cache_lookupid", false)
+			u, err = probe.LookupID("123")
+			require.NoError(t, err)
+			assert.Equal(t, "host-user", u.Username)
+		})
+	}
+}
+
+func TestLookupIDHostReadFailureFallsBackAndRecovers(t *testing.T) {
+	dir := t.TempDir()
+	writePasswd(t, dir, "before:x:42:4::/:/bin/sh\n")
+	t.Setenv("HOST_ETC", dir)
+	cfg := configmock.New(t)
+	cfg.SetInTest("process_config.cache_lookupid", false)
+	probe := NewLookupIDProbe(cfg)
+	probe.lookupID = func(string) (*user.User, error) {
+		return &user.User{Username: "local-user"}, nil
+	}
+
+	u, err := probe.LookupID("42")
+	require.NoError(t, err)
+	require.Equal(t, "before", u.Username)
+
+	passwdPath := filepath.Join(dir, "passwd")
+	require.NoError(t, os.Remove(passwdPath))
+	require.NoError(t, os.Mkdir(passwdPath, 0o700))
+	u, err = probe.LookupID("42")
+	require.NoError(t, err)
+	assert.Equal(t, "local-user", u.Username)
+
+	require.NoError(t, os.Remove(passwdPath))
+	writePasswd(t, dir, "recovered:x:42:4::/:/bin/sh\n")
+	u, err = probe.LookupID("42")
+	require.NoError(t, err)
+	assert.Equal(t, "recovered", u.Username)
+}
+
+func TestLookupIDReadsHostEtcAfterConstruction(t *testing.T) {
+	t.Setenv("HOST_ETC", "")
+	probe := NewLookupIDProbe(configmock.New(t))
+
+	dir := t.TempDir()
+	writePasswd(t, dir, "host-user:x:42:4::/:/bin/sh\n")
+	t.Setenv("HOST_ETC", dir)
+
+	u, err := probe.LookupID("42")
+	require.NoError(t, err)
+	assert.Equal(t, "host-user", u.Username)
 }

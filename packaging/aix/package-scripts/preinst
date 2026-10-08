@@ -1,2 +1,5 @@
 #!/bin/sh
+# Pre-installation Script — runs on fresh installs and upgrades, before the
+# new files are installed. On upgrades it runs after prerm, once the old
+# files have been removed.
 stopsrc -g datadog-agent 2>/dev/null || true

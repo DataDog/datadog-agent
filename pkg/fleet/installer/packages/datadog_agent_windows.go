@@ -214,6 +214,7 @@ var procmgrConfigs = []procmgrConfig{
 	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
 	{"process-agent", processmanager.WriteProcessProcmgrConfig, processmanager.RemoveProcessProcmgrConfig},
 	{"system-probe", processmanager.WriteSysprobeProcmgrConfig, processmanager.RemoveSysprobeProcmgrConfig},
+	{"trace-agent", processmanager.WriteTraceProcmgrConfig, processmanager.RemoveTraceProcmgrConfig},
 }
 
 func ensureProcmgrConfig(cfg procmgrConfig) error {

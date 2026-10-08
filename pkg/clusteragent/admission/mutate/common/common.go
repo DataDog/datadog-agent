@@ -36,6 +36,13 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
 	}
 
+	// Diff typed snapshots so fields unknown to the Kubernetes client are left untouched.
+	// Capture the baseline before normalization so its corrections are included in the patch.
+	beforeJSON, err := json.Marshal(pod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the original Pod object: %v", err)
+	}
+
 	// In rare cases multiple mutation webhooks executed in sequence can cause the spec to be invalid. This was seen
 	// when the autoinstrumentation library injection webhook ran before and after GKE Autopilot webhooks.
 	// Normalize correctable issues before proceeding so downstream can assume the pod spec is valid.
@@ -52,12 +59,12 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 
-	bytes, err := json.Marshal(pod)
+	afterJSON, err := json.Marshal(pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
 	}
 
-	patch, err := jsondiff.CompareJSON(rawPod, bytes) // TODO: Try to generate the patch at the MutationFunc
+	patch, err := jsondiff.CompareJSON(beforeJSON, afterJSON) // TODO: Try to generate the patch at the MutationFunc
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}

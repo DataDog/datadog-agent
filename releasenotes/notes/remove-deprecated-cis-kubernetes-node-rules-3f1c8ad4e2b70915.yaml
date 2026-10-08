@@ -1,0 +1,19 @@
+---
+upgrade:
+  - |
+    The 75 deprecated CIS Kubernetes 1.5.1 rules scoped to Kubernetes nodes are
+    no longer shipped or evaluated, and stop producing findings. They covered
+    control plane and worker node file permissions and ownership, and the
+    command line flags of ``kube-apiserver``, ``kube-controller-manager``,
+    ``kube-scheduler``, ``etcd``, ``kube-proxy`` and ``kubelet`` (controls
+    1.1.x, 1.2.x, 1.3.x, 1.4.x, 2.x, 3.2.1, 4.1.x and 4.2.x). They were marked
+    deprecated in March 2024 and reported ``skipped`` on EKS, GKE and AKS,
+    where the control plane files they read are not present on the node.
+
+    Kubernetes node posture is now evaluated from the node configuration the
+    Agent exports as a ``kubernetes_master_node``, ``kubernetes_worker_node``,
+    ``aws_eks_worker_node``, ``gcp_gke_worker_node`` or
+    ``azure_aks_worker_node`` resource, against the CIS Kubernetes 1.9.0, CIS
+    Amazon EKS, CIS GKE and CIS AKS benchmarks. Dashboards, monitors and
+    suppressions keyed on a ``cis-kubernetes-1.5.1-*`` rule ID need to be
+    repointed at the equivalent rule in those benchmarks.

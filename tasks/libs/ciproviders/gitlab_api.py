@@ -788,7 +788,13 @@ def test_gitlab_configuration(entry_point: str, config_object: dict, context=Non
         config_object, variable_overrides=context, do_filtering=False, clean=False
     )
     config_dump = yaml.safe_dump(config_object)
-    res = agent.ci_lint.create({"content": config_dump, "dry_run": True, "include_jobs": True})
+    lint_request = {"content": config_dump, "dry_run": True, "include_jobs": True}
+    # Lint the configuration in the context of its baseline branch ($COMPARE_TO_BRANCH), since the `rules` of
+    # the configuration are written against it, rather than in the context of the default branch
+    lint_ref = (config_object.get('variables') or {}).get('COMPARE_TO_BRANCH')
+    if lint_ref:
+        lint_request["ref"] = lint_ref
+    res = agent.ci_lint.create(lint_request)
     if len(res.warnings) > 0:
         raise SingleGitlabLintFailure(
             entry_point=entry_point,

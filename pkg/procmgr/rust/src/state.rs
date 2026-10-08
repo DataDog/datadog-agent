@@ -17,6 +17,8 @@ pub enum ProcessState {
     Crashed,
     Failed,
     Stopped,
+    /// Start pass declined to spawn, and no child has ever existed.
+    Skipped,
 }
 
 impl ProcessState {
@@ -32,6 +34,8 @@ impl ProcessState {
         matches!(
             (self, next),
             (Created, Starting)
+                | (Created, Skipped)
+                | (Skipped, Starting)
                 | (Starting, Running)
                 // No (Starting, Crashed): a spawn that never produced a process
                 // image cannot have died without returning a value.
@@ -61,6 +65,7 @@ impl fmt::Display for ProcessState {
             ProcessState::Crashed => write!(f, "crashed"),
             ProcessState::Failed => write!(f, "failed"),
             ProcessState::Stopped => write!(f, "stopped"),
+            ProcessState::Skipped => write!(f, "skipped"),
         }
     }
 }
@@ -92,5 +97,23 @@ mod tests {
     #[test]
     fn crashed_displays_lowercase() {
         assert_eq!(Crashed.to_string(), "crashed");
+    }
+
+    #[test]
+    fn skipped_is_reachable_from_created_and_startable() {
+        assert!(Created.can_transition_to(Skipped));
+        assert!(Skipped.can_transition_to(Starting));
+        assert!(!Skipped.is_alive());
+        assert_eq!(Skipped.to_string(), "skipped");
+    }
+
+    #[test]
+    fn skipped_rejects_post_child_states() {
+        assert!(!Running.can_transition_to(Skipped));
+        assert!(!Exited.can_transition_to(Skipped));
+        assert!(!Failed.can_transition_to(Skipped));
+        assert!(!Stopped.can_transition_to(Skipped));
+        assert!(!Crashed.can_transition_to(Skipped));
+        assert!(!Skipped.can_transition_to(Failed));
     }
 }

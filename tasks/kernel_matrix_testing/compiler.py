@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import shlex
 import sys
 import tempfile
+from contextlib import chdir
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -13,6 +15,7 @@ from invoke.exceptions import CommandTimedOut
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
+from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.utils import get_repo_root
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
@@ -155,6 +158,29 @@ class CompilerImage:
         elif not git_dir.is_dir():
             raise Exit(f"[-] .git directory is not a directory in {repo_root}, git worktrees are not supported")
 
+    def host_repository_cache(self) -> Path | None:
+        """Return the host Bazel repository_cache path when it exists, else None.
+
+        Resolved via `bazel info` so all rc layers (workspace, user, home) apply.
+        """
+        with chdir(get_repo_root()):
+            res = bazel("info", "repository_cache", capture_output=True, ignore_errors=True)
+        if isinstance(res, str) or res.returncode != 0:
+            warn("[!] Could not resolve Bazel repository_cache; container will not share the host cache")
+            return None
+
+        raw = res.stdout.strip()
+        # --repository_cache= yields empty stdout; Path('') is '.' and is_dir() is true.
+        if not raw:
+            warn("[!] Bazel repository_cache is empty (caching disabled); skipping mount")
+            return None
+
+        cache = Path(raw)
+        if not cache.is_absolute() or not cache.is_dir():
+            warn(f"[!] Bazel repository_cache {cache} does not exist; skipping mount")
+            return None
+        return cache
+
     def exec(
         self,
         cmd: str,
@@ -216,9 +242,17 @@ class CompilerImage:
         platform = ""
         if self.arch != Arch.local():
             platform = f"--platform linux/{self.arch.go_arch}"
+
+        mounts = [f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH}"]
+        repo_cache = self.host_repository_cache()
+        if repo_cache is not None:
+            # Same absolute path so an explicit workspace/user.bazelrc --repository_cache= still matches.
+            mounts.append(f"--mount {shlex.quote(f'type=bind,source={repo_cache},target={repo_cache}')}")
+            info(f"[*] Mounting host Bazel repository_cache at {repo_cache}")
+
         res = self.ctx.run(
             f"docker run {platform} -d --restart always --name {self.name} "
-            f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH} "
+            f"{' '.join(mounts)} "
             f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
         )
@@ -228,6 +262,15 @@ class CompilerImage:
         # Due to permissions issues, we do not want to compile with the root user in the Docker image. We create a user
         # inside there with the same UID and GID as the current user
         self.ensure_compiler_user_created()
+
+        if repo_cache is not None:
+            # Host default/home-rc cache paths differ from the container user's; force the mounted path.
+            bazelrc = f"/home/{self.compiler_user}/.bazelrc"
+            with tempfile.NamedTemporaryFile(mode='w') as rc:
+                rc.write(f"common --repository_cache={shlex.quote(str(repo_cache))}\n")
+                rc.flush()
+                self.ctx.run(f"docker cp {rc.name} {self.name}:{bazelrc}")
+            self.exec(f"chown {self.host_uid}:{self.host_gid} {bazelrc}", user="root")
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(

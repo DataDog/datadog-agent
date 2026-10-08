@@ -85,6 +85,8 @@ type cliProcess struct {
 	Before              []string `json:"before"`
 	Stdout              string   `json:"stdout"`
 	Stderr              string   `json:"stderr"`
+	ConfigError         string   `json:"config_error"`
+	SkipReasons         []string `json:"skip_reasons"`
 }
 
 func (p cliProcess) snapshot() ProcessSnapshot {
@@ -110,6 +112,8 @@ func (p cliProcess) snapshot() ProcessSnapshot {
 		Before:              p.Before,
 		Stdout:              p.Stdout,
 		Stderr:              p.Stderr,
+		ConfigError:         p.ConfigError,
+		SkipReasons:         p.SkipReasons,
 	}
 }
 

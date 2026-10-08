@@ -261,34 +261,20 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Install agent as system-wide LaunchDaemon
-echo "# Installing agent as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" /Library/LaunchDaemons/com.datadoghq.agent.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.agent.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.agent.plist
-launchctl enable system/com.datadoghq.agent 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.agent.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap agent service."
-fi
-
-# Install system-probe as system-wide LaunchDaemon
-echo "# Installing system-probe as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.sysprobe.plist.example" /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-launchctl enable system/com.datadoghq.sysprobe 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.sysprobe.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap system-probe service."
-fi
-
-# Install Agent Data Plane as system-wide LaunchDaemon
-echo "# Installing Agent Data Plane as system-wide LaunchDaemon"
-cp -vf "$CONF_DIR/com.datadoghq.data-plane.plist.example" /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-chown root:wheel /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-chmod 644 /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-launchctl enable system/com.datadoghq.data-plane 2>/dev/null || true
-if ! launchctl bootstrap system /Library/LaunchDaemons/com.datadoghq.data-plane.plist 2>&1; then
-    echo "WARNING: Failed to bootstrap Agent Data Plane service."
+# Run the postinst, as deb/rpm/msi do. It registers the Agent in the OCI package repository Fleet
+# configuration experiments need, and writes and loads the agent, system-probe, Agent Data Plane
+# and installer daemon LaunchDaemons from the definitions embedded in the installer -- the same
+# ones a Fleet configuration experiment swaps between, so the two cannot drift apart.
+# See pkg/fleet/installer/packages/datadog_agent_darwin.go
+echo "# Installing agent, system-probe, Agent Data Plane and the installer daemon as system-wide LaunchDaemons"
+INSTALLER_BIN="$INSTALL_DIR/embedded/bin/installer"
+if [ -x "$INSTALLER_BIN" ]; then
+    if ! "$INSTALLER_BIN" postinst datadog-agent dmg 2>&1; then
+        echo "WARNING: The installer postinst failed; the Agent, remote configuration management or Fleet configuration experiments may be unavailable."
+    fi
+    ln -vsf "$INSTALLER_BIN" /usr/local/bin/datadog-installer
+else
+    echo "WARNING: $INSTALLER_BIN missing; skipping LaunchDaemon setup"
 fi
 
 # Install GUI LaunchAgent for all users (system-wide)

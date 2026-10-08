@@ -125,9 +125,8 @@ namespace WixSetup.Datadog_Agent
 
             // See PrerequisitesCustomActions.EnsureSecureConfigRoot.
             //
-            // After InstallValidate so REMOVE is set, and before InstallInitialize so failing here does
-            // not leave a partial installation behind. APPLICATIONDATADIRECTORY is resolved earlier, by
-            // CostFinalize.
+            // After InstallValidate and before InstallInitialize, so rejection happens before the
+            // transaction starts. ReadConfig independently validates ownership before importing settings.
             //
             // Runs unconditionally, including on uninstall and on removal for an upgrade: this only
             // asserts (never creates or modifies) the directory, so it cannot leave a partial
@@ -182,8 +181,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.ReadConfig,
                     Return.ignore,
                     When.After,
-                    // Must execute after CostFinalize since we depend
-                    // on APPLICATIONDATADIRECTORY being set.
+                    // The directory is resolved here; ReadConfig validates its owner before reading.
                     Step.CostFinalize,
                     // Not needed during uninstall, but since it runs before InstallValidate the recommended
                     // REMOVE=ALL condition does not work, so always run it.

@@ -439,3 +439,31 @@ func TestWorkloadmetaEventFromSBOMEventSet_BadInput(t *testing.T) {
 		assert.Nil(t, event.Entity)
 	})
 }
+
+// notifyStore records the events notified to it.
+type notifyStore struct {
+	workloadmeta.Component
+
+	notified []workloadmeta.CollectorEvent
+}
+
+func (s *notifyStore) Notify(events []workloadmeta.CollectorEvent) {
+	s.notified = append(s.notified, events...)
+}
+
+// TestHandleResyncNotifiesEvents checks that the report of the first response
+// after a reconnect reaches the store, as the report of any other response does.
+func TestHandleResyncNotifiesEvents(t *testing.T) {
+	events := []workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceRemoteSBOMCollector,
+		Entity: &workloadmeta.ContainerImageMetadata{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "sha256:image"},
+		},
+	}}
+
+	store := &notifyStore{}
+	(&streamHandler{}).HandleResync(store, events)
+
+	assert.Equal(t, events, store.notified)
+}

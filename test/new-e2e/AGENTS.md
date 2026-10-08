@@ -36,6 +36,14 @@ Write assertions on the assumption that `FilterMetrics` returns your test's payl
 
 Use the `write-e2e` skill (`.agents/skills/write-e2e/`) to author or extend a test: it covers scoping from a diff, environment and cloud choice, fakeintake assertions, and GitLab wiring. `run-e2e` and `run-windows-e2e` cover running tests that already exist.
 
+A reused stack keeps its fakeintake, and `FlushServerAndResetAggregators` does not touch the Remote
+Config store. So under `E2E_DEV_MODE` every config a previous run pushed with `RCAddConfig` is still
+there, and the agent or installer daemon applies all of them on its first poll — a run can start
+with another run's config deployed. A suite that pushes RC configs must clear them itself in
+`SetupSuite` (`RCListConfigs` then `RCDeleteConfig`), and must make its config ids unique per run:
+ids derived from a counter collide across runs, and the installer daemon deduplicates `UPDATER_TASK`
+by id for the life of its process, so a colliding task is silently never executed.
+
 Several areas add local rules that override the defaults above, either in their own `AGENTS.md` (`tests/windows/`, `tests/gpu/`, `tests/installer/windows/`, and others) or in a directory-scoped skill under `tests/<area>/.claude/skills/`. Check for both before writing in an area.
 
 ## Keeping this file accurate

@@ -151,6 +151,12 @@ Shared Windows helpers live in `common/`. **Before writing one-off
 PowerShell commands in a test, check `common/` and `common/agent/` for
 an existing helper** — many operations already have Go wrappers.
 
+For long-running processes, use `RemoteHost.Start` and keep its SSH session
+open until test cleanup (see `StartProcdump`). On Windows, `Start-Process`
+inside `RemoteHost.Execute` does not keep children alive after that SSH
+session ends. Close the persistent session before collecting logs or
+removing the process's files.
+
 Key areas: Windows services, registry, ACL/permissions, local users, event
 logs, WER crash dumps, procdump, filesystem snapshots, process management,
 network diagnostics, and PowerShell command builder.

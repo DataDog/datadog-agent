@@ -194,7 +194,7 @@ enum CREDENTIAL_SOURCE {
 
 #define OTEL_SPAN_ATTRS_MAX_ENTRIES 4096
 
-__attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
+static __always_inline u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;
     LOAD_CONSTANT("cgroup_activity_dumps_enabled", cgroup_activity_dumps_enabled);
     return cgroup_activity_dumps_enabled != 0;

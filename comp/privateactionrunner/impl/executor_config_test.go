@@ -70,6 +70,7 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 
 	_, err := runner.getRunnerConfig(context.Background())
 	require.ErrorIs(t, err, opms.ErrEnrollmentUnauthorized)
+	require.NotContains(t, err.Error(), "backoff")
 	_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
 	require.NoError(t, err)
 	require.Nil(t, resolved)

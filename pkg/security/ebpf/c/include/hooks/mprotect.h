@@ -45,7 +45,7 @@ int hook_security_file_mprotect(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mprotect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_mprotect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MPROTECT);
     if (!syscall) {
         return 0;
@@ -76,7 +76,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mprotect_ret(void *ctx, int retval) {
+static __always_inline int sys_mprotect_ret(void *ctx, int retval) {
     return sys_mprotect_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

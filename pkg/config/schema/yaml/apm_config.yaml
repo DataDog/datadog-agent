@@ -903,21 +903,6 @@ properties:
 
             - ns2
             - system-ns
-      csi_driver_detection_enabled:
-        node_type: setting
-        type: boolean
-        default: false
-        env_vars:
-        - DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED
-        comment: |-
-          Temporary feature flag controlling whether the auto-instrumentation
-          library injection auto provider switches to the CSI provider when the
-          Datadog CSI driver is detected in the cluster (via workloadmeta). When
-          false, the auto provider always falls back to the init-container
-          provider.
-
-          TODO(apm-auto-instrumentation): once CSI auto-detection has been
-          validated in production, remove this flag and the associated wiring in.
       injection_mode:
         node_type: setting
         type: string

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Prevent Windows installer telemetry from reading settings from an Agent configuration directory with an unexpected owner.

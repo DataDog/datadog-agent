@@ -158,7 +158,6 @@ func (m *GenericPackageManager) AssertInstalled(checkBinary string, opts ...Pack
 	return cmd, nil
 }
 
-
 func (m *GenericPackageManager) updateDB(opts []pulumi.ResourceOption) (command.Command, error) {
 	if m.updateDBCommand != nil {
 		return m.updateDBCommand, nil

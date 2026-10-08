@@ -9,14 +9,20 @@ Integration tests for the cluster-agent spot scheduler using a local kind cluste
 
 ## Build the cluster-agent image
 
-The cluster-agent must be built for Linux inside a devenv container (macOS binaries won't run in kind):
+The cluster-agent must be built for Linux (macOS binaries won't run in kind), so run the build
+inside the [developer environment](../../../../../doc/tutorials/dev/env.md):
 
 ```bash
-./build-cluster-agent-image.sh [image] [arch]
-# defaults: image=${USER}/cluster-agent:test  arch=arm64
+dda env dev start
+dda env dev run -- dda inv deps   # first time only
+dda env dev run -- dda inv cluster-agent.hacky-dev-image-build --target-image ${USER}/cluster-agent:test
 ```
 
-This produces `${USER}/cluster-agent:test` in the local Docker daemon.
+This builds the cluster-agent from your working tree (including uncommitted changes), layers it on top of
+the latest released cluster-agent image and produces `${USER}/cluster-agent:test` in the Docker daemon
+shared with the host. Use `--base-image` to pin the base image.
+See [Test with Local Agent Image](../../../../../doc/how-to/test/e2e/running.md#test-with-local-agent-image)
+for details.
 
 ## Run the tests
 

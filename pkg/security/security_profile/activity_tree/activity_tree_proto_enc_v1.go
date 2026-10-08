@@ -323,7 +323,7 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	}
 
 	for _, req := range dn.Requests {
-		pdn.Requests = append(pdn.Requests, dnsQuestionToProto(&req))
+		pdn.Requests = append(pdn.Requests, dnsRequestNodeToProto(&req))
 	}
 
 	pdn.NodeBase = nodeBaseToProto(&dn.NodeBase, tagIDToImageTag)
@@ -331,18 +331,42 @@ func dnsNodeToProto(dn *DNSNode, tagIDToImageTag func(id uint64) string) *adprot
 	return pdn
 }
 
-func dnsQuestionToProto(q *model.DNSQuestion) *adproto.DNSInfo {
-	if q == nil {
+func dnsRequestNodeToProto(req *DNSRequestNode) *adproto.DNSInfo {
+	if req == nil {
 		return nil
 	}
 
 	return &adproto.DNSInfo{
-		Name:  escape(q.Name),
-		Type:  uint32(q.Type),
-		Class: uint32(q.Class),
-		Size:  uint32(q.Size),
-		Count: uint32(q.Count),
+		Name:     escape(req.Question.Name),
+		Type:     uint32(req.Question.Type),
+		Class:    uint32(req.Question.Class),
+		Size:     uint32(req.Question.Size),
+		Count:    uint32(req.Question.Count),
+		Response: dnsResponseToProto(req.Response),
 	}
+}
+
+func dnsResponseToProto(resp *DNSResponseAggregate) *adproto.DNSResponseInfo {
+	if resp == nil {
+		return nil
+	}
+
+	presp := &adproto.DNSResponseInfo{
+		Ips:    make([]string, 0, len(resp.IPs)),
+		Cnames: make([]string, 0, len(resp.CNames)),
+	}
+
+	for _, ip := range resp.IPs {
+		if str := utils.GetIPStringFromIPNet(ip); str != "" {
+			presp.Ips = append(presp.Ips, str)
+		}
+	}
+
+	for _, cname := range resp.CNames {
+		presp.Cnames = append(presp.Cnames, escape(cname))
+	}
+
+	return presp
 }
 
 func imdsNodeToProto(in *IMDSNode, tagIDToImageTag func(id uint64) string) *adproto.IMDSNode {
@@ -480,7 +504,7 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 		Seen: make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
 	}
 
-	nb.EachSeen(func(id uint64, times ImageTagTimes) {
+	nb.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
 		tag := tagIDToImageTag(id)
 		if tag == "" {
 			// ID is stale (slot was freed before this node was evicted); skip to avoid
@@ -488,8 +512,8 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 			return
 		}
 		pnb.Seen[tag] = &adproto.ImageTagTimes{
-			FirstSeen: TimestampToProto(&times.FirstSeen),
-			LastSeen:  TimestampToProto(&times.LastSeen),
+			FirstSeen: uint64(firstSeen),
+			LastSeen:  uint64(lastSeen),
 		}
 	})
 

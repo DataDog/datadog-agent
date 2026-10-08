@@ -307,7 +307,7 @@
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
-'@datadog/gpu-monitoring-agent':
+'@datadog/accelerator-telemetry':
   notification:
     name: '#accelerator-telemetry-ops'
     id: 'C0APTNVCC04'

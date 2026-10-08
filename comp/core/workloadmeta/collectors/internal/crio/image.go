@@ -155,10 +155,9 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 				for historyIndex < len(parsed.ImageSpec.History) {
 					history := parsed.ImageSpec.History[historyIndex]
 					if history.EmptyLayer {
-						created, _ := time.Parse(time.RFC3339, history.Created)
 						imgInfo.layers = append(imgInfo.layers, workloadmeta.ContainerImageLayer{
 							History: &imgspecs.History{
-								Created:    &created,
+								Created:    historyCreated(history.Created),
 								CreatedBy:  history.CreatedBy,
 								Author:     history.Author,
 								Comment:    history.Comment,
@@ -176,9 +175,8 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 				var historyEntry *imgspecs.History
 				if historyIndex < len(parsed.ImageSpec.History) {
 					h := parsed.ImageSpec.History[historyIndex]
-					created, _ := time.Parse(time.RFC3339, h.Created)
 					historyEntry = &imgspecs.History{
-						Created:    &created,
+						Created:    historyCreated(h.Created),
 						CreatedBy:  h.CreatedBy,
 						Author:     h.Author,
 						Comment:    h.Comment,
@@ -207,10 +205,9 @@ func parseImageInfo(info map[string]string, layerFilePath string, imgID string) 
 			for historyIndex < len(parsed.ImageSpec.History) {
 				history := parsed.ImageSpec.History[historyIndex]
 				if history.EmptyLayer {
-					created, _ := time.Parse(time.RFC3339, history.Created)
 					imgInfo.layers = append(imgInfo.layers, workloadmeta.ContainerImageLayer{
 						History: &imgspecs.History{
-							Created:    &created,
+							Created:    historyCreated(history.Created),
 							CreatedBy:  history.CreatedBy,
 							Author:     history.Author,
 							Comment:    history.Comment,
@@ -281,6 +278,16 @@ func (c *collector) generateImageEventsFromImageList(ctx context.Context) ([]wor
 	}
 
 	return imageEvents, allImageIDs, nil
+}
+
+// historyCreated returns the created time of an image config history entry,
+// which is optional, and nil when the entry has none that parses.
+func historyCreated(s string) *time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil
+	}
+	return &t
 }
 
 // parseLayerInfo reads a JSON file from the given path and returns a list of layerInfo

@@ -42,6 +42,7 @@ datadog-agent-oci-x64-a7:
   tags: ["arch:amd64", "specific:true"]
   needs:
     [
+      "setup_agent_version",
       "build_system-probe-x64",
       "go_deps",
       "generate_minimized_btfs_x64",
@@ -61,6 +62,7 @@ datadog-agent-oci-arm64-a7:
   tags: ["arch:arm64", "specific:true"]
   needs:
     [
+      "setup_agent_version",
       "build_system-probe-arm64",
       "go_deps",
       "generate_minimized_btfs_arm64",
@@ -80,6 +82,7 @@ datadog-agent-oci-x64-a7-fips:
   tags: ["arch:amd64", "specific:true"]
   needs:
     [
+      "setup_agent_version",
       "build_system-probe-x64",
       "go_deps",
       "generate_minimized_btfs_x64",
@@ -99,6 +102,7 @@ datadog-agent-oci-arm64-a7-fips:
   tags: ["arch:arm64", "specific:true"]
   needs:
     [
+      "setup_agent_version",
       "build_system-probe-arm64",
       "go_deps",
       "generate_minimized_btfs_arm64",
@@ -120,6 +124,7 @@ installer-install-scripts:
   tags: ["arch:amd64", "specific:true"]
   needs:
     [
+      "setup_agent_version",
       "go_deps",
       "installer-amd64-oci",
       "installer-arm64-oci",
@@ -180,7 +185,7 @@ installer-install-scripts:
     - when: on_success
   stage: package_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  needs: ["go_deps"]
+  needs: ["setup_agent_version", "go_deps"]
 
 .installer_oci_common:
   before_script:

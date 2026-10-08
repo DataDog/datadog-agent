@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
+	"go.uber.org/atomic"
 )
 
 // SourceType used for log line parsing logic.
@@ -48,7 +49,7 @@ type LogSource struct {
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats     *statstracker.Tracker
-	BytesRead        *status.CountInfo
+	BytesRead        atomic.Int64
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
 }
@@ -62,13 +63,11 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
-		BytesRead:        status.NewCountInfo("Bytes Read"),
 		ProcessingInfo:   status.NewProcessingInfo(),
 		info:             status.NewInfoRegistry(),
 		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
-	source.RegisterInfo(source.BytesRead)
 	source.RegisterInfo(source.ProcessingInfo)
 	source.RegisterInfo(source.LatencyStats)
 	return source

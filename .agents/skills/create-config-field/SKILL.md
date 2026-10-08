@@ -106,6 +106,8 @@ my_feature:
 Rules that the linter enforces:
 
 - Every node needs `node_type: section` or `node_type: setting`.
+- Every setting and section name must be snake_case (lowercase letters and
+  digits, in words separated by single underscores).
 - Every setting needs a `type` and exactly one of `default` / `platform_default`.
 - `platform_default` must cover every platform — list `linux`, `windows`,
   `darwin`, `aix` explicitly, or add an `other` catch-all. `container` /

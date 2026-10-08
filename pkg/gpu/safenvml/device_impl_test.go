@@ -238,6 +238,37 @@ func TestGetRetiredPagesCountRequiresVersionedAPISymbol(t *testing.T) {
 	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
 }
 
+func TestGetGridLicensableFeaturesRequiresVersionedAPISymbol(t *testing.T) {
+	// Simulate an NVML library that does not contain nvmlDeviceGetGridLicensableFeatures_v4.
+	// The wrapper must return a function-not-found error without invoking the
+	// underlying NVIDIA API.
+	symbols := maps.Clone(allSymbols)
+	delete(symbols, toNativeName("GetGridLicensableFeatures_v4"))
+
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(symbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetGridLicensableFeaturesFunc = func() (nvml.GridLicensableFeatures, nvml.Return) {
+				t.Error("GetGridLicensableFeatures must not be called when the symbol is missing from the library")
+				return nvml.GridLicensableFeatures{}, nvml.ERROR_FUNCTION_NOT_FOUND
+			}
+		})),
+	)
+
+	WithPartialMockNVML(t, mockNvml, symbols)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+
+	_, err = device.GetGridLicensableFeatures()
+	require.Error(t, err)
+
+	var nvmlErr *NvmlAPIError
+	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
+	require.Equal(t, toNativeName("GetGridLicensableFeatures_v4"), nvmlErr.APIName)
+	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
+}
+
 func TestDeviceSafeMethodSuccess(t *testing.T) {
 	// Create mock with all symbols available
 	mockNvml := testutil.NewMockNVML(

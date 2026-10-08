@@ -133,7 +133,7 @@ docker_image_build_otel:
 .ddot_byoc_oci_build_test:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["integration_tests_otel"]
+  needs: ["setup_agent_version", "integration_tests_otel"]
   # TODO: Switch to standard `amd64` runners - see comment above in docker_image_build_otel
   tags: ["docker-in-docker:amd64"]
   variables:
@@ -210,7 +210,7 @@ ddot_byoc_package_build_test_windows_oci:
 ddot_byoc_binary_build_test_ubuntu2004:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["integration_tests_otel"]
+  needs: ["setup_agent_version", "integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-byoc-ubuntu2004-builder

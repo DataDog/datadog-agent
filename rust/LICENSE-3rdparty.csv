@@ -67,9 +67,7 @@ core-foundation-sys,https://github.com/servo/core-foundation-rs,MIT OR Apache-2.
 cpubits,https://github.com/RustCrypto/utils,MIT OR Apache-2.0,RustCrypto Developers
 cpufeatures,https://github.com/RustCrypto/utils,MIT OR Apache-2.0,RustCrypto Developers
 crc32fast,https://github.com/srijs/rust-crc32fast,MIT OR Apache-2.0,"Sam Rijs <srijs@airpost.net>, Alex Crichton <alex@alexcrichton.com>"
-crossbeam,https://github.com/crossbeam-rs/crossbeam,MIT OR Apache-2.0,The crossbeam Authors
 crossbeam-channel,https://github.com/crossbeam-rs/crossbeam,MIT OR Apache-2.0,The crossbeam-channel Authors
-crossbeam-deque,https://github.com/crossbeam-rs/crossbeam,MIT OR Apache-2.0,The crossbeam-deque Authors
 crossbeam-epoch,https://github.com/crossbeam-rs/crossbeam,MIT OR Apache-2.0,The crossbeam-epoch Authors
 crossbeam-queue,https://github.com/crossbeam-rs/crossbeam,MIT OR Apache-2.0,The crossbeam-queue Authors
 crossbeam-utils,https://github.com/crossbeam-rs/crossbeam,MIT OR Apache-2.0,The crossbeam-utils Authors
@@ -183,7 +181,6 @@ itertools,https://github.com/rust-itertools/itertools,MIT OR Apache-2.0,bluss
 itoa,https://github.com/dtolnay/itoa,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 jobserver,https://github.com/rust-lang/jobserver-rs,MIT OR Apache-2.0,Alex Crichton <alex@alexcrichton.com>
 js-sys,https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys,MIT OR Apache-2.0,The wasm-bindgen Developers
-jwalk,https://github.com/byron/jwalk,MIT,"Jesse Grosjean <jesse@hogbaysoftware.com>, Sebastian Thiel <byronimo@gmail.com>"
 keccak,https://github.com/RustCrypto/sponges,Apache-2.0 OR MIT,RustCrypto Developers
 lazy_static,https://github.com/rust-lang-nursery/lazy-static.rs,MIT OR Apache-2.0,Marvin Löbel <loebel.marvin@gmail.com>
 leb128fmt,https://github.com/bluk/leb128fmt,MIT OR Apache-2.0,Bryant Luk <code@bryantluk.com>
@@ -283,8 +280,6 @@ rand_xoshiro,https://github.com/rust-random/rngs,MIT OR Apache-2.0,The Rand Proj
 rapidhash,https://github.com/hoxxep/rapidhash,MIT OR Apache-2.0,Liam Gray <gmail@liamg.me>
 raw-cpuid,https://github.com/gz/rust-cpuid,MIT,Gerd Zellweger <mail@gerdzellweger.com>
 rawzip,https://github.com/nickbabcock/rawzip,MIT,Nick Babcock <nbabcock19@hotmail.com>
-rayon,https://github.com/rayon-rs/rayon,MIT OR Apache-2.0,The rayon Authors
-rayon-core,https://github.com/rayon-rs/rayon,MIT OR Apache-2.0,The rayon-core Authors
 redox_syscall,https://gitlab.redox-os.org/redox-os/syscall,MIT,Jeremy Soller <jackpot51@gmail.com>
 ref-cast,https://github.com/dtolnay/ref-cast,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 ref-cast-impl,https://github.com/dtolnay/ref-cast,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
