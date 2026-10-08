@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -334,7 +335,7 @@ func (s *extensionsSuite) getExtensionPath(pkg, version, extensionName string) s
 		// On Windows: C:\ProgramData\Datadog\Installer\packages\<pkg>\<version>
 		basePath = filepath.Join(`C:\ProgramData\Datadog\Installer\packages`, pkg, version)
 	default:
-		s.T().Fatalf("unsupported OS family: %v", s.Env().RemoteHost.OSFamily)
+		s.Require().FailNow("unsupported OS family", "%v", s.Env().RemoteHost.OSFamily)
 		return ""
 	}
 	return filepath.Join(basePath, "ext", extensionName)
@@ -351,7 +352,7 @@ func getAgentPackageURL(t *testing.T, version string) string {
 		// Use pipeline-specific URL for E2E tests
 		version = os.Getenv("E2E_PIPELINE_ID")
 		if version == "" {
-			t.Fatal("E2E_PIPELINE_ID environment variable not set")
+			require.FailNow(t, "E2E_PIPELINE_ID environment variable not set")
 		}
 	}
 	return "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + version
@@ -388,7 +389,7 @@ func verifyDDOTRunning(t *testing.T, a *agent.Agent) {
 		return true
 	}, 2*time.Minute, 1*time.Second, "DDOT should be running and reporting status")
 	if !isDDOTRunning {
-		t.Fatalf("DDOT is not running")
+		require.FailNow(t, "DDOT is not running")
 	}
 
 	// Log version info for debugging
@@ -408,7 +409,7 @@ func (s *extensionsSuite) verifyDDOTServiceRemoved() {
 			return err == nil && strings.Contains(output, "NotFound")
 		}, 30*time.Second, 1*time.Second, "DDOT service should be removed")
 		if !isDDOTRemoved {
-			s.T().Fatalf("DDOT service should be removed")
+			s.Require().FailNow("DDOT service should be removed")
 		}
 	}
 	s.Host.AssertProcessNotRunning(s.T(), ddotProcessName, fleethost.LinuxStableInstallDir)

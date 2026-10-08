@@ -7,6 +7,9 @@
 
 package model
 
+// LocallyPausedReason is the Active condition reason while the pause annotation is set.
+const LocallyPausedReason = "LocallyPaused"
+
 const (
 	// PreviewAnnotationKey is the annotation key used to enable preview/alpha autoscaling features.
 	// Its value is a JSON object where each key enables a specific feature flag, e.g.:
@@ -18,8 +21,27 @@ const (
 	//                        beyond their CPU request when spare capacity is available on the node.
 	PreviewAnnotationKey = "autoscaling.datadoghq.com/preview"
 
+	// PauseAnnotationKey ("true") stops all actions of the autoscaler: the workload stays as it is.
+	PauseAnnotationKey = "autoscaling.datadoghq.com/pause"
+
+	// ForceFallbackAnnotationKey ("true") triggers the local fallback as if recommendations were stale.
+	ForceFallbackAnnotationKey = "autoscaling.datadoghq.com/force-fallback"
+
+	// ForceReplicasAnnotationKey (e.g. "28") pins the replica count, bypassing constraints and rate rules.
+	ForceReplicasAnnotationKey = "autoscaling.datadoghq.com/force-replicas"
+
+	// ForceResourcesAnnotationKey overrides container resources, ignoring the recommendation for the
+	// values it sets. Value is a JSON list of container resources, as in the DPA:
+	//   autoscaling.datadoghq.com/force-resources: '[{"name": "app", "requests": {"cpu": "2"}, "limits": {"cpu": "4"}}]'
+	// Only the fields set are forced. Forced values are still bounded by spec.constraints, and
+	// suppressed by the pause annotation and by applyPolicy.mode: Preview. A value that is not such a
+	// list is ignored; only cpu and memory with positive quantities are applied.
+	ForceResourcesAnnotationKey = "autoscaling.datadoghq.com/force-resources"
+
 	// RecommendationIDAnnotation is the annotation key used to store the recommendation ID
 	RecommendationIDAnnotation = "autoscaling.datadoghq.com/rec-id"
+	// RuntimeRecommendationIDAnnotation is the annotation key used to store a hash of the runtime values
+	RuntimeRecommendationIDAnnotation = "autoscaling.datadoghq.com/runtime-rec-id"
 	// AutoscalerIDAnnotation is the annotation key used to store the autoscaler ID
 	AutoscalerIDAnnotation = "autoscaling.datadoghq.com/autoscaler-id"
 	// RecommendationAppliedEventGeneratedAnnotation is an annotation added when even was generated for applied recommendation

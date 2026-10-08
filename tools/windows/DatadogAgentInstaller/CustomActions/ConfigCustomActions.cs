@@ -36,11 +36,26 @@ namespace Datadog.CustomActions
             public ApmConfig ApmConfig { get; set; }
         }
 
-        private static ActionResult ReadConfig(ISession session)
+        internal static ActionResult ReadConfig(ISession session)
         {
+            session[PrerequisitesCustomActions.ConfigRootUntrustedProperty] = "True";
+            session["DATADOGYAMLEXISTS"] = "no";
+
             try
             {
                 var configFolder = session.Property("APPLICATIONDATADIRECTORY");
+                if (string.IsNullOrEmpty(configFolder))
+                {
+                    throw new InvalidOperationException("APPLICATIONDATADIRECTORY is not set");
+                }
+                SecureDirectory.AssertSecureOwner(session, configFolder, out var exists);
+                session[PrerequisitesCustomActions.ConfigRootUntrustedProperty] = "False";
+                if (!exists)
+                {
+                    session.Log("No existing configuration directory, skipping config import.");
+                    return ActionResult.Success;
+                }
+
                 var configFilePath = Path.Combine(configFolder, "datadog.yaml");
                 if (!File.Exists(configFilePath))
                 {

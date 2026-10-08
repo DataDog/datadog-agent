@@ -18,7 +18,7 @@ go_library(
         "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
         "//pkg/config/model",
-        "//pkg/config/setup",
+        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/util",

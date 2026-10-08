@@ -139,7 +139,7 @@ func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
+			s.Require().FailNow("unsupported package manager", "%s", pkgManager)
 		}
 	}
 
@@ -388,7 +388,7 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 			continue
 		}
 
-		s.T().Fatalf("file %v is world writable", path)
+		s.Require().FailNow("file is world writable", "path: %v", path)
 	}
 }
 
@@ -428,21 +428,10 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// We use libnss-extrausers which reads from /var/lib/extrausers
 	// This works through nsswitch.conf without needing environment variables
 
-	// Install libnss-extrausers
-	if s.host.GetPkgManager() == "apt" {
-		s.host.Run("sudo apt-get update && sudo apt-get install -y libnss-extrausers")
-	} else if s.host.GetPkgManager() == "yum" {
-		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
-	} else if s.host.GetPkgManager() == "zypper" {
-		_, err := s.Env().RemoteHost.Execute("sudo zypper install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
+	// libnss-extrausers is only available on apt systems
+	if s.host.GetPkgManager() != "apt" {
+		s.T().Skip("libnss-extrausers not available on this system")
+		return
 	}
 
 	// Create the extrausers directory structure
@@ -463,7 +452,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 		}
 	}
 	if gid == 0 {
-		s.T().Fatal("Could not find available GID in range 900-999")
+		s.Require().FailNow("could not find available GID in range 900-999")
 	}
 
 	for id := 900; id < 1000; id++ {
@@ -476,7 +465,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 		}
 	}
 	if uid == 0 {
-		s.T().Fatal("Could not find available UID in range 900-999")
+		s.Require().FailNow("could not find available UID in range 900-999")
 	}
 
 	s.T().Logf("Using UID=%d GID=%d for dd-agent user/group", uid, gid)

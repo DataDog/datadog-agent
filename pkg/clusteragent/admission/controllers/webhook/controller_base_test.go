@@ -166,7 +166,7 @@ func TestAutoInstrumentation(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil, nil, nil, nil)
+			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil, false, nil, nil, nil)
 			assert.NoError(t, err)
 
 			// Create request.

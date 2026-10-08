@@ -13,6 +13,7 @@ import (
 )
 
 func TestAuditorUnmarshalRegistryV2(t *testing.T) {
+	// Older development registries may contain open_flags; ignore it without losing offsets or checksum parameters.
 	input := `{
 			"Registry": {
 				"path1.log": {
@@ -24,7 +25,8 @@ func TestAuditorUnmarshalRegistryV2(t *testing.T) {
 							"fingerprint_strategy": "line_checksum",
 							"count": 200,
 							"max_bytes": 1024,
-							"count_to_skip": 5
+							"count_to_skip": 5,
+							"open_flags": ["direct"]
 						}
 					}
 				}

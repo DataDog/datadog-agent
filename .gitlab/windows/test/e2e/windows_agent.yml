@@ -18,6 +18,11 @@ new-e2e-agent-runtimes-windows:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
+          - pkg/procmgr/**/*
+          - pkg/fleet/installer/packages/embedded/tmpl/gen/windows/**/*
+          - pkg/fleet/installer/packages/processmanager/*_windows.go
+          - pkg/fleet/installer/packages/datadog_agent_windows.go
+          - cmd/agent/subcommands/run/dependent_services_windows.go
           - test/new-e2e/tests/agent-runtimes/**/*
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
@@ -34,6 +39,9 @@ new-e2e-agent-subcommands-windows:
     - changes:
         paths:
           - pkg/config/schema/**/* # DataDog/datadog-agent#52358
+          - pkg/flare/**/*
+          - comp/procmgr/**/*
+          - pkg/procmgr/**/*
           - test/new-e2e/tests/agent-subcommands/**/*
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]

@@ -189,6 +189,25 @@ func TestBuildChangeEventPayload_AnomalyInventoryAlwaysPresent(t *testing.T) {
 	}
 }
 
+func TestBuildChangeMetadataFormatsAnomalyInventory(t *testing.T) {
+	source := observerdef.SeriesDescriptor{Namespace: "dogstatsd", Name: "cpu.user", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"}), Aggregate: observerdef.AggregateAverage}
+	c := observerdef.ActiveCorrelation{Pattern: "p", Anomalies: []observerdef.Anomaly{{
+		Source: source, DetectorName: "scanmw", Timestamp: 42,
+		DebugInfo: &observerdef.AnomalyDebugInfo{BaselineMedian: 10, CurrentValue: 25, PValue: 1e-8, EffectSize: 0.85, DeviationSigma: 5},
+	}}}
+
+	metadata := buildChangeMetadata(c)
+	entries := metadata["metric_anomalies"].([]any)
+	assert.Len(t, entries, 1)
+	entry := entries[0].(map[string]any)
+	assert.Equal(t, "ScanMW changepoint: cpu.user:avg", entry["title"])
+	assert.Equal(t, "cpu.user:avg increased (pre_median=10.0000, post_median=25.0000, p=1.00e-08, effect=0.85, 5.0 MADs)", entry["description"])
+	assert.Equal(t, source.DisplayName(), entry["source"])
+	assert.Equal(t, int64(42), entry["timestamp"])
+	assert.Equal(t, "scanmw", entry["detector"])
+	assert.Equal(t, []any{}, metadata["log_anomalies"])
+}
+
 // TestBuildChangeEventPayload_NoImpactedResourcesWhenEmpty makes sure we omit
 // the impacted_resources key entirely (rather than emitting an empty array)
 // when no service tags are present, matching the upstream omitempty behaviour.
