@@ -63,6 +63,17 @@ class TestDynTestEvaluator(unittest.TestCase):
         self.assertEqual(result.predicted_executed_tests, {"TestPass"})
         self.assertEqual(result.not_executed_failing_tests, {"TestFail"})
 
+    def test_summary_lists_the_missed_failing_tests(self):
+        """The global summary warning names the skipped failing tests and their
+        jobs: the per-job reports are long, the summary is what gets read."""
+        self.executor.tests_to_run_per_job.return_value = {"job": set()}
+        self.assertTrue(self.evaluator.initialize())
+        with patch("builtins.print") as output:
+            self.evaluator.print_summary(self.evaluator.evaluate([]))
+        printed = [str(call) for call in output.call_args_list]
+        self.assertTrue(any("1 failing tests would not have been executed" in p for p in printed))
+        self.assertTrue(any("TestFail" in p and "job" in p for p in printed))
+
     def test_console_telemetry_never_publishes(self):
         with (
             patch("tasks.libs.dynamic_test.telemetry.send_event") as event,

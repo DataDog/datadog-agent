@@ -321,6 +321,11 @@ This indicates an issue with the dynamic test system that may affect CI performa
                     Color.RED,
                 )
             )
+            # List them: the per-job reports above are long, the summary is
+            # what people actually read
+            for result in results:
+                for test in sorted(result.not_executed_failing_tests):
+                    print(color_message(f"- {test} ({result.job_name})", Color.RED))
 
     def send_stats_to_datadog(self, results: list[EvaluationResult]):
         """Send evaluation statistics using both telemetry handler and legacy API.
