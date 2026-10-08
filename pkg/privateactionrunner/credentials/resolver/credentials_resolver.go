@@ -80,14 +80,14 @@ func NewPrivateCredentialResolver(config model.Reader, scriptCredentialFileAllow
 		if _, ok := seen[path]; ok {
 			continue
 		}
+		seen[path] = struct{}{}
+		roots = append(roots, path)
 		root, _, err := openScriptCredentialRoot(path)
 		if err != nil {
-			log.Warn("Skipping Script credential file root", log.String("root", configuredRoot), log.ErrorField(err))
+			log.Warn("Script credential file root is currently unusable", log.String("root", configuredRoot), log.ErrorField(err))
 			continue
 		}
 		_ = root.Close()
-		seen[path] = struct{}{}
-		roots = append(roots, path)
 	}
 	return &privateCredentialResolver{config: config, scriptCredentialFileRoots: roots}, nil
 }
@@ -109,14 +109,13 @@ func openScriptCredentialRoot(path string) (*os.Root, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	root, err := os.OpenRoot(path)
+	root, err := os.OpenRoot(resolvedPath)
 	if err != nil {
 		return nil, "", err
 	}
 	openedInfo, openedErr := root.Stat(".")
-	resolvedInfo, resolvedErr := os.Stat(resolvedPath)
 	filesystemRootInfo, filesystemRootErr := os.Stat(filesystemRootPath(resolvedPath))
-	if openedErr != nil || resolvedErr != nil || filesystemRootErr != nil || !os.SameFile(openedInfo, resolvedInfo) || os.SameFile(openedInfo, filesystemRootInfo) {
+	if openedErr != nil || filesystemRootErr != nil || os.SameFile(openedInfo, filesystemRootInfo) {
 		_ = root.Close()
 		return nil, "", errCouldNotOpenScriptCredentialRoots
 	}
