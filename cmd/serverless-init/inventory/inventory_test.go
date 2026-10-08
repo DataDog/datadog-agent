@@ -57,7 +57,7 @@ func TestBuildFieldsMissingValues(t *testing.T) {
 	for _, key := range []string{
 		"parent_resource_id", "region", "gcp_project_id", "aws_account_id",
 		"azure_subscription_id", "azure_resource_group", "runtime",
-		"dd_env", "dd_site", "dd_version", "dd_service",
+		"dd_env", "dd_site", "dd_version", "dd_service", "wrapped_command",
 	} {
 		assert.Contains(t, fields, key, "missing fields must still be passed to Set to clear cached values")
 		assert.Nil(t, fields[key], key)
@@ -66,7 +66,6 @@ func TestBuildFieldsMissingValues(t *testing.T) {
 	assert.Equal(t, service.data.ResourceName, fields["resource_name"])
 	assert.Equal(t, service.data.WorkloadType, fields["workload_type"])
 	assert.Equal(t, "sidecar", fields["deployment_model"])
-	assert.NotContains(t, fields, "wrapped_command")
 	assert.NotContains(t, fields, "deployment_id")
 	assert.NotContains(t, fields, "tags")
 }
@@ -168,33 +167,63 @@ func TestBuildFieldsRuntime(t *testing.T) {
 func TestBuildFieldsWrappedCommand(t *testing.T) {
 	originalArgs := os.Args
 	t.Cleanup(func() { os.Args = originalArgs })
-	conf := configmock.New(t)
+	t.Setenv("DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED", "")
+	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 
 	for _, scenario := range []struct {
 		name    string
 		args    []string
 		sidecar bool
 	}{
+		{name: "no argv"},
 		{name: "no command", args: []string{"serverless-init"}},
 		{name: "sidecar", args: []string{"serverless-init", "python", "app.py"}, sidecar: true},
-		{name: "wrapped command", args: []string{"serverless-init", "python", "app.py", "--password=secret"}},
+		{name: "equals password", args: []string{"serverless-init", "python", "app.py", "--password=secret"}},
+		{name: "equals token", args: []string{"serverless-init", "python", "app.py", "--token=secret"}},
+		{name: "separated password", args: []string{"serverless-init", "python", "app.py", "--password", "secret"}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			os.Args = scenario.args
-			fields := buildFields(inventoryCloudService{}, mode.Conf{SidecarMode: scenario.sidecar}, conf, nil)
-			if scenario.sidecar || len(scenario.args) == 1 {
-				assert.NotContains(t, fields, "wrapped_command")
-				return
+			conf := configmock.New(t)
+			service := inventoryCloudService{data: cloudservice.InventoryData{ResourceID: "test-resource"}}
+			tags := map[string]string{"service": "test-service", "env": "test-env", "version": "1.2.3"}
+			var defaultFields map[string]interface{}
+			for _, enabled := range []string{"unset", "false", "true"} {
+				t.Run(enabled, func(t *testing.T) {
+					if enabled != "unset" {
+						conf.Set("serverless.inventory_wrapped_command_enabled", enabled == "true", model.SourceAgentRuntime)
+					}
+					fields := buildFields(service, mode.Conf{SidecarMode: scenario.sidecar}, conf, tags)
+					assert.Contains(t, fields, "wrapped_command", "nil must clear a previously cached value")
+					if enabled != "true" || scenario.sidecar || len(scenario.args) <= 1 {
+						assert.Nil(t, fields["wrapped_command"])
+					} else if scenario.name == "equals password" {
+						assert.Equal(t, "python app.py --password=********", fields["wrapped_command"])
+					} else {
+						assert.NotEmpty(t, fields["wrapped_command"], "opt-in redaction is best effort, not complete")
+					}
+					if !scenario.sidecar && len(scenario.args) > 1 {
+						assert.Equal(t, "Python", fields["runtime"])
+						assert.Equal(t, "in-container", fields["deployment_model"])
+					}
+					delete(fields, "wrapped_command")
+					if enabled == "unset" {
+						defaultFields = fields
+					} else {
+						assert.Equal(t, defaultFields, fields, "all other metadata must remain unchanged")
+					}
+				})
 			}
-			assert.Contains(t, fields["wrapped_command"], "python app.py")
-			assert.Contains(t, fields["wrapped_command"], "--password=")
-			assert.NotContains(t, fields["wrapped_command"], "secret")
-			assert.Equal(t, "in-container", fields["deployment_model"])
 		})
 	}
 }
 
 func TestInjectSetsFieldsWithoutSubmitting(t *testing.T) {
+	originalArgs := os.Args
+	t.Cleanup(func() { os.Args = originalArgs })
+	os.Args = []string{"serverless-init", "python", "app.py", "--token=secret", "--password", "secret"}
+	t.Setenv("DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED", "")
+	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
 	ia := newFakeComponent()
@@ -205,6 +234,9 @@ func TestInjectSetsFieldsWithoutSubmitting(t *testing.T) {
 	assert.Equal(t, serverlessInitFlavor, ia.fields["flavor"])
 	assert.Equal(t, service.data.WorkloadType, ia.fields["workload_type"])
 	assert.Zero(t, ia.submits, "Inject must not enqueue a payload")
+	assert.Contains(t, ia.fields, "wrapped_command")
+	assert.Nil(t, ia.fields["wrapped_command"], "the command must be suppressed before Set can log it")
+	assert.Equal(t, "Python", ia.fields["runtime"])
 }
 
 // Pins where each Unified Service Tagging field is sourced from: env, service,
