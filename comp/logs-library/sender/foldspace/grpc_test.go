@@ -64,6 +64,84 @@ func startBufIntake(t *testing.T) (*recordingIntake, *bufconn.Listener, *grpc.Se
 	return intake, lis, srv
 }
 
+// stalledIntake accepts a stream and never reads from it, so the client runs
+// out of flow-control window.
+type stalledIntake struct {
+	UnimplementedStatefulIntakeServer
+}
+
+func (stalledIntake) StatefulStream(stream grpc.BidiStreamingServer[StatefulBatch, BatchStatus]) error {
+	<-stream.Context().Done()
+	return nil
+}
+
+// SendMsg waiting on flow-control window ignores every context but the
+// stream's own, so a send deadline does nothing unless Send acts on it.
+func TestGRPCSendHonorsContextWhenStalled(t *testing.T) {
+	lis := bufconn.Listen(1 << 20)
+	// A fixed window disables grpc-go's BDP growth, so the stall arrives after
+	// 64KiB rather than after up to 16MiB.
+	srv := NewStatefulIntakeServer(stalledIntake{}, grpc.InitialWindowSize(64<<10), grpc.InitialConnWindowSize(64<<10))
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(func() {
+		srv.Stop()
+		_ = lis.Close()
+	})
+
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), time.Second)
+	defer cancelDial()
+	conn, err := grpc.DialContext(dialCtx, "buf", //nolint:staticcheck
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(), //nolint:staticcheck
+		grpc.WithDefaultCallOptions(grpc.ForceCodec(statefulCodec{})),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+
+	transport := &GRPCTransport{
+		specs: []SenderSpec{{ID: 0, Address: "buf:1", Class: Reliable, APIKey: func() string { return "key" }}},
+		conns: []*grpc.ClientConn{conn},
+		state: 1024,
+		enc:   "identity",
+	}
+	stream, err := transport.OpenStream(dialCtx, 0, 1)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = stream.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		data := make([]byte, 256<<10)
+		for id := uint32(1); ; id++ {
+			if err := stream.Send(ctx, id, data); err != nil {
+				done <- err
+				return
+			}
+		}
+	}()
+
+	select {
+	case err := <-done:
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Send ignored its context while blocked on flow control")
+	}
+}
+
+// Keepalive is configured from the destination, and only while a stream is
+// open: a stream-less ping counts as abuse under default server policy.
+func TestGRPCTransportKeepalive(t *testing.T) {
+	transport := NewGRPCTransport(&DestinationConfig{
+		KeepaliveTime:    5 * time.Minute,
+		KeepaliveTimeout: 20 * time.Second,
+	})
+	assert.Equal(t, 5*time.Minute, transport.keepalive.Time)
+	assert.Equal(t, 20*time.Second, transport.keepalive.Timeout)
+	assert.False(t, transport.keepalive.PermitWithoutStream)
+}
+
 func TestGRPCStreamRoundTrip(t *testing.T) {
 	intake, lis, _ := startBufIntake(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
