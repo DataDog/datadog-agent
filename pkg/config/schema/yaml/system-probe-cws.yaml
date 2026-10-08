@@ -256,6 +256,10 @@ properties:
         node_type: setting
         type: string
         default: localhost:5678
+  ecs_ipv4:
+    node_type: setting
+    type: string
+    default: 169.254.170.2
   eks_pod_identity_ipv4:
     node_type: setting
     type: string
