@@ -20,13 +20,17 @@ import (
 
 // DriverOptions configures one Driver.
 type DriverOptions struct {
-	Core              Core
-	Transport         Transport
-	Sink              sender.Sink
-	PipelineMonitor   metrics.PipelineMonitor
-	InputSize         int
-	PipelineDepth     int
-	ConnectTimeout    time.Duration
+	Core            Core
+	Transport       Transport
+	Sink            sender.Sink
+	PipelineMonitor metrics.PipelineMonitor
+	InputSize       int
+	PipelineDepth   int
+	ConnectTimeout  time.Duration
+	// SendTimeout bounds each Stream.Send. A send that exceeds it fails the
+	// stream, so an intake that stops granting flow-control window cannot hold
+	// the sender goroutine, and every ack it owes, indefinitely.
+	SendTimeout       time.Duration
 	ShutdownTimeout   time.Duration
 	StateRequestBytes int
 	// BatchWait is how often ingest seals whatever the core is holding, bounding
@@ -56,6 +60,7 @@ type Driver struct {
 	input           chan ingestItem
 	pipelineDepth   int
 	connectTimeout  time.Duration
+	sendTimeout     time.Duration
 	shutdownTimeout time.Duration
 	batchWait       time.Duration
 	dualShip        bool
@@ -122,6 +127,9 @@ func NewDriver(opts DriverOptions) *Driver {
 	if opts.ConnectTimeout <= 0 {
 		opts.ConnectTimeout = 10 * time.Second
 	}
+	if opts.SendTimeout <= 0 {
+		opts.SendTimeout = 10 * time.Second
+	}
 	if opts.ShutdownTimeout <= 0 {
 		opts.ShutdownTimeout = 15 * time.Second
 	}
@@ -143,6 +151,7 @@ func NewDriver(opts DriverOptions) *Driver {
 		input:           make(chan ingestItem, opts.InputSize),
 		pipelineDepth:   opts.PipelineDepth,
 		connectTimeout:  opts.ConnectTimeout,
+		sendTimeout:     opts.SendTimeout,
 		shutdownTimeout: opts.ShutdownTimeout,
 		batchWait:       opts.BatchWait,
 		dualShip:        opts.DualShip,
@@ -413,10 +422,10 @@ func (d *Driver) senderLoop(sender SenderID) {
 	acks := make(chan streamAck, d.pipelineDepth*2)
 	timers := make(chan scheduledTimer, 4)
 
-	// sendCtx bounds Stream.Send: a stalled intake can block it indefinitely via
-	// gRPC flow control, and that would hold this goroutine past d.stop being
-	// closed, which is what Stop's d.wg.Wait() waits on. Tying it to d.stop lets
-	// shutdown unblock a stuck send instead of waiting out the full connection.
+	// sendCtx parents every Stream.Send: a stalled intake can block one via gRPC
+	// flow control, and that would hold this goroutine past d.stop being closed,
+	// which is what Stop's d.wg.Wait() waits on. Tying it to d.stop lets shutdown
+	// unblock a stuck send without waiting out the send deadline.
 	sendCtx, cancelSend := context.WithCancel(context.Background())
 	defer cancelSend()
 	go func() {
@@ -489,7 +498,10 @@ func (d *Driver) senderLoop(sender SenderID) {
 					}
 					data := append([]byte(nil), effect.Batch.Bytes()...)
 					effect.Batch.Release()
-					if err := current.Send(sendCtx, effect.BatchID, data); err != nil {
+					ctx, cancel := context.WithTimeout(sendCtx, d.sendTimeout)
+					err := current.Send(ctx, effect.BatchID, data)
+					cancel()
+					if err != nil {
 						progress := d.core.HandleStreamError(sender, effect.Stream, err.Error())
 						d.dispatch(progress)
 						stopRecv()
