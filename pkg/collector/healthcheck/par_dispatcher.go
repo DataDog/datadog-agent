@@ -70,7 +70,7 @@ func NewRemediationDispatcher(config configmodel.Reader, out chan<- event.Event,
 }
 
 // Dispatch falls back before execution when PAR is unavailable and reports uncertain RPC outcomes as failures.
-func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName string, cfg *integration.HealthCheckConfig) {
+func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, failureMessage string, cfg *integration.HealthCheckConfig) {
 	if d == nil || cfg == nil || ctx.Err() != nil {
 		return
 	}
@@ -78,7 +78,7 @@ func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName stri
 	defer cancel()
 	connection, err := d.connect()
 	if err != nil {
-		d.fallback.Dispatch(runCtx, id, scName, cfg)
+		d.fallback.Dispatch(runCtx, id, scName, failureMessage, cfg)
 		return
 	}
 	defer connection.Close()
@@ -87,7 +87,7 @@ func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName stri
 	health, err := client.Health(probeCtx, &pb.HealthRequest{})
 	probeCancel()
 	if err != nil || !health.GetReady() {
-		d.fallback.Dispatch(runCtx, id, scName, cfg)
+		d.fallback.Dispatch(runCtx, id, scName, failureMessage, cfg)
 		return
 	}
 	policy, err := synthesizeAllowlist(cfg.Remediation)
@@ -101,24 +101,28 @@ func (d *PARDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName stri
 	}
 	response, err := client.RunLocalRemediation(runCtx, request)
 	if status.Code(err) == codes.Unimplemented {
-		d.fallback.Dispatch(runCtx, id, scName, cfg)
+		d.fallback.Dispatch(runCtx, id, scName, failureMessage, cfg)
 		return
 	}
-	d.emit(ctx, id, scName, "detected", "Health check became CRITICAL; local remediation was dispatched.")
+	d.emit(ctx, id, scName, "detected", detectedText(scName, d.fallback.hostname, failureMessage, id, cfg))
 	if err != nil {
 		d.emit(ctx, id, scName, "escalate", "Local remediation did not return a confirmed outcome; steps may have executed.")
 		return
 	}
 	outcome := "remediated"
 	var text strings.Builder
-	text.WriteString("Local remediation step results:")
+	fmt.Fprintf(&text, "Remediation results for service check %q (check %s):", scName, id)
 	for i, step := range response.GetSteps() {
 		result := "succeeded"
 		if step == nil || step.GetError() != "" || step.GetExitCode() != 0 {
 			result = "failed"
 			outcome = "escalate"
 		}
-		fmt.Fprintf(&text, "\n%d. %s (exit code %d)", i+1, result, step.GetExitCode())
+		command := ""
+		if i < len(cfg.Remediation.Steps) {
+			command = cfg.Remediation.Steps[i].Command
+		}
+		fmt.Fprintf(&text, "\n%d. %s -> %s (exit code %d)", i+1, command, result, step.GetExitCode())
 	}
 	if len(response.GetSteps()) != len(request.Commands) {
 		outcome = "escalate"

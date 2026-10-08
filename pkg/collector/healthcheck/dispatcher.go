@@ -32,6 +32,20 @@ func outcomeAlertType(outcome string) event.AlertType {
 	}
 }
 
+// detectedText builds the "detected" event body: what went CRITICAL, why, and the steps to run.
+func detectedText(scName, hostname, failureMessage string, id checkid.ID, cfg *integration.HealthCheckConfig) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Service check %q went CRITICAL on %s (check %s)", scName, hostname, id)
+	if failureMessage != "" {
+		fmt.Fprintf(&b, ": %s", failureMessage)
+	}
+	fmt.Fprintf(&b, ". Running %d remediation step(s):", len(cfg.Remediation.Steps))
+	for i, step := range cfg.Remediation.Steps {
+		fmt.Fprintf(&b, "\n%d. %s", i+1, step.Command)
+	}
+	return b.String()
+}
+
 // EventDispatcher emits dry-run events without executing remediation commands.
 type EventDispatcher struct {
 	out      chan<- event.Event
@@ -44,12 +58,16 @@ func NewEventDispatcher(out chan<- event.Event, hostname string) *EventDispatche
 }
 
 // Dispatch describes the steps that would run and never executes them.
-func (d *EventDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName string, cfg *integration.HealthCheckConfig) {
+func (d *EventDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, failureMessage string, cfg *integration.HealthCheckConfig) {
 	if d == nil || d.out == nil || cfg == nil || ctx.Err() != nil {
 		return
 	}
 	var text strings.Builder
-	fmt.Fprintf(&text, "Would remediate check %s after service check %s became CRITICAL.\nSteps that would run:", id, scName)
+	fmt.Fprintf(&text, "Would remediate check %s after service check %s became CRITICAL", id, scName)
+	if failureMessage != "" {
+		fmt.Fprintf(&text, ": %s", failureMessage)
+	}
+	text.WriteString(".\nSteps that would run:")
 	for i, step := range cfg.Remediation.Steps {
 		fmt.Fprintf(&text, "\n%d. %s", i+1, step.Command)
 	}

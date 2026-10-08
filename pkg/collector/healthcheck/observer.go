@@ -7,6 +7,8 @@ package healthcheck
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -17,18 +19,21 @@ import (
 
 // ServiceCheckObserver is a non-blocking handle installed before check senders are created.
 type ServiceCheckObserver interface {
-	ObserveServiceCheck(id checkid.ID, scName string, status servicecheck.ServiceCheckStatus)
+	ObserveServiceCheck(id checkid.ID, scName string, status servicecheck.ServiceCheckStatus, message, host string, tags []string)
 }
 
 // RemediationDispatcher handles requests on the observer worker and must honor context cancellation.
 type RemediationDispatcher interface {
-	Dispatch(ctx context.Context, id checkid.ID, scName string, cfg *integration.HealthCheckConfig)
+	Dispatch(ctx context.Context, id checkid.ID, scName, failureMessage string, cfg *integration.HealthCheckConfig)
 }
 
 type observation struct {
 	id         checkid.ID
 	name       string
 	status     servicecheck.ServiceCheckStatus
+	message    string
+	host       string
+	tags       []string
 	generation uint64
 	at         time.Time
 }
@@ -54,12 +59,12 @@ func NewObserver(dispatcher RemediationDispatcher) *Observer {
 }
 
 // ObserveServiceCheck drops observations if the queue is full.
-func (o *Observer) ObserveServiceCheck(id checkid.ID, scName string, status servicecheck.ServiceCheckStatus) {
+func (o *Observer) ObserveServiceCheck(id checkid.ID, scName string, status servicecheck.ServiceCheckStatus, message, host string, tags []string) {
 	if o == nil || id == "" || o.ctx.Err() != nil {
 		return
 	}
 	select {
-	case o.input <- observation{id: id, name: scName, status: status, generation: registrationGeneration.Load(), at: time.Now()}:
+	case o.input <- observation{id: id, name: scName, status: status, message: message, host: host, tags: tags, generation: registrationGeneration.Load(), at: time.Now()}:
 	default:
 		o.dropped.Add(1)
 	}
@@ -93,10 +98,21 @@ func (o *Observer) run(dispatcher RemediationDispatcher) {
 				return
 			}
 			if cfg := transition(obs); cfg != nil {
-				dispatcher.Dispatch(o.ctx, obs.id, obs.name, cfg)
+				dispatcher.Dispatch(o.ctx, obs.id, obs.name, obs.message, cfg)
 			}
 		}
 	}
+}
+
+// statusKey distinguishes the same service-check name reported for different resources (host + tags),
+// so only a resource's own OK->CRITICAL edge triggers remediation, not a merge across resources.
+func statusKey(obs observation) string {
+	if obs.host == "" && len(obs.tags) == 0 {
+		return obs.name
+	}
+	tags := append([]string(nil), obs.tags...)
+	sort.Strings(tags)
+	return obs.name + "\x1f" + obs.host + "\x1f" + strings.Join(tags, "\x1f")
 }
 
 func transition(obs observation) *integration.HealthCheckConfig {
@@ -106,12 +122,13 @@ func transition(obs observation) *integration.HealthCheckConfig {
 	if entry == nil || entry.generation > obs.generation || (entry.config.ServiceCheck != "" && entry.config.ServiceCheck != obs.name) {
 		return nil
 	}
-	previous, seen := entry.statuses[obs.name]
-	entry.statuses[obs.name] = obs.status
+	key := statusKey(obs)
+	previous, seen := entry.statuses[key]
+	entry.statuses[key] = obs.status
 	if !seen || previous != servicecheck.ServiceCheckOK || obs.status != servicecheck.ServiceCheckCritical {
 		return nil
 	}
-	// Attempts share a cooldown window across service-check names for this check ID.
+	// Attempts share a cooldown window across all of a check's service-check contexts.
 	if entry.windowStart.IsZero() || obs.at.Sub(entry.windowStart) >= entry.cooldown {
 		entry.windowStart = obs.at
 		entry.attempts = 0

@@ -91,15 +91,16 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 }
 
 type dispatchCall struct {
-	id   checkid.ID
-	name string
-	cfg  *integration.HealthCheckConfig
+	id      checkid.ID
+	name    string
+	message string
+	cfg     *integration.HealthCheckConfig
 }
 
 type recordingDispatcher struct{ calls []dispatchCall }
 
-func (d *recordingDispatcher) Dispatch(_ context.Context, id checkid.ID, name string, cfg *integration.HealthCheckConfig) {
-	d.calls = append(d.calls, dispatchCall{id, name, cfg})
+func (d *recordingDispatcher) Dispatch(_ context.Context, id checkid.ID, name, message string, cfg *integration.HealthCheckConfig) {
+	d.calls = append(d.calls, dispatchCall{id, name, message, cfg})
 }
 
 func TestObserverEdgesAndCooldownWindow(t *testing.T) {
@@ -110,7 +111,7 @@ func TestObserverEdgesAndCooldownWindow(t *testing.T) {
 		o := NewObserver(d)
 		defer o.Stop()
 		send := func(status servicecheck.ServiceCheckStatus) {
-			o.ObserveServiceCheck(id, cfg.ServiceCheck, status)
+			o.ObserveServiceCheck(id, cfg.ServiceCheck, status, "", "", nil)
 			synctest.Wait()
 		}
 		send(servicecheck.ServiceCheckCritical)
@@ -118,7 +119,7 @@ func TestObserverEdgesAndCooldownWindow(t *testing.T) {
 		send(servicecheck.ServiceCheckOK)
 		send(servicecheck.ServiceCheckCritical)
 		require.Len(t, d.calls, 1)
-		assert.Equal(t, dispatchCall{id, cfg.ServiceCheck, cfg}, d.calls[0])
+		assert.Equal(t, dispatchCall{id, cfg.ServiceCheck, "", cfg}, d.calls[0])
 		send(servicecheck.ServiceCheckCritical)
 		require.Len(t, d.calls, 1)
 		send(servicecheck.ServiceCheckOK)
@@ -144,20 +145,20 @@ func TestObserverFiltersAndNonCriticalStatuses(t *testing.T) {
 		o := NewObserver(d)
 		defer o.Stop()
 		for _, ignoredID := range []checkid.ID{"", "unregistered"} {
-			o.ObserveServiceCheck(ignoredID, cfg.ServiceCheck, servicecheck.ServiceCheckOK)
-			o.ObserveServiceCheck(ignoredID, cfg.ServiceCheck, servicecheck.ServiceCheckCritical)
+			o.ObserveServiceCheck(ignoredID, cfg.ServiceCheck, servicecheck.ServiceCheckOK, "", "", nil)
+			o.ObserveServiceCheck(ignoredID, cfg.ServiceCheck, servicecheck.ServiceCheckCritical, "", "", nil)
 		}
-		o.ObserveServiceCheck(id, "other.health", servicecheck.ServiceCheckOK)
-		o.ObserveServiceCheck(id, "other.health", servicecheck.ServiceCheckCritical)
+		o.ObserveServiceCheck(id, "other.health", servicecheck.ServiceCheckOK, "", "", nil)
+		o.ObserveServiceCheck(id, "other.health", servicecheck.ServiceCheckCritical, "", "", nil)
 		for _, status := range []servicecheck.ServiceCheckStatus{servicecheck.ServiceCheckOK, servicecheck.ServiceCheckWarning, servicecheck.ServiceCheckUnknown, servicecheck.ServiceCheckCritical} {
-			o.ObserveServiceCheck(id, cfg.ServiceCheck, status)
+			o.ObserveServiceCheck(id, cfg.ServiceCheck, status, "", "", nil)
 			synctest.Wait()
 		}
 		require.Empty(t, d.calls)
-		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckOK)
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckOK, "", "", nil)
 		synctest.Wait()
-		o.ObserveServiceCheck(id, "other.health", servicecheck.ServiceCheckWarning)
-		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckCritical)
+		o.ObserveServiceCheck(id, "other.health", servicecheck.ServiceCheckWarning, "", "", nil)
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckCritical, "", "", nil)
 		synctest.Wait()
 		require.Len(t, d.calls, 1)
 	})
@@ -173,7 +174,7 @@ func TestObserverWildcardUsesPerServiceEdgesAndSharedLimit(t *testing.T) {
 		o := NewObserver(d)
 		defer o.Stop()
 		send := func(name string, status servicecheck.ServiceCheckStatus) {
-			o.ObserveServiceCheck(id, name, status)
+			o.ObserveServiceCheck(id, name, status, "", "", nil)
 			synctest.Wait()
 		}
 		send("one", servicecheck.ServiceCheckOK)
@@ -184,6 +185,27 @@ func TestObserverWildcardUsesPerServiceEdgesAndSharedLimit(t *testing.T) {
 		send("two", servicecheck.ServiceCheckCritical)
 		require.Len(t, d.calls, 1)
 		assert.Equal(t, "one", d.calls[0].name)
+	})
+}
+
+func TestObserverTracksServiceCheckContextsSeparately(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := healthConfig()
+		id := registerTestCheck(t, cfg)
+		d := &recordingDispatcher{}
+		o := NewObserver(d)
+		defer o.Stop()
+		// Same service-check name reported for two different resources (host/tags): one resource OK
+		// followed by another resource CRITICAL must NOT look like a recovery-to-failure edge.
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckOK, "", "host-a", []string{"unit:a"})
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckCritical, "", "host-b", []string{"unit:b"})
+		synctest.Wait()
+		require.Empty(t, d.calls, "distinct resources under one service-check name must not create a false edge")
+		// The same resource going OK -> CRITICAL is a real edge.
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckOK, "", "host-a", []string{"unit:a"})
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckCritical, "", "host-a", []string{"unit:a"})
+		synctest.Wait()
+		require.Len(t, d.calls, 1)
 	})
 }
 
@@ -215,7 +237,7 @@ func TestRegistryDefaultsAndStaleObservations(t *testing.T) {
 
 type blockingDispatcher struct{ started chan struct{} }
 
-func (d *blockingDispatcher) Dispatch(ctx context.Context, _ checkid.ID, _ string, _ *integration.HealthCheckConfig) {
+func (d *blockingDispatcher) Dispatch(ctx context.Context, _ checkid.ID, _, _ string, _ *integration.HealthCheckConfig) {
 	close(d.started)
 	<-ctx.Done()
 }
@@ -226,25 +248,25 @@ func TestObserverBackpressureAndShutdown(t *testing.T) {
 		id := registerTestCheck(t, cfg)
 		d := &blockingDispatcher{started: make(chan struct{})}
 		o := NewObserver(d)
-		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckOK)
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckOK, "", "", nil)
 		synctest.Wait()
-		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckCritical)
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckCritical, "", "", nil)
 		<-d.started
 		for range cap(o.input) + 1 {
-			o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckCritical)
+			o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckCritical, "", "", nil)
 		}
 		assert.Equal(t, uint64(1), o.Dropped())
 		o.Stop()
 		o.Stop()
 		before := len(o.input)
-		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckOK)
+		o.ObserveServiceCheck(id, cfg.ServiceCheck, servicecheck.ServiceCheckOK, "", "", nil)
 		assert.Len(t, o.input, before)
 	})
 }
 
 func TestObserverNil(t *testing.T) {
 	var o *Observer
-	o.ObserveServiceCheck("check", "health", servicecheck.ServiceCheckCritical)
+	o.ObserveServiceCheck("check", "health", servicecheck.ServiceCheckCritical, "", "", nil)
 	o.Stop()
 	assert.Zero(t, o.Dropped())
 	assert.Nil(t, NewObserver(nil))
@@ -256,7 +278,7 @@ func TestEventDispatcher(t *testing.T) {
 	cfg := healthConfig()
 	marker := filepath.Join(t.TempDir(), "must-not-exist")
 	cfg.Remediation.Steps = []integration.RemediationStep{{Command: "touch " + marker}, {Command: "service example restart"}}
-	d.Dispatch(context.Background(), "example:123", cfg.ServiceCheck, cfg)
+	d.Dispatch(context.Background(), "example:123", cfg.ServiceCheck, "scratch full", cfg)
 	require.Len(t, out, 1)
 	e := <-out
 	assert.Equal(t, "health-check remediation (dry-run)", e.Title)
@@ -264,6 +286,7 @@ func TestEventDispatcher(t *testing.T) {
 	assert.Contains(t, e.Text, cfg.ServiceCheck)
 	assert.Contains(t, e.Text, "1. touch "+marker)
 	assert.Contains(t, e.Text, "2. service example restart")
+	assert.Contains(t, e.Text, "scratch full")
 	assert.Equal(t, "agent-host", e.Host)
 	assert.Equal(t, event.AlertTypeWarning, e.AlertType)
 	assert.Equal(t, event.PriorityNormal, e.Priority)
@@ -275,7 +298,7 @@ func TestEventDispatcher(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	d.Dispatch(ctx, "example:123", cfg.ServiceCheck, cfg)
+	d.Dispatch(ctx, "example:123", cfg.ServiceCheck, "", cfg)
 	assert.Empty(t, out)
 }
 
@@ -285,7 +308,7 @@ func TestEventDispatcherCancelsBlockedSend(t *testing.T) {
 		done := make(chan struct{})
 		d := NewEventDispatcher(make(chan event.Event), "host")
 		go func() {
-			d.Dispatch(ctx, "check", "health", healthConfig())
+			d.Dispatch(ctx, "check", "health", "", healthConfig())
 			close(done)
 		}()
 		synctest.Wait()

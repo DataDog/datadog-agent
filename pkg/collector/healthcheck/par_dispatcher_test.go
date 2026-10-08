@@ -95,7 +95,7 @@ func TestPARDispatcherRPC(t *testing.T) {
 			if test.command != "" {
 				cfg.Remediation.Steps[0].Command = test.command
 			}
-			dispatcher.Dispatch(context.Background(), "check:123", cfg.ServiceCheck, cfg)
+			dispatcher.Dispatch(context.Background(), "check:123", cfg.ServiceCheck, "scratch full", cfg)
 			require.NotEmpty(t, out)
 			if test.outcome == "dry-run" {
 				require.Len(t, out, 1)
@@ -130,7 +130,7 @@ func TestPARDispatcherUnreachable(t *testing.T) {
 	require.NoError(t, err)
 	config.SetInTest("private_action_runner.executor.socket_path", filepath.Join(t.TempDir(), "absent.sock"))
 	dispatcher := NewRemediationDispatcher(config, out, "host")
-	dispatcher.Dispatch(context.Background(), "check:123", "health", healthConfig())
+	dispatcher.Dispatch(context.Background(), "check:123", "health", "", healthConfig())
 	require.Len(t, out, 1)
 	assert.Contains(t, (<-out).Tags, "remediation:dry-run")
 }

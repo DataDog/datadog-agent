@@ -35,7 +35,7 @@ type recordingServiceCheckObserver struct {
 	calls []serviceCheckObservation
 }
 
-func (o *recordingServiceCheckObserver) ObserveServiceCheck(id checkid.ID, name string, status servicecheck.ServiceCheckStatus) {
+func (o *recordingServiceCheckObserver) ObserveServiceCheck(id checkid.ID, name string, status servicecheck.ServiceCheckStatus, _, _ string, _ []string) {
 	o.calls = append(o.calls, serviceCheckObservation{id: id, name: name, status: status})
 }
 
@@ -63,7 +63,7 @@ type blockedRemediationDispatcher struct {
 	stopped bool
 }
 
-func (d *blockedRemediationDispatcher) Dispatch(ctx context.Context, _ checkid.ID, _ string, _ *integration.HealthCheckConfig) {
+func (d *blockedRemediationDispatcher) Dispatch(ctx context.Context, _ checkid.ID, _, _ string, _ *integration.HealthCheckConfig) {
 	d.started = true
 	<-ctx.Done()
 	d.stopped = true

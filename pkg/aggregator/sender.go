@@ -401,7 +401,7 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 	}
 
 	if s.id != "" && s.serviceCheckObserver != nil {
-		s.serviceCheckObserver.ObserveServiceCheck(s.id, checkName, status)
+		s.serviceCheckObserver.ObserveServiceCheck(s.id, checkName, status, message, serviceCheck.Host, serviceCheck.Tags)
 	}
 	s.serviceCheckOut <- serviceCheck
 

@@ -5,5 +5,6 @@ features:
     declare a ``health_check`` block with ``remediation`` steps in its ``conf.d``
     configuration. When that check's service check goes ``CRITICAL`` the Agent runs
     the declared remediation steps through the local Private Action Runner
-    (restricted shell, non-privileged), then re-checks to verify. Enable it with
+    (restricted shell, non-privileged) and reports the command results as events.
+    The check's next scheduled run reflects whether the issue cleared. Enable it with
     ``health_check_remediation.enabled``.

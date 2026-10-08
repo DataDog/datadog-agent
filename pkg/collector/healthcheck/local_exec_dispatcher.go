@@ -20,9 +20,28 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 const localStepTimeout = 30 * time.Second
+
+// localWaitDelay bounds how long CombinedOutput blocks after the step times out, so a command that
+// backgrounds a child holding the output pipes cannot stall the dispatch (and the observer shutdown).
+const localWaitDelay = 5 * time.Second
+
+// scrubForLog redacts secrets and bounds size before step output reaches the Agent log.
+func scrubForLog(output string) string {
+	scrubbed, err := scrubber.ScrubString(output)
+	if err != nil {
+		return "[redacted]"
+	}
+	scrubbed = strings.TrimSpace(scrubbed)
+	const limit = 512
+	if len(scrubbed) > limit {
+		scrubbed = scrubbed[:limit] + "...[truncated]"
+	}
+	return scrubbed
+}
 
 // LocalExecDispatcher runs remediation steps in-process on the host. Demo-only: it bypasses the
 // PAR rshell sandbox so a remediation's effect is directly visible on a bare host. Production uses
@@ -38,14 +57,15 @@ func NewLocalExecDispatcher(out chan<- event.Event, hostname string) *LocalExecD
 }
 
 // Dispatch runs each step through the host shell, stops on the first failure, and reports the outcome.
-func (d *LocalExecDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName string, cfg *integration.HealthCheckConfig) {
+func (d *LocalExecDispatcher) Dispatch(ctx context.Context, id checkid.ID, scName, failureMessage string, cfg *integration.HealthCheckConfig) {
 	if d == nil || cfg == nil || ctx.Err() != nil {
 		return
 	}
-	d.emit(ctx, id, scName, "detected", "Health check became CRITICAL; local remediation was dispatched.")
+	d.emit(ctx, id, scName, "detected", detectedText(scName, d.hostname, failureMessage, id, cfg))
+
 	outcome := "remediated"
 	var text strings.Builder
-	text.WriteString("Local remediation step results:")
+	fmt.Fprintf(&text, "Remediation results for service check %q (check %s):", scName, id)
 	for i, step := range cfg.Remediation.Steps {
 		exitCode, output, err := d.run(ctx, step.Command)
 		result := "succeeded"
@@ -53,8 +73,8 @@ func (d *LocalExecDispatcher) Dispatch(ctx context.Context, id checkid.ID, scNam
 			result = "failed"
 			outcome = "escalate"
 		}
-		fmt.Fprintf(&text, "\n%d. %s (exit code %d)", i+1, result, exitCode)
-		log.Infof("Health-check remediation (local): check %s step %d %q -> exit %d output=%q err=%v", id, i+1, step.Command, exitCode, strings.TrimSpace(output), err)
+		fmt.Fprintf(&text, "\n%d. %s -> %s (exit code %d)", i+1, step.Command, result, exitCode)
+		log.Infof("Health-check remediation (local): check %s step %d -> exit %d err=%v output=%q", id, i+1, exitCode, err, scrubForLog(output))
 		if result == "failed" {
 			break
 		}
@@ -71,6 +91,7 @@ func (d *LocalExecDispatcher) run(ctx context.Context, command string) (int, str
 	} else {
 		cmd = exec.CommandContext(runCtx, "/bin/sh", "-c", command)
 	}
+	cmd.WaitDelay = localWaitDelay
 	output, err := cmd.CombinedOutput()
 	exitCode := 0
 	var exitErr *exec.ExitError
