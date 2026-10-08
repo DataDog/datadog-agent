@@ -56,3 +56,8 @@ const (
 	// Meant for internal usage
 	OPMSExtraHeaders = "private_action_runner.opms_extra_headers"
 )
+
+// CredentialConfig defines a named credential and its usage configuration.
+type CredentialConfig struct {
+	Value string `mapstructure:"value"`
+}

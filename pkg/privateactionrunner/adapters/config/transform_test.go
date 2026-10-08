@@ -619,13 +619,48 @@ func TestFromDDConfigCredentials(t *testing.T) {
 private_action_runner:
   credentials:
     values:
-      api_token: resolved-value
+      api_token:
+        value: resolved-value
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"api_token": "resolved-value"}, cfg.CredentialValues)
+	assert.Equal(t, map[string]par.CredentialConfig{"api_token": {Value: "resolved-value"}}, cfg.CredentialValues)
+}
+
+func TestFromDDConfigInvalidCredentials(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "scalar credential",
+			yaml: `private_action_runner:
+  credentials:
+    values:
+      api_token: secret-value
+`,
+		},
+		{
+			name: "unsupported restriction",
+			yaml: `private_action_runner:
+  credentials:
+    values:
+      api_token:
+        value: secret-value
+        allowed_actions: [some-action]
+`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := FromDDConfig(configmock.NewFromYAML(t, test.yaml), nil)
+			require.Error(t, err)
+			assert.Nil(t, cfg)
+			assert.Contains(t, err.Error(), par.CredentialsValues)
+			assert.NotContains(t, err.Error(), "secret-value")
+		})
+	}
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {

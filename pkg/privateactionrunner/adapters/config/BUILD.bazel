@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/dogstatsd/statsd/def",
+        "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/actions",

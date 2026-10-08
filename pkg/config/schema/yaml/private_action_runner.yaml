@@ -80,13 +80,20 @@ properties:
         default: {}
         visibility: public
         additionalProperties:
-          type: string
+          type: object
+          required:
+            - value
+          properties:
+            value:
+              type: string
         description: |-
-          Named credential values available to Private Action Runner tasks.
-          Values may use ENC[...] handles resolved by Agent secret management.
+          Named credential objects available to Private Action Runner tasks.
+          Each object must contain a value field, which may use an ENC[...] handle
+          resolved by Agent secret management.
         example: |2-
 
-            api_token: ENC[api_token]
+            api_token:
+              value: ENC[api_token]
   http_timeout_seconds:
     node_type: setting
     type: integer

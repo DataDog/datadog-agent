@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -91,7 +92,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 
 func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
 	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
-	var catalogValues map[string]string
+	var catalogValues map[string]par.CredentialConfig
 	for _, token := range tokens {
 		if token == nil || len(token.GetNameSegments()) == 0 {
 			return nil, errors.New("connection token and its name must not be empty")
@@ -111,11 +112,11 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 			if catalogValues == nil {
 				catalogValues = p.catalog.snapshot()
 			}
-			var found bool
-			value, found = catalogValues[key]
+			credential, found := catalogValues[key]
 			if !found {
 				return nil, fmt.Errorf("could not resolve connection token %q: requested runner credential is not available", connlib.GetName(token))
 			}
+			value = credential.Value
 		default:
 			return nil, fmt.Errorf("unsupported source for connection token %q", connlib.GetName(token))
 		}
