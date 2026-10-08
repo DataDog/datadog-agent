@@ -104,8 +104,8 @@ type AgentMetadataPayload struct {
 	OS       string `json:"os"`
 	OSVer    string `json:"osver"`
 	// Features are the environment features autodetected by the Agent (docker, kubernetes,
-	// ecsfargate...). They are copied into every payload, so telemetry can be split by
-	// environment without correlating payloads.
+	// ecsfargate...). They are copied into every metrics and event payload, so telemetry can be
+	// split by environment without correlating payloads.
 	Features []string `json:"features"`
 }
 
