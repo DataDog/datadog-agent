@@ -20,19 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// sendErrorResponse sends an error response to the client and logs the error
-func (f *privilegedLogsModule) sendErrorResponse(unixConn *net.UnixConn, message string) {
-	log.Error(message)
-	response := common.OpenFileResponse{
-		Success: false,
-		Error:   message,
-	}
-	responseBytes, _ := json.Marshal(response)
-	if _, _, err := unixConn.WriteMsgUnix(responseBytes, nil, nil); err != nil {
-		log.Errorf("Failed to write error response: %v", err)
-	}
-}
-
 // logFileAccess informs about uses of this endpoint.  To avoid frequent logging
 // for the same files (log rotation detection in the core agent tries to open
 // tailed files every 10 seconds), we only log the first access for each path.
@@ -51,6 +38,12 @@ func (f *privilegedLogsModule) logFileAccess(path string) {
 	log.Infof("Received request to open file: %s", path)
 }
 
+// sendError sends an error response to the client and logs the error
+func sendError(w http.ResponseWriter, code int, message string) {
+	log.Error(message)
+	http.Error(w, message, code)
+}
+
 // openFileHandler handles requests to open a file and transfer its file descriptor
 func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Request) {
 	// We need to read the body fully before hijacking the connection
@@ -59,6 +52,26 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 		log.Errorf("Failed to read body: %v", err)
 		return
 	}
+
+	var req common.OpenFileRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		sendError(w, http.StatusBadRequest, fmt.Sprintf("Failed to parse request: %v", err))
+		return
+	}
+
+	f.logFileAccess(req.Path)
+
+	var file *os.File
+	if req.NoFollow {
+		file, err = validateAndOpenNoFollow(req.Path)
+	} else {
+		file, err = validateAndOpen(req.Path)
+	}
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer file.Close()
 
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
@@ -78,25 +91,12 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var req common.OpenFileRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		f.sendErrorResponse(unixConn, fmt.Sprintf("Failed to parse request: %v", err))
+	// The status line and the file descriptor are sent in separate writes, as
+	// system-probe-lite does, so the client must handle split delivery.
+	if _, err := unixConn.Write([]byte("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: dd-privileged-logs\r\n\r\n")); err != nil {
+		log.Errorf("Failed to write response: %v", err)
 		return
 	}
-
-	f.logFileAccess(req.Path)
-
-	var file *os.File
-	if req.NoFollow {
-		file, err = validateAndOpenNoFollow(req.Path)
-	} else {
-		file, err = validateAndOpen(req.Path)
-	}
-	if err != nil {
-		f.sendErrorResponse(unixConn, err.Error())
-		return
-	}
-	defer file.Close()
 
 	fd := int(file.Fd())
 	log.Tracef("Sending file descriptor %d for file %s", fd, req.Path)

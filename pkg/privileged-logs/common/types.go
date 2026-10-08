@@ -14,6 +14,5 @@ type OpenFileRequest struct {
 
 // OpenFileResponse represents the response from the file descriptor transfer
 type OpenFileResponse struct {
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
+	Success bool `json:"success"`
 }

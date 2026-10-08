@@ -9,13 +9,16 @@
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"syscall"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -61,6 +64,10 @@ func openPrivileged(socketPath string, filePath string, noFollow bool) (*os.File
 		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	// "close" makes the server close the connection after an error response,
+	// since we read until EOF.
+	httpReq.Header.Set("Connection", "Upgrade, close")
+	httpReq.Header.Set("Upgrade", "dd-privileged-logs")
 
 	if err := httpReq.Write(conn); err != nil {
 		return nil, fmt.Errorf("failed to write request: %v", err)
@@ -71,53 +78,57 @@ func openPrivileged(socketPath string, filePath string, noFollow bool) (*os.File
 		return nil, errors.New("not a Unix connection")
 	}
 
-	// Read the message and file descriptor using ReadMsgUnix
-	// The server sends the JSON response along with the file descriptor
-	buf := make([]byte, 1024) // Larger buffer for JSON response
+	// Only use ReadMsgUnix: a plain read() of the bytes carrying SCM_RIGHTS
+	// would discard the fd.
+	var data []byte
+	var fds []int
+	defer func() {
+		for _, fd := range fds {
+			syscall.Close(fd)
+		}
+	}()
+	buf := make([]byte, 1024)
 	oob := make([]byte, syscall.CmsgSpace(4))
-
-	n, oobn, _, _, err := unixConn.ReadMsgUnix(buf, oob)
-	if err != nil {
-		return nil, fmt.Errorf("ReadMsgUnix failed: %v", err)
-	}
-
-	if n == 0 {
-		return nil, errors.New("no response received")
-	}
-
-	var response common.OpenFileResponse
-	if err := json.Unmarshal(buf[:n], &response); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %v", err)
-	}
-
-	if !response.Success {
-		return nil, fmt.Errorf("module error: %s", response.Error)
-	}
-
-	// Parse the file descriptor from the control message
-	if oobn > 0 {
+	for {
+		n, oobn, _, _, err := unixConn.ReadMsgUnix(buf, oob)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("ReadMsgUnix failed: %v", err)
+		}
+		data = append(data, buf[:n]...)
 		msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
 		if err != nil {
 			return nil, fmt.Errorf("ParseSocketControlMessage failed: %v", err)
 		}
-
 		for _, msg := range msgs {
-			if msg.Header.Level == syscall.SOL_SOCKET && msg.Header.Type == syscall.SCM_RIGHTS {
-				fds, err := syscall.ParseUnixRights(&msg)
-				if err != nil {
-					return nil, fmt.Errorf("ParseUnixRights failed: %v", err)
-				}
-
-				if len(fds) > 0 {
-					fd := fds[0] // We only expect one file descriptor
-					log.Tracef("Received file descriptor: %d", fd)
-					return os.NewFile(uintptr(fd), filePath), nil
-				}
+			rights, err := syscall.ParseUnixRights(&msg)
+			if err != nil {
+				return nil, fmt.Errorf("ParseUnixRights failed: %v", err)
 			}
+			fds = append(fds, rights...)
 		}
 	}
 
-	return nil, errors.New("no file descriptor received")
+	resp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(data)), httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("module error: %s", strings.TrimSpace(string(body)))
+	}
+
+	if len(fds) != 1 {
+		return nil, fmt.Errorf("expected 1 file descriptor, got %d", len(fds))
+	}
+
+	fd := fds[0]
+	fds = nil
+	log.Tracef("Received file descriptor: %d", fd)
+	return os.NewFile(uintptr(fd), filePath), nil
 }
 
 func maybeOpenPrivileged(path string, originalError error, noFollow bool) (*os.File, error) {
