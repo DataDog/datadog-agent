@@ -129,6 +129,7 @@ def evaluate_index(
     head = get_commit_sha(ctx)
     commit_sha = commit_sha or head
     executors: list[DynTestExecutor] = []
+    unreliable_jobs: set[str] = set()
     if selector == "jev":
         if not is_enabled(ctx, "datadog-agent-jev-evaluation"):
             print(color_message("Jev evaluation disabled", Color.ORANGE))
@@ -142,6 +143,10 @@ def evaluate_index(
         executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch)
         executors = [executor]
         changes = []  # Jev gathers the richer PR diff/context from this checkout.
+        # Failing tests in jobs the pipeline allows to fail are not critical
+        # misses (GitLab ignores those jobs' result): pass the executor's live
+        # set - init_index fills it during initialize()
+        unreliable_jobs = executor.unreliable_jobs
     else:
         backend = S3Backend(bucket_uri)
         changed_files = get_modified_files(ctx)
@@ -167,7 +172,9 @@ def evaluate_index(
             if send_stats
             else ConsoleTelemetryHandler()
         )
-        evaluator = DatadogDynTestEvaluator(ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry)
+        evaluator = DatadogDynTestEvaluator(
+            ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry, unreliable_jobs=unreliable_jobs
+        )
         if not evaluator.initialize():
             if isinstance(evaluator.initialization_error, NothingToEvaluateError):
                 # E.g. a dev-branch pipeline where no E2E test jobs ran:

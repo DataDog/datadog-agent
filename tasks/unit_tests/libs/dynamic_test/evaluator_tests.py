@@ -63,6 +63,19 @@ class TestDynTestEvaluator(unittest.TestCase):
         self.assertEqual(result.predicted_executed_tests, {"TestPass"})
         self.assertEqual(result.not_executed_failing_tests, {"TestFail"})
 
+    def test_jobs_allowed_to_fail_never_miss(self):
+        """Failing tests in jobs the pipeline allows to fail are not critical
+        misses: GitLab ignores those jobs' result, so a failure there is
+        known-unreliable."""
+        self.executor.tests_to_run_per_job.return_value = {"job": set()}
+        # passed by reference, as the Jev executor's live set: filled in
+        # init_index, which runs during initialize(), after construction
+        self.evaluator.unreliable_jobs.add("job")
+        self.assertTrue(self.evaluator.initialize())
+        result = self.evaluator.evaluate([])[0]
+        self.assertEqual(result.not_executed_failing_tests, set())
+        self.assertEqual(result.actual_executed_tests, {"TestPass", "TestFail", "TestFlaky"})
+
     def test_summary_lists_the_missed_failing_tests(self):
         """The global summary warning names the skipped failing tests and their
         jobs: the per-job reports are long, the summary is what gets read."""

@@ -153,6 +153,7 @@ class DynTestEvaluator(ABC):
         executor: DynTestExecutor,
         pipeline_id: str,
         telemetry_handler: TelemetryHandler | None = None,
+        unreliable_jobs: set[str] | None = None,
     ):
         """Initialize the evaluator.
 
@@ -165,6 +166,9 @@ class DynTestEvaluator(ABC):
             executor: Executor with lazy index loading capability
             pipeline_id: CI pipeline ID to evaluate against
             telemetry_handler: Optional telemetry handler for sending events and metrics
+            unreliable_jobs: Optional set of job names the pipeline allows to fail; failing tests
+                in them are not critical misses. May be filled after construction (the Jev executor
+                learns its jobs in init_index) - pass the executor's live set
         """
         self.ctx = ctx
         self.executor = executor
@@ -176,6 +180,11 @@ class DynTestEvaluator(ABC):
         # The exception that made initialize() fail, if any: lets callers
         # distinguish error types (the console only shows a summary line).
         self.initialization_error: Exception | None = None
+        # Failing tests in jobs the pipeline allows to fail are not critical
+        # misses: GitLab ignores those jobs' result. The set may be filled
+        # lazily (the Jev executor learns them in init_index, after the
+        # evaluator's construction) - pass the executor's live set.
+        self.unreliable_jobs = unreliable_jobs if unreliable_jobs is not None else set()
 
     @abstractmethod
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
@@ -395,11 +404,23 @@ This indicates an issue with the dynamic test system that may affect CI performa
         actual_executed_tests = {test.name for test in current_job_tests if test.name in indexed_tests}
         predicted_executed_tests = predicted_tests & indexed_tests
         not_executed_failing_tests = set()
+        skipped_unreliable_job = 0
         for test in current_job_tests:
             if test.name not in indexed_tests:
                 continue
-            if test.status == "fail" and not test.unreliable_status and test.name not in predicted_executed_tests:
-                not_executed_failing_tests.add(test.name)
+            if test.status == "fail":
+                # The pipeline allows this job to fail: a failure there is
+                # known-unreliable, not a critical miss
+                if job in self.unreliable_jobs or test.unreliable_status:
+                    skipped_unreliable_job += 1
+                    continue
+                if test.name not in predicted_executed_tests:
+                    not_executed_failing_tests.add(test.name)
+        if skipped_unreliable_job:
+            print(
+                f"[flaky-filter] {job}: {skipped_unreliable_job} failing test(s) excluded from critical misses "
+                "(flaky, passed on retry, or in a job allowed to fail)"
+            )
 
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)
 

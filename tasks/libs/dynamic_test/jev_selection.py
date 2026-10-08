@@ -154,6 +154,9 @@ class JevDynTestExecutor(DynTestExecutor):
         self.require_pipeline_commit = require_pipeline_commit
         self.jobs: list[str] = []
         self.job_ids: dict[str, str] = {}
+        # Jobs the pipeline allows to fail: GitLab ignores their result, so
+        # their tests are never critical misses (filled by init_index)
+        self.unreliable_jobs: set[str] = set()
         self._run: set[str] | None = None
 
     def init_index(self):
@@ -178,6 +181,9 @@ class JevDynTestExecutor(DynTestExecutor):
             raise NothingToEvaluateError(f"No completed E2E jobs in pipeline {self.pipeline_id}")
         self.jobs = [job.name for job in jobs]
         self.job_ids = {job.name: str(job.id) for job in jobs}
+        # update() in place: callers may hold a reference (the evaluator's
+        # unreliable_jobs) and init_index runs after their construction
+        self.unreliable_jobs.update(job.name for job in jobs if getattr(job, "allow_failure", False))
 
         candidates = _job_candidates()
         index = DynamicTestIndex()
