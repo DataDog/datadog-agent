@@ -2,11 +2,14 @@
 
 Decides, for each E2E test of a given suite (or a single test), whether it
 should be executed on the current PR, by asking a Jev (TypeSafe System One)
-model through the AI Gateway. select_suite() is the only entry point, called
-in-process by the executor (tasks/libs/dynamic_test/jev_selection.py). See
-jev_client.py for the questions and the run/skip decision, and the sibling
-modules for context gathering (pr_context.py), diff processing
-(diff_utils.py) and test discovery (test_discovery.py).
+model through the AI Gateway. Before the per-test calls, one LLM call to
+the AI Gateway chat completions endpoint (pr_summary.py) generates a summary
+of the PR changes that replaces the raw diff in every Jev state. select_suite()
+is the only entry point, called in-process by the executor
+(tasks/libs/dynamic_test/jev_selection.py). See jev_client.py for the
+questions and the run/skip decision, and the sibling modules for context
+gathering (pr_context.py), diff processing (diff_utils.py), PR summarization
+(pr_summary.py) and test discovery (test_discovery.py).
 
 Must run from the repository root (git context and relative paths).
 
@@ -41,6 +44,7 @@ from tasks.libs.dynamic_test.jev.jev_client import (
     get_ai_gateway_token,
 )
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
+from tasks.libs.dynamic_test.jev.pr_summary import CHAT_COMPLETIONS_PATH, summarize_pr
 from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
 
 # The context (what every Jev call for a suite sees: the PR, the diff, the
@@ -48,6 +52,16 @@ from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suite
 # suites of a selection share the same context, so printing it per suite
 # would repeat the same diff over and over
 _printed_contexts: set[tuple[str, str]] = set()
+
+# The LLM PR summary (pr_summary.py) is also shared by every suite of a
+# selection run against the same (base, merge base): computed once, reused
+# by the later select_suite calls of the same run
+_pr_summaries: dict[tuple[str, str], str] = {}
+
+# The AI Gateway model generating the PR summary (chat completions endpoint,
+# same gateway and token as the Jev calls); an empty value disables the
+# summary and every Jev state carries the raw diff instead
+DEFAULT_SUMMARY_MODEL = "gpt-4o-mini"
 
 
 def select_suite(
@@ -65,11 +79,18 @@ def select_suite(
     workers: int = 8,
     output: str | None = None,
     dry_run: bool = False,
+    summary_model: str | None = None,
 ) -> dict | None:
     """Run the Jev selection for one suite and return its summary dict.
 
     Returns None on a dry run (full per-test states printed, nothing decided).
-    The summary is {"suite", "team", "base", "pr", "changed_files", "run", "skip",
+    Unless summary_model is set to "" (or JEV_SUMMARY_MODEL is empty), one LLM
+    call to the AI Gateway chat completions endpoint (pr_summary.py) produces
+    a summary of the PR changes, computed once per (base, merge base) and
+    shared by every suite of the run; that summary replaces the raw diff in
+    every per-test Jev state. If the summary call fails, the selector fails
+    open to the raw diff. The
+    summary is {"suite", "team", "base", "pr", "changed_files", "run", "skip",
     "decisions"}. The shared context (PR, diff, suite definition - everything
     but the per-test code) is printed once per run (per unique base/merge
     base) so the passed diff is inspectable; the per-test states are not
@@ -114,6 +135,30 @@ def select_suite(
 
     token = None if dry_run else get_ai_gateway_token(token=token, token_cmd=token_cmd, dc=dc)
 
+    # One LLM call per (base, merge base) - shared by every suite and every
+    # per-test Jev state of the run - producing the PR summary that replaces
+    # the raw diff (pr_summary.py). An explicit summary_model="" or an empty
+    # JEV_SUMMARY_MODEL disables it; a failed call falls back to the diff.
+    summary_model = (
+        summary_model if summary_model is not None else os.environ.get("JEV_SUMMARY_MODEL", DEFAULT_SUMMARY_MODEL)
+    )
+    pr_summary = ""
+    if not dry_run and summary_model:
+        pr_summary = _pr_summaries.get((base, str(merge_base)), "")
+        if not pr_summary:
+            try:
+                pr_summary = summarize_pr(token, pr, files, merge_base, diff, model=summary_model, dc=dc, source=source)
+                _pr_summaries[(base, str(merge_base))] = pr_summary
+                print(
+                    f"[info] LLM PR summary from {summary_model} ({len(pr_summary)} chars) replaces the diff "
+                    "in every Jev state"
+                )
+            except Exception as e:
+                pr_summary = ""
+                print(f"[warn] PR summary generation failed: {e} -> sending the raw diff instead")
+    elif dry_run and summary_model:
+        print("[info] dry run: the PR summary that would replace the diff is not generated (no gateway call)")
+
     suite_def_path, suite_def_code = suite_definition(suite_dir)
     if suite_def_code:
         print(f"[info] suite definition included: {suite_def_path} ({len(suite_def_code)} chars)")
@@ -125,19 +170,35 @@ def select_suite(
     if not dry_run and (base, str(merge_base)) not in _printed_contexts:
         _printed_contexts.add((base, str(merge_base)))
         context = build_context_state(
-            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code
+            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code, pr_summary=pr_summary
         )
         with gitlab_section(f"Jev input context (suite {suite})", collapsed=True, echo=True):
             print(
                 f"endpoint: https://ai-gateway.{dc}{SYSTEMONE_PATH}  model: {model}  source: {source}\n"
-                f"questions: {json.dumps(QUESTIONS)}\n"
+                + (
+                    f"PR summary: https://ai-gateway.{dc}{CHAT_COMPLETIONS_PATH}  model: {summary_model}\n"
+                    if pr_summary
+                    else "PR summary: none, the raw diff is passed\n"
+                )
+                + f"questions: {json.dumps(QUESTIONS)}\n"
                 f"state without the per-test code ({len(context)} chars):\n{context}"
             )
 
     def select_test(entry):
         name, path, code = entry
         state = build_state(
-            name, path, code, suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code
+            name,
+            path,
+            code,
+            suite,
+            team,
+            pr,
+            files,
+            merge_base,
+            diff,
+            ddci=ddci,
+            suite_def_code=suite_def_code,
+            pr_summary=pr_summary,
         )
         if dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")

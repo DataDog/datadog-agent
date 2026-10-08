@@ -6,9 +6,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from tasks.libs.dynamic_test.jev.jev_client import decide, get_ai_gateway_token
+from tasks.libs.dynamic_test.jev.jev_client import build_context_state, decide, get_ai_gateway_token
 from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_pr_info
+from tasks.libs.dynamic_test.jev.pr_summary import summarize_pr
 from tasks.libs.dynamic_test.jev.test_discovery import list_suites
 
 
@@ -131,8 +132,10 @@ class TestJevTools(unittest.TestCase):
                 patch(f"{module}.pr_diff", return_value=""),
                 patch(f"{module}.suite_definition", return_value=("", "")),
                 patch(f"{module}.get_ai_gateway_token", return_value="fake"),
+                patch(f"{module}.summarize_pr", return_value="a summary"),
                 patch(f"{module}.gitlab_section") as section,
                 patch(f"{module}._printed_contexts", set()),
+                patch(f"{module}._pr_summaries", {}),
                 patch(
                     f"{module}.list_suites",
                     return_value=[
@@ -154,3 +157,99 @@ class TestJevTools(unittest.TestCase):
             # The context (state without the test code) is printed ONCE for the
             # whole suite - not once per Jev call
             section.assert_called_once()
+
+    def test_pr_summary_replaces_the_diff_in_the_jev_state(self):
+        """The generated summary is computed once per run, sent instead of the
+        raw diff in every per-test Jev state, and a failed generation falls
+        back to the diff."""
+
+        def summarize_mock(side_effect):
+            def call(*args, **kwargs):
+                if isinstance(side_effect, Exception):
+                    raise side_effect
+                return side_effect
+
+            return call
+
+        module = "tasks.libs.dynamic_test.jev.jev_e2e_selector"
+        states = []
+        with tempfile.TemporaryDirectory() as directory:
+            for side_effect in ("The PR adds a new config field.", RuntimeError("gateway down")):
+                states.clear()
+                with (
+                    patch(f"{module}.os.path.isdir", return_value=True),
+                    patch(f"{module}.fetch_ddci_metadata", return_value=None),
+                    patch(f"{module}.fetch_pr_info", return_value={"title": "t", "description": "d"}),
+                    patch(f"{module}.changed_files", return_value=([("a.go", "modified")], "base")),
+                    patch(f"{module}.pr_diff", return_value="```diff\n+ a change\n```"),
+                    patch(f"{module}.suite_definition", return_value=("", "")),
+                    patch(f"{module}.get_ai_gateway_token", return_value="fake"),
+                    patch(f"{module}.summarize_pr", side_effect=summarize_mock(side_effect)),
+                    patch(f"{module}.gitlab_section"),
+                    patch(f"{module}._printed_contexts", set()),
+                    patch(f"{module}._pr_summaries", {}),
+                    patch(
+                        f"{module}.list_suites",
+                        return_value=[
+                            ("TestOne", "one_test.go", "code"),
+                            ("TestTwo", "two_test.go", "code"),
+                        ],
+                    ),
+                    patch(
+                        f"{module}.ask_jev",
+                        side_effect=lambda token, state, **k: states.append(state) or {"answers": answers()},
+                    ),
+                ):
+                    select_suite("fleet", workers=1, output=str(Path(directory, "decisions.json")))
+                self.assertEqual(len(states), 2)
+                if isinstance(side_effect, str):
+                    for state in states:
+                        self.assertIn("The PR adds a new config field.", state)
+                        self.assertIn("LLM summary of the changes in this PR", state)
+                        self.assertNotIn("```diff", state)  # the raw diff is replaced
+                else:
+                    for state in states:  # failed generation: the raw diff is sent
+                        self.assertIn("```diff\n+ a change\n```", state)
+
+    def test_build_context_state_summary_and_diff_sections(self):
+        kwargs = {
+            "suite": "fleet",
+            "team": "fleet",
+            "pr": {"title": "t", "description": "d"},
+            "files": [("a.go", "modified")],
+            "merge_base": "0c339c19",
+            "diff": "```diff\n+ a change\n```",
+        }
+        with_diff = build_context_state(**kwargs)
+        self.assertIn("## Full PR diff", with_diff)
+        self.assertNotIn("LLM summary", with_diff)
+        summarized = build_context_state(pr_summary="summary text", **kwargs)
+        self.assertIn("## LLM summary of the changes in this PR", summarized)
+        self.assertIn("summary text", summarized)
+        self.assertNotIn("## Full PR diff", summarized)
+
+    @patch("tasks.libs.dynamic_test.jev.pr_summary.urllib.request.urlopen")
+    def test_summarize_pr_calls_the_ai_gateway_chat_completions(self, urlopen):
+        """The summary call goes to the gateway's OpenAI-compatible endpoint
+        with the same auth and headers as the Jev (System One) calls."""
+        body = json.dumps({"choices": [{"message": {"content": "  The PR fixes a flaky test.  "}}]}).encode()
+        urlopen.return_value.__enter__.return_value = urlopen.return_value
+        urlopen.return_value.__exit__.return_value = False
+        urlopen.return_value.read.return_value = body
+        summary = summarize_pr(
+            "token",
+            {"title": "Fix flake", "description": "d"},
+            [("a.go", "modified")],
+            "0c339c19",
+            "diff text",
+            model="gpt-4o-mini",
+            dc="us1.ddbuild.io",
+        )
+        self.assertEqual(summary, "The PR fixes a flaky test.")
+        req = urlopen.call_args[0][0]
+        self.assertEqual(req.full_url, "https://ai-gateway.us1.ddbuild.io/v1/chat/completions")
+        self.assertEqual(req.get_header("Authorization"), "Bearer token")
+        body = json.loads(req.data)
+        self.assertEqual(body["model"], "gpt-4o-mini")
+        self.assertIn("Fix flake", body["messages"][1]["content"])
+        self.assertIn("diff text", body["messages"][1]["content"])
