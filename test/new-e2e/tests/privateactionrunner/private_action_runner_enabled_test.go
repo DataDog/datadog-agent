@@ -53,11 +53,10 @@ const (
 	privateActionRunnerConfigStage = "/tmp/private-action-runner-e2e-datadog.yaml"
 )
 
-func generateTestPrivateActionRunnerConfig(t *testing.T) string {
+func generateTestSplitPrivateActionRunnerConfig(t *testing.T) string {
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
-  split_enabled: false
   self_enroll: false
   urn: %s
   private_key: %s
@@ -69,19 +68,40 @@ func generateTestPrivateActionRunnerConfig(t *testing.T) string {
 `, urn, privateKey, runCommandAction)
 }
 
-type linuxPrivateActionRunnerEnabledSuite struct {
+type linuxPrivateActionRunnerSplitSuite struct {
 	e2e.BaseSuite[environments.Host]
 
 	privilegedSigningKey testSigningKey
 }
 
-func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
+type linuxPrivateActionRunnerEnabledSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+func TestLinuxPrivateActionRunnerSplitSuite(t *testing.T) {
 	t.Parallel()
-	config := generateTestPrivateActionRunnerConfig(t)
-	suite := &linuxPrivateActionRunnerEnabledSuite{
+	config := generateTestSplitPrivateActionRunnerConfig(t)
+	suite := &linuxPrivateActionRunnerSplitSuite{
 		privilegedSigningKey: generateTestSigningKey(t, privilegedRshellKeyID+"-"+uuid.NewString()),
 	}
 	e2e.Run(t, suite, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(
+				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2404E2E)),
+				scenec2.WithPreAgentInstallHook(stagePrivateActionRunnerConfig(config)),
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(config),
+					agentparams.WithFile("/etc/datadog-agent/environment", "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS=true\n", true),
+				),
+			),
+		),
+	))
+}
+
+func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
+	t.Parallel()
+	config := GenerateTestMonolithicPrivateActionRunnerConfig(t)
+	e2e.Run(t, &linuxPrivateActionRunnerEnabledSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
 				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2404E2E)),
@@ -110,11 +130,20 @@ func stagePrivateActionRunnerConfig(configContent string) func(*aws.Environment,
 // TestPrivilegedRshellEndToEnd verifies the complete deployed privilege boundary:
 // package permissions, systemd socket activation, TUF-authenticated task signing,
 // selective elevation from dd-agent to root, and helper idle reactivation.
-func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
+func (s *linuxPrivateActionRunnerSplitSuite) TestPrivilegedRshellEndToEnd() {
 	host := s.Env().RemoteHost
 	client := s.Env().FakeIntake.Client()
-	svcManager := common.GetServiceManager(host)
-	s.Require().NotNil(svcManager)
+
+	// This suite intentionally omits split_enabled so it verifies the host default,
+	// not merely the split implementation behind an explicit opt-in.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := host.Execute(fmt.Sprintf(
+			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, parControlProcess,
+		))
+		require.NoError(c, err)
+		require.Contains(c, strings.ReplaceAll(output, " ", ""), "State:Running")
+	}, 2*time.Minute, 2*time.Second, "split PAR control plane should run by default")
+	s.waitForSystemdUnitState(privateActionRunnerServiceName, "inactive", 2*time.Minute)
 
 	s.Require().Equal("root:root 755", strings.TrimSpace(host.MustExecute(
 		"sudo stat -c '%U:%G %a' "+privilegedRshellBinary,
@@ -146,33 +175,27 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	_, err = host.Execute("sudo -u dd-agent cat " + privilegedRshellFixture)
 	s.Require().Error(err, "dd-agent unexpectedly read the root-only fixture")
 
-	_, err = svcManager.Start(privateActionRunnerServiceName)
-	s.Require().NoError(err)
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		status, statusErr := svcManager.Status(privateActionRunnerServiceName)
-		require.NoError(c, statusErr)
-		require.Contains(c, status, "active")
-	}, 2*time.Minute, 5*time.Second)
-
 	s.Require().NoError(client.FlushPAR())
 	s.deleteRCConfig(runnerKeysRCProduct, s.privilegedSigningKey.id)
 	s.T().Cleanup(func() { s.deleteRCConfig(runnerKeysRCProduct, s.privilegedSigningKey.id) })
-	s.Require().NoError(client.RCAddConfig(
-		strconv.FormatInt(testRunnerOrgID, 10),
-		runnerKeysRCProduct,
-		s.privilegedSigningKey.id,
-		s.privilegedSigningKey.id,
-		s.privilegedSigningKey.config,
-	))
 	setPARTaskSigningKey(s.T(), client, s.privilegedSigningKey)
 
-	// Core Agent polls do not guarantee PAR has installed this signing key.
+	// Enqueuing work starts the split-mode executor. Re-publish the key while
+	// that cold executor registers its Remote Config subscription.
+	nonElevatedTaskID := s.enqueuePrivilegedRshellTask("cat " + privilegedRshellFixture)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig(
+			strconv.FormatInt(testRunnerOrgID, 10),
+			runnerKeysRCProduct,
+			s.privilegedSigningKey.id,
+			s.privilegedSigningKey.id,
+			s.privilegedSigningKey.config,
+		))
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s | grep -F %q",
 			"Successfully updated keys", privateActionRunnerLogFile, s.privilegedSigningKey.id))
-	}, 45*time.Second, time.Second, "PAR should install the task signing key")
+	}, 2*time.Minute, 2*time.Second, "PAR should install the task signing key")
 
-	nonElevated := s.runPrivilegedRshellTask("cat " + privilegedRshellFixture)
+	nonElevated := s.waitForPrivilegedRshellTask(nonElevatedTaskID)
 	s.Require().True(nonElevated.Success, "non-elevated rshell command should complete: %+v", nonElevated)
 	s.Require().NotZero(rshellExitCode(s.T(), nonElevated))
 	s.Require().NotContains(nonElevated.Outputs["stdout"], privilegedRshellSecret)
@@ -199,13 +222,24 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	s.Require().Equal("active", strings.TrimSpace(host.MustExecute(
 		"sudo systemctl is-active "+privilegedRshellSocketUnit,
 	)))
-	reactivated := s.runPrivilegedRshellTask("sudo cat " + privilegedRshellFixture)
-	s.Require().True(reactivated.Success, "reactivated privileged helper failed: %+v", reactivated)
-	s.Require().Zero(rshellExitCode(s.T(), reactivated), "reactivated privileged helper failed: %+v", reactivated)
-	s.Require().Equal(privilegedRshellSecret+"\n", reactivated.Outputs["stdout"])
+	reactivatedTaskID := s.enqueuePrivilegedRshellTask("sudo cat " + privilegedRshellFixture)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig(
+			strconv.FormatInt(testRunnerOrgID, 10),
+			runnerKeysRCProduct,
+			s.privilegedSigningKey.id,
+			s.privilegedSigningKey.id,
+			s.privilegedSigningKey.config,
+		))
+		reactivated, err := client.GetPARTaskResult(reactivatedTaskID, 2*time.Second)
+		require.NoError(c, err)
+		require.True(c, reactivated.Success, "reactivated privileged helper failed: %+v", reactivated)
+		require.Zero(c, rshellExitCode(s.T(), reactivated), "reactivated privileged helper failed: %+v", reactivated)
+		require.Equal(c, privilegedRshellSecret+"\n", reactivated.Outputs["stdout"])
+	}, 2*time.Minute, 2*time.Second)
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) installPrivilegedRshellFixture() {
+func (s *linuxPrivateActionRunnerSplitSuite) installPrivilegedRshellFixture() {
 	rootJSON, err := e2efakeintake.RCRootJSON()
 	s.Require().NoError(err)
 	policy, err := json.Marshal(struct {
@@ -239,12 +273,12 @@ func (s *linuxPrivateActionRunnerEnabledSuite) installPrivilegedRshellFixture() 
 	_, _ = host.Execute("rm -f " + privilegedRshellPolicyStage + ".secret")
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) runPrivilegedRshellTask(command string) *api.PARTaskResult {
-	_, result := s.runPrivilegedRshellTaskWithID(command)
-	return result
+func (s *linuxPrivateActionRunnerSplitSuite) runPrivilegedRshellTaskWithID(command string) (string, *api.PARTaskResult) {
+	taskID := s.enqueuePrivilegedRshellTask(command)
+	return taskID, s.waitForPrivilegedRshellTask(taskID)
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) runPrivilegedRshellTaskWithID(command string) (string, *api.PARTaskResult) {
+func (s *linuxPrivateActionRunnerSplitSuite) enqueuePrivilegedRshellTask(command string) string {
 	taskID := uuid.New().String()
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":              command,
@@ -254,12 +288,16 @@ func (s *linuxPrivateActionRunnerEnabledSuite) runPrivilegedRshellTaskWithID(com
 		"allowedPaths":         []string{privilegedRshellFixtureDir + ":ro"},
 	})
 	s.Require().NoError(err)
-	result, err := s.Env().FakeIntake.Client().GetPARTaskResult(taskID, 2*time.Minute)
-	s.Require().NoError(err)
-	return taskID, result
+	return taskID
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) deleteRCConfig(product, configID string) {
+func (s *linuxPrivateActionRunnerSplitSuite) waitForPrivilegedRshellTask(taskID string) *api.PARTaskResult {
+	result, err := s.Env().FakeIntake.Client().GetPARTaskResult(taskID, 2*time.Minute)
+	s.Require().NoError(err)
+	return result
+}
+
+func (s *linuxPrivateActionRunnerSplitSuite) deleteRCConfig(product, configID string) {
 	configs, err := s.Env().FakeIntake.Client().RCListConfigs()
 	s.Require().NoError(err)
 	for _, config := range configs {
@@ -270,7 +308,7 @@ func (s *linuxPrivateActionRunnerEnabledSuite) deleteRCConfig(product, configID 
 	}
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) waitForSystemdUnitState(unit, state string, timeout time.Duration) {
+func (s *linuxPrivateActionRunnerSplitSuite) waitForSystemdUnitState(unit, state string, timeout time.Duration) {
 	s.T().Helper()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute("sudo systemctl is-active " + unit + " || true")
@@ -279,7 +317,7 @@ func (s *linuxPrivateActionRunnerEnabledSuite) waitForSystemdUnitState(unit, sta
 	}, timeout, time.Second, "%s should become %s", unit, state)
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) assertPrivilegedHelperUIDs() {
+func (s *linuxPrivateActionRunnerSplitSuite) assertPrivilegedHelperUIDs() {
 	host := s.Env().RemoteHost
 	pid := strings.TrimSpace(host.MustExecute(
 		"sudo systemctl show --property MainPID --value " + privilegedRshellServiceUnit,
