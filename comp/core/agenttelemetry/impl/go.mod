@@ -11,6 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.75.4
 	github.com/DataDog/datadog-agent/comp/def v0.75.4
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4
+	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.75.4
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
@@ -51,7 +52,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.77.0 // indirect

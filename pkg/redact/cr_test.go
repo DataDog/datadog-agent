@@ -218,6 +218,68 @@ func TestScrubCRManifestTopLevelFields(t *testing.T) {
 	assert.Equal(t, expected, r)
 }
 
+func TestScrubCRManifestSNMPCredentials(t *testing.T) {
+	r := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "datadoghq.com/v1alpha1",
+		"kind":       "DatadogInstrumentation",
+		"metadata":   map[string]interface{}{"name": "snmp-device"},
+		"spec": map[string]interface{}{
+			"config": map[string]interface{}{
+				"checks": []interface{}{
+					map[string]interface{}{
+						"integration": "snmp",
+						"instances": []interface{}{
+							map[string]interface{}{
+								"ip_address":         "10.0.0.1",
+								"port":               int64(161),
+								"user":               "monitor",
+								"community_name":     "public-name",
+								"community_string":   "canary-community",
+								"community_strings":  []interface{}{"canary-community-1", "canary-community-2"},
+								"authKey":            "canary-auth-key",
+								"auth_key":           "canary-auth-key",
+								"privKey":            "canary-priv-key",
+								"priv_key":           "canary-priv-key",
+								"authentication_key": "canary-auth-key",
+								"privacy_key":        "canary-priv-key",
+							},
+						},
+					},
+				},
+			},
+		},
+	}}
+	expected := r.DeepCopy()
+	expected.Object["spec"] = map[string]interface{}{
+		"config": map[string]interface{}{
+			"checks": []interface{}{
+				map[string]interface{}{
+					"integration": "snmp",
+					"instances": []interface{}{
+						map[string]interface{}{
+							"ip_address":         "10.0.0.1",
+							"port":               int64(161),
+							"user":               "monitor",
+							"community_name":     "public-name",
+							"community_string":   "********",
+							"community_strings":  []interface{}{"********", "********"},
+							"authKey":            "********",
+							"auth_key":           "********",
+							"privKey":            "********",
+							"priv_key":           "********",
+							"authentication_key": "********",
+							"privacy_key":        "********",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ScrubCRManifest(r, NewDefaultDataScrubber())
+	assert.Equal(t, expected, r)
+}
+
 func getCRScrubCases() map[string]struct {
 	input    *unstructured.Unstructured
 	expected *unstructured.Unstructured
