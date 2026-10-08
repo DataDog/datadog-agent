@@ -82,7 +82,6 @@ cc_library(
     ],
     hdrs = _PUBLIC_HEADERS,
     copts = [
-        "-Wall",
         "-D_FILE_OFFSET_BITS=64",
     ] + select(
         {
@@ -93,10 +92,12 @@ cc_library(
             #    "-D_LARGE_FILES",
             #],
             "@platforms//os:linux": [
+                "-Wall",
                 "-fPIC",
                 "-O3",
             ],
             "@platforms//os:macos": [
+                "-Wall",
                 "-fpic",
                 "-fPIC",
                 "-O3",
