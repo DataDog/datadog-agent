@@ -93,6 +93,9 @@ func NewPartialFailureError(err error) error {
 }
 
 func (e *PartialFailureError) Error() string {
+	if e.Err == nil {
+		return "partial failure"
+	}
 	return "partial failure: " + e.Err.Error()
 }
 

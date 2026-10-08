@@ -9,5 +9,6 @@
 enhancements:
   - |
     The Agent now supports the ``trigger_payloads`` Remote Configuration agent task,
-    which immediately sends the ``inventory-metadata`` and ``agent-health`` payloads
-    instead of waiting for their next scheduled submission.
+    which immediately sends the ``inventory-agent``, ``inventory-host``,
+    ``inventory-checks`` and ``agent-health`` payloads instead of waiting for
+    their next scheduled submission.

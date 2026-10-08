@@ -262,15 +262,16 @@ func TestSendNow(t *testing.T) {
 func TestSendNowSerializerError(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 	i.createdAt = time.Now().Add(-2 * time.Minute)
-	lastCollect := time.Now().Add(-1 * time.Hour)
-	i.LastCollect = lastCollect
+	i.LastCollect = time.Now().Add(-1 * time.Hour)
 
 	serializerMock := i.serializer.(*serializermock.MetricSerializer)
 	serializerMock.On("SendMetadata", mock.Anything).Return(errors.New("boom")).Once()
 
+	// Same bookkeeping as a failed periodic collection: no early retry
+	now := time.Now()
 	assert.ErrorContains(t, i.SendNow(), "boom")
-	assert.Equal(t, lastCollect, i.LastCollect)
-	assert.True(t, i.forceRefresh.Load(), "a failed send should be retried by the next collect")
+	assert.False(t, i.LastCollect.Before(now))
+	assert.False(t, i.forceRefresh.Load())
 }
 
 func TestSendNowKeepsRefreshRaisedDuringSend(t *testing.T) {

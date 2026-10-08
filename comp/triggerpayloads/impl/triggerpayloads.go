@@ -17,6 +17,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	egress "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	triggerpayloads "github.com/DataDog/datadog-agent/comp/triggerpayloads/def"
 )
@@ -28,9 +30,11 @@ const (
 
 // Requires defines the dependencies for the triggerpayloads component
 type Requires struct {
-	Log            log.Component
-	InventoryAgent inventoryagent.Component
-	HealthEgress   egress.Component
+	Log             log.Component
+	InventoryAgent  inventoryagent.Component
+	InventoryHost   inventoryhost.Component
+	InventoryChecks inventorychecks.Component
+	HealthEgress    egress.Component
 }
 
 // Provides defines the output of the triggerpayloads component
@@ -51,8 +55,10 @@ func NewComponent(reqs Requires) Provides {
 	t := &triggerPayloads{
 		log: reqs.Log,
 		payloads: map[string]sendFunc{
-			triggerpayloads.PayloadInventoryMetadata: func(context.Context) error { return reqs.InventoryAgent.SendNow() },
-			triggerpayloads.PayloadAgentHealth:       reqs.HealthEgress.SendNow,
+			triggerpayloads.PayloadInventoryAgent:  func(context.Context) error { return reqs.InventoryAgent.SendNow() },
+			triggerpayloads.PayloadInventoryHost:   func(context.Context) error { return reqs.InventoryHost.SendNow() },
+			triggerpayloads.PayloadInventoryChecks: func(context.Context) error { return reqs.InventoryChecks.SendNow() },
+			triggerpayloads.PayloadAgentHealth:     reqs.HealthEgress.SendNow,
 		},
 	}
 

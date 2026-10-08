@@ -58,4 +58,5 @@ func TestPartialFailureError(t *testing.T) {
 	assert.True(t, errors.As(err, &partialErr))
 	assert.ErrorIs(t, err, inner)
 	assert.Equal(t, "partial failure: boom", err.Error())
+	assert.Equal(t, "partial failure", NewPartialFailureError(nil).Error())
 }
