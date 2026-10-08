@@ -167,7 +167,7 @@ func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
-	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)))
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/26", nil)))
 
 	require.Len(t, reporter.runs, 2)
 	assert.Equal(t, metadata.AutodiscoveryRunInProgress, reporter.runs[0].Status)
@@ -176,12 +176,12 @@ func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 
 	final := reporter.runs[1]
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
-	assert.Equal(t, int64(256), final.AddressesScanned)
+	assert.Equal(t, int64(64), final.AddressesScanned)
 	assert.Equal(t, int64(1700000000000), final.FinishedAtMs)
 	assert.Empty(t, final.Error)
 
-	// answerAll answers on the first target of each chunk only, so one /24 is
-	// 256 addresses scanned and one device reported.
+	// answerAll answers on the first target of each chunk only, so one /26 is
+	// 64 addresses scanned and one device reported.
 	assert.Len(t, reporter.devices, 1, "a silent address is absent from the run, not reported unreachable")
 	_, ok := cursors.Load("ad-1")
 	assert.False(t, ok, "a completed cycle clears its cursor")
@@ -192,7 +192,7 @@ func TestSweepReportsPerChunkNotAtTheEnd(t *testing.T) {
 	reporter := &recordingReporter{}
 	s := newTestSweeper(t, scanner, reporter, newMemCursorStore(), 10)
 
-	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil)))
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)))
 
 	assert.Equal(t, 4, reporter.batches, "one report per chunk, so memory stays bounded")
 	assert.Len(t, reporter.devices, 4, "one answering address per chunk")
@@ -208,7 +208,7 @@ func TestSweepReportsProgressOnTheInterval(t *testing.T) {
 		return clock
 	}
 
-	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil)))
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)))
 
 	require.Len(t, reporter.runs, 5)
 	scanned := []int64{}
@@ -217,16 +217,16 @@ func TestSweepReportsProgressOnTheInterval(t *testing.T) {
 		assert.Equal(t, "run-fixed", run.RunID)
 		scanned = append(scanned, run.AddressesScanned)
 	}
-	assert.Equal(t, []int64{256, 512, 768}, scanned)
+	assert.Equal(t, []int64{64, 128, 192}, scanned)
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, reporter.runs[4].Status)
-	assert.Equal(t, int64(1024), reporter.runs[4].AddressesScanned)
+	assert.Equal(t, int64(256), reporter.runs[4].AddressesScanned)
 }
 
 func TestSweepReportsNoProgressWithinTheInterval(t *testing.T) {
 	reporter := &recordingReporter{}
 	s := newTestSweeper(t, answerAll(), reporter, newMemCursorStore(), 10)
 
-	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil)))
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)))
 
 	require.Len(t, reporter.runs, 2)
 	assert.Equal(t, metadata.AutodiscoveryRunInProgress, reporter.runs[0].Status)
@@ -237,16 +237,16 @@ func TestSweepCountsIgnoredAddressesTowardsProgress(t *testing.T) {
 	reporter := &recordingReporter{}
 	s := newTestSweeper(t, answerAll(), reporter, newMemCursorStore(), 10)
 
-	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", []string{"10.0.0.1", "10.0.0.2"})))
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/26", []string{"10.0.0.1", "10.0.0.2"})))
 
 	final := reporter.runs[len(reporter.runs)-1]
-	assert.Equal(t, int64(256), final.AddressesScanned, "ignored addresses still count, so progress reaches 100%")
+	assert.Equal(t, int64(64), final.AddressesScanned, "ignored addresses still count, so progress reaches 100%")
 	assert.Len(t, reporter.devices, 1, "scanned counts every address; reported counts only the answers")
 }
 
 func TestSweepFullyIgnoredChunkHasNoTargets(t *testing.T) {
-	ignored := make([]string, 0, 256)
-	for i := 0; i < 256; i++ {
+	ignored := make([]string, 0, 64)
+	for i := 0; i < 64; i++ {
 		ignored = append(ignored, "10.0.0."+strconv.Itoa(i))
 	}
 
@@ -254,11 +254,11 @@ func TestSweepFullyIgnoredChunkHasNoTargets(t *testing.T) {
 	reporter := &recordingReporter{}
 	s := newTestSweeper(t, scanner, reporter, newMemCursorStore(), 10)
 
-	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", ignored)))
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/26", ignored)))
 
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
-	assert.Equal(t, int64(256), final.AddressesScanned)
+	assert.Equal(t, int64(64), final.AddressesScanned)
 	assert.Equal(t, 0, reporter.batches, "a chunk with no targets is not probed and reports nothing")
 	assert.Empty(t, scanner.recorded(), "the probe package is never called for a fully ignored chunk")
 }
@@ -269,11 +269,11 @@ func TestSweepResumesFromCursor(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
-	req := testSweepRequest(t, "10.0.0.0/22", nil)
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	require.NoError(t, cursors.Save("ad-1", cursorState{
 		RunID:        "run-earlier",
 		NextChunk:    2,
-		Scanned:      512,
+		Scanned:      128,
 		StartedAtMs:  1699000000000,
 		ConfigDigest: req.Digest,
 	}))
@@ -284,7 +284,7 @@ func TestSweepResumesFromCursor(t *testing.T) {
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, "run-earlier", final.RunID, "the cycle keeps its original run ID")
 	assert.Equal(t, int64(1699000000000), final.StartedAtMs)
-	assert.Equal(t, int64(1024), final.AddressesScanned)
+	assert.Equal(t, int64(256), final.AddressesScanned)
 }
 
 func TestSweepDiscardsCursorOnDigestChange(t *testing.T) {
@@ -293,11 +293,11 @@ func TestSweepDiscardsCursorOnDigestChange(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
-	req := testSweepRequest(t, "10.0.0.0/22", nil)
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	require.NoError(t, cursors.Save("ad-1", cursorState{
 		RunID:        "run-earlier",
 		NextChunk:    2,
-		Scanned:      512,
+		Scanned:      128,
 		ConfigDigest: "a-different-digest",
 	}))
 
@@ -324,13 +324,13 @@ func TestSweepFailedChunkKeepsCursor(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
-	err := s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil))
+	err := s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil))
 	require.Error(t, err)
 
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, metadata.AutodiscoveryRunFailed, final.Status)
 	assert.Contains(t, final.Error, "the scan exploded")
-	assert.Equal(t, int64(512), final.AddressesScanned)
+	assert.Equal(t, int64(128), final.AddressesScanned)
 
 	saved, ok := cursors.Load("ad-1")
 	require.True(t, ok, "a failed cycle keeps its cursor so the next tick resumes")
@@ -348,7 +348,7 @@ func TestSweepCancellationDoesNotReportFailure(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
-	err := s.sweep(ctx, testSweepRequest(t, "10.0.0.0/22", nil))
+	err := s.sweep(ctx, testSweepRequest(t, "10.0.0.0/24", nil))
 	require.ErrorIs(t, err, context.Canceled)
 
 	for _, run := range reporter.runs {
@@ -381,7 +381,7 @@ func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
-	req := testSweepRequest(t, "10.0.0.0/22", nil)
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	require.ErrorIs(t, s.sweep(ctx, req), context.Canceled)
 
 	saved, ok := cursors.Load("ad-1")
@@ -400,7 +400,7 @@ func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
 	assert.Equal(t, "run-fixed", final.RunID, "the resumed cycle keeps its original run ID")
-	assert.Equal(t, int64(1024), final.AddressesScanned)
+	assert.Equal(t, int64(256), final.AddressesScanned)
 	for _, run := range reporter.runs {
 		assert.NotEqual(t, "run-should-not-be-used", run.RunID)
 	}
@@ -425,7 +425,7 @@ func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, scanner, reporter, cursors, 10)
 
-	req := testSweepRequest(t, "10.0.0.0/22", nil)
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	require.Error(t, s.sweep(context.Background(), req))
 
 	saved, ok := cursors.Load("ad-1")
@@ -447,7 +447,7 @@ func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 		"the remaining work runs under a new run ID with its own lifecycle")
 
 	final := reporter.runs[len(reporter.runs)-1]
-	assert.Equal(t, int64(1024), final.AddressesScanned, "progress made before the failure is preserved")
+	assert.Equal(t, int64(256), final.AddressesScanned, "progress made before the failure is preserved")
 
 	saved, ok = cursors.Load("ad-1")
 	assert.False(t, ok, "the completed cycle clears its cursor")
@@ -460,7 +460,7 @@ func TestSweepClampsWorkersToTheBudget(t *testing.T) {
 	// semaphore.Acquire, which never returns for n greater than the size.
 	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 4)
 
-	req := testSweepRequest(t, "10.0.0.0/24", nil)
+	req := testSweepRequest(t, "10.0.0.0/26", nil)
 	req.Workers = 32
 	require.NoError(t, s.sweep(context.Background(), req))
 
@@ -473,7 +473,7 @@ func TestSweepClampsNonPositiveWorkersToOne(t *testing.T) {
 	scanner := answerAll()
 	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 4)
 
-	req := testSweepRequest(t, "10.0.0.0/24", nil)
+	req := testSweepRequest(t, "10.0.0.0/26", nil)
 	req.Workers = 0
 	require.NoError(t, s.sweep(context.Background(), req))
 
@@ -487,7 +487,7 @@ func TestSweepContinuesWhenAChunkReportFails(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, answerAll(), reporter, cursors, 10)
 
-	req := testSweepRequest(t, "10.0.0.0/22", nil)
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	// Only the first chunk fails to report: a transport failure must not abort
 	// a multi-hour cycle.
 	reporter.failNextDeviceReports(1)
@@ -495,7 +495,7 @@ func TestSweepContinuesWhenAChunkReportFails(t *testing.T) {
 
 	final := reporter.runs[len(reporter.runs)-1]
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
-	assert.Equal(t, int64(1024), final.AddressesScanned, "the unreported chunk still counts as swept")
+	assert.Equal(t, int64(256), final.AddressesScanned, "the unreported chunk still counts as swept")
 	assert.Equal(t, 3, reporter.batches, "the three chunks after it are reported normally")
 	_, ok := cursors.Load("ad-1")
 	assert.False(t, ok, "the cursor advanced past the failed report and the cycle cleared it")
@@ -515,7 +515,7 @@ func TestSweepPassesTheResolvedOptionsToTheScanner(t *testing.T) {
 	scanner := answerAll()
 	s := newTestSweeper(t, scanner, &recordingReporter{}, newMemCursorStore(), 10)
 
-	req := testSweepRequestWithOptions(t, "10.0.0.0/24", nil, probe.Options{
+	req := testSweepRequestWithOptions(t, "10.0.0.0/26", nil, probe.Options{
 		Ping: &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second},
 		SNMP: testSNMPOptions(),
 	})
@@ -527,14 +527,14 @@ func TestSweepPassesTheResolvedOptionsToTheScanner(t *testing.T) {
 	require.NotNil(t, sent[0].Options.Ping)
 	require.NotNil(t, sent[0].Options.SNMP)
 	assert.Equal(t, 4, sent[0].Workers)
-	assert.Len(t, sent[0].Targets, 256)
+	assert.Len(t, sent[0].Targets, 64)
 }
 
 func TestSweepReportsNothingWhenNoAddressAnswers(t *testing.T) {
 	reporter := &recordingReporter{}
 	s := newTestSweeper(t, silentAll(), reporter, newMemCursorStore(), 10)
 
-	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)))
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/26", nil)))
 
 	assert.Empty(t, reporter.devices)
 	assert.Equal(t, 0, reporter.batches)
