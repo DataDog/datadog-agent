@@ -71,9 +71,6 @@ struct OpenFileRequest {
     no_follow: bool,
 }
 
-static BADREQUEST: &str = "Bad request";
-static NOTFOUND: &str = "Not found";
-
 fn remove_pid_file(path: &Path) {
     if let Err(e) = std::fs::remove_file(path) {
         error!("Failed to remove PID file: {}", e);
@@ -119,7 +116,8 @@ fn setup_socket(socket_path: &str) -> Result<UnixListener> {
 /// Both capabilities are required for full service discovery:
 /// - CAP_SYS_PTRACE: open /proc/<pid>/root and /proc/<pid>/{fd,maps,exe,environ}
 /// - CAP_DAC_READ_SEARCH: traverse restricted directories (e.g. mode-750 home dirs,
-///   container app directories) when reading files through /proc/<pid>/root/
+///   container app directories) when reading files through /proc/<pid>/root/,
+///   and open the log files that the privileged logs endpoint passes to the agent
 ///
 /// Must be called after socket setup (which needs CAP_CHOWN for chown).
 /// Failure is non-fatal: SPL logs a warning and continues with inherited capabilities
@@ -236,7 +234,10 @@ async fn handle_state() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
 async fn handle_config() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     // SPL only runs when discovery.enabled and discovery.use_system_probe_lite are both true,
     // so we can hardcode these values.
-    let yaml_config = "discovery:\n  enabled: true\n  use_system_probe_lite: true\n";
+    let privileged_logs = PRIVILEGED_LOGS.load(Ordering::Relaxed);
+    let yaml_config = format!(
+        "discovery:\n  enabled: true\n  use_system_probe_lite: true\nprivileged_logs:\n  enabled: {privileged_logs}\n"
+    );
     text_response(StatusCode::OK, yaml_config)
 }
 
@@ -246,6 +247,9 @@ async fn handle_config_by_source() -> Result<Response<BoxBody<Bytes, std::io::Er
             "discovery": {
                 "enabled": true,
                 "use_system_probe_lite": true
+            },
+            "privileged_logs": {
+                "enabled": PRIVILEGED_LOGS.load(Ordering::Relaxed)
             }
         }
     }))
@@ -264,6 +268,13 @@ where
     B: hyper::body::Body<Data = Bytes>,
     B::Error: std::fmt::Display,
 {
+    if req
+        .headers()
+        .get(UPGRADE)
+        .is_none_or(|value| value != UPGRADE_PROTOCOL)
+    {
+        return bad_request();
+    }
     // Must be taken before the body is consumed.
     let on_upgrade = hyper::upgrade::on(&mut req);
 
@@ -287,7 +298,7 @@ where
     // Filesystem calls can block, so keep them off the event loop that serves
     // every endpoint.
     let opened = tokio::task::spawn_blocking(move || {
-        privileged_logs::open_log_file(&open_req.path, open_req.no_follow)
+        privileged_logs::open_log_file(Path::new(&open_req.path), open_req.no_follow)
     });
     let file = match opened.await? {
         Ok(file) => file,
@@ -311,8 +322,8 @@ where
         .map_err(|e| anyhow!("Failed to build response: {}", e))
 }
 
-/// Sends the file descriptor as SCM_RIGHTS over the upgraded connection, which
-/// is closed afterwards.
+/// Sends the file descriptor as SCM_RIGHTS in a message of its own over the
+/// upgraded connection, which is closed afterwards.
 async fn send_fd_after_upgrade(on_upgrade: OnUpgrade, file: File) -> Result<()> {
     let upgraded = on_upgrade.await?;
     // Connections are served from a TokioIo<UnixStream> in run_system_probe_lite.
@@ -321,7 +332,8 @@ async fn send_fd_after_upgrade(on_upgrade: OnUpgrade, file: File) -> Result<()> 
         .map_err(|_| anyhow!("upgraded connection is not a Unix socket"))?
         .io
         .into_inner();
-    let payload = [IoSlice::new(br#"{"success":true}"#)];
+    // SCM_RIGHTS needs at least one byte of data to travel with.
+    let payload = [IoSlice::new(&[0])];
     let fds = [file.as_raw_fd()];
     let rights = [ControlMessage::ScmRights(&fds)];
     let flags = MsgFlags::MSG_NOSIGNAL;
@@ -360,11 +372,11 @@ fn text_response(
 }
 
 fn bad_request() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    text_response(StatusCode::BAD_REQUEST, BADREQUEST)
+    text_response(StatusCode::BAD_REQUEST, "Bad request")
 }
 
 fn not_found() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    text_response(StatusCode::NOT_FOUND, NOTFOUND)
+    text_response(StatusCode::NOT_FOUND, "Not found")
 }
 
 fn too_many_requests() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {

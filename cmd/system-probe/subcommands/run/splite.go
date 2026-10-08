@@ -19,7 +19,8 @@ import (
 )
 
 // shouldExecSPLite returns true if system-probe should exec into system-probe-lite.
-// This is the case when use_system_probe_lite is enabled and only the discovery module (and optionally privileged_logs) is active.
+// This is the case when use_system_probe_lite is enabled and the active modules
+// are discovery, optionally with privileged_logs.
 func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtypes.Config) bool {
 	if !sysprobeConfig.GetBool("discovery.use_system_probe_lite") {
 		return false
@@ -35,12 +36,12 @@ func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtyp
 		return false
 	}
 
-	// Exec system-probe-lite if only the discovery module is enabled, optionally with privileged logs
-	modules := len(cfg.EnabledModules)
+	// Exec system-probe-lite if it serves every enabled module
+	servedModules := 1
 	if cfg.ModuleIsEnabled(systemprobeconfig.PrivilegedLogsModule) {
-		modules--
+		servedModules++
 	}
-	return cfg.Enabled && modules == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule)
+	return cfg.Enabled && len(cfg.EnabledModules) == servedModules && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule)
 }
 
 // maybeSPLite checks if system-probe should exec into system-probe-lite,

@@ -10,11 +10,9 @@ go_library(
         "@rules_go//go/platform:android": [
             "//cmd/system-probe/modules",
             "//pkg/discovery/module/splite",
-            "//pkg/network/protocols/http/testutil",
             "//pkg/system-probe/api/module",
             "//pkg/system-probe/api/server",
             "//pkg/system-probe/config/types",
-            "//pkg/util/kernel",
             "//pkg/util/log",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -22,11 +20,9 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//cmd/system-probe/modules",
             "//pkg/discovery/module/splite",
-            "//pkg/network/protocols/http/testutil",
             "//pkg/system-probe/api/module",
             "//pkg/system-probe/api/server",
             "//pkg/system-probe/config/types",
-            "//pkg/util/kernel",
             "//pkg/util/log",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
