@@ -20,7 +20,8 @@ var forbiddenSymbols = regexp.MustCompile("[^a-zA-Z0-9_*]")
 const (
 	// regexSensitiveParamInJSON is using non greedy operators in the value capture
 	// group to work around missing support for look behind assertions in Go.
-	regexSensitiveParamInJSON = `(?P<before_value>"%s"\s*:\s*)(?P<value>".*?[^\\]+?")`
+	// Keys are matched case-insensitively, e.g. "authKey" for the "authkey" word.
+	regexSensitiveParamInJSON = `(?P<before_value>"(?i:%s)"\s*:\s*)(?P<value>".*?[^\\]+?")`
 
 	redactedAnnotationValue = "-"
 	redactedSecret          = "********"
