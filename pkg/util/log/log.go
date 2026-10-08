@@ -21,7 +21,6 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -202,20 +201,10 @@ func (sw *DatadogLogger) shouldLog(level LogLevel) bool {
 	return level >= types.FromSlogLevel(sw.level.Level())
 }
 
-// ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.
-// If the log level is "warning", it is converted to "warn" to handle a common gotcha when used with agent5.
-// If the log level is not recognized, an error is returned.
+// ValidateLogLevel validates the given log level and returns the
+// corresponding LogLevel.
 func ValidateLogLevel(logLevel string) (LogLevel, error) {
-	seelogLogLevel := strings.ToLower(logLevel)
-	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
-		seelogLogLevel = "warn"
-	}
-
-	lvl, found := logLevelFromString(seelogLogLevel)
-	if !found {
-		return Off, fmt.Errorf("unknown log level: %s", seelogLogLevel)
-	}
-	return lvl, nil
+	return types.ValidateLogLevel(logLevel)
 }
 
 /*
