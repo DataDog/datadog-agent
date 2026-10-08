@@ -355,18 +355,20 @@ func main() {
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
-		// Inventory metadata via the shared inventoryagent component + runner
-		// (Option C: capability tiers). Three of the component's deps are not in
-		// serverless-init's fx graph, so they are adapted here:
+		// Inventory metadata via the shared inventoryagent component + runner.
+		// Three of the component's deps are not in serverless-init's Fx graph,
+		// so they are adapted here:
 		//   - MetricSerializer is reached through the demultiplexer rather than as
 		//     a distinct fx type.
 		//   - ipc.HTTPClient comes from the noop IPC component; it is never
-		//     dereferenced because the serverless Capabilities turn off
-		//     cross-process enrichment (the only consumer of the client).
+		//     dereferenced because SkipFullAgentMetadataRefresh skips every
+		//     refreshMetadata collector, including the IPC consumers.
 		//   - the sysprobeconfig option has no provider, so supply None.
-		// The Capabilities adapt cross-process enrichment, on-start submission,
-		// and the payload uuid for the serverless environment; the serverless
-		// fields and flavor are injected via the component's Set API in run().
+		// This internal Fx capability also skips local core, Fleet, and application-
+		// monitoring collection, but retains construction-time metadata, Set values,
+		// optional configuration payloads, and scheduling. Serverless fields (including
+		// dd_site) and flavor are injected via Set in run(); capabilities also override
+		// the payload UUID. Startup submission is explicitly requested via Submit().
 		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
 		ipcfx.Module(),
 		fx.Provide(func(c ipc.Component) ipc.HTTPClient { return c.GetClient() }),
