@@ -89,12 +89,12 @@ class TestDynTestEvaluator(unittest.TestCase):
 
 class TestDatadogDynTestEvaluator(unittest.TestCase):
     @staticmethod
-    def event(name, status="pass", flaky=False):
+    def event(name, status="pass", flaky=False, job_id="7", job_name="job"):
         return {
             "attributes": {
                 "attributes": {
                     "test": {"name": name, "status": status, "agent_is_flaky_failure": flaky},
-                    "ci": {"job": {"id": "7", "name": "job"}, "pipeline": {"id": "42"}},
+                    "ci": {"job": {"id": job_id, "name": job_name}, "pipeline": {"id": "42"}},
                 }
             }
         }
@@ -131,6 +131,62 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         self.assertFalse(tests[1].unreliable_status)
         self.assertTrue(tests[2].unreliable_status)
         self.assertTrue(tests[3].unreliable_status)
+
+    @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
+    def test_passed_on_retry_counts_as_success(self, events):
+        """A GitLab job retry reruns the whole test set: the failed attempt and
+        the successful retry carry the same job name but different job ids.
+        One success in the attempts means the test passed - it is not a
+        critical miss."""
+        events.return_value = [
+            self.event("TestRetry", "fail", job_id="7"),  # first attempt
+            self.event("TestRetry", "pass", job_id="8"),  # retried job
+        ]
+        evaluator = DatadogDynTestEvaluator(
+            MagicMock(), IndexKind.JEV, MagicMock(), "42", telemetry_handler=MagicMock()
+        )
+        tests = evaluator.list_tests_for_job("job")
+        self.assertEqual(len(tests), 1)
+        self.assertEqual(tests[0].status, "pass")
+
+        # ...and a test that failed every attempt still fails
+        events.return_value = [
+            self.event("TestHardFail", "fail", job_id="7"),
+            self.event("TestHardFail", "fail", job_id="8"),
+        ]
+        tests = evaluator.list_tests_for_job("job")
+        self.assertEqual(len(tests), 1)
+        self.assertEqual(tests[0].status, "fail")
+
+    @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
+    def test_pass_in_another_job_is_not_a_retry(self, events):
+        """A pass in a DIFFERENT job (e.g. the same test selected by another
+        e2e job) does not excuse this job's failure."""
+        events.return_value = [
+            self.event("TestDup", "fail"),
+            self.event("TestDup", "pass", job_name="other-e2e-job"),
+        ]
+        evaluator = DatadogDynTestEvaluator(
+            MagicMock(), IndexKind.JEV, MagicMock(), "42", telemetry_handler=MagicMock()
+        )
+        tests = evaluator.list_tests_for_job("job")
+        fail = [t for t in tests if t.job_name == "job"][0]
+        self.assertEqual(fail.status, "fail")
+
+    @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
+    def test_flaky_marking_on_any_attempt_wins(self, events):
+        """CI Vis marks a flaky failure on the attempt it saw - keep the
+        unreliable marking no matter which attempt carried it."""
+        events.return_value = [
+            self.event("TestFlakyRetry", "fail"),
+            self.event("TestFlakyRetry", "fail", flaky=True, job_id="8"),
+        ]
+        evaluator = DatadogDynTestEvaluator(
+            MagicMock(), IndexKind.JEV, MagicMock(), "42", telemetry_handler=MagicMock()
+        )
+        tests = evaluator.list_tests_for_job("job")
+        self.assertEqual(tests[0].status, "fail")
+        self.assertTrue(tests[0].unreliable_status)
 
     @patch("tasks.libs.dynamic_test.evaluator.get_ci_test_events")
     def test_coverage_defaults(self, events):

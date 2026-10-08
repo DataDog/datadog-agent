@@ -407,11 +407,14 @@ This indicates an issue with the dynamic test system that may affect CI performa
 def executed_tests_from_events(events: list) -> list[ExecutedTest]:
     """Executed tests from CI Visibility events: root tests, pass/fail only.
 
-    Flaky failures are marked unreliable (from the event itself). The job
-    comes from the event, so this works for per-job queries and a
-    pipeline-wide bulk query alike.
+    A retried GitLab job reruns its whole test set, so the same test can
+    appear in several events (same job name, different job ids): a test
+    that passed in any attempt is counted once, as a pass - only a test
+    that failed in every attempt counts as failing. The job comes from
+    the event (deduplication is per job), so this works for per-job
+    queries and a pipeline-wide bulk query alike.
     """
-    tests: list[ExecutedTest] = []
+    tests: dict[tuple[str | None, str], ExecutedTest] = {}
     for item in events:
         attrs = item.get("attributes", {}).get("attributes", {})
         test_attrs = attrs.get("test", {})
@@ -421,17 +424,26 @@ def executed_tests_from_events(events: list) -> list[ExecutedTest]:
         if not test_attrs.get("name") or "/" in test_attrs["name"] or test_attrs.get("status") not in {"pass", "fail"}:
             continue
 
-        tests.append(
-            ExecutedTest(
-                name=test_attrs["name"],
+        name = test_attrs["name"]
+        job_name = job_attrs.get("name")
+        entry = tests.get((job_name, name))
+        if entry is None:
+            tests[(job_name, name)] = ExecutedTest(
+                name=name,
                 status=test_attrs["status"],
                 pipeline_id=ci_attrs.get("pipeline", {}).get("id"),
                 job_id=job_attrs.get("id"),
-                job_name=job_attrs.get("name"),
+                job_name=job_name,
                 unreliable_status=(str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"),
             )
-        )
-    return tests
+        else:
+            # Another attempt of the same test in the same job: a single pass
+            # wins, and so does a flaky marking on any attempt
+            entry.status = "pass" if "pass" in (entry.status, test_attrs["status"]) else "fail"
+            entry.unreliable_status = (
+                entry.unreliable_status or str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"
+            )
+    return list(tests.values())
 
 
 class DatadogDynTestEvaluator(DynTestEvaluator):
@@ -472,6 +484,7 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         """
         escaped_job_name = job_name.replace('"', '\\"')
         query = (
+            'env:prod'
             f'@ci.pipeline.name:DataDog/datadog-agent '
             f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}" '
             f'-@test.status:skip'
