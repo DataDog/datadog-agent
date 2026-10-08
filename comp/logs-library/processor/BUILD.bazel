@@ -38,6 +38,7 @@ dd_agent_go_test(
     embed = [":processor"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/logs-library/characterization",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",

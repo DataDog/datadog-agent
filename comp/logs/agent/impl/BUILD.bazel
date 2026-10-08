@@ -134,6 +134,7 @@ dd_agent_go_test(
         "//pkg/util/option",
         "//pkg/util/testutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
         "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",

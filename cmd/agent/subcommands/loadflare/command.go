@@ -256,7 +256,7 @@ func writeZipAtomic(output string, files map[string][]byte, modified time.Time) 
 	sort.Strings(names)
 	for _, name := range names {
 		header := &zip.FileHeader{Name: name, Method: zip.Deflate}
-		header.SetModTime(modified)
+		header.Modified = modified
 		writer, err := archive.CreateHeader(header)
 		if err != nil {
 			return err
