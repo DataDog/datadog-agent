@@ -50,9 +50,8 @@ type checkSender struct {
 	checkTags               []string
 	infraTagger             *infratags.Tagger // nil = no infra mode tagging
 	// infraModeEventTags is `infra_mode:<mode>` for marked modes, else nil.
-	// Resolved at construction and appended on Event only. Not infraTagger:
-	// that allowlist is metrics-only, and the mark must never reach a metric
-	// sample (intake renames infra_mode:cloud_cost_only into dd.cloud_cost).
+	// Resolved at construction and appended on Event only. Separate from
+	// infraTagger (metrics-only allowlist).
 	infraModeEventTags []string
 	service            string
 	noIndex            bool
