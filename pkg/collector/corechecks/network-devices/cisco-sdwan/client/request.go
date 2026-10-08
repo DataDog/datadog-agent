@@ -139,6 +139,7 @@ func (client *Client) get(ctx context.Context, endpoint string, params map[strin
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
+	logRetryGiveUp(endpoint, err, client.maxAttempts, client.maxRetryDuration)
 	var authErr *authError
 	if errors.Is(err, backoff.ErrPermanent) || errors.As(err, &authErr) {
 		// Authentication or rate limiter wait failed, surface the underlying error
@@ -146,6 +147,21 @@ func (client *Client) get(ctx context.Context, endpoint string, params map[strin
 	}
 
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+}
+
+// logRetryGiveUp logs why retrying a failed request stopped, when it ran out of attempts
+// or when waiting for the next attempt would exceed the max retry duration
+func logRetryGiveUp(endpoint string, err error, maxAttempts int, maxRetryDuration time.Duration) {
+	retryErr := backoff.AsRetryError(err)
+	if retryErr == nil {
+		return
+	}
+	switch {
+	case errors.Is(retryErr.Cause, backoff.ErrExhausted):
+		log.Debugf("Cisco sd-wan api request to %s failed, max attempts (%d) reached: %s", endpoint, maxAttempts, retryErr.LastErr)
+	case errors.Is(retryErr.Cause, backoff.ErrMaxElapsedTime):
+		log.Debugf("Cisco sd-wan api request to %s failed, next retry would exceed the max retry duration (%s): %s", endpoint, maxRetryDuration, retryErr.LastErr)
+	}
 }
 
 // authRetryError builds the error returned when authentication fails. Transient failures of
