@@ -8,17 +8,15 @@
 package file
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"syscall"
 )
 
 // EnsureConfigFromExample initializes a missing config from its .example file.
 // Existing files, including symlinks, are left untouched. Missing examples are allowed.
-func EnsureConfigFromExample(rootPath, configPath string) (err error) {
+func EnsureConfigFromExample(rootPath, configPath string) error {
 	root, err := os.OpenRoot(rootPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -46,44 +44,27 @@ func EnsureConfigFromExample(rootPath, configPath string) (err error) {
 		return fmt.Errorf("config example is not a regular file: %s", examplePath)
 	}
 
-	// Nonblocking open avoids hanging on a FIFO substituted for the example.
-	example, err := root.OpenFile(examplePath, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	example, err := root.OpenFile(examplePath, os.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}
 	defer example.Close()
-	openedInfo, err := example.Stat()
+	content, err := io.ReadAll(example)
 	if err != nil {
 		return err
 	}
-	if !os.SameFile(info, openedInfo) {
-		return fmt.Errorf("config example changed while opening: %s", examplePath)
-	}
 
-	tmpPath := configPath + ".tmp-" + rand.Text()
-	tmp, err := root.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0400)
+	// Create only if absent, never overwrite an existing config.
+	config, err := root.OpenFile(configPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0400)
+	if errors.Is(err, os.ErrExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if removeErr := root.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			err = errors.Join(err, fmt.Errorf("failed to remove temporary config: %w", removeErr))
-		}
-	}()
-	defer tmp.Close()
-	if _, err := io.Copy(tmp, example); err != nil {
+	if _, err := config.Write(content); err != nil {
+		config.Close()
 		return err
 	}
-	if err := tmp.Sync(); err != nil {
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-
-	// Publish complete content atomically, without replacing a concurrent writer.
-	if err := root.Link(tmpPath, configPath); err != nil && !errors.Is(err, os.ErrExist) {
-		return err
-	}
-	return nil
+	return config.Close()
 }

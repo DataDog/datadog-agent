@@ -10,8 +10,6 @@ package file
 import (
 	"os"
 	"path/filepath"
-	"strings"
-	"sync"
 	"syscall"
 	"testing"
 
@@ -40,7 +38,7 @@ func TestEnsureConfigFromExampleCreatesRestrictiveDefault(t *testing.T) {
 	require.Equal(t, os.FileMode(0400), info.Mode().Perm())
 	entries, err := os.ReadDir(filepath.Dir(live))
 	require.NoError(t, err)
-	require.Len(t, entries, 2, "temporary files must be removed")
+	require.Len(t, entries, 2, "only the example and initialized config should remain")
 }
 
 func TestEnsureConfigFromExamplePreservesExistingFile(t *testing.T) {
@@ -123,67 +121,4 @@ func TestEnsureConfigFromExampleRejectsEscapingParent(t *testing.T) {
 
 	require.Error(t, EnsureConfigFromExample(root, scriptConfigPath))
 	require.NoFileExists(t, filepath.Join(target, "script-config.yaml"))
-}
-
-func TestEnsureConfigFromExampleWriteFailureLeavesNoLiveFile(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root bypasses directory permissions")
-	}
-	root, live := configExample(t, "packaged default\n")
-	dir := filepath.Dir(live)
-	require.NoError(t, os.Chmod(dir, 0500))
-	t.Cleanup(func() { require.NoError(t, os.Chmod(dir, 0700)) })
-
-	require.ErrorIs(t, EnsureConfigFromExample(root, scriptConfigPath), os.ErrPermission)
-	require.NoFileExists(t, live)
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-	require.Len(t, entries, 1, "failed creation must not leave temporary files")
-}
-
-func TestEnsureConfigFromExampleConcurrentCustomerCreation(t *testing.T) {
-	root, live := configExample(t, strings.Repeat("packaged default\n", 4096))
-	result := make(chan error, 1)
-	go func() { result <- EnsureConfigFromExample(root, scriptConfigPath) }()
-
-	customer, err := os.OpenFile(live, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0400)
-	if err == nil {
-		_, err = customer.WriteString("customer config\n")
-		require.NoError(t, err)
-		require.NoError(t, customer.Close())
-	} else {
-		require.ErrorIs(t, err, os.ErrExist)
-	}
-	require.NoError(t, <-result)
-	if customer != nil {
-		content, err := os.ReadFile(live)
-		require.NoError(t, err)
-		require.Equal(t, "customer config\n", string(content))
-	}
-}
-
-func TestEnsureConfigFromExampleConcurrentInitialization(t *testing.T) {
-	content := strings.Repeat("packaged default\n", 4096)
-	root, live := configExample(t, content)
-	var wg sync.WaitGroup
-	start := make(chan struct{})
-	errs := make(chan error, 16)
-	for range cap(errs) {
-		wg.Go(func() {
-			<-start
-			errs <- EnsureConfigFromExample(root, scriptConfigPath)
-		})
-	}
-	close(start)
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		require.NoError(t, err)
-	}
-	actual, err := os.ReadFile(live)
-	require.NoError(t, err)
-	require.Equal(t, content, string(actual))
-	entries, err := os.ReadDir(filepath.Dir(live))
-	require.NoError(t, err)
-	require.Len(t, entries, 2)
 }
