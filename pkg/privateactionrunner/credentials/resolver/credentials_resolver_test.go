@@ -82,10 +82,12 @@ func TestScriptCredentialFileResolution(t *testing.T) {
 	}
 }
 
-func TestNewPrivateCredentialResolverSkipsInvalidRoots(t *testing.T) {
+func TestScriptCredentialFileResolutionIgnoresInvalidRoots(t *testing.T) {
 	validRoot := t.TempDir()
 	validPath := filepath.Join(validRoot, "credentials.yaml")
 	require.NoError(t, os.WriteFile(validPath, []byte("credentials"), 0o600))
+	outsidePath := filepath.Join(t.TempDir(), "outside.yaml")
+	require.NoError(t, os.WriteFile(outsidePath, []byte("outside secret"), 0o600))
 
 	regularFile := filepath.Join(t.TempDir(), "credentials.yaml")
 	require.NoError(t, os.WriteFile(regularFile, []byte("credentials"), 0o600))
@@ -114,10 +116,12 @@ func TestNewPrivateCredentialResolverSkipsInvalidRoots(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resolver := newTestResolver(t, []string{tt.root, validRoot})
 
-			assert.Len(t, resolver.(*privateCredentialResolver).scriptCredentialFileRoots, 1)
 			credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(validPath), nil)
 			require.NoError(t, err)
 			assert.Equal(t, "credentials", credentials.AsTokenMap()["configFileLocation"])
+
+			_, err = resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(outsidePath), nil)
+			require.ErrorIs(t, err, errCouldNotLoadScriptCredentialFile)
 		})
 	}
 }
@@ -147,6 +151,20 @@ func TestScriptCredentialFileResolutionFollowsReplacedAllowedRoot(t *testing.T) 
 
 	require.NoError(t, err)
 	assert.Equal(t, "replacement", credentials.AsTokenMap()["configFileLocation"])
+}
+
+func TestScriptCredentialFileResolutionPicksUpRootCreatedAfterStartup(t *testing.T) {
+	allowedRoot := filepath.Join(t.TempDir(), "allowed")
+	resolver := newTestResolver(t, []string{allowedRoot})
+
+	require.NoError(t, os.Mkdir(allowedRoot, 0o700))
+	path := filepath.Join(allowedRoot, "credentials.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("credentials"), 0o600))
+
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(path), nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, "credentials", credentials.AsTokenMap()["configFileLocation"])
 }
 
 func TestScriptCredentialFileResolutionWithSymlinkedRoot(t *testing.T) {
