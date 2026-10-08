@@ -6,6 +6,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -45,13 +46,13 @@ func newRequestAuthError(err error) error {
 }
 
 // Login logs in to the Cisco SDWAN API and gets a CSRF prevention token
-func (client *Client) login() error {
+func (client *Client) login(ctx context.Context) error {
 	authPayload := url.Values{}
 	authPayload.Set("j_username", client.username)
 	authPayload.Set("j_password", client.password)
 
 	// Request to /j_security_check to obtain session cookie
-	req, err := client.newRequest("POST", "/j_security_check", strings.NewReader(authPayload.Encode()))
+	req, err := client.newRequest(ctx, "POST", "/j_security_check", strings.NewReader(authPayload.Encode()))
 	if err != nil {
 		return err
 	}
@@ -82,7 +83,7 @@ func (client *Client) login() error {
 	}
 
 	// Request to /dataservice/client/token to obtain csrf prevention token
-	req, err = client.newRequest("GET", "/dataservice/client/token", nil)
+	req, err = client.newRequest(ctx, "GET", "/dataservice/client/token", nil)
 	if err != nil {
 		return err
 	}
@@ -112,14 +113,14 @@ func (client *Client) login() error {
 }
 
 // authenticate logins if no token or token is expired
-func (client *Client) authenticate() error {
+func (client *Client) authenticate(ctx context.Context) error {
 	now := timeNow()
 
 	client.authenticationMutex.Lock()
 	defer client.authenticationMutex.Unlock()
 
 	if client.token == "" || client.tokenExpiry.Before(now) {
-		return client.login()
+		return client.login(ctx)
 	}
 	return nil
 }

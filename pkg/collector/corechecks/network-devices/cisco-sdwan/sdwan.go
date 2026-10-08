@@ -89,15 +89,15 @@ func (c *CiscoSdwanCheck) Run() error {
 		return err
 	}
 
-	devices, err := client.GetDevices()
+	devices, err := client.GetDevices(c.ctx)
 	if err != nil {
 		log.Warnf("Error getting devices from Cisco SD-WAN API: %s", err)
 	}
-	vEdgeInterfaces, err := client.GetVEdgeInterfaces()
+	vEdgeInterfaces, err := client.GetVEdgeInterfaces(c.ctx)
 	if err != nil {
 		log.Warnf("Error getting vEdge interfaces from Cisco SD-WAN API: %s", err)
 	}
-	cEdgeInterfaces, err := client.GetCEdgeInterfaces()
+	cEdgeInterfaces, err := client.GetCEdgeInterfaces(c.ctx)
 	if err != nil {
 		log.Warnf("Error getting cEdge interfaces from Cisco SD-WAN API: %s", err)
 	}
@@ -111,7 +111,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	c.metricsSender.SetDeviceTags(deviceTags)
 
 	if *c.config.CollectHardwareMetrics {
-		deviceStats, err := client.GetDeviceHardwareMetrics()
+		deviceStats, err := client.GetDeviceHardwareMetrics(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting device metrics from Cisco SD-WAN API: %s", err)
 		}
@@ -125,7 +125,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectInterfaceMetrics {
-		interfaceStats, err := client.GetInterfacesMetrics()
+		interfaceStats, err := client.GetInterfacesMetrics(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting interface metrics from Cisco SD-WAN API: %s", err)
 		}
@@ -133,7 +133,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectTunnelMetrics {
-		appRouteStats, err := client.GetApplicationAwareRoutingMetrics()
+		appRouteStats, err := client.GetApplicationAwareRoutingMetrics(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting application-aware routing metrics from Cisco SD-WAN API: %s", err)
 		}
@@ -141,7 +141,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectControlConnectionMetrics {
-		controlConnectionsState, err := client.GetControlConnectionsState()
+		controlConnectionsState, err := client.GetControlConnectionsState(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting control-connection states from Cisco SD-WAN API: %s", err)
 		}
@@ -149,7 +149,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectOMPPeerMetrics {
-		ompPeersState, err := client.GetOMPPeersState()
+		ompPeersState, err := client.GetOMPPeersState(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting OMP peer states from Cisco SD-WAN API: %s", err)
 		}
@@ -157,7 +157,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	}
 
 	if *c.config.CollectDeviceCountersMetrics {
-		deviceCounters, err := client.GetDevicesCounters()
+		deviceCounters, err := client.GetDevicesCounters(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting device counters from Cisco SD-WAN API: %s", err)
 		}
@@ -166,7 +166,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectBFDSessionStatus {
-		bfdSessionsState, err := client.GetBFDSessionsState()
+		bfdSessionsState, err := client.GetBFDSessionsState(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting BFD session states from Cisco SD-WAN API: %s", err)
 		}
@@ -175,7 +175,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectHardwareStatus {
-		hardwareStates, err := client.GetHardwareStates()
+		hardwareStates, err := client.GetHardwareStates(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting hardware states from Cisco SD-WAN API: %s", err)
 		}
@@ -184,7 +184,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectCloudApplicationsMetrics {
-		cloudApplications, err := client.GetCloudExpressMetrics()
+		cloudApplications, err := client.GetCloudExpressMetrics(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting cloud application metrics from Cisco SD-WAN API: %s", err)
 		}
@@ -193,7 +193,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Disabled  by default
 	if *c.config.CollectBGPNeighborStates {
-		bgpNeighbors, err := client.GetBGPNeighbors()
+		bgpNeighbors, err := client.GetBGPNeighbors(c.ctx)
 		if err != nil {
 			log.Warnf("Error getting BGP neighbors from Cisco SD-WAN API: %s", err)
 		}
@@ -274,7 +274,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 }
 
 func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
-	clientOptions := []client.ClientOptions{client.WithContext(c.ctx)}
+	var clientOptions []client.ClientOptions
 
 	if c.config.Insecure || c.config.CAFile != "" {
 		options, err := client.WithTLSConfig(c.config.Insecure, c.config.CAFile)
