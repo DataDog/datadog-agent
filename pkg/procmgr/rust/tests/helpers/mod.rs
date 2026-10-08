@@ -44,6 +44,8 @@ pub struct DaemonStatus {
     pub starting_processes: u32,
     pub stopping_processes: u32,
     #[serde(default)]
+    pub invalid_config_processes: u32,
+    #[serde(default)]
     pub skipped_processes: u32,
 }
 
@@ -62,6 +64,8 @@ pub struct ProcessSnapshot {
     pub restart_count: u64,
     pub last_exit_code: Option<i32>,
     pub last_signal: Option<i32>,
+    #[serde(default)]
+    pub config_error: String,
     #[serde(default)]
     pub skip_reasons: Vec<String>,
 }
@@ -189,6 +193,8 @@ struct DescribeSnapshot {
     pub before: Vec<String>,
     #[serde(default)]
     pub runtime_user: String,
+    #[serde(default)]
+    pub config_error: String,
 }
 
 /// Unset fields are not checked (same pattern as ReloadExpect / StatusProcessesCount).
@@ -217,6 +223,8 @@ pub struct DescribeExpect {
     pub profile: Option<String>,
     pub user: Option<String>,
     pub runtime_user: Option<String>,
+    pub config_error: Option<String>,
+    pub has_config_error: Option<bool>,
 }
 
 impl DescribeSnapshot {
@@ -307,6 +315,18 @@ impl DescribeSnapshot {
             &expected.runtime_user,
             self,
         );
+        assert_describe_field(
+            "config_error",
+            &self.config_error,
+            &expected.config_error,
+            self,
+        );
+        assert_describe_present(
+            "config_error",
+            &self.config_error,
+            expected.has_config_error,
+            self,
+        );
         if let Some(expected_alive) = expected.pid_alive {
             let alive = self.pid > 0 && pid_is_alive(self.pid as u32);
             assert_eq!(
@@ -364,6 +384,7 @@ pub enum ProcessExpect {
     Crashed,
     Failed,
     Exited,
+    InvalidConfig,
 }
 
 impl ProcessExpect {
@@ -376,6 +397,7 @@ impl ProcessExpect {
             Self::Crashed => "Crashed",
             Self::Failed => "Failed",
             Self::Exited => "Exited",
+            Self::InvalidConfig => "InvalidConfig",
         }
     }
 }
@@ -468,6 +490,7 @@ pub struct StatusProcessesCount {
     pub exited: Option<u32>,
     pub starting: Option<u32>,
     pub stopping: Option<u32>,
+    pub invalid_config: Option<u32>,
     pub skipped: Option<u32>,
 }
 
@@ -483,6 +506,7 @@ impl StatusProcessesCount {
             exited: Some(0),
             starting: Some(0),
             stopping: Some(0),
+            invalid_config: Some(0),
             skipped: Some(0),
         }
     }
@@ -534,6 +558,11 @@ impl DaemonStatus {
                 "stopping_processes",
                 self.stopping_processes,
                 expected.stopping,
+            ),
+            (
+                "invalid_config_processes",
+                self.invalid_config_processes,
+                expected.invalid_config,
             ),
             (
                 "skipped_processes",
@@ -1721,7 +1750,8 @@ fn process_matches_expect(process: &ProcessSnapshot, expected: ProcessExpect) ->
         | ProcessExpect::Stopped
         | ProcessExpect::Crashed
         | ProcessExpect::Failed
-        | ProcessExpect::Exited => process.pid == 0,
+        | ProcessExpect::Exited
+        | ProcessExpect::InvalidConfig => process.pid == 0,
         ProcessExpect::Running => {
             let pid = process.pid as u32;
             pid > 0 && pid_is_alive(pid)

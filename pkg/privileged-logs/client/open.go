@@ -115,6 +115,7 @@ func openPrivileged(socketPath string, filePath string, noFollow bool) (*os.File
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusSwitchingProtocols {
 		body, _ := io.ReadAll(resp.Body)
