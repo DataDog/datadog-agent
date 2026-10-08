@@ -115,6 +115,13 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Send the status and the PCAP global header now. A quiet interface may not
+	// write again for the whole capture, and the caller gives up if it sees no
+	// response headers within its setup timeout.
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+
 	// The capture ends itself on Duration, MaxPackets or MaxBytes; ctx only
 	// covers the caller disconnecting or the drain loop failing to exit.
 	select {

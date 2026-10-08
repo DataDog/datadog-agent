@@ -26,6 +26,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
         "//test/fakeintake/api",
+        "//test/new-e2e/tests/privateactionrunner",
         "@com_github_google_uuid//:uuid",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",

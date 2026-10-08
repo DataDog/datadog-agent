@@ -55,6 +55,24 @@ type capturer struct {
 	stopped atomic.Bool
 }
 
+// filterLinkTypes are the link types newCapturer checks a filter against
+// before the interface's real link type is known.
+var filterLinkTypes = []layers.LinkType{layers.LinkTypeLinuxSLL, layers.LinkTypeEthernet, layers.LinkTypeRaw}
+
+func checkFilterSyntax(filter string, snapLen int) error {
+	var firstErr error
+	for _, lt := range filterLinkTypes {
+		_, err := pcap.NewBPF(lt, snapLen, filter)
+		if err == nil {
+			return nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
 // newCapturer validates cfg, applies defaults, and checks the BPF filter
 // syntax. It does not open a capture.
 func newCapturer(cfg CaptureConfig) (*capturer, error) {
@@ -65,9 +83,11 @@ func newCapturer(cfg CaptureConfig) (*capturer, error) {
 	cfg.applyDefaults()
 
 	// The link type is only known once the handle is activated; Start compiles
-	// the filter again against it. This only rejects bad syntax early.
+	// the filter again against it. This only rejects bad syntax early, so a
+	// filter is accepted if any link type a capture may run on compiles it:
+	// "ether host ..." is valid on an Ethernet device but not on "any".
 	if cfg.Filter != "" {
-		if _, err := pcap.NewBPF(layers.LinkTypeLinuxSLL, int(cfg.SnapLen), cfg.Filter); err != nil {
+		if err := checkFilterSyntax(cfg.Filter, int(cfg.SnapLen)); err != nil {
 			return nil, fmt.Errorf("capture: compiling BPF filter %q: %w", cfg.Filter, err)
 		}
 	}

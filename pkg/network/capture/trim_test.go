@@ -106,6 +106,13 @@ func TestHeaderLen(t *testing.T) {
 	// own decode after gopacket has set its Contents to the whole remainder.
 	badIHL := serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolUDP), udp(9999), gopacket.Payload("secret"))
 	badIHL[14] = 0x4f
+	// A Geneve header declaring 4 bytes of options whose single option claims
+	// 64 bytes: the decoder would run the option over the payload behind it.
+	geneveOverrun := append([]byte{
+		0x01, 0x00, 0x08, 0x00, 0, 0, 7, 0, // version 0, Opt Len 1, IPv4, VNI 7
+		0x01, 0x02, 0x03, 0x0f, // option class/type, length 15
+	}, make([]byte, 10)...)
+	geneveOverrun = append(geneveOverrun, testSecret...)
 
 	tests := []struct {
 		name       string
@@ -181,6 +188,13 @@ func TestHeaderLen(t *testing.T) {
 				&layers.Geneve{Protocol: layers.EthernetTypeIPv4, VNI: 7},
 				ipv4(layers.IPProtocolUDP), udp(9999), testSecret),
 			wantLen: 14 + 20 + 8 + 8 + 20 + 8,
+		},
+		{
+			name:       "Geneve option overrunning the options length fails closed",
+			linkType:   layers.LinkTypeEthernet,
+			packet:     serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolUDP), udp(6081), gopacket.Payload(geneveOverrun)),
+			wantLen:    14 + 20 + 8,
+			wantFailed: true,
 		},
 		{
 			name:     "GRE keeps outer and inner headers",
