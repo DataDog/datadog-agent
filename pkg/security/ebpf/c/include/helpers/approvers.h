@@ -213,9 +213,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_connect_sa
         return DISCARDED;
     }
 
-    u32 pid = bpf_get_current_pid_tgid() >> 32;
-
-    // ignore kworkers
+    // ignore kworkers. key->pid is the process that issued the syscall, which differs from the
+    // current task for io_uring requests run by a worker thread
+    u32 pid = key->pid;
     if (IS_KERNEL_THREAD(pid)) {
         return DISCARDED;
     }
@@ -806,6 +806,13 @@ static enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struc
     return state;
 }
 
+// get_bind_tgid returns the tgid of the process that issued the bind: the io_uring submitter when the
+// request is run by a worker thread, the current task otherwise
+static u32 __attribute__((always_inline)) get_bind_tgid(struct syscall_cache_t *syscall) {
+    u64 pid_tgid = syscall->bind.pid_tgid ? syscall->bind.pid_tgid : bpf_get_current_pid_tgid();
+    return pid_tgid >> 32;
+}
+
 static enum SYSCALL_STATE __attribute__((always_inline)) bind_approvers(struct syscall_cache_t *syscall) {
     u32 key = 0;
     struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&bind_addr_family_approvers, &key);
@@ -813,10 +820,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) bind_approvers(struct s
     enum SYSCALL_STATE state = flag_approver(filter, syscall->type, family);
 
     if (state == DISCARDED) {
-        u32 pid = bpf_get_current_pid_tgid() >> 32;
         struct bind_connect_sample_key_t bind_key;
         __builtin_memset(&bind_key, 0, sizeof(bind_key));
-        bind_key.pid = pid;
+        bind_key.pid = get_bind_tgid(syscall);
         bind_key.family = syscall->bind.family;
         bind_key.port = syscall->bind.port;
         bind_key.protocol = syscall->bind.protocol;

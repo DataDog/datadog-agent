@@ -20,8 +20,13 @@ var bindCapabilities = rules.FieldCapabilities{
 		FilterWeight: 50,
 	},
 	{
-		Field:        "bind.addr.port",
-		TypeBitmask:  eval.ScalarValueType,
+		Field:       "bind.addr.port",
+		TypeBitmask: eval.ScalarValueType,
+		// non-INET binds have a zero port, an approver on it can't be narrowed to AF_INET/AF_INET6
+		ValidateFnc: func(value rules.FilterValue) bool {
+			port, ok := value.Value.(int)
+			return ok && port != 0
+		},
 		FilterWeight: 80,
 	},
 	{
@@ -30,8 +35,13 @@ var bindCapabilities = rules.FieldCapabilities{
 		FilterWeight: 90,
 	},
 	{
-		Field:        "bind.addr.is_public",
-		TypeBitmask:  eval.ScalarValueType,
+		Field:       "bind.addr.is_public",
+		TypeBitmask: eval.ScalarValueType,
+		// non-INET binds have no IP, which resolves as public, an approver on it can't be narrowed to AF_INET/AF_INET6
+		ValidateFnc: func(value rules.FilterValue) bool {
+			isPublic, ok := value.Value.(bool)
+			return ok && !isPublic
+		},
 		FilterWeight: 70,
 	},
 }

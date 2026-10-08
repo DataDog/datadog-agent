@@ -533,6 +533,46 @@ func TestApproversBind(t *testing.T) {
 			},
 		},
 		{
+			name:            "zero-port-matches-non-inet",
+			ruleExpressions: []string{`bind.addr.port in [0, 8080]`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if len(approvers) != 0 {
+					t.Fatalf("expected no approver, got %v", approvers)
+				}
+			},
+		},
+		{
+			name:            "public-addr-matches-non-inet",
+			ruleExpressions: []string{`bind.addr.is_public == true`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if len(approvers) != 0 {
+					t.Fatalf("expected no approver, got %v", approvers)
+				}
+			},
+		},
+		{
+			name:            "private-addr-implies-af-inet",
+			ruleExpressions: []string{`bind.addr.is_public == false`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if _, exists := approvers["bind.addr.is_public"]; !exists {
+					t.Fatal("expected bind.addr.is_public approver")
+				}
+			},
+		},
+		{
+			name:            "zero-port-with-family",
+			ruleExpressions: []string{`bind.addr.family == AF_UNIX && bind.addr.port == 0`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if _, exists := approvers["bind.addr.port"]; exists {
+					t.Fatal("unexpected bind.addr.port approver")
+				}
+				values, exists := approvers["bind.addr.family"]
+				if !exists || len(values) != 1 || values[0].Value != unix.AF_UNIX {
+					t.Fatalf("expected AF_UNIX family approver, got %v", approvers)
+				}
+			},
+		},
+		{
 			name:            "no-approver",
 			ruleExpressions: []string{`bind.protocol == 6`},
 			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
