@@ -19,6 +19,11 @@ go_library(
             "//comp/remote-config/rcx509client/impl",
             "@org_uber_go_fx//:fx",
         ],
+        "@rules_go//go/platform:windows": [
+            "//comp/remote-config/rcx509client/def",
+            "//comp/remote-config/rcx509client/impl",
+            "@org_uber_go_fx//:fx",
+        ],
         "//conditions:default": [],
-    }),
+    }),  # keep
 )

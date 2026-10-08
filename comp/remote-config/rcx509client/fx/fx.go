@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build linux || darwin
+//go:build (linux && !android) || (darwin && !ios) || windows
 
 // Package fx provides the Fx module for the Remote Config x509 client.
 package fx
