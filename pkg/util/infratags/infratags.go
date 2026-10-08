@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -37,6 +38,10 @@ type Tagger struct {
 
 // NewTagger resolves the infra mode tagging configuration from cfg.
 // Returns nil if the active infrastructure_mode does not trigger tagging.
+//
+// The optional integration.<mode>.tagged allowlist exists only for
+// cloud_cost_only (and is deprecated). Other marked modes never probe that
+// key, so nodetreemodel does not warn about an unknown config path.
 func NewTagger(cfg pkgconfigmodel.Reader) *Tagger {
 	mode := configutils.MarkedInfraMode(cfg)
 	if mode == "" {
@@ -44,7 +49,11 @@ func NewTagger(cfg pkgconfigmodel.Reader) *Tagger {
 	}
 	tags := []string{fmt.Sprintf("%s:%s", configutils.InfraModeTagKey, mode)}
 
-	checks := cfg.GetStringSlice("integration." + mode + ".tagged")
+	if mode != constants.InfraModeCloudCostOnly {
+		return &Tagger{infraModeTags: tags}
+	}
+
+	checks := cfg.GetStringSlice("integration." + constants.InfraModeCloudCostOnly + ".tagged")
 	if len(checks) == 0 {
 		return &Tagger{infraModeTags: tags}
 	}
