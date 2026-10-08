@@ -13,7 +13,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
@@ -61,12 +60,7 @@ func (f *privilegedLogsModule) openFileHandler(w http.ResponseWriter, r *http.Re
 
 	f.logFileAccess(req.Path)
 
-	var file *os.File
-	if req.NoFollow {
-		file, err = validateAndOpenNoFollow(req.Path)
-	} else {
-		file, err = validateAndOpen(req.Path)
-	}
+	file, err := openLogFile(req.Path, req.NoFollow)
 	if err != nil {
 		sendError(w, http.StatusInternalServerError, err.Error())
 		return

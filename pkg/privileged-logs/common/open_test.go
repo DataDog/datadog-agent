@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package module
+package common
 
 import (
 	"os"
@@ -14,11 +14,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/privileged-logs/common"
 )
 
-// openPathWithoutSymlinksAndCheckFDs wraps common.OpenPathWithoutSymlinks and
+// countOpenFDs returns the number of open file descriptors for the current process
+func countOpenFDs(t *testing.T) int {
+	entries, err := os.ReadDir("/proc/self/fd")
+	require.NoError(t, err)
+	return len(entries)
+}
+
+// openPathWithoutSymlinksAndCheckFDs wraps OpenPathWithoutSymlinks and
 // verifies that no file descriptors are leaked. For success cases, it checks
 // that exactly one FD is opened. For error cases, it checks that no FDs are
 // leaked.
@@ -26,7 +31,7 @@ func openPathWithoutSymlinksAndCheckFDs(t *testing.T, path string) (*os.File, er
 	t.Helper()
 	fdsBefore := countOpenFDs(t)
 
-	file, err := common.OpenPathWithoutSymlinks(path)
+	file, err := OpenPathWithoutSymlinks(path)
 
 	if err != nil {
 		fdsAfter := countOpenFDs(t)
