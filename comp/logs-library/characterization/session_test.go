@@ -53,10 +53,12 @@ func TestSessionRecordsLifecycleInsideWindow(t *testing.T) {
 	manager.now = func() time.Time { return now }
 	started, err := manager.Start(10 * time.Second)
 	require.NoError(t, err)
+	manager.RecordRotation(now.Add(-time.Second), 4)
 	manager.RecordRotation(now.Add(time.Second), 0)
 	manager.RecordRotation(now.Add(3*time.Second), 12)
 	manager.RecordRotation(now.Add(5*time.Second), 4)
 	manager.RecordRotation(now.Add(11*time.Second), 6)
+	manager.RecordRotation(started.EndsAt, 5)
 	result, err := manager.Stop(started.SessionID)
 	require.NoError(t, err)
 	require.NotNil(t, result.Lifecycle)
@@ -175,6 +177,31 @@ func TestEarlyStopClipsMaterializedRateWindow(t *testing.T) {
 	require.Equal(t, now, result.EndedAt)
 	require.Len(t, result.RateWindows, 1)
 	require.Equal(t, now, result.RateWindows[0].EndsAt)
+}
+
+func TestAutomaticCompletionClipsFinalRateWindowAndExcludesEndBoundary(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	manager := NewManager()
+	manager.now = func() time.Time { return now }
+	started, err := manager.Start(11 * time.Second)
+	require.NoError(t, err)
+	manager.Record(MessageObservation{
+		ObservedAt: now.Add(10*time.Second + 500*time.Millisecond), RawBytes: 100,
+		SourceType: "file", Pipeline: "0", PayloadFamily: "plain",
+	})
+	manager.Record(MessageObservation{
+		ObservedAt: started.EndsAt, RawBytes: 200,
+		SourceType: "file", Pipeline: "0", PayloadFamily: "plain",
+	})
+
+	now = now.Add(12 * time.Second)
+	result, err := manager.Status()
+	require.NoError(t, err)
+	require.Equal(t, "completed", result.State)
+	require.Equal(t, uint64(1), result.Totals.Events)
+	require.Len(t, result.RateWindows, 1)
+	require.Equal(t, started.StartedAt.Add(10*time.Second), result.RateWindows[0].StartedAt)
+	require.Equal(t, started.EndsAt, result.RateWindows[0].EndsAt)
 }
 
 func TestSessionCardinalityAndGroupsAreBounded(t *testing.T) {

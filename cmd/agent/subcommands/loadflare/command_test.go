@@ -28,7 +28,12 @@ func TestWriteArchive(t *testing.T) {
 		StartedAt: start, EndsAt: start.Add(time.Minute), EndedAt: start.Add(time.Minute), RequestedDurationSeconds: 60,
 		PayloadFamilies: map[string]characterization.Aggregate{},
 	}
-	config := configmock.NewFromYAML(t, "api_key: secret\nlogs_enabled: true\n")
+	config := configmock.NewFromYAML(t, `api_key: api-secret-value
+app_key: application-secret-value
+proxy:
+  http: http://proxy-user:proxy-secret-value@proxy.local:3128
+logs_enabled: true
+`)
 	output := filepath.Join(t.TempDir(), "load-flare.zip")
 	require.NoError(t, writeArchive(output, snapshot, config))
 
@@ -51,7 +56,9 @@ func TestWriteArchive(t *testing.T) {
 			require.NoError(t, err)
 			content, err := io.ReadAll(stream)
 			require.NoError(t, err)
-			require.NotContains(t, string(content), "secret")
+			require.NotContains(t, string(content), "api-secret-value")
+			require.NotContains(t, string(content), "application-secret-value")
+			require.NotContains(t, string(content), "proxy-secret-value")
 			require.NoError(t, stream.Close())
 			checkedConfig = true
 		}
