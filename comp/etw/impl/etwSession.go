@@ -19,8 +19,6 @@ import (
 
 /*
 #include "session.h"
-
-static TRACEHANDLE DDInvalidProcessTraceHandle(void) { return INVALID_PROCESSTRACE_HANDLE; }
 */
 import "C"
 

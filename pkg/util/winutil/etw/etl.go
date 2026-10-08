@@ -9,8 +9,6 @@ package etw
 
 /*
 #include "etw.h"
-
-static TRACEHANDLE DDInvalidProcessTraceHandle(void) { return INVALID_PROCESSTRACE_HANDLE; }
 */
 import "C"
 import (
@@ -66,7 +64,7 @@ func ProcessETLFile(etlPath string, callback EventCallback, opts ...ProcessOptio
 
 	var openErr C.ULONG
 	traceHandle := C.DDOpenTraceFromFile((*C.WCHAR)(unsafe.Pointer(utf16Path)), C.uintptr_t(handle), &openErr)
-	if traceHandle == C.DDInvalidProcessTraceHandle() {
+	if traceHandle == ^C.TRACEHANDLE(0) {
 		return fmt.Errorf("OpenTraceW failed: %w", windows.Errno(openErr))
 	}
 	defer C.CloseTrace(traceHandle)
