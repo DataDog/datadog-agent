@@ -84,9 +84,6 @@ if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   dependency "package-artifact"
   generate_distro_package = true
 else
-  # creates required build directories
-  dependency 'preparation'
-
   dependency 'installer'
 
   generate_distro_package = ENV.has_key?("OMNIBUS_FORCE_PACKAGES")

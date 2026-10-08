@@ -343,7 +343,6 @@ type KSMCheck struct {
 	metricNamesMapper          map[string]string
 	metricAggregators          map[string]metricAggregator
 	metricTransformers         map[string]metricTransformerFunc
-	metadataMetricsRegex       *regexp.Regexp
 	initRetry                  retry.Retrier
 	workloadmetaStore          workloadmeta.Component
 	rolloutTracker             *customresources.RolloutTracker
@@ -767,6 +766,16 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	factories = manageResourcesReplacement(c, factories, resources)
 
+	// hpav2Factory (registered above via manageResourcesReplacement) only
+	// runs when autoscaling/v2 isn't served by the cluster. On clusters that
+	// do serve it, the upstream KSM generator handles HPAs directly and
+	// never gets the ownerRef enrichment, so add it here as an always-on
+	// extended collector, mirroring NewExtendedPodFactory.
+	if apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler") {
+		factories = append(factories, customresources.NewExtendedHorizontalPodAutoscalerFactory(c))
+		collectors = lo.Uniq(append(collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended"))
+	}
+
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
 		client, _ := f.CreateClient(nil)
@@ -830,11 +839,29 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	return factories
 }
 
-func (k *KSMCheck) shouldDropForMetadata(name string) bool {
+// apiResourceAvailable reports whether the given kind is served under the
+// given group/version, per cluster discovery.
+func apiResourceAvailable(resources []*v1.APIResourceList, groupVersion, kind string) bool {
+	for _, resource := range resources {
+		if resource.GroupVersion != groupVersion {
+			continue
+		}
+		for _, apiResource := range resource.APIResources {
+			if apiResource.Kind == kind {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// shouldDropForMetadata reports whether name is a metadata-only metric.
+// Metadata metrics are useful for label joins but shouldn't be submitted unless they're customresource metrics.
+func shouldDropForMetadata(name string) bool {
 	if strings.HasPrefix(name, "kube_customresource") {
 		return false
 	}
-	return k.metadataMetricsRegex.MatchString(name)
+	return strings.HasSuffix(name, "_labels") || strings.HasSuffix(name, "_info") || strings.HasSuffix(name, "_status_reason")
 }
 
 // Run runs the KSM check
@@ -1030,7 +1057,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
-			if k.shouldDropForMetadata(metricFamily.Name) {
+			if shouldDropForMetadata(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
 				// they shouldn't be forwarded to Datadog unless they're customresource metrics
 				continue
@@ -1379,7 +1406,7 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 	}
 
 	for name, list := range metrics {
-		isMetadataMetric := k.shouldDropForMetadata(name)
+		isMetadataMetric := shouldDropForMetadata(name)
 		if !k.isKnownMetric(name) && !isMetadataMetric {
 			k.telemetry.incUnknown()
 			continue
@@ -1472,10 +1499,6 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		workloadmetaStore:          wmeta,
 		rolloutTracker:             customresources.NewRolloutTracker(),
 		namespaceTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
-
-		// metadata metrics are useful for label joins
-		// but shouldn't be submitted to Datadog
-		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
 	}
 
 	// Initialize metricTransformers after k is created since it needs a reference to k
@@ -1665,6 +1688,13 @@ func labelsMapperOverride(metricName string) map[string]string {
 
 	if strings.HasPrefix(metricName, "kube_service") {
 		return serviceLabelsMapperOverride
+	}
+
+	if strings.HasPrefix(metricName, "kube_horizontalpodautoscaler") {
+		return map[string]string{
+			"ownerref_kind": tags.KubeOwnerRefKind,
+			"ownerref_name": tags.KubeOwnerRefName,
+		}
 	}
 	return nil
 }

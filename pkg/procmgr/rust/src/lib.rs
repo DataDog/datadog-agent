@@ -9,7 +9,15 @@ pub mod config;
 pub mod config_gate;
 pub mod env;
 #[cfg(all(test, windows))]
+mod fleet_data_plane_template;
+#[cfg(all(test, windows))]
 mod fleet_process_template;
+#[cfg(all(test, windows))]
+mod fleet_sysprobe_template;
+#[cfg(all(test, windows))]
+mod fleet_template_support;
+#[cfg(all(test, windows))]
+mod fleet_trace_template;
 pub mod grpc;
 mod handle;
 pub mod manager;

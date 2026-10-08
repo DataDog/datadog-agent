@@ -127,7 +127,6 @@ dogstatsd-msg.h
 # omnibus files
 omnibus/.tarball-version
 omnibus/files/sources
-omnibus/resources/agent/msi/cal/packages/
 
 # serverless artifact
 cmd/serverless/serverless
@@ -154,14 +153,6 @@ pkg/util/winutil/messagestrings/*.h
 pkg/util/winutil/messagestrings/*.rc
 pkg/util/winutil/messagestrings/*.bin
 
-# dev VM
-.vagrant
-Vagrantfile
-packer.json
-*.box
-devenv/iso
-devenv/output-virtualbox-iso/
-devenv/packer_cache
 test_output*.json
 module_test_output.json
 e2e_test_output.json

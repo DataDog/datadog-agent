@@ -78,6 +78,11 @@
         "groupName": "prost/tonic protobuf stack"
       },
       {
+        "matchManagers": ["cargo"],
+        "matchDepNames": ["datadog-agent-commons", "saluki-tls"],
+        "groupName": "saluki"
+      },
+      {
         "matchManagers": ["npm"],
         "enabled": false
       },
@@ -189,7 +194,7 @@
         "enabled": false
       },
       {
-        "matchManagers": ["bazel-module"],
+        "matchManagers": ["bazel-module", "pip_requirements"],
         "labels": ["dependencies", "dependencies-bazel", "changelog/no-changelog", "qa/no-code-change"]
       },
       {

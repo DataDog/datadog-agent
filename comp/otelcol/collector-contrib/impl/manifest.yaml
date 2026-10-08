@@ -45,6 +45,8 @@ processors:
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor
     v0.159.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatorateprocessor
+    v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor
@@ -78,11 +80,17 @@ receivers:
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver
     v0.159.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver
+    v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver
     v0.159.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver
+    v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver
+    v0.159.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver
     v0.159.0

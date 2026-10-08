@@ -3,6 +3,8 @@
 
 #include "structs/security_profile.h"
 #include "helpers/activity_dump.h"
+#include "helpers/approvers.h"
+#include "helpers/process.h"
 #include "helpers/raw_syscalls.h"
 #include "helpers/span.h"
 #include "helpers/span_fill.h"
@@ -102,12 +104,46 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
         }
     }
 
+    // Workload profiles v2 syscall sampler: sample every cgroup unless userspace excluded it
+    // (host/systemd). Gated up front so we skip the per-syscall map lookups when disabled.
+    if (is_event_sampling_syscalls_enabled()) {
+        // Key must live on the stack (event is a per-CPU map value).
+        u64 cgroup_ino = event->cgroup.path_key.ino;
+        if (!event->process.is_kworker && bpf_map_lookup_elem(&excluded_cgroups, &cgroup_ino) == NULL) {
+            // Fast-exit high-frequency, low-signal syscalls (read/write/futex/poll/...). Userspace
+            // seeds them into profiles so a KILL-default seccomp profile stays valid.
+            struct syscall_table_key_t ignore_key = {
+                .id = args->id,
+                .syscall_key = SAMPLING_IGNORED_SYSCALL_KEY,
+            };
+            struct pid_cache_t *pid_entry = is_syscall(&ignore_key) ? NULL : get_pid_cache(pid);
+            if (pid_entry != NULL) {
+                u64 sample_cookie = 0;
+                u32 refresh_needed = 0;
+                enum SYSCALL_STATE state = approve_syscall_sample(pid_entry->cookie, args->id, &sample_cookie, &refresh_needed);
+                if (state == SAMPLED) {
+                    event->event.flags = EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
+                    event->event_reason = SYSCALL_MONITOR_REASON_SAMPLE;
+                    __builtin_memset(event->syscalls, 0, sizeof(event->syscalls));
+                    event->syscall_id = args->id;
+                    event->sample_cookie = sample_cookie;
+                    fill_span_context(&event->span, &event->go_labels);
+                    send_event_ptr(args, EVENT_SYSCALLS, event);
+                } else if (refresh_needed) {
+                    struct sample_refresh_event_t ev = {};
+                    ev.cookie = sample_cookie;
+                    send_event(args, EVENT_SAMPLE_REFRESH, ev);
+                }
+            }
+        }
+    }
+
     return 0;
 }
 
 // used as a fallback, because tracepoints are not enable when using a ia32 userspace application with a x64 kernel
 // cf. https://elixir.bootlin.com/linux/latest/source/arch/x86/include/asm/ftrace.h#L106
-int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+static __always_inline int handle_sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall) {
         return 0;

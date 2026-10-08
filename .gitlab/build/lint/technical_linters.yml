@@ -5,12 +5,9 @@
   needs: []
 
 lint_licenses:
-  extends: .lint
+  extends: [.lint, .bazel:defs:cache:progressive]
   script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e lint-licenses
-  needs: ["go_deps", "go_tools_deps"]
 
 lint_rust_licenses:
   extends: .lint
@@ -101,6 +98,18 @@ lint_releasenotes_unique_ids:
     - !reference [.on_releasenotes_changes]
   script:
     - dda inv -- -e linter.releasenote-unique-ids
+
+lint_config_schema:
+  extends: .lint
+  rules:
+    - !reference [.on_main]
+    - changes:
+        paths:
+          - pkg/config/schema/**/*
+          - tasks/schema/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  script:
+    - dda inv -- -e schema.lint
 
 lint_rtloader:
   extends: .lint

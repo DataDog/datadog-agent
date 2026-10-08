@@ -136,7 +136,7 @@ const (
 type DynamicTestProfile string
 
 const (
-	// DynamicTestProfileBasic is a CNM basic-mode dynamic test.
+	// DynamicTestProfileBasic is a basic-mode dynamic test selected from network traffic.
 	DynamicTestProfileBasic DynamicTestProfile = "basic"
 	// DynamicTestProfileStandard is a CNM standard-mode dynamic test.
 	DynamicTestProfileStandard DynamicTestProfile = "standard"

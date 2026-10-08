@@ -59,7 +59,7 @@ services:
     privileged: true
     ports:
     - 80:8080/tcp
-    image: ghcr.io/datadog/apps-go-httpbin:{APPS_VERSION}
+    image: ${DD_APPS_REGISTRY:-ghcr.io/datadog}/apps-go-httpbin:{APPS_VERSION}
     container_name: httpbin
     volumes: []
     environment: {}
@@ -94,10 +94,10 @@ type hostTrafficDynamicPathSuite struct {
 
 // TestHostTrafficDynamicPathSuite runs Network Path Dynamic Tests backed by host NPM traffic.
 func TestHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig)))
+	e2e.Run(t, &hostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("hostTrafficDynamicPath", hostTrafficDynamicPathAgentConfig, hostTrafficSystemProbeConfig)))
 }
 
-func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Provisioner {
+func hostTrafficDynamicPathProvisioner(name, agentConfig, systemProbeConfig string) provisioners.Provisioner {
 	return provisioners.NewTypedPulumiProvisioner[hostTrafficDynamicPathEnv](name, func(ctx *pulumi.Context, env *hostTrafficDynamicPathEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -108,7 +108,7 @@ func hostTrafficDynamicPathProvisioner(name, agentConfig string) provisioners.Pr
 			ec2.WithName("hosttrafficdynamicpathvm"),
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(agentConfig),
-				agentparams.WithSystemProbeConfig(hostTrafficSystemProbeConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
 			),
 		)
 		if err := ec2.Run(ctx, awsEnv, env, params); err != nil {
@@ -166,7 +166,6 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
 	s.remoteConfigAdded = true
 
-	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
@@ -252,10 +251,6 @@ func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {
 		return
 	}
 	require.Failf(s.T(), "Remote Config entry not found", "product=%s config_id=%s config_name=%s", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName)
-}
-
-func (s *hostTrafficDynamicPathSuite) ensureCurlInstalled() {
-	s.Env().RemoteHost.MustExecute("if ! command -v curl >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y curl; fi")
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {

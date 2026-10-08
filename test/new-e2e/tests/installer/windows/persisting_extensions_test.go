@@ -20,6 +20,7 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -108,7 +109,7 @@ func (s *testExtensionsSuite) verifyDDOTRunningProcmgr(expectedVersion string) {
 	}
 	cli := s.procmgrCLIPath()
 	assert.Eventually(s.T(), func() bool {
-		cmdLine, err := procmgrDescribeField(s.Env().RemoteHost, cli, ddotProcmgrProcess, "Command")
+		cmdLine, err := windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, cli, ddotProcmgrProcess, "Command")
 		return err == nil && strings.Contains(cmdLine, expectedVersion)
 	}, 2*time.Minute, 2*time.Second, "dd-procmgr describe Command should contain version %s", expectedVersion)
 }

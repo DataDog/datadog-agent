@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build kubeapiserver
 
 package redact
 
@@ -188,6 +188,36 @@ func TestScrubCRManifest(t *testing.T) {
 		})
 	}
 }
+
+func TestScrubCRManifestTopLevelFields(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords([]string{"private_value"})
+	r := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "configuration.konghq.com/v1",
+		"kind":       "KongPlugin",
+		"metadata":   map[string]interface{}{"name": "secret-plugin"},
+		"plugin":     "openid-connect",
+		"config": map[string]interface{}{
+			"client_secret": []interface{}{"inline-secret"},
+			"issuer":        "https://example.com",
+			"nested":        map[string]interface{}{"private_value": "custom-secret"},
+		},
+		"password": "top-level-secret",
+		"status":   map[string]interface{}{"client_secret": "status-secret"},
+	}}
+	expected := r.DeepCopy()
+	expected.Object["config"] = map[string]interface{}{
+		"client_secret": []interface{}{"********"},
+		"issuer":        "https://example.com",
+		"nested":        map[string]interface{}{"private_value": "********"},
+	}
+	expected.Object["password"] = "********"
+	expected.Object["status"] = map[string]interface{}{"client_secret": "********"}
+
+	ScrubCRManifest(r, scrubber)
+	assert.Equal(t, expected, r)
+}
+
 func getCRScrubCases() map[string]struct {
 	input    *unstructured.Unstructured
 	expected *unstructured.Unstructured
