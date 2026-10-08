@@ -135,3 +135,39 @@ func TestStreamLifetimeIgnoresConnectionReset(t *testing.T) {
 	assert.Equal(t, defaultStreamLifetime, build(t, 30*time.Second))
 	assert.Equal(t, defaultStreamLifetime, build(t, 900*time.Second))
 }
+
+func TestStreamTimeouts(t *testing.T) {
+	build := func(t *testing.T, settings map[string]interface{}) *DestinationConfig {
+		t.Helper()
+		cfg := configmock.New(t)
+		cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 32)
+		cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
+		for k, v := range settings {
+			cfg.SetInTest(k, v)
+		}
+		main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+		endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+		endpoints.Main = main
+		dest, err := BuildDestinationConfig(cfg, endpoints)
+		require.NoError(t, err)
+		return dest
+	}
+
+	t.Run("defaults", func(t *testing.T) {
+		dest := build(t, nil)
+		assert.Equal(t, defaultKeepaliveTime, dest.KeepaliveTime)
+		assert.Equal(t, defaultKeepaliveTimeout, dest.KeepaliveTimeout)
+	})
+
+	t.Run("configured", func(t *testing.T) {
+		dest := build(t, map[string]interface{}{
+			"logs_config.http_timeout":                30,
+			"logs_config.foldspace.keepalive_time":    "10m",
+			"logs_config.foldspace.keepalive_timeout": "45s",
+		})
+		assert.Equal(t, 30*time.Second, dest.ConnectTimeout)
+		assert.Equal(t, 30*time.Second, dest.SendTimeout)
+		assert.Equal(t, 10*time.Minute, dest.KeepaliveTime)
+		assert.Equal(t, 45*time.Second, dest.KeepaliveTimeout)
+	})
+}
