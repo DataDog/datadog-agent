@@ -1590,8 +1590,9 @@ func defaultCollectors() []string {
 }
 
 // buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.
-// It allows us to get kube_node_created and kube_pod_created and deny
-// the rest of *_created metrics without relying on a unmaintainable and unreadable regex.
+// It allows us to get kube_node_created, kube_pod_created and
+// kube_resourceclaim_created and deny the rest of *_created metrics without
+// relying on a unmaintainable and unreadable regex.
 func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	deniedMetrics := options.MetricSet{
 		".*_generation":                                    {},
@@ -1617,7 +1618,14 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	}
 	for _, resource := range collectors {
 		// resource format: pods, nodes, jobs, deployments...
-		if resource == "pods" || resource == "nodes" {
+		// pods, nodes and resourceclaims keep their *_created metrics:
+		// kube_pod_created / kube_node_created feed pod.age / node.age,
+		// and kube_resourceclaim_created is the timestamp the
+		// resourceclaim.pending.age transformer turns into a wait time.
+		// This runs on the raw collector names, before splitDRACollectors
+		// extracts the DRA names, so the exemption must be here rather than
+		// at the split call site.
+		if resource == "pods" || resource == "nodes" || resource == draResourceClaims {
 			continue
 		}
 		deniedMetrics["kube_"+strings.TrimRight(resource, "s")+"_created"] = struct{}{}
