@@ -161,12 +161,13 @@ bazel:rc-x509-ffi:windows-amd64-noasm-debug:
   variables:
     POWERSHELL_SCRIPT: |-
       bazel version
-      $LibClang = Get-ChildItem -Path "C:\Program Files\Microsoft Visual Studio", "C:\Program Files (x86)\Microsoft Visual Studio" -Filter libclang.dll -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-      if ($null -eq $LibClang) {
+      Get-ChildItem -Path "C:\Program Files\Microsoft Visual Studio", "C:\Program Files (x86)\Microsoft Visual Studio" -Filter libclang.dll -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 | Set-Variable -Name LibClang
+      if (-not (Get-Variable -Name LibClang -ValueOnly -ErrorAction SilentlyContinue)) {
           throw "Visual Studio's LLVM installation does not contain libclang.dll"
       }
-      Write-Host "Using Visual Studio libclang: $($LibClang.FullName)"
-      bazel build -c dbg --jobs=8 --verbose_failures --remote_download_outputs=all --action_env=PATH --action_env="LIBCLANG_PATH=$($LibClang.FullName)" --platforms=//bazel/platforms:windows_x86_64_msvc_fips --extra_toolchains=@rust_toolchains//:rw-395021384 --extra_toolchains=@msvc_toolchains//:default_msvc-cl_hostx64_targetx64 @libdd_rc_source//:rc_x509_ffi
+      Set-Item -Path Env:LIBCLANG_PATH -Value (Get-Variable -Name LibClang -ValueOnly).FullName
+      Write-Host "Using Visual Studio libclang:" (Get-Item Env:LIBCLANG_PATH).Value
+      bazel build -c dbg --jobs=8 --verbose_failures --remote_download_outputs=all --action_env=PATH --action_env=LIBCLANG_PATH --platforms=//bazel/platforms:windows_x86_64_msvc_fips --extra_toolchains=@rust_toolchains//:rw-395021384 --extra_toolchains=@msvc_toolchains//:default_msvc-cl_hostx64_targetx64 @libdd_rc_source//:rc_x509_ffi
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
