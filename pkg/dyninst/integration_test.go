@@ -140,7 +140,7 @@ func testDyninst(
 		loader.WithRingBufSize(8 << 20), // 8 MiB
 	}
 	if debug {
-		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
+		loaderOpts = append(loaderOpts, loader.WithDebugLevel(bpfDebugLevel(t)))
 	}
 	// In short mode (which never runs in CI), force uprobe_multi attachment
 	// to speed up integration tests on hosts whose kernel supports the

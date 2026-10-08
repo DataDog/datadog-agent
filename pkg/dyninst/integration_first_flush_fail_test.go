@@ -272,8 +272,8 @@ func runFirstFlushFailScenario(
 	}
 	// Enable BPF debug logging so trace_pipe captures LOG(N, ...) lines
 	// from event.c (including the "probe_run: continuation aborted at
-	// seq=%d" line we want to verify is firing).
-	loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
+	// seq=%d" line we want to verify is firing, which is a LOG(1)).
+	loaderOpts = append(loaderOpts, loader.WithDebugLevel(bpfDebugLevel(t)))
 	modCfg.TestingKnobs.LoaderOptions = loaderOpts
 	modCfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	modCfg.LogUploaderURL = testServer.getLogsURL()
@@ -669,7 +669,7 @@ func TestFragmentCap(t *testing.T) {
 		// Generously-sized ringbuf so saturation is not a confound;
 		// any truncation here is the cap, not ringbuf pressure.
 		loader.WithRingBufSize(8 << 20),
-		loader.WithDebugLevel(100),
+		loader.WithDebugLevel(bpfDebugLevel(t)),
 	}
 	modCfg.TestingKnobs.LoaderOptions = loaderOpts
 	modCfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
