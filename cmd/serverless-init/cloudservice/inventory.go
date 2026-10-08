@@ -68,8 +68,9 @@ func (m *MicroVM) CanCollectInventory() bool { return true }
 //
 // The per-instance MicroVM id is not known at derivation time (the platform
 // only delivers it in the /run lifecycle hook body), so ResourceID starts as
-// the image ARN and narrows to the instance id at submission time. That keeps
-// resource_id populated for a payload built before the first /run.
+// the image ARN and narrows to the instance id before publication. Inventory
+// readiness remains closed until that identity arrives; image-only payloads
+// must not be submitted during construction or initial snapshot validation.
 func (m *MicroVM) GetInventoryData() InventoryData {
 	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
 	if arn == "" {

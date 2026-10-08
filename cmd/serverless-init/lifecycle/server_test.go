@@ -2068,3 +2068,90 @@ func TestHandleRun_WithForwarder_UpdatesTraceTags(t *testing.T) {
 	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called even when forwarder is configured")
 	assert.Equal(t, "vm-fwd789", setter.lastCall()["lambda_microvm_id"])
 }
+
+func TestHandleResumeInventoryWithoutRun(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	sub := &mockInventorySubmitter{}
+	srv.SetInventorySubmitter(sub)
+	srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+	assert.Empty(t, sub.getIDs(), "resume must not publish without an established identity")
+}
+
+func TestInventoryLifecycleCallbacksSerialized(t *testing.T) {
+	for _, firstHook := range []string{"run", "resume"} {
+		for _, secondHook := range []string{"run", "resume"} {
+			t.Run(firstHook+"/"+secondHook, func(t *testing.T) {
+				srv, _, _, _, _, _ := newTestServer()
+				srv.instanceID.Store("vm-A")
+				entered, release := make(chan struct{}), make(chan struct{})
+				var releaseOnce sync.Once
+				unblock := func() { releaseOnce.Do(func() { close(release) }) }
+				defer unblock()
+				var calls, active atomic.Int32
+				sub := &mockInventorySubmitter{}
+				srv.SetInventorySubmitter(InventorySubmitterFunc(func(id string) {
+					assert.EqualValues(t, 1, active.Inc(), "inventory callbacks must not overlap")
+					defer active.Dec()
+					// This assertion proves lock ownership without assuming the
+					// competing handler was scheduled before a negative assertion.
+					locked := srv.inventoryMu.TryLock()
+					if locked {
+						srv.inventoryMu.Unlock()
+					}
+					assert.False(t, locked, "ID store/load and callback must share one lock")
+					assert.Equal(t, id, srv.InstanceID())
+					if calls.Inc() == 1 {
+						close(entered)
+						select {
+						case <-release:
+						case <-time.After(5 * time.Second):
+							t.Error("timed out releasing inventory callback")
+						}
+						assert.Equal(t, id, srv.InstanceID(), "another run must not replace the ID during publication")
+					}
+					sub.SubmitInventory(id)
+				}))
+				invoke := func(hook, id string) {
+					rec := httptest.NewRecorder()
+					if hook == "run" {
+						srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, strings.NewReader(`{"microvmId":"`+id+`"}`)))
+					} else {
+						srv.handleResume(rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+					}
+					assert.Equal(t, http.StatusOK, rec.Code)
+				}
+				firstDone, secondStarted, secondDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
+				go func() { defer close(firstDone); invoke(firstHook, "vm-B") }()
+				waitForInventoryCallback(t, entered)
+				go func() { defer close(secondDone); close(secondStarted); invoke(secondHook, "vm-C") }()
+				waitForInventoryCallback(t, secondStarted)
+				assert.Empty(t, sub.getIDs(), "first publication is still blocked")
+				unblock()
+				waitForInventoryCallback(t, firstDone)
+				waitForInventoryCallback(t, secondDone)
+				firstID := "vm-A"
+				if firstHook == "run" {
+					firstID = "vm-B"
+				}
+				lastID := firstID
+				if secondHook == "run" {
+					lastID = "vm-C"
+				}
+				assert.Equal(t, []string{firstID, lastID}, sub.getIDs())
+				assert.Equal(t, lastID, srv.InstanceID())
+				// Resume after the overlap must not replay any earlier ID.
+				invoke("resume", "")
+				assert.Equal(t, []string{firstID, lastID, lastID}, sub.getIDs())
+			})
+		}
+	}
+}
+
+func waitForInventoryCallback(t *testing.T, signal <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for inventory callback")
+	}
+}
