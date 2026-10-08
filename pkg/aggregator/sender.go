@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -416,8 +415,7 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 // Event submits an event
 func (s *checkSender) Event(e event.Event) {
 	e.Tags = append(e.Tags, s.checkTags...)
-	// Unique: check custom tags may already include the mark.
-	e.Tags = taggerutils.AppendUniqueTags(e.Tags, s.infraModeEventTags...)
+	e.Tags = append(e.Tags, s.infraModeEventTags...)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)

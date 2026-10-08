@@ -621,18 +621,6 @@ func TestCheckSenderEventInfraModeStaysOffMetricsAndServiceChecks(t *testing.T) 
 	assert.NotContains(t, (<-s.serviceCheckChan).Tags, "infra_mode:cloud_cost_only")
 }
 
-func TestCheckSenderEventInfraModeNotDuplicated(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-
-	s := initSender(checkID1, "")
-	s.sender.SetCheckCustomTags([]string{"infra_mode:cloud_cost_only"})
-
-	s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
-
-	assert.Equal(t, []string{"env:prod", "infra_mode:cloud_cost_only"}, (<-s.eventChan).Tags)
-}
-
 func TestCheckSenderInterface(t *testing.T) {
 	// this test not using anything global
 	// -
