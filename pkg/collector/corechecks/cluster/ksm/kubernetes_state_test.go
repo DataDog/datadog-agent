@@ -2048,30 +2048,30 @@ func TestResourceClaimCreatedMetricNotDenied(t *testing.T) {
 	// resourceclaim.pending.age transformer consumes.
 	collectors := append(defaultCollectors(), draResourceClaims, draResourceSlices, draDeviceTaintRules)
 	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = allowDenyList.Parse()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// The transformer input must survive when the DRA collector is enabled.
 	isExcluded, err := allowDenyList.IsExcluded("kube_resourceclaim_created")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, isExcluded)
 	isIncluded, err := allowDenyList.IsIncluded("kube_resourceclaim_created")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, isIncluded)
 
 	// Slices and taint rules keep their generic deny entries: they publish
 	// no *_created family at all, so the entries are inert but harmless.
 	for _, metric := range []string{"kube_resourceslice_created", "kube_devicetaintrule_created"} {
 		isExcluded, err := allowDenyList.IsExcluded(metric)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, isExcluded, metric)
 	}
 
 	// The exemption must not leak into non-DRA resources.
 	isExcluded, err = allowDenyList.IsExcluded("kube_deployment_created")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, isExcluded)
 }
 
