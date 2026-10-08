@@ -33,6 +33,29 @@ var managementModes = []ManagementMode{
 	ManagementModeWindowsService,
 }
 
+// serviceSupervisors are the tags emitted on agent_service_running. ManagementModeNone is
+// excluded: "not up under anyone" is absence after zero-drop, not a supervisor:none series.
+var serviceSupervisors = []string{
+	string(ManagementModeProcmgr),
+	string(ManagementModeSystemd),
+	string(ManagementModeWindowsService),
+}
+
+// serviceRunningUnder reports whether agent_service_running for supervisor should be set for
+// service. Unlike management_mode (ownership: procmgr = listed in any state), this is up-only:
+// procmgr requires ProcessStateRunning; legacy modes already imply the unit/service is active.
+func serviceRunningUnder(service ServiceSnapshot, supervisor string) bool {
+	switch ManagementMode(supervisor) {
+	case ManagementModeProcmgr:
+		return service.ManagementMode == ManagementModeProcmgr &&
+			service.ProcmgrState == ProcessStateRunning
+	case ManagementModeSystemd, ManagementModeWindowsService:
+		return service.ManagementMode == ManagementMode(supervisor)
+	default:
+		return false
+	}
+}
+
 // ManagementMode describes how an agent service process is supervised on the host.
 type ManagementMode string
 
@@ -83,14 +106,14 @@ type ProcessSnapshot struct {
 	RuntimeUser   string `json:"runtime_user,omitempty"`
 	RestartPolicy string `json:"restart_policy,omitempty"`
 	AutoStart     bool   `json:"auto_start"`
-	// ConditionPathExists is the path gating the start, if any. dd-procmgrd does not report
-	// condition_config_any over its RPC, so a config-gated process is only identifiable as
-	// State == ProcessStateCreated while AutoStart is true.
+	// ConditionPathExists is the path gating the start, if any.
 	ConditionPathExists string   `json:"condition_path_exists,omitempty"`
 	After               []string `json:"after,omitempty"`
 	Before              []string `json:"before,omitempty"`
 	Stdout              string   `json:"stdout,omitempty"`
 	Stderr              string   `json:"stderr,omitempty"`
+	// SkipReasons are why the start pass declined to spawn (or a later respawn).
+	SkipReasons []string `json:"skip_reasons,omitempty"`
 }
 
 // ServiceSnapshot captures install and supervision state for a migratable agent service.

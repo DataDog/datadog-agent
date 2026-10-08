@@ -135,6 +135,15 @@ func TestReportNotesSeparateSpawnFailureFromWorkloadFailure(t *testing.T) {
 		"a restart count above zero is not by itself a crash loop")
 }
 
+func TestReportNotesPointAtSkipReasonsForSkippedHolds(t *testing.T) {
+	notes := strings.Join(reportNotes(), "\n")
+
+	assert.Contains(t, notes, "state=skipped",
+		"a start-hold is Skipped, not an unnamed Created or Blocked state")
+	assert.Contains(t, notes, "skip_reasons",
+		"skip_reasons is what separates a config gate from ordering or auto_start_false")
+}
+
 func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
 		connectErr: errors.New("open \\\\.\\pipe\\datadog-procmgrd: file does not exist"),
@@ -191,25 +200,27 @@ func TestReportDescribeFailureFallsBackToListData(t *testing.T) {
 	assert.Contains(t, report.Warnings[0], "describe datadog-agent-process")
 }
 
-// A gate-blocked process and an inert catalog entry are both Created, and auto_start is the only
-// field that separates them. It comes from Describe, so losing that call loses the distinction.
+// A gate-blocked process and an inert catalog entry are both Skipped. skip_reasons
+// is what separates them, and it comes from Describe (and List).
 func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
 		daemon: DaemonSnapshot{Reachable: true, Ready: true},
 		processes: map[string]ProcessSnapshot{
-			"datadog-agent-process":  {Name: "datadog-agent-process", State: ProcessStateCreated},
-			"datadog-agent-sysprobe": {Name: "datadog-agent-sysprobe", State: ProcessStateCreated},
+			"datadog-agent-process":  {Name: "datadog-agent-process", State: ProcessStateSkipped},
+			"datadog-agent-sysprobe": {Name: "datadog-agent-sysprobe", State: ProcessStateSkipped},
 		},
 		details: map[string]ProcessSnapshot{
 			"datadog-agent-process": {
-				Name:      "datadog-agent-process",
-				State:     ProcessStateCreated,
-				AutoStart: true,
+				Name:        "datadog-agent-process",
+				State:       ProcessStateSkipped,
+				AutoStart:   true,
+				SkipReasons: []string{"config_gate"},
 			},
 			"datadog-agent-sysprobe": {
-				Name:      "datadog-agent-sysprobe",
-				State:     ProcessStateCreated,
-				AutoStart: false,
+				Name:        "datadog-agent-sysprobe",
+				State:       ProcessStateSkipped,
+				AutoStart:   false,
+				SkipReasons: []string{"auto_start_false"},
 			},
 		},
 	})
@@ -217,12 +228,12 @@ func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
 	report := collector.Report(context.Background(), ScrubOptions{})
 
 	gated := reportProcessByName(t, report, "datadog-agent-process")
-	assert.Equal(t, ProcessStateCreated, gated.State)
-	assert.True(t, gated.AutoStart, "auto_start is what marks this as blocked rather than inert")
+	assert.Equal(t, ProcessStateSkipped, gated.State)
+	assert.Equal(t, []string{"config_gate"}, gated.SkipReasons)
 
 	inert := reportProcessByName(t, report, "datadog-agent-sysprobe")
-	assert.Equal(t, ProcessStateCreated, inert.State)
-	assert.False(t, inert.AutoStart)
+	assert.Equal(t, ProcessStateSkipped, inert.State)
+	assert.Equal(t, []string{"auto_start_false"}, inert.SkipReasons)
 }
 
 func TestReportSeparatesCrashLoopFromFailedSpawn(t *testing.T) {

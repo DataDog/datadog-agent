@@ -385,7 +385,7 @@ func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderP
 
 	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
 	s.Require().NoError(err)
-	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+	s.Require().Equal("Skipped", procmgrDescribeField(out, "State"),
 		"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
 
 	out, err = host.Execute(
@@ -447,7 +447,7 @@ func (s *agentServiceDisabledTraceAgentSuite) TestTraceAgentNotRunningUnderProcm
 
 	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-trace"))
 	s.Require().NoError(err)
-	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+	s.Require().Equal("Skipped", procmgrDescribeField(out, "State"),
 		"dd-procmgr should leave a disabled trace-agent unspawned: %s", out)
 
 	out, err = host.Execute(
