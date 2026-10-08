@@ -21,8 +21,10 @@ import (
 const (
 	testCoreSchema = `
 product_dependencies:
-  npm: []
-  no_npm: []
+  npm:
+    dependencies: []
+  no_npm:
+    dependencies: []
 properties: {}
 `
 	testSystemProbeSchema = `

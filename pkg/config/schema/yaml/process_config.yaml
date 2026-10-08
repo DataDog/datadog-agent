@@ -25,7 +25,7 @@ properties:
         type: boolean
         default: false
         product_defaults:
-          container_live_processes: true
+          live_processes: true
         env_vars:
         - DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED
         - DD_PROCESS_AGENT_PROCESS_COLLECTION_ENABLED

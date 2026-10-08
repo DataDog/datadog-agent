@@ -1034,7 +1034,6 @@ properties:
         type: boolean
         default: false
         product_defaults:
-          apm: false
           error_tracking_standalone: true
         env_vars:
         - DD_APM_ERROR_TRACKING_STANDALONE_ENABLED

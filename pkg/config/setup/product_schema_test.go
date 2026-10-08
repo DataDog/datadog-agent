@@ -23,9 +23,10 @@ import (
 func TestCoreSchemaProducts(t *testing.T) {
 	root, err := loadSchema(coreSchemaGetter)
 	require.NoError(t, err)
-	_, productDependencies := productDefinitions(root)
+	productDependencies := productDefinitions(root).dependencies
 	require.NotEmpty(t, productDependencies)
 
+	// products and profiles
 	for product := range productDependencies {
 		t.Run(product, func(t *testing.T) {
 			config := newTestConf(t)
@@ -41,8 +42,10 @@ func runtimeEnv(t *testing.T, runtime string) {
 	for _, name := range []string{"DOCKER_DD_AGENT", "KUBERNETES_SERVICE_PORT", "KUBERNETES", "ECS_FARGATE", "AWS_EXECUTION_ENV"} {
 		t.Setenv(name, "")
 	}
+	t.Cleanup(func() { SetIsClusterAgent(false) })
+	SetIsClusterAgent(runtime == "cluster_agent")
 	switch runtime {
-	case "kubernetes":
+	case "kubernetes", "cluster_agent":
 		t.Setenv("DOCKER_DD_AGENT", "true")
 		t.Setenv("KUBERNETES_SERVICE_PORT", "443")
 	case "fargate":
@@ -55,8 +58,14 @@ type settings = map[string]interface{}
 
 // settingsFromProducts enables products with the real schemas and returns the core and system-probe settings they set
 func settingsFromProducts(t *testing.T, runtime string, products ...string) (settings, settings, error) {
+	return settingsFromSKU(t, runtime, "", products...)
+}
+
+// settingsFromSKU enables a SKU and products with the real schemas and returns the core and system-probe settings they set
+func settingsFromSKU(t *testing.T, runtime string, sku string, products ...string) (settings, settings, error) {
 	runtimeEnv(t, runtime)
 	config := newTestConf(t)
+	config.SetInTest("sku", sku)
 	config.SetInTest("products", products)
 	systemProbe := newTestSystemProbeConf(t)
 
@@ -100,9 +109,11 @@ func merge(maps ...settings) settings {
 }
 
 var (
-	apmSettings     = settings{"apm_config.enabled": true, "apm_config.error_tracking_standalone.enabled": false}
-	logsSettings    = settings{"logs_enabled": true}
-	netflowSettings = settings{
+	apmSettings  = settings{"apm_config.enabled": true}
+	logsSettings = settings{"logs_enabled": true}
+	// logs performance profiles: the throughput ones form a ladder (high concurrency < high throughput < max throughput)
+	logsHighConcurrency = settings{"logs_config.batch_max_concurrent_send": 20, "logs_config.payload_channel_size": 40}
+	netflowSettings     = settings{
 		"network_devices.netflow.enabled": true,
 		"network_devices.netflow.listeners": []interface{}{
 			map[string]interface{}{"flow_type": "netflow9", "port": 2055},
@@ -126,24 +137,27 @@ func TestCoreSchemaProductDefaultsLinuxHost(t *testing.T) {
 		core        settings
 		systemProbe settings
 	}{
-		{"infrastructure_monitoring", settings{"infrastructure_mode": "full"}, settings{}},
-		{"infrastructure_monitoring_basic", settings{"infrastructure_mode": "basic"}, settings{}},
-		{"end_user_device_monitoring", settings{}, settings{}},
-		{"container_monitoring", settings{"infrastructure_mode": "full"}, settings{}},
-		{"container_live_processes", settings{"infrastructure_mode": "full", "process_config.process_collection.enabled": true}, settings{}},
+		{"infrastructure_mode_full", settings{"infrastructure_mode": "full"}, settings{}},
+		{"infrastructure_mode_basic", settings{"infrastructure_mode": "basic"}, settings{}},
+		{"infrastructure_mode_end_user_device", settings{}, settings{}},
+		{"infrastructure_mode_cloud_cost_only", settings{"infrastructure_mode": "cloud_cost_only"}, settings{}},
+		{"container_monitoring", settings{}, settings{}},
+		{"live_processes", settings{"process_config.process_collection.enabled": true}, settings{}},
 		{"custom_metrics", settings{}, settings{}},
-		{"kubernetes_autoscaling", settings{"infrastructure_mode": "full"}, settings{}},
-		{"kubernetes_cluster_autoscaling", settings{"infrastructure_mode": "full"}, settings{}},
+		{"kubernetes_autoscaling", settings{}, settings{}},
+		{"kubernetes_cluster_autoscaling", settings{}, settings{}},
 		{"gpu_monitoring", settings{"gpu.enabled": true}, settings{"gpu_monitoring.enabled": true}},
 		{"gpu_monitoring_advanced", settings{"gpu.enabled": true}, settings{"gpu_monitoring.enabled": true}},
-		{"cloud_cost_management", settings{"infrastructure_mode": "cloud_cost_only"}, settings{}},
-		{"cloud_cost_management_containers", settings{"infrastructure_mode": "cloud_cost_only"}, settings{}},
+		{"cloud_cost_management_containers", settings{}, settings{}},
 		{"disaster_recovery", settings{"multi_region_failover.enabled": true}, settings{}},
 		{"network_monitoring", netflowSettings, settings{"network_config.enabled": true, "traceroute.enabled": true}},
 		{"cloud_network_monitoring", settings{}, settings{"network_config.enabled": true}},
 		{"network_device_monitoring", settings{}, settings{}},
 		{"netflow_monitoring", netflowSettings, settings{}},
 		{"network_path", settings{}, settings{"traceroute.enabled": true}},
+		{"synthetics_network_path_tests", settings{"synthetics.collector.enabled": true}, settings{"traceroute.enabled": true}},
+		{"ddot_collector", settings{"otelcollector.enabled": true, "agent_ipc.port": 5009, "agent_ipc.config_refresh_interval": 60}, settings{}},
+		{"otlp_ingest_logs", merge(apmSettings, logsSettings, settings{"otlp_config.logs.enabled": true, "otlp_config.receiver.protocols.grpc.endpoint": "localhost:4317", "otlp_config.receiver.protocols.http.endpoint": "localhost:4318"}), settings{}},
 		{"network_path_dynamic_tests", settings{"network_path.connections_monitoring.enabled": true}, settings{"network_config.enabled": true, "traceroute.enabled": true}},
 		{"apm", apmSettings, settings{}},
 		{"apm_single_step_instrumentation", apmSettings, settings{}},
@@ -164,6 +178,12 @@ func TestCoreSchemaProductDefaultsLinuxHost(t *testing.T) {
 		}), settings{}},
 		{"log_management", logsSettings, settings{}},
 		{"log_management_collect_all", logsSettings, settings{}},
+		{"log_management_high_concurrency", merge(logsSettings, logsHighConcurrency), settings{}},
+		{"log_management_high_throughput", merge(logsSettings, logsHighConcurrency, settings{"logs_config.message_channel_size": 200}), settings{}},
+		{"log_management_max_throughput", merge(logsSettings, logsHighConcurrency, settings{"logs_config.message_channel_size": 200, "logs_config.use_compression": false}), settings{}},
+		{"log_management_low_latency", merge(logsSettings, settings{"logs_config.batch_wait": float64(1), "logs_config.batch_max_size": 500, "logs_config.batch_max_concurrent_send": 10}), settings{}},
+		{"log_management_low_resource", merge(logsSettings, settings{"logs_config.batch_max_concurrent_send": 1, "logs_config.message_channel_size": 50, "logs_config.payload_channel_size": 5}), settings{}},
+		{"log_management_high_compression", merge(logsSettings, settings{"logs_config.use_compression": true, "logs_config.compression_kind": "zstd", "logs_config.zstd_compression_level": 6, "logs_config.batch_max_content_size": 5000000}), settings{}},
 		{"observability_pipelines", merge(logsSettings, settings{"observability_pipelines_worker.logs.enabled": true, "observability_pipelines_worker.metrics.enabled": true}), settings{}},
 		{"observability_pipelines_logs", merge(logsSettings, settings{"observability_pipelines_worker.logs.enabled": true}), settings{}},
 		{"observability_pipelines_metrics", settings{"observability_pipelines_worker.metrics.enabled": true}, settings{}},
@@ -178,8 +198,6 @@ func TestCoreSchemaProductDefaultsLinuxHost(t *testing.T) {
 		{"code_security", apmSettings, settings{}},
 		{"test_optimization", apmSettings, settings{}},
 		{"private_action_runner", settings{"private_action_runner.enabled": true}, settings{}},
-		{"workflow_automation", settings{"private_action_runner.enabled": true}, settings{}},
-		{"app_builder", settings{"private_action_runner.enabled": true}, settings{}},
 	}
 	for _, test := range tests {
 		t.Run(test.product, func(t *testing.T) {
@@ -202,10 +220,14 @@ func TestCoreSchemaProductDefaultsContainers(t *testing.T) {
 		core        settings
 		systemProbe settings
 	}{
-		{"kubernetes", "container_monitoring", settings{"infrastructure_mode": "full", "cluster_agent.enabled": true, "cluster_checks.enabled": true, "leader_election": true, "collect_kubernetes_events": true}, settings{}},
-		{"kubernetes", "kubernetes_autoscaling", settings{"infrastructure_mode": "full", "cluster_agent.enabled": true, "cluster_checks.enabled": true, "leader_election": true, "collect_kubernetes_events": true, "autoscaling.workload.enabled": true, "autoscaling.failover.enabled": true, "admission_controller.enabled": true}, settings{}},
+		{"kubernetes", "container_monitoring", settings{"cluster_agent.enabled": true, "cluster_checks.enabled": true, "leader_election": true, "collect_kubernetes_events": true, "extra_config_providers": []string{"clusterchecks", "endpointschecks"}}, settings{}},
+		{"kubernetes", "kubernetes_autoscaling", settings{"cluster_agent.enabled": true, "cluster_checks.enabled": true, "leader_election": true, "collect_kubernetes_events": true, "extra_config_providers": []string{"clusterchecks", "endpointschecks"}, "autoscaling.workload.enabled": true, "autoscaling.failover.enabled": true, "admission_controller.enabled": true}, settings{}},
+		// the Cluster Agent runs the cluster and endpoint checks, the node Agents collect them
+		{"cluster_agent", "container_monitoring", settings{"cluster_agent.enabled": true, "cluster_checks.enabled": true, "leader_election": true, "collect_kubernetes_events": true, "extra_config_providers": []string{"kube_services", "kube_endpoints"}, "extra_listeners": []string{"kube_services", "kube_endpoints"}}, settings{}},
+		{"kubernetes", "ddot_collector", settings{"otelcollector.enabled": true, "agent_ipc.port": 5009, "agent_ipc.config_refresh_interval": 60}, settings{}},
 		{"kubernetes", "custom_metrics", settings{"dogstatsd_non_local_traffic": true}, settings{}},
-		{"kubernetes", "gpu_monitoring", settings{"gpu.enabled": true}, settings{"gpu_monitoring.enabled": false}},
+		// gpu_monitoring sets nothing for system-probe in containers (null), gpu_monitoring_advanced enables it
+		{"kubernetes", "gpu_monitoring", settings{"gpu.enabled": true}, settings{}},
 		{"kubernetes", "gpu_monitoring_advanced", settings{"gpu.enabled": true}, settings{"gpu_monitoring.enabled": true}},
 		{"kubernetes", "cloud_network_monitoring", settings{"agent_ipc.port": 5009, "agent_ipc.config_refresh_interval": 60}, settings{"network_config.enabled": true}},
 		{"kubernetes", "apm_single_step_instrumentation", merge(apmSettings, settings{"apm_config.instrumentation.enabled": true, "admission_controller.enabled": true, "language_detection.enabled": true}), settings{}},
@@ -215,7 +237,7 @@ func TestCoreSchemaProductDefaultsContainers(t *testing.T) {
 		{"kubernetes", "log_management_collect_all", settings{"logs_enabled": true, "logs_config.k8s_container_use_file": true, "logs_config.container_collect_all": true}, settings{}},
 		{"kubernetes", "cloud_security_vulnerabilities", merge(vulnerabilitiesSettings, settings{"sbom.container_image.use_mount": true}), settings{}},
 		{"kubernetes", "code_security", merge(apmSettings, settings{"admission_controller.auto_instrumentation.iast.enabled": true, "admission_controller.auto_instrumentation.asm_sca.enabled": true}), settings{}},
-		{"kubernetes", "app_and_api_protection_proxy_injection", merge(apmSettings, settings{"admission_controller.auto_instrumentation.asm.enabled": true, "appsec.proxy.enabled": true, "cluster_agent.appsec.injector.enabled": true}), settings{}},
+		{"kubernetes", "app_and_api_protection_proxy_injection", merge(apmSettings, settings{"admission_controller.auto_instrumentation.asm.enabled": true, "appsec.proxy.enabled": true, "cluster_agent.appsec.injector.enabled": true, "cluster_agent.enabled": true}), settings{}},
 		{"fargate", "workload_protection", settings{"runtime_security_config.enabled": true}, settings{"runtime_security_config.enabled": true, "runtime_security_config.ebpfless.enabled": true}},
 		{"fargate", "cloud_network_monitoring", settings{"agent_ipc.port": 5009, "agent_ipc.config_refresh_interval": 60}, settings{"network_config.enabled": true, "network_config.enable_ebpfless": true}},
 		{"fargate", "cloud_security", settings{"compliance_config.enabled": false, "sbom.enabled": false, "sbom.host.enabled": false, "sbom.container_image.enabled": false, "sbom.container_image.use_mount": false}, settings{}},
@@ -237,10 +259,12 @@ func TestCoreSchemaProductConflicts(t *testing.T) {
 		products []string
 		expected string
 	}{
-		{[]string{"apm", "error_tracking_standalone"}, "apm_config.error_tracking_standalone.enabled: apm=false, error_tracking_standalone=true"},
-		{[]string{"infrastructure_monitoring", "cloud_cost_management"}, "infrastructure_mode: cloud_cost_management=cloud_cost_only, infrastructure_monitoring=full"},
-		// container_monitoring depends on infrastructure_monitoring
-		{[]string{"container_monitoring", "infrastructure_monitoring_basic"}, "infrastructure_mode: infrastructure_monitoring=full, infrastructure_monitoring_basic=basic"},
+		{[]string{"apm", "error_tracking_standalone"}, "'apm' and 'error_tracking_standalone' can't be enabled together"},
+		// through a dependency
+		{[]string{"continuous_profiler", "error_tracking_standalone"}, "'apm' and 'error_tracking_standalone' can't be enabled together"},
+		// only one profile of a product can be selected
+		{[]string{"log_management_high_throughput", "log_management_low_resource"}, "only one profile of 'log_management' can be selected, got: log_management_high_throughput, log_management_low_resource"},
+		{[]string{"infrastructure_mode_full", "infrastructure_mode_cloud_cost_only"}, "infrastructure_mode: infrastructure_mode_cloud_cost_only=cloud_cost_only, infrastructure_mode_full=full"},
 	}
 	for _, test := range tests {
 		t.Run(strings.Join(test.products, "+"), func(t *testing.T) {
@@ -249,4 +273,44 @@ func TestCoreSchemaProductConflicts(t *testing.T) {
 			assert.Contains(t, err.Error(), test.expected)
 		})
 	}
+}
+
+// Every SKU declared in the real core schema can be enabled on its own, and sets the infrastructure mode
+func TestCoreSchemaSKUs(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the expectations are for Linux hosts")
+	}
+	tests := []struct {
+		sku  string
+		core settings
+	}{
+		{"infrastructure_monitoring", settings{"infrastructure_mode": "full"}},
+		{"infrastructure_monitoring_basic", settings{"infrastructure_mode": "basic"}},
+		// end user devices are Windows and macOS hosts
+		{"end_user_device_monitoring", settings{}},
+		{"cloud_cost_management", settings{"infrastructure_mode": "cloud_cost_only"}},
+	}
+	root, err := loadSchema(coreSchemaGetter)
+	require.NoError(t, err)
+	skuDefinitions := productDefinitions(root).skus
+	require.Len(t, skuDefinitions, len(tests))
+
+	for _, test := range tests {
+		t.Run(test.sku, func(t *testing.T) {
+			core, systemProbe, err := settingsFromSKU(t, "host", test.sku)
+			require.NoError(t, err)
+			assert.Equal(t, test.core, core)
+			assert.Equal(t, settings{}, systemProbe)
+		})
+	}
+}
+
+// Products can be added on top of any SKU
+func TestCoreSchemaSKUWithProducts(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the expectations are for Linux hosts")
+	}
+	core, _, err := settingsFromSKU(t, "host", "infrastructure_monitoring_basic", "live_processes", "log_management")
+	require.NoError(t, err)
+	assert.Equal(t, settings{"infrastructure_mode": "basic", "process_config.process_collection.enabled": true, "logs_enabled": true}, core)
 }

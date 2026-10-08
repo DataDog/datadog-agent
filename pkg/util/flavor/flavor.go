@@ -63,6 +63,8 @@ var agentFlavor = DefaultAgent
 // SetFlavor sets the Agent flavor
 func SetFlavor(flavor string) {
 	agentFlavor = flavor
+	// The Cluster Agent uses its own platform specific product defaults ('cluster_agent' in the schema)
+	pkgconfigsetup.SetIsClusterAgent(agentFlavor == ClusterAgent)
 
 	if agentFlavor == IotAgent {
 		pkgconfigsetup.Datadog().Set("iot_host", true, pkgconfigmodel.SourceAgentRuntime)

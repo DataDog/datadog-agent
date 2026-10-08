@@ -438,6 +438,16 @@ def product_schema(sku_definitions=None, product_dependencies=None, properties=N
     return schema
 
 
+LOGS = {
+    "dependencies": [],
+    "profiles": {
+        "logs_high_concurrency": [],
+        "logs_high_throughput": ["logs_high_concurrency"],
+        "logs_low_resource": {"dependencies": [], "conflict": ["logs_high_throughput"]},
+    },
+}
+
+
 class TestCheckProductDefinitions(unittest.TestCase):
     def check(self, schema, is_core=True):
         return lint.check_product_definitions("schema.yaml", schema, is_core)
@@ -448,69 +458,187 @@ class TestCheckProductDefinitions(unittest.TestCase):
             f"Expected an error containing {fragments}, got: {errors}",
         )
 
+    def valid(self, **extra):
+        definitions = {
+            "logs": LOGS,
+            "apm": {"dependencies": [], "conflict": ["error_tracking"]},
+            "error_tracking": {"dependencies": []},
+            "siem": {"dependencies": ["logs"]},
+        }
+        definitions.update(extra)
+        return definitions
+
     def test_valid_definitions_pass(self):
-        schema = product_schema(
-            sku_definitions={"sku_a": ["product_a", "product_c"]},
-            product_dependencies={"product_a": ["product_b", "product_c"], "product_b": ["product_c"], "product_c": []},
-        )
+        schema = product_schema(sku_definitions={"sku_a": ["apm", "siem"]}, product_dependencies=self.valid())
         self.assertEqual(self.check(schema), [])
 
     def test_missing_definitions_pass(self):
         self.assertEqual(self.check(product_schema()), [])
 
-    def test_map_must_be_a_mapping(self):
-        errors = self.check(product_schema(sku_definitions=["sku_a"], product_dependencies={}))
-        self.assertErrorContains(errors, "sku_definitions", "must be a mapping")
+    def test_maps_must_be_mappings(self):
+        errors = self.check(product_schema(sku_definitions=["sku_a"], product_dependencies=["apm"]))
+        self.assertErrorContains(errors, "'sku_definitions'", "must be a mapping")
+        self.assertErrorContains(errors, "'product_dependencies'", "must be a mapping")
 
-    def test_entry_must_be_a_list_of_strings(self):
-        errors = self.check(product_schema(product_dependencies={"product_a": "product_b", "product_b": [1]}))
-        self.assertErrorContains(errors, "product_dependencies.product_a", "list of product names")
-        self.assertErrorContains(errors, "product_dependencies.product_b", "list of product names")
+    def test_product_must_be_a_mapping(self):
+        errors = self.check(product_schema(product_dependencies={"apm": []}))
+        self.assertErrorContains(errors, "[product_dependencies.apm]", "must be a mapping")
 
-    def test_name_in_both_maps(self):
-        errors = self.check(product_schema(sku_definitions={"shared": []}, product_dependencies={"shared": []}))
-        self.assertErrorContains(errors, "'shared'", "both a SKU and a product")
+    def test_unknown_product_key(self):
+        errors = self.check(product_schema(product_dependencies={"apm": {"dependencies": [], "depends": []}}))
+        self.assertErrorContains(errors, "[product_dependencies.apm]", "unknown key", "'depends'")
 
-    def test_sku_references_undeclared_product(self):
-        errors = self.check(product_schema(sku_definitions={"sku_a": ["missing"]}, product_dependencies={}))
-        self.assertErrorContains(errors, "sku_definitions.sku_a", "'missing'", "not declared")
+    def test_lists_of_names(self):
+        errors = self.check(product_schema(product_dependencies={"apm": {"dependencies": "logs", "conflict": [1]}}))
+        self.assertErrorContains(errors, "[product_dependencies.apm.dependencies]", "list of names")
+        self.assertErrorContains(errors, "[product_dependencies.apm.conflict]", "list of names")
 
-    def test_dependency_references_undeclared_product(self):
-        errors = self.check(product_schema(product_dependencies={"product_a": ["missing"]}))
-        self.assertErrorContains(errors, "product_dependencies.product_a", "'missing'", "not declared")
-
-    def test_product_depending_on_a_sku(self):
-        errors = self.check(
-            product_schema(sku_definitions={"sku_a": []}, product_dependencies={"product_a": ["sku_a"]})
-        )
-        self.assertErrorContains(errors, "product_dependencies.product_a", "'sku_a'", "is a SKU")
-
-    def test_sku_bundling_a_sku(self):
-        errors = self.check(product_schema(sku_definitions={"sku_a": ["sku_b"], "sku_b": []}, product_dependencies={}))
-        self.assertErrorContains(errors, "sku_definitions.sku_a", "'sku_b'", "is a SKU")
-
-    def test_dependency_cycle(self):
+    def test_profile_forms(self):
         errors = self.check(
             product_schema(
                 product_dependencies={
-                    "product_a": ["product_b"],
-                    "product_b": ["product_c"],
-                    "product_c": ["product_a"],
+                    "logs": {"dependencies": [], "profiles": {"p1": "x", "p2": {"dependencies": [], "dependency": []}}}
                 }
             )
         )
-        cycles = [e for e in errors if "cycle" in e]
-        self.assertEqual(len(cycles), 1, errors)
-        self.assertIn("product_a -> product_b -> product_c -> product_a", cycles[0])
+        self.assertErrorContains(errors, "[product_dependencies.logs.profiles.p1]", "list of names or a mapping")
+        self.assertErrorContains(errors, "[product_dependencies.logs.profiles.p2]", "unknown key", "'dependency'")
 
-    def test_self_dependency_is_a_cycle(self):
-        errors = self.check(product_schema(product_dependencies={"product_a": ["product_a"]}))
-        self.assertErrorContains(errors, "cycle", "product_a -> product_a")
+    def test_names_are_unique(self):
+        errors = self.check(
+            product_schema(
+                sku_definitions={"apm": []},
+                product_dependencies=self.valid(
+                    other={"dependencies": [], "profiles": {"logs_high_concurrency": []}},
+                    logs_low_resource_product={"dependencies": []},
+                ),
+            )
+        )
+        self.assertErrorContains(errors, "'apm'", "both a SKU and a product")
+        self.assertErrorContains(errors, "'logs_high_concurrency'", "declared more than once")
+
+    def test_profile_named_like_a_product(self):
+        errors = self.check(
+            product_schema(
+                product_dependencies={
+                    "apm": {"dependencies": []},
+                    "logs": {"dependencies": [], "profiles": {"apm": []}},
+                }
+            )
+        )
+        self.assertErrorContains(errors, "'apm'", "declared more than once")
+
+    def test_undeclared_references(self):
+        errors = self.check(
+            product_schema(
+                sku_definitions={"sku_a": ["missing_1"]},
+                product_dependencies={
+                    "apm": {"dependencies": ["missing_2"], "conflict": ["missing_3"], "profiles": {"p": ["missing_4"]}}
+                },
+            )
+        )
+        for name in ("missing_1", "missing_2", "missing_3", "missing_4"):
+            self.assertErrorContains(errors, f"'{name}'", "not declared")
+
+    def test_skus_bundle_products_only(self):
+        errors = self.check(
+            product_schema(
+                sku_definitions={"sku_a": ["logs_high_throughput"], "sku_b": ["sku_a"]},
+                product_dependencies=self.valid(),
+            )
+        )
+        self.assertErrorContains(errors, "[sku_definitions.sku_a]", "'logs_high_throughput' is a profile")
+        self.assertErrorContains(errors, "[sku_definitions.sku_b]", "'sku_a' is a SKU")
+
+    def test_dependency_on_a_sku(self):
+        errors = self.check(
+            product_schema(sku_definitions={"sku_a": []}, product_dependencies={"apm": {"dependencies": ["sku_a"]}})
+        )
+        self.assertErrorContains(errors, "[product_dependencies.apm.dependencies]", "'sku_a' is a SKU")
+
+    def test_profiles_can_depend_on_profiles_of_other_products(self):
+        definitions = self.valid(apm={"dependencies": [], "profiles": {"apm_fast": ["logs_high_throughput"]}})
+        self.assertEqual(self.check(product_schema(product_dependencies=definitions)), [])
+
+    def test_cycle_through_profiles(self):
+        definitions = {
+            "a": {"dependencies": [], "profiles": {"a_p": ["b_p"]}},
+            "b": {"dependencies": [], "profiles": {"b_p": ["a_p"]}},
+        }
+        errors = self.check(product_schema(product_dependencies=definitions))
+        self.assertErrorContains(errors, "cycle", "a_p -> b_p -> a_p")
+
+    def test_conflict_with_itself(self):
+        errors = self.check(product_schema(product_dependencies={"apm": {"dependencies": [], "conflict": ["apm"]}}))
+        self.assertErrorContains(errors, "'apm'", "conflicts with itself")
+
+    def test_conflict_within_dependencies(self):
+        definitions = self.valid(siem={"dependencies": ["logs", "apm", "error_tracking"]})
+        errors = self.check(product_schema(product_dependencies=definitions))
+        self.assertErrorContains(errors, "'siem'", "enables 'apm' and 'error_tracking'", "conflict")
+
+    def test_conflict_within_sku(self):
+        errors = self.check(
+            product_schema(sku_definitions={"sku_a": ["apm", "error_tracking"]}, product_dependencies=self.valid())
+        )
+        self.assertErrorContains(errors, "SKU 'sku_a'", "enables 'apm' and 'error_tracking'")
 
     def test_definitions_outside_core_schema(self):
         errors = self.check(product_schema(sku_definitions={}, product_dependencies={}), is_core=False)
         self.assertErrorContains(errors, "'sku_definitions'", "core schema")
         self.assertErrorContains(errors, "'product_dependencies'", "core schema")
+
+
+class TestProductCatalog(unittest.TestCase):
+    def test_flattened_dependencies(self):
+        schema = product_schema(
+            sku_definitions={"sku_a": ["siem"]}, product_dependencies={"logs": LOGS, "siem": {"dependencies": ["logs"]}}
+        )
+        sku_definitions, dependencies = lint.get_product_definitions(schema)
+        self.assertEqual(sku_definitions, {"sku_a": ["siem"]})
+        # a profile depends on its product, plus its own dependencies
+        self.assertEqual(sorted(dependencies["logs_high_throughput"]), ["logs", "logs_high_concurrency"])
+        self.assertEqual(dependencies["logs"], [])
+        self.assertEqual(dependencies["siem"], ["logs"])
+        self.assertEqual(
+            lint.resolve_product_closure(["logs_high_throughput"], dependencies),
+            {"logs", "logs_high_concurrency", "logs_high_throughput"},
+        )
+
+    def test_conflicts_are_symmetric(self):
+        conflicts = lint.get_product_conflicts(product_schema(product_dependencies={"logs": LOGS}))
+        self.assertEqual(conflicts["logs_low_resource"], {"logs_high_throughput"})
+        self.assertEqual(conflicts["logs_high_throughput"], {"logs_low_resource"})
+
+    def test_profile_owners(self):
+        owners = lint.get_profile_owners(product_schema(product_dependencies={"logs": LOGS}))
+        self.assertEqual(
+            owners, {"logs_high_concurrency": "logs", "logs_high_throughput": "logs", "logs_low_resource": "logs"}
+        )
+
+
+class TestNullPlatformValue(unittest.TestCase):
+    def setting(self, platforms):
+        return {"node_type": "setting", "type": "boolean", "default": False, "product_platform_defaults": platforms}
+
+    def test_null_is_valid(self):
+        schema = product_schema(properties={"x": self.setting({"product_a": {"linux": True, "container": None}})})
+        self.assertEqual(lint.check_product_defaults("schema.yaml", schema, {"product_a"}), [])
+
+    def test_null_stops_the_fallback(self):
+        # product_a sets nothing in containers (no fallback to linux), product_b sets true there: no conflict
+        schema = product_schema(
+            properties={
+                "x": self.setting({"product_a": {"linux": True, "container": None}, "product_b": {"container": False}})
+            }
+        )
+        errors = lint.check_product_conflicts(
+            "schema.yaml", schema, {"sku_a": ["product_a", "product_b"]}, {"product_a": [], "product_b": []}
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            lint._product_value(schema["properties"]["x"], "product_a", ["container", "linux", "other"]), (False, None)
+        )
 
 
 class TestCheckProductDefaults(unittest.TestCase):
@@ -818,3 +946,38 @@ class TestProductPlatformKubernetes(unittest.TestCase):
         self.assertEqual(len(errors), 1, errors)
         self.assertIn("linux/kubernetes", errors[0])
         self.assertNotIn("linux/container,", errors[0])
+
+
+class TestProductPlatformClusterAgent(unittest.TestCase):
+    def test_cluster_agent_is_a_valid_platform_key(self):
+        schema = product_schema(
+            properties={
+                "x": {
+                    "node_type": "setting",
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "default": [],
+                    "product_platform_defaults": {"product_a": {"cluster_agent": ["a"], "kubernetes": ["b"]}},
+                }
+            }
+        )
+        self.assertEqual(lint.check_product_defaults("schema.yaml", schema, {"product_a"}), [])
+
+    def test_cluster_agent_falls_back_to_kubernetes(self):
+        # On the Cluster Agent, product_a resolves through 'kubernetes' and product_b through 'cluster_agent'
+        properties = {
+            "x": {
+                "node_type": "setting",
+                "type": "boolean",
+                "default": False,
+                "product_platform_defaults": {"product_a": {"kubernetes": True}, "product_b": {"cluster_agent": False}},
+            }
+        }
+        errors = lint.check_product_conflicts(
+            "schema.yaml",
+            product_schema(properties=properties),
+            {"sku_a": ["product_a", "product_b"]},
+            {"product_a": [], "product_b": []},
+        )
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("linux/cluster_agent", errors[0])

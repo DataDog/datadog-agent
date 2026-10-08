@@ -24,7 +24,17 @@ EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml"
 
 VALID_TYPES = {"string", "number", "integer", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
-VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "aix", "container", "kubernetes", "fargate", "other"}
+VALID_PLATFORM_KEYS = {
+    "darwin",
+    "windows",
+    "linux",
+    "aix",
+    "container",
+    "kubernetes",
+    "cluster_agent",
+    "fargate",
+    "other",
+}
 REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux", "aix"}
 VALID_ENV_PARSERS = {
     "comma_separated",
@@ -666,34 +676,91 @@ def check_renamed_from(path, schema):
 # ---------------------------------------------------------------------------
 
 PRODUCT_DEFINITION_KEYS = ("sku_definitions", "product_dependencies")
+PRODUCT_KEYS = {"dependencies", "profiles", "conflict"}
+PROFILE_KEYS = {"dependencies", "conflict"}
+
+
+def _names(value):
+    """Return *value* if it's a list of names, else None."""
+    if isinstance(value, list) and all(isinstance(e, str) for e in value):
+        return value
+    return None
+
+
+def parse_product_catalog(schema):
+    """
+    Parse the product enablement definitions of a schema, keeping only well-formed entries.
+
+    'product_dependencies' maps every product to {dependencies, profiles, conflict}. Profiles are alternative ways to
+    run a product (ex: tuned for low resource usage); they're enabled like products and implicitly enable their product.
+    A profile is either a list of dependencies or a mapping {dependencies, conflict}.
+
+    Returns a dict with:
+      - skus: {sku: [products]}
+      - products: {product: {"dependencies": [...], "conflict": [...]}}
+      - profiles: {profile: {"product": owner, "dependencies": [...], "conflict": [...]}}
+    """
+    catalog = {"skus": {}, "products": {}, "profiles": {}}
+    skus = schema.get("sku_definitions")
+    if isinstance(skus, dict):
+        catalog["skus"] = {name: entries for name, entries in skus.items() if _names(entries) is not None}
+    products = schema.get("product_dependencies")
+    if not isinstance(products, dict):
+        return catalog
+    for product, definition in products.items():
+        if not isinstance(definition, dict):
+            continue
+        catalog["products"][product] = {
+            "dependencies": _names(definition.get("dependencies", [])) or [],
+            "conflict": _names(definition.get("conflict", [])) or [],
+        }
+        profiles = definition.get("profiles")
+        if not isinstance(profiles, dict):
+            continue
+        for profile, profile_definition in profiles.items():
+            if isinstance(profile_definition, dict):
+                dependencies = _names(profile_definition.get("dependencies", [])) or []
+                conflict = _names(profile_definition.get("conflict", [])) or []
+            else:
+                dependencies, conflict = _names(profile_definition) or [], []
+            catalog["profiles"][profile] = {"product": product, "dependencies": dependencies, "conflict": conflict}
+    return catalog
 
 
 def get_product_definitions(schema):
     """
-    Return the (sku_definitions, product_dependencies) maps of a schema, keeping only well-formed
-    entries (string name -> list of strings) so later checks can rely on them.
+    Return the (sku_definitions, dependencies) maps of a schema. *dependencies* maps every product and every profile to
+    the names it depends on; a profile depends on its product plus its own dependencies.
     """
-    maps = []
-    for key in PRODUCT_DEFINITION_KEYS:
-        value = schema.get(key)
-        if not isinstance(value, dict):
-            maps.append({})
-            continue
-        maps.append(
-            {
-                name: entries
-                for name, entries in value.items()
-                if isinstance(name, str) and isinstance(entries, list) and all(isinstance(e, str) for e in entries)
-            }
-        )
-    return maps[0], maps[1]
+    catalog = parse_product_catalog(schema)
+    dependencies = {name: list(entry["dependencies"]) for name, entry in catalog["products"].items()}
+    for profile, entry in catalog["profiles"].items():
+        dependencies[profile] = [entry["product"]] + [d for d in entry["dependencies"] if d != entry["product"]]
+    return catalog["skus"], dependencies
+
+
+def get_product_conflicts(schema):
+    """Return {name: set of names it can't be enabled with}, for products and profiles. Conflicts are symmetric."""
+    catalog = parse_product_catalog(schema)
+    conflicts = {}
+    for entries in (catalog["products"], catalog["profiles"]):
+        for name, entry in entries.items():
+            for other in entry["conflict"]:
+                conflicts.setdefault(name, set()).add(other)
+                conflicts.setdefault(other, set()).add(name)
+    return conflicts
+
+
+def get_profile_owners(schema):
+    """Return {profile: product}."""
+    return {profile: entry["product"] for profile, entry in parse_product_catalog(schema)["profiles"].items()}
 
 
 def _find_dependency_cycles(product_dependencies):
-    """Return every dependency cycle as a list of product names, first name repeated at the end."""
+    """Return every dependency cycle as a list of names, first name repeated at the end."""
     cycles = []
     seen_cycles = set()
-    state = {}  # product -> "visiting" | "done"
+    state = {}  # name -> "visiting" | "done"
 
     def visit(product, stack):
         state[product] = "visiting"
@@ -701,7 +768,7 @@ def _find_dependency_cycles(product_dependencies):
         for dependency in product_dependencies.get(product, []):
             if state.get(dependency) == "visiting":
                 cycle = stack[stack.index(dependency) :] + [dependency]
-                # Report each cycle once, whatever product it was entered from
+                # Report each cycle once, whatever name it was entered from
                 key = frozenset(cycle)
                 if key not in seen_cycles:
                     seen_cycles.add(key)
@@ -717,18 +784,79 @@ def _find_dependency_cycles(product_dependencies):
     return cycles
 
 
+def _check_structure(path, schema):
+    """Check the shape of 'sku_definitions' and 'product_dependencies'."""
+    errors = []
+    for key in PRODUCT_DEFINITION_KEYS:
+        if key in schema and not isinstance(schema[key], dict):
+            errors.append(
+                f"{path}: '{key}' must be a mapping. "
+                f"Fix: see the 'Product enablement' comment at the top of the core schema for the expected format."
+            )
+    for sku, entries in (
+        (schema.get("sku_definitions") or {}).items() if isinstance(schema.get("sku_definitions"), dict) else []
+    ):
+        if _names(entries) is None:
+            errors.append(
+                f"{path}: [sku_definitions.{sku}] must be a list of product names. Fix: use '{sku}: [product, ...]'."
+            )
+
+    products = schema.get("product_dependencies")
+    if not isinstance(products, dict):
+        return errors
+    for product, definition in products.items():
+        where = f"product_dependencies.{product}"
+        if not isinstance(definition, dict):
+            errors.append(
+                f"{path}: [{where}] must be a mapping. "
+                f"Fix: use '{product}: {{dependencies: [...], profiles: {{...}}, conflict: [...]}}'."
+            )
+            continue
+        for unknown in sorted(set(definition) - PRODUCT_KEYS):
+            errors.append(f"{path}: [{where}] unknown key '{unknown}'. Fix: use only {sorted(PRODUCT_KEYS)}.")
+        for key in ("dependencies", "conflict"):
+            if key in definition and _names(definition[key]) is None:
+                errors.append(f"{path}: [{where}.{key}] must be a list of names. Fix: use '{key}: [name, ...]'.")
+        profiles = definition.get("profiles")
+        if profiles is None:
+            continue
+        if not isinstance(profiles, dict):
+            errors.append(
+                f"{path}: [{where}.profiles] must be a mapping of profiles. Fix: use 'profiles: {{profile: [...]}}'."
+            )
+            continue
+        for profile, profile_definition in profiles.items():
+            profile_where = f"{where}.profiles.{profile}"
+            if isinstance(profile_definition, dict):
+                for unknown in sorted(set(profile_definition) - PROFILE_KEYS):
+                    errors.append(
+                        f"{path}: [{profile_where}] unknown key '{unknown}'. Fix: use only {sorted(PROFILE_KEYS)}."
+                    )
+                for key in ("dependencies", "conflict"):
+                    if key in profile_definition and _names(profile_definition[key]) is None:
+                        errors.append(
+                            f"{path}: [{profile_where}.{key}] must be a list of names. Fix: use '{key}: [name, ...]'."
+                        )
+            elif _names(profile_definition) is None:
+                errors.append(
+                    f"{path}: [{profile_where}] must be a list of names or a mapping {{dependencies, conflict}}. "
+                    f"Fix: use '{profile}: [name, ...]'."
+                )
+    return errors
+
+
 def check_product_definitions(path, schema, is_core=True):
     """
     Check the product enablement definitions declared at the top level of the core schema:
-      - 'sku_definitions' maps a SKU to the products it bundles.
-      - 'product_dependencies' maps every product to the products it depends on.
+      - 'sku_definitions' maps a SKU to the products it bundles (SKUs are mutually exclusive by definition).
+      - 'product_dependencies' maps every product to its dependencies, profiles and conflicts.
 
     Rules:
-      - Both must be mappings of name -> list of product names.
-      - Only the core schema can declare them.
-      - A name can't be both a SKU and a product.
-      - Every referenced product must be declared in 'product_dependencies', and can't be a SKU.
+      - Only the core schema can declare them, with the expected shape.
+      - Every name (SKU, product, profile) is declared once.
+      - SKUs only bundle products; dependencies and conflicts reference declared products or profiles, never SKUs.
       - Dependencies can't form a cycle.
+      - Nothing conflicts with itself, and no SKU, product or profile enables two names that conflict.
 
     Returns a list of error strings.
     """
@@ -743,50 +871,91 @@ def check_product_definitions(path, schema, is_core=True):
                 )
         return errors
 
-    for key in PRODUCT_DEFINITION_KEYS:
-        if key not in schema:
-            continue
-        value = schema[key]
-        if not isinstance(value, dict):
-            errors.append(
-                f"{path}: '{key}' must be a mapping of names to lists of product names. "
-                f"Fix: use '{key}: {{name: [product, ...]}}'."
-            )
-            continue
-        for name, entries in value.items():
-            if not isinstance(entries, list) or not all(isinstance(e, str) for e in entries):
-                errors.append(
-                    f"{path}: [{key}.{name}] must be a list of product names. "
-                    f"Fix: use '{name}: [product, ...]' (or '{name}: []')."
-                )
+    errors.extend(_check_structure(path, schema))
 
-    sku_definitions, product_dependencies = get_product_definitions(schema)
+    catalog = parse_product_catalog(schema)
+    skus = catalog["skus"]
+    products = catalog["products"]
+    profiles = catalog["profiles"]
 
-    for name in sorted(set(sku_definitions) & set(product_dependencies)):
+    # Unique names
+    for name in sorted(set(skus) & set(products)):
         errors.append(
             f"{path}: '{name}' is declared as both a SKU and a product. "
             f"Fix: rename the SKU in 'sku_definitions' or the product in 'product_dependencies'."
         )
+    seen = set(products)
+    for profile_owner in (
+        (schema.get("product_dependencies") or {}).values()
+        if isinstance(schema.get("product_dependencies"), dict)
+        else []
+    ):
+        if not isinstance(profile_owner, dict) or not isinstance(profile_owner.get("profiles"), dict):
+            continue
+        for profile in profile_owner["profiles"]:
+            if profile in seen or profile in skus:
+                errors.append(
+                    f"{path}: '{profile}' is declared more than once (as a profile and as another product, profile or SKU). "
+                    f"Fix: give it a unique name."
+                )
+            seen.add(profile)
+    declared = set(products) | set(profiles)
 
-    for key, definitions in (("sku_definitions", sku_definitions), ("product_dependencies", product_dependencies)):
-        for name, entries in definitions.items():
-            for entry in entries:
-                if entry in sku_definitions:
+    # References
+    for sku, entries in skus.items():
+        for entry in entries:
+            if entry in skus:
+                errors.append(f"{path}: [sku_definitions.{sku}] '{entry}' is a SKU. Fix: SKUs bundle products only.")
+            elif entry in profiles:
+                errors.append(
+                    f"{path}: [sku_definitions.{sku}] '{entry}' is a profile. Fix: SKUs bundle products only."
+                )
+            elif entry not in products:
+                errors.append(
+                    f"{path}: [sku_definitions.{sku}] product '{entry}' is not declared. "
+                    f"Fix: add '{entry}' to 'product_dependencies'."
+                )
+    references = [(f"product_dependencies.{name}", entry) for name, entry in products.items()]
+    references += [
+        (f"product_dependencies.{entry['product']}.profiles.{name}", entry) for name, entry in profiles.items()
+    ]
+    for where, entry in references:
+        for key in ("dependencies", "conflict"):
+            for name in entry[key]:
+                if name in skus:
                     errors.append(
-                        f"{path}: [{key}.{name}] '{entry}' is a SKU. "
-                        f"Fix: SKUs and products can only reference products, list the products of '{entry}' instead."
+                        f"{path}: [{where}.{key}] '{name}' is a SKU. Fix: only reference products and profiles."
                     )
-                elif entry not in product_dependencies:
+                elif name not in declared:
                     errors.append(
-                        f"{path}: [{key}.{name}] product '{entry}' is not declared. "
-                        f"Fix: add '{entry}: [...]' to 'product_dependencies'."
+                        f"{path}: [{where}.{key}] '{name}' is not declared. "
+                        f"Fix: declare it as a product or a profile in 'product_dependencies'."
                     )
 
-    for cycle in _find_dependency_cycles(product_dependencies):
+    _, dependencies = get_product_definitions(schema)
+    for cycle in _find_dependency_cycles(dependencies):
         errors.append(
             f"{path}: 'product_dependencies' contains a cycle: {' -> '.join(cycle)}. "
             f"Fix: remove one of the dependencies of the cycle."
         )
+
+    # Conflicts
+    conflicts = get_product_conflicts(schema)
+    for name in sorted(conflicts):
+        if name in conflicts[name]:
+            errors.append(f"{path}: '{name}' conflicts with itself. Fix: remove '{name}' from its 'conflict' list.")
+    groups = [(f"SKU '{sku}'", entries) for sku, entries in sorted(skus.items())]
+    groups += [(f"'{name}'", [name]) for name in sorted(declared)]
+    for owner, entries in groups:
+        closure = resolve_product_closure(entries, dependencies)
+        pairs = sorted(
+            {tuple(sorted((a, b))) for a in closure for b in conflicts.get(a, ()) if b in closure and a != b}
+        )
+        for a, b in pairs:
+            errors.append(
+                f"{path}: {owner} enables '{a}' and '{b}', which conflict. "
+                f"Fix: remove the conflict, or stop enabling both."
+            )
 
     return errors
 
@@ -896,6 +1065,9 @@ def check_product_defaults(path, schema, declared_products):
         if type_check is None:
             continue
         for product, platform, value in iter_product_values(node):
+            # null platform values mean "no value on this platform"
+            if platform is not None and value is None:
+                continue
             if not type_check(value):
                 where = f"product '{product}'" + (f" on platform '{platform}'" if platform else "")
                 errors.append(
@@ -917,15 +1089,17 @@ def _runtime_environments():
     Yield (label, platform keys by priority) for every runtime environment of the Agent.
 
     The priority must stay in sync with getPlatformDefault in pkg/config/setup/config.go: the Agent uses the
-    'fargate' value when running on ECS Fargate, then the 'kubernetes' value on Kubernetes, then the 'container'
-    value when containerized, then the value of its OS, then 'other'. Fargate is independent from the others, and
-    the Agent is containerized on Kubernetes.
+    'fargate' value when running on ECS Fargate, then the 'cluster_agent' value for the Cluster Agent on Kubernetes,
+    then the 'kubernetes' value on Kubernetes, then the 'container' value when containerized, then the value of its
+    OS, then 'other'. Fargate is independent from the others, and the Agent is containerized on Kubernetes.
     """
     for os_name in PRODUCT_CONFLICT_OSES:
-        for runtime in ("host", "container", "kubernetes"):
+        for runtime in ("host", "container", "kubernetes", "cluster_agent"):
             for fargate in (False, True):
                 keys = ["fargate"] if fargate else []
-                if runtime == "kubernetes":
+                if runtime == "cluster_agent":
+                    keys.append("cluster_agent")
+                if runtime in ("kubernetes", "cluster_agent"):
                     keys.append("kubernetes")
                 if runtime != "host":
                     keys.append("container")
@@ -943,7 +1117,8 @@ def _product_value(node, product, platform_keys):
     if isinstance(platforms, dict):
         for key in platform_keys:
             if key in platforms:
-                return True, platforms[key]
+                # null means the product sets nothing on this platform (no fallback to a less specific key)
+                return platforms[key] is not None, platforms[key]
     return False, None
 
 

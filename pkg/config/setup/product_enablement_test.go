@@ -41,22 +41,43 @@ func TestProductEnablementSettingsFromEnv(t *testing.T) {
 	assert.Equal(t, []string{"product_a", "product_b", "product_c"}, conf.GetStringSlice("products"))
 }
 
-var (
-	testSKUDefinitions = map[string][]string{
-		"sku_a": {"product_a"},
-		"sku_b": {"product_d", "product_e"},
-	}
-	// product_a -> product_b, product_c ; product_b -> product_c, product_d
-	testProductDependencies = map[string][]string{
-		"product_a": {"product_b", "product_c"},
-		"product_b": {"product_c", "product_d"},
-		"product_c": {},
-		"product_d": {},
-		"product_e": {},
-		"product_f": {"product_g"},
-		"product_g": {"product_f"}, // cycle: must terminate
-	}
-)
+// product_a -> product_b, product_c ; product_b -> product_c, product_d
+// product_e has two profiles: product_e_fast depends on a profile of product_b, product_e_small conflicts with product_c
+const testCatalogSchema = `
+sku_definitions:
+  sku_a: [product_a]
+  sku_b: [product_d, product_e]
+product_dependencies:
+  product_a:
+    dependencies: [product_b, product_c]
+  product_b:
+    dependencies: [product_c, product_d]
+    profiles:
+      product_b_small: []
+  product_c:
+    dependencies: []
+  product_d:
+    dependencies: []
+  product_e:
+    dependencies: []
+    conflict: [product_x]
+    profiles:
+      product_e_fast: [product_b_small]
+      product_e_small:
+        dependencies: []
+        conflict: [product_c]
+  product_f:
+    dependencies: [product_g]
+  product_g:
+    dependencies: [product_f]  # cycle: must terminate
+  product_x:
+    dependencies: []
+properties: {}
+`
+
+func testCatalog(t *testing.T) productCatalog {
+	return productDefinitions(parseTestSchema(t, testCatalogSchema))
+}
 
 func TestResolveProducts(t *testing.T) {
 	tests := []struct {
@@ -72,10 +93,13 @@ func TestResolveProducts(t *testing.T) {
 		{name: "sku and products", sku: "sku_a", products: []string{"product_e"}, expected: []string{"product_a", "product_b", "product_c", "product_d", "product_e"}},
 		{name: "duplicates", sku: "sku_b", products: []string{"product_d", "product_d"}, expected: []string{"product_d", "product_e"}},
 		{name: "cycle", products: []string{"product_f"}, expected: []string{"product_f", "product_g"}},
+		// a profile enables its product, and can depend on a profile of another product
+		{name: "profile", products: []string{"product_e_fast"}, expected: []string{"product_b", "product_b_small", "product_c", "product_d", "product_e", "product_e_fast"}},
+		{name: "profile with its product", products: []string{"product_e", "product_e_small"}, expected: []string{"product_e", "product_e_small"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			resolved, err := resolveProducts(test.sku, test.products, testSKUDefinitions, testProductDependencies)
+			resolved, err := resolveProducts(test.sku, test.products, testCatalog(t))
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, resolved)
 		})
@@ -83,14 +107,28 @@ func TestResolveProducts(t *testing.T) {
 }
 
 func TestResolveProductsErrors(t *testing.T) {
-	_, err := resolveProducts("unknown_sku", nil, testSKUDefinitions, testProductDependencies)
-	assert.ErrorContains(t, err, "unknown SKU 'unknown_sku'")
-
-	_, err = resolveProducts("", []string{"product_a", "unknown_product"}, testSKUDefinitions, testProductDependencies)
-	assert.ErrorContains(t, err, "unknown product 'unknown_product'")
-
-	_, err = resolveProducts("", []string{"sku_a"}, testSKUDefinitions, testProductDependencies)
-	assert.ErrorContains(t, err, "'sku_a' is a SKU")
+	catalog := testCatalog(t)
+	tests := []struct {
+		name     string
+		sku      string
+		products []string
+		expected string
+	}{
+		{name: "unknown sku", sku: "unknown_sku", expected: "unknown SKU 'unknown_sku'"},
+		{name: "unknown product", products: []string{"product_a", "unknown_product"}, expected: "unknown product 'unknown_product'"},
+		{name: "sku as a product", products: []string{"sku_a"}, expected: "'sku_a' is a SKU"},
+		{name: "two profiles of a product", products: []string{"product_e_fast", "product_e_small"}, expected: "only one profile of 'product_e' can be selected, got: product_e_fast, product_e_small"},
+		{name: "explicit conflict", products: []string{"product_e", "product_x"}, expected: "'product_e' and 'product_x' can't be enabled together"},
+		{name: "conflict through a profile's product", products: []string{"product_e_fast", "product_x"}, expected: "'product_e' and 'product_x' can't be enabled together"},
+		{name: "conflict through dependencies", products: []string{"product_a", "product_e_small"}, expected: "'product_c' and 'product_e_small' can't be enabled together"},
+		{name: "conflict through a sku", sku: "sku_b", products: []string{"product_x"}, expected: "'product_e' and 'product_x' can't be enabled together"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := resolveProducts(test.sku, test.products, catalog)
+			assert.ErrorContains(t, err, test.expected)
+		})
+	}
 }
 
 func parseTestSchema(t *testing.T, content string) map[string]interface{} {
@@ -167,6 +205,13 @@ properties:
     product_platform_defaults:
       product_a:
         not_this_os: value
+  null_in_containers:
+    node_type: setting
+    default: none
+    product_platform_defaults:
+      product_a:
+        container: null
+        `+runtime.GOOS+`: os_value
 `)
 	enabled := []string{"product_a"}
 
@@ -176,12 +221,14 @@ properties:
 	defaults, err := collectProductDefaults(root, enabled)
 	require.NoError(t, err)
 	// a platform without value means the product doesn't change the setting
-	assert.Equal(t, map[string]interface{}{"setting": "os_value", "only_other": "other_value"}, defaults)
+	assert.Equal(t, map[string]interface{}{"setting": "os_value", "only_other": "other_value", "null_in_containers": "os_value"}, defaults)
 
 	t.Setenv("DOCKER_DD_AGENT", "true")
 	defaults, err = collectProductDefaults(root, enabled)
 	require.NoError(t, err)
 	assert.Equal(t, "container_value", defaults["setting"])
+	// null means no value on this platform, without falling back to the OS value
+	assert.NotContains(t, defaults, "null_in_containers")
 
 	t.Setenv("ECS_FARGATE", "true")
 	defaults, err = collectProductDefaults(root, enabled)
@@ -220,6 +267,33 @@ func TestGetPlatformDefaultKubernetes(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
 	assert.Equal(t, "container_value", getPlatformDefault(map[string]interface{}{"container": "container_value", "other": "other_value"}))
 	assert.Equal(t, "other_value", getPlatformDefault(map[string]interface{}{"other": "other_value"}))
+}
+
+func TestGetPlatformDefaultClusterAgent(t *testing.T) {
+	values := map[string]interface{}{
+		"cluster_agent": "cluster_agent_value",
+		"kubernetes":    "kubernetes_value",
+		"other":         "other_value",
+	}
+	for _, name := range []string{"ECS_FARGATE", "AWS_EXECUTION_ENV", "KUBERNETES_SERVICE_PORT", "KUBERNETES", "DOCKER_DD_AGENT"} {
+		t.Setenv(name, "")
+	}
+	t.Cleanup(func() { SetIsClusterAgent(false) })
+
+	// the node Agent on Kubernetes
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+	assert.Equal(t, "kubernetes_value", getPlatformDefault(values))
+
+	// the Cluster Agent on Kubernetes is more specific than kubernetes
+	SetIsClusterAgent(true)
+	assert.True(t, IsClusterAgent())
+	assert.Equal(t, "cluster_agent_value", getPlatformDefault(values))
+	// and falls back to kubernetes
+	assert.Equal(t, "kubernetes_value", getPlatformDefault(map[string]interface{}{"kubernetes": "kubernetes_value"}))
+
+	// the Cluster Agent outside of Kubernetes (Cloud Foundry) doesn't use cluster_agent values
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	assert.Equal(t, "other_value", getPlatformDefault(values))
 }
 
 func TestCollectProductDefaultsConflicts(t *testing.T) {
@@ -262,9 +336,12 @@ const testCoreSchema = `
 sku_definitions:
   sku_a: [product_a]
 product_dependencies:
-  product_a: [product_b]
-  product_b: []
-  product_c: []
+  product_a:
+    dependencies: [product_b]
+  product_b:
+    dependencies: []
+  product_c:
+    dependencies: []
 properties:
   logs_enabled:
     node_type: setting
@@ -465,7 +542,8 @@ func TestApplySystemProbeProductEnablementCoreNotLoaded(t *testing.T) {
 func TestLoadDatadogAppliesProducts(t *testing.T) {
 	useSchemaGetters(t, testSchemaGetter(`
 product_dependencies:
-  eudm: []
+  eudm:
+    dependencies: []
 properties:
   infrastructure_mode:
     node_type: setting

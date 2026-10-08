@@ -120,6 +120,9 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    product_defaults:
+      log_management_max_throughput: false
+      log_management_high_compression: true
     visibility: public
     description: |-
       This parameter is available when sending logs via HTTP protocol. If enabled, the Agent
@@ -137,6 +140,8 @@ properties:
     node_type: setting
     type: number
     default: 5
+    product_defaults:
+      log_management_low_latency: 1.0
     visibility: public
     description: The maximum time (in seconds) the Datadog Agent waits to fill each
       batch of logs before sending.
@@ -378,24 +383,34 @@ properties:
     node_type: setting
     type: integer
     default: 0
+    product_defaults:
+      log_management_high_concurrency: 20
+      log_management_low_latency: 10
+      log_management_low_resource: 1
     tags:
     - generate_const:DefaultBatchMaxConcurrentSend
   batch_max_content_size:
     node_type: setting
     type: integer
     default: 5000000
+    product_defaults:
+      log_management_high_compression: 5000000
     tags:
     - generate_const:DefaultBatchMaxContentSize
   batch_max_size:
     node_type: setting
     type: integer
     default: 1000
+    product_defaults:
+      log_management_low_latency: 500
     tags:
     - generate_const:DefaultBatchMaxSize
   compression_kind:
     node_type: setting
     type: string
     default: zstd
+    product_defaults:
+      log_management_high_compression: zstd
     tags:
     - generate_const:DefaultLogCompressionKind
   connection_reset_interval:
@@ -731,10 +746,16 @@ properties:
     node_type: setting
     type: integer
     default: 100
+    product_defaults:
+      log_management_high_throughput: 200
+      log_management_low_resource: 50
   payload_channel_size:
     node_type: setting
     type: integer
     default: 10
+    product_defaults:
+      log_management_high_concurrency: 40
+      log_management_low_resource: 5
   pipeline_failover:
     node_type: section
     type: object
@@ -920,6 +941,8 @@ properties:
     node_type: setting
     type: integer
     default: 1
+    product_defaults:
+      log_management_high_compression: 6
     tags:
     - generate_const:DefaultZstdCompressionLevel
 comment: Delegated authentication for logs

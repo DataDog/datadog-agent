@@ -92,6 +92,7 @@ dd_agent_go_test(
         "privateactionrunner_test.go",
         "process_test.go",
         "product_enablement_test.go",
+        "product_schema_test.go",
         "system_probe_test.go",
         "unexpectedunicodefinder_test.go",
     ],

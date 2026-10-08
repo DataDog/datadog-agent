@@ -299,8 +299,10 @@ func enableTestProducts(t *testing.T, cfg config.Component, sku string, products
 sku_definitions:
   sku_a: [product_a]
 product_dependencies:
-  product_a: [product_b]
-  product_b: []
+  product_a:
+    dependencies: [product_b]
+  product_b:
+    dependencies: []
 properties: {}
 `
 	pkgconfigsetup.SetProductEnablementSchemasForTest(t, schema, "properties: {}")

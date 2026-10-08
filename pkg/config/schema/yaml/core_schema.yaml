@@ -5,71 +5,214 @@ description: The schema to validate the datadog.yaml configuration for the DataD
   Agent
 # Product enablement (see the 'sku' and 'products' settings).
 # 'sku_definitions' maps a SKU name to the list of products it bundles.
-# 'product_dependencies' maps every product to the list of products it depends on (resolved recursively).
+# 'product_dependencies' maps every product to:
+#   dependencies: products or profiles it depends on (resolved recursively)
+#   profiles: alternative ways to run the product (ex: tuned for a low resource usage), enabled like products through
+#     'products'. A profile implicitly enables its product; it's a list of dependencies (products or profiles of any
+#     product) or a mapping {dependencies: [...], conflict: [...]}. Only one profile of a product can be selected.
+#   conflict: products or profiles it can't be enabled with (symmetric), the Agent refuses to start if they are.
+# SKUs only bundle products, and are mutually exclusive by definition (one 'sku').
 # Settings declare the value to use when a product is enabled with 'product_defaults' or
 # 'product_platform_defaults'.
-sku_definitions: {}
+# Products must never set 'remote_configuration.enabled' or 'remote_updates': once set, the Agent no longer turns Remote
+# Configuration off automatically on the sites that don't support it (ex: GovCloud).
+sku_definitions:
+  # Infrastructure Monitoring: host and integration metrics, metadata and dashboards for your servers, VMs and clouds
+  infrastructure_monitoring: [infrastructure_mode_full]
+  # Infrastructure Monitoring (Basic): lightweight host monitoring, only the basic system metrics and allowed checks
+  infrastructure_monitoring_basic: [infrastructure_mode_basic]
+  # End User Device Monitoring: monitors employee laptops and desktops (Windows, macOS): software inventory, notable events, logon duration
+  end_user_device_monitoring: [infrastructure_mode_end_user_device]
+  # Cloud Cost Management: cloud bills (AWS, Azure, GCP) correlated with usage; the Agent only tags resources (cloud cost mode)
+  cloud_cost_management: [infrastructure_mode_cloud_cost_only, cloud_cost_management_containers]
 product_dependencies:
-  # Infrastructure. The infrastructure modes (full, basic, end_user_device, cloud_cost_only) are mutually exclusive.
-  infrastructure_monitoring: []
-  infrastructure_monitoring_basic: []
-  end_user_device_monitoring: []
-  container_monitoring: [infrastructure_monitoring]
-  container_live_processes: [container_monitoring]
-  custom_metrics: []
-  kubernetes_autoscaling: [container_monitoring]
-  kubernetes_cluster_autoscaling: [kubernetes_autoscaling]
-  gpu_monitoring: []
-  # Alternative to gpu_monitoring (privileged system-probe in containers): both can't be enabled together
-  gpu_monitoring_advanced: []
-  cloud_cost_management: []
-  cloud_cost_management_containers: [cloud_cost_management]
-  disaster_recovery: []
+  # Infrastructure modes (internal): set 'infrastructure_mode' for the SKUs above. They are mutually exclusive.
+  # Internal: 'infrastructure_mode: full', the regular Agent (Infrastructure Monitoring SKU)
+  infrastructure_mode_full:
+    dependencies: []
+  # Internal: 'infrastructure_mode: basic' (Infrastructure Monitoring (Basic) SKU)
+  infrastructure_mode_basic:
+    dependencies: []
+  # Internal: 'infrastructure_mode: end_user_device' on Windows and macOS (End User Device Monitoring SKU)
+  infrastructure_mode_end_user_device:
+    dependencies: []
+  # Internal: 'infrastructure_mode: cloud_cost_only' (Cloud Cost Management SKU)
+  infrastructure_mode_cloud_cost_only:
+    dependencies: []
+
+  # Infrastructure
+  # Container Monitoring: Docker/Kubernetes/ECS metrics, Live Containers and Orchestrator Explorer; on Kubernetes, sets up the Cluster Agent, cluster checks, Kubernetes events and control plane monitoring
+  container_monitoring:
+    dependencies: []
+  # Live Processes: real-time view of every process running on your hosts and containers
+  live_processes:
+    dependencies: []
+  # Custom Metrics: submit your own application metrics through DogStatsD; accepts traffic from other containers
+  custom_metrics:
+    dependencies: []
+  # Kubernetes Autoscaling: Datadog-driven workload rightsizing (horizontal and vertical scaling) through the Cluster Agent
+  kubernetes_autoscaling:
+    dependencies: [container_monitoring]
+  # Kubernetes Autoscaling (Cluster, preview): also scales the cluster nodes, on top of workload autoscaling
+  kubernetes_cluster_autoscaling:
+    dependencies: [kubernetes_autoscaling]
+  # GPU Monitoring: NVIDIA GPU utilization, cost and health metrics per host, container and workload
+  gpu_monitoring:
+    dependencies: []
+  # GPU Monitoring (advanced): also runs the eBPF system-probe GPU metrics in containers (privileged mode)
+  gpu_monitoring_advanced:
+    dependencies: [gpu_monitoring]
+  # Cloud Cost Management (Container Cost Allocation): splits cloud costs per Kubernetes/ECS workload
+  cloud_cost_management_containers:
+    dependencies: []
+  # Datadog Disaster Recovery: fails the Agent over to a secondary Datadog site during an outage (needs the secondary site and API key)
+  disaster_recovery:
+    dependencies: []
+
   # Network
-  network_monitoring: [cloud_network_monitoring, network_device_monitoring, netflow_monitoring, network_path]
-  cloud_network_monitoring: []
-  network_device_monitoring: []
-  netflow_monitoring: []
-  network_path: []
-  network_path_dynamic_tests: [network_path, cloud_network_monitoring]
+  # Network Monitoring: every network product (Cloud Network Monitoring, Network Device Monitoring, NetFlow, Network Path)
+  network_monitoring:
+    dependencies: [cloud_network_monitoring, network_device_monitoring, netflow_monitoring, network_path]
+  # Cloud Network Monitoring (formerly NPM): traffic between services, containers and hosts, including DNS monitoring (eBPF)
+  cloud_network_monitoring:
+    dependencies: []
+  # Network Device Monitoring: SNMP metrics and topology for routers, switches and firewalls (devices are configured by the user)
+  network_device_monitoring:
+    dependencies: []
+  # NetFlow Monitoring: flow records (NetFlow, IPFIX, sFlow) sent by network devices to the Agent
+  netflow_monitoring:
+    dependencies: []
+  # Network Path: hop-by-hop path (traceroute) from the Agent to the destinations you configure
+  network_path:
+    dependencies: []
+  # Network Path (Dynamic Tests): automatically traces the paths of the connections seen by Cloud Network Monitoring (billed per test)
+  network_path_dynamic_tests:
+    dependencies: [network_path, cloud_network_monitoring]
+  # Synthetic Monitoring (Network Path tests, preview): runs the Network Path tests scheduled from the Datadog UI on this Agent
+  synthetics_network_path_tests:
+    dependencies: [network_path]
+
   # Applications. 'apm' and 'error_tracking_standalone' are mutually exclusive.
-  apm: []
-  apm_single_step_instrumentation: [apm]
-  otlp_apm_ingest: [apm]
-  continuous_profiler: [apm]
-  dynamic_instrumentation: [apm]
-  dynamic_instrumentation_go: [dynamic_instrumentation]
-  data_streams_monitoring: [apm]
-  universal_service_monitoring: []
-  usm_all_protocols: [universal_service_monitoring]
-  database_monitoring: []
-  agent_observability: [apm]
-  error_tracking_standalone: []
+  # APM: distributed tracing; the Agent receives the traces sent by the tracing libraries you install in your applications
+  apm:
+    dependencies: []
+    conflict: [error_tracking_standalone]
+  # APM (Single Step Instrumentation): APM where the tracing libraries are injected automatically, without code changes (Kubernetes; on hosts, done by the install script)
+  apm_single_step_instrumentation:
+    dependencies: [apm]
+  # OTLP APM Ingest: the Agent receives OpenTelemetry (OTLP) traces and metrics over gRPC/HTTP
+  otlp_apm_ingest:
+    dependencies: [apm]
+  # OTLP Ingest (logs): the Agent also accepts OpenTelemetry logs on its OTLP endpoint
+  otlp_ingest_logs:
+    dependencies: [otlp_apm_ingest, log_management]
+  # DDOT Collector: OpenTelemetry Collector embedded in the Agent; runs your OTel pipelines and sends to Datadog
+  ddot_collector:
+    dependencies: []
+  # Continuous Profiler: CPU, memory and lock profiles of your production code, linked to traces
+  continuous_profiler:
+    dependencies: [apm]
+  # Dynamic Instrumentation: add logs, metrics and spans to running services from the Datadog UI, without redeploying
+  dynamic_instrumentation:
+    dependencies: [apm]
+  # Dynamic Instrumentation (Go): Dynamic Instrumentation for Go services, done by the system-probe with eBPF
+  dynamic_instrumentation_go:
+    dependencies: [dynamic_instrumentation]
+  # Data Streams Monitoring: end-to-end latency and lag of queues and streams (Kafka, RabbitMQ, SQS, ...)
+  data_streams_monitoring:
+    dependencies: [apm]
+  # Universal Service Monitoring: RED metrics (requests, errors, duration) for every service, without any code change (eBPF)
+  universal_service_monitoring:
+    dependencies: []
+  # Universal Service Monitoring (all protocols): also monitors HTTP/2, gRPC, Kafka, Postgres, Redis and Node.js TLS traffic
+  usm_all_protocols:
+    dependencies: [universal_service_monitoring]
+  # Database Monitoring: query metrics, samples and explain plans for Postgres, MySQL, MariaDB, SQL Server, Oracle, MongoDB, DocumentDB, ClickHouse (enabled per check)
+  database_monitoring:
+    dependencies: []
+  # Agent Observability (LLM Observability): traces, cost and quality of your LLM applications and AI agents
+  agent_observability:
+    dependencies: [apm]
+  # Error Tracking (Backend, standalone): groups backend errors into issues, without full APM (only error spans are kept)
+  error_tracking_standalone:
+    dependencies: []
+
   # Data Observability
-  jobs_monitoring: [apm]
-  jobs_monitoring_databricks: [jobs_monitoring]
+  # Data Observability: Jobs Monitoring: performance, cost and failures of Spark and data pipeline jobs (Databricks, EMR, Dataproc, Kubernetes)
+  jobs_monitoring:
+    dependencies: [apm]
+  # Data Observability: Jobs Monitoring (Databricks): Databricks specific settings, on top of Jobs Monitoring
+  jobs_monitoring_databricks:
+    dependencies: [jobs_monitoring]
+
   # Logs
-  log_management: []
-  log_management_collect_all: [log_management]
-  observability_pipelines: [observability_pipelines_logs, observability_pipelines_metrics]
-  observability_pipelines_logs: [log_management]
-  observability_pipelines_metrics: []
-  cloud_siem: [log_management]
+  # Log Management: collect, process and search your logs; the Agent collects the files and integration logs you configure
+  log_management:
+    dependencies: []
+    profiles:
+      # Log Management (high concurrency profile): more concurrent sends to absorb intake/network latency
+      log_management_high_concurrency: []
+      # Log Management (high throughput profile): high concurrency plus larger buffers, for a sustained high log volume
+      log_management_high_throughput: [log_management_high_concurrency]
+      # Log Management (max throughput profile): high throughput plus compression disabled, trading bandwidth for CPU
+      log_management_max_throughput: [log_management_high_throughput]
+      # Log Management (low latency profile): shorter batch wait, smaller batches and more concurrent sends to deliver logs faster
+      log_management_low_latency: []
+      # Log Management (low resource profile): lower concurrency and smaller buffers to minimize CPU and memory
+      log_management_low_resource: []
+      # Log Management (high compression profile): higher zstd compression level to reduce network bytes at the cost of CPU
+      log_management_high_compression: []
+  # Log Management (collect all containers): also collects the logs of every container automatically
+  log_management_collect_all:
+    dependencies: [log_management]
+  # Observability Pipelines: route Agent logs and metrics through your Observability Pipelines Worker (Worker URL to configure)
+  observability_pipelines:
+    dependencies: [observability_pipelines_logs, observability_pipelines_metrics]
+  # Observability Pipelines (logs): sends the Agent logs to the Observability Pipelines Worker
+  observability_pipelines_logs:
+    dependencies: [log_management]
+  # Observability Pipelines (metrics): sends the Agent metrics to the Observability Pipelines Worker
+  observability_pipelines_metrics:
+    dependencies: []
+  # Cloud SIEM: real-time threat detection on your logs
+  cloud_siem:
+    dependencies: [log_management]
+
   # Security
-  workload_protection: []
-  cloud_security: [cloud_security_misconfigurations, cloud_security_vulnerabilities]
-  cloud_security_misconfigurations: []
-  cloud_security_vulnerabilities: []
-  cloud_security_runtime_package_prioritization: [cloud_security_vulnerabilities]
-  app_and_api_protection: [apm]
-  app_and_api_protection_proxy_injection: [app_and_api_protection]
-  code_security: [apm]
+  # Workload Protection (formerly CWS): real-time threat detection and protection of hosts and containers (eBPF)
+  workload_protection:
+    dependencies: []
+  # Cloud Security: Misconfigurations and Vulnerabilities on your hosts and containers
+  cloud_security:
+    dependencies: [cloud_security_misconfigurations, cloud_security_vulnerabilities]
+  # Cloud Security Misconfigurations: CIS/compliance benchmarks of your hosts and containers
+  cloud_security_misconfigurations:
+    dependencies: []
+  # Cloud Security Vulnerabilities: vulnerabilities of the host and container image packages (SBOM)
+  cloud_security_vulnerabilities:
+    dependencies: []
+  # Cloud Security Vulnerabilities (runtime prioritization): flags the vulnerable packages actually loaded at runtime
+  cloud_security_runtime_package_prioritization:
+    dependencies: [cloud_security_vulnerabilities]
+  # App and API Protection (formerly ASM): detects and blocks attacks on your applications and APIs, through the tracing libraries
+  app_and_api_protection:
+    dependencies: [apm]
+  # App and API Protection (proxy): protects your gateways and proxies (Istio, Envoy Gateway, Gateway API, ingress-nginx, GKE) through the Cluster Agent on Kubernetes
+  app_and_api_protection_proxy_injection:
+    dependencies: [app_and_api_protection]
+  # Code Security: runtime code analysis (IAST) and software composition analysis (SCA) of your services, through the tracing libraries
+  code_security:
+    dependencies: [apm]
+
   # Software Delivery
-  test_optimization: [apm]
+  # Test Optimization: test performance, flakiness and test impact analysis for your CI
+  test_optimization:
+    dependencies: [apm]
+
   # Service Management
-  private_action_runner: []
-  workflow_automation: [private_action_runner]
-  app_builder: [private_action_runner]
+  # Private Action Runner: runs Workflow Automation and App Builder private actions inside your private network
+  private_action_runner:
+    dependencies: []
 properties:
   api_key:
     node_type: setting
@@ -115,14 +258,14 @@ properties:
     type: string
     default: full
     product_platform_defaults:
-      infrastructure_monitoring:
+      infrastructure_mode_full:
         other: full
-      infrastructure_monitoring_basic:
+      infrastructure_mode_basic:
         other: basic
-      end_user_device_monitoring:
+      infrastructure_mode_end_user_device:
         windows: end_user_device
         darwin: end_user_device
-      cloud_cost_management:
+      infrastructure_mode_cloud_cost_only:
         other: cloud_cost_only
     visibility: public
     description: |-
@@ -2186,6 +2329,13 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_platform_defaults:
+              synthetics_network_path_tests:
+                linux: true
+                windows: true
+                darwin: true
+                container: true
+                fargate: false
             visibility: public
             description: '[Preview] Enables Synthetics tests.'
           workers:
@@ -3255,6 +3405,14 @@ properties:
     node_type: setting
     type: array
     default: []
+    product_platform_defaults:
+      container_monitoring:
+        kubernetes:
+        - clusterchecks
+        - endpointschecks
+        cluster_agent:
+        - kube_services
+        - kube_endpoints
     items:
       type: string
     visibility: public
@@ -3366,6 +3524,11 @@ properties:
     node_type: setting
     type: array
     default: []
+    product_platform_defaults:
+      container_monitoring:
+        cluster_agent:
+        - kube_services
+        - kube_endpoints
     items:
       type: string
     visibility: public
@@ -5003,6 +5166,8 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            product_defaults:
+              otlp_ingest_logs: true
             visibility: public
             description: |-
               Set to true to enable logs support in the OTLP ingest endpoint.
@@ -5124,6 +5289,9 @@ properties:
         product_platform_defaults:
           cloud_network_monitoring:
             container: 60
+          ddot_collector:
+            linux: 60
+            container: 60
       grpc_max_message_size:
         node_type: setting
         type: integer
@@ -5142,6 +5310,9 @@ properties:
         default: 0
         product_platform_defaults:
           cloud_network_monitoring:
+            container: 5009
+          ddot_collector:
+            linux: 5009
             container: 5009
       socket_path:
         node_type: setting

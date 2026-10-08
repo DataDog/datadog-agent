@@ -1358,7 +1358,7 @@ properties:
         product_platform_defaults:
           gpu_monitoring:
             linux: true
-            container: false
+            container: null
             fargate: false
           gpu_monitoring_advanced:
             linux: true

@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -1068,14 +1069,35 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 }
 
+// isClusterAgent is set when the running process is the Cluster Agent (see flavor.SetFlavor)
+var isClusterAgent atomic.Bool
+
+// SetIsClusterAgent records whether the running process is the Cluster Agent. The Cluster Agent shares the core schema
+// with the node Agent: on Kubernetes, it uses the 'cluster_agent' platform values when they exist.
+func SetIsClusterAgent(clusterAgent bool) {
+	isClusterAgent.Store(clusterAgent)
+}
+
+// IsClusterAgent returns whether the running process is the Cluster Agent
+func IsClusterAgent() bool {
+	return isClusterAgent.Load()
+}
+
 // getPlatformDefault returns the value for the current platform from a 'platform_default' (or
 // 'product_platform_defaults') mapping, or nil if there is none.
 //
-// The priority (fargate, kubernetes, container, OS, other) is mirrored by the product conflict check of 'dda inv schema.lint'
-// (_runtime_environments in tasks/schema/lint.py): keep both in sync.
+// The priority (fargate, cluster_agent, kubernetes, container, OS, other) is mirrored by the product conflict check of
+// 'dda inv schema.lint' (_runtime_environments in tasks/schema/lint.py) and by 'dda inv schema.show-product'
+// (tasks/schema/show_product.py): keep them in sync.
 func getPlatformDefault(platformValues map[string]interface{}) interface{} {
 	if pkgconfigenv.IsECSFargate() {
 		if val, found := platformValues["fargate"]; found {
+			return val
+		}
+	}
+	// 'cluster_agent' is the Cluster Agent on Kubernetes
+	if IsClusterAgent() && pkgconfigenv.IsKubernetes() {
+		if val, found := platformValues["cluster_agent"]; found {
 			return val
 		}
 	}

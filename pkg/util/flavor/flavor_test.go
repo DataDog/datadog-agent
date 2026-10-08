@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,4 +68,14 @@ func TestGetHumanReadableFlavor(t *testing.T) {
 
 		assert.Equal(t, "Unknown Agent", GetHumanReadableFlavor())
 	})
+}
+
+func TestSetFlavorClusterAgent(t *testing.T) {
+	t.Cleanup(func() { SetFlavor(DefaultAgent) })
+
+	SetFlavor(ClusterAgent)
+	assert.True(t, pkgconfigsetup.IsClusterAgent())
+
+	SetFlavor(DefaultAgent)
+	assert.False(t, pkgconfigsetup.IsClusterAgent())
 }

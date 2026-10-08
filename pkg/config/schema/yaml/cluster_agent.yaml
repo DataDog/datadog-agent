@@ -16,8 +16,9 @@ properties:
     type: boolean
     default: false
     product_platform_defaults:
-      container_monitoring:
+      container_monitoring: &id001
         kubernetes: true
+      app_and_api_protection_proxy_injection: *id001
     visibility: public
     description: Set to true to enable the Cluster Agent.
   auth_token:

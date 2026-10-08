@@ -24,14 +24,17 @@ import (
 // Product enablement lets users enable products (and SKUs, bundles of products) instead of configuring every
 // setting those products need. Products are declared in the core schema:
 //   - 'sku_definitions' maps a SKU to the products it bundles.
-//   - 'product_dependencies' maps every product to the products it depends on (resolved recursively).
+//   - 'product_dependencies' maps every product to its dependencies (resolved recursively), its profiles and the
+//     products it conflicts with. Profiles are alternative ways to run a product (ex: low resource usage); they're
+//     enabled like products, and implicitly enable their product.
 //
 // Settings declare the value to use when a product is enabled with 'product_defaults' or
 // 'product_platform_defaults'. Those values are written to the model.SourceProductEnablement layer, so any other
 // source (file, env vars, ...) still overrides them.
 //
 // The schema definitions are validated by 'dda inv schema.lint', so the runtime only reports errors caused by the
-// user configuration: unknown SKU or product, and products setting conflicting values.
+// user configuration: unknown SKU or product, several profiles of a product, conflicting products, and products setting
+// conflicting values.
 
 // ErrProductEnablement is wrapped by every error caused by product enablement (unknown SKU or product, products
 // setting conflicting values, ...). See SplitProductEnablementError.
@@ -167,9 +170,7 @@ func resolveEnabledProducts(coreConfig pkgconfigmodel.Reader) ([]string, map[str
 	if err != nil {
 		return nil, nil, err
 	}
-	skuDefinitions, productDependencies := productDefinitions(coreRoot)
-
-	resolved, err := resolveProducts(sku, products, skuDefinitions, productDependencies)
+	resolved, err := resolveProducts(sku, products, productDefinitions(coreRoot))
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %w", ErrProductEnablement, err)
 	}
@@ -202,41 +203,112 @@ func loadSchema(getSchema SchemaGetter) (map[string]interface{}, error) {
 	return root, nil
 }
 
-// productDefinitions returns the 'sku_definitions' and 'product_dependencies' maps of a schema. Their format is
-// enforced by 'dda inv schema.lint', malformed entries are ignored.
-func productDefinitions(schemaRoot map[string]interface{}) (skuDefinitions, productDependencies map[string][]string) {
-	toMap := func(raw interface{}) map[string][]string {
-		definitions := map[string][]string{}
-		entries, _ := raw.(map[string]interface{})
-		for name, rawList := range entries {
-			list, _ := rawList.([]interface{})
-			names := make([]string, 0, len(list))
-			for _, item := range list {
-				if name, ok := item.(string); ok {
-					names = append(names, name)
-				}
-			}
-			definitions[name] = names
-		}
-		return definitions
-	}
-	return toMap(schemaRoot["sku_definitions"]), toMap(schemaRoot["product_dependencies"])
+// productCatalog holds the product enablement definitions of the core schema
+type productCatalog struct {
+	// skus maps a SKU to the products it bundles
+	skus map[string][]string
+	// dependencies maps every product and profile to what it depends on; a profile depends on its product
+	dependencies map[string][]string
+	// profileOwners maps every profile to its product
+	profileOwners map[string]string
+	// conflicts maps every product and profile to the ones it can't be enabled with (symmetric)
+	conflicts map[string]map[string]struct{}
 }
 
-// resolveProducts returns the sorted list of products enabled by a SKU and a list of products, including all their
-// dependencies.
-func resolveProducts(sku string, products []string, skuDefinitions, productDependencies map[string][]string) ([]string, error) {
+// productDefinitions parses the 'sku_definitions' and 'product_dependencies' of a schema. Their format is enforced by
+// 'dda inv schema.lint', malformed entries are ignored:
+//
+//	product:
+//	  dependencies: [product or profile, ...]
+//	  profiles:
+//	    profile: [product or profile, ...]          # or {dependencies: [...], conflict: [...]}
+//	  conflict: [product or profile, ...]
+func productDefinitions(schemaRoot map[string]interface{}) productCatalog {
+	catalog := productCatalog{
+		skus:          map[string][]string{},
+		dependencies:  map[string][]string{},
+		profileOwners: map[string]string{},
+		conflicts:     map[string]map[string]struct{}{},
+	}
+	addConflicts := func(name string, others []string) {
+		for _, other := range others {
+			for _, pair := range [][2]string{{name, other}, {other, name}} {
+				if catalog.conflicts[pair[0]] == nil {
+					catalog.conflicts[pair[0]] = map[string]struct{}{}
+				}
+				catalog.conflicts[pair[0]][pair[1]] = struct{}{}
+			}
+		}
+	}
+
+	skus, _ := schemaRoot["sku_definitions"].(map[string]interface{})
+	for sku, products := range skus {
+		catalog.skus[sku] = toStringSlice(products)
+	}
+
+	products, _ := schemaRoot["product_dependencies"].(map[string]interface{})
+	for product, rawDefinition := range products {
+		definition, ok := rawDefinition.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		catalog.dependencies[product] = toStringSlice(definition["dependencies"])
+		addConflicts(product, toStringSlice(definition["conflict"]))
+
+		profiles, _ := definition["profiles"].(map[string]interface{})
+		for profile, rawProfile := range profiles {
+			// a profile is a list of dependencies, or a mapping {dependencies, conflict}
+			dependencies := toStringSlice(rawProfile)
+			if profileDefinition, ok := rawProfile.(map[string]interface{}); ok {
+				dependencies = toStringSlice(profileDefinition["dependencies"])
+				addConflicts(profile, toStringSlice(profileDefinition["conflict"]))
+			}
+			catalog.profileOwners[profile] = product
+			catalog.dependencies[profile] = append([]string{product}, dependencies...)
+		}
+	}
+	return catalog
+}
+
+// toStringSlice returns the strings of a YAML list
+func toStringSlice(raw interface{}) []string {
+	list, _ := raw.([]interface{})
+	names := make([]string, 0, len(list))
+	for _, item := range list {
+		if name, ok := item.(string); ok {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// resolveProducts returns the sorted list of products and profiles enabled by a SKU and a list of products, including
+// all their dependencies (a profile enables its product).
+//
+// It fails on unknown names, when more than one profile of the same product is selected, and when the enabled products
+// can't be enabled together (see 'conflict' in the schema).
+func resolveProducts(sku string, products []string, catalog productCatalog) ([]string, error) {
 	requested := slices.Clone(products)
+	selectedProfiles := map[string][]string{}
 	for _, product := range products {
-		if _, isSKU := skuDefinitions[product]; isSKU {
+		if _, isSKU := catalog.skus[product]; isSKU {
 			return nil, fmt.Errorf("'%s' is a SKU, it must be set with 'sku' instead of 'products'", product)
 		}
-		if _, found := productDependencies[product]; !found {
+		if _, found := catalog.dependencies[product]; !found {
 			return nil, fmt.Errorf("unknown product '%s'", product)
+		}
+		if owner, isProfile := catalog.profileOwners[product]; isProfile && !slices.Contains(selectedProfiles[owner], product) {
+			selectedProfiles[owner] = append(selectedProfiles[owner], product)
+		}
+	}
+	for _, owner := range sortedKeys(selectedProfiles) {
+		if profiles := selectedProfiles[owner]; len(profiles) > 1 {
+			slices.Sort(profiles)
+			return nil, fmt.Errorf("only one profile of '%s' can be selected, got: %s", owner, strings.Join(profiles, ", "))
 		}
 	}
 	if sku != "" {
-		skuProducts, found := skuDefinitions[sku]
+		skuProducts, found := catalog.skus[sku]
 		if !found {
 			return nil, fmt.Errorf("unknown SKU '%s'", sku)
 		}
@@ -251,15 +323,32 @@ func resolveProducts(sku string, products []string, skuDefinitions, productDepen
 			continue
 		}
 		enabled[product] = struct{}{}
-		requested = append(requested, productDependencies[product]...)
+		requested = append(requested, catalog.dependencies[product]...)
 	}
 
-	resolved := make([]string, 0, len(enabled))
-	for product := range enabled {
-		resolved = append(resolved, product)
+	resolved := sortedKeys(enabled)
+	var conflicts []string
+	for _, product := range resolved {
+		for _, other := range sortedKeys(catalog.conflicts[product]) {
+			if _, found := enabled[other]; found && product < other {
+				conflicts = append(conflicts, fmt.Sprintf("'%s' and '%s' can't be enabled together", product, other))
+			}
+		}
 	}
-	slices.Sort(resolved)
+	if len(conflicts) != 0 {
+		return nil, errors.New(strings.Join(conflicts, "; "))
+	}
 	return resolved, nil
+}
+
+// sortedKeys returns the sorted keys of a map
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 // productValue is the value a product sets for a setting

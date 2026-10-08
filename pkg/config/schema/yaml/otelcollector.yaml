@@ -30,6 +30,10 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    product_platform_defaults:
+      ddot_collector:
+        linux: true
+        container: true
   extension_timeout:
     node_type: setting
     type: integer

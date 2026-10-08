@@ -66,7 +66,7 @@ func TestSetupConfigProductConflictStrict(t *testing.T) {
 
 	err := runSetupConfig(config, NewAgentParams(configFile, WithStrictProductEnablement(), WithCLIOverride("log_level", "debug")))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "apm_config.error_tracking_standalone.enabled: apm=false, error_tracking_standalone=true")
+	assert.Contains(t, err.Error(), "'apm' and 'error_tracking_standalone' can't be enabled together")
 	// the configuration is still fully loaded
 	assert.Equal(t, "debug", config.GetString("log_level"))
 	assert.Equal(t, map[string]interface{}{}, config.AllSettingsBySource()[pkgconfigmodel.SourceProductEnablement])
@@ -84,5 +84,5 @@ func TestSetupConfigProductConflictNotStrict(t *testing.T) {
 	require.NoError(t, runSetupConfig(config, NewAgentParams(configFile, WithCLIOverride("log_level", "debug"))))
 	assert.Equal(t, "debug", config.GetString("log_level"))
 	assert.Equal(t, map[string]interface{}{}, config.AllSettingsBySource()[pkgconfigmodel.SourceProductEnablement])
-	assert.Contains(t, logs.String(), "apm_config.error_tracking_standalone.enabled: apm=false, error_tracking_standalone=true")
+	assert.Contains(t, logs.String(), "'apm' and 'error_tracking_standalone' can't be enabled together")
 }
