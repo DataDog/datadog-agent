@@ -21,10 +21,6 @@ FROM v$session
 WHERE type != 'BACKGROUND'`
 
 // UserSessionsCount collects the number of non-background sessions.
-//
-// It is a standalone job rather than part of ProcessMemory so that it can be
-// enabled independently and is not affected by the process memory query.
-// It is not collected in the legacy integration compatibility mode.
 func (c *Check) UserSessionsCount() error {
 	if c.legacyIntegrationCompatibilityMode {
 		return nil
