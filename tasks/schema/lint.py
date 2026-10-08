@@ -693,6 +693,36 @@ def check_snake_case_names(path, schema, non_snake_case_exceptions=None):
 
 
 # ---------------------------------------------------------------------------
+# Check 17: template_section tags are only used on public nodes
+# ---------------------------------------------------------------------------
+
+TEMPLATE_SECTION_PREFIX = "template_section:"
+
+
+def check_template_section_on_public(path, schema):
+    """
+    Check that 'template_section:<name>' tags only appear on nodes with
+    visibility='public'.
+
+    The config template only renders public nodes, so the tag has no effect on
+    private ones.
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("visibility") == "public":
+            continue
+        for tag in get_tags(node):
+            if isinstance(tag, str) and tag.startswith(TEMPLATE_SECTION_PREFIX):
+                errors.append(
+                    f"{path}: [{node_path}] '{tag}' tag is only valid on public nodes. "
+                    f"Fix: remove the '{TEMPLATE_SECTION_PREFIX}...' tag or set 'visibility: public'."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -766,6 +796,7 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_generate_const_tag(schema_path, schema))
         all_errors.extend(check_renamed_from(schema_path, schema))
         all_errors.extend(check_snake_case_names(schema_path, schema, exc["non_snake_case"]))
+        all_errors.extend(check_template_section_on_public(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")
