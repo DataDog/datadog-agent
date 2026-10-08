@@ -96,6 +96,15 @@ func TestResolvePackageHook(t *testing.T) {
 			for _, suffix := range append([]string{".sh", ".cmd"}, suffixes...) {
 				require.NoError(t, os.WriteFile(filepath.Join(hooks, "postInstall"+suffix), nil, 0755))
 			}
+			if runtime.GOOS == "windows" && platform != "windows" {
+				// Windows reports regular files without Unix executable bits,
+				// even when WriteFile is given 0755. A Unix resolver must reject
+				// this fixture; the native Windows suffix checks below still run.
+				hook, err := resolvePackageHook(root, "postInstall", platform)
+				require.ErrorContains(t, err, "not executable")
+				assert.Empty(t, hook)
+				return
+			}
 			for _, suffix := range suffixes {
 				hook, err := resolvePackageHook(root, "postInstall", platform)
 				require.NoError(t, err)
@@ -121,6 +130,9 @@ func TestResolvePackageHook(t *testing.T) {
 			root := t.TempDir()
 			require.NoError(t, os.Mkdir(filepath.Join(root, "hooks"), 0755))
 			hook := filepath.Join(root, "hooks", "postInstall")
+			if runtime.GOOS == "windows" {
+				hook += ".exe"
+			}
 			switch kind {
 			case "directory":
 				require.NoError(t, os.Mkdir(hook, 0755))
@@ -129,7 +141,7 @@ func TestResolvePackageHook(t *testing.T) {
 			default:
 				require.NoError(t, os.WriteFile(hook, nil, 0644))
 			}
-			_, err := resolvePackageHook(root, "postInstall", "linux")
+			_, err := resolvePackageHook(root, "postInstall", runtime.GOOS)
 			require.Error(t, err)
 		})
 	}
