@@ -34,6 +34,11 @@ func TestNewCapturer(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("Ethernet-only filter is accepted", func(t *testing.T) {
+		_, err := newCapturer(CaptureConfig{Output: &bytes.Buffer{}, Interface: "eth0", Filter: "ether host 02:00:00:00:00:01"})
+		assert.NoError(t, err)
+	})
+
 	t.Run("explicit interface is preserved", func(t *testing.T) {
 		c, err := newCapturer(CaptureConfig{Output: &bytes.Buffer{}, Interface: "eth0"})
 		require.NoError(t, err)

@@ -26,6 +26,14 @@ const (
 	testRunnerRunnerID       = "test-runner-e2e"
 )
 
+// TestRunnerOrgID and TestRunnerRunnerID expose the IDs encoded in the URN
+// GenerateTestRunnerIdentity returns, for suites outside this package that
+// call SetupPARTaskSigning.
+const (
+	TestRunnerOrgID    = testRunnerOrgID
+	TestRunnerRunnerID = testRunnerRunnerID
+)
+
 // GenerateTestRunnerIdentity generates a fresh ECDSA key pair and returns the
 // runner URN and base64-encoded private JWK for agent config or Helm values.
 func GenerateTestRunnerIdentity(t *testing.T) (urn string, privateKeyB64 string) {

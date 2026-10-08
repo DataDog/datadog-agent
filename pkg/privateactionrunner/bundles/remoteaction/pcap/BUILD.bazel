@@ -95,6 +95,7 @@ dd_agent_go_test(
     name = "pcap_test",
     srcs = [
         "networkpcap_uploader_real_test.go",
+        "networkpcap_uploader_test.go",
         "run_capture_e2e_real_test.go",
         "run_capture_socket_real_test.go",
         "run_capture_socket_test.go",
