@@ -645,6 +645,62 @@ func TestOnTaskUpdate_TasksForDifferentDatabasesRunTogether(t *testing.T) {
 	assert.ElementsMatch(t, []string{testTaskID, testOtherTaskID}, scheduledTaskIDs(t, drainTaskChanges(c).Schedule))
 }
 
+// mysqlBaseConfigWithTaskConcurrency is mysqlBaseConfig with data_observability.task_concurrency set.
+func mysqlBaseConfigWithTaskConcurrency(concurrency string) integration.Config {
+	base := mysqlBaseConfig()
+	base.Instances = []integration.Data{integration.Data(string(base.Instances[0]) + "  task_concurrency: " + concurrency + "\n")}
+	return base
+}
+
+func TestOnTaskUpdate_TaskConcurrencyRunsThatManyTasksTogether(t *testing.T) {
+	const thirdTaskID = "9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfigWithTaskConcurrency("2")})
+	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-30)
+	secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-20)
+	thirdPath, thirdRaw := taskUpdateAt(t, thirdTaskID, testMySQLHost, testNow.Unix()-10)
+
+	statuses, _ := collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw, thirdPath: thirdRaw})
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[firstPath].State)
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[secondPath].State)
+	assert.Equal(t, state.ApplyStateUnacknowledged, statuses[thirdPath].State, "the newest task waits past the limit")
+	assert.ElementsMatch(t, []string{testOtherTaskID, testTaskID}, scheduledTaskIDs(t, drainTaskChanges(c).Schedule))
+
+	c.finishedTaskChecks = func() map[string]bool { return map[string]bool{taskConfigID(testTaskID): true} }
+	c.onTaskChecksPolled()
+
+	assert.Equal(t, []string{thirdTaskID}, scheduledTaskIDs(t, drainTaskChanges(c).Schedule))
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[thirdPath].State)
+}
+
+func TestOnTaskUpdate_InvalidTaskConcurrencyRunsOneAtATime(t *testing.T) {
+	for _, concurrency := range []string{"0", "-1", "two", "1.5"} {
+		t.Run(concurrency, func(t *testing.T) {
+			c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfigWithTaskConcurrency(concurrency)})
+			firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
+			secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-10)
+
+			statuses, _ := collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
+
+			assert.Equal(t, state.ApplyStateUnacknowledged, statuses[secondPath].State)
+			assert.Equal(t, []string{testOtherTaskID}, scheduledTaskIDs(t, drainTaskChanges(c).Schedule))
+		})
+	}
+}
+
+func TestOnRCUpdate_MonitorCopyKeepsTaskConcurrency(t *testing.T) {
+	// A task matched against the monitor copy (see TestOnTaskUpdate_MatchesMonitorCopyWhenNoOriginalIsKnown)
+	// reads its concurrency from there.
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfigWithTaskConcurrency("2")})
+	monitorPath, monitorRaw := monitorUpdate(t)
+
+	_, changes := collectStatuses(c, map[string]state.RawConfig{monitorPath: monitorRaw})
+
+	require.Len(t, changes.Schedule, 1)
+	doSection := parseInstance(t, changes.Schedule[0])["data_observability"].(map[string]any)
+	assert.Equal(t, 2, doSection["task_concurrency"])
+	assert.Equal(t, 2, c.taskConcurrency(testMonitorID, parseInstance(t, changes.Schedule[0])))
+}
+
 func TestOnTaskUpdate_QueuedTaskThatExpiredFailsInsteadOfStarting(t *testing.T) {
 	c, forwarder := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
 	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
