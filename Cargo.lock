@@ -43,7 +43,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "ureq",
- "windows-registry 0.100.0",
+ "windows-registry",
  "windows-sys 0.61.2",
 ]
 
@@ -719,34 +719,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1137cd7e7fc0fb5d3c5a8678be38ec56e819125d8d7907411fe24ccb943faca8"
-dependencies = [
- "crossbeam-channel",
- "crossbeam-deque",
- "crossbeam-epoch",
- "crossbeam-queue",
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-channel"
 version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
 dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-deque"
-version = "0.8.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dd111b7b7f7d55b72c0a6ae361660ee5853c9af73f70c3c2ef6858b950e2e51"
-dependencies = [
- "crossbeam-epoch",
  "crossbeam-utils",
 ]
 
@@ -890,7 +867,7 @@ dependencies = [
 [[package]]
 name = "datadog-agent-commons"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "backon",
  "datadog-protos",
@@ -906,13 +883,13 @@ dependencies = [
  "tokio-vsock",
  "tonic",
  "tracing",
- "windows-registry 0.6.1",
+ "windows-registry",
 ]
 
 [[package]]
 name = "datadog-protos"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "bytes",
  "piecemeal",
@@ -998,7 +975,7 @@ dependencies = [
  "tonic",
  "tonic-reflection",
  "uuid",
- "windows-registry 0.100.0",
+ "windows-registry",
  "windows-sys 0.61.2",
 ]
 
@@ -1044,7 +1021,7 @@ dependencies = [
 [[package]]
 name = "ddsketch"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "datadog-protos",
  "float-cmp",
@@ -1108,11 +1085,10 @@ dependencies = [
 
 [[package]]
 name = "dircpy"
-version = "0.3.20"
+version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebcbec2b9a580ddee352ac38523d2ecd4dcaad53532957034394556909e27f4b"
+checksum = "248c4c8c68170f1eb97d2dd60e0909ef81805478fc863790d37eb95258f5c3d1"
 dependencies = [
- "jwalk",
  "log",
  "walkdir",
 ]
@@ -2112,16 +2088,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jwalk"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2735847566356cd2179a2a38264839308f7079fa96e6bd5a42d740460e003c56"
-dependencies = [
- "crossbeam",
- "rayon",
-]
-
-[[package]]
 name = "keccak"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2205,9 +2171,9 @@ checksum = "ef9ac18847474e638e3702b76c65d4eb93428471a74778ef0f1be711717f89b5"
 
 [[package]]
 name = "mach2"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dae608c151f68243f2b000364e1f7b186d9c29845f7d2d85bd31b9ad77ad552b"
+checksum = "b0d28e293f2b8c9d2b2d1c0193bd3c1cbdc0d2cf396888dc01162f7cf9d6c3f3"
 
 [[package]]
 name = "matchit"
@@ -2921,7 +2887,7 @@ dependencies = [
 [[package]]
 name = "process-memory"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "libc",
  "mach2",
@@ -2932,7 +2898,7 @@ dependencies = [
 [[package]]
 name = "prometheus-exposition"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 
 [[package]]
 name = "prost"
@@ -3257,26 +3223,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75a2b2577f5fd7e26caabd4aa7bba1ef18653ff32204eea251c1136db1a549f3"
 
 [[package]]
-name = "rayon"
-version = "1.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d"
-dependencies = [
- "either",
- "rayon-core",
-]
-
-[[package]]
-name = "rayon-core"
-version = "1.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
-dependencies = [
- "crossbeam-deque",
- "crossbeam-utils",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3560,12 +3506,12 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 [[package]]
 name = "saluki-antithesis"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 
 [[package]]
 name = "saluki-api"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "axum",
  "axum-extra",
@@ -3576,10 +3522,9 @@ dependencies = [
 [[package]]
 name = "saluki-common"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "bytes",
- "crossbeam-queue",
  "foldhash 0.2.0",
  "http-body",
  "indexmap 2.14.0",
@@ -3587,7 +3532,6 @@ dependencies = [
  "libc",
  "papaya",
  "pin-project",
- "quick_cache",
  "regex",
  "saluki-antithesis",
  "saluki-error",
@@ -3598,42 +3542,25 @@ dependencies = [
  "smallvec",
  "stringtheory",
  "tokio",
- "tokio-util",
  "tracing",
-]
-
-[[package]]
-name = "saluki-context"
-version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
-dependencies = [
- "indexmap 2.14.0",
- "memchr",
- "metrics",
- "saluki-antithesis",
- "saluki-common",
- "saluki-error",
- "saluki-metrics",
- "serde",
- "smallvec",
- "stringtheory",
- "tokio",
- "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
 name = "saluki-core"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "anymap3",
  "async-trait",
  "bitmask-enum",
  "bytesize",
+ "crossbeam-queue",
  "ddsketch",
  "futures",
  "http",
  "indexmap 2.14.0",
+ "memchr",
  "metrics",
  "metrics-util 0.20.4",
  "ordered-float 5.3.0",
@@ -3642,10 +3569,10 @@ dependencies = [
  "pin-project",
  "process-memory",
  "prometheus-exposition",
+ "quick_cache",
  "saluki-antithesis",
  "saluki-api",
  "saluki-common",
- "saluki-context",
  "saluki-error",
  "saluki-metrics",
  "serde",
@@ -3661,7 +3588,7 @@ dependencies = [
 [[package]]
 name = "saluki-error"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "anyhow",
 ]
@@ -3669,7 +3596,7 @@ dependencies = [
 [[package]]
 name = "saluki-io"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "async-compression",
  "async-trait",
@@ -3678,6 +3605,7 @@ dependencies = [
  "chrono",
  "fs4",
  "futures",
+ "h2",
  "http",
  "http-body",
  "http-body-util",
@@ -3695,7 +3623,6 @@ dependencies = [
  "rustls",
  "saluki-antithesis",
  "saluki-common",
- "saluki-context",
  "saluki-core",
  "saluki-error",
  "saluki-metrics",
@@ -3708,7 +3635,6 @@ dependencies = [
  "stringtheory",
  "tokio",
  "tokio-rustls",
- "tokio-stream",
  "tokio-vsock",
  "tonic",
  "tower",
@@ -3721,7 +3647,7 @@ dependencies = [
 [[package]]
 name = "saluki-metadata"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "serde",
 ]
@@ -3729,7 +3655,7 @@ dependencies = [
 [[package]]
 name = "saluki-metrics"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "metrics",
  "papaya",
@@ -3739,7 +3665,7 @@ dependencies = [
 [[package]]
 name = "saluki-metrics-macros"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3749,7 +3675,7 @@ dependencies = [
 [[package]]
 name = "saluki-tls"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "rustls",
  "rustls-cng-crypto",
@@ -4242,7 +4168,7 @@ dependencies = [
 [[package]]
 name = "stringtheory"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.6.1#b5cfc9794d49ff5636ff503180a56b276ad09f7e"
+source = "git+https://github.com/DataDog/saluki?tag=1.7.0#98ec0b69e3774651794126dbd3871684b5c5c5f8"
 dependencies = [
  "foldhash 0.2.0",
  "protobuf",
@@ -4566,9 +4492,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.26.5"
+version = "0.26.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0c85f2c3ef0b1cd58b36682f4b17aaa995f0e5db534d85692b4903abce21f67"
+checksum = "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
 dependencies = [
  "rustls",
  "tokio",
@@ -4772,6 +4698,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "tracing-subscriber"
+version = "0.3.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
+dependencies = [
+ "tracing-core",
 ]
 
 [[package]]
@@ -5253,17 +5188,6 @@ checksum = "6e2e40844ac143cdb44aead537bbf727de9b044e107a0f1220392177d15b0f26"
 dependencies = [
  "windows-core",
  "windows-link 0.2.1",
-]
-
-[[package]]
-name = "windows-registry"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02752bf7fbdcce7f2a27a742f798510f3e5ad88dbe84871e5168e2120c3d5720"
-dependencies = [
- "windows-link 0.2.1",
- "windows-result 0.4.1",
- "windows-strings 0.5.1",
 ]
 
 [[package]]

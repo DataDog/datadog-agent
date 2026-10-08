@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,46 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+func TestConfigReaderConcurrentInitialization(t *testing.T) {
+	configmock.New(t)
+	paths := []string{"testdata"}
+	ResetReader(paths)
+	expected, expectedErrors, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	expectedFormats := ReadConfigFormats()
+
+	readerMu.Lock()
+	reader = nil
+	doOnce = sync.Once{}
+	readerMu.Unlock()
+
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Go(func() { InitConfigFilesReader(paths) })
+		wg.Go(func() {
+			// A caller arriving before initialization can see an empty reader;
+			// callers arriving during the initial fill must not race its publication.
+			ReadConfigFormats()
+			_, _, _ = ReadConfigFiles(GetAll)
+		})
+	}
+	wg.Wait()
+	actual, actualErrors, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, expectedErrors, actualErrors)
+	require.Equal(t, expectedFormats, ReadConfigFormats())
+
+	// Metadata and provider reads must also serialize cache-miss refreshes.
+	reader.cache.Flush()
+	for range 10 {
+		wg.Go(func() { ReadConfigFormats() })
+		wg.Go(func() { _, _, _ = ReadConfigFiles(GetAll) })
+	}
+	wg.Wait()
+	require.Equal(t, expectedFormats, ReadConfigFormats())
+}
 
 func TestGetIntegrationConfig(t *testing.T) {
 	// file does not exist

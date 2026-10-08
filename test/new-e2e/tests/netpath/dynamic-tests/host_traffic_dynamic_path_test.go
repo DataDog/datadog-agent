@@ -166,7 +166,6 @@ func (s *hostTrafficDynamicPathSuite) SetupSuite() {
 	require.NoError(s.T(), fakeintake.RCAddConfig("", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName, hostTrafficDynamicRCConfig))
 	s.remoteConfigAdded = true
 
-	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
@@ -201,10 +200,11 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.schedule.pathtest_count")
 		assertMetricPresent(c, fakeintake, "datadog.network_path.collector.flush.pathtest_count")
 
-		netpaths, err := fakeintake.GetLatestNetpathEvents()
+		netpaths, err := fakeintake.GetNetpathEvents()
 		require.NoError(c, err)
 		require.NotEmpty(c, netpaths, "no network path events")
 
+		// The earliest run for the destination is within the standard allowance.
 		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
 		require.NotNil(c, match, "no RC-admitted host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
 
@@ -212,7 +212,7 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
 		assert.Equal(c, payload.DynamicTestProfileStandard, match.DynamicTestProfile)
-		assert.Empty(c, match.DynamicTestClass)
+		assert.Equal(c, payload.DynamicTestClassCore, match.DynamicTestClass)
 		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
 		assert.Equal(c, payload.ProtocolTCP, match.Protocol)
 		assert.Equal(c, hostTrafficRemoteConfigDomain, match.Destination.Hostname)
@@ -252,10 +252,6 @@ func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {
 		return
 	}
 	require.Failf(s.T(), "Remote Config entry not found", "product=%s config_id=%s config_name=%s", hostTrafficRCProduct, hostTrafficRCConfigID, hostTrafficRCConfigName)
-}
-
-func (s *hostTrafficDynamicPathSuite) ensureCurlInstalled() {
-	s.Env().RemoteHost.MustExecute("if ! command -v curl >/dev/null 2>&1; then sudo apt-get update && sudo apt-get install -y curl; fi")
 }
 
 func (s *hostTrafficDynamicPathSuite) startHostTrafficDNSServer() {

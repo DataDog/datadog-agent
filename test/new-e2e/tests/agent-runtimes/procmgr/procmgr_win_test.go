@@ -397,6 +397,7 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 				ec2.WithAgentOptions(
 					agentparams.WithFile(winConfigDir+"/test-sleep.yaml", winTestProcessConfig, true),
 					agentparams.WithFile(winConfigDir+"/missing-binary.yaml", winMissingBinaryConfig, true),
+					agentparams.WithFile(winConfigDir+"/datadog-agent-par-control.yaml", skippedCatalogProcessYAML(`C:\nonexistent\par-control.exe`, `C:\nonexistent\par-control.exe`), true),
 					withADPEnabled(),
 				),
 			),
@@ -663,33 +664,8 @@ func (s *procmgrWindowsSuite) TestADPCOATTelemetry() {
 			"service": "agent-data-plane",
 			"mode":    "procmgr",
 		}), "ADP procmgr management-mode gauge should be emitted: %s", output)
+		assertAgentServiceRunningExclusive(ct, output, "agent-data-plane", "procmgr")
 	}, 7*time.Minute, 10*time.Second)
-}
-
-func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, metric) {
-			continue
-		}
-
-		fields := strings.Fields(line)
-		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
-			continue
-		}
-
-		allLabelsMatch := true
-		for key, value := range labels {
-			if !strings.Contains(line, key+`="`+value+`"`) {
-				allLabelsMatch = false
-				break
-			}
-		}
-		if allLabelsMatch {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *procmgrWindowsSuite) TestADPRestartAfterKill() {

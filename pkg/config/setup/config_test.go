@@ -732,6 +732,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 	config := confFromYAML(t, datadogYaml)
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
+	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.basic_tests_enabled"))
 	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled"))
 	assert.Equal(t, 80, config.GetInt("network_path.connections_monitoring.eudm_basic_candidate_limit"))
 	assert.Equal(t, false, config.GetBool("network_path.remote_config.enabled"))
@@ -768,6 +769,16 @@ infrastructure_mode: none
 
 	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
 	assert.False(t, config.GetBool("integration.enabled"))
+}
+
+func TestInfrastructureModeUnknownValueAppliesNoOverride(t *testing.T) {
+	// A typo must apply no overrides rather than silently picking up those of
+	// the mode the operator meant to set.
+	config := confFromYAML(t, "infrastructure_mode: nonee")
+	applyInfrastructureModeOverrides(config)
+
+	assert.True(t, config.GetBool("integration.enabled"))
+	assert.False(t, config.GetBool("software_inventory.enabled"))
 }
 
 func TestInfrastructureModeLegacyAliases(t *testing.T) {

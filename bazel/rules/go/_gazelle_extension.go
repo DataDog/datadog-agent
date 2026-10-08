@@ -568,7 +568,7 @@ func tagSetsForExpression(expr constraint.Expr, baseTags map[string]bool, config
 // share a tag, and re-scanning would chain them all together.
 //
 // A constraint that contradicts the grouping — `kubeapiserver && !kubelet`
-// against {cel, clusterchecks, kubeapiserver, kubelet, orchestrator} — survives
+// against {cel, clusterchecks, kubeapiserver, kubelet} — survives
 // no such growth and still yields nothing.
 func canonicalizedTagSets(expr constraint.Expr, baseTags map[string]bool, configuredTagSets [][]string) [][]string {
 	var out [][]string

@@ -22,6 +22,7 @@ go_library(
         "//pkg/process/checks",
         "//pkg/system-probe/config",
         "//pkg/util/fxutil",
+        "//pkg/util/workloadmeta",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//process",
         "@com_github_fatih_color//:color",
