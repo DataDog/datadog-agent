@@ -72,6 +72,7 @@ var (
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.AmazonLinux2}},
 		{t: testApmInjectMultilib, onlyFlavors: apmInjectMultilibFlavors, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
+		{t: testProcmgrSwitch},
 	}
 )
 

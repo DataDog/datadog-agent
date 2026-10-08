@@ -143,17 +143,17 @@ func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) 
 
 // PreInstallExtension calls the pre-install-extension hook for the package.
 func (h *hooksCLI) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
-	return h.callHook(ctx, false, pkg, "preInstallExtension", h.extensionPackageType(pkg), false, nil, extension)
+	return h.callHook(ctx, false, pkg, "preInstallExtension", resolvePackageType(pkg), false, nil, extension)
 }
 
 // PreRemoveExtension calls the pre-remove-extension hook for the package.
 func (h *hooksCLI) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
-	return h.callHook(ctx, false, pkg, "preRemoveExtension", h.extensionPackageType(pkg), false, nil, extension)
+	return h.callHook(ctx, false, pkg, "preRemoveExtension", resolvePackageType(pkg), false, nil, extension)
 }
 
 // PostInstallExtension calls the post-install-extension hook for the package.
 func (h *hooksCLI) PostInstallExtension(ctx context.Context, pkg string, extension string, isExperiment bool) error {
-	return h.callHook(ctx, isExperiment, pkg, "postInstallExtension", h.extensionPackageType(pkg), false, nil, extension)
+	return h.callHook(ctx, isExperiment, pkg, "postInstallExtension", resolvePackageType(pkg), false, nil, extension)
 }
 
 // PackageType is the type of package.
@@ -212,12 +212,13 @@ func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) str
 	panic(fmt.Sprintf("unknown package type with package: %s, %s", pkgType, pkg))
 }
 
-// extensionPackageType detects whether the agent is OCI- or DEB/RPM-installed by checking
-// the location of the running installer binary. Extension hooks must use this rather than
-// assuming PackageTypeOCI so that the hook receives the correct PackagePath.
+// resolvePackageType detects whether the agent is OCI- or DEB/RPM-installed by checking
+// the location of the running installer binary. Callers that don't already know the
+// PackageType (extension hooks, standalone CLI operations like process-manager) must use this
+// rather than assuming PackageTypeOCI, so they resolve the correct PackagePath.
 // Note: on Windows this always returns PackageTypeOCI (not PackageTypeMSI). PackageTypeMSI
 // is only used for direct hook dispatch from the MSI custom actions, not for CLI-driven hooks.
-func (h *hooksCLI) extensionPackageType(pkg string) PackageType {
+func resolvePackageType(pkg string) PackageType {
 	if pkg != agentPackage {
 		return PackageTypeOCI
 	}
