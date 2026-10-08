@@ -152,6 +152,21 @@ func mustParseLevelRules(t *testing.T, spec string) *LevelRules {
 	return cfg
 }
 
+func TestRulesSync(t *testing.T) {
+	fromLevel := NewRulesSyncFromLevel(WarnLvl)
+	assert.Equal(t, WarnLvl, fromLevel.Load().DefaultLevel())
+	assert.Equal(t, WarnLvl, fromLevel.Load().MinLevel())
+	assert.Equal(t, "", fromLevel.Load().Spec())
+
+	rules, err := ParseLevelRules("error,some/pkg=debug", "github.com/DataDog/datadog-agent")
+	require.NoError(t, err)
+	fromRules := NewRulesSync(rules)
+	assert.Equal(t, "error,some/pkg=debug", fromRules.Load().Spec())
+
+	fromLevel.Store(rules)
+	assert.Equal(t, "error,some/pkg=debug", fromLevel.Load().Spec())
+}
+
 // callerPC returns a PC identifying this function's own call site, the way
 // runtime.Callers would capture it for a log call made directly from a test.
 func callerPC(t *testing.T) uintptr {

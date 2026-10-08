@@ -8,35 +8,40 @@ package handlers
 import (
 	"context"
 	"log/slog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 var _ slog.Handler = (*level)(nil)
 
 // level is a slog handler that filters logs based on a level.
 type level struct {
-	level        slog.Leveler
+	levelRules   *types.RulesSync
 	innerHandler slog.Handler
 }
 
-// NewLevel returns a handler that filters logs based on a level.
-func NewLevel(lvl slog.Leveler, innerHandler slog.Handler) slog.Handler {
-	return &level{level: lvl, innerHandler: innerHandler}
+// NewLevel returns a handler that filters logs based on level rules.
+func NewLevel(levelRules *types.RulesSync, innerHandler slog.Handler) slog.Handler {
+	return &level{levelRules: levelRules, innerHandler: innerHandler}
 }
 
 // Enabled returns true if the handler is enabled for the given level.
 func (h *level) Enabled(_ context.Context, level slog.Level) bool {
-	return h.level.Level() <= level
+	return h.levelRules.Level() <= level
 }
 
 // Handle writes a record to the innerHandler.
 func (h *level) Handle(ctx context.Context, r slog.Record) error {
+	if !h.levelRules.EnabledForPC(r.PC, r.Level) {
+		return nil
+	}
 	return h.innerHandler.Handle(ctx, r)
 }
 
 // WithAttrs returns a new handler with the given attributes.
 func (h *level) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &level{
-		level:        h.level,
+		levelRules:   h.levelRules,
 		innerHandler: h.innerHandler.WithAttrs(attrs),
 	}
 }
@@ -44,7 +49,7 @@ func (h *level) WithAttrs(attrs []slog.Attr) slog.Handler {
 // WithGroup returns a new handler with the given group name.
 func (h *level) WithGroup(name string) slog.Handler {
 	return &level{
-		level:        h.level,
+		levelRules:   h.levelRules,
 		innerHandler: h.innerHandler.WithGroup(name),
 	}
 }

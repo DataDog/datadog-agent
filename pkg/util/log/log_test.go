@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log/slog"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -20,11 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func changeLogLevel(level LogLevel) error {
-	return logger.changeLogLevel(level)
+	return logger.changeLogLevelRules(types.NewLevelRules(level))
 }
 
 func TestBasicLogging(t *testing.T) {
@@ -612,10 +612,7 @@ func TestChangeLogLevel(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("change log level to "+tc.String(), func(t *testing.T) {
-			levelVar := new(slog.LevelVar)
-			levelVar.Set(slog.LevelDebug)
-
-			SetupLoggerWithLevelVar(Default(), levelVar)
+			SetupLoggerWithLevelRules(Default(), types.NewRulesSyncFromLevel(DebugLvl))
 
 			err := ChangeLogLevel(tc)
 			assert.NoError(t, err)
@@ -631,7 +628,7 @@ func TestChangeLogLevel(t *testing.T) {
 func TestChangeLogLevelNilLogger(t *testing.T) {
 	logger.Store(nil)
 
-	err := logger.changeLogLevel(InfoLvl)
+	err := logger.changeLogLevelRules(types.NewLevelRules(InfoLvl))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger not initialized", err.Error())
 }
@@ -640,7 +637,7 @@ func TestChangeLogLevelNilInnerLogger(t *testing.T) {
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
-	err := logger.changeLogLevel(InfoLvl)
+	err := logger.changeLogLevelRules(types.NewLevelRules(InfoLvl))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger is initialized however logger.inner is nil", err.Error())
 }

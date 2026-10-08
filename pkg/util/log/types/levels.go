@@ -6,10 +6,12 @@
 package types
 
 import (
+	"log/slog"
 	"net/url"
 	"runtime"
 	"slices"
 	"strings"
+	"sync/atomic"
 )
 
 // rule assigns a level to a package, and optionally to its subpackages.
@@ -44,7 +46,8 @@ type ruleKey struct {
 // applied to any package not selected by a more specific rule, plus any
 // number of per-package overrides.
 type LevelRules struct {
-	level LogLevel
+	level    LogLevel
+	minLevel LogLevel
 	// rules is sorted most-specific-first: longer prefixes first, and among
 	// rules with an equally long prefix, a non-recursive (exact) rule before
 	// a recursive one, so the first matching rule is always the correct one.
@@ -82,6 +85,11 @@ func newLevelRules(level LogLevel, spec string, rules ...rule) *LevelRules {
 		deduped = append(deduped, r)
 	}
 
+	minLevel := level
+	for _, r := range deduped {
+		minLevel = min(minLevel, r.level)
+	}
+
 	slices.SortStableFunc(deduped, func(a, b rule) int {
 		if len(a.prefix) != len(b.prefix) {
 			if len(a.prefix) > len(b.prefix) {
@@ -98,13 +106,19 @@ func newLevelRules(level LogLevel, spec string, rules ...rule) *LevelRules {
 		return 0
 	})
 
-	return &LevelRules{level: level, rules: deduped, spec: spec}
+	return &LevelRules{level: level, minLevel: minLevel, rules: deduped, spec: spec}
 }
 
 // DefaultLevel returns the level applied to packages that don't match any
 // rule in the configuration.
 func (c *LevelRules) DefaultLevel() LogLevel {
 	return c.level
+}
+
+// MinLevel returns the most permissive level enabled anywhere by this
+// configuration.
+func (c *LevelRules) MinLevel() LogLevel {
+	return c.minLevel
 }
 
 // Spec returns the raw specification string this config was parsed from, or
@@ -131,6 +145,59 @@ func (c *LevelRules) levelForPackage(pkg string) LogLevel {
 		}
 	}
 	return c.level
+}
+
+// RulesSync is a dynamically updatable LevelRules holder, safe for
+// concurrent use. It implements slog.Leveler.
+type RulesSync struct {
+	rules atomic.Pointer[LevelRules]
+}
+
+// NewRulesSync returns a RulesSync initialized with levelRules.
+func NewRulesSync(levelRules *LevelRules) *RulesSync {
+	s := &RulesSync{}
+	s.Store(levelRules)
+	return s
+}
+
+// NewRulesSyncFromLevel returns a RulesSync initialized with a single
+// level applying to all packages. It is a convenience for
+// NewRulesSync(NewLevelRules(level)); the returned holder remains
+// updatable via Store.
+func NewRulesSyncFromLevel(level LogLevel) *RulesSync {
+	return NewRulesSync(NewLevelRules(level))
+}
+
+// Store atomically replaces the current LevelRules.
+func (s *RulesSync) Store(levelRules *LevelRules) {
+	if levelRules == nil {
+		panic("types.RulesSync.Store: nil LevelRules")
+	}
+	s.rules.Store(levelRules)
+}
+
+// Load returns the current LevelRules.
+func (s *RulesSync) Load() *LevelRules {
+	return s.mustLoad()
+}
+
+func (s *RulesSync) mustLoad() *LevelRules {
+	levelRules := s.rules.Load()
+	if levelRules == nil {
+		panic("types.RulesSync: uninitialized")
+	}
+	return levelRules
+}
+
+// Level implements slog.Leveler.
+func (s *RulesSync) Level() slog.Level {
+	return ToSlogLevel(s.mustLoad().MinLevel())
+}
+
+// EnabledForPC reports whether level is enabled for the call site identified
+// by pc, as captured by runtime.Callers.
+func (s *RulesSync) EnabledForPC(pc uintptr, level slog.Level) bool {
+	return ToSlogLevel(s.mustLoad().LevelForPC(pc)) <= level
 }
 
 // packageFromPC resolves the Go import path of the package containing the

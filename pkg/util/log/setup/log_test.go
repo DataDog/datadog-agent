@@ -21,14 +21,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	pkgslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 func BenchmarkSlogParallel(b *testing.B) {
 	b.StopTimer()
 
-	logger, levelVar := initLogger(b)
-	levelVar.Set(slog.LevelDebug)
-	log.SetupLoggerWithLevelVar(logger, levelVar)
+	logger, rulesSync := initLogger(b)
+	rulesSync.Store(types.NewLevelRules(log.DebugLvl))
+	log.SetupLoggerWithLevelRules(logger, rulesSync)
 
 	runLogParallel(b)
 }
@@ -52,27 +53,27 @@ func runLogParallel(b *testing.B) {
 func BenchmarkSlogLogger(b *testing.B) {
 	b.StopTimer()
 
-	logger, levelVar := initLogger(b)
-	levelVar.Set(slog.LevelDebug)
-	log.SetupLoggerWithLevelVar(logger, levelVar)
+	logger, rulesSync := initLogger(b)
+	rulesSync.Store(types.NewLevelRules(log.DebugLvl))
+	log.SetupLoggerWithLevelRules(logger, rulesSync)
 
 	runLog(b)
 }
 
-func initLogger(b *testing.B) (log.LoggerInterface, *slog.LevelVar) {
+func initLogger(b *testing.B) (log.LoggerInterface, *types.RulesSync) {
 	b.Helper()
 	dir := b.TempDir()
 
 	ddCfg := pkgconfigsetup.Datadog()
-	logger, levelVar, err := buildSlogLogger(
-		log.DebugLvl,
+	logger, rulesSync, err := buildSlogLogger(
+		types.NewLevelRules(log.DebugLvl),
 		false,
 		filepath.Join(dir, "test.log"), 1000, 2,
 		"",
 		commonFormatter("TEST", ddCfg), nil,
 	)
 	require.NoError(b, err)
-	return logger, levelVar
+	return logger, rulesSync
 }
 
 func runLog(b *testing.B) {
@@ -146,8 +147,8 @@ func TestBuildSlogLogger_ForwardsErrorRecord(t *testing.T) {
 
 	dir := t.TempDir()
 	ddCfg := pkgconfigsetup.Datadog()
-	logger, levelVar, err := buildSlogLogger(
-		log.DebugLvl,
+	logger, rulesSync, err := buildSlogLogger(
+		types.NewLevelRules(log.DebugLvl),
 		false,
 		filepath.Join(dir, "test.log"), 1000, 2,
 		"",
@@ -155,7 +156,7 @@ func TestBuildSlogLogger_ForwardsErrorRecord(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(logger.Close)
-	levelVar.Set(slog.LevelDebug)
+	rulesSync.Store(types.NewLevelRules(log.DebugLvl))
 
 	wrapper, ok := logger.(*pkgslog.Wrapper)
 	require.True(t, ok, "expected *pkgslog.Wrapper, got %T", logger)
@@ -215,8 +216,8 @@ func TestBuildSlogLogger_HelperStackAndNoMessage(t *testing.T) {
 
 	dir := t.TempDir()
 	ddCfg := pkgconfigsetup.Datadog()
-	logger, levelVar, err := buildSlogLogger(
-		log.DebugLvl,
+	logger, rulesSync, err := buildSlogLogger(
+		types.NewLevelRules(log.DebugLvl),
 		false,
 		filepath.Join(dir, "test.log"), 1000, 2,
 		"",
@@ -224,7 +225,7 @@ func TestBuildSlogLogger_HelperStackAndNoMessage(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(logger.Close)
-	levelVar.Set(slog.LevelDebug)
+	rulesSync.Store(types.NewLevelRules(log.DebugLvl))
 
 	wrapper := logger.(*pkgslog.Wrapper)
 	sl := slog.New(wrapper.Handler())
@@ -249,8 +250,8 @@ func TestBuildSlogLogger_NoForwardingWhenUnregistered(t *testing.T) {
 
 	dir := t.TempDir()
 	ddCfg := pkgconfigsetup.Datadog()
-	logger, levelVar, err := buildSlogLogger(
-		log.DebugLvl,
+	logger, rulesSync, err := buildSlogLogger(
+		types.NewLevelRules(log.DebugLvl),
 		false,
 		filepath.Join(dir, "test.log"), 1000, 2,
 		"",
@@ -258,7 +259,7 @@ func TestBuildSlogLogger_NoForwardingWhenUnregistered(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(logger.Close)
-	levelVar.Set(slog.LevelDebug)
+	rulesSync.Store(types.NewLevelRules(log.DebugLvl))
 
 	wrapper := logger.(*pkgslog.Wrapper)
 	sl := slog.New(wrapper.Handler())

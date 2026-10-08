@@ -8,26 +8,26 @@ package handlers
 import (
 	"context"
 	"log/slog"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 func TestNewLevel(t *testing.T) {
 	inner := newMockInnerHandler()
-	level := slog.LevelInfo
-
-	handler := NewLevel(level, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), inner)
 	require.NotNil(t, handler)
 }
 
 func TestLevelHandlerEnabled(t *testing.T) {
 	inner := newMockInnerHandler()
-	handler := NewLevel(slog.LevelInfo, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), inner)
 
-	// Messages at or above the level should be enabled
 	assert.False(t, handler.Enabled(context.Background(), slog.LevelDebug))
 	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
 	assert.True(t, handler.Enabled(context.Background(), slog.LevelWarn))
@@ -36,9 +36,8 @@ func TestLevelHandlerEnabled(t *testing.T) {
 
 func TestLevelHandlerHandle(t *testing.T) {
 	inner := newMockInnerHandler()
-	handler := NewLevel(slog.LevelInfo, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), inner)
 
-	// Message at the level should be handled
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "info message", 0)
 	err := handler.Handle(context.Background(), record)
 
@@ -49,7 +48,7 @@ func TestLevelHandlerHandle(t *testing.T) {
 
 func TestLevelHandlerMultipleMessages(t *testing.T) {
 	inner := newMockInnerHandler()
-	handler := NewLevel(slog.LevelWarn, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.WarnLvl), inner)
 
 	messages := []struct {
 		level    slog.Level
@@ -62,47 +61,45 @@ func TestLevelHandlerMultipleMessages(t *testing.T) {
 		{slog.LevelError, "error", true},
 	}
 
+	expectedCount := 0
 	for _, m := range messages {
 		record := slog.NewRecord(time.Now(), m.level, m.msg, 0)
 		handler.Handle(context.Background(), record)
+		if m.expected {
+			expectedCount++
+		}
 	}
 
-	assert.Equal(t, len(messages), inner.recordCount())
+	assert.Equal(t, expectedCount, inner.recordCount())
 }
 
 func TestLevelHandlerWithAttrs(t *testing.T) {
 	inner := newMockInnerHandler()
-	handler := NewLevel(slog.LevelInfo, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), inner)
 
-	attrs := []slog.Attr{
-		{Key: "key1", Value: slog.StringValue("value1")},
-	}
-
+	attrs := []slog.Attr{{Key: "key1", Value: slog.StringValue("value1")}}
 	newHandler := handler.WithAttrs(attrs)
 	require.NotNil(t, newHandler)
 
-	// Should still be a level handler
 	assert.True(t, newHandler.Enabled(context.Background(), slog.LevelInfo))
 	assert.False(t, newHandler.Enabled(context.Background(), slog.LevelDebug))
 }
 
 func TestLevelHandlerWithGroup(t *testing.T) {
 	inner := newMockInnerHandler()
-	handler := NewLevel(slog.LevelInfo, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), inner)
 
 	newHandler := handler.WithGroup("testgroup")
 	require.NotNil(t, newHandler)
 
-	// Should still be a level handler
 	assert.True(t, newHandler.Enabled(context.Background(), slog.LevelInfo))
 	assert.False(t, newHandler.Enabled(context.Background(), slog.LevelDebug))
 }
 
 func TestLevelHandlerDebugLevel(t *testing.T) {
 	inner := newMockInnerHandler()
-	handler := NewLevel(slog.LevelDebug, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.DebugLvl), inner)
 
-	// All standard levels should be enabled when debug level is set
 	assert.True(t, handler.Enabled(context.Background(), slog.LevelDebug))
 	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
 	assert.True(t, handler.Enabled(context.Background(), slog.LevelWarn))
@@ -111,49 +108,44 @@ func TestLevelHandlerDebugLevel(t *testing.T) {
 
 func TestLevelHandlerErrorLevel(t *testing.T) {
 	inner := newMockInnerHandler()
-	handler := NewLevel(slog.LevelError, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.ErrorLvl), inner)
 
-	// Only error should be enabled
 	assert.False(t, handler.Enabled(context.Background(), slog.LevelDebug))
 	assert.False(t, handler.Enabled(context.Background(), slog.LevelInfo))
 	assert.False(t, handler.Enabled(context.Background(), slog.LevelWarn))
 	assert.True(t, handler.Enabled(context.Background(), slog.LevelError))
 }
 
-func TestLevelHandlerCustomLevel(t *testing.T) {
+func callerPC(t *testing.T) uintptr {
+	t.Helper()
+	var pcs [1]uintptr
+	n := runtime.Callers(2, pcs[:])
+	require.Equal(t, 1, n)
+	return pcs[0]
+}
+
+func TestLevelHandlerPackageRules(t *testing.T) {
 	inner := newMockInnerHandler()
-	customLevel := slog.Level(5) // Custom level between info and warn
-	handler := NewLevel(customLevel, inner)
+	pc := callerPC(t)
 
-	// Test custom level filtering
-	assert.False(t, handler.Enabled(context.Background(), slog.Level(4)))
-	assert.True(t, handler.Enabled(context.Background(), slog.Level(5)))
-	assert.True(t, handler.Enabled(context.Background(), slog.Level(6)))
-}
+	rules, err := types.ParseLevelRules(
+		"error,github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers/...=debug",
+		"github.com/DataDog/datadog-agent",
+	)
+	require.NoError(t, err)
+	handler := NewLevel(types.NewRulesSync(rules), inner)
 
-type customLeveler struct {
-	level slog.Level
-}
+	record := slog.NewRecord(time.Now(), slog.LevelDebug, "debug message", pc)
+	err = handler.Handle(context.Background(), record)
 
-func (c customLeveler) Level() slog.Level {
-	return c.level
-}
-
-func TestLevelHandlerWithCustomLeveler(t *testing.T) {
-	inner := newMockInnerHandler()
-	leveler := customLeveler{level: slog.LevelWarn}
-	handler := NewLevel(leveler, inner)
-
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelInfo))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelWarn))
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelError))
+	require.NoError(t, err)
+	assert.Equal(t, 1, inner.recordCount())
 }
 
 func TestLevelHandlerChaining(t *testing.T) {
 	inner := newMockInnerHandler()
-	handler := NewLevel(slog.LevelInfo, inner)
+	handler := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), inner)
 
-	// Chain multiple operations
 	handler = handler.WithAttrs([]slog.Attr{{Key: "attr1", Value: slog.StringValue("value1")}})
 	handler = handler.WithGroup("group1")
 
