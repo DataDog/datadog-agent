@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -74,44 +73,37 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if len(violations) == 0 {
 		return nil, nil
 	}
-	ctx := BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violations)
-	return []runnerdef.IssueReport{{
-		IssueID:   c.instanceIssueID(),
-		IssueName: IssueName,
-		Source:    "agent",
-		Context:   ctx,
-	}}, nil
+	reports := make([]runnerdef.IssueReport, 0, len(violations))
+	for _, violation := range violations {
+		reports = append(reports, runnerdef.IssueReport{
+			IssueID:   c.instanceIssueID(violation),
+			IssueName: IssueName,
+			Source:    "agent",
+			Context:   BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violation),
+		})
+	}
+	return reports, nil
 }
 
 // BuildContext builds issue details from scrubbed paths, types, and registered defaults.
-func BuildContext(cfg model.Reader, configPath string, violations []schema.Violation) map[string]string {
+func BuildContext(cfg model.Reader, configPath string, violation schema.Violation) map[string]string {
+	path := scrubViolationPath(violation.Path)
 	ctx := map[string]string{
-		contextKeyConfigPath: configPath,
-		contextKeyErrorCount: strconv.Itoa(len(violations)),
+		contextKeyConfigPath:  configPath,
+		contextKeySettingPath: path,
 	}
-	payloads := make([]violationPayload, 0, len(violations))
-	for i, violation := range violations {
-		path := scrubViolationPath(violation.Path)
-		// Raw validator messages can expose configured values or credentials in paths.
-		// Build messages from scrubbed paths and type names instead.
-		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
-		if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
-			continue
-		}
-		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
-		defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
-		payloads = append(payloads, violationPayload{
-			Path:          path,
-			ActualType:    violation.ActualType,
-			ExpectedTypes: violation.ExpectedTypes,
-			DefaultStatus: defaultStatus,
-			DefaultValue:  defaultValue,
-		})
+	// Raw validator messages can expose configured values or credentials in paths.
+	// Send only the scrubbed path, type names, and registered default.
+	if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
+		return ctx
 	}
-	if len(payloads) == len(violations) {
-		if encoded, err := json.Marshal(payloads); err == nil {
-			ctx[contextKeyViolations] = string(encoded)
-		}
+	defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
+	payload := violationPayload{
+		Path: path, ActualType: violation.ActualType, ExpectedTypes: violation.ExpectedTypes,
+		DefaultStatus: defaultStatus, DefaultValue: defaultValue,
+	}
+	if encoded, err := json.Marshal(payload); err == nil {
+		ctx[contextKeyViolation] = string(encoded)
 	}
 	return ctx
 }
@@ -185,30 +177,12 @@ func resolveDefault(cfg model.Reader, pointerPath string) (string, any) {
 	return "none", nil
 }
 
-// instanceIssueID scopes IssueID to this agent's discriminator and config
-// file. Without this, two hosts in the same org validating the same config
-// file (or, on one host, the agent and cluster-agent validating their own
-// distinct config files) would all report the bare IssueID: downstream
-// aggregation keys recommendations on (org, IssueID) alone and would collapse
-// them into a single case.
-//
-// The discriminator is this agent's owning DaemonSet uid when resolvable
-// (issues.IssueDiscriminator), so that a config file distributed by that
-// DaemonSet to every node agent collapses into one case instead of one per
-// host — a deliberate inversion of the default per-host scoping, since the
-// underlying cause and fix are shared across the whole DaemonSet. It falls
-// back to the hostname on non-Kubernetes agents, preserving today's per-host
-// behavior there.
-//
-// Uses a 64-bit digest rather than 32-bit: at 32 bits, an org with ~10k
-// distinct discriminator/config-path pairs would already have a ~1% chance
-// of two of them colliding (birthday bound), silently recreating the exact
-// aggregation bug this ID scoping exists to fix. At 64 bits that probability
-// is ~2.7e-12 at the same fleet size — negligible at any realistic scale.
-func (c *checker) instanceIssueID() string {
+// Keep a problem's ID stable when its value or wording changes. The DaemonSet
+// discriminator groups a shared configuration; otherwise IDs are scoped to the host.
+func (c *checker) instanceIssueID(violation schema.Violation) string {
 	h := fnv.New64a()
 	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
-	fmt.Fprintf(h, "%s\x00%s", discriminator, c.cfg.ConfigFileUsed())
+	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s", discriminator, c.cfg.ConfigFileUsed(), violation.Path, violation.Keyword)
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
