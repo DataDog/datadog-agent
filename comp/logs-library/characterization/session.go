@@ -216,7 +216,7 @@ func (m *Manager) Record(observation MessageObservation) {
 	key := groupKey{sourceType: normalizeSourceType(observation.SourceType), pipeline: observation.Pipeline}
 	group := s.groups[key]
 	if group == nil {
-		if len(s.groups) >= maxGroups {
+		if len(s.groups) >= maxGroups-1 {
 			s.snapshot.GroupLimitReached = true
 			key = groupKey{sourceType: "other", pipeline: "other"}
 		}

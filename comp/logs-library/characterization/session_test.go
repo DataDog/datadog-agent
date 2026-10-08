@@ -7,6 +7,7 @@ package characterization
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -136,6 +137,16 @@ func TestRepeatedSessionsHaveIndependentState(t *testing.T) {
 	require.Equal(t, uint64(1), secondResult.Totals.SourceCount)
 	require.NotContains(t, secondResult.PayloadFamilies, "plain")
 	require.Equal(t, uint64(1), secondResult.PayloadFamilies["json"].Events)
+
+	now = now.Add(time.Minute)
+	third, err := manager.Start(time.Minute)
+	require.NoError(t, err)
+	thirdResult, err := manager.Stop(third.SessionID)
+	require.NoError(t, err)
+	require.Zero(t, thirdResult.Totals.Events)
+	require.Zero(t, thirdResult.Totals.SourceCount)
+	require.Empty(t, thirdResult.Groups)
+	require.Empty(t, thirdResult.RateWindows)
 }
 
 func TestDurationIsBounded(t *testing.T) {
@@ -164,4 +175,31 @@ func TestEarlyStopClipsMaterializedRateWindow(t *testing.T) {
 	require.Equal(t, now, result.EndedAt)
 	require.Len(t, result.RateWindows, 1)
 	require.Equal(t, now, result.RateWindows[0].EndsAt)
+}
+
+func TestSessionCardinalityAndGroupsAreBounded(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	manager := NewManager()
+	manager.now = func() time.Time { return now }
+	started, err := manager.Start(time.Minute)
+	require.NoError(t, err)
+
+	for index := 0; index < MaxSources+1; index++ {
+		manager.Record(MessageObservation{
+			ObservedAt: now, SourceType: "file", Pipeline: "sources",
+			HasSourceID: true, SourceHash: uint64(index + 1),
+		})
+	}
+	for index := 0; index < maxGroups+10; index++ {
+		manager.Record(MessageObservation{
+			ObservedAt: now, SourceType: "file", Pipeline: fmt.Sprintf("pipeline-%d", index),
+		})
+	}
+
+	result, err := manager.Stop(started.SessionID)
+	require.NoError(t, err)
+	require.Equal(t, uint64(MaxSources), result.Totals.SourceCount)
+	require.True(t, result.SourceCardinalityCapped)
+	require.True(t, result.GroupLimitReached)
+	require.Len(t, result.Groups, maxGroups)
 }

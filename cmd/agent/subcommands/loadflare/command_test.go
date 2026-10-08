@@ -381,3 +381,70 @@ func TestInferFamilySizeStreamsPreservesMixedJSONShapes(t *testing.T) {
 	require.Equal(t, uint64(4), sources)
 	require.InDelta(t, 0.5, fraction, 0.0001)
 }
+
+func TestInferLinearRateProfileRejectsUnsupportedShapes(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	for name, rates := range map[string][]uint64{
+		"falling": {700000, 600000, 500000, 400000, 300000, 200000},
+		"step":    {100000, 100000, 100000, 900000, 900000, 900000},
+		"plateau": {100000, 300000, 500000, 500000, 500000, 500000},
+	} {
+		t.Run(name, func(t *testing.T) {
+			windows := make([]characterization.RateWindow, 0, len(rates))
+			for index, rate := range rates {
+				windowStart := start.Add(time.Duration(index*10) * time.Second)
+				windows = append(windows, characterization.RateWindow{
+					StartedAt: windowStart, EndsAt: windowStart.Add(10 * time.Second), RawBytes: rate * 10,
+				})
+			}
+			_, ok := inferLinearRateProfile(windows, start, 60)
+			require.False(t, ok)
+		})
+	}
+}
+
+func TestInferLadingReportsEmptySessionAsUnsupported(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	lading, report := inferLading(characterization.Snapshot{
+		SessionID: "idle", StartedAt: start, EndedAt: start.Add(time.Minute), RequestedDurationSeconds: 60,
+	})
+	require.Empty(t, lading)
+	require.Equal(t, "unsupported", report["candidate"].(map[string]any)["status"])
+	require.Equal(t, "not_observed", report["lifecycle_representation"].(map[string]any)["status"])
+	require.Contains(t, fmt.Sprint(report["representability"].(map[string]any)["warnings"]), "No file-source ingress")
+}
+
+func TestInferLadingMarksMixedFileAndNonFileIngressPartial(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	snapshot := characterization.Snapshot{
+		SessionID: "mixed-inputs", StartedAt: start, EndedAt: start.Add(10 * time.Second), RequestedDurationSeconds: 10,
+		Groups: []characterization.Group{
+			{SourceType: "file", Pipeline: "0", Aggregate: characterization.Aggregate{Events: 100, RawBytes: 100000, SourceCount: 1}},
+			{SourceType: "tcp", Pipeline: "0", Aggregate: characterization.Aggregate{Events: 50, RawBytes: 50000, SourceCount: 1}},
+		},
+		FilePayloadFamilies: map[string]characterization.Aggregate{"apache_common": {Events: 100, RawBytes: 100000}},
+		RateWindows:         []characterization.RateWindow{{FileSourceCount: 1}},
+	}
+	lading, report := inferLading(snapshot)
+	require.NotEmpty(t, lading)
+	require.Equal(t, "partial", report["candidate"].(map[string]any)["status"])
+	require.Contains(t, fmt.Sprint(report["representability"].(map[string]any)["warnings"]), "Non-file ingress")
+}
+
+func TestInferLadingCapsCandidateSourceCount(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	snapshot := characterization.Snapshot{
+		SessionID: "many-sources", StartedAt: start, EndedAt: start.Add(10 * time.Second), RequestedDurationSeconds: 10,
+		Groups: []characterization.Group{{
+			SourceType: "file", Pipeline: "0",
+			Aggregate: characterization.Aggregate{Events: 1000, RawBytes: 640000, SourceCount: 100},
+		}},
+		FilePayloadFamilies: map[string]characterization.Aggregate{"apache_common": {Events: 1000, RawBytes: 640000}},
+		RateWindows:         []characterization.RateWindow{{FileSourceCount: 100}},
+	}
+	lading, report := inferLading(snapshot)
+	require.Contains(t, string(lading), "duplicates: 64")
+	require.Equal(t, uint64(64), report["inferred_source_count"])
+	require.Equal(t, "partial", report["candidate"].(map[string]any)["status"])
+	require.Contains(t, fmt.Sprint(report["representability"].(map[string]any)["warnings"]), "capped at 64")
+}
