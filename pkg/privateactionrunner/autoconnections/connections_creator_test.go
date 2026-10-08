@@ -81,6 +81,46 @@ func TestScriptAutoConnectionCredentialFileAllowed(t *testing.T) {
 	}
 }
 
+func TestAutoCreateConnections_ScriptCredentialFileRoots(t *testing.T) {
+	tests := []struct {
+		name       string
+		roots      []string
+		wantScript bool
+	}{
+		{name: "packaged directory allowed", roots: []string{getPrivateActionRunnerDir()}, wantScript: true},
+		{name: "different directory", roots: []string{t.TempDir()}},
+		{name: "deny all", roots: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var createdConnections []string
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				createdConnections = append(createdConnections, string(body))
+				w.WriteHeader(http.StatusCreated)
+				w.Write([]byte(`{"data": {"id": "conn-123"}}`))
+			}))
+			defer server.Close()
+			testClient := newTestClient(server.URL)
+			testClient.httpClient = server.Client()
+			creator := NewConnectionsCreator(*testClient, &mockTagsProvider{}, tt.roots)
+			actionsAllowlist := []string{"com.datadoghq.kubernetes.core.getPods", "com.datadoghq.script.runPredefinedScipt"}
+
+			err := creator.AutoCreateConnections(context.Background(), "runner-id", &enrollment.Result{RunnerName: "runner-abc123"}, actionsAllowlist)
+
+			require.NoError(t, err)
+			allBodies := strings.Join(createdConnections, " ")
+			assert.Contains(t, allBodies, `"name":"Kubernetes (runner-abc123)"`)
+			if tt.wantScript {
+				assert.Contains(t, allBodies, `"name":"Script (runner-abc123)"`)
+			} else {
+				assert.NotContains(t, allBodies, `"name":"Script (runner-abc123)"`)
+			}
+		})
+	}
+}
+
 func TestCreateConnection_StatusCodeHandling(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -169,7 +209,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 
 	provider := &mockTagsProvider{}
 
-	creator := NewConnectionsCreator(*testClient, provider)
+	creator := NewConnectionsCreator(*testClient, provider, []string{getPrivateActionRunnerDir()})
 
 	enrollmentResult := &enrollment.Result{
 		RunnerName: "runner-abc123",
@@ -218,7 +258,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 
 	provider := &mockTagsProvider{}
 
-	creator := NewConnectionsCreator(*testClient, provider)
+	creator := NewConnectionsCreator(*testClient, provider, []string{getPrivateActionRunnerDir()})
 
 	enrollmentResult := &enrollment.Result{
 		RunnerName: "runner-abc123",
@@ -253,7 +293,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 
 	provider := &mockTagsProvider{}
 
-	creator := NewConnectionsCreator(*testClient, provider)
+	creator := NewConnectionsCreator(*testClient, provider, []string{getPrivateActionRunnerDir()})
 
 	enrollmentResult := &enrollment.Result{
 		RunnerName: "runner-abc123",
@@ -288,7 +328,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 
 	provider := &mockTagsProvider{}
 
-	creator := NewConnectionsCreator(*testClient, provider)
+	creator := NewConnectionsCreator(*testClient, provider, []string{getPrivateActionRunnerDir()})
 
 	enrollmentResult := &enrollment.Result{
 		RunnerName: "runner-abc123",

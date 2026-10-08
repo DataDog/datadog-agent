@@ -17,14 +17,16 @@ import (
 )
 
 type ConnectionsCreator struct {
-	client   ConnectionsClient
-	provider TagsProvider
+	client                           ConnectionsClient
+	provider                         TagsProvider
+	scriptCredentialFileAllowedRoots []string
 }
 
-func NewConnectionsCreator(client ConnectionsClient, provider TagsProvider) ConnectionsCreator {
+func NewConnectionsCreator(client ConnectionsClient, provider TagsProvider, scriptCredentialFileAllowedRoots []string) ConnectionsCreator {
 	return ConnectionsCreator{
-		client:   client,
-		provider: provider,
+		client:                           client,
+		provider:                         provider,
+		scriptCredentialFileAllowedRoots: scriptCredentialFileAllowedRoots,
 	}
 }
 
@@ -51,17 +53,12 @@ func CreateConnectionsIfEnabled(
 	if len(actionsAllowlist) == 0 {
 		return
 	}
-	if actionsAllowlistContainsBundle(actionsAllowlist, supportedConnections["script"].FQNPrefix) && !scriptAutoConnectionCredentialFileAllowed(parCfg.ScriptCredentialFileAllowedRoots) {
-		log.Warnf("Automatic Script connection creation uses a credential file outside %s; add %s to the configured roots to allow it",
-			par.ScriptCredentialFileAllowedRoots, getPrivateActionRunnerDir())
-	}
-
 	client, err := NewConnectionsAPIClient(cfg, parCfg.DatadogSite, apiKey, appKey)
 	if err != nil {
 		log.Warnf("Failed to create connections API client: %v", err)
 		return
 	}
-	creator := NewConnectionsCreator(*client, tagsProvider)
+	creator := NewConnectionsCreator(*client, tagsProvider, parCfg.ScriptCredentialFileAllowedRoots)
 	if err := creator.AutoCreateConnections(ctx, runnerID, enrollmentResult, actionsAllowlist); err != nil {
 		log.Warnf("Failed to auto-create connections: %v", err)
 	}
@@ -88,6 +85,11 @@ func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID 
 	tags := c.provider.GetTags(ctx, runnerID, enrollmentResult.Hostname)
 
 	for _, definition := range definitions {
+		if definition.FQNPrefix == supportedConnections["script"].FQNPrefix && !scriptAutoConnectionCredentialFileAllowed(c.scriptCredentialFileAllowedRoots) {
+			log.Warnf("Skipping automatic Script connection creation: its credential file is outside %s; add %s to the configured roots to allow it",
+				par.ScriptCredentialFileAllowedRoots, getPrivateActionRunnerDir())
+			continue
+		}
 		err := c.client.CreateConnection(ctx, definition, runnerID, enrollmentResult.RunnerName, tags)
 		if err != nil {
 			log.Warnf("Failed to create %s connection: %v", definition.IntegrationType, err)
