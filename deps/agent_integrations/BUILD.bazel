@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
@@ -72,14 +73,28 @@ filegroup(
     tags = ["manual"],
 )
 
+copy_to_directory(
+    name = "integrations_site_packages_win",
+    srcs = [":integrations_runtime"],
+    root_paths = ["deps/agent_integrations/integrations_runtime/Lib/site-packages"],
+    tags = ["manual"],
+)
+
 pkg_files(
     name = "integrations_runtime_files",
-    srcs = [":integrations_runtime"],
+    srcs = select({
+        "@platforms//os:windows": [":integrations_site_packages_win"],
+        "//conditions:default": [":integrations_runtime"],
+    }),
     attributes = pkg_attributes(mode = "0644"),
-    prefix = embedded_dir,
-    renames = {
-        ":integrations_runtime": REMOVE_BASE_DIRECTORY,
-    },
+    prefix = select({
+        "@platforms//os:windows": "embedded3/Lib/site-packages",
+        "//conditions:default": "embedded",
+    }),
+    renames = select({
+        "@platforms//os:windows": {":integrations_site_packages_win": REMOVE_BASE_DIRECTORY},
+        "//conditions:default": {":integrations_runtime": REMOVE_BASE_DIRECTORY},
+    }),
     tags = ["manual"],
 )
 
@@ -116,8 +131,8 @@ package_licenses(
     src = "@integration_source_packages//:all_wheels",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":integration_configuration_files",
         ":integrations_bin_files",
@@ -125,5 +140,12 @@ pkg_install(
         ":license_files",
         ":requirements_agent_release_file",
     ],
+    tags = ["manual"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
     tags = ["manual"],
 )

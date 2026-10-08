@@ -1,6 +1,8 @@
 """Agent package components specific to Windows."""
 
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
+load("//bazel/toolchains/hermetic_llvm:windows_gnu.bzl", "windows_gnu_filegroup")
 load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
 
 package(default_visibility = ["//packages:__subpackages__"])
@@ -34,4 +36,67 @@ healthcheck_gate(
         "@platforms//os:windows": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
+)
+
+pkg_files(
+    name = "license",
+    srcs = ["//:LICENSE"],
+)
+
+pkg_files(
+    name = "python_scripts",
+    srcs = [
+        "//omnibus:python-scripts/packages.py",
+        "//omnibus:python-scripts/post.py",
+        "//omnibus:python-scripts/pre.py",
+    ],
+    prefix = "python-scripts",
+)
+
+pkg_files(
+    name = "windows_scripts",
+    srcs = [
+        "//omnibus:windows-scripts/host-instrumentation.bat",
+        "//omnibus:windows-scripts/iis-instrumentation.bat",
+    ],
+    prefix = "bin/scripts",
+)
+
+pkg_filegroup(
+    name = "msi_payload_agent",
+    srcs = [
+        ":everything",
+        ":license",
+        ":python_scripts",
+        ":windows_scripts",
+        "//deps/agent_integrations:all_files",
+        "@cpython//:all_files",
+    ],
+    prefix = "datadog-agent",
+    tags = ["manual"],
+)
+
+pkg_files(
+    name = "msi_payload_installer",
+    srcs = ["//cmd/installer"],
+    prefix = "datadog-installer",
+    renames = {"//cmd/installer": "datadog-installer.exe"},
+    tags = ["manual"],
+)
+
+pkg_zip(
+    name = "msi_payload",
+    srcs = [
+        ":msi_payload_agent",
+        ":msi_payload_installer",
+    ],
+    out = "msi-payload.zip",
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+windows_gnu_filegroup(
+    name = "msi_payload_windows",
+    srcs = [":msi_payload"],
+    tags = ["manual"],
 )
