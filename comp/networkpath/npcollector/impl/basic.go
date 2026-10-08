@@ -121,20 +121,19 @@ func (selector *basicSelector) worstCandidateLocked() basicCandidate {
 	return worst
 }
 
-// flush returns the current winners only after the active window has closed,
-// and reports whether a window closed.
-func (selector *basicSelector) flush(now time.Time) ([]common.Pathtest, bool) {
+// flush returns the current winners only after the active window has closed.
+func (selector *basicSelector) flush(now time.Time) []common.Pathtest {
 	selector.mu.Lock()
 	defer selector.mu.Unlock()
 
 	selector.startLocked(now)
 	if now.Before(selector.deadline) {
-		return nil, false
+		return nil
 	}
 	if len(selector.candidates) == 0 {
 		// Don't consume the hourly interval on an empty window: retry soon.
 		selector.deadline = now.Add(basicBootstrapWindow)
-		return nil, true
+		return nil
 	}
 
 	candidates := make([]basicCandidate, 0, len(selector.candidates))
@@ -156,7 +155,7 @@ func (selector *basicSelector) flush(now time.Time) ([]common.Pathtest, bool) {
 	clear(selector.candidates)
 	// Start a fresh window from this flush; missed windows are not replayed.
 	selector.deadline = now.Add(basicSelectionInterval)
-	return paths, true
+	return paths
 }
 
 func saturatingAdd(left, right uint64) uint64 {

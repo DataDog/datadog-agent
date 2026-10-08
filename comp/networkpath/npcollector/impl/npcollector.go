@@ -368,16 +368,7 @@ func (s *npCollectorImpl) flushBasicPaths(now time.Time) {
 	if s.basicSelector == nil {
 		return
 	}
-	paths, closed := s.basicSelector.flush(now)
-	if !closed {
-		return
-	}
-	result := "result:selected"
-	if len(paths) == 0 {
-		result = "result:empty"
-	}
-	_ = s.statsdClient.Incr(common.NetworkPathCollectorMetricPrefix+"basic.window_closed", []string{result}, 1)
-	for _, path := range paths {
+	for _, path := range s.basicSelector.flush(now) {
 		if err := s.scheduleOne(&path); err != nil {
 			s.logger.Errorf("Error scheduling basic pathtest: %s", err)
 		}
