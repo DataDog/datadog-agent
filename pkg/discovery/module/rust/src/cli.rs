@@ -33,9 +33,6 @@ pub struct Args {
     /// PID file path (--pid, optional)
     pub pid_path: Option<PathBuf>,
 
-    /// Serve the privileged logs endpoint (--privileged-logs)
-    pub privileged_logs: bool,
-
     /// Unknown arguments encountered during parsing (logged after logger init).
     pub unknown_args: Vec<String>,
 }
@@ -58,7 +55,6 @@ impl Args {
         let mut log_level = None;
         let mut log_file = None;
         let mut pid_path = None;
-        let mut privileged_logs = false;
         let mut unknown_args = Vec::new();
 
         while let Some(arg) = iter.next() {
@@ -86,10 +82,6 @@ impl Args {
                 }
                 continue;
             }
-            if arg == "--privileged-logs" {
-                privileged_logs = true;
-                continue;
-            }
             // Collect rather than error so that newer helm charts that pass
             // newly-added flags don't break older agents on upgrade.
             // Warnings are logged after the logger is initialized.
@@ -106,7 +98,6 @@ impl Args {
             log_level,
             log_file,
             pid_path,
-            privileged_logs,
             unknown_args,
         })
     }

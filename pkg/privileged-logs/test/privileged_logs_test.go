@@ -104,14 +104,13 @@ func assertOpenPrivilegedError(t *testing.T, socketPath, filePath, expectedError
 
 type PrivilegedLogsSuite struct {
 	suite.Suite
-	setup            func(*testing.T, func()) *Handler
 	handler          *Handler
 	searchableTmpDir string
 	tempDir          string
 }
 
 func (s *PrivilegedLogsSuite) SetupSuite() {
-	s.handler = s.setup(s.T(), func() {
+	s.handler = Setup(s.T(), func() {
 		s.searchableTmpDir = s.T().TempDir()
 
 		unsearchableDir := filepath.Join(s.searchableTmpDir, "unsearchable")
@@ -267,8 +266,7 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackError() {
 }
 
 func TestPrivilegedLogsSuite(t *testing.T) {
-	t.Run("system-probe", func(t *testing.T) { suite.Run(t, &PrivilegedLogsSuite{setup: Setup}) })
-	t.Run("system-probe-lite", func(t *testing.T) { suite.Run(t, &PrivilegedLogsSuite{setup: SetupSPLite}) })
+	suite.Run(t, new(PrivilegedLogsSuite))
 }
 
 func TestPrivilegedLogsModule_Close(t *testing.T) {
