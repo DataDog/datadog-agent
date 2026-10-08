@@ -36,10 +36,10 @@ import (
 // task finished, was cancelled or expired). A task the agent cannot run fails immediately: the agent
 // sends a task-level do-query-results error event and reports RC apply state ERROR.
 //
-// Tasks against the same database run one at a time, so a burst of tasks never opens a connection
-// each to it. A task waits, with RC apply state UNACKNOWLEDGED, until the task before it is done:
-// its check has completed its run, or its config has left the snapshot. Waiting tasks start oldest
-// first.
+// Tasks against the same database run at most data_observability.task_concurrency at a time (1 by
+// default), so a burst of tasks never opens a connection each to it. A task past the limit waits,
+// with RC apply state UNACKNOWLEDGED, until a running task is done: its check has completed its run,
+// or its config has left the snapshot. Waiting tasks start oldest first.
 
 // taskConfigIDPattern matches the RC config IDs of one-off tasks: do-<platform>-once-<task_id>.
 var taskConfigIDPattern = regexp.MustCompile(`^do-[a-z]+-once-`)
@@ -86,14 +86,18 @@ var errTaskUnsupportedPlatform = errors.New("one-off tasks are only supported fo
 type taskPhase int
 
 const (
-	// taskQueued: waiting for the task before it against the same database to be done.
+	// taskQueued: waiting for a running task against the same database to be done.
 	taskQueued taskPhase = iota
 	// taskRunning: its check is scheduled and has not completed its run yet.
 	taskRunning
 	// taskDone: its check has completed its run. It stays scheduled until the config leaves the
-	// snapshot, but no longer holds back the next task for its database.
+	// snapshot, but no longer counts against its database's concurrency.
 	taskDone
 )
+
+// defaultTaskConcurrency is how many tasks run at once against a database whose instance doesn't
+// set data_observability.task_concurrency.
+const defaultTaskConcurrency = 1
 
 // trackedTask is a task config seen in an RC snapshot. checkConfig is nil when the task failed
 // before a check was scheduled.
@@ -103,7 +107,10 @@ type trackedTask struct {
 	checkConfig *integration.Config
 	phase       taskPhase
 	// databaseKey identifies the database the task runs against; see taskDatabaseKey.
-	databaseKey     string
+	databaseKey string
+	// concurrency is how many tasks may run at once against databaseKey, read from the matched
+	// instance when the task arrived.
+	concurrency     int
 	payload         *DOTaskPayload
 	integrationName string
 }
@@ -193,11 +200,11 @@ func (c *component) onTaskUpdate(updates map[string]taskConfigUpdate, applyStatu
 	return changes
 }
 
-// startQueuedTasks starts, for every database with no running task, its oldest queued task, and
-// returns the tasks it started or failed. A queued task that expired while waiting fails with an
-// "expired" event instead. Callers hold tasksMu.
+// startQueuedTasks starts, oldest first, the queued tasks whose database has fewer running tasks
+// than its concurrency, and returns the tasks it started or failed. A queued task that expired while
+// waiting fails with an "expired" event instead. Callers hold tasksMu.
 func (c *component) startQueuedTasks(changes *integration.ConfigChanges) []*trackedTask {
-	busy := make(map[string]bool)
+	running := make(map[string]int)
 	queued := make([]string, 0)
 	for configID, tracked := range c.tasks {
 		if tracked.checkConfig == nil {
@@ -205,7 +212,7 @@ func (c *component) startQueuedTasks(changes *integration.ConfigChanges) []*trac
 		}
 		switch tracked.phase {
 		case taskRunning:
-			busy[tracked.databaseKey] = true
+			running[tracked.databaseKey]++
 		case taskQueued:
 			queued = append(queued, configID)
 		}
@@ -221,7 +228,7 @@ func (c *component) startQueuedTasks(changes *integration.ConfigChanges) []*trac
 	var updated []*trackedTask
 	for _, configID := range queued {
 		tracked := c.tasks[configID]
-		if busy[tracked.databaseKey] {
+		if running[tracked.databaseKey] >= tracked.concurrency {
 			continue
 		}
 		updated = append(updated, tracked)
@@ -235,7 +242,7 @@ func (c *component) startQueuedTasks(changes *integration.ConfigChanges) []*trac
 			c.tasks[configID] = failed
 			continue
 		}
-		busy[tracked.databaseKey] = true
+		running[tracked.databaseKey]++
 		tracked.phase = taskRunning
 		tracked.status = state.ApplyStatus{State: state.ApplyStateAcknowledged}
 		changes.Schedule = append(changes.Schedule, *tracked.checkConfig)
@@ -363,6 +370,7 @@ func (c *component) startTask(configID string, raw state.RawConfig) *trackedTask
 		checkConfig:     &checkConfig,
 		phase:           taskQueued,
 		databaseKey:     taskDatabaseKey(baseCfg.Name, instance),
+		concurrency:     c.taskConcurrency(configID, instance),
 		payload:         &payload,
 		integrationName: integrationName,
 	}
@@ -377,6 +385,21 @@ func taskDatabaseKey(integrationName string, instance map[string]any) string {
 		fmt.Fprintf(hash, "\x00%s=%v", key, instance[key])
 	}
 	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// taskConcurrency returns the matched instance's data_observability.task_concurrency. A value that
+// isn't a positive integer falls back to the default, with a warning, rather than failing the task.
+func (c *component) taskConcurrency(configID string, instance map[string]any) int {
+	doSection, _ := instance["data_observability"].(map[string]any)
+	value, ok := doSection["task_concurrency"]
+	if !ok {
+		return defaultTaskConcurrency
+	}
+	if concurrency, ok := value.(int); ok && concurrency > 0 {
+		return concurrency
+	}
+	c.log.Warnf("Ignoring data_observability.task_concurrency %v for task config %s: not a positive integer, running with %d", value, configID, defaultTaskConcurrency)
+	return defaultTaskConcurrency
 }
 
 func failedTask(err error) *trackedTask {
