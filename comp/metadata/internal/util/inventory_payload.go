@@ -97,7 +97,8 @@ type PayloadGetter func() marshaler.JSONMarshaler
 // instance_config) must pre-scrub those strings with scrubber.ScrubYamlString before storing them,
 // because ScrubJSON operates on JSON key names and cannot reach inside opaque string values.
 type InventoryPayload struct {
-	m sync.Mutex
+	m        sync.Mutex
+	notReady bool // Protected by m; the zero value preserves default-ready behavior.
 
 	conf          config.Component
 	log           log.Component
@@ -191,6 +192,9 @@ func (i *InventoryPayload) MetadataProvider() runnerdef.Provider {
 func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	i.m.Lock()
 	defer i.m.Unlock()
+	if i.notReady {
+		return i.MinInterval
+	}
 	if i.serializer == nil {
 		i.log.Tracef("serializer is nil, skipping submission")
 		return i.MinInterval
@@ -226,6 +230,16 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	return i.MinInterval
 }
 
+// SetReady controls payload generation without changing whether inventory is enabled.
+// Closing waits for any in-flight generation and enqueue to finish. Callers must
+// serialize metadata updates between closing and reopening, and must not hold
+// metadata or UUID locks when calling SetReady or Submit.
+func (i *InventoryPayload) SetReady(ready bool) {
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.notReady = !ready
+}
+
 // Submit synchronously builds a payload and enqueues it for submission now,
 // ignoring the first-run delay and the min/max interval gating that collect()
 // applies. It is the mechanism behind the immediate-on-start-submission
@@ -233,11 +247,11 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 // race to order around and may exit before the runner goroutine fires, so it
 // enqueues the first payload directly. SendMetadata only enqueues a
 // transaction (the HTTP POST is async and drained at shutdown), so this does
-// not block the caller.
+// not wait for delivery. Nothing is built or enqueued while not ready.
 func (i *InventoryPayload) Submit() {
 	i.m.Lock()
 	defer i.m.Unlock()
-	if !i.Enabled {
+	if !i.Enabled || i.notReady {
 		return
 	}
 	if i.serializer == nil {
@@ -285,6 +299,9 @@ func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 
 	i.m.Lock()
 	defer i.m.Unlock()
+	if i.notReady {
+		return nil, errors.New("inventory metadata is not ready")
+	}
 
 	return json.MarshalIndent(i.getPayload(), "", "  ")
 }
