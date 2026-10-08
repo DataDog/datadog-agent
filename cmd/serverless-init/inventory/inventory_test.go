@@ -328,7 +328,7 @@ func TestInjectOmitsDeprecatedDeploymentID(t *testing.T) {
 func TestNewCapabilitiesReportsOneUUIDForProcessLifetime(t *testing.T) {
 	caps := NewCapabilities()
 
-	assert.True(t, caps.SkipCrossProcessEnrichment)
+	assert.True(t, caps.SkipFullAgentMetadataRefresh)
 	assert.NotEmpty(t, caps.PayloadUUID())
 	assert.Equal(t, caps.PayloadUUID(), caps.PayloadUUID())
 }

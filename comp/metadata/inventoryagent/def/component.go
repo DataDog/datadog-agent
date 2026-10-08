@@ -29,12 +29,13 @@ type Component interface {
 // for its divergence so the zero value (no Capabilities supplied) is exactly
 // full-agent behavior.
 type Capabilities struct {
-	// SkipCrossProcessEnrichment turns off the payload-enrichment tier that
-	// fetches configuration from the other agent processes (security/process/
-	// trace/system-probe) over IPC/localhost. An environment where those
-	// processes do not run sets it true, since the fetches would only fail and
-	// risk dereferencing a nil IPC client.
-	SkipCrossProcessEnrichment bool
+	// SkipFullAgentMetadataRefresh skips all per-payload refreshMetadata collectors:
+	// core, security, process, trace, system-probe, Fleet, and application monitoring.
+	// This includes local configuration and file reads, not just cross-process IPC.
+	// Construction-time metadata, values supplied through Set, optional configuration
+	// payloads, and submission scheduling remain enabled. This is an internal Fx
+	// capability, not a YAML or environment setting; false retains full-agent refresh.
+	SkipFullAgentMetadataRefresh bool
 	// PayloadUUID overrides the payload's uuid. Nil means use the cached host
 	// machine GUID (uuid.GetUUID()), which is meaningless across the ephemeral,
 	// per-process containers of a hostless environment. Resolved per payload, so an
@@ -47,7 +48,7 @@ type Capabilities struct {
 // hostless single-process environment with no sibling agent processes.
 func NewServerlessCapabilities(payloadUUID func() string) *Capabilities {
 	return &Capabilities{
-		SkipCrossProcessEnrichment: true,
-		PayloadUUID:                payloadUUID,
+		SkipFullAgentMetadataRefresh: true,
+		PayloadUUID:                  payloadUUID,
 	}
 }
