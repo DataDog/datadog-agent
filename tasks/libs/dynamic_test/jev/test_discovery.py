@@ -12,12 +12,6 @@ from tasks.libs.dynamic_test.jev.pr_context import truncate
 MAX_TEST_CODE_BYTES = 32_000
 MAX_SUITE_DEFINITION_BYTES = 8_000
 
-# The YAML configuration files a test package embeds (what the agent and
-# system-probe actually run with in the test environment) - the missing link
-# between the test's Go code and the features enabled at runtime
-MAX_TEST_CONFIG_BYTES = 8_000
-MAX_TEST_CONFIG_PER_FILE = 4_000
-
 # E2E suites live under this directory in the datadog-agent repo
 E2E_TESTS_DIR = "test/new-e2e/tests"
 
@@ -53,36 +47,6 @@ def suite_definition(suite_dir: str) -> tuple[str, str]:
         return "", ""
     full = "\n\n".join(f"// --- {f} ---\n{code}" for f, code in chunks)
     return suite_pkg, truncate(full, MAX_SUITE_DEFINITION_BYTES, "suite definition")
-
-
-def package_configs(path: str) -> str:
-    """The YAML configuration files embedded/referenced by the test entry
-    point's package (e.g. `//go:embed config/npm.yaml`): the agent and
-    system-probe configuration the test's environment actually runs with.
-
-    Looked up in the package's config/ subdirectory and the package dir
-    itself, with per-file and total size caps. Returns "" when the package
-    has none.
-    """
-    pkg_dir = os.path.dirname(path)
-    if not pkg_dir:
-        return ""
-    sections = []
-    for sub in (os.path.join(pkg_dir, "config"), pkg_dir):
-        if not os.path.isdir(sub):
-            continue
-        for f in sorted(os.listdir(sub)):
-            if not f.endswith((".yaml", ".yml")):
-                continue
-            try:
-                content = Path(sub, f).read_text(encoding="utf-8", errors="ignore")
-            except OSError:
-                continue
-            rel = os.path.relpath(os.path.join(sub, f), pkg_dir)
-            sections.append(f"// {rel}\n{truncate(content, MAX_TEST_CONFIG_PER_FILE, rel)}")
-    if not sections:
-        return ""
-    return truncate("\n\n".join(sections), MAX_TEST_CONFIG_BYTES, "test configs")
 
 
 def list_suites(suite_dir: str) -> list:

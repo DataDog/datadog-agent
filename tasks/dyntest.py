@@ -91,7 +91,6 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
         "selector": "coverage (default) or jev",
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
         "ignore-sha-mismatch": "Evaluate a pipeline whose commit differs from the checkout: the Jev decisions are computed from the current checkout's PR context instead of the pipeline's (local experiments; the mismatch is always an error in CI)",
-        "jev-head-ref": "Jev only: compute the PR context (diff, PR info, LLM summary, Jev decisions) from this ref (branch or SHA) instead of the current checkout's HEAD, keeping the local evaluation code and locally discovered tests. Combine with --ignore-sha-mismatch to replay an arbitrary pipeline against another branch's changes",
     }
 )
 def evaluate_index(
@@ -102,7 +101,6 @@ def evaluate_index(
     selector: str = "coverage",
     send_stats: bool = True,
     ignore_sha_mismatch: bool = False,
-    jev_head_ref: str = "HEAD",
 ):
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
@@ -113,10 +111,13 @@ def evaluate_index(
     pipeline's executed tests: the evaluation therefore also shows which
     tests and jobs Jev would run but the pipeline did not (over-selection),
     without requiring coverage data or S3 access. Jev must run from the
-    evaluated pipeline's checkout; --jev-head-ref evaluates another branch's
-    PR context from the local checkout instead (local experiments, combine
-    with --ignore-sha-mismatch; the discovered test code and the evaluation
-    code stay from the local checkout).
+    evaluated pipeline's checkout.
+
+    The Jev states carry an LLM-generated summary of the PR changes instead
+    of the raw diff when the 'datadog-agent-jev-llm-summary' feature flag is
+    enabled (disabled, the raw diff is passed, as before the summary); the
+    flag value is reported as a jev_llm_summary tag on every published
+    metric, so both configurations can be compared in the evaluation data.
 
     Requires DD_API_KEY/DD_APP_KEY with CI Visibility read access (and DD_SITE
     when not datadoghq.com). Jev additionally uses the standard GitLab task
@@ -134,10 +135,21 @@ def evaluate_index(
     head = get_commit_sha(ctx)
     commit_sha = commit_sha or head
     executors: list[DynTestExecutor] = []
+    jev_tags: list[str] = []
     if selector == "jev":
         if not is_enabled(ctx, "datadog-agent-jev-evaluation"):
             print(color_message("Jev evaluation disabled", Color.ORANGE))
             return
+        # The LLM PR summary replacing the raw diff in the Jev states is
+        # gated by its own feature flag, reported on every published metric
+        llm_summary = is_enabled(ctx, "datadog-agent-jev-llm-summary")
+        print(
+            color_message(
+                f"LLM PR summary {'enabled' if llm_summary else 'disabled'} (feature flag datadog-agent-jev-llm-summary)",
+                Color.GREEN if llm_summary else Color.ORANGE,
+            )
+        )
+        jev_tags = [f"jev_llm_summary:{str(llm_summary).lower()}"]
         if commit_sha != head:
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
         # A plain DynTestExecutor with a static index (committed in Git, where
@@ -145,7 +157,11 @@ def evaluate_index(
         # the CI Visibility queries; the executor's GitLab jobs fetch
         # supplies the allow-failure set.
         executor = JevDynTestExecutor(
-            ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch, head_ref=jev_head_ref
+            ctx,
+            commit_sha,
+            pipeline_id,
+            require_pipeline_commit=not ignore_sha_mismatch,
+            summary_model=None if llm_summary else "",
         )
         executors = [executor]
         changes = []  # Jev gathers the richer PR diff/context from this checkout.
@@ -169,6 +185,7 @@ def evaluate_index(
                     f"pipeline_id:{pipeline_id}",
                     f"index_kind:{executor.kind.value}",
                     "service:dynamic_test_evaluator",
+                    *jev_tags,
                 ]
             )
             if send_stats

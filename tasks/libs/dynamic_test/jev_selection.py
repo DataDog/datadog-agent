@@ -39,21 +39,22 @@ class NothingToEvaluateError(RuntimeError):
     """The pipeline has no completed E2E test jobs to evaluate (not an error)."""
 
 
-def jev_selection(suite: str, head: str = "HEAD") -> dict:
+def jev_selection(suite: str, summary_model: str | None = None) -> dict:
     """Run the Jev selector for a suite in-process; return {} on any failure.
 
-    head is the ref whose changes are evaluated (--jev-head-ref, HEAD by
-    default): another branch's PR context can be evaluated from this
-    checkout's local code. Jev calls run concurrently inside the selector,
-    with a per-request timeout. Any failure fails open to run all the
-    suite's tests.
+    summary_model is passed through to the selector: None uses the default
+    LLM PR summary model (gpt-4o-mini, JEV_SUMMARY_MODEL override) and ""
+    disables the summary so the raw diff is sent (the evaluation passes ""
+    when the 'datadog-agent-jev-llm-summary' feature flag is off).
+    Jev calls run concurrently inside the selector, with a per-request timeout.
+    Any failure fails open to run all the suite's tests.
     """
     try:
         summary = select_suite(
             suite,
             dc=os.environ.get("JEV_DC", "us1.ddbuild.io"),
             token_cmd=os.environ.get("JEV_TOKEN_CMD"),
-            head=head,
+            summary_model=summary_model,
         )
         if not isinstance(summary, dict) or not all(
             isinstance(summary.get(key), list) and all(isinstance(name, str) for name in summary[key])
@@ -150,7 +151,12 @@ class JevDynTestExecutor(DynTestExecutor):
     """
 
     def __init__(
-        self, ctx, commit_sha: str, pipeline_id: str, require_pipeline_commit: bool = True, head_ref: str = "HEAD"
+        self,
+        ctx,
+        commit_sha: str,
+        pipeline_id: str,
+        require_pipeline_commit: bool = True,
+        summary_model: str | None = None,
     ):
         super().__init__(ctx, None, IndexKind.JEV, commit_sha)
         self.pipeline_id = pipeline_id
@@ -158,11 +164,9 @@ class JevDynTestExecutor(DynTestExecutor):
         # pipeline whose commit differs from the checkout - the Jev decisions
         # are then computed from the current checkout's PR context.
         self.require_pipeline_commit = require_pipeline_commit
-        # The ref whose changes are evaluated (--jev-head-ref, HEAD by
-        # default): with another branch, the Jev decisions are computed from
-        # that branch's PR context (diff, PR info, LLM summary) while the
-        # evaluation code and test discovery stay from the local checkout.
-        self.head_ref = head_ref
+        # The LLM PR summary model: None for the default, "" to disable the
+        # summary (the 'datadog-agent-jev-llm-summary' feature flag is off)
+        self.summary_model = summary_model
         self.jobs: list[str] = []
         self.job_ids: dict[str, str] = {}
         self._run: set[str] | None = None
@@ -233,7 +237,7 @@ class JevDynTestExecutor(DynTestExecutor):
             print(f"[jev] deciding {len(names)} tests with Jev; suites: {', '.join(sorted(suites))}")
             run: set[str] = set()
             for suite, entries in sorted(suites.items()):
-                summary = jev_selection(suite, self.head_ref)
+                summary = jev_selection(suite, self.summary_model)
                 skip = set(summary.get("skip", [])) - set(summary.get("run", []))
                 run.update(entries - skip)
                 print(f"[jev] {suite}: {len(entries - skip)} run / {len(entries & skip)} skip")

@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from invoke import Context
 from invoke.exceptions import Exit
@@ -35,6 +35,37 @@ class TestEvaluateIndex(unittest.TestCase):
         self.assertNotIn("lookback_days", options)
         self.assertIsInstance(options["telemetry_handler"], ConsoleTelemetryHandler)
         evaluator.return_value.send_stats_to_datadog.assert_not_called()
+        # Both feature flags enabled: the LLM PR summary is on (default model)
+        self.assertIsNone(executor.call_args.kwargs["summary_model"])
+
+    @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.is_enabled", side_effect=[True, False])  # evaluation on, LLM summary off
+    @patch("tasks.dyntest.S3Backend")
+    @patch("tasks.dyntest.JevDynTestExecutor")
+    @patch("tasks.dyntest.DatadogTelemetryHandler")
+    @patch("tasks.dyntest.DatadogDynTestEvaluator")
+    def test_jev_llm_summary_flag_controls_the_summary_and_its_tag(
+        self, evaluator, telemetry, executor, s3, enabled, _
+    ):
+        """The 'datadog-agent-jev-llm-summary' feature flag disables the LLM
+        PR summary (the selector gets the raw diff) and its value is reported
+        as a jev_llm_summary tag on every published metric."""
+        executor.return_value.kind = IndexKind.JEV
+        result = MagicMock()
+        result.actual_count.return_value = 1
+        evaluator.return_value.evaluate.return_value = [result]
+        evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=True)
+        # Summary disabled: the executor disables it for the selector
+        self.assertEqual(executor.call_args.kwargs["summary_model"], "")
+        # The flag value is a tag on the reported metrics
+        tags = telemetry.call_args.kwargs["default_tags"]
+        self.assertIn("jev_llm_summary:false", tags)
+        enabled.assert_any_call(ANY, "datadog-agent-jev-llm-summary")
+        # Flag on: the summary uses the default model and the tag flips
+        enabled.side_effect = [True, True]
+        evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=True)
+        self.assertIsNone(executor.call_args.kwargs["summary_model"])
+        self.assertIn("jev_llm_summary:true", telemetry.call_args.kwargs["default_tags"])
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.get_modified_files", return_value=["pkg/file.go"])

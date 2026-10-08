@@ -43,23 +43,6 @@ def truncate(text: str, limit: int, label: str) -> str:
 # ---------------------------------------------------------------- PR information
 
 
-def _resolve_ref(ref: str) -> str:
-    """Resolve a ref to something usable in a local diff (a local or remote
-    ref, fetching from origin as a last resort).
-
-    Raises RuntimeError with the fetch's stderr when the ref cannot be found.
-    """
-    for candidate in (ref, f"origin/{ref}", f"refs/remotes/origin/{ref}", f"refs/heads/{ref}"):
-        try:
-            git("rev-parse", "--verify", "--quiet", candidate + "^{commit}")
-            return candidate
-        except RuntimeError:
-            continue
-    print(f"[info] ref '{ref}' not found locally, fetching from origin")
-    git("fetch", "origin", ref)
-    return "FETCH_HEAD"
-
-
 def fetch_ddci_metadata() -> dict | None:
     """PR/merge-base/changed-files metadata from the DDCI Metadata Service.
 
@@ -104,34 +87,21 @@ def fetch_ddci_metadata() -> dict | None:
     return meta
 
 
-def fetch_pr_info(base: str, ddci: dict | None, head: str = "HEAD") -> dict:
-    """PR title/description via the shared GithubAPI (uses GITHUB_TOKEN if present).
-
-    With head set to a ref other than HEAD (evaluating another branch's
-    changes), the branch name comes from that ref and DDCI's PR number is
-    ignored - the metadata describes the CI pipeline's PR, not the target.
-    """
-    if head != "HEAD":
-        try:
-            branch = git("rev-parse", "--abbrev-ref", head)
-        except RuntimeError:
-            branch = ""
-        number = None
-    else:
-        # Current branch, robust to the detached-HEAD CI checkouts where
-        # rev-parse returns "HEAD": prefer the CI-provided branch name in
-        # that case
-        branch = ""
-        for env in ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME"):
-            if os.environ.get(env) and os.environ[env] != "HEAD":
-                branch = os.environ[env]
-                break
-        if not branch:
-            branch = git("rev-parse", "--abbrev-ref", "HEAD")
-        branch = "" if branch == "HEAD" else branch
-        number = ddci.get("pr_number") if ddci else None
+def fetch_pr_info(base: str, ddci: dict | None) -> dict:
+    """PR title/description via the shared GithubAPI (uses GITHUB_TOKEN if present)."""
+    # Current branch, robust to the detached-HEAD CI checkouts where rev-parse
+    # returns "HEAD": prefer the CI-provided branch name in that case
+    branch = ""
+    for env in ("CI_COMMIT_BRANCH", "CI_COMMIT_REF_NAME"):
+        if os.environ.get(env) and os.environ[env] != "HEAD":
+            branch = os.environ[env]
+            break
+    if not branch:
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+    branch = "" if branch == "HEAD" else branch
+    number = ddci.get("pr_number") if ddci else None
     pr: dict = {"branch": branch, "title": "", "description": ""}
-    if ddci and head == "HEAD":
+    if ddci:
         pr["author"] = ddci.get("author")
     if not os.environ.get("GITHUB_TOKEN"):
         print("[warn] GITHUB_TOKEN not set, cannot fetch PR description")
@@ -158,28 +128,34 @@ def fetch_pr_info(base: str, ddci: dict | None, head: str = "HEAD") -> dict:
     return pr
 
 
-def changed_files(base: str, ddci: dict | None, head: str = "HEAD") -> tuple[list, str]:
+def changed_files(base: str, ddci: dict | None) -> tuple[list, str]:
     """Changed (path, modification_kind) pairs and the merge base used.
 
-    The merge base is always the local git merge base of `head` and the base
+    The merge base is always the local git merge base of HEAD and the base
     branch: DDCI's base_commit is the base branch TIP (GitHub PR base.sha),
     not the merge base - a diff against it includes all of main's changes
     since the fork point. The file list prefers the DDCI metadata (with
-    modification kinds) when evaluating the checkout's own HEAD, falling
-    back to the merge-base diff; with head set to another ref (evaluating
-    another branch's changes from this checkout), DDCI is ignored entirely
-    - its metadata describes the CI pipeline's PR - and the git diff of that
-    ref is used.
+    modification kinds), falling back to the local merge-base diff.
     """
     # Resolve the base branch to a ref present in this clone (CI clones have
     # no local main, only origin/main); fetch from origin as a last resort
-    ref = _resolve_ref(base)
-    head_ref = "HEAD" if head == "HEAD" else _resolve_ref(head)
+    ref = ""
+    for candidate in (base, f"origin/{base}", f"refs/remotes/origin/{base}", f"refs/heads/{base}"):
+        try:
+            git("rev-parse", "--verify", "--quiet", candidate + "^{commit}")
+            ref = candidate
+            break
+        except RuntimeError:
+            continue
+    if not ref:
+        print(f"[info] ref '{base}' not found locally, fetching from origin")
+        git("fetch", "origin", base)
+        ref = "FETCH_HEAD"
     try:
-        merge_base = git("merge-base", head_ref, ref)
+        merge_base = git("merge-base", "HEAD", ref)
     except RuntimeError:
         merge_base = ref
-    if head == "HEAD" and ddci and ddci.get("changed_files") is not None:
+    if ddci and ddci.get("changed_files") is not None:
         return ddci["changed_files"][:MAX_CHANGED_FILES], merge_base
-    files = [(f, "") for f in git("diff", "--name-only", merge_base, head_ref).splitlines()]
+    files = [(f, "") for f in git("diff", "--name-only", merge_base, "HEAD").splitlines()]
     return files[:MAX_CHANGED_FILES], merge_base

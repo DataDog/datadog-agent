@@ -21,20 +21,24 @@ class TestJevSelection(unittest.TestCase):
         select.return_value = {"run": ["TestA"], "skip": [], "decisions": []}
         with patch.dict("os.environ", {"JEV_DC": "us1.ddbuild.io", "JEV_TOKEN_CMD": "custom-token"}):
             self.assertEqual(jev_selection("installer"), select.return_value)
-        # In-process call, no interpreter/module/output-file arguments
+        # In-process call, no interpreter/module/output-file arguments; the
+        # default keeps the selector's default LLM PR summary model
         self.assertEqual(select.call_args.args, ("installer",))
-        self.assertEqual(select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token", "head": "HEAD"})
+        self.assertEqual(
+            select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token", "summary_model": None}
+        )
 
     @patch(f"{MODULE}.select_suite")
-    def test_selector_evaluates_another_head_ref(self, select):
-        """The head ref (--jev-head-ref) is passed through to the selector, to
-        evaluate another branch's PR context from this checkout."""
+    def test_selector_summary_disabled_by_empty_summary_model(self, select):
+        """summary_model="" (the 'datadog-agent-jev-llm-summary' feature flag
+        being off) disables the LLM PR summary: the selector sends the raw
+        diff, as before the summary."""
         select.return_value = {"run": ["TestA"], "skip": [], "decisions": []}
         with patch.dict("os.environ", {}, clear=True):
-            self.assertEqual(jev_selection("fleet", head="feature/other"), select.return_value)
-            self.assertEqual(
-                select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": None, "head": "feature/other"}
-            )
+            self.assertEqual(jev_selection("fleet", ""), select.return_value)
+            self.assertEqual(select.call_args.kwargs["summary_model"], "")
+            self.assertEqual(jev_selection("fleet", "gpt-4o-mini"), select.return_value)
+            self.assertEqual(select.call_args.kwargs["summary_model"], "gpt-4o-mini")
 
     @patch(f"{MODULE}.select_suite")
     def test_selector_failures_return_no_skip_decisions(self, select):

@@ -2,11 +2,13 @@
 
 Decides, for each E2E test of a given suite (or a single test), whether it
 should be executed on the current PR, by asking a Jev (TypeSafe System One)
-model through the AI Gateway. Before the per-test calls, one LLM call to
-the AI Gateway chat completions endpoint (pr_summary.py) generates a summary
-of the PR changes that replaces the raw diff in every Jev state. select_suite()
-is the only entry point, called in-process by the executor
-(tasks/libs/dynamic_test/jev_selection.py). See jev_client.py for the
+model through the AI Gateway. Unless disabled (summary_model="", which the
+executor passes when the 'datadog-agent-jev-llm-summary' feature flag is
+off), one LLM call to the AI Gateway chat completions endpoint (pr_summary.py)
+generates a summary of the PR changes that replaces the raw diff in every
+Jev state. select_suite() is the only entry point, called
+in-process by the executor (tasks/libs/dynamic_test/jev_selection.py). See
+jev_client.py for the
 questions and the run/skip decision, and the sibling modules for context
 gathering (pr_context.py), diff processing (diff_utils.py), PR summarization
 (pr_summary.py) and test discovery (test_discovery.py).
@@ -45,7 +47,7 @@ from tasks.libs.dynamic_test.jev.jev_client import (
 )
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
 from tasks.libs.dynamic_test.jev.pr_summary import CHAT_COMPLETIONS_PATH, summarize_pr
-from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, package_configs, suite_definition
+from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
 
 # The context (what every Jev call for a suite sees: the PR, the diff, the
 # suite definition) is printed once per unique (base, merge base): all the
@@ -58,13 +60,10 @@ _printed_contexts: set[tuple[str, str]] = set()
 # by the later select_suite calls of the same run
 _pr_summaries: dict[tuple[str, str], str] = {}
 
-# The embedded test configs are per entry-point file; several entry points
-# share a file, so they are read once per path per run
-_config_cache: dict[str, str] = {}
-
 # The AI Gateway model generating the PR summary (chat completions endpoint,
 # same gateway and token as the Jev calls); an empty value disables the
-# summary and every Jev state carries the raw diff instead
+# summary and every Jev state carries the raw diff instead. Gated by the
+# 'datadog-agent-jev-llm-summary' feature flag at the evaluation level.
 DEFAULT_SUMMARY_MODEL = "gpt-4o-mini"
 
 
@@ -84,7 +83,6 @@ def select_suite(
     output: str | None = None,
     dry_run: bool = False,
     summary_model: str | None = None,
-    head: str = "HEAD",
 ) -> dict | None:
     """Run the Jev selection for one suite and return its summary dict.
 
@@ -95,19 +93,13 @@ def select_suite(
     shared by every suite of the run; that summary replaces the raw diff in
     every per-test Jev state. If the summary call fails, the selector fails
     open to the raw diff. The
-    summary is {"suite", "team", "base", "head", "pr", "changed_files", "run", "skip",
+    summary is {"suite", "team", "base", "llm_summary", "summary_model", "pr", "changed_files", "run", "skip",
     "decisions"}. The shared context (PR, diff, suite definition - everything
     but the per-test code) is printed once per run (per unique base/merge
     base) so the passed diff is inspectable; the per-test states are not
     printed (use --dry-run for those). Fail-open is per test: a failed Jev
     call yields a RUN decision, never a skip. Raises ValueError on invalid
     arguments.
-
-    head is the ref (branch or SHA) whose changes are evaluated: it defaults
-    to the current checkout's HEAD, but can be any other branch or SHA, to
-    evaluate that branch's PR context (diff, PR info, LLM summary, Jev
-    decisions) while keeping the local evaluation code and the locally
-    discovered tests - see the executor's --jev-head-ref.
     """
     if workers < 1 or not 0 <= run_threshold <= 1:
         raise ValueError("workers must be positive and run_threshold must be between 0 and 1")
@@ -118,12 +110,12 @@ def select_suite(
         raise ValueError(f"no e2e suite at {suite_dir}")
     team = team or suite
 
-    print(f"[info] suite={suite} team={team} base={base}" + (f" head={head}" if head != "HEAD" else ""))
+    print(f"[info] suite={suite} team={team} base={base}")
     ddci = fetch_ddci_metadata()
-    pr = fetch_pr_info(base, ddci, head=head)
-    files, merge_base = changed_files(base, ddci, head=head)
+    pr = fetch_pr_info(base, ddci)
+    files, merge_base = changed_files(base, ddci)
     print(f"[info] {len(files)} changed files (merge base {str(merge_base)[:8]})")
-    diff = pr_diff(merge_base, head=head)
+    diff = pr_diff(merge_base)
     print(f"[info] full diff: {len(diff)} chars (per-file cap {MAX_DIFF_PER_FILE}, total cap {MAX_DIFF_BYTES})")
 
     suites = list_suites(suite_dir)
@@ -148,12 +140,15 @@ def select_suite(
 
     # One LLM call per (base, merge base) - shared by every suite and every
     # per-test Jev state of the run - producing the PR summary that replaces
-    # the raw diff (pr_summary.py). An explicit summary_model="" or an empty
-    # JEV_SUMMARY_MODEL disables it; a failed call falls back to the diff.
+    # the raw diff (pr_summary.py). An explicit summary_model="" disables it
+    # (the evaluation passes "" when the 'datadog-agent-jev-llm-summary'
+    # feature flag is off); a failed call falls back to the diff.
     summary_model = (
         summary_model if summary_model is not None else os.environ.get("JEV_SUMMARY_MODEL", DEFAULT_SUMMARY_MODEL)
     )
     pr_summary = ""
+    if not dry_run and not summary_model:
+        print("[info] LLM PR summary disabled, the raw diff is passed to every Jev state")
     if not dry_run and summary_model:
         pr_summary = _pr_summaries.get((base, str(merge_base)), "")
         if not pr_summary:
@@ -197,13 +192,6 @@ def select_suite(
 
     def select_test(entry):
         name, path, code = entry
-        # The YAML configs the test's package embeds (test_discovery.package_configs):
-        # what the agent/system-probe actually runs with in this test - the
-        # test code alone does not show which features are enabled. Several
-        # entry points share a file/package, so cache per path.
-        test_configs = _config_cache.get(path)
-        if test_configs is None:
-            test_configs = _config_cache[path] = package_configs(path)
         state = build_state(
             name,
             path,
@@ -217,7 +205,6 @@ def select_suite(
             ddci=ddci,
             suite_def_code=suite_def_code,
             pr_summary=pr_summary,
-            test_configs=test_configs,
         )
         if dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
@@ -255,7 +242,8 @@ def select_suite(
         "suite": suite,
         "team": team,
         "base": base,
-        "head": head,
+        "llm_summary": bool(summary_model),
+        "summary_model": summary_model,
         "pr": pr.get("number"),
         "changed_files": files,
         "run": to_run,
