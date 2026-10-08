@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -102,9 +103,10 @@ type AgentMetadataPayload struct {
 	Hostname string `json:"hostname"`
 	OS       string `json:"os"`
 	OSVer    string `json:"osver"`
-	// Deployment is where the Agent runs (see getDeployment). It is copied into every
-	// payload, so telemetry can be split by environment without correlating payloads.
-	Deployment string `json:"deployment"`
+	// Features are the environment features autodetected by the Agent (docker, kubernetes,
+	// ecsfargate...). They are copied into every payload, so telemetry can be split by
+	// environment without correlating payloads.
+	Features []string `json:"features"`
 }
 
 // Payload defines the top level object in the payload
@@ -213,22 +215,13 @@ func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
 		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin)
 }
 
-// getDeployment returns where the Agent runs: "ecs_fargate", "kubernetes", "ecs",
-// "container" (any other containerized Agent, usually Docker) or "host". It only reads
-// environment variables, so it does not depend on feature detection having run.
-func getDeployment() string {
-	switch {
-	case env.IsECSFargate():
-		return "ecs_fargate"
-	case env.IsKubernetes():
-		return "kubernetes"
-	case env.IsECS():
-		return "ecs"
-	case env.IsContainerized():
-		return "container"
-	default:
-		return "host"
+func detectedFeatures() []string {
+	features := make([]string, 0)
+	for f := range env.GetDetectedFeatures() {
+		features = append(features, string(f))
 	}
+	slices.Sort(features)
+	return features
 }
 
 func newSenderImpl(
@@ -277,11 +270,11 @@ func newSenderImpl(
 			Host:       host,
 		},
 		metadataPayloadTemplate: AgentMetadataPayload{
-			HostID:     info.HostID,
-			Hostname:   info.Hostname,
-			OS:         info.OS,
-			OSVer:      info.PlatformVersion,
-			Deployment: getDeployment(),
+			HostID:   info.HostID,
+			Hostname: info.Hostname,
+			OS:       info.OS,
+			OSVer:    info.PlatformVersion,
+			Features: detectedFeatures(),
 		},
 		agentMetricsPayloadTemplate: AgentMetricsPayload{
 			Message: "Agent metrics",
