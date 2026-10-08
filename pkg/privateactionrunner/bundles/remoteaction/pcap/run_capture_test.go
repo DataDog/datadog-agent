@@ -30,8 +30,8 @@ func testConfig() *config.Config {
 // Run() can be exercised end-to-end without a real system-probe socket.
 type noopCaptureTrigger struct{}
 
-func (n *noopCaptureTrigger) Capture(_ context.Context, _ RunCaptureInputs) (int, int64, time.Duration, string, error) {
-	return 0, 0, 0, "", nil
+func (n *noopCaptureTrigger) Capture(_ context.Context, _ RunCaptureInputs) (captureOutcome, error) {
+	return captureOutcome{}, nil
 }
 
 // newTestHandler builds a RunCaptureHandler wired to noopCaptureTrigger,
@@ -61,14 +61,15 @@ func validInputs() map[string]interface{} {
 }
 
 // recordingCaptureTrigger captures the inputs Run() resolved, so tests can
-// assert on defaulting rather than only on the returned result.
+// assert on defaulting rather than only on the returned result. It returns out.
 type recordingCaptureTrigger struct {
 	got RunCaptureInputs
+	out captureOutcome
 }
 
-func (r *recordingCaptureTrigger) Capture(_ context.Context, in RunCaptureInputs) (int, int64, time.Duration, string, error) {
+func (r *recordingCaptureTrigger) Capture(_ context.Context, in RunCaptureInputs) (captureOutcome, error) {
 	r.got = in
-	return 0, 0, 0, "", nil
+	return r.out, nil
 }
 
 func newRecordingHandler() (*RunCaptureHandler, *recordingCaptureTrigger) {
@@ -108,6 +109,32 @@ func TestRunCapture_CaptureIDIsHonoured(t *testing.T) {
 	require.NoError(t, err)
 	require.IsType(t, &RunCaptureResult{}, res)
 	assert.Equal(t, "cap-abc-123", res.(*RunCaptureResult).CaptureID)
+}
+
+// system-probe's drop, truncation and error counts must reach the action
+// result: a non-zero drop count is the only sign that a capture is incomplete.
+func TestRunCapture_ReportsCaptureCounts(t *testing.T) {
+	handler, rec := newRecordingHandler()
+	rec.out = captureOutcome{
+		PacketCount:      100,
+		PacketsDropped:   7,
+		HeadersTruncated: 3,
+		Errors:           1,
+		FileSizeBytes:    4096,
+		Duration:         5 * time.Second,
+	}
+
+	res, err := handler.Run(context.Background(), newTask(validInputs()), nil)
+	require.NoError(t, err)
+	assert.Equal(t, &RunCaptureResult{
+		CaptureID:        res.(*RunCaptureResult).CaptureID,
+		PacketCount:      100,
+		FileSizeBytes:    4096,
+		DurationSecs:     5,
+		PacketsDropped:   7,
+		HeadersTruncated: 3,
+		CaptureErrors:    1,
+	}, res)
 }
 
 func TestRunCapture_CaptureIDGeneratedWhenAbsent(t *testing.T) {

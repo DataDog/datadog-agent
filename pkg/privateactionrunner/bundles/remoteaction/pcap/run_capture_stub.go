@@ -10,7 +10,6 @@ package com_datadoghq_remoteaction_pcap
 import (
 	"context"
 	"errors"
-	"time"
 )
 
 // stubCaptureTrigger reports that packet capture is unavailable: the
@@ -23,6 +22,6 @@ func newCaptureTrigger() captureTrigger {
 }
 
 // Capture always fails on non-unix platforms.
-func (*stubCaptureTrigger) Capture(_ context.Context, _ RunCaptureInputs) (int, int64, time.Duration, string, error) {
-	return 0, 0, 0, "", errors.New("packet capture is not supported on this platform")
+func (*stubCaptureTrigger) Capture(_ context.Context, _ RunCaptureInputs) (captureOutcome, error) {
+	return captureOutcome{}, errors.New("packet capture is not supported on this platform")
 }

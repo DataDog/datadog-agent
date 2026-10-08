@@ -24,33 +24,31 @@ const (
 	// packet to its headers regardless.
 	defaultSnapLen = 128
 	// defaultMaxPackets and defaultMaxBytes bound an otherwise unbounded capture.
-	// The constraint they serve is not the pipeline — which ships 100 MB happily —
-	// but the usability of the artefact: Wireshark's limit is packet count, not
-	// file size, and it costs roughly 0.5-1 KB of RAM per packet for dissection
-	// state. Header-only capture packs ~9x more packets into a megabyte than an
-	// ordinary full-packet capture, so file-size intuitions from normal pcaps do
-	// not transfer.
+	// The constraint they serve is not the pipeline but the usability of the
+	// artefact: Wireshark's limit is packet count, not file size, and it costs
+	// roughly 0.5-1 KB of RAM per packet for dissection state. Header-only
+	// capture packs ~9x more packets into a megabyte than an ordinary
+	// full-packet capture, so file-size intuitions from normal pcaps do not
+	// transfer.
 	//
-	// 1M packets is ~1 GB of Wireshark RAM: it loads in 10-30s and stays usable.
-	// 3.5M is minutes-to-load and re-dissects on every filter change; 9M swaps or
-	// OOMs a 16 GB laptop. 1M is therefore the largest round number that keeps the
-	// download openable, and is the floor of the expected 1-3M per-capture band.
-	//
-	// This still truncates the worst hosts: one busy host captured unfiltered
-	// produces ~6.18M packets in 30s, so a full-duration window there needs a BPF
-	// filter, not a higher cap. Above ~1M the artefact stops being openable in the
-	// GUI at all, which is a worse failure than a short window.
-	defaultMaxPackets = 1_000_000
+	// A busy host produces 2-3M packets in 30s, and 2M covers most of that while
+	// staying openable: ~2 GB of Wireshark RAM, slow to load but usable. Beyond
+	// that, minutes-to-load and re-dissection on every filter change; 9M swaps or
+	// OOMs a 16 GB laptop. The busiest hosts (~6M packets in 30s unfiltered) are
+	// still truncated, so a full-duration window there needs a BPF filter, not a
+	// higher cap.
+	defaultMaxPackets = 2_000_000
 	// defaultMaxBytes is the largest upload we are willing to ship. It backstops
 	// defaultMaxPackets rather than binding first: at ~76 bytes per header-only
-	// record, 1M packets is ~76 MB, comfortably under. It takes effect when
-	// packets are larger than the header-only assumption (e.g. a raised snapLen),
-	// which is exactly the case where a packet count is the wrong guardrail.
+	// record, 2M packets is ~152 MB, just under. It takes effect when packets are
+	// larger than the header-only assumption (e.g. a raised snapLen), which is
+	// exactly the case where a packet count is the wrong guardrail.
 	//
 	// Sizing note: the intake's real ceiling is a 30s edge timeout rather than a
-	// content-length limit, so 100 MiB assumes the host can sustain ~28 Mbit/s to
-	// the intake. A slow uplink fails on time, not on size.
-	defaultMaxBytes = 100 * 1024 * 1024
+	// content-length limit. Header-only pcaps compress ~4x, so 160 MiB is ~40 MB
+	// on the wire and assumes the host can sustain ~11 Mbit/s to the intake. A
+	// slow uplink fails on time, not on size.
+	defaultMaxBytes = 160 * 1024 * 1024
 	minDurationSecs = 1
 	maxDurationSecs = 120
 )
@@ -59,7 +57,20 @@ const (
 // results. Platform-specific implementations live in run_capture_socket.go
 // (unix, over system-probe's unix socket) and run_capture_stub.go (others).
 type captureTrigger interface {
-	Capture(ctx context.Context, inputs RunCaptureInputs) (packetCount int, fileSizeBytes int64, actualDuration time.Duration, pcapPath string, err error)
+	Capture(ctx context.Context, inputs RunCaptureInputs) (captureOutcome, error)
+}
+
+// captureOutcome is what a finished capture produced. The counts come from
+// system-probe, which alone knows about kernel drops and truncated headers.
+type captureOutcome struct {
+	PacketCount      int
+	PacketsDropped   int
+	HeadersTruncated int
+	Errors           int
+	FileSizeBytes    int64
+	Duration         time.Duration
+	// PcapPath is the local temp file holding the capture; the caller removes it.
+	PcapPath string
 }
 
 // RunCaptureHandler handles the runCapture action.
@@ -100,6 +111,13 @@ type RunCaptureResult struct {
 	PacketCount   int    `json:"packetCount"`
 	FileSizeBytes int64  `json:"fileSizeBytes"`
 	DurationSecs  int    `json:"durationActualSecs"`
+	// PacketsDropped counts packets the kernel discarded because the capture
+	// could not keep up. Non-zero means the capture is incomplete.
+	PacketsDropped int `json:"packetsDropped"`
+	// HeadersTruncated counts packets whose headers did not fit in snapLen.
+	HeadersTruncated int `json:"headersTruncated"`
+	// CaptureErrors counts packets that could not be read or written.
+	CaptureErrors int `json:"captureErrors"`
 }
 
 // Run validates inputs and performs a packet capture via the platform-specific doCapture helper.
@@ -148,26 +166,27 @@ func (h *RunCaptureHandler) Run(
 		log.Warnf("pcap: no captureId supplied, generated %s; this capture is only retrievable by an unfiltered networkpcap track query once the action result expires", captureID)
 	}
 
-	packetCount, fileSizeBytes, actualDuration, pcapPath, err := h.capture.Capture(ctx, inputs)
+	out, err := h.capture.Capture(ctx, inputs)
 	if err != nil {
 		return nil, fmt.Errorf("capture failed: %w", err)
 	}
 
-	actualSecs := int(actualDuration.Round(time.Second).Seconds())
+	if out.PcapPath != "" {
+		defer os.Remove(out.PcapPath)
 
-	if pcapPath != "" {
-		defer os.Remove(pcapPath)
-
-		if err := h.sendCapture(ctx, pcapPath, captureID); err != nil {
+		if err := h.sendCapture(ctx, out.PcapPath, captureID); err != nil {
 			return nil, fmt.Errorf("sending capture %s to event platform: %w", captureID, err)
 		}
 	}
 
 	return &RunCaptureResult{
-		CaptureID:     captureID,
-		PacketCount:   packetCount,
-		FileSizeBytes: fileSizeBytes,
-		DurationSecs:  actualSecs,
+		CaptureID:        captureID,
+		PacketCount:      out.PacketCount,
+		FileSizeBytes:    out.FileSizeBytes,
+		DurationSecs:     int(out.Duration.Round(time.Second).Seconds()),
+		PacketsDropped:   out.PacketsDropped,
+		HeadersTruncated: out.HeadersTruncated,
+		CaptureErrors:    out.Errors,
 	}, nil
 }
 

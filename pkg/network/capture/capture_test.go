@@ -9,7 +9,10 @@ package capture
 
 import (
 	"bytes"
+	"context"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,5 +61,24 @@ func TestApplyDefaults(t *testing.T) {
 			assert.Equal(t, tt.wantIface, cfg.Interface)
 			assert.Equal(t, tt.wantSnapLen, cfg.SnapLen)
 		})
+	}
+}
+
+// Done must close when the capture ends on its own, so callers return as soon
+// as the duration elapses instead of waiting out their own timeout.
+func TestDoneClosesWhenDurationElapses(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("opening a libpcap handle requires root")
+	}
+
+	c, err := newCapturer(CaptureConfig{Output: &bytes.Buffer{}, Interface: "lo", Duration: time.Second})
+	require.NoError(t, err)
+	require.NoError(t, c.Start(context.Background()))
+	defer c.Stop()
+
+	select {
+	case <-c.Done():
+	case <-time.After(3 * time.Second):
+		t.Fatal("Done was not closed after the capture duration elapsed")
 	}
 }

@@ -52,20 +52,20 @@ func TestSocketCaptureTrigger_RealSystemProbe(t *testing.T) {
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
 
 	trigger := &socketCaptureTrigger{}
-	packetCount, fileSizeBytes, actualDuration, pcapPath, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "icmp",
 		DurationSecs: 3,
 		Interface:    iface,
 	})
 	require.NoError(t, err)
-	defer os.Remove(pcapPath)
+	defer os.Remove(out.PcapPath)
 
-	t.Logf("captured %d packets (%d bytes) in %s -> %s", packetCount, fileSizeBytes, actualDuration, pcapPath)
+	t.Logf("captured %d packets (%d bytes, %d dropped) in %s -> %s", out.PacketCount, out.FileSizeBytes, out.PacketsDropped, out.Duration, out.PcapPath)
 
-	assert.Greater(t, packetCount, 0, "expected at least one ICMP packet — is traffic being generated on %s during the capture window?", iface)
-	assert.Greater(t, fileSizeBytes, int64(0))
+	assert.Greater(t, out.PacketCount, 0, "expected at least one ICMP packet — is traffic being generated on %s during the capture window?", iface)
+	assert.Greater(t, out.FileSizeBytes, int64(0))
 
-	data, err := os.ReadFile(pcapPath)
+	data, err := os.ReadFile(out.PcapPath)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(data), 24, "pcap file must contain at least the global header")
 	assert.Equal(t, []byte{0xd4, 0xc3, 0xb2, 0xa1}, data[0:4], "pcap global header magic number mismatch")

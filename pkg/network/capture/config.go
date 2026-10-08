@@ -119,6 +119,11 @@ type Capturer interface {
 	// and returns. It is safe to call Stop multiple times.
 	Stop() error
 
+	// Done is closed once the capture has ended on its own — on Duration,
+	// MaxPackets, MaxBytes, context cancellation or end of input — or after
+	// Stop. It is never closed if Start failed.
+	Done() <-chan struct{}
+
 	// Stats returns a point-in-time snapshot of capture statistics. It is safe
 	// to call concurrently with Start, Stop, and other Stats calls.
 	Stats() CaptureStats
