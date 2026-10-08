@@ -256,13 +256,13 @@ func TestBuildFieldsWrappedCommand(t *testing.T) {
 	}
 }
 
-func TestPublishReadinessOrder(t *testing.T) {
+func TestUpdateAndSubmitReadinessOrder(t *testing.T) {
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
 	ia := newFakeComponent()
 	service := inventoryCloudService{data: cloudservice.InventoryData{ResourceID: "test-resource"}}
 
-	Publish(ia, service, mode.Conf{SidecarMode: true}, conf, nil)
+	UpdateAndSubmit(ia, service, mode.Conf{SidecarMode: true}, conf, nil)
 
 	require.GreaterOrEqual(t, len(ia.calls), 5)
 	assert.Equal(t, "not ready", ia.calls[0], "close before changing any field")
@@ -276,7 +276,7 @@ func TestPublishReadinessOrder(t *testing.T) {
 	assert.Equal(t, 1, ia.submits)
 }
 
-func TestPublishGatedOff(t *testing.T) {
+func TestUpdateAndSubmitGatedOff(t *testing.T) {
 	for _, gate := range []string{"default", "disabled"} {
 		t.Run(gate, func(t *testing.T) {
 			t.Setenv("DD_SERVERLESS_INIT_INVENTORY_ENABLED", "")
@@ -287,7 +287,7 @@ func TestPublishGatedOff(t *testing.T) {
 			}
 			ia := newFakeComponent()
 
-			Publish(ia, inventoryCloudService{}, mode.Conf{}, conf, nil)
+			UpdateAndSubmit(ia, inventoryCloudService{}, mode.Conf{}, conf, nil)
 
 			assert.Empty(t, ia.calls, "disabled publication must not change readiness, inject, or submit")
 			assert.Empty(t, ia.fields)
