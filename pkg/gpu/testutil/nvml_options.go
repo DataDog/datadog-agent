@@ -488,6 +488,15 @@ func setMode(mode DeviceFeatureMode, migEnabled bool) NvmlDeviceOption {
 	})
 }
 
+// WithGridLicensableFeatures overrides the response of GetGridLicensableFeatures
+// for this device. A nil ret means nvml.SUCCESS.
+func WithGridLicensableFeatures(features nvml.GridLicensableFeatures, ret *nvml.Return) NvmlDeviceOption {
+	return deviceOption(func(o *deviceOptions) {
+		o.gridFeatures = &features
+		o.gridFeaturesReturn = ret
+	})
+}
+
 func WithCombinedOptions(options ...NvmlMockOption) NvmlMockOption {
 	return libraryOption(func(o *nvmlMockOptions) {
 		for _, opt := range options {

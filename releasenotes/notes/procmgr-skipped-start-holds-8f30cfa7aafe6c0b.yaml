@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Process Manager now reports processes the start pass declined to spawn as ``Skipped``, with ``skip_reasons`` labels such as ``auto_start_false``, ``config_gate``, ``config_veto``, ``path_missing``, and ``ordering``. After the daemon is ready, ``Created`` is no longer the resting state for a held process. ``dd-procmgr start`` still starts a skipped process. A process that already ran stays ``Exited``, ``Failed``, ``Stopped``, or ``Crashed`` when a later spawn is declined, and the same labels are attached.

@@ -85,6 +85,8 @@ type verticalTestArgs struct {
 
 	lastAction    *datadoghqcommon.DatadogPodAutoscalerVerticalAction
 	scalingValues *model.VerticalScalingValues
+	// opsAnnotations are the operational annotations set on the autoscaler (pause, force-resources...).
+	opsAnnotations map[string]string
 
 	// Control flags
 	createTarget bool
@@ -158,6 +160,7 @@ func (f *verticalControllerFixture) runSync(args verticalTestArgs) {
 	}
 
 	autoscalerInternal := pai.Build()
+	autoscalerInternal.UpdateFromOpsAnnotations(args.opsAnnotations)
 	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{Name: pai.Name, Namespace: ns},
 	}
@@ -1308,4 +1311,45 @@ func TestSyncInternal_InPlace_DisruptionBudget_CountsInFlightResizes(t *testing.
 	_, err = f.runSyncInPlaceMode(t, nil, sv, "r2", syncB)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, resizePatches, "in-flight Ready resizes consume budget; no new disruptive patches")
+}
+
+// Forced resources bypass an ongoing rollout like a recommendation that raises limits, with the same
+// delay between rollouts. The same recommendation is still not triggered twice. Pause is enforced
+// earlier, by the vertical patching strategy.
+func TestDeploymentSyncForcedResourcesBypassOngoingRollout(t *testing.T) {
+	forced := map[string]string{model.ForceResourcesAnnotationKey: `[{"name": "c1", "requests": {"cpu": "2"}}]`}
+	for _, tt := range []struct {
+		name              string
+		opsAnnotations    map[string]string
+		lastActionVersion string
+		lastActionAgo     time.Duration
+		expectPatch       bool
+	}{
+		{name: "a recommendation waits for the ongoing rollout", lastActionVersion: "old", lastActionAgo: 15 * time.Minute},
+		{name: "forced resources bypass the ongoing rollout", opsAnnotations: forced, lastActionVersion: "old", lastActionAgo: 15 * time.Minute, expectPatch: true},
+		{name: "forced resources wait for the delay between rollouts", opsAnnotations: forced, lastActionVersion: "old", lastActionAgo: time.Minute},
+		{name: "the same recommendation is not triggered twice", opsAnnotations: forced, lastActionVersion: "r1", lastActionAgo: 15 * time.Minute},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			now := time.Now()
+			args := verticalTestArgs{
+				targetKind:       kubernetes.DeploymentKind,
+				targetName:       "d1",
+				recommendationID: "r1",
+				createTarget:     true,
+				pods: []*workloadmeta.KubernetesPod{
+					pod("p1", "old", kubernetes.ReplicaSetKind, "rs1"),
+					pod("p2", "r1", kubernetes.ReplicaSetKind, "rs2"),
+				},
+				podsPerRecommendationID: map[string]int32{"old": 1, "r1": 1},
+				podsPerDirectOwner:      map[string]int32{"rs1": 1, "rs2": 1},
+				scalingValues:           scalingValWithRequests("r1", "2"),
+				opsAnnotations:          tt.opsAnnotations,
+				lastAction:              lastAction(now.Add(-tt.lastActionAgo), tt.lastActionVersion),
+				expectPatch:             tt.expectPatch,
+				expectActionSet:         tt.expectPatch,
+			}
+			newVerticalControllerFixture(t, now).runSync(args)
+		})
+	}
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator && test
+//go:build kubeapiserver && test
 
 package orchestrator
 
@@ -547,6 +547,7 @@ func TestNewBuiltinKServeCRDConfigs(t *testing.T) {
 func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 	for _, testCase := range []struct {
 		name                string
+		useDefaults         bool
 		ootbEnabled         bool
 		gatewayAPI          bool
 		serviceMesh         bool
@@ -555,6 +556,13 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 		expectedServiceMesh int // 11 entries (5 Istio + 6 group-level)
 		expectedIngress     int // 6 entries (2 NGINX + 1 Traefik + 3 group-level)
 	}{
+		{
+			name:                "all families enabled by default",
+			useDefaults:         true,
+			expectedGatewayAPI:  5,
+			expectedServiceMesh: 11,
+			expectedIngress:     6,
+		},
 		{
 			name:                "all families enabled",
 			ootbEnabled:         true,
@@ -608,10 +616,12 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg := mockconfig.New(t)
-			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", testCase.ootbEnabled)
-			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.gateway_api", testCase.gatewayAPI)
-			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.service_mesh", testCase.serviceMesh)
-			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.ingress_controllers", testCase.ingressControllers)
+			if !testCase.useDefaults {
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", testCase.ootbEnabled)
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.gateway_api", testCase.gatewayAPI)
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.service_mesh", testCase.serviceMesh)
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.ingress_controllers", testCase.ingressControllers)
+			}
 
 			configs := newBuiltinCRDConfigs()
 

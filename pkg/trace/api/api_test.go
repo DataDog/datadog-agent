@@ -17,9 +17,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -33,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -902,6 +906,79 @@ func TestReceiverV1DecodingError(t *testing.T) {
 	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
 	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v1.0"}).TracesDropped.DecodingError.Load())
+}
+
+func TestReceiverTagStatsBoundsKeyLength(t *testing.T) {
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
+
+	tagStatsFor := func(t *testing.T, lang, tracerVersion, service string) *info.TagStats {
+		t.Helper()
+		req, err := http.NewRequest("POST", "/v0.4/traces", nil)
+		require.NoError(t, err)
+		req.Header.Set(header.Lang, lang)
+		req.Header.Set(header.TracerVersion, tracerVersion)
+		return r.tagStats(v04, req, service)
+	}
+
+	t.Run("longValuesTruncated", func(t *testing.T) {
+		// header values are bounded only by the size of the request headers and
+		// the service by the size of the payload, so without this a single
+		// request could hold a megabyte of strings in the stats map and in
+		// every metric tag derived from it
+		ts := tagStatsFor(t, strings.Repeat("a", 4096), strings.Repeat("b", 4096), strings.Repeat("c", 4096))
+
+		assert.Len(t, ts.Lang, maxMetaValueLen)
+		assert.Len(t, ts.TracerVersion, maxMetaValueLen)
+		assert.Len(t, ts.Service, normalizeutil.MaxServiceLen)
+	})
+
+	t.Run("shortValuesUnchanged", func(t *testing.T) {
+		// what every real tracer reports must go through untouched
+		ts := tagStatsFor(t, "go", "v2.1.0", "my-service")
+
+		assert.Equal(t, "go", ts.Lang)
+		assert.Equal(t, "v2.1.0", ts.TracerVersion)
+		assert.Equal(t, "my-service", ts.Service)
+	})
+
+	t.Run("truncationKeepsValidUTF8", func(t *testing.T) {
+		// the limit can fall in the middle of a multi-byte character; the
+		// values end up in metric tags and logs, so they must stay valid
+		ts := tagStatsFor(t, strings.Repeat("é", 4096), "", strings.Repeat("é", 4096))
+
+		assert.True(t, utf8.ValidString(ts.Lang), "lang is not valid UTF-8")
+		assert.True(t, utf8.ValidString(ts.Service), "service is not valid UTF-8")
+		assert.LessOrEqual(t, len(ts.Lang), maxMetaValueLen)
+	})
+}
+
+// stringDataAddr returns the address of s's backing array, for asserting
+// whether two strings share the same allocation. Comparing the *byte
+// pointers directly via assert.Equal would compare the pointed-to byte
+// values instead of the addresses, since reflect.DeepEqual dereferences
+// pointers.
+func stringDataAddr(s string) uintptr {
+	return uintptr(unsafe.Pointer(unsafe.StringData(s)))
+}
+
+func TestCloneIfTruncated(t *testing.T) {
+	t.Run("withinLimitIsNotCloned", func(t *testing.T) {
+		v := "go"
+
+		got := cloneIfTruncated(v, maxMetaValueLen)
+
+		assert.Equal(t, v, got)
+		assert.Equal(t, stringDataAddr(v), stringDataAddr(got), "value within the limit must not be cloned")
+	})
+
+	t.Run("truncatedValueIsClonedNotAliased", func(t *testing.T) {
+		v := strings.Repeat("a", 4096)
+
+		got := cloneIfTruncated(v, maxMetaValueLen)
+
+		assert.Len(t, got, maxMetaValueLen)
+		assert.NotEqual(t, stringDataAddr(v), stringDataAddr(got), "truncated value must not retain the original allocation")
+	})
 }
 
 func FuzzHandleTracesV1NoPanic(f *testing.F) {
@@ -2290,6 +2367,245 @@ func TestGetProcessTags(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetSDKOtlpExport(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *pb.TracerPayload
+		expected string
+	}{
+		{
+			name: "payload tags win over span meta",
+			payload: &pb.TracerPayload{
+				Tags: map[string]string{
+					tagSDKOtlpExport: "false",
+				},
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{Meta: map[string]string{tagSDKOtlpExport: "span-meta-value"}},
+						},
+					},
+				},
+			},
+			expected: "false",
+		},
+		{
+			name: "first span meta when payload tags absent",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{Meta: map[string]string{tagSDKOtlpExport: "false"}},
+							{Meta: map[string]string{tagSDKOtlpExport: "ignored"}},
+						},
+					},
+				},
+			},
+			expected: "false",
+		},
+		{
+			name: "first span of the first non-empty chunk is used",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{}, // empty chunk, must be skipped
+					{
+						Spans: []*pb.Span{
+							{Meta: map[string]string{tagSDKOtlpExport: "false"}},
+						},
+					},
+					{
+						Spans: []*pb.Span{
+							{Meta: map[string]string{tagSDKOtlpExport: "ignored"}},
+						},
+					},
+				},
+			},
+			expected: "false",
+		},
+		{
+			name:     "absent everywhere",
+			payload:  &pb.TracerPayload{},
+			expected: "",
+		},
+		{
+			name: "chunks but no spans",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{{}},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getSDKOtlpExport(tc.payload))
+		})
+	}
+}
+
+func TestGetSDKOtlpExportV1(t *testing.T) {
+	newPayload := func(payloadVal string, chunkSpanVals ...[]string) *idx.InternalTracerPayload {
+		tp := &idx.InternalTracerPayload{Strings: idx.NewStringTable()}
+		if payloadVal != "" {
+			tp.SetStringAttribute(tagSDKOtlpExport, payloadVal)
+		}
+		for _, spanVals := range chunkSpanVals {
+			chunk := &idx.InternalTraceChunk{Strings: tp.Strings}
+			for _, v := range spanVals {
+				span := idx.NewInternalSpan(tp.Strings, &idx.Span{})
+				if v != "" {
+					span.SetStringAttribute(tagSDKOtlpExport, v)
+				}
+				chunk.Spans = append(chunk.Spans, span)
+			}
+			tp.Chunks = append(tp.Chunks, chunk)
+		}
+		return tp
+	}
+
+	tests := []struct {
+		name     string
+		payload  *idx.InternalTracerPayload
+		expected string
+	}{
+		{
+			name:     "payload attributes win over span attributes",
+			payload:  newPayload("false", []string{"span-attr-value"}),
+			expected: "false",
+		},
+		{
+			name:     "first span attributes when payload attributes absent",
+			payload:  newPayload("", []string{"false", "ignored"}),
+			expected: "false",
+		},
+		{
+			name:     "first span of the first non-empty chunk is used",
+			payload:  newPayload("", []string{}, []string{"false"}, []string{"ignored"}),
+			expected: "false",
+		},
+		{
+			name:     "absent everywhere",
+			payload:  newPayload("", []string{""}),
+			expected: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getSDKOtlpExportV1(tc.payload))
+		})
+	}
+}
+
+// TestSDKOtlpExportHoistedToPayloadTags exercises the write site: the value must
+// land in TracerPayload.Tags, and must be entirely absent (not an empty string)
+// when no carrier provided it.
+func TestSDKOtlpExportHoistedToPayloadTags(t *testing.T) {
+	send := func(t *testing.T, tp *pb.TracerPayload) *pb.TracerPayload {
+		t.Helper()
+		conf := newTestReceiverConfigWithFeatures("disable-convert-traces")
+		r := newTestReceiverFromConfig(conf)
+		server := httptest.NewServer(r.handleWithVersion(V07, r.handleTraces))
+		defer server.Close()
+
+		wire, err := tp.MarshalMsg(nil)
+		require.NoError(t, err)
+		req, err := http.NewRequest("POST", server.URL, bytes.NewReader(wire))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/msgpack")
+
+		resp, err := (&http.Client{}).Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		select {
+		case p := <-r.out:
+			// The value must not leak onto the stats path.
+			assert.Empty(t, p.ProcessTags)
+			return p.TracerPayload
+		case <-time.After(5 * time.Second):
+			t.Fatal("no data received on r.out")
+			return nil
+		}
+	}
+
+	t.Run("hoisted from first span of first non-empty chunk", func(t *testing.T) {
+		out := send(t, &pb.TracerPayload{Chunks: []*pb.TraceChunk{
+			{},
+			{Spans: []*pb.Span{
+				{Service: "svc", TraceID: 1, SpanID: 2, Meta: map[string]string{tagSDKOtlpExport: "false"}},
+			}},
+		}})
+		assert.Equal(t, "false", out.Tags[tagSDKOtlpExport])
+	})
+
+	t.Run("absent everywhere writes no key", func(t *testing.T) {
+		out := send(t, &pb.TracerPayload{Chunks: []*pb.TraceChunk{
+			{Spans: []*pb.Span{{Service: "svc", TraceID: 1, SpanID: 2}}},
+		}})
+		_, ok := out.Tags[tagSDKOtlpExport]
+		assert.False(t, ok, "expected no %q key in TracerPayload.Tags, got %#v", tagSDKOtlpExport, out.Tags)
+	})
+}
+
+// TestSDKOtlpExportHoistedToPayloadAttributesV1 is the idx/v1 equivalent of
+// TestSDKOtlpExportHoistedToPayloadTags.
+func TestSDKOtlpExportHoistedToPayloadAttributesV1(t *testing.T) {
+	send := func(t *testing.T, tp *idx.InternalTracerPayload) *idx.InternalTracerPayload {
+		t.Helper()
+		r := newTestReceiverFromConfig(newTestReceiverConfig())
+		handler := r.handleWithVersion(V10, r.handleTraces)
+
+		bts, err := tp.MarshalMsg(nil)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", "/v1.0/traces", bytes.NewReader(bts))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/msgpack")
+		handler.ServeHTTP(rr, req)
+
+		result := rr.Result()
+		defer result.Body.Close()
+		require.Equal(t, http.StatusOK, result.StatusCode)
+
+		select {
+		case p := <-r.outV1:
+			assert.Empty(t, p.ProcessTags)
+			return p.TracerPayload
+		default:
+			t.Fatal("no trace sent for processing")
+			return nil
+		}
+	}
+
+	t.Run("hoisted from first span", func(t *testing.T) {
+		tp := &idx.InternalTracerPayload{Strings: idx.NewStringTable()}
+		chunk := &idx.InternalTraceChunk{Strings: tp.Strings}
+		span := idx.NewInternalSpan(tp.Strings, &idx.Span{})
+		span.SetStringAttribute(tagSDKOtlpExport, "false")
+		chunk.Spans = append(chunk.Spans, span)
+		tp.Chunks = append(tp.Chunks, chunk)
+
+		out := send(t, tp)
+		v, ok := out.GetAttributeAsString(tagSDKOtlpExport)
+		assert.True(t, ok)
+		assert.Equal(t, "false", v)
+	})
+
+	t.Run("absent everywhere writes no attribute", func(t *testing.T) {
+		tp := &idx.InternalTracerPayload{Strings: idx.NewStringTable()}
+		chunk := &idx.InternalTraceChunk{Strings: tp.Strings}
+		chunk.Spans = append(chunk.Spans, idx.NewInternalSpan(tp.Strings, &idx.Span{}))
+		tp.Chunks = append(tp.Chunks, chunk)
+
+		out := send(t, tp)
+		_, ok := out.GetAttributeAsString(tagSDKOtlpExport)
+		assert.False(t, ok, "expected no %q attribute on the tracer payload", tagSDKOtlpExport)
+	})
 }
 
 func TestUpdateAPIKey(t *testing.T) {

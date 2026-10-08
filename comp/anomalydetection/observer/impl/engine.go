@@ -26,7 +26,6 @@ type anomalyDedupKey struct {
 	sourceAggregate observerdef.Aggregate
 	detectorName    string
 	timestamp       int64
-	title           string
 }
 
 const (
@@ -75,7 +74,6 @@ func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
 		sourceAggregate: anomaly.SourceRef.Aggregate,
 		detectorName:    anomaly.DetectorName,
 		timestamp:       anomaly.Timestamp,
-		title:           anomaly.Title,
 	}
 }
 
@@ -481,7 +479,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				continue
 			}
 			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
-			if m.Context != nil && res.Ref >= 0 {
+			if m.HasContext && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
 		}
@@ -774,9 +772,8 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			}
 			e.enrichAnomaly(&anomaly)
 			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
-			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
+			// the same anomaly (same {source ref,aggregate,detector,ts}) on consecutive advances,
 			// so acceptAnomaly would return false (duplicate) before we could mark it.
-			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
 				e.baseline.mark(detector.Name(), e.anomalyStorageKey(anomaly))
 				continue
@@ -861,11 +858,9 @@ func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
 // Context is written at ingest time via storage.SetContext when an extractor
 // emits a MetricOutput.Context; here we read it back in O(1).
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	ctx := e.storage.GetContext(a.SourceRef.Ref)
-	if ctx == nil {
-		return
+	if ctx, ok := e.storage.GetContext(a.SourceRef.Ref); ok {
+		a.Context = &ctx
 	}
-	a.Context = ctx
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
@@ -875,8 +870,8 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	}
 }
 
-// acceptAnomaly deduplicates by Source+DetectorName+Timestamp+Title and,
-// when testbench history is enabled, stores the accepted anomaly for display.
+// acceptAnomaly deduplicates by SourceRef+Aggregate+DetectorName+Timestamp.
+// When testbench history is enabled, it stores the accepted anomaly for display.
 // The anomaly must have a SourceRef. Returns true if new, false if a duplicate.
 func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 	expiresAt := e.anomalyDedupExpiry(anomaly)
