@@ -7,7 +7,14 @@ datadog:
     enableDefaultKernelHeadersPaths: true
   privateActionRunner:
     enabled: true
-    selfEnroll: true
+    selfEnroll: false
+    urn: "%s"
+    privateKey: "%s"
     actionsAllowlist:
       - "com.datadoghq.remoteaction.pcap.runCapture"
     taskTimeoutSeconds: 180
+agents:
+  containers:
+    systemProbe:
+      envDict:
+        DD_PACKET_CAPTURE_ENABLED: "true"

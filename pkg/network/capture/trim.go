@@ -65,6 +65,12 @@ func headerLen(data []byte, linkType layers.LinkType) (n int, failed bool) {
 		if _, ok := headerLayers[layer.LayerType()]; !ok {
 			return n, false
 		}
+		// gopacket's Geneve decoder trusts each option's own length, so an
+		// option longer than the header's declared options length makes the
+		// layer swallow bytes past the header. Treat that as malformed.
+		if g, ok := layer.(*layers.Geneve); ok && len(g.Contents) != 8+int(g.OptionsLength) {
+			return n, true
+		}
 		last = len(layer.LayerContents())
 		n += last
 	}

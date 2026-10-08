@@ -35,7 +35,8 @@ const (
 	minHelmChartVersion = "3.197.2"
 )
 
-// pcapHelmValues is the Helm values YAML embedded from config/pcap-helm-values.yaml.
+// pcapHelmValuesTemplate is the Helm values YAML embedded from
+// config/pcap-helm-values.yaml. Parameters: runnerURN, privateKeyB64.
 //
 //go:embed config/pcap-helm-values.yaml
-var pcapHelmValues string
+var pcapHelmValuesTemplate string

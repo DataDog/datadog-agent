@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/privateactionrunner"
 )
 
 // ekspcapEnv embeds the standard Kubernetes environment.  No extra components
@@ -42,6 +43,10 @@ type ekspcapSuite struct {
 	e2e.BaseSuite[ekspcapEnv]
 }
 
+// The PAR runs with a fixed test identity rather than self-enrolling, so
+// SetupSuite can register the matching signing key and tasks pass signature
+// verification.
+
 // ekspcapEnvProvisioner returns the Pulumi provisioner for the PCAP EKS environment.
 // It deploys:
 //   - An EKS cluster with a Linux node group.
@@ -49,7 +54,7 @@ type ekspcapSuite struct {
 //   - Datadog Agent (Helm) with system-probe + PAR enabled, PCAP action allowlisted.
 //   - npm-tools workload that continuously generates TCP/DNS traffic for the capture
 //     to observe.
-func ekspcapEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFunc[ekspcapEnv] {
+func ekspcapEnvProvisioner(runnerURN, privateKeyB64 string, opts ...eks.RunOption) provisioners.PulumiEnvRunFunc[ekspcapEnv] {
 	return func(ctx *pulumi.Context, env *ekspcapEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -67,7 +72,7 @@ func ekspcapEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFunc[
 			eks.WithEKSOptions(eks.WithLinuxNodeGroup()),
 			// Agent Helm values: NPM + system-probe + PAR with PCAP allowlisted.
 			eks.WithAgentOptions(
-				kubernetesagentparams.WithHelmValues(pcapHelmValues),
+				kubernetesagentparams.WithHelmValues(fmt.Sprintf(pcapHelmValuesTemplate, runnerURN, privateKeyB64)),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
 			),
 			// FakeIntake: slightly more memory to handle PAR polling alongside
@@ -79,9 +84,7 @@ func ekspcapEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFunc[
 		provisionerOpts = append(provisionerOpts, opts...)
 
 		params := eks.GetRunParams(provisionerOpts...)
-		eks.RunWithEnv(ctx, awsEnv, &env.Kubernetes, params)
-
-		return nil
+		return eks.RunWithEnv(ctx, awsEnv, &env.Kubernetes, params)
 	}
 }
 
@@ -89,20 +92,23 @@ func ekspcapEnvProvisioner(opts ...eks.RunOption) provisioners.PulumiEnvRunFunc[
 func TestEKSPCAPSuite(t *testing.T) {
 	t.Parallel()
 
+	urn, keyB64 := privateactionrunner.GenerateTestRunnerIdentity(t)
 	s := &ekspcapSuite{}
 	e2eParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(
-			provisioners.NewTypedPulumiProvisioner("eks-pcap", ekspcapEnvProvisioner(), nil),
+			provisioners.NewTypedPulumiProvisioner("eks-pcap", ekspcapEnvProvisioner(urn, keyB64), nil),
 		),
 	}
 	e2e.Run(t, s, e2eParams...)
 }
 
-// SetupSuite waits for PAR to be running and actively polling fakeintake before
-// any test runs.  This prevents spurious failures from race conditions at startup.
+// SetupSuite registers the runner's signing key with fakeintake, then waits for
+// PAR to be running and actively polling before any test runs.
 func (s *ekspcapSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
+	privateactionrunner.SetupPARTaskSigning(s.T(), s.Env().FakeIntake.Client(),
+		privateactionrunner.TestRunnerOrgID, privateactionrunner.TestRunnerRunnerID)
 	s.waitForPARReady()
 }
 
@@ -126,17 +132,18 @@ func (s *ekspcapSuite) Test00PARIsPolling() {
 }
 
 // TestPCAPRunCaptureHappyFlow enqueues a PCAP runCapture task and verifies that
-// PAR executes it and publishes a result containing capture metadata (packet
-// count, byte count, or a pcap file reference).
+// PAR executes it and reports the capture it made.
 func (s *ekspcapSuite) TestPCAPRunCaptureHappyFlow() {
 	taskID := uuid.New().String()
+	captureID := uuid.New().String()
 
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, pcapActionFQN, map[string]interface{}{
-		"interface":  defaultCaptureInterface,
-		"duration":   defaultCaptureDurationSecs,
-		"filter":     defaultCaptureFilter,
-		"maxPackets": 500,
-		"maxBytes":   1048576, // 1 MiB safety cap
+		"captureId":    captureID,
+		"interface":    defaultCaptureInterface,
+		"durationSecs": defaultCaptureDurationSecs,
+		"bpfFilter":    defaultCaptureFilter,
+		"maxPackets":   500,
+		"maxBytes":     1048576, // 1 MiB safety cap
 	})
 	s.Require().NoError(err, "failed to enqueue PCAP task")
 
@@ -145,22 +152,7 @@ func (s *ekspcapSuite) TestPCAPRunCaptureHappyFlow() {
 	timeout := time.Duration(defaultCaptureDurationSecs*3) * time.Second
 	result := s.pollResult(taskID, timeout)
 
-	s.Require().True(result.Success,
-		"PCAP task did not succeed (error_code=%d error_details=%q)",
-		result.ErrorCode, result.ErrorDetails)
-
-	// The action must publish at least one of: packet_count, byte_count, or
-	// pcap_file (a URL/path to the captured data).  Any of these confirms the
-	// capture ran and produced output.
-	s.Require().NotEmpty(result.Outputs, "PCAP result outputs must not be empty")
-
-	hasCaptureMeta := result.Outputs["packet_count"] != nil ||
-		result.Outputs["byte_count"] != nil ||
-		result.Outputs["pcap_file"] != nil
-
-	s.Require().True(hasCaptureMeta,
-		"expected at least one of packet_count/byte_count/pcap_file in outputs, got: %v",
-		result.Outputs)
+	s.requireCaptured(result, captureID)
 }
 
 // TestPCAPRunCaptureWithDNSFilter enqueues a capture with a DNS-specific BPF
@@ -168,36 +160,36 @@ func (s *ekspcapSuite) TestPCAPRunCaptureHappyFlow() {
 // DNS traffic to capture.
 func (s *ekspcapSuite) TestPCAPRunCaptureWithDNSFilter() {
 	taskID := uuid.New().String()
+	captureID := uuid.New().String()
 
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, pcapActionFQN, map[string]interface{}{
-		"interface":  defaultCaptureInterface,
-		"duration":   defaultCaptureDurationSecs,
-		"filter":     "udp port 53",
-		"maxPackets": 100,
+		"captureId":    captureID,
+		"interface":    defaultCaptureInterface,
+		"durationSecs": defaultCaptureDurationSecs,
+		"bpfFilter":    "udp port 53",
+		"maxPackets":   100,
 	})
 	s.Require().NoError(err, "failed to enqueue DNS-filter PCAP task")
 
 	timeout := time.Duration(defaultCaptureDurationSecs*3) * time.Second
 	result := s.pollResult(taskID, timeout)
 
-	s.Require().True(result.Success,
-		"DNS-filter PCAP task did not succeed (error_code=%d error_details=%q)",
-		result.ErrorCode, result.ErrorDetails)
-
-	s.Require().NotEmpty(result.Outputs, "PCAP result outputs must not be empty")
+	s.requireCaptured(result, captureID)
 }
 
 // TestPCAPRunCaptureShortTimeout issues a capture with a very short duration to
 // verify the action honours the duration parameter and returns promptly.
 func (s *ekspcapSuite) TestPCAPRunCaptureShortTimeout() {
 	taskID := uuid.New().String()
+	captureID := uuid.New().String()
 
 	const shortDuration = 5 // seconds
 
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, pcapActionFQN, map[string]interface{}{
-		"interface": defaultCaptureInterface,
-		"duration":  shortDuration,
-		"filter":    defaultCaptureFilter,
+		"captureId":    captureID,
+		"interface":    defaultCaptureInterface,
+		"durationSecs": shortDuration,
+		"bpfFilter":    defaultCaptureFilter,
 	})
 	s.Require().NoError(err, "failed to enqueue short-duration PCAP task")
 
@@ -205,9 +197,9 @@ func (s *ekspcapSuite) TestPCAPRunCaptureShortTimeout() {
 	timeout := time.Duration(shortDuration*3) * time.Second
 	result := s.pollResult(taskID, timeout)
 
-	s.Require().True(result.Success,
-		"short-duration PCAP task did not succeed (error_code=%d error_details=%q)",
-		result.ErrorCode, result.ErrorDetails)
+	s.requireCaptured(result, captureID)
+	s.Require().LessOrEqual(result.Outputs["durationActualSecs"], float64(shortDuration+1),
+		"capture ran longer than requested")
 }
 
 // --- helpers ---
@@ -218,6 +210,18 @@ func (s *ekspcapSuite) pollResult(taskID string, timeout time.Duration) *api.PAR
 	result, err := s.Env().FakeIntake.Client().GetPARTaskResult(taskID, timeout)
 	s.Require().NoError(err, "timed out waiting for PAR task result (taskID=%s)", taskID)
 	return result
+}
+
+// requireCaptured asserts the task succeeded and its outputs describe a
+// non-empty capture carrying captureID.
+func (s *ekspcapSuite) requireCaptured(result *api.PARTaskResult, captureID string) {
+	s.Require().True(result.Success,
+		"PCAP task did not succeed (error_code=%d error_details=%q)",
+		result.ErrorCode, result.ErrorDetails)
+	s.Require().Equal(captureID, result.Outputs["captureId"], "outputs: %v", result.Outputs)
+	// JSON numbers decode as float64.
+	s.Require().Greater(result.Outputs["packetCount"], float64(0), "outputs: %v", result.Outputs)
+	s.Require().Greater(result.Outputs["fileSizeBytes"], float64(0), "outputs: %v", result.Outputs)
 }
 
 // waitForPARReady blocks until:
@@ -234,7 +238,9 @@ func (s *ekspcapSuite) waitForPARReady() {
 			Pods(agentNamespace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: "app=" + selector,
 		})
-		assert.NoError(c, err)
+		if !assert.NoError(c, err) {
+			return
+		}
 		for _, pod := range pods.Items {
 			for _, cs := range pod.Status.ContainerStatuses {
 				if cs.Name == parContainerName && cs.Ready {

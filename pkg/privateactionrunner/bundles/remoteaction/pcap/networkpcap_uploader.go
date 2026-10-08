@@ -53,12 +53,16 @@ func newNetworkPcapUploader(cfg *config.Config) *networkPcapUploader {
 	if host == "" {
 		host = defaultNetworkPcapIntakeHostPrefix + cfg.DatadogSite
 	}
+	// Reuse the Agent's transport so proxy and TLS settings apply; the client
+	// is copied so the upload timeout does not leak into other callers.
+	httpClient := &http.Client{Timeout: 60 * time.Second}
+	if cfg.AgentHTTPClient != nil {
+		httpClient.Transport = cfg.AgentHTTPClient.Transport
+	}
 	return &networkPcapUploader{
-		url:    fmt.Sprintf("https://%s%s", host, networkPcapPath),
-		apiKey: cfg.APIKey,
-		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
-		},
+		url:        fmt.Sprintf("https://%s%s", host, networkPcapPath),
+		apiKey:     cfg.APIKey,
+		httpClient: httpClient,
 	}
 }
 
@@ -112,10 +116,10 @@ func writeNetworkPcapAttachment(w *multipart.Writer, pcapBytes []byte) error {
 // materialized in memory — mirrors the secdump forwarder's pattern in
 // pkg/security/security_profile/storage/backend/forwarder.go).
 //
-// Unlike secdump, this retries on transient failures and on 408 (the 30s
-// intake-edge timeout, which is this track's real per-capture size ceiling,
-// not max-content-size). It does not retry 413: the capture is already too
-// large and retrying the same bytes cannot succeed. A pcap capture is not
+// Unlike secdump, this retries on transient failures, on 429 and 5xx, and on
+// 408 (the 30s intake-edge timeout, which is this track's real per-capture
+// size ceiling, not max-content-size). It does not retry 413: the capture is
+// already too large and retrying the same bytes cannot succeed. A pcap capture is not
 // re-derivable, so failures are surfaced rather than silently dropped.
 func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, captureID string) error {
 	// The capture always runs on this same machine (run_capture_socket.go
@@ -202,6 +206,10 @@ func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, capt
 			continue
 		case http.StatusRequestEntityTooLarge:
 			return fmt.Errorf("networkpcap intake rejected capture as too large (413), capture_id=%s", captureID)
+		case http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway,
+			http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			lastErr = fmt.Errorf("networkpcap intake returned status %d", resp.StatusCode)
+			continue
 		default:
 			return fmt.Errorf("networkpcap intake returned status %d", resp.StatusCode)
 		}

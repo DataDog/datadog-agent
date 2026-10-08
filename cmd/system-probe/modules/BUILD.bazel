@@ -262,6 +262,7 @@ dd_agent_go_test(
         "language_detection_test.go",
         "network_tracer_test.go",
         "notable_events_darwin_test.go",
+        "packet_capture_test.go",
         "process_test.go",
         "traceroute_test.go",
     ],
