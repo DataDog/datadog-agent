@@ -8,6 +8,7 @@
       paths:
         - comp/core/tagger/**/*
         - comp/forwarder/defaultforwarder/**/*
+        - pkg/collector/corechecks/cluster/kubernetesapiserver/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*
         - test/new-e2e/tests/orchestrator/**/*
