@@ -11,6 +11,7 @@ import (
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
@@ -144,7 +145,7 @@ func renderInitConfig(ic initConfig, sharedPing *pingOptions) (integration.Data,
 // renderInstance joins a document instance with its resolved credential into
 // one check instance. ping carries the device's ping options when the
 // document's ping section lists it, and is nil otherwise.
-func renderInstance(in documentInstance, c credential, ping *pingOptions) (integration.Data, error) {
+func renderInstance(in documentInstance, c credentials.Credential, ping *pingOptions) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInstance{
 		IPAddress:             in.IPAddress,
 		SNMPVersion:           c.SNMPVersion,
