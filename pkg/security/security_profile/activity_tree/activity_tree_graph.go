@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -266,12 +267,15 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 		return utils.GraphID{}, false
 	}
 	var nameBuilder strings.Builder
-	nameBuilder.WriteString(n.Requests[0].Name + " (" + (model.QType(n.Requests[0].Type).String()))
+	nameBuilder.WriteString(n.Requests[0].Question.Name + " (" + (model.QType(n.Requests[0].Question.Type).String()))
 	for _, req := range n.Requests[1:] {
 		nameBuilder.WriteString(", ")
-		nameBuilder.WriteString(model.QType(req.Type).String())
+		nameBuilder.WriteString(model.QType(req.Question.Type).String())
 	}
 	nameBuilder.WriteString(")")
+	if resolved := dnsResolvedIPsLabel(n); resolved != "" {
+		nameBuilder.WriteString("\\n" + resolved)
+	}
 	name := nameBuilder.String()
 
 	dnsNode := &utils.Node{
@@ -289,6 +293,44 @@ func (at *ActivityTree) prepareDNSNode(n *DNSNode, data *utils.Graph, processID 
 	}
 	data.Nodes[dnsNode.ID] = dnsNode
 	return dnsNode.ID, true
+}
+
+// maxGraphDNSIPs bounds how many resolved IPs are rendered on a DNS graph node. A question can
+// hold up to maxDNSResponseIPs answers, which would swamp the label.
+const maxGraphDNSIPs = 3
+
+// dnsResolvedIPsLabel renders a short, deduplicated summary of the IPs a domain resolved to,
+// across every question type on the node. Returns an empty string when nothing was resolved.
+func dnsResolvedIPsLabel(n *DNSNode) string {
+	var ips []string
+	truncated := false
+
+	for _, req := range n.Requests {
+		if req.Response == nil {
+			continue
+		}
+		for _, ip := range req.Response.IPs {
+			str := utils.GetIPStringFromIPNet(ip)
+			if str == "" || slices.Contains(ips, str) {
+				continue
+			}
+			if len(ips) >= maxGraphDNSIPs {
+				truncated = true
+				break
+			}
+			ips = append(ips, str)
+		}
+	}
+
+	if len(ips) == 0 {
+		return ""
+	}
+
+	label := strings.Join(ips, ", ")
+	if truncated {
+		label += ", ..."
+	}
+	return label
 }
 
 func (at *ActivityTree) prepareIMDSNode(n *IMDSNode, data *utils.Graph, processID utils.GraphID) (utils.GraphID, bool) {
@@ -422,7 +464,7 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	for i, node := range n.Bind {
 		bindNode := &utils.Node{
 			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(uint64(i+1))),
-			Label: "[" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
+			Label: "bind [" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
 			Size:  smallText,
 			Color: networkColor,
 			Shape: networkShape,
@@ -440,6 +482,31 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 			Color: networkColor,
 		})
 		data.Nodes[bindNode.ID] = bindNode
+	}
+
+	// prepare connect nodes
+	bindCount := uint64(len(n.Bind))
+	for i, node := range n.Connect {
+		connectNode := &utils.Node{
+			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(bindCount+uint64(i)+1)),
+			Label: "connect [" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
+			Size:  smallText,
+			Color: networkColor,
+			Shape: networkShape,
+		}
+
+		switch node.GenerationType {
+		case Runtime, Snapshot, Unknown:
+			connectNode.FillColor = networkRuntimeColor
+		case ProfileDrift:
+			connectNode.FillColor = networkProfileDriftColor
+		}
+		data.Edges = append(data.Edges, &utils.Edge{
+			From:  targetID,
+			To:    connectNode.ID,
+			Color: networkColor,
+		})
+		data.Nodes[connectNode.ID] = connectNode
 	}
 
 	return targetID
@@ -470,7 +537,12 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.SubGraph, proce
 func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
 	var labelBuilder strings.Builder
 	labelBuilder.WriteString(tableHeader)
-	for i, s := range p.Syscalls {
+	syscallIDs := make([]int, 0, len(p.Syscalls))
+	for id := range p.Syscalls {
+		syscallIDs = append(syscallIDs, id)
+	}
+	slices.Sort(syscallIDs)
+	for i, id := range syscallIDs {
 		if i%5 == 0 {
 			if i != 0 {
 				labelBuilder.WriteString("</TD></TR>")
@@ -479,7 +551,7 @@ func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph
 		} else {
 			labelBuilder.WriteString(", ")
 		}
-		labelBuilder.WriteString(model.Syscall(s.Syscall).String())
+		labelBuilder.WriteString(model.Syscall(id).String())
 	}
 	labelBuilder.WriteString("</TD></TR>")
 	labelBuilder.WriteString("</TABLE>>")
@@ -501,10 +573,14 @@ func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph
 func (at *ActivityTree) prepareCapabilitiesNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
 	var labelBuilder strings.Builder
 	labelBuilder.WriteString(tableHeader)
+	labelBuilder.WriteString("<TR><TD>capability</TD><TD>capable</TD><TD>attempted in host userns</TD><TD>capable in host userns</TD></TR>")
 
 	for _, capabilityNode := range p.Capabilities {
 		kernelCap := model.KernelCapability(1 << capabilityNode.Capability)
-		labelBuilder.WriteString("<TR><TD>" + kernelCap.String() + "</TD><TD>" + strconv.FormatBool(capabilityNode.Capable) + "</TD></TR>")
+		labelBuilder.WriteString("<TR><TD>" + kernelCap.String() +
+			"</TD><TD>" + strconv.FormatBool(capabilityNode.Capable) +
+			"</TD><TD>" + strconv.FormatBool(capabilityNode.AttemptedHostUserNS) +
+			"</TD><TD>" + strconv.FormatBool(capabilityNode.CapableHostUserNS) + "</TD></TR>")
 	}
 
 	labelBuilder.WriteString("</TABLE>>")
