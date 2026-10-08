@@ -45,7 +45,7 @@ dd_agent_go_test(
     name = "host_test",
     srcs = ["host_test.go"],
     embed = [":host"],
-    exec_properties = {"go_link.resources:memory": "6144"},
+    tags = ["go_link:enormous"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

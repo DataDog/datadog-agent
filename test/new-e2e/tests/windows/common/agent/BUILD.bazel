@@ -31,7 +31,7 @@ dd_agent_go_test(
     name = "agent_test",
     srcs = ["package_test.go"],
     embed = [":agent"],
-    exec_properties = {"go_link.resources:memory": "6144"},
+    tags = ["go_link:enormous"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
