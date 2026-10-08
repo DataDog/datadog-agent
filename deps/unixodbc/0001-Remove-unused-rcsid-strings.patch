@@ -1,6 +1,6 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 70c02ae0517a95f4bf2961e83de07f748f18706f Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
-Date: Fri, 2 Oct 2026 14:04:25 +0200
+Date: Fri, 2 Oct 2026 13:53:36 +0200
 Subject: [PATCH] Remove unused rcsid strings
 
 These are leftovers from CVS. Git does not expand the keywords, so the
@@ -132,7 +132,7 @@ trigger -Wunused-const-variable warnings.
  122 files changed, 244 deletions(-)
 
 diff --git a/DriverManager/SQLAllocConnect.c b/DriverManager/SQLAllocConnect.c
-index 911528a..0f61134 100755
+index 911528a..0f61134 100644
 --- a/DriverManager/SQLAllocConnect.c
 +++ b/DriverManager/SQLAllocConnect.c
 @@ -86,8 +86,6 @@
@@ -145,7 +145,7 @@ index 911528a..0f61134 100755
             SQLHDBC *connection_handle )
  {
 diff --git a/DriverManager/SQLAllocEnv.c b/DriverManager/SQLAllocEnv.c
-index ffc2c39..c37b5f0 100755
+index ffc2c39..c37b5f0 100644
 --- a/DriverManager/SQLAllocEnv.c
 +++ b/DriverManager/SQLAllocEnv.c
 @@ -59,8 +59,6 @@
@@ -158,7 +158,7 @@ index ffc2c39..c37b5f0 100755
  {
      return __SQLAllocHandle( SQL_HANDLE_ENV,
 diff --git a/DriverManager/SQLAllocHandle.c b/DriverManager/SQLAllocHandle.c
-index 3042268..e8ae5ce 100644
+index 5700539..ace6992 100644
 --- a/DriverManager/SQLAllocHandle.c
 +++ b/DriverManager/SQLAllocHandle.c
 @@ -252,8 +252,6 @@
@@ -184,7 +184,7 @@ index 1f24ab2..2fff5ef 100644
      SQLSMALLINT        handle_type,
      SQLHANDLE          input_handle,
 diff --git a/DriverManager/SQLAllocStmt.c b/DriverManager/SQLAllocStmt.c
-index 2d69d0d..84b009a 100755
+index 2d69d0d..84b009a 100644
 --- a/DriverManager/SQLAllocStmt.c
 +++ b/DriverManager/SQLAllocStmt.c
 @@ -63,8 +63,6 @@
@@ -197,7 +197,7 @@ index 2d69d0d..84b009a 100755
             SQLHSTMT *statement_handle )
  {
 diff --git a/DriverManager/SQLBindCol.c b/DriverManager/SQLBindCol.c
-index 7735d16..92eb34a 100644
+index 24d400c..7692814 100644
 --- a/DriverManager/SQLBindCol.c
 +++ b/DriverManager/SQLBindCol.c
 @@ -128,8 +128,6 @@
@@ -236,7 +236,7 @@ index c853293..9310afc 100644
      SQLHSTMT           statement_handle,
      SQLUSMALLINT       ipar,
 diff --git a/DriverManager/SQLBrowseConnect.c b/DriverManager/SQLBrowseConnect.c
-index 56b3306..9aae86b 100644
+index 7044957..ab40bb6 100644
 --- a/DriverManager/SQLBrowseConnect.c
 +++ b/DriverManager/SQLBrowseConnect.c
 @@ -174,8 +174,6 @@
@@ -249,7 +249,7 @@ index 56b3306..9aae86b 100644
  
  SQLRETURN SQLBrowseConnectA(
 diff --git a/DriverManager/SQLBrowseConnectW.c b/DriverManager/SQLBrowseConnectW.c
-index 21451a1..e70ee72 100644
+index 461a4ac..0e10116 100644
 --- a/DriverManager/SQLBrowseConnectW.c
 +++ b/DriverManager/SQLBrowseConnectW.c
 @@ -120,8 +120,6 @@
@@ -275,7 +275,7 @@ index ec39d6a..e358dbf 100644
      SQLHSTMT        statement_handle,
      SQLSMALLINT     operation )
 diff --git a/DriverManager/SQLCancel.c b/DriverManager/SQLCancel.c
-index 956a3ac..c4a2906 100644
+index 119f430..3446db2 100644
 --- a/DriverManager/SQLCancel.c
 +++ b/DriverManager/SQLCancel.c
 @@ -100,8 +100,6 @@
@@ -284,9 +284,9 @@ index 956a3ac..c4a2906 100644
  
 -static char const rcsid[]= "$RCSfile: SQLCancel.c,v $ $Revision: 1.4 $";
 -
- SQLRETURN SQLCancel( SQLHSTMT statement_handle )
- {
-     DMHSTMT statement = (DMHSTMT) statement_handle;
+ #define IS_01S05 0
+ #define IS_NOT_01S05 1
+ #define NOT_A_DIAGRECORD 2
 diff --git a/DriverManager/SQLCancelHandle.c b/DriverManager/SQLCancelHandle.c
 index 652b373..d32c9b3 100644
 --- a/DriverManager/SQLCancelHandle.c
@@ -418,7 +418,7 @@ index 1e43e8b..930c6be 100644
             SQLWCHAR *catalog_name,
             SQLSMALLINT name_length1,
 diff --git a/DriverManager/SQLConnect.c b/DriverManager/SQLConnect.c
-index 63caaca..b67b73c 100644
+index 85a4d42..4fdea7a 100644
 --- a/DriverManager/SQLConnect.c
 +++ b/DriverManager/SQLConnect.c
 @@ -594,8 +594,6 @@
@@ -431,7 +431,7 @@ index 63caaca..b67b73c 100644
  #define CURSOR_LIB	"ODBCCR"
  #else
 diff --git a/DriverManager/SQLConnectW.c b/DriverManager/SQLConnectW.c
-index 104eddb..d186d89 100644
+index bac4aab..6a28d05 100644
 --- a/DriverManager/SQLConnectW.c
 +++ b/DriverManager/SQLConnectW.c
 @@ -118,8 +118,6 @@
@@ -440,11 +440,11 @@ index 104eddb..d186d89 100644
  
 -static char const rcsid[]= "$RCSfile: SQLConnectW.c,v $";
 -
- SQLRETURN SQLConnectW( SQLHDBC connection_handle,
-            SQLWCHAR *server_name,
-            SQLSMALLINT name_length1,
+ /*
+  * connection pooling stuff
+  */
 diff --git a/DriverManager/SQLCopyDesc.c b/DriverManager/SQLCopyDesc.c
-index 1ad772a..5abfed1 100644
+index fdd20ed..1bce0d2 100644
 --- a/DriverManager/SQLCopyDesc.c
 +++ b/DriverManager/SQLCopyDesc.c
 @@ -118,8 +118,6 @@
@@ -457,7 +457,7 @@ index 1ad772a..5abfed1 100644
  {
      int             field_identifier;
 diff --git a/DriverManager/SQLDataSources.c b/DriverManager/SQLDataSources.c
-index bf17a43..890addf 100644
+index e7c6fb4..97544f5 100644
 --- a/DriverManager/SQLDataSources.c
 +++ b/DriverManager/SQLDataSources.c
 @@ -135,8 +135,6 @@
@@ -470,7 +470,7 @@ index bf17a43..890addf 100644
  
  SQLRETURN SQLDataSourcesA( SQLHENV environment_handle,
 diff --git a/DriverManager/SQLDataSourcesW.c b/DriverManager/SQLDataSourcesW.c
-index a93e007..497228c 100644
+index a76934f..f2f1942 100644
 --- a/DriverManager/SQLDataSourcesW.c
 +++ b/DriverManager/SQLDataSourcesW.c
 @@ -78,8 +78,6 @@
@@ -522,7 +522,7 @@ index 43d568f..5689cf5 100644
      SQLHSTMT           statement_handle,
      SQLUSMALLINT       ipar,
 diff --git a/DriverManager/SQLDisconnect.c b/DriverManager/SQLDisconnect.c
-index 3233dd9..f7edd4b 100644
+index df974d4..de7006d 100644
 --- a/DriverManager/SQLDisconnect.c
 +++ b/DriverManager/SQLDisconnect.c
 @@ -171,8 +171,6 @@
@@ -535,7 +535,7 @@ index 3233dd9..f7edd4b 100644
  
  SQLRETURN SQLDisconnect( SQLHDBC connection_handle )
 diff --git a/DriverManager/SQLDriverConnect.c b/DriverManager/SQLDriverConnect.c
-index 8272cab..959a164 100644
+index 6d74d00..e7d2a22 100644
 --- a/DriverManager/SQLDriverConnect.c
 +++ b/DriverManager/SQLDriverConnect.c
 @@ -310,8 +310,6 @@
@@ -548,7 +548,7 @@ index 8272cab..959a164 100644
   * connection pooling stuff
   */
 diff --git a/DriverManager/SQLDriverConnectW.c b/DriverManager/SQLDriverConnectW.c
-index 10dd8a7..ff0efc7 100644
+index 420652e..881c583 100644
 --- a/DriverManager/SQLDriverConnectW.c
 +++ b/DriverManager/SQLDriverConnectW.c
 @@ -127,8 +127,6 @@
@@ -557,11 +557,11 @@ index 10dd8a7..ff0efc7 100644
  
 -static char const rcsid[]= "$RCSfile: SQLDriverConnectW.c,v $";
 -
- int __parse_connection_string_w( struct con_struct *con_str,
-     SQLWCHAR *str, int str_len )
- {
+ /*
+  * connection pooling stuff
+  */
 diff --git a/DriverManager/SQLDrivers.c b/DriverManager/SQLDrivers.c
-index d62cf25..227cbde 100644
+index f31f3ae..106b3e9 100644
 --- a/DriverManager/SQLDrivers.c
 +++ b/DriverManager/SQLDrivers.c
 @@ -170,8 +170,6 @@
@@ -574,7 +574,7 @@ index d62cf25..227cbde 100644
  
  SQLRETURN SQLDriversA(
 diff --git a/DriverManager/SQLDriversW.c b/DriverManager/SQLDriversW.c
-index 7783ced..4623f69 100644
+index 240af6d..6d8333e 100644
 --- a/DriverManager/SQLDriversW.c
 +++ b/DriverManager/SQLDriversW.c
 @@ -107,8 +107,6 @@
@@ -600,7 +600,7 @@ index b7c5643..00c1dda 100644
          SQLHANDLE handle,
          SQLSMALLINT completion_type )
 diff --git a/DriverManager/SQLError.c b/DriverManager/SQLError.c
-index 8714037..1b916f8 100644
+index 8e2a00f..ee7ff3b 100644
 --- a/DriverManager/SQLError.c
 +++ b/DriverManager/SQLError.c
 @@ -182,8 +182,6 @@
@@ -613,7 +613,7 @@ index 8714037..1b916f8 100644
          SQLCHAR *sqlstate,
          SQLINTEGER *native_error,
 diff --git a/DriverManager/SQLErrorW.c b/DriverManager/SQLErrorW.c
-index d108756..653a4d8 100644
+index 42433e7..f37de08 100644
 --- a/DriverManager/SQLErrorW.c
 +++ b/DriverManager/SQLErrorW.c
 @@ -88,8 +88,6 @@
@@ -639,7 +639,7 @@ index 24622b8..f3c9fc3 100644
             SQLCHAR *statement_text,
             SQLINTEGER text_length )
 diff --git a/DriverManager/SQLExecDirectW.c b/DriverManager/SQLExecDirectW.c
-index b4cbe61..7420007 100644
+index 994b626..c1709dc 100644
 --- a/DriverManager/SQLExecDirectW.c
 +++ b/DriverManager/SQLExecDirectW.c
 @@ -89,8 +89,6 @@
@@ -678,7 +678,7 @@ index a7c6a28..67b733e 100644
      SQLHSTMT           statement_handle,
      SQLUSMALLINT       f_fetch_type,
 diff --git a/DriverManager/SQLFetch.c b/DriverManager/SQLFetch.c
-index 22b0dbe..0053450 100644
+index 531d09e..e151470 100644
 --- a/DriverManager/SQLFetch.c
 +++ b/DriverManager/SQLFetch.c
 @@ -127,8 +127,6 @@
@@ -730,7 +730,7 @@ index 26fd47d..0e64a70 100644
      SQLHSTMT           statement_handle,
      SQLWCHAR            *szpk_catalog_name,
 diff --git a/DriverManager/SQLFreeConnect.c b/DriverManager/SQLFreeConnect.c
-index 24080d2..e964be2 100755
+index 24080d2..e964be2 100644
 --- a/DriverManager/SQLFreeConnect.c
 +++ b/DriverManager/SQLFreeConnect.c
 @@ -59,8 +59,6 @@
@@ -743,7 +743,7 @@ index 24080d2..e964be2 100755
  {
      return __SQLFreeHandle( SQL_HANDLE_DBC,
 diff --git a/DriverManager/SQLFreeEnv.c b/DriverManager/SQLFreeEnv.c
-index 27b4677..e395252 100755
+index 27b4677..e395252 100644
 --- a/DriverManager/SQLFreeEnv.c
 +++ b/DriverManager/SQLFreeEnv.c
 @@ -59,8 +59,6 @@
@@ -756,7 +756,7 @@ index 27b4677..e395252 100755
  {
      return __SQLFreeHandle( SQL_HANDLE_ENV,
 diff --git a/DriverManager/SQLFreeHandle.c b/DriverManager/SQLFreeHandle.c
-index ec486c7..70f5cc5 100644
+index df35074..60a4a36 100644
 --- a/DriverManager/SQLFreeHandle.c
 +++ b/DriverManager/SQLFreeHandle.c
 @@ -180,8 +180,6 @@
@@ -765,9 +765,9 @@ index ec486c7..70f5cc5 100644
  
 -static char const rcsid[]= "$RCSfile: SQLFreeHandle.c,v $ $Revision: 1.12 $";
 -
+ extern int pooling_enabled;
+ 
  SQLRETURN __SQLFreeHandle( SQLSMALLINT handle_type,
-         SQLHANDLE handle )
- {
 diff --git a/DriverManager/SQLFreeStmt.c b/DriverManager/SQLFreeStmt.c
 index 05170d9..8c62192 100644
 --- a/DriverManager/SQLFreeStmt.c
@@ -808,7 +808,7 @@ index 99d8e75..d873a72 100644
             SQLINTEGER attribute,
             SQLPOINTER value,
 diff --git a/DriverManager/SQLGetConnectOption.c b/DriverManager/SQLGetConnectOption.c
-index 53b100c..a3d99b3 100644
+index bfa4b62..a201b95 100644
 --- a/DriverManager/SQLGetConnectOption.c
 +++ b/DriverManager/SQLGetConnectOption.c
 @@ -144,8 +144,6 @@
@@ -873,7 +873,7 @@ index deac047..588b150 100644
             SQLUSMALLINT column_number,
             SQLSMALLINT target_type,
 diff --git a/DriverManager/SQLGetDescField.c b/DriverManager/SQLGetDescField.c
-index f59d845..2f8e3f7 100644
+index 04802ce..7f7fba2 100644
 --- a/DriverManager/SQLGetDescField.c
 +++ b/DriverManager/SQLGetDescField.c
 @@ -136,8 +136,6 @@
@@ -925,7 +925,7 @@ index ee6fc04..1912d31 100644
             SQLSMALLINT rec_number, 
             SQLWCHAR *name,
 diff --git a/DriverManager/SQLGetDiagField.c b/DriverManager/SQLGetDiagField.c
-index 58a253c..f38a2f6 100644
+index 0f2d22d..cc05c2d 100644
 --- a/DriverManager/SQLGetDiagField.c
 +++ b/DriverManager/SQLGetDiagField.c
 @@ -197,8 +197,6 @@
@@ -938,7 +938,7 @@ index 58a253c..f38a2f6 100644
  21S02,25S01,25S02,25S03,42S01,42S02,42S11,42S12,42S21,42S22,HY095,HY097,HY098,\
  HY099,HY100,HY101,HY105,HY107,HY109,HY110,HY111,HYT00,HYT01,IM001,IM002,IM003,\
 diff --git a/DriverManager/SQLGetDiagFieldW.c b/DriverManager/SQLGetDiagFieldW.c
-index 42175d3..4ddc2cd 100644
+index 28757fc..8e5c768 100644
 --- a/DriverManager/SQLGetDiagFieldW.c
 +++ b/DriverManager/SQLGetDiagFieldW.c
 @@ -94,8 +94,6 @@
@@ -951,7 +951,7 @@ index 42175d3..4ddc2cd 100644
  21S02,25S01,25S02,25S03,42S01,42S02,42S11,42S12,42S21,42S22,HY095,HY097,HY098,\
  HY099,HY100,HY101,HY105,HY107,HY109,HY110,HY111,HYT00,HYT01,IM001,IM002,IM003,\
 diff --git a/DriverManager/SQLGetDiagRec.c b/DriverManager/SQLGetDiagRec.c
-index 6d93ede..971210b 100644
+index 9cca20c..275ad3f 100644
 --- a/DriverManager/SQLGetDiagRec.c
 +++ b/DriverManager/SQLGetDiagRec.c
 @@ -183,8 +183,6 @@
@@ -964,7 +964,7 @@ index 6d93ede..971210b 100644
  {
      int type;
 diff --git a/DriverManager/SQLGetDiagRecW.c b/DriverManager/SQLGetDiagRecW.c
-index 1640047..229e271 100644
+index 202401f..f9963d5 100644
 --- a/DriverManager/SQLGetDiagRecW.c
 +++ b/DriverManager/SQLGetDiagRecW.c
 @@ -96,8 +96,6 @@
@@ -977,7 +977,7 @@ index 1640047..229e271 100644
  
  SQLRETURN extract_parent_handle_rec( DRV_SQLHANDLE handle,
 diff --git a/DriverManager/SQLGetEnvAttr.c b/DriverManager/SQLGetEnvAttr.c
-index a6b50f5..7c1aa45 100644
+index 44c8e3e..26e5fe3 100644
 --- a/DriverManager/SQLGetEnvAttr.c
 +++ b/DriverManager/SQLGetEnvAttr.c
 @@ -111,8 +111,6 @@
@@ -990,7 +990,7 @@ index a6b50f5..7c1aa45 100644
             SQLINTEGER attribute,
             SQLPOINTER value,
 diff --git a/DriverManager/SQLGetFunctions.c b/DriverManager/SQLGetFunctions.c
-index 997f6a4..be7cb37 100644
+index c747f62..695557b 100644
 --- a/DriverManager/SQLGetFunctions.c
 +++ b/DriverManager/SQLGetFunctions.c
 @@ -111,8 +111,6 @@
@@ -1016,7 +1016,7 @@ index 8e64b62..1da5534 100644
             SQLUSMALLINT info_type,
             SQLPOINTER info_value,
 diff --git a/DriverManager/SQLGetInfoW.c b/DriverManager/SQLGetInfoW.c
-index fab9ca4..97fe700 100644
+index 8dc1887..72cfda6 100644
 --- a/DriverManager/SQLGetInfoW.c
 +++ b/DriverManager/SQLGetInfoW.c
 @@ -109,8 +109,6 @@
@@ -1094,7 +1094,7 @@ index f17f59b..f13da78 100644
             SQLSMALLINT data_type )
  {
 diff --git a/DriverManager/SQLMoreResults.c b/DriverManager/SQLMoreResults.c
-index 5f390b0..27ca93d 100644
+index 2a4578a..9c970e6 100644
 --- a/DriverManager/SQLMoreResults.c
 +++ b/DriverManager/SQLMoreResults.c
 @@ -127,8 +127,6 @@
@@ -1120,7 +1120,7 @@ index f5b970f..ebee1ab 100644
      SQLHDBC            hdbc,
      SQLCHAR            *sz_sql_str_in,
 diff --git a/DriverManager/SQLNativeSqlW.c b/DriverManager/SQLNativeSqlW.c
-index 612791c..2d9a3bb 100644
+index 2055585..a84afc1 100644
 --- a/DriverManager/SQLNativeSqlW.c
 +++ b/DriverManager/SQLNativeSqlW.c
 @@ -88,8 +88,6 @@
@@ -1159,7 +1159,7 @@ index c4369c0..2d35ca4 100644
             SQLSMALLINT *column_count )
  {
 diff --git a/DriverManager/SQLParamData.c b/DriverManager/SQLParamData.c
-index 55b9de6..6137dab 100644
+index 902bf6a..5b8bdcc 100644
 --- a/DriverManager/SQLParamData.c
 +++ b/DriverManager/SQLParamData.c
 @@ -128,8 +128,6 @@
@@ -1172,7 +1172,7 @@ index 55b9de6..6137dab 100644
             SQLPOINTER *value )
  {
 diff --git a/DriverManager/SQLParamOptions.c b/DriverManager/SQLParamOptions.c
-index cffa233..3adf362 100644
+index 621b27f..7c95988 100644
 --- a/DriverManager/SQLParamOptions.c
 +++ b/DriverManager/SQLParamOptions.c
 @@ -122,8 +122,6 @@
@@ -1289,7 +1289,7 @@ index 4976a85..abf3a95 100644
      SQLHSTMT           statement_handle,
      SQLWCHAR            *sz_catalog_name,
 diff --git a/DriverManager/SQLPutData.c b/DriverManager/SQLPutData.c
-index 6bcbb2a..fa3b022 100644
+index b71d83b..6a2f550 100644
 --- a/DriverManager/SQLPutData.c
 +++ b/DriverManager/SQLPutData.c
 @@ -107,8 +107,6 @@
@@ -1302,7 +1302,7 @@ index 6bcbb2a..fa3b022 100644
             SQLPOINTER data,
             SQLLEN strlen_or_ind )
 diff --git a/DriverManager/SQLRowCount.c b/DriverManager/SQLRowCount.c
-index fa53158..835e465 100644
+index aa9ec3e..66c929d 100644
 --- a/DriverManager/SQLRowCount.c
 +++ b/DriverManager/SQLRowCount.c
 @@ -130,8 +130,6 @@
@@ -1315,7 +1315,7 @@ index fa53158..835e465 100644
         SQLLEN *rowcount )
  {
 diff --git a/DriverManager/SQLSetConnectAttr.c b/DriverManager/SQLSetConnectAttr.c
-index 272eea9..99d62a1 100644
+index 2eef425..1ba6700 100644
 --- a/DriverManager/SQLSetConnectAttr.c
 +++ b/DriverManager/SQLSetConnectAttr.c
 @@ -210,8 +210,6 @@
@@ -1328,7 +1328,7 @@ index 272eea9..99d62a1 100644
             SQLINTEGER attribute,
             SQLPOINTER value,
 diff --git a/DriverManager/SQLSetConnectAttrW.c b/DriverManager/SQLSetConnectAttrW.c
-index 105dab8..f7b1523 100644
+index e7d1503..b04b867 100644
 --- a/DriverManager/SQLSetConnectAttrW.c
 +++ b/DriverManager/SQLSetConnectAttrW.c
 @@ -125,8 +125,6 @@
@@ -1341,7 +1341,7 @@ index 105dab8..f7b1523 100644
             SQLINTEGER attribute,
             SQLPOINTER value,
 diff --git a/DriverManager/SQLSetConnectOption.c b/DriverManager/SQLSetConnectOption.c
-index 61daf46..a39d75b 100644
+index c36d29b..ba9b821 100644
 --- a/DriverManager/SQLSetConnectOption.c
 +++ b/DriverManager/SQLSetConnectOption.c
 @@ -195,8 +195,6 @@
@@ -1354,7 +1354,7 @@ index 61daf46..a39d75b 100644
             SQLUSMALLINT option,
             SQLULEN value )
 diff --git a/DriverManager/SQLSetConnectOptionW.c b/DriverManager/SQLSetConnectOptionW.c
-index ba0ea15..4cb5a13 100644
+index dbcd973..3f69bc3 100644
 --- a/DriverManager/SQLSetConnectOptionW.c
 +++ b/DriverManager/SQLSetConnectOptionW.c
 @@ -95,8 +95,6 @@
@@ -1432,7 +1432,7 @@ index cbd4b9a..94e8d58 100644
             SQLSMALLINT rec_number, 
             SQLSMALLINT type,
 diff --git a/DriverManager/SQLSetEnvAttr.c b/DriverManager/SQLSetEnvAttr.c
-index 003ebd7..f299720 100644
+index d62984c..c2288ed 100644
 --- a/DriverManager/SQLSetEnvAttr.c
 +++ b/DriverManager/SQLSetEnvAttr.c
 @@ -135,8 +135,6 @@
@@ -1441,9 +1441,9 @@ index 003ebd7..f299720 100644
  
 -static char const rcsid[]= "$RCSfile: SQLSetEnvAttr.c,v $ $Revision: 1.9 $";
 -
+ extern int pooling_enabled;
+ 
  SQLRETURN SQLSetEnvAttr( SQLHENV environment_handle,
-            SQLINTEGER attribute,
-            SQLPOINTER value,
 diff --git a/DriverManager/SQLSetParam.c b/DriverManager/SQLSetParam.c
 index 3c60e0a..b2f6636 100644
 --- a/DriverManager/SQLSetParam.c
@@ -1471,7 +1471,7 @@ index 6cfc6d3..2900b85 100644
      SQLHSTMT           statement_handle,
      SQLSETPOSIROW      irow,
 diff --git a/DriverManager/SQLSetScrollOptions.c b/DriverManager/SQLSetScrollOptions.c
-index 82916ac..5b19793 100644
+index 3faf9ac..d75202f 100644
 --- a/DriverManager/SQLSetScrollOptions.c
 +++ b/DriverManager/SQLSetScrollOptions.c
 @@ -139,8 +139,6 @@
@@ -1484,7 +1484,7 @@ index 82916ac..5b19793 100644
      SQLHSTMT           statement_handle,
      SQLUSMALLINT       f_concurrency,
 diff --git a/DriverManager/SQLSetStmtAttr.c b/DriverManager/SQLSetStmtAttr.c
-index 61407fe..2c54aa7 100644
+index 4317a77..010efb3 100644
 --- a/DriverManager/SQLSetStmtAttr.c
 +++ b/DriverManager/SQLSetStmtAttr.c
 @@ -210,8 +210,6 @@
@@ -1497,7 +1497,7 @@ index 61407fe..2c54aa7 100644
             SQLINTEGER attribute,
             SQLPOINTER value,
 diff --git a/DriverManager/SQLSetStmtAttrW.c b/DriverManager/SQLSetStmtAttrW.c
-index 36889fd..26d219b 100644
+index cc8190f..d0886ca 100644
 --- a/DriverManager/SQLSetStmtAttrW.c
 +++ b/DriverManager/SQLSetStmtAttrW.c
 @@ -91,8 +91,6 @@
@@ -1510,7 +1510,7 @@ index 36889fd..26d219b 100644
             SQLINTEGER attribute,
             SQLPOINTER value,
 diff --git a/DriverManager/SQLSetStmtOption.c b/DriverManager/SQLSetStmtOption.c
-index 9e847fb..46a363c 100644
+index 88bc66e..cf47e13 100644
 --- a/DriverManager/SQLSetStmtOption.c
 +++ b/DriverManager/SQLSetStmtOption.c
 @@ -149,8 +149,6 @@
@@ -1523,7 +1523,7 @@ index 9e847fb..46a363c 100644
             SQLUSMALLINT option,
             SQLULEN value )
 diff --git a/DriverManager/SQLSetStmtOptionW.c b/DriverManager/SQLSetStmtOptionW.c
-index e1eff70..d40f3e3 100644
+index 5aa51d7..3cbe70f 100644
 --- a/DriverManager/SQLSetStmtOptionW.c
 +++ b/DriverManager/SQLSetStmtOptionW.c
 @@ -152,8 +152,6 @@
@@ -1536,7 +1536,7 @@ index e1eff70..d40f3e3 100644
             SQLUSMALLINT option,
             SQLULEN value )
 diff --git a/DriverManager/SQLSpecialColumns.c b/DriverManager/SQLSpecialColumns.c
-index ea5863b..8be5e28 100644
+index b0a0f10..09569cc 100644
 --- a/DriverManager/SQLSpecialColumns.c
 +++ b/DriverManager/SQLSpecialColumns.c
 @@ -131,8 +131,6 @@
@@ -1549,7 +1549,7 @@ index ea5863b..8be5e28 100644
             SQLUSMALLINT identifier_type,
             SQLCHAR *catalog_name,
 diff --git a/DriverManager/SQLSpecialColumnsW.c b/DriverManager/SQLSpecialColumnsW.c
-index 01937cd..8e86dbd 100644
+index 1181cdd..928b10e 100644
 --- a/DriverManager/SQLSpecialColumnsW.c
 +++ b/DriverManager/SQLSpecialColumnsW.c
 @@ -85,8 +85,6 @@
@@ -1653,7 +1653,7 @@ index 7a9ac4b..bc1a621 100644
             SQLHDBC connection_handle,
             SQLUSMALLINT completion_type )
 diff --git a/DriverManager/__attribute.c b/DriverManager/__attribute.c
-index 5de4340..1f6f24f 100644
+index 14d8b9f..db65b6e 100644
 --- a/DriverManager/__attribute.c
 +++ b/DriverManager/__attribute.c
 @@ -67,8 +67,6 @@
@@ -1666,7 +1666,7 @@ index 5de4340..1f6f24f 100644
   * these are taken directly from odbctest/attr.cpp
   * so any bugs or additions, should be added there also
 diff --git a/DriverManager/__connection.c b/DriverManager/__connection.c
-index 7003f36..a82fc6e 100755
+index c1364f6..f6611b3 100644
 --- a/DriverManager/__connection.c
 +++ b/DriverManager/__connection.c
 @@ -104,8 +104,6 @@
@@ -1679,7 +1679,7 @@ index 7003f36..a82fc6e 100755
   * search for the library (.so) that the DSN points to
   */
 diff --git a/DriverManager/__handles.c b/DriverManager/__handles.c
-index 36fd102..e4f73ab 100644
+index f9c460e..dec7442 100644
 --- a/DriverManager/__handles.c
 +++ b/DriverManager/__handles.c
 @@ -226,8 +226,6 @@
@@ -1692,10 +1692,10 @@ index 36fd102..e4f73ab 100644
   * these are used to enable us to check if a handle is
   * valid without the danger of a seg-vio.
 diff --git a/DriverManager/__info.c b/DriverManager/__info.c
-index bedfd74..aaf3e06 100644
+index 2edadfa..a3ca6cb 100644
 --- a/DriverManager/__info.c
 +++ b/DriverManager/__info.c
-@@ -472,8 +472,6 @@
+@@ -509,8 +509,6 @@ static t_enc lookuptable[] = {
  
  #include "drivermanager.h"
  
@@ -1705,7 +1705,7 @@ index bedfd74..aaf3e06 100644
  
  SQLINTEGER ODBCSharedTraceFlag = 0;
 diff --git a/DriverManager/__stats.c b/DriverManager/__stats.c
-index 3a41486..2a93759 100644
+index ee3adf8..e65cfa5 100644
 --- a/DriverManager/__stats.c
 +++ b/DriverManager/__stats.c
 @@ -119,8 +119,6 @@

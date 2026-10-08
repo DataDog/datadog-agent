@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
 // SampleEmitter sends the samples collected for GPU devices: it removes
@@ -66,7 +67,7 @@ func (e *SampleEmitter) Emit(snd sender.Sender, collectorResults []CollectorSamp
 		e.Telemetry.CollectionRuns.Inc(collectorResult.TelemetryTags...)
 		e.Telemetry.CollectionTime.Observe(float64(collectorResult.Duration.Milliseconds()), collectorResult.TelemetryTags...)
 
-		if collectorResult.Err != nil {
+		if collectorResult.Err != nil && !ddnvml.IsGPULost(collectorResult.Err) {
 			e.Telemetry.CollectionErrors.Add(1, collectorResult.TelemetryTags...)
 			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collectorResult.Name, collectorResult.Err))
 		}

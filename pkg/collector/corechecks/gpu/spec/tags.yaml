@@ -57,6 +57,8 @@ tags:
     regex: "^(parity|secded)$"
   cause:
     regex: "^(multiple_single_bit|double_bit)$"
+  vgpu_product:
+    regex: "^(unknown|vgpu|nvidia_rtx|gaming|compute|unknown_\\d+)$"
   nvlink_port:
     regex: "^\\d+$"
   fan_index:
@@ -66,6 +68,8 @@ tags:
     regex: "^(none|reset|reboot|drain|drain_and_reset|unknown_-?\\d+)$"
   throttle_reason:
     regex: "^(applications_clocks_setting|sw_power_cap|hw_slowdown|sync_boost|sw_thermal_slowdown|hw_thermal_slowdown|hw_power_brake_slowdown|display_clock_setting|not_throttled)$"
+  unavailable_reason:
+    regex: "^(lost)$"
 
 tagsets:
   container:

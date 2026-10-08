@@ -181,7 +181,7 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 	var errs []error
 	for name, callback := range agentCollectors {
 		if err := callback(name); err != nil {
-			errs = append(errs, fmt.Errorf("error collecting %s agent profile: %v", name, err))
+			errs = append(errs, fmt.Errorf("error collecting %s agent profile: %w", name, err))
 		}
 	}
 

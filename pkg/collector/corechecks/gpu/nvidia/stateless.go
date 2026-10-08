@@ -20,6 +20,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -138,12 +139,14 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
-	processSamples = append(processSamples, &Metric{
-		baseSample: baseSample{priority: metricLimitPriority, associatedWorkloads: allWorkloadIDs},
-		Name:       "memory.limit",
-		Value:      float64(devInfo.Memory),
-		Type:       metrics.GaugeType,
-	})
+	if devInfo.Memory > 0 {
+		processSamples = append(processSamples, &Metric{
+			baseSample: baseSample{priority: metricLimitPriority, associatedWorkloads: allWorkloadIDs},
+			Name:       "memory.limit",
+			Value:      float64(devInfo.Memory),
+			Type:       metrics.GaugeType,
+		})
+	}
 
 	return processSamples
 }
@@ -417,6 +420,21 @@ var clockThrottleReasons = []clockThrottleReason{
 const notThrottledReason = "not_throttled"
 const throttleReasonTag = "throttle_reason"
 
+// vgpuProductTag identifies the licensed vGPU software product of each
+// vgpu.license_status sample.
+const vgpuProductTag = "vgpu_product"
+
+// gridFeatureCodeToTag maps the NVML licensable feature code to the
+// vgpu_product tag value. The code is used instead of the product name, which
+// NVIDIA has renamed across driver releases.
+var gridFeatureCodeToTag = map[nvml.GridLicenseFeatureCode]string{
+	nvml.GRID_LICENSE_FEATURE_CODE_UNKNOWN:    "unknown",
+	nvml.GRID_LICENSE_FEATURE_CODE_VGPU:       "vgpu",
+	nvml.GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX: "nvidia_rtx",
+	nvml.GRID_LICENSE_FEATURE_CODE_GAMING:     "gaming",
+	nvml.GRID_LICENSE_FEATURE_CODE_COMPUTE:    "compute",
+}
+
 func clockThrottleReasonMetrics(reasons uint64) []Sample {
 	allSamples := make([]Sample, 0, len(clockThrottleReasons)*2)
 
@@ -473,6 +491,53 @@ func maxClockInfoSample(device ddnvml.Device, clockType nvml.ClockType, metricNa
 	return []Sample{&Metric{Name: metricName, Value: float64(clock), Type: metrics.GaugeType}}, 0, nil
 }
 
+// gridLicenseStatusSample reports whether the vGPU software license of each
+// enabled product is active (1) or not (0).
+func gridLicenseStatusSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	if device.GetDeviceInfo().VirtualizationMode != nvml.GPU_VIRTUALIZATION_MODE_VGPU {
+		return nil, 0, errUnsupportedDevice
+	}
+
+	features, err := device.GetGridLicensableFeatures()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if features.IsGridLicenseSupported == 0 {
+		return nil, 0, errUnsupportedDevice
+	}
+
+	var samples []Sample
+	for i := uint32(0); i < features.LicensableFeaturesCount && i < uint32(len(features.GridLicensableFeatures)); i++ {
+		feature := features.GridLicensableFeatures[i]
+		// featureEnabled marks the product the driver runs as, not the license
+		// state. Skip the other products so they don't report as unlicensed.
+		if feature.FeatureEnabled == 0 {
+			continue
+		}
+
+		productTag, ok := gridFeatureCodeToTag[nvml.GridLicenseFeatureCode(feature.FeatureCode)]
+		if !ok {
+			productTag = "unknown_" + strconv.FormatUint(uint64(feature.FeatureCode), 10)
+		}
+
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{vgpuProductTag + ":" + productTag}},
+			Name:       "vgpu.license_status",
+			Value:      boolToFloat(feature.FeatureState != 0),
+			Type:       metrics.GaugeType,
+		})
+	}
+
+	if len(samples) == 0 {
+		// Without an enabled product there is no license state to report. Keep
+		// the handler without returning an error, as the state may change.
+		log.Debugf("vGPU licensing is supported on device %s but no licensable product is enabled", device.GetDeviceInfo().UUID)
+	}
+
+	return samples, 0, nil
+}
+
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
 func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
@@ -498,16 +563,14 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				if err != nil {
 					return nil, 0, err
 				}
-				// Prevent division by zero if the total is zero.
-				memoryUtilization := 0.0
-				if memInfo.Total > 0 {
-					memoryUtilization = float64(memInfo.Used) / float64(memInfo.Total)
-				}
-				return []Sample{
+				samples := []Sample{
 					&Metric{baseSample: baseSample{priority: Medium}, Name: "memory.free", Value: float64(memInfo.Free), Type: metrics.GaugeType},
 					&Metric{Name: "memory.reserved", Value: float64(memInfo.Reserved), Type: metrics.GaugeType},
-					&Metric{Name: "memory.utilization", Value: memoryUtilization, Type: metrics.GaugeType},
-				}, 0, nil
+				}
+				if memInfo.Total > 0 {
+					samples = append(samples, &Metric{Name: "memory.utilization", Value: float64(memInfo.Used) / float64(memInfo.Total), Type: metrics.GaugeType})
+				}
+				return samples, 0, nil
 			},
 		},
 		{
@@ -851,6 +914,30 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		}
 	}
 
+	apis = append(apis, apiCallInfo{
+		Name: "device_unavailable",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+			if !ok || physicalDevice.HasMIGFeatureEnabled {
+				return nil, 0, errUnsupportedDevice
+			}
+
+			value := 0.0
+			if _, err := device.GetIndex(); err != nil {
+				if !ddnvml.IsGPULost(err) {
+					return nil, 0, err
+				}
+				value = 1
+			}
+			return []Sample{&Metric{
+				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}},
+				Name:       "device.unavailable",
+				Value:      value,
+				Type:       metrics.GaugeType,
+			}}, 0, nil
+		},
+	})
+
 	// Create APIs for retired memory pages, one per retirement cause.
 	for cause, causeName := range pageRetirementCauseToName {
 		apis = append(apis, apiCallInfo{
@@ -860,6 +947,13 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		})
 	}
+
+	apis = append(apis, apiCallInfo{
+		Name: "grid_license_status",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			return gridLicenseStatusSample(device)
+		},
+	})
 
 	return apis
 }

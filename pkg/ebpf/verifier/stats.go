@@ -176,9 +176,9 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 		)
 
 		if opts.DetailedComplexity {
-			sourceMap, funcsPerSect, err = getSourceMap(file, collectionSpec)
+			sourceMap, funcsPerSect, err = getSourceMap(collectionSpec)
 			if err != nil {
-				return fmt.Errorf("failed to get llvm-objdump data for %v: %w", file, err)
+				return fmt.Errorf("failed to get source map for %v: %w", file, err)
 			}
 			results.FuncsPerSection[objectFileName] = funcsPerSect
 		}

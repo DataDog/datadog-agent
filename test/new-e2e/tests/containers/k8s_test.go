@@ -707,6 +707,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
+				`^service:nginx-from-annotation$`,
 				`^team:contp$`,
 			}, sourceCodeIntegrationTags),
 			AcceptUnexpectedTags: true,
@@ -768,7 +769,7 @@ func (suite *k8sSuite) TestNginx() {
 	// Test Nginx logs
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
-			Service: "apps-nginx-server",
+			Service: "nginx-from-annotation",
 			Tags: []string{
 				`^kube_namespace:workload-nginx$`,
 			},
@@ -798,6 +799,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
+				`^service:nginx-from-annotation$`,
 				`^team:contp$`,
 			}, sourceCodeIntegrationTags),
 			Message: `GET / HTTP/1\.1`,
@@ -1543,26 +1545,23 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	switch language {
 	// APM supports several languages, but for now all the test apps are Python
 	case "python":
-		emptyDirVolumes := make(map[string]*corev1.EmptyDirVolumeSource)
+		// The volumes are emptyDir with init containers and CSI volumes with
+		// the CSI driver, so only mode-independent properties are checked.
+		volumeNames := make(map[string]struct{})
 		for _, volume := range pod.Spec.Volumes {
-			if volume.EmptyDir != nil {
-				emptyDirVolumes[volume.Name] = volume.EmptyDir
-			}
+			volumeNames[volume.Name] = struct{}{}
 		}
 
-		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation") {
+		if suite.Contains(volumeNames, "datadog-auto-instrumentation") {
 			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation")
 		}
 
-		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation-etc") {
+		if suite.Contains(volumeNames, "datadog-auto-instrumentation-etc") {
 			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation-etc")
 		}
 
 		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
-			suite.ElementsMatch([]string{
-				"/opt/datadog-packages/datadog-apm-inject",
-				"/opt/datadog/apm/library",
-			}, volumeMounts["datadog-auto-instrumentation"])
+			suite.Contains(volumeMounts["datadog-auto-instrumentation"], "/opt/datadog-packages/datadog-apm-inject")
 		}
 	}
 }
@@ -1892,6 +1891,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			regexp.MustCompile(`^parent-name:nginx$`),
 			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
 			regexp.MustCompile(`^pod_phase:(running|succeeded|failed)$`),
+			regexp.MustCompile(`^service:nginx-from-annotation$`),
 			regexp.MustCompile(`^team:contp$`),
 		}
 

@@ -12,16 +12,17 @@ import (
 	"time"
 )
 
-// ImageTagTimes holds the first and last seen timestamps for a specific ImageTag (image tag).
-type ImageTagTimes struct {
-	FirstSeen time.Time
-	LastSeen  time.Time
+type seenEntry struct {
+	id        uint64
+	firstSeen int64
+	lastSeen  int64
 }
 
-// seenEntry pairs an image tag ID with its observation timestamps.
-type seenEntry struct {
-	id    uint64
-	times ImageTagTimes
+func timeToNanos(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
 }
 
 // NodeBase provides the base functionality for all nodes in the activity tree.
@@ -40,15 +41,16 @@ func (b *NodeBase) AppendImageTagID(imageTagID uint64, timestamp time.Time) {
 	if imageTagID == 0 {
 		return
 	}
+	ns := timeToNanos(timestamp)
 	for i, entry := range b.seen {
 		if entry.id == imageTagID {
-			b.seen[i].times.LastSeen = timestamp
+			b.seen[i].lastSeen = ns
 			return
 		}
 	}
 	// Three-index slice sets cap == len before append so Go allocates exactly one new slot,
 	// avoiding the default doubling strategy for a structure that stays small (typically ≤5 entries).
-	b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: imageTagID, times: ImageTagTimes{FirstSeen: timestamp, LastSeen: timestamp}})
+	b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: imageTagID, firstSeen: ns, lastSeen: ns})
 }
 
 // RecordWithTimestamps sets both FirstSeen and LastSeen for the given imageTagID with the provided timestamps.
@@ -57,13 +59,15 @@ func (b *NodeBase) RecordWithTimestamps(imageTagID uint64, firstSeen, lastSeen t
 	if imageTagID == 0 {
 		return
 	}
+	fs, ls := timeToNanos(firstSeen), timeToNanos(lastSeen)
 	for i, entry := range b.seen {
 		if entry.id == imageTagID {
-			b.seen[i].times = ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}
+			b.seen[i].firstSeen = fs
+			b.seen[i].lastSeen = ls
 			return
 		}
 	}
-	b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: imageTagID, times: ImageTagTimes{FirstSeen: firstSeen, LastSeen: lastSeen}})
+	b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: imageTagID, firstSeen: fs, lastSeen: ls})
 }
 
 // EvictImageTag removes the entry for imageTagID and returns true if the slice is now empty.
@@ -83,10 +87,11 @@ func (b *NodeBase) EvictImageTag(imageTagID uint64) bool {
 // EvictBeforeTimestamp removes all entries whose LastSeen is before the given timestamp.
 // Returns the number of entries removed.
 func (b *NodeBase) EvictBeforeTimestamp(before time.Time) int {
+	beforeNs := timeToNanos(before)
 	removed := 0
 	i := 0
 	for i < len(b.seen) {
-		if b.seen[i].times.LastSeen.Before(before) {
+		if b.seen[i].lastSeen < beforeNs {
 			b.seen[i] = b.seen[len(b.seen)-1]
 			b.seen = b.seen[:len(b.seen)-1]
 			removed++
@@ -117,19 +122,21 @@ func (b *NodeBase) SeenLen() int {
 	return len(b.seen)
 }
 
-// GetSeenTimes returns the timestamps for the given imageTagID, or the zero value and false if not found.
-func (b *NodeBase) GetSeenTimes(imageTagID uint64) (ImageTagTimes, bool) {
+// GetSeenTimes returns the first and last seen timestamps (unix nanoseconds, 0 = unset) for the
+// given imageTagID, or (0, 0, false) if not found.
+func (b *NodeBase) GetSeenTimes(imageTagID uint64) (firstSeen, lastSeen int64, found bool) {
 	for _, entry := range b.seen {
 		if entry.id == imageTagID {
-			return entry.times, true
+			return entry.firstSeen, entry.lastSeen, true
 		}
 	}
-	return ImageTagTimes{}, false
+	return 0, 0, false
 }
 
-// EachSeen calls fn for every recorded image tag ID and its timestamps.
-func (b *NodeBase) EachSeen(fn func(id uint64, times ImageTagTimes)) {
+// EachSeen calls fn for every recorded image tag ID and its first/last seen timestamps
+// (unix nanoseconds, 0 = unset).
+func (b *NodeBase) EachSeen(fn func(id uint64, firstSeen, lastSeen int64)) {
 	for _, entry := range b.seen {
-		fn(entry.id, entry.times)
+		fn(entry.id, entry.firstSeen, entry.lastSeen)
 	}
 }
