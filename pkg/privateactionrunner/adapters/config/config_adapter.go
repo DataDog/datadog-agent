@@ -50,7 +50,7 @@ type Config struct {
 	// NetworkPcapLogsDDURL overrides the destination host:port for the
 	// networkpcap EVP track (e.g. "cws-intake.datad0g.com:443"). Empty means
 	// use the default "pcap-intake.<DatadogSite>" host. See
-	// network_pcap.logs_dd_url in pkg/config/setup/all_settings.go.
+	// network_pcap.logs_dd_url in pkg/config/schema/yaml/core_schema.yaml.
 	NetworkPcapLogsDDURL string
 
 	// the following are constants with default values. They are part of the config struct to allow for the ability to be overwritten in the YAML config file if needed
