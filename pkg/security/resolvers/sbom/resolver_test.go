@@ -10,6 +10,7 @@ package sbom
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"slices"
@@ -1128,5 +1129,111 @@ func TestScanHostForwardsChangesAlone(t *testing.T) {
 
 	if r.hostSBOM.forwarder != nil {
 		t.Errorf("the rescan of unchanged packages triggered forwarding")
+	}
+}
+
+// TestRescanAfterPackageChange checks that the rescan after a package change
+// indexes the new packages from zero usage, and credits accesses made meanwhile.
+func TestRescanAfterPackageChange(t *testing.T) {
+	coreutils := sbomtypes.PackageWithInstalledFiles{
+		Package:        sbomtypes.Package{Name: "coreutils", Version: "9.4", Release: "3ubuntu6"},
+		InstalledFiles: []string{"/usr/bin/cat"},
+	}
+	gzip := func(release string) sbomtypes.PackageWithInstalledFiles {
+		return sbomtypes.PackageWithInstalledFiles{
+			Package:        sbomtypes.Package{Name: "gzip", Version: "1.12", Release: release},
+			InstalledFiles: []string{"/usr/bin/gzip"},
+		}
+	}
+
+	for _, tt := range []struct {
+		name      string
+		rescanned []sbomtypes.PackageWithInstalledFiles
+		inUse     map[string]bool // name@version in the report after the rescan, and whether it reads in use
+		gzip      string          // release /usr/bin/gzip resolves to after the rescan, empty for none
+	}{
+		{
+			name:      "upgrade",
+			rescanned: []sbomtypes.PackageWithInstalledFiles{coreutils, gzip("1ubuntu3+e2e1")},
+			inUse:     map[string]bool{"coreutils@9.4-3ubuntu6": false, "gzip@1.12-1ubuntu3+e2e1": true},
+			gzip:      "1ubuntu3+e2e1",
+		},
+		{
+			name:      "removal",
+			rescanned: []sbomtypes.PackageWithInstalledFiles{coreutils},
+			inUse:     map[string]bool{"coreutils@9.4-3ubuntu6": false},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newScanResolver(t)
+			var reports []*sbompkg.ScanResult
+			if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+				reports = append(reports, result)
+			}); err != nil {
+				t.Fatalf("RegisterListener: %v", err)
+			}
+			r.scanWorkload = func(*SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
+				return tt.rescanned, nil
+			}
+
+			sbom := r.newSBOM("container-id", nil, "image:tag")
+			t.Cleanup(sbom.stop)
+			sbom.status = workloadmeta.Success
+			sbom.setReport([]sbomtypes.PackageWithInstalledFiles{coreutils, gzip("1ubuntu3")})
+			sbom.state.Store(computedState)
+			r.dataCache.Add("image:tag", sbom.data)
+
+			access := func(path string) *sbomtypes.Package {
+				pc := &model.ProcessContext{}
+				pc.ContainerContext.ContainerID = "container-id"
+				file := &model.FileEvent{}
+				file.SetPathnameStr(path)
+				file.Mode = 0o755
+				return r.ResolvePackage(pc, file)
+			}
+			for _, path := range []string{"/usr/bin/cat", "/usr/bin/gzip"} {
+				if access(path) == nil {
+					t.Fatalf("%s resolves to no package before the change", path)
+				}
+			}
+			// the accesses armed a forwarder, and the rescan must arm one again
+			sbom.forwarder.Stop()
+			sbom.forwarder = nil
+
+			r.refreshScan(sbom)
+			if pkg := access("/usr/bin/gzip"); pkg != nil {
+				t.Errorf("an access during the rescan resolved to %+v", pkg)
+			}
+			if err := r.analyzeWorkload(<-r.scanChan); err != nil {
+				t.Fatalf("analyzeWorkload: %v", err)
+			}
+			if sbom.forwarder == nil {
+				t.Errorf("the rescan left its report unforwarded")
+			}
+
+			r.forward(sbom)
+			if len(reports) != 1 {
+				t.Fatalf("%d reports forwarded, want 1", len(reports))
+			}
+			inUse := make(map[string]bool)
+			for _, c := range reports[0].Report.ToCycloneDX().GetComponents() {
+				seen, _ := propertyValue(c, LastAccessProperty)
+				inUse[c.GetName()+"@"+c.GetVersion()] = seen != "0"
+			}
+			if !maps.Equal(inUse, tt.inUse) {
+				t.Errorf("report after the rescan = %v, want %v", inUse, tt.inUse)
+			}
+
+			got := ""
+			if pkg := access("/usr/bin/gzip"); pkg != nil {
+				got = pkg.Release
+			}
+			if got != tt.gzip {
+				t.Errorf("/usr/bin/gzip resolves to release %q, want %q", got, tt.gzip)
+			}
+			if n := r.pendingFileEvents.Len(); n != 0 {
+				t.Errorf("%d containers keep queued file accesses after the rescan", n)
+			}
+		})
 	}
 }
