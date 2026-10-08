@@ -17,7 +17,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -78,7 +77,6 @@ type CheckSubmitter struct {
 	agentStartTime int64
 
 	stopHeartbeat chan struct{}
-	clock         clock.Clock
 
 	statsd statsd.ClientInterface
 
@@ -176,7 +174,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		agentStartTime: time.Now().Unix(),
 
 		stopHeartbeat: make(chan struct{}),
-		clock:         clock.New(),
 
 		statsd: statsd,
 
@@ -213,7 +210,7 @@ func (s *CheckSubmitter) Start() error {
 	}
 
 	if flavor.GetFlavor() == flavor.ProcessAgent {
-		heartbeatTicker := s.clock.Ticker(15 * time.Second)
+		heartbeatTicker := time.NewTicker(15 * time.Second)
 		s.wg.Add(1)
 		go func() {
 			defer heartbeatTicker.Stop()
@@ -226,10 +223,10 @@ func (s *CheckSubmitter) Start() error {
 	go func() {
 		defer s.wg.Done()
 
-		queueSizeTicker := s.clock.Ticker(10 * time.Second)
+		queueSizeTicker := time.NewTicker(10 * time.Second)
 		defer queueSizeTicker.Stop()
 
-		queueLogTicker := s.clock.Ticker(time.Minute)
+		queueLogTicker := time.NewTicker(time.Minute)
 		defer queueLogTicker.Stop()
 
 		for {
@@ -427,7 +424,7 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 	return slices.Contains(s.dropCheckPayloads, check)
 }
 
-func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
+func (s *CheckSubmitter) heartbeat(heartbeatTicker *time.Ticker) {
 	agentVersion, _ := version.Agent()
 	tags := []string{
 		"version:" + agentVersion.GetNumberAndPre(),
