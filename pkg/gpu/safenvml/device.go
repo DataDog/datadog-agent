@@ -176,6 +176,9 @@ type SafeDevice interface {
 	IsMigDeviceHandle() (bool, error)
 	// GetVirtualizationMode returns the virtualization mode of the device
 	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
+	// GetGridLicensableFeatures returns the vGPU software licensable features
+	// of the device and their license state
+	GetGridLicensableFeatures() (nvml.GridLicensableFeatures, error)
 	// GetSupportedEventTypes returns a bitmask of all supported device events
 	GetSupportedEventTypes() (uint64, error)
 	// RegisterEvents registers the device for events to be waited in the given set
@@ -364,9 +367,12 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 
 		memInfo, err := device.SafeDevice.GetMemoryInfo()
 		if err != nil {
-			return nil, err
+			log.Warnf("error getting physical device memory info for device %s: %v", device.Name, err)
+			// Zero denotes unavailable device-local memory. Some devices have no on-chip
+			// memory and use shared host memory, so callers must omit capacity-derived metrics.
+		} else {
+			device.Memory = memInfo.Total
 		}
-		device.Memory = memInfo.Total
 	}
 
 	return device, nil

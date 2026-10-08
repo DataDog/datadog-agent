@@ -112,8 +112,10 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 				EmptyLayer: layer.History.EmptyLayer,
 			}
 
-			if layer.History.Created != nil {
-				modelLayer.History.Created = timestamppb.New(*layer.History.Created)
+			// Tools built on go-containerregistry record an unset created as
+			// the zero time.
+			if created := layer.History.Created; created != nil && !created.IsZero() {
+				modelLayer.History.Created = timestamppb.New(*created)
 			}
 		}
 

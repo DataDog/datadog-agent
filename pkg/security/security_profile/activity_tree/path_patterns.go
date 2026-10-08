@@ -697,21 +697,7 @@ func (fn *FileNode) mergeInto(src *FileNode, stats *Stats) {
 		return
 	}
 	stats.recordMovedNode(&src.NodeBase, &fn.NodeBase)
-	src.EachSeen(func(id uint64, times ImageTagTimes) {
-		if existing, ok := fn.GetSeenTimes(id); ok {
-			firstSeen := existing.FirstSeen
-			lastSeen := existing.LastSeen
-			if times.FirstSeen.Before(firstSeen) {
-				firstSeen = times.FirstSeen
-			}
-			if times.LastSeen.After(lastSeen) {
-				lastSeen = times.LastSeen
-			}
-			fn.RecordWithTimestamps(id, firstSeen, lastSeen)
-		} else {
-			fn.RecordWithTimestamps(id, times.FirstSeen, times.LastSeen)
-		}
-	})
+	fn.mergeSeen(&src.NodeBase)
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, src.MatchedRules)
 
@@ -733,6 +719,9 @@ func (fn *FileNode) mergeInto(src *FileNode, stats *Stats) {
 		fn.GenerationType = src.GenerationType
 	}
 
+	if len(src.Children) > 0 && fn.Children == nil {
+		fn.Children = make(map[string]*FileNode, len(src.Children))
+	}
 	for name, child := range src.Children {
 		if existing, ok := fn.Children[name]; ok {
 			existing.mergeInto(child, stats)
@@ -744,6 +733,27 @@ func (fn *FileNode) mergeInto(src *FileNode, stats *Stats) {
 			fn.Children[name] = child
 		}
 	}
+}
+
+// mergeSeen widens, for every image tag of src, b's first/last seen range
+// (unix nanoseconds, 0 = unset).
+func (b *NodeBase) mergeSeen(src *NodeBase) {
+	src.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
+		for i := range b.seen {
+			e := &b.seen[i]
+			if e.id != id {
+				continue
+			}
+			if firstSeen != 0 && (e.firstSeen == 0 || firstSeen < e.firstSeen) {
+				e.firstSeen = firstSeen
+			}
+			if lastSeen > e.lastSeen {
+				e.lastSeen = lastSeen
+			}
+			return
+		}
+		b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: id, firstSeen: firstSeen, lastSeen: lastSeen})
+	})
 }
 
 func generationPriority(t NodeGenerationType) int {

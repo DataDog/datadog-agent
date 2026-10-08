@@ -13,6 +13,9 @@ env_vars(
     # target using it is potentially uncachable.
     # ⚠️ Keep in sync with the `--repo_env=` entries in .bazelrc
     variables = [
+        # Stamps pkg/version.{Commit,FullCommit}, only in builds that also set
+        # PACKAGE_VERSION, so other CI jobs keep caching across commits.
+        "CI_COMMIT_SHA",
         # This gets set by omnibus builds in many cases. It's used in the script
         # to set things like compression, so we'll mimic that for now.
         "DEPLOY_AGENT",
@@ -83,13 +86,14 @@ bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.4.1")
-bazel_dep(name = "rules_cc", version = "0.2.25")
+bazel_dep(name = "rules_cc", version = "0.2.26")
 bazel_dep(name = "rules_flex", version = "0.4.1")
+bazel_dep(name = "rules_foreign_cc", version = "0.16.0")
 bazel_dep(name = "rules_go", version = "0.64.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "2.3.4")
+bazel_dep(name = "rules_python", version = "2.4.1")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
@@ -110,19 +114,31 @@ single_version_override(
     version = "35.1",
 )
 
-# Temporary until https://github.com/bazelbuild/rules_cc/pull/888 is addressed in some way or another
 single_version_override(
-    module_name = "rules_cc",
+    module_name = "rules_foreign_cc",
     patch_strip = 1,
-    patches = ["//bazel/patches:rules_cc-restore-grep-includes.patch"],
-    version = "0.2.25",
+    patches = [
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1452
+        "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/pull/1491
+        "//bazel/patches:rules_foreign_cc/0003-pass-j-flag-directly-on-make-command-line.patch",
+        # https://github.com/bazel-contrib/rules_foreign_cc/issues/985
+        # TODO(agent-build): Ideally we'd like to find a better way to solve this, possibly
+        # finding a general solution that could be properly upstreamed
+        "//bazel/patches:rules_foreign_cc/0004-Pass-cc-flags-as-CPPFLAGS.patch",
+    ],
 )
 
-# Temporary until https://github.com/bazel-contrib/rules_go/pull/3977 (or equivalent) lands
+# Temporary until the following PRs (or equivalents) land
 single_version_override(
     module_name = "rules_go",
     patch_strip = 1,
-    patches = ["//bazel/patches:rules_go-windows-symlink-workaround.patch"],
+    patches = [
+        # https://github.com/bazel-contrib/rules_go/pull/3977
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",
+        # https://github.com/bazel-contrib/rules_go/pull/4727
+        "//bazel/patches:rules_go-link-resource-set.patch",
+    ],
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR

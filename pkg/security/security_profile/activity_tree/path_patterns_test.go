@@ -516,7 +516,9 @@ func TestCollapseBucket_RewritesPathnames(t *testing.T) {
 	children := map[string]*FileNode{}
 	for _, id := range []string{"1001", "1002", "1003"} {
 		dir := NewFileNode(nil, nil, id, 0, Unknown, "", nil)
-		dir.Children["out.log"] = NewFileNode(&model.FileEvent{}, nil, "out.log", 0, Unknown, "/var/job/"+id+"/out.log", nil)
+		dir.Children = map[string]*FileNode{
+			"out.log": NewFileNode(&model.FileEvent{}, nil, "out.log", 0, Unknown, "/var/job/"+id+"/out.log", nil),
+		}
 		children[id] = dir
 	}
 	children["1004"] = NewFileNode(&model.FileEvent{}, nil, "1004", 0, Unknown, "/var/job/1004", nil)
