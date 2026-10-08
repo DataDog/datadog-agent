@@ -40,7 +40,7 @@ func TestPreparationBarrier(t *testing.T) {
 	// Preloading is non-blocking and concurrent requests share one operation.
 	var wg sync.WaitGroup
 	for range 10 {
-		wg.Go(func() { ac.Preload(t.Context()) })
+		wg.Go(func() { _, _, _ = ac.preparation.start(t.Context()) })
 	}
 	wg.Wait()
 	require.Contains(t, health.GetReady().Unhealthy, "ad-initialization")
@@ -78,7 +78,8 @@ func TestPreparationContexts(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			if preload {
-				ac.Preload(ctx)
+				_, _, err := ac.preparation.start(ctx)
+				require.NoError(t, err)
 			}
 			cancel()
 			require.ErrorIs(t, ac.LoadAndRun(ctx), context.Canceled)
@@ -102,17 +103,19 @@ func TestPreparationStopWithoutStarting(t *testing.T) {
 		t.Error("preparation started after shutdown")
 	}}}
 	ac.preparation.stop() // Must not block when preparation was never requested.
-	ac.Preload(t.Context())
+	_, _, err := ac.preparation.start(t.Context())
+	require.ErrorContains(t, err, "already stopped")
 	require.ErrorContains(t, ac.LoadAndRun(t.Context()), "already stopped")
 }
 
-// Exercise the same decorator ordering as the core Agent, including child-module
-// invokes. Preparation must begin before consumer hooks, and be joined by the
+// Exercise component-owned preloading, including child-module invokes.
+// Preparation must begin before consumer hooks, and be joined by the
 // real AutoConfig stop hook before dependency teardown, also on startup rollback.
 func TestPreparationLifecycle(t *testing.T) {
 	for _, failStart := range []bool{false, true} {
 		t.Run(map[bool]string{false: "normal shutdown", true: "startup rollback"}[failStart], func(t *testing.T) {
 			reqs := preparationTestRequires(t)
+			reqs.Params.PreloadConfigsOnStart = true
 			started := make(chan struct{})
 			release := make(chan struct{})
 			unblock := sync.OnceFunc(func() { close(release) })
@@ -138,13 +141,6 @@ func TestPreparationLifecycle(t *testing.T) {
 						<-release
 						prepared.Store(true)
 					}
-					return ac
-				}),
-				fx.Decorate(func(lc fx.Lifecycle, ac autodiscovery.Component) autodiscovery.Component {
-					lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
-						ac.Preload(ctx)
-						return nil
-					}})
 					return ac
 				}),
 				fx.Module("consumer", fx.Invoke(func(lc fx.Lifecycle, _ autodiscovery.Component) {

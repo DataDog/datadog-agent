@@ -80,11 +80,3 @@ func (p *preparation) stop() {
 		<-done
 	}
 }
-
-// Preload starts default preparation without waiting. It is optional: LoadAndRun
-// starts the same operation lazily if needed. Calls after shutdown are ignored.
-func (ac *AutoConfig) Preload(ctx context.Context) {
-	if ac.preparation != nil {
-		_, _, _ = ac.preparation.start(ctx)
-	}
-}

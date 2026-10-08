@@ -19,17 +19,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 )
 
+// Params controls autodiscovery startup behavior. Its zero value keeps preparation
+// lazy until LoadAndRun is called. Supplying Params to Fx is optional.
+type Params struct {
+	// PreloadConfigsOnStart prepares default providers and listeners in the
+	// background from the component's startup hook. Enable only when setup's
+	// prerequisites are ready at that point. The startup context bounds the
+	// subsequent LoadAndRun wait, not setup itself; shutdown joins setup even
+	// if that context expires.
+	PreloadConfigsOnStart bool
+}
+
 // Component is the component type.
 // team: container-platform
 type Component interface {
 	AddConfigProvider(provider types.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
-
-	// Preload optionally starts default provider/listener preparation in the
-	// background. Call after the component's startup hook, for example from a
-	// subsequent lifecycle hook. Concurrent/repeated calls share one operation.
-	// The first preload context bounds the wait in LoadAndRun, not setup itself.
-	// Shutdown waits for setup to finish, even if its context expires.
-	Preload(ctx context.Context)
 
 	// LoadAndRun starts default preparation if needed, waits for it, then starts
 	// all registered providers, including manually added ones. A canceled wait

@@ -74,6 +74,8 @@ type Requires struct {
 	Telemetry      telemetry.Component
 	HealthPlatform healthplatformdef.Component
 	ServiceTracker adtypes.ServiceTracker `optional:"true"`
+	// Without supplied params, preparation stays lazy until LoadAndRun.
+	Params autodiscoverydef.Params `optional:"true"`
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -191,8 +193,11 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 		deps.Log.Infof("Autodiscovery setup completed in %s", time.Since(started))
 	}}
 	deps.Lc.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
+		OnStart: func(ctx context.Context) error {
 			ac.start()
+			if deps.Params.PreloadConfigsOnStart {
+				_, _, _ = ac.preparation.start(ctx)
+			}
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
@@ -204,8 +209,8 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 }
 
 // NewAutoConfigFromDeps creates an AutoConfig instance from explicit dependencies,
-// without starting it or installing default configuration preparation. Preload is
-// a no-op and LoadAndRun only runs explicitly registered providers on this instance.
+// without starting it or installing default configuration preparation.
+// LoadAndRun only runs explicitly registered providers on this instance.
 // Exported for use by the mock package.
 func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component) *AutoConfig {
 	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)

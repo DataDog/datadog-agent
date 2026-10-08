@@ -99,23 +99,24 @@ func TestLoadAndRunDefaultAndManualProviders(t *testing.T) {
 	for _, preload := range []bool{false, true} {
 		t.Run(map[bool]string{false: "lazy", true: "preloaded"}[preload], func(t *testing.T) {
 			reqs := preparationTestRequires(t)
+			reqs.Params.PreloadConfigsOnStart = preload
 			dir := reqs.Config.GetString("confd_path")
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "preparation_test.yaml"), []byte("init_config: {}\ninstances:\n  - value: test\n"), 0600))
 			providers.ResetReader([]string{dir})
 			t.Cleanup(func() { providers.ResetReader(nil) })
 			ac := startPreparationTestComponent(t, reqs)
-			// Merely starting AutoConfig must not configure any defaults.
-			require.Nil(t, ac.preparation.done)
-			require.Empty(t, ac.getConfigPollers())
+			if preload {
+				require.NotNil(t, ac.preparation.done)
+			} else {
+				// Without opting in, startup must not configure any defaults.
+				require.Nil(t, ac.preparation.done)
+				require.Empty(t, ac.getConfigPollers())
+			}
 
 			scheduled := make(chan struct{}, 1)
 			ac.AddScheduler("preparation-test", &preparationTestScheduler{scheduled: scheduled}, true)
 			manual := &preparationTestProvider{}
 			ac.AddConfigProvider(manual, false, 0)
-			if preload {
-				ac.Preload(t.Context())
-				ac.Preload(t.Context())
-			}
 			require.NoError(t, ac.LoadAndRun(t.Context()))
 			require.EqualValues(t, 1, manual.collects.Load())
 			require.Len(t, ac.getConfigPollers(), 2, "manual registration must neither suppress nor duplicate defaults")
@@ -129,8 +130,6 @@ func TestLoadAndRunDefaultAndManualProviders(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("file config was not scheduled")
 			}
-			ac.Preload(t.Context())
-			require.Len(t, ac.getConfigPollers(), 2)
 		})
 	}
 }
@@ -147,7 +146,8 @@ func TestLoadAndRunDoesNotStartProvidersBeforePreparation(t *testing.T) {
 	}
 	manual := &preparationTestProvider{}
 	ac.AddConfigProvider(manual, false, 0)
-	ac.Preload(t.Context())
+	_, _, err := ac.preparation.start(t.Context())
+	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, ac.LoadAndRun(ctx), context.Canceled)
@@ -166,7 +166,6 @@ func TestLoadAndRunBareInstance(t *testing.T) {
 	t.Cleanup(ac.stop)
 	manual := &preparationTestProvider{}
 	ac.AddConfigProvider(manual, false, 0)
-	ac.Preload(t.Context())
 	require.Nil(t, ac.preparation, "the low-level mock constructor must not install default preparation")
 	require.NoError(t, ac.LoadAndRun(t.Context()))
 	require.EqualValues(t, 1, manual.collects.Load())

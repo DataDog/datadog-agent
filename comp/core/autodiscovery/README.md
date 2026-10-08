@@ -43,21 +43,23 @@ Call it once after component startup and after command-specific prerequisites
 (such as Cluster Agent API clients or Cloud Foundry caches) are ready. Handle its
 error: a canceled preparation wait must not proceed with a partial provider set.
 
-The core Agent overlaps preparation with independent startup hooks by calling
-`Preload(ctx)` from a lifecycle hook registered by an AutoConfig decorator.
+The core Agent overlaps preparation with independent startup hooks by supplying
+`autodiscovery.Params{PreloadConfigsOnStart: true}` to Fx. AutoConfig starts
+preparation from its own startup hook, after registering provider/listener factories.
 `LoadAndRun` joins that same preparation operation before starting providers.
-Other commands need not preload; their preparation remains lazy. Preloading must
-run after AutoConfig's own startup hook, which registers provider/listener factories.
+The params dependency is optional: without supplied params, the zero value keeps
+preloading disabled. Other commands retain lazy preparation, so prerequisites
+initialized after component startup are available before setup begins.
 
 Preparation is performed once per component. Canceling a waiter does not cancel
 setup, whose APIs do not support cancellation; AutoConfig joins it before shutdown.
-An explicit preload context bounds the subsequent wait, preserving the startup
-deadline. A lazy caller's context only bounds its own wait. Successful provider
-startup is single-shot, not a reload operation.
+When preloading is enabled, the component's startup context bounds the subsequent
+wait, preserving the startup deadline. A lazy caller's context only bounds its own
+wait. Successful provider startup is single-shot, not a reload operation.
 
 The low-level `NewAutoConfigFromDeps` constructor used by mocks does not install
-default preparation. On those bare instances, `Preload` is a no-op and `LoadAndRun`
-only starts explicitly registered providers, without discovering host configuration.
+default preparation. On those bare instances, `LoadAndRun` only starts explicitly
+registered providers, without discovering host configuration.
 
 ## Config Providers
 

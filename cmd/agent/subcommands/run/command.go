@@ -499,6 +499,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		fx.Supply(autodiscovery.Params{PreloadConfigsOnStart: true}),
 		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
@@ -507,17 +508,6 @@ func getSharedFxOption() fx.Option {
 		// we can include the tagger as part of the workloadmeta component.
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
-		}),
-		// Preload immediately after AutoConfig's own startup hook, before its
-		// consumers. A root Invoke is too late: child-module invokes may already
-		// have registered slow hooks. Keep setup dependencies explicit so their
-		// startup hooks run first; AutoConfig joins preparation during shutdown.
-		fx.Decorate(func(lc fx.Lifecycle, ac autodiscovery.Component, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ secrets.Component, _ config.Component) autodiscovery.Component {
-			lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
-				ac.Preload(ctx)
-				return nil
-			}})
-			return ac
 		}),
 		logs.Bundle(),
 		observerfx.Module(),
