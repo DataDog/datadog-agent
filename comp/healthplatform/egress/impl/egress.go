@@ -157,7 +157,7 @@ func (e *egress) tick() {
 func (e *egress) send() error {
 	count, active := e.store.GetAllIssues()
 	if count == 0 && len(e.resolved) == 0 {
-		e.log.Debug("Health platform egress: no issues to report, skipping tick")
+		e.log.Debug("Health platform egress: no issues to report, skipping send")
 		e.statusMu.Lock()
 		e.lastAttemptAt = time.Now()
 		e.statusMu.Unlock()

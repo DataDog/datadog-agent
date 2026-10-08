@@ -11,8 +11,12 @@ import "context"
 // team: fleet-remediation
 
 const (
-	// PayloadInventoryMetadata is the inventory agent metadata payload
-	PayloadInventoryMetadata = "inventory-metadata"
+	// PayloadInventoryAgent is the inventory agent metadata payload
+	PayloadInventoryAgent = "inventory-agent"
+	// PayloadInventoryHost is the inventory host metadata payload
+	PayloadInventoryHost = "inventory-host"
+	// PayloadInventoryChecks is the inventory checks metadata payload
+	PayloadInventoryChecks = "inventory-checks"
 	// PayloadAgentHealth is the health platform report
 	PayloadAgentHealth = "agent-health"
 )

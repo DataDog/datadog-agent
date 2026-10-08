@@ -10,6 +10,8 @@ go_library(
         "//comp/core/log/def",
         "//comp/healthplatform/egress/def",
         "//comp/metadata/inventoryagent/def",
+        "//comp/metadata/inventorychecks/def",
+        "//comp/metadata/inventoryhost/def",
         "//comp/remote-config/rcclient/types",
         "//comp/triggerpayloads/def",
     ],
