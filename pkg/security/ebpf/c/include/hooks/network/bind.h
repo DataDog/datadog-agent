@@ -42,7 +42,8 @@ static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CA
         goto pop_and_exit;
     }
 
-    approve_syscall(syscall, bind_approvers);
+    // approve on behalf of the io_uring submitter, so that activity dump tracing and sampling apply to it
+    approve_syscall_with_tgid(get_bind_tgid(syscall), syscall, bind_approvers);
 
     // these probes are also loaded with the network probes, only send the event when a rule asks for it
     if (!is_event_enabled(EVENT_BIND)) {
