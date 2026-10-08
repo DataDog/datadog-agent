@@ -119,10 +119,13 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 	}
 
 	// wrapped_command is the customer workload command wrapped by serverless-init
-	// in init mode (os.Args[1:]); it is absent in sidecar mode, where
-	// serverless-init wraps nothing. Scrubbed before storage: command-line
-	// arguments can contain credentials (e.g. --password=secret, --token=…).
-	if len(wrappedCommand) > 0 {
+	// in init mode (os.Args[1:]). Collection is opt-in because redaction is
+	// best effort and does not cover all sensitive command-line arguments.
+	// Pass nil when disabled or absent to clear any previously cached command
+	// before it can be included in another payload. Set leaves never-set nil
+	// values absent, but serializes a cleared value as null.
+	fields["wrapped_command"] = nil
+	if conf.GetBool("serverless.inventory_wrapped_command_enabled") && len(wrappedCommand) > 0 {
 		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(wrappedCommand, " "))
 	}
 
