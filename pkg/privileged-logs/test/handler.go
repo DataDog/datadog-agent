@@ -120,7 +120,10 @@ func SetupSPLite(t *testing.T, callback func()) *Handler {
 	cmd := exec.Command(binaryPath, (&splite.Config{Socket: socketPath, PrivilegedLogs: true}).Args()...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	require.NoError(t, cmd.Start())
-	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+	})
 
 	// Once system-probe-lite has set the socket mode (0720), open it to the
 	// unprivileged test user.
