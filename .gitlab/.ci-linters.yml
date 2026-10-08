@@ -118,4 +118,3 @@ job-owners:
     - trigger-flakes-finder
     - trigger-fips-e2e
     - unit_tests_notify
-    - validate_modules
