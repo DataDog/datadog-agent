@@ -180,6 +180,11 @@ func (c *capturer) Stop() error {
 	return statsErr
 }
 
+// Done implements Capturer.
+func (c *capturer) Done() <-chan struct{} {
+	return c.doneCh
+}
+
 // Stats implements Capturer.
 func (c *capturer) Stats() CaptureStats {
 	c.mu.Lock()

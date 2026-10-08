@@ -34,14 +34,8 @@ type captureRequest struct {
 	SnapLen      uint32 `json:"snapLen,omitempty"`
 }
 
-// pollInterval is how often the handler polls Stats() while waiting for the
-// capture's own Duration/MaxPackets/MaxBytes bound to be reached, so Stop() can be
-// invoked promptly rather than only after the full grace period.
-const pollInterval = 200 * time.Millisecond
-
 // stopGracePeriod bounds how long the handler waits, beyond the requested
-// duration, for the capturer's internal drain loop to self-terminate before
-// forcing Stop().
+// duration, for the capturer's drain loop to exit before forcing Stop().
 const stopGracePeriod = 5 * time.Second
 
 type packetCapture struct{}
@@ -105,20 +99,28 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
-	w.Header().Set("Trailer", "X-Packet-Count, X-Bytes-Captured, X-Packets-Dropped, X-Headers-Truncated, X-Capture-Errors")
-	w.WriteHeader(http.StatusOK)
-
 	ctx, cancel := context.WithTimeout(req.Context(), duration+stopGracePeriod)
 	defer cancel()
 
+	// Response headers must be set before Start, whose first write (the PCAP
+	// global header) sends them. If Start fails before writing, nothing has been
+	// sent yet and the caller gets a proper error status instead of an empty 200.
+	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
+	w.Header().Set("Trailer", "X-Packet-Count, X-Bytes-Captured, X-Packets-Dropped, X-Headers-Truncated, X-Capture-Errors")
+
 	if err := capturer.Start(ctx); err != nil {
 		log.Errorf("packet_capture: starting capture: %s", err)
-		w.Header().Set("X-Capture-Errors", "1")
+		w.Header().Del("Trailer")
+		http.Error(w, fmt.Sprintf("starting capture: %s", err), http.StatusInternalServerError)
 		return
 	}
 
-	waitForCapture(ctx, capturer, reqBody.MaxPackets)
+	// The capture ends itself on Duration, MaxPackets or MaxBytes; ctx only
+	// covers the caller disconnecting or the drain loop failing to exit.
+	select {
+	case <-capturer.Done():
+	case <-ctx.Done():
+	}
 
 	if err := capturer.Stop(); err != nil {
 		log.Errorf("packet_capture: stopping capture: %s", err)
@@ -130,23 +132,4 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("X-Packets-Dropped", strconv.FormatUint(stats.PacketsDropped, 10))
 	w.Header().Set("X-Headers-Truncated", strconv.FormatUint(stats.HeadersTruncated, 10))
 	w.Header().Set("X-Capture-Errors", strconv.FormatUint(stats.Errors, 10))
-}
-
-// waitForCapture blocks until the capture's own Duration bound elapses (plus
-// stopGracePeriod for teardown), the request context is cancelled (e.g. the
-// caller disconnected), or MaxPackets is reached, whichever comes first.
-func waitForCapture(ctx context.Context, capturer capture.Capturer, maxPackets uint64) {
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if maxPackets > 0 && capturer.Stats().PacketsCaptured >= maxPackets {
-				return
-			}
-		}
-	}
 }

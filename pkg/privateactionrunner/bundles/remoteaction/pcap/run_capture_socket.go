@@ -71,10 +71,10 @@ func newCaptureTrigger() captureTrigger {
 
 // Capture triggers a packet capture on system-probe over its unix socket
 // and streams the resulting PCAP data to a local temp file.
-func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInputs) (packetCount int, fileSizeBytes int64, actualDuration time.Duration, pcapPath string, err error) {
+func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInputs) (captureOutcome, error) {
 	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
 	if socketPath == "" {
-		return 0, 0, 0, "", errors.New("system-probe socket path not configured (system_probe_config.sysprobe_socket)")
+		return captureOutcome{}, errors.New("system-probe socket path not configured (system_probe_config.sysprobe_socket)")
 	}
 
 	reqBody, err := json.Marshal(captureRequest{
@@ -86,7 +86,7 @@ func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInput
 		SnapLen:      uint32(inputs.SnapLen),
 	})
 	if err != nil {
-		return 0, 0, 0, "", fmt.Errorf("marshalling capture request: %w", err)
+		return captureOutcome{}, fmt.Errorf("marshalling capture request: %w", err)
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, time.Duration(inputs.DurationSecs)*time.Second+setupGracePeriod)
@@ -95,62 +95,70 @@ func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInput
 	url := sysprobeclient.ModuleURL(sysconfig.PacketCaptureModule, "/capture")
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(reqBody))
 	if err != nil {
-		return 0, 0, 0, "", fmt.Errorf("creating request: %w", err)
+		return captureOutcome{}, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	startTime := time.Now()
 	resp, err := captureHTTPClient(socketPath).Do(req)
 	if err != nil {
-		return 0, 0, 0, "", fmt.Errorf("calling system-probe packet_capture module: %w", err)
+		return captureOutcome{}, fmt.Errorf("calling system-probe packet_capture module: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := sysprobeclient.ReadAllResponseBody(resp)
-		return 0, 0, 0, "", fmt.Errorf("packet_capture request failed: status=%d body=%s", resp.StatusCode, string(body))
+		return captureOutcome{}, fmt.Errorf("packet_capture request failed: status=%d body=%s", resp.StatusCode, string(body))
 	}
 
 	tmpFile, err := os.CreateTemp(os.TempDir(), "dd-pcap-*.pcap")
 	if err != nil {
-		return 0, 0, 0, "", fmt.Errorf("creating temp file: %w", err)
+		return captureOutcome{}, fmt.Errorf("creating temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
 
 	if _, err = io.Copy(tmpFile, resp.Body); err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)
-		return 0, 0, 0, "", fmt.Errorf("writing pcap data: %w", err)
+		return captureOutcome{}, fmt.Errorf("writing pcap data: %w", err)
 	}
 
-	actualDuration = time.Since(startTime)
+	actualDuration := time.Since(startTime)
 
 	if err = tmpFile.Sync(); err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)
-		return 0, 0, 0, "", fmt.Errorf("flushing pcap file: %w", err)
+		return captureOutcome{}, fmt.Errorf("flushing pcap file: %w", err)
 	}
 
 	fi, err := tmpFile.Stat()
 	if err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)
-		return 0, 0, 0, "", fmt.Errorf("stat pcap file: %w", err)
+		return captureOutcome{}, fmt.Errorf("stat pcap file: %w", err)
 	}
 
 	if err = tmpFile.Close(); err != nil {
 		os.Remove(tmpPath)
-		return 0, 0, 0, "", fmt.Errorf("closing pcap file: %w", err)
+		return captureOutcome{}, fmt.Errorf("closing pcap file: %w", err)
 	}
 
 	// The trailer is only populated by the net/http client once the body has
 	// been fully read (above), and reports the packet_capture module's final
 	// stats for this capture.
-	if v := resp.Trailer.Get("X-Packet-Count"); v != "" {
-		if n, parseErr := strconv.Atoi(v); parseErr == nil {
-			packetCount = n
-		}
-	}
+	return captureOutcome{
+		PacketCount:      trailerInt(resp, "X-Packet-Count"),
+		PacketsDropped:   trailerInt(resp, "X-Packets-Dropped"),
+		HeadersTruncated: trailerInt(resp, "X-Headers-Truncated"),
+		Errors:           trailerInt(resp, "X-Capture-Errors"),
+		FileSizeBytes:    fi.Size(),
+		Duration:         actualDuration,
+		PcapPath:         tmpPath,
+	}, nil
+}
 
-	return packetCount, fi.Size(), actualDuration, tmpPath, nil
+// trailerInt reads a numeric trailer, treating a missing or malformed one as 0.
+func trailerInt(resp *http.Response, key string) int {
+	n, _ := strconv.Atoi(resp.Trailer.Get(key))
+	return n
 }

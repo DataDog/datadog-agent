@@ -50,24 +50,30 @@ func TestSocketCaptureTrigger_Success(t *testing.T) {
 	const pcapBody = "fake-pcap-bytes"
 
 	startFakePacketCaptureServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Trailer", "X-Packet-Count")
+		w.Header().Set("Trailer", "X-Packet-Count, X-Packets-Dropped, X-Headers-Truncated, X-Capture-Errors")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(pcapBody))
 		w.Header().Set("X-Packet-Count", "42")
+		w.Header().Set("X-Packets-Dropped", "7")
+		w.Header().Set("X-Headers-Truncated", "3")
+		w.Header().Set("X-Capture-Errors", "1")
 	})
 
 	trigger := &socketCaptureTrigger{}
-	packetCount, fileSizeBytes, _, pcapPath, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
 	})
 	require.NoError(t, err)
-	defer os.Remove(pcapPath)
+	defer os.Remove(out.PcapPath)
 
-	assert.Equal(t, 42, packetCount)
-	assert.Equal(t, int64(len(pcapBody)), fileSizeBytes)
+	assert.Equal(t, 42, out.PacketCount)
+	assert.Equal(t, 7, out.PacketsDropped)
+	assert.Equal(t, 3, out.HeadersTruncated)
+	assert.Equal(t, 1, out.Errors)
+	assert.Equal(t, int64(len(pcapBody)), out.FileSizeBytes)
 
-	data, err := os.ReadFile(pcapPath)
+	data, err := os.ReadFile(out.PcapPath)
 	require.NoError(t, err)
 	assert.Equal(t, pcapBody, string(data))
 }
@@ -78,7 +84,7 @@ func TestSocketCaptureTrigger_ErrorStatus(t *testing.T) {
 	})
 
 	trigger := &socketCaptureTrigger{}
-	_, _, _, _, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	_, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
 	})
@@ -91,7 +97,7 @@ func TestSocketCaptureTrigger_SocketPathNotConfigured(t *testing.T) {
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", "")
 
 	trigger := &socketCaptureTrigger{}
-	_, _, _, _, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	_, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
 	})
