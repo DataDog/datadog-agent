@@ -289,9 +289,7 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 
 		// check flares
 		_, flareErr := v.Env().Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
-		if !assert.NoError(t, flareErr) {
-			return
-		}
+		require.NoError(t, flareErr)
 		_, err = intake.GetLatestFlare()
 		if err != nil {
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
