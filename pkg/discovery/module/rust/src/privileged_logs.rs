@@ -3,68 +3,137 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//! Port of pkg/privileged-logs/module/validate.go. The tests in
-//! pkg/privileged-logs/test run against both implementations.
+//! Opens log files on behalf of the core agent for the privileged logs module,
+//! with the checks of pkg/privileged-logs/module/validate.go.
 
-use std::fs::{self, File, OpenOptions};
+use std::ffi::OsStr;
+use std::fs::{self, File};
 use std::io::{self, IoSlice};
-use std::os::fd::AsRawFd;
-use std::os::unix::fs::{FileExt, OpenOptionsExt};
-use std::path::Path;
+use std::os::fd::{AsFd, AsRawFd, OwnedFd};
+use std::os::unix::fs::FileExt;
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use nix::libc::O_PATH;
-use nix::sys::socket::{ControlMessage::ScmRights, MsgFlags, sendmsg};
-use tokio::{io::Interest, net::UnixStream};
+use nix::fcntl::{AT_FDCWD, OFlag, openat};
+use nix::sys::socket::{ControlMessage, MsgFlags, sendmsg};
+use nix::sys::stat::Mode;
+use serde::Deserialize;
+use tokio::io::Interest;
+use tokio::net::UnixStream;
 
-fn is_allowed(path: &str) -> bool {
-    let dir = path.rsplit_once('/').map_or("", |(dir, _)| dir);
-    path.to_ascii_lowercase().ends_with(".log")
-        || path.starts_with("/var/log/")
-        || dir.split('/').any(|part| part.eq_ignore_ascii_case("logs"))
+/// Body of `POST /privileged_logs/open`, as sent by pkg/privileged-logs/client.
+#[derive(Deserialize, Debug)]
+pub struct OpenFileRequest {
+    pub path: String,
+    /// Reject symlinks in every path component instead of resolving them.
+    #[serde(default)]
+    pub no_follow: bool,
 }
 
-/// Opens the path if it is an allowed log file.
-pub fn validate_and_open(path: &str, no_follow: bool) -> Result<File> {
-    if !path.starts_with('/') {
+/// Files under this directory are allowed whatever their name.
+const ALLOWED_PREFIX: &str = "/var/log";
+
+/// Opens the requested file if it is a log file: a `.log` file, a file under
+/// /var/log, or a file with an ancestor directory named `logs`. It must also be
+/// a regular file that starts with text.
+pub fn open_log_file(req: &OpenFileRequest) -> Result<File> {
+    let path = req.path.as_str();
+    if path.is_empty() {
+        bail!("empty file path provided");
+    }
+    if !Path::new(path).is_absolute() {
         bail!("relative path not allowed: {path}");
     }
-    // O_PATH resolves the path without opening the file, so devices and FIFOs
-    // aren't touched. The checks apply to the path the kernel reports for this
-    // fd, and the file is then reopened through the same fd: swapping a symlink
-    // in afterwards changes nothing.
-    let mut options = OpenOptions::new();
-    options.read(true).custom_flags(O_PATH);
-    let handle = options
-        .open(path)
-        .with_context(|| format!("failed to resolve path {path}"))?;
-    let fd_path = format!("/proc/self/fd/{}", handle.as_raw_fd());
-    let resolved = fs::read_link(&fd_path)?.to_string_lossy().into_owned();
-    if no_follow && Path::new(&resolved) != Path::new(path) {
-        bail!(
-            "failed to open path {path}: resolves to {resolved}: too many levels of symbolic links"
-        );
-    }
+    let resolved = if req.no_follow {
+        PathBuf::from(path)
+    } else {
+        fs::canonicalize(path).with_context(|| format!("failed to resolve path {path}"))?
+    };
     if !is_allowed(&resolved) {
-        bail!("non-log file not allowed: {resolved}");
+        bail!("non-log file not allowed: {}", resolved.display());
     }
-    if !handle.metadata()?.is_file() {
-        bail!("not a regular file: {resolved}");
+    // Also rejects symlinks swapped in after canonicalize().
+    let file = open_without_symlinks(&resolved)
+        .with_context(|| format!("failed to open path {}", resolved.display()))?;
+    if !file.metadata()?.is_file() {
+        bail!("not a regular file: {}", resolved.display());
     }
-    let file = File::open(&fd_path)?;
-    let mut buf = [0u8; 128]; // Zero-padded, like Go's utf8.Valid(buf).
-    if file.read_at(&mut buf, 0).is_err() || std::str::from_utf8(&buf).is_err() {
-        bail!("not a text file: {resolved}");
+    if !starts_with_text(&file) {
+        bail!("not a text file: {}", resolved.display());
     }
     Ok(file)
 }
 
-/// Sends the file descriptor to the client as SCM_RIGHTS.
-pub async fn send_fd(stream: &UnixStream, file: &File) -> io::Result<usize> {
-    let iov = [IoSlice::new(br#"{"success":true}"#)];
+fn is_allowed(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("log"))
+        || path.starts_with(ALLOWED_PREFIX)
+        || path
+            .parent()
+            .is_some_and(|dir| dir.iter().any(|name| name.eq_ignore_ascii_case("logs")))
+}
+
+/// Opens an absolute path without following symlinks in any component, like
+/// common.OpenPathWithoutSymlinks in Go. `..` is rejected because, unlike Go's
+/// filepath.Clean, `Path` keeps it, and it would escape the checked directory.
+fn open_without_symlinks(path: &Path) -> Result<File> {
+    let mut names = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::RootDir => {}
+            Component::Normal(name) => names.push(name),
+            _ => bail!("unexpected component in {}", path.display()),
+        }
+    }
+    let Some((file_name, dir_names)) = names.split_last() else {
+        bail!("no file name in {}", path.display());
+    };
+
+    // O_PATH only needs search permission on directories, like opening the
+    // whole path at once.
+    let nofollow = OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let dir_flags = nofollow | OFlag::O_PATH | OFlag::O_DIRECTORY;
+    let mut dir =
+        open_at(AT_FDCWD, OsStr::new("/"), dir_flags).context("failed to open root directory")?;
+    for name in dir_names {
+        dir = open_at(&dir, name, dir_flags)
+            .with_context(|| format!("failed to open directory component {}", name.display()))?;
+    }
+    let file = open_at(&dir, file_name, nofollow | OFlag::O_RDONLY)
+        .with_context(|| format!("failed to open file {}", file_name.display()))?;
+    Ok(file.into())
+}
+
+/// openat(2), with the system's error messages rather than nix's.
+fn open_at(dir: impl AsFd, name: &OsStr, flags: OFlag) -> io::Result<OwnedFd> {
+    Ok(openat(dir, name, flags, Mode::empty())?)
+}
+
+/// Whether the file starts with UTF-8 text. A multi-byte character cut at the
+/// end of the sample is fine, and an empty file counts as text.
+fn starts_with_text(file: &File) -> bool {
+    let mut sample = [0u8; 128];
+    let Ok(len) = file.read_at(&mut sample, 0) else {
+        return false;
+    };
+    match std::str::from_utf8(sample.get(..len).unwrap_or_default()) {
+        Ok(_) => true,
+        Err(e) => e.error_len().is_none(),
+    }
+}
+
+/// Sends the file descriptor to the client as SCM_RIGHTS, with the payload
+/// that pkg/privileged-logs/client ignores.
+pub async fn send_fd(stream: &UnixStream, file: &File) -> io::Result<()> {
+    let payload = [IoSlice::new(br#"{"success":true}"#)];
     let fds = [file.as_raw_fd()];
-    let cmsgs = [ScmRights(&fds)];
-    let (fd, flags) = (stream.as_raw_fd(), MsgFlags::MSG_NOSIGNAL);
-    let send = || Ok(sendmsg::<()>(fd, &iov, &cmsgs, flags, None)?);
-    stream.async_io(Interest::WRITABLE, send).await
+    let rights = [ControlMessage::ScmRights(&fds)];
+    let flags = MsgFlags::MSG_NOSIGNAL;
+    stream
+        .async_io(Interest::WRITABLE, || {
+            sendmsg::<()>(stream.as_raw_fd(), &payload, &rights, flags, None)
+                .map_err(io::Error::from)
+        })
+        .await?;
+    Ok(())
 }

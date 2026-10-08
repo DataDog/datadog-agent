@@ -20,14 +20,15 @@
 #![deny(clippy::print_stderr)]
 
 use std::env;
-use std::fs::Permissions;
+use std::fs::{File, Permissions};
 use std::io::ErrorKind;
 use std::os::unix::fs::{PermissionsExt, chown};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result, anyhow};
-use dd_discovery::{Params, get_services, privileged_logs};
+use dd_discovery::privileged_logs::{self, OpenFileRequest};
+use dd_discovery::{Params, get_services};
 
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full};
@@ -35,9 +36,11 @@ use hyper::body::Bytes;
 use hyper::header::{CONNECTION, CONTENT_TYPE, UPGRADE};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
+use hyper::upgrade::OnUpgrade;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use log::{debug, error, info, warn};
+use serde::Serialize;
 use serde_json::json;
 use tokio::net::{UnixListener, UnixStream};
 use tokio::signal::unix::{SignalKind, signal};
@@ -55,8 +58,8 @@ static SERVICES_SEMAPHORE: Semaphore = Semaphore::const_new(2);
 /// privileged_logs module is enabled, like in the Go system-probe.
 static PRIVILEGED_LOGS: AtomicBool = AtomicBool::new(false);
 
-static BADREQUEST: &[u8] = b"Bad request";
-static NOTFOUND: &[u8] = b"Not found";
+static BADREQUEST: &str = "Bad request";
+static NOTFOUND: &str = "Not found";
 
 fn remove_pid_file(path: &Path) {
     if let Err(e) = std::fs::remove_file(path) {
@@ -208,165 +211,136 @@ where
     let services = tokio::task::spawn_blocking(|| get_services(params)).await?;
     debug!("Found {} services", services.services.len());
 
-    Response::builder()
-        .header("Content-Type", "application/json")
-        .body(
-            Full::new(
-                serde_json::to_vec(&services)
-                    .unwrap_or_else(|e| {
-                        error!("Failed to serialize response: {e}");
-                        b"Internal server error".to_vec()
-                    })
-                    .into(),
-            )
-            .map_err(|e| match e {})
-            .boxed(),
-        )
-        .map_err(|e| anyhow!("Failed to build response: {}", e))
+    json_response(&services)
 }
 
 async fn handle_state() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    Response::builder()
-        .header("Content-Type", "application/json")
-        .body(
-            Full::new(
-                serde_json::to_vec(&json!({
-                    "implementation": "system-probe-lite",
-                }))
-                .unwrap_or_else(|e| {
-                    error!("Failed to serialize response: {e}");
-                    b"Internal server error".to_vec()
-                })
-                .into(),
-            )
-            .map_err(|e| match e {})
-            .boxed(),
-        )
-        .map_err(|e| anyhow!("Failed to build response: {}", e))
+    json_response(&json!({
+        "implementation": "system-probe-lite",
+    }))
 }
 
 async fn handle_config() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     // SPL only runs when discovery.enabled and discovery.use_system_probe_lite are both true,
     // so we can hardcode these values.
     let yaml_config = "discovery:\n  enabled: true\n  use_system_probe_lite: true\n";
-    Response::builder()
-        .body(
-            Full::new(Bytes::from(yaml_config))
-                .map_err(|e| match e {})
-                .boxed(),
-        )
-        .map_err(|e| anyhow!("Failed to build response: {}", e))
+    text_response(StatusCode::OK, yaml_config)
 }
 
 async fn handle_config_by_source() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    Response::builder()
-        .header("Content-Type", "application/json")
-        .body(
-            Full::new(
-                serde_json::to_vec(&json!({
-                    "default": {
-                        "discovery": {
-                            "enabled": true,
-                            "use_system_probe_lite": true
-                        }
-                    }
-                }))
-                .unwrap_or_else(|e| {
-                    error!("Failed to serialize response: {e}");
-                    b"Internal server error".to_vec()
-                })
-                .into(),
-            )
-            .map_err(|e| match e {})
-            .boxed(),
-        )
-        .map_err(|e| anyhow!("Failed to build response: {}", e))
+    json_response(&json!({
+        "default": {
+            "discovery": {
+                "enabled": true,
+                "use_system_probe_lite": true
+            }
+        }
+    }))
 }
 
 async fn handle_debug_stats() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    Response::builder()
-        .header("Content-Type", "application/json")
-        .body(
-            Full::new(
-                serde_json::to_vec(&json!({}))
-                    .unwrap_or_else(|e| {
-                        error!("Failed to serialize response: {e}");
-                        b"Internal server error".to_vec()
-                    })
-                    .into(),
-            )
-            .map_err(|e| match e {})
-            .boxed(),
-        )
-        .map_err(|e| anyhow!("Failed to build response: {}", e))
+    json_response(&json!({}))
 }
 
-/// Opens the requested log file, then switches protocols and sends its file
-/// descriptor, as pkg/privileged-logs/client expects.
+/// Opens the requested log file and, once hyper has switched protocols, sends
+/// its file descriptor, as pkg/privileged-logs/client expects.
 async fn handle_privileged_logs_open<B>(
     mut req: Request<B>,
 ) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
 where
     B: hyper::body::Body<Data = Bytes>,
+    B::Error: std::fmt::Display,
 {
+    // Must be taken before the body is consumed.
     let on_upgrade = hyper::upgrade::on(&mut req);
-    let Ok(body) = req.collect().await else {
-        return bad_request();
+
+    let body = match req.collect().await {
+        Ok(body) => body.to_bytes(),
+        Err(e) => {
+            error!("Failed to read request body: {e}");
+            return bad_request();
+        }
     };
-    let params: serde_json::Value = serde_json::from_slice(&body.to_bytes()).unwrap_or_default();
-    let Some(path) = params.get("path").and_then(|p| p.as_str()) else {
-        return bad_request();
+
+    let open_req: OpenFileRequest = match serde_json::from_slice(&body) {
+        Ok(open_req) => open_req,
+        Err(e) => {
+            error!("Failed to parse request: {e}");
+            return bad_request();
+        }
     };
-    let no_follow = params.get("no_follow") == Some(&json!(true));
-    debug!("Received request to open file: {path}");
-    let file = match privileged_logs::validate_and_open(path, no_follow) {
+
+    debug!("Received request to open file: {}", open_req.path);
+    // Opening can block, on a file lease or a slow filesystem, so keep it off
+    // the event loop that serves every endpoint.
+    let opened = tokio::task::spawn_blocking(move || privileged_logs::open_log_file(&open_req));
+    let file = match opened.await? {
         Ok(file) => file,
         Err(e) => {
             error!("{e:#}");
-            let body = Full::new(format!("{e:#}").into()).map_err(|e| match e {});
-            return Ok(Response::builder().status(500).body(body.boxed())?);
+            return text_response(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}"));
         }
     };
+
     tokio::task::spawn(async move {
-        let sent = async {
-            let upgraded = on_upgrade.await?.downcast::<TokioIo<UnixStream>>();
-            let io = upgraded.map_err(|_| anyhow!("not a Unix socket"))?.io;
-            anyhow::Ok(privileged_logs::send_fd(&io.into_inner(), &file).await?)
-        };
-        if let Err(e) = sent.await {
+        if let Err(e) = send_fd_after_upgrade(on_upgrade, file).await {
             error!("Failed to send file descriptor: {e:#}");
         }
     });
-    Ok(Response::builder()
+
+    Response::builder()
         .status(StatusCode::SWITCHING_PROTOCOLS)
         .header(CONNECTION, "Upgrade")
         .header(UPGRADE, "dd-privileged-logs")
-        .body(Full::new(Bytes::new()).map_err(|e| match e {}).boxed())?)
+        .body(full(Bytes::new()))
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
+async fn send_fd_after_upgrade(on_upgrade: OnUpgrade, file: File) -> Result<()> {
+    let upgraded = on_upgrade.await?;
+    // The connection is served from a TokioIo<UnixStream> in run_system_probe_lite.
+    let parts = upgraded
+        .downcast::<TokioIo<UnixStream>>()
+        .map_err(|_| anyhow!("upgraded connection is not a Unix socket"))?;
+    privileged_logs::send_fd(&parts.io.into_inner(), &file).await?;
+    Ok(())
+}
+
+fn full(body: impl Into<Bytes>) -> BoxBody<Bytes, std::io::Error> {
+    Full::new(body.into()).map_err(|e| match e {}).boxed()
+}
+
+fn json_response(value: &impl Serialize) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    let body = serde_json::to_vec(value).unwrap_or_else(|e| {
+        error!("Failed to serialize response: {e}");
+        b"Internal server error".to_vec()
+    });
+    Response::builder()
+        .header(CONTENT_TYPE, "application/json")
+        .body(full(body))
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
+}
+
+fn text_response(
+    status: StatusCode,
+    body: impl Into<Bytes>,
+) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    Response::builder()
+        .status(status)
+        .body(full(body))
+        .map_err(|e| anyhow!("Failed to build response: {}", e))
 }
 
 fn bad_request() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    Response::builder()
-        .status(StatusCode::BAD_REQUEST)
-        .body(Full::new(BADREQUEST.into()).map_err(|e| match e {}).boxed())
-        .map_err(|e| anyhow!("Failed to build bad request response: {}", e))
+    text_response(StatusCode::BAD_REQUEST, BADREQUEST)
 }
 
 fn not_found() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    Response::builder()
-        .status(StatusCode::NOT_FOUND)
-        .body(Full::new(NOTFOUND.into()).map_err(|e| match e {}).boxed())
-        .map_err(|e| anyhow!("Failed to build not found response: {}", e))
+    text_response(StatusCode::NOT_FOUND, NOTFOUND)
 }
 
 fn too_many_requests() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
-    Response::builder()
-        .status(StatusCode::TOO_MANY_REQUESTS)
-        .body(
-            Full::new(Bytes::from("Too many requests"))
-                .map_err(|e| match e {})
-                .boxed(),
-        )
-        .map_err(|e| anyhow!("Failed to build too many requests response: {}", e))
+    text_response(StatusCode::TOO_MANY_REQUESTS, "Too many requests")
 }
 
 async fn handle_request<B>(req: Request<B>) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
@@ -433,22 +407,9 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
                             service_fn(|req| async {
                                 Ok::<_, anyhow::Error>(handle_request(req).await.unwrap_or_else(|e| {
                                     error!("Request handling failed: {e:#}");
-                                    // Return an internal server error response
-                                    Response::builder()
-                                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                                        .body(
-                                            Full::new(Bytes::from(&b"Internal Server Error"[..]))
-                                                .map_err(|e| match e {})
-                                                .boxed(),
-                                        )
-                                        .unwrap_or_else(|_| {
-                                            // Last resort if even error response building fails
-                                            Response::new(
-                                                Full::new(Bytes::from(&b"Error"[..]))
-                                                    .map_err(|e| match e {})
-                                                    .boxed(),
-                                            )
-                                        })
+                                    text_response(StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error")
+                                        // Last resort if even error response building fails
+                                        .unwrap_or_else(|_| Response::new(full("Error")))
                                 }))
                             }),
                         )

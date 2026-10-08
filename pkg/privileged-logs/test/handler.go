@@ -117,7 +117,7 @@ func SetupSPLite(t *testing.T, callback func()) *Handler {
 	socketPath := filepath.Join(socketDir, "sysprobe.sock")
 
 	// Started as root, like system-probe does in production.
-	cmd := exec.Command(binaryPath, (&splite.Config{Socket: socketPath, PrivLogs: true}).Args()...)
+	cmd := exec.Command(binaryPath, (&splite.Config{Socket: socketPath, PrivilegedLogs: true}).Args()...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	require.NoError(t, cmd.Start())
 	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })

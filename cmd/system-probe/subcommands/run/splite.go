@@ -67,11 +67,11 @@ func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, lo
 
 	// Build args via splite package (source of truth for CLI format)
 	args := (&splite.Config{
-		Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-		LogLevel: sysprobeConfig.GetString("log_level"),
-		LogFile:  sysprobeConfig.GetString("log_file"),
-		PIDFile:  pidFilePath,
-		PrivLogs: cfg.ModuleIsEnabled(systemprobeconfig.PrivilegedLogsModule),
+		Socket:         sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+		LogLevel:       sysprobeConfig.GetString("log_level"),
+		LogFile:        sysprobeConfig.GetString("log_file"),
+		PIDFile:        pidFilePath,
+		PrivilegedLogs: cfg.ModuleIsEnabled(systemprobeconfig.PrivilegedLogsModule),
 	}).Args()
 
 	return &spLiteExecCmd{
