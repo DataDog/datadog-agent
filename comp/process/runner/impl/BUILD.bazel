@@ -40,6 +40,7 @@ dd_agent_go_test(
         "//comp/process/hostinfo/mock",
         "//comp/process/processcheck/impl",
         "//comp/process/runner/def",
+        "//comp/process/submitter/def",
         "//comp/process/submitter/mock",
         "//comp/process/types",
         "//pkg/util/fxutil",
