@@ -1236,3 +1236,53 @@ func TestProcessHostUsage(t *testing.T) {
 		assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
 	})
 }
+
+// TestProcessHostUsageAfterUpgrade checks that a host scan finding an upgraded
+// build reads "0" for it until a usage report names that build.
+func TestProcessHostUsageAfterUpgrade(t *testing.T) {
+	report := func(version, lastSeen string) *cyclonedx_v1_4.Bom {
+		return &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{{
+			Name:    "bash",
+			Version: version,
+			Properties: []*cyclonedx_v1_4.Property{
+				{Name: sbom.LastAccessProperty, Value: pointer.Ptr(lastSeen)},
+				{Name: sbom.HasSetSuidBitProperty, Value: pointer.Ptr("false")},
+				{Name: sbom.RunningAsRootProperty, Value: pointer.Ptr("true")},
+			},
+		}}}
+	}
+	scan := func(createdAt time.Time) sbom.ScanResult {
+		return sbom.ScanResult{
+			Report: hostReport{
+				id: "sha256:upgraded",
+				bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{{
+					Name:    "bash",
+					Version: "5.2.26-7.el10",
+					Purl:    pointer.Ptr("pkg:rpm/redhat/bash@5.2.26-7.el10"),
+				}}},
+			},
+			CreatedAt: createdAt,
+			Duration:  time.Second,
+		}
+	}
+	p := &processor{
+		queue:                 make(chan *model.SBOMEntity, 4),
+		hostname:              "host",
+		hostHeartbeatValidity: time.Hour,
+	}
+	scanned := time.Unix(1700000000, 0)
+
+	p.processHostUsage(report("5.2.26-6.el10", "1700000000"))
+	p.processHostScanResult(scan(scanned))
+	entity := <-p.queue
+	require.NotNil(t, entity.GetCyclonedx())
+	// Known gap: the latest report names the build the upgrade replaced.
+	assert.Equal(t, "0", lastSeenRunning(entity.GetCyclonedx(), "bash"))
+
+	p.processHostUsage(report("5.2.26-7.el10", "1700000060"))
+	p.processHostScanResult(scan(scanned.Add(time.Minute)))
+	entity = <-p.queue
+	assert.False(t, entity.GetHeartbeat(), "the scan after a report goes out in full")
+	require.NotNil(t, entity.GetCyclonedx())
+	assert.Equal(t, "1700000060", lastSeenRunning(entity.GetCyclonedx(), "bash"))
+}
