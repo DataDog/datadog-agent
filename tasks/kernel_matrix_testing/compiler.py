@@ -32,6 +32,26 @@ MARKER_IMAGE_PREPARED = "/tmp/kmt-image-prepared"
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
 
 
+def _host_wants_remote_cache(ctx: Context) -> bool:
+    """True when tools/bazel on the host would enable the remote cache (token availability aside).
+
+    Reuses bazel/tools/remote-cache-select.sh so KMT honors the same rc opt-out and reachability
+    checks, and does not open a browser Vault login when the cache would not be used.
+    """
+    select_sh = get_repo_root() / "bazel" / "tools" / "remote-cache-select.sh"
+    # Dummy token: _remote_cache_eligible then only checks reachability / rc opt-out, not vault.
+    res = cast(
+        'Result',
+        ctx.run(
+            f". {shlex.quote(str(select_sh))}; _remote_cache_config",
+            hide=True,
+            warn=True,
+            env={"BUILDBARN_ID_TOKEN": "probe"},
+        ),
+    )
+    return res is not None and "--config=cache" in res.stdout
+
+
 def get_buildbarn_token(ctx: Context) -> str | None:
     """Mint a Buildbarn OIDC token on the host, or return None when unavailable.
 
@@ -44,6 +64,9 @@ def get_buildbarn_token(ctx: Context) -> str | None:
         return token
     if not shutil.which("vault"):
         warn("[!] vault CLI not found, the compiler container will build without the Bazel remote cache")
+        return None
+    # Match tools/bazel: no mint / interactive login when the host has opted out or is offline.
+    if not _host_wants_remote_cache(ctx):
         return None
 
     addr = os.environ.get("VAULT_ADDR", "https://vault.us1.ddbuild.io")

@@ -105,18 +105,26 @@ class TestGetBuildbarnToken(unittest.TestCase):
         self.which = self.enterContext(patch.object(compiler.shutil, "which", return_value="/usr/bin/vault"))
         self.isatty = self.enterContext(patch.object(compiler.sys.stdin, "isatty", return_value=False))
         self.warn = self.enterContext(patch.object(compiler, "warn"))
+        self.wants_cache = self.enterContext(patch.object(compiler, "_host_wants_remote_cache", return_value=True))
         self.ctx = MagicMock()
 
     def test_env_token_is_used_without_vault(self):
         os.environ["BUILDBARN_ID_TOKEN"] = "from-env"
         self.assertEqual(compiler.get_buildbarn_token(self.ctx), "from-env")
         self.ctx.run.assert_not_called()
+        self.wants_cache.assert_not_called()
 
     def test_remote_cache_opt_out_skips_minting(self):
         os.environ["DD_BAZEL_REMOTE_CACHE"] = "off"
         os.environ["BUILDBARN_ID_TOKEN"] = "from-env"
         self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
         self.ctx.run.assert_not_called()
+
+    def test_ineligible_host_skips_vault(self):
+        self.wants_cache.return_value = False
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
+        self.ctx.run.assert_not_called()
+        self.warn.assert_not_called()
 
     def test_vault_read(self):
         self.ctx.run.return_value = _result(True, "minted\n")
@@ -127,6 +135,7 @@ class TestGetBuildbarnToken(unittest.TestCase):
         self.which.return_value = None
         self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
         self.ctx.run.assert_not_called()
+        self.wants_cache.assert_not_called()
 
     def test_read_failure_without_tty_does_not_login(self):
         self.ctx.run.return_value = _result(False, stderr="Code: 403. Errors:\n\t* invalid token\n")
@@ -139,6 +148,22 @@ class TestGetBuildbarnToken(unittest.TestCase):
         self.ctx.run.side_effect = [_result(False), _result(True), _result(True, "minted")]
         self.assertEqual(compiler.get_buildbarn_token(self.ctx), "minted")
         self.assertIn("vault login", self.ctx.run.call_args_list[1].args[0])
+
+
+class TestHostWantsRemoteCache(unittest.TestCase):
+    def test_true_when_selector_emits_config_cache(self):
+        ctx = MagicMock()
+        ctx.run.return_value = _result(True, "--config=cache\n")
+        self.assertTrue(compiler._host_wants_remote_cache(ctx))
+        cmd, kwargs = ctx.run.call_args.args[0], ctx.run.call_args.kwargs
+        self.assertIn("remote-cache-select.sh", cmd)
+        self.assertIn("_remote_cache_config", cmd)
+        self.assertEqual(kwargs["env"]["BUILDBARN_ID_TOKEN"], "probe")
+
+    def test_false_when_selector_emits_nothing(self):
+        ctx = MagicMock()
+        ctx.run.return_value = _result(True, "")
+        self.assertFalse(compiler._host_wants_remote_cache(ctx))
 
 
 class TestCompilerExecBuildbarnToken(unittest.TestCase):
