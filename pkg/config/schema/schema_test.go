@@ -131,6 +131,7 @@ func TestValidateCoreConfigDetailedTypeViolation(t *testing.T) {
 	assert.Equal(t, Violation{
 		Message:       "at '/api_key': got number, want string",
 		Path:          "/api_key",
+		Keyword:       "/type",
 		ActualType:    "number",
 		ExpectedTypes: []string{"string"},
 	}, violations[0])
