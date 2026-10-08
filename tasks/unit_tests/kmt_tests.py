@@ -100,7 +100,7 @@ def _result(ok: bool, stdout: str = "", stderr: str = "") -> MagicMock:
 
 class TestGetBuildbarnToken(unittest.TestCase):
     def setUp(self):
-        env = {k: v for k, v in os.environ.items() if k != "BUILDBARN_ID_TOKEN"}
+        env = {k: v for k, v in os.environ.items() if k not in ("BUILDBARN_ID_TOKEN", "DD_BAZEL_REMOTE_CACHE")}
         self.enterContext(patch.dict(os.environ, env, clear=True))
         self.which = self.enterContext(patch.object(compiler.shutil, "which", return_value="/usr/bin/vault"))
         self.isatty = self.enterContext(patch.object(compiler.sys.stdin, "isatty", return_value=False))
@@ -110,6 +110,12 @@ class TestGetBuildbarnToken(unittest.TestCase):
     def test_env_token_is_used_without_vault(self):
         os.environ["BUILDBARN_ID_TOKEN"] = "from-env"
         self.assertEqual(compiler.get_buildbarn_token(self.ctx), "from-env")
+        self.ctx.run.assert_not_called()
+
+    def test_remote_cache_opt_out_skips_minting(self):
+        os.environ["DD_BAZEL_REMOTE_CACHE"] = "off"
+        os.environ["BUILDBARN_ID_TOKEN"] = "from-env"
+        self.assertIsNone(compiler.get_buildbarn_token(self.ctx))
         self.ctx.run.assert_not_called()
 
     def test_vault_read(self):
@@ -137,6 +143,8 @@ class TestGetBuildbarnToken(unittest.TestCase):
 
 class TestCompilerExecBuildbarnToken(unittest.TestCase):
     def setUp(self):
+        env = {k: v for k, v in os.environ.items() if k != "DD_BAZEL_REMOTE_CACHE"}
+        self.enterContext(patch.dict(os.environ, env, clear=True))
         self.ctx = MagicMock()
         self.cc = compiler.CompilerImage(self.ctx, Arch.local())
         self.enterContext(patch.object(compiler.CompilerImage, "ensure_running"))
@@ -161,6 +169,14 @@ class TestCompilerExecBuildbarnToken(unittest.TestCase):
         self.cc.exec("bazel build //...", user="dev", buildbarn_token=True)
         self.assertNotIn("BUILDBARN_ID_TOKEN", self.ctx.run.call_args.args[0])
         self.assertEqual(self.ctx.run.call_args.kwargs["env"], {})
+
+    def test_cache_policy_is_forwarded_to_builds(self):
+        os.environ["DD_BAZEL_REMOTE_CACHE"] = "off"
+        self.get_token.return_value = None
+        self.cc.exec("bazel build //...", user="dev", buildbarn_token=True)
+        self.assertIn("-e DD_BAZEL_REMOTE_CACHE ", self.ctx.run.call_args.args[0])
+        self.cc.exec("true", user="dev")
+        self.assertNotIn("DD_BAZEL_REMOTE_CACHE", self.ctx.run.call_args.args[0])
 
 
 class TestCompilerUser(unittest.TestCase):

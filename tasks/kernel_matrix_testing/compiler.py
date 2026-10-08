@@ -38,6 +38,8 @@ def get_buildbarn_token(ctx: Context) -> str | None:
     The compiler container cannot complete the browser-based Vault login, so the token is minted
     here right before each build: it expires after about an hour, and Bazel caches it for 55m.
     """
+    if os.environ.get("DD_BAZEL_REMOTE_CACHE") == "off":
+        return None
     if token := os.environ.get("BUILDBARN_ID_TOKEN"):
         return token
     if not shutil.which("vault"):
@@ -258,15 +260,17 @@ class CompilerImage:
         if not force_color:
             color_env = ""
 
-        # Only the variable name goes on the command line, the value comes from the docker CLI env.
+        # Only the variable names go on the command line, the values come from the docker CLI env.
         token = get_buildbarn_token(self.ctx) if buildbarn_token else None
-        token_env = "-e BUILDBARN_ID_TOKEN" if token else ""
+        bazel_env = "-e BUILDBARN_ID_TOKEN" if token else ""
+        if buildbarn_token and "DD_BAZEL_REMOTE_CACHE" in os.environ:
+            bazel_env += " -e DD_BAZEL_REMOTE_CACHE"
 
         # Set FORCE_COLOR=1 so that termcolor works in the container
         return cast(
             Result,
             self.ctx.run(
-                f"docker exec -u {user} -i {color_env} {token_env} {self.name} bash -l -c \"{cmd}\"",
+                f"docker exec -u {user} -i {color_env} {bazel_env} {self.name} bash -l -c \"{cmd}\"",
                 hide=not self.ctx.config.run["echo"],
                 warn=allow_fail,
                 env={"BUILDBARN_ID_TOKEN": token} if token else {},
