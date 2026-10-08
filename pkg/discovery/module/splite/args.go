@@ -11,11 +11,10 @@ package splite
 // Config holds the CLI arguments for the system-probe-lite binary.
 // Socket is required; all other fields are optional (empty = omit).
 type Config struct {
-	Socket         string // required, maps to --socket
-	LogLevel       string // optional, maps to --log-level
-	LogFile        string // optional, maps to --log-file
-	PIDFile        string // optional, maps to --pid
-	PrivilegedLogs bool   // optional, maps to --privileged-logs
+	Socket   string // required, maps to --socket
+	LogLevel string // optional, maps to --log-level
+	LogFile  string // optional, maps to --log-file
+	PIDFile  string // optional, maps to --pid
 }
 
 // Args returns the command-line arguments for the system-probe-lite binary.
@@ -29,9 +28,6 @@ func (c *Config) Args() []string {
 	}
 	if c.PIDFile != "" {
 		args = append(args, "--pid", c.PIDFile)
-	}
-	if c.PrivilegedLogs {
-		args = append(args, "--privileged-logs")
 	}
 	return args
 }

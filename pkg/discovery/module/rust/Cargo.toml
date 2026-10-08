@@ -42,7 +42,7 @@ hyper-util.workspace = true
 log.workspace = true
 lru.workspace = true
 memchr.workspace = true
-nix = { workspace = true, features = ["fs", "socket", "uio"] }
+nix = { workspace = true, features = ["fs"] }
 nom.workspace = true
 normalize-path.workspace = true
 phf.workspace = true
