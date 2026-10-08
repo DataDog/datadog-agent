@@ -160,6 +160,26 @@ func TestSchedulerRemoveStopsTheRange(t *testing.T) {
 	assert.Equal(t, 0, s.count())
 }
 
+func TestSchedulerRemoveClearsTheCursor(t *testing.T) {
+	scanner := answerAll()
+	s, _, _ := newTestScheduler(t, scanner, 10)
+	s.start(context.Background())
+	defer s.stop()
+
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
+	require.Eventually(t, func() bool {
+		_, ok := s.sweeper.cursors.Load("ad-1")
+		return ok
+	}, 5*time.Second, 10*time.Millisecond)
+
+	s.remove("ad-1")
+
+	require.Eventually(t, func() bool {
+		_, ok := s.sweeper.cursors.Load("ad-1")
+		return !ok
+	}, 5*time.Second, 10*time.Millisecond, "a removed range leaves no cursor behind")
+}
+
 func TestSchedulerReplacesRangeOnUpdate(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
@@ -235,13 +255,11 @@ func TestSchedulerFloorsIntervalsBelowTheMinimum(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
 
-	// The ticker is built inside the range goroutine, so a non-positive
-	// interval would panic there and take the agent down with it.
 	intervals := make(chan time.Duration, 4)
-	s.newTicker = func(d time.Duration) (<-chan time.Time, func()) {
+	s.newTimer = func(d time.Duration) (<-chan time.Time, func()) {
 		intervals <- d
-		ticker := time.NewTicker(d)
-		return ticker.C, ticker.Stop
+		timer := time.NewTimer(d)
+		return timer.C, func() { timer.Stop() }
 	}
 
 	s.start(context.Background())
@@ -252,12 +270,12 @@ func TestSchedulerFloorsIntervalsBelowTheMinimum(t *testing.T) {
 	zero := testRangeConfig("ad-zero", "10.0.0.0/26")
 	zero.IntervalSec = 0
 	require.NoError(t, s.set(zero))
-	assert.Equal(t, floor, <-intervals, "a zero interval ticks at the floor instead of panicking")
+	assert.Equal(t, floor, <-intervals, "a zero interval waits the floor instead of spinning")
 
 	negative := testRangeConfig("ad-negative", "10.0.1.0/26")
 	negative.IntervalSec = -5
 	require.NoError(t, s.set(negative))
-	assert.Equal(t, floor, <-intervals, "a negative interval ticks at the floor instead of panicking")
+	assert.Equal(t, floor, <-intervals, "a negative interval waits the floor instead of spinning")
 
 	// parseRange clamps upstream, but a config reaching the scheduler by
 	// another route must not out-tick the floor either.

@@ -37,8 +37,8 @@ type scheduler struct {
 	log     log.Component
 	opts    schedulerOptions
 
-	// newTicker is injectable so tests can drive time.
-	newTicker func(d time.Duration) (<-chan time.Time, func())
+	// newTimer is injectable so tests can drive time.
+	newTimer func(d time.Duration) (<-chan time.Time, func())
 
 	mu     sync.Mutex
 	ranges map[string]*scheduledRange
@@ -67,9 +67,9 @@ func newScheduler(sw *sweeper, logger log.Component, opts schedulerOptions) *sch
 		opts:    opts,
 		ranges:  map[string]*scheduledRange{},
 		cycles:  map[string]chan struct{}{},
-		newTicker: func(d time.Duration) (<-chan time.Time, func()) {
-			t := time.NewTicker(d)
-			return t.C, t.Stop
+		newTimer: func(d time.Duration) (<-chan time.Time, func()) {
+			t := time.NewTimer(d)
+			return t.C, func() { t.Stop() }
 		},
 	}
 }
@@ -195,51 +195,72 @@ func (s *scheduler) finishCycles(autodiscoveryID string, done chan struct{}) {
 	close(done)
 }
 
-// remove stops a range. Removing an unknown range is a no-op.
+// remove stops a range and drops its cursor once the range has unwound.
+// Removing an unknown range is a no-op.
 func (s *scheduler) remove(autodiscoveryID string) {
 	s.mu.Lock()
 	r, ok := s.ranges[autodiscoveryID]
 	delete(s.ranges, autodiscoveryID)
+	done := s.cycles[autodiscoveryID]
+	if ok {
+		s.wg.Add(1)
+	}
 	s.mu.Unlock()
 
-	if ok {
-		r.cancel()
+	if !ok {
+		return
 	}
+	r.cancel()
+
+	go func() {
+		defer s.wg.Done()
+		if done != nil {
+			<-done
+		}
+		if err := s.sweeper.cursors.Clear(autodiscoveryID); err != nil {
+			s.log.Warnf("ndmdiscovery: failed to clear the cursor of range %s: %v", autodiscoveryID, err)
+		}
+	}()
 }
 
-// run sweeps one range immediately, then once per interval. Cycles are
-// sequential: a tick during a cycle starts the next one once that cycle ends.
+// run sweeps one range once per interval, counting from the end of the last
+// completed cycle, so an Agent restart resumes the schedule instead of
+// resetting it. Cycles are sequential.
 func (s *scheduler) run(ctx context.Context, cfg rangeConfig) {
-	// A non-positive interval would panic in time.NewTicker.
-	floor := time.Duration(minIntervalSec) * time.Second
-	d := time.Duration(cfg.IntervalSec) * time.Second
-	if d < floor {
-		d = floor
+	// A non-positive interval would spin.
+	interval := time.Duration(cfg.IntervalSec) * time.Second
+	if floor := time.Duration(minIntervalSec) * time.Second; interval < floor {
+		interval = floor
 	}
 
-	tick, stopTicker := s.newTicker(d)
-	defer stopTicker()
-
 	for {
-		s.runCycle(ctx, cfg)
+		wait := s.runCycle(ctx, cfg, interval)
+		if wait <= 0 {
+			wait = interval
+		}
 
+		tick, stopTimer := s.newTimer(wait)
 		select {
 		case <-ctx.Done():
+			stopTimer()
 			return
 		case <-tick:
 		}
+		stopTimer()
 	}
 }
 
-func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig) {
+// runCycle sweeps the range when it is due, and otherwise returns how long is
+// left before it is.
+func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig, interval time.Duration) time.Duration {
 	if ctx.Err() != nil {
-		return
+		return 0
 	}
 
 	plan, err := newChunkPlan(cfg.NetworkAddress, cfg.IgnoredIPAddresses, s.opts.MaxAddresses)
 	if err != nil {
 		s.log.Warnf("ndmdiscovery: skipping range %s: %v", cfg.AutodiscoveryID, err)
-		return
+		return 0
 	}
 
 	// Resolved per cycle, so a credential rotation lands without a restart.
@@ -249,7 +270,7 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig) {
 	}
 	if opts.Empty() {
 		s.log.Warnf("ndmdiscovery: skipping range %s: it has no usable probe", cfg.AutodiscoveryID)
-		return
+		return 0
 	}
 
 	req := sweepRequest{
@@ -260,7 +281,13 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig) {
 		Workers: s.workerShare(),
 	}
 
+	if wait := s.sweeper.dueIn(req, interval); wait > 0 {
+		s.log.Debugf("ndmdiscovery: range %s is not due for another %s", cfg.AutodiscoveryID, wait)
+		return wait
+	}
+
 	if err := s.sweeper.sweep(ctx, req); err != nil && ctx.Err() == nil {
 		s.log.Warnf("ndmdiscovery: sweep of range %s failed: %v", cfg.AutodiscoveryID, err)
 	}
+	return 0
 }
