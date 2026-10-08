@@ -94,28 +94,33 @@ func openPrivileged(socketPath string, filePath string, noFollow bool) (*os.File
 // readWithRights reads conn until EOF, collecting the file descriptors passed
 // as SCM_RIGHTS. It only uses recvmsg, since the kernel discards the
 // descriptors attached to bytes consumed by a plain read.
-func readWithRights(conn *net.UnixConn) (data []byte, fds []int, err error) {
+func readWithRights(conn *net.UnixConn) ([]byte, []int, error) {
+	var data []byte
+	var fds []int
 	buf := make([]byte, 1024)
 	oob := make([]byte, syscall.CmsgSpace(4))
 	for {
 		n, oobn, _, _, err := conn.ReadMsgUnix(buf, oob)
-		data = append(data, buf[:n]...)
-		msgs, parseErr := syscall.ParseSocketControlMessage(oob[:oobn])
-		if parseErr != nil {
-			return data, fds, fmt.Errorf("ParseSocketControlMessage failed: %v", parseErr)
-		}
-		for _, msg := range msgs {
-			rights, parseErr := syscall.ParseUnixRights(&msg)
-			if parseErr != nil {
-				return data, fds, fmt.Errorf("ParseUnixRights failed: %v", parseErr)
-			}
-			fds = append(fds, rights...)
-		}
 		if errors.Is(err, io.EOF) {
 			return data, fds, nil
 		}
 		if err != nil {
 			return data, fds, fmt.Errorf("ReadMsgUnix failed: %v", err)
+		}
+		data = append(data, buf[:n]...)
+		msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
+		if err != nil {
+			return data, fds, fmt.Errorf("ParseSocketControlMessage failed: %v", err)
+		}
+		for _, msg := range msgs {
+			if msg.Header.Level != syscall.SOL_SOCKET || msg.Header.Type != syscall.SCM_RIGHTS {
+				continue
+			}
+			rights, err := syscall.ParseUnixRights(&msg)
+			if err != nil {
+				return data, fds, fmt.Errorf("ParseUnixRights failed: %v", err)
+			}
+			fds = append(fds, rights...)
 		}
 	}
 }
