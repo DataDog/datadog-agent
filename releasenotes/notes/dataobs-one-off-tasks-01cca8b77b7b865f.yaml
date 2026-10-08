@@ -16,3 +16,5 @@ features:
     own check and its Data Observability monitor queries are never restarted by a
     task. A task the Agent cannot run, because it has expired or no matching instance
     exists, is reported back immediately.
+    Tasks against the same database run up to the instance's
+    ``data_observability.task_concurrency`` at a time (1 by default); the rest wait.

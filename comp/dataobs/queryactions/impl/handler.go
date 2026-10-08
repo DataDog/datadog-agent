@@ -841,13 +841,20 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 		queries = append(queries, qm)
 	}
 
-	instanceFields := maps.Clone(instance)
-	instanceFields["data_observability"] = map[string]any{
+	doSection := map[string]any{
 		"enabled":             true,
 		"collection_interval": 10,
 		"config_id":           remoteConfigID,
 		"queries":             queries,
 	}
+	// Kept so that a task matched against this copy runs with the user's task concurrency.
+	if userDOSection, ok := instance["data_observability"].(map[string]any); ok {
+		if concurrency, ok := userDOSection["task_concurrency"]; ok {
+			doSection["task_concurrency"] = concurrency
+		}
+	}
+	instanceFields := maps.Clone(instance)
+	instanceFields["data_observability"] = doSection
 
 	instanceYAML, err := yaml.Marshal(instanceFields)
 	if err != nil {
