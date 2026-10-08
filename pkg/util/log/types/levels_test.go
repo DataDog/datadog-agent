@@ -19,7 +19,13 @@ func TestLevelRulesSpecRoundTrip(t *testing.T) {
 	assert.Equal(t, "info,some/pkg=debug", cfg.Spec())
 
 	plain := NewLevelRules(InfoLvl)
-	assert.Equal(t, "", plain.Spec(), "a config built directly has no spec string")
+	assert.Equal(t, "info", plain.Spec(), "a config built directly from a level carries that level as its spec")
+
+	for _, spec := range []string{cfg.Spec(), plain.Spec()} {
+		reparsed, err := ParseLevelRules(spec, "github.com/DataDog/datadog-agent")
+		require.NoError(t, err, "Spec() must always be a valid input to ParseLevelRules: %q", spec)
+		assert.Equal(t, spec, reparsed.Spec())
+	}
 }
 
 func TestLevelRulesNoRules(t *testing.T) {

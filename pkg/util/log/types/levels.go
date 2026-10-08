@@ -63,7 +63,7 @@ type LevelRules struct {
 // NewLevelRules returns a LevelRules applying level by default and no
 // per-package overrides.
 func NewLevelRules(level LogLevel) *LevelRules {
-	return newLevelRules(level, "")
+	return newLevelRules(level, level.String())
 }
 
 // newLevelRules returns a LevelRules applying level by default and each
@@ -121,8 +121,10 @@ func (c *LevelRules) MinLevel() LogLevel {
 	return c.minLevel
 }
 
-// Spec returns the raw specification string this config was parsed from, or
-// the empty string if it wasn't parsed from a specification string.
+// Spec returns the specification string this configuration corresponds to,
+// e.g. "error,some/pkg/...=debug" for a parsed specification or "info" for
+// one built directly from a single level. The returned string is always a
+// valid input to ParseLevelRules describing the current configuration.
 func (c *LevelRules) Spec() string {
 	return c.spec
 }
