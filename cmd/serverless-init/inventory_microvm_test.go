@@ -111,7 +111,7 @@ func TestMicroVMInventoryLifecycleReadiness(t *testing.T) {
 					metrics.MetricSourceAWSMicroVMEnhanced, time.Second, lifecycle.NewNoopChildHandle(), forwarder,
 					lifecycle.HookToggles{Run: true, Resume: true}, nil)
 				srv.SetInventorySubmitter(lifecycle.InventorySubmitterFunc(func(id string) {
-					serverlessInitInventory.PublishInstance(component, uuid, id, service, mode.Conf{SidecarMode: true}, conf,
+					serverlessInitInventory.UpdateInstanceAndSubmit(component, uuid, id, service, mode.Conf{SidecarMode: true}, conf,
 						map[string]string{"service": "test-service", "env": "test-env", "version": "test-version"})
 					published.Add(1)
 				}))
@@ -227,7 +227,7 @@ func TestMicroVMInventoryDisabled(t *testing.T) {
 				Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial,
 				Capabilities: serverlessInitInventory.NewInstanceCapabilities(uuid),
 			})
-			serverlessInitInventory.PublishInstance(p.Comp, uuid, "vm-A", service, mode.Conf{}, conf, nil)
+			serverlessInitInventory.UpdateInstanceAndSubmit(p.Comp, uuid, "vm-A", service, mode.Conf{}, conf, nil)
 			assert.Empty(t, serial.Payloads())
 			assert.Empty(t, p.Comp.Get())
 			assert.Nil(t, p.Provider.Callback, "readiness must not enable a disabled provider")

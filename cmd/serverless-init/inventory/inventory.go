@@ -100,12 +100,12 @@ func NewInstanceCapabilities(u *InstanceUUID) *inventoryagent.Capabilities {
 	return inventoryagent.NewServerlessCapabilities(u.Resolve)
 }
 
-// PublishInstance publishes one MicroVM identity and all matching metadata before
-// reopening readiness and immediately submitting. The lifecycle server must
+// UpdateInstanceAndSubmit updates one MicroVM identity and all matching metadata
+// before reopening readiness and immediately submitting. The lifecycle server must
 // serialize the instance ID store/load together with this entire call; the gate
-// serializes readers, not competing publishers. No metadata or UUID lock is held
+// serializes readers, not competing writers. No metadata or UUID lock is held
 // while calling SetReady or Submit.
-func PublishInstance(ia inventoryagent.Component, u *InstanceUUID, id string, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
+func UpdateInstanceAndSubmit(ia inventoryagent.Component, u *InstanceUUID, id string, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if id == "" || !conf.GetBool("serverless.inventory_enabled") {
 		return
 	}
@@ -117,10 +117,10 @@ func PublishInstance(ia inventoryagent.Component, u *InstanceUUID, id string, cs
 	Submit(ia, conf)
 }
 
-// Publish initializes all serverless metadata before opening readiness and
+// UpdateAndSubmit updates all serverless metadata before opening readiness and
 // synchronously enqueuing the startup payload. The caller must be the sole
-// publisher; readiness does not serialize concurrent writers.
-func Publish(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
+// writer; readiness does not serialize concurrent writers.
+func UpdateAndSubmit(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
 	}
@@ -135,7 +135,7 @@ func Publish(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf
 // component's initData() has already populated the core fields at construction.
 // The caller must keep readiness closed throughout injection.
 //
-// Publish, Inject, Submit, and SetResourceID are no-ops while the
+// UpdateAndSubmit, Inject, Submit, and SetResourceID are no-ops while the
 // serverless.inventory_enabled ramp gate is off, so a gated-off run emits no
 // serverless payload at all rather than one carrying only core fields.
 func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
@@ -164,7 +164,7 @@ func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 // environment).
 //
 // An empty id is ignored so it cannot displace the identifier the platform's
-// GetInventoryData already derived. PublishInstance rejects empty identities
+// GetInventoryData already derived. UpdateInstanceAndSubmit rejects empty identities
 // before injection; image-only metadata must never open readiness.
 func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
