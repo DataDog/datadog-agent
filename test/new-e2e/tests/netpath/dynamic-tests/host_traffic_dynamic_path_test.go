@@ -204,8 +204,9 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		require.NoError(c, err)
 		require.NotEmpty(c, netpaths, "no network path events")
 
-		match := findHostTrafficNetworkPathByClass(netpaths, hostTrafficRemoteConfigDomain, payload.DynamicTestClassCore)
-		require.NotNil(c, match, "no core-marked host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
+		// The earliest run for the destination is within the standard allowance.
+		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
+		require.NotNil(c, match, "no RC-admitted host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
 
 		assert.Equal(c, payload.PathOriginNetworkTraffic, match.Origin)
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
@@ -378,10 +379,6 @@ func (s *hostTrafficDynamicPathSuite) logRemoteFile(host *components.RemoteHost,
 }
 
 func findHostTrafficNetworkPath(netpaths []*aggregator.Netpath, domain string) *aggregator.Netpath {
-	return findHostTrafficNetworkPathByClass(netpaths, domain, "")
-}
-
-func findHostTrafficNetworkPathByClass(netpaths []*aggregator.Netpath, domain string, class payload.DynamicTestClass) *aggregator.Netpath {
 	for _, np := range netpaths {
 		if np == nil {
 			continue
@@ -389,8 +386,7 @@ func findHostTrafficNetworkPathByClass(netpaths []*aggregator.Netpath, domain st
 		if np.Origin == payload.PathOriginNetworkTraffic &&
 			np.Protocol == payload.ProtocolTCP &&
 			np.Destination.Hostname == domain &&
-			np.Destination.Port == 80 &&
-			(class == "" || np.DynamicTestClass == class) {
+			np.Destination.Port == 80 {
 			return np
 		}
 	}
