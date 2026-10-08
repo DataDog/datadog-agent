@@ -89,8 +89,8 @@ type inventoryagent struct {
 	hostname     string
 	client       ipc.HTTPClient
 	// See iainterface.Capabilities for the meaning of these fields.
-	skipCrossProcessEnrichment bool
-	payloadUUID                func() string
+	skipFullAgentMetadataRefresh bool
+	payloadUUID                  func() string
 }
 
 // Requires defines the dependencies for the inventoryagent component
@@ -105,8 +105,8 @@ type Requires struct {
 	Hostname       hostnameinterface.Component
 	// Capabilities is optional. When absent the component uses standard
 	// full-agent behavior; an embedder (serverless-init) supplies it to adapt
-	// cross-process enrichment, on-start submission, and the payload uuid to a
-	// divergent environment. See iainterface.Capabilities.
+	// full-agent metadata refresh and the payload uuid to a divergent environment.
+	// See iainterface.Capabilities.
 	Capabilities *iainterface.Capabilities `optional:"true"`
 }
 
@@ -134,7 +134,7 @@ func NewComponent(deps Requires) Provides {
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if deps.Capabilities != nil {
-		ia.skipCrossProcessEnrichment = deps.Capabilities.SkipCrossProcessEnrichment
+		ia.skipFullAgentMetadataRefresh = deps.Capabilities.SkipFullAgentMetadataRefresh
 		ia.payloadUUID = deps.Capabilities.PayloadUUID
 	}
 
@@ -545,7 +545,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
 
-	if !ia.skipCrossProcessEnrichment {
+	if !ia.skipFullAgentMetadataRefresh {
 		ia.refreshMetadata()
 	}
 
