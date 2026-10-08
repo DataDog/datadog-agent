@@ -523,3 +523,22 @@ func TestCollectDaemonReachableListFails(t *testing.T) {
 	assert.Equal(t, ManagementModeNone, service.ManagementMode)
 	assert.Equal(t, ProcessStateUnknown, service.ProcmgrState)
 }
+
+func TestCollectInvalidConfigDoesNotSetProcmgrManagement(t *testing.T) {
+	root := setupDDOTInstallFixture(t)
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: ProcessStateInvalidConfig},
+		},
+	})
+
+	snapshot := collector.Collect(context.Background())
+	service := serviceSnapshotByID(t, snapshot, "ddot")
+	assert.True(t, service.ProcmgrConfigured)
+	assert.Equal(t, ProcessStateInvalidConfig, service.ProcmgrState)
+	assert.NotEqual(t, ManagementModeProcmgr, service.ManagementMode)
+	assert.Equal(t, ProcessStateInvalidConfig, snapshot.ServiceProcessState("ddot"))
+	assert.True(t, procmgrStateIsActive(service, ProcessStateInvalidConfig))
+}
