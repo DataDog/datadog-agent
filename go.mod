@@ -509,7 +509,7 @@ require (
 	k8s.io/cri-client v0.35.5
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.35.5
-	k8s.io/kube-state-metrics/v2 v2.18.0
+	k8s.io/kube-state-metrics/v2 v2.19.1
 	k8s.io/kubectl v0.35.5
 	k8s.io/kubelet v0.35.5
 	k8s.io/metrics v0.35.5
@@ -905,6 +905,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
+	github.com/netresearch/go-cron v0.14.0 // indirect
 	github.com/nexus-rpc/nexus-proto-annotations v0.1.0 // indirect
 	github.com/nexus-rpc/sdk-go v0.7.0 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
@@ -1184,7 +1185,7 @@ require (
 	k8s.io/csi-translation-lib v0.35.3 // indirect
 	k8s.io/kms v0.35.5 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
-	k8s.io/sample-controller v0.35.3 // indirect
+	k8s.io/sample-controller v0.35.4 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
@@ -1232,10 +1233,9 @@ exclude github.com/tencentcloud/tencentcloud-sdk-go v1.0.162
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056
 
 // Remove once
-// https://github.com/kubernetes/kube-state-metrics/pull/2928 and
-// https://github.com/kubernetes/kube-state-metrics/pull/2977
-// are merged
-replace k8s.io/kube-state-metrics/v2 v2.18.0 => github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.2
+// https://github.com/kubernetes/kube-state-metrics/pull/2928
+// is merged
+replace k8s.io/kube-state-metrics/v2 v2.19.1 => github.com/DataDog/kube-state-metrics/v2 v2.19.2-dd.1
 
 // kube-state-metrics v2.18 transitively pulls ugorji/go/codec v1.3.0 via its
 // gomplate doc-generation tool. The new version ships ~4x more generated code
