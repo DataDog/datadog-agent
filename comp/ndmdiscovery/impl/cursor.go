@@ -26,6 +26,8 @@ type cursorState struct {
 	ConfigDigest string `json:"config_digest"`
 	// Failed marks a cycle that already reported a terminal failed status for RunID.
 	Failed bool `json:"failed"`
+	// CompletedAtMs is when the cycle finished, and zero while it is in flight.
+	CompletedAtMs int64 `json:"completed_at_ms"`
 }
 
 // cursorStore persists the cycle progress of each configured range.

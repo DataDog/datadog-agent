@@ -161,6 +161,36 @@ func testSweepRequestWithOptions(t *testing.T, cidr string, ignored []string, op
 	}
 }
 
+func TestSweepDueInCountsFromTheLastCompletion(t *testing.T) {
+	cursors := newMemCursorStore()
+	s := newTestSweeper(t, answerAll(), &recordingReporter{}, cursors, 10)
+	req := testSweepRequest(t, "10.0.0.0/26", nil)
+	now := s.now()
+
+	tests := map[string]struct {
+		state cursorState
+		want  time.Duration
+	}{
+		"no cursor":        {},
+		"never completed":  {state: cursorState{ConfigDigest: req.Digest}},
+		"another layout":   {state: cursorState{ConfigDigest: "other", CompletedAtMs: now - 10_000}},
+		"a whole interval": {state: cursorState{ConfigDigest: req.Digest, CompletedAtMs: now - 60_000}},
+		"a clock jump":     {state: cursorState{ConfigDigest: req.Digest, CompletedAtMs: now + 10_000}},
+		"mid-interval":     {state: cursorState{ConfigDigest: req.Digest, CompletedAtMs: now - 10_000}, want: 20 * time.Second},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, cursors.Clear("ad-1"))
+			if tc.state != (cursorState{}) {
+				require.NoError(t, cursors.Save("ad-1", tc.state))
+			}
+
+			assert.Equal(t, tc.want, s.dueIn(req, 30*time.Second))
+		})
+	}
+}
+
 func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 	scanner := answerAll()
 	reporter := &recordingReporter{}
@@ -183,8 +213,9 @@ func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 	// answerAll answers on the first target of each chunk only, so one /26 is
 	// 64 addresses scanned and one device reported.
 	assert.Len(t, reporter.devices, 1, "a silent address is absent from the run, not reported unreachable")
-	_, ok := cursors.Load("ad-1")
-	assert.False(t, ok, "a completed cycle clears its cursor")
+	saved, ok := cursors.Load("ad-1")
+	require.True(t, ok, "a completed cycle keeps its cursor")
+	assert.Equal(t, int64(1700000000000), saved.CompletedAtMs, "the completion time is what makes the range next due")
 }
 
 func TestSweepReportsPerChunkNotAtTheEnd(t *testing.T) {
@@ -450,7 +481,8 @@ func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 	assert.Equal(t, int64(256), final.AddressesScanned, "progress made before the failure is preserved")
 
 	saved, ok = cursors.Load("ad-1")
-	assert.False(t, ok, "the completed cycle clears its cursor")
+	require.True(t, ok)
+	assert.NotZero(t, saved.CompletedAtMs, "the completed cycle records when it finished")
 	assert.False(t, saved.Failed)
 }
 
@@ -497,8 +529,9 @@ func TestSweepContinuesWhenAChunkReportFails(t *testing.T) {
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
 	assert.Equal(t, int64(256), final.AddressesScanned, "the unreported chunk still counts as swept")
 	assert.Equal(t, 3, reporter.batches, "the three chunks after it are reported normally")
-	_, ok := cursors.Load("ad-1")
-	assert.False(t, ok, "the cursor advanced past the failed report and the cycle cleared it")
+	saved, ok := cursors.Load("ad-1")
+	require.True(t, ok)
+	assert.NotZero(t, saved.CompletedAtMs, "the cursor advanced past the failed report and the cycle completed")
 }
 
 func countRunStatus(runs []metadata.AutodiscoveryRunMetadata, status metadata.AutodiscoveryRunStatus) int {

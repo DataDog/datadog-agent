@@ -145,19 +145,35 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 	s.log.Infof("ndmdiscovery: completed the scan of range %s (%s): %d addresses scanned, %d devices reported, run %s",
 		id, r.Config.NetworkAddress, state.Scanned, reported, state.RunID)
+	finished := s.now()
 	s.reportRun(r, metadata.AutodiscoveryRunMetadata{
 		AutodiscoveryID:  id,
 		RunID:            state.RunID,
 		Status:           metadata.AutodiscoveryRunCompleted,
 		AddressesScanned: state.Scanned,
 		StartedAtMs:      state.StartedAtMs,
-		FinishedAtMs:     s.now(),
+		FinishedAtMs:     finished,
 	})
 
-	if err := s.cursors.Clear(id); err != nil {
-		s.log.Warnf("ndmdiscovery: failed to clear the cursor of range %s: %v", id, err)
-	}
+	// Kept rather than cleared, so a restart knows when this range is next due.
+	state.CompletedAtMs = finished
+	s.saveCursor(id, state)
 	return nil
+}
+
+// dueIn is how long is left before the range is next due, and zero when it is
+// due now. A range with no completed cycle on record is always due.
+func (s *sweeper) dueIn(r sweepRequest, interval time.Duration) time.Duration {
+	saved, ok := s.cursors.Load(r.Config.AutodiscoveryID)
+	if !ok || saved.CompletedAtMs == 0 || saved.ConfigDigest != r.Digest {
+		return 0
+	}
+
+	elapsed := time.Duration(s.now()-saved.CompletedAtMs) * time.Millisecond
+	if elapsed < 0 || elapsed >= interval {
+		return 0
+	}
+	return interval - elapsed
 }
 
 // startState resumes the persisted cycle when the range and its credentials
