@@ -83,10 +83,14 @@ func setupNVIDIACheckOnHost(t *testing.T, sysRoot string, settings map[string]an
 	return check
 }
 
-// On an AMD-only host, which the AMD GPU check collects, NVML being
-// unavailable must neither fail the NVIDIA GPU check nor raise its issue.
+// On an AMD-only host, which the AMD GPU check collects, the NVIDIA GPU check
+// neither fails nor loads NVML, and resolves an NVML issue raised before.
 func TestNVIDIACheckOnAMDOnlyHost(t *testing.T) {
-	withoutNVML(t)
+	nvmlLoads := 0
+	ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface {
+		nvmlLoads++
+		return testutil.NewMockNVML(testutil.WithInitReturn(nvml.ERROR_LIBRARY_NOT_FOUND))
+	})
 	healthStore := healthplatformmock.New(t)
 	check := setupNVIDIACheckOnHost(t, fakeAMDHost(t), nil)
 	check.SetIssueReporter(healthStore)
@@ -94,8 +98,11 @@ func TestNVIDIACheckOnAMDOnlyHost(t *testing.T) {
 	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
 	require.NotNil(t, healthStore.GetIssue(issueID))
 
-	require.NoError(t, check.Run())
+	for range 3 {
+		require.NoError(t, check.Run())
+	}
 	assert.Nil(t, healthStore.GetIssue(issueID))
+	assert.Zero(t, nvmlLoads, "the NVIDIA GPU check must not load NVML on an AMD-only host")
 }
 
 // An NVIDIA audio function is not a GPU: the host is still AMD-only.

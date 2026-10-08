@@ -74,7 +74,7 @@ type Check struct {
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
-	amdEnabled          bool                             // amdEnabled is gpu.amd.enabled: AMD GPUs are collected by the AMD GPU check
+	skipNVML            bool                             // skipNVML is set in Configure when gpu.amd.enabled is on and the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
 }
 
@@ -171,10 +171,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		log.Infof("GPU device %s is excluded by configuration", deviceUUID)
 	}
 	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
-	c.amdEnabled = pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled")
 	if c.sysRoot == "" {
 		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
 		c.sysRoot = kernel.SysFSRoot()
+	}
+	c.skipNVML = pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") && hasOnlyAMDGPUs(c.sysRoot)
+	if c.skipNVML {
+		log.Info("All GPUs on this host are AMD: the AMD GPU check collects them, the NVIDIA GPU check stays idle")
 	}
 	c.strictIntervals = nvidia.NewStrictIntervalProcessor(c.gpuConfig.StaticMetricsReportingInterval)
 	if c.parallelCollectors {
@@ -324,6 +327,19 @@ func (c *Check) Interval() time.Duration {
 // Run executes the check. Configure must have been called before and returned no errors, otherwise
 // we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
+	// On hosts whose GPUs are all AMD, collected by the AMD GPU check, NVML is
+	// not expected: skip it entirely. The check stays loaded rather than
+	// refusing in Configure, so it resolves an NVML issue raised before (the
+	// issue reporter is only set before runs) and does not show as a loading
+	// error in the agent status.
+	if c.skipNVML {
+		if c.issueReporter != nil {
+			c.issueReporter.ResolveIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable))
+		}
+		c.telemetry.metrics.deviceCount.Set(0)
+		return nil
+	}
+
 	// While an NVML release window is active, release NVML and skip
 	// collection so a GPU reset can proceed; re-acquire when the signals clear.
 	if c.shouldReleaseNVML() {
@@ -386,15 +402,6 @@ func (c *Check) Run() error {
 
 	// Check the state of the NVML library for telemetry
 	c.telemetry.nvmlState.Check()
-	// On hosts whose GPUs are all AMD, which the AMD GPU check collects, NVML
-	// is expected to be unavailable: neither fail nor raise the NVML issue.
-	if c.amdEnabled && !c.telemetry.nvmlState.LastNvmlInitSuccess() && amdOnlyHost(c.sysRoot) {
-		if c.issueReporter != nil {
-			c.issueReporter.ResolveIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable))
-		}
-		c.telemetry.metrics.deviceCount.Set(0)
-		return nil
-	}
 	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
 
 	if err := c.deviceCache.Refresh(); err != nil {
@@ -495,7 +502,10 @@ func gpuHealthIssueID(reason string) string {
 }
 
 // PCI identifiers used to tell from the PCI inventory whether a host only has
-// AMD GPUs. GPUs have the display controller or processing accelerator class.
+// AMD GPUs. GPUs have the display controller (0x03: VGA 0x0300, 3D controller
+// 0x0302) or processing accelerator (0x12) base class. NVIDIA data center GPUs,
+// including those of Grace superchips (GH200, GB200), are 3D controllers;
+// NVSwitch devices are bridges (0x06) and are not GPUs.
 const (
 	pciVendorAMD                  = 0x1002
 	pciVendorNVIDIA               = 0x10de
@@ -503,11 +513,27 @@ const (
 	pciClassProcessingAccelerator = 0x12
 )
 
-// amdOnlyHost reports whether the PCI inventory under sysRoot has AMD GPUs and
-// no NVIDIA GPU, including NVIDIA GPUs whose driver is missing. NVIDIA audio
-// functions and network adapters are not GPUs. An unreadable inventory is not
-// AMD-only.
-func amdOnlyHost(sysRoot string) bool {
+// hasOnlyAMDGPUs reports whether the PCI inventory under sysRoot
+// (<sysRoot>/bus/pci/devices) has at least one AMD GPU and no NVIDIA GPU. When
+// it does, and AMD collection is enabled, the NVIDIA GPU check stays idle and
+// leaves the host to the AMD GPU check.
+//
+// It reads the PCI bus rather than driver state, so that:
+//   - an NVIDIA GPU counts even if its driver is missing or broken: the NVIDIA
+//     check then keeps running and reports the NVML issue;
+//   - NVIDIA functions that are not GPUs (audio, network adapters, NVSwitch)
+//     do not count.
+//
+// Any doubt keeps the NVIDIA check running as it would without AMD support:
+// an unreadable inventory (for example in a container that does not mount the
+// host /sys at /host/sys) or an unreadable or unparsable vendor or class
+// attribute returns false.
+//
+// NVIDIA GPUs that are not PCI devices, such as the Jetson integrated GPU, are
+// not seen; the Jetson check monitors those. The Check calls this once, in
+// Configure: a GPU hot-plugged later is only taken into account after an agent
+// restart.
+func hasOnlyAMDGPUs(sysRoot string) bool {
 	pciDir := filepath.Join(sysRoot, "bus", "pci", "devices")
 	entries, err := os.ReadDir(pciDir)
 	if err != nil {
@@ -515,6 +541,8 @@ func amdOnlyHost(sysRoot string) bool {
 	}
 	hasAMDGPU := false
 	for _, entry := range entries {
+		// The kernel exposes vendor as "0x10de\n" and class as "0x030200\n":
+		// base class, subclass and programming interface, one byte each.
 		vendor, err := readPCIAttribute(filepath.Join(pciDir, entry.Name(), "vendor"), 16)
 		if err != nil {
 			return false
@@ -530,6 +558,7 @@ func amdOnlyHost(sysRoot string) bool {
 			continue
 		}
 		if vendor == pciVendorNVIDIA {
+			// One NVIDIA GPU is enough: the NVIDIA check has work to do.
 			return false
 		}
 		hasAMDGPU = true
