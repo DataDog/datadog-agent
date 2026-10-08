@@ -24,6 +24,7 @@ func TestServiceProcessStateProcmgrManaged(t *testing.T) {
 		ProcessStateCrashed,
 		ProcessStateExited,
 		ProcessStateFailed,
+		ProcessStateInvalidConfig,
 		ProcessStateSkipped,
 	}
 
@@ -61,6 +62,8 @@ func TestParseProcmgrState(t *testing.T) {
 		{"STOPPED", ProcessStateStopped},
 		{"CRASHED", ProcessStateCrashed},
 		{"EXITED", ProcessStateExited},
+		{"INVALID_CONFIG", ProcessStateInvalidConfig},
+		{"InvalidConfig", ProcessStateInvalidConfig},
 		{"UNKNOWN", ProcessStateUnknown},
 		{"garbage", ProcessStateUnknown},
 		{"", ProcessStateUnknown},
@@ -178,6 +181,7 @@ func TestProcmgrProcessStatesCoverReportedStates(t *testing.T) {
 		ProcessStateCrashed,
 		ProcessStateExited,
 		ProcessStateFailed,
+		ProcessStateInvalidConfig,
 		ProcessStateSkipped,
 	}, procmgrProcessStates)
 	assert.NotContains(t, procmgrProcessStates, ProcessStateNotInstalled)
@@ -216,5 +220,144 @@ func TestProcmgrStateIsActiveClearsWhenNotSupervised(t *testing.T) {
 					"state series must clear when procmgr does not supervise the service")
 			}
 		})
+	}
+}
+
+func TestServiceSupervisorsExcludeNone(t *testing.T) {
+	assert.ElementsMatch(t, []string{
+		string(ManagementModeProcmgr),
+		string(ManagementModeSystemd),
+		string(ManagementModeWindowsService),
+	}, serviceSupervisors)
+	assert.NotContains(t, serviceSupervisors, string(ManagementModeNone))
+}
+
+func TestServiceRunningUnder(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       ManagementMode
+		state      string
+		wantActive string // empty means all supervisors are 0
+	}{
+		{
+			name:       "procmgr running",
+			mode:       ManagementModeProcmgr,
+			state:      ProcessStateRunning,
+			wantActive: string(ManagementModeProcmgr),
+		},
+		{
+			name:  "procmgr stopped",
+			mode:  ManagementModeProcmgr,
+			state: ProcessStateStopped,
+		},
+		{
+			name:  "procmgr failed",
+			mode:  ManagementModeProcmgr,
+			state: ProcessStateFailed,
+		},
+		{
+			name:  "procmgr crashed",
+			mode:  ManagementModeProcmgr,
+			state: ProcessStateCrashed,
+		},
+		{
+			name:       "systemd",
+			mode:       ManagementModeSystemd,
+			state:      ProcessStateUnknown,
+			wantActive: string(ManagementModeSystemd),
+		},
+		{
+			name:       "windows_service",
+			mode:       ManagementModeWindowsService,
+			state:      ProcessStateUnknown,
+			wantActive: string(ManagementModeWindowsService),
+		},
+		{
+			name:  "none",
+			mode:  ManagementModeNone,
+			state: ProcessStateUnknown,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := ServiceSnapshot{
+				ID:             ServiceIDDDOT,
+				ManagementMode: test.mode,
+				ProcmgrState:   test.state,
+			}
+
+			var active []string
+			for _, supervisor := range serviceSupervisors {
+				if serviceRunningUnder(service, supervisor) {
+					active = append(active, supervisor)
+				}
+			}
+
+			if test.wantActive == "" {
+				assert.Empty(t, active, "no supervisor should be up")
+				return
+			}
+			assert.Equal(t, []string{test.wantActive}, active,
+				"exactly one exclusive supervisor should be up")
+		})
+	}
+}
+
+func TestServiceRunningUnderRejectsUnknownSupervisor(t *testing.T) {
+	service := ServiceSnapshot{
+		ID:             ServiceIDDDOT,
+		ManagementMode: ManagementModeProcmgr,
+		ProcmgrState:   ProcessStateRunning,
+	}
+	assert.False(t, serviceRunningUnder(service, string(ManagementModeNone)))
+	assert.False(t, serviceRunningUnder(service, "garbage"))
+}
+
+func TestServiceProcessStateInvalidConfigWithoutProcmgrManagement(t *testing.T) {
+	snapshot := Snapshot{
+		Daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		Services: []ServiceSnapshot{{
+			ID:                ServiceIDDDOT,
+			Installed:         true,
+			ProcmgrConfigured: true,
+			ProcmgrState:      ProcessStateInvalidConfig,
+			ManagementMode:    ManagementModeNone,
+		}},
+	}
+	assert.Equal(t, ProcessStateInvalidConfig, snapshot.ServiceProcessState(ServiceIDDDOT))
+}
+
+func TestServiceProcessStateLegacyWinsOverInvalidConfig(t *testing.T) {
+	for _, mode := range []ManagementMode{ManagementModeSystemd, ManagementModeWindowsService} {
+		t.Run(string(mode), func(t *testing.T) {
+			snapshot := Snapshot{
+				Daemon: DaemonSnapshot{Reachable: true, Ready: true},
+				Services: []ServiceSnapshot{{
+					ID:                ServiceIDDDOT,
+					Installed:         true,
+					ProcmgrConfigured: true,
+					ProcmgrState:      ProcessStateInvalidConfig,
+					ManagementMode:    mode,
+				}},
+			}
+			assert.Equal(t, ProcessStateRunning, snapshot.ServiceProcessState(ServiceIDDDOT))
+		})
+	}
+}
+
+func TestProcmgrStateIsActiveInvalidConfigWithoutProcmgrManagement(t *testing.T) {
+	service := ServiceSnapshot{
+		ID:             ServiceIDDDOT,
+		ManagementMode: ManagementModeNone,
+		ProcmgrState:   ProcessStateInvalidConfig,
+	}
+
+	assert.True(t, procmgrStateIsActive(service, ProcessStateInvalidConfig))
+	for _, state := range procmgrProcessStates {
+		if state == ProcessStateInvalidConfig {
+			continue
+		}
+		assert.False(t, procmgrStateIsActive(service, state), state)
 	}
 }

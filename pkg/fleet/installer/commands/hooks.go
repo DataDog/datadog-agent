@@ -53,7 +53,7 @@ func hooksCommand() *cobra.Command {
 func postinstCommand() *cobra.Command {
 	return &cobra.Command{
 		Hidden:  true,
-		Use:     "postinst <package> <type:deb|rpm>",
+		Use:     "postinst <package> <type:deb|rpm|msi|dmg>",
 		Short:   "Run post-install scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),
@@ -127,6 +127,8 @@ func parsePackageType(rawPackageType string) (packages.PackageType, error) {
 		return packages.PackageTypeDEB, nil
 	case string(packages.PackageTypeRPM):
 		return packages.PackageTypeRPM, nil
+	case string(packages.PackageTypeDMG):
+		return packages.PackageTypeDMG, nil
 	default:
 		return "", fmt.Errorf("unknown package type: %s", rawPackageType)
 	}
