@@ -15,6 +15,7 @@ type Config struct {
 	LogLevel string // optional, maps to --log-level
 	LogFile  string // optional, maps to --log-file
 	PIDFile  string // optional, maps to --pid
+	PrivLogs bool   // optional, maps to --privileged-logs
 }
 
 // Args returns the command-line arguments for the system-probe-lite binary.
@@ -28,6 +29,9 @@ func (c *Config) Args() []string {
 	}
 	if c.PIDFile != "" {
 		args = append(args, "--pid", c.PIDFile)
+	}
+	if c.PrivLogs {
+		args = append(args, "--privileged-logs")
 	}
 	return args
 }

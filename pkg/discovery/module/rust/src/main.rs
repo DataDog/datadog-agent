@@ -24,21 +24,22 @@ use std::fs::Permissions;
 use std::io::ErrorKind;
 use std::os::unix::fs::{PermissionsExt, chown};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result, anyhow};
-use dd_discovery::{Params, get_services};
+use dd_discovery::{Params, get_services, privileged_logs};
 
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Bytes;
-use hyper::header::CONTENT_TYPE;
+use hyper::header::{CONNECTION, CONTENT_TYPE, UPGRADE};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use log::{debug, error, info, warn};
 use serde_json::json;
-use tokio::net::UnixListener;
+use tokio::net::{UnixListener, UnixStream};
 use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::Semaphore;
 
@@ -49,6 +50,10 @@ use cli::Args;
 /// We choose 2 because one is for regular agent checks and another one is for manual troubleshooting.
 /// This matches the Go system-probe's DefaultMaxConcurrentRequests.
 static SERVICES_SEMAPHORE: Semaphore = Semaphore::const_new(2);
+
+/// Set from --privileged-logs, so that the endpoint only exists when the
+/// privileged_logs module is enabled, like in the Go system-probe.
+static PRIVILEGED_LOGS: AtomicBool = AtomicBool::new(false);
 
 static BADREQUEST: &[u8] = b"Bad request";
 static NOTFOUND: &[u8] = b"Not found";
@@ -296,6 +301,49 @@ async fn handle_debug_stats() -> Result<Response<BoxBody<Bytes, std::io::Error>>
         .map_err(|e| anyhow!("Failed to build response: {}", e))
 }
 
+/// Opens the requested log file, then switches protocols and sends its file
+/// descriptor, as pkg/privileged-logs/client expects.
+async fn handle_privileged_logs_open<B>(
+    mut req: Request<B>,
+) -> Result<Response<BoxBody<Bytes, std::io::Error>>>
+where
+    B: hyper::body::Body<Data = Bytes>,
+{
+    let on_upgrade = hyper::upgrade::on(&mut req);
+    let Ok(body) = req.collect().await else {
+        return bad_request();
+    };
+    let params: serde_json::Value = serde_json::from_slice(&body.to_bytes()).unwrap_or_default();
+    let Some(path) = params.get("path").and_then(|p| p.as_str()) else {
+        return bad_request();
+    };
+    let no_follow = params.get("no_follow") == Some(&json!(true));
+    debug!("Received request to open file: {path}");
+    let file = match privileged_logs::validate_and_open(path, no_follow) {
+        Ok(file) => file,
+        Err(e) => {
+            error!("{e:#}");
+            let body = Full::new(format!("{e:#}").into()).map_err(|e| match e {});
+            return Ok(Response::builder().status(500).body(body.boxed())?);
+        }
+    };
+    tokio::task::spawn(async move {
+        let sent = async {
+            let upgraded = on_upgrade.await?.downcast::<TokioIo<UnixStream>>();
+            let io = upgraded.map_err(|_| anyhow!("not a Unix socket"))?.io;
+            anyhow::Ok(privileged_logs::send_fd(&io.into_inner(), &file).await?)
+        };
+        if let Err(e) = sent.await {
+            error!("Failed to send file descriptor: {e:#}");
+        }
+    });
+    Ok(Response::builder()
+        .status(StatusCode::SWITCHING_PROTOCOLS)
+        .header(CONNECTION, "Upgrade")
+        .header(UPGRADE, "dd-privileged-logs")
+        .body(Full::new(Bytes::new()).map_err(|e| match e {}).boxed())?)
+}
+
 fn bad_request() -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     Response::builder()
         .status(StatusCode::BAD_REQUEST)
@@ -342,6 +390,9 @@ where
         (&Method::GET, "/config") => handle_config().await,
         (&Method::GET, "/config/by-source") => handle_config_by_source().await,
         (&Method::GET, "/debug/stats") => handle_debug_stats().await,
+        (&Method::POST, "/privileged_logs/open") if PRIVILEGED_LOGS.load(Ordering::Relaxed) => {
+            handle_privileged_logs_open(req).await
+        }
         _ => {
             debug!(
                 "{} Request to unknown endpoint: {}",
@@ -401,6 +452,7 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
                                 }))
                             }),
                         )
+                        .with_upgrades()
                         .await
                     {
                         error!("Error serving connection: {:#}", anyhow::Error::new(err));
@@ -434,6 +486,7 @@ async fn main() -> Result<()> {
         warn!("unknown argument: {arg}");
     }
 
+    PRIVILEGED_LOGS.store(args.privileged_logs, Ordering::Relaxed);
     let result = run_system_probe_lite(&args.socket_path).await;
 
     // Cleanup PID file on exit (defer pattern)

@@ -42,6 +42,7 @@ hyper-util.workspace = true
 log.workspace = true
 lru.workspace = true
 memchr.workspace = true
+nix = { workspace = true, features = ["fs", "socket", "uio"] }
 nom.workspace = true
 normalize-path.workspace = true
 phf.workspace = true
@@ -62,7 +63,6 @@ dircpy.workspace = true
 walkdir.workspace = true
 yaml-rust2.workspace = true
 memmap2.workspace = true
-nix.workspace = true
 scopeguard.workspace = true
 temp-env.workspace = true
 tempfile.workspace = true
