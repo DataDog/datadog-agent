@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
@@ -19,21 +20,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// fakeComponent records Set calls and Submit invocations so tests can assert on
+// fakeComponent records metadata, readiness, and submission so tests can assert on
 // the fields the inventory package layers onto the shared inventoryagent
 // component.
 type fakeComponent struct {
 	fields  map[string]interface{}
 	submits int
+	calls   []string
 }
 
 func newFakeComponent() *fakeComponent {
 	return &fakeComponent{fields: map[string]interface{}{}}
 }
 
-func (f *fakeComponent) Set(name string, value interface{}) { f.fields[name] = value }
-func (f *fakeComponent) Get() map[string]interface{}        { return f.fields }
-func (f *fakeComponent) Submit()                            { f.submits++ }
+func (f *fakeComponent) Set(name string, value interface{}) {
+	f.calls = append(f.calls, "Set:"+name)
+	f.fields[name] = value
+}
+func (f *fakeComponent) Get() map[string]interface{} { return f.fields }
+func (f *fakeComponent) SetReady(ready bool) {
+	if ready {
+		f.calls = append(f.calls, "ready")
+	} else {
+		f.calls = append(f.calls, "not ready")
+	}
+}
+func (f *fakeComponent) Submit() {
+	f.calls = append(f.calls, "submit")
+	f.submits++
+}
 
 type inventoryCloudService struct {
 	cloudservice.CloudService
@@ -218,6 +233,46 @@ func TestBuildFieldsWrappedCommand(t *testing.T) {
 	}
 }
 
+func TestPublishReadinessOrder(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
+	ia := newFakeComponent()
+	service := inventoryCloudService{data: cloudservice.InventoryData{ResourceID: "test-resource"}}
+
+	Publish(ia, service, mode.Conf{SidecarMode: true}, conf, nil)
+
+	require.GreaterOrEqual(t, len(ia.calls), 5)
+	assert.Equal(t, "not ready", ia.calls[0], "close before changing any field")
+	for _, call := range ia.calls[1 : len(ia.calls)-3] {
+		assert.Contains(t, call, "Set:", "only metadata updates may occur while closed")
+	}
+	assert.Equal(t, []string{"Set:flavor", "ready", "submit", "Set:report_reason"}, ia.calls[len(ia.calls)-4:])
+	assert.Equal(t, service.data.ResourceID, ia.fields["resource_id"])
+	assert.Equal(t, serverlessInitFlavor, ia.fields["flavor"])
+	assert.Equal(t, reportReasonPeriodic, ia.fields["report_reason"])
+	assert.Equal(t, 1, ia.submits)
+}
+
+func TestPublishGatedOff(t *testing.T) {
+	for _, gate := range []string{"default", "disabled"} {
+		t.Run(gate, func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_INIT_INVENTORY_ENABLED", "")
+			require.NoError(t, os.Unsetenv("DD_SERVERLESS_INIT_INVENTORY_ENABLED"))
+			conf := configmock.New(t)
+			if gate == "disabled" {
+				conf.Set("serverless.inventory_enabled", false, model.SourceAgentRuntime)
+			}
+			ia := newFakeComponent()
+
+			Publish(ia, inventoryCloudService{}, mode.Conf{}, conf, nil)
+
+			assert.Empty(t, ia.calls, "disabled publication must not change readiness, inject, or submit")
+			assert.Empty(t, ia.fields)
+			assert.Zero(t, ia.submits)
+		})
+	}
+}
+
 func TestInjectSetsFieldsWithoutSubmitting(t *testing.T) {
 	originalArgs := os.Args
 	t.Cleanup(func() { os.Args = originalArgs })
@@ -305,6 +360,7 @@ func TestInjectOmitsDeprecatedDeploymentID(t *testing.T) {
 func TestNewCapabilitiesReportsOneUUIDForProcessLifetime(t *testing.T) {
 	caps := NewCapabilities()
 
+	assert.True(t, caps.DeferUntilReady)
 	assert.True(t, caps.SkipFullAgentMetadataRefresh)
 	assert.NotEmpty(t, caps.PayloadUUID())
 	assert.Equal(t, caps.PayloadUUID(), caps.PayloadUUID())
