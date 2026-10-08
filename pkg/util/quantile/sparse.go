@@ -62,13 +62,12 @@ func (s *Sketch) InsertMany(c *Config, values []float64) {
 func (s *Sketch) Reset() {
 	s.Basic.Reset()
 	s.count = 0
-	s.scaled = nil
 	s.bins = s.bins[:0] // TODO: just release to a size tiered pool.
 }
 
 // GetRawBins return raw bins information as string
 func (s *Sketch) GetRawBins() (int, string) {
-	return s.count, strings.Replace(s.bins.String(), "\n", "", -1)
+	return int(s.count), strings.Replace(s.bins.String(), "\n", "", -1)
 }
 
 // Insert a single value into the sketch.
@@ -135,7 +134,7 @@ func (s *Sketch) Quantile(c *Config, q float64) float64 {
 	return s.Basic.Max
 }
 
-func rank(count int, q float64) float64 {
+func rank(count uint64, q float64) float64 {
 	return math.RoundToEven(q * float64(count-1))
 }
 
@@ -145,7 +144,6 @@ func (s *Sketch) CopyTo(dst *Sketch) {
 	dst.bins = dst.bins.ensureLen(s.bins.Len())
 	copy(dst.bins, s.bins)
 	dst.count = s.count
-	dst.scaled = s.scaled.clone()
 	dst.Basic = s.Basic
 }
 
@@ -162,7 +160,7 @@ func (s *Sketch) Equals(o *Sketch) bool {
 		return false
 	}
 
-	if s.count != o.count || !s.scaled.equals(o.scaled) {
+	if s.count != o.count {
 		return false
 	}
 
@@ -207,7 +205,7 @@ func (s *Sketch) ApproxEquals(o *Sketch, e float64) bool {
 		return false
 	}
 
-	if s.count != o.count || !s.scaled.equals(o.scaled) {
+	if s.count != o.count {
 		return false
 	}
 

@@ -44,10 +44,9 @@ type Config struct {
 	}
 }
 
-// MaxCount returns the number of values the bins of a sketch count exactly,
-// which is limited by using a uint16 for bin.n. Past it, the sketch scales its
-// bins down by powers of two to stay within its bin budget, and keeps the values
-// short of a scaled unit aside for each key. Its summary stays exact.
+// MaxCount returns the number of values binLimit bins could count back when
+// bin.n was a uint16. Callers that bound their input with it, such as the OTLP
+// mapper, keep that bound: the bins now count up to math.MaxUint32 values each.
 func (c *Config) MaxCount() int {
 	return c.binLimit * math.MaxUint16
 }

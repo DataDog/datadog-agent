@@ -14,10 +14,10 @@ import (
 func TestBin_incrSafe(t *testing.T) {
 	const maxn = maxBinWidth
 	tests := []struct {
-		n            uint16
-		by           int
-		wantN        uint16
-		wantOverflow int
+		n            uint32
+		by           uint64
+		wantN        uint32
+		wantOverflow uint64
 		name         string
 	}{
 		{by: 1, wantN: 1},
@@ -63,12 +63,12 @@ func TestBin_incrSafe(t *testing.T) {
 
 // TestAppendSafeCountValueDrivesBinCount shows why a large count is a memory
 // hazard: appendSafe splits it into ceil(n/maxBinWidth) bins, whatever the number
-// of keys. n stays under 1<<31, as int is 32 bits wide on some build targets.
+// of keys. insertCounts lays out only the bins trimLeft keeps for that reason.
 func TestAppendSafeCountValueDrivesBinCount(t *testing.T) {
 	const (
-		n = 1 << 30
-		// 65535*16384 = 1073725440, leaving a remainder bin of 16384.
-		wantBins = 16385
+		n uint64 = 3*maxBinWidth + 5
+		// Three full bins, and a remainder bin of 5.
+		wantBins = 4
 	)
 
 	bins := appendSafe(nil, 42, n)
