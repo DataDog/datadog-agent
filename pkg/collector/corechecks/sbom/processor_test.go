@@ -9,6 +9,8 @@ package sbom
 
 import (
 	"context"
+	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -1235,4 +1237,509 @@ func TestProcessHostUsage(t *testing.T) {
 		require.NotNil(t, entity.GetCyclonedx())
 		assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
 	})
+}
+
+// fakeScanner records the scan requests it receives.
+type fakeScanner struct {
+	requests []sbom.ScanRequest
+}
+
+func (s *fakeScanner) Scan(request sbom.ScanRequest) error {
+	s.requests = append(s.requests, request)
+	return nil
+}
+
+// TestHostSBOMWaitsForUsage checks that the first host SBOM waits for the
+// runtime usage of the host, so that it goes out with it, and that it goes out
+// as it is once the wait ends.
+func TestHostSBOMWaitsForUsage(t *testing.T) {
+	usage := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{{
+		Name:    "bash",
+		Version: "5.2.26-6.el10",
+		Properties: []*cyclonedx_v1_4.Property{
+			{Name: sbom.LastAccessProperty, Value: pointer.Ptr("1700000000")},
+			{Name: sbom.HasSetSuidBitProperty, Value: pointer.Ptr("false")},
+			{Name: sbom.RunningAsRootProperty, Value: pointer.Ptr("true")},
+		},
+	}}}
+	scanned := time.Unix(1700000000, 0)
+
+	newHostProcessor := func() (*processor, *fakeScanner) {
+		scanner := &fakeScanner{}
+		return &processor{
+			queue:                 make(chan *model.SBOMEntity, 4),
+			sbomScanner:           scanner,
+			hostSBOM:              true,
+			hostname:              "host",
+			hostHeartbeatValidity: time.Hour,
+			usageEnrichment:       true,
+		}, scanner
+	}
+
+	t.Run("a report sends the scan with its usage", func(t *testing.T) {
+		p, scanner := newHostProcessor()
+
+		p.processHostScanResult(newHostScan(scanned))
+		p.releaseExpiredHolds(time.Now())
+		assert.Empty(t, p.queue, "the first scan waits for the usage of the host")
+
+		p.processHostUsage(usage)
+		entity := <-p.queue
+		require.NotNil(t, entity.GetCyclonedx())
+		assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
+		assert.Equal(t, "sha256:packages", entity.GetHash())
+
+		p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
+		entity = <-p.queue
+		assert.True(t, entity.GetHeartbeat(), "an unchanged scan after that is a heartbeat")
+		assert.Empty(t, scanner.requests)
+	})
+
+	t.Run("the wait ends without usage", func(t *testing.T) {
+		p, scanner := newHostProcessor()
+
+		p.processHostScanResult(newHostScan(scanned))
+		p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
+		entity := <-p.queue
+		require.NotNil(t, entity.GetCyclonedx(), "the scan goes out once the wait ends")
+		assert.Empty(t, lastSeenRunning(entity.GetCyclonedx(), "bash"))
+
+		p.processHostUsage(usage)
+		assert.Empty(t, p.queue)
+		assert.Len(t, scanner.requests, 1, "the first report triggers a scan to carry it")
+
+		p.processHostUsage(usage)
+		assert.Len(t, scanner.requests, 1, "a later report waits for the next scan")
+	})
+
+	t.Run("the newest scan waits in place of the older one", func(t *testing.T) {
+		p, _ := newHostProcessor()
+
+		p.processHostScanResult(newHostScan(scanned))
+		p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
+		assert.Empty(t, p.queue)
+
+		p.processHostUsage(usage)
+		entity := <-p.queue
+		assert.Equal(t, scanned.Add(time.Minute).Unix(), entity.GetGeneratedAt().AsTime().Unix())
+		assert.Empty(t, p.queue)
+	})
+
+	t.Run("a failed scan goes out at once", func(t *testing.T) {
+		p, _ := newHostProcessor()
+
+		p.processHostScanResult(sbom.ScanResult{Error: errors.New("scan failed"), CreatedAt: scanned})
+		entity := <-p.queue
+		assert.Equal(t, model.SBOMStatus_FAILED, entity.GetStatus())
+
+		p.processHostScanResult(newHostScan(scanned.Add(time.Minute)))
+		assert.Empty(t, p.queue, "the first successful scan still waits")
+	})
+}
+
+const graceImageID = "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd"
+
+// graceImage returns the image graceImageID with an SBOM of the given status
+// listing components.
+func graceImage(t *testing.T, status workloadmeta.SBOMStatus, components ...*cyclonedx_v1_4.Component) *workloadmeta.ContainerImageMetadata {
+	return &workloadmeta.ContainerImageMetadata{
+		EntityID:    workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: graceImageID},
+		RepoTags:    []string{"datadog/agent:7"},
+		RepoDigests: []string{"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409"},
+		SBOM: mustCompressSBOM(t, &workloadmeta.SBOM{
+			CycloneDXBOM:   &cyclonedx_v1_4.Bom{Components: components},
+			GenerationTime: time.Unix(1700000000, 0),
+			Status:         status,
+		}),
+	}
+}
+
+// debPackage returns the deb package bash, with the given runtime properties.
+func debPackage(properties ...*cyclonedx_v1_4.Property) *cyclonedx_v1_4.Component {
+	return &cyclonedx_v1_4.Component{
+		Name:       "bash",
+		Version:    "5.2.15-2",
+		Purl:       pointer.Ptr("pkg:deb/debian/bash@5.2.15-2?arch=amd64"),
+		Properties: properties,
+	}
+}
+
+// newImageGraceProcessor returns a processor whose first image SBOMs wait for
+// their runtime usage, the store it reads, and the entities it sends.
+func newImageGraceProcessor(t *testing.T) (*processor, workloadmetamock.Mock, <-chan *model.SBOMEntity) {
+	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+		"sbom.cache_directory":         t.TempDir(),
+		"sbom.container_image.enabled": true,
+	})
+	if sbomscanner.GetGlobalScanner() == nil {
+		wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
+			core.MockBundle(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
+		require.NoError(t, err)
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	sent := make(chan *model.SBOMEntity, 16)
+	sender := mocksender.NewMockSender(t, "")
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(args mock.Arguments) {
+		var payload model.SBOMPayload
+		if assert.NoError(t, proto.Unmarshal(args.Get(0).([]byte), &payload)) {
+			for _, entity := range payload.Entities {
+				sent <- entity
+			}
+		}
+	})
+
+	p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
+	require.NoError(t, err)
+	p.usageEnrichment = true
+	t.Cleanup(p.stop)
+
+	return p, store, sent
+}
+
+// runGraceImage starts a container of the image graceImageID.
+func runGraceImage(store workloadmetamock.Mock) *workloadmeta.Container {
+	container := &workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "container"},
+		Image:      workloadmeta.ContainerImage{ID: graceImageID},
+		State:      workloadmeta.ContainerState{Running: true},
+	}
+	store.Set(container)
+	return container
+}
+
+// notify hands p the events of a bundle, once the store reflects them.
+func notify(p *processor, store workloadmetamock.Mock, events ...workloadmeta.Event) {
+	for _, event := range events {
+		switch event.Type {
+		case workloadmeta.EventTypeSet:
+			store.Set(event.Entity)
+		case workloadmeta.EventTypeUnset:
+			store.Unset(event.Entity)
+		}
+	}
+	p.processContainerImagesEvents(workloadmeta.EventBundle{Events: events, Ch: make(chan struct{})})
+}
+
+func receiveSBOM(t *testing.T, sent <-chan *model.SBOMEntity) *model.SBOMEntity {
+	t.Helper()
+	select {
+	case entity := <-sent:
+		return entity
+	case <-time.After(time.Second):
+		t.Fatal("no SBOM went out")
+		return nil
+	}
+}
+
+func assertNoSBOM(t *testing.T, sent <-chan *model.SBOMEntity) {
+	t.Helper()
+	select {
+	case entity := <-sent:
+		t.Fatalf("SBOM %s went out", entity.GetId())
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+// TestImageSBOMWaitsForUsage checks that the first SBOM of an image in use waits
+// for the runtime usage of the image, so that it goes out with it, and that it
+// goes out as it is once the wait ends.
+func TestImageSBOMWaitsForUsage(t *testing.T) {
+	used := debPackage(
+		&cyclonedx_v1_4.Property{Name: sbom.LastAccessProperty, Value: pointer.Ptr("1700000000")},
+		&cyclonedx_v1_4.Property{Name: sbom.HasSetSuidBitProperty, Value: pointer.Ptr("false")},
+		&cyclonedx_v1_4.Property{Name: sbom.RunningAsRootProperty, Value: pointer.Ptr("true")},
+	)
+	set := func(entity workloadmeta.Entity) workloadmeta.Event {
+		return workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: entity}
+	}
+
+	t.Run("the merged usage sends the SBOM", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		runGraceImage(store)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		assertNoSBOM(t, sent)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+		entity := receiveSBOM(t, sent)
+		assert.True(t, entity.GetInUse())
+		assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the SBOM goes out with its usage")
+		assertNoSBOM(t, sent)
+	})
+
+	t.Run("the wait ends without usage", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		runGraceImage(store)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		p.releaseExpiredHolds(time.Now())
+		assertNoSBOM(t, sent)
+
+		p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
+		entity := receiveSBOM(t, sent)
+		assert.True(t, entity.GetInUse())
+		assert.False(t, sbom.IsEnriched(entity.GetCyclonedx()))
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		receiveSBOM(t, sent)
+	})
+
+	t.Run("a refresh leaves the waiting SBOM alone", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		runGraceImage(store)
+
+		img := graceImage(t, workloadmeta.Success, debPackage())
+		notify(p, store, set(img))
+		p.processImageSBOM(img, runningImages(store))
+		assertNoSBOM(t, sent)
+	})
+
+	t.Run("an unset image stops waiting", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		runGraceImage(store)
+
+		img := graceImage(t, workloadmeta.Success, debPackage())
+		notify(p, store, set(img))
+		notify(p, store, workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: img})
+		p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
+		assertNoSBOM(t, sent)
+	})
+
+	t.Run("an image sent unused waits once a container runs it", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		assert.False(t, receiveSBOM(t, sent).GetInUse())
+
+		notify(p, store, set(runGraceImage(store)))
+		assertNoSBOM(t, sent)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+		entity := receiveSBOM(t, sent)
+		assert.True(t, entity.GetInUse())
+		assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the first SBOM in use goes out with its usage")
+	})
+
+	t.Run("an image left unused during the wait waits again", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		container := runGraceImage(store)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		assertNoSBOM(t, sent)
+
+		store.Unset(container)
+		p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
+		assert.False(t, receiveSBOM(t, sent).GetInUse(), "the wait ends with the image unused")
+
+		notify(p, store, set(runGraceImage(store)))
+		assertNoSBOM(t, sent)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+		entity := receiveSBOM(t, sent)
+		assert.True(t, entity.GetInUse())
+		assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the SBOM in use goes out with its usage")
+	})
+
+	t.Run("an image sent in use goes out at once", func(t *testing.T) {
+		p, store, sent := newImageGraceProcessor(t)
+		runGraceImage(store)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+		receiveSBOM(t, sent)
+
+		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+		assert.False(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()), "a rescan after the first SBOM in use goes out at once")
+	})
+
+	for _, tt := range []struct {
+		name  string
+		inUse bool
+		img   *workloadmeta.ContainerImageMetadata
+	}{
+		{name: "not in use", img: graceImage(t, workloadmeta.Success, debPackage())},
+		{name: "pending", inUse: true, img: graceImage(t, workloadmeta.Pending)},
+		{name: "failed", inUse: true, img: graceImage(t, workloadmeta.Failed)},
+		{name: "no OS package", inUse: true, img: graceImage(t, workloadmeta.Success, &cyclonedx_v1_4.Component{
+			Name:    "lodash",
+			Version: "4.17.21",
+			Purl:    pointer.Ptr("pkg:npm/lodash@4.17.21"),
+		})},
+		{name: "already enriched", inUse: true, img: graceImage(t, workloadmeta.Success, used)},
+	} {
+		t.Run(tt.name+" goes out at once", func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			if tt.inUse {
+				runGraceImage(store)
+			}
+
+			notify(p, store, set(tt.img))
+			receiveSBOM(t, sent)
+		})
+	}
+}
+
+// TestUsagePropertyNames checks that the merge and the producers of the runtime
+// usage agree on its property names.
+func TestUsagePropertyNames(t *testing.T) {
+	assert.Equal(t, sbom.LastAccessProperty, sbomutil.LastAccessProperty)
+	assert.Equal(t, sbom.HasSetSuidBitProperty, sbomutil.HasSetSuidBitProperty)
+	assert.Equal(t, sbom.RunningAsRootProperty, sbomutil.RunningAsRootProperty)
+	assert.Equal(t, sbom.UsageObservedSinceProperty, sbomutil.UsageObservedSinceProperty)
+}
+
+// usageReport returns a runtime usage report, recorded since since, of bash
+// seen running and zsh unseen.
+func usageReport(since time.Time) *cyclonedx_v1_4.Bom {
+	used := func(name, lastSeen string) *cyclonedx_v1_4.Component {
+		return &cyclonedx_v1_4.Component{
+			Name:    name,
+			Version: "5.2",
+			Properties: []*cyclonedx_v1_4.Property{
+				{Name: sbom.LastAccessProperty, Value: pointer.Ptr(lastSeen)},
+				{Name: sbom.HasSetSuidBitProperty, Value: pointer.Ptr("false")},
+				{Name: sbom.RunningAsRootProperty, Value: pointer.Ptr("false")},
+			},
+		}
+	}
+
+	bom := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{used("bash", "1700000000"), used("zsh", "0")}}
+	if !since.IsZero() {
+		bom.Metadata = &cyclonedx_v1_4.Metadata{Properties: []*cyclonedx_v1_4.Property{
+			{Name: sbom.UsageObservedSinceProperty, Value: pointer.Ptr(strconv.FormatInt(since.Unix(), 10))},
+		}}
+	}
+	return bom
+}
+
+// shellPackages returns the rpm packages bash and zsh.
+func shellPackages() []*cyclonedx_v1_4.Component {
+	return []*cyclonedx_v1_4.Component{
+		{Name: "bash", Version: "5.2", Purl: pointer.Ptr("pkg:rpm/redhat/bash@5.2")},
+		{Name: "zsh", Version: "5.2", Purl: pointer.Ptr("pkg:rpm/redhat/zsh@5.2")},
+	}
+}
+
+// TestHostSBOMHidesUnobservedDuringWindow checks that while the usage of the
+// host was recorded for less than its window, an unseen package loses its
+// runtime properties, and that the first scan after the window closes goes
+// out in full. A package the report lacks loses them past the window too.
+func TestHostSBOMHidesUnobservedDuringWindow(t *testing.T) {
+	scan := func(createdAt time.Time) sbom.ScanResult {
+		return sbom.ScanResult{
+			Report:    hostReport{id: "sha256:packages", bom: &cyclonedx_v1_4.Bom{Components: shellPackages()}},
+			CreatedAt: createdAt,
+			Duration:  time.Second,
+		}
+	}
+	newHostProcessor := func(window time.Duration) *processor {
+		return &processor{
+			queue:                 make(chan *model.SBOMEntity, 4),
+			hostname:              "host",
+			hostHeartbeatValidity: time.Hour,
+			hostUsageWindow:       window,
+		}
+	}
+	scanned := time.Unix(1700000000, 0)
+
+	t.Run("the window closes", func(t *testing.T) {
+		now := scanned
+		p := newHostProcessor(time.Hour)
+		p.clock = func() time.Time { return now }
+		p.processHostUsage(usageReport(scanned))
+
+		p.processHostScanResult(scan(scanned))
+		entity := <-p.queue
+		require.NotNil(t, entity.GetCyclonedx())
+		assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
+		assert.Empty(t, lastSeenRunning(entity.GetCyclonedx(), "zsh"), "zsh, not seen running yet, is unknown")
+
+		now = scanned.Add(time.Hour - time.Second)
+		p.processHostScanResult(scan(scanned.Add(time.Minute)))
+		assert.True(t, (<-p.queue).GetHeartbeat(), "an unchanged scan in the window is a heartbeat")
+
+		now = scanned.Add(time.Hour)
+		p.processHostScanResult(scan(scanned.Add(2 * time.Minute)))
+		entity = <-p.queue
+		require.NotNil(t, entity.GetCyclonedx(), "the first scan after the window closes goes out in full")
+		assert.Equal(t, "0", lastSeenRunning(entity.GetCyclonedx(), "zsh"))
+	})
+
+	t.Run("a package the report lacks reads unknown", func(t *testing.T) {
+		p := newHostProcessor(time.Hour)
+		p.clock = func() time.Time { return scanned.Add(2 * time.Hour) }
+		p.processHostUsage(usageReport(scanned))
+
+		packages := append(shellPackages(), &cyclonedx_v1_4.Component{Name: "fish", Version: "3.7", Purl: pointer.Ptr("pkg:rpm/redhat/fish@3.7")})
+		p.processHostScanResult(sbom.ScanResult{
+			Report:    hostReport{id: "sha256:packages", bom: &cyclonedx_v1_4.Bom{Components: packages}},
+			CreatedAt: scanned.Add(2 * time.Hour),
+			Duration:  time.Second,
+		})
+		entity := <-p.queue
+		require.NotNil(t, entity.GetCyclonedx())
+		assert.Equal(t, "0", lastSeenRunning(entity.GetCyclonedx(), "zsh"), "zsh, reported unseen, is unused past the window")
+		assert.Empty(t, lastSeenRunning(entity.GetCyclonedx(), "fish"), "fish, which the report lacks, is unknown")
+	})
+
+	t.Run("a report without a start hides nothing", func(t *testing.T) {
+		p := newHostProcessor(time.Hour)
+		p.processHostUsage(usageReport(time.Time{}))
+
+		p.processHostScanResult(scan(scanned))
+		entity := <-p.queue
+		require.NotNil(t, entity.GetCyclonedx())
+		assert.Equal(t, "0", lastSeenRunning(entity.GetCyclonedx(), "zsh"))
+	})
+}
+
+// TestImageSBOMHidesUnobservedDuringWindow checks that while the usage of an
+// image was recorded for less than its window, an unseen package loses its
+// runtime properties in the SBOM that goes out, and keeps them in the stored
+// one.
+func TestImageSBOMHidesUnobservedDuringWindow(t *testing.T) {
+	merged := func(since time.Time) *workloadmeta.ContainerImageMetadata {
+		bom := sbomutil.MergeRuntimeProperties(&cyclonedx_v1_4.Bom{Components: shellPackages()}, usageReport(since))
+		img := graceImage(t, workloadmeta.Success)
+		img.SBOM = mustCompressSBOM(t, &workloadmeta.SBOM{CycloneDXBOM: bom, GenerationTime: time.Unix(1700000000, 0), Status: workloadmeta.Success})
+		return img
+	}
+
+	tests := []struct {
+		name    string
+		since   time.Time
+		wantZsh string
+	}{
+		{name: "window open", since: time.Now(), wantZsh: ""},
+		{name: "window closed", since: time.Now().Add(-2 * time.Hour), wantZsh: "0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			p.imageUsageWindow = time.Hour
+
+			img := merged(tt.since)
+			notify(p, store, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: img})
+			entity := receiveSBOM(t, sent)
+			assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
+			assert.Equal(t, tt.wantZsh, lastSeenRunning(entity.GetCyclonedx(), "zsh"))
+
+			stored, err := store.GetImage(img.ID)
+			require.NoError(t, err)
+			bom, err := sbomutil.UncompressSBOM(stored.SBOM)
+			require.NoError(t, err)
+			assert.Equal(t, "0", lastSeenRunning(bom.CycloneDXBOM, "zsh"), "the stored SBOM keeps what the report says")
+		})
+	}
 }

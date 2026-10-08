@@ -7,7 +7,9 @@ package sbomutil
 
 import (
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,6 +24,11 @@ const (
 	RunningAsRootProperty = "RunningAsRoot"
 )
 
+// UsageObservedSinceProperty names the metadata property of a runtime usage
+// report holding when its usage started being recorded, as a unix timestamp.
+// MergeRuntimeProperties carries it onto the merged SBOM.
+const UsageObservedSinceProperty = "UsageObservedSince"
+
 // normalizeVersion normalizes version strings to handle epoch differences
 // e.g., "1:4.4.36-4build1" and "4.4.36-4build1" should both map to "4.4.36-4build1"
 // Returns both the normalized version (without epoch) and the original version
@@ -32,6 +39,13 @@ func normalizeVersion(version string) (normalized string, hasEpoch bool) {
 		return version[idx+1:], true
 	}
 	return version, false
+}
+
+// usageKey returns the key the merge matches a component of a usage report
+// by: its name and its version stripped of the epoch.
+func usageKey(comp *cyclonedx_v1_4.Component) string {
+	version, _ := normalizeVersion(comp.GetVersion())
+	return comp.GetName() + "@" + version
 }
 
 // osPackagePurlPrefixes are the purl types of the packages the runtime scanner
@@ -49,6 +63,12 @@ func isOSPackage(comp *cyclonedx_v1_4.Component) bool {
 		}
 	}
 	return false
+}
+
+// HasOSPackage reports whether bom lists an OS package, and so whether the
+// runtime scanner reports usage for it.
+func HasOSPackage(bom *cyclonedx_v1_4.Bom) bool {
+	return slices.ContainsFunc(bom.GetComponents(), isOSPackage)
 }
 
 // hasForeignPurl reports whether the component's purl places it outside the
@@ -76,9 +96,7 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
 	for _, comp := range newBom.Components {
 		if comp != nil {
-			normalizedVersion, _ := normalizeVersion(comp.Version)
-			key := comp.Name + "@" + normalizedVersion
-			newComponentsMap[key] = comp
+			newComponentsMap[usageKey(comp)] = comp
 		}
 	}
 
@@ -87,7 +105,7 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 		SpecVersion:        existingBom.SpecVersion,
 		Version:            existingBom.Version,
 		SerialNumber:       existingBom.SerialNumber,
-		Metadata:           existingBom.Metadata,
+		Metadata:           carryUsageObservedSince(existingBom.Metadata, newBom.GetMetadata()),
 		Services:           existingBom.Services,
 		ExternalReferences: existingBom.ExternalReferences,
 		Dependencies:       existingBom.Dependencies,
@@ -112,8 +130,7 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 			seen[ref] = struct{}{}
 		}
 
-		normalizedVersion, _ := normalizeVersion(existingComp.Version)
-		key := existingComp.Name + "@" + normalizedVersion
+		key := usageKey(existingComp)
 
 		// Copy all fields so we do not mutate the original BOM. The property
 		// slice is cloned because updateProperty replaces entries in place.
@@ -195,6 +212,121 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 	}
 
 	return mergedBom
+}
+
+// usageObservedSince returns the property of metadata holding the start of usage
+// observation, or nil.
+func usageObservedSince(metadata *cyclonedx_v1_4.Metadata) *cyclonedx_v1_4.Property {
+	for _, p := range metadata.GetProperties() {
+		if p.GetName() == UsageObservedSinceProperty {
+			return p
+		}
+	}
+	return nil
+}
+
+// carryUsageObservedSince returns the metadata of a merged BOM: that of the
+// existing BOM, holding the start of usage observation of the report merged
+// into it in place of its own. It leaves both inputs as they are.
+func carryUsageObservedSince(existing, report *cyclonedx_v1_4.Metadata) *cyclonedx_v1_4.Metadata {
+	since := usageObservedSince(report)
+	if since == nil && usageObservedSince(existing) == nil {
+		return existing
+	}
+
+	merged := &cyclonedx_v1_4.Metadata{
+		Timestamp:   existing.GetTimestamp(),
+		Tools:       existing.GetTools(),
+		Authors:     existing.GetAuthors(),
+		Component:   existing.GetComponent(),
+		Manufacture: existing.GetManufacture(),
+		Supplier:    existing.GetSupplier(),
+		Licenses:    existing.GetLicenses(),
+	}
+	for _, p := range existing.GetProperties() {
+		if p.GetName() != UsageObservedSinceProperty {
+			merged.Properties = append(merged.Properties, p)
+		}
+	}
+	if since != nil {
+		merged.Properties = append(merged.Properties, since)
+	}
+	return merged
+}
+
+// UsageObservedSince returns when the runtime usage bom carries started being
+// recorded, and whether bom holds that time.
+func UsageObservedSince(bom *cyclonedx_v1_4.Bom) (time.Time, bool) {
+	since := usageObservedSince(bom.GetMetadata())
+	if since == nil {
+		return time.Time{}, false
+	}
+
+	seconds, err := strconv.ParseInt(since.GetValue(), 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Unix(seconds, 0), true
+}
+
+// UsageWindowOpen reports whether, at now, the runtime usage bom carries was
+// recorded for less than window, the time it takes to tell an unused package
+// from one that runs now and then.
+func UsageWindowOpen(bom *cyclonedx_v1_4.Bom, now time.Time, window time.Duration) bool {
+	since, ok := UsageObservedSince(bom)
+	return ok && now.Sub(since) < window
+}
+
+// HideUnobserved removes the runtime properties of the components of bom whose
+// LastSeenRunning is "0", the packages unseen so far, which leaves their usage
+// unknown. It replaces their property slices, which merged components share
+// with the components they come from.
+func HideUnobserved(bom *cyclonedx_v1_4.Bom) {
+	for _, comp := range bom.GetComponents() {
+		if unobserved(comp) {
+			comp.Properties = slices.DeleteFunc(slices.Clone(comp.Properties), isRuntimeProperty)
+		}
+	}
+}
+
+// HideUnreported removes the runtime properties of the OS packages of bom that
+// report lacks, such as a package installed after system-probe last indexed
+// the host, which leaves their usage unknown. A report without components
+// leaves bom as it is, as the merge does.
+func HideUnreported(bom, report *cyclonedx_v1_4.Bom) {
+	if len(report.GetComponents()) == 0 {
+		return
+	}
+
+	reported := make(map[string]struct{}, len(report.GetComponents()))
+	for _, comp := range report.GetComponents() {
+		reported[usageKey(comp)] = struct{}{}
+	}
+
+	for _, comp := range bom.GetComponents() {
+		if _, ok := reported[usageKey(comp)]; !ok && isOSPackage(comp) {
+			comp.Properties = slices.DeleteFunc(slices.Clone(comp.Properties), isRuntimeProperty)
+		}
+	}
+}
+
+// unobserved reports whether the component carries a LastSeenRunning of "0".
+func unobserved(comp *cyclonedx_v1_4.Component) bool {
+	for _, p := range comp.GetProperties() {
+		if p.GetName() == LastAccessProperty {
+			return p.GetValue() == "0"
+		}
+	}
+	return false
+}
+
+// isRuntimeProperty reports whether p is one of the runtime usage properties.
+func isRuntimeProperty(p *cyclonedx_v1_4.Property) bool {
+	switch p.GetName() {
+	case LastAccessProperty, HasSetSuidBitProperty, RunningAsRootProperty:
+		return true
+	}
+	return false
 }
 
 // ensureProperty appends a property with the given name and value to the

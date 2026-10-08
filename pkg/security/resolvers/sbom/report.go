@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
+	"time"
 
 	cyclonedx_v1_4 "github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
@@ -24,12 +25,15 @@ const (
 	LastAccessProperty    = sbompkg.LastAccessProperty
 	HasSetSuidBitProperty = sbompkg.HasSetSuidBitProperty
 	RunningAsRootProperty = sbompkg.RunningAsRootProperty
+
+	UsageObservedSinceProperty = sbompkg.UsageObservedSinceProperty
 )
 
 // PackagesReport wraps package data and implements the sbom.Report interface
 type PackagesReport struct {
-	packages    []sbomtypes.Package
-	containerID containerutils.ContainerID
+	packages      []sbomtypes.Package
+	containerID   containerutils.ContainerID
+	observedSince time.Time // when the usage of packages started being recorded
 }
 
 // NewPackagesReport creates a new PackagesReport from a slice of packages
@@ -64,10 +68,11 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 			Purl:    pointer.Ptr(purl),
 		}
 
-		// Always emit LastSeenRunning, "0" meaning never seen running. The
-		// core-agent merge overwrites only the runtime properties present in the
-		// forwarded report, so omitting a zero value would leave a stale timestamp
-		// in place when a package-database refresh resets a package's usage.
+		// Always emit LastSeenRunning, "0" for a package unseen since
+		// observedSince, when its usage started being recorded. The core-agent
+		// merge overwrites only the runtime properties present in the forwarded
+		// report, so omitting a zero value would leave a stale timestamp in
+		// place when a package-database refresh resets a package's usage.
 		lastAccess := "0"
 		if !pkg.LastAccess.IsZero() {
 			lastAccess = strconv.FormatInt(pkg.LastAccess.Unix(), 10)
@@ -92,9 +97,20 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 		components = append(components, component)
 	}
 
-	return &cyclonedx_v1_4.Bom{
+	bom := &cyclonedx_v1_4.Bom{
 		Components: components,
 	}
+
+	if !r.observedSince.IsZero() {
+		bom.Metadata = &cyclonedx_v1_4.Metadata{
+			Properties: []*cyclonedx_v1_4.Property{{
+				Name:  UsageObservedSinceProperty,
+				Value: pointer.Ptr(strconv.FormatInt(r.observedSince.Unix(), 10)),
+			}},
+		}
+	}
+
+	return bom
 }
 
 // ID returns a unique identifier for this report

@@ -6,7 +6,9 @@
 package sbomutil
 
 import (
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/stretchr/testify/assert"
@@ -68,6 +70,32 @@ func TestNormalizeVersion(t *testing.T) {
 			got, hasEpoch := normalizeVersion(tt.in)
 			assert.Equal(t, tt.wantOut, got)
 			assert.Equal(t, tt.wantHasEpoch, hasEpoch)
+		})
+	}
+}
+
+func TestHasOSPackage(t *testing.T) {
+	withPurl := func(purl string) *cyclonedx_v1_4.Component {
+		return &cyclonedx_v1_4.Component{Name: "pkg", Version: "1", Purl: pointer.Ptr(purl)}
+	}
+
+	tests := []struct {
+		name string
+		bom  *cyclonedx_v1_4.Bom
+		want bool
+	}{
+		{name: "deb", bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{withPurl("pkg:deb/debian/bash@5.1")}}, want: true},
+		{name: "rpm", bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{withPurl("pkg:rpm/redhat/bash@5.2")}}, want: true},
+		{name: "apk", bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{withPurl("pkg:apk/alpine/busybox@1.36")}}, want: true},
+		{name: "npm alone", bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{withPurl("pkg:npm/lodash@4.17.21")}}, want: false},
+		{name: "no purl", bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{component("bash", "5.1")}}, want: false},
+		{name: "OS component", bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{{Name: "debian", Version: "12", Type: cyclonedx_v1_4.Classification_CLASSIFICATION_OPERATING_SYSTEM}}}, want: false},
+		{name: "nil", bom: nil, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, HasOSPackage(tt.bom))
 		})
 	}
 }
@@ -517,20 +545,213 @@ func TestMergeRuntimeProperties_PreservesEnvelope(t *testing.T) {
 	existing := &cyclonedx_v1_4.Bom{
 		SpecVersion:  "1.4",
 		SerialNumber: &serial,
-		Metadata:     &cyclonedx_v1_4.Metadata{},
+		Metadata:     &cyclonedx_v1_4.Metadata{Component: component("debian", "12")},
 		Dependencies: []*cyclonedx_v1_4.Dependency{{Ref: "ref-1"}},
 		Components: []*cyclonedx_v1_4.Component{
 			component("bash", "5.1"),
 		},
 	}
-	newBom := &cyclonedx_v1_4.Bom{}
+	newBom := &cyclonedx_v1_4.Bom{
+		Metadata:   &cyclonedx_v1_4.Metadata{Properties: []*cyclonedx_v1_4.Property{prop(UsageObservedSinceProperty, "1700000000")}},
+		Components: []*cyclonedx_v1_4.Component{component("bash", "5.1", prop(LastAccessProperty, "1700000100"))},
+	}
 
 	merged := MergeRuntimeProperties(existing, newBom)
 
 	assert.Equal(t, existing.SpecVersion, merged.SpecVersion)
 	assert.Equal(t, existing.SerialNumber, merged.SerialNumber)
-	assert.Same(t, existing.Metadata, merged.Metadata)
+	assert.Same(t, existing.Metadata.Component, merged.Metadata.Component)
 	assert.Equal(t, existing.Dependencies, merged.Dependencies)
+}
+
+// TestMergeRuntimeProperties_CarriesUsageObservedSince checks that the merged BOM
+// holds the start of usage observation of the report merged into it.
+func TestMergeRuntimeProperties_CarriesUsageObservedSince(t *testing.T) {
+	report := func(since ...string) *cyclonedx_v1_4.Bom {
+		bom := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{component("bash", "5.1", prop(LastAccessProperty, "1700000100"))}}
+		if len(since) > 0 {
+			bom.Metadata = &cyclonedx_v1_4.Metadata{Properties: []*cyclonedx_v1_4.Property{prop(UsageObservedSinceProperty, since[0])}}
+		}
+		return bom
+	}
+	scanned := func(metadata *cyclonedx_v1_4.Metadata) *cyclonedx_v1_4.Bom {
+		return &cyclonedx_v1_4.Bom{Metadata: metadata, Components: []*cyclonedx_v1_4.Component{component("bash", "5.1")}}
+	}
+	since := func(bom *cyclonedx_v1_4.Bom) string {
+		value, _ := findMetadataProp(bom, UsageObservedSinceProperty)
+		return value
+	}
+
+	t.Run("the start of the report", func(t *testing.T) {
+		existing := scanned(&cyclonedx_v1_4.Metadata{
+			Component:  component("debian", "12"),
+			Properties: []*cyclonedx_v1_4.Property{prop("aquasecurity:trivy:SchemaVersion", "2")},
+		})
+
+		merged := MergeRuntimeProperties(existing, report("1700000000"))
+
+		assert.Equal(t, "1700000000", since(merged))
+		assert.Same(t, existing.Metadata.Component, merged.Metadata.Component)
+		value, _ := findMetadataProp(merged, "aquasecurity:trivy:SchemaVersion")
+		assert.Equal(t, "2", value, "the other metadata properties stay")
+		assert.Empty(t, since(existing), "the existing BOM stays as it was")
+	})
+
+	t.Run("a later start replaces the earlier one", func(t *testing.T) {
+		existing := MergeRuntimeProperties(scanned(nil), report("1700000000"))
+
+		merged := MergeRuntimeProperties(existing, report("1700003600"))
+
+		assert.Equal(t, "1700003600", since(merged))
+		assert.Len(t, merged.Metadata.Properties, 1)
+	})
+
+	t.Run("a report without a start drops the earlier one", func(t *testing.T) {
+		existing := MergeRuntimeProperties(scanned(nil), report("1700000000"))
+
+		merged := MergeRuntimeProperties(existing, report())
+
+		assert.Empty(t, since(merged))
+	})
+
+	t.Run("no start on either side", func(t *testing.T) {
+		existing := scanned(&cyclonedx_v1_4.Metadata{Component: component("debian", "12")})
+
+		merged := MergeRuntimeProperties(existing, report())
+
+		assert.Same(t, existing.Metadata, merged.Metadata)
+	})
+}
+
+// findMetadataProp returns the value of the metadata property name of bom.
+func findMetadataProp(bom *cyclonedx_v1_4.Bom, name string) (string, bool) {
+	for _, p := range bom.GetMetadata().GetProperties() {
+		if p.GetName() == name {
+			return p.GetValue(), true
+		}
+	}
+	return "", false
+}
+
+func TestUsageObservedSince(t *testing.T) {
+	withSince := func(value string) *cyclonedx_v1_4.Bom {
+		return &cyclonedx_v1_4.Bom{Metadata: &cyclonedx_v1_4.Metadata{Properties: []*cyclonedx_v1_4.Property{prop(UsageObservedSinceProperty, value)}}}
+	}
+
+	since, ok := UsageObservedSince(withSince("1700000000"))
+	assert.True(t, ok)
+	assert.Equal(t, time.Unix(1700000000, 0), since)
+
+	for name, bom := range map[string]*cyclonedx_v1_4.Bom{
+		"nil":       nil,
+		"no start":  {Components: []*cyclonedx_v1_4.Component{component("bash", "5.1")}},
+		"malformed": withSince("yesterday"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, ok := UsageObservedSince(bom)
+			assert.False(t, ok)
+		})
+	}
+}
+
+func TestUsageWindowOpen(t *testing.T) {
+	now := time.Unix(1700003600, 0)
+	withSince := func(since time.Time) *cyclonedx_v1_4.Bom {
+		return &cyclonedx_v1_4.Bom{Metadata: &cyclonedx_v1_4.Metadata{Properties: []*cyclonedx_v1_4.Property{
+			prop(UsageObservedSinceProperty, strconv.FormatInt(since.Unix(), 10)),
+		}}}
+	}
+
+	tests := []struct {
+		name string
+		bom  *cyclonedx_v1_4.Bom
+		want bool
+	}{
+		{name: "recorded for less than the window", bom: withSince(now.Add(-59 * time.Minute)), want: true},
+		{name: "recorded for the window", bom: withSince(now.Add(-time.Hour)), want: false},
+		{name: "start ahead of the clock", bom: withSince(now.Add(time.Minute)), want: true},
+		{name: "no start", bom: &cyclonedx_v1_4.Bom{}, want: false},
+		{name: "nil", bom: nil, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, UsageWindowOpen(tt.bom, now, time.Hour))
+		})
+	}
+}
+
+// TestHideUnobserved checks that the unseen components lose their runtime
+// properties, and the others keep theirs.
+func TestHideUnobserved(t *testing.T) {
+	unseenProps := []*cyclonedx_v1_4.Property{
+		prop("aquasecurity:trivy:PkgType", "debian"),
+		prop(LastAccessProperty, "0"),
+		prop(HasSetSuidBitProperty, "false"),
+		prop(RunningAsRootProperty, "false"),
+	}
+	unseen := component("gzip", "1.12", unseenProps...)
+	unseen.Purl = pointer.Ptr("pkg:deb/debian/gzip@1.12")
+	reported := component("zstd", "1.5", prop(LastAccessProperty, "0"))
+	seen := component("bash", "5.1", prop(LastAccessProperty, "1700000000"), prop(HasSetSuidBitProperty, "false"), prop(RunningAsRootProperty, "true"))
+	outOfScope := component("lodash", "4.17.21")
+	bom := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{unseen, reported, seen, outOfScope}}
+
+	HideUnobserved(bom)
+
+	require.Len(t, unseen.Properties, 1)
+	assert.Equal(t, "aquasecurity:trivy:PkgType", unseen.Properties[0].Name, "the other properties stay")
+	assert.Equal(t, LastAccessProperty, unseenProps[1].Name, "the property slice the component shared stays as it was")
+	assert.Empty(t, reported.Properties, "a reported component without a purl loses them too")
+	assert.Len(t, seen.Properties, 3)
+	assert.Empty(t, outOfScope.Properties)
+}
+
+// TestHideUnreported checks that the OS packages a usage report lacks lose
+// their runtime properties, and the others keep theirs.
+func TestHideUnreported(t *testing.T) {
+	merged := func(name, version, purl string) *cyclonedx_v1_4.Component {
+		comp := component(name, version,
+			prop("aquasecurity:trivy:PkgType", "redhat"),
+			prop(LastAccessProperty, "0"),
+			prop(HasSetSuidBitProperty, "false"),
+			prop(RunningAsRootProperty, "false"),
+		)
+		comp.Purl = pointer.Ptr(purl)
+		return comp
+	}
+	report := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+		component("bash", "5.2.26-6.el10"),
+		component("openssl", "1:3.2.2-6.el10"),
+		component("gzip", "1.12-1.el10"),
+	}}
+
+	tests := []struct {
+		name   string
+		comp   *cyclonedx_v1_4.Component
+		report *cyclonedx_v1_4.Bom
+		want   int
+	}{
+		{name: "reported", comp: merged("bash", "5.2.26-6.el10", "pkg:rpm/redhat/bash@5.2.26-6.el10"), report: report, want: 4},
+		{name: "reported with an epoch", comp: merged("openssl", "3.2.2-6.el10", "pkg:rpm/redhat/openssl@3.2.2-6.el10"), report: report, want: 4},
+		{name: "installed after the report", comp: merged("fish", "3.7.1-2.el10", "pkg:rpm/redhat/fish@3.7.1-2.el10"), report: report, want: 1},
+		{name: "upgraded after the report", comp: merged("gzip", "1.13-1.el10", "pkg:rpm/redhat/gzip@1.13-1.el10"), report: report, want: 1},
+		{name: "out of scope", comp: merged("lodash", "4.17.21", "pkg:npm/lodash@4.17.21"), report: report, want: 4},
+		{name: "empty report", comp: merged("fish", "3.7.1-2.el10", "pkg:rpm/redhat/fish@3.7.1-2.el10"), report: &cyclonedx_v1_4.Bom{}, want: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			properties := tt.comp.Properties
+			HideUnreported(&cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{tt.comp}}, tt.report)
+
+			assert.Len(t, tt.comp.Properties, tt.want)
+			assert.Equal(t, LastAccessProperty, properties[1].Name, "the property slice the component shared stays as it was")
+			if tt.want == 1 {
+				assert.Equal(t, "aquasecurity:trivy:PkgType", tt.comp.Properties[0].Name, "the other properties stay")
+			}
+		})
+	}
 }
 
 func TestMergeRuntimeProperties_DoesNotOverridePurl(t *testing.T) {
