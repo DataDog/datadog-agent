@@ -22,6 +22,10 @@ const (
 	defaultPipelineDepth   = 8
 	defaultStateRequest    = 5 * 1024 * 1024
 	defaultShutdownTimeout = 15 * time.Second
+	// grpc-go and Netty servers both reject pings more frequent than every five
+	// minutes by default, answering with GOAWAY too_many_pings.
+	defaultKeepaliveTime    = 5 * time.Minute
+	defaultKeepaliveTimeout = 20 * time.Second
 	// Mirrors the library's own stream lifetime, since a zero value there means
 	// rotate on every open rather than use the default.
 	defaultStreamLifetime = 15 * time.Minute
@@ -45,9 +49,16 @@ type DestinationConfig struct {
 	Core              Config
 	PipelineDepth     int
 	ConnectTimeout    time.Duration
+	SendTimeout       time.Duration
 	ShutdownTimeout   time.Duration
 	StateRequestBytes int
 	DualShip          bool
+	// KeepaliveTime is how long a connection may go without reading anything
+	// before it pings the intake, and KeepaliveTimeout how long it then waits for
+	// the ping ack before closing the connection. They detect a dead peer or path;
+	// an intake whose transport still answers pings is not detected by them.
+	KeepaliveTime    time.Duration
+	KeepaliveTimeout time.Duration
 	// BatchWait bounds how long a partial batch is held. The core seals on record
 	// count and content size; without a time bound a partial batch waits for
 	// enough further records to seal it, however long that takes.
@@ -94,9 +105,19 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	if shutdown <= 0 {
 		shutdown = defaultShutdownTimeout
 	}
-	connectTimeout := time.Duration(cfg.GetInt("logs_config.http_timeout")) * time.Second
-	if connectTimeout <= 0 {
-		connectTimeout = 10 * time.Second
+	// http_timeout bounds a whole HTTP request, so it bounds both halves of one
+	// here: dialing the stream and writing a batch to it.
+	httpTimeout := time.Duration(cfg.GetInt("logs_config.http_timeout")) * time.Second
+	if httpTimeout <= 0 {
+		httpTimeout = 10 * time.Second
+	}
+	keepaliveTime := cfg.GetDuration("logs_config.foldspace.keepalive_time")
+	if keepaliveTime <= 0 {
+		keepaliveTime = defaultKeepaliveTime
+	}
+	keepaliveTimeout := cfg.GetDuration("logs_config.foldspace.keepalive_timeout")
+	if keepaliveTimeout <= 0 {
+		keepaliveTimeout = defaultKeepaliveTimeout
 	}
 
 	mainOverride := strings.TrimSpace(cfg.GetString("logs_config.foldspace.dd_url"))
@@ -191,10 +212,13 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 			SnapshotBatchID:        0,
 		},
 		PipelineDepth:     pipelineDepth,
-		ConnectTimeout:    connectTimeout,
+		ConnectTimeout:    httpTimeout,
+		SendTimeout:       httpTimeout,
 		ShutdownTimeout:   shutdown,
 		StateRequestBytes: stateBytes,
 		DualShip:          cfg.GetBool("logs_config.foldspace.dual_ship"),
+		KeepaliveTime:     keepaliveTime,
+		KeepaliveTimeout:  keepaliveTimeout,
 		BatchWait:         batchWait,
 	}, nil
 }
