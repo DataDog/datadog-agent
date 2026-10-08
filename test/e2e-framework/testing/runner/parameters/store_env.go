@@ -35,6 +35,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	LocalPublicKeyPath:           "E2E_LOCAL_PUBLIC_KEY_PATH",
 	PulumiPassword:               "E2E_PULUMI_PASSWORD",
 	SkipDeleteOnFailure:          "E2E_SKIP_DELETE_ON_FAILURE",
+	TeardownBudget:               "E2E_TEARDOWN_BUDGET",
 	StackParameters:              "E2E_STACK_PARAMS",
 	PipelineID:                   "E2E_PIPELINE_ID",
 	CommitSHA:                    "E2E_COMMIT_SHA",
