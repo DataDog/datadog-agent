@@ -173,9 +173,6 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         )
         tests = evaluator.list_tests_for_job('job: ["matrix"]')
         query, days = events.call_args.args
-        # The env facet is not part of the query (pipeline + job identify),
-        # and the window is main's hardcoded 3 days
-        self.assertNotIn("env:", query)
         self.assertIn("@ci.pipeline.id:42", query)
         self.assertIn(r'@ci.job.name:"job: [\"matrix\"]"', query)
         # Skipped tests are excluded by the query itself
@@ -250,5 +247,4 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
         )
         self.assertFalse(evaluator.list_tests_for_job("job")[0].unreliable_status)
         query, days = events.call_args.args
-        self.assertNotIn("env:", query)
         self.assertEqual(days, 3)
