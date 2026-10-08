@@ -8,7 +8,4 @@
 ---
 fixes:
   - |
-    Collect the Oracle ``oracle.user_sessions`` metric when
-    ``user_sessions_count.enabled`` is set, even if both ``process_memory.enabled``
-    and ``inactive_sessions.enabled`` are disabled. Previously the user sessions
-    count was silently skipped in that configuration.
+    Fixed an issue where the Oracle ``oracle.user_sessions`` metric was not collected when ``user_sessions_count.enabled`` was enabled but ``process_memory.enabled`` and ``inactive_sessions.enabled`` were disabled.
