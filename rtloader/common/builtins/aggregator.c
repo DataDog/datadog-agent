@@ -29,7 +29,8 @@ static PyMethodDef methods[] = {
     { "submit_histogram_bucket", (PyCFunction)submit_histogram_bucket, METH_VARARGS, "Submit histogram bucket." },
     { "submit_histogram_bucket_multi", (PyCFunction)submit_histogram_bucket_multi, METH_VARARGS,
       "Submit histogram bucket that shares its context with the other buckets of its histogram." },
-    { "submit_event_platform_event", (PyCFunction)submit_event_platform_event, METH_VARARGS, "Submit event platform event." },
+    { "submit_event_platform_event", (PyCFunction)submit_event_platform_event, METH_VARARGS,
+      "Submit event platform event." },
     { NULL, NULL } // guards
 };
 
@@ -93,7 +94,6 @@ void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
 {
     cb_submit_event_platform_event = cb;
 }
-
 
 /*! \fn py_tag_to_c(PyObject *py_tags)
     \brief A function to convert a list of python strings (tags) into an
@@ -201,8 +201,10 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
     double value;
     bool flush_first_value = false;
 
-    // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname, flush_first_value)
-    if (!PyArg_ParseTuple(args, "OsisdOs|b", &check, &check_id, &mt, &name, &value, &py_tags, &hostname, &flush_first_value)) {
+    // Python call: aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname,
+    // flush_first_value)
+    if (!PyArg_ParseTuple(args, "OsisdOs|b", &check, &check_id, &mt, &name, &value, &py_tags, &hostname,
+                          &flush_first_value)) {
         goto error;
     }
 
@@ -292,7 +294,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     PyObject *py_tags = NULL; // borrowed
     char *check_id = NULL;
     event_t *ev = NULL;
-    PyObject * retval = NULL;
+    PyObject *retval = NULL;
 
     // aggregator.submit_event(self, check_id, event)
     if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &event_dict)) {
@@ -352,8 +354,8 @@ static PyObject *submit_event(PyObject *self, PyObject *args)
     // send the event
     cb_submit_event(check_id, ev);
 
-    //Success
-    Py_INCREF(Py_None); //Increment, sice we are not using the macro Py_RETURN_NONE that does it for us
+    // Success
+    Py_INCREF(Py_None); // Increment, sice we are not using the macro Py_RETURN_NONE that does it for us
     retval = Py_None;
 
 ev_cleanup:
@@ -376,6 +378,7 @@ gstate_cleanup:
     return retval;
 }
 
+// clang-format off
 /*! \fn submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb, cb_submit_histogram_bucket_multi_t cb_multi)
     \brief A helper function that parses the arguments of a histogram bucket submission and
     passes them to the given callback.
@@ -387,6 +390,7 @@ gstate_cleanup:
     Shared by `submit_histogram_bucket` and `submit_histogram_bucket_multi`, which differ only in the callback.
     Each passes its own callback and NULL for the other one.
 */
+// clang-format on
 static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb,
                                                  cb_submit_histogram_bucket_multi_t cb_multi)
 {
@@ -408,8 +412,10 @@ static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histo
     char **tags = NULL;
     bool flush_first_value = false;
 
-    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic, hostname, tags, flush_first_value)
-    if (!PyArg_ParseTuple(args, "OssLddisO|b", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic, &hostname, &py_tags, &flush_first_value)) {
+    // Python call: aggregator.submit_histogram_bucket(self, metric string, value, lowerBound, upperBound, monotonic,
+    // hostname, tags, flush_first_value)
+    if (!PyArg_ParseTuple(args, "OssLddisO|b", &check, &check_id, &name, &value, &lower_bound, &upper_bound, &monotonic,
+                          &hostname, &py_tags, &flush_first_value)) {
         goto error;
     }
 
