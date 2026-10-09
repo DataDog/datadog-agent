@@ -365,6 +365,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
+	c.NetNSOriginalContainerID = nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
@@ -387,6 +388,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 
 	if r := t.netnsResolver.Load(); r != nil {
 		if cid, ok := r.resolve(c.NetNS, c.ContainerID.Source); ok {
+			c.NetNSOriginalContainerID = c.ContainerID.Source
 			c.ContainerID.Source = cid
 			// the process tags (service, env, version) describe the proxy, not the pod
 			c.Tags = nil
