@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add a Private Action Runner action for investigating DogStatsD context
+    cardinality. The action summarizes the most recent saved context dump in a
+    short-lived Agent CLI process, returning metric names, context counts, and
+    tag-key cardinalities while keeping context aggregation out of the
+    long-lived Core Agent and Private Action Runner heaps.
