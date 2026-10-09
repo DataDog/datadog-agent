@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "azure.go",
         "diagnosis.go",
+        "dmi.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure",
     visibility = ["//visibility:public"],
@@ -15,6 +16,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/util/cachedfetch",
+        "//pkg/util/dmi",
         "//pkg/util/hostname/validate",
         "//pkg/util/http",
         "@com_github_cenkalti_backoff_v7//:backoff",
@@ -23,10 +25,14 @@ go_library(
 
 dd_agent_go_test(
     name = "azure_test",
-    srcs = ["azure_test.go"],
+    srcs = [
+        "azure_test.go",
+        "dmi_test.go",
+    ],
     embed = [":azure"],
     deps = [
         "//pkg/config/mock",
+        "//pkg/util/dmi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

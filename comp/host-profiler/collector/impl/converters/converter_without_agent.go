@@ -453,13 +453,13 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 }
 
 // hasInternalHealthMetricsPipelineConflicts checks if the internal health metrics pipeline should be created
-// and if there are any conflicts with the reserved receiver and processor names.
+// and if there are any conflicts with the reserved receiver and processor names. Health metrics are opt-in
+// in standalone mode: the user must explicitly set the Collector telemetry metrics level.
 func hasInternalHealthMetricsPipelineConflicts(conf confMap) bool {
-	if level, ok := confmaputils.Get[string](conf, "service::telemetry::metrics::level"); ok {
-		if strings.ToLower(level) == "none" {
-			slog.Info("skipping internal health metrics pipeline", slog.String("reason", "metrics telemetry disabled (level=none)"))
-			return true
-		}
+	level, hasLevel := confmaputils.Get[string](conf, "service::telemetry::metrics::level")
+	if !hasLevel || strings.EqualFold(level, "none") {
+		slog.Info("skipping internal health metrics pipeline", slog.String("reason", "metrics telemetry level is unset or disabled"))
+		return true
 	}
 
 	if existing, ok := confmaputils.Get[confMap](conf, "service::pipelines::"+internalHealthMetricsPipelineName); ok {
