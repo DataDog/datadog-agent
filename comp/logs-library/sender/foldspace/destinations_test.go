@@ -157,6 +157,7 @@ func TestStreamTimeouts(t *testing.T) {
 		dest := build(t, nil)
 		assert.Equal(t, defaultKeepaliveTime, dest.KeepaliveTime)
 		assert.Equal(t, defaultKeepaliveTimeout, dest.KeepaliveTimeout)
+		assert.Equal(t, defaultAckTimeout, dest.AckTimeout)
 	})
 
 	t.Run("configured", func(t *testing.T) {
@@ -164,10 +165,12 @@ func TestStreamTimeouts(t *testing.T) {
 			"logs_config.http_timeout":                30,
 			"logs_config.foldspace.keepalive_time":    "10m",
 			"logs_config.foldspace.keepalive_timeout": "45s",
+			"logs_config.foldspace.ack_timeout":       "2m",
 		})
 		assert.Equal(t, 30*time.Second, dest.ConnectTimeout)
 		assert.Equal(t, 30*time.Second, dest.SendTimeout)
 		assert.Equal(t, 10*time.Minute, dest.KeepaliveTime)
 		assert.Equal(t, 45*time.Second, dest.KeepaliveTimeout)
+		assert.Equal(t, 2*time.Minute, dest.AckTimeout)
 	})
 }
