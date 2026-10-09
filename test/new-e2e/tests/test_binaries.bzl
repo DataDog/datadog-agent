@@ -8,6 +8,7 @@ TEST_BINARIES = {
     "//test/new-e2e/tests/agent-devx:agent-devx_test": "tests-agent-devx.test",
     "//test/new-e2e/tests/agent-health:agent-health_test": "tests-agent-health.test",
     "//test/new-e2e/tests/agent-log-pipelines/k8s-logs:k8s-logs_test": "tests-agent-log-pipelines-k8s-logs.test",
+    "//test/new-e2e/tests/agent-log-pipelines/linux-log/expected-tags:expected-tags_test": "tests-agent-log-pipelines-linux-log-expected-tags.test",
     "//test/new-e2e/tests/agent-log-pipelines/linux-log/file-tailing:file-tailing_test": "tests-agent-log-pipelines-linux-log-file-tailing.test",
     "//test/new-e2e/tests/agent-log-pipelines/linux-log/integrations:integrations_test": "tests-agent-log-pipelines-linux-log-integrations.test",
     "//test/new-e2e/tests/agent-log-pipelines/linux-log/journald:journald_test": "tests-agent-log-pipelines-linux-log-journald.test",
