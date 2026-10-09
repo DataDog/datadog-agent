@@ -116,6 +116,21 @@
         "enabled": false
       },
       {
+        "description": "kube-state-metrics is replaced by the DataDog fork, synced with upstream by upstream-chaser: bumping the upstream require is a no-op. Remove this rule and the next one together with the replace in go.mod",
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["k8s.io/kube-state-metrics{,/v*}"],
+        "enabled": false
+      },
+      {
+        "description": "Bump the replace to the DataDog fork tags (vX.Y.<upstream patch+1>-dd.N), which are semver pre-releases",
+        "matchManagers": ["gomod"],
+        "matchDepTypes": ["replace"],
+        "matchDepNames": ["github.com/DataDog/kube-state-metrics{,/v*}"],
+        "allowedVersions": "/^v\\d+\\.\\d+\\.\\d+-dd\\.\\d+$/",
+        "ignoreUnstable": false,
+        "enabled": true
+      },
+      {
         "description": "Disable when pinned on a commit (->forks)",
         "matchManagers": ["gomod"],
         "matchUpdateTypes": ["digest"],

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from invoke import Context
 
+from tasks.libs.ciproviders.gitlab_api import get_pipeline
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import get_ci_test_events
 from tasks.libs.dynamic_test.executor import DynTestExecutor
@@ -176,6 +177,25 @@ class DynTestEvaluator(ABC):
         # The exception that made initialize() fail, if any: lets callers
         # distinguish error types (the console only shows a summary line).
         self.initialization_error: Exception | None = None
+        # Cache of the pipeline's allow-failure jobs (see the unreliable_jobs
+        # property); None = not fetched yet
+        self._unreliable_jobs: set[str] | None = None
+
+    @property
+    def unreliable_jobs(self) -> set[str]:
+        """Jobs of the evaluated pipeline GitLab allows to fail (cached).
+
+        Failing tests in those jobs are not critical misses. Fetched lazily
+        so evaluations whose jobs all pass never pay the pipeline jobs walk;
+        a fetch failure fails open to an empty set (nothing is filtered).
+        """
+        if self._unreliable_jobs is None:
+            try:
+                self._unreliable_jobs = pipeline_jobs_allowed_to_fail(self.pipeline_id)
+            except Exception as e:
+                print(f"[flaky-filter] could not fetch the pipeline's allow-failure jobs, not filtering: {e}")
+                self._unreliable_jobs = set()
+        return self._unreliable_jobs
 
     @abstractmethod
     def list_tests_for_job(self, job_name: str) -> list[ExecutedTest]:
@@ -321,6 +341,11 @@ This indicates an issue with the dynamic test system that may affect CI performa
                     Color.RED,
                 )
             )
+            # List them: the per-job reports above are long, the summary is
+            # what people actually read
+            for result in results:
+                for test in sorted(result.not_executed_failing_tests):
+                    print(color_message(f"- {test} ({result.job_name})", Color.RED))
 
     def send_stats_to_datadog(self, results: list[EvaluationResult]):
         """Send evaluation statistics using both telemetry handler and legacy API.
@@ -390,23 +415,53 @@ This indicates an issue with the dynamic test system that may affect CI performa
         actual_executed_tests = {test.name for test in current_job_tests if test.name in indexed_tests}
         predicted_executed_tests = predicted_tests & indexed_tests
         not_executed_failing_tests = set()
+        skipped_unreliable_job = 0
         for test in current_job_tests:
             if test.name not in indexed_tests:
                 continue
-            if test.status == "fail" and not test.unreliable_status and test.name not in predicted_executed_tests:
-                not_executed_failing_tests.add(test.name)
+            if test.status == "fail":
+                # The pipeline allows this job to fail: a failure there is
+                # known-unreliable, not a critical miss
+                if job in self.unreliable_jobs or test.unreliable_status:
+                    skipped_unreliable_job += 1
+                    continue
+                if test.name not in predicted_executed_tests:
+                    not_executed_failing_tests.add(test.name)
+        if skipped_unreliable_job:
+            print(
+                f"[flaky-filter] {job}: {skipped_unreliable_job} failing test(s) excluded from critical misses "
+                "(flaky, passed on retry, or in a job allowed to fail)"
+            )
 
         return EvaluationResult(job, actual_executed_tests, predicted_executed_tests, not_executed_failing_tests)
+
+
+def pipeline_jobs_allowed_to_fail(pipeline_id: str) -> set[str]:
+    """Names of the pipeline's completed jobs that GitLab allows to fail.
+
+    GitLab ignores the result of an allow-failure job, so tests failing there
+    are known-unreliable. python-gitlab collapses list-valued query params
+    (scope=["success", "failed"] reaches the API as one scope), so each
+    status is queried separately; iterator=True walks every page.
+    """
+    pipeline = get_pipeline("DataDog/datadog-agent", pipeline_id)
+    jobs = []
+    for scope in ("success", "failed"):
+        jobs.extend(pipeline.jobs.list(scope=scope, iterator=True))
+    return {job.name for job in jobs if getattr(job, "allow_failure", False)}
 
 
 def executed_tests_from_events(events: list) -> list[ExecutedTest]:
     """Executed tests from CI Visibility events: root tests, pass/fail only.
 
-    Flaky failures are marked unreliable (from the event itself). The job
-    comes from the event, so this works for per-job queries and a
-    pipeline-wide bulk query alike.
+    A retried GitLab job reruns its whole test set, so the same test can
+    appear in several events (same job name, different job ids): a test
+    that passed in any attempt is counted once, as a pass - only a test
+    that failed in every attempt counts as failing. The job comes from
+    the event (deduplication is per job), so this works for per-job
+    queries and a pipeline-wide bulk query alike.
     """
-    tests: list[ExecutedTest] = []
+    tests: dict[tuple[str | None, str], ExecutedTest] = {}
     for item in events:
         attrs = item.get("attributes", {}).get("attributes", {})
         test_attrs = attrs.get("test", {})
@@ -416,17 +471,26 @@ def executed_tests_from_events(events: list) -> list[ExecutedTest]:
         if not test_attrs.get("name") or "/" in test_attrs["name"] or test_attrs.get("status") not in {"pass", "fail"}:
             continue
 
-        tests.append(
-            ExecutedTest(
-                name=test_attrs["name"],
+        name = test_attrs["name"]
+        job_name = job_attrs.get("name")
+        entry = tests.get((job_name, name))
+        if entry is None:
+            tests[(job_name, name)] = ExecutedTest(
+                name=name,
                 status=test_attrs["status"],
                 pipeline_id=ci_attrs.get("pipeline", {}).get("id"),
                 job_id=job_attrs.get("id"),
-                job_name=job_attrs.get("name"),
+                job_name=job_name,
                 unreliable_status=(str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"),
             )
-        )
-    return tests
+        else:
+            # Another attempt of the same test in the same job: a single pass
+            # wins, and so does a flaky marking on any attempt
+            entry.status = "pass" if "pass" in (entry.status, test_attrs["status"]) else "fail"
+            entry.unreliable_status = (
+                entry.unreliable_status or str(test_attrs.get("agent_is_flaky_failure", False)).lower() == "true"
+            )
+    return list(tests.values())
 
 
 class DatadogDynTestEvaluator(DynTestEvaluator):
@@ -467,6 +531,7 @@ class DatadogDynTestEvaluator(DynTestEvaluator):
         """
         escaped_job_name = job_name.replace('"', '\\"')
         query = (
+            'env:prod '
             f'@ci.pipeline.name:DataDog/datadog-agent '
             f'@ci.pipeline.id:{self.pipeline_id} @ci.job.name:"{escaped_job_name}" '
             f'-@test.status:skip'
