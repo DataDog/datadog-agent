@@ -15,6 +15,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
@@ -30,7 +32,7 @@ type PrivateCredentialResolver interface {
 	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
 type privateCredentialResolver struct {
-	catalog *CredentialCatalog
+	config model.Reader
 }
 
 type PrivateConnectionConfig struct {
@@ -45,8 +47,25 @@ type Credential struct {
 	Password   string `json:"password,omitempty"`
 }
 
-func NewPrivateCredentialResolver(catalog *CredentialCatalog) PrivateCredentialResolver {
-	return &privateCredentialResolver{catalog: catalog}
+// NewPrivateCredentialResolver validates configured credentials and retains the
+// live config so subsequent tasks pick up secret refreshes. A nil config supports
+// connections that do not reference runner credentials.
+func NewPrivateCredentialResolver(config model.Reader) (PrivateCredentialResolver, error) {
+	if config != nil {
+		if _, err := readCredentialValues(config); err != nil {
+			return nil, err
+		}
+	}
+	return &privateCredentialResolver{config: config}, nil
+}
+
+func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig, error) {
+	values := make(map[string]par.CredentialConfig)
+	if err := structure.UnmarshalKey(config, par.CredentialsValues, &values, structure.ErrorUnused); err != nil {
+		// Decoder errors can contain secret values; do not expose them to callers.
+		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
+	}
+	return values, nil
 }
 
 func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
@@ -92,7 +111,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 
 func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
 	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
-	var catalogValues map[string]par.CredentialConfig
+	var credentialValues map[string]par.CredentialConfig
 	for _, token := range tokens {
 		if token == nil || len(token.GetNameSegments()) == 0 {
 			return nil, errors.New("connection token and its name must not be empty")
@@ -102,17 +121,22 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 		case *privateactionspb.ConnectionTokenV2_PlainText_:
 			value = source.PlainText.GetValue()
 		case *privateactionspb.ConnectionTokenV2_RunnerCredential_:
-			if p.catalog == nil {
-				return nil, errors.New("runner credential catalog is unavailable")
+			if p.config == nil {
+				return nil, errors.New("runner credential configuration is unavailable")
 			}
 			key := source.RunnerCredential.GetKey()
 			if key == "" {
 				return nil, fmt.Errorf("runner credential key for connection token %q must not be empty", connlib.GetName(token))
 			}
-			if catalogValues == nil {
-				catalogValues = p.catalog.snapshot()
+			// Read once per task so all tokens use the same config snapshot.
+			if credentialValues == nil {
+				var err error
+				credentialValues, err = readCredentialValues(p.config)
+				if err != nil {
+					return nil, err
+				}
 			}
-			credential, found := catalogValues[key]
+			credential, found := credentialValues[key]
 			if !found {
 				return nil, fmt.Errorf("could not resolve connection token %q: requested runner credential is not available", connlib.GetName(token))
 			}
