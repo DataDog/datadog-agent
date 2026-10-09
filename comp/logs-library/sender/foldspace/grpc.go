@@ -63,7 +63,10 @@ func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
 	}
 }
 
-// OpenStream dials if needed and starts a StatefulStream.
+// OpenStream dials if needed and starts a StatefulStream, giving up when ctx
+// ends. NewStream waits under the stream's own context for the connection to
+// become ready, which an intake that accepts TCP and never sends its HTTP/2
+// preface leaves pending, so ctx is bound to that context only for the open.
 func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ StreamID) (Stream, error) {
 	conn, err := t.conn(ctx, sender)
 	if err != nil {
@@ -76,11 +79,16 @@ func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 		"dd-state-request-bytes", strconv.Itoa(t.state),
 	)
 	streamCtx, cancel := context.WithCancel(metadata.NewOutgoingContext(context.Background(), md))
+	stop := context.AfterFunc(ctx, cancel)
 	clientStream, err := conn.NewStream(streamCtx, &grpc.StreamDesc{
 		StreamName:    statefulStreamName,
 		ServerStreams: true,
 		ClientStreams: true,
 	}, statefulStreamFullMethod, grpc.ForceCodec(statefulCodec{}))
+	if !stop() {
+		cancel()
+		return nil, fmt.Errorf("open stream: %w", ctx.Err())
+	}
 	if err != nil {
 		cancel()
 		return nil, classifyGRPC(err)
