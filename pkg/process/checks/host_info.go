@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/eudm"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -112,6 +114,9 @@ func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout t
 	}
 	log.Errorf("failed to get hostname from cmd: %v", err)
 
+	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "end_user_device" && eudm.Supported() {
+		return pkghostname.Get(ctx)
+	}
 	return os.Hostname()
 }
 

@@ -1,0 +1,18 @@
+---
+enhancements:
+  - |
+    In ``end_user_device`` infrastructure mode on macOS and Windows, automatically
+    detected Agent hostnames now combine the device name and hardware serial
+    number to distinguish devices with the same name. macOS uses the configured
+    Computer Name so network-derived hostname changes do not rename the device.
+    Explicit ``hostname`` and ``hostname_file`` overrides are preserved. Missing
+    or placeholder serials retain the existing hostname behavior with a warning.
+upgrade:
+  - |
+    macOS and Windows devices using ``infrastructure_mode: end_user_device``
+    without an explicit hostname override will report a new hostname when a
+    usable serial is available. Existing device history is not migrated by this
+    change. Device renames take effect after restarting the Agent. In this mode,
+    trace-agent reports a hostname resolution error if it cannot obtain the
+    hostname through either core-agent RPC or the Agent CLI, instead of using
+    a potentially different OS hostname.

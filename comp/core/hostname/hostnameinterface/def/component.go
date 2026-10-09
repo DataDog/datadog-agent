@@ -12,6 +12,9 @@ import (
 
 // team: agent-runtimes
 
+// EUDMProvider identifies the device-name-and-serial hostname provider.
+const EUDMProvider = "eudm"
+
 // Data contains hostname and the hostname provider
 type Data struct {
 	Hostname string
