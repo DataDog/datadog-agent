@@ -81,6 +81,14 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 
+	truncatedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		CheckName,
+		"truncated_events",
+		[]string{"kind", "source"},
+		"Number of Kubernetes events whose message was truncated to fit the events API limit.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
 	componentStatusMaxVersion = semver.MustParse(componentStatusMaxVersionString)
 )
 
@@ -452,9 +460,7 @@ func (k *KubeASCheck) newEventCollectionCheck(sender sender.Sender) ([]event.Eve
 
 	ddevents, errs := k.eventCollection.Transformer.Transform(events)
 
-	for _, err := range errs {
-		k.Warnf("Error transforming events: %s", err.Error())
-	}
+	k.logEventTransformErrors(errs)
 
 	return ddevents, nil
 }
@@ -500,11 +506,21 @@ func (k *KubeASCheck) legacyEventCollectionCheck() ([]event.Event, error) {
 
 	events, errs := k.eventCollection.Transformer.Transform(kubeEvents)
 
-	for _, err := range errs {
-		k.Warnf("Error transforming events: %s", err.Error()) //nolint:errcheck
-	}
+	k.logEventTransformErrors(errs)
 
 	return events, nil
+}
+
+// logEventTransformErrors logs event transform errors; oversized events are
+// dropped as expected and logged at debug level, other errors at warn level.
+func (k *KubeASCheck) logEventTransformErrors(errs []error) {
+	for _, err := range errs {
+		if errors.Is(err, errEventTextTooLong) {
+			log.Debugf("Error transforming events: %s", err.Error())
+		} else {
+			k.Warnf("Error transforming events: %s", err.Error()) //nolint:errcheck
+		}
+	}
 }
 
 func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatus *v1.ComponentStatusList) error {
