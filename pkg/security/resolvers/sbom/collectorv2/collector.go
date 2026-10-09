@@ -12,6 +12,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
+	"strings"
 
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -61,10 +63,24 @@ func (s *OSScanner) ScanInstalledPackages(ctx context.Context, root string) ([]s
 	// The kernel reports the files a process opens under their resolved
 	// directories, /usr/bin/bash for the /bin/bash dpkg lists on a merged /usr.
 	dirs := newDirResolver(rootFS)
-	for _, pkg := range pkgs {
-		for i, file := range pkg.InstalledFiles {
-			pkg.InstalledFiles[i] = dirs.path(file)
+	for i := range pkgs {
+		files := pkgs[i].InstalledFiles[:0]
+		for _, file := range pkgs[i].InstalledFiles {
+			if file = dirs.path(file); !isDoc(file) {
+				files = append(files, file)
+			}
 		}
+		pkgs[i].InstalledFiles = files
 	}
 	return pkgs, nil
+}
+
+// docDirs hold the documentation of packages, which tar, grep -r or man read
+// without running the package.
+var docDirs = []string{"/usr/share/doc/", "/usr/share/info/", "/usr/share/licenses/", "/usr/share/locale/", "/usr/share/man/"}
+
+func isDoc(path string) bool {
+	return slices.ContainsFunc(docDirs, func(dir string) bool {
+		return strings.HasPrefix(path, dir)
+	})
 }
