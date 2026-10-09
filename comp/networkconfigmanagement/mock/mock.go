@@ -17,6 +17,7 @@ import (
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/ioscmd"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
@@ -36,6 +37,11 @@ func (m *mockNetworkConfigManagement) GetConfigEndpointHandler() http.HandlerFun
 	panic("unimplemented")
 }
 
+// RunCommandEndpointHandler implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RunCommandEndpointHandler() http.HandlerFunc {
+	panic("unimplemented")
+}
+
 // ReportConfig implements [networkconfigmanagement.Component].
 func (m *mockNetworkConfigManagement) ReportConfig(_ context.Context, deviceID string, _ sender.Sender) error {
 	if _, ok := m.devices[deviceID]; ok {
@@ -51,7 +57,12 @@ func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstan
 }
 
 // RollbackConfig implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.RollbackError) {
+func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.TypedError) {
+	return nil, types.InternalError(errors.New("unimplemented"))
+}
+
+// RunCommand implements [networkconfigmanagement.Component].
+func (m *mockNetworkConfigManagement) RunCommand(_ context.Context, _ string, _ ioscmd.CommandBlock, _ config.CredentialSet) (*types.CommandResult, types.TypedError) {
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 

@@ -20,16 +20,18 @@ const CheckName = "network_config_management"
 type Provides struct {
 	compdef.Out
 
-	Comp              option.Option[networkconfigmanagement.Component]
-	GetConfigEndpoint api.EndpointProvider `group:"agent_endpoint"`
-	RollbackEndpoint  api.EndpointProvider `group:"agent_endpoint"`
+	Comp               option.Option[networkconfigmanagement.Component]
+	GetConfigEndpoint  api.EndpointProvider `group:"agent_endpoint"`
+	RollbackEndpoint   api.EndpointProvider `group:"agent_endpoint"`
+	RunCommandEndpoint api.EndpointProvider `group:"agent_endpoint"`
 }
 
 // NewProvides populates a Provides from a component
 func NewProvides(comp networkconfigmanagement.Component) Provides {
 	return Provides{
-		Comp:              option.New(comp),
-		GetConfigEndpoint: api.NewAgentEndpointProvider(comp.GetConfigEndpointHandler(), "/ncm/config", "GET").Provider,
-		RollbackEndpoint:  api.NewAgentEndpointProvider(comp.RollbackEndpointHandler(), "/ncm/rollback", "POST").Provider,
+		Comp:               option.New(comp),
+		GetConfigEndpoint:  api.NewAgentEndpointProvider(comp.GetConfigEndpointHandler(), "/ncm/config", "GET").Provider,
+		RollbackEndpoint:   api.NewAgentEndpointProvider(comp.RollbackEndpointHandler(), "/ncm/rollback", "POST").Provider,
+		RunCommandEndpoint: api.NewAgentEndpointProvider(comp.RunCommandEndpointHandler(), "/ncm/run-command", "POST").Provider,
 	}
 }
