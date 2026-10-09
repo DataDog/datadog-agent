@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  gnmi:
+    build:
+      context: ${BUILD_DIR}
+      dockerfile: Dockerfile
+      args:
+        DD_REGISTRY: ${DD_REGISTRY:-669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub}
+    container_name: dd-gnmi
+    ports:
+      - "57400:57400"
+  agent:
+    environment:
+      DD_NETWORK_DEVICES_GNMI_ENABLED: "true"
+    volumes:
+      - ${CONFIG_DIR}/gnmi.yaml:/etc/datadog-agent/conf.d/gnmi.d/conf.yaml
+      - ${CONFIG_DIR}/profiles/interface-stats.yaml:/etc/datadog-agent/conf.d/gnmi.d/profiles/interface-stats.yaml
