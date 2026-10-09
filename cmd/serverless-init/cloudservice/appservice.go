@@ -104,17 +104,17 @@ func appServiceStackRuntime() string {
 	// Do not infer a language from DOCKER, SITECONTAINERS, or the Agent's OS.
 	switch os.Getenv(WebsiteStack) {
 	case "NODE":
-		return "Node.js"
+		return RuntimeNodeJS
 	case "PYTHON":
-		return "Python"
+		return RuntimePython
 	case "JAVA", "TOMCAT":
-		return "Java"
+		return RuntimeJava
 	case "DOTNETCORE":
-		return ".NET"
+		return RuntimeDotNet
 	case "PHP":
-		return "PHP"
+		return RuntimePHP
 	case "RUBY":
-		return "Ruby"
+		return RuntimeRuby
 	default:
 		return ""
 	}
