@@ -437,8 +437,7 @@ func TestTailer_readForeverReconnectsAfterReadTimeoutCancel(t *testing.T) {
 	assert.Equal(t, 0, len(tailer.erroredContainerID))
 }
 
-// testTimeoutError mimics the error net/http returns when http.Client.Timeout
-// fires while reading a response body.
+// testTimeoutError mimics an http.Client.Timeout error.
 type testTimeoutError struct{}
 
 func (testTimeoutError) Error() string {
@@ -448,10 +447,7 @@ func (testTimeoutError) Timeout() bool   { return true }
 func (testTimeoutError) Temporary() bool { return true }
 
 // TestTailer_readForeverReconnectsOnTimeout is the regression test for
-// CONS-12020. A timed-out stream used to fall through to the default case,
-// which recreated the tailer from the registry offset. That offset lags behind
-// the lines already forwarded, so they were read and sent again. A timeout
-// must instead reconnect in place, resuming from the in-memory lastSince.
+// CONS-12020: a timeout must reconnect in place from lastSince.
 func TestTailer_readForeverReconnectsOnTimeout(t *testing.T) {
 	const lastSince = "2026-10-08T08:34:34.464291043Z"
 	expectedSince := time.Date(2026, 10, 8, 8, 34, 34, 464291043, time.UTC).Add(time.Nanosecond)
@@ -541,8 +537,7 @@ func (r *closeTrackingReader) Close() error {
 }
 
 // TestTailer_tryRestartReaderClosesReaderOpenedDuringStop checks that a reader
-// opened while Stop() runs is closed rather than leaked: Stop() only closes
-// the reader that was current when it was called.
+// opened while Stop() runs is not leaked.
 func TestTailer_tryRestartReaderClosesReaderOpenedDuringStop(t *testing.T) {
 	_, cancelFunc := context.WithCancel(context.Background())
 	previous := &closeTrackingReader{}

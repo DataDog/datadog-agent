@@ -280,8 +280,7 @@ func (t *Tailer) setupReader() error {
 }
 
 // tryRestartReader reconnects the reader by setting up a fresh one.
-// It returns errTailerStopping, without reporting the container as errored,
-// if Stop() is called while restarting.
+// It returns errTailerStopping if Stop() is called meanwhile.
 func (t *Tailer) tryRestartReader(reason string) error {
 	log.Debugf("%s for container %v", reason, t.ContainerID)
 	t.readerCancelFunc()
@@ -297,8 +296,7 @@ func (t *Tailer) tryRestartReader(reason string) error {
 		return err
 	}
 	if t.stopping.Load() {
-		// Stop() ran while the new reader was being opened, so it closed the
-		// previous one; close this one too or it would never be released.
+		// Stop() only closed the previous reader.
 		t.readerCancelFunc()
 		_ = t.reader.Close()
 		return errTailerStopping
@@ -378,12 +376,8 @@ func (t *Tailer) readForever() {
 					}
 					continue
 				case isContextCanceled(err), isTimeoutErr(err):
-					// Either our read timeout cancelled the reader's context, or
-					// the request itself timed out. The container is still
-					// running, so reconnect in place: this keeps lastSince,
-					// whereas returning would recreate the tailer from the
-					// registry offset, which lags behind what was already
-					// forwarded and replays those lines as duplicates.
+					// Reconnect in place to keep lastSince. Recreating the tailer
+					// would resume from the lagging registry offset and re-send lines.
 					//
 					// Note that it could happen that the docker daemon takes a lot of time gathering timestamps
 					// before starting to send any data when it has stored several large log files.
@@ -557,8 +551,7 @@ func isContextCanceled(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
-// isTimeoutErr returns true if the error is a network or client timeout, such
-// as the error returned when http.Client.Timeout fires while reading a body.
+// isTimeoutErr returns true for network and http.Client timeouts.
 func isTimeoutErr(err error) bool {
 	var netErr net.Error
 	return errors.As(err, &netErr) && netErr.Timeout()

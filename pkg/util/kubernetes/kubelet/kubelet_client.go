@@ -55,9 +55,8 @@ type kubeletClientConfig struct {
 
 type kubeletClient struct {
 	client http.Client
-	// streamClient is used for long-lived streaming requests (container logs
-	// with follow=true). It has no overall Timeout, since http.Client.Timeout
-	// also covers reading the response body and would cut a healthy stream.
+	// streamClient serves follow=true log streams. It has no overall Timeout,
+	// which would also cut the response body.
 	streamClient http.Client
 	kubeletURL   string
 	config       *kubeletClientConfig
@@ -103,9 +102,8 @@ func newForConfig(config *kubeletClientConfig, timeout time.Duration) (*kubeletC
 		timeout = 30 * time.Second
 	}
 
-	// Bounds the wait for response headers on streaming requests, which have
-	// no overall Timeout. Other requests are unaffected: their Timeout starts
-	// earlier, when the request begins, so it always fires first.
+	// Bounds the header wait for streams. Other requests are unaffected, as
+	// their Timeout starts earlier and fires first.
 	customTransport.ResponseHeaderTimeout = timeout
 
 	httpClient := http.Client{
@@ -149,8 +147,8 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 	return nil
 }
 
-// queryWithResp opens a long-lived streaming request and returns its body.
-// The caller owns the body and bounds its lifetime through ctx.
+// queryWithResp opens a streaming request. The caller must close the body or
+// cancel ctx.
 func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.ReadCloser, error) {
 	_, response, err := kc.rawQueryWithClient(ctx, &kc.streamClient, kc.kubeletURL, path)
 
