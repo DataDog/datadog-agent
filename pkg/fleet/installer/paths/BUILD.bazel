@@ -36,6 +36,7 @@ dd_agent_go_test(
     embed = [":paths"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths/testutil",
             "@com_github_microsoft_go_winio//:go-winio",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
