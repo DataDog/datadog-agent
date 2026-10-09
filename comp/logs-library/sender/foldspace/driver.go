@@ -30,7 +30,12 @@ type DriverOptions struct {
 	// SendTimeout bounds each Stream.Send. A send that exceeds it fails the
 	// stream, so an intake that stops granting flow-control window cannot hold
 	// the sender goroutine, and every ack it owes, indefinitely.
-	SendTimeout       time.Duration
+	SendTimeout time.Duration
+	// AckTimeout is how long a stream may hold unacknowledged batches without
+	// any ack arriving before it is failed. It catches an intake whose
+	// transport stays healthy but which never acks: the window fills, nothing
+	// more is sent, and neither the send deadline nor keepalive fires.
+	AckTimeout        time.Duration
 	ShutdownTimeout   time.Duration
 	StateRequestBytes int
 	// BatchWait is how often ingest seals whatever the core is holding, bounding
@@ -61,6 +66,7 @@ type Driver struct {
 	pipelineDepth   int
 	connectTimeout  time.Duration
 	sendTimeout     time.Duration
+	ackTimeout      time.Duration
 	shutdownTimeout time.Duration
 	batchWait       time.Duration
 	dualShip        bool
@@ -130,6 +136,9 @@ func NewDriver(opts DriverOptions) *Driver {
 	if opts.SendTimeout <= 0 {
 		opts.SendTimeout = 10 * time.Second
 	}
+	if opts.AckTimeout <= 0 {
+		opts.AckTimeout = 30 * time.Second
+	}
 	if opts.ShutdownTimeout <= 0 {
 		opts.ShutdownTimeout = 15 * time.Second
 	}
@@ -152,6 +161,7 @@ func NewDriver(opts DriverOptions) *Driver {
 		pipelineDepth:   opts.PipelineDepth,
 		connectTimeout:  opts.ConnectTimeout,
 		sendTimeout:     opts.SendTimeout,
+		ackTimeout:      opts.AckTimeout,
 		shutdownTimeout: opts.ShutdownTimeout,
 		batchWait:       opts.BatchWait,
 		dualShip:        opts.DualShip,
@@ -442,6 +452,18 @@ func (d *Driver) senderLoop(sender SenderID) {
 	recvCancel := func() {}
 	var recvDone chan struct{}
 
+	// The ack watchdog fails a stream holding unacked batches once a whole
+	// ackTimeout passes with no ack arriving. It runs on this goroutine rather
+	// than as a core timer so that a healthy stream costs one local timer per
+	// ackTimeout and only a stalled one crosses into the core. It cannot fire
+	// while Send is blocked, which the send deadline bounds.
+	var outstanding int // batches sent on current and not yet acked
+	var ackCount, ackCountAtArm uint64
+	watchdog := time.NewTimer(d.ackTimeout)
+	watchdog.Stop()
+	defer watchdog.Stop()
+	watchdogArmed := false
+
 	stopRecv := func() {
 		if current != nil {
 			_ = current.Close()
@@ -452,8 +474,26 @@ func (d *Driver) senderLoop(sender SenderID) {
 			<-recvDone
 		}
 		recvDone = nil
+		outstanding = 0
+		watchdog.Stop()
+		watchdogArmed = false
 	}
 	defer stopRecv()
+
+	handleAck := func(a streamAck) {
+		if a.err != nil {
+			progress := d.core.HandleStreamError(sender, a.stream, a.err.Error())
+			d.dispatch(progress)
+			stopRecv()
+			return
+		}
+		if current != nil && a.stream == currentID && outstanding > 0 {
+			outstanding--
+			ackCount++
+		}
+		progress := d.core.HandleAck(sender, a.stream, a.id, a.status)
+		d.dispatch(progress)
+	}
 
 	drainEffects := func() {
 		for {
@@ -506,6 +546,13 @@ func (d *Driver) senderLoop(sender SenderID) {
 						progress := d.core.HandleStreamError(sender, effect.Stream, err.Error())
 						d.dispatch(progress)
 						stopRecv()
+						continue
+					}
+					outstanding++
+					if !watchdogArmed {
+						ackCountAtArm = ackCount
+						watchdog.Reset(d.ackTimeout)
+						watchdogArmed = true
 					}
 				case CloseStream:
 					stopRecv()
@@ -535,15 +582,33 @@ func (d *Driver) senderLoop(sender SenderID) {
 		case <-d.wake[sender]:
 			drainEffects()
 		case a := <-acks:
-			if a.err != nil {
-				progress := d.core.HandleStreamError(sender, a.stream, a.err.Error())
+			handleAck(a)
+			drainEffects()
+		case <-watchdog.C:
+			watchdogArmed = false
+			// An ack already queued here is progress this goroutine has not
+			// counted yet, and failing a healthy stream for it would resend the
+			// whole window to an intake that is keeping up.
+		queued:
+			for {
+				select {
+				case a := <-acks:
+					handleAck(a)
+				default:
+					break queued
+				}
+			}
+			switch {
+			case outstanding == 0:
+			case ackCount != ackCountAtArm:
+				ackCountAtArm = ackCount
+				watchdog.Reset(d.ackTimeout)
+				watchdogArmed = true
+			default:
+				progress := d.core.HandleStreamError(sender, currentID, "no batch acknowledged within "+d.ackTimeout.String())
 				d.dispatch(progress)
 				stopRecv()
-				drainEffects()
-				continue
 			}
-			progress := d.core.HandleAck(sender, a.stream, a.id, a.status)
-			d.dispatch(progress)
 			drainEffects()
 		case t := <-timers:
 			progress := d.core.HandleTimer(sender, t.stream, t.kind)
