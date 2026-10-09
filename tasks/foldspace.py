@@ -10,10 +10,10 @@ from invoke import task
 
 from tasks.libs.common.utils import join_command
 
-# DataDog/foldspace ryan.hall/extraction-allocation-cuts, the top of stack #126.
+# DataDog/foldspace ryan.hall/memory-bounds, the top of stack #126.
 # Keep in sync with comp/logs-library/sender/foldspace/nativelib/README.md.
 FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
-FOLDSPACE_GIT_COMMIT = "a2e956956b121dc4574bd99c647e149c8312016c"
+FOLDSPACE_GIT_COMMIT = "4b327aaa4ec695d85020d74d5e7ec2d2f21a23d5"
 FOLDSPACE_PACKAGE = "foldspace-go-ffi"
 
 
