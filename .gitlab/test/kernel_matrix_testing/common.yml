@@ -155,9 +155,10 @@
 .kmt_setup_env:
   extends:
     - .kmt_ec2_location_us_east_1
+    - .bazel:defs:cache:progressive
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  needs: !reference [.kmt_setup_needs]
+  needs: ["go_e2e_deps"] # for pulumi_plugins.tar.zst
   tags: ["arch:amd64", "specific:true"]
   retry: !reference [.retry_only_infra_failure, retry]
   variables:
@@ -178,9 +179,6 @@
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - !reference [.retrieve_linux_go_e2e_deps]
     - !reference [.retrieve_linux_pulumi_plugins]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -208,12 +206,7 @@
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/qemu-ddvm-*.log" $CI_PROJECT_DIR/libvirt/qemu
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/dnsmasq/*" $CI_PROJECT_DIR/libvirt/dnsmasq
     # build vm-metrics collector
-    - |
-      GO_ARCH=$ARCH
-      if [ "${ARCH}" == "x86_64" ]; then
-        GO_ARCH=amd64
-      fi
-    - cd test/new-e2e && GOOS=linux GOARCH="${GO_ARCH}" go build system-probe/vm-metrics/vm-metrics.go
+    - bazel run //test/new-e2e/system-probe/vm-metrics:install_vm-metrics_linux_$ARCH -- --destdir=$CI_PROJECT_DIR/test/new-e2e
     # The vm-metrics collector is uploaded and executed in the same job because we need to execute it after the datadog-agent
     # is launched in the metal instance, and before the tests are executed. This place naturally satisfies these constraints.
     # upload vm-metrics collector to metal instance
