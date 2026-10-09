@@ -6,12 +6,10 @@
 package procmgr
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -135,25 +133,8 @@ func (s *securityDisabledProcmgrWindowsSuite) SetupSuite() {
 	s.cli = agentBin(installRoot, "dd-procmgr.exe")
 }
 
-// Gate closed: not Running under procmgr, and legacy SCM stays down.
+// Gate closed: Skipped under procmgr and legacy SCM down, held together.
 func (s *securityDisabledProcmgrWindowsSuite) TestSecurityAgentNotRunningWhenGateClosed() {
-	host := s.Env().RemoteHost
-
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(procmgrCmd(s.cli, "describe "+securityProcessName))
-		if !assert.NoError(ct, err) {
-			return
-		}
-		assert.NotEqual(ct, "Running", fieldValue(out, "State"),
-			"%s must not be Running when runtime_security_config.enabled is false: %s",
-			securityProcessName, out)
-	}, 2*time.Minute, 3*time.Second)
-
-	out, err := host.Execute(fmt.Sprintf(
-		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
-		securityLegacySCMServiceName,
-	))
-	require.NoError(s.T(), err)
-	require.Contains(s.T(), []string{"Stopped", "Absent"}, strings.TrimSpace(out),
-		"%s must stay down while the gate is closed", securityLegacySCMServiceName)
+	requireUnspawnedWithLegacyDown(s.T(), s.Env().RemoteHost, s.cli, securityProcessName,
+		securityLegacySCMServiceName, 2*time.Minute)
 }
