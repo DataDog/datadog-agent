@@ -554,6 +554,63 @@ func TestSendDeadlineFailsStalledStream(t *testing.T) {
 	assert.Equal(t, [][]byte{[]byte("after")}, transport.Sent(0))
 }
 
+// An intake whose transport stays healthy but which never acks fills the
+// window, after which nothing more is sent, so neither the send deadline nor
+// keepalive has anything to catch. The ack watchdog must fail the stream so
+// the core opens a fresh one and the sender keeps delivering.
+func TestAckTimeoutFailsMuteStream(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	transport := NewFakeTransport(1)
+	transport.muteStreams = 1
+	sink := newChannelSink()
+	d := NewDriver(DriverOptions{
+		Core:            core,
+		Transport:       transport,
+		Sink:            sink,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
+		AckTimeout:      50 * time.Millisecond,
+		ShutdownTimeout: 200 * time.Millisecond,
+	})
+	d.Start()
+	t.Cleanup(d.Stop)
+
+	d.Offer(testMessage("unacked"))
+	require.Eventually(t, func() bool { return transport.Opens() >= 2 }, 2*time.Second, 5*time.Millisecond,
+		"a stream holding an unacked batch past its ack timeout must fail")
+
+	d.Offer(testMessage("after"))
+	waitPayloads(t, sink, 1)
+	assert.Equal(t, [][]byte{[]byte("unacked"), []byte("after")}, transport.Sent(0))
+}
+
+// The watchdog measures whether acks are arriving, not how long any one batch
+// takes. An intake that acks slowly but steadily keeps batches outstanding for
+// longer than the ack timeout, and its stream must not be failed.
+func TestAckTimeoutSparesSlowIntake(t *testing.T) {
+	const payloads = 32
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}, MaxInflight: payloads})
+	transport := NewFakeTransport(1)
+	transport.ackDelay = 15 * time.Millisecond // 32 acks span about three ack timeouts
+	sink := newChannelSink()
+	d := NewDriver(DriverOptions{
+		Core:            core,
+		Transport:       transport,
+		Sink:            sink,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
+		InputSize:       payloads,
+		AckTimeout:      150 * time.Millisecond,
+		ShutdownTimeout: 2 * time.Second,
+	})
+	d.Start()
+	t.Cleanup(d.Stop)
+
+	for i := 0; i < payloads; i++ {
+		d.Offer(testMessage(fmt.Sprintf("record-%d", i)))
+	}
+	waitPayloads(t, sink, payloads)
+	assert.Equal(t, 1, transport.Opens(), "a stream that keeps acking must not be failed")
+}
+
 // A dial to an intake that never answers runs until ConnectTimeout, and the
 // sender goroutine making it is one Stop waits on. Stop must end the dial
 // rather than wait it out.

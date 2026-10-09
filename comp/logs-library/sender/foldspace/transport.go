@@ -8,6 +8,7 @@ package foldspace
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -36,7 +37,13 @@ type FakeTransport struct {
 	// stallStreams is how many streams, in open order, block every Send until
 	// its ctx ends.
 	stallStreams int
-	opens        int
+	// muteStreams is how many streams, in open order, accept every Send but
+	// never ack, as an intake whose transport is healthy but which stops
+	// settling batches does.
+	muteStreams int
+	// ackDelay holds each ack back this long before Recv returns it.
+	ackDelay time.Duration
+	opens    int
 	// blockOpen makes every OpenStream wait until its ctx ends, as a dial to an
 	// intake that never answers does.
 	blockOpen bool
@@ -86,6 +93,8 @@ func (t *FakeTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 		acks:      make(chan ack, 64),
 		blockRecv: t.blockRecv,
 		stallSend: t.opens <= t.stallStreams,
+		mute:      t.opens <= t.muteStreams,
+		ackDelay:  t.ackDelay,
 	}, nil
 }
 
@@ -108,10 +117,13 @@ type FakeStream struct {
 	acks      chan ack
 	blockRecv bool
 	stallSend bool
+	mute      bool
+	ackDelay  time.Duration
 }
 
 // Send records the bytes and queues an OK ack. When stallSend is set it waits
-// until ctx ends, as a send blocked on flow control does.
+// until ctx ends, as a send blocked on flow control does. When mute is set it
+// records the bytes and queues no ack.
 func (s *FakeStream) Send(ctx context.Context, batchID uint32, data []byte) error {
 	if s.stallSend {
 		<-ctx.Done()
@@ -120,6 +132,9 @@ func (s *FakeStream) Send(ctx context.Context, batchID uint32, data []byte) erro
 	s.transport.mu.Lock()
 	s.transport.sent[s.sender] = append(s.transport.sent[s.sender], append([]byte(nil), data...))
 	s.transport.mu.Unlock()
+	if s.mute {
+		return nil
+	}
 	status := int32(0)
 	if s.transport.ackOK {
 		status = AckOK
@@ -138,6 +153,13 @@ func (s *FakeStream) Recv(ctx context.Context) (uint32, int32, error) {
 	case <-ctx.Done():
 		return 0, 0, ctx.Err()
 	case a := <-s.acks:
+		if s.ackDelay > 0 {
+			select {
+			case <-ctx.Done():
+				return 0, 0, ctx.Err()
+			case <-time.After(s.ackDelay):
+			}
+		}
 		return a.id, a.status, nil
 	}
 }
