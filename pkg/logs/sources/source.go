@@ -49,6 +49,7 @@ type LogSource struct {
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats     *statstracker.Tracker
 	BytesRead        *status.CountInfo
+	BytesMissed      *status.CountInfo // bytes lost before they could be read (see RecordMissedBytes)
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
 }
@@ -63,12 +64,14 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
 		BytesRead:        status.NewCountInfo("Bytes Read"),
+		BytesMissed:      status.NewNonZeroCountInfo("Bytes Missed"),
 		ProcessingInfo:   status.NewProcessingInfo(),
 		info:             status.NewInfoRegistry(),
 		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
 	source.RegisterInfo(source.BytesRead)
+	source.RegisterInfo(source.BytesMissed)
 	source.RegisterInfo(source.ProcessingInfo)
 	source.RegisterInfo(source.LatencyStats)
 	return source
@@ -197,6 +200,16 @@ func (s *LogSource) RecordBytes(n int64) {
 	// used to populate the status page.
 	if s.ParentSource != nil {
 		s.ParentSource.BytesRead.Add(n)
+	}
+}
+
+// RecordMissedBytes reports n bytes lost before they could be read, to the
+// source and, as RecordBytes does, to its parent source, which the status page
+// shows instead.
+func (s *LogSource) RecordMissedBytes(n int64) {
+	s.BytesMissed.Add(n)
+	if s.ParentSource != nil {
+		s.ParentSource.BytesMissed.Add(n)
 	}
 }
 

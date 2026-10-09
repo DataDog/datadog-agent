@@ -152,6 +152,9 @@ type TailerOptions struct {
 	ChunkSize       int                        // Optional: 0 means DefaultChunkSize
 	PollBudget      int                        // Optional: 0 means DefaultPollBudget
 	ForceReadEvery  int                        // Optional: 0 means DefaultForceReadEvery
+	// ProcessingRules are the global processing rules, which the logs
+	// processor applies before the source's own (see Committed).
+	ProcessingRules []*config.ProcessingRule // Optional
 }
 
 // Tailer tails one file of an SMB share.
@@ -188,10 +191,19 @@ type Tailer struct {
 	lastSeenSize *atomic.Int64
 	// draining is set once the tailer only finishes a rotated file.
 	draining *atomic.Bool
+	// commitMu guards commitTo and committed: once StartDraining or CommitTo
+	// returns, no message forwarded later commits under the identifier it
+	// replaced, so Committed no longer changes for that identifier.
+	commitMu sync.Mutex
 	// commitTo is the identifier the tailer's messages commit their offsets
 	// under: its own, or, while draining, none ("") since its identifier
 	// belongs to the path's new file, or the one CommitTo set.
-	commitTo *atomic.String
+	commitTo string
+	// committed is set once a message forwarded commits under the tailer's
+	// own identifier and passes the processing rules.
+	committed bool
+	// globalRules are the global processing rules (see Committed).
+	globalRules []*config.ProcessingRule
 
 	// Read state, owned by the goroutine calling Poll.
 	lastListedSize int64 // size from the previous listing, -1 before the first one
@@ -250,6 +262,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		chunkSize:       orDefault(opts.ChunkSize, DefaultChunkSize),
 		pollBudget:      orDefault(opts.PollBudget, DefaultPollBudget),
 		forceReadEvery:  orDefault(opts.ForceReadEvery, DefaultForceReadEvery),
+		globalRules:     opts.ProcessingRules,
 		outputChan:      opts.OutputChan,
 		capacityMonitor: opts.CapacityMonitor,
 		decoder:         opts.Decoder,
@@ -266,7 +279,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	if path.Dir(opts.Path) == "." { // a file at the share root
 		dir = strings.TrimSuffix(Identifier(opts.Host, opts.Share, ""), "/")
 	}
-	t.commitTo = atomic.NewString(t.identifier)
+	t.commitTo = t.identifier
 	t.tags = []string{
 		"filename:" + path.Base(opts.Path),
 		"dirname:" + dir,
@@ -293,6 +306,15 @@ func (t *Tailer) Start(offset int64) {
 	t.decoder.Start()
 }
 
+// AssumeSize records that the file held size bytes when another tailer of it
+// last saw it, so that UnreadBytes counts the bytes past the offset before this
+// tailer sees the file itself.
+func (t *Tailer) AssumeSize(size int64) {
+	if size > t.lastSeenSize.Load() {
+		t.lastSeenSize.Store(size)
+	}
+}
+
 // Stop flushes the decoder and returns once every decoded message has been
 // forwarded. It is safe to call more than once, and on a tailer never started.
 func (t *Tailer) Stop() {
@@ -308,6 +330,17 @@ func (t *Tailer) Stop() {
 	})
 }
 
+// AssumeCommitted records that a previous tailer of the file, which this one
+// continues, forwarded a message that commits under the tailer's identifier
+// (see Committed): once the pipeline delivers it, the registry entry of the
+// tailer's path holds an offset of the file, although this tailer may not
+// forward anything there.
+func (t *Tailer) AssumeCommitted() {
+	t.commitMu.Lock()
+	defer t.commitMu.Unlock()
+	t.committed = true
+}
+
 // StartDraining turns the tailer into the drain of a rotated file: Poll then
 // reads on every call, ignoring listing sizes, and its messages stop committing
 // offsets under the path's identifier, which now belongs to the path's new
@@ -317,7 +350,7 @@ func (t *Tailer) StartDraining() {
 	if t.draining.Swap(true) {
 		return
 	}
-	t.commitTo.Store("")
+	t.CommitTo("")
 	draining := status.NewMappedInfo("Draining Since")
 	draining.SetMessage("Draining Since", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
 	t.info.Register(draining)
@@ -333,13 +366,74 @@ func (t *Tailer) IsDraining() bool {
 // identifier of the path the drained file sits at, when no other tailer
 // commits there, so that an Agent restart resumes the file there.
 func (t *Tailer) CommitTo(identifier string) {
-	t.commitTo.Store(identifier)
+	t.commitMu.Lock()
+	defer t.commitMu.Unlock()
+	t.commitTo = identifier
 }
 
 // CommitIdentifier returns the identifier the tailer's messages commit their
 // offsets under, "" for none.
 func (t *Tailer) CommitIdentifier() string {
-	return t.commitTo.Load()
+	t.commitMu.Lock()
+	defer t.commitMu.Unlock()
+	return t.commitTo
+}
+
+// Committed reports whether the tailer forwarded a message that commits an
+// offset under its own identifier and that the processing rules keep: once
+// the pipeline delivers it, the registry entry of the tailer's path holds an
+// offset of the tailer's file. A message the rules drop (exclude_at_match,
+// include_at_match, exclude_truncated) does not count, since the processor
+// drops it before the auditor commits its offset. After StartDraining
+// returns, it changes only if CommitTo points the tailer at its own
+// identifier again.
+func (t *Tailer) Committed() bool {
+	t.commitMu.Lock()
+	defer t.commitMu.Unlock()
+	return t.committed
+}
+
+// nextCommit returns the identifier msg, being forwarded, commits its offset
+// under, "" for none, and records whether it is the tailer's own and the
+// processing rules keep msg. The rules are only evaluated until a message
+// passes them.
+func (t *Tailer) nextCommit(msg *message.Message) string {
+	t.commitMu.Lock()
+	defer t.commitMu.Unlock()
+	if t.commitTo == t.identifier && !t.committed &&
+		keptByRules(msg, t.globalRules, t.source.UnderlyingSource().Config.ProcessingRules) {
+		t.committed = true
+	}
+	return t.commitTo
+}
+
+// keptByRules reports whether the logs processor sends msg on rather than
+// dropping it, given the global processing rules and the source's: it applies
+// them in the processor's order (comp/logs-library/processor's
+// applyRedactingRules), on a copy of msg's content.
+func keptByRules(msg *message.Message, globalRules, sourceRules []*config.ProcessingRule) bool {
+	content := msg.GetContent()
+	for _, rules := range [2][]*config.ProcessingRule{globalRules, sourceRules} {
+		for _, rule := range rules {
+			switch rule.Type {
+			case config.ExcludeAtMatch:
+				if rule.Regex.Match(content) {
+					return false
+				}
+			case config.IncludeAtMatch:
+				if !rule.Regex.Match(content) {
+					return false
+				}
+			case config.MaskSequences:
+				content, _ = config.ApplyMaskSequence(content, rule)
+			case config.ExcludeTruncated:
+				if msg.IsTruncated {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 // SetReadPath points a draining tailer at the name its file was renamed to.
@@ -455,15 +549,16 @@ func (t *Tailer) UnreadBytes() int64 {
 	return max(0, t.lastSeenSize.Load()-t.offset.Load())
 }
 
-// RecordMissedBytes reports UnreadBytes as lost, in the missed-bytes metrics
-// and the logs, and returns it. Call it when the tailer stops for good with
-// its file still holding unread data: the file is gone, or its drain timed out.
+// RecordMissedBytes reports UnreadBytes as lost, in the missed-bytes metrics,
+// the source's Bytes Missed status and the logs, and returns it. Call it when
+// the tailer stops for good with its file still holding unread data: the file
+// is gone, or its drain timed out.
 func (t *Tailer) RecordMissedBytes(reason string) int64 {
 	missed := t.UnreadBytes()
 	if missed <= 0 {
 		return 0
 	}
-	recordMissed(t.source.Config(), missed)
+	recordMissed(t.source.UnderlyingSource(), missed)
 	log.Warnf("%s: %d bytes of SMB file %s (last read as %s) were not read and are lost", reason, missed, t.identifier, t.readPath)
 	return missed
 }
@@ -474,15 +569,16 @@ func RecordMissedBytesOf(source *sources.LogSource, identifier string, missed in
 	if missed <= 0 {
 		return
 	}
-	recordMissed(source.Config, missed)
+	recordMissed(source, missed)
 	log.Warnf("%s: %d bytes of SMB file %s were not read and are lost", reason, missed, identifier)
 }
 
-func recordMissed(cfg *config.LogsConfig, missed int64) {
+func recordMissed(source *sources.LogSource, missed int64) {
 	metrics.BytesMissed.Add(missed)
 	metrics.TlmBytesMissed.Add(float64(missed))
-	missedSource, missedService := missedBytesIdentity(cfg)
+	missedSource, missedService := missedBytesIdentity(source.Config)
 	metrics.RecordMissedBytes(missedSource, missedService, missed)
+	source.RecordMissedBytes(missed)
 }
 
 // forwardMessages forwards decoded messages to the output channel until the
@@ -493,13 +589,16 @@ func (t *Tailer) forwardMessages() {
 		offset := t.decodedOffset.Load() + int64(output.RawDataLenForCheckpoint())
 		t.decodedOffset.Store(offset)
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
+		if !output.HasContent() {
+			continue
+		}
 
 		origin := message.NewOrigin(t.source.UnderlyingSource())
 		// A draining tailer reads a file that no longer owns the tailer's
 		// identifier: committing its offsets there would move the new file's
 		// offset backwards or forwards, so its messages carry none (as for
 		// rotated file tailers), unless CommitTo gave it another identifier.
-		if id := t.commitTo.Load(); id != "" {
+		if id := t.nextCommit(output); id != "" {
 			origin.Identifier = id
 			origin.Offset = EncodeOffset(t.Identity(), offset)
 		}
@@ -508,9 +607,6 @@ func (t *Tailer) forwardMessages() {
 		tags = append(tags, t.tagProvider.GetTags()...)
 		tags = append(tags, output.ParsingExtra.Tags...)
 		origin.SetTags(tags)
-		if !output.HasContent() {
-			continue
-		}
 		output.Origin = origin
 		select {
 		case t.outputChan <- output:

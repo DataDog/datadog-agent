@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/smb/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -66,6 +68,10 @@ type Launcher struct {
 	registry         auditor.Registry
 	tailers          *tailers.TailerContainer[*tailer.Tailer]
 	claims           *claims
+	// processingRules are the global processing rules, which the logs
+	// processor applies to every message: the tailers need them to know
+	// which messages commit an offset (see tailer.Tailer.Committed).
+	processingRules []*config.ProcessingRule
 
 	cancel      context.CancelFunc
 	stopped     chan struct{}
@@ -106,6 +112,7 @@ func NewLauncher(closeTimeout time.Duration) *Launcher {
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
 	l.registry = registry
+	l.processingRules = globalProcessingRules(pkgconfigsetup.Datadog())
 	if tracker != nil {
 		tracker.Add(l.tailers)
 	}
@@ -114,6 +121,17 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.stopped = make(chan struct{})
 	added, removed := sourceProvider.SubscribeForType(config.SMBType, l.addedDone, l.removedDone)
 	go l.run(ctx, added, removed)
+}
+
+// globalProcessingRules returns the global processing rules of cfg, nil when
+// they are invalid: the Agent then reports the error and starts no pipeline.
+func globalProcessingRules(cfg pkgconfigmodel.Reader) []*config.ProcessingRule {
+	rules, err := config.GlobalProcessingRules(cfg)
+	if err != nil {
+		log.Debugf("smb: ignoring invalid global processing rules: %v", err)
+		return nil
+	}
+	return rules
 }
 
 // Stop implements launchers.Launcher. It stops every scanner and tailer and
@@ -209,7 +227,7 @@ func (l *Launcher) replace(previous *sources.LogSource, next *scanner) {
 	log.Infof("SMB source %s was configured again (for example after a secret refresh): the new configuration replaces the previous one", previous.Name)
 	if s, ok := l.scanners[previous]; ok {
 		delete(l.scanners, previous)
-		s.Stop() // releases its files, so next can claim them
+		s.stopForReplacement() // releases its files, so next can claim them
 		next.resumeFrom(s)
 		l.releaseClient(s.clientKey)
 	}
