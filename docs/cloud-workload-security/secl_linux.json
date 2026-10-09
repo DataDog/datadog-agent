@@ -8023,7 +8023,7 @@
         },
         {
           "name": "setns.previous.timens",
-          "definition": "Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
           "property_doc_link": "common-namespaceids-timens-doc"
         },
         {
@@ -8043,7 +8043,7 @@
         },
         {
           "name": "setns.timens",
-          "definition": "Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
           "property_doc_link": "common-namespaceids-timens-doc"
         },
         {
@@ -15666,7 +15666,7 @@
       "name": "*.timens",
       "link": "common-namespaceids-timens-doc",
       "type": "int",
-      "definition": "Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6",
+      "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
       "prefixes": [
         "setns",
         "setns.previous"

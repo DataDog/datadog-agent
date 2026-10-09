@@ -1205,7 +1205,7 @@ type NamespaceIDs struct {
 	UTSNS    uint32 `field:"utsns"`    // SECLDoc[utsns] Definition:`UTS namespace ID, 0 if it couldn't be resolved`
 	IPCNS    uint32 `field:"ipcns"`    // SECLDoc[ipcns] Definition:`IPC namespace ID, 0 if it couldn't be resolved`
 	CgroupNS uint32 `field:"cgroupns"` // SECLDoc[cgroupns] Definition:`Cgroup namespace ID, 0 if it couldn't be resolved`
-	TimeNS   uint32 `field:"timens"`   // SECLDoc[timens] Definition:`Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6`
+	TimeNS   uint32 `field:"timens"`   // SECLDoc[timens] Definition:`Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces`
 }
 
 // SetSockOptEvent represents a set socket option event

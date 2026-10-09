@@ -1953,11 +1953,11 @@ A thread joined an existing namespace
 | [`setns.previous.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
 | [`setns.previous.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
 | [`setns.previous.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
-| [`setns.previous.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6 |
+| [`setns.previous.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces |
 | [`setns.previous.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
 | [`setns.previous.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
 | [`setns.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`setns.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6 |
+| [`setns.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces |
 | [`setns.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
 | [`setns.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
 
@@ -3920,7 +3920,7 @@ Definition: Thread ID of the thread
 ### `*.timens` {#common-namespaceids-timens-doc}
 Type: int
 
-Definition: Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6
+Definition: Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces
 
 `*.timens` has 2 possible prefixes:
 `setns` `setns.previous`
