@@ -1079,6 +1079,7 @@
 /test/new-e2e/tests/gpu                                         @DataDog/gpu-monitoring-agent
 /test/new-e2e/tests/usm                                         @DataDog/universal-service-monitoring
 /test/new-e2e/examples/ecs_test.go                              @DataDog/ecs-experiences
+/test/new-e2e/internet-access.yaml                              @DataDog/agent-devx
 /test/otel/                                                     @DataDog/opentelemetry-agent
 /test/static/                                                   @DataDog/agent-build
 # Also change the run-time check for approver at: tasks/static_quality_gates/decisions.py:EXCEPTION_APPROVERS
