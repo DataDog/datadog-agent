@@ -21,6 +21,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/setup/constants",
         "//pkg/config/utils",
+        "//pkg/util/log/types",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//featuregates",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
