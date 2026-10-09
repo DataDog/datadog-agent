@@ -31,8 +31,7 @@ static char *copyStringProperty(NSDictionary *props, NSString *key) {
     if (!value) return NULL;
     
     if ([value isKindOfClass:[NSString class]]) {
-        const char *utf8 = [value UTF8String];
-        return utf8 ? strdup(utf8) : NULL;
+        return strdup([value UTF8String]);
     } else if ([value isKindOfClass:[NSData class]]) {
         const char *bytes = (const char *)[value bytes];
         return strndup(bytes, strnlen(bytes, [value length]));
@@ -75,18 +74,17 @@ DeviceInfo getDeviceInfo(void) {
             }
         }
 
-        // Read the configured Computer Name, not the dynamic-store name that
-        // can reflect network name-conflict handling. Never write preferences.
-        SCPreferencesRef preferences = SCPreferencesCreate(NULL, CFSTR("Datadog Agent"), NULL);
-        if (preferences) {
-            CFPropertyListRef system = SCPreferencesPathGetValue(preferences, CFSTR("/System/System"));
-            if (system && CFGetTypeID(system) == CFDictionaryGetTypeID()) {
-                info.computerName = copyStringProperty((__bridge NSDictionary *)system,
-                                                       (__bridge NSString *)kSCPropSystemComputerName);
-            }
-            CFRelease(preferences);
-        }
-        if (!info.computerName) {
+        // Computer Name is the user-assigned name from System Settings > Sharing,
+        // sourced via SystemConfiguration rather than IOKit.
+        CFStringRef computerNameRef = SCDynamicStoreCopyComputerName(NULL, NULL);
+        if (computerNameRef) {
+            // UTF8String can return NULL if the CFString can't be losslessly
+            // converted to UTF-8; strdup(NULL) is undefined behavior, so fall
+            // back to an empty string in that case.
+            const char *nameUTF8 = [(__bridge NSString *)computerNameRef UTF8String];
+            info.computerName = strdup(nameUTF8 ?: "");
+            CFRelease(computerNameRef);
+        } else {
             info.computerName = strdup("");
         }
 

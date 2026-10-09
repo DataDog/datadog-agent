@@ -6,9 +6,12 @@
 package gohai
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetPayload(t *testing.T) {
@@ -125,4 +128,29 @@ func TestGetPayloadContainerizedWithDocker0(t *testing.T) {
 	assert.NotNil(t, gohai.Gohai.Memory)
 	assert.NotNil(t, gohai.Gohai.Network)
 	assert.NotNil(t, gohai.Gohai.Platform)
+}
+
+func TestPlatformHostnameOverride(t *testing.T) {
+	osHostname, err := os.Hostname()
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name    string
+		options []Option
+		want    string
+	}{
+		{"default", nil, osHostname},
+		{"override", []Option{WithPlatformHostname("device-serial")}, "device-serial"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			encoded, err := GetPayloadAsString("device-serial", false, false, "", tc.options...)
+			require.NoError(t, err)
+			var payload struct {
+				Platform struct {
+					Hostname string `json:"hostname"`
+				} `json:"platform"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(encoded), &payload))
+			assert.Equal(t, tc.want, payload.Platform.Hostname)
+		})
+	}
 }

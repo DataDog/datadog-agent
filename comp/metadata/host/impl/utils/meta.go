@@ -54,6 +54,24 @@ func GetMetaFromCache(ctx context.Context, conf model.Reader, hostname hostnamei
 
 // getMeta returns the metadata information about the host and refreshes the cache
 func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterface.Component) *Meta {
+	hostnameData, _ := hostnameComp.GetWithProvider(ctx)
+	if conf.GetString("infrastructure_mode") == "end_user_device" {
+		// EUDM has one host identity. Do not send raw OS names or cloud aliases
+		// as alternative identities alongside the selected hostname.
+		timezone, _ := time.Now().Zone()
+		m := &Meta{
+			Hostname:                  hostnameData.Hostname,
+			SocketHostname:            hostnameData.Hostname,
+			SocketFqdn:                hostnameData.Hostname,
+			AgentHostname:             hostnameData.Hostname,
+			HostAliases:               []string{},
+			Timezones:                 []string{timezone},
+			HostnameResolutionVersion: 1,
+		}
+		cache.Cache.Set(metaCacheKey, m, cache.NoExpiration)
+		return m
+	}
+
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
@@ -61,8 +79,7 @@ func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterf
 
 	var agentHostname string
 
-	hostnameData, _ := hostnameComp.GetWithProvider(ctx)
-	if hostnameData.Provider == hostnameinterface.EUDMProvider || (conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration()) {
+	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
 		agentHostname = hostnameData.Hostname
 	}
 
