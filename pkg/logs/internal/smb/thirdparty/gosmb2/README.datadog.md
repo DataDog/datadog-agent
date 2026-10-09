@@ -81,6 +81,16 @@ Nothing else changed apart from the patches below.
    generator is not copied. `internal/erref/ntstatus.go` is unchanged.
 6. **Import grouping** in `dialer.go` and `x/protocol/dialer.go` after patch 1
    (gofmt layout only).
+7. **Read-only `Encrypted()` accessors** (`x/protocol/tree_conn.go`,
+   `Tree.Encrypted`; `share.go`, `Share.Encrypted`; both marked `DATADOG
+   PATCH 7`). They report whether requests on the tree are encrypted: the
+   session sets `SMB2_SESSION_FLAG_ENCRYPT_DATA` or the share sets
+   `SMB2_SHAREFLAG_ENCRYPT_DATA`, which is the condition under which
+   `Tree.send` encrypts. The library has no option to require encryption and
+   no way to ask whether a session is encrypted; the log source's
+   `require_encryption` setting calls `Share.Encrypted` after `Mount` and
+   fails closed. Nothing else changed. **Carry this patch into the planned
+   fork**, and drop it if upstream gains an equivalent.
 
 ### Create contexts sent by the library
 

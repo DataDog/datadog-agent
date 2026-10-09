@@ -322,9 +322,9 @@ func (l *Launcher) stopAll() {
 }
 
 // clientKey identifies the sources that can share an SMB session: same
-// server, share and account. The password is part of it so a source whose
-// secret was refreshed (see previousSources) does not reuse a session opened
-// with the old one; the key is never printed.
+// server, share, account and security settings. The password is part of it so a
+// source whose secret was refreshed (see previousSources) does not reuse a
+// session opened with the old one; the key is never printed.
 type clientKey struct {
 	host     string
 	port     int
@@ -332,6 +332,9 @@ type clientKey struct {
 	username string
 	domain   string
 	password string
+
+	allowSMB2         bool
+	requireEncryption bool
 }
 
 type sharedClient struct {
@@ -340,7 +343,8 @@ type sharedClient struct {
 }
 
 func (l *Launcher) acquireClient(cfg *config.SMBConfig) (clientKey, client.Client) {
-	key := clientKey{host: cfg.Host, port: cfg.Port, share: cfg.Share, username: cfg.Username, domain: cfg.Domain, password: cfg.Password}
+	key := clientKey{host: cfg.Host, port: cfg.Port, share: cfg.Share, username: cfg.Username, domain: cfg.Domain, password: cfg.Password,
+		allowSMB2: cfg.AllowSMB2, requireEncryption: cfg.RequireEncryption}
 	if key.port == 0 {
 		key.port = 445
 	}
@@ -359,6 +363,9 @@ func (l *Launcher) acquireClient(cfg *config.SMBConfig) (clientKey, client.Clien
 		Password: cfg.Password,
 		Domain:   cfg.Domain,
 		Port:     cfg.Port,
+
+		AllowSMB2:         cfg.AllowSMB2,
+		RequireEncryption: cfg.RequireEncryption,
 	}, opts...)
 	l.clients[key] = &sharedClient{client: c, refs: 1}
 	return key, c

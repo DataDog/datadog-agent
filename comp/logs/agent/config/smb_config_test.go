@@ -63,6 +63,9 @@ func TestValidateSMB(t *testing.T) {
 		{name: "valid excludes", mutate: func(c *LogsConfig) { c.ExcludePaths = []string{"app/old-*.log", "app/archive/*"} }},
 		{name: "poll_interval minimum", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 0.1 }},
 		{name: "poll_interval maximum", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 3600 }},
+		{name: "allow_smb2", mutate: func(c *LogsConfig) { c.SMB.AllowSMB2 = true }},
+		{name: "require_encryption", mutate: func(c *LogsConfig) { c.SMB.RequireEncryption = true }},
+		{name: "allow_smb2 with require_encryption", mutate: func(c *LogsConfig) { c.SMB.AllowSMB2, c.SMB.RequireEncryption = true, true }, wantErr: "require_encryption needs SMB 3 and cannot be combined with allow_smb2"},
 
 		{name: "missing smb block", mutate: func(c *LogsConfig) { c.SMB = nil }, wantErr: "must have an smb block"},
 		{name: "smb block on file source", mutate: func(c *LogsConfig) { c.Type = FileType; c.Path = "/var/log/a.log" }, wantErr: "only supported for smb sources, got file"},
@@ -142,6 +145,9 @@ func TestParseSMBConfig(t *testing.T) {
 		Port:         1445,
 		PollInterval: 0.5,
 	}
+	expectedStrict := *expected
+	expectedStrict.AllowSMB2 = false
+	expectedStrict.RequireEncryption = true
 
 	t.Run("yaml", func(t *testing.T) {
 		configs, err := ParseYAML([]byte(`
@@ -201,6 +207,38 @@ logs:
 		assert.Empty(t, smb.Domain)
 		assert.Equal(t, "plain-text", smb.Password)
 		assert.NoError(t, configs[0].Validate())
+	})
+
+	t.Run("security settings", func(t *testing.T) {
+		configs, err := ParseYAML([]byte(`
+logs:
+  - type: smb
+    path: "app/*.log"
+    smb:
+      host: myacct.file.core.windows.net
+      share: logs
+      username: myacct
+      password: "ENC[smb_account_key]"
+      domain: CORP
+      port: 1445
+      poll_interval: 0.5
+      require_encryption: true
+`))
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		assert.Equal(t, &expectedStrict, configs[0].SMB)
+
+		configs, err = ParseJSON([]byte(`[{"type":"smb","path":"app/*.log","smb":{"host":"old-nas.example.com","share":"logs","username":"u","password":"p","allow_smb2":true}}]`))
+		require.NoError(t, err)
+		assert.True(t, configs[0].SMB.AllowSMB2)
+		assert.False(t, configs[0].SMB.RequireEncryption)
+		assert.NoError(t, configs[0].Validate())
+
+		// Both are off unless set.
+		configs, err = ParseYAML([]byte("logs:\n  - type: smb\n    path: a.log\n    smb:\n      host: h.example.com\n      share: s\n      username: u\n"))
+		require.NoError(t, err)
+		assert.False(t, configs[0].SMB.AllowSMB2)
+		assert.False(t, configs[0].SMB.RequireEncryption)
 	})
 
 	t.Run("no smb block", func(t *testing.T) {

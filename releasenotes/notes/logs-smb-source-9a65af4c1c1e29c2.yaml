@@ -18,8 +18,11 @@ features:
     The bytes reported missed for an SMB source are a lower bound: when a
     file is deleted, or compressed and deleted, before the Agent lists it
     again, the lines it gained since are lost without being counted. The
-    Agent requires SMB signing or encryption, and refuses guest and
-    anonymous sessions. Only the full Agent on Linux, Windows and macOS,
+    Agent signs every SMB message, which authenticates the server's
+    responses, and refuses guest and anonymous sessions. It does not encrypt
+    the traffic itself: the log lines are encrypted only if the server
+    enforces encryption or the source sets ``require_encryption: true`` in
+    its ``smb`` block. Only the full Agent on Linux, Windows and macOS,
     including its container image, includes the SMB log source: the IoT
     Agent, the Heroku Agent and FIPS builds of the Agent do not, and report
     ``smb`` sources as errors in the Agent status. FIPS builds leave it out
