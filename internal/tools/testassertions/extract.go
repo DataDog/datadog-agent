@@ -19,7 +19,7 @@ import (
 
 // Node is an element of the extracted assertion tree.
 type Node struct {
-	// Kind is one of: test, suite, hook, subtest, helper, closure, predicate, callback, if,
+	// Kind is one of: test, suite, suites, hook, subtest, helper, closure, predicate, callback, if,
 	// else, loop, switch, case, defer, eventually, assertion, implicit, skip,
 	// flaky, opaque.
 	Kind      string     `json:"kind"`
@@ -280,7 +280,8 @@ func (e *extractor) walkStmt(sc *scope, st ast.Stmt) []*Node {
 			} else if i == 0 {
 				what = "key/index/element of "
 			}
-			sc.vars[id.Name] = &varInfo{origin: what + e.render(s.X, 100), rhs: s.X, vals: []valRef{{s.X, sc}}}
+			// the value variable is an element of s.X (the key one an index or a map key)
+			sc.vars[id.Name] = &varInfo{origin: what + e.render(s.X, 100), rhs: s.X, vals: []valRef{{x: s.X, sc: sc, elem: i == 1}}}
 		}
 		if body := e.walkStmts(sc, s.Body.List); len(body) > 0 {
 			label := "for each "
@@ -437,7 +438,7 @@ func (e *extractor) recordAssign(sc *scope, lhs, rhs []ast.Expr) {
 				if v := sc.vars[root.Name]; v != nil && v.origin != "" {
 					cp := *v
 					cp.origin = truncate(v.origin+"; then ."+sel.Sel.Name+" = "+e.render(rhs[i], 60), 220)
-					cp.vals = append(append([]valRef(nil), v.vals...), valRef{rhs[i], sc})
+					cp.vals = append(append([]valRef(nil), v.vals...), valRef{x: rhs[i], sc: sc})
 					sc.vars[root.Name] = &cp
 				}
 			}
@@ -459,7 +460,7 @@ func (e *extractor) recordAssign(sc *scope, lhs, rhs []ast.Expr) {
 		if _, isLit := r.(*ast.FuncLit); isLit {
 			continue
 		}
-		v := &varInfo{origin: "← " + e.render(r, 140), rhs: r, vals: []valRef{{r, sc}}}
+		v := &varInfo{origin: "← " + e.render(r, 140), rhs: r, vals: []valRef{{x: r, sc: sc}}}
 		if prev := sc.vars[id.Name]; prev != nil && refersTo(r, id.Name) {
 			// x = append(x, ...): keep the values x had before
 			v.vals = append(append([]valRef(nil), prev.vals...), v.vals...)
@@ -510,22 +511,8 @@ func (e *extractor) typeOfExpr(sc *scope, x ast.Expr) *typeRef {
 		if id, ok := t.Fun.(*ast.Ident); ok && id.Name == "new" && len(t.Args) == 1 {
 			return e.l.resolveType(sc.file, t.Args[0])
 		}
-		// constructor-like helpers: use the declared type of the first result, or
-		// the concrete type they return when they are declared to return an
-		// interface (e.g. func newSuite() e2e.Suite[env] { return &mySuite{} })
-		for _, c := range e.resolveCallee(sc, t.Fun) {
-			if c.fi == nil || c.fi.decl.Type.Results == nil || len(c.fi.decl.Type.Results.List) == 0 {
-				continue
-			}
-			tr := e.l.resolveType(c.fi.file, c.fi.decl.Type.Results.List[0].Type)
-			if tr == nil || tr.pkg.ifaces[tr.name] {
-				if concrete := e.returnedType(c.fi); concrete != nil {
-					return concrete
-				}
-			}
-			if tr != nil {
-				return tr
-			}
+		if types := e.callResultTypes(sc, t); len(types) > 0 {
+			return types[0]
 		}
 	case *ast.Ident:
 		if v := sc.vars[t.Name]; v != nil {
@@ -955,7 +942,7 @@ func (e *extractor) buildAssertion(sc *scope, call *ast.CallExpr, a *assertCall)
 func (e *extractor) pkgLevel(sc *scope, name string) *varInfo {
 	if x, ok := sc.file.pkg.values[name]; ok && x != nil {
 		return &varInfo{origin: "(package-level) = " + e.render(x, 120), rhs: x,
-			vals: []valRef{{x, &scope{file: sc.file.pkg.valueFiles[name], vars: map[string]*varInfo{}}}}}
+			vals: []valRef{{x: x, sc: &scope{file: sc.file.pkg.valueFiles[name], vars: map[string]*varInfo{}}}}}
 	}
 	return nil
 }
@@ -1088,10 +1075,22 @@ func (e *extractor) suiteRun(sc *scope, call *ast.CallExpr) *Node {
 	if path := sc.file.imports[id.Name]; path != e2ePkg && path != suitePkg {
 		return nil
 	}
-	tr := e.typeOfExpr(sc, call.Args[1])
-	if tr == nil {
+	types := e.concreteTypes(sc, call.Args[1])
+	switch len(types) {
+	case 0:
 		return &Node{Kind: "opaque", Label: "runs a suite whose type could not be resolved: " + e.render(call, 120), Pos: e.pos(call.Pos())}
+	case 1:
+		return e.suiteNode(types[0], call)
 	}
+	// e.g. e2e.Run(t, tc.suite) in a loop over test cases: one suite per iteration
+	n := &Node{Kind: "suites", Label: fmt.Sprintf("runs one of %d suites (%s), depending on the iteration", len(types), e.render(call.Args[1], 60)), Pos: e.pos(call.Pos())}
+	for _, tr := range types {
+		n.Children = append(n.Children, e.suiteNode(tr, call))
+	}
+	return n
+}
+
+func (e *extractor) suiteNode(tr *typeRef, call *ast.CallExpr) *Node {
 	n := &Node{Kind: "suite", Label: tr.name, Pos: e.pos(call.Pos()), Def: e.relPath(tr.pkg.dir)}
 	for _, m := range e.l.methodSet(tr) {
 		switch {
@@ -1224,7 +1223,7 @@ func (e *extractor) expandCalleeCond(sc *scope, c callee, args []ast.Expr, cond 
 	if c.recv != nil && sc != nil && len(c.fi.decl.Recv.List) > 0 {
 		for _, n := range c.fi.decl.Recv.List[0].Names {
 			if v := nsc.vars[n.Name]; v != nil {
-				v.vals = []valRef{{c.recv, sc}} // the receiver's value, e.g. a struct literal
+				v.vals = []valRef{{x: c.recv, sc: sc}} // the receiver's value, e.g. a struct literal
 			}
 		}
 	}
@@ -1278,7 +1277,7 @@ func (e *extractor) bindParams(sc, caller *scope, ft *ast.FuncType, args []ast.E
 				}
 				v.origin = "= " + strings.Join(parts, ", ")
 				for _, b := range bound {
-					v.vals = append(v.vals, valRef{b, caller})
+					v.vals = append(v.vals, valRef{x: b, sc: caller})
 				}
 				id, isIdent := bound[0].(*ast.Ident)
 				if isIdent && len(bound) == 1 && caller.vars[id.Name] != nil && caller.vars[id.Name].origin == "" {
@@ -1366,19 +1365,31 @@ func (e *extractor) fieldExprs(sc *scope, x ast.Expr, path []string, visited map
 		return nil
 	}
 	if len(path) == 0 {
+		// x.F: the values field F was set to in the literals x comes from
+		if sel, ok := x.(*ast.SelectorExpr); ok {
+			if id, isIdent := sel.X.(*ast.Ident); !isIdent || sc.vars[id.Name] != nil || sc.file.imports[id.Name] == "" {
+				if out := e.fieldExprs(sc, sel.X, []string{sel.Sel.Name}, visited, depth); len(out) > 0 {
+					return out
+				}
+			}
+		}
 		if id, ok := x.(*ast.Ident); ok {
 			if v := sc.vars[id.Name]; v != nil && !visited[v] && (v.closure == nil && len(v.fnRefs) == 0) {
 				visited[v] = true
 				var out []valRef
 				for _, r := range v.vals {
-					out = append(out, e.fieldExprs(r.sc, r.x, nil, visited, depth+1)...)
+					if r.elem {
+						out = append(out, e.elementsOf(r.sc, r.x, visited, depth+1)...)
+					} else {
+						out = append(out, e.fieldExprs(r.sc, r.x, nil, visited, depth+1)...)
+					}
 				}
 				if len(out) > 0 {
 					return out
 				}
 			}
 		}
-		return []valRef{{x, sc}}
+		return []valRef{{x: x, sc: sc}}
 	}
 	switch t := x.(type) {
 	case *ast.ParenExpr:
@@ -1393,10 +1404,15 @@ func (e *extractor) fieldExprs(sc *scope, x ast.Expr, path []string, visited map
 		return e.fieldExprs(sc, t.X, append([]string{t.Sel.Name}, path...), visited, depth)
 	case *ast.Ident:
 		v := sc.vars[t.Name]
-		if v == nil || visited[[2]any{v, len(path)}] {
+		var key any = v
+		if v == nil {
+			v = e.pkgLevel(sc, t.Name) // a package-level var, e.g. a table of test cases
+			key = sc.file.pkg.dir + "." + t.Name
+		}
+		if v == nil || visited[[2]any{key, len(path)}] {
 			return nil
 		}
-		visited[[2]any{v, len(path)}] = true
+		visited[[2]any{key, len(path)}] = true
 		var out []valRef
 		for _, r := range v.vals {
 			out = append(out, e.fieldExprs(r.sc, r.x, path, visited, depth+1)...)
@@ -1427,6 +1443,80 @@ func (e *extractor) fieldExprs(sc *scope, x ast.Expr, path []string, visited map
 		return out
 	}
 	return nil
+}
+
+// callResultTypes returns the types a call may return, one per function it
+// may call (a function-valued variable or field can hold several): the
+// declared type of the first result, or the concrete type returned when it is
+// declared to return an interface (func newSuite() e2e.Suite[env] { return &mySuite{} }).
+func (e *extractor) callResultTypes(sc *scope, call *ast.CallExpr) []*typeRef {
+	var out []*typeRef
+	for _, c := range e.resolveCallee(sc, call.Fun) {
+		if c.fi == nil || c.fi.decl.Type.Results == nil || len(c.fi.decl.Type.Results.List) == 0 {
+			continue
+		}
+		tr := e.l.resolveType(c.fi.file, c.fi.decl.Type.Results.List[0].Type)
+		if tr == nil || tr.pkg.ifaces[tr.name] {
+			if concrete := e.returnedType(c.fi); concrete != nil {
+				tr = concrete
+			}
+		}
+		if tr != nil {
+			out = append(out, tr)
+		}
+	}
+	return out
+}
+
+// elementsOf returns the elements of the slice/array/map literals x comes from.
+func (e *extractor) elementsOf(sc *scope, x ast.Expr, visited map[any]bool, depth int) []valRef {
+	var out []valRef
+	for _, r := range e.fieldExprs(sc, x, nil, visited, depth) {
+		lit, ok := r.x.(*ast.CompositeLit)
+		if !ok {
+			continue
+		}
+		for _, elt := range lit.Elts {
+			if kv, ok := elt.(*ast.KeyValueExpr); ok {
+				elt = kv.Value
+			}
+			out = append(out, valRef{x: elt, sc: r.sc})
+		}
+	}
+	return out
+}
+
+// concreteTypes returns the concrete (non-interface) types x may hold: the
+// types of the values it was set to, traced through variables, range loops,
+// struct fields and calls to function values, or else its own type when known. For instance, with
+// `for _, tc := range []testCase{{suite: &aSuite{}}, {suite: &bSuite{}}}`,
+// tc.suite holds aSuite or bSuite.
+func (e *extractor) concreteTypes(sc *scope, x ast.Expr) []*typeRef {
+	var out []*typeRef
+	seen := map[string]bool{}
+	add := func(tr *typeRef) {
+		if tr == nil || tr.pkg.ifaces[tr.name] || seen[tr.pkg.dir+"."+tr.name] {
+			return
+		}
+		seen[tr.pkg.dir+"."+tr.name] = true
+		out = append(out, tr)
+	}
+	for _, r := range e.fieldExprs(sc, x, nil, map[any]bool{}, 0) {
+		if call, ok := r.x.(*ast.CallExpr); ok {
+			for _, tr := range e.callResultTypes(r.sc, call) { // suite := test.t(...)
+				add(tr)
+			}
+			continue
+		}
+		if r.x != x {
+			add(e.typeOfExpr(r.sc, r.x))
+		}
+	}
+	if len(out) == 0 {
+		// not traced to its values: the type recorded for x, if any
+		add(e.typeOfExpr(sc, x))
+	}
+	return out
 }
 
 // refersTo reports whether x mentions the identifier name.

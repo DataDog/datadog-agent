@@ -32,7 +32,10 @@ are resolved against the directory you ran it from.
 - `e2e.Run` / `suite.Run`: the suite type is resolved (composite literal, variable,
   constructor return type, including constructors declared to return `e2e.Suite`
   and passed to a runner like fleet's `suite.Run(t, newConfigSuite, platforms)`,
-  generic helper) and its `Test*` methods and hooks
+  generic helper, or picked from a table in a loop: `e2e.Run(t, tc.suite)`,
+  `for _, s := range suites`, `suite := test.t(...)` with `t` a constructor field;
+  all the possible suites are expanded under "runs one of N suites") and its
+  `Test*` methods and hooks
   (`SetupSuite`, `BeforeTest`, …) are expanded, including promoted methods
 - `t.Run` / `s.Run` subtests, `if`/`else`, loops and `switch` cases, so conditional
   assertions are visible; `if assert.X(...) {` is labeled "if the assertion above passed"

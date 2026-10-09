@@ -8,6 +8,7 @@ package main
 import (
 	"bytes"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -203,6 +204,24 @@ func TestCompactBudget(t *testing.T) {
 	assert.Contains(t, folded, "logs_enabled", "folded lines keep the values found below them")
 	assert.Contains(t, folded, "= 9 assertion(s)", "totals are unchanged")
 	assert.Contains(t, folded, "= 6 assertion(s)")
+}
+
+func TestSuitesPickedFromALoop(t *testing.T) {
+	for _, name := range []string{"TestSuitesFromTable", "TestSuitesFromSlice"} {
+		t.Run(name, func(t *testing.T) {
+			nodes := extractSample(t, name)
+			require.Len(t, nodes, 1)
+			var suites []string
+			for _, line := range flatten(nodes) {
+				if strings.HasPrefix(line, "suite:") {
+					suites = append(suites, strings.TrimPrefix(line, "suite:"))
+				}
+			}
+			assert.Equal(t, []string{"amiSuite", "archSuite"}, suites)
+			assert.Equal(t, 2, nodes[0].AssertionCount)
+			assert.Subset(t, nodes[0].Values, []string{"ami-123", "arm64"})
+		})
+	}
 }
 
 func TestUnknownTest(t *testing.T) {

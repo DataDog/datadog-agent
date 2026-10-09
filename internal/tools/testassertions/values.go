@@ -19,6 +19,8 @@ import (
 type valRef struct {
 	x  ast.Expr
 	sc *scope
+	// elem: the variable is an element of x (a range loop variable), not x itself
+	elem bool
 }
 
 const (
