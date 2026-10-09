@@ -10,6 +10,11 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - echo "DEBUG hostname=$(hostname)"
+    - echo "DEBUG XDG_CACHE_HOME=$XDG_CACHE_HOME"
+    - echo "DEBUG BAZELISK_HOME=$BAZELISK_HOME"
+    - ls -la "$BAZELISK_HOME" || echo "DEBUG BAZELISK_HOME missing"
+    - ls -la "$XDG_CACHE_HOME/bazelisk" || echo "DEBUG XDG_CACHE_HOME/bazelisk missing"
     - dda inv -- check-go-version
     - dda inv -- -e cluster-agent.build
     # keep the unstripped binary for fips compliance checks
