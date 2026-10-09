@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -21,6 +22,14 @@ import (
 
 const sampleBufferSize = 2
 
+// SM cycle counters, not yet defined in go-nvml. NVML reports them as cumulative raw counters summed over all
+// the SMs of the device: nvmlGpmMetricsGet returns the counter value at Sample2 instead of the difference
+// between Sample1 and Sample2, so we compute the difference ourselves.
+const (
+	gpmMetricSMCyclesElapsed nvml.GpmMetricId = 248
+	gpmMetricSMCyclesActive  nvml.GpmMetricId = 249
+)
+
 type gpmCollector struct {
 	lib                  ddnvml.SafeNVML
 	device               ddnvml.Device
@@ -30,6 +39,15 @@ type gpmCollector struct {
 	metricsToCollect     map[nvml.GpmMetricId]gpmMetric
 	nextSampleToCollect  int
 	emitLegacySMActive   bool
+	deriveSMActive       bool // whether sm_active is derived from the SM cycle counters
+	smCyclesPriority     MetricPriority
+	prevSMCycles         smCyclesReading
+}
+
+// smCyclesReading holds the raw SM cycle counter values of a single GPM sample.
+type smCyclesReading struct {
+	elapsed float64
+	active  float64
 }
 
 type gpmMetric struct {
@@ -74,8 +92,27 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 	},
 }
 
-func newGPMCollector(device ddnvml.Device, deps *CollectorDependencies) (c Collector, err error) {
-	return newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), deps)
+func newGPMCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
+	c, err := newGPMCollectorWithMetrics(device, maps.Clone(allGpmMetrics), deps)
+	if err != nil {
+		return nil, err
+	}
+	collector := c.(*gpmCollector)
+
+	// sm_active is not derived from the SM cycle counters if the legacy sm_active is enabled, as it takes
+	// precedence, nor for MIG devices, where the counters haven't been validated.
+	_, isMig := device.(*ddnvml.MIGDevice)
+	if !isMig && (deps == nil || !deps.Config.LegacySMActive) {
+		// Low priority by default so that it's only a fallback. At low priority it ties with the ebpf sm_active,
+		// which wins because RemoveDuplicateSamples prefers the collector whose name sorts first.
+		collector.smCyclesPriority = Low
+		if deps != nil && deps.Config.PreferSMCyclesSMActive {
+			collector.smCyclesPriority = High
+		}
+		collector.initSMCycles()
+	}
+
+	return collector, nil
 }
 
 func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.GpmMetricId]gpmMetric, deps *CollectorDependencies) (c Collector, err error) {
@@ -212,31 +249,110 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 	metricIndex := 0
 	var errs []error
 	for metricID := range c.metricsToCollect {
-		// WORKAROUND: go-nvml's GpmMetricsGetType.Metrics array has a memory-layout
-		// mismatch that corrupts elements past index 0 when NumMetrics > 1. Query each
-		// metric in its own call via Metrics[0] until the upstream fix lands.
-		singleMetricGet := &nvml.GpmMetricsGetType{
-			NumMetrics: 1,
-			Version:    nvml.GPM_METRICS_GET_VERSION,
-			Sample1:    secondToLastSample,
-			Sample2:    lastSample,
-		}
-		singleMetricGet.Metrics[0] = nvml.GpmMetric{
-			MetricId:   uint32(metricID),
-			NvmlReturn: uint32(nvml.ERROR_UNKNOWN), // initialize to a sentinel value to ensure NVML has actually modified the value
-		}
-
-		err := c.lib.GpmMetricsGet(singleMetricGet)
+		metric, err := c.getGpmMetric(metricID, secondToLastSample, lastSample)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to get GPM metric %d: %w", metricID, err))
+			errs = append(errs, err)
 			continue
 		}
 
-		metricsGet.Metrics[metricIndex] = singleMetricGet.Metrics[0]
+		metricsGet.Metrics[metricIndex] = metric
 		metricIndex++
 	}
 
 	return metricsGet, errors.Join(errs...)
+}
+
+// getGpmMetric queries a single GPM metric between the two given samples. The per-metric NVML return code
+// is not checked, callers must inspect NvmlReturn.
+func (c *gpmCollector) getGpmMetric(metricID nvml.GpmMetricId, sample1, sample2 nvml.GpmSample) (nvml.GpmMetric, error) {
+	// WORKAROUND: go-nvml's GpmMetricsGetType.Metrics array has a memory-layout
+	// mismatch that corrupts elements past index 0 when NumMetrics > 1. Query each
+	// metric in its own call via Metrics[0] until the upstream fix lands.
+	singleMetricGet := &nvml.GpmMetricsGetType{
+		NumMetrics: 1,
+		Version:    nvml.GPM_METRICS_GET_VERSION,
+		Sample1:    sample1,
+		Sample2:    sample2,
+	}
+	singleMetricGet.Metrics[0] = nvml.GpmMetric{
+		MetricId:   uint32(metricID),
+		NvmlReturn: uint32(nvml.ERROR_UNKNOWN), // initialize to a sentinel value to ensure NVML has actually modified the value
+	}
+
+	if err := c.lib.GpmMetricsGet(singleMetricGet); err != nil {
+		return nvml.GpmMetric{}, fmt.Errorf("failed to get GPM metric %d: %w", metricID, err)
+	}
+
+	return singleMetricGet.Metrics[0], nil
+}
+
+// readSMCycles returns the raw SM cycle counters at the last collected sample.
+func (c *gpmCollector) readSMCycles() (smCyclesReading, error) {
+	lastSample, secondToLastSample := c.getLastTwoSamples()
+
+	var values [2]float64
+	for i, metricID := range [2]nvml.GpmMetricId{gpmMetricSMCyclesElapsed, gpmMetricSMCyclesActive} {
+		metric, err := c.getGpmMetric(metricID, secondToLastSample, lastSample)
+		if err != nil {
+			return smCyclesReading{}, err
+		}
+		if err := ddnvml.NewNvmlAPIErrorOrNil(fmt.Sprintf("GpmMetricsGet(%d)", metricID), nvml.Return(metric.NvmlReturn)); err != nil {
+			return smCyclesReading{}, err
+		}
+		if math.IsNaN(metric.Value) || math.IsInf(metric.Value, 0) {
+			return smCyclesReading{}, fmt.Errorf("invalid value %f for GPM metric %d", metric.Value, metricID)
+		}
+		values[i] = metric.Value
+	}
+
+	return smCyclesReading{elapsed: values[0], active: values[1]}, nil
+}
+
+// initSMCycles checks whether the SM cycle counters are supported, using the samples collected when the
+// collector is created, and stores the first reading. sm_active is not derived from the counters if they are
+// not supported, but the rest of the GPM metrics are still collected.
+func (c *gpmCollector) initSMCycles() {
+	reading, err := c.readSMCycles()
+	if err != nil {
+		log.Infof("not deriving sm_active from the GPM SM cycle counters on device %s: %s", c.device.GetDeviceInfo().UUID, err)
+		return
+	}
+	c.deriveSMActive = true
+	c.prevSMCycles = reading
+}
+
+// collectSMCyclesSMActive returns sm_active for the interval between the previous reading and the last collected
+// sample, as the percentage of elapsed SM cycles in which the SMs were active. This is the same value as
+// GPM_METRIC_SM_UTIL (activity averaged over all SMs), not the percentage of time any SM was active. It returns nil
+// if the value cannot be computed for this interval.
+func (c *gpmCollector) collectSMCyclesSMActive() (*Metric, error) {
+	reading, err := c.readSMCycles()
+	if err != nil {
+		// The counters are cumulative, so the next value is computed against the previous reading.
+		return nil, fmt.Errorf("failed to read SM cycle counters: %w", err)
+	}
+
+	previous := c.prevSMCycles
+	c.prevSMCycles = reading
+	elapsed := reading.elapsed - previous.elapsed
+	active := reading.active - previous.active
+
+	// NVML returns the counters as float64, which can't represent them exactly above 2^53: the deltas can then be
+	// off by up to 2 units in the last place of the counters, so a fully active interval can report slightly more
+	// active than elapsed cycles.
+	maxRoundingError := 2 * (math.Nextafter(reading.elapsed, math.Inf(1)) - reading.elapsed)
+	if elapsed <= 0 || active < 0 || active > elapsed+maxRoundingError {
+		// No SM cycles elapsed, or the counters were reset (e.g. GPU reset or driver reload): skip this interval.
+		log.Debugf("invalid SM cycle counter deltas on device %s (elapsed %f, active %f), skipping sm_active", c.device.GetDeviceInfo().UUID, elapsed, active)
+		return nil, nil
+	}
+
+	return &Metric{
+		baseSample: baseSample{priority: c.smCyclesPriority},
+		Name:       "sm_active",
+		Value:      100 * min(active, elapsed) / elapsed,
+		Type:       metrics.GaugeType,
+	}, nil
 }
 
 // Device returns the device this collector monitors.
@@ -261,6 +377,9 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 
 	metricCapacity := len(c.metricsToCollect)
 	if c.emitLegacySMActive {
+		metricCapacity++
+	}
+	if c.deriveSMActive {
 		metricCapacity++
 	}
 	samples := make([]Sample, 0, metricCapacity)
@@ -291,6 +410,15 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 				Value:      metric.Value,
 				Type:       metricData.metricType,
 			})
+		}
+	}
+
+	if c.deriveSMActive {
+		smActive, err := c.collectSMCyclesSMActive()
+		if err != nil {
+			errs = append(errs, err)
+		} else if smActive != nil {
+			samples = append(samples, smActive)
 		}
 	}
 
