@@ -10,7 +10,10 @@ go_library(
         "library_loader.go",
         "library_loader_test_util.go",
     ],
-    cdeps = ["//rtloader:rtloader_dynamic"],
+    cdeps = select({
+        "@rules_go//go/platform:windows": ["//rtloader:rtloader"],
+        "//conditions:default": ["//rtloader:rtloader_dynamic"],
+    }),
     cgo = True,
     copts = ["-I pkg/collector/sharedlibrary/ffi/rtloader/include"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi",

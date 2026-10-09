@@ -1,9 +1,8 @@
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 
 # C++/WinRT needs cl.exe. Keep the vcxproj and drive hermetic MSBuild from
-# @msvc_toolchains (same pattern as deps/cpython:python_win) so the rest of the
-# Windows tree stays on MinGW. The agent loads this DLL at runtime over a C ABI
-# (see pkg/util/winutil/datadoginterop).
+# @msvc_toolchains so the rest of the Windows tree stays on MinGW. The agent
+# loads this DLL at runtime over a C ABI (see pkg/util/winutil/datadoginterop).
 run_binary(
     name = "libdatadog_interop",
     srcs = [

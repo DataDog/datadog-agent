@@ -1,0 +1,62 @@
+diff --git a/runtimes/mingw/BUILD.bazel b/runtimes/mingw/BUILD.bazel
+--- a/runtimes/mingw/BUILD.bazel
++++ b/runtimes/mingw/BUILD.bazel
+@@ -330,9 +330,19 @@
+     name = "stdc++",
+ )
+ 
++stub_library(
++    name = "gcc",
++)
++
++stub_library(
++    name = "gcc_eh",
++)
++
+ copy_to_directory(
+     name = "mingw_crt_library_search_directory",
+     srcs = [
++        ":gcc",
++        ":gcc_eh",
+         ":m",
+         ":mingw32",
+         ":mingwex",
+diff --git a/toolchain/llvm/llvm.bzl b/toolchain/llvm/llvm.bzl
+--- a/toolchain/llvm/llvm.bzl
++++ b/toolchain/llvm/llvm.bzl
+@@ -294,6 +294,7 @@
+         src = "bin/clang++" + suffix,
+         data = [
+             "bin/ld.lld" + suffix,
++            "bin/llvm-dlltool" + suffix,
+             "bin/ld64.lld" + suffix,
+             "bin/lld" + suffix,
+             "bin/wasm-ld" + suffix,
+diff --git a/toolchain/args/windows/BUILD.bazel b/toolchain/args/windows/BUILD.bazel
+--- a/toolchain/args/windows/BUILD.bazel
++++ b/toolchain/args/windows/BUILD.bazel
+@@ -100,7 +100,7 @@
+             "//toolchain/args/windows/msvc:deterministic_coff_object_flags",
+             "//toolchain/args/windows/msvc:deterministic_codeview_flags",
+         ],
+-        "//conditions:default": [],
++        "//conditions:default": ["//toolchain/args/windows/mingw:deterministic_coff_object_flags"],
+     }),
+ )
+ 
+diff --git a/toolchain/args/windows/mingw/BUILD.bazel b/toolchain/args/windows/mingw/BUILD.bazel
+--- a/toolchain/args/windows/mingw/BUILD.bazel
++++ b/toolchain/args/windows/mingw/BUILD.bazel
+@@ -56,6 +56,12 @@
+ )
+ 
+ cc_args(
++    name = "deterministic_coff_object_flags",
++    actions = ["@rules_cc//cc/toolchains/actions:source_compile_actions"],
++    args = ["-mno-incremental-linker-compatible"],
++)
++
++cc_args(
+     name = "deterministic_link_flags",
+     actions = ["@rules_cc//cc/toolchains/actions:link_actions"],
+     args = ["-Wl,--no-insert-timestamp"],

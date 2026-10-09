@@ -1,6 +1,12 @@
 """Package lifecycle scripts for the debian and rpm packages."""
 
 exports_files(
-    glob(["package-scripts/**"]),
+    glob(["package-scripts/**"]) + glob(
+        [
+            "python-scripts/*.py",
+            "windows-scripts/*.bat",
+        ],
+        exclude = ["python-scripts/*_tests.py"],
+    ),
     visibility = ["//packages:__subpackages__"],
 )

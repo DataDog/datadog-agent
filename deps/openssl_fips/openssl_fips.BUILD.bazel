@@ -1,4 +1,5 @@
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//deps/openssl:windows_gnu.bzl", "WINDOWS_GNU", "WINDOWS_GNU_BUILD_DATA", "WINDOWS_GNU_CONFIGURE_OPTIONS", "WINDOWS_GNU_ENV")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
@@ -48,6 +49,7 @@ FIPS_LINUX = "fips.so"
 configure_make(
     name = "openssl_fips",
     build_data = select({
+        WINDOWS_GNU: WINDOWS_GNU_BUILD_DATA,
         "@platforms//os:windows": [
             "@winlibs_mingw64//:windres",
         ],
@@ -63,13 +65,17 @@ configure_make(
             "mingw64",
         ],
         "//conditions:default": [],
-    }) + ENABLE_FIPS_CONFIG,
+    }) + ENABLE_FIPS_CONFIG + select({
+        WINDOWS_GNU: WINDOWS_GNU_CONFIGURE_OPTIONS,
+        "//conditions:default": [],
+    }),
     configure_prefix = select({
         "@platforms//os:windows": "perl",
         "//conditions:default": "",
     }),
     copts = ["-O2"],
     env = select({
+        WINDOWS_GNU: WINDOWS_GNU_ENV,
         "@platforms//os:windows": {
             # Configure resolves RC from RC or WINDRES, then emits it into Makefile.
             "RC": "$(execpath @winlibs_mingw64//:windres)",
@@ -78,6 +84,8 @@ configure_make(
         "//conditions:default": {},
     }),
     lib_source = ":all",
+    # install_fips writes fips.dll to lib/ossl-modules, not bin/.
+    out_dll_dir = "lib",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "ossl-modules/" + FIPS_LINUX,

@@ -1,5 +1,8 @@
 # The platforms we build the agent for.
 
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@llvm//constraints/windows/abi:abis.bzl", "WINDOWS_MINGW_COMPATIBLE_ABIS")
+
 package(default_visibility = ["//visibility:public"])
 
 constraint_setting(name = "crypto")
@@ -7,6 +10,19 @@ constraint_setting(name = "crypto")
 constraint_value(
     name = "fips",
     constraint_setting = ":crypto",
+)
+
+[
+    config_setting(
+        name = "windows_abi_" + abi,
+        constraint_values = ["@llvm//constraints/windows/abi:" + abi],
+    )
+    for abi in WINDOWS_MINGW_COMPATIBLE_ABIS
+]
+
+selects.config_setting_group(
+    name = "windows_mingw_compatible_abi",
+    match_any = [":windows_abi_" + abi for abi in WINDOWS_MINGW_COMPATIBLE_ABIS],
 )
 
 platform(
@@ -54,6 +70,15 @@ platform(
     constraint_values = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
+    ],
+)
+
+platform(
+    name = "windows_x86_64_msvc",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+        "@llvm//constraints/windows/abi:msvc",
     ],
 )
 

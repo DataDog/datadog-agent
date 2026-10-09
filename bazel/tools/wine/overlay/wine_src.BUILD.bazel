@@ -1,0 +1,55 @@
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("@rules_bison//bison:bison.bzl", "bison")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+write_file(
+    name = "config_h",
+    out = "config.h",
+    content = [
+        "#define __WINE_CONFIG_H",
+        "",
+    ],
+)
+
+bison(
+    name = "mcy.tab",
+    src = "tools/wmc/mcy.y",
+)
+
+cc_library(
+    name = "rh_headers",
+    includes = ["include"],
+    textual_hdrs = glob(["include/*.rh"]),
+)
+
+cc_binary(
+    name = "wmc",
+    srcs = glob([
+        "include/*.h",
+        "tools/wmc/*.c",
+        "tools/wmc/*.h",
+    ]) + [
+        "config.h",
+        "tools/tools.h",
+        ":mcy.tab",
+    ],
+    includes = [
+        "include",
+        "tools/wmc",
+    ],
+    local_defines = [
+        "__WINESRC__",
+        "PACKAGE_VERSION=\\\"11.0\\\"",
+        "BINDIR=\\\"/nonexistent\\\"",
+        "DATADIR=\\\"/nonexistent\\\"",
+    ],
+    visibility = ["@//bazel/tools/wine:__pkg__"],
+    deps = [":rh_headers"],
+)
+
+filegroup(
+    name = "nls",
+    srcs = glob(["nls/*.nls"]),
+    visibility = ["@//bazel/tools/wine:__pkg__"],
+)

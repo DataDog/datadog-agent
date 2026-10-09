@@ -1,0 +1,13 @@
+diff --git a/rust/private/rustc.bzl b/rust/private/rustc.bzl
+--- a/rust/private/rustc.bzl
++++ b/rust/private/rustc.bzl
+@@ -950,7 +950,8 @@
+         return None
+ 
+     suffix = linker_path[-4:].lower()
+-    return "{}dlltool{}".format(linker_path[:sep + 1], suffix if suffix == ".exe" else "")
++    name = "llvm-dlltool" if linker_path[sep + 1:].startswith("clang") else "dlltool"
++    return "{}{}{}".format(linker_path[:sep + 1], name, suffix if suffix == ".exe" else "")
+ 
+ def construct_arguments(
+         *,

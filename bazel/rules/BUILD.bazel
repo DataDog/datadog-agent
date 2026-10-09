@@ -24,3 +24,19 @@ sh_binary(
 )
 
 template_test_suite(name = "_dd_agent_expand_template_tests")
+
+alias(
+    name = "windres",
+    actual = select({
+        "@platforms//os:linux": "//bazel/toolchains/hermetic_llvm:windres",
+        "//conditions:default": "@winlibs_mingw64//:windres",
+    }),
+)
+
+alias(
+    name = "windmc",
+    actual = select({
+        "@platforms//os:linux": "//bazel/tools/wine:windmc",
+        "//conditions:default": "@winlibs_mingw64//:windmc",
+    }),
+)

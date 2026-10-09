@@ -11,7 +11,6 @@ package python
 #include <datadog_agent_rtloader.h>
 #cgo !aix,!windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo aix LDFLAGS: -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 */
 import "C"
 

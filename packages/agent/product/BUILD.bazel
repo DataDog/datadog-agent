@@ -209,14 +209,20 @@ pkg_files(
         "//cmd/privateactionrunner",
     ],
     attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
 )
 
 pkg_files(
     name = "trace_agent_binary",
     srcs = ["//cmd/trace-agent"],
     attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
 )
 
 pkg_files(
@@ -261,6 +267,7 @@ pkg_files(
     srcs = ["//cmd/systray"],
     attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
+    renames = {"//cmd/systray": "ddtray.exe"},
 )
 
 pkg_files(

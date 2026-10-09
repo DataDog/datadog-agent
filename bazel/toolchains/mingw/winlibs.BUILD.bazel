@@ -71,10 +71,15 @@ cc_toolchain(
 
 toolchain(
     name = "mingw_cc_toolchain",
+    exec_compatible_with = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
     target_compatible_with = [
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
     ],
+    target_settings = ["@@//bazel/platforms:windows_mingw_compatible_abi"],
     toolchain = ":mingw_cc_toolchain_definition",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )

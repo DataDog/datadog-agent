@@ -48,6 +48,8 @@ common --repo_env=PACKAGE_VERSION # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=REPIN=1 # Reduce MODULE.bazel.lock churn when --lockfile_mode=[update|refresh] trigger
 common --repo_env=SIGN_MAC # Keep in sync with env_vars in MODULE.bazel
 common --repo_env=BAZEL_TOOLCHAINS_MSVC_ACCEPT_MICROSOFT_VISUAL_STUDIO_BUILDTOOLS_EULA=1 # common so bazel mod tidy resolves the MSVC extension on every host
+common --repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1
+common --repo_env=BAZEL_WINDOWS_SDK_EULA=1
 common --repo_env=XDG_CACHE_HOME # https://wiki.archlinux.org/title/XDG_Base_Directory
 # Variables to override release.json values
 common --repo_env=INTEGRATIONS_CORE_VERSION
@@ -70,6 +72,7 @@ common:linux --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.lo
 common:linux --credential_helper=buildbarn-frontend-datadog-agent.us1.ddbuild.io=%workspace%/bazel/tools/credential-helper
 common:linux --host_linkopt=-lstdc++ # to build `gawk`, hindered by https://github.com/f0rmiga/gcc-toolchain/issues/221
 common:linux --strategy=sandboxed
+common:linux --per_file_copt=external/bazel_tools/src/tools/launcher/.*@-D_CRT_RAND_S # mingw-w64 only declares rand_s with _CRT_RAND_S; not needed from Bazel 10 (bazelbuild/bazel#28751)
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --credential_helper=buildbarn-edge-cache.buildbarn.local-cluster.local-dc.fabric.dog=%workspace%/bazel/tools/credential-helper

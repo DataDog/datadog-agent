@@ -938,10 +938,19 @@ happen to be present locally will succeed locally and fail in CI or RBE.
 **Hermetic MSVC / MSBuild.** MinGW is the default Windows `cc_toolchain`. Hermetic `cl.exe`,
 Windows SDK, and MSBuild come from `@msvc_toolchains` (staged by
 `bazel/patches/toolchains_msvc/`). Drive MSVC-only sources (C++/WinRT, etc.) with
-`run_binary` + hermetic MSBuild — see `tools/windows/DatadogInterop/BUILD.bazel` and
-`deps/cpython.BUILD.bazel` (`python_win`) — so the rest of the Windows tree stays on MinGW.
+`run_binary` + hermetic MSBuild — see `tools/windows/DatadogInterop/BUILD.bazel` — so the
+rest of the Windows tree stays on MinGW. CPython builds with `cl.exe` through the
+`windows_x86_64_msvc` platform (see `deps/cpython.BUILD.bazel`, `python_win_install`).
 Only do this for a library the Go side loads over a C ABI: MSVC and MinGW objects must not
 be linked into the same binary.
+
+**GNU-only deps for MSVC consumers.** Deps that only build with a GNU toolchain (OpenSSL) are
+cross built from Linux with hermetic-llvm MinGW, through `windows_gnu_filegroup` /
+`windows_gnu_cc_library` in `//bazel/toolchains/hermetic_llvm:windows_gnu.bzl`, and handed to
+`windows_x86_64_msvc` targets as DLLs (see `@openssl//:openssl_msvc`). That only works across a
+DLL boundary, for libraries that export functions but no data: both sides use the UCRT and lld
+writes MSVC import libraries. The MinGW toolchains are only added inside that transition: their
+`target_settings` would also match `//bazel/platforms:windows_x86_64`.
 
 **Path separators.** Bazel stores paths with `/` internally. When constructing command lines or environment variables
 for actions, replace `/` with `\` for Windows tools that don't accept forward slashes:

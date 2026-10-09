@@ -105,12 +105,12 @@ cc_library(
     hdrs = _ZLIB_PUBLIC_HEADERS,
     copts = [
         "-I.",
-        "-Wall",
     ] + select({
         "@platforms//os:windows": [
             "-O2",
         ],
         "@platforms//os:macos": [
+            "-Wall",
             "-fPIC",
             "-O3",
             "-Wno-deprecated-non-prototype",
@@ -119,6 +119,7 @@ cc_library(
         ],
         # TODO: solaris: " -DNO_VIZ",
         "//conditions:default": [
+            "-Wall",
             "-fPIC",
             "-O3",
             "-Wno-deprecated-non-prototype",
@@ -128,7 +129,10 @@ cc_library(
     }),
     includes = ["."],
     local_defines = select({
-        "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],
+        "@platforms//os:windows": [
+            "_CRT_SECURE_NO_DEPRECATE",
+            "_CRT_NONSTDC_NO_DEPRECATE",
+        ],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
