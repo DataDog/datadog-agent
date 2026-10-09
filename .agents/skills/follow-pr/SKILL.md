@@ -40,21 +40,17 @@ dda env dev run --id follow-pr-attach-7C2C42F6 -- ddgl attach --detail=normal --
 
 ## Step 1: Determine the target
 
-1. Determine the ref to follow - either the user passed it in explicitly, or use the current branch (`git branch --show-current`).
-2. Check if there is an open PR for that ref: `gh pr view <ref> --json number,labels,state`
+Determine the ref to follow - either the user passed it in explicitly, or use the current branch (`git branch --show-current`).
 
 > If the user provided a direct pipeline ID, skip to [Step 3](#step-3-resolve-the-autonomy-policy).
 
-> If gh fails to auth, the PR might be on the other org (`DataDog / ddoghq`). Switch using `gh auth switch`.
-> If you cannot manage to get gh auth working, do not bother the user unless you are blocked, and proceed to [Step 3](#step-3-resolve-the-autonomy-policy).
-
 ## Step 2: Attach the label to the PR
 
-If there is a PR associated to the pipeline you are meant to follow, make sure that PR contains the `follow-pr` label:
+Make sure the open PR for that ref, if any, carries the `follow-pr` label:
 ```bash
-gh pr edit <number from previous step> --add-label "follow-pr"
+.agents/skills/follow-pr/scripts/label_pr.sh <ref>
 ```
-> If labeling fails for any reason (auth, missing label, permissions), do not bother the user unless you are blocked, and proceed to [Step 3](#step-3-resolve-the-autonomy-policy).
+The script tries every authenticated `gh` account (the PR may live in either the `DataDog` or `ddoghq` org) and prints a single `ok:` or `skipped:` line. Labeling is best-effort: whatever the result, continue to [Step 3](#step-3-resolve-the-autonomy-policy).
 
 ## Step 3: Resolve the autonomy policy
 
