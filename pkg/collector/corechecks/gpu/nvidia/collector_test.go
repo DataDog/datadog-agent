@@ -636,22 +636,35 @@ func TestRemoveDuplicateSamples(t *testing.T) {
 
 	t.Run("PriorityTie", func(t *testing.T) {
 		// Edge case: same metric name with same priority across collectors
-		// First collector (in iteration order) should win
+		// The collector whose name sorts first should win, regardless of map iteration order
 		allMetrics := map[CollectorName][]Sample{
-			sampling: {
-				metric("metric1", Low, "tagA"),
-			},
 			stateless: {
 				metric("metric1", Low, "tagB"),
 			},
+			sampling: {
+				metric("metric1", Low, "tagA"),
+			},
+			gpm: {
+				metric("metric2", Low, "tagC"),
+			},
+			ebpf: {
+				metric("metric2", Low, "tagD"),
+			},
 		}
 
-		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
-
-		// Should have exactly 1 metric (one collector wins the tie)
-		require.Len(t, result, 1)
-		require.Equal(t, Low, result[0].Priority())
-		// Don't assert which specific tag wins since map iteration order is not guaranteed
+		for range 100 {
+			result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
+			require.Len(t, result, 2)
+			for _, metric := range result {
+				require.Equal(t, Low, metric.Priority())
+				switch metric.Name {
+				case "metric1":
+					require.Equal(t, []string{"tagA"}, metric.Tags())
+				case "metric2":
+					require.Equal(t, []string{"tagD"}, metric.Tags())
+				}
+			}
+		}
 	})
 
 	t.Run("EmptyInputs", func(t *testing.T) {
