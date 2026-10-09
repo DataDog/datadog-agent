@@ -9,6 +9,7 @@ go_library(
     deps = [
         "//comp/metadata/host/impl/hosttags",
         "//pkg/config/setup",
+        "//pkg/config/utils",
         "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
     ],
@@ -19,6 +20,7 @@ dd_agent_go_test(
     srcs = ["host_tag_provider_test.go"],
     embed = [":hosttags"],
     deps = [
+        "//comp/metadata/host/impl/hosttags",
         "//pkg/config/mock",
         "//pkg/config/setup",
         "@com_github_benbjohnson_clock//:clock",
