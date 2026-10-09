@@ -49,7 +49,9 @@ func ReportMetrics(s sender.Sender, cfg *config.CheckConfig, snapshot []client.C
 func indexSnapshotByPath(snapshot []client.CachedValue) map[string][]client.CachedValue {
 	byPath := make(map[string][]client.CachedValue, len(snapshot))
 	for _, cached := range snapshot {
-		byPath[cached.Key.Path] = append(byPath[cached.Key.Path], cached)
+		for _, path := range snapshotPathAliases(cached.Key.Path) {
+			byPath[path] = append(byPath[path], cached)
+		}
 	}
 	return byPath
 }

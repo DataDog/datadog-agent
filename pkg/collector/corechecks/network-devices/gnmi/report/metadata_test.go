@@ -94,7 +94,7 @@ func TestBuildInterfaceMetadata(t *testing.T) {
 func TestBuildInterfaceMetadataDoesNotInventCollidingIndexes(t *testing.T) {
 	snapshot := []client.CachedValue{
 		{
-			Key:   client.CacheKey{Path: "/interfaces/interface/state/name", Keys: map[string]string{"name": "eth0"}},
+			Key:   client.CacheKey{Path: "/openconfig/interfaces/interface/state/name", Keys: map[string]string{"name": "eth0"}},
 			Entry: client.CacheEntry{Value: "eth0"},
 		},
 		{
