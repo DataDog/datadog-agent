@@ -177,8 +177,27 @@ func resolveDefault(cfg model.Reader, pointerPath string) (string, any) {
 	return "none", nil
 }
 
-// Keep a problem's ID stable when its value or wording changes. The DaemonSet
-// discriminator groups a shared configuration; otherwise IDs are scoped to the host.
+// instanceIssueID scopes IssueID to this agent's discriminator, config file,
+// and setting path. Without this, two hosts in the same org validating the same
+// config file (or, on one host, the agent and cluster-agent validating their own
+// distinct config files) would all report the bare IssueID: downstream
+// aggregation keys recommendations on (org, IssueID) alone and would collapse
+// them into a single case. The setting path keeps each configuration problem
+// separate, while excluding the rejected value and wording keeps its ID stable.
+//
+// The discriminator is this agent's owning DaemonSet uid when resolvable
+// (issues.IssueDiscriminator), so that the same setting in a config file
+// distributed by that DaemonSet to every node agent collapses into one case
+// instead of one per host — a deliberate inversion of the default per-host
+// scoping, since the underlying cause and fix are shared across the whole
+// DaemonSet. It falls back to the hostname when the DaemonSet uid cannot be
+// resolved, including on non-Kubernetes agents.
+//
+// Uses a 64-bit digest rather than 32-bit: at 32 bits, an org with ~10k distinct
+// discriminator/config-file/setting combinations would already have a ~1%
+// chance of two of them colliding (birthday bound), silently recreating the
+// aggregation bug this ID scoping exists to fix. At 64 bits that probability
+// is ~2.7e-12 for the same number of combinations.
 func (c *checker) instanceIssueID(settingPath string) string {
 	h := fnv.New64a()
 	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
