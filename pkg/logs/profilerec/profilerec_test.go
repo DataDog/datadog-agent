@@ -135,25 +135,16 @@ func TestRecommend(t *testing.T) {
 			wantBottle: "processor",
 		},
 		{
-			name:       "dropped with send stage saturated and high latency",
+			name:       "missed with send stage saturated and high latency",
 			stages:     workerSat,
-			signals:    Signals{DroppedRecently: true, Delivering: true, SenderLatencyMs: 500},
+			signals:    Signals{MissedRecently: true, Delivering: true, SenderLatencyMs: 500},
 			wantProf:   ProfileHighConcurrency,
 			wantCode:   ReasonSendStageSaturatedHighLatency,
 			wantBottle: "worker",
 		},
-		{
-			name:       "dropped and missed does not mask backpressure",
-			stages:     processorSat,
-			signals:    Signals{DroppedRecently: true, MissedRecently: true, Delivering: true},
-			wantProf:   ProfileHighThroughput,
-			wantCode:   ReasonProcessorSaturated,
-			wantBottle: "processor",
-		},
 		{name: "no loss", stages: workerSat, signals: Signals{Delivering: true}, wantNil: true},
 		{name: "missed with nothing saturated", stages: []Stage{{Name: "processor"}}, signals: Signals{MissedRecently: true, Delivering: true}, wantNil: true},
-		{name: "dropped without send stage saturation", stages: processorSat, signals: Signals{DroppedRecently: true, Delivering: true}, wantNil: true},
-		{name: "send stage not delivering", stages: workerSat, signals: Signals{DroppedRecently: true, MissedRecently: true}, wantNil: true},
+		{name: "send stage not delivering", stages: workerSat, signals: Signals{MissedRecently: true}, wantNil: true},
 		{name: "already on recommended profile", stages: workerSat, active: ProfileHighConcurrency, signals: Signals{MissedRecently: true, Delivering: true}, wantNil: true},
 		{name: "active profile covers recommendation", stages: workerSat, active: ProfileHighThroughput, signals: Signals{MissedRecently: true, Delivering: true}, wantNil: true},
 	}
@@ -188,6 +179,7 @@ func TestReadCounters(t *testing.T) {
 	set("BytesMissed", 4096)
 	set("LogsProcessed", 100)
 	set("LogsSent", 90)
+	set("DestinationErrors", 4)
 	set("SenderLatency", 42)
 	dropped := &expvar.Map{}
 	dropped.Init()
@@ -198,7 +190,7 @@ func TestReadCounters(t *testing.T) {
 	dropped.Set("host-b", b)
 	m.Set("DestinationLogsDropped", dropped)
 
-	assert.Equal(t, Counters{Dropped: 10, Missed: 4096, Processed: 100, Sent: 90, SenderLatencyMs: 42}, ReadCounters(m))
+	assert.Equal(t, Counters{Dropped: 10, Missed: 4096, Processed: 100, Sent: 90, Errors: 4, SenderLatencyMs: 42}, ReadCounters(m))
 }
 
 func TestLossWindowRecency(t *testing.T) {
@@ -241,28 +233,29 @@ func TestLossWindowMissed(t *testing.T) {
 func TestLossWindowDelivering(t *testing.T) {
 	var w LossWindow
 	base := time.Unix(1000, 0)
+	at := func(sec int) time.Time { return base.Add(time.Duration(sec) * time.Second) }
 
-	// First observation only seeds the baseline; assume delivery (no history).
-	_, _, delivering := w.Observe(Counters{}, base)
+	_, _, delivering := w.Observe(Counters{}, at(0))
+	assert.True(t, delivering, "the seed assumes delivery")
+
+	_, _, delivering = w.Observe(Counters{Processed: 100}, at(1))
+	assert.False(t, delivering, "processing without a send")
+
+	_, _, delivering = w.Observe(Counters{Processed: 100, Sent: 50}, at(2))
 	assert.True(t, delivering)
+	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 50}, at(3))
+	assert.False(t, delivering, "a warm outage is detected despite lifetime sends")
 
-	// Logs advanced through processing but none were sent this interval: the
-	// intake is rejecting or unreachable.
-	_, _, delivering = w.Observe(Counters{Processed: 100}, base.Add(time.Second))
-	assert.False(t, delivering)
-
-	// Lifetime sends are nonzero from earlier success, but processing keeps
-	// advancing while sent stays flat: a warm outage must still be detected.
-	_, _, delivering = w.Observe(Counters{Processed: 100, Sent: 50}, base.Add(2*time.Second))
-	assert.True(t, delivering, "a fresh send marks the intake as delivering")
-	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 50}, base.Add(3*time.Second))
-	assert.False(t, delivering, "processing advancing while sent stays flat is a current outage")
-
-	// Sends resume: delivering again.
-	_, _, delivering = w.Observe(Counters{Processed: 300, Sent: 150}, base.Add(4*time.Second))
+	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 150}, at(4))
 	assert.True(t, delivering)
+	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 150}, at(5))
+	assert.True(t, delivering, "an idle pipeline keeps delivering")
 
-	// Idle pipeline (nothing processed or sent this interval): not flagged.
-	_, _, delivering = w.Observe(Counters{Processed: 300, Sent: 150}, base.Add(5*time.Second))
-	assert.True(t, delivering)
+	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 150, Errors: 3}, at(6))
+	assert.False(t, delivering, "send errors without a send, with processing stalled behind them")
+	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 150, Errors: 3}, at(7))
+	assert.False(t, delivering, "a stalled pipeline during backoff stays not delivering")
+
+	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 160, Errors: 5}, at(8))
+	assert.True(t, delivering, "a send in the interval wins over errors from another destination")
 }

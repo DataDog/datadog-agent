@@ -97,7 +97,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		activeProfile = profile.Name
 	}
 	counters := profilerec.ReadCounters(b.logsExpVars)
-	droppedRecently, missedRecently, delivering := b.loss.Observe(counters, time.Now())
+	_, missedRecently, delivering := b.loss.Observe(counters, time.Now())
 	return Status{
 		IsRunning:             b.getIsRunning(),
 		Endpoints:             b.getEndpoints(),
@@ -111,7 +111,7 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 		ComponentUtilization:  utils,
 		Backpressure:          bp,
 		PerformanceProfile:    profile,
-		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, counters.SenderLatencyMs, droppedRecently, missedRecently, delivering),
+		ProfileRecommendation: b.getProfileRecommendation(utils, activeProfile, counters.SenderLatencyMs, missedRecently, delivering),
 		BackpressureTable:     b.formatBackpressureSection(utils, bp),
 	}
 }
@@ -194,7 +194,7 @@ func (b *Builder) getBackpressureStatus(snaps []logsMetrics.ComponentSnapshot) B
 }
 
 // getProfileRecommendation delegates to profilerec so agent status and Agent Health agree.
-func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeProfile string, latencyMs int64, droppedRecently, missedRecently, delivering bool) *ProfileRecommendation {
+func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeProfile string, latencyMs int64, missedRecently, delivering bool) *ProfileRecommendation {
 	stages := make([]profilerec.Stage, 0, len(utils))
 	for _, u := range utils {
 		stages = append(stages, profilerec.Stage{
@@ -205,7 +205,6 @@ func (b *Builder) getProfileRecommendation(utils []ComponentUtilization, activeP
 		})
 	}
 	rec := profilerec.Recommend(stages, activeProfile, profilerec.Signals{
-		DroppedRecently: droppedRecently,
 		MissedRecently:  missedRecently,
 		Delivering:      delivering,
 		SenderLatencyMs: latencyMs,

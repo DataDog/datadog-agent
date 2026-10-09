@@ -151,7 +151,7 @@ func TestRun_GatesResolveOrKeepState(t *testing.T) {
 func TestRun_LossReportsHigh(t *testing.T) {
 	e := newReadyEnv(t)
 	e.summary = saturated(sendStage, 27*time.Minute, true)
-	e.counters = profilerec.Counters{Dropped: 5, SenderLatencyMs: 420}
+	e.counters = profilerec.Counters{Missed: 4096, SenderLatencyMs: 420}
 
 	r := e.report(t, time.Minute)
 
@@ -162,12 +162,41 @@ func TestRun_LossReportsHigh(t *testing.T) {
 	assert.Equal(t, profilerec.ReasonSendStageSaturatedHighLatency, w.ReasonCode)
 	assert.Equal(t, sendStage, w.Bottleneck)
 	assert.EqualValues(t, 420, w.SenderLatencyMs)
-	assert.True(t, w.DroppedRecently)
+	assert.True(t, w.MissedRecently)
 
 	issue, err := RecommendedIssue{}.BuildIssue(r.Context)
 	require.NoError(t, err)
 	assert.Contains(t, extraStrings(t, issue, "evidence"), "Intake latency: 420 ms")
 	assert.Contains(t, extraStrings(t, issue, "evidence"), "Network send stage saturated for 27m of the last 30 minutes")
+}
+
+func TestRun_DropsAreNotLoss(t *testing.T) {
+	e := newReadyEnv(t)
+	e.summary = saturated(sendStage, 27*time.Minute, true)
+	e.counters = profilerec.Counters{Dropped: 5, Sent: 10}
+
+	assert.Equal(t, SuggestedIssueName, e.report(t, time.Minute).IssueName, "permanent send errors are not capacity loss")
+
+	e.summary = healthy()
+	e.counters.Dropped = 9
+	e.report(t, time.Minute)
+	reports, err := e.tick(minHealthyFor)
+	require.NoError(t, err)
+	assert.Empty(t, reports, "ongoing drops do not keep the issue open")
+}
+
+func TestRun_StalledSendStageDoesNotRecommend(t *testing.T) {
+	e := newReadyEnv(t)
+	e.summary = saturated(sendStage, 27*time.Minute, true)
+	e.counters = profilerec.Counters{Errors: 2}
+	_, err := e.tick(time.Minute)
+	require.ErrorIs(t, err, runnerdef.ErrStateUnknown)
+
+	e.counters = profilerec.Counters{Errors: 2, Missed: 4096}
+	reports, err := e.tick(time.Minute)
+
+	require.ErrorIs(t, err, runnerdef.ErrStateUnknown)
+	assert.Empty(t, reports, "nothing moved, so the earlier send errors still mark an outage")
 }
 
 func TestRun_SustainedSaturationWithoutLossReportsLow(t *testing.T) {
@@ -197,7 +226,7 @@ func TestRun_HighSupersedesLow(t *testing.T) {
 	low := e.report(t, time.Minute)
 	require.Equal(t, SuggestedIssueName, low.IssueName)
 
-	e.counters = profilerec.Counters{Dropped: 3}
+	e.counters = profilerec.Counters{Missed: 3}
 	high := e.report(t, time.Minute)
 
 	assert.Equal(t, IssueName, high.IssueName)
@@ -207,7 +236,7 @@ func TestRun_HighSupersedesLow(t *testing.T) {
 func TestRun_HighHeldDoesNotFlipToLow(t *testing.T) {
 	e := newReadyEnv(t)
 	e.summary = saturated(sendStage, 27*time.Minute, true)
-	e.counters = profilerec.Counters{Dropped: 3}
+	e.counters = profilerec.Counters{Missed: 3}
 	require.Equal(t, IssueName, e.report(t, time.Minute).IssueName)
 
 	r := e.report(t, profilerec.LossRecencyWindow+time.Minute)
@@ -306,7 +335,7 @@ func TestRun_AppliedProfileStillLossyResolvesAfterVerifyWindow(t *testing.T) {
 
 	_, err := e.tick(time.Minute)
 	assert.ErrorIs(t, err, runnerdef.ErrStateUnknown)
-	e.counters = profilerec.Counters{Dropped: 5}
+	e.counters = profilerec.Counters{Missed: 5}
 	_, err = e.tick(time.Minute)
 	assert.ErrorIs(t, err, runnerdef.ErrStateUnknown, "a persisted issue is held while the deploy verifies")
 
@@ -326,7 +355,7 @@ func TestRun_ActiveProfileAlreadyAppliedReportsNothing(t *testing.T) {
 	e := newReadyEnv(t)
 	e.active = profilerec.ProfileHighConcurrency
 	e.summary = saturated(sendStage, 27*time.Minute, true)
-	e.counters = profilerec.Counters{Dropped: 5}
+	e.counters = profilerec.Counters{Missed: 5}
 
 	reports, err := e.tick(time.Minute)
 	require.ErrorIs(t, err, runnerdef.ErrStateUnknown)
@@ -359,7 +388,7 @@ func TestRun_PlanGate(t *testing.T) {
 			e := newReadyEnv(t)
 			e.plan = func(string) (profilerec.Plan, bool) { return tt.plan, tt.ok }
 			e.summary = saturated(sendStage, 27*time.Minute, true)
-			e.counters = profilerec.Counters{Dropped: 5}
+			e.counters = profilerec.Counters{Missed: 5}
 
 			reports, err := e.tick(time.Minute)
 
@@ -407,7 +436,7 @@ func TestRun_ListsAreCapped(t *testing.T) {
 	e := newReadyEnv(t)
 	e.plan = func(string) (profilerec.Plan, bool) { return plan, true }
 	e.summary = saturated(sendStage, 27*time.Minute, true)
-	e.counters.Dropped = 1
+	e.counters.Missed = 1
 
 	w := decodeWire(t, e.report(t, time.Minute))
 

@@ -85,12 +85,8 @@ type observation struct {
 	activeProfile string
 }
 
-func (o observation) lossy() bool {
-	return o.dropped || o.missed
-}
-
 func (o observation) healthy() bool {
-	return !o.lossy() && o.state == logsmetrics.BackpressureHealthy
+	return !o.missed && o.state == logsmetrics.BackpressureHealthy
 }
 
 // Run reports the profile to apply and keeps reporting it until the pipeline has stayed
@@ -154,7 +150,6 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 // condition returns the issue that holds right now, or nil.
 func (c *checker) condition(obs observation) *held {
 	rec := profilerec.Recommend(obs.stages, obs.activeProfile, profilerec.Signals{
-		DroppedRecently: obs.dropped,
 		MissedRecently:  obs.missed,
 		Delivering:      obs.delivering,
 		SenderLatencyMs: obs.counters.SenderLatencyMs,
@@ -164,7 +159,7 @@ func (c *checker) condition(obs observation) *held {
 	}
 
 	holdingHigh := c.held != nil && c.held.kind == recommended
-	if obs.lossy() || !obs.delivering || obs.state == logsmetrics.BackpressureHealthy || holdingHigh {
+	if obs.missed || !obs.delivering || obs.state == logsmetrics.BackpressureHealthy || holdingHigh {
 		return nil
 	}
 	bottleneck := profilerec.Bottleneck(obs.stages)

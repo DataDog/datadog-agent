@@ -67,7 +67,7 @@ func TestLogsProfileRecommendationSurvivesFullPipeline(t *testing.T) {
 			case <-stop:
 				return
 			case <-time.After(10 * time.Millisecond):
-				logsmetrics.DestinationLogsDropped.Add("destination_reliable_0", 1)
+				logsmetrics.BytesMissed.Add(1)
 			}
 		}
 	}()

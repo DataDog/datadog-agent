@@ -70,8 +70,8 @@ type Recommendation struct {
 
 // Signals are the recent-loss inputs.
 type Signals struct {
-	DroppedRecently, MissedRecently, Delivering bool
-	SenderLatencyMs                             int64
+	MissedRecently, Delivering bool
+	SenderLatencyMs            int64
 }
 
 // componentSortOrder defines the canonical downstream ordering of pipeline components.
@@ -138,19 +138,16 @@ func ForBottleneck(component string, latencyMs int64) (profile, reasonCode, reas
 	}
 }
 
-// Recommend suggests a profile only when logs were recently lost; saturation merely localizes the bottleneck.
+// Recommend suggests a profile only when bytes were recently missed; saturation merely localizes the bottleneck.
+// Destination drops are not a signal: they count permanent send errors, which no profile fixes.
 // It returns nil when nothing is being lost, when no profile would help, or when activeProfile already covers the suggestion.
 func Recommend(stages []Stage, activeProfile string, s Signals) *Recommendation {
-	if !s.DroppedRecently && !s.MissedRecently {
+	if !s.MissedRecently {
 		return nil
 	}
 
 	bottleneck := Bottleneck(stages)
-
-	// Evaluated independently so a recent drop that maps to nothing does not mask a fixable read-side bottleneck.
-	sendStageLoss := s.DroppedRecently && IsSendStage(bottleneck) && s.Delivering
-	backpressureLoss := s.MissedRecently && bottleneck != "" && !(IsSendStage(bottleneck) && !s.Delivering)
-	if !sendStageLoss && !backpressureLoss {
+	if bottleneck == "" || (IsSendStage(bottleneck) && !s.Delivering) {
 		return nil
 	}
 
@@ -170,7 +167,7 @@ func Recommend(stages []Stage, activeProfile string, s Signals) *Recommendation 
 
 // Counters is a snapshot of the logs expvars.
 type Counters struct {
-	Dropped, Missed, Processed, Sent, SenderLatencyMs int64
+	Dropped, Missed, Processed, Sent, Errors, SenderLatencyMs int64
 }
 
 // ReadCounters reads the counters from an expvar map shaped like logsmetrics.LogsExpvars; a nil map yields zeros.
@@ -183,6 +180,7 @@ func ReadCounters(m *expvar.Map) Counters {
 		Missed:          intVar(m, "BytesMissed"),
 		Processed:       intVar(m, "LogsProcessed"),
 		Sent:            intVar(m, "LogsSent"),
+		Errors:          intVar(m, "DestinationErrors"),
 		SenderLatencyMs: intVar(m, "SenderLatency"),
 	}
 }
@@ -217,22 +215,24 @@ type LossWindow struct {
 	seeded                  bool
 	lastDropped, lastMissed int64
 	lastProcessed, lastSent int64
+	lastErrors              int64
 	droppedAt, missedAt     time.Time
+	delivering              bool
 }
 
 // Observe records the counters at time now and reports whether each kind of loss occurred within
 // LossRecencyWindow, plus whether the intake is currently delivering. The first call only seeds the
 // baseline, reporting no loss and assuming delivery.
 //
-// delivering is false only when logs advanced through processing in the latest interval but none were sent.
-// Lifetime totals are not used: an outage after successful delivery leaves Sent > 0 forever.
+// A send in the latest interval means delivering; processing or send errors without a send mean not;
+// an interval where nothing moved keeps the previous answer, since a stalled pipeline and an idle one look alike.
 func (w *LossWindow) Observe(c Counters, now time.Time) (droppedRecently, missedRecently, delivering bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if !w.seeded {
-		w.seeded = true
+		w.seeded, w.delivering = true, true
 		w.lastDropped, w.lastMissed = c.Dropped, c.Missed
-		w.lastProcessed, w.lastSent = c.Processed, c.Sent
+		w.lastProcessed, w.lastSent, w.lastErrors = c.Processed, c.Sent, c.Errors
 		return false, false, true
 	}
 	if c.Dropped > w.lastDropped {
@@ -241,10 +241,15 @@ func (w *LossWindow) Observe(c Counters, now time.Time) (droppedRecently, missed
 	if c.Missed > w.lastMissed {
 		w.missedAt = now
 	}
-	delivering = !(c.Processed > w.lastProcessed && c.Sent == w.lastSent)
+	switch {
+	case c.Sent > w.lastSent:
+		w.delivering = true
+	case c.Processed > w.lastProcessed || c.Errors > w.lastErrors:
+		w.delivering = false
+	}
 	w.lastDropped, w.lastMissed = c.Dropped, c.Missed
-	w.lastProcessed, w.lastSent = c.Processed, c.Sent
+	w.lastProcessed, w.lastSent, w.lastErrors = c.Processed, c.Sent, c.Errors
 	droppedRecently = !w.droppedAt.IsZero() && now.Sub(w.droppedAt) <= LossRecencyWindow
 	missedRecently = !w.missedAt.IsZero() && now.Sub(w.missedAt) <= LossRecencyWindow
-	return droppedRecently, missedRecently, delivering
+	return droppedRecently, missedRecently, w.delivering
 }
