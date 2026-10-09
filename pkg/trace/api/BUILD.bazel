@@ -141,6 +141,7 @@ dd_agent_go_test(
         "connection_type_nix_test.go",
         "connection_type_test.go",
         "container_linux_test.go",
+        "container_tags_hash_test.go",
         "converter_test.go",
         "debugger_test.go",
         "dogstatsd_test.go",
