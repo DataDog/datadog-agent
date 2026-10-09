@@ -59,7 +59,6 @@ func (s *eudmWindowsSuite) TestSerialHostname() {
 			var payload struct {
 				Hostname string                 `json:"internalHostname"`
 				Meta     map[string]interface{} `json:"meta"`
-				Gohai    string                 `json:"gohai"`
 			}
 			require.NoError(c, json.Unmarshal(data, &payload))
 			if payload.Meta == nil {
@@ -67,19 +66,10 @@ func (s *eudmWindowsSuite) TestSerialHostname() {
 			}
 			matched++
 			assert.Equal(c, expected, payload.Hostname)
-			for _, field := range []string{"hostname", "agent-hostname", "socket-hostname", "socket-fqdn"} {
-				assert.Equal(c, expected, payload.Meta[field], field)
-			}
-			for _, field := range []string{"host_aliases", "ec2-hostname", "instance-id", "legacy-resolution-hostname", "ccrid"} {
-				assert.Empty(c, payload.Meta[field], field)
-			}
-			var hardware struct {
-				Platform struct {
-					Hostname string `json:"hostname"`
-				} `json:"platform"`
-			}
-			require.NoError(c, json.Unmarshal([]byte(payload.Gohai), &hardware))
-			assert.Equal(c, expected, hardware.Platform.Hostname)
+			assert.Equal(c, expected, payload.Meta["agent-hostname"])
+			assert.NotEmpty(c, payload.Meta["socket-hostname"])
+			assert.NotEmpty(c, payload.Meta["socket-fqdn"])
+			assert.Contains(c, payload.Meta["host_aliases"], "eudm-test-alias")
 		}
 		assert.Positive(c, matched, "no host metadata received")
 	}, 5*time.Minute, 15*time.Second)

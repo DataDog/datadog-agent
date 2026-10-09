@@ -24,12 +24,9 @@ the Agent logs a warning and continues through the existing providers.
 
 The result is cached until restart. Network-derived macOS hostname changes do
 not change it; intentional Computer Name changes take effect after restart.
-In end-user-device mode, host metadata uses the selected name for every hostname
-field, including the embedded gohai platform hostname. Cloud and configured host
-aliases, EC2 hostname/instance ID, legacy hostname and canonical cloud resource ID
-are not populated in the host identity metadata. This also applies to explicit
-hostname overrides and fallback resolution: only the selected identity is sent.
-Cloud resource details in inventory and tags remain descriptive metadata.
+The selected name is the primary Agent hostname. Host metadata also sends it as
+`agent-hostname` for canonical naming, including names with an EC2-default prefix.
+Existing OS/cloud metadata and configured/cloud aliases remain available.
 No historical identity migration is performed. Devices sharing both a device
 name and serial can still collide, and failed serial collection across restarts
 can switch a host back to its legacy identity.

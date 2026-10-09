@@ -96,28 +96,24 @@ func TestCanonicalConfiguredMetadata(t *testing.T) {
 	}
 }
 
-// Alternative identity fields must stay empty even with aliases configured,
-// regardless of whether the selected name is generated, configured, or a fallback.
-func TestEUDMMetadataHasOneIdentity(t *testing.T) {
-	for _, provider := range []string{hostnameinterface.EUDMProvider, hostnameinterface.ConfigProvider, "os", "aws"} {
-		t.Run(provider, func(t *testing.T) {
-			cfg := config.NewMock(t)
-			cfg.SetInTest("infrastructure_mode", "end_user_device")
-			cfg.SetInTest("host_aliases", []string{"shared-device", "i-other-identity"})
-			cfg.SetInTest("collect_ccrid", true)
-			cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", true)
-			const selected = "ip-device-abc123"
-			host := identityHostname{data: hostnameinterface.Data{Hostname: selected, Provider: provider}}
-			encoded, err := json.Marshal(getMeta(context.Background(), cfg, host))
-			require.NoError(t, err)
-			var payload map[string]interface{}
-			require.NoError(t, json.Unmarshal(encoded, &payload))
-			for _, field := range []string{"hostname", "agent-hostname", "socket-hostname", "socket-fqdn"} {
-				assert.Equal(t, selected, payload[field], field)
-			}
-			for _, field := range []string{"host_aliases", "ec2-hostname", "instance-id", "legacy-resolution-hostname", "ccrid", "cluster-name"} {
-				assert.Empty(t, payload[field], field)
-			}
-		})
-	}
+// EUDM selects a canonical hostname without discarding OS metadata or aliases.
+func TestEUDMCanonicalHostnamePreservesAliases(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetInTest("infrastructure_mode", "end_user_device")
+	cfg.SetInTest("cloud_provider_metadata", []string{})
+	cfg.SetInTest("ec2_use_dmi", false)
+	cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
+	cfg.SetInTest("host_aliases", []string{"shared-device", "i-other-identity"})
+	const selected = "ip-device-abc123"
+	host := identityHostname{data: hostnameinterface.Data{Hostname: selected, Provider: hostnameinterface.EUDMProvider}}
+	encoded, err := json.Marshal(getMeta(context.Background(), cfg, host))
+	require.NoError(t, err)
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(encoded, &payload))
+	assert.Equal(t, selected, payload["agent-hostname"])
+	osHostname, err := os.Hostname()
+	require.NoError(t, err)
+	assert.Equal(t, osHostname, payload["socket-hostname"])
+	assert.NotEmpty(t, payload["socket-fqdn"])
+	assert.ElementsMatch(t, []string{"shared-device", "i-other-identity"}, payload["host_aliases"])
 }

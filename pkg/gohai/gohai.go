@@ -99,55 +99,36 @@ type Payload struct {
 	Gohai *gohai `json:"gohai"`
 }
 
-// Option configures how host metadata is collected.
-type Option func(*payloadOptions)
-
-type payloadOptions struct {
-	platformHostname string
-}
-
-// WithPlatformHostname replaces the OS hostname in platform metadata with the
-// selected Agent hostname. An empty name leaves OS hostname collection unchanged.
-func WithPlatformHostname(hostname string) Option {
-	return func(options *payloadOptions) {
-		options.platformHostname = hostname
-	}
-}
-
 // GetPayload builds a payload of every metadata collected with gohai except processes metadata.
 // fallbackHost, when non-empty, is resolved and reported as the host's network IP if the
 // agent is containerized and running without host networking (see getGohaiInfo). It may be
 // an IP literal or a hostname (e.g. the kubernetes_kubelet_host config value).
-func GetPayload(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string, options ...Option) *Payload {
+func GetPayload(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, false, fallbackHost, options...),
+		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, false, fallbackHost),
 	}
 }
 
 // GetPayloadWithProcesses builds a pyaload of all metdata including processes. See GetPayload
 // for the meaning of fallbackHost.
-func GetPayloadWithProcesses(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string, options ...Option) *Payload {
+func GetPayloadWithProcesses(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string) *Payload {
 	return &Payload{
-		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, true, fallbackHost, options...),
+		Gohai: getGohaiInfo(hostname, useHostnameResolver, isContainerized, true, fallbackHost),
 	}
 }
 
 // GetPayloadAsString marshals the gohai struct twice (to a string). This allows the gohai payload to be embedded as a
 // string in a JSON. This is required to mimic the metadata format inherited from Agent v5. See GetPayload for the
 // meaning of fallbackHost.
-func GetPayloadAsString(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string, options ...Option) (string, error) {
-	marshalledPayload, err := json.Marshal(getGohaiInfo(hostname, useHostnameResolver, isContainerized, false, fallbackHost, options...))
+func GetPayloadAsString(hostname string, useHostnameResolver, isContainerized bool, fallbackHost string) (string, error) {
+	marshalledPayload, err := json.Marshal(getGohaiInfo(hostname, useHostnameResolver, isContainerized, false, fallbackHost))
 	if err != nil {
 		return "", err
 	}
 	return string(marshalledPayload), nil
 }
 
-func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withProcesses bool, fallbackHost string, options ...Option) *gohai {
-	settings := payloadOptions{}
-	for _, option := range options {
-		option(&settings)
-	}
+func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withProcesses bool, fallbackHost string) *gohai {
 	res := new(gohai)
 
 	cpuPayload, warns, err := cpu.CollectInfo().AsJSON()
@@ -235,11 +216,7 @@ func getGohaiInfo(hostname string, useHostnameResolver, isContainerized, withPro
 		}
 	}
 
-	platformInfo := platform.CollectInfo()
-	if settings.platformHostname != "" {
-		platformInfo.Hostname = utils.NewValue(settings.platformHostname)
-	}
-	platformPayload, warns, err := platformInfo.AsJSON()
+	platformPayload, warns, err := platform.CollectInfo().AsJSON()
 	if err == nil {
 		res.Platform = platformPayload
 	} else {
