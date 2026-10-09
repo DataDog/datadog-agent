@@ -130,21 +130,22 @@ func TestEvaluateFiresOnTransitionsOnly(t *testing.T) {
 // TestAgentMemoryMonitor runs the monitor from Example_agentMemoryUsage against the agent_performance gauges.
 func TestAgentMemoryMonitor(t *testing.T) {
 	tel := telemetryimpl.NewMock(t)
-	usage := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "agent_performance__memory_usage"}, []string{"kind", "pod_name"})
-	limit := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "agent_performance__memory_limit"}, []string{"kind", "pod_name"})
+	usage := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "agent_performance__container_memory_usage"}, []string{"kind", "pod_name", "kube_container_name"})
+	limit := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "agent_performance__container_memory_limit"}, []string{"kind", "pod_name", "kube_container_name"})
 	tel.GetRegistry().MustRegister(usage, limit)
-	// The cluster Agent series must not leak into the node Agent ratio.
-	usage.WithLabelValues("cluster-agent", "dca").Set(1000)
-	limit.WithLabelValues("cluster-agent", "dca").Set(1000)
-	limit.WithLabelValues("agent", "node-agent").Set(1000)
+	// The cluster Agent series, and the node Agent containers other than agent, must not leak into the ratio.
+	usage.WithLabelValues("cluster-agent", "dca", "cluster-agent").Set(1000)
+	limit.WithLabelValues("cluster-agent", "dca", "cluster-agent").Set(1000)
+	usage.WithLabelValues("agent", "node-agent", "trace-agent").Set(1000)
+	limit.WithLabelValues("agent", "node-agent", "agent").Set(1000)
 
 	var events []metricsevaluator.Event
 	e := newEvaluator(logmock.New(t), tel, time.Minute)
 	require.NoError(t, e.Register(metricsevaluator.Monitor{
 		Name:        "agent_memory_usage",
-		Metric:      "agent_performance__memory_usage",
-		DivideBy:    "agent_performance__memory_limit",
-		Tags:        map[string]string{"kind": "agent"},
+		Metric:      "agent_performance__container_memory_usage",
+		DivideBy:    "agent_performance__container_memory_limit",
+		Tags:        map[string]string{"kind": "agent", "kube_container_name": "agent"},
 		Window:      5 * time.Minute,
 		Aggregation: metricsevaluator.AggregationAvg,
 		Comparator:  metricsevaluator.ComparatorAbove,
@@ -153,7 +154,7 @@ func TestAgentMemoryMonitor(t *testing.T) {
 	}))
 
 	evaluate := func(used float64) {
-		usage.WithLabelValues("agent", "node-agent").Set(used)
+		usage.WithLabelValues("agent", "node-agent", "agent").Set(used)
 		e.evaluate(time.Now())
 	}
 
