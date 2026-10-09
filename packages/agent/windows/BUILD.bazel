@@ -70,6 +70,8 @@ pkg_filegroup(
         ":python_scripts",
         ":windows_scripts",
         "//deps/agent_integrations:all_files",
+        "//packages/install_dir:embedded",
+        "//packages/install_dir:etc",
         "@cpython//:all_files",
     ],
     prefix = "datadog-agent",
