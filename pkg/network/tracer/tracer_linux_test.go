@@ -48,6 +48,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -4183,4 +4184,100 @@ options ndots:1`
 		require.True(ct, ok, "container didn't have a resolv.conf")
 		require.Equal(ct, trueResolvConf, resolvConf.Get(), "resolv.conf was found, but didn't match expected value")
 	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper resolv.conf")
+}
+
+// TestNetNSContainerAttribution mimics Istio ambient's ztunnel: a process in one container enters
+// another pod's network namespace (setns) and opens sockets there. Those sockets must be attributed
+// to the pod that owns the namespace, while the process's sockets in its own namespace keep its
+// container.
+func (s *TracerSuite) TestNetNSContainerAttribution() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.EnableProcessEventMonitoring = true
+	tr := setupTracer(t, cfg)
+	require.NotNil(t, tr.processCache)
+
+	podNS := netlinktestutil.AddNS(t)
+	testutil.RunCommands(t, []string{"ip -n " + podNS + " link set lo up"}, false)
+
+	podNSHandle, err := vnetns.GetFromName(podNS)
+	require.NoError(t, err)
+	t.Cleanup(func() { podNSHandle.Close() })
+	podNSIno, err := netns.GetInoForNs(podNSHandle)
+	require.NoError(t, err)
+
+	ownNSIno, err := netns.GetNetNsInoFromPid(kernel.ProcFSRoot(), os.Getpid())
+	require.NoError(t, err)
+
+	const (
+		proxyPID = 1001 // stand-in PIDs, mapped to namespaces below rather than read from procfs
+		appPID   = 1002
+	)
+	r, err := newNetNSContainerResolver([]string{"ztunnel"})
+	require.NoError(t, err)
+	r.readNetNS = func(pid int) (uint32, error) {
+		switch pid {
+		case proxyPID:
+			return ownNSIno, nil
+		case appPID:
+			return podNSIno, nil
+		}
+		return 0, errors.New("unknown pid")
+	}
+	r.process([]workloadmeta.Event{
+		testContainerEvent(workloadmeta.EventTypeSet, "proxy-container", "ztunnel", proxyPID),
+		testContainerEvent(workloadmeta.EventTypeSet, "app-container", "router", appPID),
+	})
+	tr.netnsResolver.Store(r)
+
+	// the test process plays the proxy: its own container, with process tags
+	proxyCID := intern.GetByString("proxy-container")
+	appCID := intern.GetByString("app-container")
+	tr.processCache.add(&events.Process{
+		Pid:         uint32(os.Getpid()),
+		Tags:        []*intern.Value{intern.GetByString("service:ztunnel")},
+		ContainerID: proxyCID,
+		StartTime:   time.Now().Add(-time.Hour).UnixNano(),
+		Expiry:      time.Now().Add(5 * time.Minute).Unix(),
+	})
+
+	// connection inside the pod's namespace, opened after setns
+	var podServer *tracertestutil.TCPServer
+	var podConn net.Conn
+	err = netns.WithNS(podNSHandle, func() error {
+		podServer = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+		if err := podServer.Run(); err != nil {
+			return err
+		}
+		var dialErr error
+		podConn, dialErr = podServer.Dial()
+		return dialErr
+	})
+	require.NoError(t, err)
+	t.Cleanup(podServer.Shutdown)
+	t.Cleanup(func() { podConn.Close() })
+
+	// control connection in the process's own namespace
+	ownServer := tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+	require.NoError(t, ownServer.Run())
+	t.Cleanup(ownServer.Shutdown)
+	ownConn, err := ownServer.Dial()
+	require.NoError(t, err)
+	t.Cleanup(func() { ownConn.Close() })
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+
+		pod, ok := findConnection(podConn.LocalAddr(), podConn.RemoteAddr(), conns)
+		require.True(collect, ok, "connection in the pod namespace not found")
+		assert.Equal(collect, podNSIno, pod.NetNS)
+		assert.Equal(collect, appCID, pod.ContainerID.Source, "socket in the pod namespace must be attributed to the pod")
+		assert.Empty(collect, pod.Tags, "the proxy's process tags must not move onto the pod")
+
+		own, ok := findConnection(ownConn.LocalAddr(), ownConn.RemoteAddr(), conns)
+		require.True(collect, ok, "connection in the proxy's own namespace not found")
+		assert.Equal(collect, proxyCID, own.ContainerID.Source, "socket in the proxy's own namespace keeps its container")
+		assert.NotEmpty(collect, own.Tags)
+	}, 3*time.Second, 100*time.Millisecond)
 }
