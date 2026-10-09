@@ -11,19 +11,18 @@ library's own sources stay in its repository.
 | | |
 |---|---|
 | Source | `DataDog/foldspace`, crate `bindings/go/native` (`foldspace-go-ffi`) |
-| Commit | `926d529e59a3c8c3612ef7ba50911377c2294b22` |
+| Commit | `a2e956956b121dc4574bd99c647e149c8312016c` |
 | Rust | 1.94.0, per the library's `rust-toolchain.toml` |
-| ABI | 4, as asserted against `FOLDSPACE_ABI_VERSION` at construction |
+| ABI | 1, as asserted against `FOLDSPACE_ABI_VERSION` at construction |
 
 | Platform | sha256 |
 |---|---|
-| `linux_amd64/libfoldspace_go.so` | `f00ec97ccefd01c62975eb3e83cc3479b8aac0798168998e04fa9f3cd491d1c8` |
-| `linux_arm64/libfoldspace_go.so` | `865842f53a28f670c807713e8fc6d842a0b51b64d8fec1f91b8075bff23c89be` |
+| `linux_amd64/libfoldspace_go.so` | `2fac8ea5971684ab7b9e9d03c2ff7aa3a9c82e0845e4972a70f2f85662b7a81b` |
+| `linux_arm64/libfoldspace_go.so` | `6dc60c151f2c93820d61050a3656da35fcdf28c00b4d983167e0692b36b36173` |
 
-Platforms without a binary here cannot build the `foldspace` tag, which is why
-it appears in the excluded tag sets for darwin, Windows and AIX in
-`tasks/build_tags.bzl`. Building on those platforms takes a locally produced
-library and `CGO_LDFLAGS`.
+Platforms without a binary here cannot build the `foldspace` tag from this
+directory. Windows and AIX exclude the tag in `tasks/build_tags.bzl`. Darwin
+does not: it links a locally produced library through `CGO_LDFLAGS`.
 
 ## Regenerating
 
@@ -32,13 +31,15 @@ particular revision exports, and a mismatch is caught at construction rather
 than at link time. Take both from the same commit.
 
 Both arches build in an `arm64` container. `amd64` is cross-compiled rather
-than emulated, because QEMU crashes gcc while building zstd's C sources.
+than emulated, because QEMU crashes gcc while building zstd's C sources. The
+paths are under `$HOME` because that is the one directory every macOS Docker
+VM shares by default; Colima shares nothing else.
 
 ```bash
-git -C <foldspace> worktree add /tmp/fs-pin 926d529e59a3c8c3612ef7ba50911377c2294b22
+git -C <foldspace> worktree add ~/fs-pin a2e956956b121dc4574bd99c647e149c8312016c
 
 docker run --rm --platform linux/arm64 \
-  -v /tmp/fs-pin:/src:ro -v /tmp/fs-out:/out -w /src \
+  -v ~/fs-pin:/src:ro -v ~/fs-out:/out -w /src \
   -e CARGO_TARGET_DIR=/out/target \
   rust:1.94.0 bash -c '
     apt-get update -qq && apt-get install -y -qq protobuf-compiler gcc-x86-64-linux-gnu

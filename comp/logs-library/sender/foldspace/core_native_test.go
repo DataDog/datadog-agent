@@ -23,8 +23,7 @@ import (
 // with their separate frees, and the copy out of a batch lease.
 //
 // The config must be complete, because the library validates it and refuses a
-// zero reconnect backoff, and requires snapshot_batch_id below
-// first_payload_batch_id (the zero value for both is not below itself).
+// zero reconnect backoff.
 func TestNativeCoreRoundTrip(t *testing.T) {
 	core, err := NewNativeCore(Config{
 		Endpoints:              []Endpoint{{Address: "127.0.0.1:1", Class: Reliable}},
@@ -34,7 +33,6 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 		ReconnectBackoffBase:   time.Second,
 		ReconnectBackoffFactor: 2,
 		ReconnectBackoffCap:    30 * time.Second,
-		FirstPayloadBatchID:    1,
 	})
 	require.NoError(t, err)
 	t.Cleanup(core.Close)

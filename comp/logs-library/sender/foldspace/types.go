@@ -192,8 +192,9 @@ type Config struct {
 	ReconnectBackoffCap    time.Duration
 	DrainTimeout           time.Duration
 	StreamLifetime         time.Duration
-	FirstPayloadBatchID    uint32
-	SnapshotBatchID        uint32
+	// FirstBatchID is the id a stream's first batch takes, which every later
+	// batch on that stream counts up from.
+	FirstBatchID uint32
 }
 
 // Record is one log offered to the library.

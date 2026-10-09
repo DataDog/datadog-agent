@@ -554,6 +554,35 @@ func TestSendDeadlineFailsStalledStream(t *testing.T) {
 	assert.Equal(t, [][]byte{[]byte("after")}, transport.Sent(0))
 }
 
+// A dial to an intake that never answers runs until ConnectTimeout, and the
+// sender goroutine making it is one Stop waits on. Stop must end the dial
+// rather than wait it out.
+func TestStopDoesNotWaitOutAnOpen(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	transport := NewFakeTransport(1)
+	transport.blockOpen = true
+	d := NewDriver(DriverOptions{
+		Core:            core,
+		Transport:       transport,
+		Sink:            newChannelSink(),
+		PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
+		ConnectTimeout:  time.Minute,
+		ShutdownTimeout: 200 * time.Millisecond,
+	})
+	d.Start()
+
+	stopped := make(chan struct{})
+	go func() {
+		d.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop waited on an open bounded only by ConnectTimeout")
+	}
+}
+
 // MRF routing follows destination_sender.go's canSend() gate for the primary
 // HTTP path: an MRF sender is reached only when the record is itself
 // MRF-allowed and multi_region_failover.enabled/failover_logs are both true.
