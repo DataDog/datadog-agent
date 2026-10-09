@@ -121,6 +121,7 @@ func NewProvider(
 					PipelineDepth:     dest.PipelineDepth,
 					ConnectTimeout:    dest.ConnectTimeout,
 					SendTimeout:       dest.SendTimeout,
+					AckTimeout:        dest.AckTimeout,
 					ShutdownTimeout:   dest.ShutdownTimeout,
 					StateRequestBytes: dest.StateRequestBytes,
 					BatchWait:         dest.BatchWait,

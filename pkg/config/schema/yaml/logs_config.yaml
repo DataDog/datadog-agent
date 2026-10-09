@@ -175,6 +175,19 @@ properties:
         comment: How long to wait for a keepalive ping ack before closing the connection.
         tags:
         - golang_type:duration
+      ack_timeout:
+        node_type: setting
+        type: string
+        default: 30s
+        format: duration
+        comment: |
+          How long a stream may hold unacknowledged batches with no
+          acknowledgement arriving before it is failed and reopened. It catches
+          an intake that still answers keepalive pings but has stopped
+          acknowledging; an intake that acknowledges slowly but steadily is never
+          failed by it.
+        tags:
+        - golang_type:duration
   use_compression:
     node_type: setting
     type: boolean
