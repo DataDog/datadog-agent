@@ -30,6 +30,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	gnmicfg "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -47,9 +48,11 @@ type cliParams struct {
 	profile            string
 	collectTopology    bool
 	useTLS             bool
+	useTLSSet          bool
 	insecureSkipVerify bool
 	encoding           string
 	instanceIndex      int
+	confFile           string
 	interval           time.Duration
 	fastReconnect      bool
 	listPaths          bool
@@ -87,38 +90,34 @@ with --instance.
 The password is never accepted as a flag, so that it does not show up in the
 process list or shell history. It is read from the instance configuration
 (--instance) or, if set, from the ` + "`" + passwordEnvVar + "`" + ` environment variable.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(
-				runSubscribe,
-				fx.Supply(params),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(
-						globalParams.ConfFilePath,
-						config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
-						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
-					),
-					LogParams: log.ForOneShot(command.LoggerName, "off", true),
-				}),
-				core.Bundle(),
-			)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			params.useTLSSet = cmd.Flags().Changed("use-tls")
+			return runOneShot(globalParams, runSubscribe, params)
 		},
 	}
 
-	subscribeCmd.Flags().StringVar(&params.address, "address", "", "gNMI target address")
-	subscribeCmd.Flags().IntVar(&params.port, "port", 0, "gNMI target port (default: from instance config or 57400)")
-	subscribeCmd.Flags().StringVar(&params.username, "username", "", "gNMI username")
-	subscribeCmd.Flags().StringVar(&params.profile, "profile", "", "Profile name or path under conf.d/gnmi.d/profiles/")
-	subscribeCmd.Flags().BoolVar(&params.collectTopology, "collect-topology", false, "Subscribe to LLDP topology paths")
-	subscribeCmd.Flags().BoolVar(&params.useTLS, "use-tls", true, "Use TLS for the gRPC transport")
-	subscribeCmd.Flags().BoolVar(&params.insecureSkipVerify, "insecure-skip-verify", false, "Skip TLS certificate verification")
-	subscribeCmd.Flags().StringVar(&params.encoding, "encoding", "", "gNMI encoding: proto, json, or json_ietf (default: json_ietf)")
-	subscribeCmd.Flags().IntVar(&params.instanceIndex, "instance", -1, "Load settings from conf.d/gnmi.d/conf.yaml instance index")
-	subscribeCmd.Flags().DurationVar(&params.interval, "interval", 2*time.Second, "How often to print status and cached values")
-	subscribeCmd.Flags().BoolVar(&params.fastReconnect, "fast-reconnect", true, "Use shorter reconnect backoff for interactive debugging")
+	registerTargetFlags(subscribeCmd, params)
 	subscribeCmd.Flags().BoolVar(&params.listPaths, "list-paths", false, "Print subscription paths and exit without subscribing")
 
 	gnmiCmd.AddCommand(subscribeCmd)
+	gnmiCmd.AddCommand(previewMetricsCommand(globalParams, params))
 	return []*cobra.Command{gnmiCmd}
+}
+
+func runOneShot(globalParams *command.GlobalParams, oneShotFunc any, params any) error {
+	return fxutil.OneShot(
+		oneShotFunc,
+		fx.Supply(params),
+		fx.Supply(core.BundleParams{
+			ConfigParams: config.NewAgentParams(
+				globalParams.ConfFilePath,
+				config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
+				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+			),
+			LogParams: log.ForOneShot(command.LoggerName, "off", true),
+		}),
+		core.Bundle(),
+	)
 }
 
 func runSubscribe(params *cliParams, config config.Component) error {
@@ -216,6 +215,11 @@ func validateSubscribeParams(params *cliParams) error {
 }
 
 func resolveSubscribeTarget(config config.Component, params *cliParams) (*gnmicfg.InstanceConfig, *gnmicfg.ProfileDefinition, error) {
+	if params.confFile != "" {
+		confdPath := filepath.Dir(filepath.Dir(params.confFile))
+		config.Set("confd_path", confdPath, pkgconfigmodel.SourceCLI)
+	}
+
 	instance := gnmicfg.InstanceConfig{
 		Port:               params.port,
 		CollectTopology:    params.collectTopology,
@@ -224,7 +228,7 @@ func resolveSubscribeTarget(config config.Component, params *cliParams) (*gnmicf
 	}
 
 	if params.instanceIndex >= 0 {
-		loaded, err := loadInstanceFromConfig(config, params.instanceIndex)
+		loaded, err := loadInstanceFromConfig(config, params.confFile, params.instanceIndex)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -248,7 +252,7 @@ func resolveSubscribeTarget(config config.Component, params *cliParams) (*gnmicf
 	} else if instance.Port == 0 {
 		instance.Port = gnmicfg.DefaultPort
 	}
-	if params.useTLS {
+	if params.instanceIndex < 0 || params.useTLSSet {
 		instance.UseTLS = params.useTLS
 	}
 	if params.collectTopology {
@@ -285,11 +289,14 @@ func resolveSubscribeTarget(config config.Component, params *cliParams) (*gnmicf
 	return &instance, profile, nil
 }
 
-func loadInstanceFromConfig(config config.Component, index int) (*gnmicfg.InstanceConfig, error) {
-	confPath := filepath.Join(config.GetString("confd_path"), "gnmi.d", "conf.yaml")
+func loadInstanceFromConfig(config config.Component, confFile string, index int) (*gnmicfg.InstanceConfig, error) {
+	confPath := confFile
+	if confPath == "" {
+		confPath = filepath.Join(config.GetString("confd_path"), "gnmi.d", "conf.yaml")
+	}
 	buf, err := os.ReadFile(confPath)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", confPath, err)
+		return nil, fmt.Errorf("read %s: %w (use -c to point at the directory containing datadog.yaml, or pass --conf-file to the gNMI conf.yaml directly)", confPath, err)
 	}
 
 	var instances gnmiInstanceFile

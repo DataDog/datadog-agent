@@ -8,12 +8,12 @@ package report
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"sort"
 	"strings"
 	"time"
 
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
@@ -72,7 +72,7 @@ func InterfaceSnapshotComplete(snapshot []client.CachedValue, metadata config.Me
 
 // ReportMetadata builds and submits device and interface metadata payloads.
 // The returned bool is true when at least one metadata payload was sent.
-func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, collectTime time.Time) (bool, error) {
+func ReportMetadata(s Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, collectTime time.Time) (bool, error) {
 	if s == nil {
 		return false, errors.New("sender is nil")
 	}
@@ -125,7 +125,7 @@ func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.
 }
 
 // ReportInterfaceStatus emits snmp.interface.status for each interface in the snapshot.
-func ReportInterfaceStatus(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue) error {
+func ReportInterfaceStatus(s Sender, cfg *config.CheckConfig, snapshot []client.CachedValue) error {
 	if s == nil {
 		return errors.New("sender is nil")
 	}
@@ -316,14 +316,54 @@ func buildIPAddressMetadata(
 	snapshot []client.CachedValue,
 ) []devicemetadata.IPAddressMetadata {
 	resolved := metadata.Resolved()
-	ipPath := normalizeProfilePath(resolved.IPAddress.IP)
-	if ipPath == "" {
-		return nil
-	}
-	prefixPath := normalizeProfilePath(resolved.IPAddress.PrefixLength)
 	interfaceKey := metadataKeyName(resolved.IPAddress.Keys, "interface", "name")
 	subinterfaceKey := metadataKeyName(resolved.IPAddress.Keys, "subinterface", "index")
 	addressValueKey := metadataKeyName(resolved.IPAddress.Keys, "address", "ip")
+
+	interfaceByName := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
+	for _, iface := range interfaces {
+		if iface.Name == "" {
+			continue
+		}
+		interfaceByName[iface.Name] = iface
+	}
+
+	var ipAddresses []devicemetadata.IPAddressMetadata
+	ipAddresses = append(ipAddresses, buildIPAddressMetadataForFamily(
+		deviceID, resolved.IPAddress.IP, resolved.IPAddress.PrefixLength, false,
+		interfaceKey, subinterfaceKey, addressValueKey, interfaceByName, snapshot)...)
+	ipAddresses = append(ipAddresses, buildIPAddressMetadataForFamily(
+		deviceID, resolved.IPAddress.IPv6, resolved.IPAddress.IPv6PrefixLength, true,
+		interfaceKey, subinterfaceKey, addressValueKey, interfaceByName, snapshot)...)
+
+	sort.Slice(ipAddresses, func(i, j int) bool {
+		if ipAddresses[i].InterfaceID == ipAddresses[j].InterfaceID {
+			return ipAddresses[i].IPAddress < ipAddresses[j].IPAddress
+		}
+		return ipAddresses[i].InterfaceID < ipAddresses[j].InterfaceID
+	})
+
+	return ipAddresses
+}
+
+// buildIPAddressMetadataForFamily correlates cached IP and prefix-length values for a single
+// address family (IPv4 or IPv6) into IPAddressMetadata entries, keyed by interface/subinterface/address.
+func buildIPAddressMetadataForFamily(
+	deviceID string,
+	ipPathConfig string,
+	prefixPathConfig string,
+	expectIPv6 bool,
+	interfaceKey string,
+	subinterfaceKey string,
+	addressValueKey string,
+	interfaceByName map[string]devicemetadata.InterfaceMetadata,
+	snapshot []client.CachedValue,
+) []devicemetadata.IPAddressMetadata {
+	ipPath := normalizeProfilePath(ipPathConfig)
+	if ipPath == "" {
+		return nil
+	}
+	prefixPath := normalizeProfilePath(prefixPathConfig)
 
 	type addressData struct {
 		ip        string
@@ -374,19 +414,30 @@ func buildIPAddressMetadata(
 		}
 	}
 
-	interfaceByName := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
-	for _, iface := range interfaces {
-		if iface.Name == "" {
-			continue
-		}
-		interfaceByName[iface.Name] = iface
-	}
-
 	ipAddresses := make([]devicemetadata.IPAddressMetadata, 0, len(addresses))
 	for key, entry := range addresses {
-		if entry.ip == "" {
+		parsedIP := net.ParseIP(strings.TrimSpace(entry.ip))
+		if parsedIP == nil {
 			continue
 		}
+		maxPrefixLength := int32(32)
+		if expectIPv6 {
+			if parsedIP.To4() != nil {
+				continue
+			}
+			entry.ip = parsedIP.String()
+			maxPrefixLength = 128
+		} else {
+			ipv4 := parsedIP.To4()
+			if ipv4 == nil {
+				continue
+			}
+			entry.ip = ipv4.String()
+		}
+		if entry.hasPrefix && (entry.prefixLen < 0 || entry.prefixLen > maxPrefixLength) {
+			continue
+		}
+
 		interfaceName := strings.Split(key, "\x00")[0]
 		iface, ok := interfaceByName[interfaceName]
 		if !ok || iface.Name == "" {
@@ -407,13 +458,6 @@ func buildIPAddressMetadata(
 		}
 		ipAddresses = append(ipAddresses, ipMetadata)
 	}
-
-	sort.Slice(ipAddresses, func(i, j int) bool {
-		if ipAddresses[i].InterfaceID == ipAddresses[j].InterfaceID {
-			return ipAddresses[i].IPAddress < ipAddresses[j].IPAddress
-		}
-		return ipAddresses[i].InterfaceID < ipAddresses[j].InterfaceID
-	})
 
 	return ipAddresses
 }
