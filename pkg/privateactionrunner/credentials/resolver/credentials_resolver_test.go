@@ -122,3 +122,70 @@ func TestResolveConnectionTokensV2UsesOneSnapshot(t *testing.T) {
 		}
 	}
 }
+
+func TestNewPrivateCredentialResolverFromYAML(t *testing.T) {
+	yaml := `
+private_action_runner:
+  credentials:
+    values:
+      api_token:
+        value: resolved-value
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	resolver, err := NewPrivateCredentialResolver(mockConfig)
+	require.NoError(t, err)
+	conn := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
+		TokensV2: []*privateactionspb.ConnectionTokenV2{{
+			NameSegments: []string{"root_tokens", "token"},
+			Source: &privateactionspb.ConnectionTokenV2_RunnerCredential_{
+				RunnerCredential: &privateactionspb.ConnectionTokenV2_RunnerCredential{Key: "api_token"},
+			},
+		}},
+	}
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "resolved-value", credentials.Tokens[0].Value)
+
+	mockConfig.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "rotated-value"}}, model.SourceSecret)
+	credentials, err = resolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "rotated-value", credentials.Tokens[0].Value)
+}
+
+func TestNewPrivateCredentialResolverInvalidCredentials(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "scalar credential",
+			yaml: `private_action_runner:
+  credentials:
+    values:
+      api_token: secret-value
+`,
+		},
+		{
+			name: "unsupported restriction",
+			yaml: `private_action_runner:
+  credentials:
+    values:
+      api_token:
+        value: secret-value
+        allowed_actions: [some-action]
+`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, test.yaml))
+			require.Error(t, err)
+			assert.Nil(t, resolver)
+			assert.Contains(t, err.Error(), par.CredentialsValues)
+			assert.NotContains(t, err.Error(), "secret-value")
+		})
+	}
+}

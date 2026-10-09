@@ -17,7 +17,6 @@ go_library(
         "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/actions",
         "//pkg/privateactionrunner/adapters/modes",
-        "//pkg/privateactionrunner/credentials/resolver",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
@@ -37,9 +36,7 @@ dd_agent_go_test(
     deps = [
         "//comp/dogstatsd/statsd/def",
         "//pkg/config/mock",
-        "//pkg/config/model",
         "//pkg/privateactionrunner",
-        "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//pkg/util/flavor",
         "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",

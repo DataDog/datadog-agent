@@ -19,7 +19,6 @@ import (
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -77,11 +76,6 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Transport: httputils.CreateHTTPTransport(config),
 	}
 
-	credentialResolver, err := resolver.NewPrivateCredentialResolver(config)
-	if err != nil {
-		return nil, err
-	}
-
 	return &Config{
 		MaxBackoff:                         maxBackoff,
 		MinBackoff:                         minBackoff,
@@ -126,7 +120,6 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RunnerId:                           runnerID,
 		Urn:                                urn,
 		DatadogSite:                        ddSite,
-		CredentialResolver:                 credentialResolver,
 	}, nil
 }
 
