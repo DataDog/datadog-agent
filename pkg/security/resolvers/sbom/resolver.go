@@ -1245,17 +1245,26 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 
 	// should be called under sbom.Lock and sbomsLock.Lock
 	// the eviction callback releases everything else indexed by the container ID
+	sbom.stop()
 	r.sboms.Remove(sbom.ContainerID)
 }
 
 // onSBOMEvicted releases everything indexed by the container ID of an SBOM leaving
 // the cache. It runs both on the explicit removal done by deleteSBOM and on the
 // eviction of the least recently used entry, so it is the single release point.
-// Should be triggered from a function already locking the sbom, see Add, Delete.
 func (r *Resolver) onSBOMEvicted(_ containerutils.ContainerID, sbom *SBOM) {
-	sbom.stop()
 	r.removePendingScan(sbom.ContainerID)
 	r.deletePendingFileEvents(sbom.ContainerID)
+
+	// Add evicts an SBOM without its lock, which a scan may hold for long, so
+	// it is stopped once that lock is free.
+	if sbom.state.Load() != stoppedState {
+		go func() {
+			sbom.Lock()
+			sbom.stop()
+			sbom.Unlock()
+		}()
+	}
 }
 
 // deletePendingFileEvents drops the file accesses queued for the provided container ID
