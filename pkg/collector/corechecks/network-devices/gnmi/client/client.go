@@ -20,10 +20,7 @@ import (
 	"github.com/benbjohnson/clock"
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 
-	parentgnmi "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/admission"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -40,11 +37,13 @@ const (
 
 // Config holds the connection and subscription settings for a gNMI client.
 type Config struct {
-	Address  string
-	Port     int
-	Username string
-	Password string
-	Profile  config.ProfileDefinition
+	Address            string
+	Port               int
+	Username           string
+	Password           string
+	Profile            config.ProfileDefinition
+	UseTLS             bool
+	InsecureSkipVerify bool
 	// SampleInterval is the interval requested for every SAMPLE subscription.
 	// A zero value selects DefaultSampleInterval. It is never sent as 0:
 	// targets may reject a zero sample_interval with Unimplemented.
@@ -78,8 +77,9 @@ func WithClock(clk clock.Clock) Option {
 
 // Client maintains a streaming gNMI subscription and a latest-value cache.
 type Client struct {
-	cfg Config
-	opt options
+	cfg       Config
+	opt       options
+	transport TransportConfig
 
 	mu       sync.Mutex
 	started  bool
@@ -139,8 +139,12 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	}
 
 	return &Client{
-		cfg:   cfg,
-		opt:   clientOpts,
+		cfg: cfg,
+		opt: clientOpts,
+		transport: TransportConfig{
+			UseTLS:             cfg.UseTLS,
+			InsecureSkipVerify: cfg.InsecureSkipVerify,
+		},
 		cache: newCache(),
 	}, nil
 }
@@ -277,11 +281,7 @@ func (c *Client) connectAndReceive(ctx context.Context) (bool, error) {
 	}()
 
 	gnmiClient := gnmipb.NewGNMIClient(conn)
-	streamCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs(
-		"username", c.cfg.Username,
-		"password", c.cfg.Password,
-	))
-	stream, err := gnmiClient.Subscribe(streamCtx)
+	stream, err := gnmiClient.Subscribe(ctx)
 	if err != nil {
 		return false, fmt.Errorf("open subscribe stream: %w", err)
 	}
@@ -330,8 +330,12 @@ func (c *Client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 	}
 
 	target := net.JoinHostPort(c.cfg.Address, strconv.Itoa(c.cfg.Port))
-	// MVP uses insecure transport credentials; production TLS support is follow-up work.
-	conn, err := c.opt.dial(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := c.opt.dial(
+		ctx,
+		target,
+		grpc.WithTransportCredentials(c.transport.transportCredentials()),
+		grpc.WithPerRPCCredentials(newPassCred(c.cfg.Username, c.cfg.Password, c.transport.UseTLS)),
+	)
 	if err != nil {
 		admission.Gate().Release()
 		return nil, fmt.Errorf("dial %s: %w", target, err)
@@ -357,7 +361,7 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 		Request: &gnmipb.SubscribeRequest_Subscribe{
 			Subscribe: &gnmipb.SubscriptionList{
 				Mode:         gnmipb.SubscriptionList_STREAM,
-				Encoding:     parentgnmi.DefaultEncoding,
+				Encoding:     config.DefaultEncoding,
 				Subscription: subscriptions,
 			},
 		},

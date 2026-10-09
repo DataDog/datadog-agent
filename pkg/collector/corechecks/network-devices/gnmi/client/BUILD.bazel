@@ -6,22 +6,23 @@ go_library(
     srcs = [
         "cache.go",
         "client.go",
+        "credentials.go",
         "json_ietf.go",
         "path.go",
+        "transport.go",
         "value.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/collector/corechecks/network-devices/gnmi",
         "//pkg/collector/corechecks/network-devices/gnmi/admission",
         "//pkg/collector/corechecks/network-devices/gnmi/config",
         "//pkg/util/backoff",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_openconfig_gnmi//proto/gnmi",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",
-        "@org_golang_google_grpc//metadata",
     ],
 )
 
@@ -29,6 +30,7 @@ dd_agent_go_test(
     name = "client_test",
     srcs = [
         "client_test.go",
+        "credentials_test.go",
         "json_ietf_test.go",
         "path_test.go",
     ],
@@ -38,6 +40,7 @@ dd_agent_go_test(
         "//pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver",
         "@com_github_benbjohnson_clock//:clock",
         "@com_github_openconfig_gnmi//proto/gnmi",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )
