@@ -88,5 +88,6 @@ login step.
 
 The OIDC token TTL is ~1h; re-mint it for long-lived shells.
 
-`dda inv kmt.*` tasks do this automatically for the KMT compiler container: they
-mint a token on the host right before each build and forward it to that `docker exec`.
+`dda inv kmt.*` tasks do this automatically for the KMT compiler container: when the
+host would use the remote cache, they mint a token right before each build and
+forward it to that `docker exec`.

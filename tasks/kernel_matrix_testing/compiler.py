@@ -39,7 +39,7 @@ def _host_wants_remote_cache(ctx: Context) -> bool:
     checks, and does not open a browser Vault login when the cache would not be used.
     """
     select_sh = get_repo_root() / "bazel" / "tools" / "remote-cache-select.sh"
-    # Dummy token: _remote_cache_eligible then only checks reachability / rc opt-out, not vault.
+    # Dummy token so the selector skips its token/vault check and only applies opt-outs and reachability.
     res = cast(
         'Result',
         ctx.run(
@@ -60,13 +60,13 @@ def get_buildbarn_token(ctx: Context) -> str | None:
     """
     if os.environ.get("DD_BAZEL_REMOTE_CACHE") == "off":
         return None
+    # Match tools/bazel on the host: the container does not see the host ~/.bazelrc opt-out.
+    if not _host_wants_remote_cache(ctx):
+        return None
     if token := os.environ.get("BUILDBARN_ID_TOKEN"):
         return token
     if not shutil.which("vault"):
         warn("[!] vault CLI not found, the compiler container will build without the Bazel remote cache")
-        return None
-    # Match tools/bazel: no mint / interactive login when the host has opted out or is offline.
-    if not _host_wants_remote_cache(ctx):
         return None
 
     addr = os.environ.get("VAULT_ADDR", "https://vault.us1.ddbuild.io")
