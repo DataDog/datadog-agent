@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 	"unsafe"
 )
@@ -45,6 +46,19 @@ type nativeCore struct {
 	// expose per sender.
 	endpoints []Endpoint
 }
+
+// sharedTokenizer is the pattern extractor's compiled automaton. It is large
+// and holds no per-log state, so every client in the process is built from
+// this one. It is never freed: foldspace_tokenizer_free must not run
+// concurrently with a foldspace_client_new it is passed to, and a client can
+// be built at any point in the process's life.
+var sharedTokenizer = sync.OnceValues(func() (*C.foldspace_tokenizer, error) {
+	var tokenizer *C.foldspace_tokenizer
+	if code := C.foldspace_tokenizer_new(&tokenizer); code != C.FOLDSPACE_OK {
+		return nil, fmt.Errorf("foldspace: %s", statusMessage(code))
+	}
+	return tokenizer, nil
+})
 
 // NewNativeCore constructs a Core backed by libfoldspace_go.
 //
@@ -88,8 +102,13 @@ func NewNativeCore(cfg Config) (Core, error) {
 		classes[i] = C.uint8_t(e.Class)
 	}
 
+	tokenizer, err := sharedTokenizer()
+	if err != nil {
+		return nil, err
+	}
+
 	var client *C.foldspace_client
-	code := C.foldspace_client_new(&native, &classes[0], C.size_t(len(classes)), &client)
+	code := C.foldspace_client_new(&native, tokenizer, &classes[0], C.size_t(len(classes)), &client)
 	if code != C.FOLDSPACE_OK {
 		return nil, fmt.Errorf("foldspace: %s", statusMessage(code))
 	}
