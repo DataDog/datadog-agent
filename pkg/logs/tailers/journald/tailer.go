@@ -84,7 +84,7 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 		stop:                   make(chan struct{}, 1),
 		done:                   make(chan struct{}, 1),
 		processRawMessage:      processRawMessage,
-		tagProvider:            tag.NewLocalProvider(source.Config.Tags),
+		tagProvider:            tag.NewLocalProvider([]string{}),
 		tagger:                 tagger,
 		registry:               registry,
 		defaultApplicationName: source.Config.DefaultApplicationName,
