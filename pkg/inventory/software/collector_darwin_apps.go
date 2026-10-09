@@ -92,7 +92,7 @@ func populatePkgInfoFromIndex(items []appPkgLookup) {
 
 // Collect scans the /Applications directory recursively for installed applications.
 // This includes apps in subdirectories like /Applications/SentinelOne/SentinelOne Extensions.app
-// It also scans ~/Applications for all local users on the system.
+// It also scans ~/Applications and ~/Library/Application Support for all local users on the system.
 func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	var entries []*Entry
@@ -114,6 +114,7 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 	for _, userHome := range localUsers {
 		username := filepath.Base(userHome)
 		userAppsPath := filepath.Join(userHome, "Applications")
+		userLibAppSupportPath := filepath.Join(userHome, "Library", "Application Support")
 
 		// Check if the user's Applications directory exists and is accessible
 		if info, err := os.Stat(userAppsPath); err == nil && info.IsDir() {
@@ -121,6 +122,11 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 		}
 		// If directory doesn't exist or can't be accessed, silently skip
 		// (most users won't have ~/Applications)
+
+		// Check if the user's Library/Application Support directory exists and is accessible
+		if info, err := os.Stat(userLibAppSupportPath); err == nil && info.IsDir() {
+			appDirs = append(appDirs, userAppDir{path: userLibAppSupportPath, username: username})
+		}
 	}
 
 	for _, appDir := range appDirs {
