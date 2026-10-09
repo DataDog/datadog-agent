@@ -37,33 +37,9 @@ type AgentTaskConfig struct {
 
 // agentTaskData is the content of a agent task configuration file
 type agentTaskData struct {
-	TaskType string `json:"task_type"`
-	UUID     string `json:"uuid"`
-	// TaskArgs contains the string arguments of the task
-	TaskArgs map[string]string `json:"-"`
-	// RawTaskArgs contains all the arguments of the task, whatever their JSON type
-	RawTaskArgs map[string]json.RawMessage `json:"args"`
-}
-
-// UnmarshalJSON decodes the task arguments, keeping the string ones in TaskArgs
-func (d *agentTaskData) UnmarshalJSON(data []byte) error {
-	type alias agentTaskData
-	var a alias
-	if err := json.Unmarshal(data, &a); err != nil {
-		return err
-	}
-	*d = agentTaskData(a)
-
-	if d.RawTaskArgs != nil {
-		d.TaskArgs = make(map[string]string, len(d.RawTaskArgs))
-		for k, raw := range d.RawTaskArgs {
-			var str string
-			if err := json.Unmarshal(raw, &str); err == nil {
-				d.TaskArgs[k] = str
-			}
-		}
-	}
-	return nil
+	TaskType string            `json:"task_type"`
+	UUID     string            `json:"uuid"`
+	TaskArgs map[string]string `json:"args"`
 }
 
 // ParseConfigAgentTask parses an agent task config

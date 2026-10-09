@@ -96,7 +96,7 @@ func TestNewComponent(t *testing.T) {
 	assert.Equal(t, int32(1), inventoryHost.calls.Load())
 	assert.Equal(t, int32(1), inventoryChecks.calls.Load())
 
-	processed, err = provides.RCListener.Listener(rcclienttypes.TaskTriggerPayloads, parseTask(t, `{"task_type":"trigger_payloads","uuid":"b","args":{"payloads":["inventory-host","inventory-checks"]}}`))
+	processed, err = provides.RCListener.Listener(rcclienttypes.TaskTriggerPayloads, parseTask(t, `{"task_type":"trigger_payloads","uuid":"b","args":{"payloads":"inventory-host,inventory-checks"}}`))
 	assert.True(t, processed)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), inventoryAgent.calls.Load())
@@ -136,19 +136,31 @@ func TestHandleAgentTask(t *testing.T) {
 		},
 		{
 			name:              "empty payloads",
-			task:              `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":[]}}`,
+			task:              `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":""}}`,
 			expectedInventory: 1,
 			expectedHealth:    1,
 		},
 		{
 			name:              "subset",
-			task:              `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":["agent-health"]}}`,
+			task:              `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":"agent-health"}}`,
 			expectedInventory: 0,
 			expectedHealth:    1,
 		},
 		{
+			name:              "spaces and empty entries",
+			task:              `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":" agent-health , ,inventory-agent,"}}`,
+			expectedInventory: 1,
+			expectedHealth:    1,
+		},
+		{
+			name:              "only separators",
+			task:              `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":" , "}}`,
+			expectedInventory: 1,
+			expectedHealth:    1,
+		},
+		{
 			name:              "duplicates",
-			task:              `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":["inventory-agent","inventory-agent"]}}`,
+			task:              `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":"inventory-agent,inventory-agent"}}`,
 			expectedInventory: 1,
 			expectedHealth:    0,
 		},
@@ -166,17 +178,6 @@ func TestHandleAgentTask(t *testing.T) {
 			assert.Equal(t, tt.expectedHealth, health.calls.Load())
 		})
 	}
-}
-
-func TestHandleAgentTaskInvalidPayloads(t *testing.T) {
-	inventory, health := &fakePayload{}, &fakePayload{}
-	tp := newTestTriggerPayloads(t, inventory, health)
-
-	processed, err := tp.handleAgentTask(rcclienttypes.TaskTriggerPayloads, parseTask(t, `{"task_type":"trigger_payloads","uuid":"a","args":{"payloads":"agent-health"}}`))
-	assert.True(t, processed)
-	assert.Error(t, err)
-	assert.Zero(t, inventory.calls.Load())
-	assert.Zero(t, health.calls.Load())
 }
 
 func TestTriggerPartialFailure(t *testing.T) {

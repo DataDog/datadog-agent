@@ -8,10 +8,10 @@ package triggerpayloadsimpl
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -73,10 +73,11 @@ func (t *triggerPayloads) handleAgentTask(taskType rcclienttypes.TaskType, task 
 		return false, nil
 	}
 
+	// Comma-separated list of payload names, all the payloads when empty
 	var payloads []string
-	if raw, ok := task.Config.RawTaskArgs[payloadsArg]; ok {
-		if err := json.Unmarshal(raw, &payloads); err != nil {
-			return true, fmt.Errorf("invalid %q argument: %w", payloadsArg, err)
+	for name := range strings.SplitSeq(task.Config.TaskArgs[payloadsArg], ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			payloads = append(payloads, name)
 		}
 	}
 
