@@ -9,6 +9,8 @@ package aggregator
 
 import (
 	"math"
+	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -224,6 +226,95 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 
 func TestHistogramCountSampling(t *testing.T) {
 	testWithTagsStore(t, testHistogramCountSampling)
+}
+
+// These repro tests are opt-in because the unfixed sketch can allocate hundreds
+// of megabytes. Do not run them in parallel: TotalAlloc is process-wide.
+func requireQuantileRepro(t *testing.T) {
+	t.Helper()
+	if os.Getenv("DD_QUANTILE_REPRO") != "1" {
+		t.Skip("set DD_QUANTILE_REPRO=1 to run quantile memory repros")
+	}
+}
+
+func quantileReproTotalAlloc(run func()) uint64 {
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	run()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
+func logQuantileReproSketch(t *testing.T, sketch *quantile.Sketch) {
+	t.Helper()
+	require.NotNil(t, sketch)
+	used, allocated := sketch.MemSize()
+
+	// Derive the bin width instead of assuming the legacy uint16 count layout.
+	// Cols allocates two arrays, so only call it for reasonably small sketches,
+	// after all TotalAlloc measurement brackets have closed.
+	empty := &quantile.Sketch{}
+	emptyUsed, _ := empty.MemSize()
+	small := &quantile.Sketch{}
+	small.Insert(quantile.Default(), 0)
+	smallUsed, _ := small.MemSize()
+	keys, _ := small.Cols()
+	require.Len(t, keys, 1)
+	binBytes := smallUsed - emptyUsed
+	require.Positive(t, binBytes)
+	bins := (used - emptyUsed) / binBytes
+	binSource := "MemSize"
+	if bins <= 100000 {
+		keys, _ = sketch.Cols()
+		require.Equal(t, bins, len(keys))
+		bins = len(keys)
+		binSource = "Cols"
+	}
+	require.Positive(t, bins)
+	require.Positive(t, sketch.Basic.Cnt)
+	t.Logf("bins=%d (%s), bin_bytes=%d, MemSize used=%d allocated=%d, count=%d",
+		bins, binSource, binBytes, used, allocated, sketch.Basic.Cnt)
+}
+
+func TestReproQuantileCheckSamplerMonotonicHistogram(t *testing.T) {
+	requireQuantileRepro(t)
+	if testing.Short() {
+		t.Skip("giant histogram count repro")
+	}
+
+	sampler := newCheckSampler(1, true, true, time.Second, true,
+		tags.NewStore(true, "quantile-repro"), checkid.ID("quantile:repro:1234"), nooptagger.NewComponent())
+	tagMatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher(nil, false)
+	bucket := &metrics.HistogramBucket{
+		Name:       "quantile.repro.histogram",
+		Value:      1,
+		LowerBound: 0,
+		UpperBound: 0,
+		Timestamp:  10,
+		Monotonic:  true,
+	}
+	// A positive baseline is required: the first monotonic value is discarded.
+	sampler.addBucket(bucket, tagMatcher)
+	sampler.commit(11, &matcher)
+	require.Empty(t, sampler.sketches)
+
+	const rawCount int64 = 1420000000000
+	bucket.Value = rawCount
+	bucket.Timestamp = 20
+	addAlloc := quantileReproTotalAlloc(func() { sampler.addBucket(bucket, tagMatcher) })
+	commitAlloc := quantileReproTotalAlloc(func() { sampler.commit(21, &matcher) })
+	var sketches metrics.SketchSeriesList
+	flushAlloc := quantileReproTotalAlloc(func() { _, sketches = sampler.flush() })
+
+	t.Logf("TotalAlloc addBucket=%d commit (includes Finish)=%d flush=%d", addAlloc, commitAlloc, flushAlloc)
+	require.Len(t, sketches, 1)
+	require.Len(t, sketches[0].Points, 1)
+	sketch := sketches[0].Points[0].Sketch
+	require.NotNil(t, sketch)
+	require.Equal(t, rawCount-1, sketch.Basic.Cnt)
+	logQuantileReproSketch(t, sketch)
 }
 
 func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
