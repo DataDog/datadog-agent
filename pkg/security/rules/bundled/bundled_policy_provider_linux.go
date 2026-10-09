@@ -29,7 +29,7 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 			ID: NeedRefreshSBOMRuleID,
 			// Every rpm process, a query included, opens the sqlite shared memory
 			// and log, the Berkeley DB environment or the ndb index read-write.
-			Expression: `open.file.path in [~"/lib/rpm/*", ~"/lib/dpkg/*", ~"/var/lib/rpm/*", ~"/var/lib/dpkg/*", ~"/lib/apk/db/*", ~"/usr/lib/sysimage/rpm/*"] && (open.flags & (O_CREAT | O_RDWR | O_WRONLY)) > 0 && open.file.name not in [~"*.sqlite-shm", ~"*.sqlite-wal", ~"__db.*", ".dbenv.lock", "Index.db"]`,
+			Expression: `open.file.path in [~"/lib/rpm/*", ~"/lib/dpkg/*", ~"/var/lib/rpm/*", ~"/var/lib/dpkg/*", ~"/lib/apk/db/*", ~"/usr/lib/apk/db/*", ~"/usr/lib/sysimage/rpm/*"] && (open.flags & (O_CREAT | O_RDWR | O_WRONLY)) > 0 && open.file.name not in [~"*.sqlite-shm", ~"*.sqlite-wal", ~"__db.*", ".dbenv.lock", "Index.db"]`,
 			Actions: []*rules.ActionDefinition{{
 				Set: &rules.SetDefinition{
 					Name:  needRefreshSBOMVariableName,
@@ -39,8 +39,9 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 			}},
 			Silent: true,
 		}, &rules.RuleDefinition{
-			ID:         RefreshSBOMRuleID,
-			Expression: fmt.Sprintf("exit.cause == EXITED && ${%s.%s}", needRefreshSBOMVariableScope, needRefreshSBOMVariableName),
+			ID: RefreshSBOMRuleID,
+			// A package manager killed by a signal may have changed the packages.
+			Expression: fmt.Sprintf("(exit.cause == EXITED || exit.cause == SIGNALED || exit.cause == COREDUMPED) && ${%s.%s}", needRefreshSBOMVariableScope, needRefreshSBOMVariableName),
 			Silent:     true,
 		})
 	}

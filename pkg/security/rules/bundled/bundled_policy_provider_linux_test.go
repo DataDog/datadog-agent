@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -48,6 +49,7 @@ func TestNeedRefreshSBOMRule(t *testing.T) {
 		{"/usr/lib/sysimage/rpm/Packages.db", syscall.O_RDWR, true},
 		{"/var/lib/dpkg/lock", syscall.O_RDWR | syscall.O_CREAT, true},
 		{"/lib/apk/db/installed", syscall.O_WRONLY | syscall.O_CREAT, true},
+		{"/usr/lib/apk/db/installed", syscall.O_WRONLY | syscall.O_CREAT, true},
 		{"/usr/lib/sysimage/rpm/rpmdb.sqlite", syscall.O_RDONLY, false},
 		{"/usr/lib/sysimage/rpm/rpmdb.sqlite-shm", syscall.O_RDWR | syscall.O_CREAT, false},
 		{"/usr/lib/sysimage/rpm/rpmdb.sqlite-wal", syscall.O_RDWR | syscall.O_CREAT, false},
@@ -66,5 +68,47 @@ func TestNeedRefreshSBOMRule(t *testing.T) {
 		if got := rs.Evaluate(ev); got != tt.want {
 			t.Errorf("open(%q, %#o) matches = %v, want %v", tt.path, tt.flags, got, tt.want)
 		}
+	}
+}
+
+// TestRefreshSBOMRule checks that a process that wrote a package database
+// refreshes the SBOM on every exit cause, and one that read it leaves it as is.
+func TestRefreshSBOMRule(t *testing.T) {
+	for name, tt := range map[string]struct {
+		flags int
+		cause sharedconsts.ExitCause
+		want  bool
+	}{
+		"exited":      {syscall.O_WRONLY, sharedconsts.ExitExited, true},
+		"signaled":    {syscall.O_WRONLY, sharedconsts.ExitSignaled, true},
+		"core dumped": {syscall.O_WRONLY, sharedconsts.ExitCoreDumped, true},
+		"read":        {syscall.O_RDONLY, sharedconsts.ExitExited, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
+			rs := rules.NewRuleSet(&model.Model{}, func() eval.Event { return model.NewFakeEvent() }, ruleOpts, evalOpts)
+			provider := NewPolicyProvider(&config.RuntimeSecurityConfig{SBOMResolverEnabled: true})
+			if _, err := rs.LoadPolicies(rules.NewPolicyLoader(provider), rules.PolicyLoaderOpts{}); err != nil {
+				t.Fatalf("LoadPolicies: %v", err)
+			}
+
+			process := &model.ProcessCacheEntry{}
+			open := model.NewFakeEvent()
+			open.Type = uint32(model.FileOpenEventType)
+			open.ProcessCacheEntry = process
+			open.SetFieldValue("open.file.path", "/var/lib/dpkg/status")
+			open.SetFieldValue("open.file.name", "status")
+			open.SetFieldValue("open.flags", tt.flags)
+			rs.Evaluate(open)
+
+			exit := model.NewFakeEvent()
+			exit.Type = uint32(model.ExitEventType)
+			exit.ProcessCacheEntry = process
+			exit.SetFieldValue("exit.cause", int(tt.cause))
+
+			if refreshed := rs.Evaluate(exit); refreshed != tt.want {
+				t.Errorf("refresh = %v, want %v", refreshed, tt.want)
+			}
+		})
 	}
 }
