@@ -153,6 +153,7 @@ class DynTestEvaluator(ABC):
         kind: IndexKind,
         executor: DynTestExecutor,
         pipeline_id: str,
+        commit_sha: str,
         telemetry_handler: TelemetryHandler | None = None,
     ):
         """Initialize the evaluator.
@@ -165,12 +166,14 @@ class DynTestEvaluator(ABC):
             kind: Type of index being evaluated
             executor: Executor with lazy index loading capability
             pipeline_id: CI pipeline ID to evaluate against
+            commit_sha: Evaluated commit, used to tag the telemetry
             telemetry_handler: Optional telemetry handler for sending events and metrics
         """
         self.ctx = ctx
         self.executor = executor
         self.kind = kind
         self.pipeline_id = pipeline_id
+        self.commit_sha = commit_sha
         self.telemetry_handler = telemetry_handler or DatadogTelemetryHandler(
             default_tags=[f"pipeline_id:{pipeline_id}", f"index_kind:{kind.value}", "service:dynamic_test_evaluator"]
         )
@@ -241,7 +244,7 @@ class DynTestEvaluator(ABC):
             if "No ancestor commit found" in error_message:
                 self._send_error_event(
                     error_type="index_not_found",
-                    error_message=f"No ancestor commit with index found for {self.executor.commit_sha}. Available indexed commits may be too old or missing.",
+                    error_message=f"No ancestor commit with index found for {self.commit_sha}. Available indexed commits may be too old or missing.",
                 )
             else:
                 self._send_error_event(
@@ -273,7 +276,7 @@ Dynamic test evaluation failed for pipeline {self.pipeline_id}
 
 **Error Type**: {error_type}
 **Index Kind**: {getattr(self, 'kind', 'unknown')}
-**Commit SHA**: {self.executor.commit_sha}
+**Commit SHA**: {self.commit_sha}
 **Pipeline ID**: {self.pipeline_id}
 
 **Error Details**:
@@ -288,7 +291,7 @@ This indicates an issue with the dynamic test system that may affect CI performa
             alert_type="error",
             tags=[
                 f"error_type:{error_type}",
-                f"commit_sha:{self.executor.commit_sha}",
+                f"commit_sha:{self.commit_sha}",
             ],
         )
 
@@ -300,7 +303,7 @@ This indicates an issue with the dynamic test system that may affect CI performa
 
         # Also increment error metric
         self.telemetry_handler.count(
-            "dynamic_test.evaluator.errors", tags=[f"error_type:{error_type}", f"commit_sha:{self.executor.commit_sha}"]
+            "dynamic_test.evaluator.errors", tags=[f"error_type:{error_type}", f"commit_sha:{self.commit_sha}"]
         )
 
     def evaluate(self, changes: list[str]) -> list[EvaluationResult]:
@@ -360,13 +363,10 @@ This indicates an issue with the dynamic test system that may affect CI performa
             title="Dynamic Test Evaluator Initialized",
             text=f"Successfully initialized dynamic test evaluator for pipeline {self.pipeline_id}",
             alert_type="success",
-            tags=[f"commit_sha:{self.executor.commit_sha}"],
         )
 
         self.telemetry_handler.send_event(event)
-        self.telemetry_handler.count(
-            "dynamic_test.evaluator.initializations", tags=[f"commit_sha:{self.executor.commit_sha}", "status:success"]
-        )
+        self.telemetry_handler.count("dynamic_test.evaluator.initializations", tags=["status:success"])
 
     def _send_evaluation_metrics(self, results: list[EvaluationResult]):
         """Send evaluation metrics via telemetry handler."""

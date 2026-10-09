@@ -25,12 +25,11 @@ class _FakeEvaluator(DynTestEvaluator):
 class TestDynTestEvaluator(unittest.TestCase):
     def setUp(self):
         self.executor = MagicMock()
-        self.executor.commit_sha = "commit123"
         self.index = DynamicTestIndex({"job": {"pkg": ["TestPass", "TestFail", "TestFlaky"]}})
         self.executor.index.return_value = self.index
         self.telemetry = MagicMock()
         self.evaluator = _FakeEvaluator(
-            MagicMock(), IndexKind.PACKAGE, self.executor, "42", telemetry_handler=self.telemetry
+            MagicMock(), IndexKind.PACKAGE, self.executor, "42", "commit123", telemetry_handler=self.telemetry
         )
         # the allow-failure fetch is networked; the evaluator tests are not
         # about it (see test_unreliable_jobs_fetch_fails_open)
@@ -169,6 +168,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
             IndexKind.JEV,
             MagicMock(),
             "42",
+            "abc",
             telemetry_handler=MagicMock(),
         )
         tests = evaluator.list_tests_for_job('job: ["matrix"]')
@@ -243,7 +243,7 @@ class TestDatadogDynTestEvaluator(unittest.TestCase):
     def test_coverage_defaults(self, events):
         events.return_value = [self.event("TestFail", "fail")]
         evaluator = DatadogDynTestEvaluator(
-            MagicMock(), IndexKind.FILE, MagicMock(), "42", telemetry_handler=MagicMock()
+            MagicMock(), IndexKind.FILE, MagicMock(), "42", "abc", telemetry_handler=MagicMock()
         )
         self.assertFalse(evaluator.list_tests_for_job("job")[0].unreliable_status)
         query, days = events.call_args.args

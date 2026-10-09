@@ -30,6 +30,7 @@ from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
+from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
@@ -43,6 +44,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.dynamic_test.jev_selection import JevDynTestExecutor
 from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import get_version
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
@@ -531,7 +533,10 @@ def run(
             # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
             with environ({"AWS_PROFILE": "DELETE"}):
                 backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
-                executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
+                if is_enabled(ctx, "agent-ci-jev-test-impact-analysis"):
+                    executor = JevDynTestExecutor(ctx)
+                else:
+                    executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
                 changed_files = get_modified_files(ctx)
                 changed_packages = list({os.path.dirname(change) for change in changed_files})
                 print(color_message(f"The following changes were detected: {changed_files}", "yellow"))

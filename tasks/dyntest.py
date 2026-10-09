@@ -9,6 +9,7 @@ from time import sleep
 from invoke import Context, task
 from invoke.exceptions import Exit
 
+from tasks.libs.ciproviders.gitlab_api import get_pipeline
 from tasks.libs.common.auth import get_aws_vault_env
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.feature_flags import is_enabled
@@ -26,7 +27,6 @@ from tasks.libs.dynamic_test.indexers.e2e import (
 from tasks.libs.dynamic_test.jev_selection import (
     JOB_CANDIDATES_FILE,
     JevDynTestExecutor,
-    NothingToEvaluateError,
     generate_job_candidates,
 )
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler, DatadogTelemetryHandler
@@ -90,7 +90,6 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
         "pipeline-id": "Completed GitLab pipeline ID to evaluate",
         "selector": "coverage (default) or jev",
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
-        "ignore-sha-mismatch": "Evaluate a pipeline whose commit differs from the checkout: the Jev decisions are computed from the current checkout's PR context instead of the pipeline's (local experiments; the mismatch is always an error in CI)",
     }
 )
 def evaluate_index(
@@ -100,7 +99,6 @@ def evaluate_index(
     pipeline_id: str = "",
     selector: str = "coverage",
     send_stats: bool = True,
-    ignore_sha_mismatch: bool = False,
 ):
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
@@ -133,15 +131,19 @@ def evaluate_index(
         if not is_enabled(ctx, "datadog-agent-jev-evaluation"):
             print(color_message("Jev evaluation disabled", Color.ORANGE))
             return
+        # Jev decides from this checkout: it must be the evaluated pipeline's commit
         if commit_sha != head:
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
-        # A plain DynTestExecutor with a static index (committed in Git, where
-        # the coverage executors keep theirs in S3). The shared evaluator owns
-        # the CI Visibility queries; the executor's GitLab jobs fetch
-        # supplies the allow-failure set.
-        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch)
+        pipeline_sha = get_pipeline("DataDog/datadog-agent", pipeline_id).sha
+        if pipeline_sha != commit_sha:
+            raise Exit(
+                f"Pipeline {pipeline_id} ran {pipeline_sha}, but the checkout is at {commit_sha}: "
+                f"check out that commit (git checkout {pipeline_sha})",
+                code=1,
+            )
+        executor = JevDynTestExecutor(ctx)
         executors = [executor]
-        changes = []  # Jev gathers the richer PR diff/context from this checkout.
+        changes = []
     else:
         backend = S3Backend(bucket_uri)
         changed_files = get_modified_files(ctx)
@@ -161,19 +163,17 @@ def evaluate_index(
                 default_tags=[
                     f"pipeline_id:{pipeline_id}",
                     f"index_kind:{executor.kind.value}",
+                    f"commit_sha:{commit_sha}",
                     "service:dynamic_test_evaluator",
                 ]
             )
             if send_stats
             else ConsoleTelemetryHandler()
         )
-        evaluator = DatadogDynTestEvaluator(ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry)
+        evaluator = DatadogDynTestEvaluator(
+            ctx, executor.kind, executor, pipeline_id, commit_sha, telemetry_handler=telemetry
+        )
         if not evaluator.initialize():
-            if isinstance(evaluator.initialization_error, NothingToEvaluateError):
-                # E.g. a dev-branch pipeline where no E2E test jobs ran:
-                # nothing to measure, not an error.
-                print(color_message(f"Nothing to evaluate: {evaluator.initialization_error}", Color.ORANGE))
-                return
             print(
                 color_message(
                     f"Failed to initialize the {executor.kind.value} evaluation: {evaluator.initialization_error}",
