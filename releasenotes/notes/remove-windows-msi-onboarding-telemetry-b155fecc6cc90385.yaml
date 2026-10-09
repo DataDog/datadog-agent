@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Windows Agent MSI no longer sends obsolete installation onboarding telemetry
+    to a deactivated intake.
