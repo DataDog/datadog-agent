@@ -125,13 +125,6 @@ func TestBuildIssue_Remediation(t *testing.T) {
 	}
 }
 
-func TestInstanceIssueID_DistinguishesRules(t *testing.T) {
-	c := newChecker(config.NewMock(t), testHostname(t), testSelfIdent(t))
-	assert.NotEqual(t,
-		c.instanceIssueID(schema.Violation{Path: "/setting", Keyword: "/minimum"}),
-		c.instanceIssueID(schema.Violation{Path: "/setting", Keyword: "/multipleOf"}))
-}
-
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
 // pass the schema. Confirms Run() is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
@@ -347,7 +340,7 @@ func TestInstanceIssueID_DiffersByConfigPath(t *testing.T) {
 	c1.cfg = fakeConfigFileUsed{Component: cfg1, path: "/etc/datadog-agent/datadog.yaml"}
 	c2.cfg = fakeConfigFileUsed{Component: cfg2, path: "/etc/datadog-agent/datadog-cluster.yaml"}
 
-	assert.NotEqual(t, c1.instanceIssueID(schema.Violation{}), c2.instanceIssueID(schema.Violation{}))
+	assert.NotEqual(t, c1.instanceIssueID(""), c2.instanceIssueID(""))
 }
 
 // Two checkers with the same config path but different hostnames must not
@@ -362,7 +355,7 @@ func TestInstanceIssueID_DiffersByHostname(t *testing.T) {
 	c1 := newChecker(cfg, hn1, si)
 	c2 := newChecker(cfg, hn2, si)
 
-	assert.NotEqual(t, c1.instanceIssueID(schema.Violation{}), c2.instanceIssueID(schema.Violation{}))
+	assert.NotEqual(t, c1.instanceIssueID(""), c2.instanceIssueID(""))
 }
 
 // fakeConfigFileUsed overrides ConfigFileUsed so instanceIssueID can be tested

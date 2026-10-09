@@ -34,11 +34,11 @@ func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Compone
 	return &checker{cfg: cfg, hostname: hostname, selfIdent: selfIdent}
 }
 
-// Scope each problem to its host or DaemonSet, config file, setting, and schema rule.
-func (c *checker) instanceIssueID(violation schema.Violation) string {
+// Scope each problem to its host or DaemonSet, config file, and setting.
+func (c *checker) instanceIssueID(settingPath string) string {
 	h := fnv.New64a()
 	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
-	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s", discriminator, c.cfg.ConfigFileUsed(), violation.Path, violation.Keyword)
+	fmt.Fprintf(h, "%s\x00%s\x00%s", discriminator, c.cfg.ConfigFileUsed(), settingPath)
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
@@ -66,7 +66,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	reports := make([]runnerdef.IssueReport, 0, len(violations))
 	for _, violation := range violations {
 		reports = append(reports, runnerdef.IssueReport{
-			IssueID:   c.instanceIssueID(violation),
+			IssueID:   c.instanceIssueID(violation.Path),
 			IssueName: IssueName,
 			Source:    "system-probe",
 			Context:   invalidconfig.BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violation),
