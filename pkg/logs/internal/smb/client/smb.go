@@ -266,7 +266,7 @@ func decodeCreate(res *protocol.Response) (chunk, error) {
 	if err != nil {
 		return chunk{}, err
 	}
-	ch := chunk{size: created.EndofFile()}
+	ch := chunk{size: created.EndofFile(), created: created.CreationTime().Time()}
 	if q := created.QueryOnDiskID(); q != nil {
 		ch.fileID = normalizeFileID(q.DiskFileId())
 	}
@@ -326,17 +326,18 @@ func (c *smbClient) wrapErr(err error) error {
 
 // chunk is one open-read-close of readChunk.
 type chunk struct {
-	fileID uint64
-	size   int64
-	data   []byte
+	fileID  uint64
+	created time.Time
+	size    int64
+	data    []byte
 }
 
 // readLoop fills a ReadResult of up to maxLen bytes from off with reads of at
 // most chunkSize bytes. It stops at the end of the file, on a short read, or
-// when a later chunk sees a different file (other FileId, or a size below
-// what was already read). An error on the first chunk is returned; a later
-// one ends the read early so the bytes already read are not lost, and the
-// next call reports the error again if it persists.
+// when a later chunk sees a different file (other FileId or creation time, or
+// a size below what was already read). An error on the first chunk is
+// returned; a later one ends the read early so the bytes already read are not
+// lost, and the next call reports the error again if it persists.
 func readLoop(off int64, maxLen, chunkSize int, readChunk func(off int64, n int) (chunk, error)) (ReadResult, error) {
 	var res ReadResult
 	for first := true; ; first = false {
@@ -349,13 +350,13 @@ func readLoop(off int64, maxLen, chunkSize int, readChunk func(off int64, n int)
 			}
 			return res, nil
 		}
-		if !first && (ch.fileID != res.FileID || ch.size < pos) {
+		if !first && (ch.fileID != res.FileID || !ch.created.Equal(res.CreationTime) || ch.size < pos) {
 			return res, nil
 		}
 		if len(ch.data) > n {
 			ch.data = ch.data[:n]
 		}
-		res.FileID, res.Size = ch.fileID, ch.size
+		res.FileID, res.CreationTime, res.Size = ch.fileID, ch.created, ch.size
 		res.Data = append(res.Data, ch.data...)
 		if len(ch.data) < n || len(res.Data) >= maxLen || pos+int64(len(ch.data)) >= ch.size {
 			return res, nil

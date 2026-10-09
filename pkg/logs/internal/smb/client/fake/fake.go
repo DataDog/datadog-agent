@@ -10,10 +10,12 @@
 // writer (append, rotate, truncate, delete); Sessions are the client.Client
 // connections the code under test reads through.
 //
-// The fake follows the server behavior the source depends on: a FileID
-// survives renames and truncation and is replaced by a delete and recreate
-// (unless the test reuses it on purpose), directory listings can report stale
-// sizes, and errors classify with client.Classify like the real ones.
+// The fake follows the server behavior the source depends on: a FileID and a
+// creation time survive renames and truncation, a delete and recreate gives
+// the file a new creation time and a new FileID (unless the test reuses the
+// FileID on purpose, as Samba reuses inode numbers), directory listings can
+// report stale sizes, and errors classify with client.Classify like the real
+// ones.
 package fake
 
 import (
@@ -92,9 +94,11 @@ type Share struct {
 	files    map[string]*file
 	dirs     map[string]bool
 	nextID   uint64
+	created  time.Time // creation time of the last file created
 	stale    bool
 	listIDs  bool
 	readIDs  bool
+	ctimes   bool
 	latency  time.Duration
 	logoff   time.Duration
 	hook     func(op Op, path string)
@@ -113,6 +117,7 @@ func New() *Share {
 		nextID:   100,
 		listIDs:  true,
 		readIDs:  true,
+		ctimes:   true,
 		errs:     make(map[errKey][]error),
 		calls:    make(map[Op]int),
 		sessions: make(map[*Session]bool),
@@ -203,9 +208,9 @@ func (s *Share) Delete(p string) error {
 	return nil
 }
 
-// Recreate deletes p if it exists and creates it empty, with a new FileID, or
-// with reuseID when it is not 0 (servers such as Samba reuse inode numbers).
-// It returns the new FileID.
+// Recreate deletes p if it exists and creates it empty, with a new creation
+// time and a new FileID, or with reuseID when it is not 0 (servers such as
+// Samba reuse inode numbers). It returns the new FileID.
 func (s *Share) Recreate(p string, reuseID uint64) uint64 {
 	p = mustClean(p)
 	s.mu.Lock()
@@ -268,6 +273,14 @@ func (s *Share) SetReadFileIDs(enabled bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.readIDs = enabled
+}
+
+// SetCreationTimes controls whether ListDir and ReadAt report creation times
+// (default true). false mimics a server that reports none (a zero FILETIME).
+func (s *Share) SetCreationTimes(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ctimes = enabled
 }
 
 // SetLatency delays every call by d, or until its context ends.
@@ -403,10 +416,12 @@ func (sess *Session) ListDir(ctx context.Context, dir string) ([]client.Entry, e
 			continue
 		}
 		e := client.Entry{
-			Name:         path.Base(p),
-			Size:         int64(len(f.data)),
-			ModTime:      f.mtime,
-			CreationTime: f.ctime,
+			Name:    path.Base(p),
+			Size:    int64(len(f.data)),
+			ModTime: f.mtime,
+		}
+		if s.ctimes {
+			e.CreationTime = f.ctime
 		}
 		if s.stale {
 			e.Size = f.listedSize
@@ -456,6 +471,9 @@ func (sess *Session) ReadAt(ctx context.Context, p string, off int64, maxLen int
 	res := client.ReadResult{Size: int64(len(f.data))}
 	if s.readIDs {
 		res.FileID = f.id
+	}
+	if s.ctimes {
+		res.CreationTime = f.ctime
 	}
 	if off < res.Size && maxLen > 0 {
 		end := min(res.Size, off+int64(maxLen))
@@ -573,7 +591,13 @@ func (s *Share) file(p string) *file {
 	if s.isDir(p) {
 		panic(fmt.Sprintf("fake: %q is a directory", p))
 	}
-	now := time.Now()
+	// Every file gets its own creation time, even when the clock has not
+	// moved since the previous one: tests that reuse a FileID rely on it.
+	now := time.Now().Round(0)
+	if !now.After(s.created) {
+		now = s.created.Add(time.Microsecond)
+	}
+	s.created = now
 	f := &file{id: s.nextID, ctime: now, mtime: now}
 	s.nextID++
 	s.files[p] = f

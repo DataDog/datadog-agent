@@ -136,6 +136,22 @@ func TestReadLoop(t *testing.T) {
 		assert.Equal(t, ReadResult{FileID: 7, Size: 20, Data: []byte("0123")}, res)
 	})
 
+	t.Run("a new creation time between chunks keeps the first file's bytes only", func(t *testing.T) {
+		created := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+		calls := 0
+		res, err := readLoop(0, 12, 4, func(off int64, n int) (chunk, error) {
+			calls++
+			ch := chunk{fileID: 7, created: created, size: 20, data: data[off : off+int64(n)]}
+			if calls == 2 {
+				// Deleted and recreated under the same FileId.
+				ch.created = created.Add(time.Second)
+			}
+			return ch, nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, ReadResult{FileID: 7, CreationTime: created, Size: 20, Data: []byte("0123")}, res)
+	})
+
 	t.Run("truncation between chunks stops without FileIDs", func(t *testing.T) {
 		f := &fakeFile{data: data}
 		f.at = func(call int) error {

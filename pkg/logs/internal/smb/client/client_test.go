@@ -83,3 +83,36 @@ func TestNormalizeFileID(t *testing.T) {
 	assert.Equal(t, uint64(0), normalizeFileID(^uint64(0)))
 	assert.Equal(t, uint64(42), normalizeFileID(42))
 }
+
+func TestIdentity(t *testing.T) {
+	created := time.Date(2026, 10, 6, 12, 0, 0, 123456700, time.UTC)
+	entry := Entry{Name: "app.log", FileID: 1081516, CreationTime: created}
+	file := entry.Identity()
+	assert.Equal(t, Identity{FileID: 1081516, Created: created.UnixNano()}, file)
+	assert.Equal(t, file, ReadResult{FileID: 1081516, CreationTime: created.In(time.Local)}.Identity(), "the location does not matter")
+	assert.Equal(t, "FileId 1081516 created 2026-10-06T12:00:00.1234567Z", file.String())
+	assert.Equal(t, "FileId 7", Identity{FileID: 7}.String())
+
+	// The FILETIME epoch, which servers report for an unknown creation time,
+	// and the zero time are unknown creation times.
+	filetimeEpoch := time.Unix(-11644473600, 0)
+	assert.Equal(t, Identity{FileID: 7}, Entry{FileID: 7, CreationTime: filetimeEpoch}.Identity())
+	assert.Equal(t, Identity{FileID: 7}, ReadResult{FileID: 7}.Identity())
+
+	reused := Identity{FileID: file.FileID, Created: file.Created + 1}
+	for _, tc := range []struct {
+		a, b Identity
+		want bool
+	}{
+		{file, file, true},
+		{file, reused, false}, // a new file with the FileId of a deleted one
+		{file, Identity{FileID: 1, Created: file.Created}, false}, // another FileId
+		{file, Identity{FileID: file.FileID}, true},               // creation time unknown on one side
+		{file, Identity{Created: file.Created}, true},             // FileId unknown on one side
+		{file, Identity{Created: reused.Created}, false},
+		{Identity{}, Identity{}, true},
+	} {
+		assert.Equal(t, tc.want, tc.a.Matches(tc.b), "%v / %v", tc.a, tc.b)
+		assert.Equal(t, tc.want, tc.b.Matches(tc.a), "%v / %v", tc.b, tc.a)
+	}
+}

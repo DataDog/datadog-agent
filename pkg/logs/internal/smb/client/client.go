@@ -11,7 +11,8 @@
 // range and closes the handle before returning, so the Agent never holds a
 // handle that could block or delay the log writer's rotation (rename, delete,
 // truncate). File identity across rotations comes from the server's 64-bit
-// FileId, reported both by directory listings and at open.
+// FileId and the file's creation time, both reported by directory listings and
+// at open (see Identity).
 package client
 
 import (
@@ -64,11 +65,61 @@ type Entry struct {
 	IsDir        bool
 }
 
+// Identity returns the identity of the file e describes.
+func (e Entry) Identity() Identity {
+	return Identity{FileID: e.FileID, Created: creationKey(e.CreationTime)}
+}
+
 // ReadResult is the outcome of one ReadAt call.
 type ReadResult struct {
-	FileID uint64 // identity observed at open (QFid DiskFileId); 0 if unavailable
-	Size   int64  // EndOfFile observed at open (authoritative)
-	Data   []byte // bytes read starting at the requested offset (len <= max)
+	FileID       uint64    // identity observed at open (QFid DiskFileId); 0 if unavailable
+	CreationTime time.Time // creation time observed at open
+	Size         int64     // EndOfFile observed at open (authoritative)
+	Data         []byte    // bytes read starting at the requested offset (len <= max)
+}
+
+// Identity returns the identity of the file the read opened.
+func (r ReadResult) Identity() Identity {
+	return Identity{FileID: r.FileID, Created: creationKey(r.CreationTime)}
+}
+
+// Identity tells the files of a share apart, whatever their names: the
+// server's FileId, and the file's creation time. The FileId alone is not
+// enough: a server can give a new file the FileId of a file just deleted, as
+// Samba does, whose FileIds are inode numbers that Linux file systems reuse at
+// once. The creation time then tells the new file from the old one.
+type Identity struct {
+	FileID  uint64 // 0 when unknown
+	Created int64  // creation time in Unix nanoseconds; 0 when unknown
+}
+
+// Matches reports whether a and b can be the same file: they do not differ by
+// FileId or by creation time. Each is compared only when both know it.
+func (a Identity) Matches(b Identity) bool {
+	if a.FileID != 0 && b.FileID != 0 && a.FileID != b.FileID {
+		return false
+	}
+	return a.Created == 0 || b.Created == 0 || a.Created == b.Created
+}
+
+// String implements fmt.Stringer, for logs.
+func (a Identity) String() string {
+	s := "FileId " + strconv.FormatUint(a.FileID, 10)
+	if a.Created != 0 {
+		s += " created " + time.Unix(0, a.Created).UTC().Format(time.RFC3339Nano)
+	}
+	return s
+}
+
+// creationKey returns t in the form Identity keeps creation times in: Unix
+// nanoseconds, or 0 when t cannot be represented that way. That includes the
+// zero time, and the start of the FILETIME epoch (1601) that servers report
+// for a creation time they do not know.
+func creationKey(t time.Time) int64 {
+	if y := t.Year(); y <= 1678 || y >= 2262 {
+		return 0
+	}
+	return t.UnixNano()
 }
 
 // Client is a connection to one share. Implementations are safe for concurrent

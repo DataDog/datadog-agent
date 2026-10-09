@@ -364,6 +364,14 @@ func (c *claims) claim(identifier string, s *scanner) bool {
 	return owner == s
 }
 
+// ownedByAnother reports whether a scanner other than s owns identifier.
+func (c *claims) ownedByAnother(identifier string, s *scanner) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	owner, ok := c.owners[identifier]
+	return ok && owner != s
+}
+
 func (c *claims) release(identifier string, s *scanner) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

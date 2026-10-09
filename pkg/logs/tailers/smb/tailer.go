@@ -5,9 +5,9 @@
 
 // Package smb tails log files on an SMB share (Windows, Samba, Azure Files).
 //
-// A Tailer reads one file identity, the server's 64-bit FileId, from the path
-// it was created for and, after a rotation, from the name the file was renamed
-// to. It never holds a file handle: every read opens the file, reads a byte
+// A Tailer reads one file identity (client.Identity: the server's 64-bit
+// FileId and the file's creation time) from the path it was created for and,
+// after a rotation, from the name the file was renamed to. It never holds a file handle: every read opens the file, reads a byte
 // range and closes it before the bytes reach the decoder, so the log writer can
 // always rename, truncate or delete the file. Reads are driven by the SMB
 // launcher's scan loop through Poll; the tailer has no polling goroutine of its
@@ -50,8 +50,11 @@ const (
 	// for a file another client holds open for writing.
 	DefaultForceReadEvery = 10
 
-	// offsetVersion prefixes the registry offsets this tailer writes.
-	offsetVersion = "v1"
+	// offsetVersion prefixes the registry offsets this tailer writes, which
+	// hold the file's FileId and creation time. offsetVersionNoCreation
+	// prefixes those of earlier versions, without the creation time.
+	offsetVersion           = "v2"
+	offsetVersionNoCreation = "v1"
 )
 
 // Outcome tells the launcher what a Poll found.
@@ -63,11 +66,13 @@ const (
 	// OutcomeRead means the file was read, whether or not it had new data.
 	OutcomeRead
 	// OutcomeIdentityChanged means the file now at the tailer's read path is
-	// not the one it tails (a different FileId). Nothing was forwarded from it.
+	// not the one it tails (a different FileId or creation time). Nothing was
+	// forwarded from it.
 	OutcomeIdentityChanged
 	// OutcomeTruncated means the file is shorter than the tailer's offset
-	// (copytruncate, or a delete and recreate that reused the FileId). Nothing
-	// was read; the tailer should be replaced by one reading from offset 0.
+	// (copytruncate, or a delete and recreate that reused the FileId on a
+	// server that reports no creation times). Nothing was read; the tailer
+	// should be replaced by one reading from offset 0.
 	OutcomeTruncated
 )
 
@@ -95,34 +100,40 @@ func Identifier(host, share, filePath string) string {
 }
 
 // EncodeOffset returns the registry offset string for offset in the file
-// identified by fileID: "v1:<fileID>:<offset>".
-func EncodeOffset(fileID uint64, offset int64) string {
-	return offsetVersion + ":" + strconv.FormatUint(fileID, 10) + ":" + strconv.FormatInt(offset, 10)
+// file: "v2:<FileId>:<creation time>:<offset>", the creation time in Unix
+// nanoseconds (0 when unknown).
+func EncodeOffset(file client.Identity, offset int64) string {
+	return offsetVersion + ":" + strconv.FormatUint(file.FileID, 10) + ":" + strconv.FormatInt(file.Created, 10) + ":" + strconv.FormatInt(offset, 10)
 }
 
 // DecodeOffset parses a registry offset written by EncodeOffset. It also
-// accepts a bare decimal offset, which has no FileId (0).
-func DecodeOffset(s string) (fileID uint64, offset int64, ok bool) {
-	if s == "" {
-		return 0, 0, false
+// accepts the offsets of earlier versions: "v1:<FileId>:<offset>", which has
+// no creation time, and a bare decimal offset, which has no FileId either. The
+// parts of file that an offset does not hold are 0 (unknown).
+func DecodeOffset(s string) (file client.Identity, offset int64, ok bool) {
+	parts := strings.Split(s, ":")
+	switch {
+	case len(parts) == 4 && parts[0] == offsetVersion:
+	case len(parts) == 3 && parts[0] == offsetVersionNoCreation:
+		parts = []string{parts[0], parts[1], "0", parts[2]}
+	case len(parts) == 1 && s != "":
+		parts = []string{"", "0", "0", s}
+	default:
+		return client.Identity{}, 0, false
 	}
-	if !strings.HasPrefix(s, offsetVersion+":") {
-		offset, err := strconv.ParseInt(s, 10, 64)
-		return 0, offset, err == nil && offset >= 0
-	}
-	id, off, found := strings.Cut(strings.TrimPrefix(s, offsetVersion+":"), ":")
-	if !found {
-		return 0, 0, false
-	}
-	fileID, err := strconv.ParseUint(id, 10, 64)
+	fileID, err := strconv.ParseUint(parts[1], 10, 64)
 	if err != nil {
-		return 0, 0, false
+		return client.Identity{}, 0, false
 	}
-	offset, err = strconv.ParseInt(off, 10, 64)
+	created, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil {
+		return client.Identity{}, 0, false
+	}
+	offset, err = strconv.ParseInt(parts[3], 10, 64)
 	if err != nil || offset < 0 {
-		return 0, 0, false
+		return client.Identity{}, 0, false
 	}
-	return fileID, offset, true
+	return client.Identity{FileID: fileID, Created: created}, offset, true
 }
 
 // TailerOptions holds the parameters of NewTailer.
@@ -132,7 +143,7 @@ type TailerOptions struct {
 	Host            string                     // Required: names the share in the identifier and tags
 	Share           string                     // Required
 	Path            string                     // Required: path relative to the share root, as client.CleanPath returns it
-	FileID          uint64                     // Optional: 0 adopts the FileId reported by the first read
+	File            client.Identity            // Optional: the parts it does not know are adopted from the first read
 	OutputChan      chan *message.Message      // Required
 	CapacityMonitor *metrics.CapacityMonitor   // Required
 	Decoder         decoder.Decoder            // Required
@@ -154,7 +165,7 @@ type TailerOptions struct {
 // identifier and offset, and sends them to the pipeline.
 //
 // Poll and the methods that change the read state (Start, StartDraining,
-// SetReadPath) must be called from a single goroutine.
+// SetReadPath, CommitTo) must be called from a single goroutine.
 type Tailer struct {
 	source     *sources.ReplaceableSource
 	client     client.Client
@@ -163,8 +174,10 @@ type Tailer struct {
 	readPath   string   // where the file is now: path, or its rotated name while draining
 	tags       []string // filename and dirname tags
 
-	// fileID is the file's identity, 0 while unknown.
-	fileID *atomic.Uint64
+	// fileID and created are the file's identity (see client.Identity), each
+	// 0 while unknown.
+	fileID  *atomic.Uint64
+	created *atomic.Int64
 	// offset is the next byte to read, i.e. the bytes sent to the decoder.
 	offset *atomic.Int64
 	// decodedOffset is the offset at which the latest decoded message ends.
@@ -173,10 +186,12 @@ type Tailer struct {
 	// or a read. Bytes between offset and lastSeenSize exist but were not
 	// read; they are lost if the tailer stops before reading them.
 	lastSeenSize *atomic.Int64
-	// draining is set once the tailer only finishes a rotated file: its
-	// messages no longer commit offsets, since the identifier belongs to the
-	// path's new file.
+	// draining is set once the tailer only finishes a rotated file.
 	draining *atomic.Bool
+	// commitTo is the identifier the tailer's messages commit their offsets
+	// under: its own, or, while draining, none ("") since its identifier
+	// belongs to the path's new file, or the one CommitTo set.
+	commitTo *atomic.String
 
 	// Read state, owned by the goroutine calling Poll.
 	lastListedSize int64 // size from the previous listing, -1 before the first one
@@ -225,7 +240,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		identifier:      Identifier(opts.Host, opts.Share, opts.Path),
 		path:            opts.Path,
 		readPath:        opts.Path,
-		fileID:          atomic.NewUint64(opts.FileID),
+		fileID:          atomic.NewUint64(opts.File.FileID),
+		created:         atomic.NewInt64(opts.File.Created),
 		offset:          atomic.NewInt64(0),
 		decodedOffset:   atomic.NewInt64(0),
 		lastSeenSize:    atomic.NewInt64(0),
@@ -250,6 +266,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	if path.Dir(opts.Path) == "." { // a file at the share root
 		dir = strings.TrimSuffix(Identifier(opts.Host, opts.Share, ""), "/")
 	}
+	t.commitTo = atomic.NewString(t.identifier)
 	t.tags = []string{
 		"filename:" + path.Base(opts.Path),
 		"dirname:" + dir,
@@ -294,12 +311,13 @@ func (t *Tailer) Stop() {
 // StartDraining turns the tailer into the drain of a rotated file: Poll then
 // reads on every call, ignoring listing sizes, and its messages stop committing
 // offsets under the path's identifier, which now belongs to the path's new
-// file. GetID changes too, so a tailer container holding the tailer must
-// remove it before this call.
+// file (see CommitTo). GetID changes too, so a tailer container holding the
+// tailer must remove it before this call.
 func (t *Tailer) StartDraining() {
 	if t.draining.Swap(true) {
 		return
 	}
+	t.commitTo.Store("")
 	draining := status.NewMappedInfo("Draining Since")
 	draining.SetMessage("Draining Since", time.Now().UTC().Format("2006-01-02 15:04:05 UTC"))
 	t.info.Register(draining)
@@ -308,6 +326,20 @@ func (t *Tailer) StartDraining() {
 // IsDraining reports whether StartDraining was called.
 func (t *Tailer) IsDraining() bool {
 	return t.draining.Load()
+}
+
+// CommitTo makes the messages of a draining tailer commit their offsets under
+// identifier, or under none when it is "". The launcher points it at the
+// identifier of the path the drained file sits at, when no other tailer
+// commits there, so that an Agent restart resumes the file there.
+func (t *Tailer) CommitTo(identifier string) {
+	t.commitTo.Store(identifier)
+}
+
+// CommitIdentifier returns the identifier the tailer's messages commit their
+// offsets under, "" for none.
+func (t *Tailer) CommitIdentifier() string {
+	return t.commitTo.Load()
 }
 
 // SetReadPath points a draining tailer at the name its file was renamed to.
@@ -330,13 +362,12 @@ func (t *Tailer) SetReadPath(p string) {
 // stopped, without sending anything twice.
 func (t *Tailer) Poll(ctx context.Context, entry *client.Entry) (Outcome, error) {
 	if entry != nil {
-		id := t.fileID.Load()
-		if entry.FileID != 0 && id != 0 && entry.FileID != id {
+		if !t.Identity().Matches(entry.Identity()) {
 			return OutcomeIdentityChanged, nil
 		}
 		// A listed size only counts as seen when the listing confirms the
 		// file's identity: otherwise it may be a replacement's size.
-		if entry.FileID != 0 && entry.FileID == id && entry.Size > t.lastSeenSize.Load() {
+		if entry.FileID != 0 && entry.FileID == t.fileID.Load() && entry.Size > t.lastSeenSize.Load() {
 			t.lastSeenSize.Store(entry.Size)
 		}
 	}
@@ -353,15 +384,10 @@ func (t *Tailer) Poll(ctx context.Context, entry *client.Entry) (Outcome, error)
 		if err != nil {
 			return OutcomeRead, err
 		}
-		if res.FileID != 0 {
-			switch id := t.fileID.Load(); {
-			case id == 0:
-				t.fileID.Store(res.FileID)
-				t.updateFileInfo()
-			case id != res.FileID:
-				return OutcomeIdentityChanged, nil
-			}
+		if !t.Identity().Matches(res.Identity()) {
+			return OutcomeIdentityChanged, nil
 		}
+		t.adopt(res.Identity())
 		if res.Size < offset {
 			log.Infof("SMB file %s shrank from %d bytes read to %d bytes: truncated", t.readPath, offset, res.Size)
 			return OutcomeTruncated, nil
@@ -386,6 +412,23 @@ func (t *Tailer) Poll(ctx context.Context, entry *client.Entry) (Outcome, error)
 		if n == 0 || t.caughtUp || budget <= 0 {
 			return OutcomeRead, nil
 		}
+	}
+}
+
+// adopt records the parts of the file's identity that the tailer did not know
+// yet. Poll checked that file matches the tailer's identity.
+func (t *Tailer) adopt(file client.Identity) {
+	changed := false
+	if t.fileID.Load() == 0 && file.FileID != 0 {
+		t.fileID.Store(file.FileID)
+		changed = true
+	}
+	if t.created.Load() == 0 && file.Created != 0 {
+		t.created.Store(file.Created)
+		changed = true
+	}
+	if changed {
+		t.updateFileInfo()
 	}
 }
 
@@ -420,12 +463,26 @@ func (t *Tailer) RecordMissedBytes(reason string) int64 {
 	if missed <= 0 {
 		return 0
 	}
-	metrics.BytesMissed.Add(missed)
-	metrics.TlmBytesMissed.Add(float64(missed))
-	missedSource, missedService := missedBytesIdentity(t.source.Config())
-	metrics.RecordMissedBytes(missedSource, missedService, missed)
+	recordMissed(t.source.Config(), missed)
 	log.Warnf("%s: %d bytes of SMB file %s (last read as %s) were not read and are lost", reason, missed, t.identifier, t.readPath)
 	return missed
+}
+
+// RecordMissedBytesOf reports missed bytes of the file read at identifier as
+// lost, as RecordMissedBytes does, for a file no tailer reads anymore.
+func RecordMissedBytesOf(source *sources.LogSource, identifier string, missed int64, reason string) {
+	if missed <= 0 {
+		return
+	}
+	recordMissed(source.Config, missed)
+	log.Warnf("%s: %d bytes of SMB file %s were not read and are lost", reason, missed, identifier)
+}
+
+func recordMissed(cfg *config.LogsConfig, missed int64) {
+	metrics.BytesMissed.Add(missed)
+	metrics.TlmBytesMissed.Add(float64(missed))
+	missedSource, missedService := missedBytesIdentity(cfg)
+	metrics.RecordMissedBytes(missedSource, missedService, missed)
 }
 
 // forwardMessages forwards decoded messages to the output channel until the
@@ -438,12 +495,13 @@ func (t *Tailer) forwardMessages() {
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
 
 		origin := message.NewOrigin(t.source.UnderlyingSource())
-		// A draining tailer reads a file that no longer owns the identifier:
-		// committing its offsets would move the new file's offset backwards
-		// or forwards, so its messages carry none (as for rotated file tailers).
-		if !t.draining.Load() {
-			origin.Identifier = t.identifier
-			origin.Offset = EncodeOffset(t.fileID.Load(), offset)
+		// A draining tailer reads a file that no longer owns the tailer's
+		// identifier: committing its offsets there would move the new file's
+		// offset backwards or forwards, so its messages carry none (as for
+		// rotated file tailers), unless CommitTo gave it another identifier.
+		if id := t.commitTo.Load(); id != "" {
+			origin.Identifier = id
+			origin.Offset = EncodeOffset(t.Identity(), offset)
 		}
 		tags := make([]string, 0, len(t.tags)+len(output.ParsingExtra.Tags))
 		tags = append(tags, t.tags...)
@@ -490,9 +548,15 @@ func (t *Tailer) ReadPath() string {
 	return t.readPath
 }
 
-// FileID returns the identity of the tailed file, 0 while unknown.
+// FileID returns the FileId of the tailed file, 0 while unknown.
 func (t *Tailer) FileID() uint64 {
 	return t.fileID.Load()
+}
+
+// Identity returns the identity of the tailed file, with the parts not known
+// yet at 0.
+func (t *Tailer) Identity() client.Identity {
+	return client.Identity{FileID: t.fileID.Load(), Created: t.created.Load()}
 }
 
 // Offset returns the offset of the next byte to read.
