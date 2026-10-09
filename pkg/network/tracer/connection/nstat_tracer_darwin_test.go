@@ -933,6 +933,93 @@ func TestNStatTracerFiltersLoopbackByDefault(t *testing.T) {
 	require.Equal(t, removalsBefore+float64(len(loopback)), removals.Get())
 }
 
+func TestNStatTracerFiltersFlowsOnLoopbackInterface(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.loopbackInterfaces = map[uint32]struct{}{testNStatLoopbackIfIndex: {}}
+	var closed []*network.ConnectionStats
+	tracer.closeCallback = func(conn *network.ConnectionStats) {
+		closed = append(closed, conn)
+	}
+	filtered := nstatTracerTelemetry.filteredSources.WithValues("loopback")
+	ifaceZero := nstatTracerTelemetry.ifaceZeroPublished.WithValues()
+	filteredBefore, ifaceZeroBefore := filtered.Get(), ifaceZero.Get()
+
+	selfAddressed := testNStatLoopbackTCPFlow(1101, "192.0.2.10", 50010, 9000)
+	selfAddressed.InterfaceIndex = testNStatLoopbackIfIndex
+	betweenLocalAddresses := testNStatTCPFlow(1102, tcpStateEstablished)
+	betweenLocalAddresses.InterfaceIndex = testNStatLoopbackIfIndex
+	udp := testNStatUDPFlow(1103)
+	udp.InterfaceIndex = testNStatLoopbackIfIndex
+	loopback := []struct {
+		sourceRef uint64
+		provider  uint32
+		flow      *nstat.Flow
+	}{
+		{60, nstat.ProviderTCPKernel, selfAddressed},
+		{61, nstat.ProviderTCPKernel, betweenLocalAddresses},
+		{62, nstat.ProviderUDPKernel, udp},
+	}
+	for _, source := range loopback {
+		tracer.processEvent(nstat.Event{
+			Kind:      nstat.EventDescription,
+			SourceRef: source.sourceRef,
+			Provider:  source.provider,
+			Flow:      source.flow,
+		})
+	}
+
+	// Traffic to the host's own tunnel address goes into the tunnel.
+	tunnelSelf := testNStatLoopbackTCPFlow(1104, "192.168.115.152", 50011, 9001)
+	tunnelSelf.InterfaceIndex = 22
+	beforeFirstSend := testNStatTCPFlow(1105, tcpStateEstablished)
+	beforeFirstSend.Local.Port = 50012
+	beforeFirstSend.InterfaceIndex = 0
+	for sourceRef, flow := range map[uint64]*nstat.Flow{63: tunnelSelf, 64: beforeFirstSend} {
+		tracer.processEvent(nstat.Event{
+			Kind:      nstat.EventDescription,
+			SourceRef: sourceRef,
+			Provider:  nstat.ProviderTCPKernel,
+			Flow:      flow,
+		})
+	}
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	var pids []uint32
+	for _, conn := range buffer.Connections() {
+		pids = append(pids, conn.Pid)
+	}
+	require.ElementsMatch(t, []uint32{1104, 1105}, pids)
+	require.Equal(t, filteredBefore+float64(len(loopback)), filtered.Get())
+	require.Equal(t, ifaceZeroBefore+1, ifaceZero.Get())
+
+	for _, source := range loopback {
+		tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: source.sourceRef})
+		require.NotContains(t, tracer.sources, source.sourceRef)
+	}
+	require.Empty(t, closed)
+}
+
+func TestNStatTracerPublishesLoopbackInterfaceFlowWhenIncluded(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.loopbackInterfaces = map[uint32]struct{}{testNStatLoopbackIfIndex: {}}
+	tracer.includeLoopback = true
+
+	flow := testNStatLoopbackTCPFlow(1106, "192.0.2.10", 50013, 9002)
+	flow.InterfaceIndex = testNStatLoopbackIfIndex
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 65,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      flow,
+	})
+
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 1)
+	require.Equal(t, uint32(testNStatLoopbackIfIndex), buffer.Connections()[0].InterfaceIndex)
+}
+
 func TestNStatTracerRemovesFilteredSourceDescribedAfterRemoval(t *testing.T) {
 	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
 	var closed []*network.ConnectionStats
@@ -1338,6 +1425,8 @@ func TestNStatConversions(t *testing.T) {
 	require.Equal(t, current.Remote, merged.Remote)
 	require.Equal(t, uint32(tcpStateClosed), merged.TCPState)
 }
+
+const testNStatLoopbackIfIndex = 1
 
 func testNStatConfig() *config.Config {
 	return &config.Config{

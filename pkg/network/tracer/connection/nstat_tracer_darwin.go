@@ -13,6 +13,7 @@ import (
 	"io"
 	"math"
 	"math/bits"
+	"net"
 	"net/netip"
 	"sync"
 	"time"
@@ -93,6 +94,7 @@ var nstatTracerTelemetry = struct {
 	directionConflicts telemetry.Counter
 	directionInferred  telemetry.Counter
 	pidZeroPublished   telemetry.Counter
+	ifaceZeroPublished telemetry.Counter
 	filteredSources    telemetry.Counter
 	unmatchedTuples    telemetry.Counter
 	latePacketMatches  telemetry.Counter
@@ -109,6 +111,7 @@ var nstatTracerTelemetry = struct {
 	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
 	directionInferred:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_inferred", []string{"result"}, "TCP directions inferred from ports, and inferences later overridden by direction evidence"),
 	pidZeroPublished:   telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "pid_zero_published", nil, "NStat connections published without a PID"),
+	ifaceZeroPublished: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "interface_zero_published", nil, "NStat connections published before the kernel reported their interface"),
 	filteredSources:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "filtered_sources", []string{"reason"}, "Resolved NStat sources not published"),
 	unmatchedTuples:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "unmatched_tuples", []string{"result"}, "Unmatched TCP packets: new tuples tracked, or skipped because the tracking set was full"),
 	latePacketMatches:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "late_packet_matches", []string{"missed"}, "NStat connections created after packets for their tuple went unmatched"),
@@ -162,9 +165,14 @@ type nstatTracer struct {
 	unmatched *darwinUnmatchedTuples
 	listeners map[darwinTCPListenerKey]map[uint64]struct{}
 
-	// includeLoopback publishes sources with a loopback endpoint. Production
-	// never sets it; loopback connections are always filtered.
+	// includeLoopback publishes loopback sources. Only tests set it; otherwise
+	// loopback connections are always filtered.
 	includeLoopback bool
+
+	// loopbackInterfaces holds the indexes of interfaces flagged loopback.
+	// Flows the kernel routes through them never leave the host, whatever
+	// their addresses.
+	loopbackInterfaces map[uint32]struct{}
 
 	ephemeralFirst uint16
 	ephemeralLast  uint16
@@ -229,6 +237,7 @@ func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatT
 		tuples:               newDarwinTupleIndex(),
 		unmatched:            newDarwinUnmatchedTuples(nstatUnmatchedTTL, nstatUnmatchedLimit),
 		listeners:            make(map[darwinTCPListenerKey]map[uint64]struct{}),
+		loopbackInterfaces:   darwinLoopbackInterfaces(),
 		descriptionQueued:    make(map[uint64]struct{}),
 		subscriptionContexts: make(map[uint64]struct{}),
 		subscriptionReady:    make(chan struct{}),
@@ -641,7 +650,7 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		if !nstatSourceResolved(source) || !nstatSourceEnabled(t.config, source) {
 			return
 		}
-		if !t.includeLoopback && nstatFlowIsLoopback(source.flow) {
+		if !t.includeLoopback && t.flowIsLoopback(source.flow) {
 			if !source.loopbackFiltered {
 				source.loopbackFiltered = true
 				nstatTracerTelemetry.filteredSources.Inc("loopback")
@@ -738,8 +747,29 @@ func nstatSourceEnabled(cfg *config.Config, source *nstatSource) bool {
 	}
 }
 
-func nstatFlowIsLoopback(flow *nstat.Flow) bool {
+// flowIsLoopback trusts the interface the kernel reports for the flow, which
+// is the socket's last output interface and stays zero until it first sends.
+// Loopback addresses are checked as well because they cannot leave the host.
+func (t *nstatTracer) flowIsLoopback(flow *nstat.Flow) bool {
+	if _, ok := t.loopbackInterfaces[flow.InterfaceIndex]; ok {
+		return true
+	}
 	return flow.Local.Address.Unmap().IsLoopback() || flow.Remote.Address.Unmap().IsLoopback()
+}
+
+func darwinLoopbackInterfaces() map[uint32]struct{} {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		log.Warnf("nstat: unable to list interfaces, loopback filtering falls back to addresses: %s", err)
+		return nil
+	}
+	loopback := make(map[uint32]struct{})
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagLoopback != 0 && iface.Index > 0 {
+			loopback[uint32(iface.Index)] = struct{}{}
+		}
+	}
+	return loopback
 }
 
 // nstatFlowHasPeer reports whether the flow names a remote endpoint. NStat
@@ -843,6 +873,9 @@ func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *netw
 	}
 	if flow.PID == 0 {
 		nstatTracerTelemetry.pidZeroPublished.Inc()
+	}
+	if flow.InterfaceIndex == 0 {
+		nstatTracerTelemetry.ifaceZeroPublished.Inc()
 	}
 	conn.Family = nstatFlowFamily(flow)
 	t.cookieHasher.Hash(conn)
