@@ -97,6 +97,12 @@ type Share struct {
 	unmounted        bool
 }
 
+// Encrypted reports whether the requests on this share are encrypted, because
+// the session or the share requires it. DATADOG PATCH 7.
+func (fs *Share) Encrypted() bool {
+	return fs != nil && fs.treeConn.Encrypted()
+}
+
 // Unmount disconnects the current SMB tree and cached DFS trees.
 // The Client retains their sessions until Client.Close.
 //

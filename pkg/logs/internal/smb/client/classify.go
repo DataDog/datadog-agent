@@ -72,6 +72,7 @@ const (
 	statusPasswordExpired        = 0xC0000071
 	statusAccountDisabled        = 0xC0000072
 	statusIOTimeout              = 0xC00000B5
+	statusNotSupported           = 0xC00000BB
 	statusNetworkNameDeleted     = 0xC00000C9
 	statusNetworkAccessDenied    = 0xC00000CA
 	statusBadNetworkName         = 0xC00000CC
@@ -138,15 +139,17 @@ func Classify(err error) ErrorKind {
 	if err == nil {
 		return ErrOther
 	}
+	// The Agent's own errors come first: they wrap library errors, redacted or
+	// not, that classify otherwise.
+	if errors.Is(err, errGuestSession) || errors.Is(err, ErrNotEncrypted) {
+		return ErrAuth
+	}
 	var redacted *redactedError
 	if errors.As(err, &redacted) {
 		return redacted.kind
 	}
 	if errors.Is(err, ErrClosed) {
 		return ErrOther
-	}
-	if errors.Is(err, errGuestSession) {
-		return ErrAuth
 	}
 	if code, ok := statusCode(err); ok {
 		return statusKinds[code]
