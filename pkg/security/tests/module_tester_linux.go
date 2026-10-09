@@ -164,6 +164,8 @@ runtime_security_config:
     enabled: {{ .EnableSecurityProfile }}
     v2:
       enabled: {{ .EnableSecurityProfileV2 }}
+    v3:
+      enabled: false
 {{if .EnableSecurityProfile}}
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
