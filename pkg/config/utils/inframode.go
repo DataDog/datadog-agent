@@ -44,11 +44,11 @@ func ResolveInfrastructureMode(c pkgconfigmodel.Reader) string {
 //
 // The value describes the Agent process and not an entity, so it is stored under
 // a dedicated Tagger entity and appended where a payload the Agent itself
-// produces is serialized.
-//
-// It must never reach a metric sample. The metrics intake renames series tagged
-// `infra_mode:cloud_cost_only` into the `dd.cloud_cost` namespace, so a mark that
-// leaks onto a customer custom metric removes that metric from dashboards,
+// produces is serialized. Eligible Agent integration metrics use the same value
+// via pkg/util/infratags (check-name gated). It must never reach a customer
+// custom metric or plain DogStatsD sample: the metrics intake renames series
+// tagged `infra_mode:cloud_cost_only` into the `dd.cloud_cost` namespace, so a
+// mark that leaks onto a customer series removes that metric from dashboards,
 // monitors and metering.
 func MarkedInfraMode(c pkgconfigmodel.Reader) string {
 	mode := ResolveInfrastructureMode(c)

@@ -10,29 +10,26 @@
 //   - CheckScheduler.getChecks calls sender.SetInfraTagger after a successful loader.Load.
 //   - DogStatsD server enriches JMX metrics (dd.internal.jmx_check_name) when the JMX check
 //     is eligible; custom checks (custom_*) and plain DogStatsD metrics are not tagged.
+//
+// The tag value comes from configutils.MarkedInfraMode (same allowlist as payload marks).
+// Metrics eligibility stays here: tagger.Component has no check name and must not gate series.
 package infratags
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
-// InfraModeCloudCostTag is the tag appended to eligible integration metrics in cloud_cost_only mode.
+// InfraModeCloudCostTag is the historical constant for the CCM metrics mark.
+// Prefer building the tag from configutils.InfraModeTagKey and MarkedInfraMode.
 const InfraModeCloudCostTag = "infra_mode:cloud_cost_only"
 
-// tagsForMode returns the infra_mode tags for the given infrastructure_mode value,
-// or (nil, false) if the mode does not trigger metric tagging.
-func tagsForMode(infraMode string) (tags []string, ok bool) {
-	switch infraMode {
-	case "cloud_cost_only":
-		return []string{InfraModeCloudCostTag}, true
-	default:
-		return nil, false
-	}
-}
-
-// Tagger holds the pre-resolved infra mode tagging state.
+// Tagger holds the pre-resolved infra mode tagging state for Agent integration metrics.
 // A nil *Tagger disables tagging.
 type Tagger struct {
 	infraModeTags []string
@@ -41,13 +38,22 @@ type Tagger struct {
 
 // NewTagger resolves the infra mode tagging configuration from cfg.
 // Returns nil if the active infrastructure_mode does not trigger tagging.
+//
+// The optional integration.<mode>.tagged allowlist exists only for
+// cloud_cost_only (and is deprecated). Other marked modes never probe that
+// key, so nodetreemodel does not warn about an unknown config path.
 func NewTagger(cfg pkgconfigmodel.Reader) *Tagger {
-	infraMode := cfg.GetString("infrastructure_mode")
-	tags, ok := tagsForMode(infraMode)
-	if !ok {
+	mode := configutils.MarkedInfraMode(cfg)
+	if mode == "" {
 		return nil
 	}
-	checks := cfg.GetStringSlice("integration." + infraMode + ".tagged")
+	tags := []string{fmt.Sprintf("%s:%s", configutils.InfraModeTagKey, mode)}
+
+	if mode != constants.InfraModeCloudCostOnly {
+		return &Tagger{infraModeTags: tags}
+	}
+
+	checks := cfg.GetStringSlice("integration." + constants.InfraModeCloudCostOnly + ".tagged")
 	if len(checks) == 0 {
 		return &Tagger{infraModeTags: tags}
 	}
@@ -76,11 +82,15 @@ func (t *Tagger) IsCheckEligible(checkName string) bool {
 	return ok
 }
 
-// AppendTags appends the pre-resolved infra_mode tags.
+// AppendTags appends the pre-resolved infra_mode tags, skipping values already present.
 func (t *Tagger) AppendTags(tags []string) []string {
 	if t == nil || len(t.infraModeTags) == 0 {
 		return tags
 	}
-
-	return append(tags, t.infraModeTags...)
+	for _, infraTag := range t.infraModeTags {
+		if !slices.Contains(tags, infraTag) {
+			tags = append(tags, infraTag)
+		}
+	}
+	return tags
 }
