@@ -10,4 +10,4 @@ invoke_unit_tests:
     - !reference [.on_invoke_tasks_changes]
   script:
     - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
-    - dda inv -- -e invoke-unit-tests.run
+    - dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 -- -e invoke-unit-tests.run

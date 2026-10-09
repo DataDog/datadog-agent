@@ -33,6 +33,19 @@ from tasks.libs.common.git import (
     get_staged_files,
 )
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.linter.e2e_internet_access import (
+    REGISTRY_PATH,
+    SCANNED_DIRS,
+    TREE_SITTER_DEPS,
+    check,
+    load_registry,
+    ls_files_command,
+    normalize_paths,
+    scan,
+    select_scope,
+    summarize,
+    target_pathspecs,
+)
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
     PREPUSH_GITLABCI_SUBLINTERS,
@@ -939,4 +952,35 @@ def filenames(ctx):
             failure = True
 
     if failure:
+        raise Exit(code=1)
+
+
+@task(iterable=["path"])
+def e2e_internet_access(ctx, path=None):
+    """Checks that every WithInternetAccess() usage in E2E code is listed in test/new-e2e/internet-access.yaml.
+
+    Args:
+        path: File or directory to check (repeatable). Runs a full scan when omitted or when the registry is included.
+    """
+    try:
+        import tree_sitter_go  # noqa: F401
+    except ImportError:
+        deps = " ".join(f"--dep {dep}" for dep in TREE_SITTER_DEPS)
+        raise Exit(
+            color_message(f"Run this task with: dda inv {deps} linter.e2e-internet-access", Color.RED), code=1
+        ) from None
+
+    root = Path(ctx.run("git rev-parse --show-toplevel", hide=True).stdout.strip())
+    scope = select_scope(normalize_paths(path or [], root))
+    pathspecs = target_pathspecs(scope)
+    targets = []
+    if pathspecs:
+        out = ctx.run(ls_files_command(root, pathspecs), hide=True).stdout
+        targets = [f for f in out.split("\0") if f.endswith(".go") and f.startswith(SCANNED_DIRS)]
+    entries, errors = load_registry((root / REGISTRY_PATH).read_text())
+    errors += check(scan(root, targets), entries, scope)
+    print(summarize(entries))
+    if errors:
+        for error in errors:
+            print(color_message(error, Color.RED), file=sys.stderr)
         raise Exit(code=1)
