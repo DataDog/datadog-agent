@@ -86,9 +86,11 @@ type secretResolver struct {
 	clk   clock.Clock
 
 	// list of handles and where they were found
-	origin             handleToContext
-	originNames        map[string]string
-	resolutionFailures map[string]string
+	origin                    handleToContext
+	originNames               map[string]string
+	resolutionFailures        map[string]string
+	resolutionFailureCallback func([]secrets.ResolutionFailure, bool)
+	initialResolutionComplete bool
 
 	// resolvedSecretValues is an append-only set of all secret values ever returned by the backend.
 	// old values are retained for IsValueFromSecret lookups.
@@ -616,6 +618,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	if len(foundSecrets) == 0 {
 		return data, nil
 	}
+	defer r.notifyResolutionFailures()
 
 	// check if any new secrets need to be fetch
 	var resolveErr error
@@ -809,6 +812,7 @@ func (r *secretResolver) IsValueFromSecret(value string) bool {
 func (r *secretResolver) RemoveOrigin(origin string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
+	defer r.notifyResolutionFailures()
 	delete(r.originNames, origin)
 
 	for handle, origins := range r.origin {
@@ -845,6 +849,7 @@ func (r *secretResolver) performRefresh() (string, error) {
 	if len(newHandles) == 0 {
 		return "", nil
 	}
+	defer r.notifyResolutionFailures()
 
 	log.Infof("Refreshing secrets for %d handles", len(newHandles))
 

@@ -13,7 +13,6 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
-        "//comp/core/secrets/def",
         "//comp/core/sysprobeconfig/def",
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/runner/def",

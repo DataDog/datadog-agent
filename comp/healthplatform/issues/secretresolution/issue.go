@@ -13,6 +13,15 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+const (
+	// IssueName and IssueType identify the secret lookup failure contract.
+	IssueName = "Secret Resolution Failure"
+	IssueType = "secret_resolution_failure"
+)
+
+// SecretResolutionIssue builds the customer-facing explanation of a failed lookup.
+type SecretResolutionIssue struct{}
+
 var failureMessages = map[string]struct{ description, correction string }{
 	"missing":          {"did not return a value for", "Check that this secret exists and that your backend returns an entry for the requested secret."},
 	"empty":            {"returned an empty value for", "Check that this secret has a non-empty value, including after any trailing line breaks are removed."},
@@ -21,7 +30,7 @@ var failureMessages = map[string]struct{ description, correction string }{
 }
 
 // BuildIssue uses fixed explanations, never backend errors or resolved values.
-func (m *module) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) {
+func (i *SecretResolutionIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) {
 	message := failureMessages[ctx["reason"]]
 	if message.description == "" {
 		return nil, errors.New("unknown secret resolution failure reason")
@@ -42,7 +51,7 @@ func (m *module) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error
 	}
 	return &healthplatform.Issue{
 		IssueName: IssueName, IssueType: IssueType,
-		Title: fmt.Sprintf("Failed to resolve %q in %s", reference, ctx["configuration"]), Description: description + " " + impact,
+		Title: fmt.Sprintf("Agent could not load secret %q for %s", ctx["handle"], ctx["configuration"]), Description: description + " " + impact,
 		Category: "configuration", Location: "agent", Source: "secrets",
 		Severity: healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		Extra:    extra, Tags: []string{"secrets", "configuration"},

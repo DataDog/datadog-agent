@@ -220,9 +220,11 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	assert.False(suite.T(), ac.configPollers[0].canPoll)
 	assert.True(suite.T(), ac.configPollers[1].canPoll)
 
+	assert.False(suite.T(), mockResolver.initialResolutionComplete)
 	ac.LoadAndRun(context.Background())
 
 	assert.Equal(suite.T(), 1, mp.collectCounter)
+	assert.True(suite.T(), mockResolver.initialResolutionComplete)
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {

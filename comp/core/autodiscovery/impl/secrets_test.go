@@ -28,9 +28,10 @@ type mockSecretScenario struct {
 }
 
 type MockSecretResolver struct {
-	t           *testing.T
-	scenarios   []mockSecretScenario
-	subscribers []secrets.SecretChangeCallback
+	t                         *testing.T
+	scenarios                 []mockSecretScenario
+	subscribers               []secrets.SecretChangeCallback
+	initialResolutionComplete bool
 }
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
@@ -56,6 +57,11 @@ func (m *MockSecretResolver) RemoveOrigin(_ string) {}
 func (m *MockSecretResolver) SetOriginName(_, _ string) {}
 
 func (m *MockSecretResolver) GetResolutionFailures() []secrets.ResolutionFailure { return nil }
+
+func (m *MockSecretResolver) SetResolutionFailureCallback(_ func([]secrets.ResolutionFailure, bool)) {
+}
+
+func (m *MockSecretResolver) CompleteInitialResolution() { m.initialResolutionComplete = true }
 
 func (m *MockSecretResolver) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 	if m.subscribers == nil {

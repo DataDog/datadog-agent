@@ -47,3 +47,9 @@ func (r *SecretNoop) SetOriginName(_, _ string) {}
 
 // GetResolutionFailures returns no failures.
 func (r *SecretNoop) GetResolutionFailures() []secrets.ResolutionFailure { return nil }
+
+// SetResolutionFailureCallback does nothing.
+func (r *SecretNoop) SetResolutionFailureCallback(_ func([]secrets.ResolutionFailure, bool)) {}
+
+// CompleteInitialResolution does nothing.
+func (r *SecretNoop) CompleteInitialResolution() {}

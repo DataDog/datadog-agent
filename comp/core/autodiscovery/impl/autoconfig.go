@@ -96,6 +96,7 @@ type AutoConfig struct {
 	pendingSecretRefreshes   map[string]struct{}
 	store                    *store
 	cfgMgr                   configManager
+	secretResolver           secrets.Component
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providerTypes.ConfigProviderFactory
 	wmeta                    option.Option[workloadmeta.Component]
@@ -221,6 +222,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		pendingSecretRefreshes:   make(map[string]struct{}),
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
+		secretResolver:           secretResolver,
 		schedulerController:      schedulerController,
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
@@ -494,6 +496,7 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 			}
 		}
 	}
+	ac.secretResolver.CompleteInitialResolution()
 }
 
 // GetAllConfigs returns all resolved and non-template configs known to

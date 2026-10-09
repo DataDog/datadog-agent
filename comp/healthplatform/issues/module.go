@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
@@ -38,7 +37,6 @@ type ModuleDeps struct {
 	Config         config.Component
 	SysProbeConfig sysprobeconfig.Component
 	Hostname       hostnameinterface.Component
-	Secrets        secrets.Component
 	// SelfIdent scopes issue ids by this agent's DaemonSet uid when
 	// resolvable, so cluster-distributed template issues collapse across
 	// every node agent instead of reporting once per host.

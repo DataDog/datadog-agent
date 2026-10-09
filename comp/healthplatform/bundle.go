@@ -36,7 +36,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig" // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"           // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"       // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/secretresolution"      // registers templates via init()
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/secretresolution"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
@@ -60,6 +60,7 @@ func Bundle() fxutil.BundleOptions {
 		corefx.Module(),
 		statusfx.Module(),
 		fx.Invoke(bootstrapBuiltInHealthChecks),
+		fx.Invoke(secretresolution.Register),
 	)
 }
 

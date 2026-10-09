@@ -430,7 +430,7 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	mods := issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hn})
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
-		issue, err := mod.BuildIssue(map[string]string{"reason": "backend_error"})
+		issue, err := mod.BuildIssue(map[string]string{})
 		require.NoError(t, err, "module %s: BuildIssue failed", mod.IssueName())
 		assert.Equal(t, mod.IssueName(), issue.IssueName,
 			"module IssueName() %q must equal BuildIssue().IssueName %q",
@@ -443,11 +443,26 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 
 type testSecretFailures struct {
 	secretnoop.SecretNoop
-	failed atomic.Bool
+	failed   bool
+	callback func([]secrets.ResolutionFailure, bool)
+}
+
+func (r *testSecretFailures) SetResolutionFailureCallback(callback func([]secrets.ResolutionFailure, bool)) {
+	r.callback = callback
+	if callback != nil {
+		callback(r.GetResolutionFailures(), false)
+	}
+}
+
+func (r *testSecretFailures) setFailed(failed bool) {
+	r.failed = failed
+	if r.callback != nil {
+		r.callback(r.GetResolutionFailures(), true)
+	}
 }
 
 func (r *testSecretFailures) GetResolutionFailures() []secrets.ResolutionFailure {
-	if !r.failed.Load() {
+	if !r.failed {
 		return nil
 	}
 	return []secrets.ResolutionFailure{{
@@ -456,7 +471,7 @@ func (r *testSecretFailures) GetResolutionFailures() []secrets.ResolutionFailure
 	}}
 }
 
-// Verify that the registered check raises, clears, and re-raises the same issue at intake.
+// Lookup outcomes update the local store immediately and reach intake through normal egress.
 func TestSecretResolutionLifecycleForwarded(t *testing.T) {
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(fakeintakeserver.WithAddress("127.0.0.1:0"), fakeintakeserver.WithReadyChannel(ready))
@@ -465,8 +480,7 @@ func TestSecretResolutionLifecycleForwarded(t *testing.T) {
 	t.Cleanup(func() { _ = fi.Stop() })
 	client := fakeintakeclient.NewClient(fi.URL())
 	resolver := &testSecretFailures{}
-	hn, _ := hostnameinterface.NewMock("my-hostname")
-	scheduler := fxutil.Test[schedulerdef.Component](t,
+	store := fxutil.Test[storedef.Component](t,
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func() secrets.Component { return resolver }),
@@ -483,12 +497,28 @@ func TestSecretResolutionLifecycleForwarded(t *testing.T) {
 		telemetrymock.Module(), hostnameinterface.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
-	check := secretresolution.NewModule(issues.ModuleDeps{Secrets: resolver, Hostname: hn}).BuiltInPeriodicHealthCheck()
-	require.NoError(t, scheduler.Schedule("secret-resolution-qa", check.Fn, 20*time.Millisecond, nil))
+	require.NotNil(t, resolver.callback)
+	// A warning from the previous run must survive the early, empty startup snapshot.
+	require.NoError(t, store.ReportIssue(&healthplatformpayload.Issue{
+		Id: "previous-startup-failure", IssueName: secretresolution.IssueName, IssueType: secretresolution.IssueType,
+	}))
+	resolver.callback(nil, false)
+	require.NotNil(t, store.GetIssue("previous-startup-failure"))
+	resolver.setFailed(false)
+	require.Nil(t, store.GetIssue("previous-startup-failure"), "the completed initial load reconciles old warnings")
 	var issueID string
 	for _, failed := range []bool{true, false, true} {
 		require.NoError(t, client.FlushServerAndResetAggregators())
-		resolver.failed.Store(failed)
+		resolver.setFailed(failed)
+		count, active := store.GetAllIssues()
+		if failed {
+			require.Equal(t, 1, count, "the lookup failure must be reported without a scheduled check")
+			for _, issue := range active {
+				require.Equal(t, secretresolution.IssueType, issue.IssueType)
+			}
+		} else {
+			require.Zero(t, count, "recovery must clear the local issue immediately")
+		}
 		state := healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED
 		if failed {
 			state = healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE

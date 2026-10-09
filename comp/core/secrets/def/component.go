@@ -70,4 +70,9 @@ type Component interface {
 	SetOriginName(origin, name string)
 	// GetResolutionFailures returns failed lookups that still have an active configuration reference.
 	GetResolutionFailures() []ResolutionFailure
+	// SetResolutionFailureCallback installs the reporter and immediately supplies current failures.
+	// Callbacks run under the resolver lock and must not call back into the resolver. Nil removes the reporter.
+	SetResolutionFailureCallback(callback func(failures []ResolutionFailure, initialLoadComplete bool))
+	// CompleteInitialResolution allows persisted health issues to be reconciled after the initial config load.
+	CompleteInitialResolution()
 }

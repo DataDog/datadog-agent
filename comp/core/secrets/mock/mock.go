@@ -150,3 +150,9 @@ func (m *Mock) SetOriginName(_, _ string) {}
 
 // GetResolutionFailures returns no failures.
 func (m *Mock) GetResolutionFailures() []secrets.ResolutionFailure { return nil }
+
+// SetResolutionFailureCallback does nothing.
+func (m *Mock) SetResolutionFailureCallback(_ func([]secrets.ResolutionFailure, bool)) {}
+
+// CompleteInitialResolution does nothing.
+func (m *Mock) CompleteInitialResolution() {}

@@ -82,6 +82,8 @@ func TestResolutionFailureRecoveryAndRemoval(t *testing.T) {
 
 func TestRefreshFailureClearsOnUnchangedValue(t *testing.T) {
 	r := newEnabledSecretResolver(nooptelemetry.GetCompatComponent())
+	var notified []secrets.ResolutionFailure
+	r.SetResolutionFailureCallback(func(failures []secrets.ResolutionFailure, _ bool) { notified = failures })
 	response := `{"password":{"value":"same-value"}}`
 	r.commandHookFunc = func(string) ([]byte, error) { return []byte(response), nil }
 	config := []byte("password: ENC[password]\n")
@@ -90,15 +92,33 @@ func TestRefreshFailureClearsOnUnchangedValue(t *testing.T) {
 	response = `{"password":{"error":"lookup failed"}}`
 	_, err = r.RefreshNow()
 	require.Error(t, err)
-	require.Len(t, r.GetResolutionFailures(), 1)
-	assert.True(t, r.GetResolutionFailures()[0].HasCachedValue)
+	require.Len(t, notified, 1, "failed lookups must notify the reporter immediately")
+	assert.True(t, notified[0].HasCachedValue)
 	_, err = r.Resolve(config, "redis", "", "", false)
 	require.NoError(t, err)
-	require.Len(t, r.GetResolutionFailures(), 1, "using the cache is not a successful backend lookup")
+	require.Len(t, notified, 1, "using the cache is not a successful backend lookup")
 	response = `{"password":{"value":"same-value"}}`
 	_, err = r.RefreshNow()
 	require.NoError(t, err)
-	assert.Empty(t, r.GetResolutionFailures())
+	assert.Empty(t, notified, "successful unchanged values must notify recovery")
+}
+
+func TestResolutionReporterStartupAndRemoval(t *testing.T) {
+	r := newEnabledSecretResolver(nooptelemetry.GetCompatComponent())
+	r.commandHookFunc = func(string) ([]byte, error) { return []byte(`{}`), nil }
+	_, err := r.Resolve([]byte("password: ENC[missing]\n"), "redis", "", "", false)
+	require.Error(t, err)
+	var notified []secrets.ResolutionFailure
+	var ready bool
+	r.SetResolutionFailureCallback(func(failures []secrets.ResolutionFailure, initialLoadComplete bool) {
+		notified, ready = failures, initialLoadComplete
+	})
+	require.Len(t, notified, 1, "registration must replay failures recorded before Health started")
+	assert.False(t, ready)
+	r.CompleteInitialResolution()
+	assert.True(t, ready)
+	r.RemoveOrigin("redis")
+	assert.Empty(t, notified, "removing the configuration must notify the reporter")
 }
 
 func TestResolutionFailureMultiBackendHandles(t *testing.T) {
