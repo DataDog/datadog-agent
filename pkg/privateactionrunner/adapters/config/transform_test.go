@@ -8,6 +8,7 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"os"
@@ -21,7 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -626,7 +629,25 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]par.CredentialConfig{"api_token": {Value: "resolved-value"}}, cfg.CredentialValues)
+	conn := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
+		TokensV2: []*privateactionspb.ConnectionTokenV2{{
+			NameSegments: []string{"root_tokens", "token"},
+			Source: &privateactionspb.ConnectionTokenV2_RunnerCredential_{
+				RunnerCredential: &privateactionspb.ConnectionTokenV2_RunnerCredential{Key: "api_token"},
+			},
+		}},
+	}
+	credentials, err := cfg.CredentialResolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "resolved-value", credentials.Tokens[0].Value)
+
+	mockConfig.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "rotated-value"}}, model.SourceSecret)
+	credentials, err = cfg.CredentialResolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 1)
+	assert.Equal(t, "rotated-value", credentials.Tokens[0].Value)
 }
 
 func TestFromDDConfigInvalidCredentials(t *testing.T) {

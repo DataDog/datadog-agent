@@ -15,11 +15,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -77,9 +77,9 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Transport: httputils.CreateHTTPTransport(config),
 	}
 
-	credentialValues := make(map[string]par.CredentialConfig)
-	if err := structure.UnmarshalKey(config, par.CredentialsValues, &credentialValues, structure.ErrorUnused); err != nil {
-		return nil, fmt.Errorf("failed to decode %s: %w", par.CredentialsValues, err)
+	credentialResolver, err := resolver.NewPrivateCredentialResolver(config)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Config{
@@ -126,7 +126,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RunnerId:                           runnerID,
 		Urn:                                urn,
 		DatadogSite:                        ddSite,
-		CredentialValues:                   credentialValues,
+		CredentialResolver:                 credentialResolver,
 	}, nil
 }
 
