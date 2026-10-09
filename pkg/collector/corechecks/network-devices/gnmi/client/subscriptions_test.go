@@ -22,9 +22,9 @@ func TestStreamStateString(t *testing.T) {
 }
 
 func TestSubscriptionSpecString(t *testing.T) {
-	assert.Equal(t, "/system/state/hostname", SubscriptionSpec{Path: "/system/state/hostname"}.String())
-	assert.Equal(t, "/interfaces/interface/state/admin-status{interface=name}", SubscriptionSpec{
-		Path: "/interfaces/interface/state/admin-status",
+	assert.Equal(t, "/openconfig/system/state/hostname", SubscriptionSpec{Path: "/openconfig/system/state/hostname"}.String())
+	assert.Equal(t, "/openconfig/interfaces/interface/state/admin-status{interface=name}", SubscriptionSpec{
+		Path: "/openconfig/interfaces/interface/state/admin-status",
 		Keys: map[string]string{"interface": "name"},
 	}.String())
 }
@@ -34,7 +34,7 @@ func TestSubscriptionPaths(t *testing.T) {
 		Profile: config.ProfileDefinition{
 			Metrics: []config.MetricConfig{
 				{
-					Path:   "/system/state/uptime",
+					Path:   "/openconfig/system/state/uptime",
 					Metric: "snmp.sysUpTime",
 					Type:   config.MetricTypeGauge,
 				},
@@ -42,7 +42,7 @@ func TestSubscriptionPaths(t *testing.T) {
 		},
 	})
 	require.NotEmpty(t, specs)
-	assert.Equal(t, "/system/state/uptime", specs[0].Path)
+	assert.Equal(t, "/openconfig/system/state/uptime", specs[0].Path)
 }
 
 func TestBuildSubscriptionSpecsDedupesPaths(t *testing.T) {
@@ -50,7 +50,7 @@ func TestBuildSubscriptionSpecsDedupesPaths(t *testing.T) {
 		Profile: config.ProfileDefinition{
 			Metrics: []config.MetricConfig{
 				{
-					Path:   "/interfaces/interface/state/admin-status",
+					Path:   "/openconfig/interfaces/interface/state/admin-status",
 					Metric: "snmp.ifAdminStatus",
 					Type:   config.MetricTypeGauge,
 					Tags:   map[string]string{"interface": "name"},
@@ -65,9 +65,9 @@ func TestBuildSubscriptionSpecsDedupesPaths(t *testing.T) {
 		paths[spec.Path] = struct{}{}
 	}
 
-	_, hasAdminStatus := paths["/interfaces/interface/state/admin-status"]
+	_, hasAdminStatus := paths["/openconfig/interfaces/interface/state/admin-status"]
 	assert.True(t, hasAdminStatus)
-	_, hasHostname := paths["/system/state/hostname"]
+	_, hasHostname := paths["/openconfig/system/state/hostname"]
 	assert.True(t, hasHostname)
 }
 
@@ -76,11 +76,12 @@ func TestBuildSubscriptionSpecsIncludesTopologyWhenEnabled(t *testing.T) {
 		Profile: config.ProfileDefinition{
 			Metrics: []config.MetricConfig{
 				{
-					Path:   "/system/state/uptime",
+					Path:   "/openconfig/system/state/uptime",
 					Metric: "snmp.sysUpTime",
 					Type:   config.MetricTypeGauge,
 				},
 			},
+			Topology: config.DefaultOpenConfigLLDP(),
 		},
 		CollectTopology: true,
 	}
@@ -88,7 +89,7 @@ func TestBuildSubscriptionSpecsIncludesTopologyWhenEnabled(t *testing.T) {
 	specs := buildSubscriptionSpecs(cfg)
 	found := false
 	for _, spec := range specs {
-		if spec.Path == "/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id" {
+		if spec.Path == "/openconfig/lldp/interfaces/interface/neighbors/neighbor/state/chassis-id" {
 			found = true
 			require.Equal(t, map[string]string{"interface": "name", "neighbor": "id"}, spec.Keys)
 		}
@@ -96,12 +97,25 @@ func TestBuildSubscriptionSpecsIncludesTopologyWhenEnabled(t *testing.T) {
 	assert.True(t, found)
 }
 
+func TestSubscribePathKeepsOpenConfigPrefix(t *testing.T) {
+	path, err := subscribePathFromSpec(SubscriptionSpec{
+		Path: "/openconfig/interfaces/interface/state/name",
+		Keys: map[string]string{"interface": "name"},
+	})
+	require.NoError(t, err)
+	require.Len(t, path.Elem, 5)
+	assert.Equal(t, "openconfig", path.Elem[0].Name)
+	assert.Equal(t, "interfaces", path.Elem[1].Name)
+	assert.Equal(t, "interface", path.Elem[2].Name)
+	assert.Equal(t, map[string]string{"name": "*"}, path.Elem[2].Key)
+}
+
 func TestBuildSubscriptionSpecsExcludesTopologyByDefault(t *testing.T) {
 	cfg := Config{
 		Profile: config.ProfileDefinition{
 			Metrics: []config.MetricConfig{
 				{
-					Path:   "/system/state/uptime",
+					Path:   "/openconfig/system/state/uptime",
 					Metric: "snmp.sysUpTime",
 					Type:   config.MetricTypeGauge,
 				},
