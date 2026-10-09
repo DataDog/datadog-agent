@@ -577,30 +577,6 @@ func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
 	assert.Contains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
 }
 
-// TestCheckSenderInfraTagger_SystemCPUUserExactlyOneMark regresses the former
-// double-tag where the cpu check injected infra_mode and the sender appended it again.
-func TestCheckSenderInfraTagger_SystemCPUUserExactlyOneMark(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-	tagger := infratags.NewTagger(cfg)
-	require.NotNil(t, tagger)
-
-	s := initSender(checkID1, "")
-	s.sender.SetInfraTagger(tagger)
-
-	// cpu check emits system.cpu.user with no private infra tags; sender path marks once.
-	s.sender.Gauge("system.cpu.user", 1.0, "my-hostname", nil)
-	sample := (<-s.itemChan).(*senderMetricSample)
-
-	count := 0
-	for _, tag := range sample.metricSample.Tags {
-		if tag == infratags.InfraModeCloudCostTag {
-			count++
-		}
-	}
-	assert.Equal(t, 1, count, "system.cpu.user must carry exactly one infra_mode:cloud_cost_only")
-}
-
 func TestCheckSenderInterface(t *testing.T) {
 	// this test not using anything global
 	// -

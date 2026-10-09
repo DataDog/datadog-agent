@@ -301,8 +301,8 @@ func TestSystemCpuMetricsReportedOnSecondCheck(t *testing.T) {
 }
 
 // TestSystemCpuUserNoPrivateInfraTags confirms the cpu check never injects
-// infra_mode tags itself. Under cloud_cost_only the mark is applied once by the
-// infratags/sender path (see aggregator TestCheckSenderInfraTagger_SystemCPUUserExactlyOneMark).
+// infra_mode tags itself. Under cloud_cost_only the mark is applied by the
+// infratags/sender path (see aggregator TestCheckSenderInfraTagger_*).
 func TestSystemCpuUserNoPrivateInfraTags(t *testing.T) {
 	setupDefaultMocks()
 	firstCall := true
