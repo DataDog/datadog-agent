@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -159,6 +160,25 @@ static inline int otel_process_ctx_publish(const uint8_t *payload, size_t payloa
 
     prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, (unsigned long)mapping, (unsigned long)page_size, (unsigned long)"OTEL_CTX");
     return 0;
+}
+
+// Set by runSpanTester in span_test.go, which creates the file once the agent
+// has resolved this process. Unset when the test runs no eBPF probe.
+#define OTEL_CONTINUE_FILE_ENV "SPAN_TESTER_CONTINUE_FILE"
+
+static inline int otel_wait_for_agent(void) {
+    const char *path = getenv(OTEL_CONTINUE_FILE_ENV);
+    if (path == NULL) {
+        return 0;
+    }
+    for (int i = 0; i < 3000; i++) { // 30s, past runSpanTester's own timeout
+        if (access(path, F_OK) == 0) {
+            return 0;
+        }
+        usleep(10000);
+    }
+    fprintf(stderr, "timed out waiting for %s\n", path);
+    return -1;
 }
 
 #endif
