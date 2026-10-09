@@ -8,7 +8,8 @@ package utils
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,11 +25,16 @@ func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.NewMock(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{})
+	cfg.SetInTest("host_aliases", []string{"configured-alias"})
 
 	meta := getMeta(ctx, cfg, hostnameimpl.NewHostnameService())
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
+	osHostname, err := os.Hostname()
+	require.NoError(t, err)
+	assert.Equal(t, osHostname, meta.SocketHostname)
+	assert.Contains(t, meta.HostAliases, "configured-alias")
 }
 
 func TestGetMetaFromCache(t *testing.T) {
@@ -56,18 +62,17 @@ func (h identityHostname) GetWithProvider(context.Context) (hostnameinterface.Da
 	return h.data, nil
 }
 
-func TestCanonicalEUDMMetadata(t *testing.T) {
+func TestCanonicalConfiguredMetadata(t *testing.T) {
 	for _, tc := range []struct {
 		provider string
 		force    bool
 		want     string
 	}{
-		{hostnameinterface.EUDMProvider, false, "ip-device-abc123"},
 		{hostnameinterface.ConfigProvider, false, ""},
 		{hostnameinterface.ConfigProvider, true, "ip-device-abc123"},
 		{"os", true, ""},
 	} {
-		t.Run(tc.provider+fmt.Sprint(tc.force), func(t *testing.T) {
+		t.Run(tc.provider+strconv.FormatBool(tc.force), func(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("cloud_provider_metadata", []string{})
 			cfg.SetInTest("ec2_use_dmi", false)
@@ -86,6 +91,32 @@ func TestCanonicalEUDMMetadata(t *testing.T) {
 				require.Equal(t, tc.want, payload["agent-hostname"])
 			} else {
 				require.NotContains(t, payload, "agent-hostname")
+			}
+		})
+	}
+}
+
+// Alternative identity fields must stay empty even with aliases configured,
+// regardless of whether the selected name is generated, configured, or a fallback.
+func TestEUDMMetadataHasOneIdentity(t *testing.T) {
+	for _, provider := range []string{hostnameinterface.EUDMProvider, hostnameinterface.ConfigProvider, "os", "aws"} {
+		t.Run(provider, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("infrastructure_mode", "end_user_device")
+			cfg.SetInTest("host_aliases", []string{"shared-device", "i-other-identity"})
+			cfg.SetInTest("collect_ccrid", true)
+			cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", true)
+			const selected = "ip-device-abc123"
+			host := identityHostname{data: hostnameinterface.Data{Hostname: selected, Provider: provider}}
+			encoded, err := json.Marshal(getMeta(context.Background(), cfg, host))
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, json.Unmarshal(encoded, &payload))
+			for _, field := range []string{"hostname", "agent-hostname", "socket-hostname", "socket-fqdn"} {
+				assert.Equal(t, selected, payload[field], field)
+			}
+			for _, field := range []string{"host_aliases", "ec2-hostname", "instance-id", "legacy-resolution-hostname", "ccrid", "cluster-name"} {
+				assert.Empty(t, payload[field], field)
 			}
 		})
 	}

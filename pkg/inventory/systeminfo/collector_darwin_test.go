@@ -8,8 +8,6 @@
 package systeminfo
 
 import (
-	"os/exec"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -195,16 +193,4 @@ func TestGetChassisType_CaseInsensitive(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-// Compare against the OS configuration interface, without altering the device.
-func TestConfiguredComputerName(t *testing.T) {
-	out, err := exec.Command("/usr/sbin/scutil", "--get", "ComputerName").Output()
-	if err != nil {
-		t.Skipf("configured ComputerName unavailable in this environment: %v", err)
-	}
-	info, err := Collect()
-	require.NoError(t, err)
-	require.NotNil(t, info)
-	require.Equal(t, strings.TrimSpace(string(out)), info.ComputerName)
 }

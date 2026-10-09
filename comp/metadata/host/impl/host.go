@@ -189,7 +189,7 @@ func (h *host) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *host) writeGohaiPayload(w http.ResponseWriter, _ *http.Request) {
-	payload := gohai.GetPayloadWithProcesses(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized(), h.config.GetString("kubernetes_kubelet_host"))
+	payload := gohai.GetPayloadWithProcesses(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized(), h.config.GetString("kubernetes_kubelet_host"), h.gohaiOptions()...)
 	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		httputils.SetJSONError(w, h.log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
@@ -202,4 +202,12 @@ func (h *host) writeGohaiPayload(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	w.Write(scrubbed)
+}
+
+// Keep the embedded hardware metadata consistent with EUDM's host identity.
+func (h *host) gohaiOptions() []gohai.Option {
+	if h.config.GetString("infrastructure_mode") == "end_user_device" {
+		return []gohai.Option{gohai.WithPlatformHostname(h.hostname)}
+	}
+	return nil
 }

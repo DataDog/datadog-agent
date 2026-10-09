@@ -22,5 +22,8 @@ dd_agent_go_test(
     name = "gohai_test",
     srcs = ["gohai_test.go"],
     embed = [":gohai"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
