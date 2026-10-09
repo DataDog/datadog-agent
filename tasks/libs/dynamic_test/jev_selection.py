@@ -139,8 +139,9 @@ class JevDynTestExecutor(DynTestExecutor):
     PR context from this checkout).
     """
 
-    def __init__(self, ctx, commit_sha: str):
-        super().__init__(ctx, None, IndexKind.JEV, commit_sha)
+    def __init__(self, ctx):
+        # No target commit: Jev decides from the checkout's HEAD
+        super().__init__(ctx, None, IndexKind.JEV, "")
         self._run: set[str] | None = None
 
     def init_index(self):

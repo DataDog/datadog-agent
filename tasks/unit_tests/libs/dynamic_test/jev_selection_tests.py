@@ -54,13 +54,13 @@ class TestJevDynTestExecutor(unittest.TestCase):
     def test_index_is_the_whole_candidate_file(self, get_pipeline, candidates):
         """The index: the ENTIRE committed candidate file, no pipeline lookup."""
         candidates.return_value = {"new-e2e-job-a": ["TestA"], "new-e2e-job-b": ["TestB"]}
-        executor = JevDynTestExecutor(MagicMock(), SHA)
+        executor = JevDynTestExecutor(MagicMock())
         self.assertEqual(sorted(executor.index().get_jobs()), ["new-e2e-job-a", "new-e2e-job-b"])
         self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-job-a"), {"TestA"})
         get_pipeline.assert_not_called()
 
     def test_predictions_decide_via_the_suites_with_candidates(self):
-        executor = JevDynTestExecutor(MagicMock(), SHA)
+        executor = JevDynTestExecutor(MagicMock())
         executor._index = DynamicTestIndex()
         executor._index.add_tests("job", "candidates", {"TestA", "TestDup"})
         with (
@@ -124,10 +124,12 @@ class TestSharedEvaluator(unittest.TestCase):
             _event("TestFlaky", "job", "7", status="fail", flaky=True),
             _event("TestNotAnEntry", "job", "7", status="fail"),  # not a candidate: not decidable
         ]
-        executor = JevDynTestExecutor(MagicMock(), SHA)
+        executor = JevDynTestExecutor(MagicMock())
         executor._index = DynamicTestIndex()
         executor._index.add_tests("job", "candidates", {"TestPass", "TestFail", "TestFlaky", "TestSkipKeep"})
-        evaluator = DatadogDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
+        evaluator = DatadogDynTestEvaluator(
+            MagicMock(), IndexKind.JEV, executor, "42", SHA, telemetry_handler=MagicMock()
+        )
         evaluator.index = executor.index()  # normally set by initialize()
         results = evaluator.evaluate([])  # DatadogDynTestEvaluator.evaluate, no subclass
         self.assertEqual(len(results), 1)

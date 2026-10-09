@@ -10,6 +10,12 @@ from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
 
 
 class TestEvaluateIndex(unittest.TestCase):
+    def setUp(self):
+        # The evaluated pipeline ran the checkout commit ("abc") unless a test says otherwise
+        patcher = patch("tasks.dyntest.get_pipeline", return_value=MagicMock(sha="abc"))
+        self.get_pipeline = patcher.start()
+        self.addCleanup(patcher.stop)
+
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.is_enabled", return_value=True)
     @patch("tasks.dyntest.S3Backend")
@@ -22,7 +28,8 @@ class TestEvaluateIndex(unittest.TestCase):
         evaluator.return_value.evaluate.return_value = [result]
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
         s3.assert_not_called()
-        self.assertEqual(executor.call_args.args[1:], ("abc",))
+        self.assertEqual(executor.call_args.args[1:], ())
+        self.assertEqual(evaluator.call_args.args[4], "abc")  # the evaluator tags the commit
         # The shared evaluator is constructed exactly like for coverage: the
         # Jev executor plugs in through the standard interface only
         options = evaluator.call_args.kwargs
@@ -67,6 +74,17 @@ class TestEvaluateIndex(unittest.TestCase):
     def test_jev_requires_matching_checkout(self, _, enabled):
         with self.assertRaisesRegex(Exit, "check out"):
             evaluate_index.body(Context(), commit_sha="other", pipeline_id="42", selector="jev")
+
+    @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.is_enabled", return_value=True)
+    @patch("tasks.dyntest.JevDynTestExecutor")
+    def test_jev_requires_the_pipeline_commit(self, executor, _, enabled):
+        """An unrelated pipeline is rejected even with --commit-sha omitted."""
+        self.get_pipeline.return_value.sha = "def"
+        with self.assertRaisesRegex(Exit, "Pipeline 42 ran def"):
+            evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
+        self.get_pipeline.assert_called_once_with("DataDog/datadog-agent", "42")
+        executor.assert_not_called()
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.is_enabled", return_value=True)

@@ -85,7 +85,7 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
 @task(
     help={
         "bucket-uri": "S3 index bucket (coverage selector only)",
-        "commit-sha": "Commit to evaluate; Jev requires it to match HEAD",
+        "commit-sha": "Commit to evaluate; Jev requires it to match HEAD and the pipeline SHA",
         "pipeline-id": "Completed GitLab pipeline ID to evaluate",
         "selector": "coverage (default) or jev",
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
@@ -111,8 +111,8 @@ def evaluate_index(
     evaluated pipeline's checkout.
 
     Requires DD_API_KEY/DD_APP_KEY with CI Visibility read access (and DD_SITE
-    when not datadoghq.com). Jev additionally uses preinstalled authanywhere
-    for AI Gateway access.
+    when not datadoghq.com). Jev additionally uses the standard GitLab task
+    authentication and preinstalled authanywhere for AI Gateway access.
     AI_GATEWAY_TOKEN or JEV_TOKEN_CMD/JEV_DC can override Gateway authentication.
     GITHUB_TOKEN optionally supplies the PR title/description.
 
@@ -130,14 +130,9 @@ def evaluate_index(
         if not is_enabled(ctx, "datadog-agent-jev-evaluation"):
             print(color_message("Jev evaluation disabled", Color.ORANGE))
             return
-        if commit_sha != head:
-            raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
-        # A plain DynTestExecutor with a static index (committed in Git, where
-        # the coverage executors keep theirs in S3). The shared evaluator owns
-        # the CI Visibility queries.
-        executor = JevDynTestExecutor(ctx, commit_sha)
+        executor = JevDynTestExecutor(ctx)
         executors = [executor]
-        changes = []  # Jev gathers the richer PR diff/context from this checkout.
+        changes = []
     else:
         backend = S3Backend(bucket_uri)
         changed_files = get_modified_files(ctx)
@@ -157,13 +152,16 @@ def evaluate_index(
                 default_tags=[
                     f"pipeline_id:{pipeline_id}",
                     f"index_kind:{executor.kind.value}",
+                    f"commit_sha:{commit_sha}",
                     "service:dynamic_test_evaluator",
                 ]
             )
             if send_stats
             else ConsoleTelemetryHandler()
         )
-        evaluator = DatadogDynTestEvaluator(ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry)
+        evaluator = DatadogDynTestEvaluator(
+            ctx, executor.kind, executor, pipeline_id, commit_sha, telemetry_handler=telemetry
+        )
         if not evaluator.initialize():
             print(
                 color_message(

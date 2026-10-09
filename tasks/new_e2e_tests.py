@@ -534,7 +534,7 @@ def run(
             with environ({"AWS_PROFILE": "DELETE"}):
                 backend = S3Backend(DEFAULT_DYNTEST_BUCKET_URI)
                 if is_enabled(ctx, "agent-ci-jev-test-impact-analysis"):
-                    executor = JevDynTestExecutor(ctx, get_commit_sha(ctx))
+                    executor = JevDynTestExecutor(ctx)
                 else:
                     executor = DynTestExecutor(ctx, backend, IndexKind.DIFFED_PACKAGE, get_commit_sha(ctx, short=True))
                 changed_files = get_modified_files(ctx)
