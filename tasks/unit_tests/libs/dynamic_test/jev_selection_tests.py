@@ -6,7 +6,6 @@ from tasks.libs.dynamic_test.evaluator import DatadogDynTestEvaluator
 from tasks.libs.dynamic_test.index import DynamicTestIndex, IndexKind
 from tasks.libs.dynamic_test.jev_selection import (
     JevDynTestExecutor,
-    NothingToEvaluateError,
     generate_job_candidates,
     jev_selection,
 )
@@ -50,92 +49,28 @@ def _event(name, job, job_id, status="pass", flaky=False):
 
 
 class TestJevDynTestExecutor(unittest.TestCase):
-    @patch(f"{MODULE}.get_pipeline")
-    def test_rejects_wrong_commit_and_empty_pipeline(self, get_pipeline):
-        pipeline = get_pipeline.return_value
-        pipeline.sha = "b" * 40
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
-        with self.assertRaisesRegex(RuntimeError, "Pipeline 42 ran"):
-            executor.init_index()
-        pipeline.jobs.list.assert_not_called()
-        pipeline.sha = SHA
-        pipeline.jobs.list.side_effect = [iter([]), iter([])]
-        with self.assertRaisesRegex(NothingToEvaluateError, "No completed E2E jobs"):
-            executor.init_index()
-
-    @patch(f"{MODULE}._job_candidates", return_value={"new-e2e-fleet": {"TestA"}})
-    @patch(f"{MODULE}.get_pipeline")
-    def test_sha_mismatch_can_be_allowed_explicitly(self, get_pipeline, candidates):
-        pipeline = get_pipeline.return_value
-        pipeline.sha = "b" * 40  # differs from the checkout SHA
-        pipeline.jobs.list.side_effect = [
-            iter([SimpleNamespace(name="new-e2e-fleet", id=1, allow_failure=False)]),
-            iter([]),
-        ]
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42", require_pipeline_commit=False)
-        executor.init_index()
-        self.assertEqual(executor.jobs, ["new-e2e-fleet"])
-        self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-fleet"), {"TestA"})
-
     @patch(f"{MODULE}._job_candidates")
     @patch(f"{MODULE}.get_pipeline")
     def test_index_is_the_whole_candidate_file(self, get_pipeline, candidates):
-        """The index: the ENTIRE committed candidate file - every job it knows,
-        whether or not that job ran in this pipeline - so the evaluation
-        shows Jev's over-selection. Pipeline jobs absent from the file are
-        reported (their executed tests are not decidable)."""
-        pipeline = get_pipeline.return_value
-        pipeline.sha = SHA
-        pipeline.jobs.list.side_effect = [
-            iter([SimpleNamespace(name="new-e2e-job-a", id=7, allow_failure=False)]),
-            iter(
-                [
-                    SimpleNamespace(name="new-e2e-job-b", id=8, allow_failure=True),
-                    SimpleNamespace(name="new-e2e-missing", id=9, allow_failure=False),
-                    SimpleNamespace(name="unit-tests", id=10, allow_failure=False),
-                ]
-            ),
-        ]
-        candidates.return_value = {
-            "new-e2e-job-a": ["TestA"],
-            "new-e2e-job-b": ["TestB"],
-            "new-e2e-never-ran": ["TestX"],  # not a completed job of this pipeline
-        }
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
-        executor.init_index()
-        # Every file job is indexed, ran or not
-        self.assertEqual(sorted(executor.index().get_jobs()), ["new-e2e-job-a", "new-e2e-job-b", "new-e2e-never-ran"])
+        """The index: the ENTIRE committed candidate file, no pipeline lookup."""
+        candidates.return_value = {"new-e2e-job-a": ["TestA"], "new-e2e-job-b": ["TestB"]}
+        executor = JevDynTestExecutor(MagicMock(), SHA)
+        self.assertEqual(sorted(executor.index().get_jobs()), ["new-e2e-job-a", "new-e2e-job-b"])
         self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-job-a"), {"TestA"})
-        self.assertEqual(executor.index().get_indexed_tests_for_job("new-e2e-never-ran"), {"TestX"})
-        self.assertNotIn("new-e2e-missing", executor.index().get_jobs())  # ran but absent from the file: reported
-        # The GitLab facts still recorded: latest job ids
-        self.assertEqual(executor.job_ids, {"new-e2e-job-a": "7", "new-e2e-job-b": "8", "new-e2e-missing": "9"})
-
-    @patch(f"{MODULE}._job_candidates", return_value={"new-e2e-other": ["TestX"]})
-    @patch(f"{MODULE}.get_pipeline")
-    def test_no_jobs_in_the_candidate_index_is_benign(self, get_pipeline, candidates):
-        pipeline = get_pipeline.return_value
-        pipeline.sha = SHA
-        pipeline.jobs.list.side_effect = [
-            iter([SimpleNamespace(name="new-e2e-fleet", id=1, allow_failure=False)]),
-            iter([]),
-        ]
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
-        with self.assertRaisesRegex(NothingToEvaluateError, "candidate index"):
-            executor.init_index()
+        get_pipeline.assert_not_called()
 
     def test_predictions_decide_via_the_suites_with_candidates(self):
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
+        executor = JevDynTestExecutor(MagicMock(), SHA)
         executor._index = DynamicTestIndex()
         executor._index.add_tests("job", "candidates", {"TestA", "TestDup"})
         with (
             patch(f"{MODULE}.suite_entry_points", return_value={"a": {"TestA", "TestDup"}, "b": {"TestDup"}}),
             patch(
                 f"{MODULE}.jev_selection",
-                side_effect=[
-                    {"run": [], "skip": ["TestA", "TestDup"]},  # suite a: skips both
-                    {},  # suite b: selector failure, fail open
-                ],
+                side_effect=lambda suite: {
+                    "a": {"run": [], "skip": ["TestA", "TestDup"]},  # suite a: skips both
+                    "b": {},  # suite b: selector failure, fail open
+                }[suite],
             ),
         ):
             self.assertEqual(executor.tests_to_run_per_job([]), {"job": {"TestDup"}})
@@ -189,7 +124,7 @@ class TestSharedEvaluator(unittest.TestCase):
             _event("TestFlaky", "job", "7", status="fail", flaky=True),
             _event("TestNotAnEntry", "job", "7", status="fail"),  # not a candidate: not decidable
         ]
-        executor = JevDynTestExecutor(MagicMock(), SHA, "42")
+        executor = JevDynTestExecutor(MagicMock(), SHA)
         executor._index = DynamicTestIndex()
         executor._index.add_tests("job", "candidates", {"TestPass", "TestFail", "TestFlaky", "TestSkipKeep"})
         evaluator = DatadogDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())

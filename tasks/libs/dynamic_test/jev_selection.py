@@ -35,10 +35,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 JOB_CANDIDATES_FILE = Path(__file__).resolve().parent / "jev" / "job_test_candidates.json"
 
 
-class NothingToEvaluateError(RuntimeError):
-    """The pipeline has no completed E2E test jobs to evaluate (not an error)."""
-
-
 def jev_selection(suite: str) -> dict:
     """Run the Jev selector for a suite in-process; return {} on any failure.
 
@@ -138,86 +134,42 @@ class JevDynTestExecutor(DynTestExecutor):
     evaluated pipeline. The evaluation therefore measures over-selection
     too: which tests and jobs Jev would run but the pipeline did not (jobs
     that did not run in the pipeline contribute zero executed tests, showing
-    as predicted-but-not-executed). The pipeline's completed e2e jobs
-    (GitLab API, latest attempts) are still fetched, for the executed-tests
-    side of the comparison and to report jobs absent from the file.
-    Predictions: the Jev selector's run-set over the suites whose tests are
-    candidates (the selector gathers its own PR context from this checkout).
+    as predicted-but-not-executed). Predictions: the Jev selector's run-set
+    over the suites whose tests are candidates (the selector gathers its own
+    PR context from this checkout).
     """
 
-    def __init__(self, ctx, commit_sha: str, pipeline_id: str, require_pipeline_commit: bool = True):
+    def __init__(self, ctx, commit_sha: str):
         super().__init__(ctx, None, IndexKind.JEV, commit_sha)
-        self.pipeline_id = pipeline_id
-        # False (local experiments, --ignore-sha-mismatch): allow evaluating a
-        # pipeline whose commit differs from the checkout - the Jev decisions
-        # are then computed from the current checkout's PR context.
-        self.require_pipeline_commit = require_pipeline_commit
-        self.jobs: list[str] = []
-        self.job_ids: dict[str, str] = {}
         self._run: set[str] | None = None
 
     def init_index(self):
-        pipeline = get_pipeline("DataDog/datadog-agent", self.pipeline_id)
-        if pipeline.sha != self.commit_sha:
-            if self.require_pipeline_commit:
-                raise RuntimeError(
-                    f"Pipeline {self.pipeline_id} ran {pipeline.sha}, but the checkout is at {self.commit_sha}. "
-                    "The Jev selection is computed from the pipeline commit's PR context: either check out that "
-                    f"commit (git checkout {pipeline.sha}) or evaluate the pipeline of the current HEAD, or pass "
-                    "--ignore-sha-mismatch to decide from the current checkout's context instead. "
-                    "Note the evaluation code also comes from the checkout, so old pipelines run their old "
-                    "evaluation code."
-                )
-            print(
-                f"[jev] WARNING: pipeline {self.pipeline_id} ran {pipeline.sha}, but the checkout is at "
-                f"{self.commit_sha}: the Jev decisions will be computed from the current checkout's PR "
-                "context, not the pipeline's commit (--ignore-sha-mismatch)"
-            )
-        jobs = _completed_e2e_jobs(pipeline)
-        if not jobs:
-            raise NothingToEvaluateError(f"No completed E2E jobs in pipeline {self.pipeline_id}")
-        self.jobs = [job.name for job in jobs]
-        self.job_ids = {job.name: str(job.id) for job in jobs}
-
-        candidates = _job_candidates()
+        # The whole candidate file is indexed - every job it knows - so the
+        # evaluation shows Jev's over-selection: tests and jobs Jev would run
+        # but the pipeline did not (executed tests come only from the
+        # pipeline, via the shared evaluator)
         index = DynamicTestIndex()
-        # The whole candidate file is indexed - every job it knows, whether or
-        # not the job ran in this pipeline - so the evaluation shows Jev's
-        # over-selection: tests and jobs Jev would run but the pipeline did
-        # not (executed tests still come only from the pipeline, via the
-        # shared evaluator)
-        for job, tests in candidates.items():
+        for job, tests in _job_candidates().items():
             index.add_tests(job, "candidates", tests)
-        missing = [job for job in self.jobs if not candidates.get(job)]
-        if missing:
-            print(
-                f"[jev] {len(missing)} completed E2E jobs are not in the candidate index "
-                f"(no candidates known, their executed tests are not evaluated): {', '.join(missing)}"
-            )
-        if not set(self.jobs) & set(candidates):
-            raise NothingToEvaluateError(
-                f"No completed E2E test jobs in the candidate index for pipeline {self.pipeline_id}"
-            )
-        not_ran = len(candidates) - len(set(candidates) & set(self.jobs))
         self._run = None
         self._index = index
         total = sum(len(index.get_indexed_tests_for_job(job)) for job in index.get_jobs())
-        print(
-            f"[jev] index: all {len(index.get_jobs())} jobs / {total} candidate tests from the committed "
-            f"file ({len(self.jobs)} of them ran in this pipeline, {not_ran} did not)"
-        )
+        print(f"[jev] index: {len(index.get_jobs())} jobs / {total} candidate tests from the committed file")
 
-    def _jev_run(self) -> set[str]:
+    def _jev_run(self, names: set[str] | None = None) -> set[str]:
         """Lazily: the candidate tests Jev would RUN, over the suites with candidates.
 
+        names restricts the decisions to these tests (e.g. a single job's), uncached.
         Only suites with something to decide are evaluated. Tests the selector
         did not decide about (missing or failed-open decisions) run, and a bare
         name occurring in several suites runs if any occurrence runs.
         """
-        if self._run is None:
-            names: set[str] = set()
-            for job in self.index().get_jobs():
-                names |= self.index().get_indexed_tests_for_job(job)
+        if self._run is None or names is not None:
+            cache = names is None
+            if names is None:
+                names = set()
+                for job in self.index().get_jobs():
+                    names |= self.index().get_indexed_tests_for_job(job)
             suites = {suite: entries for suite, entries in suite_entry_points().items() if entries & names}
             print(f"[jev] deciding {len(names)} tests with Jev; suites: {', '.join(sorted(suites))}")
             run: set[str] = set()
@@ -226,6 +178,8 @@ class JevDynTestExecutor(DynTestExecutor):
                 skip = set(summary.get("skip", [])) - set(summary.get("run", []))
                 run.update(entries - skip)
                 print(f"[jev] {suite}: {len(entries - skip)} run / {len(entries & skip)} skip")
+            if not cache:
+                return run
             self._run = run
         return self._run
 
@@ -238,7 +192,8 @@ class JevDynTestExecutor(DynTestExecutor):
         return self.index().get_indexed_tests_for_job(job_name) & self._jev_run()
 
     def tests_to_skip(self, job_name: str, changes: list[str]) -> set[str]:
-        return self.index().get_indexed_tests_for_job(job_name) - self._jev_run()
+        tests = self.index().get_indexed_tests_for_job(job_name)
+        return tests - self._jev_run(tests)
 
     def triggering_paths(self, job_name: str, test_name: str) -> list[str]:
         # No coverage information behind the Jev selection

@@ -26,7 +26,6 @@ from tasks.libs.dynamic_test.indexers.e2e import (
 from tasks.libs.dynamic_test.jev_selection import (
     JOB_CANDIDATES_FILE,
     JevDynTestExecutor,
-    NothingToEvaluateError,
     generate_job_candidates,
 )
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler, DatadogTelemetryHandler
@@ -86,11 +85,10 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
 @task(
     help={
         "bucket-uri": "S3 index bucket (coverage selector only)",
-        "commit-sha": "Commit to evaluate; Jev requires it to match HEAD and the pipeline SHA",
+        "commit-sha": "Commit to evaluate; Jev requires it to match HEAD",
         "pipeline-id": "Completed GitLab pipeline ID to evaluate",
         "selector": "coverage (default) or jev",
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
-        "ignore-sha-mismatch": "Evaluate a pipeline whose commit differs from the checkout: the Jev decisions are computed from the current checkout's PR context instead of the pipeline's (local experiments; the mismatch is always an error in CI)",
     }
 )
 def evaluate_index(
@@ -100,7 +98,6 @@ def evaluate_index(
     pipeline_id: str = "",
     selector: str = "coverage",
     send_stats: bool = True,
-    ignore_sha_mismatch: bool = False,
 ):
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
@@ -114,8 +111,8 @@ def evaluate_index(
     evaluated pipeline's checkout.
 
     Requires DD_API_KEY/DD_APP_KEY with CI Visibility read access (and DD_SITE
-    when not datadoghq.com). Jev additionally uses the standard GitLab task
-    authentication and preinstalled authanywhere for AI Gateway access.
+    when not datadoghq.com). Jev additionally uses preinstalled authanywhere
+    for AI Gateway access.
     AI_GATEWAY_TOKEN or JEV_TOKEN_CMD/JEV_DC can override Gateway authentication.
     GITHUB_TOKEN optionally supplies the PR title/description.
 
@@ -137,9 +134,8 @@ def evaluate_index(
             raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
         # A plain DynTestExecutor with a static index (committed in Git, where
         # the coverage executors keep theirs in S3). The shared evaluator owns
-        # the CI Visibility queries; the executor's GitLab jobs fetch
-        # supplies the allow-failure set.
-        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch)
+        # the CI Visibility queries.
+        executor = JevDynTestExecutor(ctx, commit_sha)
         executors = [executor]
         changes = []  # Jev gathers the richer PR diff/context from this checkout.
     else:
@@ -169,11 +165,6 @@ def evaluate_index(
         )
         evaluator = DatadogDynTestEvaluator(ctx, executor.kind, executor, pipeline_id, telemetry_handler=telemetry)
         if not evaluator.initialize():
-            if isinstance(evaluator.initialization_error, NothingToEvaluateError):
-                # E.g. a dev-branch pipeline where no E2E test jobs ran:
-                # nothing to measure, not an error.
-                print(color_message(f"Nothing to evaluate: {evaluator.initialization_error}", Color.ORANGE))
-                return
             print(
                 color_message(
                     f"Failed to initialize the {executor.kind.value} evaluation: {evaluator.initialization_error}",

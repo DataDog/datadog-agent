@@ -6,7 +6,6 @@ from invoke.exceptions import Exit
 
 from tasks.dyntest import evaluate_index
 from tasks.libs.dynamic_test.index import IndexKind
-from tasks.libs.dynamic_test.jev_selection import NothingToEvaluateError
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
 
 
@@ -23,10 +22,7 @@ class TestEvaluateIndex(unittest.TestCase):
         evaluator.return_value.evaluate.return_value = [result]
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
         s3.assert_not_called()
-        self.assertEqual(executor.call_args.args[1:], ("abc", "42"))
-        self.assertTrue(executor.call_args.kwargs["require_pipeline_commit"])
-        evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False, ignore_sha_mismatch=True)
-        self.assertFalse(executor.call_args.kwargs["require_pipeline_commit"])
+        self.assertEqual(executor.call_args.args[1:], ("abc",))
         # The shared evaluator is constructed exactly like for coverage: the
         # Jev executor plugs in through the standard interface only
         options = evaluator.call_args.kwargs
@@ -83,19 +79,6 @@ class TestEvaluateIndex(unittest.TestCase):
             with self.assertRaisesRegex(Exit, "incomplete"):
                 evaluate_index.body(Context(), pipeline_id="42", selector="jev")
             evaluator.return_value.send_stats_to_datadog.assert_not_called()
-
-    @patch("tasks.dyntest.get_commit_sha", return_value="abc")
-    @patch("tasks.dyntest.is_enabled", return_value=True)
-    @patch("tasks.dyntest.JevDynTestExecutor")
-    @patch("tasks.dyntest.DatadogDynTestEvaluator")
-    def test_nothing_to_evaluate_is_benign(self, evaluator, executor, _, enabled):
-        """A pipeline with no completed E2E test jobs exits cleanly, not red."""
-        executor.return_value.kind = IndexKind.JEV
-        evaluator.return_value.initialize.return_value = False
-        evaluator.return_value.initialization_error = NothingToEvaluateError("No completed E2E jobs in pipeline 42")
-        # Must not raise
-        evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
-        evaluator.return_value.evaluate.assert_not_called()
 
     @patch("tasks.dyntest.get_commit_sha", return_value="abc")
     @patch("tasks.dyntest.is_enabled", return_value=False)
