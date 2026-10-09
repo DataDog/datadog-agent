@@ -103,9 +103,7 @@ type Requires struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
-	// Capabilities is optional. When absent the component uses standard
-	// full-agent behavior; an embedder (serverless-init) supplies it to adapt
-	// readiness, full-agent metadata refresh, and the payload uuid to a divergent environment.
+	// Capabilities is optional; absent means standard full-agent behavior.
 	// See iainterface.Capabilities.
 	Capabilities *iainterface.Capabilities `optional:"true"`
 }
@@ -564,8 +562,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	}
 }
 
-// getUUID resolves the uuid override when one is supplied, otherwise the cached
-// host machine GUID used by the full agent.
+// getUUID resolves the uuid override when one is supplied, otherwise the host machine GUID.
 func (ia *inventoryagent) getUUID() string {
 	if ia.payloadUUID != nil {
 		if id := ia.payloadUUID(); id != "" {
