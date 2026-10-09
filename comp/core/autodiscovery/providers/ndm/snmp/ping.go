@@ -10,9 +10,8 @@ import (
 	"fmt"
 )
 
-// pingKey is the document key the ping settings arrive under. It is a sibling
-// of the snmp key, which this handler folds back into the snmp check
-// instances until ping is scheduled as a check of its own.
+// pingKey is the document key the ping settings arrive under. The snmp handler
+// folds them back into its instances until ping is a check of its own.
 const pingKey = "ping"
 
 // pingKeyConfig is the value of the "ping" key of the NDM Remote
