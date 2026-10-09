@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -254,35 +255,37 @@ func TestTriggerParallel(t *testing.T) {
 }
 
 func TestTriggerTimeout(t *testing.T) {
-	block := make(chan struct{})
-	defer close(block)
-	health := &fakePayload{}
-	tp := &triggerPayloads{
-		log: logmock.New(t),
-		payloads: map[string]sendFunc{
-			// Ignores the context, like the inventory sender
-			triggerpayloads.PayloadInventoryAgent: func(context.Context) error {
-				<-block
-				return nil
+	// The fake clock only advances once every goroutine of the bubble is blocked, so the health send always
+	// completes before the deadline while the inventory send is still running
+	synctest.Test(t, func(t *testing.T) {
+		block := make(chan struct{})
+		health := &fakePayload{}
+		tp := &triggerPayloads{
+			log: logmock.New(t),
+			payloads: map[string]sendFunc{
+				// Ignores the context, like the inventory sender
+				triggerpayloads.PayloadInventoryAgent: func(context.Context) error {
+					<-block
+					return nil
+				},
+				triggerpayloads.PayloadAgentHealth: health.send,
 			},
-			triggerpayloads.PayloadAgentHealth: health.send,
-		},
-	}
+		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), triggerTimeout)
+		defer cancel()
 
-	done := make(chan error)
-	go func() { done <- tp.Trigger(ctx, nil) }()
+		err := tp.Trigger(ctx, nil)
 
-	select {
-	case err := <-done:
 		var partialErr *rcclienttypes.PartialFailureError
 		require.ErrorAs(t, err, &partialErr)
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 		assert.ErrorContains(t, err, "inventory-agent")
 		assert.NotContains(t, err.Error(), "agent-health")
-	case <-time.After(5 * time.Second):
-		t.Fatal("Trigger did not return after the context expired")
-	}
+		assert.Equal(t, int32(1), health.calls.Load())
+
+		// Let the still running sender exit before the bubble ends
+		close(block)
+		synctest.Wait()
+	})
 }
