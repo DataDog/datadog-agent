@@ -599,6 +599,38 @@ func TestSetupLoggerWithUnknownLogLevel(t *testing.T) {
 	assert.Equal(t, InfoLvl, loggerLogLevel)
 }
 
+// TestGuardHelpers verifies that the *Func and *fStackDepth helpers check
+// the enabled level before doing any work: with the writer's min level set to
+// trace, only the helpers' own guards can filter a message out.
+func TestGuardHelpers(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, err := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, TraceLvl)
+	assert.NoError(t, err)
+	SetupLogger(l, "info")
+
+	// Disabled level: logFunc must not even be called.
+	called := false
+	DebugFunc(func() string {
+		called = true
+		return "debug should not appear"
+	})
+	assert.False(t, called, "DebugFunc must not call logFunc when debug is disabled")
+
+	DebugfStackDepth(1, "debug should not appear")
+
+	// Enabled level: helpers log as usual.
+	InfoFunc(func() string { return "info via func" })
+	InfofStackDepth(1, "info via stackdepth")
+	w.Flush()
+
+	out := b.String()
+	assert.NotContains(t, out, "should not appear")
+	assert.Contains(t, out, "info via func")
+	assert.Contains(t, out, "info via stackdepth")
+}
+
 func TestChangeLogLevel(t *testing.T) {
 	testCases := []LogLevel{
 		TraceLvl,
@@ -724,7 +756,14 @@ func TestShouldLog(t *testing.T) {
 func TestShouldLogNilLogger(t *testing.T) {
 	logger.Store(nil)
 
-	assert.False(t, ShouldLog(InfoLvl))
+	// Before the logger is set up, the default info level is assumed: trace
+	// and debug are dropped, info and above are buffered by the log helpers.
+	assert.False(t, ShouldLog(TraceLvl))
+	assert.False(t, ShouldLog(DebugLvl))
+	assert.True(t, ShouldLog(InfoLvl))
+	assert.True(t, ShouldLog(WarnLvl))
+	assert.True(t, ShouldLog(ErrorLvl))
+	assert.True(t, ShouldLog(CriticalLvl))
 }
 
 func TestValidateLogLevel(t *testing.T) {
