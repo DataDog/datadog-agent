@@ -9,6 +9,7 @@ from time import sleep
 from invoke import Context, task
 from invoke.exceptions import Exit
 
+from tasks.libs.ciproviders.gitlab_api import get_pipeline
 from tasks.libs.common.auth import get_aws_vault_env
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.feature_flags import is_enabled
@@ -130,6 +131,16 @@ def evaluate_index(
         if not is_enabled(ctx, "datadog-agent-jev-evaluation"):
             print(color_message("Jev evaluation disabled", Color.ORANGE))
             return
+        # Jev decides from this checkout: it must be the evaluated pipeline's commit
+        if commit_sha != head:
+            raise Exit("For Jev, check out the pipeline commit and pass its full SHA (or omit --commit-sha)", code=1)
+        pipeline_sha = get_pipeline("DataDog/datadog-agent", pipeline_id).sha
+        if pipeline_sha != commit_sha:
+            raise Exit(
+                f"Pipeline {pipeline_id} ran {pipeline_sha}, but the checkout is at {commit_sha}: "
+                f"check out that commit (git checkout {pipeline_sha})",
+                code=1,
+            )
         executor = JevDynTestExecutor(ctx)
         executors = [executor]
         changes = []
