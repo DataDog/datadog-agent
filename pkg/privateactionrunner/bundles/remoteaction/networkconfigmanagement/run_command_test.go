@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,9 @@ import (
 type fakeIPCClient struct {
 	postResp []byte
 	postErr  error
+	// postURL and postBody record the most recent Post call.
+	postURL  string
+	postBody []byte
 }
 
 var _ ipc.HTTPClient = (*fakeIPCClient)(nil)
@@ -42,7 +46,13 @@ func (f *fakeIPCClient) Head(_ string, _ ...ipc.RequestOption) ([]byte, error) {
 	return f.postResp, f.postErr
 }
 
-func (f *fakeIPCClient) Post(_ string, _ string, body io.Reader, _ ...ipc.RequestOption) ([]byte, error) {
+func (f *fakeIPCClient) Post(url string, _ string, body io.Reader, _ ...ipc.RequestOption) ([]byte, error) {
+	f.postURL = url
+	b, err := io.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+	f.postBody = b
 	return f.postResp, f.postErr
 }
 
@@ -58,7 +68,10 @@ func (f *fakeIPCClient) NewIPCEndpoint(_ string) (ipc.Endpoint, error) {
 	return nil, errors.New("not implemented")
 }
 
-func makeRunCommandTask(deviceID, command, credentialSet string) *types.Task {
+// showVersion is a command block that renders to "show version".
+var showVersion = []any{map[string]any{"type": "show", "target": "version"}}
+
+func makeRunCommandTask(deviceID string, command any, credentialSet string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{
@@ -80,7 +93,7 @@ func TestRunCommandHandler_Success(t *testing.T) {
 	client := &fakeIPCClient{postResp: body}
 	handler := NewRunCommandHandler(client)
 
-	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", "show version", "readonly"), nil)
+	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", showVersion, "readonly"), nil)
 	require.NoError(t, err)
 
 	result, ok := out.(RunCommandOutputs)
@@ -104,7 +117,7 @@ func TestRunCommandHandler_DeviceError(t *testing.T) {
 	client := &fakeIPCClient{postResp: body}
 	handler := NewRunCommandHandler(client)
 
-	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.99", "show version", "readonly"), nil)
+	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.99", showVersion, "readonly"), nil)
 	require.NoError(t, err)
 
 	result, ok := out.(RunCommandOutputs)
@@ -115,17 +128,50 @@ func TestRunCommandHandler_DeviceError(t *testing.T) {
 	assert.Nil(t, result.CommandResult)
 }
 
-func TestRunCommandHandler_MissingCommand(t *testing.T) {
-	client := &fakeIPCClient{}
+func TestRunCommandHandler_PassesCommandThrough(t *testing.T) {
+	body, err := json.Marshal(ncmtypes.RunCommandResponse{CommandResult: &ncmtypes.CommandResult{}})
+	require.NoError(t, err)
+	client := &fakeIPCClient{postResp: body}
 	handler := NewRunCommandHandler(client)
 
-	_, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", "", "readonly"), nil)
-	assert.ErrorContains(t, err, "Command input is required")
+	// The PAR doesn't validate the command, so even an invalid block is
+	// forwarded unchanged for the agent to reject.
+	command := []any{
+		map[string]any{"type": "hostname", "hostname": "r1"},
+		map[string]any{"type": "bogus", "extra": []any{1.0, "x"}},
+	}
+	_, err = handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", command, "admin"), nil)
+	require.NoError(t, err)
+
+	assert.True(t, strings.HasSuffix(client.postURL, "/agent/ncm/run-command"), client.postURL)
+	assert.JSONEq(t, `{
+		"device_id": "default:10.0.0.1",
+		"command": [{"type":"hostname","hostname":"r1"},{"type":"bogus","extra":[1,"x"]}],
+		"credential_set": "admin"
+	}`, string(client.postBody))
+}
+
+func TestRunCommandHandler_MissingCommand(t *testing.T) {
+	for name, inputs := range map[string]map[string]any{
+		"absent": {"deviceID": "default:10.0.0.1", "credentialSet": "readonly"},
+		"null":   {"deviceID": "default:10.0.0.1", "command": nil, "credentialSet": "readonly"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := &fakeIPCClient{}
+			handler := NewRunCommandHandler(client)
+			task := &types.Task{}
+			task.Data.Attributes = &types.Attributes{Inputs: inputs}
+
+			_, err := handler.Run(t.Context(), task, nil)
+			assert.ErrorContains(t, err, "Command input is required")
+			assert.Nil(t, client.postBody, "should not call the agent")
+		})
+	}
 }
 
 func TestRunCommandHandler_NoIPCClient(t *testing.T) {
 	handler := NewRunCommandHandler(nil)
 
-	_, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", "show version", "readonly"), nil)
+	_, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", showVersion, "readonly"), nil)
 	assert.ErrorContains(t, err, "IPC client is not available")
 }

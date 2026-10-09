@@ -8,17 +8,28 @@ package networkconfigmanagementimpl
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/ioscmd"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
-// RunCommand sends a command to a device over one of its connections (e.g. SSH
-// credentials) and returns the response as a CommandResult.
-func (n *networkDeviceConfigImpl) RunCommand(ctx context.Context, deviceID string, command string, credentialSet ncmconfig.CredentialSet) (*types.CommandResult, types.TypedError) {
+// RunCommand renders a block of IOS commands, sends it to a device over one of
+// its connections (e.g. SSH credentials), and returns the response as a
+// CommandResult.
+func (n *networkDeviceConfigImpl) RunCommand(ctx context.Context, deviceID string, commands ioscmd.CommandBlock, credentialSet ncmconfig.CredentialSet) (*types.CommandResult, types.TypedError) {
 	if credentialSet == ncmconfig.CredentialSetRollback {
 		return nil, types.WrapErrorf(types.ErrCannotConnect, "invalid credential set specified: %q", credentialSet)
+	}
+	// Render (and thereby validate) before touching the device.
+	lines, rerr := commands.Render()
+	if rerr != nil {
+		return nil, types.WrapError(types.ErrInvalidCommand, rerr)
+	}
+	if len(lines) == 0 {
+		return nil, types.WrapErrorf(types.ErrInvalidCommand, "no commands to run")
 	}
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
 	log.Infof("Run command requested for Device %q using credential set %s", deviceID, credentialSet)
@@ -36,5 +47,7 @@ func (n *networkDeviceConfigImpl) RunCommand(ctx context.Context, deviceID strin
 	}
 	defer conn.Close()
 
-	return conn.ExecuteCommand(ctx, command)
+	// The lines are sent as a single exec payload, the same way
+	// PlainCommand.SetupCommands are.
+	return conn.ExecuteCommand(ctx, strings.Join(lines, "\n"))
 }

@@ -32,6 +32,7 @@ go_library(
         "//comp/networkconfigmanagement/stub",
         "//pkg/aggregator/sender",
         "//pkg/networkconfigmanagement/config",
+        "//pkg/networkconfigmanagement/ioscmd",
         "//pkg/networkconfigmanagement/profile",
         "//pkg/networkconfigmanagement/remote",
         "//pkg/networkconfigmanagement/report",

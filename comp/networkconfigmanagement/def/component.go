@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/ioscmd"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
@@ -29,8 +30,9 @@ type Component interface {
 	// RollbackConfig rolls back a device to a previous configuration that's
 	// saved locally on this agent.
 	RollbackConfig(ctx context.Context, deviceID string, configVersion string, hash string) (*types.PushResult, types.TypedError)
-	// RunCommand sends a command to a device and returns the result.
-	RunCommand(ctx context.Context, deviceID string, command string, credentialSet config.CredentialSet) (*types.CommandResult, types.TypedError)
+	// RunCommand renders a block of IOS commands, sends it to a device, and
+	// returns the result.
+	RunCommand(ctx context.Context, deviceID string, commands ioscmd.CommandBlock, credentialSet config.CredentialSet) (*types.CommandResult, types.TypedError)
 	// SetMaxReportInterval sets a maximum time to wait between sending
 	// inventory reports.
 	SetMaxReportInterval(interval time.Duration)
