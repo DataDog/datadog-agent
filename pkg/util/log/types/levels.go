@@ -196,12 +196,7 @@ func packageFromPC(pc uintptr) string {
 // packageFromFuncName extracts the package import path from a fully
 // qualified function name as reported by runtime.Frame.Function, e.g.
 // "github.com/DataDog/datadog-agent/comp/forwarder.(*Type).Method" becomes
-// "github.com/DataDog/datadog-agent/comp/forwarder". The Go toolchain
-// percent-escapes any "." in a package's own name (the last import path
-// element, e.g. a versioned import path like "yaml.v2" becomes "yaml%2ev2"),
-// precisely so it can't be confused with the "." separating the package from
-// the function name; unescape needed to get back the literal import path a
-// caller would use in a pattern.
+// "github.com/DataDog/datadog-agent/comp/forwarder".
 func packageFromFuncName(funcName string) string {
 	lastSlash := strings.LastIndexByte(funcName, '/')
 	dot := strings.IndexByte(funcName[lastSlash+1:], '.')
@@ -209,6 +204,8 @@ func packageFromFuncName(funcName string) string {
 		return funcName
 	}
 	pkg := funcName[:lastSlash+1+dot]
+	//  "." in a package's own name (e.g. a versioned import path like "yaml.v2")
+	// becomes "yaml%2ev2", so unescape to get back the literal import path
 	if unescaped, err := url.PathUnescape(pkg); err == nil {
 		return unescaped
 	}
