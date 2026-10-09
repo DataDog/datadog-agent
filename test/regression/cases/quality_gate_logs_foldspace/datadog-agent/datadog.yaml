@@ -12,8 +12,13 @@ logs_config:
   logs_dd_url: 127.0.0.1:9092
   logs_no_ssl: true
   force_use_http: true
+  # The stateful blackhole decodes at most 4 MiB per message, below the 5 MB default.
+  batch_max_content_size: 1000000
   foldspace:
     enabled: true
+    # lading's datadog_stateful_logs blackhole, which serves the stream under its own method name.
+    dd_url: 127.0.0.1:9094
+    grpc_method: /datadog.intake.stateful.StatefulLogsService/LogsStream
 
 process_config.process_dd_url: http://localhost:9093
 
