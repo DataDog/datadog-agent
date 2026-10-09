@@ -41,6 +41,8 @@ type pkgInfo struct {
 	types   map[string]bool
 	ifaces  map[string]bool     // interface types
 	values  map[string]ast.Expr // package-level const/var -> value expression
+	// file declaring each package-level value (to resolve its identifiers)
+	valueFiles map[string]*fileInfo
 }
 
 type fileInfo struct {
@@ -184,6 +186,8 @@ func (l *loader) load(dir string, withTests bool) *pkgInfo {
 		types:   map[string]bool{},
 		ifaces:  map[string]bool{},
 		values:  map[string]ast.Expr{},
+
+		valueFiles: map[string]*fileInfo{},
 	}
 	l.pkgs[key] = p
 
@@ -240,6 +244,7 @@ func (l *loader) load(dir string, withTests bool) *pkgInfo {
 						for i, n := range vs.Names {
 							if i < len(vs.Values) && len(vs.Names) == len(vs.Values) {
 								p.values[n.Name] = vs.Values[i]
+								p.valueFiles[n.Name] = fi
 							}
 						}
 					}

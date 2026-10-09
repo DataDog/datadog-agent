@@ -22,6 +22,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -54,7 +55,7 @@ func run(argv []string) error {
 	}
 	if fs.NArg() < 1 {
 		fs.Usage()
-		return fmt.Errorf("missing package directory")
+		return errors.New("missing package directory")
 	}
 	mode := followMode(*follow)
 	if mode != followModule && mode != followRepo && mode != followPackage {

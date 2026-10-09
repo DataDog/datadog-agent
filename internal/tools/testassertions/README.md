@@ -29,12 +29,20 @@ are resolved against the directory you ran it from.
   `e2e.BaseSuite` wrappers); for `func() bool` conditions the `return` expressions
   are reported as conditions
 - `e2e.Run` / `suite.Run`: the suite type is resolved (composite literal, variable,
-  constructor return type, generic helper) and its `Test*` methods and hooks
+  constructor return type, including constructors declared to return `e2e.Suite`
+  and passed to a runner like fleet's `suite.Run(t, newConfigSuite, platforms)`,
+  generic helper) and its `Test*` methods and hooks
   (`SetupSuite`, `BeforeTest`, …) are expanded, including promoted methods
 - `t.Run` / `s.Run` subtests, `if`/`else`, loops and `switch` cases, so conditional
   assertions are visible; `if assert.X(...) {` is labeled "if the assertion above passed"
-- helpers, methods (through struct embedding), closures, and function-valued
-  parameters are followed recursively (`-depth`, default 8)
+- helpers, methods (through struct embedding, and on any expression of known type,
+  e.g. `T{...}.Assert(t)` or fluent chains like `s.Require().Host(h).HasX()`),
+  closures, function-valued parameters and function-valued struct fields
+  (`e.test(p)` with `e := T{test: func(...) bool {...}}`) are followed recursively
+  (`-depth`, default 8)
+- predicates: a `func(...) bool` literal called in an `if` condition decides the
+  branch (typically "return success when a payload matches"), so its `return`
+  expressions are reported as conditions under `↳ predicate ...`
 - `Must*` calls (e.g. `RemoteHost.MustExecute`) are reported as implicit checks `[M]`
 - `t.Skip*` / `s.T().Skip*` (`⤼`) and `flake.Mark*` (`~`) calls, which tell when the
   surrounding assertions are not enforced
@@ -45,7 +53,21 @@ For each assertion it prints a human readable summary, the original call, the
 failure message and, best effort, where the variables come from
 (`err ← v.Env().Agent.Client.Health()`, `logFileName (package-level) = "hello-world.log"`).
 
+It also lists the **values** each check is about (`· values: "gpu.sm_active", "gpu_uuid"`):
+string literals traced through assignments, range loops, struct fields
+(`sec.shouldContain` only yields that field of the struct literal), helper
+parameters (back to the calling test) and constants, including those in imported
+packages. Values are shown in `-brief` mode too. In `-json`, each test also carries
+the union of all values checked below it, which is handy to match a change
+(a metric name, config key, command...) against the tests that check it.
+
+A helper called several times in the same top-level test is expanded once;
+later calls are shown as `↺ helper(...) — same checks as the call expanded @pos
+(N assertion(s))`, with their own values and the function literals they pass
+still expanded. Counts in `-list` and the footer include those repeats.
+
 Markers: `[R]` fatal (require/Fatal), `[A]` non-fatal, `⟳` polling block,
+`↺` repeated helper call (collapsed),
 `[M]` implicit `Must*` check, `[?]` a call that looks like an assertion helper
 (`assert*`, `check*`, `verify*`, …) but could not be followed.
 
@@ -56,5 +78,6 @@ Markers: `[R]` fatal (require/Fatal), `[A]` non-fatal, `⟳` polling block,
 - By default only helpers from the test's Go module are followed (`-follow=module`).
   Use `-follow=repo` to follow helpers in other modules of the repository (for
   example `pkg/ssi/testutils`) or `-follow=package` to stay in the test package.
-- Origins are computed from the last assignment seen in source order, ignoring
-  block scoping and control flow.
+- Origins and values are computed from the assignments seen in source order,
+  ignoring block scoping and control flow; values of a collapsed helper's inner
+  checks are those of its first call.

@@ -8,6 +8,8 @@ package main
 import (
 	"fmt"
 	"io"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -18,14 +20,18 @@ type treePrinter struct {
 
 type stats struct {
 	assertions, fatal, polling, conditional, opaque, helpers, implicit, skips, flaky int
+	repeated, repeatedCalls                                                          int
 }
 
 func (p *treePrinter) print(n *Node) {
-	p.node(n, "", true, true, false)
+	p.node(n, "", true, true, nil)
 	var s stats
 	countStats(n, &s, false)
 	fmt.Fprintf(p.w, "\n  %d assertion(s): %d fatal (require/Fatal), %d polling block(s), %d under a condition/loop; %d helper(s) followed",
 		s.assertions, s.fatal, s.polling, s.conditional, s.helpers)
+	if s.repeatedCalls > 0 {
+		fmt.Fprintf(p.w, "; +%d assertion(s) in %d repeated helper call(s) shown once ↺", s.repeated, s.repeatedCalls)
+	}
 	if s.skips > 0 {
 		fmt.Fprintf(p.w, "; %d skip condition(s) ⤼", s.skips)
 	}
@@ -68,8 +74,12 @@ func countStats(n *Node, s *stats, conditional bool) {
 		s.skips++
 	case "flaky":
 		s.flaky++
-	case "helper", "closure":
+	case "helper", "closure", "predicate":
 		s.helpers++
+		if n.Ref != "" {
+			s.repeated += n.Repeat
+			s.repeatedCalls++
+		}
 	case "if", "else", "loop", "case":
 		conditional = true
 	case "suite":
@@ -80,7 +90,7 @@ func countStats(n *Node, s *stats, conditional bool) {
 	}
 }
 
-func (p *treePrinter) node(n *Node, prefix string, last, top, _ bool) {
+func (p *treePrinter) node(n *Node, prefix string, last, top bool, parentVals []string) {
 	connector, childPrefix := "├── ", prefix+"│   "
 	if last {
 		connector, childPrefix = "└── ", prefix+"    "
@@ -90,17 +100,29 @@ func (p *treePrinter) node(n *Node, prefix string, last, top, _ bool) {
 	}
 	fmt.Fprintln(p.w, prefix+connector+head(n))
 
+	detailPrefix := childPrefix + "    "
+	if len(n.Children) > 0 {
+		detailPrefix = childPrefix + "│   "
+	}
 	if !p.brief {
-		detailPrefix := childPrefix + "    "
-		if len(n.Children) > 0 {
-			detailPrefix = childPrefix + "│   "
-		}
 		for _, d := range details(n) {
 			fmt.Fprintln(p.w, detailPrefix+d)
 		}
 	}
+	// the concrete values are what a change is usually about: show them in brief mode too
+	vals := nodeValues(n)
+	shown := parentVals // the closest values printed above this node
+	// assertions always show their values; intermediate nodes only when they differ from above
+	if len(vals) > 0 && (n.Kind != "test" || !p.brief) && (n.Assertion != nil || !slices.Equal(vals, parentVals)) {
+		shown = vals
+		label := "values"
+		if n.Kind == "test" {
+			label = "all values checked"
+		}
+		fmt.Fprintln(p.w, detailPrefix+"· "+label+": "+quoteAll(vals))
+	}
 	for i, c := range n.Children {
-		p.node(c, childPrefix, i == len(n.Children)-1, false, false)
+		p.node(c, childPrefix, i == len(n.Children)-1, false, shown)
 	}
 }
 
@@ -125,9 +147,14 @@ func head(n *Node) string {
 	case "subtest":
 		return fmt.Sprintf("▸ subtest %s  @%s", n.Label, n.Pos)
 	case "helper":
+		if n.Ref != "" {
+			return fmt.Sprintf("↺ %s  @%s  — same checks as the call expanded @%s (%d assertion(s))", n.Label, n.Pos, n.Ref, n.Repeat)
+		}
 		return fmt.Sprintf("↳ %s  @%s  (def %s)", n.Label, n.Pos, n.Def)
 	case "closure":
 		return fmt.Sprintf("↳ closure %s  @%s", n.Label, n.Pos)
+	case "predicate":
+		return fmt.Sprintf("↳ predicate %s  @%s  — decides the enclosing if; true when it returns:", n.Label, n.Pos)
 	case "callback":
 		return fmt.Sprintf("↳ %s  @%s", n.Label, n.Pos)
 	case "eventually":
@@ -169,6 +196,21 @@ func details(n *Node) []string {
 	return out
 }
 
+func nodeValues(n *Node) []string {
+	if n.Assertion != nil {
+		return n.Assertion.Values
+	}
+	return n.Values
+}
+
+func quoteAll(vals []string) string {
+	q := make([]string, len(vals))
+	for i, v := range vals {
+		q[i] = strconv.Quote(v)
+	}
+	return strings.Join(q, ", ")
+}
+
 func printList(w io.Writer, nodes []*Node) {
 	for _, n := range nodes {
 		var hasSuite func(*Node) bool
@@ -185,7 +227,7 @@ func printList(w io.Writer, nodes []*Node) {
 		} else {
 			var s stats
 			countStats(n, &s, false)
-			fmt.Fprintf(w, "%s  (%s)  — %d assertion(s)\n", n.Label, n.Pos, s.assertions)
+			fmt.Fprintf(w, "%s  (%s)  — %d assertion(s)\n", n.Label, n.Pos, s.assertions+s.repeated)
 		}
 		var walk func(n *Node, indent string)
 		walk = func(n *Node, indent string) {
@@ -197,7 +239,7 @@ func printList(w io.Writer, nodes []*Node) {
 				case "test":
 					var s stats
 					countStats(c, &s, false)
-					fmt.Fprintf(w, "%s%s  — %d assertion(s)\n", indent, c.Label, s.assertions)
+					fmt.Fprintf(w, "%s%s  — %d assertion(s)\n", indent, c.Label, s.assertions+s.repeated)
 				default:
 					walk(c, indent)
 				}

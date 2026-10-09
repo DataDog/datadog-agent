@@ -19,7 +19,7 @@ import (
 
 // Node is an element of the extracted assertion tree.
 type Node struct {
-	// Kind is one of: test, suite, hook, subtest, helper, closure, callback, if,
+	// Kind is one of: test, suite, hook, subtest, helper, closure, predicate, callback, if,
 	// else, loop, switch, case, defer, eventually, assertion, implicit, skip,
 	// flaky, opaque.
 	Kind      string     `json:"kind"`
@@ -27,7 +27,14 @@ type Node struct {
 	Pos       string     `json:"pos,omitempty"`
 	Def       string     `json:"def,omitempty"`
 	Assertion *Assertion `json:"assertion,omitempty"`
-	Children  []*Node    `json:"children,omitempty"`
+	// Values lists string literals flowing into the node: for a test, every
+	// value checked below it; for helper/implicit/opaque nodes, their arguments.
+	Values []string `json:"values,omitempty"`
+	// Ref is set on a helper call whose checks were already expanded at the
+	// given position in the same tree; Repeat is how many assertions that hides.
+	Ref      string  `json:"ref,omitempty"`
+	Repeat   int     `json:"repeatedAssertions,omitempty"`
+	Children []*Node `json:"children,omitempty"`
 }
 
 // Assertion describes a single check.
@@ -40,6 +47,9 @@ type Assertion struct {
 	Message string   `json:"message,omitempty"`
 	Call    string   `json:"call"`
 	Origins []Origin `json:"origins,omitempty"`
+	// Values are the string literals the assertion is about, resolved through
+	// variables, helper parameters and constants (see literals).
+	Values []string `json:"values,omitempty"`
 }
 
 // Origin explains where a variable used in an assertion comes from.
@@ -66,6 +76,7 @@ type varInfo struct {
 	closure *ast.FuncLit
 	capture *scope   // scope captured by closure
 	fnRefs  []callee // function value (helper or method value) bound to this variable
+	vals    []valRef // expressions the value comes from, for literal extraction
 }
 
 type scope struct {
@@ -104,10 +115,17 @@ type extractor struct {
 	stmtCalls map[*ast.CallExpr]bool
 	// set by pollingNode: the next condition function polls a func() error
 	errCond bool
+	// walking an if condition (to recognize predicate callbacks)
+	inCond bool
+	// helper expansions already printed in the current top-level test
+	expanded  map[expansionKey]*expansion
+	testDepth int
+	retActive map[ast.Node]bool
 }
 
 func newExtractor(l *loader, pkg *pkgInfo, follow followMode, maxDepth int) *extractor {
-	return &extractor{l: l, module: pkg.module, pkgDir: pkg.dir, follow: follow, maxDepth: maxDepth, argWidth: 90, active: map[ast.Node]bool{}, stmtCalls: map[*ast.CallExpr]bool{}}
+	return &extractor{l: l, module: pkg.module, pkgDir: pkg.dir, follow: follow, maxDepth: maxDepth, argWidth: 90, active: map[ast.Node]bool{}, stmtCalls: map[*ast.CallExpr]bool{},
+		expanded: map[expansionKey]*expansion{}, retActive: map[ast.Node]bool{}}
 }
 
 // ---------- entry points ----------
@@ -123,8 +141,16 @@ func (e *extractor) testNode(fi *funcInfo) *Node {
 	}
 	e.active[fi.decl] = true
 	defer delete(e.active, fi.decl)
+	if e.testDepth == 0 {
+		e.expanded = map[expansionKey]*expansion{}
+	}
+	e.testDepth++
+	defer func() { e.testDepth-- }()
 	sc := e.funcScope(nil, fi, nil, 0)
 	n.Children = e.walkStmts(sc, fi.decl.Body.List)
+	if e.testDepth == 1 {
+		aggregateValues(n)
+	}
 	return n
 }
 
@@ -203,7 +229,10 @@ func (e *extractor) walkStmt(sc *scope, st ast.Stmt) []*Node {
 		return out
 	case *ast.IfStmt:
 		out := e.walkStmt(sc, s.Init)
+		prevCond := e.inCond
+		e.inCond = true
 		out = append(out, e.scanExpr(sc, s.Cond)...)
+		e.inCond = prevCond
 		ifLabel, elseLabel := "if "+e.render(s.Cond, 110), "else (not: "+e.render(s.Cond, 100)+")"
 		if passed, ok := e.assertionCond(sc, s.Cond); ok {
 			ifLabel, elseLabel = "if the assertion above passed", "else (the assertion above failed)"
@@ -248,7 +277,7 @@ func (e *extractor) walkStmt(sc *scope, st ast.Stmt) []*Node {
 			} else if i == 0 {
 				what = "key/index/element of "
 			}
-			sc.vars[id.Name] = &varInfo{origin: what + e.render(s.X, 100), rhs: s.X}
+			sc.vars[id.Name] = &varInfo{origin: what + e.render(s.X, 100), rhs: s.X, vals: []valRef{{s.X, sc}}}
 		}
 		if body := e.walkStmts(sc, s.Body.List); len(body) > 0 {
 			label := "for each "
@@ -295,6 +324,7 @@ func (e *extractor) walkStmt(sc *scope, st ast.Stmt) []*Node {
 				Library: "condition", Func: "return",
 				Summary: "attempt fails, returning " + e.render(s.Results[0], e.argWidth),
 				Call:    "return " + e.render(s.Results[0], 160), Origins: e.origins(sc, s.Results),
+				Values: e.literals(sc, s.Results),
 			}})
 			return out
 		}
@@ -309,6 +339,7 @@ func (e *extractor) walkStmt(sc *scope, st ast.Stmt) []*Node {
 			out = append(out, &Node{Kind: "assertion", Pos: e.pos(s.Pos()), Assertion: &Assertion{
 				Library: "condition", Func: "return", Summary: summary,
 				Call: "return " + e.render(s.Results[0], 160), Origins: e.origins(sc, s.Results),
+				Values: e.literals(sc, s.Results),
 			}})
 		}
 		return out
@@ -403,6 +434,7 @@ func (e *extractor) recordAssign(sc *scope, lhs, rhs []ast.Expr) {
 				if v := sc.vars[root.Name]; v != nil && v.origin != "" {
 					cp := *v
 					cp.origin = truncate(v.origin+"; then ."+sel.Sel.Name+" = "+e.render(rhs[i], 60), 220)
+					cp.vals = append(append([]valRef(nil), v.vals...), valRef{rhs[i], sc})
 					sc.vars[root.Name] = &cp
 				}
 			}
@@ -424,7 +456,11 @@ func (e *extractor) recordAssign(sc *scope, lhs, rhs []ast.Expr) {
 		if _, isLit := r.(*ast.FuncLit); isLit {
 			continue
 		}
-		v := &varInfo{origin: "← " + e.render(r, 140), rhs: r}
+		v := &varInfo{origin: "← " + e.render(r, 140), rhs: r, vals: []valRef{{r, sc}}}
+		if prev := sc.vars[id.Name]; prev != nil && refersTo(r, id.Name) {
+			// x = append(x, ...): keep the values x had before
+			v.vals = append(append([]valRef(nil), prev.vals...), v.vals...)
+		}
 		v.kind, v.typ = e.inferVar(sc, r)
 		sc.vars[id.Name] = v
 	}
@@ -471,12 +507,21 @@ func (e *extractor) typeOfExpr(sc *scope, x ast.Expr) *typeRef {
 		if id, ok := t.Fun.(*ast.Ident); ok && id.Name == "new" && len(t.Args) == 1 {
 			return e.l.resolveType(sc.file, t.Args[0])
 		}
-		// constructor-like helpers: use the declared type of the first result
+		// constructor-like helpers: use the declared type of the first result, or
+		// the concrete type they return when they are declared to return an
+		// interface (e.g. func newSuite() e2e.Suite[env] { return &mySuite{} })
 		for _, c := range e.resolveCallee(sc, t.Fun) {
-			if c.fi != nil && c.fi.decl.Type.Results != nil && len(c.fi.decl.Type.Results.List) > 0 {
-				if tr := e.l.resolveType(c.fi.file, c.fi.decl.Type.Results.List[0].Type); tr != nil {
-					return tr
+			if c.fi == nil || c.fi.decl.Type.Results == nil || len(c.fi.decl.Type.Results.List) == 0 {
+				continue
+			}
+			tr := e.l.resolveType(c.fi.file, c.fi.decl.Type.Results.List[0].Type)
+			if tr == nil || tr.pkg.ifaces[tr.name] {
+				if concrete := e.returnedType(c.fi); concrete != nil {
+					return concrete
 				}
+			}
+			if tr != nil {
+				return tr
 			}
 		}
 	case *ast.Ident:
@@ -712,27 +757,56 @@ func (e *extractor) handleCall(sc *scope, call *ast.CallExpr) []*Node {
 			continue
 		}
 		followed = true
-		children := e.expandCallee(sc, c, call.Args)
+		// a func(...) bool literal called in an if condition is a predicate: what it
+		// returns decides the branch, so report its return expressions as conditions
+		predicate := e.inCond && c.lit != nil && returnsBool(c.lit.Type)
+		if c.fi != nil {
+			// the same helper called again performs the same checks: show them once
+			// per top-level test, keeping what differs between calls (the values and
+			// the function literals passed in)
+			if rec, seen := e.expanded[e.expansionKeyOf(c, call)]; seen && rec.size > 2 {
+				own := e.scanArgs(sc, call, name)
+				out = append(out, &Node{
+					Kind: "helper", Label: e.render(call, 140), Pos: e.pos(call.Pos()), Def: e.relPos(c.fi.decl.Pos()),
+					Values: e.literals(sc, call.Args), Ref: rec.pos, Repeat: max(0, rec.assertions-countAssertions(own)), Children: own,
+				})
+				continue
+			}
+		}
+		var children []*Node
+		if predicate {
+			e.errCond = false
+			children = e.expandCalleeCond(sc, c, call.Args, true)
+		} else {
+			children = e.expandCallee(sc, c, call.Args)
+		}
 		if len(children) == 0 {
 			continue
 		}
 		n := &Node{Kind: "helper", Label: e.render(call, 140), Pos: e.pos(call.Pos()), Children: children}
 		if c.fi != nil {
 			n.Def = e.relPos(c.fi.decl.Pos())
+			n.Values = e.literals(sc, call.Args)
+			if key := e.expansionKeyOf(c, call); e.expanded[key] == nil {
+				e.expanded[key] = &expansion{pos: n.Pos, size: subtreeSize(children), assertions: countAssertions(children)}
+			}
 		} else {
 			n.Kind = "closure"
+			if predicate {
+				n.Kind = "predicate"
+			}
 		}
 		out = append(out, n)
 	}
 	accessor := len(call.Args) == 0 && (name == "Require" || name == "Assert" || name == "T")
 	if !followed && strings.HasPrefix(name, "Must") && !e.isExternalPkgCall(sc, call.Fun) {
 		// e2e helpers such as RemoteHost.MustExecute fail the test when the action fails
-		out = append(out, &Node{Kind: "implicit", Label: e.render(call, 140), Pos: e.pos(call.Pos())})
+		out = append(out, &Node{Kind: "implicit", Label: e.render(call, 140), Pos: e.pos(call.Pos()), Values: e.literals(sc, call.Args)})
 		return out
 	}
 	if !followed && !accessor && suspiciousName.MatchString(name) && !e.isExternalPkgCall(sc, call.Fun) &&
 		(e.stmtCalls[call] || e.hasTestingArg(sc, call)) {
-		n := &Node{Kind: "opaque", Label: e.render(call, 140), Pos: e.pos(call.Pos())}
+		n := &Node{Kind: "opaque", Label: e.render(call, 140), Pos: e.pos(call.Pos()), Values: e.literals(sc, call.Args)}
 		if outside != nil {
 			n.Def = e.relPos(outside.decl.Pos())
 		}
@@ -850,6 +924,7 @@ func (e *extractor) buildAssertion(sc *scope, call *ast.CallExpr, a *assertCall)
 	asrt := &Assertion{
 		Library: a.lib, Func: a.fn, Fatal: a.fatal, Args: rendered,
 		Message: e.message(extra), Call: e.render(call, 160), Origins: e.origins(sc, main),
+		Values: e.literals(sc, main),
 	}
 	switch {
 	case arity == 0 && len(main) == 0 && testingFailures[a.fn]:
@@ -859,6 +934,12 @@ func (e *extractor) buildAssertion(sc *scope, call *ast.CallExpr, a *assertCall)
 			asrt.Message = ""
 		}
 		asrt.Origins = e.origins(sc, extra)
+		// values of the failure message, minus the literal parts already in the summary
+		for _, v := range e.literals(sc, extra) {
+			if !strings.Contains(asrt.Summary, v) {
+				asrt.Values = append(asrt.Values, v)
+			}
+		}
 	case a.known && a.spec.tmpl != "":
 		asrt.Summary = fillTemplate(a.spec.tmpl, rendered)
 	default:
@@ -870,7 +951,8 @@ func (e *extractor) buildAssertion(sc *scope, call *ast.CallExpr, a *assertCall)
 // pkgLevel returns the declaration of a package-level const/var, if any.
 func (e *extractor) pkgLevel(sc *scope, name string) *varInfo {
 	if x, ok := sc.file.pkg.values[name]; ok && x != nil {
-		return &varInfo{origin: "(package-level) = " + e.render(x, 120), rhs: x}
+		return &varInfo{origin: "(package-level) = " + e.render(x, 120), rhs: x,
+			vals: []valRef{{x, &scope{file: sc.file.pkg.valueFiles[name], vars: map[string]*varInfo{}}}}}
 	}
 	return nil
 }
@@ -985,7 +1067,14 @@ func (e *extractor) subtest(sc *scope, call *ast.CallExpr) (*Node, bool) {
 }
 
 func (e *extractor) suiteRun(sc *scope, call *ast.CallExpr) *Node {
-	sel, ok := call.Fun.(*ast.SelectorExpr)
+	fun := call.Fun
+	switch f := fun.(type) { // e2e.Run[environments.Host](t, s)
+	case *ast.IndexExpr:
+		fun = f.X
+	case *ast.IndexListExpr:
+		fun = f.X
+	}
+	sel, ok := fun.(*ast.SelectorExpr)
 	if !ok || sel.Sel.Name != "Run" || len(call.Args) < 2 {
 		return nil
 	}
@@ -1019,7 +1108,15 @@ func (e *extractor) suiteRun(sc *scope, call *ast.CallExpr) *Node {
 type callee struct {
 	fi    *funcInfo
 	lit   *ast.FuncLit
-	scope *scope // scope captured by lit
+	scope *scope   // scope captured by lit
+	recv  ast.Expr // receiver expression of a method call, in the caller's scope
+}
+
+func withRecv(cs []callee, recv ast.Expr) []callee {
+	for i := range cs {
+		cs[i].recv = recv
+	}
+	return cs
 }
 
 func (e *extractor) resolveCallee(sc *scope, fun ast.Expr) []callee {
@@ -1050,13 +1147,20 @@ func (e *extractor) resolveCallee(sc *scope, fun ast.Expr) []callee {
 	case *ast.SelectorExpr:
 		id, ok := f.X.(*ast.Ident)
 		if !ok {
-			return nil
+			// method on an expression of known type: T{...}.Assert(t), helper(t).Check()
+			if tr := e.typeOfExpr(sc, f.X); tr != nil {
+				return withRecv(wrap(e.l.lookupMethod(tr, f.Sel.Name)), f.X)
+			}
+			return e.fieldFuncs(sc, f.X, f.Sel.Name)
 		}
 		if v := sc.vars[id.Name]; v != nil {
 			if v.typ != nil {
-				return wrap(e.l.lookupMethod(v.typ, f.Sel.Name))
+				if ms := wrap(e.l.lookupMethod(v.typ, f.Sel.Name)); len(ms) > 0 {
+					return withRecv(ms, f.X)
+				}
 			}
-			return nil
+			// function-valued struct field: e.test(p) with e := T{test: func(...) {...}}
+			return e.fieldFuncs(sc, f.X, f.Sel.Name)
 		}
 		if dir := e.l.importDir(sc.file.imports[id.Name]); dir != "" {
 			return wrap(e.l.load(dir, false).funcs[f.Sel.Name])
@@ -1097,6 +1201,9 @@ func (e *extractor) expandCalleeCond(sc *scope, c callee, args []ast.Expr, cond 
 	}
 	e.active[key] = true
 	defer delete(e.active, key)
+	prevCond := e.inCond
+	e.inCond = false // statements of the callee are not part of the caller's condition
+	defer func() { e.inCond = prevCond }()
 
 	if c.lit != nil {
 		base := sc
@@ -1111,6 +1218,13 @@ func (e *extractor) expandCalleeCond(sc *scope, c callee, args []ast.Expr, cond 
 		return e.walkStmts(nsc, c.lit.Body.List)
 	}
 	nsc := e.funcScope(sc, c.fi, args, depth+1)
+	if c.recv != nil && sc != nil && len(c.fi.decl.Recv.List) > 0 {
+		for _, n := range c.fi.decl.Recv.List[0].Names {
+			if v := nsc.vars[n.Name]; v != nil {
+				v.vals = []valRef{{c.recv, sc}} // the receiver's value, e.g. a struct literal
+			}
+		}
+	}
 	nsc.condFunc = cond
 	nsc.errFunc = cond && e.errCond
 	return e.walkStmts(nsc, c.fi.decl.Body.List)
@@ -1160,6 +1274,9 @@ func (e *extractor) bindParams(sc, caller *scope, ft *ast.FuncType, args []ast.E
 					parts[j] = e.render(b, 100)
 				}
 				v.origin = "= " + strings.Join(parts, ", ")
+				for _, b := range bound {
+					v.vals = append(v.vals, valRef{b, caller})
+				}
 				id, isIdent := bound[0].(*ast.Ident)
 				if isIdent && len(bound) == 1 && caller.vars[id.Name] != nil && caller.vars[id.Name].origin == "" {
 					v.origin = "" // receiver, t, or another param without known origin: not informative
@@ -1213,6 +1330,143 @@ func (e *extractor) bindParams(sc, caller *scope, ft *ast.FuncType, args []ast.E
 			i++
 		}
 	}
+}
+
+func returnsBool(ft *ast.FuncType) bool {
+	if ft.Results == nil || len(ft.Results.List) != 1 || len(ft.Results.List[0].Names) > 1 {
+		return false
+	}
+	id, ok := ft.Results.List[0].Type.(*ast.Ident)
+	return ok && id.Name == "bool"
+}
+
+// fieldFuncs resolves a call to a function-valued field, x.name(...), to the
+// function literals (or named functions) stored in that field of the struct
+// literals x was built from.
+func (e *extractor) fieldFuncs(sc *scope, x ast.Expr, name string) []callee {
+	var out []callee
+	for _, r := range e.fieldExprs(sc, x, []string{name}, map[any]bool{}, 0) {
+		switch f := r.x.(type) {
+		case *ast.FuncLit:
+			out = append(out, callee{lit: f, scope: r.sc})
+		case *ast.Ident, *ast.SelectorExpr:
+			out = append(out, e.resolveCallee(r.sc, f)...)
+		}
+	}
+	return out
+}
+
+// fieldExprs returns the expressions x.path[0].path[1]... was set to in the
+// struct literals x comes from (see litCollector.project for the traversal).
+func (e *extractor) fieldExprs(sc *scope, x ast.Expr, path []string, visited map[any]bool, depth int) []valRef {
+	if x == nil || sc == nil || depth > 10 {
+		return nil
+	}
+	if len(path) == 0 {
+		if id, ok := x.(*ast.Ident); ok {
+			if v := sc.vars[id.Name]; v != nil && !visited[v] && (v.closure == nil && len(v.fnRefs) == 0) {
+				visited[v] = true
+				var out []valRef
+				for _, r := range v.vals {
+					out = append(out, e.fieldExprs(r.sc, r.x, nil, visited, depth+1)...)
+				}
+				if len(out) > 0 {
+					return out
+				}
+			}
+		}
+		return []valRef{{x, sc}}
+	}
+	switch t := x.(type) {
+	case *ast.ParenExpr:
+		return e.fieldExprs(sc, t.X, path, visited, depth)
+	case *ast.StarExpr:
+		return e.fieldExprs(sc, t.X, path, visited, depth)
+	case *ast.UnaryExpr:
+		return e.fieldExprs(sc, t.X, path, visited, depth)
+	case *ast.IndexExpr:
+		return e.fieldExprs(sc, t.X, path, visited, depth)
+	case *ast.SelectorExpr:
+		return e.fieldExprs(sc, t.X, append([]string{t.Sel.Name}, path...), visited, depth)
+	case *ast.Ident:
+		v := sc.vars[t.Name]
+		if v == nil || visited[[2]any{v, len(path)}] {
+			return nil
+		}
+		visited[[2]any{v, len(path)}] = true
+		var out []valRef
+		for _, r := range v.vals {
+			out = append(out, e.fieldExprs(r.sc, r.x, path, visited, depth+1)...)
+		}
+		return out
+	case *ast.CompositeLit:
+		var out []valRef
+		keyed := false
+		for _, elt := range t.Elts {
+			kv, ok := elt.(*ast.KeyValueExpr)
+			if !ok || !isFieldKey(sc, kv.Key) {
+				continue
+			}
+			keyed = true
+			if kv.Key.(*ast.Ident).Name == path[0] {
+				out = append(out, e.fieldExprs(sc, kv.Value, path[1:], visited, depth)...)
+			}
+		}
+		if keyed {
+			return out
+		}
+		for _, elt := range t.Elts {
+			if kv, ok := elt.(*ast.KeyValueExpr); ok {
+				elt = kv.Value
+			}
+			out = append(out, e.fieldExprs(sc, elt, path, visited, depth)...)
+		}
+		return out
+	}
+	return nil
+}
+
+// refersTo reports whether x mentions the identifier name.
+func refersTo(x ast.Expr, name string) bool {
+	found := false
+	ast.Inspect(x, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			found = true
+		}
+		return !found
+	})
+	return found
+}
+
+// returnedType infers the concrete type a function returns from its return
+// statements (first result), following simple local assignments.
+func (e *extractor) returnedType(fi *funcInfo) *typeRef {
+	if fi.decl.Body == nil || e.retActive[fi.decl] {
+		return nil
+	}
+	e.retActive[fi.decl] = true
+	defer delete(e.retActive, fi.decl)
+	sc := &scope{file: fi.file, vars: map[string]*varInfo{}}
+	var found *typeRef
+	ast.Inspect(fi.decl.Body, func(n ast.Node) bool {
+		if found != nil {
+			return false
+		}
+		switch t := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.AssignStmt:
+			e.recordAssign(sc, t.Lhs, t.Rhs)
+		case *ast.ReturnStmt:
+			if len(t.Results) > 0 {
+				if tr := e.typeOfExpr(sc, t.Results[0]); tr != nil && !tr.pkg.ifaces[tr.name] {
+					found = tr
+				}
+			}
+		}
+		return true
+	})
+	return found
 }
 
 func identName(id *ast.Ident) string {

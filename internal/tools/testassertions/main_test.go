@@ -95,6 +95,60 @@ func TestTreeOutput(t *testing.T) {
 	assert.Contains(t, buf.String(), "5 assertion(s): 1 fatal (require/Fatal), 1 polling block(s), 1 under a condition/loop; 1 helper(s) followed")
 }
 
+func TestConstructorReturningInterface(t *testing.T) {
+	got := flatten(extractSample(t, "TestFleetStyle"))
+	require.GreaterOrEqual(t, len(got), 4)
+	assert.Equal(t, []string{
+		"test:TestFleetStyle",
+		"helper:runOnPlatforms(t, newConfigSuite, []string{\"ubuntu\", \"debian\"})",
+		"loop:for each platform in platforms",
+		"subtest:platform",
+		"suite:configSuite",
+	}, got[:5])
+}
+
+func TestRepeatedHelpersAndValues(t *testing.T) {
+	nodes := extractSample(t, "configSuite.TestSections")
+	require.Len(t, nodes, 1)
+	test := nodes[0]
+	require.Len(t, test.Children, 2)
+
+	// first call: expanded, with values traced through the range loop and the struct field
+	first := test.Children[0].Children[0]
+	require.Equal(t, "helper", first.Kind)
+	require.Len(t, first.Children, 2)
+	assert.Equal(t, []string{"Collector"}, first.Children[0].Assertion.Values)
+	contains := first.Children[1].Children[0].Assertion
+	assert.Equal(t, []string{"status output", "Running Checks", "logs_enabled"}, contains.Values,
+		"only sec.shouldContain values, constants resolved, not sec.name")
+
+	// second call: collapsed into a reference, but still carrying its own values
+	second := test.Children[1]
+	assert.Equal(t, "helper", second.Kind)
+	assert.NotEmpty(t, second.Ref)
+	assert.Equal(t, 2, second.Repeat)
+	assert.Empty(t, second.Children)
+	assert.Equal(t, []string{"Forwarder", "Transactions"}, second.Values)
+
+	assert.ElementsMatch(t, []string{"Collector", "status output", "Running Checks", "logs_enabled", "Forwarder", "Transactions"}, test.Values)
+}
+
+func TestPredicateInStructLiteral(t *testing.T) {
+	got := flatten(extractSample(t, "TestGenericRun"))
+	assert.Equal(t, []string{
+		"test:TestGenericRun",
+		"suite:orchSuite",
+		"test:(orchSuite).TestPod",
+		"helper:expectResource{test: func(kind string) bool { … }, message: \"find a pod\"}.Assert(s.T(), nil)",
+		"loop:for each k in kinds",
+		"predicate:e.test(k)",
+		"assertion:kind == \"Pod\"",
+		"assertion:test fails: \"failed to \" + e.message",
+	}, got)
+	failure := extractSample(t, "orchSuite.TestPod")[0].Children[0].Children[1].Assertion
+	assert.Equal(t, []string{"find a pod"}, failure.Values)
+}
+
 func TestUnknownTest(t *testing.T) {
 	dir, err := filepath.Abs(filepath.Join("testdata", "sample"))
 	require.NoError(t, err)
