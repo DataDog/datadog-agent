@@ -56,6 +56,9 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 		}
 
 		purl := "pkg:" + pkg.Name + "@" + version
+		if pkg.Arch != "" {
+			purl += "?arch=" + pkg.Arch
+		}
 
 		component := &cyclonedx_v1_4.Component{
 			Type:    cyclonedx_v1_4.Classification_CLASSIFICATION_LIBRARY,

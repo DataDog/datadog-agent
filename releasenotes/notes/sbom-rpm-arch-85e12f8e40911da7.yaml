@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The runtime usage of an rpm package installed for several architectures,
+    such as glibc for x86_64 and i686, lands on the SBOM component of the
+    architecture that was used.
