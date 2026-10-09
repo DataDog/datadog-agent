@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package tokens provides tokenization functionality for log messages.
-package preprocessor
+package tokenizer
 
 import (
 	"strings"
