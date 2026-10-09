@@ -70,6 +70,17 @@ func TestLocalServiceShutdownNilMetricAgent(t *testing.T) {
 	})
 }
 
+func TestInventoryRuntimeNames(t *testing.T) {
+	// Downstream consumers join on these exact strings, so a change here is a
+	// payload change rather than a rename.
+	assert.Equal(t, "Node.js", RuntimeNodeJS)
+	assert.Equal(t, "Python", RuntimePython)
+	assert.Equal(t, "Java", RuntimeJava)
+	assert.Equal(t, ".NET", RuntimeDotNet)
+	assert.Equal(t, "PHP", RuntimePHP)
+	assert.Equal(t, "Ruby", RuntimeRuby)
+}
+
 func TestGetCloudServiceTypeMicroVM(t *testing.T) {
 	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, "arn:aws:lambda:us-east-1:123456789012:microvm-image:my-image")
 	svc := GetCloudServiceType()
