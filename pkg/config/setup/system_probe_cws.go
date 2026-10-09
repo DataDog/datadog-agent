@@ -114,7 +114,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v3.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v3.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", getDefaultSecurityProfilesDir())
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
@@ -125,7 +125,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.profile_cleanup_delay", "60m")
 
 	// CWS - Security Profile V2
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "dns", "bind", "connect"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.event_types", []string{"exec", "open", "dns", "bind", "connect", "imds", "syscalls"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.excluded_images", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.max_dump_size", 5120)
 
