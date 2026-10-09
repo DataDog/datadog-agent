@@ -108,11 +108,17 @@ def build_context_state(
     diff: str,
     ddci: dict | None = None,
     suite_def_code: str = "",
+    pr_summary: str = "",
 ) -> str:
     """The shared part of the System One state: the PR context (title,
-    description, changed files, full diff) and the suite provisioning
-    definition - everything every Jev call for the suite sees, without the
-    per-test code."""
+    description, changed files) and the suite provisioning definition -
+    everything every Jev call for the suite sees, without the per-test code.
+
+    When pr_summary is set (LLM-generated summary of the PR changes, see
+    pr_summary.py), it replaces the full diff: the state carries the file
+    list and the summary instead of the raw patches, an order of magnitude
+    smaller per Jev call.
+    """
     files_section = "\n".join(f"- {f} ({kind})" if kind else f"- {f}" for f, kind in files)
     author = f", author: @{pr['author']}" if pr.get("author") else ""
     impacted = ""
@@ -120,7 +126,11 @@ def build_context_state(
         impacted = "\n\n## Impacted build targets (from DDCI build impact analysis)\n" + ", ".join(
             ddci["impacted_targets"][:100]
         )
-    diff_section = f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else ""
+    changes_section = (
+        (f"\n## LLM summary of the changes in this PR (replaces the raw diff)\n{pr_summary}\n")
+        if pr_summary
+        else (f"\n## Full PR diff (per-file patches, truncated to fit)\n```diff\n{diff}\n```" if diff else "")
+    )
     suite_def_section = (
         (
             f"\n## E2E suite provisioning definition (base suite: platforms, components, install method)\n"
@@ -135,7 +145,7 @@ def build_context_state(
         f"Description:\n{truncate(pr.get('description') or '(none)', MAX_DESCRIPTION_BYTES, 'description')}\n"
         f"Owning team of the E2E suite: {team}\n\n"
         f"## Files changed in this PR (merge base {str(merge_base)[:12]}, {len(files)} files)\n"
-        f"{files_section}{diff_section}{impacted}{suite_def_section}"
+        f"{files_section}{changes_section}{impacted}{suite_def_section}"
     )
 
 
@@ -151,10 +161,13 @@ def build_state(
     diff: str,
     ddci: dict | None = None,
     suite_def_code: str = "",
+    pr_summary: str = "",
 ) -> str:
     """Assemble the System One state sent to Jev for one test entry point: the shared context (see build_context_state) plus the test under evaluation."""
     return (
-        build_context_state(suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code)
+        build_context_state(
+            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code, pr_summary=pr_summary
+        )
         + "\n\n## E2E test under evaluation\n"
         f"Test: {name}\n"
         f"Suite: {suite} ({path})\n"

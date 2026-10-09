@@ -30,4 +30,9 @@ jev-dyntest-evaluate:
     # dynamic-test evaluation job
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
+    # The LLM PR summary is computed in its own task call (one gateway call,
+    # gated by the datadog-agent-jev-llm-summary feature flag) and written to
+    # a file the evaluation loads - paving the way for computing it in a
+    # separate job
+    - dda inv -- -e dyntest.generate-jev-pr-summary
     - dda inv -- -e dyntest.evaluate-index --selector jev --commit-sha $CI_COMMIT_SHA --pipeline-id $CI_PIPELINE_ID

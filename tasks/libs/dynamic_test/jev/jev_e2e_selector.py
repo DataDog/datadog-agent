@@ -2,11 +2,16 @@
 
 Decides, for each E2E test of a given suite (or a single test), whether it
 should be executed on the current PR, by asking a Jev (TypeSafe System One)
-model through the AI Gateway. select_suite() is the only entry point, called
+model through the AI Gateway. Unless disabled (summary_model="", which the
+executor passes when the 'datadog-agent-jev-llm-summary' feature flag is
+off), one LLM call to the AI Gateway chat completions endpoint (pr_summary.py)
+generates a summary of the PR changes that replaces the raw diff in every
+Jev state. select_suite() is the only entry point, called
 in-process by the executor (tasks/libs/dynamic_test/jev_selection.py). See
-jev_client.py for the questions and the run/skip decision, and the sibling
-modules for context gathering (pr_context.py), diff processing
-(diff_utils.py) and test discovery (test_discovery.py).
+jev_client.py for the
+questions and the run/skip decision, and the sibling modules for context
+gathering (pr_context.py), diff processing (diff_utils.py), PR summarization
+(pr_summary.py) and test discovery (test_discovery.py).
 
 Must run from the repository root (git context and relative paths).
 
@@ -41,6 +46,13 @@ from tasks.libs.dynamic_test.jev.jev_client import (
     get_ai_gateway_token,
 )
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_ddci_metadata, fetch_pr_info
+from tasks.libs.dynamic_test.jev.pr_summary import (
+    CHAT_COMPLETIONS_PATH,
+    DEFAULT_SUMMARY_FILE,
+    read_summary_file,
+    summarize_pr,
+    write_summary_file,
+)
 from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suites, suite_definition
 
 # The context (what every Jev call for a suite sees: the PR, the diff, the
@@ -48,6 +60,48 @@ from tasks.libs.dynamic_test.jev.test_discovery import E2E_TESTS_DIR, list_suite
 # suites of a selection share the same context, so printing it per suite
 # would repeat the same diff over and over
 _printed_contexts: set[tuple[str, str]] = set()
+
+# The AI Gateway model generating the PR summary (chat completions endpoint,
+# same gateway and token as the Jev calls); an empty value disables the
+# summary and every Jev state carries the raw diff instead. Gated by the
+# 'datadog-agent-jev-llm-summary' feature flag at the evaluation level.
+DEFAULT_SUMMARY_MODEL = "gpt-4o-mini"
+
+
+def generate_pr_summary(
+    output: str = DEFAULT_SUMMARY_FILE,
+    base: str | None = None,
+    model: str | None = None,
+    dc: str = "us1.ddbuild.io",
+    source: str = "datadog-agent",
+    token: str | None = None,
+    token_cmd: str | None = None,
+) -> dict:
+    """Generate the LLM PR summary for the current checkout's PR context and
+    write it to `output` (pr_summary.write_summary_file), for a later
+    selection run to load with summary_file instead of calling the AI
+    Gateway again - typically dyntest.generate-jev-pr-summary in the same CI
+    job as the evaluation.
+
+    Returns the written content (summary, model, PR metadata); raises on
+    context-gathering or gateway failures.
+    """
+    base = base or os.environ.get("COMPARE_TO_BRANCH", "main")
+    model = model if model is not None else os.environ.get("JEV_SUMMARY_MODEL", DEFAULT_SUMMARY_MODEL)
+    if not model:
+        raise ValueError("no summary model configured: pass model or set JEV_SUMMARY_MODEL")
+    ddci = fetch_ddci_metadata()
+    pr = fetch_pr_info(base, ddci)
+    files, merge_base = changed_files(base, ddci)
+    diff = pr_diff(merge_base)
+    print(
+        f"[info] summarizing the PR changes: {len(files)} files, diff {len(diff)} chars (merge base {merge_base[:8]})"
+    )
+    token = get_ai_gateway_token(token=token, token_cmd=token_cmd, dc=dc)
+    summary = summarize_pr(token, pr, files, merge_base, diff, model=model, dc=dc, source=source)
+    write_summary_file(output, summary, model=model, base=base, merge_base=merge_base, pr=pr)
+    print(f"[info] LLM PR summary ({len(summary)} chars, model {model}) written to {output}")
+    return {"output": output, "model": model, "summary": summary, "base": base, "merge_base": merge_base, "pr": pr}
 
 
 def select_suite(
@@ -65,11 +119,19 @@ def select_suite(
     workers: int = 8,
     output: str | None = None,
     dry_run: bool = False,
+    summary_model: str | None = None,
+    summary_file: str | None = None,
 ) -> dict | None:
     """Run the Jev selection for one suite and return its summary dict.
 
     Returns None on a dry run (full per-test states printed, nothing decided).
-    The summary is {"suite", "team", "base", "pr", "changed_files", "run", "skip",
+    Unless summary_model is set to "" (or JEV_SUMMARY_MODEL is empty), one LLM
+    call to the AI Gateway chat completions endpoint (pr_summary.py) produces
+    a summary of the PR changes, computed once per (base, merge base) and
+    shared by every suite of the run; that summary replaces the raw diff in
+    every per-test Jev state. If the summary call fails, the selector fails
+    open to the raw diff. The
+    summary is {"suite", "team", "base", "llm_summary", "summary_model", "pr", "changed_files", "run", "skip",
     "decisions"}. The shared context (PR, diff, suite definition - everything
     but the per-test code) is printed once per run (per unique base/merge
     base) so the passed diff is inspectable; the per-test states are not
@@ -114,6 +176,41 @@ def select_suite(
 
     token = None if dry_run else get_ai_gateway_token(token=token, token_cmd=token_cmd, dc=dc)
 
+    # The summary replacing the raw diff in every per-test state
+    # (pr_summary.py). summary_model="" disables it (the evaluation passes
+    # "" when the 'datadog-agent-jev-llm-summary' feature flag is off);
+    # otherwise, when summary_file is set the summary is LOADED from that
+    # file - computed by a separate task call (dyntest.generate-jev-pr-
+    # summary, typically earlier in the same CI job) and validated against
+    # the current PR context - and only without a file is it generated here
+    # with one gateway call. Any failure falls back to the raw diff.
+    summary_model = (
+        summary_model if summary_model is not None else os.environ.get("JEV_SUMMARY_MODEL", DEFAULT_SUMMARY_MODEL)
+    )
+    pr_summary = ""
+    if not summary_model:
+        print("[info] LLM PR summary disabled, the raw diff is passed to every Jev state")
+    elif summary_file:
+        try:
+            pr_summary, file_model = read_summary_file(summary_file, merge_base=merge_base, pr_number=pr.get("number"))
+            summary_model = file_model or summary_model
+            print(f"[info] LLM PR summary loaded from {summary_file} ({len(pr_summary)} chars, model {summary_model})")
+        except Exception as e:
+            pr_summary = ""
+            print(f"[warn] could not use the PR summary file {summary_file}: {e} -> sending the raw diff instead")
+    elif dry_run:
+        print("[info] dry run: the PR summary that would replace the diff is not generated (no gateway call)")
+    else:
+        try:
+            pr_summary = summarize_pr(token, pr, files, merge_base, diff, model=summary_model, dc=dc, source=source)
+            print(
+                f"[info] LLM PR summary from {summary_model} ({len(pr_summary)} chars) replaces the diff "
+                "in every Jev state"
+            )
+        except Exception as e:
+            pr_summary = ""
+            print(f"[warn] PR summary generation failed: {e} -> sending the raw diff instead")
+
     suite_def_path, suite_def_code = suite_definition(suite_dir)
     if suite_def_code:
         print(f"[info] suite definition included: {suite_def_path} ({len(suite_def_code)} chars)")
@@ -125,19 +222,35 @@ def select_suite(
     if not dry_run and (base, str(merge_base)) not in _printed_contexts:
         _printed_contexts.add((base, str(merge_base)))
         context = build_context_state(
-            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code
+            suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code, pr_summary=pr_summary
         )
         with gitlab_section(f"Jev input context (suite {suite})", collapsed=True, echo=True):
             print(
                 f"endpoint: https://ai-gateway.{dc}{SYSTEMONE_PATH}  model: {model}  source: {source}\n"
-                f"questions: {json.dumps(QUESTIONS)}\n"
+                + (
+                    f"PR summary: https://ai-gateway.{dc}{CHAT_COMPLETIONS_PATH}  model: {summary_model}\n"
+                    if pr_summary
+                    else "PR summary: none, the raw diff is passed\n"
+                )
+                + f"questions: {json.dumps(QUESTIONS)}\n"
                 f"state without the per-test code ({len(context)} chars):\n{context}"
             )
 
     def select_test(entry):
         name, path, code = entry
         state = build_state(
-            name, path, code, suite, team, pr, files, merge_base, diff, ddci=ddci, suite_def_code=suite_def_code
+            name,
+            path,
+            code,
+            suite,
+            team,
+            pr,
+            files,
+            merge_base,
+            diff,
+            ddci=ddci,
+            suite_def_code=suite_def_code,
+            pr_summary=pr_summary,
         )
         if dry_run:
             print(f"--- state for {name} (dry run, not sent) ---\n{state}\n")
@@ -175,6 +288,9 @@ def select_suite(
         "suite": suite,
         "team": team,
         "base": base,
+        "llm_summary": bool(summary_model),
+        "summary_model": summary_model,
+        "summary_file": summary_file,
         "pr": pr.get("number"),
         "changed_files": files,
         "run": to_run,
