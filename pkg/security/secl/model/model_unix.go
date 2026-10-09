@@ -1192,7 +1192,8 @@ type SetNSEvent struct {
 	SyscallEvent
 	NSType int `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Clone flags`
 	NamespaceIDs
-	Previous NamespaceIDs `field:"previous"` // SECLDoc[previous] Definition:`Namespace IDs of the thread before the syscall`
+	Previous  NamespaceIDs `field:"previous"`   // SECLDoc[previous] Definition:`Namespace IDs of the thread before the syscall`
+	MntNSHost bool         `field:"mntns_host"` // SECLDoc[mntns_host] Definition:`Indicates that the mount namespace of the thread once the syscall returned is the host's initial one, the namespace PID 1 on the host lives in. false if either namespace couldn't be resolved`
 }
 
 // NamespaceIDs holds the namespace IDs of a thread, as listed in /proc/<tid>/ns/. An ID is 0 if it

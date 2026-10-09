@@ -1945,6 +1945,7 @@ A thread joined an existing namespace
 | [`setns.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
 | [`setns.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
 | [`setns.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.mntns_host`](#setns-mntns_host-doc) | Indicates that the mount namespace of the thread once the syscall returned is the host's initial one, the namespace PID 1 on the host lives in. false if either namespace couldn't be resolved |
 | [`setns.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
 | [`setns.nstype`](#setns-nstype-doc) | Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined |
 | [`setns.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
@@ -4968,6 +4969,13 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
+
+
+
+### `setns.mntns_host` {#setns-mntns_host-doc}
+Type: bool
+
+Definition: Indicates that the mount namespace of the thread once the syscall returned is the host's initial one, the namespace PID 1 on the host lives in. false if either namespace couldn't be resolved
 
 
 

@@ -220,6 +220,9 @@ type EBPFProbe struct {
 	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
 	// is read on the event hot path.
 	kernelTracksCGroupID bool
+
+	// ID of the host's initial mount namespace, 0 if it couldn't be resolved
+	hostMntNS uint32
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -2102,6 +2105,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.SetNS, eventType, offset, dataLen, data) {
 			return false
 		}
+		event.SetNS.MntNSHost = p.hostMntNS != 0 && event.SetNS.MntNS == p.hostMntNS
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -3650,6 +3654,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	}
 
 	p.initCgroup2MountPath()
+
+	// read through the host procfs, so that it's the host's PID 1 even when the agent runs in a container
+	if p.hostMntNS, err = utils.NewNSPathFromPid(1, utils.MntNsType).GetNSID(); err != nil {
+		seclog.Warnf("failed to resolve the host mount namespace, setns.mntns_host won't be reported: %v", err)
+	}
 	p.kernelTracksCGroupID = utils.IsPureCGroupV2Available() && p.kernelVersion.HasBpfGetCurrentCgroupID()
 
 	if err := p.sanityChecks(); err != nil {

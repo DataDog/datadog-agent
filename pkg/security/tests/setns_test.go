@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // nsInode returns the inode number of an nsfs file, which is the namespace ID CWS reports, or 0
@@ -95,6 +96,10 @@ func TestSetNS(t *testing.T) {
 		{
 			ID:         "test_setns_mntns",
 			Expression: `setns.nstype & CLONE_NEWNS > 0 && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_setns_mntns_host",
+			Expression: `setns.mntns_host && process.file.name == "syscall_tester"`,
 		},
 		{
 			ID:         "test_setns_netns_denied",
@@ -235,5 +240,50 @@ func TestSetNS(t *testing.T) {
 
 			test.validateSetNSSchema(t, event)
 		}, "test_setns_netns")
+	})
+
+	// the host's /proc/1/ns/mnt, under HOST_PROC when the tests run in a container
+	hostMntNSPath := utils.NewNSPathFromPid(1, utils.MntNsType).GetPath()
+
+	// nsenter -t 1 -m: from a mount namespace of its own, the tester joins the host's
+	t.Run("join-host-mntns", func(t *testing.T) {
+		if ownNamespaceIDs(t, test).MntNS == 0 {
+			t.Skip("the mount namespace ID isn't resolved on this kernel")
+		}
+		hostMntNS := nsInode(t, hostMntNSPath)
+
+		test.WaitSignalFromRule(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "mnt-unshared", hostMntNSPath)
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_setns_mntns_host")
+			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
+			assert.True(t, event.SetNS.MntNSHost, "should have joined the host mount namespace")
+			assert.Equal(t, hostMntNS, event.SetNS.MntNS, "wrong mount namespace")
+			assert.NotZero(t, event.SetNS.Previous.MntNS, "the unshared mount namespace should be resolved")
+			assert.NotEqual(t, hostMntNS, event.SetNS.Previous.MntNS, "the syscall was made from the unshared mount namespace")
+
+			test.validateSetNSSchema(t, event)
+		}, "test_setns_mntns_host")
+	})
+
+	// joining a mount namespace that isn't the host's, here the one the tester just unshared
+	t.Run("join-unshared-mntns", func(t *testing.T) {
+		if ownNamespaceIDs(t, test).MntNS == 0 {
+			t.Skip("the mount namespace ID isn't resolved on this kernel")
+		}
+		hostMntNS := nsInode(t, hostMntNSPath)
+
+		test.WaitSignalFromRule(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "mnt-unshared", "/proc/self/ns/mnt")
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_setns_mntns")
+			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
+			assert.False(t, event.SetNS.MntNSHost, "the unshared mount namespace isn't the host's")
+			assert.NotZero(t, event.SetNS.MntNS, "the unshared mount namespace should be resolved")
+			assert.NotEqual(t, hostMntNS, event.SetNS.MntNS, "should have joined the unshared mount namespace")
+			assert.Equal(t, event.SetNS.Previous.MntNS, event.SetNS.MntNS, "joining its own namespace shouldn't change it")
+
+			test.validateSetNSSchema(t, event)
+		}, "test_setns_mntns")
 	})
 }
