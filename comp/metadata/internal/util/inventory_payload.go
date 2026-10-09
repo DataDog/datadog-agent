@@ -98,7 +98,7 @@ type PayloadGetter func() marshaler.JSONMarshaler
 // because ScrubJSON operates on JSON key names and cannot reach inside opaque string values.
 type InventoryPayload struct {
 	m        sync.Mutex
-	notReady bool // Protected by m; the zero value preserves default-ready behavior.
+	notReady bool // guarded by m; the zero value is ready
 
 	conf          config.Component
 	log           log.Component
@@ -193,6 +193,7 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	i.m.Lock()
 	defer i.m.Unlock()
 	if i.notReady {
+		i.log.Debugf("inventory metadata is not ready, skipping submission")
 		return i.MinInterval
 	}
 	if i.serializer == nil {
@@ -231,9 +232,7 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 }
 
 // SetReady controls payload generation without changing whether inventory is enabled.
-// Closing waits for any in-flight generation and enqueue to finish. Callers must
-// serialize metadata updates between closing and reopening, and must not hold
-// metadata or UUID locks when calling SetReady or Submit.
+// SetReady(false) waits for any in-flight generation and enqueue to finish.
 func (i *InventoryPayload) SetReady(ready bool) {
 	i.m.Lock()
 	defer i.m.Unlock()
@@ -242,16 +241,18 @@ func (i *InventoryPayload) SetReady(ready bool) {
 
 // Submit synchronously builds a payload and enqueues it for submission now,
 // ignoring the first-run delay and the min/max interval gating that collect()
-// applies. It is the mechanism behind the immediate-on-start-submission
-// capability: an embedder with no host-metadata pipeline has no host-creation
-// race to order around and may exit before the runner goroutine fires, so it
-// enqueues the first payload directly. SendMetadata only enqueues a
-// transaction (the HTTP POST is async and drained at shutdown), so this does
-// not wait for delivery. Nothing is built or enqueued while not ready.
+// applies. SendMetadata only enqueues a transaction (the HTTP POST is async and
+// drained at shutdown), so this does not wait for delivery. Nothing is built or
+// enqueued while not ready.
 func (i *InventoryPayload) Submit() {
 	i.m.Lock()
 	defer i.m.Unlock()
-	if !i.Enabled || i.notReady {
+	if !i.Enabled {
+		i.log.Debugf("inventory metadata is disabled, skipping submission")
+		return
+	}
+	if i.notReady {
+		i.log.Debugf("inventory metadata is not ready, skipping submission")
 		return
 	}
 	if i.serializer == nil {
