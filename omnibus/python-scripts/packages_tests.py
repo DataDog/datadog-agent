@@ -103,9 +103,23 @@ class TestPackages(unittest.TestCase):
         os.remove(req_file)
         os.rmdir(test_directory)
 
-    # ------------------------------------------------------------------ #
-    # has_expected_diff_file_permissions
-    # ------------------------------------------------------------------ #
+    def test_load_requirements_raises_on_unrecognized_invalid_lines(self):
+        """A line that is neither a valid requirement nor a known bypass form fails the load."""
+        test_directory = tempfile.mkdtemp()
+        req_file = os.path.join(test_directory, "requirements.txt")
+
+        with open(req_file, 'w', encoding='utf-8') as f:
+            f.write("package==1.0.0\n")
+            f.write("not a requirement\n")
+
+        with self.assertRaises(ValueError) as ctx:
+            load_requirements(req_file)
+
+        self.assertIn('not a requirement', str(ctx.exception))
+
+        # Cleanup
+        os.remove(req_file)
+        os.rmdir(test_directory)
 
     @unittest.skipIf(os.name == 'nt', "Skip on Windows")
     def test_has_expected_diff_file_permissions(self):

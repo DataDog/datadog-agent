@@ -411,6 +411,12 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
     The file is validated before use: it must be owned by root or the dd-agent
     user with no group/world write bits.  Returns False if validation fails.
 
+    Validation and reading are separate syscalls, so dd-agent, an accepted
+    owner, can swap the file between them. The window is deliberate.
+    `datadog-*` lines reach only the signed integrations registry; every other
+    line builds under the dd-agent account — the privilege the attacker
+    already holds.
+
     Every package is attempted regardless of earlier failures.  If any packages
     could not be installed after retries, raises IntegrationsRestoreError with
     the full list of failures so the caller can surface them.  Returns True on
@@ -457,10 +463,14 @@ def install_diff_packages_file(install_directory, filename, exclude_filename):
 
 def load_requirements(filename):
     """
-    Load requirements from a file, skipping anything that could bypass the
-    package registry: lines that are not valid PEP 508 requirements (bare
-    URLs, VCS references, editable installs, pip flags, local paths), direct
-    file references, and parsed requirements carrying a direct URL reference.
+    Load requirements from a file, restricted to the package registry.
+
+    Known registry-bypass forms are skipped with a log line: bare URLs, VCS
+    references, editable installs, pip flags, local path references, direct
+    file references (.whl/.zip), and PEP 508 direct URL references. A line
+    that is neither a valid requirement nor a known bypass form raises
+    ValueError, so a malformed entry fails the load instead of being silently
+    dropped.
     """
     print(f"Loading requirements from file: '{filename}'")
     requirements = {}
@@ -472,11 +482,13 @@ def load_requirements(filename):
             if req_stripped.lower().endswith(('.whl', '.zip')):
                 print(f"Skipping direct file reference: {req_stripped!r}")
                 continue
+            if req_stripped.startswith(('-', 'http://', 'https://', 'git+', 'ftp://', '.')):
+                print(f"Skipping known registry-bypass form: {req_stripped!r}")
+                continue
             try:
                 parsed = packaging.requirements.Requirement(req_stripped)
             except packaging.requirements.InvalidRequirement:
-                print(f"Skipping requirement that is not valid PEP 508: {req_stripped!r}")
-                continue
+                raise ValueError(f"{filename}: line is neither a valid requirement nor a known bypass form: {req_stripped!r}")
             if parsed.url is not None:
                 print(f"Skipping requirement with direct URL reference: {req_stripped!r}")
                 continue
