@@ -478,6 +478,7 @@ register_toolchains(
     "@gcc_toolchain_aarch64_cross//:cc_toolchain",
     "@llvm//toolchain:linux_x86_64_to_windows_x86_64_msvc",
     "@llvm//toolchain:linux_aarch64_to_windows_x86_64_msvc",
+    "@llvm//toolchain:windows_x86_64_to_windows_x86_64_msvc",
     "@winlibs_mingw64//:mingw_cc_toolchain",
     "@msvc_toolchains//:all",
     "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
