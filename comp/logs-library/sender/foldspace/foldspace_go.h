@@ -238,6 +238,7 @@ typedef struct {
   foldspace_str message;
 } foldspace_core_error;
 
+typedef struct foldspace_tokenizer foldspace_tokenizer;
 typedef struct foldspace_client foldspace_client;
 typedef struct foldspace_effects foldspace_effects;
 typedef struct foldspace_effect foldspace_effect;
@@ -252,10 +253,17 @@ const char *foldspace_error_message(int code);
  * the rest back without restating values that would drift. */
 int foldspace_default_config(foldspace_config *out);
 
+/* The pattern extractor's compiled automaton. It is large and holds no
+ * per-log state, so one serves every client. */
+int foldspace_tokenizer_new(foldspace_tokenizer **out);
+/* Clients built from the tokenizer keep their own reference, so this may
+ * follow the last foldspace_client_new that uses it. */
+void foldspace_tokenizer_free(foldspace_tokenizer *tokenizer);
+
 /* classes names every sender's class in order, and classes_len is how many
- * senders there are. Both are required. */
-int foldspace_client_new(const foldspace_config *config, const uint8_t *classes,
-                         size_t classes_len, foldspace_client **out);
+ * senders there are. The tokenizer and both of those are required. */
+int foldspace_client_new(const foldspace_config *config, const foldspace_tokenizer *tokenizer,
+                         const uint8_t *classes, size_t classes_len, foldspace_client **out);
 void foldspace_client_free(foldspace_client *client);
 int foldspace_sender_count(const foldspace_client *client, uint64_t *out);
 
