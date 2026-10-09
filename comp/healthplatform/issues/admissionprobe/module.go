@@ -10,12 +10,22 @@ package admissionprobe
 
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func init() {
-	issues.RegisterModuleFactory(NewModule)
+// Provides defines the issue modules contributed to the registry.
+type Provides struct {
+	compdef.Out
+	Module issues.Module `group:"healthplatform_issue"`
+}
+
+// Module provides the issue modules to the health platform registry.
+func Module() fxutil.Module {
+	return fxutil.Component(fxutil.ProvideComponentConstructor(newModule))
 }
 
 const (
@@ -34,11 +44,8 @@ type admissionProbeModule struct {
 	template *AdmissionProbeIssue
 }
 
-// NewModule creates a new admission probe issue module.
-func NewModule(issues.ModuleDeps) issues.Module {
-	return &admissionProbeModule{
-		template: &AdmissionProbeIssue{},
-	}
+func newModule() Provides {
+	return Provides{Module: &admissionProbeModule{template: &AdmissionProbeIssue{}}}
 }
 
 func (m *admissionProbeModule) IssueName() string {
