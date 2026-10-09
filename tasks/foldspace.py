@@ -10,10 +10,10 @@ from invoke import task
 
 from tasks.libs.common.utils import join_command
 
-# DataDog/foldspace ryan.hall/referential-spike. Keep in sync with
-# comp/logs-library/sender/foldspace/nativelib/README.md.
+# DataDog/foldspace ryan.hall/extraction-allocation-cuts, the top of stack #126.
+# Keep in sync with comp/logs-library/sender/foldspace/nativelib/README.md.
 FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
-FOLDSPACE_GIT_COMMIT = "926d529e59a3c8c3612ef7ba50911377c2294b22"
+FOLDSPACE_GIT_COMMIT = "a2e956956b121dc4574bd99c647e149c8312016c"
 FOLDSPACE_PACKAGE = "foldspace-go-ffi"
 
 
