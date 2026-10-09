@@ -15,6 +15,7 @@ import (
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -97,6 +98,9 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 		}
 		// There was either an error retrieving the hostname from the core agent, or
 		// it was empty and its disallowed by the disable_empty_hostname feature flag.
+		if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "end_user_device" && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
+			return fmt.Errorf("cannot resolve EUDM hostname from core-agent at %q; refusing to use a different OS hostname (lookup error: %v)", c.DDAgentBin, err)
+		}
 		if !osHostnameUsableFunc(context.Background()) {
 			// In a container, os.Hostname() returns the container/pod name, not the
 			// node hostname. Fail so the orchestrator can restart and retry once the

@@ -62,7 +62,7 @@ func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterf
 	var agentHostname string
 
 	hostnameData, _ := hostnameComp.GetWithProvider(ctx)
-	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
+	if hostnameData.Provider == hostnameinterface.EUDMProvider || (conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration()) {
 		agentHostname = hostnameData.Hostname
 	}
 

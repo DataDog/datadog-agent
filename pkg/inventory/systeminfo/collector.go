@@ -17,17 +17,13 @@ type SystemInfo struct {
 	ModelName    string
 	ChassisType  string
 	Identifier   string
-	// ComputerName is the user-assigned device name (currently macOS-only).
-	// macOS-only by design, not just by omission: on macOS this is a distinct,
-	// user-editable label (System Settings > Sharing) that differs from the
-	// network hostname. On Windows, Win32_ComputerSystem.Name IS the hostname,
-	// already captured in the payload's top-level "hostname" field, so there's
-	// nothing additional to collect there.
+	// ComputerName is the configured macOS device name, distinct from its
+	// network-derived hostname. Windows callers use the OS computer name.
 	ComputerName string
 }
 
 // Collect gathers system information from the system
-// Platform-specific implementations are in collector_windows.go and collector_nix.go
+// Platform-specific implementations are in collector_darwin.go, collector_windows.go and collector_nix.go
 func Collect() (*SystemInfo, error) {
 	return collect()
 }
