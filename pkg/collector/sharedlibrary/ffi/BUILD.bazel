@@ -10,7 +10,7 @@ go_library(
         "library_loader.go",
         "library_loader_test_util.go",
     ],
-    cdeps = ["//rtloader:rtloader_dynamic"],
+    cdeps = ["//rtloader:rtloader_headers"],
     cgo = True,
     copts = ["-I pkg/collector/sharedlibrary/ffi/rtloader/include"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/ffi",
