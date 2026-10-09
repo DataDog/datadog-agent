@@ -9,8 +9,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,6 +31,35 @@ const (
 	// keeps the negotiated maximum private, so a larger READ could fail with
 	// STATUS_INVALID_PARAMETER on some servers.
 	readChunkSize = 64 * 1024
+
+	// listBatch is the number of entries of one read of a directory, and
+	// maxListEntries the most entries ListDir returns. A directory with more
+	// is refused with ErrTooManyEntries: the scanner lists every directory of
+	// a source's pattern on each poll, so an unbounded listing would be
+	// rebuilt in memory every second, from a legitimate directory with
+	// millions of files or from a server that sends entries without end. The
+	// limit is far above what a log directory holds (the launcher tails at most
+	// logs_config.open_files_limit files, 500 by default).
+	//
+	// maxListBytes bounds the memory of the entries as well, since a count
+	// alone does not: a server can send entries whose names fill a whole
+	// directory page, 64 KiB, each. It is refused with ErrListingTooLarge. An
+	// entry costs its name plus entryOverhead, the size of the struct and of the
+	// library's file information.
+	//
+	// A read of listBatch entries may collect one directory page of up to
+	// 64 KiB per entry before the limits are checked (4 MiB), and the library
+	// decodes the entries of those pages into file information, so the batch
+	// bounds how far a server gets past them: about 6 MiB at most.
+	//
+	// maxNameUnits is the longest name an entry may have, in UTF-16 code units:
+	// the longest a file name is on NTFS, ReFS, SMB and Samba. A longer one is
+	// refused with ErrNameTooLong.
+	listBatch      = 64
+	maxListEntries = 100_000
+	maxListBytes   = 64 << 20
+	entryOverhead  = 128
+	maxNameUnits   = 255
 
 	// abortGrace is how long an operation may keep running after its context
 	// ended before the session is aborted. READ and QUERY_DIRECTORY return as
@@ -212,25 +243,115 @@ func (c *smbClient) ListDir(ctx context.Context, dir string) ([]Entry, error) {
 	ctx, done := c.begin(ctx)
 	defer done()
 
-	infos, err := c.share.ReadDir(ctx, dir)
+	f, err := c.share.OpenDir(ctx, dir)
 	if err != nil {
 		return nil, c.wrapErr(err)
 	}
-	entries := make([]Entry, 0, len(infos))
-	for _, info := range infos {
-		e := Entry{
-			Name:    info.Name(),
-			Size:    info.Size(),
-			ModTime: info.ModTime(),
-			IsDir:   info.IsDir(),
+	// Close the handle even when ctx ended, so the server does not keep it
+	// open; the library bounds the call.
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), abortGrace)
+		defer cancel()
+		_ = f.Close(closeCtx)
+	}()
+
+	entries, err := readEntries(func(n int) ([]os.FileInfo, error) { return f.Readdir(ctx, n) }, listBatch, maxListEntries, maxListBytes)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrTooManyEntries):
+			return nil, TooManyEntries(dir)
+		case errors.Is(err, ErrListingTooLarge):
+			return nil, ListingTooLarge(dir)
+		case errors.Is(err, ErrNameTooLong):
+			return nil, NameTooLong(dir)
 		}
-		if st, ok := info.(*smb2.FileStat); ok {
-			e.FileID = normalizeFileID(st.FileId)
-			e.CreationTime = st.CreationTime
-		}
-		entries = append(entries, e)
+		return nil, c.wrapErr(err)
 	}
+	slices.SortFunc(entries, func(a, b Entry) int { return strings.Compare(a.Name, b.Name) })
 	return entries, nil
+}
+
+// entryCost is the memory an entry of a listing is counted for.
+func entryCost(name string) int { return len(name) + entryOverhead }
+
+// ListingCost returns what the entries of a listing count for against the limit
+// on the memory of listings (see maxListBytes), the same way ListDir counts
+// them: callers that list many directories bound them together with it.
+func ListingCost(entries []Entry) int {
+	cost := 0
+	for _, e := range entries {
+		cost += entryCost(e.Name)
+	}
+	return cost
+}
+
+// MaxListEntries and MaxListBytes are the most entries, and the most memory in
+// the sense of ListingCost, that one listing may have.
+const (
+	MaxListEntries = maxListEntries
+	MaxListBytes   = maxListBytes
+)
+
+// readEntries reads a directory with readBatch, which returns up to n entries
+// (io.EOF, or fewer than n, at the end), batch entries at a time. It returns
+// ErrTooManyEntries as soon as the directory has more than limit entries,
+// ErrListingTooLarge as soon as they take more than maxBytes (see
+// maxListBytes), and ErrNameTooLong at the first name of more than
+// maxNameUnits UTF-16 code units, without reading the rest: it never returns
+// part of a directory as if it were all of it.
+func readEntries(readBatch func(n int) ([]os.FileInfo, error), batch, limit, maxBytes int) ([]Entry, error) {
+	var (
+		entries []Entry
+		bytes   int
+	)
+	for {
+		infos, err := readBatch(batch)
+		for _, info := range infos {
+			name := info.Name()
+			if utf16Len(name) > maxNameUnits {
+				return nil, ErrNameTooLong
+			}
+			bytes += entryCost(name)
+			e := Entry{
+				Name:    name,
+				Size:    info.Size(),
+				ModTime: info.ModTime(),
+				IsDir:   info.IsDir(),
+			}
+			if st, ok := info.(*smb2.FileStat); ok {
+				e.FileID = normalizeFileID(st.FileId)
+				e.CreationTime = st.CreationTime
+			}
+			entries = append(entries, e)
+		}
+		switch {
+		case len(entries) > limit:
+			return nil, ErrTooManyEntries
+		case bytes > maxBytes:
+			return nil, ErrListingTooLarge
+		}
+		switch {
+		case errors.Is(err, io.EOF):
+			return entries, nil
+		case err != nil:
+			return nil, err
+		case len(infos) < batch:
+			return entries, nil // a short batch is the last one
+		}
+	}
+}
+
+// utf16Len returns the length of s in UTF-16 code units, which is how SMB
+// limits a name.
+func utf16Len(s string) int {
+	n := 0
+	for _, r := range s {
+		n++
+		if r >= 0x10000 {
+			n++ // a surrogate pair
+		}
+	}
+	return n
 }
 
 // ReadAt implements Client.

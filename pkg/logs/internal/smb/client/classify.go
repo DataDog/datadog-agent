@@ -35,6 +35,11 @@ const (
 	// ErrSharing means another open conflicts with ours (sharing violation or
 	// byte-range lock). Retry on the next poll.
 	ErrSharing
+	// ErrTooLarge means a directory has more entries, or bigger ones, than the
+	// client lists (see ErrTooManyEntries, ErrListingTooLarge and
+	// ErrNameTooLong). It needs a change of the source's path or of the
+	// directory; reading it again would give the same result.
+	ErrTooLarge
 )
 
 // String implements fmt.Stringer.
@@ -48,6 +53,8 @@ func (k ErrorKind) String() string {
 		return "auth"
 	case ErrSharing:
 		return "sharing"
+	case ErrTooLarge:
+		return "too large"
 	default:
 		return "other"
 	}
@@ -150,6 +157,9 @@ func Classify(err error) ErrorKind {
 	}
 	if errors.Is(err, ErrClosed) {
 		return ErrOther
+	}
+	if errors.Is(err, ErrTooManyEntries) || errors.Is(err, ErrListingTooLarge) || errors.Is(err, ErrNameTooLong) {
+		return ErrTooLarge
 	}
 	if code, ok := statusCode(err); ok {
 		return statusKinds[code]

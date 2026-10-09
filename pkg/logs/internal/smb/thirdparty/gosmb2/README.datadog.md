@@ -92,13 +92,25 @@ Nothing else changed apart from the patches below.
    fails closed. Nothing else changed. **Carry this patch into the planned
    fork**, and drop it if upstream gains an equivalent.
 
+8. **`Share.OpenDir`** (`share.go`, marked `DATADOG PATCH 8`). It opens a
+   directory for `File.Readdir` the way `Share.ReadDir` does, with
+   `FILE_DIRECTORY_FILE`, `FILE_READ_DATA | FILE_READ_ATTRIBUTES | READ_CONTROL`
+   and no create context. `Share.Open` cannot do that: it opens with
+   `GENERIC_READ`, without `FILE_DIRECTORY_FILE`, so that a server answers a
+   file where a directory was expected with another status than
+   `STATUS_NOT_A_DIRECTORY`, and sends a QFid create context that a directory
+   listing does not need. The log source needs `File.Readdir`, which reads a
+   directory in batches, to stop at a bound instead of holding every entry that
+   `Share.ReadDir` returns. Nothing else changed. **Carry this patch into the
+   planned fork**, and drop it if upstream gains an equivalent.
+
 ### Create contexts sent by the library
 
 The CREATE paths used by the log source send no lease and no durable-handle
 create context. The only create contexts in the copied code are:
 
 - `wire.QueryOnDiskIDRequest` (QFid), sent by `Share.OpenFile`/`Share.Open`
-  and `Share.Stat`/`Share.Lstat`, which returns the file's `DiskFileId` and
+  and `Share.Stat`/`Share.Lstat` (not by `Share.OpenDir`), which returns the file's `DiskFileId` and
   `VolumeId` in the CREATE response;
 - the Apple `AAPL` context, sent once per `Session.Mount` on disk shares,
   against the share root. Set `Dialer.DisableAAPLExtension` to skip it.

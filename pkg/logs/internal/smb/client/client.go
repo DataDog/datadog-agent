@@ -38,6 +38,39 @@ const (
 // ErrClosed is returned by every call made after Close.
 var ErrClosed = errors.New("smb client is closed")
 
+// ErrTooManyEntries is wrapped by the error ListDir returns for a directory
+// with more than maxListEntries entries, which it does not list: reading a
+// directory without a bound would let a very large one, or a server that never
+// stops sending entries, exhaust the Agent's memory. It classifies as
+// ErrTooLarge.
+var ErrTooManyEntries = errors.New("too many entries")
+
+// TooManyEntries returns the error ListDir returns for dir.
+func TooManyEntries(dir string) error {
+	return fmt.Errorf("directory %q has more than %d entries and is not scanned: %w", dir, maxListEntries, ErrTooManyEntries)
+}
+
+// ErrListingTooLarge is wrapped by the error ListDir returns for a directory
+// whose entries would take more than maxListBytes of memory, which it does not
+// list, whatever their number. It classifies as ErrTooLarge.
+var ErrListingTooLarge = errors.New("listing too large")
+
+// ListingTooLarge returns the error ListDir returns for dir.
+func ListingTooLarge(dir string) error {
+	return fmt.Errorf("the entries of directory %q take more than %d MiB and are not scanned: %w", dir, maxListBytes>>20, ErrListingTooLarge)
+}
+
+// ErrNameTooLong is wrapped by the error ListDir returns for a directory with
+// an entry whose name has more than 255 UTF-16 code units, the longest a file
+// name can be: a server that sends one is faulty or hostile, and the listing is
+// refused whole. It classifies as ErrTooLarge.
+var ErrNameTooLong = errors.New("name too long")
+
+// NameTooLong returns the error ListDir returns for dir.
+func NameTooLong(dir string) error {
+	return fmt.Errorf("directory %q has an entry whose name is longer than %d characters, which no file name is, and is not scanned: %w", dir, maxNameUnits, ErrNameTooLong)
+}
+
 // Config describes one share and the account used to mount it.
 //
 // The password is never printed: String and GoString redact it, so the usual
@@ -136,7 +169,10 @@ func creationKey(t time.Time) int64 {
 // use.
 type Client interface {
 	// ListDir lists dir, relative to the share root ("" is the root), sorted by
-	// name and without "." and "..".
+	// name and without "." and "..". A directory with more than 100,000 entries
+	// (or entries that take more than 64 MiB, or a name longer than 255
+	// characters) is not listed: the error classifies as ErrTooLarge, and no
+	// part of the directory is returned.
 	ListDir(ctx context.Context, dir string) ([]Entry, error)
 	// ReadAt opens path (read-only, share READ|WRITE|DELETE, no lease), reads
 	// up to max bytes from off, and closes the handle before returning. It

@@ -134,6 +134,24 @@ func (s *Share) Mkdir(dir string) {
 	s.addDirs(dir)
 }
 
+// Rmdir removes dir, and every directory and file under it.
+func (s *Share) Rmdir(dir string) {
+	dir = mustClean(dir)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prefix := dir + "/"
+	for p := range s.files {
+		if p == dir || strings.HasPrefix(p, prefix) {
+			delete(s.files, p)
+		}
+	}
+	for d := range s.dirs {
+		if d == dir || strings.HasPrefix(d, prefix) {
+			delete(s.dirs, d)
+		}
+	}
+}
+
 // Write replaces the content of p, creating it (and its parent directories)
 // with a new FileID if needed, and returns the FileID.
 func (s *Share) Write(p string, data []byte) uint64 {

@@ -36,6 +36,7 @@ dd_agent_go_test(
     srcs = [
         "launcher_nosmb_test.go",
         "launcher_test.go",
+        "listing_test.go",
         "restart_test.go",
         "samba_env_test.go",
         "samba_integration_test.go",

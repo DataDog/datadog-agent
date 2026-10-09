@@ -68,6 +68,17 @@ import (
 // started, i.e. the files matched until the first scan that lists every
 // directory of the pattern. A file that appears later is new: it is read from
 // the beginning, as file sources do.
+//
+// Listings are bounded: the client refuses a directory with more than 100,000
+// entries, entries that take more than 64 MiB, or a name over 255 characters,
+// and a scan lists at most that much in all (see scanBudget). A directory that
+// is not listed is capped, and the scanner does not go blind there: it reads by
+// name the files it already tails (see probe), the file of a source that names
+// it, and the drains of files last seen there; a file that is replaced there is
+// read from its new file, and its old one resumes where it was if it turns up
+// at a matched name later (see replacedInCappedDir). It finds no new file there
+// until the directory can be listed, which it asks for again after 1 minute,
+// then 2, 4, 8 and every 15 minutes (see oversizedRetry).
 type scanner struct {
 	l         *Launcher
 	source    *sources.LogSource
@@ -104,8 +115,22 @@ type scanner struct {
 	blocked   map[string]time.Time      // paths whose file could not be opened (locked or missing), since then
 	listedAll bool                      // a scan listed every directory of the pattern
 	initial   map[string]bool           // paths matched until then, not tailed yet: they start at start_position
+	oversized map[string]oversizedDir   // directories the client refused to list for their size, by path (see list)
 	failing   bool                      // the previous scan reported an error
 	lastErr   string
+
+	// pendingInitial holds the directories that were there when the source
+	// started and have not been listed since: the files in them are the files
+	// of start_position when they are listed first (see list).
+	pendingInitial map[string]bool
+	// since is the wall time of the first scan: a file in a directory that was
+	// not listed before was created after the source started, and is not a file
+	// of start_position, when its creation time is later (see scan).
+	since time.Time
+	// cursors holds, by level of the pattern, the directory the previous scan
+	// stopped listing at (see inTurn).
+	cursors map[int]string
+	scans   int // scans that had a capped directory, for the pace of probes
 
 	// stoppedAt is where the tailers stopped reading, set once the scanner
 	// stopped, for a scanner that replaces this one (see Launcher.replace).
@@ -138,7 +163,10 @@ type drain struct {
 // handoff is where the scanner stopped reading a file: the file's next tailer
 // resumes there instead of reading it again.
 type handoff struct {
-	file   client.Identity
+	file client.Identity
+	// path is where the file was last seen, when its directory cannot be listed
+	// (see endDrain): the file may turn up in a directory that can.
+	path   string
 	offset int64
 	size   int64 // the largest size seen for the file, 0 when unknown: the bytes past offset were not read
 	// committed is an offset of the file, at most offset, up to which every
@@ -193,6 +221,8 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 		blocked:   make(map[string]time.Time),
 		initial:   make(map[string]bool),
 		done:      make(chan struct{}),
+
+		pendingInitial: make(map[string]bool),
 	}
 	if cfg.PollInterval > 0 {
 		// Validate bounds poll_interval; bounding it again keeps the ticker
@@ -247,6 +277,10 @@ func (s *scanner) resumeFrom(prev *scanner) {
 	for p := range prev.initial {
 		s.initial[p] = true
 	}
+	for dir := range prev.pendingInitial {
+		s.pendingInitial[dir] = true
+	}
+	s.since = prev.since
 }
 
 // continueDrain starts a drain that goes on with h, a drain of the scanner
@@ -388,7 +422,14 @@ func (s *scanner) handOver(d *drain) drainHandoff {
 // scan lists the share once, then polls every tailer.
 func (s *scanner) scan(ctx context.Context) {
 	var errs scanErrors
+	if s.since.IsZero() {
+		s.since = s.l.wallNow()
+	}
 	v := s.list(ctx, &errs)
+	if ctx.Err() != nil {
+		return
+	}
+	s.probe(ctx, v, &errs)
 	if ctx.Err() != nil {
 		return
 	}
@@ -398,7 +439,18 @@ func (s *scanner) scan(ctx context.Context) {
 				s.initial[p] = true
 			}
 		}
-		s.listedAll = !v.failed
+		// A directory that is too large to list does not keep the files that
+		// appear in the others from being new: its own files are marked when it
+		// is listed first (see list).
+		s.listedAll = !v.unlistable
+	}
+	for p, entry := range v.matches {
+		// A file the server created after the source started is new, whatever
+		// the history of its directory (a creation time of zero tells nothing).
+		created := !entry.CreationTime.IsZero() && entry.CreationTime.After(s.since)
+		if !s.initial[p] && v.initial[dirOf(p)] && s.active[p] == nil && !created {
+			s.initial[p] = true
+		}
 	}
 	s.forgetUnlisted(v)
 
@@ -408,12 +460,18 @@ func (s *scanner) scan(ctx context.Context) {
 		switch {
 		case !known:
 			// Its directory could not be listed: nothing to conclude.
+		case !listed && v.cappedUnder(p):
+			// The probe found nothing at p, and the file cannot be looked for in
+			// the directory.
+			s.replacedInCappedDir(p, t)
 		case !listed:
 			log.Infof("SMB file %s is no longer listed; reading the rest of %s wherever it was moved", t.Identifier(), t.Identity())
 			committed := s.committed[p]
 			s.deactivate(p, t)
 			s.startDrain(t, committed)
 			s.fromStart[p] = true
+		case entry.FileID != 0 && t.FileID() != 0 && !t.Identity().Matches(entry.Identity()) && v.cappedUnder(p):
+			s.replacedInCappedDir(p, t)
 		case entry.FileID != 0 && t.FileID() != 0 && !t.Identity().Matches(entry.Identity()):
 			log.Infof("SMB file %s rotated (%s, now %s); reading the new file from the beginning", t.Identifier(), t.Identity(), entry.Identity())
 			committed := s.committed[p]
@@ -444,12 +502,12 @@ func (s *scanner) scan(ctx context.Context) {
 // bytes such a drain knew its file held past where it ended are lost: no
 // tailer reads them anymore.
 func (s *scanner) forgetUnlisted(v *view) {
-	if !v.failed && len(s.resume) > 0 {
+	if !v.unlistable && len(s.resume) > 0 {
 		// One lookup per resume point, of which there is one per drained
 		// file still listed.
 		listed := v.filesByID()
 		for id, h := range s.resume {
-			if !slices.ContainsFunc(listed[id], h.file.Matches) {
+			if !slices.ContainsFunc(listed[id], h.file.Matches) && v.listsAround(h.path) {
 				tailer.RecordMissedBytesOf(s.source, s.target+" ("+h.file.String()+")", h.size-h.offset, "Rotated SMB file is no longer listed")
 				delete(s.resume, id)
 			}
@@ -518,6 +576,29 @@ func (s *scanner) poll(ctx context.Context, p string, t *tailer.Tailer, entry *c
 	default:
 		delete(s.mismatch, p)
 	}
+}
+
+// replacedInCappedDir ends the tailer t of p, whose file is not where it was, in
+// a directory that cannot be listed: the file cannot be looked for, so no drain
+// reads its rest. The bytes the tailer knew were unread are reported missed. The
+// file keeps its place, after those bytes, in case it turns up at a path the
+// pattern matches once the directory can be listed: its next tailer resumes
+// there instead of reading the file from the beginning. The path's next file is
+// read from its beginning.
+func (s *scanner) replacedInCappedDir(p string, t *tailer.Tailer) {
+	log.Infof("SMB file %s was replaced or moved in a directory that cannot be listed; its file %s cannot be looked for, and the path's file is read from the beginning", t.Identifier(), t.Identity())
+	file := t.Identity()
+	committed := s.committedOffset(t.Identifier(), t, s.committed[p])
+	s.deactivate(p, t)
+	missed := t.RecordMissedBytes("SMB file replaced in a directory that could not be listed")
+	if file.FileID != 0 {
+		offset := t.Offset() + missed
+		s.resume[file.FileID] = handoff{file: file, offset: offset, size: offset, committed: min(committed, offset)}
+	}
+	t.StartDraining() // its last messages must not commit offsets
+	s.pathCommitted(t)
+	s.stopAsync(t)
+	s.fromStart[p] = true
 }
 
 // resumeRotatedAway finds the files that rotated away from a path while this
@@ -599,7 +680,7 @@ func (s *scanner) resumeElsewhere(p string, stored handoff, v *view) {
 		return
 	}
 	at, _, found := v.findFile(stored.file)
-	if !found && !v.failed {
+	if !found && !v.unlistable && v.listsAround(p) {
 		if missed := stored.size - stored.offset; missed > 0 {
 			tailer.RecordMissedBytesOf(s.source, identifier, missed, "Rotated SMB file is no longer listed")
 		} else {
@@ -944,8 +1025,12 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 	now := s.l.clock.Now()
 	expired := !now.Before(d.deadline)
 	at, entry, found := v.findFile(t.Identity())
+	blind := v.cappedUnder(t.ReadPath()) && !v.cutUnder(t.ReadPath()) // its directory is too large to list
+	if !found && blind {
+		at, entry, found = s.probeDrain(ctx, t)
+	}
 	if !found && v.failed {
-		if _, _, known := v.lookup(t.ReadPath()); !expired || !known {
+		if _, _, known := v.lookup(t.ReadPath()); !expired || !known && !blind {
 			return true
 		}
 	}
@@ -1006,6 +1091,17 @@ func (s *scanner) pollDrain(ctx context.Context, d *drain, v *view, errs *scanEr
 	return false
 }
 
+// probeDrain looks for the file of the drain t where it was found last, when the
+// directory it is in cannot be listed.
+func (s *scanner) probeDrain(ctx context.Context, t *tailer.Tailer) (string, client.Entry, bool) {
+	p := t.ReadPath()
+	res, err := s.client.ReadAt(ctx, p, 0, 0)
+	if err != nil || !t.Identity().Matches(res.Identity()) {
+		return "", client.Entry{}, false
+	}
+	return p, client.Entry{Name: path.Base(p), Size: res.Size, FileID: res.FileID, CreationTime: res.CreationTime}, true
+}
+
 // endDrain stops the drain d. While its file is listed, the file's next tailer
 // resumes it at offset, whatever name the file has by the time that tailer
 // starts, so nothing is read twice: the tailer of the path the file sits at
@@ -1036,6 +1132,11 @@ func (s *scanner) endDrain(d *drain, v *view, offset int64, reason string) {
 			h.size = offset + t.UnreadBytes()
 		}
 		s.resume[t.FileID()] = h
+	} else if t.FileID() != 0 && v.cappedUnder(t.ReadPath()) {
+		// The directory the file was in cannot be listed: the file may turn up
+		// at a matched name once it can, and its next tailer resumes after
+		// what the drain read, or reported missed, not at its beginning.
+		s.resume[t.FileID()] = handoff{file: t.Identity(), path: t.ReadPath(), offset: offset, size: offset, committed: committed}
 	}
 	s.l.tailers.Remove(t)
 	s.stopAsync(t)
@@ -1204,6 +1305,8 @@ func (s *scanner) statusError(errs *scanErrors) error {
 		msg = fmt.Sprintf("cannot reach %s, retrying: %v", s.target, errs.err)
 	case client.ErrNotFound:
 		msg = fmt.Sprintf("not found on %s: %v", s.target, errs.err)
+	case client.ErrTooLarge:
+		msg = fmt.Sprintf("cannot list %s: %v. The Agent refuses a listing like this to protect its memory: it keeps reading the files it already tails in the directory, by name, but finds no new file there, and a file that rotates there is read from its new file only. Point the source's path at a directory with fewer files, or fix the directory on the server (move the old files out of it, no file name longer than 255 characters). It checks the directory again after %s, then less and less often, every %s at most, while it stays that large", s.target, errs.err, oversizedRetry, oversizedRetryMax)
 	case client.ErrSharing:
 		msg = fmt.Sprintf("cannot open a file on %s: another program keeps it open without letting others read it (sharing violation), or holds a lock on it: %v", s.target, errs.err)
 	default:
@@ -1215,11 +1318,86 @@ func (s *scanner) statusError(errs *scanErrors) error {
 	return errors.New(msg)
 }
 
+// oversizedRetry is how long the scanner leaves a directory that has too many
+// entries alone before it asks for its listing again: the client reads up to
+// 100,000 entries before it gives up, which the scanner must not repeat on
+// every poll. A directory that is still too large the next time waits twice as
+// long, up to oversizedRetryMax, so that the cost of the directories that stay
+// too large does not grow with their number when polls are a second apart.
+const (
+	oversizedRetry    = time.Minute
+	oversizedRetryMax = 15 * time.Minute
+)
+
+// oversizedDir is a directory the client refused to list (client.ErrTooLarge).
+type oversizedDir struct {
+	until   time.Time     // the listing is asked for again then
+	backoff time.Duration // how long it waited this time: the next wait is twice that
+	err     error
+}
+
+// scanBudgetKey is the key of the source status message that reports that a scan
+// did not list every directory.
+const scanBudgetKey = "smb_scan_budget"
+
 // view is one scan's listing of the directories the pattern can match.
+//
+// A directory the scan did not list for its size is capped: the client refused
+// to list it, which it asks again every oversizedRetry, or the scan had listed
+// enough already (see scanBudget). A file in a capped directory, or under one,
+// is neither listed nor proved gone, so the view is incomplete (failed), but the
+// scanner reads it by name when it already tails it (see probe).
 type view struct {
-	dirs    map[string][]client.Entry // listed directories, by path ("" is the root)
-	failed  bool                      // a directory could not be listed
-	matches map[string]client.Entry   // matched files, by path
+	dirs       map[string][]client.Entry // listed directories, by path ("" is the root)
+	failed     bool                      // a directory could not be listed
+	unlistable bool                      // one failed for another reason than its size
+	capped     map[string]bool           // directories not listed for their size, or for the scan's budget
+	cut        map[string]bool           // the capped directories that the scan's budget left for a later scan
+	initial    map[string]bool           // directories listed for the first time that were there when the source started
+	absent     map[string]bool           // paths a probe found missing
+	matches    map[string]client.Entry   // matched files, by path
+}
+
+// cappedUnder reports whether p, or a directory above it, was not listed
+// because of its size.
+func (v *view) cappedUnder(p string) bool {
+	return underAny(v.capped, p)
+}
+
+// cutUnder reports whether the scan's budget left p, or a directory above it,
+// for a later scan.
+func (v *view) cutUnder(p string) bool {
+	return underAny(v.cut, p)
+}
+
+func underAny(dirs map[string]bool, p string) bool {
+	if len(dirs) == 0 {
+		return false
+	}
+	for dir := dirOf(p); ; dir = dirOf(dir) {
+		if dirs[dir] {
+			return true
+		}
+		if dir == "" {
+			return false
+		}
+	}
+}
+
+// listsAround reports whether a file last known at p is provably gone when no
+// listed directory holds it: p's directory was listed, so the file left it, and
+// a directory that is too large to list is no reason to think it is still
+// there. A directory that the scan's budget left for the next scan is: the file
+// may have moved to it, and is looked for there then. A file with no known path
+// might be in any directory: it is gone only when none was left out.
+func (v *view) listsAround(p string) bool {
+	if len(v.cut) > 0 {
+		return false
+	}
+	if p == "" {
+		return len(v.capped) == 0
+	}
+	return !v.cappedUnder(p)
 }
 
 // lookup returns p's entry and whether p is listed. known is false when the
@@ -1227,6 +1405,9 @@ type view struct {
 func (v *view) lookup(p string) (entry client.Entry, listed, known bool) {
 	if e, ok := v.matches[p]; ok {
 		return e, true, true
+	}
+	if v.absent[p] {
+		return client.Entry{}, false, true
 	}
 	if _, ok := v.dirs[dirOf(p)]; ok {
 		return client.Entry{}, false, true
@@ -1266,13 +1447,46 @@ func (v *view) filesByID() map[uint64][]client.Identity {
 	return files
 }
 
+// scanBudget bounds what one scan lists in all: the directories of a pattern can
+// each be listed up to the client's limits, and a pattern can match thousands of
+// them, so without a bound the listings of one scan would take as much memory as
+// all of them together. The scan lists directories until the budget is used, so
+// it uses at most one budget and one listing; the directories it leaves for a
+// later scan are listed first by that one (see scanner.cursors). A listing that
+// the client refused for its size counts as a whole one, whatever the client
+// read before it gave up: the directories that stay too large cost a scan each,
+// not all of them one scan.
+type scanBudget struct {
+	entries, bytes int
+}
+
+func (s *scanner) newScanBudget() scanBudget {
+	b := scanBudget{entries: client.MaxListEntries, bytes: client.MaxListBytes}
+	if s.l.listEntries > 0 {
+		b.entries = s.l.listEntries
+	}
+	if s.l.listBytes > 0 {
+		b.bytes = s.l.listBytes
+	}
+	return b
+}
+
 // list lists the directories the pattern can match, one ListDir call per
 // directory, and matches the pattern one path segment at a time.
 func (s *scanner) list(ctx context.Context, errs *scanErrors) *view {
-	v := &view{dirs: make(map[string][]client.Entry), matches: make(map[string]client.Entry)}
+	v := &view{
+		dirs:    make(map[string][]client.Entry),
+		capped:  make(map[string]bool),
+		cut:     make(map[string]bool),
+		initial: make(map[string]bool),
+		absent:  make(map[string]bool),
+		matches: make(map[string]client.Entry),
+	}
+	budget := s.newScanBudget()
 	segments := strings.Split(s.pattern, "/")
 	dirs := []string{""}
 	static := true // dirs is the pattern's literal prefix
+	reached := make(map[string]bool)
 	for i, segment := range segments {
 		last := i == len(segments)-1
 		if !last && !hasMeta(segment) {
@@ -1282,11 +1496,38 @@ func (s *scanner) list(ctx context.Context, errs *scanErrors) *view {
 			continue
 		}
 		var next []string
-		for _, dir := range dirs {
+		firstCut := ""
+		for _, dir := range s.inTurn(i, dirs) {
+			reached[dir] = true
+			if o, ok := s.oversized[dir]; ok && s.l.clock.Now().Before(o.until) {
+				s.cap(v, dir)
+				errs.add(client.ErrTooLarge, o.err)
+				continue
+			}
+			if budget.entries <= 0 || budget.bytes <= 0 {
+				s.cap(v, dir)
+				v.cut[dir] = true
+				if firstCut == "" {
+					firstCut = dir
+				}
+				continue
+			}
 			entries, err := s.client.ListDir(ctx, dir)
 			if err != nil {
 				if ctx.Err() != nil {
 					return v
+				}
+				if kind := client.Classify(err); kind == client.ErrTooLarge {
+					s.refuse(dir, err)
+					// The client read as much as it lists before it refused: that
+					// counts for the scan's budget like a listing, so that a pattern
+					// that matches many oversized directories lists them in turn,
+					// one scan each, not all in one.
+					budget.entries -= client.MaxListEntries
+					budget.bytes -= client.MaxListBytes
+					s.cap(v, dir)
+					errs.add(kind, err)
+					continue
 				}
 				if client.Classify(err) == client.ErrNotFound {
 					// The directory does not exist: it has no files. That
@@ -1298,11 +1539,19 @@ func (s *scanner) list(ctx context.Context, errs *scanErrors) *view {
 					}
 					continue
 				}
-				v.failed = true
+				v.failed, v.unlistable = true, true
 				errs.add(client.Classify(err), err)
 				continue
 			}
+			delete(s.oversized, dir)
+			budget.entries -= len(entries)
+			budget.bytes -= client.ListingCost(entries)
 			v.dirs[dir] = entries
+			firstListing := s.pendingInitial[dir]
+			if firstListing {
+				v.initial[dir] = true
+				delete(s.pendingInitial, dir)
+			}
 			for _, e := range entries {
 				if ok, _ := path.Match(segment, e.Name); !ok {
 					continue
@@ -1313,13 +1562,138 @@ func (s *scanner) list(ctx context.Context, errs *scanErrors) *view {
 					v.matches[p] = e
 				case !last && e.IsDir:
 					next = append(next, p)
+					if firstListing {
+						s.pendingInitial[p] = true // it was there when the source started
+					}
 				}
 			}
+		}
+		if firstCut == "" {
+			delete(s.cursors, i)
+		} else {
+			if s.cursors == nil {
+				s.cursors = make(map[int]string)
+			}
+			s.cursors[i] = firstCut
 		}
 		dirs = next
 		static = false
 	}
+	if len(v.cut) == 0 {
+		s.source.Messages.RemoveMessage(scanBudgetKey)
+	} else {
+		limit := s.newScanBudget()
+		s.source.Messages.AddMessage(scanBudgetKey, fmt.Sprintf("%d directories were not listed in the last scan, which listed as many as its limit of %d entries and %d MiB allows: the Agent lists them in turn, and reads the files it already tails there by name", len(v.cut), limit.entries, limit.bytes>>20))
+	}
+	if !v.unlistable {
+		// No directory failed for another reason than its size: a directory the
+		// scanner asked about and the listing no longer reaches is gone, unless
+		// it is below one that was left out.
+		for dir := range s.oversized {
+			if !reached[dir] && !v.cappedUnder(dir) {
+				delete(s.oversized, dir)
+			}
+		}
+		for dir := range s.pendingInitial {
+			if !reached[dir] && !v.cappedUnder(dir) {
+				delete(s.pendingInitial, dir)
+			}
+		}
+	}
 	return v
+}
+
+// refuse remembers that the client refused to list dir for its size: the
+// scanner asks again after a wait that doubles each time the directory is still
+// too large.
+func (s *scanner) refuse(dir string, err error) {
+	if s.oversized == nil {
+		s.oversized = make(map[string]oversizedDir)
+	}
+	backoff := oversizedRetry
+	if prev, ok := s.oversized[dir]; ok && prev.backoff > 0 {
+		backoff = min(2*prev.backoff, oversizedRetryMax)
+	}
+	s.oversized[dir] = oversizedDir{until: s.l.clock.Now().Add(backoff), backoff: backoff, err: err}
+}
+
+// cap records that the directory dir was not listed for its size or for the
+// scan's budget. While the scanner has not listed every directory of the
+// pattern yet, its files are the files that were there when the source
+// started, whenever it lists them.
+func (s *scanner) cap(v *view, dir string) {
+	v.capped[dir] = true
+	v.failed = true
+	if !s.listedAll {
+		s.pendingInitial[dir] = true
+	}
+}
+
+// inTurn returns the directories dirs of the level i of the pattern in the order
+// the scan lists them: sorted, starting with the one the previous scan left off
+// at, so that every directory is listed in a few scans however the budget cuts
+// them.
+func (s *scanner) inTurn(i int, dirs []string) []string {
+	slices.Sort(dirs)
+	start, _ := slices.BinarySearch(dirs, s.cursors[i])
+	if start == 0 || start >= len(dirs) {
+		return dirs
+	}
+	return append(slices.Clone(dirs[start:]), dirs[:start]...)
+}
+
+// probe reads by name the files that the listing does not show because their
+// directory is capped, and puts what the reads say where the listing would:
+//   - the files this scanner tails there, every ForceReadEvery scans, as a
+//     tailer whose listing shows no growth reads that often;
+//   - the file of a source that names it, which no listing is needed for, and the
+//     files the scanner it replaces tailed, until they have a tailer.
+//
+// A directory the scan's budget left for the next scan is not probed: that scan
+// lists it first.
+func (s *scanner) probe(ctx context.Context, v *view, errs *scanErrors) {
+	if len(v.capped) == 0 {
+		return
+	}
+	s.scans++
+	every := s.l.forceReadEvery
+	if every <= 0 {
+		every = tailer.DefaultForceReadEvery
+	}
+	var paths []string
+	if !hasMeta(s.pattern) && v.cappedUnder(s.pattern) && !v.cutUnder(s.pattern) {
+		paths = append(paths, s.pattern)
+	}
+	for p := range s.inherited {
+		if v.cappedUnder(p) && !v.cutUnder(p) && s.active[p] == nil {
+			paths = append(paths, p)
+		}
+	}
+	if s.scans%every == 0 {
+		for p := range s.active {
+			if v.cappedUnder(p) && !v.cutUnder(p) {
+				paths = append(paths, p)
+			}
+		}
+	}
+	slices.Sort(paths)
+	paths = slices.Compact(paths)
+	for _, p := range paths {
+		if s.excluded(p) {
+			continue
+		}
+		res, err := s.client.ReadAt(ctx, p, 0, 0)
+		switch {
+		case ctx.Err() != nil:
+			return
+		case err == nil:
+			v.matches[p] = client.Entry{Name: path.Base(p), Size: res.Size, FileID: res.FileID, CreationTime: res.CreationTime}
+		case client.Classify(err) == client.ErrNotFound:
+			v.absent[p] = true
+		default:
+			s.fileErr(p, tailer.Identifier(s.host, s.share, p), err, errs)
+		}
+	}
 }
 
 func (s *scanner) excluded(p string) bool {
