@@ -59,6 +59,11 @@ Avoid web requests to external websites (`ping some-website.com`, `curl some-web
 
 Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel, remote kustomize bases...) are a common hidden source of Internet access - both the manifest and the images it references are pulled at runtime. Vendor the manifest locally and rewrite its image references to the ECR pull-through cache.
 
+#### Internet access exceptions
+Host provisioners create VMs without Internet access. A test that still needs it opts in with `WithInternetAccess()`, and every such usage must be listed in [`internet-access.yaml`](internet-access.yaml) with a `status` and a `reason`. The file is owned by agent-devx, so adding an entry requires our review; `dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 linter.e2e-internet-access` enforces this in CI and pre-commit. The pre-commit hook does not see deleted files, so an entry left stale by a deletion is only caught in CI.
+
+Try every alternative above before requesting an exception. Package manager installs, image pulls that bypass the ECR pull-through cache, and third-party downloads are never valid reasons: such entries are recorded as `debt` and must be fixed.
+
 ### Pin your dependencies
 When depending on something external, pin both the version and a sha256sum to avoid hard-to-track behavior changes which can cause unexpected breakages.
 
