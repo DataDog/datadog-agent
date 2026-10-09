@@ -624,7 +624,7 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	SBOMResolverEnabled bool
 
-	// description: SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
+	// description: SBOMResolverWorkloadsCacheSize defines the count of unused image scans to keep in memory in order to prevent re-computing the SBOMs of short-lived and periodical workloads
 	// visibility: private
 	// default_value: 10
 	SBOMResolverWorkloadsCacheSize int

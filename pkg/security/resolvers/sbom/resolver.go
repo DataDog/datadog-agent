@@ -185,7 +185,8 @@ type SBOM struct {
 
 	ContainerID containerutils.ContainerID
 
-	data *Data
+	data   *Data
+	cached bool // data counts as a use of its key in the data cache
 
 	workloadKey workloadKey
 	status      workloadmeta.SBOMStatus
@@ -261,8 +262,7 @@ type Resolver struct {
 	sboms     *simplelru.LRU[containerutils.ContainerID, *SBOM]
 
 	// cache
-	dataCacheLock sync.RWMutex
-	dataCache     *simplelru.LRU[workloadKey, *Data] // cache per workload key
+	dataCache *dataCache // scan data per workload key
 
 	// queue
 	scanChan        chan *SBOM
@@ -307,7 +307,7 @@ type sbomCollector interface {
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface, wmeta workloadmeta.Component) (*Resolver, error) {
 	sbomCollector := collectorv2.NewOSScanner()
-	dataCache, err := simplelru.NewLRU[workloadKey, *Data](c.SBOMResolverWorkloadsCacheSize, nil)
+	dataCache, err := newDataCache(c.SBOMResolverWorkloadsCacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
@@ -839,9 +839,7 @@ func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, er
 }
 
 func (r *Resolver) removeSBOMData(key workloadKey) {
-	r.dataCacheLock.Lock()
-	r.dataCache.Remove(key)
-	r.dataCacheLock.Unlock()
+	r.dataCache.remove(key)
 }
 
 func (r *Resolver) addPendingScan(containerID containerutils.ContainerID) bool {
@@ -890,10 +888,8 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	}
 
 	// bail out if the workload has been analyzed while queued up
-	r.dataCacheLock.Lock()
-	if data, exists := r.dataCache.Get(sb.workloadKey); exists {
-		r.dataCacheLock.Unlock()
-		sb.data = data
+	if data, exists := r.dataCache.acquire(sb.workloadKey); exists {
+		r.setData(sb, data, true)
 
 		sb.state.Store(computedState)
 
@@ -904,7 +900,6 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 		return nil
 	}
-	r.dataCacheLock.Unlock()
 
 	// Only count a cache miss when we actually do the scan
 	r.sbomsCacheMiss.Inc()
@@ -914,16 +909,10 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		return scanErr
 	}
 
-	data := newData(report, sb.usrMerged)
-	sb.data = data
+	data := r.setScan(sb, report)
 
 	// mark the SBOM as successful
 	sb.state.Store(computedState)
-
-	// add to cache
-	r.dataCacheLock.Lock()
-	r.dataCache.Add(workloadKey(sb.workloadKey), data)
-	r.dataCacheLock.Unlock()
 
 	r.removePendingScan(sb.ContainerID)
 
@@ -1130,12 +1119,8 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	}
 
 	// check if this sbom has been scanned before
-	r.dataCacheLock.Lock()
-	data, cached := r.dataCache.Get(sbom.workloadKey)
-	r.dataCacheLock.Unlock()
-
-	if cached {
-		sbom.data = data
+	if data, cached := r.dataCache.acquire(sbom.workloadKey); cached {
+		r.setData(sbom, data, true)
 
 		sbom.state.Store(computedState)
 
@@ -1245,13 +1230,40 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 
 	// should be called under sbom.Lock and sbomsLock.Lock
 	// the eviction callback releases everything else indexed by the container ID
-	sbom.stop()
+	r.stopSBOM(sbom)
 	r.sboms.Remove(sbom.ContainerID)
 }
 
+// stopSBOM stops sbom and releases its data.
+// Must be called with sbom.Lock() already held.
+func (r *Resolver) stopSBOM(sbom *SBOM) {
+	sbom.stop()
+	r.setData(sbom, nil, false)
+}
+
+// setScan gives sbom the data of its fresh scan report, cached unless empty, as
+// a failing scanner returns. Must be called with sbom.Lock() already held.
+func (r *Resolver) setScan(sbom *SBOM, report []sbomtypes.PackageWithInstalledFiles) *Data {
+	data := newData(report, sbom.usrMerged)
+	if len(report) > 0 {
+		r.dataCache.add(sbom.workloadKey, data)
+	}
+	r.setData(sbom, data, len(report) > 0)
+	return data
+}
+
+// setData gives sbom data, a use of its key in the data cache when cached is set,
+// and releases the data it held. Must be called with sbom.Lock() already held.
+func (r *Resolver) setData(sbom *SBOM, data *Data, cached bool) {
+	if sbom.cached {
+		r.dataCache.release(sbom.workloadKey)
+	}
+	sbom.data = data
+	sbom.cached = cached
+}
+
 // onSBOMEvicted releases everything indexed by the container ID of an SBOM leaving
-// the cache. It runs both on the explicit removal done by deleteSBOM and on the
-// eviction of the least recently used entry, so it is the single release point.
+// the cache, removed by deleteSBOM or evicted as the least recently used.
 func (r *Resolver) onSBOMEvicted(_ containerutils.ContainerID, sbom *SBOM) {
 	r.removePendingScan(sbom.ContainerID)
 	r.deletePendingFileEvents(sbom.ContainerID)
@@ -1261,7 +1273,7 @@ func (r *Resolver) onSBOMEvicted(_ containerutils.ContainerID, sbom *SBOM) {
 	if sbom.state.Load() != stoppedState {
 		go func() {
 			sbom.Lock()
-			sbom.stop()
+			r.stopSBOM(sbom)
 			sbom.Unlock()
 		}()
 	}
@@ -1311,11 +1323,15 @@ func (r *Resolver) SendStats() error {
 		}
 	}
 
-	r.dataCacheLock.Lock()
-	defer r.dataCacheLock.Unlock()
-	if val := float64(r.dataCache.Len()); val > 0 {
-		if err := r.statsdClient.Gauge(metrics.MetricSBOMResolverSBOMCacheLen, val, []string{}, 1.0); err != nil {
-			return fmt.Errorf("couldn't send MetricSBOMResolverSBOMCacheLen: %w", err)
+	used, unused := r.dataCache.lens()
+	for _, l := range []struct {
+		state string
+		len   int
+	}{{"used", used}, {"unused", unused}} {
+		if l.len > 0 {
+			if err := r.statsdClient.Gauge(metrics.MetricSBOMResolverSBOMCacheLen, float64(l.len), []string{"state:" + l.state}, 1.0); err != nil {
+				return fmt.Errorf("couldn't send MetricSBOMResolverSBOMCacheLen: %w", err)
+			}
 		}
 	}
 
