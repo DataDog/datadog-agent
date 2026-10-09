@@ -474,36 +474,37 @@ func TestTailer_readForeverReconnectsOnTimeout(t *testing.T) {
 		fmt.Errorf("read: %w", context.Canceled),
 	} {
 		t.Run(tErr.Error(), func(t *testing.T) {
-			_, cancelFunc := context.WithCancel(context.Background())
-			reader := NewTestReader("", tErr, nil)
-			tailer := NewTestTailer(reader, reader, cancelFunc)
-			tailer.sleepDuration = time.Millisecond
-			tailer.lastSince = lastSince
+			synctest.Test(t, func(t *testing.T) {
+				_, cancelFunc := context.WithCancel(context.Background())
+				reader := NewTestReader("", tErr, nil)
+				tailer := NewTestTailer(reader, reader, cancelFunc)
+				tailer.lastSince = lastSince
 
-			var restarts atomic.Int64
-			var resumedFrom time.Time
-			tailer.unsafeLogReader = func(_ context.Context, since time.Time) (io.ReadCloser, error) {
-				restarts.Add(1)
-				resumedFrom = since
-				tailer.stopping.Store(true)
-				return reader, nil
-			}
+				var restarts atomic.Int64
+				var resumedFrom time.Time
+				tailer.unsafeLogReader = func(_ context.Context, since time.Time) (io.ReadCloser, error) {
+					restarts.Add(1)
+					resumedFrom = since
+					tailer.stopping.Store(true)
+					return reader, nil
+				}
 
-			done := make(chan struct{})
-			go func() {
-				tailer.readForever()
-				close(done)
-			}()
+				done := make(chan struct{})
+				go func() {
+					tailer.readForever()
+					close(done)
+				}()
 
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				t.Fatal("readForever did not return after a timeout")
-			}
+				select {
+				case <-done:
+				case <-time.After(time.Minute):
+					t.Fatal("readForever did not return after a timeout")
+				}
 
-			assert.Equal(t, int64(1), restarts.Load(), "a timeout must trigger an in-place reconnect")
-			assert.Equal(t, expectedSince, resumedFrom, "the reconnect must resume from the in-memory lastSince")
-			assert.Equal(t, 0, len(tailer.erroredContainerID), "a timeout must not be reported as an errored container")
+				assert.Equal(t, int64(1), restarts.Load(), "a timeout must trigger an in-place reconnect")
+				assert.Equal(t, expectedSince, resumedFrom, "the reconnect must resume from the in-memory lastSince")
+				assert.Equal(t, 0, len(tailer.erroredContainerID), "a timeout must not be reported as an errored container")
+			})
 		})
 	}
 }
@@ -511,32 +512,33 @@ func TestTailer_readForeverReconnectsOnTimeout(t *testing.T) {
 func TestTailer_readForeverDoesNotReconnectWhenStopping(t *testing.T) {
 	for _, tErr := range []error{context.Canceled, testTimeoutError{}} {
 		t.Run(tErr.Error(), func(t *testing.T) {
-			_, cancelFunc := context.WithCancel(context.Background())
-			reader := NewTestReader("", tErr, nil)
-			tailer := NewTestTailer(reader, reader, cancelFunc)
-			tailer.sleepDuration = time.Millisecond
-			tailer.stopping.Store(true)
+			synctest.Test(t, func(t *testing.T) {
+				_, cancelFunc := context.WithCancel(context.Background())
+				reader := NewTestReader("", tErr, nil)
+				tailer := NewTestTailer(reader, reader, cancelFunc)
+				tailer.stopping.Store(true)
 
-			var restarts atomic.Int64
-			tailer.unsafeLogReader = func(_ context.Context, _ time.Time) (io.ReadCloser, error) {
-				restarts.Add(1)
-				return reader, nil
-			}
+				var restarts atomic.Int64
+				tailer.unsafeLogReader = func(_ context.Context, _ time.Time) (io.ReadCloser, error) {
+					restarts.Add(1)
+					return reader, nil
+				}
 
-			done := make(chan struct{})
-			go func() {
-				tailer.readForever()
-				close(done)
-			}()
+				done := make(chan struct{})
+				go func() {
+					tailer.readForever()
+					close(done)
+				}()
 
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				t.Fatal("readForever did not return while stopping")
-			}
+				select {
+				case <-done:
+				case <-time.After(time.Minute):
+					t.Fatal("readForever did not return while stopping")
+				}
 
-			assert.Equal(t, int64(0), restarts.Load(), "a stopping tailer must not open a new reader")
-			assert.Equal(t, 0, len(tailer.erroredContainerID))
+				assert.Equal(t, int64(0), restarts.Load(), "a stopping tailer must not open a new reader")
+				assert.Equal(t, 0, len(tailer.erroredContainerID))
+			})
 		})
 	}
 }
@@ -555,23 +557,24 @@ func (r *closeTrackingReader) Close() error {
 // TestTailer_tryRestartReaderClosesReaderOpenedDuringStop checks that a reader
 // opened while Stop() runs is not leaked.
 func TestTailer_tryRestartReaderClosesReaderOpenedDuringStop(t *testing.T) {
-	_, cancelFunc := context.WithCancel(context.Background())
-	previous := &closeTrackingReader{}
-	tailer := NewTestTailer(previous, nil, cancelFunc)
-	tailer.sleepDuration = time.Millisecond
+	synctest.Test(t, func(t *testing.T) {
+		_, cancelFunc := context.WithCancel(context.Background())
+		previous := &closeTrackingReader{}
+		tailer := NewTestTailer(previous, nil, cancelFunc)
 
-	opened := &closeTrackingReader{}
-	tailer.unsafeLogReader = func(_ context.Context, _ time.Time) (io.ReadCloser, error) {
-		tailer.stopping.Store(true)
-		return opened, nil
-	}
+		opened := &closeTrackingReader{}
+		tailer.unsafeLogReader = func(_ context.Context, _ time.Time) (io.ReadCloser, error) {
+			tailer.stopping.Store(true)
+			return opened, nil
+		}
 
-	err := tailer.tryRestartReader("test")
+		err := tailer.tryRestartReader("test")
 
-	assert.ErrorIs(t, err, errTailerStopping)
-	assert.True(t, previous.closed.Load(), "the previous reader must be closed before reconnecting")
-	assert.True(t, opened.closed.Load(), "a reader opened during Stop() must be closed")
-	assert.Equal(t, 0, len(tailer.erroredContainerID))
+		assert.ErrorIs(t, err, errTailerStopping)
+		assert.True(t, previous.closed.Load(), "the previous reader must be closed before reconnecting")
+		assert.True(t, opened.closed.Load(), "a reader opened during Stop() must be closed")
+		assert.Equal(t, 0, len(tailer.erroredContainerID))
+	})
 }
 
 func NewTestReader(data string, err, closeErr error) *testIOReadCloser { //nolint:revive
