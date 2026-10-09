@@ -79,7 +79,6 @@ var (
 type Violation struct {
 	Message       string
 	Path          string
-	Keyword       string // Schema rule, such as type or minimum; independent of the rejected value.
 	ActualType    string
 	ExpectedTypes []string
 }
@@ -89,7 +88,6 @@ func collectViolations(ve *jsonschema.ValidationError, out *[]Violation) {
 		violation := Violation{
 			Message: ve.Error(),
 			Path:    jsonpointer.Pointer(ve.InstanceLocation).String(),
-			Keyword: jsonpointer.Pointer(ve.ErrorKind.KeywordPath()).String(),
 		}
 		if typeError, ok := ve.ErrorKind.(*kind.Type); ok {
 			violation.ActualType = typeError.Got

@@ -76,7 +76,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	reports := make([]runnerdef.IssueReport, 0, len(violations))
 	for _, violation := range violations {
 		reports = append(reports, runnerdef.IssueReport{
-			IssueID:   c.instanceIssueID(violation),
+			IssueID:   c.instanceIssueID(violation.Path),
 			IssueName: IssueName,
 			Source:    "agent",
 			Context:   BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violation),
@@ -179,10 +179,10 @@ func resolveDefault(cfg model.Reader, pointerPath string) (string, any) {
 
 // Keep a problem's ID stable when its value or wording changes. The DaemonSet
 // discriminator groups a shared configuration; otherwise IDs are scoped to the host.
-func (c *checker) instanceIssueID(violation schema.Violation) string {
+func (c *checker) instanceIssueID(settingPath string) string {
 	h := fnv.New64a()
 	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
-	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s", discriminator, c.cfg.ConfigFileUsed(), violation.Path, violation.Keyword)
+	fmt.Fprintf(h, "%s\x00%s\x00%s", discriminator, c.cfg.ConfigFileUsed(), settingPath)
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
