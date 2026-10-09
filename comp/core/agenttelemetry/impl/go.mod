@@ -11,6 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.75.4
 	github.com/DataDog/datadog-agent/comp/def v0.75.4
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4
+	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.75.4
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
@@ -51,7 +52,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.77.0 // indirect
@@ -72,10 +72,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/Microsoft/go-winio v0.6.3-0.20260925173824-7e8af9b09c4b // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/ebitengine/purego v0.10.2 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
@@ -92,7 +92,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/common v0.72.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.9 // indirect
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect

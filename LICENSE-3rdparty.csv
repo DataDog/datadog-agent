@@ -1193,7 +1193,6 @@ core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Autho
 core,github.com/ebitengine/purego/internal/cgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/fakecgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/strings,Apache-2.0,Copyright 2022 The Ebitengine Authors
-core,github.com/ebitengine/purego/internal/xreflect,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/edsrzf/mmap-go,BSD-3-Clause,"Copyright (c) 2011, Evan Shaw <edsrzf@gmail.com>"
 core,github.com/elastic/go-freelru,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
 core,github.com/elastic/go-grok,Apache-2.0,Copyright 2017-2018 Elasticsearch B.V.
@@ -1805,6 +1804,7 @@ core,github.com/mohae/deepcopy,MIT,Copyright (c) 2014 Joel
 core,github.com/munnerz/goautoneg,BSD-3-Clause,"Copyright (c) 2011, Open Knowledge Foundation Ltd"
 core,github.com/mwitkow/go-conntrack,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,Copyright (c) 2014 The Go-FlowRate Authors. All rights reserved
+core,github.com/netresearch/go-cron,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/netsampler/goflow2/decoders,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow/templates,BSD-3-Clause,"Copyright (c) 2021, NetSampler"

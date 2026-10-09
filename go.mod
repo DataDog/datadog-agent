@@ -223,7 +223,7 @@ require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/Microsoft/go-winio v0.6.2
+	github.com/Microsoft/go-winio v0.6.3-0.20260925173824-7e8af9b09c4b
 	github.com/Microsoft/hcsshim v0.14.1
 	github.com/NVIDIA/go-nvml v0.13.1-0
 	github.com/ProtonMail/go-crypto v1.5.2
@@ -231,12 +231,12 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/apache/arrow-go/v18 v18.8.0
 	github.com/aptly-dev/aptly v1.6.3
-	github.com/aquasecurity/trivy v0.74.0
+	github.com/aquasecurity/trivy v0.75.0
 	github.com/aquasecurity/trivy-db v0.0.0-20251222105351-a833f47f8f0d
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.6
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.1
 	github.com/aws/aws-sdk-go-v2/service/rds v1.130.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.0
@@ -249,7 +249,7 @@ require (
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/bmatcuk/doublestar/v4 v4.10.2
-	github.com/cenkalti/backoff/v7 v7.0.0
+	github.com/cenkalti/backoff/v7 v7.0.1
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
 	github.com/clbanning/mxj/v2 v2.7.0
@@ -342,8 +342,8 @@ require (
 	github.com/miekg/dns v1.1.73
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/docker-image-spec v1.3.1
-	github.com/moby/moby/api v1.56.0
-	github.com/moby/moby/client v0.6.0
+	github.com/moby/moby/api v1.56.1
+	github.com/moby/moby/client v0.6.1
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
@@ -382,7 +382,7 @@ require (
 	github.com/samber/lo v1.53.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/sassoftware/go-rpmutils v0.4.0
-	github.com/shirou/gopsutil/v4 v4.26.8
+	github.com/shirou/gopsutil/v4 v4.26.9
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/sirupsen/logrus v1.10.2
 	github.com/skydive-project/go-debouncer v1.0.1
@@ -399,9 +399,9 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.19.0
 	github.com/twmb/franz-go/pkg/kmsg v1.14.0
 	github.com/twmb/murmur3 v1.2.0
-	github.com/uptrace/bun v1.2.18
-	github.com/uptrace/bun/dialect/pgdialect v1.2.18
-	github.com/uptrace/bun/driver/pgdriver v1.2.18
+	github.com/uptrace/bun v1.3.0
+	github.com/uptrace/bun/dialect/pgdialect v1.3.0
+	github.com/uptrace/bun/driver/pgdriver v1.3.0
 	github.com/urfave/negroni/v3 v3.1.1
 	github.com/vibrantbyte/go-antpath v1.1.1
 	github.com/vishvananda/netlink v1.3.1
@@ -509,7 +509,7 @@ require (
 	k8s.io/cri-client v0.35.5
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/kube-aggregator v0.35.5
-	k8s.io/kube-state-metrics/v2 v2.18.0
+	k8s.io/kube-state-metrics/v2 v2.19.1
 	k8s.io/kubectl v0.35.5
 	k8s.io/kubelet v0.35.5
 	k8s.io/metrics v0.35.5
@@ -528,7 +528,7 @@ require (
 	cloud.google.com/go/auth v0.23.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/cloudsqlconn v1.4.3 // indirect
-	cloud.google.com/go/compute v1.70.0 // indirect
+	cloud.google.com/go/compute v1.71.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	cloud.google.com/go/iam v1.12.0 // indirect
 	cloud.google.com/go/kms v1.32.0 // indirect
@@ -671,10 +671,10 @@ require (
 	github.com/docker/cli v29.8.2+incompatible // indirect
 	github.com/docker/docker v29.3.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
-	github.com/docker/go-connections v0.7.0 // indirect
+	github.com/docker/go-connections v0.8.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/duosecurity/duo_api_golang v0.0.0-20250430191550-ac36954387e7 // indirect
-	github.com/ebitengine/purego v0.10.2 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/edsrzf/mmap-go v1.2.1-0.20241212181136-fad1cd13edbd // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/go-licenser v0.4.2 // indirect
@@ -749,7 +749,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/wire v0.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.20 // indirect
-	github.com/googleapis/gax-go/v2 v2.24.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.26.2 // indirect
 	github.com/gophercloud/gophercloud v1.8.0 // indirect
 	github.com/gophercloud/gophercloud/v2 v2.12.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
@@ -905,6 +905,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
+	github.com/netresearch/go-cron v0.14.0 // indirect
 	github.com/nexus-rpc/nexus-proto-annotations v0.1.0 // indirect
 	github.com/nexus-rpc/sdk-go v0.7.0 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
@@ -1184,7 +1185,7 @@ require (
 	k8s.io/csi-translation-lib v0.35.3 // indirect
 	k8s.io/kms v0.35.5 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
-	k8s.io/sample-controller v0.35.3 // indirect
+	k8s.io/sample-controller v0.35.4 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
@@ -1232,10 +1233,9 @@ exclude github.com/tencentcloud/tencentcloud-sdk-go v1.0.162
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056
 
 // Remove once
-// https://github.com/kubernetes/kube-state-metrics/pull/2928 and
-// https://github.com/kubernetes/kube-state-metrics/pull/2977
-// are merged
-replace k8s.io/kube-state-metrics/v2 v2.18.0 => github.com/DataDog/kube-state-metrics/v2 v2.18.1-dd.2
+// https://github.com/kubernetes/kube-state-metrics/pull/2928
+// is merged
+replace k8s.io/kube-state-metrics/v2 v2.19.1 => github.com/DataDog/kube-state-metrics/v2 v2.19.2-dd.1
 
 // kube-state-metrics v2.18 transitively pulls ugorji/go/codec v1.3.0 via its
 // gomplate doc-generation tool. The new version ships ~4x more generated code
