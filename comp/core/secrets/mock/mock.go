@@ -144,3 +144,9 @@ func (m *Mock) IsValueFromSecret(value string) bool {
 
 // RemoveOrigin
 func (m *Mock) RemoveOrigin(_ string) {}
+
+// SetOriginName does nothing.
+func (m *Mock) SetOriginName(_, _ string) {}
+
+// GetResolutionFailures returns no failures.
+func (m *Mock) GetResolutionFailures() []secrets.ResolutionFailure { return nil }

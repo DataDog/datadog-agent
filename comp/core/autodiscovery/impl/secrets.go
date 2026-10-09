@@ -21,6 +21,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	}
 
 	var err error
+	secretResolver.SetOriginName(origin, conf.Name)
 
 	// init_config is shared by all instances — any failure drops the entire config.
 	conf.InitConfig, err = secretResolver.Resolve(conf.InitConfig, origin, conf.ImageName, conf.PodNamespace, false)

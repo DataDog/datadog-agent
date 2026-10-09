@@ -53,6 +53,10 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 
 func (m *MockSecretResolver) RemoveOrigin(_ string) {}
 
+func (m *MockSecretResolver) SetOriginName(_, _ string) {}
+
+func (m *MockSecretResolver) GetResolutionFailures() []secrets.ResolutionFailure { return nil }
+
 func (m *MockSecretResolver) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 	if m.subscribers == nil {
 		m.subscribers = make([]secrets.SecretChangeCallback, 0)

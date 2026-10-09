@@ -29,6 +29,8 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -37,6 +39,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	dogstatsdclientdrops "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsdclientdrops"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/secretresolution"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -427,7 +430,7 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	mods := issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hn})
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
-		issue, err := mod.BuildIssue(map[string]string{})
+		issue, err := mod.BuildIssue(map[string]string{"reason": "backend_error"})
 		require.NoError(t, err, "module %s: BuildIssue failed", mod.IssueName())
 		assert.Equal(t, mod.IssueName(), issue.IssueName,
 			"module IssueName() %q must equal BuildIssue().IssueName %q",
@@ -435,5 +438,84 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 		assert.Equal(t, mod.IssueType(), issue.IssueType,
 			"module IssueType() %q must equal BuildIssue().IssueType %q",
 			mod.IssueType(), issue.IssueType)
+	}
+}
+
+type testSecretFailures struct {
+	secretnoop.SecretNoop
+	failed atomic.Bool
+}
+
+func (r *testSecretFailures) GetResolutionFailures() []secrets.ResolutionFailure {
+	if !r.failed.Load() {
+		return nil
+	}
+	return []secrets.ResolutionFailure{{
+		Handle: "qa-password", Origin: "qa-config", OriginName: "redis",
+		Path: []string{"password"}, Reason: "missing",
+	}}
+}
+
+// Verify that the registered check raises, clears, and re-raises the same issue at intake.
+func TestSecretResolutionLifecycleForwarded(t *testing.T) {
+	ready := make(chan bool, 1)
+	fi := fakeintakeserver.NewServer(fakeintakeserver.WithAddress("127.0.0.1:0"), fakeintakeserver.WithReadyChannel(ready))
+	fi.Start()
+	require.True(t, <-ready)
+	t.Cleanup(func() { _ = fi.Stop() })
+	client := fakeintakeclient.NewClient(fi.URL())
+	resolver := &testSecretFailures{}
+	hn, _ := hostnameinterface.NewMock("my-hostname")
+	scheduler := fxutil.Test[schedulerdef.Component](t,
+		Bundle(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func() secrets.Component { return resolver }),
+		fx.Provide(func(t testing.TB) config.Component {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("api_key", "test-api-key")
+			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.enabled", true)
+			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
+			cfg.SetInTest("health_platform.forwarder.interval", 20*time.Millisecond)
+			cfg.SetInTest("run_path", t.TempDir())
+			return cfg
+		}),
+		telemetrymock.Module(), hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	check := secretresolution.NewModule(issues.ModuleDeps{Secrets: resolver, Hostname: hn}).BuiltInPeriodicHealthCheck()
+	require.NoError(t, scheduler.Schedule("secret-resolution-qa", check.Fn, 20*time.Millisecond, nil))
+	var issueID string
+	for _, failed := range []bool{true, false, true} {
+		require.NoError(t, client.FlushServerAndResetAggregators())
+		resolver.failed.Store(failed)
+		state := healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED
+		if failed {
+			state = healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE
+		}
+		var received *healthplatformpayload.Issue
+		require.Eventually(t, func() bool {
+			payloads, err := client.GetAgentHealth()
+			if err != nil {
+				return false
+			}
+			for _, payload := range payloads {
+				for _, issue := range payload.Issues {
+					if issue.IssueType == secretresolution.IssueType && issue.PersistedIssue.State == state {
+						received = issue
+						return true
+					}
+				}
+			}
+			return false
+		}, 3*time.Second, 10*time.Millisecond)
+		if issueID == "" {
+			issueID = received.Id
+		}
+		assert.Equal(t, issueID, received.Id)
+		if failed {
+			assert.Contains(t, received.Description, "ENC[qa-password]")
+			assert.NotEmpty(t, received.Remediation.Steps)
+		}
 	}
 }
