@@ -127,6 +127,16 @@ properties:
         type: string
         default: ""
         comment: Overrides only the main foldspace host. Empty uses the main HTTP endpoint host.
+      grpc_method:
+        node_type: setting
+        type: string
+        default: /datadog.intake.stateful.StatefulIntake/StatefulStream
+        comment: |
+          Full gRPC method path every foldspace stream opens, as
+          /<package>.<Service>/<Method>. The messages on the stream are the same
+          under any name, so this lets an intake that serves them under other
+          names receive the stream, such as lading's datadog_stateful_logs
+          blackhole (/datadog.intake.stateful.StatefulLogsService/LogsStream).
       tap_channel_size:
         node_type: setting
         type: integer
