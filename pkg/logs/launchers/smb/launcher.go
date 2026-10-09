@@ -29,6 +29,12 @@
 // until the password changes (a refreshed secret) or the Agent restarts; a
 // locked-out account is tried once an hour (see client.Guard).
 //
+// Listings are bounded, so that a share cannot exhaust the Agent's memory: a
+// directory with more than 100,000 entries, entries that take more than 64 MiB,
+// or a name longer than 255 characters is not listed, and one scan lists that
+// much in all, the directories it leaves for the next one. The files a source
+// already tails in a directory that is not listed are still read, by name.
+//
 // Agents do not elect a single reader per share: every Agent with an smb
 // source lists the share and reads every file the source's path matches, so a
 // DaemonSet that configures the source on N nodes ships each line N times.
@@ -100,7 +106,10 @@ type Launcher struct {
 
 	// Test seams.
 	clock          clock.Clock
-	dial           client.DialFunc // nil means client.Dial
+	dial           client.DialFunc  // nil means client.Dial
+	wallNow        func() time.Time // the time modification times are compared with
+	listEntries    int              // the entries one scan lists in all, 0 for client.MaxListEntries
+	listBytes      int              // their cost, 0 for client.MaxListBytes
 	chunkSize      int
 	pollBudget     int
 	forceReadEvery int
@@ -137,6 +146,7 @@ func NewLauncher(closeTimeout time.Duration) *Launcher {
 	return &Launcher{
 		closeTimeout: closeTimeout,
 		clock:        clock.New(),
+		wallNow:      time.Now,
 		guard:        client.ProcessGuard(),
 		tailers:      tailers.NewTailerContainer[*tailer.Tailer](),
 		claims:       &claims{owners: make(map[string]*scanner)},
