@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"hash/crc64"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -175,19 +176,24 @@ func TestPythonCRC64MatchesGo(t *testing.T) {
 }
 
 // The ledger of the Java writer image scans the rotated files; the stock
-// workload's reads the Python writer's journal. For the default rename mode,
-// both must record the same files the same way.
+// workload's reads the Python writer's journal, and so does the Python port
+// the Windows file server runs. For the default rename mode, all three must
+// record the same files the same way.
 func TestLedgerScriptRecordsThePythonWriterFiles(t *testing.T) {
-	for _, source := range []string{"scan", "journal"} {
-		t.Run(source, func(t *testing.T) {
-			testLedgerScriptRecordsThePythonWriterFiles(t, source)
+	for _, run := range []struct{ impl, source string }{
+		{shellSidecar, "scan"}, {shellSidecar, "journal"}, {pythonSidecar, "journal"},
+	} {
+		t.Run(run.impl+"-"+run.source, func(t *testing.T) {
+			testLedgerScriptRecordsThePythonWriterFiles(t, run.impl, run.source)
 		})
 	}
 }
 
-func testLedgerScriptRecordsThePythonWriterFiles(t *testing.T, source string) {
+func testLedgerScriptRecordsThePythonWriterFiles(t *testing.T, impl, source string) {
 	python := requirePython(t)
-	requireTools(t, "sh", "basename", "date", "wc", "tr", "dd", "sha256sum", "awk", "sed", "grep", "head", "tail", "cut", "mkdir", "sleep")
+	if impl == shellSidecar {
+		requireTools(t, "sh", "basename", "date", "wc", "tr", "dd", "sha256sum", "awk", "sed", "grep", "head", "tail", "cut", "mkdir", "sleep")
+	}
 	spec := testRunSpec(t, runOptions{cells: "file-line"})
 	c := spec.cells[0]
 	scripts := writeWorkloadScripts(t)
@@ -200,7 +206,7 @@ func testLedgerScriptRecordsThePythonWriterFiles(t *testing.T, source string) {
 		t.Skipf("the CRC64 command %q would not split into its words", crc64Command)
 	}
 	ledgerPath := filepath.Join(share, ledgerName)
-	startScript(t, scripts[ledgerScript], filepath.Join(t.TempDir(), "ledger.log"),
+	startSidecar(t, impl, ledgerContainerName, scripts, filepath.Join(t.TempDir(), "ledger.log"),
 		"LOGWRITER_LOG_DIR="+share,
 		"LOGWRITER_CRC64_COMMAND="+crc64Command,
 		"LOGWRITER_LEDGER_SOURCE="+source,
@@ -242,8 +248,14 @@ func testLedgerScriptRecordsThePythonWriterFiles(t *testing.T, source string) {
 }
 
 func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
+	forEachSidecar(t, testAppenderScriptMarksThePythonWriterRotations)
+}
+
+func testAppenderScriptMarksThePythonWriterRotations(t *testing.T, impl string) {
 	python := requirePython(t)
-	requireTools(t, "sh", "basename", "date", "tr", "sleep")
+	if impl == shellSidecar {
+		requireTools(t, "sh", "basename", "date", "tr", "sleep")
+	}
 	spec := testRunSpec(t, runOptions{cells: "file-line"})
 	c := spec.cells[0]
 	scripts := writeWorkloadScripts(t)
@@ -255,7 +267,7 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 	delays := markerDelays{earlyMs: 50, earlyExpect: markerCollected, lateMs: 100}
 	journalPath := filepath.Join(share, postRotationMarkerJournalName)
 	appenderLog := filepath.Join(t.TempDir(), "appender.log")
-	startScript(t, scripts[appenderScript], appenderLog,
+	startSidecar(t, impl, appenderContainerName, scripts, appenderLog,
 		"LOGWRITER_LOG_DIR="+share,
 		"LOGWRITER_RUN_ID="+runID,
 		"LOGWRITER_MARKER_JOURNAL_PATH="+journalPath,
@@ -268,7 +280,7 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 	require.Eventually(t, func() bool {
 		output, err := os.ReadFile(appenderLog)
 		return err == nil && bytes.Contains(output, []byte("appender_ready "))
-	}, 10*time.Second, 20*time.Millisecond, "appender.sh did not start")
+	}, 10*time.Second, 20*time.Millisecond, "the %s appender did not start", impl)
 	time.Sleep(200 * time.Millisecond)
 	runPythonWriterSelfTest(t, python, scripts, spec, c, share)
 
@@ -285,7 +297,7 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 		journal, err := decodeJSONLines[markerEntry](string(raw), "marker journal")
 		markers = markersForFiles(journal, names)
 		return err == nil && len(markers) == 2*selfTestRotations
-	}, 30*time.Second, 50*time.Millisecond, "appender.sh did not mark every rotation")
+	}, 30*time.Second, 50*time.Millisecond, "the %s appender did not mark every rotation", impl)
 
 	files := rotatedFiles(t, share)
 	require.Len(t, files, selfTestRotations)
@@ -523,6 +535,83 @@ func parseDiskRecords(t *testing.T, name string, content []byte) []diskRecord {
 	return records
 }
 
+func TestPythonCopyTruncateWriterAppendsThroughTheCopy(t *testing.T) {
+	python := requirePython(t)
+	scripts := writeWorkloadScripts(t)
+	// An SMB source polls app.log every second, so only the last
+	// copyTruncateSMBAtRiskMs before each truncation are at risk.
+	spec := testRunSpec(t, runOptions{cells: "smb-copytruncate", smbEnabled: true, periodMs: "10000", rateBytesPerSec: "40000"})
+	c := spec.cells[0]
+	share := t.TempDir()
+	runPythonWriterSelfTest(t, python, scripts, spec, c, share)
+
+	raw, err := os.ReadFile(filepath.Join(share, periodsJournalName))
+	require.NoError(t, err)
+	journal, err := decodeJSONLines[ledgerEntry](string(raw), "journal")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(journal), selfTestRotations)
+	files := streamFiles(t, share)
+	headPause := time.Duration(spec.writer.headPauseMs()) * time.Millisecond
+	for _, entry := range journal {
+		require.Len(t, entry.AtRiskSequences, 1, entry.Period)
+		// The next period's head record lands at the boundary, while the
+		// copy is running: the copy holds it, and it stays in app.log for
+		// the whole hold, so it is not at risk.
+		head := entry.LastSequence + 1
+		var copied []int64
+		for _, record := range parseDiskRecords(t, entry.File, files[entry.File]) {
+			if record.period != entry.Period {
+				copied = append(copied, record.sequence)
+			}
+		}
+		assert.Equal(t, []int64{head}, copied, "%s holds what was appended during the copy", entry.File)
+		// The fill starts after the head pause, which ends less than
+		// copyTruncateSMBAtRiskMs before the truncation: every fill record
+		// of the hold is at risk, and only those.
+		require.Greater(t, headPause, time.Duration(copyTruncateHoldMs-copyTruncateSMBAtRiskMs)*time.Millisecond)
+		assert.Equal(t, head+1, entry.AtRiskSequences[0][0], entry.Period)
+	}
+}
+
+func TestPythonWriterIdlesAfterItsPeriods(t *testing.T) {
+	python := requirePython(t)
+	scripts := writeWorkloadScripts(t)
+	for _, mode := range knownRotationModes {
+		t.Run(string(mode), func(t *testing.T) {
+			spec := testRunSpec(t, runOptions{cells: "file-line", rotationMode: string(mode), periodMs: "10000", rateBytesPerSec: "40000"})
+			c := spec.cells[0]
+			share := t.TempDir()
+			var vars []string
+			for _, v := range spec.writerEnv(c) {
+				if v.name == "LOGWRITER_LOG_DIR" {
+					v.value = share
+				}
+				vars = append(vars, v.name+"="+v.value)
+			}
+			// Far more rotations than the writer's periods allow: the
+			// self-test ends once the writer idles.
+			cmd := exec.Command(python, scripts[pythonWriterScript], "selftest", "--start", selfTestStart, "--rotations", "100")
+			cmd.Env = scriptEnv(append(vars, "HOSTNAME="+c.writerName)...)
+			output, err := cmd.CombinedOutput()
+			require.NoError(t, err, "logwriter.py selftest: %s", output)
+			assert.Contains(t, string(output), fmt.Sprintf("writer_idle run_id=%s periods=%d reason=LOGWRITER_MAX_PERIODS", spec.writerRunID(c), pacedWriterMaxPeriods))
+
+			raw, err := os.ReadFile(filepath.Join(share, periodsJournalName))
+			require.NoError(t, err)
+			journal, err := decodeJSONLines[ledgerEntry](string(raw), "journal")
+			require.NoError(t, err)
+			// Every period but the last is rotated; copytruncate's rotator
+			// also copies the last one at the next boundary.
+			want := pacedWriterMaxPeriods - 1
+			if mode == copyTruncateRotation {
+				want = pacedWriterMaxPeriods
+			}
+			assert.Len(t, journal, want)
+			assert.GreaterOrEqual(t, len(journal), completedFiles+1, "a cell still gets its files")
+		})
+	}
+}
+
 func TestPythonWriterPacesItsRecords(t *testing.T) {
 	python := requirePython(t)
 	scripts := writeWorkloadScripts(t)
@@ -631,8 +720,14 @@ func TestPythonWriterRunsItsStreamsInRealTime(t *testing.T) {
 }
 
 func TestLedgerScriptRecordsTheWriterJournalOfEveryMode(t *testing.T) {
+	forEachSidecar(t, testLedgerScriptRecordsTheWriterJournalOfEveryMode)
+}
+
+func testLedgerScriptRecordsTheWriterJournalOfEveryMode(t *testing.T, impl string) {
 	python := requirePython(t)
-	requireTools(t, "sh", "basename", "date", "wc", "tr", "sed", "mkdir", "sleep")
+	if impl == shellSidecar {
+		requireTools(t, "sh", "basename", "date", "wc", "tr", "sed", "mkdir", "sleep")
+	}
 	scripts := writeWorkloadScripts(t)
 	for name, opts := range map[string]runOptions{
 		"gzip-two-streams": {rotationMode: "gzip", periodMs: "10000", rateBytesPerSec: "40000", streams: "2"},
@@ -645,7 +740,7 @@ func TestLedgerScriptRecordsTheWriterJournalOfEveryMode(t *testing.T) {
 			c := spec.cells[0]
 			share := t.TempDir()
 			runPythonWriterSelfTest(t, python, scripts, spec, c, share)
-			startLedgerScript(t, python, scripts, spec, share)
+			startLedgerScript(t, impl, python, scripts, spec, share)
 
 			for _, dir := range spec.writer.streamDirs() {
 				raw, err := os.ReadFile(filepath.Join(share, dir, periodsJournalName))
@@ -682,9 +777,9 @@ func TestLedgerScriptRecordsTheWriterJournalOfEveryMode(t *testing.T) {
 	}
 }
 
-// startLedgerScript runs ledger.sh with the configuration of the cell's ledger
-// container, on share.
-func startLedgerScript(t *testing.T, python string, scripts map[string]string, spec runSpec, share string) {
+// startLedgerScript runs the ledger with the configuration of the cell's
+// ledger container, on share.
+func startLedgerScript(t *testing.T, impl, python string, scripts map[string]string, spec runSpec, share string) {
 	t.Helper()
 	var vars []string
 	for _, v := range spec.ledgerEnv(spec.cells[0], spec.workloadRuntime("registry.example")) {
@@ -696,7 +791,7 @@ func startLedgerScript(t *testing.T, python string, scripts map[string]string, s
 		}
 		vars = append(vars, v.name+"="+v.value)
 	}
-	startScript(t, scripts[ledgerScript], filepath.Join(t.TempDir(), "ledger.log"), vars...)
+	startSidecar(t, impl, ledgerContainerName, scripts, filepath.Join(t.TempDir(), "ledger.log"), vars...)
 }
 
 func waitForLedger(t *testing.T, ledgerPath string, entries int) []ledgerEntry {
@@ -709,14 +804,20 @@ func waitForLedger(t *testing.T, ledgerPath string, entries int) []ledgerEntry {
 		}
 		ledger, err = decodeJSONLines[ledgerEntry](string(raw), "ledger")
 		return err == nil && len(ledger) == entries
-	}, 30*time.Second, 100*time.Millisecond, "ledger.sh did not record %d files in %s", entries, ledgerPath)
+	}, 30*time.Second, 100*time.Millisecond, "the ledger did not record %d files in %s", entries, ledgerPath)
 	sort.Slice(ledger, func(i, j int) bool { return ledger[i].Period < ledger[j].Period })
 	return ledger
 }
 
 func TestAppenderScriptMarksEveryStream(t *testing.T) {
+	forEachSidecar(t, testAppenderScriptMarksEveryStream)
+}
+
+func testAppenderScriptMarksEveryStream(t *testing.T, impl string) {
 	python := requirePython(t)
-	requireTools(t, "sh", "basename", "date", "tr", "sleep")
+	if impl == shellSidecar {
+		requireTools(t, "sh", "basename", "date", "tr", "sleep")
+	}
 	spec := testRunSpec(t, runOptions{cells: "file-line", periodMs: "10000", rateBytesPerSec: "40000", streams: "2"})
 	c := spec.cells[0]
 	scripts := writeWorkloadScripts(t)
@@ -738,11 +839,11 @@ func TestAppenderScriptMarksEveryStream(t *testing.T) {
 		vars = append(vars, v.name+"="+v.value)
 	}
 	appenderLog := filepath.Join(t.TempDir(), "appender.log")
-	startScript(t, scripts[appenderScript], appenderLog, vars...)
+	startSidecar(t, impl, appenderContainerName, scripts, appenderLog, vars...)
 	require.Eventually(t, func() bool {
 		output, err := os.ReadFile(appenderLog)
 		return err == nil && bytes.Count(output, []byte("appender_ready ")) == 2
-	}, 10*time.Second, 20*time.Millisecond, "appender.sh did not watch both streams")
+	}, 10*time.Second, 20*time.Millisecond, "the %s appender did not watch both streams", impl)
 	time.Sleep(200 * time.Millisecond)
 	runPythonWriterSelfTest(t, python, scripts, spec, c, share)
 
@@ -763,7 +864,7 @@ func TestAppenderScriptMarksEveryStream(t *testing.T) {
 			journal, err := decodeJSONLines[markerEntry](string(raw), "marker journal")
 			markers = markersForFiles(journal, names)
 			return err == nil && len(markers) == 2*selfTestRotations
-		}, 30*time.Second, 50*time.Millisecond, "appender.sh did not mark every rotation of %s", dir)
+		}, 30*time.Second, 50*time.Millisecond, "the %s appender did not mark every rotation of %s", impl, dir)
 
 		files = rotatedFiles(t, filepath.Join(share, dir))
 		var messages []string
@@ -789,12 +890,18 @@ func TestAppenderScriptMarksEveryStream(t *testing.T) {
 }
 
 func TestAppenderScriptOnlyMarksRenamedFilesThatAreStillThere(t *testing.T) {
-	requireTools(t, "sh", "basename", "date", "tr", "sleep")
+	forEachSidecar(t, testAppenderScriptOnlyMarksRenamedFilesThatAreStillThere)
+}
+
+func testAppenderScriptOnlyMarksRenamedFilesThatAreStillThere(t *testing.T, impl string) {
+	if impl == shellSidecar {
+		requireTools(t, "sh", "basename", "date", "tr", "sleep")
+	}
 	scripts := writeWorkloadScripts(t)
 	share := t.TempDir()
 	journalPath := filepath.Join(share, postRotationMarkerJournalName)
 	appenderLog := filepath.Join(t.TempDir(), "appender.log")
-	startScript(t, scripts[appenderScript], appenderLog,
+	startSidecar(t, impl, appenderContainerName, scripts, appenderLog,
 		"LOGWRITER_LOG_DIR="+share,
 		"LOGWRITER_RUN_ID=run",
 		"LOGWRITER_MARKER_JOURNAL_PATH="+journalPath,
@@ -804,7 +911,7 @@ func TestAppenderScriptOnlyMarksRenamedFilesThatAreStillThere(t *testing.T) {
 	require.Eventually(t, func() bool {
 		output, err := os.ReadFile(appenderLog)
 		return err == nil && bytes.Contains(output, []byte("appender_ready "))
-	}, 10*time.Second, 20*time.Millisecond, "appender.sh did not start")
+	}, 10*time.Second, 20*time.Millisecond, "the %s appender did not start", impl)
 	time.Sleep(100 * time.Millisecond)
 
 	// A compressed file is not a rotation, and a rotated file deleted before
@@ -835,11 +942,17 @@ func TestAppenderScriptOnlyMarksRenamedFilesThatAreStillThere(t *testing.T) {
 }
 
 func TestAppenderScriptIdlesWithoutMarkers(t *testing.T) {
-	requireTools(t, "sh", "sleep")
+	forEachSidecar(t, testAppenderScriptIdlesWithoutMarkers)
+}
+
+func testAppenderScriptIdlesWithoutMarkers(t *testing.T, impl string) {
+	if impl == shellSidecar {
+		requireTools(t, "sh", "sleep")
+	}
 	scripts := writeWorkloadScripts(t)
 	share := t.TempDir()
 	appenderLog := filepath.Join(t.TempDir(), "appender.log")
-	startScript(t, scripts[appenderScript], appenderLog,
+	startSidecar(t, impl, appenderContainerName, scripts, appenderLog,
 		"LOGWRITER_LOG_DIR="+share, "LOGWRITER_RUN_ID=run", "LOGWRITER_APPEND_DELAYS_MS=none", "LOGWRITER_APPEND_POLL_MS=20")
 	require.Eventually(t, func() bool {
 		output, err := os.ReadFile(appenderLog)
@@ -881,18 +994,50 @@ func requireTools(t *testing.T, tools ...string) {
 }
 
 // writeWorkloadScripts writes the workload ConfigMap files, as embedded in the
-// provisioner, and returns their paths by file name.
+// provisioner, and the Windows file server's sidecars.py, and returns their
+// paths by file name.
 func writeWorkloadScripts(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
 	runtime := testRunSpec(t, runOptions{}).workloadRuntime("registry.example")
-	paths := make(map[string]string, len(runtime.scripts))
-	for name, script := range runtime.scripts {
+	scripts := maps.Clone(runtime.scripts)
+	scripts[sidecarsScript] = sidecarsSource
+	paths := make(map[string]string, len(scripts))
+	for name, script := range scripts {
 		path := filepath.Join(dir, name)
 		require.NoError(t, os.WriteFile(path, []byte(script), 0o500))
 		paths[name] = path
 	}
 	return paths
+}
+
+// The two implementations of the ledger and the appender: the shell scripts
+// of a writer pod, and the Python port the Windows file server runs. Both are
+// held to the same tests.
+const (
+	shellSidecar  = "shell"
+	pythonSidecar = "python"
+)
+
+// forEachSidecar runs test once with each implementation.
+func forEachSidecar(t *testing.T, test func(t *testing.T, impl string)) {
+	for _, impl := range []string{shellSidecar, pythonSidecar} {
+		t.Run(impl, func(t *testing.T) {
+			test(t, impl)
+		})
+	}
+}
+
+// startSidecar runs the ledger or the appender container's command until the
+// test ends: ledger.sh or appender.sh with sh, or sidecars.py with python3.
+func startSidecar(t *testing.T, impl, container string, scripts map[string]string, logPath string, vars ...string) {
+	t.Helper()
+	if impl == pythonSidecar {
+		startCommand(t, logPath, scriptEnv(vars...), requirePython(t), scripts[sidecarsScript], container)
+		return
+	}
+	script := map[string]string{ledgerContainerName: ledgerScript, appenderContainerName: appenderScript}[container]
+	startScript(t, scripts[script], logPath, vars...)
 }
 
 // scriptEnv is the environment of a script: the pod's variables, PATH to find
@@ -926,10 +1071,17 @@ func runPythonWriterSelfTestFrom(t *testing.T, python string, scripts map[string
 // startScript runs a looping workload script with sh until the test ends.
 func startScript(t *testing.T, script, logPath string, vars ...string) {
 	t.Helper()
+	startCommand(t, logPath, scriptEnv(vars...), "sh", script)
+}
+
+// startCommand runs a looping workload command until the test ends, and
+// prints its output when the test failed.
+func startCommand(t *testing.T, logPath string, env []string, name string, args ...string) {
+	t.Helper()
 	logFile, err := os.Create(logPath)
 	require.NoError(t, err)
-	cmd := exec.Command("sh", script)
-	cmd.Env = scriptEnv(vars...)
+	cmd := exec.Command(name, args...)
+	cmd.Env = env
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	require.NoError(t, cmd.Start())
@@ -939,7 +1091,7 @@ func startScript(t *testing.T, script, logPath string, vars ...string) {
 		_ = logFile.Close()
 		if t.Failed() {
 			if output, err := os.ReadFile(logPath); err == nil {
-				t.Logf("%s:\n%s", filepath.Base(script), output)
+				t.Logf("%s:\n%s", strings.Join(append([]string{name}, args...), " "), output)
 			}
 		}
 	})
@@ -1031,4 +1183,85 @@ func goCRC64(content []byte) string {
 func sha256Hex(content []byte) string {
 	sum := sha256.Sum256(content)
 	return hex.EncodeToString(sum[:])
+}
+
+// The Windows file server's tasks, with the environment the test gives them
+// and the share moved to a local directory, must produce a ledger and marker
+// journal the suite can judge, like a writer pod's.
+func TestWindowsFileServerTasksWorkTogether(t *testing.T) {
+	python := requirePython(t)
+	spec, c := windowsTestSpec(t)
+	scripts := writeWorkloadScripts(t)
+	share := t.TempDir()
+	localEnv := func(task string, overrides map[string]string) []string {
+		var vars []string
+		for _, v := range spec.windowsTaskEnv(c, task) {
+			if override, ok := overrides[v.name]; ok {
+				v.value = override
+			}
+			// The VM's paths, on this host.
+			if strings.HasPrefix(v.value, windowsShareDir(c)) {
+				v.value = filepath.Join(share, strings.ReplaceAll(strings.TrimPrefix(v.value, windowsShareDir(c)), `\`, "/"))
+			}
+			vars = append(vars, v.name+"="+v.value)
+		}
+		return vars
+	}
+	startCommand(t, filepath.Join(t.TempDir(), "ledger.log"), scriptEnv(localEnv(ledgerContainerName, nil)...),
+		python, scripts[sidecarsScript], ledgerContainerName)
+	appenderLog := filepath.Join(t.TempDir(), "appender.log")
+	// The marker ages scaled down, as in the appender tests.
+	startCommand(t, appenderLog, scriptEnv(localEnv(appenderContainerName, map[string]string{
+		"LOGWRITER_APPEND_DELAYS_MS": "50,100", "LOGWRITER_APPEND_POLL_MS": "20",
+	})...), python, scripts[sidecarsScript], appenderContainerName)
+	require.Eventually(t, func() bool {
+		output, err := os.ReadFile(appenderLog)
+		return err == nil && bytes.Contains(output, []byte("appender_ready "))
+	}, 10*time.Second, 20*time.Millisecond, "the appender did not start")
+	time.Sleep(200 * time.Millisecond)
+
+	cmd := exec.Command(python, scripts[pythonWriterScript], "selftest", "--start", selfTestStart, "--rotations", strconv.Itoa(selfTestRotations))
+	cmd.Env = scriptEnv(localEnv(writerContainerName, nil)...)
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "logwriter.py selftest: %s", output)
+
+	ledger := waitForLedger(t, filepath.Join(share, ledgerName), selfTestRotations)
+	files := rotatedFiles(t, share)
+	require.Len(t, files, selfTestRotations)
+	names := make(map[markerKey]struct{}, len(files))
+	var messages []string
+	for i, file := range files {
+		assert.Equal(t, spec.writerRunID(c), ledger[i].RunID)
+		assert.Equal(t, file.name, ledger[i].File)
+		assert.Equal(t, "file", ledger[i].Observed)
+		names[markerKey{runID: spec.writerRunID(c), file: file.name}] = struct{}{}
+		messages = append(messages, file.lines...)
+	}
+	var markers []markerEntry
+	require.Eventually(t, func() bool {
+		raw, err := os.ReadFile(filepath.Join(share, postRotationMarkerJournalName))
+		if err != nil {
+			return false
+		}
+		journal, err := decodeJSONLines[markerEntry](string(raw), "marker journal")
+		markers = markersForFiles(journal, names)
+		return err == nil && len(markers) == 2*selfTestRotations
+	}, 30*time.Second, 50*time.Millisecond, "the appender did not mark every rotation")
+
+	// Every record of the ledger is in the files once, with the cell's
+	// records and markers.
+	files = rotatedFiles(t, share)
+	messages = messages[:0]
+	for _, file := range files {
+		messages = append(messages, file.lines...)
+	}
+	expected := expectedRecords(ledger)
+	check := checkRecords(expected, nil, countRecords(messages, expected))
+	assert.Empty(t, check.missing)
+	assert.Empty(t, check.duplicated)
+	counts := countMarkerIDs(messages)
+	for _, marker := range markers {
+		assert.Equal(t, 1, counts[marker.MarkerID], marker.MarkerID)
+	}
+	assert.Contains(t, files[0].lines[0], " host="+c.writerName+" ")
 }

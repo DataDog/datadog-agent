@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -26,7 +27,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 const (
@@ -41,17 +41,30 @@ const (
 	runPeriodMs     = "AZURE_FILES_E2E_PERIOD_MS"
 	runRate         = "AZURE_FILES_E2E_RATE_BYTES_PER_SEC"
 	runStreams      = "AZURE_FILES_E2E_STREAMS"
-	// runCalibrate records every marker's outcome instead of asserting it.
+	// runCalibrate records the outcome of the smb-late-<age> cells' probe
+	// markers instead of asserting it; every other marker is still asserted.
 	runCalibrate      = "AZURE_FILES_E2E_CALIBRATE"
 	runCalibrateValue = "1"
+	// runForceLoss makes the loss-accounted cells' rotations remove the
+	// rotated file at once, so their loss accounting has losses to check.
+	runForceLoss      = "AZURE_FILES_E2E_FORCE_LOSS"
+	runForceLossValue = "1"
 	// runScenario selects a disruption of the Agent (see scenarios_test.go),
 	// and runNetworkDropSeconds how long network-drop lasts.
 	runScenario           = "AZURE_FILES_E2E_SCENARIO"
 	runNetworkDropSeconds = "AZURE_FILES_E2E_NETWORK_DROP_SECONDS"
+	// runNodes is the AKS node count, which only the multi-node scenario may
+	// raise above 1.
+	runNodes = "AZURE_FILES_E2E_NODES"
 	// The smb cells need an Agent built with the native SMB log source,
 	// which a stock build does not have, so they only run on request.
-	smbOptIn       = "E2E_SMB_AZURE"
-	smbOptInValue  = "1"
+	smbOptIn      = "E2E_SMB_AZURE"
+	smbOptInValue = "1"
+	// The smb-windows cell needs a Windows Server VM, which costs more than
+	// any share, so it only runs on request too.
+	windowsOptIn      = "AZURE_FILES_E2E_WINDOWS"
+	windowsOptInValue = "1"
+
 	completedFiles = 4
 	assertedFiles  = 3
 
@@ -148,7 +161,7 @@ type markerEntry struct {
 }
 
 type azureFilesSuite struct {
-	e2e.BaseSuite[environments.Kubernetes]
+	e2e.BaseSuite[azureFilesEnv]
 	spec     runSpec
 	evidence *evidenceDir
 
@@ -184,19 +197,25 @@ func TestAzureFiles(t *testing.T) {
 		rateBytesPerSec:    os.Getenv(runRate),
 		streams:            os.Getenv(runStreams),
 		calibrate:          os.Getenv(runCalibrate) == runCalibrateValue,
+		forceLoss:          os.Getenv(runForceLoss) == runForceLossValue,
 		scenario:           os.Getenv(runScenario),
 		networkDropSeconds: os.Getenv(runNetworkDropSeconds),
+		nodes:              os.Getenv(runNodes),
+		windowsEnabled:     os.Getenv(windowsOptIn) == windowsOptInValue,
 	})
 	require.NoError(t, err, "one of %s is invalid", strings.Join([]string{
 		runProfile, runCells, runStackName, runWriterImage, runRotationMode, runPeriodMs, runRate, runStreams,
-		runScenario, runNetworkDropSeconds,
+		runCalibrate, runForceLoss, runScenario, runNetworkDropSeconds, runNodes,
 	}, ", "))
 	if len(spec.cells) == 0 {
-		names := make([]string, 0, len(spec.gatedCells))
+		reasons := make([]string, 0, len(spec.gatedCells))
 		for _, c := range spec.gatedCells {
-			names = append(names, c.name)
+			reasons = append(reasons, c.name+": "+gateReason(c))
 		}
-		t.Skipf("every selected cell (%s) is gated: %s", strings.Join(names, ","), gateReason())
+		t.Skipf("every selected cell is gated: %s", strings.Join(reasons, "; "))
+	}
+	if spec.nodes > 1 {
+		t.Logf("%d nodes run on stack %s: a stack keeps its node count, so a multi-node run never reuses a one-node stack", spec.nodes, spec.stackName)
 	}
 	e2e.Run(t, &azureFilesSuite{spec: spec},
 		e2e.WithProvisioner(spec.storageProvisioner()),
@@ -207,9 +226,14 @@ func TestAzureFiles(t *testing.T) {
 	)
 }
 
-// gateReason says how to enable the gated smb cells.
-func gateReason() string {
-	return fmt.Sprintf("set %s=%s to run the smb cells; they need an Agent built with the native SMB log source (see README.md)", smbOptIn, smbOptInValue)
+// gateReason says how to enable a gated cell.
+func gateReason(c cell) string {
+	reason := fmt.Sprintf("set %s=%s to run the smb cells; they need an Agent built with the native SMB log source (see README.md)", smbOptIn, smbOptInValue)
+	if c.onWindows() {
+		reason = fmt.Sprintf("set %s=%s and %s=%s to run the %s cell; it needs a Windows Server VM and an Agent built with the native SMB log source (see README.md)",
+			smbOptIn, smbOptInValue, windowsOptIn, windowsOptInValue, c.name)
+	}
+	return reason
 }
 
 func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
@@ -220,11 +244,20 @@ func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
 	suite.installAgent()
 	defer suite.captureEvidence()
 	suite.requireAgentReady()
+	// Like the writer pods, which the Agent pass starts after the Agent, the
+	// Windows file server's writer starts once the Agent runs.
+	suite.startWindowsWriter()
 
 	for _, c := range suite.spec.cells {
 		suite.Run(c.name, func() {
 			suite.checkCell(c, recordRules{})
+			if suite.spec.calibrate && c.probe != nil {
+				suite.T().Skipf("%s=%s: calibration run, not a pass; the probe marker's outcome is in %s-marker-outcomes.json", runCalibrate, runCalibrateValue, c.name)
+			}
 		})
+	}
+	if suite.spec.calibrate {
+		suite.T().Skipf("%s=%s: calibration run, not a pass; unset it once lateMarkerProbes in provisioner.go has the recorded outcomes", runCalibrate, runCalibrateValue)
 	}
 }
 
@@ -232,7 +265,7 @@ func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
 func (suite *azureFilesSuite) skipGatedCells() {
 	for _, c := range suite.spec.gatedCells {
 		suite.Run(c.name, func() {
-			suite.T().Skip(gateReason())
+			suite.T().Skip(gateReason(c))
 		})
 	}
 }
@@ -240,9 +273,12 @@ func (suite *azureFilesSuite) skipGatedCells() {
 // installAgent runs the Agent pass. A reused stack keeps its Fakeintake and
 // the logs of earlier runs, which carry the same services and sequence
 // numbers. The storage pass has just removed the Agent, so nothing new
-// arrives before the Agent pass.
+// arrives before the Agent pass. The Windows file server's share must exist
+// before the Agent's source looks for it, and its address is the source's
+// host, so it is prepared first.
 func (suite *azureFilesSuite) installAgent() {
 	suite.T().Helper()
+	suite.prepareWindowsServer()
 	require.NoError(suite.T(), suite.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 	suite.UpdateEnv(suite.spec.agentProvisioner())
 	require.NoError(suite.T(), suite.writeRunMetadata())
@@ -253,6 +289,9 @@ type recordRules struct {
 	// restart, after an Agent restart, lets the records the Agent could
 	// resend be collected twice.
 	restart *restartRule
+	// hosts are the Agent hostnames of a multi-node run: each of them must
+	// collect every record once, rather than the run once.
+	hosts []string
 }
 
 // checkCell waits for the cell's writer to complete its files and checks that
@@ -268,23 +307,36 @@ func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry
 		suite.requireSMBSourceRunning(c)
 	}
 
-	pod := suite.writerPod(c)
+	site := suite.writerSite(c)
 	streams := suite.spec.streamRunIDs(c)
-	ledger := suite.waitForLedger(c, pod, completedFiles)
+	ledger := suite.waitForLedger(c, site, completedFiles)
 	asserted, atRisk := assertedLedger(ledger, streams)
+	// The expected records are the asserted files' sequences, so a file the
+	// ledger lacks, or records the writer failed to write, would drop out of
+	// them without a trace: both are harness failures, not passes.
+	gaps := ledgerGaps(asserted)
+	require.Empty(suite.T(), gaps, "%s: the ledger's asserted files do not hold every sequence the writer used:\n%s", c.name, strings.Join(gaps, "\n"))
+	unwrittenFailures := unwrittenProblems(c, asserted, suite.spec.deleteRecreateDelaySeconds(c))
+	require.Empty(suite.T(), unwrittenFailures, "%s: the writer failed to write records (see the ledger and the writer log):\n%s", c.name, strings.Join(unwrittenFailures, "\n"))
 	expected := expectedRecords(asserted)
-	// A ledger whose records all failed to be written leaves nothing to
-	// check, which must not pass as a success.
 	require.NotEmpty(suite.T(), expected, "%s: the writer wrote none of the records of its asserted files", c.name)
 	if unwritten := unwrittenRecords(asserted); unwritten > 0 {
-		suite.T().Logf("%s: the writer failed to write %d records of its asserted files; they are in no file and not expected (see the ledger and the writer log)", c.name, unwritten)
+		suite.T().Logf("%s: the writer failed to write %d records right after recreating app.log, which delete-recreate allows; they are in no file and not expected (see the ledger and the writer log)", c.name, unwritten)
 	}
 	var markers []markerEntry
 	if c.markers.count() > 0 {
-		markers = suite.postRotationMarkers(pod, c, asserted)
+		markers = suite.postRotationMarkers(site, c, asserted)
 	}
 
-	judge := func(t assert.TestingT, messages []string) recordCheck {
+	// judge asserts the collected logs and describes what it found.
+	// Calibration records the probe marker's outcome instead of asserting
+	// it; every other marker is still asserted.
+	assertedMarkers := markersToAssert(c, markers, suite.spec.calibrate)
+	judge := func(t assert.TestingT, logs []collectedLog) (recordCheck, string) {
+		if len(rules.hosts) > 0 {
+			return recordCheck{}, assertCollectedOncePerHost(t, c, expected, atRisk, assertedMarkers, logs, rules.hosts)
+		}
+		messages := logMessages(logs)
 		counts := countRecords(messages, expected)
 		check := checkRecords(expected, atRisk, counts)
 		switch {
@@ -296,10 +348,8 @@ func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry
 		default:
 			assertRecordsCollected(t, c, check)
 		}
-		if !suite.spec.calibrate {
-			assertMarkerOutcome(t, c, markers, countMarkerIDs(messages))
-		}
-		return check
+		assertMarkerOutcome(t, c, assertedMarkers, countMarkerIDs(messages))
+		return check, describeRecordCheck(check)
 	}
 	suite.EventuallyWithT(func(collect *assert.CollectT) {
 		logs, err := suite.collectedLogs(c.service)
@@ -307,7 +357,7 @@ func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry
 		// Lines carrying the right service but not this source's metadata
 		// come from a reader that builds a wrong origin.
 		assertLogOrigin(collect, suite.spec.runID, c, logs)
-		judge(collect, logMessages(logs))
+		judge(collect, logs)
 	}, collectTimeout(c.writer), 10*time.Second)
 
 	// A marker expected to be lost is asserted absent, which cannot fail on a
@@ -318,11 +368,15 @@ func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry
 	logs, err := suite.collectedLogs(c.service)
 	require.NoError(suite.T(), err)
 	messages := logMessages(logs)
-	check := judge(suite.T(), messages)
-	suite.T().Logf("%s: %d records expected, %d of them at risk; %d at-risk records were lost, which the rotation mode allows: %s",
-		c.name, check.expected, check.atRisk, len(check.atRiskLost), formatRecordRanges(check.atRiskLost))
+	check, summary := judge(suite.T(), logs)
+	suite.T().Logf("%s: %s", c.name, summary)
 	if suite.spec.calibrate && len(markers) > 0 {
-		suite.recordMarkerOutcomes(c, markerOutcomes(c, markers, countMarkerIDs(messages)))
+		if len(rules.hosts) == 0 {
+			suite.recordMarkerOutcomes(c, markerOutcomes(c, markers, countMarkerIDs(messages)))
+		}
+		for host, hostMessages := range messagesByHost(logs, rules.hosts) {
+			suite.recordMarkerOutcomes(cellOnHost(c, host), markerOutcomes(c, markers, countMarkerIDs(hostMessages)))
+		}
 	}
 
 	if c.lossAccounted() {
@@ -331,21 +385,89 @@ func (suite *azureFilesSuite) checkCell(c cell, rules recordRules) []ledgerEntry
 	if c.reader == smbReader {
 		suite.checkSMBSource(c)
 	}
+	if c.onWindows() {
+		suite.checkWindowsServer(c)
+	}
 	if c.writer.paced() {
 		suite.recordLoad(c, asserted, expected, logs)
 	}
 	return asserted
 }
 
+// describeRecordCheck sums up a cell's records once they passed.
+func describeRecordCheck(check recordCheck) string {
+	return fmt.Sprintf("%d records expected, %d of them at risk; %d at-risk records were lost, which the rotation mode allows: %s",
+		check.expected, check.atRisk, len(check.atRiskLost), formatRecordRanges(check.atRiskLost))
+}
+
+// cellOnHost names a cell's records as one Agent collected them, in the
+// failures and the evidence of a multi-node run.
+func cellOnHost(c cell, host string) cell {
+	c.name += "@" + host
+	return c
+}
+
+// messagesByHost splits the messages of the logs by the hostname of the
+// Agent that sent them, for the given hosts.
+func messagesByHost(logs []collectedLog, hosts []string) map[string][]string {
+	byHost := make(map[string][]string, len(hosts))
+	for _, host := range hosts {
+		byHost[host] = nil
+	}
+	for _, log := range logs {
+		if _, known := byHost[log.hostname]; known {
+			byHost[log.hostname] = append(byHost[log.hostname], log.message)
+		}
+	}
+	return byHost
+}
+
+// assertCollectedOncePerHost holds a multi-node run to what the SMB source
+// does today: every Agent that has the source reads the whole share, since
+// nothing elects a single reader, so every record arrives once per Agent,
+// attributed by the hostname of the Agent that sent it. Each Agent's records
+// and markers are judged like a single Agent's, and a record sent by a host
+// that runs none of the Agents fails the cell. It describes what it found.
+//
+// Once the SMB source elects a single reader, every record must arrive once
+// from any one of the hosts instead.
+func assertCollectedOncePerHost(t assert.TestingT, c cell, expected, atRisk map[recordKey]struct{}, markers []markerEntry, logs []collectedLog, hosts []string) string {
+	byHost := messagesByHost(logs, hosts)
+	strangers := make(map[string]int)
+	for _, log := range logs {
+		if _, known := byHost[log.hostname]; known {
+			continue
+		}
+		if key, ok := parseRecord(log.message); ok {
+			if _, wanted := expected[key]; wanted {
+				strangers[log.hostname]++
+			}
+		}
+	}
+	assert.Empty(t, strangers, "%s: expected records were sent by hosts that run none of the %d Agents (%s), by host",
+		c.name, len(hosts), strings.Join(hosts, ", "))
+
+	parts := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		hostCell := cellOnHost(c, host)
+		check := checkRecords(expected, atRisk, countRecords(byHost[host], expected))
+		assertRecordsCollected(t, hostCell, check)
+		assertMarkerOutcome(t, hostCell, markers, countMarkerIDs(byHost[host]))
+		parts = append(parts, host+": "+describeRecordCheck(check))
+	}
+	return fmt.Sprintf("each of the %d Agents collected every record once, %d copies of each in all; %s",
+		len(hosts), len(hosts), strings.Join(parts, "; "))
+}
+
 // waitForLedger waits until every stream of the cell's writer has completed
 // files files, and returns its ledger.
-func (suite *azureFilesSuite) waitForLedger(c cell, pod corev1.Pod, files int) []ledgerEntry {
+func (suite *azureFilesSuite) waitForLedger(c cell, site writerSite, files int) []ledgerEntry {
 	suite.T().Helper()
 	streams := suite.spec.streamRunIDs(c)
 	var ledger []ledgerEntry
 	suite.EventuallyWithT(func(collect *assert.CollectT) {
 		var err error
-		ledger, err = suite.readLedger(c, pod)
+		ledger, err = suite.readLedger(site)
 		require.NoError(collect, err)
 		byStream := ledgerByStream(ledger)
 		for _, stream := range streams {
@@ -361,7 +483,7 @@ func (suite *azureFilesSuite) waitForLedger(c cell, pod corev1.Pod, files int) [
 // ran or never saw the rotations, which invalidates the marker assertions
 // rather than saying anything about the Agent.
 func (suite *azureFilesSuite) postRotationMarkers(
-	pod corev1.Pod,
+	site writerSite,
 	c cell,
 	asserted []ledgerEntry,
 ) []markerEntry {
@@ -374,7 +496,7 @@ func (suite *azureFilesSuite) postRotationMarkers(
 
 	var markers []markerEntry
 	suite.EventuallyWithT(func(collect *assert.CollectT) {
-		journal, err := suite.readMarkerJournal(c, pod)
+		journal, err := suite.readMarkerJournal(site)
 		require.NoError(collect, err)
 		markers = markersForFiles(journal, files)
 		assert.Len(collect, markers, wanted,
@@ -428,6 +550,108 @@ func assertedLedger(ledger []ledgerEntry, streams []string) ([]ledgerEntry, map[
 		}
 	}
 	return asserted, atRisk
+}
+
+// ledgerGaps lists where the asserted files of a stream do not follow each
+// other: the first must start at the writer's first sequence, 1, and each one
+// right after the previous one. A period whose journal line was lost, or a
+// writer that restarted, would otherwise drop records from the expected ones
+// without a trace.
+func ledgerGaps(asserted []ledgerEntry) []string {
+	byStream := ledgerByStream(asserted)
+	streams := make([]string, 0, len(byStream))
+	for stream := range byStream {
+		streams = append(streams, stream)
+	}
+	sort.Strings(streams)
+	var gaps []string
+	for _, stream := range streams {
+		entries := slices.Clone(byStream[stream])
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Period < entries[j].Period })
+		next := int64(1)
+		for i, entry := range entries {
+			switch {
+			case entry.FirstSequence == next:
+			case i == 0:
+				gaps = append(gaps, fmt.Sprintf("%s: its first file, %s of period %s, starts at sequence %d, not at the writer's first sequence 1: sequences 1-%d are in no asserted file",
+					stream, entry.File, entry.Period, entry.FirstSequence, entry.FirstSequence-1))
+			case entry.FirstSequence > next:
+				gaps = append(gaps, fmt.Sprintf("%s: %s of period %s starts at sequence %d, but the previous file ended at %d: sequences %d-%d are in no asserted file",
+					stream, entry.File, entry.Period, entry.FirstSequence, next-1, next, entry.FirstSequence-1))
+			default:
+				gaps = append(gaps, fmt.Sprintf("%s: %s of period %s starts at sequence %d, inside the previous file, which ended at %d: the writer restarted or the ledger is wrong",
+					stream, entry.File, entry.Period, entry.FirstSequence, next-1))
+			}
+			next = entry.LastSequence + 1
+		}
+	}
+	return gaps
+}
+
+// deleteRecreateDelaySeconds is how long a delete-recreate writer may fail to
+// create app.log again: SMB keeps a deleted file pending deletion while a
+// client still has it open. The SMB source's stateless reads only hold it
+// for one read. A file source holds it until its rotated tailer closes, a
+// file scan after the rotation: after close_timeout, or with unreliable_mount
+// once the file went fileHandoffQuietSeconds without new reads.
+func (spec runSpec) deleteRecreateDelaySeconds(c cell) int {
+	switch {
+	case c.reader == smbReader:
+		return 1
+	case spec.profile.unreliableMount:
+		return fileScanPeriodSeconds + fileHandoffQuietSeconds + 1
+	default:
+		return fileScanPeriodSeconds + closeTimeoutSeconds + 1
+	}
+}
+
+// deleteRecreateUnwrittenBound is how many records a delete-recreate writer may
+// fail to write at the start of a file, while it cannot create app.log again
+// for delaySeconds: the head record, then one record per tick of the Java
+// schedule, or what a paced stream writes in that time, with one buffered
+// write.
+func deleteRecreateUnwrittenBound(w writerOptions, delaySeconds int) int64 {
+	if !w.paced() {
+		return 1 + int64(delaySeconds*1000/writerTickMs)
+	}
+	perSecond := float64(w.rateBytesPerSec) / float64(max(1, w.streams)) / pacedWriterPayloadBytes
+	return 1 + int64(math.Ceil(perSecond*float64(delaySeconds))) + pacedWriterBufferBytes/pacedWriterPayloadBytes
+}
+
+// unwrittenProblems lists the records the writer failed to write in the
+// asserted files that the cell cannot accept. Such a record is in no file and
+// says nothing about the reader, but only delete-recreate has a reason to
+// fail: the new app.log cannot be created while the deleted one is pending
+// deletion, which delays the first records of the next file. Anywhere else, or
+// beyond that, the harness is broken. Every asserted file must also hold a
+// record the writer did write. delaySeconds is how long the cell's reader may
+// keep a deleted app.log pending deletion (runSpec.deleteRecreateDelaySeconds).
+func unwrittenProblems(c cell, asserted []ledgerEntry, delaySeconds int) []string {
+	bound := deleteRecreateUnwrittenBound(c.writer, delaySeconds)
+	var problems []string
+	for _, entry := range asserted {
+		file := fmt.Sprintf("%s of %s (period %s, sequences %d-%d)", entry.File, entry.RunID, entry.Period, entry.FirstSequence, entry.LastSequence)
+		unwritten := unwrittenRecords([]ledgerEntry{entry})
+		ranges := make([]string, 0, len(entry.UnwrittenSequences))
+		for _, r := range entry.UnwrittenSequences {
+			ranges = append(ranges, fmt.Sprintf("%d-%d", r[0], r[1]))
+		}
+		switch {
+		case unwritten == 0:
+		case unwritten >= entry.LastSequence-entry.FirstSequence+1:
+			problems = append(problems, fmt.Sprintf("the writer wrote none of the %d records of %s", unwritten, file))
+		case c.writer.mode != deleteRecreateRotation:
+			problems = append(problems, fmt.Sprintf("the writer failed to write %d records of %s (%s); only a delete-recreate rotation may delay the first records of a file",
+				unwritten, file, strings.Join(ranges, ", ")))
+		case len(entry.UnwrittenSequences) != 1 || entry.UnwrittenSequences[0][0] != entry.FirstSequence:
+			problems = append(problems, fmt.Sprintf("the writer failed to write records of %s (%s) that are not one run at its start, right after app.log was recreated",
+				file, strings.Join(ranges, ", ")))
+		case unwritten > bound:
+			problems = append(problems, fmt.Sprintf("the writer failed to write the first %d records of %s, more than the %d it can lose in the %ds its %s reader may keep the deleted file open",
+				unwritten, file, bound, delaySeconds, c.reader))
+		}
+	}
+	return problems
 }
 
 // recordCheck sorts the expected records by how often they were collected.
@@ -544,6 +768,23 @@ func assertMarkerOutcome(t assert.TestingT, c cell, markers []markerEntry, count
 	}
 }
 
+// markersToAssert leaves out the probe markers of an smb-late-<age> cell when
+// the run calibrates: their outcome is what the run records. The 45s marker
+// is still asserted, since it is what proves the suite can see a loss, and so
+// is every marker of the other cells.
+func markersToAssert(c cell, markers []markerEntry, calibrate bool) []markerEntry {
+	if !calibrate || c.probe == nil {
+		return markers
+	}
+	kept := make([]markerEntry, 0, len(markers))
+	for _, marker := range markers {
+		if marker.MarkerAgeMs != c.probe.ageMs {
+			kept = append(kept, marker)
+		}
+	}
+	return kept
+}
+
 // markerOutcome is what became of one marker, as calibration records it.
 type markerOutcome struct {
 	MarkerID    string            `json:"marker_id"`
@@ -633,7 +874,7 @@ func summarizeMarkerOutcomes(outcomes []markerOutcome) string {
 
 // recordMarkerOutcomes prints and keeps the calibration of a cell's markers.
 func (suite *azureFilesSuite) recordMarkerOutcomes(c cell, outcomes []markerOutcome) {
-	suite.T().Logf("%s calibration (%s=%s, not asserted): %s", c.name, runCalibrate, runCalibrateValue, summarizeMarkerOutcomes(outcomes))
+	suite.T().Logf("%s calibration (%s=%s, the probe marker is not asserted): %s", c.name, runCalibrate, runCalibrateValue, summarizeMarkerOutcomes(outcomes))
 	if evidence, err := suite.evidenceDir(); err == nil {
 		evidence.writeJSON(c.name+"-marker-outcomes.json", outcomes)
 	}
@@ -702,6 +943,8 @@ type collectedLog struct {
 	timestamp int64
 	// arrived is when Fakeintake received the payload.
 	arrived time.Time
+	// hostname is the host of the Agent that sent the log.
+	hostname string
 }
 
 func (suite *azureFilesSuite) collectedLogs(service string) ([]collectedLog, error) {
@@ -713,7 +956,7 @@ func (suite *azureFilesSuite) collectedLogs(service string) ([]collectedLog, err
 	for _, log := range logs {
 		collected = append(collected, collectedLog{
 			message: log.Message, source: log.Source, tags: log.GetTags(),
-			timestamp: int64(log.Timestamp), arrived: log.GetCollectedTime(),
+			timestamp: int64(log.Timestamp), arrived: log.GetCollectedTime(), hostname: log.HostName,
 		})
 	}
 	return collected, nil
@@ -849,6 +1092,35 @@ func (suite *azureFilesSuite) podProblems(pod corev1.Pod) string {
 	return strings.Join(problems, "; ")
 }
 
+// writerSite is where a cell's writer writes its files: the share mount of
+// its writer pod, or the share directory of the Windows file server.
+type writerSite interface {
+	// readFiles prints the named file of every stream of the cell that
+	// exists, one after the other, and fails when none does. container is
+	// the writer pod's container that reads it.
+	readFiles(container, name string) (string, error)
+}
+
+// podSite reads a cell's files through its writer pod.
+type podSite struct {
+	suite *azureFilesSuite
+	c     cell
+	pod   corev1.Pod
+}
+
+func (s podSite) readFiles(container, name string) (string, error) {
+	return s.suite.readShareFiles(s.pod, container, s.c.writer.sharePaths(name))
+}
+
+// writerSite returns where the cell's writer writes.
+func (suite *azureFilesSuite) writerSite(c cell) writerSite {
+	suite.T().Helper()
+	if c.onWindows() {
+		return windowsSite{suite: suite, c: c}
+	}
+	return podSite{suite: suite, c: c, pod: suite.writerPod(c)}
+}
+
 func (suite *azureFilesSuite) writerPod(c cell) corev1.Pod {
 	suite.T().Helper()
 	pod, err := suite.findWriterPod(c)
@@ -870,8 +1142,8 @@ func (suite *azureFilesSuite) findWriterPod(c cell) (corev1.Pod, error) {
 	return pods.Items[0], nil
 }
 
-func (suite *azureFilesSuite) readLedger(c cell, pod corev1.Pod) ([]ledgerEntry, error) {
-	stdout, err := suite.readLedgerRaw(c, pod)
+func (suite *azureFilesSuite) readLedger(site writerSite) ([]ledgerEntry, error) {
+	stdout, err := suite.readLedgerRaw(site)
 	if err != nil {
 		return nil, err
 	}
@@ -895,26 +1167,26 @@ func decodeJSONLines[T any](raw, what string) ([]T, error) {
 	return entries, nil
 }
 
-// readLedgerRaw reads the ledgers of every stream of a writer pod, one after
-// the other.
-func (suite *azureFilesSuite) readLedgerRaw(c cell, pod corev1.Pod) (string, error) {
-	stdout, err := suite.readShareFiles(pod, ledgerContainerName, c.writer.sharePaths(ledgerName))
+// readLedgerRaw reads the ledgers of every stream of a writer, one after the
+// other.
+func (suite *azureFilesSuite) readLedgerRaw(site writerSite) (string, error) {
+	stdout, err := site.readFiles(ledgerContainerName, ledgerName)
 	if err != nil {
 		return "", fmt.Errorf("read ledger: %w", err)
 	}
 	return stdout, nil
 }
 
-func (suite *azureFilesSuite) readMarkerJournal(c cell, pod corev1.Pod) ([]markerEntry, error) {
-	stdout, err := suite.readMarkerJournalRaw(c, pod)
+func (suite *azureFilesSuite) readMarkerJournal(site writerSite) ([]markerEntry, error) {
+	stdout, err := suite.readMarkerJournalRaw(site)
 	if err != nil {
 		return nil, err
 	}
 	return decodeJSONLines[markerEntry](stdout, "marker journal")
 }
 
-func (suite *azureFilesSuite) readMarkerJournalRaw(c cell, pod corev1.Pod) (string, error) {
-	stdout, err := suite.readShareFiles(pod, appenderContainerName, c.writer.sharePaths(postRotationMarkerJournalName))
+func (suite *azureFilesSuite) readMarkerJournalRaw(site writerSite) (string, error) {
+	stdout, err := site.readFiles(appenderContainerName, postRotationMarkerJournalName)
 	if err != nil {
 		return "", fmt.Errorf("read marker journal: %w", err)
 	}
@@ -952,6 +1224,9 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 			"writer":         c.writer.metadata(),
 			"loss_accounted": c.lossAccounted(),
 		}
+		if c.writer.mode == copyTruncateRotation {
+			entry["copytruncate_at_risk_ms"] = c.copyTruncateAtRiskMs()
+		}
 		switch c.reader {
 		case fileReader:
 			entry["fingerprint"] = map[string]any{
@@ -960,9 +1235,12 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 		case smbReader:
 			// The mount options apply to the writer only.
 			entry["smb"] = map[string]any{
-				"host": c.host(), "share": c.shareName, "username": c.accountName, "path": c.writer.activeLogPattern(),
+				"host": c.host(), "share": c.shareName, "username": c.smbUsername(), "path": c.writer.activeLogPattern(),
 				"password_handle": smbPasswordHandle(c), "poll_interval": smbPollIntervalSeconds,
 			}
+		}
+		if c.onWindows() {
+			entry["windows_server"] = windowsServerMetadata(c)
 		}
 		cells = append(cells, entry)
 	}
@@ -981,8 +1259,10 @@ func (suite *azureFilesSuite) writeRunMetadata() error {
 			"file_scan_period": fileScanPeriodSeconds,
 			"close_timeout":    closeTimeoutSeconds,
 		},
-		"calibrate": suite.spec.calibrate,
-		"scenario":  suite.spec.scenarioMetadata(),
+		"calibrate":  suite.spec.calibrate,
+		"force_loss": suite.spec.forceLoss(),
+		"scenario":   suite.spec.scenarioMetadata(),
+		"nodes":      suite.spec.nodes,
 		// The marker ages depend on the reader and are listed per cell.
 		"post_rotation_markers": map[string]any{
 			"expected_surviving": postRotationMarkerSurvivingCount,
@@ -1019,21 +1299,17 @@ func (suite *azureFilesSuite) captureEvidence() {
 	client := suite.Env().KubernetesCluster.Client()
 
 	for _, c := range suite.spec.cells {
+		if c.onWindows() {
+			suite.captureWindowsEvidence(evidence, c)
+			continue
+		}
 		pod, podErr := suite.findWriterPod(c)
 		if podErr != nil {
 			evidence.write(c.name+"-writer-pod-error.txt", []byte(podErr.Error()+"\n"))
 			continue
 		}
 		evidence.writeJSON(c.name+"-writer-pod.json", pod)
-		if rawLedger, err := suite.readLedgerRaw(c, pod); err == nil {
-			evidence.write(c.name+"-ledger.jsonl", []byte(rawLedger))
-		}
-		if ledger, err := suite.readLedger(c, pod); err == nil {
-			evidence.writeJSON(c.name+"-ledger.json", ledger)
-		}
-		if rawMarkers, err := suite.readMarkerJournalRaw(c, pod); err == nil {
-			evidence.write(c.name+"-markers.jsonl", []byte(rawMarkers))
-		}
+		suite.captureWriterFiles(evidence, c, podSite{suite: suite, c: c, pod: pod})
 		if rawPeriods, err := suite.readShareFiles(pod, writerContainerName, c.writer.sharePaths(periodsJournalName)); err == nil {
 			evidence.write(c.name+"-periods.jsonl", []byte(rawPeriods))
 		}
@@ -1102,6 +1378,19 @@ func (suite *azureFilesSuite) captureEvidence() {
 
 	suite.T().Logf("evidence: %s", evidence.dir)
 	suite.T().Logf("run resources: stack=%s namespace=%s accounts=%s", suite.spec.stackName, e2eNamespace, suite.storageAccountNames())
+}
+
+// captureWriterFiles keeps a writer's ledger and marker journal.
+func (suite *azureFilesSuite) captureWriterFiles(evidence *evidenceDir, c cell, site writerSite) {
+	if rawLedger, err := suite.readLedgerRaw(site); err == nil {
+		evidence.write(c.name+"-ledger.jsonl", []byte(rawLedger))
+	}
+	if ledger, err := suite.readLedger(site); err == nil {
+		evidence.writeJSON(c.name+"-ledger.json", ledger)
+	}
+	if rawMarkers, err := suite.readMarkerJournalRaw(site); err == nil {
+		evidence.write(c.name+"-markers.jsonl", []byte(rawMarkers))
+	}
 }
 
 // evidenceDir returns the evidence directory of this run, creating it on first
@@ -1174,6 +1463,9 @@ func (suite *azureFilesSuite) knownSecrets() []string {
 func (suite *azureFilesSuite) storageAccountNames() string {
 	names := make([]string, 0, len(suite.spec.cells))
 	for _, c := range suite.spec.cells {
+		if c.onWindows() {
+			continue
+		}
 		names = append(names, c.accountName)
 	}
 	return strings.Join(names, ",")

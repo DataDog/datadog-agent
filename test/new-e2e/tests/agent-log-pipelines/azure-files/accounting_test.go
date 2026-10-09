@@ -48,6 +48,62 @@ import (
 // and an appender marker the Agent saw listed but did not read.
 const lossAccountingToleranceBytes = 4096
 
+// What a correct SMB source can lose of a file that goes away. It reads each
+// active file once per poll interval, up to its size when the read opens it,
+// so when the file goes away, what it has not read is what was written since
+// its last read: at most one poll interval, plus the time a scan takes to
+// reach the file (lossScanMarginSeconds). The Agent reports the file's size
+// at its last listing minus what it read (UnreadBytes in
+// pkg/logs/tailers/smb/tailer.go, a lower bound), so its report can fall short
+// of the loss by what was written since that listing, as long again.
+//
+// Only a paced writer writes that close to the rotation. The Java schedule
+// fills each file right after its head pause, tens of seconds before the file
+// goes away, so a correct source loses none of it.
+//
+// A gzip rotation also keeps the rotated file for gzipDelayMs, several times
+// what a drain needs (two idle polls), so its loss is only explained when the
+// file was compressed away while the drain was still reading it, or when the
+// drain timed out. A drain that ends before the compression with records
+// unread is a product failure.
+const (
+	lossScanMarginSeconds = 1
+	// lossClockSkew allows for the writer's and the Agent's clocks, which
+	// date the rotation and the report.
+	lossClockSkew = time.Second
+	// drainTimeoutReason starts the reason of a drain that hit
+	// logs_config.close_timeout (scanner.pollDrain in pkg/logs/launchers/smb).
+	drainTimeoutReason = "SMB rotation drain timed out"
+)
+
+// lossWindowBytes is what one stream of the writer writes in a poll interval
+// and a scan.
+func lossWindowBytes(w writerOptions) int64 {
+	if !w.paced() {
+		return 0
+	}
+	return int64(w.rateBytesPerSec) / int64(max(1, w.streams)) * (smbPollIntervalSeconds + lossScanMarginSeconds)
+}
+
+// maxLostRecords is how many records of one file a loss-accounted cell may
+// lose: those of lossWindowBytes, counted with the paced payload, which is
+// less than a record's line, plus one buffered write, which lands at once.
+func maxLostRecords(w writerOptions) int {
+	if !w.paced() {
+		return 0
+	}
+	return int(math.Ceil(float64(lossWindowBytes(w))/pacedWriterPayloadBytes)) + pacedWriterBufferBytes/pacedWriterPayloadBytes
+}
+
+// maxReportShortfallBytes is how far below the bytes a file lost the Agent's
+// report may fall: the tolerance, and what was written since its last listing.
+func maxReportShortfallBytes(w writerOptions) int64 {
+	if !w.paced() {
+		return lossAccountingToleranceBytes
+	}
+	return lossAccountingToleranceBytes + lossWindowBytes(w) + pacedWriterBufferBytes
+}
+
 // missedBytesReportPattern reads the warning of RecordMissedBytes, with the
 // kubelet's timestamp when the log was read with timestamps:
 //
@@ -194,14 +250,24 @@ type fileLoss struct {
 	LastSequence   int64  `json:"last_sequence"`
 	MissingRecords int    `json:"missing_records"`
 	MissingRanges  string `json:"missing_ranges"`
+	// AllowedRecords is how many records the cell's rotation may lose of
+	// one file (maxLostRecords), and CollectedRecords how many of the
+	// file's written records were collected.
+	AllowedRecords   int `json:"allowed_records"`
+	CollectedRecords int `json:"collected_records"`
 	// Suffix says the missing records are the file's last ones: a drain cut
 	// short can lose nothing else.
 	Suffix bool `json:"suffix"`
 	// UnreadBytes are the file's bytes that reached no collected record:
 	// what the writer wrote minus the collected records' lines.
-	UnreadBytes   int64               `json:"unread_bytes"`
-	ReportedBytes int64               `json:"reported_bytes"`
-	Reports       []missedBytesReport `json:"reports"`
+	UnreadBytes   int64 `json:"unread_bytes"`
+	ReportedBytes int64 `json:"reported_bytes"`
+	// ShortfallBytes is how far the report falls short of UnreadBytes, which
+	// it may by up to AllowedShortfallBytes (maxReportShortfallBytes).
+	ShortfallBytes        int64               `json:"shortfall_bytes"`
+	AllowedShortfallBytes int64               `json:"allowed_shortfall_bytes"`
+	RotatedAt             time.Time           `json:"rotated_at"`
+	Reports               []missedBytesReport `json:"reports"`
 }
 
 // explainLosses groups the records never collected by the file that held
@@ -227,6 +293,7 @@ func explainLosses(c cell, ledger, asserted []ledgerEntry, check recordCheck, li
 	for _, entry := range entries {
 		var lost []recordKey
 		var collectedBytes int64
+		collected := 0
 		expectedAfterFirstLoss := 0
 		for sequence := entry.FirstSequence; sequence <= entry.LastSequence; sequence++ {
 			if inRanges(entry.UnwrittenSequences, sequence) {
@@ -239,6 +306,7 @@ func explainLosses(c cell, ledger, asserted []ledgerEntry, check recordCheck, li
 			if missing[key] {
 				lost = append(lost, key)
 			} else {
+				collected++
 				collectedBytes += lineBytes[key]
 			}
 		}
@@ -246,22 +314,30 @@ func explainLosses(c cell, ledger, asserted []ledgerEntry, check recordCheck, li
 			continue
 		}
 		matched := reportsForEntry(c, entry, next[fileKey{runID: entry.RunID, period: entry.Period}], reports)
-		losses = append(losses, fileLoss{
+		rotatedAt, _ := entry.rotatedAt()
+		loss := fileLoss{
 			RunID: entry.RunID, Period: entry.Period, File: entry.File,
 			FirstSequence: entry.FirstSequence, LastSequence: entry.LastSequence,
 			MissingRecords: len(lost), MissingRanges: formatRecordRanges(lost),
-			Suffix:        expectedAfterFirstLoss == len(lost),
-			UnreadBytes:   max(0, entry.Bytes-collectedBytes),
-			ReportedBytes: sumReportedBytes(matched),
-			Reports:       matched,
-		})
+			AllowedRecords: maxLostRecords(c.writer), CollectedRecords: collected,
+			Suffix:                expectedAfterFirstLoss == len(lost),
+			UnreadBytes:           max(0, entry.Bytes-collectedBytes),
+			ReportedBytes:         sumReportedBytes(matched),
+			AllowedShortfallBytes: maxReportShortfallBytes(c.writer),
+			RotatedAt:             rotatedAt,
+			Reports:               matched,
+		}
+		loss.ShortfallBytes = max(0, loss.UnreadBytes-loss.ReportedBytes)
+		losses = append(losses, loss)
 	}
 	return losses
 }
 
-// assertLossesExplained requires every lost record to be accounted for by the
-// Agent: only the end of a file may be lost, and the Agent must have reported
-// about as many missed bytes for that file as it never delivered.
+// assertLossesExplained requires every lost record to be one the cell's
+// rotation can lose and the Agent accounted for: only the end of a file, no
+// more of it than was written in the last poll interval and scan, never all of
+// it, for gzip only while the drain was still reading, and with about as many
+// missed bytes reported for that file as it never delivered.
 func assertLossesExplained(t assert.TestingT, c cell, losses []fileLoss) {
 	for _, loss := range losses {
 		file := fmt.Sprintf("%s of %s (sequences %d-%d)", loss.File, loss.RunID, loss.FirstSequence, loss.LastSequence)
@@ -272,20 +348,62 @@ func assertLossesExplained(t assert.TestingT, c cell, losses []fileLoss) {
 			continue
 		}
 		switch {
+		case loss.CollectedRecords == 0:
+			assert.Fail(t, "a whole file lost",
+				"%s: %s lost every one of its %d records (%s); a source that reads the file while it is written loses at most its end",
+				c.name, file, loss.MissingRecords, loss.MissingRanges)
+		case loss.MissingRecords > loss.AllowedRecords:
+			assert.Fail(t, "more lost than the rotation allows",
+				"%s: %s lost its last %d records (%s), more than the %d a %s rotation can take from a source that reads every %ds (%s)",
+				c.name, file, loss.MissingRecords, loss.MissingRanges, loss.AllowedRecords, c.writer.mode, smbPollIntervalSeconds, lossBasis(c.writer))
+		}
+		if problem := gzipLossProblem(c, loss); problem != "" {
+			assert.Fail(t, "drain ended before the compression", "%s: %s %s", c.name, file, problem)
+		}
+		switch {
 		case loss.ReportedBytes == 0:
 			assert.Fail(t, "silent loss",
 				"%s: %s lost its last %d records (%s), about %d bytes, and the Agent reported no missed bytes for it",
 				c.name, file, loss.MissingRecords, loss.MissingRanges, loss.UnreadBytes)
-		case loss.ReportedBytes+lossAccountingToleranceBytes < loss.UnreadBytes:
+		case loss.ShortfallBytes > loss.AllowedShortfallBytes:
 			assert.Fail(t, "partly silent loss",
-				"%s: %s lost its last %d records (%s); the Agent reported %d missed bytes for it, but about %d bytes of it were never collected",
-				c.name, file, loss.MissingRecords, loss.MissingRanges, loss.ReportedBytes, loss.UnreadBytes)
+				"%s: %s lost its last %d records (%s); the Agent reported %d missed bytes for it, but about %d bytes of it were never collected, "+
+					"more than the %d that can be written after its last listing",
+				c.name, file, loss.MissingRecords, loss.MissingRanges, loss.ReportedBytes, loss.UnreadBytes, loss.AllowedShortfallBytes)
 		case loss.ReportedBytes > loss.UnreadBytes+lossAccountingToleranceBytes:
 			assert.Fail(t, "missed bytes do not match the file",
 				"%s: the Agent reported %d missed bytes for %s, more than the %d bytes of it that were never collected; the reports were attributed to the wrong file",
 				c.name, loss.ReportedBytes, file, loss.UnreadBytes)
 		}
 	}
+}
+
+// lossBasis says what a writer's loss bound comes from.
+func lossBasis(w writerOptions) string {
+	if !w.paced() {
+		return "the Java schedule fills each file right after its head pause, so nothing is left to lose"
+	}
+	return fmt.Sprintf("%d B/s per stream for %ds, plus one %d-byte write, in records of at least %d bytes",
+		w.rateBytesPerSec/max(1, w.streams), smbPollIntervalSeconds+lossScanMarginSeconds, pacedWriterBufferBytes, pacedWriterPayloadBytes)
+}
+
+// gzipLossProblem says why a gzip file's loss is not explained by its
+// compression: a report made before the writer compressed the rotated file
+// away, by a drain that had not timed out, means the drain stopped while the
+// file was still there to read.
+func gzipLossProblem(c cell, loss fileLoss) string {
+	if c.writer.mode != gzipRotation || c.writer.gzipDelayMs() == 0 || loss.RotatedAt.IsZero() {
+		return ""
+	}
+	compressedAt := loss.RotatedAt.Add(time.Duration(c.writer.gzipDelayMs()) * time.Millisecond)
+	for _, report := range loss.Reports {
+		if strings.HasPrefix(report.Reason, drainTimeoutReason) || !report.At.Before(compressedAt.Add(-lossClockSkew)) {
+			continue
+		}
+		return fmt.Sprintf("was reported lost (%q) %s after its rotation, before the writer compressed it away %s after the rotation: the drain ended with the rotated file still there to read",
+			report.Reason, report.At.Sub(loss.RotatedAt).Round(100*time.Millisecond), time.Duration(c.writer.gzipDelayMs())*time.Millisecond)
+	}
+	return ""
 }
 
 func assertNoDuplicates(t assert.TestingT, c cell, check recordCheck) {
@@ -355,10 +473,21 @@ func (suite *azureFilesSuite) checkMissedBytesTotals(c cell, ledger, asserted []
 	}
 	losses := explainLosses(c, ledger, asserted, check, lineBytes, all)
 	cellReports := reportsOfCell(c, all)
-	suite.T().Logf("%s: %d files lost records, the Agent made %d missed-bytes reports for the cell, %d bytes in all",
-		c.name, len(losses), len(cellReports), sumReportedBytes(cellReports))
+	suite.T().Logf("%s: %d of %d asserted files lost records, %d records in all; the Agent made %d missed-bytes reports for the cell, %d bytes in all",
+		c.name, len(losses), len(asserted), len(check.missing), len(cellReports), sumReportedBytes(cellReports))
+	exercised := len(losses) > 0
+	if !exercised {
+		hint := fmt.Sprintf("set %s=%s with a paced writer to make the rotations lose data (see README.md)", runForceLoss, runForceLossValue)
+		if c.writer.forceLoss {
+			hint = "even with forced losses: the source read every file to its end before it went away; a higher rate makes that less likely"
+		}
+		suite.T().Logf("%s: nothing was lost, so this run did not exercise the loss accounting; %s", c.name, hint)
+	}
 	if evidence, err := suite.evidenceDir(); err == nil {
-		evidence.writeJSON(c.name+"-losses.json", map[string]any{"losses": losses, "reports": cellReports})
+		evidence.writeJSON(c.name+"-losses.json", map[string]any{
+			"loss_exercised": exercised, "force_loss": c.writer.forceLoss,
+			"allowed_records_per_file": maxLostRecords(c.writer), "losses": losses, "reports": cellReports,
+		})
 	}
 
 	if suite.spec.hasReader(fileReader) {

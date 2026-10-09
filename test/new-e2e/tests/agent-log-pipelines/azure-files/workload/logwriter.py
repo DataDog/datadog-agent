@@ -18,6 +18,10 @@ reproduces every part of the Java writer that the suite's assertions read:
 - ledger: `crc64` prints what Crc64.java prints, so ledger.sh writes the same
   ledger with either helper.
 
+The Windows file server of the smb-windows cell runs this writer too, on the
+embeddable Python distribution, with sidecars.py in place of ledger.sh and
+appender.sh, which need a POSIX shell.
+
 Unset, the settings below keep that behaviour. The Java writer has none of
 them:
 
@@ -36,13 +40,21 @@ them:
 - LOGWRITER_PAYLOAD_BYTES, LOGWRITER_CONSOLE_RECORDS: the record payload size,
   and whether records are echoed to stdout;
 - LOGWRITER_MAX_ROTATED_FILES: above zero, the oldest rotated files beyond
-  that many are deleted.
+  that many are deleted;
+- LOGWRITER_MAX_PERIODS: above zero, the writer starts no period after that
+  many: it stops writing records and idles, without exiting, so its pod stays
+  up and its files stay on the share. The active file of the last period is
+  not rotated, except by copytruncate's rotator, which still copies and
+  journals it at the next boundary;
+- LOGWRITER_COPYTRUNCATE_AT_RISK_MS: for copytruncate, only the records
+  written within this many milliseconds before the truncation are at risk.
+  Unset, every record written after the copy started is.
 
 Journal: before it renames, copies, truncates, compresses or deletes a file,
 the writer appends one line for the period that file holds to periods.jsonl
 next to it: the sequences and bytes it wrote, the sequences it failed to
-write, and, for copytruncate, the sequences written between the start of the
-copy and the truncation, which a reader may lose without being at fault.
+write, and, for copytruncate, the sequences written so close to the
+truncation that a reader may lose them without being at fault.
 ledger.sh records those lines in the ledger, so the ledger also covers files
 that are gone or compressed by the time it looks at the share.
 
@@ -120,6 +132,11 @@ PERIOD_FORMAT = "%Y%m%dT%H%MZ"
 # A period that is not a whole number of minutes is named to the second.
 SECOND_ROTATED_SUFFIX_FORMAT = "%d%m%Y_%H%M%S"
 SECOND_PERIOD_FORMAT = "%Y%m%dT%H%M%SZ"
+
+# Windows opens a descriptor in text mode unless told otherwise, and text mode
+# writes every newline as CRLF. The writer also runs on the Windows file server
+# of the smb-windows cell, where its files must hold the bytes it journals.
+O_BINARY = getattr(os, "O_BINARY", 0)
 
 CRC64_ISO_POLYNOMIAL = 0xD800000000000000
 CRC64_MASK = (1 << 64) - 1
@@ -276,6 +293,11 @@ class Config:
         self.delete_pause_ms = read_int(environ, "LOGWRITER_DELETE_PAUSE_MS", 1000, 0, day_ms)
         self.gzip_delay_ms = read_int(environ, "LOGWRITER_GZIP_DELAY_MS", 5000, 0, day_ms)
         self.copytruncate_hold_ms = read_int(environ, "LOGWRITER_COPYTRUNCATE_HOLD_MS", 3000, 0, day_ms)
+        # None puts every record written after the copy started at risk.
+        self.copytruncate_at_risk_ms = None
+        if environ.get("LOGWRITER_COPYTRUNCATE_AT_RISK_MS", "").strip():
+            self.copytruncate_at_risk_ms = read_int(environ, "LOGWRITER_COPYTRUNCATE_AT_RISK_MS", 0, 0, day_ms)
+        self.max_periods = read_int(environ, "LOGWRITER_MAX_PERIODS", 0, 0, 1_000_000)
 
 
 def read_run_id(configured):
@@ -441,7 +463,7 @@ class RollingFile:
             self._rollover(rotated_file_time_ms)
         if self.fd is None:
             # FileOutputStream(path, true): O_WRONLY | O_CREAT | O_APPEND.
-            self.fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)
+            self.fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | O_BINARY, 0o666)
         # immediateFlush: one write per event.
         write_all(self.fd, data)
 
@@ -538,15 +560,22 @@ class CopyTruncateFile:
     The writer opens app.log once, with O_APPEND, and never reopens it. At
     each period boundary a rotator, which the writer runs between its own
     writes (LogWriter.service), copies app.log to app.log.<suffix of the
-    period> while the writer keeps appending, waits
-    LOGWRITER_COPYTRUNCATE_HOLD_MS, and truncates app.log in place. The
-    writer's next append then lands at the new end of the file, offset 0.
+    period> in chunks, waits LOGWRITER_COPYTRUNCATE_HOLD_MS, and truncates
+    app.log in place. The writer's next append then lands at the new end of
+    the file, offset 0.
 
-    What the writer appends between the start of the copy and the truncation
-    is in the copy only if the copy reached it, and in app.log only until the
-    truncation, so a reader of app.log can lose it without being at fault:
-    those sequences are journalled as at risk. Everything appended before the
-    copy started stayed in app.log for at least the hold.
+    A paced writer starts its next period at the boundary, so it keeps
+    appending through its one O_APPEND descriptor between the chunks of the
+    copy, once the period's head pause is over, and through the hold. The
+    Java schedule writes each period at once, after the copy.
+
+    What the writer appends after the copy started is in the copy only if the
+    copy reached it, and in app.log only until the truncation, so a reader of
+    app.log that falls behind can lose it. Those sequences are journalled as
+    at risk: all of them, or with LOGWRITER_COPYTRUNCATE_AT_RISK_MS only those
+    written within that window before the truncation, since a reader that
+    polls app.log more often must have read the others. Everything appended
+    before the copy started stayed in app.log for at least the hold.
     """
 
     def __init__(self, writer, path, clock, periods):
@@ -567,8 +596,19 @@ class CopyTruncateFile:
 
     def append(self, event_ms, data):
         if self.fd is None:
-            self.fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)
+            self.fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | O_BINARY, 0o666)
         write_all(self.fd, data)
+
+    def wrote(self, event_ms, first):
+        """Notes when a write that starts at sequence first landed, for the
+        at-risk window of the rotation in progress."""
+        if self.job is not None:
+            self.job.writes.append((event_ms, first))
+
+    def period_open(self, now_ms):
+        """Whether the rotator has ended the period before now_ms, so the
+        writer may start the one now_ms falls in."""
+        return now_ms < self.next_rollover_ms
 
     def active_size(self):
         """The bytes of the current period: app.log also holds the previous
@@ -612,6 +652,8 @@ class CopyTruncateJob:
         self.source = None
         self.copy = None
         self.copied = False
+        # (event_ms, first sequence) of every write since the copy started.
+        self.writes = []
 
     def step(self, now_ms):
         if not self.copied:
@@ -629,8 +671,9 @@ class CopyTruncateJob:
 
         name = os.path.basename(self.target)
         at_risk = []
-        if self.writer.sequence > self.copy_start_sequence:
-            at_risk = [[self.copy_start_sequence + 1, self.writer.sequence]]
+        first = self.at_risk_from(now_ms)
+        if first is not None and first <= self.writer.sequence:
+            at_risk = [[first, self.writer.sequence]]
         self.writer.journal_period(self.stats, name, "copied", self.head, at_risk=at_risk)
         try:
             os.truncate(self.owner.path, 0)
@@ -640,6 +683,17 @@ class CopyTruncateJob:
         self.owner.job = None
         self.writer.retain(name)
         return True
+
+    def at_risk_from(self, truncate_ms):
+        """The first sequence the truncation at truncate_ms puts at risk, or
+        None."""
+        window_ms = self.writer.config.copytruncate_at_risk_ms
+        if window_ms is None:
+            return self.copy_start_sequence + 1
+        for event_ms, first in self.writes:
+            if event_ms >= truncate_ms - window_ms:
+                return first
+        return None
 
     def abort(self):
         """Nothing was truncated: the period is journalled without risk."""
@@ -732,6 +786,10 @@ class LogWriter:
         self.jobs = []
         self.rotated_names = collections.deque()
         self._servicing = False
+        # LOGWRITER_MAX_PERIODS: the periods started, and whether the writer
+        # has stopped starting them.
+        self.periods_started = 0
+        self.idle = False
         # Target-size schedule, like the Java writer.
         self.completed_period = ""
         self.completed_periods = 0
@@ -762,10 +820,27 @@ class LogWriter:
         self.console.log(self.clock.now_ms(), level, STATUS_LOGGER, message, thread)
 
     def tick(self):
+        if self.idle:
+            return
         if self.rate_bytes_per_sec > 0:
             self.write_paced()
         else:
             self.write_current_period()
+
+    def start_period(self):
+        """Counts a period the writer is about to start, unless it has started
+        LOGWRITER_MAX_PERIODS of them already: then it idles for good."""
+        if self.config.max_periods and self.periods_started >= self.config.max_periods:
+            if not self.idle:
+                self.idle = True
+                self.status(
+                    "INFO",
+                    f"writer_idle run_id={self.stream.run_id} periods={self.periods_started} "
+                    "reason=LOGWRITER_MAX_PERIODS; the files stay on the share and nothing more is written",
+                )
+            return False
+        self.periods_started += 1
+        return True
 
     # The rotator, the compressions, and the sleeps that run them.
 
@@ -774,8 +849,9 @@ class LogWriter:
 
     def service(self):
         """Runs the copytruncate rotator and the jobs that are due. Between
-        two steps of a job, a paced writer writes what it is due, so its rate
-        holds while a rotated file is copied or compressed."""
+        two steps of a job, a paced writer writes what it is due, and starts
+        its next period when the boundary passes, so its rate holds while a
+        rotated file is copied or compressed."""
         if self._servicing:
             return
         self._servicing = True
@@ -852,7 +928,7 @@ class LogWriter:
         )
         line = json.dumps(entry, separators=(",", ":")) + "\n"
         try:
-            fd = os.open(self.journal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o666)
+            fd = os.open(self.journal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | O_BINARY, 0o666)
             try:
                 write_all(fd, line.encode())
                 os.fsync(fd)
@@ -916,6 +992,9 @@ class LogWriter:
             print(f"AppRollingFile lost sequence {lost}: {error}", file=sys.stderr, flush=True)
             self.stats.failed(period, period_target, first, last)
             return False
+        wrote = getattr(self.file, "wrote", None)
+        if wrote is not None:
+            wrote(event_ms, first)
         self.stats.written(period, period_target, first, last, len(data))
         return True
 
@@ -925,7 +1004,7 @@ class LogWriter:
         if count > MAX_PADDING_BYTES:
             raise ValueError("padding must not exceed 512 bytes")
         # Files.write(path, bytes, APPEND): its own descriptor, no create.
-        fd = os.open(self.log_path, os.O_WRONLY | os.O_APPEND)
+        fd = os.open(self.log_path, os.O_WRONLY | os.O_APPEND | O_BINARY)
         try:
             write_all(fd, b"p" * count)
         finally:
@@ -941,6 +1020,8 @@ class LogWriter:
         if self.sequence == 0 and should_defer_initial_period(
             self.clock.now_ms(), self.periods, self.config.head_pause_ms, self.config.initial_fill_runway_ms
         ):
+            return
+        if not self.start_period():
             return
 
         period_target = self.targets[self.completed_periods % len(self.targets)]
@@ -984,26 +1065,43 @@ class LogWriter:
     # rate until the period ends.
 
     def write_paced(self):
-        now_ms = self.clock.now_ms()
+        if not self.start_paced_period(self.clock.now_ms()):
+            self.catch_up()
+
+    def start_paced_period(self, now_ms):
+        """Starts the period now_ms falls in with its head record, unless it
+        has started already. Returns whether this tick has nothing more to
+        write."""
         period = self.periods.name(now_ms)
-        if period != self.paced_period:
-            if self.sequence == 0 and should_defer_initial_period(
-                now_ms, self.periods, self.config.head_pause_ms, self.config.initial_fill_runway_ms
-            ):
-                return
-            self.paced_period = period
-            self.paced_records = 1
-            self.paced_fill_start_ms = now_ms + self.config.head_pause_ms
-            self.paced_fill_bytes = 0
-            self.write_record(period, "head", 1, self.paced_target)
-            return
-        self.catch_up()
+        if period == self.paced_period:
+            return False
+        if self.sequence == 0 and should_defer_initial_period(
+            now_ms, self.periods, self.config.head_pause_ms, self.config.initial_fill_runway_ms
+        ):
+            return True
+        if not self.start_period():
+            return True
+        self.paced_period = period
+        self.paced_records = 1
+        self.paced_fill_start_ms = now_ms + self.config.head_pause_ms
+        self.paced_fill_bytes = 0
+        self.write_record(period, "head", 1, self.paced_target)
+        return True
 
     def catch_up(self):
-        if self.rate_bytes_per_sec <= 0 or not self.paced_period:
+        if self.rate_bytes_per_sec <= 0 or not self.paced_period or self.idle:
             return
         now_ms = self.clock.now_ms()
-        if now_ms < self.paced_fill_start_ms or self.periods.name(now_ms) != self.paced_period:
+        if self.periods.name(now_ms) != self.paced_period:
+            # The period ended while a job runs, the copy of a copytruncate
+            # rotation for example: the next one starts on time, so the
+            # writer keeps appending through the job like an application
+            # while logrotate copies its file.
+            period_open = getattr(self.file, "period_open", None)
+            if period_open is None or period_open(now_ms):
+                self.start_paced_period(now_ms)
+            return
+        if now_ms < self.paced_fill_start_ms:
             return
         due = (now_ms - self.paced_fill_start_ms) * self.rate_bytes_per_sec // 1000 - self.paced_fill_bytes
         limit = MAX_CATCH_UP_MS * self.rate_bytes_per_sec // 1000
@@ -1114,7 +1212,8 @@ def crc64_main(args):
 
 
 def rotated_and_compressed(writer, rotations):
-    return lambda: writer.file.rotations >= rotations and not writer.jobs
+    # A writer that idles before it rotated that many files never will.
+    return lambda: (writer.file.rotations >= rotations or writer.idle) and not writer.jobs
 
 
 def selftest_main(args):

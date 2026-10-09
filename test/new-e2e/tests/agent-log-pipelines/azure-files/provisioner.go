@@ -32,7 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	azureresources "github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/aks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	azurekubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/kubernetes"
@@ -269,9 +271,9 @@ const (
 //
 // The markers need a renamed file that stays where it was renamed to, so they
 // depend on the rotation mode (markerDelaysFor): gzip deletes the rotated file
-// after gzipDelayMs and keeps only the surviving marker, and copytruncate and
-// delete-recreate leave no renamed file to append to, so their cells have no
-// marker at all.
+// after gzipDelayMs and keeps only the surviving marker, or none when a run
+// forces losses and compresses at once, and copytruncate and delete-recreate
+// leave no renamed file to append to, so their cells have no marker at all.
 const (
 	fileSurvivingMarkerDelayMs       = 1500
 	smbSurvivingMarkerDelayMs        = smbPollIntervalSeconds * 1000 / 2
@@ -305,16 +307,20 @@ type markerDelays struct {
 }
 
 // markerDelaysFor returns the marker ages calibrated for a reader's drain
-// window, for the markers the rotation mode leaves a file for.
-func markerDelaysFor(reader readerKind, mode rotationMode) markerDelays {
+// window, for the markers the writer's rotation leaves a file for.
+func markerDelaysFor(reader readerKind, w writerOptions) markerDelays {
 	earlyMs := fileSurvivingMarkerDelayMs
 	if reader == smbReader {
 		earlyMs = smbSurvivingMarkerDelayMs
 	}
-	switch mode {
+	switch w.mode {
 	case copyTruncateRotation, deleteRecreateRotation:
 		return markerDelays{}
 	case gzipRotation:
+		if w.gzipDelayMs() <= earlyMs {
+			// Compressed away before even the early marker's age.
+			return markerDelays{}
+		}
 		// The rotated file is gone long before the lost marker's age.
 		return markerDelays{earlyMs: earlyMs, earlyExpect: markerCollected}
 	}
@@ -457,6 +463,16 @@ const (
 	// quota while every drain and marker is long over.
 	minRetainedRotations = 6
 	retainedRotationsMs  = 120000
+	// pacedWriterMaxPeriods is how many periods a paced writer writes before
+	// it idles (LOGWRITER_MAX_PERIODS): the completedFiles a cell waits for,
+	// the period that rotates the last of them, and two to spare for a late
+	// start. A kept stack then stops writing, shipping and billing writes
+	// once the test is over, and keeps the files for investigation.
+	pacedWriterMaxPeriods = 7
+
+	// writerTickMs is the writers' fixed delay between two ticks
+	// (LOGWRITER_INTERVAL_MS, logwriter.interval-ms of the Java writer).
+	writerTickMs = 250
 
 	// deleteRecreatePauseMs is how long the closed app.log stays before the
 	// writer deletes it and creates the next one.
@@ -468,6 +484,14 @@ const (
 	// it is truncated: a record written before the copy started stayed in
 	// app.log for at least this long, longer than a file scan or an SMB poll.
 	copyTruncateHoldMs = 3000
+	// copyTruncateSMBAtRiskMs is how long before a truncation a record must
+	// have been written to be at risk for an SMB source
+	// (LOGWRITER_COPYTRUNCATE_AT_RISK_MS): one poll interval, and half of one
+	// for the scan to reach the file. Anything written earlier in the hold
+	// was in app.log for a whole poll, so the source must collect it. A file
+	// source reads through the mount's attribute cache, so every record of
+	// the hold stays at risk for it.
+	copyTruncateSMBAtRiskMs = smbPollIntervalSeconds*1000 + smbPollIntervalSeconds*1000/2
 
 	// shareQuotaGiB is the size of every cell's share. A paced writer's
 	// retained files, its active files and one file being rotated must fit
@@ -486,6 +510,28 @@ type writerOptions struct {
 	// streams is the number of app.log files, under svc-1 to svc-<N>. Zero
 	// writes one app.log at the root of the share.
 	streams int
+	// forceLoss removes the pause of a gzip or delete-recreate rotation, so
+	// the rotated file goes away before the source has read its end and the
+	// loss accounting has losses to check (AZURE_FILES_E2E_FORCE_LOSS).
+	forceLoss bool
+}
+
+// gzipDelayMs is how long a gzip rotation keeps the rotated file before it
+// compresses it away: none when the run forces losses.
+func (w writerOptions) gzipDelayMs() int {
+	if w.forceLoss {
+		return 0
+	}
+	return gzipDelayMs
+}
+
+// deletePauseMs is how long a delete-recreate rotation keeps the closed
+// app.log before it deletes it: none when the run forces losses.
+func (w writerOptions) deletePauseMs() int {
+	if w.forceLoss {
+		return 0
+	}
+	return deleteRecreatePauseMs
 }
 
 func defaultWriterOptions() writerOptions {
@@ -532,8 +578,13 @@ func parseWriterOptions(opts runOptions) (writerOptions, writerOptionsSet, error
 	return w, set, nil
 }
 
-// validate refuses a paced writer whose files would not fit in its share.
+// validate refuses a period out of range, which a scenario's or a cell's
+// default could give too, and a paced writer whose files would not fit in its
+// share.
 func (w writerOptions) validate() error {
+	if w.periodMs < minWriterPeriodMs || w.periodMs > maxWriterPeriodMs {
+		return fmt.Errorf("writer period %dms must be between %d and %d", w.periodMs, minWriterPeriodMs, maxWriterPeriodMs)
+	}
 	if !w.paced() {
 		return nil
 	}
@@ -661,10 +712,10 @@ func (w writerOptions) writerEnv() []envVar {
 			envVar{"LOGWRITER_COPYTRUNCATE_HOLD_MS", strconv.Itoa(copyTruncateHoldMs)})
 	case deleteRecreateRotation:
 		vars = append(vars, envVar{"LOGWRITER_ROTATION_MODE", string(w.mode)},
-			envVar{"LOGWRITER_DELETE_PAUSE_MS", strconv.Itoa(deleteRecreatePauseMs)})
+			envVar{"LOGWRITER_DELETE_PAUSE_MS", strconv.Itoa(w.deletePauseMs())})
 	case gzipRotation:
 		vars = append(vars, envVar{"LOGWRITER_ROTATION_MODE", string(w.mode)},
-			envVar{"LOGWRITER_GZIP_DELAY_MS", strconv.Itoa(gzipDelayMs)})
+			envVar{"LOGWRITER_GZIP_DELAY_MS", strconv.Itoa(w.gzipDelayMs())})
 	}
 	if w.periodMs != defaultWriterPeriodMs {
 		vars = append(vars, envVar{"LOGWRITER_PERIOD_MS", strconv.Itoa(w.periodMs)},
@@ -678,6 +729,7 @@ func (w writerOptions) writerEnv() []envVar {
 			// At these rates the records would flood the container log.
 			envVar{"LOGWRITER_CONSOLE_RECORDS", "false"},
 			envVar{"LOGWRITER_MAX_ROTATED_FILES", strconv.Itoa(w.retainedRotations())},
+			envVar{"LOGWRITER_MAX_PERIODS", strconv.Itoa(pacedWriterMaxPeriods)},
 		)
 	}
 	return append(vars, w.streamEnv()...)
@@ -697,14 +749,18 @@ func (w writerOptions) metadata() map[string]any {
 	case copyTruncateRotation:
 		metadata["copytruncate_hold_ms"] = copyTruncateHoldMs
 	case deleteRecreateRotation:
-		metadata["delete_pause_ms"] = deleteRecreatePauseMs
+		metadata["delete_pause_ms"] = w.deletePauseMs()
 	case gzipRotation:
-		metadata["gzip_delay_ms"] = gzipDelayMs
+		metadata["gzip_delay_ms"] = w.gzipDelayMs()
+	}
+	if w.forceLoss {
+		metadata["force_loss"] = true
 	}
 	if w.paced() {
 		metadata["buffer_bytes"] = pacedWriterBufferBytes
 		metadata["payload_bytes"] = pacedWriterPayloadBytes
 		metadata["max_rotated_files"] = w.retainedRotations()
+		metadata["max_periods"] = pacedWriterMaxPeriods
 	}
 	return metadata
 }
@@ -726,11 +782,24 @@ type fingerprintConfig struct {
 	maxBytes int
 }
 
+// fileServerKind is what serves a cell's share.
+type fileServerKind string
+
+const (
+	// azureFilesServer is an Azure Files share of the cell's own storage
+	// account, written by a writer pod through its CIFS mount.
+	azureFilesServer fileServerKind = "azure-files"
+	// windowsFileServer is a share of the run's Windows Server VM, written
+	// by a writer that runs on the VM itself (see windows.go).
+	windowsFileServer fileServerKind = "windows"
+)
+
 // cell is one independent measurement. Each cell has its own storage account,
 // share and writer, so no two readers ever see the same files.
 type cell struct {
 	name        string
 	reader      readerKind
+	server      fileServerKind
 	service     string
 	fingerprint fingerprintConfig
 	// mountOptions applies to the writer's mount, and to the Agent's mount
@@ -760,6 +829,14 @@ type cell struct {
 	// cell's Secret holds: 0 for key1, which the writer mounts with, and 1
 	// for key2 in the key-rotation scenario.
 	agentKeyIndex int
+	// serverHost is the private IP address of the Windows file server, which
+	// the test learns from the storage pass, for a cell it serves.
+	serverHost string
+}
+
+// onWindows reports whether the Windows file server serves the cell's share.
+func (c cell) onWindows() bool {
+	return c.server == windowsFileServer
 }
 
 // lossAccounted reports whether the cell's records may only go missing when
@@ -778,8 +855,21 @@ func (c cell) secretName() string {
 	return storageSecretPrefix + "-" + c.name
 }
 
+// host is the SMB server of the cell's share.
 func (c cell) host() string {
+	if c.onWindows() {
+		return c.serverHost
+	}
 	return c.accountName + ".file.core.windows.net"
+}
+
+// smbUsername is the user the SMB source authenticates as: the storage
+// account for Azure Files, a local user of the Windows file server.
+func (c cell) smbUsername() string {
+	if c.onWindows() {
+		return windowsReaderUser
+	}
+	return c.accountName
 }
 
 // agentKeyVolumeName is the Agent pod volume that holds an SMB cell's key.
@@ -843,8 +933,8 @@ const (
 	logsBatchWaitSeconds      = 5
 )
 
-// scenarioKind names a disruption of the Agent, which runs as its own test
-// method on the smb cell (see scenarios_test.go).
+// scenarioKind names a scenario, which runs as its own test method on the smb
+// cell (see scenarios_test.go): a disruption of the Agent, or several Agents.
 type scenarioKind string
 
 const (
@@ -852,12 +942,35 @@ const (
 	agentRestartScenario scenarioKind = "agent-restart"
 	keyRotationScenario  scenarioKind = "key-rotation"
 	networkDropScenario  scenarioKind = "network-drop"
+	// multiNodeScenario runs the Agent DaemonSet on several AKS nodes, all
+	// with the same smb source.
+	multiNodeScenario scenarioKind = "multi-node"
 )
 
-var knownScenarios = []scenarioKind{agentRestartScenario, keyRotationScenario, networkDropScenario}
+var (
+	// disruptionScenarios disrupt the Agent while the smb cell's writer runs.
+	disruptionScenarios = []scenarioKind{agentRestartScenario, keyRotationScenario, networkDropScenario}
+	knownScenarios      = append(slices.Clone(disruptionScenarios), multiNodeScenario)
+)
 
-// scenarioCellName is the cell every scenario disrupts.
+// disrupts reports whether the scenario disrupts the Agent.
+func (k scenarioKind) disrupts() bool {
+	return slices.Contains(disruptionScenarios, k)
+}
+
+// scenarioCellName is the cell every scenario runs on.
 const scenarioCellName = "smb"
+
+// AKS node counts. The multi-node scenario runs one Agent per node, so every
+// record of the smb cell is collected once per node: the SMB source has no
+// single-reader election, each Agent with the source reads the whole share.
+// Any other cell would be collected as many times, so only that scenario may
+// run more than one node.
+const (
+	defaultNodes          = 1
+	defaultMultiNodeNodes = 2
+	maxNodes              = 5
+)
 
 // Scenario timings. Each scenario disrupts the second period of the smb
 // cell's writer, the first full one, and the disruption has to be over before
@@ -894,12 +1007,14 @@ const (
 	// outlast an operation timeout, so the client loses its session.
 	defaultNetworkDropSeconds  = 90
 	minNetworkDropSeconds      = smbOpTimeoutSeconds + 1
-	maxNetworkDropSeconds      = 600
 	networkDropPeriodMs        = 180000
 	networkDropRateBytesPerSec = 10000
 	// The period must hold the drop, the client's longest backoff after it,
 	// and a margin, so that only one rotation happens during the outage.
 	networkDropMarginSeconds = smbMaxBackoffSeconds + 60
+	// maxNetworkDropSeconds is the longest drop whose period, with that
+	// margin, is still a writer period the suite accepts: 510s.
+	maxNetworkDropSeconds = maxWriterPeriodMs/1000 - networkDropMarginSeconds
 )
 
 // scenarioOptions are the scenario of a run.
@@ -955,16 +1070,17 @@ func (s scenarioOptions) writerDefaults() writerDefaults {
 	return writerDefaults{}
 }
 
-// validateWriter refuses writer options the scenario cannot judge: it reads
-// one app.log rotated by rename, written at a rate, with a period that holds
-// the disruption.
+// validateWriter refuses writer options the scenario cannot judge. Every
+// scenario rotates by rename. A disruption reads one app.log, written at a
+// rate, with a period that holds the disruption.
 func (s scenarioOptions) validateWriter(w writerOptions) error {
-	if s.kind == noScenario {
-		return nil
-	}
 	switch {
+	case s.kind == noScenario:
+		return nil
 	case w.mode != renameRotation:
 		return fmt.Errorf("the %s scenario rotates by rename; unset the rotation mode", s.kind)
+	case !s.kind.disrupts():
+		return nil
 	case w.streams != 0:
 		return fmt.Errorf("the %s scenario reads one app.log; unset the writer streams", s.kind)
 	case !w.paced():
@@ -983,6 +1099,8 @@ func (s scenarioOptions) validateWriter(w writerOptions) error {
 // cells, whose CIFS mounts the kernel runs in the node's namespace, are not
 // affected and keep their usual assertions. Other SMB cells are refused:
 // several storage accounts can share the blocked endpoint's IP address.
+// multi-node runs an Agent per node, which would read every other cell once
+// per node too.
 func (s scenarioOptions) checkCells(cells []cell) error {
 	if s.kind == noScenario {
 		return nil
@@ -995,6 +1113,8 @@ func (s scenarioOptions) checkCells(cells []cell) error {
 		case s.kind == networkDropScenario && c.reader == fileReader:
 		case s.kind == networkDropScenario:
 			return fmt.Errorf("the %s scenario cannot run with cell %s: SMB cells may share the blocked storage endpoint's IP address", s.kind, c.name)
+		case s.kind == multiNodeScenario:
+			return fmt.Errorf("the %s scenario runs an Agent on every node, each collecting every cell, so it runs with the %s cell alone, not with %s", s.kind, scenarioCellName, c.name)
 		default:
 			return fmt.Errorf("the %s scenario disturbs every source of the Agent, so it runs with the %s cell alone, not with %s", s.kind, scenarioCellName, c.name)
 		}
@@ -1005,9 +1125,14 @@ func (s scenarioOptions) checkCells(cells []cell) error {
 	return nil
 }
 
-// stackNamePattern keeps a reused stack name valid as a Pulumi stack name once
-// the framework prefixes it with the user name.
-var stackNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`)
+var (
+	// stackNamePattern keeps a reused stack name valid as a Pulumi stack name
+	// once the framework prefixes it with the user name.
+	stackNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`)
+	// nodeSuffixPattern is the suffix the suite gives the stack of a
+	// multi-node run, which a reused stack name must not carry itself.
+	nodeSuffixPattern = regexp.MustCompile(`-n[0-9]+$`)
+)
 
 // runOptions are the inputs of one run, read from the environment by
 // TestAzureFiles.
@@ -1027,12 +1152,21 @@ type runOptions struct {
 	periodMs        string
 	rateBytesPerSec string
 	streams         string
-	// calibrate records the marker outcomes instead of asserting them.
+	// calibrate records the outcome of each smb-late-<age> cell's probe
+	// marker instead of asserting it.
 	calibrate bool
-	// scenario names a disruption to run on the smb cell, and
+	// forceLoss makes the gzip and delete-recreate rotations of the
+	// loss-accounted cells remove the rotated file at once.
+	forceLoss bool
+	// scenario names a scenario to run on the smb cell, and
 	// networkDropSeconds how long network-drop lasts; empty keeps 90s.
 	scenario           string
 	networkDropSeconds string
+	// nodes is the AKS node count; empty keeps 1, or 2 for multi-node.
+	nodes string
+	// windowsEnabled provisions the Windows file server of the smb-windows
+	// cell.
+	windowsEnabled bool
 }
 
 type runSpec struct {
@@ -1040,6 +1174,8 @@ type runSpec struct {
 	stackName   string
 	writerImage string
 	profile     agentProfile
+	// nodes is the number of AKS nodes, and so of Agent pods.
+	nodes int
 	// writer is the run's writer options. Each cell's are in cell.writer.
 	writer    writerOptions
 	calibrate bool
@@ -1060,11 +1196,15 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 	if err != nil {
 		return runSpec{}, err
 	}
-	stackName, err := resolveStackName(opts.stackName, opts.runID)
+	scenario, err := parseScenario(opts.scenario, opts.networkDropSeconds)
 	if err != nil {
 		return runSpec{}, err
 	}
-	scenario, err := parseScenario(opts.scenario, opts.networkDropSeconds)
+	nodes, err := parseNodes(opts.nodes, scenario)
+	if err != nil {
+		return runSpec{}, err
+	}
+	stackName, err := resolveStackName(opts.stackName, opts.runID, nodes)
 	if err != nil {
 		return runSpec{}, err
 	}
@@ -1101,19 +1241,35 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		stackName:   stackName,
 		writerImage: opts.writerImage,
 		profile:     profile,
+		nodes:       nodes,
 		writer:      writer,
 		calibrate:   opts.calibrate,
 		scenario:    scenario,
 	}
+	probed, forced := false, false
 	for _, c := range selected {
 		if c.writer, err = c.writerOptions(writer, set); err != nil {
 			return runSpec{}, err
+		}
+		if opts.forceLoss && c.lossAccounted() {
+			// The Java schedule fills each file right after its head
+			// pause, so nothing is left to lose when the file goes away.
+			if !c.writer.paced() {
+				return runSpec{}, fmt.Errorf("cell %s: forced losses need a paced writer, whose file still grows when it rotates; "+
+					"set AZURE_FILES_E2E_RATE_BYTES_PER_SEC, for example to 200000 with AZURE_FILES_E2E_PERIOD_MS=10000", c.name)
+			}
+			c.writer.forceLoss = true
+			forced = true
+		}
+		probed = probed || c.probe != nil
+		if c.onWindows() && !c.writer.isDefault() {
+			return runSpec{}, fmt.Errorf("cell %s: %w", c.name, errWindowsWriterOptions)
 		}
 		if opts.writerImage != "" && !c.writer.isDefault() {
 			return runSpec{}, fmt.Errorf("cell %s: %w", c.name, errJavaWriterOptions)
 		}
 		switch {
-		case scenario.kind != noScenario && c.name == scenarioCellName:
+		case scenario.kind.disrupts() && c.name == scenarioCellName:
 			// A disruption delays the drains past every marker age, so the
 			// markers would say nothing about the drain window.
 			c.markers = markerDelays{}
@@ -1123,15 +1279,68 @@ func newRunSpec(opts runOptions) (runSpec, error) {
 		case c.probe != nil:
 			c.markers = markerDelays{earlyMs: c.probe.ageMs, earlyExpect: c.probe.expect, lateMs: postRotationMarkerLostDelayMs}
 		default:
-			c.markers = markerDelaysFor(c.reader, c.writer.mode)
+			c.markers = markerDelaysFor(c.reader, c.writer)
 		}
-		if c.reader == smbReader && !opts.smbEnabled {
+		// An SMB cell needs an Agent built with the SMB source, and the
+		// smb-windows cell a Windows VM, which costs more than a share.
+		if (c.reader == smbReader && !opts.smbEnabled) || (c.onWindows() && !opts.windowsEnabled) {
 			spec.gatedCells = append(spec.gatedCells, c)
 			continue
 		}
 		spec.cells = append(spec.cells, c)
 	}
+	// Calibration only relaxes the probe marker of the smb-late-<age> cells.
+	// Left set for any other run, it would make that run look calibrated.
+	if opts.calibrate && !probed {
+		return runSpec{}, errors.New("AZURE_FILES_E2E_CALIBRATE=1 only records the probe marker of the smb-late-<age> cells; " +
+			"select one of them in AZURE_FILES_E2E_CELLS, or unset it")
+	}
+	if opts.forceLoss && !forced {
+		return runSpec{}, errors.New("AZURE_FILES_E2E_FORCE_LOSS=1 only applies to the loss-accounted cells, smb-gzip and smb-delete-recreate; " +
+			"select one of them in AZURE_FILES_E2E_CELLS, or unset it")
+	}
 	return spec, nil
+}
+
+// parseNodes reads the AKS node count. More than one node runs as many
+// Agents, which each collect every record, so only the multi-node scenario,
+// which expects that, may ask for them, and it needs two at least.
+func parseNodes(value string, scenario scenarioOptions) (int, error) {
+	fallback := defaultNodes
+	if scenario.kind == multiNodeScenario {
+		fallback = defaultMultiNodeNodes
+	}
+	nodes, err := parseBoundedInt("node count", value, fallback, 1, maxNodes)
+	switch {
+	case err != nil:
+		return 0, err
+	case scenario.kind == multiNodeScenario && nodes < 2:
+		return 0, fmt.Errorf("the %s scenario needs at least 2 nodes, not %d", multiNodeScenario, nodes)
+	case scenario.kind != multiNodeScenario && nodes > 1:
+		return 0, fmt.Errorf("%d nodes run %d Agents, which would each collect every record of every cell; only the %s scenario runs more than one node", nodes, nodes, multiNodeScenario)
+	}
+	return nodes, nil
+}
+
+// windowsCell returns the provisioned cell that the Windows file server
+// serves, if the run has one.
+func (spec runSpec) windowsCell() (cell, bool) {
+	for _, c := range spec.cells {
+		if c.onWindows() {
+			return c, true
+		}
+	}
+	return cell{}, false
+}
+
+// setWindowsServerHost gives the Windows file server's address to the cells
+// it serves, once the storage pass has created it.
+func (spec *runSpec) setWindowsServerHost(host string) {
+	for i := range spec.cells {
+		if spec.cells[i].onWindows() {
+			spec.cells[i].serverHost = host
+		}
+	}
 }
 
 // writerOptions applies the cell's fixed rotation mode and its defaults to the
@@ -1253,7 +1462,20 @@ func allCells(stackName, runID string) []cell {
 	}
 	all = append(all, globLoad)
 
+	// The SMB source against a Windows Server share that requires signing,
+	// rather than Azure Files. It has no storage account: its share is on the
+	// run's Windows VM (see windows.go).
+	all = append(all, cell{
+		name:      windowsCellName,
+		reader:    smbReader,
+		server:    windowsFileServer,
+		shareName: "smbwin-" + runDigest[:12],
+	})
+
 	for i := range all {
+		if all[i].server == "" {
+			all[i].server = azureFilesServer
+		}
 		all[i].service = "azure-files-" + all[i].name
 		all[i].volumeName = "azure-files-" + all[i].name
 		all[i].writerName = "writer-" + all[i].name
@@ -1262,16 +1484,26 @@ func allCells(stackName, runID string) []cell {
 }
 
 // resolveStackName returns the reused stack name when one is given, and a
-// stack of this run's own otherwise.
-func resolveStackName(override, runID string) (string, error) {
+// stack of this run's own otherwise. A run with more than one node gets a
+// stack of its own, with the node count as a suffix, so that it never resizes
+// the cluster of a reused one-node stack: AZURE_FILES_E2E_STACK=dev runs on
+// dev with one node and on dev-n2 with two.
+func resolveStackName(override, runID string, nodes int) (string, error) {
+	suffix := ""
+	if nodes > 1 {
+		suffix = "-n" + strconv.Itoa(nodes)
+	}
 	override = strings.TrimSpace(override)
 	if override == "" {
-		return "azure-files-" + hexDigest(runID)[:8], nil
+		return "azure-files-" + hexDigest(runID)[:8] + suffix, nil
 	}
 	if !stackNamePattern.MatchString(override) {
 		return "", fmt.Errorf("stack name %q must be 1 to 40 lowercase letters, digits or inner hyphens", override)
 	}
-	return override, nil
+	if nodeSuffixPattern.MatchString(override) {
+		return "", fmt.Errorf("stack name %q ends like the stack of a multi-node run, whose -n<nodes> suffix the suite adds itself; name the one-node stack and set the node count instead", override)
+	}
+	return override + suffix, nil
 }
 
 func hexDigest(value string) string {
@@ -1319,6 +1551,17 @@ func filterCells(all []cell, cellFilter string) ([]cell, error) {
 	return selected, nil
 }
 
+// forceLoss reports whether the run forces the losses of its loss-accounted
+// cells (AZURE_FILES_E2E_FORCE_LOSS).
+func (spec runSpec) forceLoss() bool {
+	for _, c := range spec.cells {
+		if c.writer.forceLoss {
+			return true
+		}
+	}
+	return false
+}
+
 func (spec runSpec) hasReader(reader readerKind) bool {
 	for _, c := range spec.cells {
 		if c.reader == reader {
@@ -1347,13 +1590,29 @@ func fakeintakeOptions() azurekubernetes.ProvisionerOption {
 	)
 }
 
+// azureFilesEnv is the suite's environment: the AKS cluster with its Agent
+// and Fakeintake, and the Windows file server of the smb-windows cell, a VM
+// on the cluster's subnet.
+type azureFilesEnv struct {
+	environments.Kubernetes
+	// WindowsServer is nil unless the run provisions the smb-windows cell.
+	WindowsServer *components.RemoteHost
+}
+
+const (
+	provisionerName = "azurefiles"
+	// provisionerID is the ID azurekubernetes.AKSProvisioner gave this
+	// suite's provisioner before it needed an environment of its own. Both
+	// passes must use the same ID: UpdateEnv destroys the stack of a
+	// provisioner whose ID is not in the new set.
+	provisionerID = "azure-aks" + provisionerName
+)
+
 // storageProvisioner creates AKS and the Azure Files resources without an
 // Agent. The second UpdateEnv pass installs the Agent only after the CSI
 // secrets and shares already exist on the stack.
-func (spec runSpec) storageProvisioner() provisioners.TypedProvisioner[environments.Kubernetes] {
-	return azurekubernetes.AKSProvisioner(
-		azurekubernetes.WithName("azurefiles"),
-		fakeintakeOptions(),
+func (spec runSpec) storageProvisioner() provisioners.TypedProvisioner[azureFilesEnv] {
+	return spec.provisioner(
 		// Called without arguments, this sets the Agent options to nil, which
 		// makes the provisioner skip the Agent. Its default, an empty non-nil
 		// list, would install one.
@@ -1362,10 +1621,8 @@ func (spec runSpec) storageProvisioner() provisioners.TypedProvisioner[environme
 	)
 }
 
-func (spec runSpec) agentProvisioner() provisioners.TypedProvisioner[environments.Kubernetes] {
-	return azurekubernetes.AKSProvisioner(
-		azurekubernetes.WithName("azurefiles"),
-		fakeintakeOptions(),
+func (spec runSpec) agentProvisioner() provisioners.TypedProvisioner[azureFilesEnv] {
+	return spec.provisioner(
 		azurekubernetes.WithAgentOptions(
 			kubernetesagentparams.WithHelmValues(spec.agentHelmValues()),
 			kubernetesagentparams.WithoutLogsContainerCollectAll(),
@@ -1373,6 +1630,40 @@ func (spec runSpec) agentProvisioner() provisioners.TypedProvisioner[environment
 		azurekubernetes.WithAgentDependentWorkloadApp(spec.writerWorkload),
 		azurekubernetes.WithWorkloadApp(spec.storageWorkload),
 	)
+}
+
+// aksOptions are the provisioner options both passes share. They must be
+// identical in both: the passes update one stack, and any difference would
+// replace the cluster or the Fakeintake VM between them.
+func (spec runSpec) aksOptions() []azurekubernetes.ProvisionerOption {
+	return []azurekubernetes.ProvisionerOption{
+		azurekubernetes.WithName(provisionerName),
+		fakeintakeOptions(),
+		azurekubernetes.WithAKSOptions(aks.WithNodeCount(spec.nodes)),
+	}
+}
+
+// provisioner runs the AKS provisioner in an Azure environment of its own, in
+// which it also creates the Windows file server when the run has the
+// smb-windows cell, on the same subnet as the AKS nodes and the Fakeintake.
+func (spec runSpec) provisioner(opts ...azurekubernetes.ProvisionerOption) provisioners.TypedProvisioner[azureFilesEnv] {
+	return provisioners.NewTypedPulumiProvisioner(provisionerID, func(ctx *pulumi.Context, env *azureFilesEnv) error {
+		azureEnv, err := azureresources.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		if _, ok := spec.windowsCell(); ok {
+			if err := newWindowsServer(azureEnv, env); err != nil {
+				return err
+			}
+		} else {
+			// The suite creates every component of the environment, so one
+			// this run does not provision is set to nil.
+			env.WindowsServer = nil
+		}
+		params := azurekubernetes.GetProvisionerParams(append(spec.aksOptions(), opts...)...)
+		return azurekubernetes.AKSRunWithEnv(ctx, azureEnv, &env.Kubernetes, params)
+	}, nil)
 }
 
 type azureStorageAccount struct {
@@ -1450,6 +1741,14 @@ func (spec runSpec) storageWorkload(env config.Env, kubeProvider *kubernetes.Pro
 	accountIDs := pulumi.StringMap{}
 	var accounts []pulumi.Resource
 	for _, c := range spec.cells {
+		if c.onWindows() {
+			// No storage account: the share is on the Windows VM, and the
+			// Secrets hold the password of its local reader account.
+			if err := newWindowsReaderSecrets(azureEnv, workload, c, kubeOpts, agentSecretOpts); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		account := &azureStorageAccount{}
 		err := ctx.RegisterResource("azure-native:storage:StorageAccount", c.accountName, pulumi.Map{
 			"accountName":       pulumi.String(c.accountName),
@@ -1625,6 +1924,10 @@ func (spec runSpec) writerWorkload(
 		kubeOpts = append(kubeOpts, utils.PulumiDependsOn(configMap))
 	}
 	for _, c := range spec.cells {
+		if c.onWindows() {
+			// Its writer runs on the Windows VM, started by the test.
+			continue
+		}
 		if _, err := spec.newWriterDeployment(env, c, runtime, kubeOpts); err != nil {
 			return nil, err
 		}
@@ -1671,7 +1974,22 @@ func (spec runSpec) writerEnv(c cell) []envVar {
 		{"LOGWRITER_MAX_RECORDS_PER_PERIOD", "5000"},
 		{"TZ", "UTC"},
 	}
-	return append(vars, c.writer.writerEnv()...)
+	vars = append(vars, c.writer.writerEnv()...)
+	if atRisk := c.copyTruncateAtRiskMs(); c.writer.mode == copyTruncateRotation && atRisk < copyTruncateHoldMs {
+		vars = append(vars, envVar{"LOGWRITER_COPYTRUNCATE_AT_RISK_MS", strconv.Itoa(atRisk)})
+	}
+	return vars
+}
+
+// copyTruncateAtRiskMs is how long before a copytruncate's truncation a record
+// must have been written for the cell's reader to be allowed to lose it: the
+// whole hold for a file source, which reads through the mount's attribute
+// cache, and copyTruncateSMBAtRiskMs for an SMB source, which polls app.log.
+func (c cell) copyTruncateAtRiskMs() int {
+	if c.reader == smbReader {
+		return copyTruncateSMBAtRiskMs
+	}
+	return copyTruncateHoldMs
 }
 
 func toEnvVarArray(vars []envVar) corev1.EnvVarArray {
@@ -1914,7 +2232,7 @@ func (spec runSpec) agentHelmValues() string {
           username: %s
           password: %q
           poll_interval: %d
-`, yamlPattern(pattern), c.service, c.host(), c.shareName, c.accountName, smbPasswordHandle(c), smbPollIntervalSeconds)
+`, yamlPattern(pattern), c.service, c.host(), c.shareName, c.smbUsername(), smbPasswordHandle(c), smbPollIntervalSeconds)
 			// The chart mounts agents.volumeMounts into every container of
 			// the Agent pod; only the core Agent resolves the handle. The
 			// Agent runs as root, so 0400 (256) still lets it read the key.
