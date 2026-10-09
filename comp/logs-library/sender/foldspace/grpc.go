@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,14 +25,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// GRPCTransport dials one ClientConn per sender and opens StatefulStream
-// generations on that connection.
+// GRPCTransport dials one ClientConn per sender and opens stream generations
+// on that connection, each on the destination's StreamMethod.
 type GRPCTransport struct {
 	mu        sync.Mutex
 	specs     []SenderSpec
 	conns     []*grpc.ClientConn
 	state     int
 	enc       string
+	method    string
 	keepalive keepalive.ClientParameters
 }
 
@@ -49,11 +51,16 @@ func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
 	if dest.Core.Compression == Zstd {
 		enc = "zstd"
 	}
+	method := dest.StreamMethod
+	if method == "" {
+		method = statefulStreamFullMethod
+	}
 	return &GRPCTransport{
-		specs: dest.Senders,
-		conns: make([]*grpc.ClientConn, len(dest.Senders)),
-		state: dest.StateRequestBytes,
-		enc:   enc,
+		specs:  dest.Senders,
+		conns:  make([]*grpc.ClientConn, len(dest.Senders)),
+		state:  dest.StateRequestBytes,
+		enc:    enc,
+		method: method,
 		// Pings only while a stream is open: servers reject stream-less pings by
 		// default, and between streams there is nothing to detect a stall in.
 		keepalive: keepalive.ClientParameters{
@@ -63,7 +70,7 @@ func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
 	}
 }
 
-// OpenStream dials if needed and starts a StatefulStream, giving up when ctx
+// OpenStream dials if needed and starts a stream, giving up when ctx
 // ends. NewStream waits under the stream's own context for the connection to
 // become ready, which an intake that accepts TCP and never sends its HTTP/2
 // preface leaves pending, so ctx is bound to that context only for the open.
@@ -81,10 +88,10 @@ func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 	streamCtx, cancel := context.WithCancel(metadata.NewOutgoingContext(context.Background(), md))
 	stop := context.AfterFunc(ctx, cancel)
 	clientStream, err := conn.NewStream(streamCtx, &grpc.StreamDesc{
-		StreamName:    statefulStreamName,
+		StreamName:    path.Base(t.method),
 		ServerStreams: true,
 		ClientStreams: true,
-	}, statefulStreamFullMethod, grpc.ForceCodec(statefulCodec{}))
+	}, t.method, grpc.ForceCodec(statefulCodec{}))
 	if !stop() {
 		cancel()
 		return nil, fmt.Errorf("open stream: %w", ctx.Err())
