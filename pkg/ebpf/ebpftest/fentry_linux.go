@@ -8,7 +8,10 @@
 package ebpftest
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/features"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,5 +32,32 @@ func supportsFentry() bool {
 		log.Warnf("excluding fentry build mode: %v", err)
 		return false
 	}
+	if isRHEL8() {
+		log.Warn("excluding fentry build mode: RHEL 8 based distributions backport fentry support into " +
+			"their 4.18 kernels, but gcc renames some network tracer attach targets as IPA optimization " +
+			"clones (e.g. udp_send_skb -> udp_send_skb.isra.NN) which are absent from kernel BTF, " +
+			"so the fentry tracers cannot load")
+		return false
+	}
 	return true
+}
+
+// isRHEL8 reports whether the host runs a RHEL 8 based distribution (RHEL,
+// CentOS, Rocky, AlmaLinux, ...). The runtime probe above succeeds on those
+// systems because their 4.18 kernels backport fentry support together with
+// native kernel BTF, but several of the network tracer's fentry attach targets
+// (udp_send_skb, udp_v6_send_skb) are compiled as gcc IPA optimization clones
+// (e.g. udp_send_skb.isra.52) and therefore have no BTF entries, so fentry
+// tracers cannot attach to them.
+func isRHEL8() bool {
+	family, err := kernel.Family()
+	if err != nil || family != "rhel" {
+		return false
+	}
+	version, err := kernel.PlatformVersion()
+	if err != nil {
+		return false
+	}
+	major, _, _ := strings.Cut(version, ".")
+	return major == "8"
 }
