@@ -28,8 +28,7 @@ const (
 )
 
 // credential is one entry of the credential file. The yaml names match
-// pkg/snmp.Authentication. ID is the join key an RC instance references, Name
-// is a human label.
+// pkg/snmp.Authentication, and ID is the join key an RC instance references.
 type credential struct {
 	ID              string `yaml:"id"`
 	Name            string `yaml:"name"`
@@ -65,8 +64,7 @@ func (s *credentialStore) path() string {
 }
 
 // load returns the credentials indexed by id, re-reading the file on every
-// call. An absent file is an empty set. An entry with no id is skipped and the
-// first of two entries sharing an id wins.
+// call. An absent file is an empty set.
 func (s *credentialStore) load() (map[string]credential, error) {
 	doc, err := readCredentialsFile(s.path())
 	if err != nil {
@@ -107,9 +105,8 @@ func readCredentialsFile(path string) (credentialsDocument, error) {
 	return doc, nil
 }
 
-// validate reports why a credential cannot produce a usable check instance,
-// through the helpers the snmp check itself uses. No credential value ever
-// reaches the returned error.
+// validate reports why a credential cannot produce a usable check instance.
+// No credential value ever reaches the returned error.
 func validate(c credential) error {
 	switch c.SNMPVersion {
 	case "1", "2c":

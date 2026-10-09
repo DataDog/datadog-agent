@@ -142,8 +142,7 @@ func renderInitConfig(ic initConfig, sharedPing *pingOptions) (integration.Data,
 }
 
 // renderInstance joins a document instance with its resolved credential into
-// one check instance. ping carries the device's ping options when the
-// document's ping section lists it, and is nil otherwise.
+// one check instance. A nil ping leaves ping off for the device.
 func renderInstance(in documentInstance, c credential, ping *pingOptions) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInstance{
 		IPAddress:             in.IPAddress,
@@ -183,8 +182,7 @@ func renderInstance(in documentInstance, c credential, ping *pingOptions) (integ
 }
 
 // renderSharedPing turns the ping section's init_config into the check's ping
-// block. It carries no enabled flag: only the devices the section lists are
-// pinged, and each one enables ping on its own instance.
+// block, with no enabled flag.
 func renderSharedPing(p *pingOptions) *checkPingBlock {
 	if p == nil {
 		return nil
@@ -197,8 +195,7 @@ func renderSharedPing(p *pingOptions) *checkPingBlock {
 }
 
 // renderDevicePing turns one device's ping options into the check's ping
-// block, enabling ping on it. A nil p means the document does not ping the
-// device, which leaves the check's own default of disabled.
+// block, enabling ping on it.
 func renderDevicePing(p *pingOptions) *checkPingBlock {
 	if p == nil {
 		return nil
