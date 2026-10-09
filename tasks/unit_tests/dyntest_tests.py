@@ -28,7 +28,8 @@ class TestEvaluateIndex(unittest.TestCase):
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False, ignore_sha_mismatch=True)
         self.assertFalse(executor.call_args.kwargs["require_pipeline_commit"])
         # The shared evaluator is constructed exactly like for coverage: the
-        # Jev executor plugs in through the standard interface only
+        # Jev executor plugs in through the standard interface only (the
+        # allow-failure job filtering is the evaluator's own, not wired here)
         options = evaluator.call_args.kwargs
         self.assertNotIn("unreliable_jobs", options)
         self.assertNotIn("test_env", options)
