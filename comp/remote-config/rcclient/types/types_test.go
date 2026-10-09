@@ -6,7 +6,6 @@
 package types
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -18,34 +17,21 @@ import (
 
 func TestParseConfigAgentTask(t *testing.T) {
 	t.Run("string args", func(t *testing.T) {
-		task, err := ParseConfigAgentTask([]byte(`{"task_type":"flare","uuid":"a_uuid","args":{"case_id":"123","user_handle":"a@b.c"}}`), state.Metadata{})
+		task, err := ParseConfigAgentTask([]byte(`{"task_type":"trigger_payloads","uuid":"a_uuid","args":{"payloads":"inventory-agent,agent-health"}}`), state.Metadata{})
 		require.NoError(t, err)
-		assert.Equal(t, "flare", task.Config.TaskType)
+		assert.Equal(t, "trigger_payloads", task.Config.TaskType)
 		assert.Equal(t, "a_uuid", task.Config.UUID)
-		assert.Equal(t, map[string]string{"case_id": "123", "user_handle": "a@b.c"}, task.Config.TaskArgs)
-		assert.Len(t, task.Config.RawTaskArgs, 2)
-	})
-
-	t.Run("mixed args", func(t *testing.T) {
-		task, err := ParseConfigAgentTask([]byte(`{"task_type":"trigger_payloads","uuid":"a_uuid","args":{"source":"fleet","payloads":["agent-health"],"nested":{"a":1}}}`), state.Metadata{})
-		require.NoError(t, err)
-		assert.Equal(t, map[string]string{"source": "fleet"}, task.Config.TaskArgs)
-
-		var payloads []string
-		require.NoError(t, json.Unmarshal(task.Config.RawTaskArgs["payloads"], &payloads))
-		assert.Equal(t, []string{"agent-health"}, payloads)
-		assert.JSONEq(t, `{"a":1}`, string(task.Config.RawTaskArgs["nested"]))
+		assert.Equal(t, map[string]string{"payloads": "inventory-agent,agent-health"}, task.Config.TaskArgs)
 	})
 
 	t.Run("no args", func(t *testing.T) {
 		task, err := ParseConfigAgentTask([]byte(`{"task_type":"trigger_payloads","uuid":"a_uuid"}`), state.Metadata{})
 		require.NoError(t, err)
 		assert.Nil(t, task.Config.TaskArgs)
-		assert.Nil(t, task.Config.RawTaskArgs)
 	})
 
-	t.Run("invalid", func(t *testing.T) {
-		_, err := ParseConfigAgentTask([]byte(`{"task_type":1}`), state.Metadata{})
+	t.Run("non-string arg", func(t *testing.T) {
+		_, err := ParseConfigAgentTask([]byte(`{"task_type":"trigger_payloads","uuid":"a_uuid","args":{"payloads":["agent-health"]}}`), state.Metadata{})
 		assert.Error(t, err)
 	})
 }
