@@ -58,27 +58,36 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 			}
 		}
 
+		// Truncate events too large for any bundle so they are exported instead of dropped.
+		if truncatedEvent, truncated := truncateOversizedEvent(event); truncated {
+			truncatedEvents.Inc(
+				event.InvolvedObject.Kind,
+				getEventSource(event.ReportingController, event.Source.Component),
+			)
+			event = truncatedEvent
+		}
+
 		id := buildBundleID(event)
+		bundles := bundlesByObject[id]
 
-		bundles, found := bundlesByObject[id]
-		if !found {
-			bundles = []*kubernetesEventBundle{newKubernetesEventBundler(c.clusterName, event)}
-			bundlesByObject[id] = bundles
+		// Add the event to the last bundle for the object when it fits.
+		if len(bundles) > 0 {
+			lastBundle := bundles[len(bundles)-1]
+			if _, fits := lastBundle.fitsEvent(event); fits {
+				if err := lastBundle.addEvent(event); err != nil {
+					errors = append(errors, err)
+				}
+				continue
+			}
 		}
 
-		lastBundle := bundles[len(bundles)-1]
-		_, fits := lastBundle.fitsEvent(event)
-		if !fits {
-			lastBundle = newKubernetesEventBundler(c.clusterName, event)
-			bundles = append(bundles, lastBundle)
-			bundlesByObject[id] = bundles
-		}
-
-		err := lastBundle.addEvent(event)
-		if err != nil {
+		// Start a new bundle and register it only when the event is added
+		newBundle := newKubernetesEventBundler(c.clusterName, event)
+		if err := newBundle.addEvent(event); err != nil {
 			errors = append(errors, err)
 			continue
 		}
+		bundlesByObject[id] = append(bundles, newBundle)
 	}
 
 	datadogEvs := make([]event.Event, 0, len(bundlesByObject))

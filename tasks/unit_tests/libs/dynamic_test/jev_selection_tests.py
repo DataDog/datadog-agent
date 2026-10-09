@@ -194,6 +194,7 @@ class TestSharedEvaluator(unittest.TestCase):
         executor._index.add_tests("job", "candidates", {"TestPass", "TestFail", "TestFlaky", "TestSkipKeep"})
         evaluator = DatadogDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
         evaluator.index = executor.index()  # normally set by initialize()
+        evaluator._unreliable_jobs = set()  # skip the (networked) allow-failure fetch
         results = evaluator.evaluate([])  # DatadogDynTestEvaluator.evaluate, no subclass
         self.assertEqual(len(results), 1)
         result = results[0]
