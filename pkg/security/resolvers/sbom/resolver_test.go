@@ -26,6 +26,7 @@ import (
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -476,6 +477,43 @@ type failingWorkloadmeta struct {
 
 func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, error) {
 	return nil, fmt.Errorf("container %q not found", id)
+}
+
+// imageWorkloadmeta knows the image ID of the containers in images.
+type imageWorkloadmeta struct {
+	workloadmeta.Component
+	images map[string]string
+}
+
+func (w imageWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, error) {
+	if image, ok := w.images[id]; ok {
+		return &workloadmeta.Container{Image: workloadmeta.ContainerImage{ID: image}}, nil
+	}
+	return nil, fmt.Errorf("container %q not found", id)
+}
+
+// TestWorkloadKeyOf checks that containers share a scan by image ID, and that a
+// container of an unknown image keeps its scan to itself.
+func TestWorkloadKeyOf(t *testing.T) {
+	r := &Resolver{wmeta: imageWorkloadmeta{images: map[string]string{"from-wmeta": "sha256:wmeta"}}}
+	byName := []string{"image_name:nginx", "image_tag:latest"}
+
+	for _, tc := range []struct {
+		name string
+		id   containerutils.ContainerID
+		tags []string
+		want workloadKey
+	}{
+		{"image ID tag", "tagged", append([]string{"image_id:sha256:tag"}, byName...), "sha256:tag"},
+		{"image ID from workloadmeta", "from-wmeta", byName, "sha256:wmeta"},
+		{"unknown image", "unknown", byName, "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := r.workloadKeyOf(tc.id, &tags.Workload{Tags: tc.tags}); got != tc.want {
+				t.Errorf("workloadKeyOf = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 // ownRoot returns the device and the inode of the root of the test process.
