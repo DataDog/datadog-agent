@@ -242,7 +242,7 @@ func TestLogPatternForwardingConfigDefaultsAndOverrides(t *testing.T) {
 	disabled := configmock.NewFromYAML(t, "")
 	fc := anomalydetectionconfig.LogPatternForwarding(disabled)
 	assert.False(t, fc.Enabled)
-	assert.Equal(t, "unix:/tmp/aad-isolated/aad.sock", fc.Endpoint)
+	assert.Equal(t, "unix:/tmp/ipc-aad/aad.sock", fc.Endpoint)
 	assert.Equal(t, 5*time.Second, fc.RetryInterval)
 	assert.False(t, fc.DebugLogs)
 	assert.False(t, anomalydetectionconfig.ObserverRequired(disabled))

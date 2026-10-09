@@ -30,14 +30,16 @@ const (
 // Defaults for log pattern metric forwarding and anomaly event subscription.
 const (
 	// DefaultLogPatternForwardingEndpoint is the isolated analysis process's
-	// FIT setup endpoint.
-	DefaultLogPatternForwardingEndpoint = "unix:/tmp/aad-isolated/aad.sock"
+	// FIT setup endpoint. Every AAD socket and producer configuration file lives
+	// in one directory, /tmp/ipc-aad, which the analysis process creates with
+	// mode 0700 because the FIT transport refuses a publicly readable parent.
+	DefaultLogPatternForwardingEndpoint = "unix:/tmp/ipc-aad/aad.sock"
 	// DefaultLogPatternForwardingRetryInterval is how often the forwarder
 	// retries a connection or a broken session.
 	DefaultLogPatternForwardingRetryInterval = 5 * time.Second
 	// DefaultAnomalyEventsEndpoint is the isolated analysis process's FIT
 	// broadcast endpoint for anomaly events.
-	DefaultAnomalyEventsEndpoint = "unix:/tmp/aad-isolated/events.sock"
+	DefaultAnomalyEventsEndpoint = "unix:/tmp/ipc-aad/events.sock"
 	// DefaultAnomalyEventsRetryInterval is how often the event subscriber
 	// retries a subscription or a broken session.
 	DefaultAnomalyEventsRetryInterval = 5 * time.Second

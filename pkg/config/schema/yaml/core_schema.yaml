@@ -5322,10 +5322,12 @@ properties:
           endpoint:
             node_type: setting
             type: string
-            default: unix:/tmp/aad-isolated/aad.sock
+            default: unix:/tmp/ipc-aad/aad.sock
             comment: |-
               FIT setup endpoint of the analysis process: "unix:/path",
-              "tcp:127.0.0.1:port", or a bare unix socket path.
+              "tcp:127.0.0.1:port", or a bare unix socket path. Every AAD socket
+              and producer configuration file lives in /tmp/ipc-aad, which must be
+              owner-only (mode 0700) for the shared-memory transport.
           connect_retry_interval:
             node_type: setting
             type: string
@@ -5355,10 +5357,11 @@ properties:
           endpoint:
             node_type: setting
             type: string
-            default: unix:/tmp/aad-isolated/events.sock
+            default: unix:/tmp/ipc-aad/events.sock
             comment: |-
               FIT broadcast endpoint the analysis process publishes anomaly events on:
-              "unix:/path", "tcp:127.0.0.1:port", or a bare unix socket path.
+              "unix:/path", "tcp:127.0.0.1:port", or a bare unix socket path. It sits
+              in /tmp/ipc-aad beside the metrics endpoint.
           connect_retry_interval:
             node_type: setting
             type: string
