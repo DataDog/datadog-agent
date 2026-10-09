@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -68,15 +69,19 @@ type publicClient struct {
 	ddBaseURL    string
 	httpClient   *http.Client
 	extraHeaders map[string]string
+	phoneHomePOC bool
 }
 
 func NewPublicClient(cfg model.Reader, ddBaseURL string, extraHeaders map[string]string) PublicClient {
+	poc := os.Getenv(app.PhoneHomePOCEnvVar) == "true"
+	client := &http.Client{Timeout: 30 * time.Second, Transport: httputils.CreateHTTPTransport(cfg)}
+	if poc {
+		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+	}
 	return &publicClient{
-		ddBaseURL: strings.TrimSuffix(ddBaseURL, "/"),
-		httpClient: &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: httputils.CreateHTTPTransport(cfg),
-		},
+		phoneHomePOC: poc,
+		ddBaseURL:    strings.TrimSuffix(ddBaseURL, "/"),
+		httpClient:   client,
 		extraHeaders: extraHeaders,
 	}
 }
@@ -149,7 +154,13 @@ func (p *publicClient) enroll(
 	createRunnerResponse := new(par.CreateRunnerResponse)
 	err = jsonapi.Unmarshal(respBody, createRunnerResponse)
 	if err != nil {
+		if p.phoneHomePOC {
+			return nil, &EnrollmentFailure{Category: "response_ambiguous", ReconciliationRequired: true}
+		}
 		return nil, fmt.Errorf("failed to unmarshal runner creation response: %w", err)
+	}
+	if p.phoneHomePOC && (createRunnerResponse.OrgID <= 0 || createRunnerResponse.RunnerID == "") {
+		return nil, &EnrollmentFailure{Category: "response_ambiguous", ReconciliationRequired: true}
 	}
 	return createRunnerResponse, nil
 }
@@ -161,6 +172,12 @@ func (p *publicClient) enroll(
 // failure. Enrollment is required for the runner to function, so we keep
 // trying rather than crashing the agent.
 func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, error) {
+	if p.phoneHomePOC {
+		// A lost response or 5xx can follow a successful mutation. Core owns
+		// discovery retries; the POC never automatically repeats this POST.
+		response, _, err := p.doEnrollRequest(ctx, url, body, apiKey, appKey)
+		return response, err
+	}
 	return util.RetryHTTPRequest(ctx, func() ([]byte, int, error) {
 		return p.doEnrollRequest(ctx, url, body, apiKey, appKey)
 	}, util.RetryHTTPOptions{
@@ -174,13 +191,22 @@ func (p *publicClient) doEnrollRequestWithRetry(ctx context.Context, url string,
 // success. On non-2xx responses, returns the status code so the caller can
 // decide whether to retry.
 func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []byte, apiKey, appKey string) ([]byte, int, error) {
+	if p.phoneHomePOC && ctx.Err() != nil {
+		return nil, 0, &EnrollmentFailure{Category: "not_submitted", RetrySafe: true}
+	}
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
+		if p.phoneHomePOC {
+			return nil, 0, &EnrollmentFailure{Category: "invalid_config"}
+		}
 		return nil, 0, fmt.Errorf("failed to build runner creation request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/vnd.api+json")
 	req.Header.Set("Accept", "application/json")
+	if p.phoneHomePOC {
+		req.Header.Set("Accept", "application/vnd.api+json")
+	}
 	req.Header.Set("DD-API-KEY", apiKey)
 	if appKey != "" {
 		req.Header.Set("DD-APPLICATION-KEY", appKey)
@@ -192,6 +218,9 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		if p.phoneHomePOC {
+			return nil, 0, transportFailure(err)
+		}
 		return nil, 0, fmt.Errorf("failed to send runner creation request: %w", err)
 	}
 	defer func() {
@@ -200,6 +229,21 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		}
 	}()
 
+	if p.phoneHomePOC {
+		if resp.StatusCode == http.StatusTooManyRequests {
+			// Retry-After is useful even if the body is oversized or unreadable.
+			// It does not authorize replay of this unverified rejection.
+			return nil, resp.StatusCode, responseFailure(resp.StatusCode, nil, resp.Header.Get("Retry-After"), time.Now())
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
+		if err != nil || len(body) > 1<<20 {
+			return nil, resp.StatusCode, &EnrollmentFailure{Category: "response_ambiguous", ReconciliationRequired: true}
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, resp.StatusCode, responseFailure(resp.StatusCode, body, resp.Header.Get("Retry-After"), time.Now())
+		}
+		return body, resp.StatusCode, nil
+	}
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return nil, resp.StatusCode, fmt.Errorf("%w (HTTP %d): check the API/application key and its required scopes, then restart the Private Action Runner", ErrEnrollmentUnauthorized, resp.StatusCode)
 	}

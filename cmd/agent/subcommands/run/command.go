@@ -192,6 +192,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/phonehome"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	procmgrcoat "github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 	hostSbom "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
@@ -663,6 +664,7 @@ func startAgent(
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
+	phonehome.Start(ctx, cfg, hostnameDetected)
 
 	// start remote configuration management
 	if configUtils.IsRemoteConfigEnabled(cfg) {

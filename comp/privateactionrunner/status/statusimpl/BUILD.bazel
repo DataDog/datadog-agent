@@ -15,6 +15,7 @@ go_library(
         "//comp/core/status",
         "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/phonehome",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
@@ -27,6 +28,8 @@ dd_agent_go_test(
     embed = [":statusimpl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/status",
+        "//pkg/privateactionrunner/phonehome",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
