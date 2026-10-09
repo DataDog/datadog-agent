@@ -12,6 +12,7 @@ receivers:
 service:
   telemetry:
     metrics:
+      level: normal
       readers:
       - pull:
           exporter:

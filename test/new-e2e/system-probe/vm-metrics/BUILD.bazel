@@ -1,4 +1,7 @@
+load("@bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
@@ -98,6 +101,46 @@ go_binary(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+)
+
+platform_transition_filegroup(
+    name = "vm-metrics_linux_arm64",
+    srcs = [":vm-metrics"],
+    tags = ["manual"],
+    target_platform = "//bazel/platforms:linux_arm64",
+)
+
+pkg_files(
+    name = "vm-metrics_linux_arm64_exe",
+    srcs = [":vm-metrics_linux_arm64"],
+    attributes = pkg_attributes(mode = "0755"),
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_vm-metrics_linux_arm64",
+    srcs = [":vm-metrics_linux_arm64_exe"],
+    tags = ["manual"],
+)
+
+platform_transition_filegroup(
+    name = "vm-metrics_linux_x86_64",
+    srcs = [":vm-metrics"],
+    tags = ["manual"],
+    target_platform = "//bazel/platforms:linux_x86_64",
+)
+
+pkg_files(
+    name = "vm-metrics_linux_x86_64_exe",
+    srcs = [":vm-metrics_linux_x86_64"],
+    attributes = pkg_attributes(mode = "0755"),
+    tags = ["manual"],
+)
+
+pkg_install(
+    name = "install_vm-metrics_linux_x86_64",
+    srcs = [":vm-metrics_linux_x86_64_exe"],
+    tags = ["manual"],
 )
 
 dd_agent_go_test(
