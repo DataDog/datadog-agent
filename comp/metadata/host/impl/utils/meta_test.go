@@ -7,12 +7,17 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -20,11 +25,16 @@ func TestGetMeta(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.NewMock(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{})
+	cfg.SetInTest("host_aliases", []string{"configured-alias"})
 
 	meta := getMeta(ctx, cfg, hostnameimpl.NewHostnameService())
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
+	osHostname, err := os.Hostname()
+	require.NoError(t, err)
+	assert.Equal(t, osHostname, meta.SocketHostname)
+	assert.Contains(t, meta.HostAliases, "configured-alias")
 }
 
 func TestGetMetaFromCache(t *testing.T) {
@@ -40,4 +50,70 @@ func TestGetMetaFromCache(t *testing.T) {
 	m := GetMetaFromCache(ctx, cfg, hostnameimpl.NewHostnameService())
 	assert.Equal(t, "socket_test", m.SocketHostname)
 	assert.Equal(t, []string{"tz_test"}, m.Timezones)
+}
+
+// Embed the component to supply just the provider-aware lookup used by metadata.
+type identityHostname struct {
+	hostnameinterface.Component
+	data hostnameinterface.Data
+}
+
+func (h identityHostname) GetWithProvider(context.Context) (hostnameinterface.Data, error) {
+	return h.data, nil
+}
+
+func TestCanonicalConfiguredMetadata(t *testing.T) {
+	for _, tc := range []struct {
+		provider string
+		force    bool
+		want     string
+	}{
+		{hostnameinterface.ConfigProvider, false, ""},
+		{hostnameinterface.ConfigProvider, true, "ip-device-abc123"},
+		{"os", true, ""},
+	} {
+		t.Run(tc.provider+strconv.FormatBool(tc.force), func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("cloud_provider_metadata", []string{})
+			cfg.SetInTest("ec2_use_dmi", false)
+			cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
+			cfg.SetInTest("hostname_force_config_as_canonical", tc.force)
+			host := identityHostname{data: hostnameinterface.Data{Hostname: "ip-device-abc123", Provider: tc.provider}}
+			metadata := getMeta(context.Background(), cfg, host)
+			require.Equal(t, tc.want, metadata.AgentHostname)
+			require.Empty(t, metadata.LegacyResolutionHostname)
+			require.NotContains(t, metadata.HostAliases, "ip-device")
+			encoded, err := json.Marshal(metadata)
+			require.NoError(t, err)
+			var payload map[string]interface{}
+			require.NoError(t, json.Unmarshal(encoded, &payload))
+			if tc.want != "" {
+				require.Equal(t, tc.want, payload["agent-hostname"])
+			} else {
+				require.NotContains(t, payload, "agent-hostname")
+			}
+		})
+	}
+}
+
+// EUDM selects a canonical hostname without discarding OS metadata or aliases.
+func TestEUDMCanonicalHostnamePreservesAliases(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetInTest("infrastructure_mode", "end_user_device")
+	cfg.SetInTest("cloud_provider_metadata", []string{})
+	cfg.SetInTest("ec2_use_dmi", false)
+	cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
+	cfg.SetInTest("host_aliases", []string{"shared-device", "i-other-identity"})
+	const selected = "ip-device-abc123"
+	host := identityHostname{data: hostnameinterface.Data{Hostname: selected, Provider: hostnameinterface.EUDMProvider}}
+	encoded, err := json.Marshal(getMeta(context.Background(), cfg, host))
+	require.NoError(t, err)
+	var payload map[string]interface{}
+	require.NoError(t, json.Unmarshal(encoded, &payload))
+	assert.Equal(t, selected, payload["agent-hostname"])
+	osHostname, err := os.Hostname()
+	require.NoError(t, err)
+	assert.Equal(t, osHostname, payload["socket-hostname"])
+	assert.NotEmpty(t, payload["socket-fqdn"])
+	assert.ElementsMatch(t, []string{"shared-device", "i-other-identity"}, payload["host_aliases"])
 }

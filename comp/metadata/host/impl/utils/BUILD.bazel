@@ -104,6 +104,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
+        "//comp/core/hostname/hostnameinterface/def",
         "//pkg/collector/python",
         "//pkg/config/mock",
         "//pkg/config/model",

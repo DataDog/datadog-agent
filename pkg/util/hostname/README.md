@@ -5,6 +5,36 @@ host in the backend. It must be consistent between agent restart and unique to t
 
 The hostname is cached for the entire life span of the Agent.
 
+## End-user-device hostnames
+
+On macOS and Windows, `infrastructure_mode: end_user_device` selects
+`<device-name>-<serial-number>` before cloud, FQDN, container or OS discovery.
+Explicit `hostname` and `hostname_file` settings still take precedence, and
+sidecar hostname handling is unchanged. Other operating systems and modes keep
+the existing resolution order.
+
+The device name is the configured Computer Name on macOS (collected through
+SystemConfiguration), and the OS computer name on Windows. The serial comes
+from IOKit on macOS and `Win32_BIOS.SerialNumber` on Windows, including VMs.
+Both parts are lowercased; runs of non-ASCII-alphanumeric characters become a
+hyphen and leading/trailing hyphens are removed. Only the name is truncated if
+necessary to keep the result within 253 characters; the serial is preserved.
+If either part is unusable, or the serial is missing or a known placeholder,
+the Agent logs a warning and continues through the existing providers.
+
+The result is cached until restart. Network-derived macOS hostname changes do
+not change it; intentional Computer Name changes take effect after restart.
+The selected name is the primary Agent hostname. Host metadata also sends it as
+`agent-hostname` for canonical naming, including names with an EC2-default prefix.
+Existing OS/cloud metadata and configured/cloud aliases remain available.
+No historical identity migration is performed. Devices sharing both a device
+name and serial can still collide, and failed serial collection across restarts
+can switch a host back to its legacy identity.
+
+Process-agent uses the shared resolver if core-agent RPC and CLI lookup fail.
+Trace-agent refuses to fall back to a competing bare OS name in EUDM mode when
+both core-agent lookup paths fail; it reports a hostname resolution error.
+
 ## Get
 
 `Get` will return the hostname detected and `GetWithProvider` will return the hostname with the provider used to fetch
@@ -40,8 +70,9 @@ When calling a provider we always:
    about non canonical hostname.
 3. If running on **Fargate**: we set an empty hostname as the idea of a host doesn't exist. We **DO NOT** set hostname
    provider in `goexpvar` and `inventories`
-4. **GCE**: if we can fetch a hostname from the GCE metadata API we use it.
-5. **Azure**: if we can fetch a hostname from the Azure metadata API we use it.
+4. **EUDM**: on macOS and Windows in end-user-device mode, use device name plus serial (see above).
+5. **GCE**: if we can fetch a hostname from the GCE metadata API we use it.
+6. **Azure**: if we can fetch a hostname from the Azure metadata API we use it.
 
 **The following providers behavior are linked to each other**
 
@@ -60,19 +91,19 @@ The notion of `isOSHostnameUsable` means:
 - Else if we're on k8s and running inside a container without `hostNetwork` set to true -> False
 - Else -> True
 
-6. **FQDN**
+7. **FQDN**
    1. If `isOSHostnameUsable` is false we return an error
    2. If `hostname_fqdn` config setting is set to true we fetch the FQDN:
       1. On Linux and macOS we use `/bin/hostname -f`
       2. On AIX we do a CNAME lookup
       3. On Windows we use `golang.org/x/sys/windows:GetHostByName`
    3. Else we return an error
-7. **CONTAINER**
+8. **CONTAINER**
    1. If we're running in a containerized environment we try to get the hostname from, in order: `kube_apiserver`,
       `docker` and `kubelet`.
-8. **OS**
+9. **OS**
    1. If `isOSHostnameUsable` is true and previous providers didn't detect a hostname we use `os.Hostname()`
-9. **EC2**
+10. **EC2**
    1. We try to fetch the EC2 instance ID if one of the following condition is met:
       - we're running on a ECS instance.
       - `ec2_prioritize_instance_id_as_hostname` config setting is set to `true`.

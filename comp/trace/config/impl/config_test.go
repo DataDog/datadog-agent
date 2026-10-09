@@ -3011,3 +3011,16 @@ func TestTracesSendToMainEndpoint(t *testing.T) {
 		assert.NoError(t, validate(cfg, coreConfig))
 	})
 }
+
+func TestAcquireHostnameFallbackEUDM(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("EUDM hostname requires macOS or Windows")
+	}
+	cfg := configcomp.NewMock(t)
+	cfg.SetInTest("infrastructure_mode", "end_user_device")
+	c := traceconfig.New()
+	c.DDAgentBin = "/not/exist"
+	err := acquireHostnameFallback(c)
+	require.ErrorContains(t, err, "cannot resolve EUDM hostname")
+	require.Empty(t, c.Hostname)
+}

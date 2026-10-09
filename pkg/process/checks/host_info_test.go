@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -24,6 +25,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -312,4 +314,22 @@ func fakeExecCommand(command string, args ...string) *exec.Cmd {
 	cmd := exec.Command(os.Args[0], cs...)
 	cmd.Env = []string{"GO_TEST_PROCESS=1", "DD_LOG_LEVEL=error"} // Set LOG LEVEL to error
 	return cmd
+}
+
+func TestEUDMFallbackPreservesHostnameFile(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("EUDM hostname requires macOS or Windows")
+	}
+	cfg := configmock.New(t)
+	cfg.SetInTest("infrastructure_mode", "end_user_device")
+	file := filepath.Join(t.TempDir(), "hostname")
+	require.NoError(t, os.WriteFile(file, []byte("explicit-device-name"), 0600))
+	cfg.SetInTest("hostname_file", file)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname")) })
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	name, err := getHostname(ctx, "/not/exist", 0, ipcclientmock.New(t))
+	require.NoError(t, err)
+	require.Equal(t, "explicit-device-name", name)
 }
