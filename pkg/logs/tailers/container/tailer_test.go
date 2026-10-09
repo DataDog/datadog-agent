@@ -15,10 +15,10 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	dockerclient "github.com/moby/moby/client"
@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 )
@@ -127,22 +128,37 @@ func TestIsContextCanceled(t *testing.T) {
 	assert.False(t, isContextCanceled(errors.New("this is a random error")))
 }
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+// blockingBody blocks reads until the request is canceled.
+type blockingBody struct{ ctx context.Context }
+
+func (b blockingBody) Read(_ []byte) (int, error) {
+	<-b.ctx.Done()
+	return 0, b.ctx.Err()
+}
+
+func (blockingBody) Close() error { return nil }
+
 func TestIsTimeoutErr(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.(http.Flusher).Flush()
-		<-r.Context().Done()
-	}))
-	defer server.Close()
+	synctest.Test(t, func(t *testing.T) {
+		client := http.Client{
+			Timeout: 30 * time.Second,
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusOK, Body: blockingBody{req.Context()}, Request: req}, nil
+			}),
+		}
+		resp, err := client.Get("http://kubelet/containerLogs/ns/pod/container?follow=true")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, readErr := io.ReadAll(resp.Body)
+		require.Error(t, readErr)
 
-	client := http.Client{Timeout: 50 * time.Millisecond}
-	resp, err := client.Get(server.URL)
-	assert.NoError(t, err)
-	defer resp.Body.Close()
-	_, readErr := io.ReadAll(resp.Body)
-	assert.Error(t, readErr)
+		assert.True(t, isTimeoutErr(readErr), "http.Client.Timeout while reading a body must be a timeout: %v", readErr)
+	})
 
-	assert.True(t, isTimeoutErr(readErr), "http.Client.Timeout while reading a body must be a timeout: %v", readErr)
 	assert.False(t, isTimeoutErr(errors.New("this is a random error")))
 	assert.False(t, isTimeoutErr(io.EOF))
 	assert.False(t, isTimeoutErr(net.ErrClosed))

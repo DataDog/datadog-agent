@@ -10,78 +10,133 @@ package kubelet
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func newTestKubeletClient(t *testing.T, serverURL string, timeout time.Duration) *kubeletClient {
+// pipeListener serves HTTP over in-memory connections. Real sockets would
+// keep a synctest bubble's fake clock from advancing.
+type pipeListener struct {
+	conns  chan net.Conn
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newPipeListener() *pipeListener {
+	return &pipeListener{conns: make(chan net.Conn), closed: make(chan struct{})}
+}
+
+func (l *pipeListener) Accept() (net.Conn, error) {
+	select {
+	case conn := <-l.conns:
+		return conn, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (l *pipeListener) Close() error {
+	l.once.Do(func() { close(l.closed) })
+	return nil
+}
+
+func (l *pipeListener) Addr() net.Addr { return pipeAddr{} }
+
+func (l *pipeListener) dial(ctx context.Context, _, _ string) (net.Conn, error) {
+	client, server := net.Pipe()
+	select {
+	case l.conns <- server:
+		return client, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+type pipeAddr struct{}
+
+func (pipeAddr) Network() string { return "pipe" }
+func (pipeAddr) String() string  { return "pipe" }
+
+// newPipeKubeletClient returns a kubelet client whose requests are served by
+// handler over in-memory connections, and a function that shuts it down.
+func newPipeKubeletClient(t *testing.T, handler http.Handler, timeout time.Duration) (*kubeletClient, func()) {
 	t.Helper()
-	u, err := url.Parse(serverURL)
+	kc, err := newForConfig(&kubeletClientConfig{scheme: "http", baseURL: "kubelet"}, timeout)
 	require.NoError(t, err)
-	kc, err := newForConfig(&kubeletClientConfig{scheme: "http", baseURL: u.Host}, timeout)
-	require.NoError(t, err)
-	return kc
+
+	listener := newPipeListener()
+	server := &http.Server{Handler: handler}
+	go server.Serve(listener)
+
+	// Both clients share this transport.
+	transport := kc.client.Transport.(*http.Transport)
+	transport.DialContext = listener.dial
+	transport.Proxy = nil
+
+	return kc, func() {
+		server.Close()
+		transport.CloseIdleConnections()
+	}
 }
 
 // TestQueryWithRespStreamOutlivesTimeout checks that the client timeout cuts
 // regular requests but not log streams.
 func TestQueryWithRespStreamOutlivesTimeout(t *testing.T) {
-	const timeout = 100 * time.Millisecond
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("first\n"))
-		w.(http.Flusher).Flush()
-		time.Sleep(3 * timeout)
-		w.Write([]byte("second\n"))
-	}))
-	defer server.Close()
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = 30 * time.Second
+		kc, shutdown := newPipeKubeletClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("first\n"))
+			w.(http.Flusher).Flush()
+			select {
+			case <-time.After(3 * timeout):
+				w.Write([]byte("second\n"))
+			case <-r.Context().Done():
+			}
+		}), timeout)
+		defer shutdown()
 
-	kc := newTestKubeletClient(t, server.URL, timeout)
-
-	t.Run("stream client", func(t *testing.T) {
 		body, err := kc.queryWithResp(context.Background(), "/containerLogs/ns/pod/container?follow=true")
 		require.NoError(t, err)
-		defer body.Close()
-
 		data, err := io.ReadAll(body)
+		body.Close()
 		require.NoError(t, err)
-		require.Equal(t, "first\nsecond\n", string(data))
-	})
+		require.Equal(t, "first\nsecond\n", string(data), "the stream client must not time out")
 
-	t.Run("regular client", func(t *testing.T) {
 		_, resp, err := kc.rawQuery(context.Background(), kc.kubeletURL, "/pods")
 		require.NoError(t, err)
-		defer resp.Body.Close()
-
 		_, err = io.ReadAll(resp.Body)
-		require.Error(t, err)
+		resp.Body.Close()
+		require.Error(t, err, "the regular client must time out")
 	})
 }
 
 func TestQueryWithRespTimesOutWaitingForHeaders(t *testing.T) {
-	const timeout = 100 * time.Millisecond
-	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
-		<-release
-	}))
-	defer server.Close()
-	defer close(release)
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = 30 * time.Second
+		kc, shutdown := newPipeKubeletClient(t, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			<-r.Context().Done()
+		}), timeout)
+		defer shutdown()
 
-	kc := newTestKubeletClient(t, server.URL, timeout)
+		// Avoids waiting forever if the header timeout is missing.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*timeout)
+		defer cancel()
 
-	// Avoids hanging if the header timeout is missing.
-	ctx, cancel := context.WithTimeout(context.Background(), 20*timeout)
-	defer cancel()
-
-	start := time.Now()
-	_, err := kc.queryWithResp(ctx, "/containerLogs/ns/pod/container?follow=true")
-	require.Error(t, err)
-	require.Less(t, time.Since(start), 10*timeout, "the header timeout must fire before the request deadline")
+		start := time.Now()
+		_, err := kc.queryWithResp(ctx, "/containerLogs/ns/pod/container?follow=true")
+		require.Error(t, err)
+		require.Equal(t, timeout, time.Since(start), "the header timeout must fire")
+	})
 }
 
 func TestRawQuery(t *testing.T) {
