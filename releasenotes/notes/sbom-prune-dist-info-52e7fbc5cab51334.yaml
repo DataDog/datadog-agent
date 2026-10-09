@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe leaves the metadata of Python
+    distributions, under ``*.dist-info`` and ``*.egg-info``, out of its index.
+    pip and ``importlib.metadata`` read it for every installed distribution,
+    which marked each Python package in use.
