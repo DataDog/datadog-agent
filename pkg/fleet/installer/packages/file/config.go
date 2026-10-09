@@ -8,14 +8,15 @@
 package file
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 )
 
-// EnsureConfigFromExample initializes a missing config from its .example file.
-// Existing files, including symlinks, are left untouched. Missing examples are allowed.
+// EnsureConfigFromExample initializes a missing config from a `.example` template file.
+// Existing files, including symlinks, are left untouched.
 func EnsureConfigFromExample(rootPath, configPath string) error {
 	root, err := os.OpenRoot(rootPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -49,22 +50,34 @@ func EnsureConfigFromExample(rootPath, configPath string) error {
 		return err
 	}
 	defer example.Close()
-	content, err := io.ReadAll(example)
+	return publishConfig(root, configPath, example)
+}
+
+func publishConfig(root *os.Root, configPath string, example io.Reader) (err error) {
+	tmpPath := configPath + ".tmp-" + rand.Text()
+	tmp, err := root.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0400)
 	if err != nil {
+		return err
+	}
+	defer func() {
+		if removeErr := root.Remove(tmpPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			err = errors.Join(err, fmt.Errorf("failed to remove temporary config: %w", removeErr))
+		}
+	}()
+	defer tmp.Close()
+	if _, err := io.Copy(tmp, example); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
 		return err
 	}
 
-	// Create only if absent, never overwrite an existing config.
-	config, err := root.OpenFile(configPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0400)
-	if errors.Is(err, os.ErrExist) {
-		return nil
-	}
-	if err != nil {
+	// Publish complete content without replacing an existing config.
+	if err := root.Link(tmpPath, configPath); err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
-	if _, err := config.Write(content); err != nil {
-		config.Close()
-		return err
-	}
-	return config.Close()
+	return nil
 }
