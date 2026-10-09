@@ -26,6 +26,23 @@ func isBoardVendorEC2() bool {
 	return dmi.GetBoardVendor() == DMIBoardVendor
 }
 
+// IsRunningOnDMI returns true if DMI information identifies this host as EC2, without
+// making any network call. This is faster than IsRunningOn, which falls back to
+// querying the metadata endpoint, but only works on hosts where DMI is populated
+// (e.g. it won't detect EC2 sidecar/Fargate setups).
+func IsRunningOnDMI() bool {
+	if isBoardVendorEC2() {
+		if strings.HasPrefix(dmi.GetBoardAssetTag(), "i-") {
+			ec2internal.SetCloudProviderSource(ec2internal.MetadataSourceDMI)
+		} else {
+			isEC2UUID() // will set MetadataSourceUUID if UUID identifies this host as EC2
+		}
+		return true
+	}
+
+	return isEC2UUID() // will set MetadataSourceUUID if UUID identifies this host as EC2
+}
+
 // getInstanceIDFromDMI fetches the instance id for current host from DMI
 //
 // On AWS Nitro instances dmi information contains the instanceID for the host. We check that the board vendor is

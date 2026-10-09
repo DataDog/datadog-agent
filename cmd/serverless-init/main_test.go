@@ -10,11 +10,12 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 	"syscall"
 	"testing"
@@ -88,7 +89,7 @@ func (s inventoryTestCloudService) GetInventoryData() cloudservice.InventoryData
 
 func TestInventoryOneShotReadiness(t *testing.T) {
 	for _, firstRunDelay := range []int{0, 3600} {
-		t.Run(fmt.Sprint(firstRunDelay), func(t *testing.T) {
+		t.Run(strconv.Itoa(firstRunDelay), func(t *testing.T) {
 			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 			conf := coreconfig.NewMock(t)
 			for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
@@ -115,17 +116,17 @@ func TestInventoryOneShotReadiness(t *testing.T) {
 				select {
 				case <-collected:
 				case <-time.After(5 * time.Second):
-					return fmt.Errorf("runner did not collect before initialization")
+					return errors.New("runner did not collect before initialization")
 				}
 				ia.Submit()
 				if len(serial.Payloads()) != 0 {
-					return fmt.Errorf("inventory emitted before initialization")
+					return errors.New("inventory emitted before initialization")
 				}
 				serverlessInitInventory.UpdateAndSubmit(ia, service, mode.Conf{SidecarMode: true}, conf, map[string]string{
 					"env": "test-env", "service": "test-service", "version": "test-version",
 				})
 				if len(serial.Payloads()) == 0 {
-					return fmt.Errorf("publication did not synchronously enqueue inventory")
+					return errors.New("publication did not synchronously enqueue inventory")
 				}
 				return nil
 			},
