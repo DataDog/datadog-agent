@@ -715,7 +715,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		seclog.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
 
 		// try to collect more information about the mount point
-		if (seclog.DefaultLogger.IsDebugging() || seclog.DefaultLogger.IsTracing()) && p.mountResolver != nil {
+		if seclog.DefaultLogger.IsDebugging() && p.mountResolver != nil {
 			var (
 				bestPrefix string
 				bestFS     string

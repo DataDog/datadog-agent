@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	logtypes "github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -365,6 +367,72 @@ func TestLogLevel(t *testing.T) {
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layer,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, remoteClient.UpdateApplyStatus)
+}
+
+func TestLogLevelSpec(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	remoteClient := config.NewMockRemoteClient(ctrl)
+	prioritySampler := NewMockprioritySampler(ctrl)
+	errorsSampler := NewMockerrorsSampler(ctrl)
+	rareSampler := NewMockrareSampler(ctrl)
+
+	pkglog.SetupLogger(pkglog.Default(), "debug")
+
+	var queries []string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer fakeToken", r.Header.Get("Authorization"))
+		if q := r.URL.RawQuery; q != "" {
+			queries = append(queries, q)
+		}
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+	port, _ := strconv.Atoi(strings.Split(srv.URL, ":")[2])
+
+	agentConfig := config.AgentConfig{
+		RemoteConfigClient: remoteClient,
+		DefaultEnv:         "agent-env",
+		DebugServerPort:    port,
+		AuthToken:          "fakeToken",
+		IPCTLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
+
+	ack := func() {
+		remoteClient.EXPECT().UpdateApplyStatus(
+			"datadog/2/AGENT_CONFIG/layer1/configname",
+			state.ApplyStatus{State: state.ApplyStateAcknowledged},
+		)
+		remoteClient.EXPECT().UpdateApplyStatus(
+			"datadog/2/AGENT_CONFIG/configuration_order/configname",
+			state.ApplyStatus{State: state.ApplyStateAcknowledged},
+		)
+	}
+	update := func(layerConfig string) {
+		ack()
+		h.onAgentConfigUpdate(map[string]state.RawConfig{
+			"datadog/2/AGENT_CONFIG/layer1/configname":              {Config: []byte(layerConfig)},
+			"datadog/2/AGENT_CONFIG/configuration_order/configname": {Config: []byte(`{"internal_order": ["layer1"]}`)},
+		}, remoteClient.UpdateApplyStatus)
+	}
+
+	// apply a per-package spec override
+	spec := "error,github.com/DataDog/datadog-agent/pkg/trace/...=debug"
+	update(`{"name": "layer1", "config": {"log_level": "` + spec + `"}}`)
+
+	// the spec must arrive as a properly escaped query parameter
+	require.Len(t, queries, 1)
+	assert.Equal(t, "log_level="+url.QueryEscape(spec), queries[0])
+
+	// simulate the debug server having applied the override, then remove it
+	rules, err := logtypes.ParseLevelRules(spec, "github.com/DataDog/datadog-agent")
+	require.NoError(t, err)
+	require.NoError(t, pkglog.ChangeLogLevelRules(rules))
+	update(`{"name": "layer1", "config": {}}`)
+
+	// the override removal must fall back to the level active before it
+	require.Len(t, queries, 2)
+	assert.Equal(t, "log_level="+url.QueryEscape("debug"), queries[1])
 }
 
 func TestStartWithMRF(t *testing.T) {
