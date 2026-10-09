@@ -11,11 +11,14 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"path"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -38,7 +41,15 @@ const (
 // serializing an SMBConfig (fmt verbs, JSON, YAML) therefore redacts it; callers that need the
 // credential read the Password field directly.
 type SMBConfig struct {
-	// Host is the server hostname or IP address, e.g. myacct.file.core.windows.net.
+	// Host is the server's fully qualified domain name or IP address, e.g.
+	// myacct.file.core.windows.net. Use no single-label name such as "fileserver": when DNS has
+	// no answer for it, Windows resolves it with LLMNR or NetBIOS name service broadcasts, which
+	// any machine on the subnet can answer, and the Agent would send that machine the NTLMv2
+	// response of the account, which can be cracked offline. The same goes for a name ending in
+	// ".local", which macOS, Windows and Linux with nss-mdns resolve with multicast DNS. NTLM does not authenticate the
+	// server to the client, so the connection is only as trustworthy as the name resolution
+	// (DNS) and the network path: use an IP address or a name that only a trusted DNS server
+	// answers.
 	Host string `mapstructure:"host" json:"host,omitempty" yaml:"host"`
 	// Share is the share name, without directories.
 	Share string `mapstructure:"share" json:"share,omitempty" yaml:"share"`
@@ -152,6 +163,9 @@ func (c *LogsConfig) validateSMB() error {
 			SMBMinPollInterval.Seconds(), SMBMaxPollInterval.Seconds(), s.PollInterval)
 	}
 
+	warnSingleLabelHost(s.Host)
+	warnLocalHost(s.Host)
+
 	if c.Path == "" {
 		return errors.New("smb source must have a path")
 	}
@@ -170,6 +184,63 @@ func (c *LogsConfig) validateSMB() error {
 	default:
 		return fmt.Errorf("invalid start_position %q for smb path %q (supported: beginning, end)", c.TailingMode, c.Path)
 	}
+}
+
+// isSingleLabelHost reports whether host is a name that DNS does not resolve as a fully qualified
+// name: neither an IP address nor a name with a dot ("fileserver"). Windows falls back to LLMNR
+// and NetBIOS name service broadcasts for such names, which an attacker on the subnet can answer.
+// localhost is exempt: it resolves locally.
+func isSingleLabelHost(host string) bool {
+	if host == "" || net.ParseIP(withoutZone(host)) != nil || strings.Contains(host, ".") {
+		return false
+	}
+	return !strings.EqualFold(host, "localhost")
+}
+
+// withoutZone returns host without the zone of an IPv6 address ("fe80::1%eth0"), which
+// net.ParseIP does not accept.
+func withoutZone(host string) string {
+	if i := strings.IndexByte(host, '%'); i >= 0 {
+		return host[:i]
+	}
+	return host
+}
+
+// warnedSingleLabelHosts holds the hosts warnSingleLabelHost already warned about, so that a
+// config validated again (the launcher validates every source it starts) warns once per process.
+var warnedSingleLabelHosts sync.Map
+
+// warnSingleLabelHost logs one warning per process for a single-label host. It runs after the host
+// passed validation (no user info, scheme or path), and it never logs the credentials.
+func warnSingleLabelHost(host string) {
+	if !isSingleLabelHost(host) {
+		return
+	}
+	if _, warned := warnedSingleLabelHosts.LoadOrStore(strings.ToLower(host), struct{}{}); warned {
+		return
+	}
+	log.Warnf("smb host %q is a single-label name: when DNS cannot resolve it, Windows asks the local subnet (LLMNR, NetBIOS), where any machine can answer and receive the account's NTLMv2 response. Use the server's fully qualified domain name or its IP address. NTLM does not authenticate the server to the Agent", host)
+}
+
+// isLocalHost reports whether host ends in ".local", the domain that multicast DNS (RFC 6762)
+// resolves: macOS and, where configured, Windows and Linux (nss-mdns) ask the local subnet for
+// such a name, and any machine there can answer it.
+func isLocalHost(host string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimSuffix(host, ".")), ".local")
+}
+
+// warnedLocalHosts holds the hosts warnLocalHost already warned about.
+var warnedLocalHosts sync.Map
+
+// warnLocalHost logs one warning per process for a .local host, like warnSingleLabelHost.
+func warnLocalHost(host string) {
+	if !isLocalHost(host) {
+		return
+	}
+	if _, warned := warnedLocalHosts.LoadOrStore(strings.ToLower(strings.TrimSuffix(host, ".")), struct{}{}); warned {
+		return
+	}
+	log.Warnf("smb host %q ends in .local, which is resolved with multicast DNS (mDNS) on the local subnet, where any machine can answer and receive the account's NTLMv2 response. Use the server's fully qualified domain name or its IP address. NTLM does not authenticate the server to the Agent", host)
 }
 
 // validateSMBPattern checks a glob pattern of an smb source, its path or an exclude_paths entry:

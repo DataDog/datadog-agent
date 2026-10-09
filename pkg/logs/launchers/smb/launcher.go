@@ -13,6 +13,16 @@
 // and polls one tailer per matched file. Sources that use the same share and
 // account share one reconnecting SMB client.
 //
+// Security: the Agent authenticates with NTLMv2, which proves the account to
+// the server but not the server to the Agent, so a source's host must be a
+// fully qualified domain name or an IP address, never a single-label name that
+// Windows would resolve with LLMNR or NetBIOS broadcasts, nor a name ending in
+// .local, which is resolved with multicast DNS, where any machine on the
+// subnet can answer and receive the NTLMv2 response. Every message is
+// signed, and only SMB 3 is offered unless the source sets allow_smb2; the
+// content is encrypted only if the server enforces it or the source sets
+// require_encryption.
+//
 // Agents do not elect a single reader per share: every Agent with an smb
 // source lists the share and reads every file the source's path matches, so a
 // DaemonSet that configures the source on N nodes ships each line N times.
