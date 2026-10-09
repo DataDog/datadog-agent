@@ -50,6 +50,17 @@ const (
 	propRunningAsRoot   = "RunningAsRoot"
 )
 
+// propUsageObservedSince names the metadata property of an enriched SBOM holding
+// when the usage it carries started being recorded, as a Unix timestamp
+// (seconds). Until the usage window of its workload closes, one refresh period
+// later, an unseen package goes out stripped of its runtime properties.
+const propUsageObservedSince = "UsageObservedSince"
+
+// usageWindow is how long the usage of a workload is recorded before an unseen
+// package reads "0": the refresh period the suites set for the host and the
+// images, in packageInUseHelmValues.
+const usageWindow = time.Minute
+
 const (
 	// inUseWindow is the maximum age a LastSeenRunning timestamp may have while we
 	// consider the package "in use". It must comfortably exceed the end-to-end
@@ -352,6 +363,22 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 			// 14m: the enrichment can only merge once the workload's overlayfs Trivy
 			// SBOM is ready in workloadmeta, which lands ~10-15m into the run.
 		}, 14*time.Minute, 15*time.Second, "%s SBOM never reported %s as not-in-use", d.name, d.inUsePkg)
+
+		starts := lo.CountBy(s.repoUsageSBOMs(s.T(), repo), func(sb usageSBOM) bool { return !sb.since.IsZero() })
+		s.Positivef(starts, "no %s SBOM holds the start of its usage", d.name)
+	})
+
+	// The first SBOM of the image in use waits for the usage of the image,
+	// which merges before it goes out, so every SBOM of the image in use
+	// carries it. An SBOM sent before the first container of the image runs
+	// goes out unused, as it is.
+	s.Run("first-sbom-enriched", func() {
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			enriched, raw := s.repoPayloads(c, repo)
+			s.T().Logf("PKG-IN-USE[%s] first-sbom: %d SBOMs with usage, %d without", d.name, enriched, raw)
+			require.Positivef(c, enriched, "no %s SBOM with usage", d.name)
+			assert.Zerof(c, raw, "%d %s SBOMs went out without the usage of the image", raw, d.name)
+		}, time.Minute, 15*time.Second, "%s SBOMs went out without usage", d.name)
 	})
 
 	// Phase 2: start a service that repeatedly runs the in-use binary, and verify
@@ -432,12 +459,14 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 	// Phase 5: refresh reset. Writing the package database and exiting fires the
 	// bundled need_refresh_sbom / refresh_sbom rules, re-scanning the workload and
 	// zeroing its runtime properties. This is the only path back to "0": stopping
-	// a service merely freezes the timestamp. The in-use package is no longer
-	// running, so after the refresh its newest payload must report "0".
+	// a service merely freezes the timestamp. The refresh restarts the usage
+	// window of the image, so the in-use package, stopped by then, loses its
+	// runtime properties until the window closes, and reads "0" after.
 	s.Run("refresh-reset", func() {
 		if s.usageOnly {
 			s.T().Skip("the rules that refresh the SBOMs run with CWS")
 		}
+		refreshedAt := time.Unix(s.nodeEpoch(d), 0)
 		s.triggerSBOMRefresh(d)
 
 		s.EventuallyWithTf(func(collect *assert.CollectT) {
@@ -451,6 +480,25 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 			s.T().Logf("PKG-IN-USE[%s] refresh: %s LastSeenRunning=%q", d.name, d.inUsePkg, v)
 			assert.Equalf(c, "0", v, "%s LastSeenRunning should reset to 0 after a package-DB refresh, got %q", d.inUsePkg, v)
 		}, 6*time.Minute, 20*time.Second, "%s SBOM never reset %s to 0 after the package-DB refresh", d.name, d.inUsePkg)
+
+		// The keep-alive runs the control package all along, so an SBOM of the
+		// window shows it seen since the refresh.
+		inWindow, controlSeen := 0, false
+		for _, sb := range s.repoUsageSBOMs(s.T(), repo) {
+			if open, _ := usageWindowOf(sb, usageWindow); !open || sb.since.Before(refreshedAt) {
+				continue
+			}
+			inWindow++
+			inUse := findComponent(sb.components, d.inUsePkg)
+			s.Require().NotNilf(inUse, "no %s in the %s SBOM", d.inUsePkg, d.name)
+			s.Emptyf(propertyValues(inUse.GetProperties(), propLastSeenRunning), "%s carries %s in the usage window the refresh opened", d.inUsePkg, propLastSeenRunning)
+			if ts, _ := lastSeenRunning(findComponent(sb.components, d.controlPkg)); ts >= sb.since.Unix() {
+				controlSeen = true
+			}
+		}
+		s.T().Logf("PKG-IN-USE[%s] refresh: %d SBOMs in the usage window the refresh opened", d.name, inWindow)
+		s.Positivef(inWindow, "no %s SBOM went out in the usage window the refresh opened", d.name)
+		s.Truef(controlSeen, "no %s SBOM of the window shows %s seen since the refresh", d.name, d.controlPkg)
 	})
 }
 
@@ -462,6 +510,27 @@ const hostShellContainer = "shell"
 // Each subtest runs its own host processes.
 func (s *packageInUseSuite) TestHostPackageInUse() {
 	shell := s.startHostShell()
+
+	// The first host SBOM waits for the usage of the host, so it holds that of
+	// kubelet, which starts with the node before the Agent. A second host SBOM
+	// settles which one came first.
+	s.Run("first-sbom", func() {
+		var first []*cyclonedx_v1_4.Component
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			var bodies int
+			first, bodies = oldestHostSBOM(c, s.Fakeintake)
+			require.GreaterOrEqualf(c, bodies, 2, "a single host SBOM with a body in fake intake yet")
+			// 10m: run on its own, the subtest also waits out the Agent start and
+			// its first host scans.
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never went out twice")
+
+		kubelet := findComponent(first, "kubelet")
+		s.Require().NotNil(kubelet, "no kubelet in the first host SBOM")
+		ts, _ := lastSeenRunning(kubelet)
+		s.T().Logf("PKG-IN-USE[host] first-sbom: kubelet LastSeenRunning=%d", ts)
+		s.Positivef(ts, "the first host SBOM went out without the usage of kubelet")
+		s.Equalf([]string{"true"}, propertyValues(kubelet.GetProperties(), propRunningAsRoot), "kubelet %s in the first host SBOM", propRunningAsRoot)
+	})
 
 	// kubelet starts with the node, before the Agent, so its use comes from
 	// the processes the probe finds running when it starts.
@@ -554,6 +623,28 @@ func (s *packageInUseSuite) TestHostPackageInUse() {
 			s.T().Logf("PKG-IN-USE[host] util-linux HasSetSuidBit=%v", suid)
 			assert.Equalf(c, []string{"true"}, suid, "util-linux %s, the host ran its setuid su", propHasSetSuidBit)
 		}, 5*time.Minute, 15*time.Second, "the host SBOM never reported the setuid su of util-linux")
+	})
+
+	// While the usage of the host was recorded for less than its window, the
+	// unseen packages lose their runtime properties. Past the window, every
+	// package carries them, and the unseen ones read "0".
+	s.Run("unobserved", func() {
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			open, closed := 0, 0
+			for _, sb := range hostUsageSBOMs(c, s.Fakeintake) {
+				inWindow, pastWindow := usageWindowOf(sb, usageWindow)
+				if inWindow {
+					open++
+					assertUsageUnknown(c, sb)
+				}
+				if pastWindow {
+					closed++
+					assertUsageDefaulted(c, sb)
+				}
+			}
+			s.T().Logf("PKG-IN-USE[host] unobserved: %d host SBOMs in the usage window, %d past it", open, closed)
+			require.Positivef(c, closed, "no host SBOM past the usage window yet")
+		}, 10*time.Minute, 15*time.Second, "the host SBOMs never gave every package its usage past the usage window")
 	})
 
 	// A write to the rpm database of the host fires the bundled
@@ -739,6 +830,186 @@ func newestHostSBOM(c require.TestingT, intake *fakeintakeclient.Client, after t
 	}
 	require.NotEmptyf(c, components, "no host SBOM with a body collected after %s in fake intake yet", after)
 	return components
+}
+
+// usageSBOM is an SBOM with a body as the fake intake received it, with the
+// start of the usage it carries, if it holds one.
+type usageSBOM struct {
+	collected  time.Time
+	since      time.Time
+	components []*cyclonedx_v1_4.Component
+}
+
+func newUsageSBOM(collected time.Time, bom *cyclonedx_v1_4.Bom) usageSBOM {
+	return usageSBOM{collected: collected, since: usageObservedSince(bom), components: bom.GetComponents()}
+}
+
+// usageObservedSince returns the start of the usage bom carries, or the zero
+// time.
+func usageObservedSince(bom *cyclonedx_v1_4.Bom) time.Time {
+	for _, p := range bom.GetMetadata().GetProperties() {
+		if p.GetName() != propUsageObservedSince {
+			continue
+		}
+		if seconds, err := strconv.ParseInt(p.GetValue(), 10, 64); err == nil {
+			return time.Unix(seconds, 0)
+		}
+	}
+	return time.Time{}
+}
+
+// isEnriched reports whether bom went through the runtime enrichment merge: it
+// holds the start of its usage, or a component carries its usage. In the usage
+// window of its workload, an SBOM whose packages are all unseen holds the start
+// alone.
+func isEnriched(bom *cyclonedx_v1_4.Bom) bool {
+	return !usageObservedSince(bom).IsZero() || lo.SomeBy(bom.GetComponents(), func(comp *cyclonedx_v1_4.Component) bool {
+		_, ok := lastSeenRunning(comp)
+		return ok
+	})
+}
+
+// usageWindowOf tells whether sb went out while the usage window of its
+// workload, window long, was open, or once it had closed. Around the end of the
+// window, which the latency of the sends and the skew of the clocks blur, both
+// read false.
+func usageWindowOf(sb usageSBOM, window time.Duration) (open, closed bool) {
+	if sb.since.IsZero() {
+		return false, false
+	}
+	return sb.collected.Before(sb.since.Add(window - 10*time.Second)), !sb.collected.Before(sb.since.Add(window + 30*time.Second))
+}
+
+// hostUsageSBOMs returns the host SBOMs with a body the fake intake holds.
+func hostUsageSBOMs(c require.TestingT, intake *fakeintakeclient.Client) []usageSBOM {
+	ids, err := intake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var sboms []usageSBOM
+	for _, id := range ids {
+		payloads, err := intake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			sboms = append(sboms, newUsageSBOM(p.GetCollectedTime(), p.GetCyclonedx()))
+		}
+	}
+	return sboms
+}
+
+// repoUsageSBOMs returns the successful SBOMs with a body of the images of repo.
+func (s *packageInUseSuite) repoUsageSBOMs(c require.TestingT, repo string) []usageSBOM {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var sboms []usageSBOM
+	for _, id := range ids {
+		if !strings.Contains(id, repo+"@") {
+			continue
+		}
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			sboms = append(sboms, newUsageSBOM(p.GetCollectedTime(), p.GetCyclonedx()))
+		}
+	}
+	return sboms
+}
+
+// isOSPackage reports whether comp is a package of the dpkg, rpm or apk
+// databases, the packages runtime usage covers.
+func isOSPackage(comp *cyclonedx_v1_4.Component) bool {
+	for _, prefix := range []string{"pkg:deb/", "pkg:rpm/", "pkg:apk/"} {
+		if strings.HasPrefix(comp.GetPurl(), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// assertUsageUnknown checks that sb, sent in the usage window of its workload,
+// leaves the usage of the unseen packages unknown: every LastSeenRunning it
+// holds is a positive timestamp, and a package carries its other runtime
+// properties with LastSeenRunning alone.
+func assertUsageUnknown(c assert.TestingT, sb usageSBOM) {
+	for _, comp := range sb.components {
+		if ts, ok := lastSeenRunning(comp); ok {
+			assert.Positivef(c, ts, "%s reads %s 0 in the usage window, in the SBOM of %s", comp.GetName(), propLastSeenRunning, sb.collected)
+			continue
+		}
+		assert.Emptyf(c, propertyValues(comp.GetProperties(), propHasSetSuidBit), "%s carries %s without %s, in the SBOM of %s", comp.GetName(), propHasSetSuidBit, propLastSeenRunning, sb.collected)
+		assert.Emptyf(c, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s carries %s without %s, in the SBOM of %s", comp.GetName(), propRunningAsRoot, propLastSeenRunning, sb.collected)
+	}
+}
+
+// assertUsageDefaulted checks that sb, a host SBOM sent past the usage window,
+// gives most OS packages their usage, some of them "0". A package carries all
+// three runtime properties, or none while system-probe has yet to index it.
+func assertUsageDefaulted(c assert.TestingT, sb usageSBOM) {
+	carried, unknown, unused := 0, 0, 0
+	for _, comp := range sb.components {
+		if !isOSPackage(comp) {
+			continue
+		}
+		n := 0
+		for _, name := range []string{propLastSeenRunning, propHasSetSuidBit, propRunningAsRoot} {
+			if len(propertyValues(comp.GetProperties(), name)) > 0 {
+				n++
+			}
+		}
+		switch n {
+		case 0:
+			unknown++
+		case 3:
+			carried++
+			if ts, _ := lastSeenRunning(comp); ts == 0 {
+				unused++
+			}
+		default:
+			assert.Failf(c, "partial usage", "%s carries %d of the 3 runtime properties past the usage window, in the SBOM of %s", comp.GetName(), n, sb.collected)
+		}
+	}
+	assert.Greaterf(c, carried, unknown, "%d OS packages carry their usage and %d none past the usage window, in the SBOM of %s", carried, unknown, sb.collected)
+	assert.Positivef(c, unused, "no package reads %s 0 past the usage window, in the SBOM of %s", propLastSeenRunning, sb.collected)
+}
+
+// oldestHostSBOM returns the components of the first host SBOM with a body the
+// fake intake received, and how many host SBOMs with a body it holds.
+func oldestHostSBOM(c require.TestingT, intake *fakeintakeclient.Client) ([]*cyclonedx_v1_4.Component, int) {
+	ids, err := intake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var oldest time.Time
+	var components []*cyclonedx_v1_4.Component
+	bodies := 0
+	for _, id := range ids {
+		payloads, err := intake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			bodies++
+			if components != nil && !p.GetCollectedTime().Before(oldest) {
+				continue
+			}
+			oldest = p.GetCollectedTime()
+			components = p.GetCyclonedx().Components
+		}
+	}
+	require.NotEmptyf(c, components, "no host SBOM with a body in fake intake yet")
+	return components, bodies
 }
 
 // runOutOfScopeComponents asserts the runtime properties reach the OS packages
@@ -988,9 +1259,9 @@ func (s *packageInUseSuite) runComponentListPreserved() {
 }
 
 // imagePayloads walks every container image payload in the fake intake and returns
-// one entry per image whose SBOM has been enriched. A LastSeenRunning property on
-// any component marks a payload the merge has been through, which leaves the raw
-// Trivy ones as the baseline to compare against.
+// one entry per image whose SBOM has been enriched. isEnriched marks the payloads
+// the merge has been through, which leaves the raw Trivy ones as the baseline to
+// compare against.
 func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
 	ids, err := s.Fakeintake.GetSBOMIDs()
 	require.NoErrorf(c, err, "Failed to query fake intake")
@@ -1009,11 +1280,7 @@ func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
 				continue
 			}
 			comps := p.GetCyclonedx().Components
-			enriched := lo.SomeBy(comps, func(comp *cyclonedx_v1_4.Component) bool {
-				_, ok := lastSeenRunning(comp)
-				return ok
-			})
-			if !enriched {
+			if !isEnriched(p.GetCyclonedx()) {
 				img.rawCount = max(img.rawCount, len(comps))
 				continue
 			}
@@ -1031,6 +1298,34 @@ func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
 		}
 	}
 	return images
+}
+
+// repoPayloads counts the successful SBOM payloads of the images of repo sent
+// in use, enriched with runtime usage and raw.
+func (s *packageInUseSuite) repoPayloads(c require.TestingT, repo string) (enriched, raw int) {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	for _, id := range ids {
+		if !strings.Contains(id, repo+"@") {
+			continue
+		}
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil || !p.GetInUse() {
+				continue
+			}
+			if isEnriched(p.GetCyclonedx()) {
+				enriched++
+			} else {
+				raw++
+			}
+		}
+	}
+	return enriched, raw
 }
 
 // startInUseService launches, inside the workload pod, a detached loop that

@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"slices"
+	"strconv"
 	"sync"
 	"syscall"
 	"testing"
@@ -608,6 +609,10 @@ func TestHostForwardingSkipsImageSBOM(t *testing.T) {
 	if seen, _ := propertyValue(components[0], LastAccessProperty); seen == "0" || seen == "" {
 		t.Errorf("%s = %q, want util-linux seen running", LastAccessProperty, seen)
 	}
+	want := strconv.FormatInt(r.hostSBOM.data.observedSince.Unix(), 10)
+	if got := metadataValue(reports[0].Report.ToCycloneDX(), UsageObservedSinceProperty); got != want {
+		t.Errorf("%s = %q, want %s, the start of the host usage", UsageObservedSinceProperty, got, want)
+	}
 }
 
 // rootRecorder is a package scanner that records the root it was given and
@@ -756,6 +761,8 @@ func TestRefreshScanRescansHost(t *testing.T) {
 	file.Mode = 0755
 	r.ResolvePackage(pc, file)
 
+	since := r.hostSBOM.data.observedSince
+
 	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{utilLinux, {
 		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
 		InstalledFiles: []string{"/usr/bin/gzip"},
@@ -772,6 +779,9 @@ func TestRefreshScanRescansHost(t *testing.T) {
 	if pkg := pkgs[1]; pkg.LastAccess.IsZero() || pkg.SuidBit || !pkg.AccessedByRoot {
 		t.Errorf("package = %+v, want the upgraded gzip in use, run as root", pkg)
 	}
+	if got := r.hostSBOM.data.observedSince; !got.Equal(since) {
+		t.Errorf("observation start = %v, want %v, kept with the usage", got, since)
+	}
 	if !r.hostSBOM.IsComputed() {
 		t.Errorf("state = %d, want computedState (%d)", r.hostSBOM.state.Load(), computedState)
 	}
@@ -780,6 +790,27 @@ func TestRefreshScanRescansHost(t *testing.T) {
 	}
 	if dataCache.Len() != 0 {
 		t.Errorf("the host entered the workload cache")
+	}
+}
+
+// TestKeepUsageKeepsObservationStart checks that the usage a rescan keeps keeps
+// the time it started being recorded, and that the data of a first scan starts
+// recording its own.
+func TestKeepUsageKeepsObservationStart(t *testing.T) {
+	since := time.Unix(1700000000, 0)
+	report := []sbomtypes.PackageWithInstalledFiles{{Package: sbomtypes.Package{Name: "bash", Version: "5.2"}}}
+
+	rescan := newData(report, false)
+	rescan.keepUsage(&Data{packages: []sbomtypes.Package{{Name: "bash", Version: "5.1"}}, observedSince: since})
+	if !rescan.observedSince.Equal(since) {
+		t.Errorf("observation start = %v, want %v, that of the usage kept", rescan.observedSince, since)
+	}
+
+	first := newData(report, false)
+	start := first.observedSince
+	first.keepUsage(&Data{})
+	if start.IsZero() || !first.observedSince.Equal(start) {
+		t.Errorf("observation start = %v, want %v, that of the first scan", first.observedSince, start)
 	}
 }
 
