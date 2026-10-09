@@ -14,7 +14,10 @@ go_library(
 
 dd_agent_go_test(
     name = "types_test",
-    srcs = ["levels_test.go"],
+    srcs = [
+        "levels_test.go",
+        "parse_test.go",
+    ],
     embed = [":types"],
     deps = [
         "@com_github_stretchr_testify//assert",

@@ -11,6 +11,15 @@ import (
 	"strings"
 )
 
+// ValidateLevelRules reports whether spec is a valid log level
+// specification, as accepted by ParseLevelRules.
+func ValidateLevelRules(spec string) error {
+	// The module prefix only affects how relative patterns are resolved,
+	// never whether a specification is valid, so any non-empty value works.
+	_, err := ParseLevelRules(spec, "dummy")
+	return err
+}
+
 // ParseLevelRules parses a log level specification into a LevelRules.
 //
 // A specification is a comma-separated list of instructions. Each
