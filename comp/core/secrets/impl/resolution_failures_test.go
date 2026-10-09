@@ -30,7 +30,7 @@ func TestResolutionFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newEnabledSecretResolver(nooptelemetry.GetCompatComponent())
 			r.commandHookFunc = func(string) ([]byte, error) { return []byte(tc.response), tc.err }
-			r.SetOriginName("config-id", "redis")
+			r.SetOriginConfig("config-id", "redis", "file:/etc/datadog-agent/conf.d/redisdb.d/conf.yaml")
 			_, err := r.Resolve([]byte("password: ENC[bad]\nusername: ENC[good]\n"), "config-id", "", "", false)
 			require.Error(t, err)
 			failures := r.GetResolutionFailures()
@@ -38,6 +38,7 @@ func TestResolutionFailures(t *testing.T) {
 			for _, failure := range failures {
 				assert.Equal(t, "config-id", failure.Origin)
 				assert.Equal(t, "redis", failure.OriginName)
+				assert.Equal(t, "file:/etc/datadog-agent/conf.d/redisdb.d/conf.yaml", failure.ConfigSource)
 				assert.Equal(t, tc.reason, failure.Reason)
 				assert.False(t, failure.HasCachedValue)
 			}
@@ -78,6 +79,17 @@ func TestResolutionFailureRecoveryAndRemoval(t *testing.T) {
 	require.Len(t, r.GetResolutionFailures(), 1)
 	r.RemoveOrigin("second")
 	assert.Empty(t, r.GetResolutionFailures())
+}
+
+func TestResolutionFailureAmbiguousSource(t *testing.T) {
+	r := newEnabledSecretResolver(nooptelemetry.GetCompatComponent())
+	r.commandHookFunc = func(string) ([]byte, error) { return []byte(`{}`), nil }
+	for _, source := range []string{"file:/first/conf.yaml", "file:/second/conf.yaml", "file:/first/conf.yaml"} {
+		r.SetOriginConfig("same-digest", "redis", source)
+		_, err := r.Resolve([]byte("password: ENC[missing]\n"), "same-digest", "", "", false)
+		require.Error(t, err)
+	}
+	assert.Empty(t, r.GetResolutionFailures()[0].ConfigSource, "an ambiguous file must not receive an inline warning")
 }
 
 func TestRefreshFailureClearsOnUnchangedValue(t *testing.T) {

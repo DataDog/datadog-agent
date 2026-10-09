@@ -91,9 +91,10 @@ func buildIssue(hostname string, failure secrets.ResolutionFailure) (*healthplat
 	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s", hostname, failure.Origin, failure.Handle, jsonpointer.Pointer(failure.Path).String())
 	ctx := map[string]string{
 		"handle": failure.Handle, "configuration": failure.OriginName,
-		"reason": failure.Reason, "cached": strconv.FormatBool(failure.HasCachedValue),
+		"configuration_source": failure.ConfigSource,
+		"reason":               failure.Reason, "cached": strconv.FormatBool(failure.HasCachedValue),
 	}
-	for _, key := range []string{"handle", "configuration"} {
+	for _, key := range []string{"handle", "configuration", "configuration_source"} {
 		text, err := scrubber.ScrubString(ctx[key])
 		if err != nil {
 			return nil, err

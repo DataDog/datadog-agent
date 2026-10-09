@@ -19,6 +19,7 @@ type ResolutionFailure struct {
 	Handle         string
 	Origin         string
 	OriginName     string
+	ConfigSource   string
 	Path           []string
 	Reason         string
 	HasCachedValue bool
@@ -53,7 +54,8 @@ type Component interface {
 	//
 	// Setting 'notify' to true will send notifications for any resolve secrets. This is meant for callers that when
 	// to replace handle themselves in memory. only the configuration requires this at the moment.
-	Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error)
+	// pathPrefix identifies the snippet's location in its complete configuration file.
+	Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool, pathPrefix ...string) ([]byte, error)
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
 	// Refresh schedules a throttled asynchronous secret refresh. Returns true if the
@@ -66,8 +68,8 @@ type Component interface {
 	// RemoveOrigin removes a origin from the internal cache of the secret component. This does not remove secrets
 	// from the cache but the reference where those secrets are used.
 	RemoveOrigin(origin string)
-	// SetOriginName gives an integration configuration a readable name for diagnostics.
-	SetOriginName(origin, name string)
+	// SetOriginConfig records the configuration name and provider source for diagnostics.
+	SetOriginConfig(origin, name, source string)
 	// GetResolutionFailures returns failed lookups that still have an active configuration reference.
 	GetResolutionFailures() []ResolutionFailure
 	// SetResolutionFailureCallback installs the reporter and immediately supplies current failures.

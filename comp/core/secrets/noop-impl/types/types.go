@@ -20,7 +20,7 @@ func (r *SecretNoop) Configure(_ secrets.ConfigParams) {}
 func (r *SecretNoop) SubscribeToChanges(_ secrets.SecretChangeCallback) {}
 
 // Resolve does nothing
-func (r *SecretNoop) Resolve(data []byte, _ string, _ string, _ string, _ bool) ([]byte, error) {
+func (r *SecretNoop) Resolve(data []byte, _ string, _ string, _ string, _ bool, _ ...string) ([]byte, error) {
 	return data, nil
 }
 
@@ -42,8 +42,8 @@ func (r *SecretNoop) IsValueFromSecret(_ string) bool {
 // RemoveOrigin
 func (r *SecretNoop) RemoveOrigin(_ string) {}
 
-// SetOriginName does nothing.
-func (r *SecretNoop) SetOriginName(_, _ string) {}
+// SetOriginConfig does nothing.
+func (r *SecretNoop) SetOriginConfig(_, _, _ string) {}
 
 // GetResolutionFailures returns no failures.
 func (r *SecretNoop) GetResolutionFailures() []secrets.ResolutionFailure { return nil }

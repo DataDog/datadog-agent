@@ -44,7 +44,8 @@ func (i *SecretResolutionIssue) BuildIssue(ctx map[string]string) (*healthplatfo
 	extra, err := structpb.NewStruct(map[string]any{
 		"secret_reference": reference,
 		"configuration":    ctx["configuration"], "setting_path": ctx["setting_path"],
-		"reason": ctx["reason"], "has_cached_value": ctx["cached"] == "true", "impact": impact,
+		"configuration_source": ctx["configuration_source"],
+		"reason":               ctx["reason"], "has_cached_value": ctx["cached"] == "true", "impact": impact,
 	})
 	if err != nil {
 		return nil, err

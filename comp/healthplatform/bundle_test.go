@@ -467,7 +467,8 @@ func (r *testSecretFailures) GetResolutionFailures() []secrets.ResolutionFailure
 	}
 	return []secrets.ResolutionFailure{{
 		Handle: "qa-password", Origin: "qa-config", OriginName: "redis",
-		Path: []string{"password"}, Reason: "missing",
+		ConfigSource: "file:/etc/datadog-agent/conf.d/redisdb.d/conf.yaml",
+		Path:         []string{"password"}, Reason: "missing",
 	}}
 }
 
@@ -546,6 +547,7 @@ func TestSecretResolutionLifecycleForwarded(t *testing.T) {
 		if failed {
 			assert.Contains(t, received.Description, "ENC[qa-password]")
 			assert.NotEmpty(t, received.Remediation.Steps)
+			assert.Equal(t, "file:/etc/datadog-agent/conf.d/redisdb.d/conf.yaml", received.Extra.AsMap()["configuration_source"])
 		}
 	}
 }

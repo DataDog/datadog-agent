@@ -9,6 +9,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -38,7 +43,7 @@ var _ secrets.Component = (*MockSecretResolver)(nil)
 
 func (m *MockSecretResolver) Configure(_ secrets.ConfigParams) {}
 
-func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ string, _ bool) ([]byte, error) {
+func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ string, _ bool, _ ...string) ([]byte, error) {
 	if m.scenarios == nil {
 		return data, nil
 	}
@@ -54,7 +59,7 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 
 func (m *MockSecretResolver) RemoveOrigin(_ string) {}
 
-func (m *MockSecretResolver) SetOriginName(_, _ string) {}
+func (m *MockSecretResolver) SetOriginConfig(_, _, _ string) {}
 
 func (m *MockSecretResolver) GetResolutionFailures() []secrets.ResolutionFailure { return nil }
 
@@ -161,6 +166,29 @@ func TestSecretResolve(t *testing.T) {
 	assert.NotEqual(t, newConfig.Instances, sharedTpl.Instances)
 
 	assert.True(t, mockResolve.haveAllScenariosBeenCalled())
+}
+
+func TestSecretFailureUsesFullConfigPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell backend")
+	}
+	command := filepath.Join(t.TempDir(), "backend.sh")
+	require.NoError(t, os.WriteFile(command, []byte("#!/bin/sh\nprintf '{}'\n"), 0700))
+	r := secretsimpl.NewEnabledResolver(nooptelemetry.GetCompatComponent())
+	r.Configure(secrets.ConfigParams{Command: command, Timeout: 1, MaxSize: 1024})
+	conf := integration.Config{
+		Name: "redisdb", Source: "file:/etc/datadog-agent/conf.d/redisdb.d/conf.yaml",
+		Instances:  []integration.Data{[]byte("password: ENC[missing]\n"), []byte("password: ENC[missing]\n")},
+		LogsConfig: []byte("logs:\n- token: ENC[missing]\n"),
+	}
+	_, err := decryptConfig(conf, r, conf.Digest())
+	require.Error(t, err)
+	var paths [][]string
+	for _, failure := range r.GetResolutionFailures() {
+		assert.Equal(t, conf.Source, failure.ConfigSource)
+		paths = append(paths, failure.Path)
+	}
+	assert.ElementsMatch(t, [][]string{{"instances", "0", "password"}, {"instances", "1", "password"}, {"logs", "0", "token"}}, paths)
 }
 
 // TestDecryptConfigInstanceFailureSkipsInstance verifies that when one instance fails to

@@ -51,11 +51,17 @@ func (r *secretResolver) recordResolutionFailure(handle string, err error) {
 	r.resolutionFailures[handle] = reason
 }
 
-// SetOriginName associates a configuration digest with its integration name.
-func (r *secretResolver) SetOriginName(origin, name string) {
+type originConfig struct{ name, source string }
+
+// SetOriginConfig associates a configuration digest with its name and provider source.
+func (r *secretResolver) SetOriginConfig(origin, name, source string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.originNames[origin] = name
+	// Identical configs can share a digest across files; do not point at the wrong file.
+	if previous, exists := r.originConfigs[origin]; exists && previous.source != source {
+		source = ""
+	}
+	r.originConfigs[origin] = originConfig{name, source}
 }
 
 // GetResolutionFailures returns a snapshot of active failed lookups.
@@ -70,13 +76,15 @@ func (r *secretResolver) resolutionFailuresSnapshot() []secrets.ResolutionFailur
 	for handle, reason := range r.resolutionFailures {
 		_, cached := r.cache[handle]
 		for _, ref := range r.origin[handle] {
-			name := r.originNames[ref.origin]
+			config := r.originConfigs[ref.origin]
+			name := config.name
 			if name == "" {
 				name = ref.origin
 			}
 			failures = append(failures, secrets.ResolutionFailure{
 				Handle: handle, Origin: ref.origin, OriginName: name,
-				Path: slices.Clone(ref.path), Reason: reason, HasCachedValue: cached,
+				ConfigSource: config.source,
+				Path:         slices.Concat(ref.pathPrefix, ref.path), Reason: reason, HasCachedValue: cached,
 			})
 		}
 	}

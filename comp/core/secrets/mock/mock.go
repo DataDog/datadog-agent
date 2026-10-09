@@ -44,7 +44,7 @@ func (m *Mock) Configure(_ secrets.ConfigParams) {}
 
 // Resolve resolves the secrets in the given yaml data by replacing secrets handles by their corresponding secret value
 // from the data receive by `SetSecrets` method
-func (m *Mock) Resolve(data []byte, origin string, _ string, _ string, notify bool) ([]byte, error) {
+func (m *Mock) Resolve(data []byte, origin string, _ string, _ string, notify bool, _ ...string) ([]byte, error) {
 	var config interface{}
 	err := yaml.Unmarshal(data, &config)
 	if err != nil {
@@ -145,8 +145,8 @@ func (m *Mock) IsValueFromSecret(value string) bool {
 // RemoveOrigin
 func (m *Mock) RemoveOrigin(_ string) {}
 
-// SetOriginName does nothing.
-func (m *Mock) SetOriginName(_, _ string) {}
+// SetOriginConfig does nothing.
+func (m *Mock) SetOriginConfig(_, _, _ string) {}
 
 // GetResolutionFailures returns no failures.
 func (m *Mock) GetResolutionFailures() []secrets.ResolutionFailure { return nil }

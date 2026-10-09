@@ -7,6 +7,7 @@ package autodiscoveryimpl
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -21,10 +22,10 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	}
 
 	var err error
-	secretResolver.SetOriginName(origin, conf.Name)
+	secretResolver.SetOriginConfig(origin, conf.Name, conf.Source)
 
 	// init_config is shared by all instances — any failure drops the entire config.
-	conf.InitConfig, err = secretResolver.Resolve(conf.InitConfig, origin, conf.ImageName, conf.PodNamespace, false)
+	conf.InitConfig, err = secretResolver.Resolve(conf.InitConfig, origin, conf.ImageName, conf.PodNamespace, false, "init_config")
 	if err != nil {
 		conf.Instances = nil
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
@@ -33,8 +34,8 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	// instances — failing instances are skipped so surviving ones are still scheduled.
 	var instanceErr error
 	instances := make([]integration.Data, 0, len(conf.Instances))
-	for _, inputInstance := range conf.Instances {
-		decryptedInstance, err := secretResolver.Resolve(inputInstance, origin, conf.ImageName, conf.PodNamespace, false)
+	for index, inputInstance := range conf.Instances {
+		decryptedInstance, err := secretResolver.Resolve(inputInstance, origin, conf.ImageName, conf.PodNamespace, false, "instances", strconv.Itoa(index))
 		if err != nil {
 			instanceErr = fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 			continue
@@ -44,7 +45,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	conf.Instances = instances
 
 	// metrics
-	conf.MetricConfig, err = secretResolver.Resolve(conf.MetricConfig, origin, conf.ImageName, conf.PodNamespace, false)
+	conf.MetricConfig, err = secretResolver.Resolve(conf.MetricConfig, origin, conf.ImageName, conf.PodNamespace, false, "jmx_metrics")
 	if err != nil {
 		conf.Instances = nil
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)

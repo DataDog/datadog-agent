@@ -76,6 +76,8 @@ type secretContext struct {
 	// represented as a list of field names
 	// Example: in this yaml: '{"service": {"token": "ENC[my_token]"}}', ['service', 'token'] is the path and 'my_token' is the handle.
 	path []string
+	// pathPrefix locates this snippet within the complete configuration file.
+	pathPrefix []string
 }
 
 type handleToContext map[string][]secretContext
@@ -87,7 +89,7 @@ type secretResolver struct {
 
 	// list of handles and where they were found
 	origin                    handleToContext
-	originNames               map[string]string
+	originConfigs             map[string]originConfig
 	resolutionFailures        map[string]string
 	resolutionFailureCallback func([]secrets.ResolutionFailure, bool)
 	initialResolutionComplete bool
@@ -153,7 +155,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
-		originNames:             make(map[string]string),
+		originConfigs:           make(map[string]originConfig),
 		resolutionFailures:      make(map[string]string),
 		resolvedSecretValues:    make(map[string]struct{}),
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
@@ -256,9 +258,9 @@ func setJSONError(w http.ResponseWriter, err error, errorCode int) {
 }
 
 // assocate with the handle itself the origin (filename) and path where the handle appears
-func (r *secretResolver) registerSecretOrigin(handle string, origin string, path []string) {
+func (r *secretResolver) registerSecretOrigin(handle string, origin string, path, pathPrefix []string) {
 	for _, info := range r.origin[handle] {
-		if info.origin == origin && slices.Equal(info.path, path) {
+		if info.origin == origin && slices.Equal(info.path, path) && slices.Equal(info.pathPrefix, pathPrefix) {
 			// The secret was used twice in the same configuration under the same key: nothing to do
 			return
 		}
@@ -286,8 +288,9 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, path
 	r.origin[handle] = append(
 		r.origin[handle],
 		secretContext{
-			origin: origin,
-			path:   path,
+			origin:     origin,
+			path:       path,
+			pathPrefix: slices.Clone(pathPrefix),
 		})
 }
 
@@ -559,7 +562,7 @@ func (r *secretResolver) registerError(origin string, err error) {
 
 // Resolve replaces all encoded secrets in data by executing "secret_backend_command" once if all secrets aren't
 // present in the cache.
-func (r *secretResolver) Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool) ([]byte, error) {
+func (r *secretResolver) Resolve(data []byte, origin string, imageName string, kubeNamespace string, notify bool, pathPrefix ...string) ([]byte, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -585,7 +588,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 				}
 				// Track the origin before resolving the handle so periodic refreshes
 				// can retry handles that have never been successfully fetched.
-				r.registerSecretOrigin(handle, origin, path)
+				r.registerSecretOrigin(handle, origin, path, pathPrefix)
 
 				// Check if we already know this secret
 				if secretValue, ok := r.cache[handle]; ok {
@@ -813,7 +816,7 @@ func (r *secretResolver) RemoveOrigin(origin string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	defer r.notifyResolutionFailures()
-	delete(r.originNames, origin)
+	delete(r.originConfigs, origin)
 
 	for handle, origins := range r.origin {
 		newList := []secretContext{}

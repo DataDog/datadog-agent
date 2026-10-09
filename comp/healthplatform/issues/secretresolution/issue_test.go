@@ -57,7 +57,8 @@ func TestSecretResolutionScrubsReferences(t *testing.T) {
 	failure := secrets.ResolutionFailure{
 		Handle: "https://user:private-password@example.com/secret",
 		Origin: "config-id", OriginName: "redis", Reason: "backend_error",
-		Path: []string{"https://user:private-password@example.com", "token"},
+		ConfigSource: "https://user:private-password@example.com/config",
+		Path:         []string{"https://user:private-password@example.com", "token"},
 	}
 	issue, err := buildIssue("qa-host", failure)
 	require.NoError(t, err)
@@ -66,4 +67,13 @@ func TestSecretResolutionScrubsReferences(t *testing.T) {
 	assert.NotContains(t, string(encoded), "private-password")
 	assert.Contains(t, string(encoded), "example.com")
 	assert.Equal(t, "https://user:private-password@example.com", failure.Path[0], "reporting must not modify resolver references")
+}
+
+func TestSecretResolutionConfigurationSource(t *testing.T) {
+	issue, err := (&SecretResolutionIssue{}).BuildIssue(map[string]string{
+		"reason": "missing", "handle": "redis-password", "configuration": "redis",
+		"setting_path": "/password", "configuration_source": "file:/etc/datadog-agent/conf.d/redisdb.d/conf.yaml",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "file:/etc/datadog-agent/conf.d/redisdb.d/conf.yaml", issue.Extra.AsMap()["configuration_source"])
 }
