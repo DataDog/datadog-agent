@@ -1234,8 +1234,10 @@ replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0
 
 // Remove once
 // https://github.com/kubernetes/kube-state-metrics/pull/2928
-// is merged
-replace k8s.io/kube-state-metrics/v2 v2.19.1 => github.com/DataDog/kube-state-metrics/v2 v2.19.2-dd.1
+// is merged, along with the two kube-state-metrics rules in renovate.json.
+// The left-hand side is deliberately unversioned: Renovate cannot parse a
+// versioned one and bumps the fork version on the right-hand side (see renovate.json).
+replace k8s.io/kube-state-metrics/v2 => github.com/DataDog/kube-state-metrics/v2 v2.19.2-dd.1
 
 // kube-state-metrics v2.18 transitively pulls ugorji/go/codec v1.3.0 via its
 // gomplate doc-generation tool. The new version ships ~4x more generated code
