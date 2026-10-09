@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -70,9 +71,17 @@ const (
 // was ready: the hash of its usr-merge alias, the latest time, the sticky properties.
 type pendingFileEvent struct {
 	alias          uint64
+	mntNS          uint32
 	lastAccess     time.Time
 	suidBit        bool
 	accessedByRoot bool
+}
+
+// pendingFileKey identifies the queued accesses to a file by the hash of its
+// path and its mount, so that a bind mount at a package path stands apart.
+type pendingFileKey struct {
+	path    uint64
+	mountID uint32
 }
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
@@ -203,6 +212,23 @@ type SBOM struct {
 	forwardRetryCount int
 
 	usrMerged bool
+
+	root containerRoot
+}
+
+// containerRoot is the root mount of a container in the mount namespace of the
+// process it was read from, zero when unknown.
+type containerRoot struct {
+	mountID, mntNS uint32
+}
+
+// onRoot reports whether a file on mountID, accessed from mount namespace mntNS, may
+// be on the root. Another namespace copies the mounts under new IDs, so it may.
+func (c containerRoot) onRoot(mountID, mntNS uint32) bool {
+	if c.mountID == 0 || c.mntNS == 0 || mountID == 0 || mntNS != c.mntNS {
+		return true
+	}
+	return mountID == c.mountID
 }
 
 type workloadKey string
@@ -274,7 +300,7 @@ type Resolver struct {
 
 	// pending file events: file accesses received before the SBOM was ready, deduplicated per file path
 	pendingFileEventsLock sync.Mutex
-	pendingFileEvents     *simplelru.LRU[containerutils.ContainerID, map[uint64]pendingFileEvent]
+	pendingFileEvents     *simplelru.LRU[containerutils.ContainerID, map[pendingFileKey]pendingFileEvent]
 
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
@@ -316,7 +342,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	}
 
 	// one entry per workload waiting for its scan, so the same bound as the sboms cache
-	pendingFileEvents, err := simplelru.NewLRU[containerutils.ContainerID, map[uint64]pendingFileEvent](maxSBOMEntries, nil)
+	pendingFileEvents, err := simplelru.NewLRU[containerutils.ContainerID, map[pendingFileKey]pendingFileEvent](maxSBOMEntries, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
@@ -978,7 +1004,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
 		seclog.Debugf("no sbom found for container '%s'", pc.ContainerContext.ContainerID)
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc))
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc), file.MountID, pc.MntNS)
 		return nil
 	}
 
@@ -988,7 +1014,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	// the scan finishes (processPendingFileEvents is called at the end of analyzeWorkload).
 	if !sbom.IsComputed() {
 		sbom.Unlock()
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc))
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc), file.MountID, pc.MntNS)
 		return nil
 	}
 
@@ -996,6 +1022,12 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	// replay any file accesses that arrived before the SBOM was ready
 	r.processPendingFileEvents(sbom)
+
+	// The image holds the files of the root mount of its containers, which a bind
+	// mount or a ConfigMap at a package path is apart from.
+	if !sbom.root.onRoot(file.MountID, pc.MntNS) {
+		return nil
+	}
 
 	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
@@ -1084,12 +1116,13 @@ func (r *Resolver) owner(sbom *SBOM, pid uint32, path string) *sbomtypes.Package
 // deduplication the shared libraries mapped by every process of a workload crowd out
 // the distinct paths worth keeping. Directory opens, which leave the usage of their
 // package as it is, stay out of the queue.
-func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, root bool) {
+func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, root bool, mountID, mntNS uint32) {
 	if containerID == "" || isDir(fileMode) {
 		return
 	}
 
 	event := pendingFileEvent{
+		mntNS:          mntNS,
 		lastAccess:     time.Now(),
 		suidBit:        fs.FileMode(fileMode)&04000 != 0,
 		accessedByRoot: root,
@@ -1097,18 +1130,18 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 	if alias := pathAlias(filePath); alias != "" {
 		event.alias = murmur3.StringSum64(alias)
 	}
-	hash := murmur3.StringSum64(filePath)
+	key := pendingFileKey{path: murmur3.StringSum64(filePath), mountID: mountID}
 
 	r.pendingFileEventsLock.Lock()
 	defer r.pendingFileEventsLock.Unlock()
 
 	events, ok := r.pendingFileEvents.Get(containerID)
 	if !ok {
-		events = make(map[uint64]pendingFileEvent)
+		events = make(map[pendingFileKey]pendingFileEvent)
 		r.pendingFileEvents.Add(containerID, events)
 	}
 
-	if previous, ok := events[hash]; ok {
+	if previous, ok := events[key]; ok {
 		event.suidBit = event.suidBit || previous.suidBit
 		event.accessedByRoot = event.accessedByRoot || previous.accessedByRoot
 	} else if len(events) >= maxPendingFileEvents {
@@ -1116,7 +1149,7 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 		return
 	}
 
-	events[hash] = event
+	events[key] = event
 }
 
 // processPendingFileEvents applies the accesses queued for sbom to its data and
@@ -1135,8 +1168,11 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 
 	recorded := false
 	sbom.data.mu.Lock()
-	for hash, event := range events {
-		pkg := sbom.data.files.queryHashes(hash, event.alias)
+	for key, event := range events {
+		if !sbom.root.onRoot(key.mountID, event.mntNS) {
+			continue
+		}
+		pkg := sbom.data.files.queryHashes(key.path, event.alias)
 		if pkg == nil {
 			continue
 		}
@@ -1158,8 +1194,42 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 // entry
 func (r *Resolver) newSBOM(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, workloadKey workloadKey) *SBOM {
 	sbom := NewSBOM(id, cgroup, workloadKey)
+	sbom.root = readContainerRoot(id, cgroup)
 	r.sboms.Add(id, sbom)
 	return sbom
+}
+
+// readContainerRoot returns the root mount of container id and its mount
+// namespace, read from one of the processes of cgroup.
+func readContainerRoot(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry) containerRoot {
+	if cgroup == nil {
+		return containerRoot{}
+	}
+	cfs := utils.DefaultCGroupFS()
+	for _, pid := range cgroup.GetPIDs() {
+		if computedID, _, _, err := cfs.FindCGroupContext(pid, pid); err != nil || computedID != id {
+			continue
+		}
+		mntNS, err := utils.NewNSPathFromPid(pid, utils.MntNsType).GetNSID()
+		if err != nil {
+			continue
+		}
+		mounts, err := kernel.ParseMountInfoFile(int32(pid))
+		if err != nil {
+			continue
+		}
+		// the last mount on / hides the ones below it
+		var root uint32
+		for _, mnt := range mounts {
+			if mnt.Mountpoint == "/" {
+				root = uint32(mnt.ID)
+			}
+		}
+		if root != 0 {
+			return containerRoot{mountID: root, mntNS: mntNS}
+		}
+	}
+	return containerRoot{}
 }
 
 // queueWorkload inserts the provided sbom in a SBOM resolver chan, it will be inserted in the scanChan or the
