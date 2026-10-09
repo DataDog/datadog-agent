@@ -243,6 +243,19 @@ func (s *Share) Recreate(p string, reuseID uint64) uint64 {
 	return f.id
 }
 
+// SetModTime sets the last write time p's listing reports, which Write and
+// Append otherwise set to the real time. It panics if p does not exist.
+func (s *Share) SetModTime(p string, t time.Time) {
+	p = mustClean(p)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, ok := s.files[p]
+	if !ok {
+		panic("fake: SetModTime of missing file " + p)
+	}
+	f.mtime = t
+}
+
 // Stat returns the current, never stale, entry for p.
 func (s *Share) Stat(p string) (client.Entry, bool) {
 	p = mustClean(p)
