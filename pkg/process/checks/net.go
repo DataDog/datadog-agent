@@ -180,7 +180,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		c.dockerFilter.Filter(conns)
 	}
 	// Resolve the Raddr side of connections for local containers
-	c.localresolver.Resolve(conns)
+	netnsReattributed := c.localresolver.Resolve(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
@@ -211,7 +211,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	}
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners, netnsReattributed)
 	return StandardRunResult(messages), nil
 }
 
@@ -482,6 +482,7 @@ func batchConnections(
 	iisTags map[string][]string,
 	procCacheTags map[uint32][]string,
 	listeners map[remoteservice.ListenKey]int32,
+	netnsReattributed map[*model.Connection]string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -539,9 +540,17 @@ func batchConnections(
 				}
 			}
 
+			// a socket attributed to its network namespace's container is still owned by the
+			// proxy process, so PID-keyed data must keep describing the proxy, not the pod
+			processCID, reattributed := netnsReattributed[c]
+
 			c.LocalContainerTagsIndex = -1
 			if c.Laddr.ContainerId != "" {
-				ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+				if reattributed {
+					ctrIDForPID[c.Pid] = processCID
+				} else {
+					ctrIDForPID[c.Pid] = c.Laddr.ContainerId
+				}
 				if containerTagProvider != nil {
 					if entityTags, err := containerTagProvider(c.Laddr.ContainerId); err != nil {
 						log.Debugf("error getting tags for container %s: %v", c.Laddr.ContainerId, err)
@@ -557,7 +566,10 @@ func batchConnections(
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
 			// tags remap
-			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
+			var serviceCtx []string
+			if !reattributed {
+				serviceCtx = serviceExtractor.GetServiceContext(c.Pid)
+			}
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
 			if len(tagsStr) > 0 {
 				log.Debugf("batchConnections: pid=%d resolved tags from system-probe: %v", c.Pid, tagsStr)
@@ -573,7 +585,7 @@ func batchConnections(
 			}
 
 			// Get process tags and add them to the connection tags
-			if processTagProvider != nil {
+			if processTagProvider != nil && !reattributed {
 				if processTags, err := processTagProvider(c.Pid); err != nil {
 					log.Debugf("error getting tags for process %v: %v", c.Pid, err)
 				} else {
