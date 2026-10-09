@@ -2381,9 +2381,9 @@ dependencies = [
 
 [[package]]
 name = "normalize-path"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5438dd2b2ff4c6df6e1ce22d825ed2fa93ee2922235cc45186991717f0a892d"
+checksum = "a0769f77950d14beb4fe8e0707b7c7cc6ea39110e9289e2c2346a7bb4ee5af74"
 
 [[package]]
 name = "num-conv"
