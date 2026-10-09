@@ -539,6 +539,21 @@ type RuntimeSecurityConfig struct {
 	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
 
+	// description: SecurityProfileV2PathPatternsEnabled groups sibling files sharing a name shape into typed pattern entries in v2 profiles.
+	// visibility: private
+	// default_value: true
+	SecurityProfileV2PathPatternsEnabled bool
+
+	// description: SecurityProfileV2PathPatternsMinGroupSize is the minimum number of siblings sharing a name shape needed to group them when a v2 profile is saved.
+	// visibility: private
+	// default_value: 3
+	SecurityProfileV2PathPatternsMinGroupSize int
+
+	// description: SecurityProfileV2PathPatternsMinDateGroupSize is the minimum number of siblings needed to group names when only their date differs.
+	// visibility: private
+	// default_value: 2
+	SecurityProfileV2PathPatternsMinDateGroupSize int
+
 	// description: SecurityProfileV2ProfileReportingDelayTimeBased, when true, delays a v2 profile's reporting of out-of-profile events by SecurityProfileV2ProfileReportingDelayDuration after the profile is created instead of waiting for the first persistence.
 	// visibility: private
 	// default_value: false
@@ -1069,6 +1084,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
+		SecurityProfileV2PathPatternsEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.path_patterns.enabled"),
+		SecurityProfileV2PathPatternsMinGroupSize:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.path_patterns.min_group_size"),
+		SecurityProfileV2PathPatternsMinDateGroupSize:   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.path_patterns.min_date_group_size"),
 		SecurityProfileV2ProfileReportingDelayTimeBased: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.profile_reporting_delay.time_based"),
 		SecurityProfileV2ProfileReportingDelayDuration:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"),
 		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
@@ -1293,6 +1311,15 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 	if c.SecurityProfileV2ProfileReportingDelayDuration < 0 {
 		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profile_reporting_delay.duration: %s, must not be negative", c.SecurityProfileV2ProfileReportingDelayDuration)
+	}
+
+	if c.SecurityProfileV2PathPatternsEnabled {
+		if c.SecurityProfileV2PathPatternsMinGroupSize < 2 {
+			return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.path_patterns.min_group_size: %d, must be at least 2", c.SecurityProfileV2PathPatternsMinGroupSize)
+		}
+		if c.SecurityProfileV2PathPatternsMinDateGroupSize < 2 {
+			return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.path_patterns.min_date_group_size: %d, must be at least 2", c.SecurityProfileV2PathPatternsMinDateGroupSize)
+		}
 	}
 
 	if c.SecurityProfileV2ProfilingStartupDelay < 0 {

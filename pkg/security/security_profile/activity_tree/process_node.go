@@ -441,9 +441,14 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		return false, nil
 	}
 
-	child, ok := pn.Files[parent]
+	child, ok := findChildWithPatternFallback(pn.Files, parent, len(filePath) <= nextParentIndex+1, stats)
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
+		if child.IsPattern && child.Name != parent && stats != nil {
+			stats.FilePatternLookupHits++
+		}
+		rest := filePath[nextParentIndex:]
+		filePath = withPatternComponent(filePath, filePath, parent, child.Name)
+		return child.InsertFileEvent(fileEvent, event, rest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
 	}
 
 	if !dryRun {
@@ -456,14 +461,16 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
 			stats.SizeBytes += node.size()
-			pn.Files[parent] = node
-			return true, &node.NodeBase
+			owner := insertChildAndMerge(pn.Files, parent, node, stats)
+			return true, &owner.NodeBase
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, filePath, resolvers)
-		_, leafNodeBase := newChild.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
 		stats.FileNodes++
 		stats.SizeBytes += newChild.size()
-		pn.Files[parent] = newChild
+		owner := insertChildAndMerge(pn.Files, parent, newChild, stats)
+		rest := filePath[nextParentIndex:]
+		filePath = withPatternComponent(filePath, filePath, parent, owner.Name)
+		_, leafNodeBase := owner.InsertFileEvent(fileEvent, event, rest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
 		return true, leafNodeBase
 	}
 	return true, nil

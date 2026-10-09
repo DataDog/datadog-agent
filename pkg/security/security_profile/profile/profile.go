@@ -60,6 +60,7 @@ type activityTreeOpts struct {
 	pathsReducer      *activity_tree.PathsReducer
 	differentiateArgs bool
 	dnsMatchMaxDepth  int
+	pathPatterns      activity_tree.PathPatternConfig
 }
 
 // Profile represents a security profile
@@ -202,6 +203,14 @@ func WithDNSMatchMaxDepth(dnsMatchMaxDepth int) Opts {
 	}
 }
 
+// WithPathPatterns enables path-pattern mining on the profile's
+// ActivityTree with the provided configuration.
+func WithPathPatterns(cfg activity_tree.PathPatternConfig) Opts {
+	return func(p *Profile) {
+		p.treeOpts.pathPatterns = cfg
+	}
+}
+
 // New returns a new profile
 func New(opts ...Opts) *Profile {
 	p := &Profile{
@@ -224,6 +233,9 @@ func New(opts ...Opts) *Profile {
 	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
+	}
+	if p.treeOpts.pathPatterns.Enabled {
+		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
 	}
 
 	if p.selector.Tag != "" && p.selector.Tag != "*" {
@@ -340,6 +352,29 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	defer p.Unlock()
 
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
+}
+
+// FinalizePatterns runs the save-time path-pattern merge pass and returns
+// the nodes it folded, mapped to the nodes that absorbed them.
+func (p *Profile) FinalizePatterns() map[*activity_tree.NodeBase]*activity_tree.NodeBase {
+	p.Lock()
+	defer p.Unlock()
+	if p.ActivityTree == nil {
+		return nil
+	}
+	p.ActivityTree.FinalizePatterns()
+	return p.ActivityTree.Stats.TakeMovedNodes()
+}
+
+// TakeMovedNodes returns the nodes folded by insert-time merges since the
+// last call, mapped to the nodes that absorbed them.
+func (p *Profile) TakeMovedNodes() map[*activity_tree.NodeBase]*activity_tree.NodeBase {
+	p.Lock()
+	defer p.Unlock()
+	if p.ActivityTree == nil {
+		return nil
+	}
+	return p.ActivityTree.Stats.TakeMovedNodes()
 }
 
 // ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory
@@ -693,6 +728,10 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 	p.selector = newProfile.selector
 	p.ActivityTree = newProfile.ActivityTree
 	p.ActivityTree.SetType("security_profile", p)
+	// patternCfg is not serialized; re-apply on reload
+	if p.treeOpts.pathPatterns.Enabled {
+		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
+	}
 	p.Header = newProfile.Header
 	p.tags = newProfile.tags
 	p.versionContexts = newProfile.versionContexts

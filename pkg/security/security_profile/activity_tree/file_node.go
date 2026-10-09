@@ -78,6 +78,11 @@ type FileNode struct {
 	Open           *OpenNode
 
 	Children map[string]*FileNode
+
+	// pattern is the lazily compiled matcher of a pattern node's Name.
+	pattern *compiledPattern
+	// signature caches structureSignature(Name).
+	signature string
 }
 
 // OpenNode contains the relevant fields of an Open event on which we might want to write a profiling rule
@@ -113,7 +118,7 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
-		IsPattern:      strings.Contains(name, "*"),
+		IsPattern:      isPatternName(name),
 	}
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
@@ -221,8 +226,13 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 			break
 		}
 
-		child, ok := currentFn.Children[parent]
+		lastComponent := len(currentPath) <= nextParentIndex+1
+		child, ok := findChildWithPatternFallback(currentFn.Children, parent, lastComponent, stats)
 		if ok {
+			if child.IsPattern && child.Name != parent && stats != nil {
+				stats.FilePatternLookupHits++
+			}
+			reducedPath = withPatternComponent(reducedPath, currentPath, parent, child.Name)
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
 			currentFn.AppendImageTagID(imageTagID, event.ResolveEventTime())
@@ -236,18 +246,17 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if currentFn.Children == nil {
 			currentFn.Children = make(map[string]*FileNode)
 		}
-		if len(currentPath) <= nextParentIndex+1 {
+		if lastComponent {
 			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)
-			currentFn.Children[parent] = leafNode
 			stats.FileNodes++
 			stats.SizeBytes += leafNode.size()
-			currentFn = leafNode
+			currentFn = insertChildAndMerge(currentFn.Children, parent, leafNode, stats)
 			break
 		}
 		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, "", resolvers)
-		currentFn.Children[parent] = newChild
 		stats.SizeBytes += newChild.size()
-		currentFn = newChild
+		currentFn = insertChildAndMerge(currentFn.Children, parent, newChild, stats)
+		reducedPath = withPatternComponent(reducedPath, currentPath, parent, currentFn.Name)
 		currentPath = currentPath[nextParentIndex:]
 	}
 	return newEntry, &currentFn.NodeBase

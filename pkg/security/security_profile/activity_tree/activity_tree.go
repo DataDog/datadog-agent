@@ -1094,6 +1094,45 @@ func processSubtreeSizeBytes(pn *ProcessNode) int64 {
 	return total
 }
 
+// FinalizePatterns runs a merge pass on every FileNode map in the tree
+// using MinGroupSize as the threshold. No-op when pattern
+// mining is disabled on the tree. Idempotent.
+func (at *ActivityTree) FinalizePatterns() {
+	if at == nil {
+		return
+	}
+	cfg := at.Stats.PathPatternConfig()
+	if !cfg.Enabled {
+		return
+	}
+	for _, pn := range at.ProcessNodes {
+		at.finalizePatternsOnProcess(pn, cfg.MinGroupSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minGroupSize int) {
+	if pn == nil {
+		return
+	}
+	mergeChildren(pn.Files, minGroupSize, at.Stats)
+	for _, fn := range pn.Files {
+		at.finalizePatternsOnFile(fn, minGroupSize)
+	}
+	for _, child := range pn.Children {
+		at.finalizePatternsOnProcess(child, minGroupSize)
+	}
+}
+
+func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minGroupSize int) {
+	if fn == nil || len(fn.Children) == 0 {
+		return
+	}
+	mergeChildren(fn.Children, minGroupSize, at.Stats)
+	for _, child := range fn.Children {
+		at.finalizePatternsOnFile(child, minGroupSize)
+	}
+}
+
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
 	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
@@ -1159,7 +1198,7 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 				at.visitFileNode(file, func(fileNode *FileNode) {
 					path, ok := modifiedPaths[fileNode.File.PathnameStr]
 					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
+						modifiedPaths[fileNode.File.PathnameStr] = rulePathFromProfilePath(fileNode.File.PathnameStr)
 						path = modifiedPaths[fileNode.File.PathnameStr]
 					}
 					if len(path) > 0 {

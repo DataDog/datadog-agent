@@ -32,7 +32,62 @@ type Stats struct {
 	CapabilityNodes int64
 	SizeBytes       int64
 
+	// path-pattern mining counters
+	FileNodesMerged       int64
+	FilePatternLookupHits int64
+
+	// patternCfg is per-tree, set via SetPathPatternConfig. Unexported
+	// so it is not serialized.
+	patternCfg PathPatternConfig
+	// movedNodes maps the NodeBase of every node folded by a merge to the
+	// NodeBase that absorbed it, until drained by TakeMovedNodes.
+	movedNodes map[*NodeBase]*NodeBase
+
 	counts map[model.EventType]*statsPerEventType
+}
+
+func (stats *Stats) recordMovedNode(from, to *NodeBase) {
+	if stats == nil {
+		return
+	}
+	if stats.movedNodes == nil {
+		stats.movedNodes = make(map[*NodeBase]*NodeBase)
+	}
+	stats.movedNodes[from] = to
+}
+
+// TakeMovedNodes returns, for every node folded by a merge since the last
+// call, the node that now holds its observations, and clears the record.
+func (stats *Stats) TakeMovedNodes() map[*NodeBase]*NodeBase {
+	if stats == nil {
+		return nil
+	}
+	moved := stats.movedNodes
+	stats.movedNodes = nil
+	for from, to := range moved {
+		for next, ok := moved[to]; ok; next, ok = moved[to] {
+			to = next
+		}
+		moved[from] = to
+	}
+	return moved
+}
+
+// SetPathPatternConfig enables (or disables) path-pattern mining on the
+// tree owning these stats.
+func (stats *Stats) SetPathPatternConfig(cfg PathPatternConfig) {
+	if stats == nil {
+		return
+	}
+	stats.patternCfg = cfg
+}
+
+// PathPatternConfig returns the current mining configuration.
+func (stats *Stats) PathPatternConfig() PathPatternConfig {
+	if stats == nil {
+		return PathPatternConfig{}
+	}
+	return stats.patternCfg
 }
 
 type statsPerEventType struct {
@@ -125,6 +180,20 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 					return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventDropped, err)
 				}
 			}
+		}
+	}
+
+	treeTag := []string{treeTypeTag}
+	if value := stats.FileNodesMerged; value > 0 {
+		stats.FileNodesMerged = 0
+		if err := client.Count(metrics.MetricActivityDumpFileNodesMerged, value, treeTag, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpFileNodesMerged, err)
+		}
+	}
+	if value := stats.FilePatternLookupHits; value > 0 {
+		stats.FilePatternLookupHits = 0
+		if err := client.Count(metrics.MetricActivityDumpFilePatternLookupHits, value, treeTag, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpFilePatternLookupHits, err)
 		}
 	}
 
