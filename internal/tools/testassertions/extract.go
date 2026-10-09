@@ -32,9 +32,12 @@ type Node struct {
 	Values []string `json:"values,omitempty"`
 	// Ref is set on a helper call whose checks were already expanded at the
 	// given position in the same tree; Repeat is how many assertions that hides.
-	Ref      string  `json:"ref,omitempty"`
-	Repeat   int     `json:"repeatedAssertions,omitempty"`
-	Children []*Node `json:"children,omitempty"`
+	Ref    string `json:"ref,omitempty"`
+	Repeat int    `json:"repeatedAssertions,omitempty"`
+	// AssertionCount is set on tests: assertions below them, including repeats
+	// collapsed into Ref nodes and the tests of the suites they run.
+	AssertionCount int     `json:"assertionCount,omitempty"`
+	Children       []*Node `json:"children,omitempty"`
 }
 
 // Assertion describes a single check.
@@ -764,7 +767,7 @@ func (e *extractor) handleCall(sc *scope, call *ast.CallExpr) []*Node {
 			// the same helper called again performs the same checks: show them once
 			// per top-level test, keeping what differs between calls (the values and
 			// the function literals passed in)
-			if rec, seen := e.expanded[e.expansionKeyOf(c, call)]; seen && rec.size > 2 {
+			if rec, seen := e.expanded[e.expansionKeyOf(c, call)]; seen {
 				own := e.scanArgs(sc, call, name)
 				out = append(out, &Node{
 					Kind: "helper", Label: e.render(call, 140), Pos: e.pos(call.Pos()), Def: e.relPos(c.fi.decl.Pos()),
@@ -788,7 +791,7 @@ func (e *extractor) handleCall(sc *scope, call *ast.CallExpr) []*Node {
 			n.Def = e.relPos(c.fi.decl.Pos())
 			n.Values = e.literals(sc, call.Args)
 			if key := e.expansionKeyOf(c, call); e.expanded[key] == nil {
-				e.expanded[key] = &expansion{pos: n.Pos, size: subtreeSize(children), assertions: countAssertions(children)}
+				e.expanded[key] = &expansion{pos: n.Pos, assertions: countAssertions(children)}
 			}
 		} else {
 			n.Kind = "closure"

@@ -45,6 +45,8 @@ func run(argv []string) error {
 	brief := fs.Bool("brief", false, "only print assertion summaries (no call/origin details)")
 	runRe := fs.String("run", "", "regexp selecting tests (top-level functions and suite methods)")
 	depth := fs.Int("depth", 8, "maximum helper nesting depth to follow")
+	compact := fs.Bool("compact", false, "compact output for tools/LLMs: ASCII indentation, one line per node, values inline")
+	maxBytes := fs.Int("max-bytes", 0, "with -compact (implied): fold the deepest levels until the output fits in N bytes")
 	follow := fs.String("follow", string(followModule), "which helpers to follow: package, module (same go.mod as the test) or repo")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "usage: testassertions [flags] <package dir | test file> [TestName | Type.TestName ...]\n\n")
@@ -102,6 +104,12 @@ func run(argv []string) error {
 	switch {
 	case *list:
 		printList(os.Stdout, nodes)
+	case *compact || *maxBytes > 0:
+		if *maxBytes > 0 {
+			fmt.Fprint(os.Stdout, renderCompactBudget(nodes, *maxBytes))
+		} else {
+			fmt.Fprint(os.Stdout, renderCompact(nodes, nil))
+		}
 	case *jsonOut:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")

@@ -149,6 +149,62 @@ func TestPredicateInStructLiteral(t *testing.T) {
 	assert.Equal(t, []string{"find a pod"}, failure.Values)
 }
 
+func TestEntryPointAggregatesItsSuites(t *testing.T) {
+	nodes := extractSample(t, "TestFleetStyle")
+	require.Len(t, nodes, 1)
+	root := nodes[0]
+	var methods []*Node
+	var walk func(*Node)
+	walk = func(n *Node) {
+		for _, c := range n.Children {
+			if c.Kind == "test" {
+				methods = append(methods, c)
+			} else {
+				walk(c)
+			}
+		}
+	}
+	walk(root)
+	require.NotEmpty(t, methods)
+	total := 0
+	for _, m := range methods {
+		total += m.AssertionCount
+		for _, v := range m.Values {
+			assert.Contains(t, root.Values, v, "values of %s are part of the entry point's", m.Label)
+		}
+	}
+	assert.Equal(t, total, root.AssertionCount)
+	assert.Contains(t, root.Values, "logs_enabled")
+}
+
+func TestSmallRepeatedHelperIsCollapsed(t *testing.T) {
+	test := extractSample(t, "configSuite.TestSmallHelperTwice")[0]
+	require.Len(t, test.Children, 2)
+	first, second := test.Children[0], test.Children[1]
+	assert.Empty(t, first.Ref)
+	assert.Len(t, first.Children, 1)
+	assert.Equal(t, first.Pos, second.Ref)
+	assert.Equal(t, 1, second.Repeat)
+	assert.Equal(t, []string{"datadog-agent-sysprobe"}, second.Values, "the collapsed call keeps its own values")
+	assert.Equal(t, 2, test.AssertionCount)
+}
+
+func TestCompactBudget(t *testing.T) {
+	nodes := extractSample(t, "TestLinuxSuite", "TestFleetStyle")
+	full := renderCompact(nodes, nil)
+	assert.Equal(t, full, renderCompactBudget(nodes, len(full)), "nothing folded when it fits")
+	assert.NotContains(t, full, "│", "ASCII only")
+	assert.Contains(t, full, `{"Collector"}`, "values inline")
+
+	budget := len(full) * 2 / 3
+	folded := renderCompactBudget(nodes, budget)
+	assert.LessOrEqual(t, len(folded), budget)
+	assert.Contains(t, folded, " below")
+	assert.Contains(t, folded, "logs_enabled", "folded lines keep the values found below them")
+	assert.Contains(t, folded, "= 9 assertion(s)", "totals are unchanged")
+	assert.Contains(t, folded, "= 6 assertion(s)")
+}
+
 func TestUnknownTest(t *testing.T) {
 	dir, err := filepath.Abs(filepath.Join("testdata", "sample"))
 	require.NoError(t, err)

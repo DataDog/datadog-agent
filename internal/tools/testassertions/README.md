@@ -15,6 +15,7 @@ $B test/new-e2e/tests/agent-subcommands linuxStatusSuite.TestStatusHostname
 $B test/new-e2e/tests/agent-subcommands TestLinuxStatusSuite         # a top-level test: expands the suite
 $B -brief -run 'Redis' test/new-e2e/tests/discovery                  # summaries only
 $B -json test/new-e2e/tests/discovery TestConfigDiscoverySuite       # machine readable
+$B -max-bytes 32000 test/new-e2e/tests/fleet TestFleetConfigMacOS    # compact, fits a size budget
 ```
 
 `bazel run //internal/tools/testassertions -- <dir> <test>` also works; relative paths
@@ -58,15 +59,30 @@ string literals traced through assignments, range loops, struct fields
 (`sec.shouldContain` only yields that field of the struct literal), helper
 parameters (back to the calling test) and constants, including those in imported
 packages. Values are shown in `-brief` mode too. In `-json`, each test also carries
-the union of all values checked below it, which is handy to match a change
-(a metric name, config key, command...) against the tests that check it.
+`values`, the union of all values checked below it, and `assertionCount`. For a
+top-level test that runs suites, both include all the suite methods and hooks, so
+an entry point describes everything that runs under it. This is handy to match a
+change (a metric name, config key, command...) against the tests that check it.
 
 A helper called several times in the same top-level test is expanded once;
 later calls are shown as `↺ helper(...) — same checks as the call expanded @pos
 (N assertion(s))`, with their own values and the function literals they pass
-still expanded. Counts in `-list` and the footer include those repeats.
+still expanded. Counts (`-list`, the footer, `assertionCount`) include those repeats.
 
-Markers: `[R]` fatal (require/Fatal), `[A]` non-fatal, `⟳` polling block,
+## Compact output and size budget
+
+`-compact` prints one line per node with ASCII indentation and values inline
+(`[R] err is nil (no error) @config_test.go:47 {"merge-patch", "/datadog.yaml"}`);
+collapsed repeats without values of their own are omitted (they are still
+counted). It is meant for tools and LLMs.
+
+`-max-bytes N` (implies `-compact`) keeps the output under N bytes: subtrees are
+folded into their parent line one at a time, deepest first (largest first at the
+same depth), until it fits. A folded line keeps the number of assertions below it
+(`+12 below`) and the values found there, so the most useful information for
+matching a change survives. Every E2E entry point fits in 32 KB this way.
+
+Markers: `[R]` fatal (require/Fatal), `[A]` non-fatal, `⟳` (`~` in compact) polling block,
 `↺` repeated helper call (collapsed),
 `[M]` implicit `Must*` check, `[?]` a call that looks like an assertion helper
 (`assert*`, `check*`, `verify*`, …) but could not be followed.

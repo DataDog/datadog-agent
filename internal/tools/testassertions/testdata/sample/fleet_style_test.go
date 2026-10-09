@@ -52,3 +52,13 @@ func checkSection(t *testing.T, sec section) {
 		assert.Contains(t, "status output", want)
 	}
 }
+
+// a one-assertion helper called twice: the second call is collapsed too
+func (s *configSuite) TestSmallHelperTwice() {
+	requireService(s.T(), "datadog-agent")
+	requireService(s.T(), "datadog-agent-sysprobe")
+}
+
+func requireService(t *testing.T, name string) {
+	assert.NotEmpty(t, name)
+}

@@ -23,7 +23,7 @@ type valRef struct {
 
 const (
 	maxValuesPerNode = 12
-	maxValuesPerTest = 60
+	maxValuesPerTest = 500 // per test, including the tests of the suites it runs
 	maxValueLen      = 100
 )
 
@@ -213,8 +213,10 @@ func (c *litCollector) pkgValue(pkg *pkgInfo, name string, depth int) {
 	}
 }
 
-// aggregateValues sets n.Values on test nodes to the union of the values
-// checked anywhere below them (not descending into nested tests).
+// aggregateValues sets, on test nodes, Values to the union of the values
+// checked anywhere below them and AssertionCount to the number of assertions
+// (including collapsed repeats). Both include the tests of the suites a test
+// runs, so a top-level test describes everything that runs under it.
 func aggregateValues(n *Node) {
 	for _, c := range n.Children {
 		aggregateValues(c)
@@ -222,6 +224,7 @@ func aggregateValues(n *Node) {
 	if n.Kind != "test" {
 		return
 	}
+	n.AssertionCount = countAssertions(n.Children)
 	seen := map[string]bool{}
 	var vals []string
 	var walk func(*Node)
@@ -238,10 +241,11 @@ func aggregateValues(n *Node) {
 				vals = append(vals, v)
 			}
 		}
+		if m != n && m.Kind == "test" {
+			return // already aggregated
+		}
 		for _, c := range m.Children {
-			if c.Kind != "test" {
-				walk(c)
-			}
+			walk(c)
 		}
 	}
 	walk(n)
@@ -257,10 +261,10 @@ type expansionKey struct {
 	decl ast.Node
 }
 
-// expansion records where a helper was first expanded and what it contained.
+// expansion records where a helper was first expanded and how many assertions it had.
 type expansion struct {
-	pos              string
-	size, assertions int
+	pos        string
+	assertions int
 }
 
 func (e *extractor) expansionKeyOf(c callee, _ *ast.CallExpr) expansionKey {
@@ -268,14 +272,6 @@ func (e *extractor) expansionKeyOf(c callee, _ *ast.CallExpr) expansionKey {
 		return expansionKey{decl: c.fi.decl}
 	}
 	return expansionKey{decl: c.lit}
-}
-
-func subtreeSize(nodes []*Node) int {
-	n := 0
-	for _, c := range nodes {
-		n += 1 + subtreeSize(c.Children)
-	}
-	return n
 }
 
 // countAssertions counts assertions in nodes, including those hidden in

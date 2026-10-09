@@ -8,6 +8,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,11 +28,13 @@ func (p *treePrinter) print(n *Node) {
 	p.node(n, "", true, true, nil)
 	var s stats
 	countStats(n, &s, false)
-	fmt.Fprintf(p.w, "\n  %d assertion(s): %d fatal (require/Fatal), %d polling block(s), %d under a condition/loop; %d helper(s) followed",
-		s.assertions, s.fatal, s.polling, s.conditional, s.helpers)
+	// the total counts collapsed repeats, like -list and assertionCount in -json
+	fmt.Fprintf(p.w, "\n  %d assertion(s)", s.assertions+s.repeated)
 	if s.repeatedCalls > 0 {
-		fmt.Fprintf(p.w, "; +%d assertion(s) in %d repeated helper call(s) shown once ↺", s.repeated, s.repeatedCalls)
+		fmt.Fprintf(p.w, " (%d shown, %d more in %d repeated helper call(s) collapsed ↺)", s.assertions, s.repeated, s.repeatedCalls)
 	}
+	fmt.Fprintf(p.w, ": %d fatal (require/Fatal), %d polling block(s), %d under a condition/loop; %d helper(s) followed",
+		s.fatal, s.polling, s.conditional, s.helpers)
 	if s.skips > 0 {
 		fmt.Fprintf(p.w, "; %d skip condition(s) ⤼", s.skips)
 	}
@@ -98,7 +101,7 @@ func (p *treePrinter) node(n *Node, prefix string, last, top bool, parentVals []
 	if top {
 		connector, childPrefix = "", prefix
 	}
-	fmt.Fprintln(p.w, prefix+connector+head(n))
+	fmt.Fprintln(p.w, prefix+connector+head(n, p.brief))
 
 	detailPrefix := childPrefix + "    "
 	if len(n.Children) > 0 {
@@ -133,7 +136,11 @@ func marker(a *Assertion) string {
 	return "[A]"
 }
 
-func head(n *Node) string {
+func head(n *Node, brief bool) string {
+	def := n.Def
+	if brief {
+		def = filepath.Base(def) // the full path is in the default and -json outputs
+	}
 	switch n.Kind {
 	case "test":
 		if len(n.Children) == 0 {
@@ -148,9 +155,12 @@ func head(n *Node) string {
 		return fmt.Sprintf("▸ subtest %s  @%s", n.Label, n.Pos)
 	case "helper":
 		if n.Ref != "" {
+			if brief {
+				return fmt.Sprintf("↺ %s  @%s  — as expanded @%s (%d assertion(s))", n.Label, n.Pos, n.Ref, n.Repeat)
+			}
 			return fmt.Sprintf("↺ %s  @%s  — same checks as the call expanded @%s (%d assertion(s))", n.Label, n.Pos, n.Ref, n.Repeat)
 		}
-		return fmt.Sprintf("↳ %s  @%s  (def %s)", n.Label, n.Pos, n.Def)
+		return fmt.Sprintf("↳ %s  @%s  (def %s)", n.Label, n.Pos, def)
 	case "closure":
 		return fmt.Sprintf("↳ closure %s  @%s", n.Label, n.Pos)
 	case "predicate":
@@ -223,11 +233,9 @@ func printList(w io.Writer, nodes []*Node) {
 			return false
 		}
 		if hasSuite(n) {
-			fmt.Fprintf(w, "%s  (%s)\n", n.Label, n.Pos)
+			fmt.Fprintf(w, "%s  (%s)  — %d assertion(s) in total\n", n.Label, n.Pos, n.AssertionCount)
 		} else {
-			var s stats
-			countStats(n, &s, false)
-			fmt.Fprintf(w, "%s  (%s)  — %d assertion(s)\n", n.Label, n.Pos, s.assertions+s.repeated)
+			fmt.Fprintf(w, "%s  (%s)  — %d assertion(s)\n", n.Label, n.Pos, n.AssertionCount)
 		}
 		var walk func(n *Node, indent string)
 		walk = func(n *Node, indent string) {
@@ -237,9 +245,7 @@ func printList(w io.Writer, nodes []*Node) {
 					fmt.Fprintf(w, "%ssuite %s\n", indent, c.Label)
 					walk(c, indent+"  ")
 				case "test":
-					var s stats
-					countStats(c, &s, false)
-					fmt.Fprintf(w, "%s%s  — %d assertion(s)\n", indent, c.Label, s.assertions+s.repeated)
+					fmt.Fprintf(w, "%s%s  — %d assertion(s)\n", indent, c.Label, c.AssertionCount)
 				default:
 					walk(c, indent)
 				}
