@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -116,6 +118,34 @@ func TestGetLastSince(t *testing.T) {
 	_time := time.Date(2008, 1, 12, 1, 1, 1, 1, time.UTC)
 	tailer := &Tailer{lastSince: _time.Format(config.DateFormat)}
 	assert.Equal(t, _time.Add(time.Nanosecond), tailer.getLastSince())
+}
+
+func TestIsContextCanceled(t *testing.T) {
+	assert.True(t, isContextCanceled(context.Canceled))
+	assert.True(t, isContextCanceled(fmt.Errorf("read: %w", context.Canceled)))
+	assert.True(t, isContextCanceled(context.DeadlineExceeded))
+	assert.False(t, isContextCanceled(errors.New("this is a random error")))
+}
+
+func TestIsTimeoutErr(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
+	client := http.Client{Timeout: 50 * time.Millisecond}
+	resp, err := client.Get(server.URL)
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	_, readErr := io.ReadAll(resp.Body)
+	assert.Error(t, readErr)
+
+	assert.True(t, isTimeoutErr(readErr), "http.Client.Timeout while reading a body must be a timeout: %v", readErr)
+	assert.False(t, isTimeoutErr(errors.New("this is a random error")))
+	assert.False(t, isTimeoutErr(io.EOF))
+	assert.False(t, isTimeoutErr(net.ErrClosed))
 }
 
 // TestBuildMessageAdvancesLastSince covers the auditor-side half of
@@ -404,6 +434,132 @@ func TestTailer_readForeverReconnectsAfterReadTimeoutCancel(t *testing.T) {
 
 	assert.GreaterOrEqual(t, restarts.Load(), int64(1),
 		"a read cancelled by the read timeout that surfaces as a closed-stream error must trigger a reconnect")
+	assert.Equal(t, 0, len(tailer.erroredContainerID))
+}
+
+// testTimeoutError mimics the error net/http returns when http.Client.Timeout
+// fires while reading a response body.
+type testTimeoutError struct{}
+
+func (testTimeoutError) Error() string {
+	return "net/http: request canceled (Client.Timeout or context cancellation while reading body)"
+}
+func (testTimeoutError) Timeout() bool   { return true }
+func (testTimeoutError) Temporary() bool { return true }
+
+// TestTailer_readForeverReconnectsOnTimeout is the regression test for
+// CONS-12020. A timed-out stream used to fall through to the default case,
+// which recreated the tailer from the registry offset. That offset lags behind
+// the lines already forwarded, so they were read and sent again. A timeout
+// must instead reconnect in place, resuming from the in-memory lastSince.
+func TestTailer_readForeverReconnectsOnTimeout(t *testing.T) {
+	const lastSince = "2026-10-08T08:34:34.464291043Z"
+	expectedSince := time.Date(2026, 10, 8, 8, 34, 34, 464291043, time.UTC).Add(time.Nanosecond)
+
+	for _, tErr := range []error{
+		testTimeoutError{},
+		context.DeadlineExceeded,
+		fmt.Errorf("read: %w", context.Canceled),
+	} {
+		t.Run(tErr.Error(), func(t *testing.T) {
+			_, cancelFunc := context.WithCancel(context.Background())
+			reader := NewTestReader("", tErr, nil)
+			tailer := NewTestTailer(reader, reader, cancelFunc)
+			tailer.sleepDuration = time.Millisecond
+			tailer.lastSince = lastSince
+
+			var restarts atomic.Int64
+			var resumedFrom time.Time
+			tailer.unsafeLogReader = func(_ context.Context, since time.Time) (io.ReadCloser, error) {
+				restarts.Add(1)
+				resumedFrom = since
+				tailer.stopping.Store(true)
+				return reader, nil
+			}
+
+			done := make(chan struct{})
+			go func() {
+				tailer.readForever()
+				close(done)
+			}()
+
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("readForever did not return after a timeout")
+			}
+
+			assert.Equal(t, int64(1), restarts.Load(), "a timeout must trigger an in-place reconnect")
+			assert.Equal(t, expectedSince, resumedFrom, "the reconnect must resume from the in-memory lastSince")
+			assert.Equal(t, 0, len(tailer.erroredContainerID), "a timeout must not be reported as an errored container")
+		})
+	}
+}
+
+func TestTailer_readForeverDoesNotReconnectWhenStopping(t *testing.T) {
+	for _, tErr := range []error{context.Canceled, testTimeoutError{}} {
+		t.Run(tErr.Error(), func(t *testing.T) {
+			_, cancelFunc := context.WithCancel(context.Background())
+			reader := NewTestReader("", tErr, nil)
+			tailer := NewTestTailer(reader, reader, cancelFunc)
+			tailer.sleepDuration = time.Millisecond
+			tailer.stopping.Store(true)
+
+			var restarts atomic.Int64
+			tailer.unsafeLogReader = func(_ context.Context, _ time.Time) (io.ReadCloser, error) {
+				restarts.Add(1)
+				return reader, nil
+			}
+
+			done := make(chan struct{})
+			go func() {
+				tailer.readForever()
+				close(done)
+			}()
+
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("readForever did not return while stopping")
+			}
+
+			assert.Equal(t, int64(0), restarts.Load(), "a stopping tailer must not open a new reader")
+			assert.Equal(t, 0, len(tailer.erroredContainerID))
+		})
+	}
+}
+
+type closeTrackingReader struct {
+	closed atomic.Bool
+}
+
+func (r *closeTrackingReader) Read(_ []byte) (int, error) { return 0, io.EOF }
+
+func (r *closeTrackingReader) Close() error {
+	r.closed.Store(true)
+	return nil
+}
+
+// TestTailer_tryRestartReaderClosesReaderOpenedDuringStop checks that a reader
+// opened while Stop() runs is closed rather than leaked: Stop() only closes
+// the reader that was current when it was called.
+func TestTailer_tryRestartReaderClosesReaderOpenedDuringStop(t *testing.T) {
+	_, cancelFunc := context.WithCancel(context.Background())
+	previous := &closeTrackingReader{}
+	tailer := NewTestTailer(previous, nil, cancelFunc)
+	tailer.sleepDuration = time.Millisecond
+
+	opened := &closeTrackingReader{}
+	tailer.unsafeLogReader = func(_ context.Context, _ time.Time) (io.ReadCloser, error) {
+		tailer.stopping.Store(true)
+		return opened, nil
+	}
+
+	err := tailer.tryRestartReader("test")
+
+	assert.ErrorIs(t, err, errTailerStopping)
+	assert.True(t, previous.closed.Load(), "the previous reader must be closed before reconnecting")
+	assert.True(t, opened.closed.Load(), "a reader opened during Stop() must be closed")
 	assert.Equal(t, 0, len(tailer.erroredContainerID))
 }
 

@@ -12,10 +12,73 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func newTestKubeletClient(t *testing.T, serverURL string, timeout time.Duration) *kubeletClient {
+	t.Helper()
+	u, err := url.Parse(serverURL)
+	require.NoError(t, err)
+	kc, err := newForConfig(&kubeletClientConfig{scheme: "http", baseURL: u.Host}, timeout)
+	require.NoError(t, err)
+	return kc
+}
+
+// TestQueryWithRespStreamOutlivesTimeout checks that a log stream is not cut
+// by the client timeout while the regular client still enforces it.
+func TestQueryWithRespStreamOutlivesTimeout(t *testing.T) {
+	const timeout = 100 * time.Millisecond
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("first\n"))
+		w.(http.Flusher).Flush()
+		time.Sleep(3 * timeout)
+		w.Write([]byte("second\n"))
+	}))
+	defer server.Close()
+
+	kc := newTestKubeletClient(t, server.URL, timeout)
+
+	t.Run("stream client", func(t *testing.T) {
+		body, err := kc.queryWithResp(context.Background(), "/containerLogs/ns/pod/container?follow=true")
+		require.NoError(t, err)
+		defer body.Close()
+
+		data, err := io.ReadAll(body)
+		require.NoError(t, err)
+		require.Equal(t, "first\nsecond\n", string(data))
+	})
+
+	t.Run("regular client", func(t *testing.T) {
+		_, resp, err := kc.rawQuery(context.Background(), kc.kubeletURL, "/pods")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		_, err = io.ReadAll(resp.Body)
+		require.Error(t, err)
+	})
+}
+
+func TestQueryWithRespTimesOutWaitingForHeaders(t *testing.T) {
+	const timeout = 100 * time.Millisecond
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		<-release
+	}))
+	defer server.Close()
+	defer close(release)
+
+	kc := newTestKubeletClient(t, server.URL, timeout)
+
+	start := time.Now()
+	_, err := kc.queryWithResp(context.Background(), "/containerLogs/ns/pod/container?follow=true")
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 10*timeout)
+}
 
 func TestRawQuery(t *testing.T) {
 	tests := []struct {
