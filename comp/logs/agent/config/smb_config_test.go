@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,8 @@ func TestValidateSMB(t *testing.T) {
 		{name: "poll_interval maximum", mutate: func(c *LogsConfig) { c.SMB.PollInterval = 3600 }},
 		{name: "allow_smb2", mutate: func(c *LogsConfig) { c.SMB.AllowSMB2 = true }},
 		{name: "require_encryption", mutate: func(c *LogsConfig) { c.SMB.RequireEncryption = true }},
+		{name: "single-label host is allowed with a warning", mutate: func(c *LogsConfig) { c.SMB.Host = "fileserver" }},
+		{name: "ip host", mutate: func(c *LogsConfig) { c.SMB.Host = "10.1.2.3" }},
 		{name: "allow_smb2 with require_encryption", mutate: func(c *LogsConfig) { c.SMB.AllowSMB2, c.SMB.RequireEncryption = true, true }, wantErr: "require_encryption needs SMB 3 and cannot be combined with allow_smb2"},
 
 		{name: "missing smb block", mutate: func(c *LogsConfig) { c.SMB = nil }, wantErr: "must have an smb block"},
@@ -118,6 +121,143 @@ func TestValidateSMB(t *testing.T) {
 			assert.NotContains(t, err.Error(), testSMBPassword)
 		})
 	}
+}
+
+func TestSingleLabelHost(t *testing.T) {
+	for host, want := range map[string]bool{
+		"fileserver":                   true,
+		"FILESERVER":                   true,
+		"files.example.com":            false,
+		"files.":                       false, // absolute name
+		"10.1.2.3":                     false,
+		"fd00::10":                     false,
+		"localhost":                    false,
+		"LOCALHOST":                    false,
+		"myacct.file.core.windows.net": false,
+		"":                             false,
+	} {
+		assert.Equal(t, want, isSingleLabelHost(host), host)
+	}
+}
+
+// captureLogs returns what fn logs at every level.
+func captureLogs(t *testing.T, fn func()) string {
+	t.Helper()
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.TraceLvl)
+	require.NoError(t, err)
+	log.SetupLogger(l, "trace")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "info") })
+	fn()
+	log.Flush()
+	require.NoError(t, w.Flush())
+	return b.String()
+}
+
+// TestSingleLabelHostWarnsOnce covers the warning about a host that Windows
+// resolves with LLMNR and NetBIOS broadcasts: once per host, however many times
+// the source is validated, and never with the credentials.
+func TestSingleLabelHostWarnsOnce(t *testing.T) {
+	const host = "warn-once-fileserver"
+	warnedSingleLabelHosts.Delete(host)
+	t.Cleanup(func() { warnedSingleLabelHosts.Delete(host) })
+
+	cfg := validSMBLogsConfig()
+	cfg.SMB.Host = host
+	out := captureLogs(t, func() {
+		for range 3 {
+			require.NoError(t, cfg.Validate())
+		}
+	})
+	assert.Equal(t, 1, strings.Count(out, "single-label name"), out)
+	assert.Contains(t, out, host)
+	assert.Contains(t, out, "fully qualified domain name or its IP address")
+	assert.Contains(t, out, "NTLM does not authenticate the server")
+	assert.NotContains(t, out, testSMBPassword)
+
+	other := validSMBLogsConfig()
+	other.SMB.Host = "warn-once-other"
+	t.Cleanup(func() { warnedSingleLabelHosts.Delete("warn-once-other") })
+	out = captureLogs(t, func() { require.NoError(t, other.Validate()) })
+	assert.Equal(t, 1, strings.Count(out, "single-label name"), "another host warns on its own")
+
+	for _, ok := range []string{"files.example.com", "10.1.2.3", "fd00::10", "localhost"} {
+		fqdn := validSMBLogsConfig()
+		fqdn.SMB.Host = ok
+		out = captureLogs(t, func() { require.NoError(t, fqdn.Validate()) })
+		assert.NotContains(t, out, "single-label name", ok)
+	}
+
+	// A host that fails validation does not reach the warning, which could
+	// otherwise print user info.
+	bad := validSMBLogsConfig()
+	bad.SMB.Host = "user:" + testSMBPassword + "@fileserver"
+	out = captureLogs(t, func() { require.Error(t, bad.Validate()) })
+	assert.NotContains(t, out, testSMBPassword)
+}
+
+// TestLocalHostWarnsOnce covers the warning about a .local host, which macOS,
+// Windows and Linux with nss-mdns resolve with multicast DNS: any machine on the
+// subnet can answer it and receive the account's NTLMv2 response, as for a
+// single-label name.
+func TestLocalHostWarnsOnce(t *testing.T) {
+	for _, host := range []string{"warn-once-nas.local", "WARN-ONCE-NAS2.LOCAL", "warn-once-nas3.local."} {
+		cfg := validSMBLogsConfig()
+		cfg.SMB.Host = host
+		out := captureLogs(t, func() {
+			for range 3 {
+				require.NoError(t, cfg.Validate())
+			}
+		})
+		assert.Equal(t, 1, strings.Count(out, "multicast DNS"), "%s: %s", host, out)
+		assert.Contains(t, out, host)
+		assert.Contains(t, out, "fully qualified domain name or its IP address")
+		assert.NotContains(t, out, testSMBPassword)
+	}
+
+	for _, ok := range []string{"files.example.com", "local.example.com", "notlocal", "mylocal.example.com", "10.1.2.3"} {
+		cfg := validSMBLogsConfig()
+		cfg.SMB.Host = ok
+		out := captureLogs(t, func() { require.NoError(t, cfg.Validate()) })
+		assert.NotContains(t, out, "multicast DNS", ok)
+	}
+}
+
+// TestSingleLabelWarningIgnoresCase: host names are not case sensitive, so one
+// server spelled two ways is warned about once.
+func TestSingleLabelWarningIgnoresCase(t *testing.T) {
+	warnedSingleLabelHosts.Delete("warn-case-fileserver")
+	warnedLocalHosts.Delete("warn-case-nas.local")
+	t.Cleanup(func() {
+		warnedSingleLabelHosts.Delete("warn-case-fileserver")
+		warnedLocalHosts.Delete("warn-case-nas.local")
+	})
+	count := func(needle string, hosts ...string) int {
+		out := captureLogs(t, func() {
+			for _, host := range hosts {
+				cfg := validSMBLogsConfig()
+				cfg.SMB.Host = host
+				require.NoError(t, cfg.Validate())
+			}
+		})
+		return strings.Count(out, needle)
+	}
+	assert.Equal(t, 1, count("single-label name", "Warn-Case-FileServer", "WARN-CASE-FILESERVER", "warn-case-fileserver"))
+	assert.Equal(t, 1, count("multicast DNS", "Warn-Case-NAS.local", "warn-case-nas.LOCAL", "warn-case-nas.local"))
+}
+
+// TestScopedIPv6IsNotSingleLabel: an IPv6 address with a zone ("fe80::1%eth0")
+// is an address, which no name service resolves.
+func TestScopedIPv6IsNotSingleLabel(t *testing.T) {
+	for _, host := range []string{"fe80::1%eth0", "fe80::1%12", "FE80::1%Ethernet"} {
+		assert.False(t, isSingleLabelHost(host), host)
+		cfg := validSMBLogsConfig()
+		cfg.SMB.Host = host
+		out := captureLogs(t, func() { require.NoError(t, cfg.Validate()) })
+		assert.NotContains(t, out, "single-label name", host)
+	}
+	assert.True(t, isSingleLabelHost("fileserver%eth0"), "a zone after a name does not make it an address")
 }
 
 func TestValidateSMBStillValidatesCommonSettings(t *testing.T) {
