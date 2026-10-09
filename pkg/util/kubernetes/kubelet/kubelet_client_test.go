@@ -28,8 +28,8 @@ func newTestKubeletClient(t *testing.T, serverURL string, timeout time.Duration)
 	return kc
 }
 
-// TestQueryWithRespStreamOutlivesTimeout checks that a log stream is not cut
-// by the client timeout while the regular client still enforces it.
+// TestQueryWithRespStreamOutlivesTimeout checks that the client timeout cuts
+// regular requests but not log streams.
 func TestQueryWithRespStreamOutlivesTimeout(t *testing.T) {
 	const timeout = 100 * time.Millisecond
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -74,10 +74,14 @@ func TestQueryWithRespTimesOutWaitingForHeaders(t *testing.T) {
 
 	kc := newTestKubeletClient(t, server.URL, timeout)
 
+	// Avoids hanging if the header timeout is missing.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*timeout)
+	defer cancel()
+
 	start := time.Now()
-	_, err := kc.queryWithResp(context.Background(), "/containerLogs/ns/pod/container?follow=true")
+	_, err := kc.queryWithResp(ctx, "/containerLogs/ns/pod/container?follow=true")
 	require.Error(t, err)
-	require.Less(t, time.Since(start), 10*timeout)
+	require.Less(t, time.Since(start), 10*timeout, "the header timeout must fire before the request deadline")
 }
 
 func TestRawQuery(t *testing.T) {
