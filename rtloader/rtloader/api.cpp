@@ -20,9 +20,20 @@
 #endif
 #include <csignal>
 #include <cstring>
+#include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+// macOS and AIX name the anonymous mapping flag differently
+#if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
+#    define MAP_ANONYMOUS MAP_ANON
+#endif
+// MAP_STACK is a hint accepted by Linux and FreeBSD only; other platforms
+// (macOS, AIX) do not define it at all, so fall back to no flag.
+#if !defined(MAP_STACK)
+#    define MAP_STACK 0
+#endif
 
 // logging to cerr
 #include <errno.h>
@@ -403,18 +414,51 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
     }
 
     if (enable_stacktrace) {
-        // Establish an alternate stack, as go stacks are too shallow and might crash
-        const size_t alt_stack_size = SIGSTKSZ;
+        // Establish an alternate stack, as go stacks are too shallow and might crash.
+        // SIGSTKSZ (8 KiB on Linux) is far too small for this handler: it puts a
+        // 4000-byte backtrace buffer on the stack, runs the unwinder and then the
+        // previously installed handler (the Go runtime's, which prints a full
+        // goroutine dump) on what is left of it. Use a dedicated mmap'd region
+        // instead of a heap block, sized for the whole chain, with a PROT_NONE
+        // guard page below it: MAP_STACK is only a hint on Linux and creates no
+        // guard page of its own, so add one explicitly. If the stack is ever
+        // exhausted, the overflow faults on the guard page instead of silently
+        // corrupting whatever is mapped next to it.
+        static constexpr size_t ALT_STACK_SIZE = 64 * 1024;
         static void *alt_stack = nullptr;
 
         __sync_synchronize();
         if (alt_stack == nullptr) {
+            const long page_size = sysconf(_SC_PAGESIZE);
+            if (page_size <= 0) {
+                std::ostringstream err_msg;
+                err_msg << "unable to determine the page size: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                return 0;
+            }
+            // One PROT_NONE page below the usable stack region
+            const size_t total_size = ALT_STACK_SIZE + (size_t)page_size;
+            void *mem
+                = mmap(nullptr, total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
+            if (mem == MAP_FAILED) {
+                std::ostringstream err_msg;
+                err_msg << "unable to allocate alternate stack: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                return 0;
+            }
+            if (mprotect(mem, (size_t)page_size, PROT_NONE) != 0) {
+                std::ostringstream err_msg;
+                err_msg << "unable to set up the alternate stack guard page: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                munmap(mem, total_size);
+                return 0;
+            }
             // Note: this memory is never freed, but it is necessary for the duration of the program
-            alt_stack = _malloc(alt_stack_size);
+            alt_stack = (char *)mem + page_size;
             stack_t new_stack;
             memset(&new_stack, 0, sizeof(new_stack));
             new_stack.ss_sp = (decltype(new_stack.ss_sp))alt_stack;
-            new_stack.ss_size = alt_stack_size;
+            new_stack.ss_size = ALT_STACK_SIZE;
             new_stack.ss_flags = 0;
             int ret = sigaltstack(&new_stack, nullptr);
             if (ret != 0) {
