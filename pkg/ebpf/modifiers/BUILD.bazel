@@ -13,6 +13,7 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
             "//pkg/ebpf/names",
             "//pkg/ebpf/telemetry",
             "//pkg/util/kernel",
@@ -25,6 +26,7 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
+            "//pkg/ebpf/ksyms",
             "//pkg/ebpf/names",
             "//pkg/ebpf/telemetry",
             "//pkg/util/kernel",

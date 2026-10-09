@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/protectedfile"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -466,8 +467,8 @@ func verifyDirComponent(p string, mode os.FileMode, uid uint32, isLeaf bool) err
 }
 
 // creates a ram backed file from the given reader. The file is made immutable
-func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFile, error) {
-	protectedFile, err := NewProtectedFile(name, runtimeDir, source)
+func createProtectedFile(name, runtimeDir string, source io.Reader) (protectedfile.ProtectedFile, error) {
+	protectedFile, err := protectedfile.NewProtectedFile(name, runtimeDir, source)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create protected file: %w", err)
 	}
@@ -476,7 +477,7 @@ func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFi
 }
 
 // verify reads the asset from the reader and verifies the content hash matches what is expected.
-func (a *asset) verify(source ProtectedFile) error {
+func (a *asset) verify(source protectedfile.ProtectedFile) error {
 	sum, err := sha256Reader(source)
 	if err != nil {
 		return fmt.Errorf("hash file %s: %w", source.Name(), err)

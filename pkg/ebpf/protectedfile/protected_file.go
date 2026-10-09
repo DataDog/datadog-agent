@@ -5,7 +5,10 @@
 
 //go:build linux && bpf
 
-package runtime
+// Package protectedfile provides sealed, ram-backed (memfd) files. The files
+// are immutable once created, allowing eBPF bytecode and detection programs to
+// be handled without writing them to disk.
+package protectedfile
 
 import (
 	"fmt"
