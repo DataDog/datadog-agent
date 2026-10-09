@@ -7,13 +7,31 @@
 // multiple packages.
 package config
 
-import pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+import (
+	"time"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
 
 const (
-	AnomalyDetectionRecordingEnabledConfigKey = "anomaly_detection.recording.enabled"
-	AnomalyScorerDryRunEnabledConfigKey       = "anomaly_detection.anomaly_scorer.dry_run.enabled"
-	ReportingEventsEnabledConfigKey           = "anomaly_detection.reporting.events.enabled"
-	SmartSeverityProfilesEnabledConfigKey     = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
+	AnomalyDetectionRecordingEnabledConfigKey  = "anomaly_detection.recording.enabled"
+	AnomalyScorerDryRunEnabledConfigKey        = "anomaly_detection.anomaly_scorer.dry_run.enabled"
+	LogPatternForwardingEnabledConfigKey       = "anomaly_detection.log_pattern_forwarding.enabled"
+	LogPatternForwardingEndpointConfigKey      = "anomaly_detection.log_pattern_forwarding.endpoint"
+	LogPatternForwardingRetryIntervalConfigKey = "anomaly_detection.log_pattern_forwarding.connect_retry_interval"
+	LogPatternForwardingDebugLogsConfigKey     = "anomaly_detection.log_pattern_forwarding.debug_logs"
+	ReportingEventsEnabledConfigKey            = "anomaly_detection.reporting.events.enabled"
+	SmartSeverityProfilesEnabledConfigKey      = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
+)
+
+// Defaults for log pattern metric forwarding.
+const (
+	// DefaultLogPatternForwardingEndpoint is the isolated analysis process's
+	// FIT setup endpoint.
+	DefaultLogPatternForwardingEndpoint = "unix:/tmp/aad-isolated/aad.sock"
+	// DefaultLogPatternForwardingRetryInterval is how often the forwarder
+	// retries a connection or a broken session.
+	DefaultLogPatternForwardingRetryInterval = 5 * time.Second
 )
 
 // SmartSeverityProfilesEnabled returns whether smart severity profiles are enabled.
@@ -42,7 +60,46 @@ func ObserverRequired(cfg pkgconfigmodel.Reader) bool {
 	return SmartSeverityProfilesEnabled(cfg) ||
 		ReportingEventsEnabled(cfg) ||
 		AnomalyScorerDryRunEnabled(cfg) ||
+		LogPatternForwardingEnabled(cfg) ||
 		RecordingEnabled(cfg)
+}
+
+// LogPatternForwardingEnabled returns whether virtual metrics produced from logs
+// (log pattern counts) should be forwarded to the isolated analysis process.
+func LogPatternForwardingEnabled(cfg pkgconfigmodel.Reader) bool {
+	return cfg.GetBool(LogPatternForwardingEnabledConfigKey)
+}
+
+// LogPatternForwardingConfig describes where and how log pattern metrics are forwarded.
+type LogPatternForwardingConfig struct {
+	// Enabled reports whether forwarding is enabled.
+	Enabled bool
+	// Endpoint is the analysis process's FIT setup endpoint, in the
+	// "unix:/path", "tcp:127.0.0.1:port", or bare-path forms FIT accepts.
+	Endpoint string
+	// RetryInterval is how long to wait before retrying a failed connection or
+	// a broken session.
+	RetryInterval time.Duration
+	// DebugLogs makes the forwarder log one line per observed virtual metric.
+	DebugLogs bool
+}
+
+// LogPatternForwarding returns the log pattern metric forwarding configuration,
+// falling back to the documented defaults for unset or invalid values.
+func LogPatternForwarding(cfg pkgconfigmodel.Reader) LogPatternForwardingConfig {
+	out := LogPatternForwardingConfig{
+		Enabled:       LogPatternForwardingEnabled(cfg),
+		Endpoint:      DefaultLogPatternForwardingEndpoint,
+		RetryInterval: DefaultLogPatternForwardingRetryInterval,
+		DebugLogs:     cfg.GetBool(LogPatternForwardingDebugLogsConfigKey),
+	}
+	if endpoint := cfg.GetString(LogPatternForwardingEndpointConfigKey); endpoint != "" {
+		out.Endpoint = endpoint
+	}
+	if interval := cfg.GetDuration(LogPatternForwardingRetryIntervalConfigKey); interval > 0 {
+		out.RetryInterval = interval
+	}
+	return out
 }
 
 // ScorerRequired returns whether the anomaly scorer should be constructed.

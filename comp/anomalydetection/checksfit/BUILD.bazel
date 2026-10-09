@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "checksfit",
+    srcs = [
+        "descriptor.go",
+        "metric.go",
+        "session.go",
+        "support_supported.go",
+        "support_unsupported.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/checksfit",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/anomalydetection/checksfit/fitcore"],
+)
+
+dd_agent_go_test(
+    name = "checksfit_test",
+    srcs = [
+        "metric_test.go",
+        "session_test.go",
+    ],
+    embed = [":checksfit"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/anomalydetection/checksfit/fitcore",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/anomalydetection/checksfit/fitcore",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/anomalydetection/checksfit/fitcore",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/anomalydetection/checksfit/fitcore",
+        ],
+        "//conditions:default": [],
+    }),
+)

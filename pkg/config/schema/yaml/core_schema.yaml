@@ -5307,6 +5307,40 @@ properties:
                 node_type: setting
                 type: integer
                 default: 80
+      log_pattern_forwarding:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |-
+              Forwards the virtual metrics produced from logs (log pattern counts and
+              other log-derived series) to the isolated anomaly detection process over
+              FIT, as DDCHECKS v1 metric records.
+          endpoint:
+            node_type: setting
+            type: string
+            default: unix:/tmp/aad-isolated/aad.sock
+            comment: |-
+              FIT setup endpoint of the analysis process: "unix:/path",
+              "tcp:127.0.0.1:port", or a bare unix socket path.
+          connect_retry_interval:
+            node_type: setting
+            type: string
+            default: 5s
+            format: duration
+            tags:
+            - golang_type:duration
+            comment: |-
+              How long the forwarder waits before retrying a failed connection or a
+              broken session.
+          debug_logs:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Logs one line per observed virtual metric to help debug the session.
       logs:
         node_type: section
         type: object

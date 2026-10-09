@@ -331,6 +331,28 @@ func NewComponent(deps Requires) (Provides, error) {
 		}
 	}
 
+	// Forward the virtual metrics produced by the log metrics extractors (log
+	// pattern counts and other log-derived series) to the isolated anomaly
+	// detection process over FIT, as DDCHECKS v1 metric records. The forwarder
+	// connects to the process's setup endpoint and reconnects on failure, so the
+	// observer does not depend on the process being up at startup.
+	if anomalydetectionconfig.LogPatternForwardingEnabled(cfg) {
+		forwardingCfg := anomalydetectionconfig.LogPatternForwarding(cfg)
+		forwarder, err := newVirtualMetricForwarder(forwardingCfg)
+		if err != nil {
+			return Provides{}, fmt.Errorf("%s: %w", anomalydetectionconfig.LogPatternForwardingEnabledConfigKey, err)
+		}
+		if forwarder != nil {
+			eng.virtualMetricSink = forwarder
+			logging.Infof("log pattern metric forwarding enabled to %s", forwardingCfg.Endpoint)
+			deps.Lifecycle.Append(compdef.Hook{
+				OnStop: func(_ context.Context) error {
+					return forwarder.close()
+				},
+			})
+		}
+	}
+
 	// Wire each injected reporter into its own reporterEventSink subscription.
 	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.
 	for _, r := range deps.Reporters {

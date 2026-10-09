@@ -158,12 +158,16 @@ type engine struct {
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage         *timeSeriesStorage
-	extractors      []observerdef.LogMetricsExtractor
-	detectors       []observerdef.Detector
-	correlators     []observerdef.Correlator
-	logCounts       *materializedLogCountBucketizer
-	logKeyGenerator *SliceKeyGenerator
+	storage    *timeSeriesStorage
+	extractors []observerdef.LogMetricsExtractor
+	// virtualMetricSink, when non-nil, receives every virtual metric produced by
+	// the extractors above, for forwarding outside the engine. It is optional and
+	// only set when a forwarder is configured.
+	virtualMetricSink observerdef.VirtualMetricSink
+	detectors         []observerdef.Detector
+	correlators       []observerdef.Correlator
+	logCounts         *materializedLogCountBucketizer
+	logKeyGenerator   *SliceKeyGenerator
 
 	// scorer is a typed pointer to the anomaly scorer (when present).
 	// It is also included in correlators for processing; this pointer is used
@@ -259,10 +263,13 @@ type engine struct {
 
 // engineConfig holds the parameters for constructing an engine.
 type engineConfig struct {
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
+	storage    *timeSeriesStorage
+	extractors []observerdef.LogMetricsExtractor
+	// virtualMetricSink optionally receives virtual metrics as they are produced
+	// by the extractors (see observerdef.VirtualMetricSink).
+	virtualMetricSink observerdef.VirtualMetricSink
+	detectors         []observerdef.Detector
+	correlators       []observerdef.Correlator
 	// scorer is the optional unified anomaly scorer. When non-nil, it is also
 	// appended to correlators so it participates in the normal correlator loop.
 	scorer *anomalyScorer
@@ -297,13 +304,14 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	e := &engine{
-		storage:         cfg.storage,
-		extractors:      cfg.extractors,
-		detectors:       cfg.detectors,
-		correlators:     correlators,
-		logKeyGenerator: NewSliceKeyGenerator(),
-		scorer:          cfg.scorer,
-		scheduler:       sched,
+		storage:           cfg.storage,
+		extractors:        cfg.extractors,
+		virtualMetricSink: cfg.virtualMetricSink,
+		detectors:         cfg.detectors,
+		correlators:       correlators,
+		logKeyGenerator:   NewSliceKeyGenerator(),
+		scorer:            cfg.scorer,
+		scheduler:         sched,
 
 		anomalyDeduper:             newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
 		trackAnomalyHistory:        cfg.trackAnomalyHistory,
@@ -460,6 +468,25 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			host := m.Host
 			if host == "" {
 				host = l.hostname
+			}
+			// Forward the resolved virtual metric before any storage-side
+			// filtering, so forwarding is independent of baseline muting and of
+			// the log count bucketizer interception below.
+			if e.virtualMetricSink != nil {
+				timestampSecs := l.timestampMs / 1000
+				if timestampSecs < 0 {
+					timestampSecs = 0
+				}
+				e.virtualMetricSink.ObserveVirtualMetric(observerdef.VirtualMetric{
+					Extractor:  extractor.Name(),
+					Name:       m.Name,
+					Value:      m.Value,
+					Host:       host,
+					Tags:       tags,
+					Timestamp:  uint64(timestampSecs),
+					HasContext: m.HasContext,
+					Context:    m.Context,
+				})
 			}
 			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLogComposite(m.Name, host, tags))
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {

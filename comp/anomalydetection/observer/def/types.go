@@ -106,6 +106,38 @@ type LogMetricsExtractorOutput struct {
 	EvictedMetricNames []string
 }
 
+// VirtualMetric is a fully resolved virtual metric produced by a log metrics
+// extractor: the observer source tag and the host fallback have been applied, so
+// it carries the same identity the engine stores it under.
+type VirtualMetric struct {
+	// Extractor is the name of the extractor that produced the metric. It is the
+	// series namespace (source) in engine storage.
+	Extractor string
+	// Name is the metric name (e.g. "log.log_pattern_extractor.<hash>.count").
+	Name  string
+	Value float64
+	// Host is the resolved host: the metric's own host, or the log hostname.
+	Host string
+	// Tags are the resolved series tags, including the observer source tag.
+	Tags tagset.CompositeTags
+	// Timestamp is the log's timestamp in whole Unix seconds. It is the data
+	// time the analysis process stores the sample under.
+	Timestamp uint64
+	// HasContext reports whether Context carries pattern context.
+	HasContext bool
+	Context    MetricContext
+}
+
+// VirtualMetricSink receives the virtual metrics produced by log metrics
+// extractors, for forwarding outside the engine (e.g. over FIT to an isolated
+// anomaly detection process).
+//
+// Implementations are called synchronously on the log ingest path: they must not
+// block, and must not retain Tags, whose backing storage belongs to the caller.
+type VirtualMetricSink interface {
+	ObserveVirtualMetric(metric VirtualMetric)
+}
+
 // SeriesDescriptor is the fully resolved identity of a time series.
 // It carries namespace, metric name, tags, and aggregation — everything
 // needed to display, key, and compare series across correlators and API.
