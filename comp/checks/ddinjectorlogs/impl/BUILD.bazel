@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "impl",
+    srcs = [
+        "ddinjector_logs_model.go",
+        "ddinjector_logs_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/checks/ddinjectorlogs/impl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/checks/ddinjectorlogs/def",
+            "//comp/core/agenttelemetry/def",
+            "//comp/core/log/def",
+            "//comp/core/sysprobeconfig/def",
+            "//comp/def",
+            "//comp/etw/def",
+            "//pkg/util/log",
+            "//pkg/util/winutil/etw",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_time//rate",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "impl_test",
+    srcs = [
+        "ddinjector_logs_model_test.go",
+        "ddinjector_logs_windows_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/agenttelemetry/def",
+            "//comp/core/log/mock",
+            "//comp/core/sysprobeconfig/mock",
+            "//comp/etw/def",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

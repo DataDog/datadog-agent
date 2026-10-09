@@ -1,14 +1,15 @@
 # Artifacts & running — Windows E2E Tests
 
-How to resolve which MSI/OCI package the tests use, and how to invoke
-`go test`. See [setup.md](setup.md) for one-time environment setup.
+How to resolve which MSI/OCI package the tests use, and how to invoke the
+repository's E2E wrapper. See [setup.md](setup.md) for one-time environment
+setup.
 
 ## Setting up artifact environment variables
 
 Windows tests need to know which MSI and/or OCI package to use. The `setup-env`
 helper configures the required environment variables. Use `--fmt json` when
 driving it programmatically (parse the `"VAR": "value"` map and prepend the
-pairs inline to `go test`); use `--fmt powershell | Invoke-Expression` or
+pairs inline to `dda inv new-e2e-tests.run`); use `--fmt powershell | Invoke-Expression` or
 `eval "$(...)"` for an interactive shell.
 
 ### From a pipeline (most common)
@@ -19,7 +20,7 @@ local feature branch with no pipelines. Add `--pipeline-id <id>` to pin a
 specific pipeline.
 
 ```bash
-# Programmatic (skill default): parse the "VAR": "value" map, prepend inline to `go test`
+# Programmatic (skill default): parse the "VAR": "value" map, prepend inline to the DDA run command
 dda inv new-e2e-tests.setup-env --build pipeline --fmt json [--branch <branch>] [--pipeline-id <id>]
 
 # Interactive shell — PowerShell
@@ -56,30 +57,30 @@ The variables themselves are documented per suite — see
 ## Running a specific suite
 
 ```bash
-go test -v -timeout 30m -tags test <package-path> -run <TestFunction>$
+dda inv new-e2e-tests.run --targets=<target> --no-recursive --run='<TestFunction>$' --timeout=30m
 ```
 
 Two rules that are easy to get wrong:
 
-- **Anchor the `-run` regex with `$`**, at both the suite and subtest level. The
+- **Anchor the `--run` regex with `$`**, at both the suite and subtest level. The
   flag is a Go regex; without the anchor `TestInstall` also matches
   `TestInstallOpts`/`TestInstallFail`, and `TestUpgradeAgentPackage` also
   matches `TestUpgradeAgentPackageOCIBootstrap`.
-- **Use the exact package path, no trailing `/...`.** With `/...` Go buffers all
-  output per-package and prints it only when the package finishes, making the
-  test look silent. Without it, output streams live.
+- **Use the exact target with `--no-recursive`.** Recursive package execution
+  buffers output per package and can make the test look silent. Targets are
+  relative to the default `test/new-e2e` module.
 
 Examples:
 
 ```bash
 # MSI install test
-go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/install-test -run TestInstall$
+dda inv new-e2e-tests.run --targets=./tests/windows/install-test --no-recursive --run='TestInstall$' --timeout=30m
 
 # Service lifecycle test
-go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/service-test -run TestServiceBehaviorPowerShell$
+dda inv new-e2e-tests.run --targets=./tests/windows/service-test --no-recursive --run='TestServiceBehaviorPowerShell$' --timeout=30m
 
 # Fleet Automation — agent package, specific subtest
-go test -v -timeout 30m -tags test ./test/new-e2e/tests/installer/windows -run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+dda inv new-e2e-tests.run --targets=./tests/installer/windows --no-recursive --run='TestAgentUpgrades$/TestUpgradeAgentPackage$' --timeout=30m
 ```
 
 See each suite's `AGENTS.md` for the full list of test functions and the CI job

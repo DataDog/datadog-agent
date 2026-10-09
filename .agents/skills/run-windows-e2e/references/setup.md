@@ -43,7 +43,7 @@ name.
 Per-run alternative:
 
 ```bash
-E2E_DEV_MODE=true go test -v -timeout 30m -tags test ./test/new-e2e/tests/windows/install-test -run TestInstall$
+E2E_DEV_MODE=true dda inv new-e2e-tests.run --targets=./tests/windows/install-test --no-recursive --run='TestInstall$' --timeout=30m
 ```
 
 Or in VSCode:

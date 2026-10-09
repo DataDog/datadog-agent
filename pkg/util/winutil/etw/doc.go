@@ -8,5 +8,5 @@
 // Package etw provides utilities for Event Tracing for Windows (ETW):
 // - StopETWSession: stop an ETW trace session by name
 // - ProcessETLFile: read and process events from an ETL trace file
-// - Event property parsing via GetEventPropertyString
+// - Event property parsing via GetEventPropertyString, or EventRecordProperties for real-time events
 package etw

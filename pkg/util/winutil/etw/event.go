@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"math"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -58,6 +59,14 @@ func (e *Event) EventProperties() (map[string]interface{}, error) {
 		props[name] = value
 	}
 	return props, nil
+}
+
+// EventRecordProperties decodes the properties of a raw EVENT_RECORD, such as one delivered by a real-time
+// session, using the same TDH-based parsing as EventProperties.
+// record must point to a valid EVENT_RECORD for the duration of the call.
+func EventRecordProperties(record unsafe.Pointer) (map[string]interface{}, error) {
+	e := Event{eventRecord: C.PEVENT_RECORD(record)}
+	return e.EventProperties()
 }
 
 // GetPropertyByName retrieves a single property by name using TdhGetProperty.
