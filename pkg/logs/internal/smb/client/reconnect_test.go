@@ -394,7 +394,7 @@ func TestReconnectingNeverLeaksPassword(t *testing.T) {
 			assert.NotContains(t, fmt.Sprintf(verb, err), password, verb)
 		}
 	}
-	assert.Contains(t, errs[0].Error(), "myacct/********")
+	assert.Contains(t, errs[0].Error(), "the error text contained the password and was removed")
 
 	for _, verb := range []string{"%v", "%+v", "%s", "%#v"} {
 		assert.NotContains(t, fmt.Sprintf(verb, c), password, verb)
