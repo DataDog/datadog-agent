@@ -7,6 +7,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -151,4 +152,40 @@ anomaly_detection:
 			assert.Equal(t, tt.want, ScorerRequired(cfg))
 		})
 	}
+}
+
+func TestAnomalyEventsDefaults(t *testing.T) {
+	cfg := compconfig.NewMockFromYAML(t, ``)
+	got := AnomalyEvents(cfg)
+	assert.False(t, got.Enabled)
+	assert.Equal(t, DefaultAnomalyEventsEndpoint, got.Endpoint)
+	assert.Equal(t, DefaultAnomalyEventsRetryInterval, got.RetryInterval)
+}
+
+func TestAnomalyEventsOverrides(t *testing.T) {
+	cfg := compconfig.NewMockFromYAML(t, `
+anomaly_detection:
+  anomaly_events:
+    enabled: true
+    endpoint: unix:/tmp/events.sock
+    connect_retry_interval: 30s
+`)
+	got := AnomalyEvents(cfg)
+	assert.True(t, got.Enabled)
+	assert.True(t, AnomalyEventsEnabled(cfg))
+	assert.Equal(t, "unix:/tmp/events.sock", got.Endpoint)
+	assert.Equal(t, 30*time.Second, got.RetryInterval)
+}
+
+func TestAnomalyEventsFallsBackOnEmptyOrInvalidValues(t *testing.T) {
+	cfg := compconfig.NewMockFromYAML(t, `
+anomaly_detection:
+  anomaly_events:
+    enabled: true
+    endpoint: ""
+    connect_retry_interval: 0s
+`)
+	got := AnomalyEvents(cfg)
+	assert.Equal(t, DefaultAnomalyEventsEndpoint, got.Endpoint)
+	assert.Equal(t, DefaultAnomalyEventsRetryInterval, got.RetryInterval)
 }

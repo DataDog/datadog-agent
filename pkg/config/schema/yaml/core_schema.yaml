@@ -5341,6 +5341,34 @@ properties:
             type: boolean
             default: false
             comment: Logs one line per observed virtual metric to help debug the session.
+      anomaly_events:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |-
+              Subscribes to the anomaly events published by the isolated anomaly
+              detection process over a FIT broadcast channel, and logs each event.
+          endpoint:
+            node_type: setting
+            type: string
+            default: unix:/tmp/aad-isolated/events.sock
+            comment: |-
+              FIT broadcast endpoint the analysis process publishes anomaly events on:
+              "unix:/path", "tcp:127.0.0.1:port", or a bare unix socket path.
+          connect_retry_interval:
+            node_type: setting
+            type: string
+            default: 5s
+            format: duration
+            tags:
+            - golang_type:duration
+            comment: |-
+              How long the subscriber waits before retrying a failed subscription or
+              a broken session.
       logs:
         node_type: section
         type: object

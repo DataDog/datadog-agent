@@ -5,6 +5,7 @@ go_library(
     name = "checksfit",
     srcs = [
         "descriptor.go",
+        "event.go",
         "metric.go",
         "session.go",
         "support_supported.go",
@@ -18,6 +19,7 @@ go_library(
 dd_agent_go_test(
     name = "checksfit_test",
     srcs = [
+        "event_test.go",
         "metric_test.go",
         "session_test.go",
     ],

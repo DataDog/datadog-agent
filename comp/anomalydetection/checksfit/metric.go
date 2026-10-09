@@ -30,12 +30,12 @@ func checkPayloadSize(size int) error {
 }
 
 var (
-	errPayloadTooLarge = errors.New("checks payload exceeds FIT maximum")
-	errStringTooLong   = errors.New("checks string exceeds u32 length")
-	errTooManyStrings  = errors.New("checks string count exceeds u32")
-	errTruncated       = errors.New("checks payload is truncated")
-	errTrailingBytes   = errors.New("checks payload has trailing bytes")
-	errInvalidUTF8     = errors.New("checks string is not UTF-8")
+	errPayloadTooLarge = errors.New("payload exceeds FIT maximum")
+	errStringTooLong   = errors.New("string exceeds u32 length")
+	errTooManyStrings  = errors.New("string count exceeds u32")
+	errTruncated       = errors.New("payload is truncated")
+	errTrailingBytes   = errors.New("payload has trailing bytes")
+	errInvalidUTF8     = errors.New("string is not UTF-8")
 )
 
 // Metric is the type 1 payload: one scalar check metric sample, with the field
@@ -107,7 +107,7 @@ func (m Metric) Encode() ([]byte, error) {
 // DecodeMetric parses a type 1 payload, rejecting truncated payloads,
 // mismatched lengths, trailing bytes, and invalid UTF-8.
 func DecodeMetric(b []byte) (Metric, error) {
-	reader := metricReader{remaining: b}
+	reader := payloadReader{remaining: b}
 	out := Metric{}
 	metricType, err := reader.u32()
 	if err != nil {
@@ -182,12 +182,13 @@ func appendString(out []byte, value string) []byte {
 	return append(out, value...)
 }
 
-// metricReader reads the DDCHECKS payload primitives from a byte slice.
-type metricReader struct {
+// payloadReader reads the FIT payload primitives from a byte slice. The
+// primitives are shared by the DDCHECKS records and the anomaly event records.
+type payloadReader struct {
 	remaining []byte
 }
 
-func (r *metricReader) take(count int) ([]byte, error) {
+func (r *payloadReader) take(count int) ([]byte, error) {
 	if count < 0 || count > len(r.remaining) {
 		return nil, errTruncated
 	}
@@ -196,7 +197,7 @@ func (r *metricReader) take(count int) ([]byte, error) {
 	return out, nil
 }
 
-func (r *metricReader) u32() (uint32, error) {
+func (r *payloadReader) u32() (uint32, error) {
 	bytes, err := r.take(4)
 	if err != nil {
 		return 0, err
@@ -204,7 +205,7 @@ func (r *metricReader) u32() (uint32, error) {
 	return binary.LittleEndian.Uint32(bytes), nil
 }
 
-func (r *metricReader) u64() (uint64, error) {
+func (r *payloadReader) u64() (uint64, error) {
 	bytes, err := r.take(8)
 	if err != nil {
 		return 0, err
@@ -212,7 +213,7 @@ func (r *metricReader) u64() (uint64, error) {
 	return binary.LittleEndian.Uint64(bytes), nil
 }
 
-func (r *metricReader) string() (string, error) {
+func (r *payloadReader) string() (string, error) {
 	length, err := r.u32()
 	if err != nil {
 		return "", err

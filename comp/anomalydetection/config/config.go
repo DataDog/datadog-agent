@@ -20,11 +20,14 @@ const (
 	LogPatternForwardingEndpointConfigKey      = "anomaly_detection.log_pattern_forwarding.endpoint"
 	LogPatternForwardingRetryIntervalConfigKey = "anomaly_detection.log_pattern_forwarding.connect_retry_interval"
 	LogPatternForwardingDebugLogsConfigKey     = "anomaly_detection.log_pattern_forwarding.debug_logs"
+	AnomalyEventsEnabledConfigKey              = "anomaly_detection.anomaly_events.enabled"
+	AnomalyEventsEndpointConfigKey             = "anomaly_detection.anomaly_events.endpoint"
+	AnomalyEventsRetryIntervalConfigKey        = "anomaly_detection.anomaly_events.connect_retry_interval"
 	ReportingEventsEnabledConfigKey            = "anomaly_detection.reporting.events.enabled"
 	SmartSeverityProfilesEnabledConfigKey      = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
 )
 
-// Defaults for log pattern metric forwarding.
+// Defaults for log pattern metric forwarding and anomaly event subscription.
 const (
 	// DefaultLogPatternForwardingEndpoint is the isolated analysis process's
 	// FIT setup endpoint.
@@ -32,6 +35,12 @@ const (
 	// DefaultLogPatternForwardingRetryInterval is how often the forwarder
 	// retries a connection or a broken session.
 	DefaultLogPatternForwardingRetryInterval = 5 * time.Second
+	// DefaultAnomalyEventsEndpoint is the isolated analysis process's FIT
+	// broadcast endpoint for anomaly events.
+	DefaultAnomalyEventsEndpoint = "unix:/tmp/aad-isolated/events.sock"
+	// DefaultAnomalyEventsRetryInterval is how often the event subscriber
+	// retries a subscription or a broken session.
+	DefaultAnomalyEventsRetryInterval = 5 * time.Second
 )
 
 // SmartSeverityProfilesEnabled returns whether smart severity profiles are enabled.
@@ -97,6 +106,41 @@ func LogPatternForwarding(cfg pkgconfigmodel.Reader) LogPatternForwardingConfig 
 		out.Endpoint = endpoint
 	}
 	if interval := cfg.GetDuration(LogPatternForwardingRetryIntervalConfigKey); interval > 0 {
+		out.RetryInterval = interval
+	}
+	return out
+}
+
+// AnomalyEventsEnabled returns whether the agent subscribes to the anomaly
+// events published by the isolated analysis process.
+func AnomalyEventsEnabled(cfg pkgconfigmodel.Reader) bool {
+	return cfg.GetBool(AnomalyEventsEnabledConfigKey)
+}
+
+// AnomalyEventsConfig describes where and how anomaly events are subscribed to.
+type AnomalyEventsConfig struct {
+	// Enabled reports whether the subscription is enabled.
+	Enabled bool
+	// Endpoint is the analysis process's FIT broadcast endpoint, in the
+	// "unix:/path", "tcp:127.0.0.1:port", or bare-path forms FIT accepts.
+	Endpoint string
+	// RetryInterval is how long to wait before retrying a failed subscription
+	// or a broken session.
+	RetryInterval time.Duration
+}
+
+// AnomalyEvents returns the anomaly event subscription configuration, falling
+// back to the documented defaults for unset or invalid values.
+func AnomalyEvents(cfg pkgconfigmodel.Reader) AnomalyEventsConfig {
+	out := AnomalyEventsConfig{
+		Enabled:       AnomalyEventsEnabled(cfg),
+		Endpoint:      DefaultAnomalyEventsEndpoint,
+		RetryInterval: DefaultAnomalyEventsRetryInterval,
+	}
+	if endpoint := cfg.GetString(AnomalyEventsEndpointConfigKey); endpoint != "" {
+		out.Endpoint = endpoint
+	}
+	if interval := cfg.GetDuration(AnomalyEventsRetryIntervalConfigKey); interval > 0 {
 		out.RetryInterval = interval
 	}
 	return out
