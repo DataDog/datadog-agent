@@ -75,7 +75,7 @@ archive_override(
     url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply-chain-go-0.0.11/supply-chain-go-0.0.11.tar.gz",
 )
 
-bazel_dep(name = "apple_support", version = "2.9.1")  # provides --platforms=@apple_support//platforms:macos_x86_64
+bazel_dep(name = "apple_support", version = "2.10.1")  # provides --platforms=@apple_support//platforms:macos_x86_64
 bazel_dep(name = "bazel_features", version = "1.51.0")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
