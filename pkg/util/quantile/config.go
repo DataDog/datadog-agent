@@ -44,8 +44,9 @@ type Config struct {
 	}
 }
 
-// MaxCount returns the max number of values you can insert.
-// This is limited by using a uint16 for bin.n
+// MaxCount returns the number of values binLimit bins could count back when
+// bin.n was a uint16. Callers that bound their input with it, such as the OTLP
+// mapper, keep that bound: the bins now count up to math.MaxUint32 values each.
 func (c *Config) MaxCount() int {
 	return c.binLimit * math.MaxUint16
 }

@@ -6,7 +6,6 @@
 package quantile
 
 import (
-	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,7 +22,7 @@ func ParseBuf(t *testing.T, dsl string) []float64 {
 
 	eachParsedToken(t, dsl, 16, func(k Key, n uint64) {
 		if n > maxBinWidth {
-			t.Fatal("n > max", n, maxBinWidth)
+			t.Fatal("n > max", n, uint64(maxBinWidth))
 		}
 
 		for i := uint64(0); i < n; i++ {
@@ -44,13 +43,13 @@ func ParseSketch(t *testing.T, dsl string) *Sketch {
 	s := &Sketch{}
 	c := Default()
 
-	eachParsedToken(t, dsl, 16, func(k Key, n uint64) {
+	eachParsedToken(t, dsl, 32, func(k Key, n uint64) {
 		if n > maxBinWidth {
-			t.Fatal("n > max", n, maxBinWidth)
+			t.Fatal("n > max", n, uint64(maxBinWidth))
 		}
 
-		s.count += int(n)
-		s.bins = append(s.bins, bin{k: k, n: uint16(n)})
+		s.count += n
+		s.bins = append(s.bins, bin{k: k, n: uint32(n)})
 		s.Basic.InsertN(c.f64(k), float64(n))
 	})
 
@@ -79,7 +78,7 @@ func parseN(t *testing.T, s string) uint64 {
 	}
 
 	// <k>:max case
-	n := uint64(math.MaxUint16)
+	n := uint64(maxBinWidth)
 	switch {
 	case s == "max":
 		return n
