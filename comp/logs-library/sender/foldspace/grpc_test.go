@@ -100,8 +100,8 @@ func TestGRPCSendHonorsContextWhenStalled(t *testing.T) {
 	t.Cleanup(func() { _ = conn.Close() })
 
 	transport := &GRPCTransport{
-		specs: []SenderSpec{{ID: 0, Address: "buf:1", Class: Reliable, APIKey: func() string { return "key" }}},
-		conns: []*grpc.ClientConn{conn},
+		specs:  []SenderSpec{{ID: 0, Address: "buf:1", Class: Reliable, APIKey: func() string { return "key" }}},
+		conns:  []*grpc.ClientConn{conn},
 		state:  1024,
 		enc:    "identity",
 		method: statefulStreamFullMethod,
@@ -284,7 +284,7 @@ func TestTwoGRPCIntakesReceiveSameBytes(t *testing.T) {
 			{ID: 0, Address: "a:1", Class: Reliable, APIKey: func() string { return "key-a" }},
 			{ID: 1, Address: "b:1", Class: Reliable, APIKey: func() string { return "key-b" }},
 		},
-		conns: []*grpc.ClientConn{dial(lisA), dial(lisB)},
+		conns:  []*grpc.ClientConn{dial(lisA), dial(lisB)},
 		state:  1024,
 		enc:    "identity",
 		method: statefulStreamFullMethod,
