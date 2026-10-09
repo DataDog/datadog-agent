@@ -8,25 +8,25 @@ package config
 import (
 	"testing"
 
-	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultEncoding(t *testing.T) {
-	require.Equal(t, gnmipb.Encoding_JSON_IETF, DefaultEncoding)
+	require.Equal(t, Encoding(4), encodingJSONIETF)
+	require.Equal(t, encodingJSONIETF, DefaultEncoding)
 }
 
 func TestParseEncoding(t *testing.T) {
 	tests := []struct {
 		input    string
-		expected gnmipb.Encoding
+		expected Encoding
 	}{
-		{"", gnmipb.Encoding_JSON_IETF},
-		{"json_ietf", gnmipb.Encoding_JSON_IETF},
-		{"json-ietf", gnmipb.Encoding_JSON_IETF},
-		{"json", gnmipb.Encoding_JSON},
-		{"proto", gnmipb.Encoding_PROTO},
+		{"", encodingJSONIETF},
+		{"json_ietf", encodingJSONIETF},
+		{"json-ietf", encodingJSONIETF},
+		{"json", encodingJSON},
+		{"proto", encodingProto},
 	}
 
 	for _, test := range tests {
@@ -40,6 +40,6 @@ func TestParseEncoding(t *testing.T) {
 }
 
 func TestEncodingName(t *testing.T) {
-	assert.Equal(t, "json_ietf", EncodingName(gnmipb.Encoding_JSON_IETF))
-	assert.Equal(t, "proto", EncodingName(gnmipb.Encoding_PROTO))
+	assert.Equal(t, "json_ietf", EncodingName(encodingJSONIETF))
+	assert.Equal(t, "proto", EncodingName(encodingProto))
 }

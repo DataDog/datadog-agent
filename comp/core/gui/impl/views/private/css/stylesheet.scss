@@ -342,7 +342,7 @@ a {
 
 //************* Status pages
 
-  #general_status, #collector_status {
+  #general_status, #collector_status, #gnmi_status {
     width: calc(100% - 40px);
     height: calc(100% - 40px);
     overflow-y: scroll;

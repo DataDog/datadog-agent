@@ -4,12 +4,15 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "status",
     srcs = [
+        "display.go",
         "registry.go",
         "status.go",
     ],
     embedsrcs = [
         "status_templates/gnmi.tmpl",
         "status_templates/gnmiHTML.tmpl",
+        "status_templates/gnmiSummary.tmpl",
+        "status_templates/gnmiSummaryHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/status",
     visibility = ["//visibility:public"],

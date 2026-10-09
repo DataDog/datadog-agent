@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/gnmipb"
 )
 
 func TestNormalizeGNMIPathCanonicalizesModulePrefixes(t *testing.T) {

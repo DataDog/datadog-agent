@@ -1,0 +1,122 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+syntax = "proto3";
+
+package datadog.gnmi.subscribe;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/gnmipb";
+
+import "google/protobuf/any.proto";
+
+// This file intentionally contains only the gNMI messages used by the Agent's
+// Subscribe client. Field numbers match openconfig/gnmi's gnmi.proto. The local
+// protobuf package name avoids descriptor conflicts in interoperability tests;
+// protobuf field numbers and the RPC path determine wire compatibility.
+
+message Notification {
+  int64 timestamp = 1;
+  Path prefix = 2;
+  repeated Update update = 4;
+  repeated Path delete = 5;
+  bool atomic = 6;
+}
+
+message Update {
+  Path path = 1;
+  TypedValue val = 3;
+  uint32 duplicates = 4;
+}
+
+message TypedValue {
+  oneof value {
+    string string_val = 1;
+    int64 int_val = 2;
+    uint64 uint_val = 3;
+    bool bool_val = 4;
+    bytes bytes_val = 5;
+    float float_val = 6;
+    double double_val = 14;
+    Decimal64 decimal_val = 7;
+    ScalarArray leaflist_val = 8;
+    google.protobuf.Any any_val = 9;
+    bytes json_val = 10;
+    bytes json_ietf_val = 11;
+    string ascii_val = 12;
+    bytes proto_bytes = 13;
+  }
+}
+
+message Path {
+  repeated string element = 1;
+  string origin = 2;
+  repeated PathElem elem = 3;
+  string target = 4;
+}
+
+message PathElem {
+  string name = 1;
+  map<string, string> key = 2;
+}
+
+enum Encoding {
+  JSON = 0;
+  BYTES = 1;
+  PROTO = 2;
+  ASCII = 3;
+  JSON_IETF = 4;
+}
+
+message Decimal64 {
+  int64 digits = 1;
+  uint32 precision = 2;
+}
+
+message ScalarArray {
+  repeated TypedValue element = 1;
+}
+
+message SubscribeRequest {
+  oneof request {
+    SubscriptionList subscribe = 1;
+  }
+}
+
+message SubscribeResponse {
+  oneof response {
+    Notification update = 1;
+    bool sync_response = 3;
+  }
+}
+
+message SubscriptionList {
+  Path prefix = 1;
+  repeated Subscription subscription = 2;
+
+  enum Mode {
+    STREAM = 0;
+    ONCE = 1;
+    POLL = 2;
+  }
+
+  Mode mode = 5;
+  bool allow_aggregation = 6;
+  Encoding encoding = 8;
+  bool updates_only = 9;
+}
+
+message Subscription {
+  Path path = 1;
+  SubscriptionMode mode = 2;
+  uint64 sample_interval = 3;
+  bool suppress_redundant = 4;
+  uint64 heartbeat_interval = 5;
+}
+
+enum SubscriptionMode {
+  TARGET_DEFINED = 0;
+  ON_CHANGE = 1;
+  SAMPLE = 2;
+}
