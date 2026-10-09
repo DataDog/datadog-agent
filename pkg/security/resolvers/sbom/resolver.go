@@ -279,10 +279,9 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) error {
 	if r.cfg.SBOMResolverHostEnabled {
-		hostRoot := os.Getenv("HOST_ROOT")
-		if hostRoot == "" {
-			hostRoot = "/"
-		}
+		// The host packages are read through the root of init, as those of a
+		// container are read through the root of one of its processes.
+		hostRoot := utils.ProcRootPath(1)
 
 		r.hostSBOM = NewSBOM("", nil, "")
 
