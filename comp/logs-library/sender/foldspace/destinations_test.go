@@ -130,10 +130,54 @@ func TestStreamLifetimeIgnoresConnectionReset(t *testing.T) {
 
 	// connection_reset_interval governs HTTP connection recycling, which shares
 	// neither its cost nor its bound with ending an interning epoch. Whatever it
-	// is set to, the stream lifetime is the library's.
+	// is set to, the default stream lifetime is the library's.
 	assert.Equal(t, defaultStreamLifetime, build(t, 0))
 	assert.Equal(t, defaultStreamLifetime, build(t, 30*time.Second))
 	assert.Equal(t, defaultStreamLifetime, build(t, 900*time.Second))
+}
+
+func TestStreamLifetimeConfigured(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  time.Duration
+	}{
+		{"15m", 15 * time.Minute},
+		{"90s", 90 * time.Second},
+		{"299.7s", 299700 * time.Millisecond},
+		{"299700000000ns", 299700 * time.Millisecond},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("logs_config.foldspace.stream_lifetime", tc.value)
+			main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+			main.ConnectionResetInterval = 30 * time.Second
+			endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+			endpoints.Main = main
+			dest, err := BuildDestinationConfig(cfg, endpoints)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, dest.Core.StreamLifetime)
+			assert.Equal(t, 30*time.Second, main.ConnectionResetInterval)
+		})
+	}
+}
+
+// Zero must never reach the library, where it means rotate on every open
+// rather than the default, so anything but a positive duration with units is
+// rejected instead of silently replaced.
+func TestStreamLifetimeInvalid(t *testing.T) {
+	for _, value := range []string{"", "0", "0s", "-1s", "900", "NaN", "bogus", "999999999999999999h"} {
+		t.Run(value, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("logs_config.foldspace.stream_lifetime", value)
+			main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+			endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+			endpoints.Main = main
+			dest, err := BuildDestinationConfig(cfg, endpoints)
+			require.Error(t, err)
+			assert.Nil(t, dest)
+			assert.Contains(t, err.Error(), "logs_config.foldspace.stream_lifetime")
+		})
+	}
 }
 
 func TestStreamTimeouts(t *testing.T) {
