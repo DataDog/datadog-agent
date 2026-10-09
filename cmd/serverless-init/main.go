@@ -292,6 +292,14 @@ func main() {
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
 
+	// MicroVM alone restores many instances from one snapshot, so it alone needs a
+	// uuid it can re-identify at each lifecycle transition; nil selects the
+	// process-lifetime uuid every other platform reports.
+	var instanceUUID *serverlessInitInventory.InstanceUUID
+	if cloudService.GetOrigin() == cloudservice.MicroVMOrigin {
+		instanceUUID = serverlessInitInventory.NewInstanceUUID()
+	}
+
 	// Compute tags after the early LoadDatadog so that yaml-configured
 	// `tags` and `extra_tags` (read by configUtils.GetConfiguredTags inside
 	// configureTags) are picked up. Env-based DD_TAGS / DD_EXTRA_TAGS work
@@ -365,7 +373,13 @@ func main() {
 		ipcfx.Module(),
 		fx.Provide(func(c ipc.Component) ipc.HTTPClient { return c.GetClient() }),
 		fx.Provide(func() option.Option[sysprobeconfig.Component] { return option.None[sysprobeconfig.Component]() }),
-		fx.Provide(serverlessInitInventory.NewCapabilities),
+		fx.Provide(func() *serverlessInitInventory.InstanceUUID { return instanceUUID }),
+		fx.Provide(func(u *serverlessInitInventory.InstanceUUID) *inventoryagent.Capabilities {
+			if u == nil {
+				return serverlessInitInventory.NewCapabilities()
+			}
+			return serverlessInitInventory.NewInstanceCapabilities(u)
+		}),
 		runnerfx.Module(),
 		inventoryagentfx.Module(),
 		delegatedauthfx.Module(),
@@ -433,11 +447,12 @@ func run(
 	// setup(), which injects the serverless fields and enqueues the first
 	// payload as part of initialization.
 	inventoryAgent inventoryagent.Component,
+	instanceUUID *serverlessInitInventory.InstanceUUID,
 	_ runner.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux, inventoryAgent,
+		cloudService, tagConfig, metricTags, demux, inventoryAgent, instanceUUID,
 	)
 
 	err := cloudService.Run(modeConf, logConfig)
@@ -509,6 +524,7 @@ func setup(
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
 	inventoryAgent inventoryagent.Component,
+	instanceUUID *serverlessInitInventory.InstanceUUID,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -532,7 +548,17 @@ func setup(
 	// delay. Capabilities keep the provider closed during Fx startup. This is a
 	// no-op while the feature is gated off; unsupported workloads are disabled
 	// before component construction.
-	serverlessInitInventory.UpdateAndSubmit(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+	// MicroVM remains closed until its lifecycle hook supplies an instance ID.
+	if origin != cloudservice.MicroVMOrigin {
+		serverlessInitInventory.UpdateAndSubmit(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+	}
+
+	// The lifecycle server serializes /run's ID store and /resume's ID load with
+	// this publication. UUID, generic fields, and instance resource ID are all
+	// updated while closed; missing identity cannot open the image-build gate.
+	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
+		serverlessInitInventory.UpdateInstanceAndSubmit(inventoryAgent, instanceUUID, microVMID, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+	})
 
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
@@ -576,6 +602,7 @@ func setup(
 					metricAgent.SetEnhancedUsageMetricTags(tags)
 				}),
 				BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+				InventorySubmitter:  inventorySubmitter,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -617,6 +644,7 @@ func setup(
 				metricAgent.SetEnhancedUsageMetricTags(tags)
 			}),
 			BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+			InventorySubmitter:  inventorySubmitter,
 		},
 	}
 
