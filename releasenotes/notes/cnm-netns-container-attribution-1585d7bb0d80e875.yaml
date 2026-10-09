@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    CNM: Add ``network_config.enable_netns_container_attribution`` (disabled by default).
+    When enabled, a connection whose socket was created by an allowlisted proxy inside another
+    pod's network namespace, such as Istio ambient's ``ztunnel``, is attributed to the container
+    that owns that namespace instead of the proxy. The allowlist is set with
+    ``network_config.netns_container_attribution_owner_images`` and defaults to ``ztunnel``.
