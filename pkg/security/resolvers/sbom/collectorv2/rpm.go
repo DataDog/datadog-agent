@@ -13,9 +13,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	rpmdb "github.com/knqyf263/go-rpmdb/pkg"
 
@@ -76,7 +79,8 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes
 			if err != nil {
 				return nil, fmt.Errorf("unable to get installed files: %w", err)
 			}
-			files := indexedRPMFiles(installed)
+			// go-rpmdb leaves FileSizes nil for packages with files of 4 GiB or more
+			files := indexedRPMFiles(root, installed, pkg.FileSizes != nil)
 
 			var srcVer, srcRel string
 			if pkg.SourceRpm != "(none)" && pkg.SourceRpm != "" {
@@ -112,17 +116,58 @@ func (s *rpmScanner) ListPackages(_ context.Context, root *os.Root) ([]sbomtypes
 // configuration, as dpkg conffiles, the files created at runtime and the docs.
 const unindexedRPMFlags = rpmdb.RPMFILE_CONFIG | rpmdb.RPMFILE_GHOST | rpmdb.RPMFILE_DOC | rpmdb.RPMFILE_LICENSE
 
-// indexedRPMFiles returns the paths of the installed files of a package that
-// the index of its files holds.
-func indexedRPMFiles(installed []rpmdb.FileInfo) []string {
+// indexedRPMFiles returns the installed files the index of a package holds. With
+// sized, it drops the regular files missing from root or of another size.
+func indexedRPMFiles(root *os.Root, installed []rpmdb.FileInfo, sized bool) []string {
 	files := make([]string, 0, len(installed))
+	var dir rpmFileDir
+	defer dir.close()
 	for _, file := range installed {
 		if int32(file.Flags)&unindexedRPMFlags != 0 {
 			continue
 		}
-		files = append(files, filepath.ToSlash(file.Path))
+		p := filepath.ToSlash(file.Path)
+		if sized && file.Mode&syscall.S_IFMT == syscall.S_IFREG && dir.replaced(root, p, int64(uint32(file.Size))) {
+			continue
+		}
+		files = append(files, p)
 	}
 	return files
+}
+
+// rpmFileDir keeps open the directory of the last file it checked, as a package
+// lists its files sorted by path.
+type rpmFileDir struct {
+	path string
+	root *os.Root
+	err  error
+}
+
+// replaced reports whether the file at p, a regular file of size bytes in its
+// package, is missing or another file.
+func (d *rpmFileDir) replaced(root *os.Root, p string, size int64) bool {
+	dir, name := path.Split(p)
+	if dir != d.path {
+		d.close()
+		d.path = dir
+		d.root, d.err = root.OpenRoot("." + dir)
+	}
+	var info fs.FileInfo
+	err := d.err
+	if err == nil {
+		info, err = d.root.Lstat(name)
+	}
+	if err != nil {
+		return errors.Is(err, fs.ErrNotExist)
+	}
+	return !info.Mode().IsRegular() || info.Size() != size
+}
+
+func (d *rpmFileDir) close() {
+	if d.root != nil {
+		d.root.Close()
+		d.root = nil
+	}
 }
 
 // splitFileName returns a name, version, release, epoch, arch:
