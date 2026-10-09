@@ -70,17 +70,18 @@ func Dial(ctx context.Context, cfg Config) (Client, error) {
 	// Dial closes the transport when ctx ends, so it is bounded on its own.
 	sess, err := newDialer(cfg).Dial(ctx, cfg.Host)
 	if err != nil {
-		if isGuestSession(err) {
-			err = fmt.Errorf("%w: %w", errGuestSession, err)
-		}
-		return nil, redactErr(fmt.Errorf("smb: connect to %s: %w", target, err), cfg.Password)
+		return nil, dialError(err, cfg, target)
 	}
 	done := watchdog(ctx, abortGrace, func() { _ = sess.Abort() })
 	share, err := sess.Mount(ctx, cfg.Share)
 	done()
 	if err != nil {
 		_ = sess.Abort()
-		return nil, redactErr(fmt.Errorf("smb: connect to %s: %w", target, err), cfg.Password)
+		return nil, checked(fmt.Errorf("smb: connect to %s: %w", target, redactErr(err, cfg.Password)))
+	}
+	if err := checkEncryption(share, cfg.RequireEncryption); err != nil {
+		_ = sess.Abort()
+		return nil, checked(fmt.Errorf("smb: connect to %s: %w", target, err))
 	}
 	return &smbClient{
 		target:    target,
@@ -89,6 +90,69 @@ func Dial(ctx context.Context, cfg Config) (Client, error) {
 		sess:      sess,
 		share:     share,
 	}, nil
+}
+
+// dialError returns the error of a failed session setup: the library's error
+// without the password, with the Agent's own text around it. The Agent's text is
+// added after the password is removed from the library's, so that a password
+// that happens to be a word of it cannot take the Agent's text away.
+func dialError(err error, cfg Config, target string) error {
+	out := redactErr(err, cfg.Password)
+	if isGuestSession(err) {
+		out = fmt.Errorf("%w: %w", errGuestSession, out)
+	} else {
+		out = negotiateHint(out, cfg)
+	}
+	return checked(fmt.Errorf("smb: connect to %s: %w", target, out))
+}
+
+// checked marks err as built by Dial: the library's text in it was already
+// searched for the password, and the Agent's own text must not be.
+func checked(err error) error { return &checkedError{err} }
+
+type checkedError struct{ error }
+
+func (e *checkedError) Unwrap() error { return e.error }
+
+// smb3Dialects are the dialects the Agent offers unless the source sets
+// allow_smb2. A server that supports none of them answers the negotiation with
+// STATUS_NOT_SUPPORTED. Restricting the list keeps an attacker who can alter
+// the unauthenticated negotiation from forcing a downgrade to SMB 2, whose
+// sessions cannot be encrypted. SMB 3.1.1 protects the negotiation itself
+// (pre-authentication integrity); 3.0 and 3.0.2 are kept for Windows Server
+// 2012 and 2012 R2, and Samba before 4.3.
+var smb3Dialects = []smb2.Dialect{smb2.SMB311, smb2.SMB302, smb2.SMB300}
+
+func dialects(cfg Config) []smb2.Dialect {
+	if cfg.AllowSMB2 {
+		return nil // the library's list: SMB 3.1.1 down to 2.0.2
+	}
+	return smb3Dialects
+}
+
+// negotiateHint adds to a dial error the hint that fits a server which supports
+// none of the dialects offered, which answers the negotiation with
+// STATUS_NOT_SUPPORTED.
+func negotiateHint(err error, cfg Config) error {
+	if code, ok := statusCode(err); ok && code == statusNotSupported && !cfg.AllowSMB2 {
+		return fmt.Errorf("%w (the server may support only SMB 2, which the Agent does not offer by default: set allow_smb2: true in the source's smb block to allow it, preferably after upgrading the server)", err)
+	}
+	return err
+}
+
+// ErrNotEncrypted is the error of a dial to a server that does not encrypt the
+// session or the share while the source requires it. It classifies as ErrAuth,
+// so it is retried every 30 seconds: the server's configuration, or the
+// source's, needs a change, and the credentials were accepted.
+var ErrNotEncrypted = errors.New("the server does not encrypt the session or the share, which require_encryption demands: enable encryption on the server (for example Windows 'Encrypt data access' on the share, or Samba 'server smb encrypt = required'), or turn require_encryption off for a network you trust")
+
+// checkEncryption fails closed when the source requires encryption and the
+// mounted share is not encrypted.
+func checkEncryption(share interface{ Encrypted() bool }, require bool) error {
+	if require && !share.Encrypted() {
+		return ErrNotEncrypted
+	}
+	return nil
 }
 
 // newDialer returns the dialer of Dial. cfg has its defaults applied.
@@ -113,6 +177,8 @@ func newDialer(cfg Config) *smb2.Dialer {
 		// guest and anonymous sessions ([MS-SMB2] 3.2.5.3.1), see
 		// isGuestSession.
 		RequireMessageSigning: true,
+		// Only SMB 3 unless the source opts into SMB 2 (see smb3Dialects).
+		SpecifiedDialects: dialects(cfg),
 		// The Apple extension is only needed to manage security descriptors on
 		// macOS servers; skipping it saves a CREATE on the share root.
 		DisableAAPLExtension: true,
@@ -407,6 +473,10 @@ func (e *redactedError) Error() string { return e.msg }
 func redactErr(err error, secret string) error {
 	if err == nil || secret == "" {
 		return err
+	}
+	var built *checkedError
+	if errors.As(err, &built) {
+		return err // built by Dial, which searched the library's text
 	}
 	msg := err.Error()
 	if !strings.Contains(msg, secret) {
