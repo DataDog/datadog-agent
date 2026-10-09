@@ -85,6 +85,16 @@ func TestInventorySerializesCloudRunIdentity(t *testing.T) {
 			parentID:           gcpPrefix + "/services/test-function",
 			resourceName:       "test-function",
 		},
+		{
+			name: "cloud_run_job",
+			env: map[string]string{
+				"CLOUD_RUN_JOB": "test-job", "CLOUD_RUN_EXECUTION": "test-execution",
+			},
+			missingRequiredEnv: "CLOUD_RUN_JOB",
+			resourceID:         gcpPrefix + "/executions/test-execution",
+			parentID:           gcpPrefix + "/jobs/test-job",
+			resourceName:       "test-job",
+		},
 	} {
 		t.Run(platform.name, func(t *testing.T) {
 			for _, missing := range []bool{false, true} {

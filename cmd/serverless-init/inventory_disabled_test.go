@@ -30,10 +30,6 @@ func TestInventoryUnsupportedWorkloadsDisabled(t *testing.T) {
 		env  map[string]string
 	}{
 		{
-			name: "cloud_run_job",
-			env:  map[string]string{"CLOUD_RUN_JOB": "test-job", "CLOUD_RUN_EXECUTION": "test-execution"},
-		},
-		{
 			name: "azure_container_app",
 			env: map[string]string{
 				"CONTAINER_APP_NAME": "test-app", "CONTAINER_APP_REVISION": "test-revision",
