@@ -150,15 +150,14 @@ func TestCoreSchemaProductDefaultsLinuxHost(t *testing.T) {
 		{"gpu_monitoring_advanced", settings{"gpu.enabled": true}, settings{"gpu_monitoring.enabled": true}},
 		{"cloud_cost_management_containers", settings{}, settings{}},
 		{"disaster_recovery", settings{"multi_region_failover.enabled": true}, settings{}},
-		{"network_monitoring", netflowSettings, settings{"network_config.enabled": true, "traceroute.enabled": true}},
+		{"network_monitoring", merge(netflowSettings, settings{"network_path.connections_monitoring.enabled": true}), settings{"network_config.enabled": true, "traceroute.enabled": true}},
 		{"cloud_network_monitoring", settings{}, settings{"network_config.enabled": true}},
 		{"network_device_monitoring", settings{}, settings{}},
 		{"netflow_monitoring", netflowSettings, settings{}},
 		{"network_path", settings{}, settings{"traceroute.enabled": true}},
 		{"synthetics_network_path_tests", settings{"synthetics.collector.enabled": true}, settings{"traceroute.enabled": true}},
-		{"ddot_collector", settings{"otelcollector.enabled": true, "agent_ipc.port": 5009, "agent_ipc.config_refresh_interval": 60}, settings{}},
+		{"otel", settings{"otelcollector.enabled": true, "agent_ipc.port": 5009, "agent_ipc.config_refresh_interval": 60}, settings{}},
 		{"otlp_ingest_logs", merge(apmSettings, logsSettings, settings{"otlp_config.logs.enabled": true, "otlp_config.receiver.protocols.grpc.endpoint": "localhost:4317", "otlp_config.receiver.protocols.http.endpoint": "localhost:4318"}), settings{}},
-		{"network_path_dynamic_tests", settings{"network_path.connections_monitoring.enabled": true}, settings{"network_config.enabled": true, "traceroute.enabled": true}},
 		{"apm", apmSettings, settings{}},
 		{"apm_single_step_instrumentation", apmSettings, settings{}},
 		{"otlp_apm_ingest", merge(apmSettings, settings{"otlp_config.receiver.protocols.grpc.endpoint": "localhost:4317", "otlp_config.receiver.protocols.http.endpoint": "localhost:4318"}), settings{}},
@@ -184,9 +183,8 @@ func TestCoreSchemaProductDefaultsLinuxHost(t *testing.T) {
 		{"log_management_low_latency", merge(logsSettings, settings{"logs_config.batch_wait": float64(1), "logs_config.batch_max_size": 500, "logs_config.batch_max_concurrent_send": 10}), settings{}},
 		{"log_management_low_resource", merge(logsSettings, settings{"logs_config.batch_max_concurrent_send": 1, "logs_config.message_channel_size": 50, "logs_config.payload_channel_size": 5}), settings{}},
 		{"log_management_high_compression", merge(logsSettings, settings{"logs_config.use_compression": true, "logs_config.compression_kind": "zstd", "logs_config.zstd_compression_level": 6, "logs_config.batch_max_content_size": 5000000}), settings{}},
-		{"observability_pipelines", merge(logsSettings, settings{"observability_pipelines_worker.logs.enabled": true, "observability_pipelines_worker.metrics.enabled": true}), settings{}},
-		{"observability_pipelines_logs", merge(logsSettings, settings{"observability_pipelines_worker.logs.enabled": true}), settings{}},
-		{"observability_pipelines_metrics", settings{"observability_pipelines_worker.metrics.enabled": true}, settings{}},
+		// Observability Pipelines routes the metrics, and the logs when Log Management is enabled too
+		{"observability_pipelines", settings{"observability_pipelines_worker.metrics.enabled": true}, settings{}},
 		{"cloud_siem", logsSettings, settings{}},
 		{"workload_protection", settings{"runtime_security_config.enabled": true}, settings{"runtime_security_config.enabled": true}},
 		{"cloud_security", merge(vulnerabilitiesSettings, settings{"compliance_config.enabled": true}), settings{}},
@@ -224,7 +222,7 @@ func TestCoreSchemaProductDefaultsContainers(t *testing.T) {
 		{"kubernetes", "kubernetes_autoscaling", settings{"cluster_agent.enabled": true, "cluster_checks.enabled": true, "leader_election": true, "collect_kubernetes_events": true, "extra_config_providers": []string{"clusterchecks", "endpointschecks"}, "autoscaling.workload.enabled": true, "autoscaling.failover.enabled": true, "admission_controller.enabled": true}, settings{}},
 		// the Cluster Agent runs the cluster and endpoint checks, the node Agents collect them
 		{"cluster_agent", "container_monitoring", settings{"cluster_agent.enabled": true, "cluster_checks.enabled": true, "leader_election": true, "collect_kubernetes_events": true, "extra_config_providers": []string{"kube_services", "kube_endpoints"}, "extra_listeners": []string{"kube_services", "kube_endpoints"}}, settings{}},
-		{"kubernetes", "ddot_collector", settings{"otelcollector.enabled": true, "agent_ipc.port": 5009, "agent_ipc.config_refresh_interval": 60}, settings{}},
+		{"kubernetes", "otel", settings{"otelcollector.enabled": true, "agent_ipc.port": 5009, "agent_ipc.config_refresh_interval": 60}, settings{}},
 		{"kubernetes", "custom_metrics", settings{"dogstatsd_non_local_traffic": true}, settings{}},
 		// gpu_monitoring sets nothing for system-probe in containers (null), gpu_monitoring_advanced enables it
 		{"kubernetes", "gpu_monitoring", settings{"gpu.enabled": true}, settings{}},
@@ -313,4 +311,37 @@ func TestCoreSchemaSKUWithProducts(t *testing.T) {
 	core, _, err := settingsFromSKU(t, "host", "infrastructure_monitoring_basic", "live_processes", "log_management")
 	require.NoError(t, err)
 	assert.Equal(t, settings{"infrastructure_mode": "basic", "process_config.process_collection.enabled": true, "logs_enabled": true}, core)
+}
+
+// Some values only apply when two products are enabled together (combination keys)
+func TestCoreSchemaProductCombinations(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the expectations are for Linux hosts")
+	}
+	tests := []struct {
+		products    []string
+		core        settings
+		systemProbe settings
+	}{
+		{
+			products: []string{"observability_pipelines", "log_management"},
+			core:     settings{"logs_enabled": true, "observability_pipelines_worker.logs.enabled": true, "observability_pipelines_worker.metrics.enabled": true},
+		},
+		{
+			products:    []string{"cloud_network_monitoring", "network_path"},
+			core:        settings{"network_path.connections_monitoring.enabled": true},
+			systemProbe: settings{"network_config.enabled": true, "traceroute.enabled": true},
+		},
+	}
+	for _, test := range tests {
+		t.Run(strings.Join(test.products, "+"), func(t *testing.T) {
+			core, systemProbe, err := settingsFromProducts(t, "host", test.products...)
+			require.NoError(t, err)
+			assert.Equal(t, test.core, core)
+			if test.systemProbe == nil {
+				test.systemProbe = settings{}
+			}
+			assert.Equal(t, test.systemProbe, systemProbe)
+		})
+	}
 }

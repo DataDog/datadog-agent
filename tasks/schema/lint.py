@@ -994,14 +994,61 @@ def iter_product_values(node):
                     yield product, platform, value
 
 
-def check_product_defaults(path, schema, declared_products):
+def _check_product_keys(path, node_path, keys, declared_products, conflicts, profile_owners):
+    """Check the product keys of a setting: product names, or combinations of names joined with '+'."""
+    errors = []
+    seen = {}
+    for key in keys:
+        names = key.split("+")
+        for name in sorted(set(names)):
+            if name not in declared_products:
+                errors.append(
+                    f"{path}: [{node_path}] product '{name}' is not declared. "
+                    f"Fix: add '{name}' to 'product_dependencies' in the core schema."
+                )
+        if len(names) == 1:
+            continue
+        if len(set(names)) != len(names):
+            errors.append(
+                f"{path}: [{node_path}] the combination '{key}' lists a name more than once. "
+                f"Fix: list every product of the combination once."
+            )
+        normalized = tuple(sorted(set(names)))
+        if normalized in seen:
+            errors.append(
+                f"{path}: [{node_path}] '{seen[normalized]}' and '{key}' are the same combination. Fix: keep only one."
+            )
+        seen.setdefault(normalized, key)
+        conflicting = sorted({tuple(sorted((a, b))) for a in names for b in conflicts.get(a, ()) if b in names})
+        for a, b in conflicting:
+            errors.append(
+                f"{path}: [{node_path}] the combination '{key}' can never be enabled: '{a}' and '{b}' conflict. "
+                f"Fix: remove the combination."
+            )
+        owners = {}
+        for name in names:
+            if name in profile_owners:
+                owners.setdefault(profile_owners[name], []).append(name)
+        for owner, profiles in sorted(owners.items()):
+            if len(set(profiles)) > 1:
+                errors.append(
+                    f"{path}: [{node_path}] the combination '{key}' can never be enabled: it lists two profiles of "
+                    f"'{owner}' (only one profile of a product can be selected). Fix: remove the combination."
+                )
+    return errors
+
+
+def check_product_defaults(path, schema, declared_products, conflicts=None, profile_owners=None):
     """
     Check the 'product_defaults' and 'product_platform_defaults' keywords:
       - They can only be used on settings, and are mutually exclusive.
       - 'product_defaults' maps a product to a value, 'product_platform_defaults' maps a product to a
         mapping of platforms to values. Unlike 'platform_default', 'other' isn't required: a missing
         platform means the product doesn't change the setting on that platform.
-      - Every product must be declared in the core schema's 'product_dependencies' (*declared_products*).
+      - Every product must be declared in the core schema's 'product_dependencies' (*declared_products*). A key can
+        also be a combination of products joined with '+' ('product_1+product_2'), whose value is used when all of
+        them are enabled; a combination can't list conflicting names (*conflicts*) or two profiles of a product
+        (*profile_owners*).
       - Every value must match the setting's 'type'.
 
     Returns a list of error strings.
@@ -1053,13 +1100,10 @@ def check_product_defaults(path, schema, declared_products):
                             f"Fix: use only {sorted(VALID_PLATFORM_KEYS)}."
                         )
 
-        products = sorted({product for key in used if isinstance(node[key], dict) for product in node[key]})
-        for product in products:
-            if product not in declared_products:
-                errors.append(
-                    f"{path}: [{node_path}] product '{product}' is not declared. "
-                    f"Fix: add '{product}: [...]' to 'product_dependencies' in the core schema."
-                )
+        keys = sorted({product for key in used if isinstance(node[key], dict) for product in node[key]})
+        errors.extend(
+            _check_product_keys(path, node_path, keys, declared_products, conflicts or {}, profile_owners or {})
+        )
 
         type_check = _JSON_TYPE_CHECKS.get(node.get("type"))
         if type_check is None:
@@ -1122,6 +1166,43 @@ def _product_value(node, product, platform_keys):
     return False, None
 
 
+def product_setting_values(node, enabled, platform_keys):
+    """
+    Return the sorted [(key, value)] the *enabled* products set for a setting node, for the given platform priority.
+
+    Keys are product names, or combinations joined with '+' ('product_1+product_2') that only match when all their
+    products are enabled. A matching combination replaces the values of the products it lists: values whose products
+    are a strict subset of another matching key's products are dropped, so the most specific key wins. Mirrors
+    productValues in pkg/config/setup/product_enablement.go: keep both in sync.
+    """
+    enabled = set(enabled)
+    candidates = []
+    product_defaults = node.get("product_defaults")
+    if isinstance(product_defaults, dict):
+        for key, value in product_defaults.items():
+            names = set(key.split("+"))
+            if names <= enabled:
+                candidates.append((key, names, value))
+    product_platform_defaults = node.get("product_platform_defaults")
+    if isinstance(product_platform_defaults, dict):
+        for key, platforms in product_platform_defaults.items():
+            names = set(key.split("+"))
+            if not isinstance(platforms, dict) or not names <= enabled:
+                continue
+            for platform in platform_keys:
+                if platform in platforms:
+                    # null means the key sets nothing on this platform (no fallback to a less specific platform)
+                    if platforms[platform] is not None:
+                        candidates.append((key, names, platforms[platform]))
+                    break
+    kept = [
+        (key, value)
+        for key, names, value in candidates
+        if not any(names < other_names for _, other_names, _ in candidates)
+    ]
+    return sorted(kept, key=lambda item: item[0])
+
+
 def _canonical_value(value):
     """Typed representation of a value: the Agent treats 1, 1.0 and True as different values."""
     return json.dumps(value, sort_keys=True)
@@ -1167,11 +1248,7 @@ def check_product_conflicts(path, schema, sku_definitions, product_dependencies)
             # Group the environments sharing the same conflicting assignment to keep the error short
             conflicts = {}
             for label, platform_keys in _runtime_environments():
-                values = {}
-                for product in sorted(closure):
-                    found, value = _product_value(node, product, platform_keys)
-                    if found:
-                        values[product] = value
+                values = dict(product_setting_values(node, closure, platform_keys))
                 if len({_canonical_value(v) for v in values.values()}) > 1:
                     assignment = ", ".join(f"{product}={value!r}" for product, value in values.items())
                     conflicts.setdefault(assignment, []).append(label)
@@ -1264,7 +1341,15 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(
             check_product_definitions(schema_path, schema, os.path.basename(schema_path) == CORE_SCHEMA_FILE)
         )
-        all_errors.extend(check_product_defaults(schema_path, schema, set(product_dependencies)))
+        all_errors.extend(
+            check_product_defaults(
+                schema_path,
+                schema,
+                set(product_dependencies),
+                get_product_conflicts(core_schema),
+                get_profile_owners(core_schema),
+            )
+        )
         all_errors.extend(check_product_conflicts(schema_path, schema, sku_definitions, product_dependencies))
 
     if all_errors:

@@ -981,3 +981,99 @@ class TestProductPlatformClusterAgent(unittest.TestCase):
         )
         self.assertEqual(len(errors), 1, errors)
         self.assertIn("linux/cluster_agent", errors[0])
+
+
+class TestProductCombinations(unittest.TestCase):
+    NODE = {
+        "node_type": "setting",
+        "type": "integer",
+        "default": 10,
+        "product_defaults": {
+            "p1": 21,
+            "p2": 100,
+            "p1+p2": 75,
+            "p3": 50,
+            "p1+p2+p3": 90,
+            "p4": 100,
+            "p2+p4": 60,
+        },
+    }
+    KEYS = ["linux", "other"]
+
+    def values(self, enabled):
+        return lint.product_setting_values(self.NODE, enabled, self.KEYS)
+
+    def test_single_products(self):
+        self.assertEqual(self.values(["p1"]), [("p1", 21)])
+
+    def test_combination_replaces_its_products(self):
+        self.assertEqual(self.values(["p1", "p2"]), [("p1+p2", 75)])
+
+    def test_most_specific_combination_wins(self):
+        self.assertEqual(self.values(["p1", "p2", "p3"]), [("p1+p2+p3", 90)])
+
+    def test_products_outside_the_combination_still_count(self):
+        self.assertEqual(self.values(["p1", "p3"]), [("p1", 21), ("p3", 50)])
+
+    def test_overlapping_combinations(self):
+        self.assertEqual(self.values(["p1", "p2", "p4"]), [("p1+p2", 75), ("p2+p4", 60)])
+
+    def test_null_combination_value(self):
+        node = {
+            "product_platform_defaults": {
+                "p1": {"other": 1},
+                "p2": {"other": 2},
+                "p1+p2": {"container": None, "other": 3},
+            }
+        }
+        self.assertEqual(lint.product_setting_values(node, ["p1", "p2"], ["linux", "other"]), [("p1+p2", 3)])
+        self.assertEqual(
+            lint.product_setting_values(node, ["p1", "p2"], ["container", "linux", "other"]), [("p1", 1), ("p2", 2)]
+        )
+
+    def test_closure_conflicts_use_combinations(self):
+        schema = product_schema(properties={"a": self.NODE})
+        dependencies = {"p1": [], "p2": [], "p3": [], "p4": []}
+        # p1 and p2 conflict (21 vs 100) but the combination resolves it
+        self.assertEqual(lint.check_product_conflicts("schema.yaml", schema, {"sku_a": ["p1", "p2"]}, dependencies), [])
+        errors = lint.check_product_conflicts("schema.yaml", schema, {"sku_b": ["p1", "p3"]}, dependencies)
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("p1=21, p3=50", errors[0])
+
+
+class TestCombinationKeyValidation(unittest.TestCase):
+    DECLARED = {"p1", "p2", "p3", "logs_fast", "logs_small"}
+    CONFLICTS = {"p1": {"p3"}, "p3": {"p1"}}
+    OWNERS = {"logs_fast": "logs", "logs_small": "logs"}
+
+    def check(self, product_defaults):
+        schema = product_schema(
+            properties={
+                "a": {"node_type": "setting", "type": "integer", "default": 0, "product_defaults": product_defaults}
+            }
+        )
+        return lint.check_product_defaults("schema.yaml", schema, self.DECLARED, self.CONFLICTS, self.OWNERS)
+
+    def assertErrorContains(self, errors, *fragments):
+        self.assertTrue(
+            any(all(fragment in e for fragment in fragments) for e in errors),
+            f"Expected an error containing {fragments}, got: {errors}",
+        )
+
+    def test_valid_combination(self):
+        self.assertEqual(self.check({"p1": 1, "p2": 2, "p1+p2": 3, "p2+logs_fast": 4}), [])
+
+    def test_undeclared_name_in_combination(self):
+        self.assertErrorContains(self.check({"p1+missing": 1}), "[a]", "'missing'", "not declared")
+
+    def test_repeated_name(self):
+        self.assertErrorContains(self.check({"p1+p1": 1}), "[a]", "'p1+p1'", "more than once")
+
+    def test_same_combination_twice(self):
+        self.assertErrorContains(self.check({"p1+p2": 1, "p2+p1": 2}), "[a]", "'p1+p2'", "'p2+p1'", "same combination")
+
+    def test_conflicting_names(self):
+        self.assertErrorContains(self.check({"p1+p3": 1}), "[a]", "'p1+p3'", "conflict", "never")
+
+    def test_two_profiles_of_a_product(self):
+        self.assertErrorContains(self.check({"logs_fast+logs_small": 1}), "[a]", "two profiles of 'logs'")

@@ -17,11 +17,11 @@ from tasks.schema.lint import (
     PRODUCT_DEFAULT_KEYS,
     SCHEMA_DIR,
     _canonical_value,
-    _product_value,
     get_product_conflicts,
     get_product_definitions,
     get_profile_owners,
     parse_product_catalog,
+    product_setting_values,
     resolve_product_closure,
     walk_nodes,
 )
@@ -101,11 +101,7 @@ def _schema_config(schema, products, platform_keys, include_defaults):
     for node_path, node in walk_nodes(schema):
         if node.get("node_type") != "setting" or not any(key in node for key in PRODUCT_DEFAULT_KEYS):
             continue
-        values = {}
-        for product in products:
-            found, value = _product_value(node, product, platform_keys)
-            if found:
-                values[product] = value
+        values = dict(product_setting_values(node, products, platform_keys))
         if not values:
             continue
         if len({_canonical_value(v) for v in values.values()}) > 1:

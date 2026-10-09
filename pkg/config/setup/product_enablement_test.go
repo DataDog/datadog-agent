@@ -296,6 +296,72 @@ func TestGetPlatformDefaultClusterAgent(t *testing.T) {
 	assert.Equal(t, "other_value", getPlatformDefault(values))
 }
 
+// A value can be declared for a combination of products ('product_1+product_2'), used when all of them are enabled
+func TestCollectProductDefaultsCombinations(t *testing.T) {
+	root := parseTestSchema(t, `
+properties:
+  a:
+    node_type: setting
+    default: 10
+    product_defaults:
+      product_1: 21
+      product_2: 100
+      product_1+product_2: 75
+      product_3: 50
+      product_1+product_2+product_3: 90
+      product_4: 100
+      product_2+product_4: 60
+  b:
+    node_type: setting
+    default: 0
+    product_platform_defaults:
+      product_1:
+        other: 1
+      product_2:
+        other: 2
+      product_1+product_2:
+        container: null
+        other: 3
+`)
+	for _, name := range []string{"DOCKER_DD_AGENT", "KUBERNETES_SERVICE_PORT", "KUBERNETES", "ECS_FARGATE", "AWS_EXECUTION_ENV"} {
+		t.Setenv(name, "")
+	}
+
+	tests := []struct {
+		name     string
+		enabled  []string
+		expected map[string]interface{}
+		conflict string
+	}{
+		{name: "product 1", enabled: []string{"product_1"}, expected: map[string]interface{}{"a": 21, "b": 1}},
+		{name: "product 2", enabled: []string{"product_2"}, expected: map[string]interface{}{"a": 100, "b": 2}},
+		{name: "combination", enabled: []string{"product_1", "product_2"}, expected: map[string]interface{}{"a": 75, "b": 3}},
+		{name: "most specific combination", enabled: []string{"product_1", "product_2", "product_3"}, expected: map[string]interface{}{"a": 90, "b": 3}},
+		// product_3 isn't part of the product_1+product_2 combination, its own value still applies
+		{name: "product outside of the combination", enabled: []string{"product_1", "product_3"}, conflict: "a: product_1=21, product_3=50"},
+		// product_1+product_2 and product_2+product_4 both match and none is more specific
+		{name: "overlapping combinations", enabled: []string{"product_1", "product_2", "product_4"}, conflict: "a: product_1+product_2=75, product_2+product_4=60"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			defaults, err := collectProductDefaults(root, test.enabled)
+			if test.conflict != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.conflict)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, defaults)
+		})
+	}
+
+	// null: the combination sets nothing on this platform, the values of its products apply (and conflict here)
+	t.Setenv("DOCKER_DD_AGENT", "true")
+	_, err := collectProductDefaults(root, []string{"product_1", "product_2"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "b: product_1=1, product_2=2")
+}
+
 func TestCollectProductDefaultsConflicts(t *testing.T) {
 	root := parseTestSchema(t, `
 properties:

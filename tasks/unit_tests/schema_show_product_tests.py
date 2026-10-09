@@ -233,3 +233,20 @@ class TestIncludeDefaults(unittest.TestCase):
         system_probe = resolve_schema(os.path.join(SCHEMA_DIR, "system-probe_schema.yaml"))
         core_config, _ = product_config(core, system_probe, "linux", ["apm"], include_defaults=True)
         self.assertEqual(core_config, {"apm_config": {"enabled": True}})
+
+
+class TestCombinations(unittest.TestCase):
+    def test_combination_value(self):
+        core = {
+            "product_dependencies": {"p1": {"dependencies": []}, "p2": {"dependencies": []}},
+            "properties": {
+                "a": {
+                    "node_type": "setting",
+                    "type": "integer",
+                    "default": 10,
+                    "product_defaults": {"p1": 21, "p2": 100, "p1+p2": 75},
+                }
+            },
+        }
+        self.assertEqual(product_config(core, {"properties": {}}, "linux", ["p1"])[0], {"a": 21})
+        self.assertEqual(product_config(core, {"properties": {}}, "linux", ["p1", "p2"])[0], {"a": 75})

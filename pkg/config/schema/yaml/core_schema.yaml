@@ -13,7 +13,9 @@ description: The schema to validate the datadog.yaml configuration for the DataD
 #   conflict: products or profiles it can't be enabled with (symmetric), the Agent refuses to start if they are.
 # SKUs only bundle products, and are mutually exclusive by definition (one 'sku').
 # Settings declare the value to use when a product is enabled with 'product_defaults' or
-# 'product_platform_defaults'.
+# 'product_platform_defaults'. A key can also be a combination of products joined with '+' ('product_1+product_2'):
+# its value is used when all of them are enabled, instead of their own values (the most specific combination wins).
+# A null platform value means "no value on this platform" (no fallback to a less specific platform).
 # Products must never set 'remote_configuration.enabled' or 'remote_updates': once set, the Agent no longer turns Remote
 # Configuration off automatically on the sites that don't support it (ex: GovCloud).
 sku_definitions:
@@ -82,12 +84,9 @@ product_dependencies:
   # NetFlow Monitoring: flow records (NetFlow, IPFIX, sFlow) sent by network devices to the Agent
   netflow_monitoring:
     dependencies: []
-  # Network Path: hop-by-hop path (traceroute) from the Agent to the destinations you configure
+  # Network Path: hop-by-hop path (traceroute) from the Agent to the destinations you configure; with Cloud Network Monitoring, also traces the paths of the monitored connections (Dynamic Tests, billed per test)
   network_path:
     dependencies: []
-  # Network Path (Dynamic Tests): automatically traces the paths of the connections seen by Cloud Network Monitoring (billed per test)
-  network_path_dynamic_tests:
-    dependencies: [network_path, cloud_network_monitoring]
   # Synthetic Monitoring (Network Path tests, preview): runs the Network Path tests scheduled from the Datadog UI on this Agent
   synthetics_network_path_tests:
     dependencies: [network_path]
@@ -106,8 +105,8 @@ product_dependencies:
   # OTLP Ingest (logs): the Agent also accepts OpenTelemetry logs on its OTLP endpoint
   otlp_ingest_logs:
     dependencies: [otlp_apm_ingest, log_management]
-  # DDOT Collector: OpenTelemetry Collector embedded in the Agent; runs your OTel pipelines and sends to Datadog
-  ddot_collector:
+  # OpenTelemetry (DDOT Collector): OpenTelemetry Collector embedded in the Agent; runs your OTel pipelines (traces, metrics, logs) and sends to Datadog
+  otel:
     dependencies: []
   # Continuous Profiler: CPU, memory and lock profiles of your production code, linked to traces
   continuous_profiler:
@@ -165,14 +164,8 @@ product_dependencies:
   # Log Management (collect all containers): also collects the logs of every container automatically
   log_management_collect_all:
     dependencies: [log_management]
-  # Observability Pipelines: route Agent logs and metrics through your Observability Pipelines Worker (Worker URL to configure)
+  # Observability Pipelines: route Agent metrics, and logs when Log Management is enabled, through your Observability Pipelines Worker (Worker URL to configure)
   observability_pipelines:
-    dependencies: [observability_pipelines_logs, observability_pipelines_metrics]
-  # Observability Pipelines (logs): sends the Agent logs to the Observability Pipelines Worker
-  observability_pipelines_logs:
-    dependencies: [log_management]
-  # Observability Pipelines (metrics): sends the Agent metrics to the Observability Pipelines Worker
-  observability_pipelines_metrics:
     dependencies: []
   # Cloud SIEM: real-time threat detection on your logs
   cloud_siem:
@@ -1348,7 +1341,7 @@ properties:
             type: boolean
             default: false
             product_defaults:
-              observability_pipelines_metrics: true
+              observability_pipelines: true
             visibility: public
             description: Enables forwarding of metrics to an Observability Pipelines
               Worker
@@ -1381,7 +1374,7 @@ properties:
             type: boolean
             default: false
             product_defaults:
-              observability_pipelines_logs: true
+              log_management+observability_pipelines: true
             visibility: public
             description: Enables forwarding of logs to an Observability Pipelines
               Worker
@@ -1963,7 +1956,7 @@ properties:
             type: boolean
             default: false
             product_defaults:
-              network_path_dynamic_tests: true
+              cloud_network_monitoring+network_path: true
             visibility: public
             description: Enables Network Path Dynamic Test for monitoring network
               connections via Network Path.
@@ -5289,7 +5282,7 @@ properties:
         product_platform_defaults:
           cloud_network_monitoring:
             container: 60
-          ddot_collector:
+          otel:
             linux: 60
             container: 60
       grpc_max_message_size:
@@ -5311,7 +5304,7 @@ properties:
         product_platform_defaults:
           cloud_network_monitoring:
             container: 5009
-          ddot_collector:
+          otel:
             linux: 5009
             container: 5009
       socket_path:

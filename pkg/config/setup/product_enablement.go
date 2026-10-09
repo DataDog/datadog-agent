@@ -351,10 +351,13 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-// productValue is the value a product sets for a setting
+// productValue is the value a product, or a combination of products, sets for a setting
 type productValue struct {
+	// product is the product name, or the names of a combination joined with '+'
 	product string
-	value   interface{}
+	// products are the names the value applies to (one, or several for a combination)
+	products []string
+	value    interface{}
 }
 
 // collectProductDefaults walks the schema and returns the value of every setting changed by the enabled products,
@@ -409,25 +412,74 @@ func collectProductDefaults(schemaRoot map[string]interface{}, enabled []string)
 	return defaults, nil
 }
 
-// productValues returns the values the enabled products set for a setting, following the order of 'enabled'
+// productValues returns the values the enabled products set for a setting, sorted by key.
+//
+// Keys are product names, or combinations of products joined with '+' ('product_1+product_2') that only match when all
+// their products are enabled. A matching combination replaces the values of the products it lists: values whose
+// products are a strict subset of another matching key's products are dropped, so the most specific key wins.
 func productValues(setting map[string]interface{}, enabled []string) []productValue {
 	productDefaults, _ := setting["product_defaults"].(map[string]interface{})
 	productPlatformDefaults, _ := setting["product_platform_defaults"].(map[string]interface{})
-
-	var values []productValue
+	enabledSet := make(map[string]struct{}, len(enabled))
 	for _, product := range enabled {
-		if value, found := productDefaults[product]; found {
-			values = append(values, productValue{product: product, value: value})
-			continue
-		}
-		if platformValues, ok := productPlatformDefaults[product].(map[string]interface{}); ok {
-			// A product without value for the current platform doesn't change the setting
-			if value := getPlatformDefault(platformValues); value != nil {
-				values = append(values, productValue{product: product, value: value})
+		enabledSet[product] = struct{}{}
+	}
+	matches := func(key string) ([]string, bool) {
+		products := strings.Split(key, "+")
+		for _, product := range products {
+			if _, found := enabledSet[product]; !found {
+				return nil, false
 			}
 		}
+		return products, true
 	}
-	return values
+
+	var values []productValue
+	for key, value := range productDefaults {
+		if products, ok := matches(key); ok {
+			values = append(values, productValue{product: key, products: products, value: value})
+		}
+	}
+	for key, rawPlatformValues := range productPlatformDefaults {
+		platformValues, isMap := rawPlatformValues.(map[string]interface{})
+		products, ok := matches(key)
+		if !isMap || !ok {
+			continue
+		}
+		// A product (or combination) without value for the current platform doesn't change the setting
+		if value := getPlatformDefault(platformValues); value != nil {
+			values = append(values, productValue{product: key, products: products, value: value})
+		}
+	}
+
+	var kept []productValue
+	for _, candidate := range values {
+		if !coveredByAnother(candidate, values) {
+			kept = append(kept, candidate)
+		}
+	}
+	slices.SortFunc(kept, func(a, b productValue) int { return strings.Compare(a.product, b.product) })
+	return kept
+}
+
+// coveredByAnother reports whether the products of a value are a strict subset of the products of another value
+func coveredByAnother(candidate productValue, values []productValue) bool {
+	for _, other := range values {
+		if len(other.products) <= len(candidate.products) {
+			continue
+		}
+		covered := true
+		for _, product := range candidate.products {
+			if !slices.Contains(other.products, product) {
+				covered = false
+				break
+			}
+		}
+		if covered {
+			return true
+		}
+	}
+	return false
 }
 
 func allEqual(values []productValue) bool {
