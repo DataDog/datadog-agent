@@ -145,22 +145,38 @@ constants at the top of `provisioner.go`:
 |---|---|---|
 | file source, `default` | `close_timeout`: 5s | 1.5s |
 | file source, `unreliable-mount` | 30s without new reads, at most 60s | 1.5s |
-| SMB source | until two 1s polls in a row find no new data, at most `close_timeout` (5s) | 0.5s |
+| SMB source | until the file has had no new data for `close_timeout` (5s), at most 10 close timeouts (50s) | 0.5s |
 
 - The early marker must be collected exactly once, because it lands while the
   cell's reader is still reading the rotated file.
 - The 45s marker is expected to be lost. That is the calibration point: it is
   what proves the suite can observe this loss at all.
 
-The SMB source counts the poll made in the scan that detects the rotation as
-the first of its two idle polls. A rotated file that stopped growing, which is
-what the writer leaves behind, is therefore dropped one poll interval after the
-source sees the rotation, and it can see it right after the rename. A 1.5s
-marker would be lost on about half of the rotations, depending on where the
-rename falls between two polls. The 0.5s marker lands before the second poll
-even when the appender notices the rename one of its 200ms polls late. Every
-read of new data restarts the idle count, so the early marker also keeps the
-drain open; that is why a cell cannot probe a later age with a third marker.
+The SMB source's drain starts in the scan that detects the rotation, which
+can come right after the rename, and it ends once the rotated file has had no
+new data for `close_timeout`, 5s here (`pollDrain` in
+`pkg/logs/launchers/smb/scanner.go`). It polls every second while it lasts,
+but reads the file only when the listing shows it changed, or every
+`ForceReadEvery` (10) polls, since listing sizes can be stale. Once the file
+has had no new data for `close_timeout`, it reads it one last time whatever the
+listing shows, and ends unless that read finds new data. So an append that
+lands before the drain ends is read, by a read of the listing's change or at
+the latest by that last read, and a read of new data restarts the count: the
+early marker keeps the drain open for another 5s. The drain is bounded by 10
+close timeouts (50s) after it started, so a writer that appends forever does
+not keep it. Before that change a drain ended after two polls in a row found no
+new data, 1s to 2s after the rename, and this suite's markers were placed
+under that window (the 0.5s marker, and the `smb-late-<age>` cells, see
+[Late appends](#late-appends-smb-late-1000-smb-late-2000-smb-late-3000)).
+The 0.5s marker is now well inside the window, and the 45s one is far past
+it: the drain ends at the first poll 5s or more after the early marker is
+read, so 5s to 6s after it, and 5.5s to 8.5s after the rename when the listing
+shows the marker at once. A listing that is stale defers the read of the
+marker to the drain's forced last read, and the drain can then end as late as
+about 14s after the rename, still far before the 45s marker. Nothing
+reports the 45s marker as missed. Bytes are only reported missed when a
+listing showed them and the drain ended without reading them, and the drain
+stopped looking at the file by then.
 
 A run where the 45s marker survives is suspicious, not a pass. Investigate the
 harness before the product: it usually means the marker no longer lands past
@@ -169,11 +185,11 @@ rotation, and with `actimeo=30` a file source can see it up to 30s late. In the
 `unreliable-mount` profile the window of `file-line-actimeo30` can then still
 be open at 45s.
 
-The SMB source's window comes from its code (poll interval, two idle polls,
-`close_timeout`) and has not been measured yet. Check the first `smb` results
-against `smb-markers.jsonl` before relying on its calibration, and see
+The SMB source's window comes from its code (`close_timeout`, the poll
+interval, the deadline of 10 close timeouts) and has not been measured on
+Azure yet. Check the first `smb` results against `smb-markers.jsonl`, and see
 [Late appends](#late-appends-smb-late-1000-smb-late-2000-smb-late-3000) for
-the cells that probe where it ends, one age each.
+the cells that probe it, one age each.
 
 ## Credentials
 
@@ -356,6 +372,7 @@ wrote, and these:
 | `unwritten_sequences` | `[first, last]` ranges the writer failed to write, for example while an open handle elsewhere keeps a deleted `app.log` from being created again. They are in no file, so the test does not expect them. Only delete-recreate may have any, as one run at the start of a file, right after the recreate, and at most what the writer writes while the reader may keep the deleted file open (`deleteRecreateUnwrittenBound`): 1s for an SMB source, 7s for a file source, 32s with `unreliable-mount`. Anywhere else they fail the cell, since the harness then lost records |
 | `at_risk_sequences` | copytruncate only: what the writer appended so close to the truncation that a reader of `app.log` can lose it without being at fault. For a file source, everything appended after the copy started; for an SMB source, only what was appended in the last 1.5s (`copyTruncateSMBAtRiskMs`, `LOGWRITER_COPYTRUNCATE_AT_RISK_MS`), since it polls `app.log` every second |
 | `disposition`, `archive` | What the writer did with the file: `renamed`, `copied`, `compressed` (into `archive`) or `deleted`; `missing`, `empty` or `copy-failed` when no rotation happened |
+| `write_times` | `[first sequence, epoch ms]` for each of the file's last 128 writes (`WRITE_TIMES_KEPT`), the time being when the write returned. The loss accounting dates a silent loss by it (see [The silent-loss bound](#the-silent-loss-bound)); the Java writer's ledger has none |
 | `stream`, `rotation_mode`, `rotated_at` | The stream directory (empty for the share root), the mode and the time of the rotation |
 
 From the first three entries of each stream, the test expects every sequence
@@ -768,26 +785,105 @@ stream is collected exactly once, except:
   truncation, but a record appended after its last look is lost without a
   trace; that is copytruncate's own flaw.
 - `smb-delete-recreate`, `smb-gzip`: a file may lose its last records, only
-  as many as a correct source can lose, and only when the Agent reported them
-  missed. The source reads each file every second, so when a file goes away
-  it can only have missed what was written since its last read: at most one
-  poll interval and a scan, 2s of the stream's rate, plus one 64 KiB write
-  (`maxLostRecords`). The Java schedule writes each file right after its head
-  pause, so with the default options nothing may be lost. A gzip rotation
-  also keeps the rotated file for 5s, longer than a drain needs, so a gzip
-  loss is only accepted when the file was compressed away while the drain
-  was still reading it, or the drain timed out: a report from before the
+  as many as a correct source can lose, and only those the Agent reported
+  missed or that no listing could have shown it. The source lists each file
+  every second, so when a file goes away it can only have missed what was
+  written since its last read: at most one poll interval and a scan, 2s of the
+  stream's rate, plus one 64 KiB write (`maxLostRecords`). The Java schedule
+  writes each file right after its head pause, so with the default options
+  nothing may be lost. A gzip rotation keeps the rotated file for 5s, which
+  is `close_timeout`: a drain starts at or after the rename and lasts at
+  least `close_timeout` after its last new data, so it is still open when
+  the file is compressed away. A gzip loss is therefore only accepted when
+  the file was compressed away while the drain was reading it, or the drain
+  reached its deadline (10 times `close_timeout`): a report from before the
   compression fails the cell. The test reads the Agent's missed-bytes
   warnings (below) and requires, per file: only its last records are
-  missing, never all of them, and no more than that bound; the Agent
-  reported missed bytes for that file; and those bytes are not more than the
-  bytes no collected record holds, plus 4 KiB (the padding, a record whose
-  start was read, a marker). The report may fall short of them by what was
-  written after the source's last listing of the file, since the Agent
-  reports what it last saw listed: 4 KiB, plus, for a paced writer, the same
-  2s of its rate and one write (`maxReportShortfallBytes`); the shortfall is
-  in `<cell>-losses.json`. A missing record with no report is a silent loss
-  and fails the cell, as does a gap before collected records.
+  missing, never all of them, and no more than that bound; every missing
+  record is covered by the Agent's report or was written in the
+  silent-loss window before the file went away, so a record older than the
+  window needs a report; and the reported bytes are not more than the bytes
+  no collected record holds, plus 4 KiB (the padding, a record whose start
+  was read, a marker). The test does not require any report: a loss inside
+  the window passes without one, because no listing can have shown those
+  records and the test cannot tell a source that never saw them from one that
+  saw them and said nothing. See
+  [The silent-loss bound](#the-silent-loss-bound), and what it means for a
+  run that forces losses there. A gap before collected records fails the
+  cell.
+
+#### The silent-loss bound
+
+What the source never saw it cannot report. A record the writer appends
+after the source's last listing of a file, and before it deletes or
+compresses that file, is lost whatever the source does: listing-driven
+polling sees a file once per poll interval. Earlier runs of the forced-loss
+cells lost about 50 KB per file this way. The design allows it, within a
+window, and the test checks the window instead of forbidding the loss. A file
+that lost records is accounted for like this:
+
+1. The ledger gives the end: the writer's journal line, `rotated_at`, plus
+   the pause before it deletes or compresses the file (`LOGWRITER_DELETE_PAUSE_MS`,
+   `LOGWRITER_GZIP_DELAY_MS`: both 0 with `AZURE_FILES_E2E_FORCE_LOSS=1`).
+2. The Agent's report covers the first of the lost records, the ones the
+   last listing showed. What the report leaves out of the file's lost bytes,
+   less the 4 KiB tolerance, is the silent loss, the file's last records
+   (`assessSilentLoss`).
+3. The Python writer's journal line dates the file's writes: `write_times`
+   holds `[first sequence, epoch ms]` for each of its last 128 writes, the
+   time being when the write returned. The oldest record the report leaves
+   uncovered (the 4 KiB tolerance not taken off) was written at the time of
+   the last pair that starts at or before its sequence. This is what dates a
+   record after a stall: a share that stalls the writer makes it catch up in
+   one write (up to 5s of its rate, `MAX_CATCH_UP_MS`), and a record of that
+   write is as new as the write, not as old as its place at the stream's rate.
+   A journal without `write_times` (the Java writer's, or a record older than
+   the 128 writes) is dated by the rate instead: as many seconds before the
+   end as the bytes after the record take at the stream's rate (the pod's
+   rate over its streams). The pause (`LOGWRITER_DELETE_PAUSE_MS`,
+   `LOGWRITER_GZIP_DELAY_MS`) is already in the end of step 1.
+4. That record must be no older than the window: one poll interval (1s), the
+   scan's second (`lossScanMarginSeconds`) and two writer ticks (2 x 250ms:
+   the source's read can have opened a tick before a write that returned
+   later, and the file is journalled up to a tick after its last write), 2.5s
+   in all (`silentLossWindowMs`). A record the writer's journal dates
+   (`write_times`) is held to that window. One dated by the stream's rate (the
+   Java writer, or a record older than the journal's kept writes) also gets
+   the 4 KiB tolerance at the stream's rate (`silentWindow`): 0.02s at
+   200 kB/s, 0.2s at 20 kB/s, 2s at 2 kB/s. The tolerance counts as reported,
+   so the oldest uncovered record is dated after it, and its bytes at the
+   rate are time the estimate cannot tell from time the source had to list
+   the file; a journalled write has no such error. The evidence has the
+   window it used. The window gives a scan 1s: an Agent scan that takes 1.5s
+   or more, such as a throttled share, just before a forced delete can lose
+   records written outside it and fail the cell, and nothing in the evidence
+   dates the Agent's scans, so the failure message says to look for slow scans
+   in the Agent's log first. Older than that, the file
+   was listed after the record was written, the Agent knew of it, and not
+   reporting it fails the cell (`silent loss outside the window`).
+5. The silent loss of one file is at most the records the stream writes in
+   that window, counted with the paced payload (`maxSilentRecords`), for
+   example 245 records for 200 kB/s over two streams (`silent loss beyond the
+   bound`). With `write_times`, a file may also lose as many records as the
+   journal says the writer wrote in the window, so a catch-up write after a
+   stall is not a loss beyond the bound (`allowJournalledStalls`, which also
+   lifts the bound of `maxLostRecords` for delete-recreate and forced gzip
+   files by the same count); the rate-based bounds are the floor.
+
+A gzip file the writer keeps 5s (not forced) is older than the window
+whenever records are missing from it, since the writer wrote the last of them
+before it renamed the file, so that cell only accepts reported losses unless
+the run forces them. A delete-recreate file it keeps 1s (not forced) is
+shorter than the window: the writer deletes it 1s after the last write, so
+the records written in the last 1.5s before `rotated_at` (the window less
+the pause, and the tolerance's time at a low rate) are still inside it and can be lost without a report, while older
+ones need one (`TestSilentLossMustBeInTheWindow`: with the 1s pause, 30 lost
+records at 20 kB/s pass without a report and 40 fail). A ledger entry with no `rotated_at` cannot be dated and fails. The
+window, the bound and each file's silent records, with the times they were
+checked against, go to `<cell>-losses.json` (`silent_loss_window_ms`, the window of a record dated by the rate, tolerance included,
+`allowed_silent_records_per_file`, and per file `silent_records`,
+`disposed_at`, `silent_window_start`, `oldest_silent_at` and
+`oldest_silent_dated_by`, `journal` or `rate`).
 
 With the default options, the writer fills each period within seconds of its
 start, so the drain is long done when the file goes away and nothing is
@@ -804,6 +900,27 @@ files lost records, and says so when nothing was lost and the loss
 accounting was not exercised; `<cell>-losses.json` records it as
 `loss_exercised`.
 
+**What a forced-loss run does not prove.** The active tailer reads a file to
+its end right after each listing, so when the writer deletes or compresses a
+file at once, what the source loses is what was written after its last read,
+and what it reports is about nothing: the listing it acted on showed nothing
+more. The forced-loss cells therefore pass with an Agent that reports no
+missed bytes at all, as long as every loss is inside the window, and a
+regression that drops the report, or makes `UnreadBytes` 0, is not caught by
+them. The loss that makes the Agent report is one the source listed and did
+not read: a file that goes away between the listing and the read, a drain
+that ends or is compressed away with data unread, or a listing ahead of the
+reads (a backlog past the 4 MiB a poll reads, `DefaultPollBudget`). This
+suite does not make those on purpose (a writer rate past the 4 MiB a poll reads
+per stream would, far above what `maxLostRecords` lets a cell lose), so the report
+is checked where it can
+be: by the unit and Samba integration tests of `pkg/logs/launchers/smb`, which
+assert the bytes reported missed, and here, whenever a run's loss does reach
+back past the window, since a record older than it fails the cell unless the
+Agent reported it. The test says which a run was: it logs a line when the
+Agent reported none of a cell's lost records, and `<cell>-losses.json` has
+`reported_loss_exercised`.
+
 **How the test reads missed bytes.** `RecordMissedBytes` in
 `pkg/logs/tailers/smb/tailer.go` adds a lost file's unread bytes to:
 
@@ -811,8 +928,17 @@ accounting was not exercised; `<cell>-losses.json` records it as
 |---|---|
 | the logs-agent `BytesMissed` expvar (in a flare) and the `logs.bytes_missed` telemetry counter | No: Agent-wide, untagged |
 | the per-(source, service) missed bytes tracker | Only through the health platform's `log_data_lost_after_rotation` issue, every 15 minutes, when the health platform is enabled |
-| `agent status` | Not shown, per source or at all |
+| `agent status` | Bytes Missed, per source, once it is not zero; it names no file |
 | a warning in the Agent log: `<reason>: <N> bytes of SMB file smb://<host>/<share>/<path> (last read as <rotated path>) were not read and are lost` | Yes: the host names the cell's storage account |
+
+`RecordMissedBytesOf`, for a file no tailer reads anymore, logs two more forms
+of the warning, which have no "last read as": one names the path the file was
+last read at (`smb://<host>/<share>/<path>`, when the Agent's stored position
+names a file that is no longer listed), the other the share and the file's
+FileId (`smb://<host>/<share> (FileId <n> created <time>)`, for a drained file
+that is no longer listed). The test reads all three. The first is attributed
+like a tailer's warning, by its path; the second names no path, so it only
+counts in the Agent-wide total.
 
 So the test parses the warnings of the core Agent container's log (with the
 kubelet's timestamps) and attributes them to the ledger's files: by the
@@ -820,6 +946,21 @@ rotated name for gzip, and, for delete-recreate, whose deleted file is
 reported under `app.log`, by time, between the file's rotation and the next.
 A gzip file already gone when the source saw its rotation is reported under
 `app.log` too, and attributed by time the same way.
+A report made while the ledger's files went away (from the first rotation to
+one period after the last) under the identifier of a file that is none of the
+cell's streams fails the cell (`missed bytes reported for another file`): the
+Agent said the bytes were lost from another file, and without that check a loss
+it should have reported for this one would pass as one that needed no report.
+The same goes for a report under the right stream that no file that lost records
+claims: one that matches none of the ledger's files (by its read path, or, for
+delete-recreate, by the time of its rotation), or that of a file whose records
+were all collected. More than the 4 KiB tolerance of such reports for one file
+fails the cell (`missed bytes reported for a file that lost nothing`), since
+the loss that file's report was needed for would otherwise pass as one that
+needed none. The tolerance is there for a marker the source listed and did not
+read, so a misattributed report of that size passes; and a report that matches
+a ledger file that is not asserted (past the first three of a stream) is not
+judged, since that file's records are not checked.
 Then, when every cell of the run is an SMB cell, it requires the Agent-wide
 `BytesMissed` from a flare to be the sum of the warnings, read just before
 and just after the flare: a warning the test could not read, for example
@@ -828,8 +969,9 @@ lets a loss pass as reported. With file cells in the run, which count missed
 bytes too, that check is skipped and logged. The losses, the reports and the
 attribution go to `<cell>-losses.json`.
 
-A per-source missed bytes counter in `agent status` would replace the log
-parsing; see [Product notes](#product-notes).
+The per-source Bytes Missed of `agent status` counts the same bytes, but a
+cell's source has one total, so it cannot say which file lost them; the log
+parsing stays; see [Product notes](#product-notes).
 
 **Run alone.**
 
@@ -848,35 +990,77 @@ three cells run in parallel, so one or three take about as long. Each is an
 
 ### Late appends: smb-late-1000, smb-late-2000, smb-late-3000
 
-**What they prove.** Where the SMB source's drain window ends. Each cell
-appends one early marker to each rotated file at its age (1s, 2s, 3s after
-the rename) and the 45s marker, which must still be lost. A collected marker
-restarts the drain's idle polls and keeps it open, so a later marker in the
-same cell would measure that rather than the window: each age has its own
+**What they prove.** That the SMB source keeps reading a rotated file for
+`close_timeout` (5s in this suite) after its last new data, so a writer that
+still holds the file and appends to it late loses nothing. Each cell appends
+one early marker to each rotated file at its age (1s, 2s, 3s after the
+rename) and the 45s marker, which must still be lost. A collected marker
+restarts the drain's `close_timeout` and keeps it open, so a later marker in
+the same cell would measure that rather than the window: each age has its own
 cell. They always rotate by rename.
 
+Before the drain kept reading for `close_timeout`, it ended after two polls in
+a row found no new data, and a calibration run on that Agent collected the 1s
+marker 2 times out of 3 and lost the 2s and 3s ones without a report.
+
 **Pass rule.** Records as for `smb`. Without calibration, each early marker
-must have the outcome `lateMarkerProbes` in `provisioner.go` gives its age:
+must have the outcome `smbLateAppendOutcome` in `provisioner.go` gives its
+age, from the drain's code (`pollDrain` in
+`pkg/logs/launchers/smb/scanner.go`). The drain starts at D, the scan that
+first lists the renamed file, up to one poll interval and a scan after the
+rename R, and its idle count starts at D. It ends at the first poll at or
+after D plus 5s, once `close_timeout` has passed with no new data, which is up
+to a poll interval later: at least R plus 5s, and at most R plus 8s (D is up
+to 2s after R, the 1s poll and the 1s margin of a scan, and the end up to 1s
+after D plus 5s). The appender appends at R plus the age plus its lag, at most 1s (one of its
+200ms polls, an exec and a CIFS append):
 
-| Cell | Expected | Why (from `pkg/logs/launchers/smb/scanner.go`) |
+| Cell | Expected | Why |
 |---|---|---|
-| `smb-late-1000` | either, never twice | The drain ends at its second idle poll, between 1s and 2s after the rename depending on where the rename falls between two polls. A 1s marker lands before it unless the scan came within the appender's ~0.2s detection lag of the rename: about 9 rotations in 10 |
-| `smb-late-2000` | lost | The drain has ended by 2s plus the scan's few milliseconds |
-| `smb-late-3000` | lost | Same |
+| `smb-late-1000` | collected | The append lands at R+2s at the latest; the drain cannot end before R+5s. It is read before the drain ends (by the read its listing triggers, or at the latest by the drain's last read), and read data restarts the drain's 5s |
+| `smb-late-2000` | collected | R+3s at the latest |
+| `smb-late-3000` | collected | R+4s at the latest, a second before the earliest end of the drain. The one probe that a stalled share can fail: an append that lags more than 2s past its age lands after the earliest end of a drain that started at the rename, and the source rightly loses it. The appender's journal has second resolution, too coarse for the test to tell, so a failure of this cell alone is a slow append to rule out first |
 
-These are predictions from the code, marked TODO in `provisioner.go`, until
-calibration runs confirm them. `AZURE_FILES_E2E_CALIBRATE=1` records the
-probe marker's outcome instead of asserting it, prints one line per cell,
-for example
-`smb-late-1000 calibration ...: 1000ms: collected 3/3, lost 0/3 (expected either); 45000ms: collected 0/3, lost 3/3 (expected lost)`,
-and writes `<cell>-marker-outcomes.json`. Only the probe markers of the
+The three markers must arrive exactly once. The outcomes are `collected`
+whenever age plus lag is under `close_timeout`; an append that comes later
+than the drain's earliest end, and no later than its latest, may go either
+way (`either`), and one after it is lost (`lost`). The 45s marker is always
+lost, silently: the drain has ended 5s to 6s after the early marker was read, so
+no listing shows the append, and nothing reports it missed. What the drain
+does report is what a listing showed and its deadline (10 `close_timeout`
+since it started, 50s here) cut off. No cell reaches that: every early marker
+that is read restarts the idle count, and a cell has no later marker to keep
+the drain alive up to the deadline, so the suite proves the loss of a late
+append only as the silent one of the 45s marker.
+
+**Why no probe pins `close_timeout`.** The three probes only bound it from
+below, and only by chance: a drain that quit after less than 4s of quiet can
+end before the 3s probe lands (up to R+4s) when it started right at the
+rename, and does not when it started up to 2s later. A probe in the 4000 to
+5000ms band would not tell a 4s drain from a 5s one either, however it is
+read. A drain with `close_timeout` C ends between R+C and R+C+3s (its start
+up to 2s after the rename, and the first poll up to 1s after C), so the ends
+of a 4s drain and a 5s one overlap from R+5s to R+7s, and the probe lands
+between R+4s and R+6s (age and lag): both drains may have ended by then and
+neither has to have. Any outcome is possible for either, so it is `either`
+and asserts nothing, and a probe that asserted one would flake. The value is
+pinned by the drain's own tests with a mock clock in
+`pkg/logs/launchers/smb`, not here.
+
+`AZURE_FILES_E2E_CALIBRATE=1` still records the probe marker's outcome
+instead of asserting it, prints one line per cell, for example
+`smb-late-3000 calibration ...: 3000ms: collected 3/3, lost 0/3 (expected collected); 45000ms: collected 0/3, lost 3/3 (expected lost)`,
+and writes `<cell>-marker-outcomes.json`, whose `matches` says whether the
+outcome is the expected one. Only the probe markers of the
 `smb-late-<age>` cells are relaxed: their records, their 45s markers, which
 prove the suite can see a loss, and every other cell's markers are still
 asserted. A run with it set but no `smb-late-<age>` cell is refused, so a
 variable left exported cannot relax a later run. A calibration run never
 passes: each `smb-late-<age>` subtest, and the test, end skipped with
-"calibration run, not a pass", or failed. Run the three cells a few times
-with it, then update the table.
+"calibration run, not a pass", or failed. The expectations above are
+predictions from the code, marked TODO in `provisioner.go`: run the three
+cells a few times with it, and if a marker is lost, the harness or the code
+is wrong, not the table, so find out which before changing it.
 
 ```sh
 AZURE_FILES_E2E_RUN=1 E2E_SMB_AZURE=1 AZURE_FILES_E2E_CALIBRATE=1 \
@@ -1064,8 +1248,8 @@ alone; `network-drop` can run with the file cells (they keep their usual
 checks) but no other SMB cell.
 
 Each disruption hits the second period of the writer, the first full one,
-and has to be over before that period ends: a file that rotates out while no
-source can read the share is not read again (see
+and has to be over before that period ends: a file that rotates in and out
+while no source can read the share is never tailed (see
 [Product notes](#product-notes)). So each disruption has its own default
 period and a paced writer, so the active file keeps growing through the
 disruption; the run's options override them as long as they hold the
@@ -1295,22 +1479,40 @@ Gaps the suite works around rather than tests:
 - **No single reader for a share.** Every Agent with an `smb` source reads the
   whole share and ships every line, so a DaemonSet with the source on N nodes
   collects every line N times. The [multi-node](#multi-node) scenario asserts
-  exactly that; the release note of the SMB source does not say it.
+  exactly that; the release note of the SMB source says it and recommends
+  configuring the source on one Agent per share.
 - **Missed bytes per source.** The Agent counts missed bytes Agent-wide and
-  per (source, service), but publishes the latter only through a 15-minute
-  health platform issue. A `Bytes Missed` counter in each source's status,
-  next to `Bytes Read`, would let the loss-accounted cells read their losses
-  from `agent status --json` instead of parsing warnings.
-- **A file that rotates while no source can read the share is not read
-  again.** When the Agent starts, or when a source is replaced after a
-  secret refresh, a path whose registry or predecessor offset names another
-  FileId than the file now at that path is read from offset 0, and the
-  previous file, still listed under its rotated name, is not drained from
-  that offset: its unread end is lost, and no missed bytes are reported. The
-  scenarios keep their disruptions inside one period because of it. With
-  the same source running through a network outage, the first rotation is
-  drained once it reconnects, but a file that rotated in and out during the
-  outage was never tailed.
+  per (source, service), and publishes the latter through a 15-minute health
+  platform issue. Each source's status now also shows `Bytes Missed`, next to
+  `Bytes Read`, once it is not zero. That is one total for a cell's source,
+  not one per file, so the loss-accounted cells still parse the warnings to
+  attribute the losses to files. A per-file counter in the source's status
+  would replace that. What the source never listed cannot be counted at all
+  (see [The silent-loss bound](#the-silent-loss-bound)).
+- **A file that rotates in and out while no source can read the share is
+  never tailed.** When the Agent starts, or when a source is replaced after
+  a secret refresh, a path whose stored position (the registry's offset, or
+  where the replaced source stopped) names another FileId than the file now
+  at that path was rotated while it was not tailed. The scanner finds that
+  file by its FileId wherever it is (`resumeRotatedAway` and
+  `resumeElsewhere` in `pkg/logs/launchers/smb/scanner.go`) and reads the
+  path's new file from offset 0:
+  - at a path the pattern matches, that path's tailer resumes the file at
+    the stored offset;
+  - at another path, a drain reads the rest of it from the stored offset, as
+    after a rotation;
+  - where no listing has it, the bytes the stored position knew it held past
+    the offset are reported missed (`RecordMissedBytesOf`). A replaced
+    source hands over the size it saw; the registry of a restarted Agent
+    has none, so nothing is reported then and the Agent only logs that the
+    file rotated away and is no longer listed.
+
+  What stays lost is a file that rotated in and out during the outage, which
+  no listing showed, and what a gone file held past the size its stored
+  position knew. The scenarios keep their disruptions inside one period
+  because of it. With the same source running through a network outage, the
+  first rotation is drained once it reconnects, but a file that rotated in
+  and out during the outage was never tailed.
 
 ## Checks that do not create cloud resources
 
@@ -1400,7 +1602,7 @@ the scenarios without Azure:
   share a run with the others;
 - the mode cells keep their mode against the run's, and only gzip and
   delete-recreate account for losses; the late cells probe one age each,
-  with predictions consistent with the drain's poll logic; the glob-load
+  with predictions consistent with the drain's `close_timeout` logic; the glob-load
   cell's defaults, its one `*/app.log` source and its opens estimate;
 - the marker expectations (collected, lost, either), that calibration only
   relaxes the probe markers and is refused without a probe cell, and what it
@@ -1411,9 +1613,12 @@ the scenarios without Azure:
 - the missed-bytes warnings are parsed from the Agent log, attributed to the
   right file, and a loss is only accepted at the end of a file, within what
   a source that keeps up can lose, never a whole file, for gzip only after
-  the compression or a drain timeout, and when reported in about its size;
-  forced losses need a paced, loss-accounted cell; the Agent-wide total
-  brackets the warnings;
+  the compression or the drain's deadline, and when reported in about its
+  size, except what the source never listed: the silent-loss window and its
+  bound, from the writer's rate, the poll interval and the ledger's
+  timestamps, each with the loss that breaks it (`accounting_test.go`); forced
+  losses need a paced, loss-accounted cell; the Agent-wide total brackets the
+  warnings;
 - the restart's duplicate bound and its checks, the registry hostPath check,
   and how the shutdown log and the container's termination are read, an
   inconclusive stop included;

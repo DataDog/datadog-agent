@@ -220,12 +220,16 @@ const (
 //     over and stops once its file has gone fileHandoffQuietSeconds without new
 //     reads (handoffQuietPeriod in pkg/logs/tailers/file/tailer.go), or at
 //     logs_config.unreliable_mount.rotation_drain_timeout, 60s by default;
-//   - SMB source: the draining reader stops once smbDrainIdlePolls polls in a
-//     row find no new data, or at logs_config.close_timeout. The scan that
-//     detects the rotation already polls the drain, and that poll counts as
-//     the first idle one (drainCaughtUpPolls in pkg/logs/launchers/smb). A
-//     rotated file that stopped growing is therefore dropped one poll interval
-//     after the Agent sees the rotation, which is the shortest window here.
+//   - SMB source: the draining reader polls the rotated file every poll
+//     interval and stops once the file has had no new data for
+//     logs_config.close_timeout, or smbDrainMaxCloseTimeouts close timeouts
+//     after it started (pollDrain in pkg/logs/launchers/smb/scanner.go). It
+//     starts in the scan that first lists the renamed file, up to one poll
+//     interval and a scan after the rename, and every read of new data
+//     restarts the count. An append within close_timeout of its last data is
+//     read; one after it is lost without a trace, since no listing watches the
+//     file once the drain ended. Before that, the drain ended after two idle
+//     polls in a row, one to two poll intervals after the rename.
 //
 // close_timeout is lowered from its 60s default so that a single marker age
 // can land past every window and still come before the next rotation.
@@ -234,7 +238,21 @@ const (
 	closeTimeoutSeconds     = 5
 	fileHandoffQuietSeconds = 30
 	smbPollIntervalSeconds  = 1
-	smbDrainIdlePolls       = 2
+	// smbDrainMaxCloseTimeouts is how many close timeouts bound an SMB drain
+	// (drainMaxCloseTimeouts in pkg/logs/launchers/smb).
+	smbDrainMaxCloseTimeouts = 10
+	// smbDrainStartLagMs is how long after the rename the SMB drain can
+	// start: the scan that first lists the renamed file, up to one poll
+	// interval after it, and a second for the scan to reach the file.
+	smbDrainStartLagMs = (smbPollIntervalSeconds + 1) * 1000
+	// smbDrainEndLagMs is how long after close_timeout a drain can end: it
+	// ends at the first poll at or after its start D plus close_timeout, and
+	// the polls are one poll interval apart, so up to that long past it.
+	smbDrainEndLagMs = smbPollIntervalSeconds * 1000
+	// lateAppendLagMs is how long after its age an appender's marker can
+	// land: one of its 200ms polls (postRotationMarkerPollMs), an exec and a
+	// CIFS append, with room.
+	lateAppendLagMs = 1000
 )
 
 // Post-rename marker calibration.
@@ -245,15 +263,17 @@ const (
 //   - the surviving marker must always be collected, because it lands while
 //     the reader is still reading the rotated file. A file source reads the
 //     rotated file for at least close_timeout, so its marker comes at 1.5s.
-//     The SMB source can stop one poll interval after it sees the rotation,
-//     and it sees the rotation at the earliest right after the rename, so its
-//     marker comes within half a poll interval of the rename. At 1.5s it would
-//     be lost on about half of the rotations, depending on where the rename
-//     falls between two polls;
+//     The SMB source reads it until it has had no new data for
+//     close_timeout, from the scan that sees the rotation, so its marker
+//     comes at 0.5s. It would be collected at any age under close_timeout
+//     less the appender's lag (smbLateAppendOutcome); the smb-late-<age>
+//     cells probe that. The age predates a drain that ended after two idle
+//     polls, one to two poll intervals after the rename, which a 1.5s marker
+//     would have lost on about half of the rotations;
 //   - the lost marker is the calibration point. It is expected to disappear,
 //     which is what proves this suite can observe the loss at all.
 //
-// Every read of new data restarts the SMB source's idle count, so a cell's
+// Every read of new data restarts the SMB source's close_timeout, so a cell's
 // surviving marker also keeps its drain open: one cell cannot probe a later
 // age with a third marker.
 //
@@ -373,42 +393,82 @@ func (m markerDelays) appenderValue() string {
 }
 
 // lateMarkerProbe is the early marker of an smb-late-<age> cell: one age
-// probed per cell, since a collected marker restarts the SMB source's idle
-// polls and keeps the drain open for a later one.
+// probed per cell, since a collected marker restarts the SMB source's
+// close_timeout and keeps the drain open for a later one.
 type lateMarkerProbe struct {
 	ageMs  int
 	expect markerExpectation
 }
 
+// smbLateAppendOutcome predicts what the SMB source does with a line appended
+// ageMs after the rename, from the drain's code (pollDrain in
+// pkg/logs/launchers/smb/scanner.go).
+//
+// The scan that first lists the renamed file, at D, starts the drain, and its
+// idle count starts at D. D is up to smbDrainStartLagMs after the rename R.
+// The drain ends at the first poll at or after D plus close_timeout, once
+// close_timeout has passed with no new data: that poll is up to
+// smbDrainEndLagMs after D plus close_timeout, so the end is between R plus
+// close_timeout and R plus close_timeout plus smbDrainStartLagMs plus
+// smbDrainEndLagMs (8s with close_timeout 5s, a poll interval of 1s and a
+// scan margin of 1s).
+//
+// Until it goes quiet, the drain reads the file only when the listing shows it
+// changed, or every ForceReadEvery polls, since listing sizes can be stale.
+// Once it is quiet it reads the file one last time whatever the listing shows,
+// and ends unless that read finds new data, which restarts the idle count.
+// What guarantees that an append that landed before the end is collected is
+// that last read, not the polls before it. The appender appends at R plus the
+// age plus a lag of at most lateAppendLagMs. So an append that lands before
+// the earliest end of the drain is collected, one that comes after its
+// latest end is lost, and one in between may go either way. A lost append is
+// lost without a trace: no listing shows it, so nothing is reported missed.
+//
+// The probe markers' outcomes stay predictions until runs with
+// AZURE_FILES_E2E_CALIBRATE=1 confirm them (see README.md).
+//
+// TODO(calibrate): run the three cells with AZURE_FILES_E2E_CALIBRATE=1 and
+// compare. The predictions for 1s, 2s and 3s are all collected: before
+// the drain kept reading for close_timeout, a calibration run collected the 1s
+// marker 2 times out of 3 and lost the 2s and 3s ones.
+func smbLateAppendOutcome(ageMs int) markerExpectation {
+	switch {
+	case ageMs+lateAppendLagMs < closeTimeoutSeconds*1000:
+		return markerCollected
+	case ageMs > closeTimeoutSeconds*1000+smbDrainStartLagMs+smbDrainEndLagMs:
+		return markerLost
+	}
+	return markerEither
+}
+
 // lateMarkerProbes are the smb-late-<age> cells' early marker ages and the
-// outcome each one asserts unless AZURE_FILES_E2E_CALIBRATE=1 is set.
+// outcome each one asserts unless AZURE_FILES_E2E_CALIBRATE=1 is set. All
+// three ages are under close_timeout, so the source must collect each one.
 //
-// TODO(calibrate): these outcomes are predictions read from the SMB source's
-// code, not measurements. Run the three cells with AZURE_FILES_E2E_CALIBRATE=1
-// (see README.md) and replace them with what the runs record.
+// The slack of each is what the append can lag beyond its age before it lands
+// after the earliest end of a drain (R+close_timeout, when the drain started
+// right at the rename): 4s, 3s and 2s, against lateAppendLagMs of 1s. An
+// append that stalls on the share for more than 2s lands after that end and
+// makes the 3000ms cell lose a marker a correct source cannot collect, so a
+// failure of that cell alone, with the appender's journal showing a slow
+// append, is the share, not the product. The journal's appended_at has a
+// second's resolution, too coarse for the test to tell.
 //
-// The prediction. The scanner lists the share and polls once per
-// poll_interval (smbPollIntervalSeconds), on a ticker. The scan that first
-// lists the renamed file, at D, starts the drain and polls it at once; the
-// rotated file stopped growing at the rename R, so that poll finds nothing new
-// and counts as the first idle poll (drainCaughtUpPolls in
-// pkg/logs/launchers/smb/scanner.go). The next scan, at D+1s, is the second
-// idle poll and ends the drain, unless a marker was appended before its read:
-// new data resets the idle count. D-R is spread evenly over one poll
-// interval, so the drain ends between 1s and 2s after the rename, plus the
-// few milliseconds the scan takes to reach the drain. The appender appends a
-// marker of age a at R+a+d, where d is how late it noticed the rename: up to
-// one of its 200ms polls (postRotationMarkerPollMs) plus an exec and a CIFS
-// append. So:
-//   - 1000ms: collected when D-R is more than d, about 9 rotations in 10, and
-//     lost otherwise. The cell can only assert that it never arrives twice;
-//   - 2000ms: lost, since the drain has ended by R+2s plus the scan's few
-//     milliseconds, before any append at R+2s+d;
-//   - 3000ms: lost.
+// They catch a close_timeout below 4s only by chance: such a drain can end
+// before the 3s probe lands (as late as R+4s) when it started right at the
+// rename, and does not when it started up to 2s later. No probe can pin the
+// value from either side without flaking, because the end of a drain moves by
+// more than the band that separates two values. With close_timeout C, a drain
+// ends between R+C and R+C plus smbDrainStartLagMs plus smbDrainEndLagMs, so
+// a drain of 5s and one of 4s can both end anywhere from R+5s to R+7s. A probe
+// in the 4000 to 5000ms band lands between R+4s and R+6s, when both can have
+// ended and neither has to have: it is markerEither, which asserts nothing. The
+// tests that pin close_timeout are those of the drain with a mock clock
+// (pkg/logs/launchers/smb).
 var lateMarkerProbes = []lateMarkerProbe{
-	{ageMs: 1000, expect: markerEither},
-	{ageMs: 2000, expect: markerLost},
-	{ageMs: 3000, expect: markerLost},
+	{ageMs: 1000, expect: smbLateAppendOutcome(1000)},
+	{ageMs: 2000, expect: smbLateAppendOutcome(2000)},
+	{ageMs: 3000, expect: smbLateAppendOutcome(3000)},
 }
 
 // lateMarkerCellName names the smb-late-<age> cell of a probe.

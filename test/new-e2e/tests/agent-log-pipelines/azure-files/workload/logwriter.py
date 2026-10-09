@@ -109,6 +109,14 @@ MAX_PAYLOAD_BYTES = 64 * 1024
 # A paced writer that fell further behind than this, for example while the
 # share stalled, skips the backlog instead of writing it in one burst.
 MAX_CATCH_UP_MS = 5000
+# How many (sequence, time) pairs of a file's last writes its journal line
+# keeps (PeriodStats.write_times): a paced writer writes every
+# LOGWRITER_INTERVAL_MS, so that is the last half minute at the default tick
+# as long as one tick fits in one write (up to LOGWRITER_BUFFER_BYTES: 64 KiB
+# in the paced cells, about 256 kB/s per stream at the default tick). A faster
+# stream makes several writes a tick and keeps fewer ticks; the ledger dates an
+# older record by the stream's rate instead.
+WRITE_TIMES_KEPT = 128
 COPY_CHUNK_BYTES = 1024 * 1024
 # A delete of a compressed file that fails is retried once a second, this many
 # times.
@@ -373,6 +381,12 @@ class PeriodStats:
         self.bytes = 0
         # [first, last] ranges of the sequences that could not be written.
         self.unwritten = []
+        # [sequence, epoch ms] pairs: the first sequence of each write, and
+        # when the writer wrote it. A paced writer writes in ticks, and
+        # catches up on a stall in one write, so only these times say when a
+        # record was written. The last WRITE_TIMES_KEPT pairs: a record that
+        # went missing was one of the file's last.
+        self.write_times = []
 
     def empty(self):
         return self.first_sequence == 0
@@ -388,6 +402,15 @@ class PeriodStats:
 
     def padded(self, count):
         self.bytes += count
+
+    def stamped(self, first, event_ms):
+        """Notes that the write that starts at sequence first was made at
+        event_ms. Writes of the same millisecond share one pair."""
+        if self.write_times and self.write_times[-1][1] == event_ms:
+            return
+        self.write_times.append([first, event_ms])
+        if len(self.write_times) > WRITE_TIMES_KEPT:
+            del self.write_times[0]
 
     def _assign(self, period, target, first, last):
         if self.first_sequence == 0:
@@ -923,6 +946,7 @@ class LogWriter:
                 "archive": archive,
                 "unwritten_sequences": stats.unwritten,
                 "at_risk_sequences": at_risk or [],
+                "write_times": stats.write_times,
                 "rotated_at": iso_ms(self.clock.now_ms()),
             }
         )
@@ -996,6 +1020,9 @@ class LogWriter:
         if wrote is not None:
             wrote(event_ms, first)
         self.stats.written(period, period_target, first, last, len(data))
+        # When the write returned, not when the record was made: a write that
+        # blocks on a stalled share lands after the stall.
+        self.stats.stamped(first, self.clock.now_ms())
         return True
 
     def append_padding(self, count):

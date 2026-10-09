@@ -123,11 +123,49 @@ type ledgerEntry struct {
 	// read them: what copytruncate's writer appended between the start of
 	// the copy and the truncation.
 	AtRiskSequences [][2]int64 `json:"at_risk_sequences,omitempty"`
-	RotatedAt       string     `json:"rotated_at,omitempty"`
+	// WriteTimes are [sequence, epoch ms] pairs, ascending: the first
+	// sequence of each of the writer's last writes to the file, and when the
+	// write returned. A record was written at the time of the last pair whose
+	// sequence is not past it. The Java writer's ledger has none.
+	WriteTimes [][2]int64 `json:"write_times,omitempty"`
+	RotatedAt  string     `json:"rotated_at,omitempty"`
 	// Observed is what the share held for the file when the ledger recorded
 	// it: file, archive, deleted or missing.
 	Observed      string `json:"observed,omitempty"`
 	ObservedBytes int64  `json:"observed_bytes,omitempty"`
+}
+
+// writtenAt returns when the writer wrote the record of that sequence, from
+// WriteTimes. It is false when the journal has no pair at or before the
+// sequence: the Java writer's, or a record older than the last writes the
+// journal keeps.
+func (e ledgerEntry) writtenAt(sequence int64) (time.Time, bool) {
+	found := -1
+	for i, pair := range e.WriteTimes {
+		if pair[0] > sequence {
+			break
+		}
+		found = i
+	}
+	if found < 0 {
+		return time.Time{}, false
+	}
+	return time.UnixMilli(e.WriteTimes[found][1]).UTC(), true
+}
+
+// recordsWrittenSince counts the records the writer wrote at or after since,
+// from WriteTimes. It is false without any. The journal keeps only the last
+// writes, so a count that reaches back to its first pair is a lower bound.
+func (e ledgerEntry) recordsWrittenSince(since time.Time) (int, bool) {
+	if len(e.WriteTimes) == 0 {
+		return 0, false
+	}
+	for _, pair := range e.WriteTimes {
+		if !time.UnixMilli(pair[1]).Before(since) {
+			return int(max(0, e.LastSequence-pair[0]+1)), true
+		}
+	}
+	return 0, true
 }
 
 // rotatedAt parses RotatedAt, the time the writer journalled the file.
@@ -257,7 +295,7 @@ func (suite *azureFilesSuite) TestRotatedFilesAreCollectedExactlyOnce() {
 		})
 	}
 	if suite.spec.calibrate {
-		suite.T().Skipf("%s=%s: calibration run, not a pass; unset it once lateMarkerProbes in provisioner.go has the recorded outcomes", runCalibrate, runCalibrateValue)
+		suite.T().Skipf("%s=%s: calibration run, not a pass; unset it once smbLateAppendOutcome in provisioner.go matches the recorded outcomes", runCalibrate, runCalibrateValue)
 	}
 }
 
@@ -746,8 +784,8 @@ func assertMarkerOutcome(t assert.TestingT, c cell, markers []markerEntry, count
 		switch {
 		case expect == markerCollected:
 			assert.Equal(t, postRotationMarkerSurvivingCount, count,
-				"%s: marker %s was appended to %s %dms after its rename, inside the drain window of its %s reader, so it must be collected exactly once; losing it means appends to the rotated file are dropped",
-				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs, c.reader)
+				"%s: marker %s was appended to %s %dms after its rename, inside the drain window of its %s reader, so it must be collected exactly once; losing it means appends to the rotated file are dropped%s",
+				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs, c.reader, collectedMarkerHint(c))
 		case marker.MarkerAgeMs == c.markers.lateMs:
 			// An unexpected survival is a harness signal, not a product win: it
 			// means this suite is no longer proving that it can see the loss.
@@ -758,7 +796,7 @@ func assertMarkerOutcome(t assert.TestingT, c cell, markers []markerEntry, count
 				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs)
 		case expect == markerLost:
 			assert.Equal(t, postRotationMarkerLostCount, count,
-				"%s: marker %s was appended to %s %dms after its rename, which lateMarkerProbes in provisioner.go predicts is past the %s reader's drain window; it was collected %d times. Run the cell with %s=%s and update the table",
+				"%s: marker %s was appended to %s %dms after its rename, which smbLateAppendOutcome in provisioner.go predicts is past the %s reader's drain window; it was collected %d times. Run the cell with %s=%s and update smbLateAppendOutcome and the README table",
 				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs, c.reader, count, runCalibrate, runCalibrateValue)
 		case expect == markerEither:
 			assert.LessOrEqual(t, count, 1,
@@ -766,6 +804,18 @@ func assertMarkerOutcome(t assert.TestingT, c cell, markers []markerEntry, count
 				c.name, marker.MarkerID, marker.RotatedFile, marker.MarkerAgeMs, c.reader, count)
 		}
 	}
+}
+
+// collectedMarkerHint says what a lost probe marker of an smb-late-<age> cell
+// contradicts: the SMB source reads a rotated file until it has had no new
+// data for close_timeout, so an append that comes sooner must arrive.
+func collectedMarkerHint(c cell) string {
+	if c.probe == nil {
+		return ""
+	}
+	return fmt.Sprintf(". The SMB source keeps draining a rotated file until it has had no new data for close_timeout (%ds), so a %dms append must be read (smbLateAppendOutcome in provisioner.go). "+
+		"Check the Agent image has that drain, or run the cell with %s=%s to record what the source does",
+		closeTimeoutSeconds, c.probe.ageMs, runCalibrate, runCalibrateValue)
 }
 
 // markersToAssert leaves out the probe markers of an smb-late-<age> cell when

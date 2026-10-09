@@ -224,7 +224,7 @@ func testLedgerScriptRecordsThePythonWriterFiles(t *testing.T, impl, source stri
 			assert.Equal(t, string(renameRotation), entry.RotationMode, file.name)
 			assert.NotEmpty(t, entry.RotatedAt, file.name)
 			entry.Stream, entry.RotationMode, entry.Disposition, entry.Archive = "", "", "", ""
-			entry.UnwrittenSequences, entry.AtRiskSequences, entry.RotatedAt = nil, nil, ""
+			entry.UnwrittenSequences, entry.AtRiskSequences, entry.WriteTimes, entry.RotatedAt = nil, nil, nil, ""
 			entry.Observed, entry.ObservedBytes = "", 0
 		}
 		first, last := fileSequences(t, file)
@@ -338,6 +338,32 @@ var writerLayouts = map[string]runOptions{
 var recordLinePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}  (?:INFO |WARN |ERROR) 1 --- \[        scheduling-1\] c\.d\.e\.l\.LogWriterService {17}: ` +
 	`run_id=(\S+) period=(\d{8}T\d{4}(?:\d{2})?Z) sequence=(\d+) record=\d+ phase=(?:head|fill) target_bytes=\d+ host=\S+ payload=x+$`)
 
+// assertWriteTimes checks the journal's write times of one file: pairs of the
+// first sequence of a write and when it returned, both ascending, inside the
+// file's sequences, and no later than the journal line itself.
+func assertWriteTimes(t *testing.T, entry ledgerEntry) {
+	t.Helper()
+	require.NotEmpty(t, entry.WriteTimes, "%s has no write times", entry.Period)
+	rotatedAt, ok := entry.rotatedAt()
+	require.True(t, ok, entry.Period)
+	var previous [2]int64
+	for i, pair := range entry.WriteTimes {
+		assert.GreaterOrEqual(t, pair[0], entry.FirstSequence, "%s write %d", entry.Period, i)
+		assert.LessOrEqual(t, pair[0], entry.LastSequence, "%s write %d", entry.Period, i)
+		if i > 0 {
+			assert.Greater(t, pair[0], previous[0], "%s write %d: the sequences ascend", entry.Period, i)
+			assert.Greater(t, pair[1], previous[1], "%s write %d: one pair per millisecond, ascending", entry.Period, i)
+		}
+		assert.LessOrEqual(t, pair[1], rotatedAt.UnixMilli(), "%s write %d is journalled before it was written", entry.Period, i)
+		previous = pair
+	}
+	// The record the file's last sequence names was written by the last pair
+	// or an earlier one, which the dating relies on.
+	written, ok := entry.writtenAt(entry.LastSequence)
+	assert.True(t, ok, entry.Period)
+	assert.False(t, written.After(rotatedAt), entry.Period)
+}
+
 // diskRecord is a record found in a file of a stream directory.
 type diskRecord struct {
 	runID    string
@@ -398,6 +424,7 @@ func checkStreamFiles(t *testing.T, mode rotationMode, dir, stream, runID string
 		next = entry.LastSequence + 1
 		assert.Empty(t, entry.UnwrittenSequences, entry.Period)
 		assert.Equal(t, entry.LastSequence-entry.FirstSequence+1, entry.LineCount, entry.Period)
+		assertWriteTimes(t, entry)
 		for _, sequences := range entry.AtRiskSequences {
 			// The window opens with the first record after the copied period.
 			assert.Equal(t, entry.LastSequence+1, sequences[0], entry.Period)

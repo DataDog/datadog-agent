@@ -228,16 +228,27 @@ func TestPostRotationMarkerDelaysStraddleEveryDrainWindow(t *testing.T) {
 	assert.Greater(t, file.lateMs, longestFileDrainMs)
 	assert.Greater(t, file.lateMs, (fileScanPeriodSeconds+1+closeTimeoutSeconds)*1000)
 
-	// The SMB source can drop an idle rotated file at the first poll after the
-	// scan that saw the rotation, and that scan can come right after the
-	// rename. The appender notices the rename up to one of its polls late, so
-	// the surviving marker must land within a poll interval even then.
+	// The SMB source reads a rotated file until it has had no new data for
+	// close_timeout, from the scan that saw the rotation, which cannot come
+	// before the rename. The surviving marker, with the appender's lag, lands
+	// before the earliest end of that drain, so it is always collected.
 	smb := markerDelaysFor(smbReader, writerOptions{mode: renameRotation})
-	assert.Less(t, smb.earlyMs+postRotationMarkerPollMs, (smbDrainIdlePolls-1)*smbPollIntervalSeconds*1000)
-	// It sees the rotation within a poll of the rename and stops at
-	// close_timeout at the latest, however often new data restarts its idle
-	// polls.
-	assert.Greater(t, smb.lateMs, (smbPollIntervalSeconds+closeTimeoutSeconds)*1000)
+	assert.Less(t, smb.earlyMs+lateAppendLagMs, closeTimeoutSeconds*1000)
+	assert.Equal(t, markerCollected, smb.earlyExpect)
+	assert.Equal(t, smbLateAppendOutcome(smb.earlyMs), smb.earlyExpect)
+	// Reading it restarts the drain's close_timeout. The drain reads the
+	// marker at the latest in its forced last read, when a stale listing hides
+	// the append: that is the first poll at or after the drain's start plus
+	// close_timeout, and the read restarts the count, so the drain ends a
+	// close_timeout and a poll after it. The 45s marker is past that, however
+	// late the rotation was seen.
+	latestDrainEndMs := smbDrainStartLagMs + 2*(closeTimeoutSeconds+smbPollIntervalSeconds)*1000
+	assert.Greater(t, smb.lateMs, latestDrainEndMs)
+	assert.Equal(t, markerLost, smbLateAppendOutcome(smb.lateMs))
+	// The deadline bounds a drain that never goes quiet to 10 close timeouts,
+	// which is longer than the 45s marker's age: only the quiet ends the drain
+	// before it, so the marker proves the drain stops when its file stops.
+	assert.Greater(t, smbDrainMaxCloseTimeouts*closeTimeoutSeconds*1000, smb.lateMs)
 
 	assert.Equal(t, "1500,45000", file.appenderValue())
 	assert.Equal(t, "500,45000", smb.appenderValue())
@@ -1057,25 +1068,94 @@ func TestLateMarkerCellsProbeOneAgeEach(t *testing.T) {
 		assert.Contains(t, spec.appenderEnv(c), envVar{"LOGWRITER_APPEND_DELAYS_MS", strconv.Itoa(probe.ageMs) + ",45000"}, name)
 		assert.True(t, c.markers.needsSettle(), name)
 
-		// The prediction follows the drain's end, one to two poll intervals
-		// after the rename (see lateMarkerProbes): an age the drain cannot
-		// have reached is collected, one past its latest end is lost, and
-		// one in between may go either way.
-		drainEndsAfterMs := (smbDrainIdlePolls - 1) * smbPollIntervalSeconds * 1000
-		drainEndsByMs := smbDrainIdlePolls * smbPollIntervalSeconds * 1000
-		switch probe.expect {
-		case markerCollected:
-			assert.Less(t, probe.ageMs+postRotationMarkerPollMs, drainEndsAfterMs, name)
-		case markerLost:
-			assert.GreaterOrEqual(t, probe.ageMs, drainEndsByMs, name)
-		case markerEither:
-			assert.GreaterOrEqual(t, probe.ageMs+postRotationMarkerPollMs, drainEndsAfterMs, name)
-			assert.Less(t, probe.ageMs, drainEndsByMs, name)
-		}
+		// The prediction follows the drain, which cannot end before
+		// close_timeout after the rename (see smbLateAppendOutcome): the
+		// probe ages are all under it, with the appender's lag, so each is
+		// collected exactly once, and the 45s marker is still past the end of
+		// the drain that the probe keeps open.
+		assert.Equal(t, markerCollected, probe.expect, name)
+		assert.Equal(t, smbLateAppendOutcome(probe.ageMs), probe.expect, name)
+		assert.Less(t, probe.ageMs+lateAppendLagMs, closeTimeoutSeconds*1000, name)
+		assert.Greater(t, postRotationMarkerLostDelayMs, smbDrainStartLagMs+probe.ageMs+lateAppendLagMs+smbPollIntervalSeconds*1000+closeTimeoutSeconds*1000, name)
 
 		_, err := newRunSpec(runOptions{runID: testRunID, cells: name, smbEnabled: true, rotationMode: "gzip"})
 		assert.ErrorContains(t, err, "always rotates by rename", name)
 	}
+}
+
+func TestSMBLateAppendOutcomeFollowsCloseTimeout(t *testing.T) {
+	// close_timeout is 5s, the appender lands at most 1s late, and the drain
+	// starts up to 2s after the rename and ends at the first poll once its
+	// 5s are over, up to 1s later: it ends between 5s and 8s after it.
+	for ageMs, want := range map[int]markerExpectation{
+		500:   markerCollected,
+		1000:  markerCollected,
+		2000:  markerCollected,
+		3000:  markerCollected,
+		3999:  markerCollected,
+		4000:  markerEither,
+		5000:  markerEither,
+		7000:  markerEither,
+		7001:  markerEither,
+		8000:  markerEither,
+		8001:  markerLost,
+		45000: markerLost,
+	} {
+		assert.Equal(t, want, smbLateAppendOutcome(ageMs), "%dms", ageMs)
+	}
+
+	// Never the other way: a later age is never likelier to be collected.
+	rank := map[markerExpectation]int{markerCollected: 2, markerEither: 1, markerLost: 0}
+	previous := rank[smbLateAppendOutcome(0)]
+	for ageMs := 0; ageMs <= 60000; ageMs += 100 {
+		current := rank[smbLateAppendOutcome(ageMs)]
+		assert.LessOrEqual(t, current, previous, "%dms", ageMs)
+		previous = current
+	}
+
+	// What the cells probe: every age under the drain's earliest end.
+	for _, probe := range lateMarkerProbes {
+		assert.Equal(t, markerCollected, probe.expect, lateMarkerCellName(probe))
+	}
+}
+
+func TestALostProbeMarkerContradictsTheCloseTimeoutDrain(t *testing.T) {
+	probe := lateMarkerProbes[2]
+	c := cell{name: "smb-late-3000", reader: smbReader, probe: &probe,
+		markers: markerDelays{earlyMs: probe.ageMs, earlyExpect: probe.expect, lateMs: postRotationMarkerLostDelayMs}}
+	markers := []markerEntry{
+		{MarkerID: "r1-m3000", MarkerAgeMs: 3000, RotatedFile: "app.log.1"},
+		{MarkerID: "r1-m45000", MarkerAgeMs: 45000, RotatedFile: "app.log.1"},
+	}
+
+	// Collected once, and the 45s marker lost: the pass.
+	passed := new(recordingT)
+	assertMarkerOutcome(passed, c, markers, map[string]int{"r1-m3000": 1})
+	assert.Empty(t, passed.failures)
+
+	// The 3s marker lost is what a drain that ended after two idle polls does.
+	dropped := new(recordingT)
+	assertMarkerOutcome(dropped, c, markers, nil)
+	require.Len(t, dropped.failures, 1)
+	assert.Contains(t, dropped.failures[0], "must be collected exactly once")
+	assert.Contains(t, dropped.failures[0], "no new data for close_timeout (5s)")
+	assert.Contains(t, dropped.failures[0], "smbLateAppendOutcome in provisioner.go")
+	assert.Contains(t, dropped.failures[0], runCalibrate+"=1")
+	// Not so for a cell that is no probe.
+	plain := c
+	plain.probe = nil
+	other := new(recordingT)
+	assertMarkerOutcome(other, plain, markers, nil)
+	require.Len(t, other.failures, 1)
+	assert.NotContains(t, other.failures[0], "close_timeout")
+
+	// Calibration relaxes the probe marker, records that it did not match, and
+	// still asserts the 45s one.
+	assert.Equal(t, markers[1:], markersToAssert(c, markers, true))
+	outcomes := markerOutcomes(c, markers, nil)
+	require.Len(t, outcomes, 2)
+	assert.Equal(t, markerOutcome{MarkerID: "r1-m3000", RotatedFile: "app.log.1", AgeMs: 3000, Expected: markerCollected, Outcome: markerLost}, outcomes[0])
+	assert.Equal(t, "3000ms: collected 0/1, lost 1/1 (expected collected); 45000ms: collected 0/1, lost 1/1 (expected lost)", summarizeMarkerOutcomes(outcomes))
 }
 
 func TestMarkerExpectationsDriveTheAssertion(t *testing.T) {
@@ -1097,7 +1177,7 @@ func TestMarkerExpectationsDriveTheAssertion(t *testing.T) {
 	survived := new(recordingT)
 	assertMarkerOutcome(survived, lost, []markerEntry{{MarkerID: "m2000", MarkerAgeMs: 2000}}, map[string]int{"m2000": 1})
 	require.Len(t, survived.failures, 1)
-	assert.Contains(t, survived.failures[0], "lateMarkerProbes in provisioner.go predicts")
+	assert.Contains(t, survived.failures[0], "smbLateAppendOutcome in provisioner.go predicts")
 	assert.Contains(t, survived.failures[0], runCalibrate+"=1")
 
 	// Calibration records the same outcomes instead.
@@ -1291,11 +1371,31 @@ func TestMissedBytesReportsAreReadFromTheAgentLog(t *testing.T) {
 			"Rotated SMB file is no longer listed: 1234 bytes of SMB file smb://acct.file.core.windows.net/share/svc-1/app.log (last read as svc-1/app.log.06102026_182900) were not read and are lost",
 		"2026-10-06 18:30:01 UTC | CORE | WARN | (pkg/logs/tailers/smb/tailer.go:427 in RecordMissedBytes) | " +
 			"SMB rotation drain timed out after 5s (logs_config.close_timeout): 7 bytes of SMB file smb://acct.file.core.windows.net/share/app.log (last read as app.log) were not read and are lost",
+		// RecordMissedBytesOf, for a file no tailer reads anymore: by the path
+		// it was last read at (resumeElsewhere), or by its FileId on the share
+		// (forgetUnlisted), which have no "last read as".
+		"2026-10-06T18:30:02.500000000Z 2026-10-06 18:30:02 UTC | CORE | WARN | (pkg/logs/tailers/smb/tailer.go:516 in RecordMissedBytesOf) | " +
+			"Rotated SMB file is no longer listed: 5 bytes of SMB file smb://acct.file.core.windows.net/share/svc-1/app.log were not read and are lost",
+		"2026-10-06 18:30:02 UTC | CORE | WARN | (pkg/logs/tailers/smb/tailer.go:516 in RecordMissedBytesOf) | " +
+			"Rotated SMB file is no longer listed: 3 bytes of SMB file smb://acct.file.core.windows.net/share (FileId 1081516 created 2026-10-06T12:00:00.1234567Z) were not read and are lost",
 		"2026-10-06 18:30:02 UTC | CORE | INFO | (pkg/logs/tailers/smb/tailer.go:290 in Stop) | Closed SMB tailer for smb://acct.file.core.windows.net/share/app.log",
 		"2026-10-06 18:30:03 UTC | CORE | WARN | (pkg/logs/tailers/file/tailer.go:388 in func1) | After the rotation close timeout (5s), there were 10 bytes remaining unread",
 	}, "\n")
-	reports := parseMissedBytesReports(log)
-	require.Len(t, reports, 2)
+	all := parseMissedBytesReports(log)
+	require.Len(t, all, 4)
+	assert.Equal(t, missedBytesReport{
+		At: time.Date(2026, 10, 6, 18, 30, 2, 500000000, time.UTC), Reason: "Rotated SMB file is no longer listed", Bytes: 5,
+		Identifier: "smb://acct.file.core.windows.net/share/svc-1/app.log", ReadPath: "svc-1/app.log",
+	}, all[2])
+	assert.Equal(t, missedBytesReport{
+		At: time.Date(2026, 10, 6, 18, 30, 2, 0, time.UTC), Reason: "Rotated SMB file is no longer listed", Bytes: 3,
+		Identifier: "smb://acct.file.core.windows.net/share", FileID: "FileId 1081516 created 2026-10-06T12:00:00.1234567Z",
+	}, all[3])
+	// The Agent's own total counts every one of them.
+	assert.Equal(t, int64(1249), sumReportedBytes(all))
+	assert.NoError(t, checkMissedBytesTotal(all, all, 1249))
+	assert.Len(t, reportsOfCell(cell{accountName: "acct", shareName: "share"}, all), 4)
+	reports := all[:2]
 	assert.Equal(t, missedBytesReport{
 		At: time.Date(2026, 10, 6, 18, 29, 7, 123456789, time.UTC), Reason: "Rotated SMB file is no longer listed", Bytes: 1234,
 		Identifier: "smb://acct.file.core.windows.net/share/svc-1/app.log", ReadPath: "svc-1/app.log.06102026_182900",
@@ -1313,6 +1413,23 @@ func TestMissedBytesReportsAreReadFromTheAgentLog(t *testing.T) {
 	assert.NoError(t, checkMissedBytesTotal(reports[:1], reports, 1234))
 	assert.ErrorContains(t, checkMissedBytesTotal(reports, reports, 2000), "some missed bytes have no warning")
 	assert.Error(t, checkMissedBytesTotal(reports, reports, 1000))
+}
+
+// The warning of a file no tailer reads anymore has no "last read as": it is
+// attributed to the file at the path its identifier names, like a tailer's.
+func TestMissedBytesReportWithoutALastReadPathIsAttributed(t *testing.T) {
+	c, ledger, expected := lossFixture(deleteRecreateRotation)
+	log := "2026-10-06 12:00:03 UTC | CORE | WARN | (pkg/logs/tailers/smb/tailer.go:516 in RecordMissedBytesOf) | " +
+		"Rotated SMB file is no longer listed: 300 bytes of SMB file " + smbIdentifier(c, "") + " were not read and are lost"
+	reports := parseMissedBytesReports(log)
+	require.Len(t, reports, 1)
+	assert.Equal(t, activeLogName, reports[0].ReadPath)
+	assert.Equal(t, smbIdentifier(c, ""), reports[0].Identifier)
+
+	counts, sizes := collectedSequences(1, 2, 3, 4, 5, 6, 7)
+	losses := explainLosses(c, ledger, ledger[:1], checkRecords(expected, nil, counts), sizes, reports)
+	require.Len(t, losses, 1)
+	assert.Equal(t, int64(300), losses[0].ReportedBytes)
 }
 
 // lossFixture is a file of ten 100-byte records, run r, rotated at 12:00:00,
@@ -1339,7 +1456,7 @@ func collectedSequences(sequences ...int64) (map[recordKey]int, map[recordKey]in
 	return counts, sizes
 }
 
-func TestLossesMustBeTheEndOfAFileAndReported(t *testing.T) {
+func TestLossesMustBeTheEndOfAFileAndAccountedFor(t *testing.T) {
 	at := func(clock string) time.Time {
 		parsed, err := time.Parse(time.RFC3339, "2026-10-06T"+clock+"Z")
 		require.NoError(t, err)
@@ -1374,29 +1491,77 @@ func TestLossesMustBeTheEndOfAFileAndReported(t *testing.T) {
 		assertLossesExplained(explained, c, losses)
 		assert.Empty(t, explained.failures, mode)
 
-		// Nothing reported, or for another file: a silent loss.
-		for name, reports := range map[string][]missedBytesReport{
-			"none":         nil,
-			"other stream": {{At: at("12:00:06"), Bytes: 300, Identifier: smbIdentifier(c, "svc-2"), ReadPath: readPath}},
-		} {
-			silent := new(recordingT)
-			assertLossesExplained(silent, c, explainLosses(c, ledger, ledger[:1], check, sizes, reports))
-			require.Len(t, silent.failures, 1, "%s %s", mode, name)
-			assert.Contains(t, silent.failures[0], "the Agent reported no missed bytes for it", mode)
-		}
+		// Nothing reported: these 300 bytes were written in the instants
+		// before the file went away, so no listing can have shown them and
+		// nothing has to report them. Larger silent losses are checked in
+		// TestSilentLossMustBeInTheWindow.
+		silent := new(recordingT)
+		losses = explainLosses(c, ledger, ledger[:1], check, sizes, nil)
+		require.Len(t, losses, 1, mode)
+		assert.Zero(t, losses[0].ReportedBytes, mode)
+		assert.Zero(t, losses[0].SilentRecords, "%s: under the tolerance", mode)
+		assertLossesExplained(silent, c, losses)
+		assertNoForeignReports(silent, c, ledger, ledger[:1], losses, nil)
+		assert.Empty(t, silent.failures, mode)
 
-		// A report short of the loss by more than what can be written after
-		// the last listing is partly silent; within that, it is not.
-		shortfall := fileLoss{Suffix: true, MissingRecords: 3, AllowedRecords: 104, CollectedRecords: 7,
-			UnreadBytes: 50000, ReportedBytes: 300, ShortfallBytes: 49700, AllowedShortfallBytes: lossAccountingToleranceBytes}
-		under := new(recordingT)
-		assertLossesExplained(under, c, []fileLoss{shortfall})
-		require.Len(t, under.failures, 1, mode)
-		assert.Contains(t, under.failures[0], "partly silent loss", mode)
-		shortfall.AllowedShortfallBytes = maxReportShortfallBytes(c.writer)
-		within := new(recordingT)
-		assertLossesExplained(within, c, []fileLoss{shortfall})
-		assert.Empty(t, within.failures, mode)
+		// Reported for another stream's file: it attributes to no file, which
+		// the loss it was needed for cannot tell from a loss that needed no
+		// report, so the report itself fails the cell. One of this cell's own
+		// files, a report for a file named by its FileId and one made long
+		// after the ledger's last rotation do not.
+		other := []missedBytesReport{{At: at("12:00:06"), Bytes: 300, Identifier: smbIdentifier(c, "svc-2"), ReadPath: readPath}}
+		misattributed := new(recordingT)
+		assertNoForeignReports(misattributed, c, ledger, ledger[:1], losses, other)
+		require.Len(t, misattributed.failures, 1, mode)
+		assert.Contains(t, misattributed.failures[0], "missed bytes reported for another file", mode)
+		assert.Contains(t, misattributed.failures[0], "svc-2/app.log", mode)
+		fine := []missedBytesReport{
+			report(300, "12:00:06"),
+			{At: at("12:00:06"), Bytes: 300, Identifier: "smb://" + c.host() + "/" + c.shareName, FileID: "FileId 7 created 2026-10-06T12:00:00Z"},
+			{At: at("14:00:00"), Bytes: 300, Identifier: smbIdentifier(c, "svc-2"), ReadPath: readPath},
+			{At: at("11:00:00"), Bytes: 300, Identifier: smbIdentifier(c, "svc-2"), ReadPath: readPath},
+		}
+		acceptable := new(recordingT)
+		assertNoForeignReports(acceptable, c, ledger, ledger[:1], losses, fine)
+		assert.Empty(t, acceptable.failures, mode)
+
+		// Reported under the right stream but not for the file that lost the
+		// records: a read path that is none of the stream's files, or the
+		// second file, which lost nothing. Neither is matched to a file that
+		// lost records, so each fails the cell above the tolerance: a loss
+		// the first file's report was needed for would otherwise pass as one
+		// that needed no report. The report of the file that did lose is the
+		// only one that matches.
+		withReport := explainLosses(c, ledger, ledger[:1], check, sizes, []missedBytesReport{report(300, "12:00:06")})
+		secondFile := "app.log.2"
+		if mode == deleteRecreateRotation {
+			secondFile = activeLogName
+		}
+		stray := []missedBytesReport{
+			report(300, "12:00:06"),
+			{At: at("12:00:07"), Bytes: 3000, Identifier: smbIdentifier(c, ""), ReadPath: "app.log.9"},
+			{At: at("12:00:08"), Bytes: 3000, Identifier: smbIdentifier(c, ""), ReadPath: "app.log.9"},
+			{At: at("12:01:03"), Bytes: 5000, Identifier: smbIdentifier(c, ""), ReadPath: secondFile},
+		}
+		wrongFile := new(recordingT)
+		assertNoForeignReports(wrongFile, c, ledger, ledger, withReport, stray)
+		require.Len(t, wrongFile.failures, 2, mode)
+		assert.Contains(t, wrongFile.failures[0], "missed bytes reported for a file that lost nothing", mode)
+		assert.Contains(t, wrongFile.failures[0], "6000 missed bytes in 2 report(s)", mode)
+		assert.Contains(t, wrongFile.failures[0], "matches no file of the ledger", mode)
+		assert.Contains(t, wrongFile.failures[1], "5000 missed bytes in 1 report(s)", mode)
+		assert.Contains(t, wrongFile.failures[1], "lost no record", mode)
+		// Without the second file asserted its report cannot be judged, but
+		// the unknown read path still fails; reports of up to the tolerance
+		// under a file that lost nothing, or under no file, do not.
+		notJudged := new(recordingT)
+		assertNoForeignReports(notJudged, c, ledger, ledger[:1], withReport, stray)
+		require.Len(t, notJudged.failures, 1, mode)
+		assert.Contains(t, notJudged.failures[0], "6000 missed bytes", mode)
+		small := new(recordingT)
+		assertNoForeignReports(small, c, ledger, ledger, withReport, []missedBytesReport{report(300, "12:00:06"), stray[1], {At: at("12:01:03"), Bytes: 4000, Identifier: smbIdentifier(c, ""), ReadPath: secondFile}})
+		assert.Empty(t, small.failures, mode)
+
 		over := new(recordingT)
 		assertLossesExplained(over, c, []fileLoss{{Suffix: true, MissingRecords: 3, AllowedRecords: 104, CollectedRecords: 7, UnreadBytes: 300, ReportedBytes: 50000}})
 		require.Len(t, over.failures, 1, mode)
@@ -2058,16 +2223,21 @@ func TestForcedLossesNeedALossAccountedPacedCell(t *testing.T) {
 func TestLossBoundsFollowTheWriter(t *testing.T) {
 	// The Java schedule leaves nothing to lose, and a report must match.
 	assert.Zero(t, maxLostRecords(defaultWriterOptions()))
-	assert.Equal(t, int64(lossAccountingToleranceBytes), maxReportShortfallBytes(defaultWriterOptions()))
+	assert.Zero(t, maxSilentBytes(defaultWriterOptions()))
+	assert.Zero(t, maxSilentRecords(defaultWriterOptions()))
 	// 200 kB/s shared by two streams: 100 kB/s each over a poll interval
 	// and a scan.
 	paced := writerOptions{mode: gzipRotation, periodMs: 10000, rateBytesPerSec: 200000, streams: 2}
 	assert.Equal(t, int64(200000), lossWindowBytes(paced))
 	assert.Equal(t, int(math.Ceil(200000.0/1024))+64, maxLostRecords(paced))
-	assert.Equal(t, int64(lossAccountingToleranceBytes+200000+pacedWriterBufferBytes), maxReportShortfallBytes(paced))
-	// A drain ends at its second idle poll, long before a gzip rotation
-	// compresses the file.
-	assert.Greater(t, gzipDelayMs, (smbDrainIdlePolls+lossScanMarginSeconds)*smbPollIntervalSeconds*1000)
+	// What cannot be reported is what was written in a poll interval and the
+	// silent-loss margin: 2.5s of a stream's 100 kB/s.
+	assert.Equal(t, int64(250000), maxSilentBytes(paced))
+	assert.Equal(t, int(math.Ceil(250000.0/1024)), maxSilentRecords(paced))
+	// A gzip rotation keeps the rotated file for longer than that window, so
+	// the file is listed, and its records known, long before it is compressed:
+	// nothing of a gzip file is lost without a report unless the run forces it.
+	assert.Greater(t, gzipDelayMs, silentLossWindowMs)
 }
 
 func TestLedgerGapsAreFound(t *testing.T) {

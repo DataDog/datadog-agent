@@ -11,9 +11,11 @@ import (
 	"math"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -26,14 +28,16 @@ import (
 // An SMB source that drains a rotated file can only lose what it had not read
 // when the file went away, and when it knew the file held more, it says so:
 // RecordMissedBytes in pkg/logs/tailers/smb/tailer.go adds the bytes to the
-// logs-agent BytesMissed expvar, to the logs.bytes_missed telemetry counter
-// and to the per-(source, service) missed bytes tracker, and logs a warning
-// that names the file. Of these, only the warning can be read per cell:
+// logs-agent BytesMissed expvar, to the logs.bytes_missed telemetry counter,
+// to the per-(source, service) missed bytes tracker and to the source's Bytes
+// Missed in agent status, and logs a warning that names the file. Of these,
+// only the warning can be read per cell and per file:
 //   - the expvar and the telemetry counter are Agent-wide;
 //   - the tracker is only published by the health platform's
 //     log_data_lost_after_rotation issue, which runs every 15 minutes and
 //     only when the health platform is enabled;
-//   - agent status lists no missed bytes, per source or at all.
+//   - agent status shows one Bytes Missed per source, which a cell has one
+//     of, but names no file.
 //
 // Each SMB cell has its own storage account, so the warning's smb://<host>/...
 // identifier names the cell, and its read path names the rotated file. The
@@ -41,6 +45,25 @@ import (
 // against the Agent-wide expvar, so a warning it could not read (a container
 // log the kubelet rotated, a changed message) fails the cell instead of
 // letting a loss pass as reported.
+//
+// What no warning can cover is what the source never saw: the bytes written
+// after its last listing of the file and before the file went away. They are
+// lost without a trace, which listing-driven polling cannot avoid, so the
+// test bounds them instead of forbidding them (see silentLossWindowMs).
+//
+// So the test requires a report only for the loss the source can have known:
+// a lost record older than the window. It cannot tell a source that never
+// saw a record from one that saw it and did not report it, and it does not
+// try to: a source that reads each listed file to its end right after the
+// listing, as the active tailer does, reports about nothing when the writer
+// deletes or compresses a file at once. The forced-loss cells therefore pass
+// with an Agent that reports nothing, as long as every loss is inside the
+// window; the reports of the Agent are exercised by the unit and Samba
+// integration tests of pkg/logs/launchers/smb, and by a run where a loss reaches back
+// past the window (a listing ahead of the reads, which this suite does not
+// make: it needs a backlog past the 4 MiB a poll reads, far more than
+// maxLostRecords allows). The evidence says which it was: reported_loss_exercised in
+// <cell>-losses.json and a log line.
 
 // lossAccountingToleranceBytes is how far the bytes the Agent reported missed
 // for a file may differ from the bytes of the file it never delivered: the
@@ -54,27 +77,45 @@ const lossAccountingToleranceBytes = 4096
 // its last read: at most one poll interval, plus the time a scan takes to
 // reach the file (lossScanMarginSeconds). The Agent reports the file's size
 // at its last listing minus what it read (UnreadBytes in
-// pkg/logs/tailers/smb/tailer.go, a lower bound), so its report can fall short
-// of the loss by what was written since that listing, as long again.
+// pkg/logs/tailers/smb/tailer.go, a lower bound), so the part of that loss it
+// cannot report is what was written since the last listing: the silent loss.
 //
 // Only a paced writer writes that close to the rotation. The Java schedule
 // fills each file right after its head pause, tens of seconds before the file
 // goes away, so a correct source loses none of it.
 //
-// A gzip rotation also keeps the rotated file for gzipDelayMs, several times
-// what a drain needs (two idle polls), so its loss is only explained when the
-// file was compressed away while the drain was still reading it, or when the
-// drain timed out. A drain that ends before the compression with records
-// unread is a product failure.
+// A gzip rotation keeps the rotated file for gzipDelayMs, which is the
+// drain's close_timeout: a drain starts at or after the rename and lasts at
+// least close_timeout after its last new data, so it is still open when the
+// file is compressed away. Its loss is then only explained when the file was
+// compressed away while the drain was reading it, or when the drain reached
+// its deadline. A drain that ends before the compression with records unread
+// is a product failure.
 const (
 	lossScanMarginSeconds = 1
 	// lossClockSkew allows for the writer's and the Agent's clocks, which
 	// date the rotation and the report.
 	lossClockSkew = time.Second
-	// drainTimeoutReason starts the reason of a drain that hit
-	// logs_config.close_timeout (scanner.pollDrain in pkg/logs/launchers/smb).
-	drainTimeoutReason = "SMB rotation drain timed out"
 )
+
+// drainDeadlineReasons start the reason of a drain that ran out of time
+// instead of ending because its file stopped growing: since the drain keeps
+// reading until its file has had no new data for logs_config.close_timeout, it
+// is the deadline of drainMaxCloseTimeouts close timeouts (scanner.pollDrain in
+// pkg/logs/launchers/smb). The second is the reason before that change.
+var drainDeadlineReasons = []string{
+	"SMB rotation drain reached its longest duration",
+	"SMB rotation drain timed out",
+}
+
+func isDrainDeadlineReason(reason string) bool {
+	for _, prefix := range drainDeadlineReasons {
+		if strings.HasPrefix(reason, prefix) {
+			return true
+		}
+	}
+	return false
+}
 
 // lossWindowBytes is what one stream of the writer writes in a poll interval
 // and a scan.
@@ -82,7 +123,13 @@ func lossWindowBytes(w writerOptions) int64 {
 	if !w.paced() {
 		return 0
 	}
-	return int64(w.rateBytesPerSec) / int64(max(1, w.streams)) * (smbPollIntervalSeconds + lossScanMarginSeconds)
+	return streamRateBytesPerSec(w) * (smbPollIntervalSeconds + lossScanMarginSeconds)
+}
+
+// streamRateBytesPerSec is what one stream of a paced writer writes per
+// second: the pod's rate is shared by its streams.
+func streamRateBytesPerSec(w writerOptions) int64 {
+	return int64(w.rateBytesPerSec) / int64(max(1, w.streams))
 }
 
 // maxLostRecords is how many records of one file a loss-accounted cell may
@@ -95,30 +142,197 @@ func maxLostRecords(w writerOptions) int {
 	return int(math.Ceil(float64(lossWindowBytes(w))/pacedWriterPayloadBytes)) + pacedWriterBufferBytes/pacedWriterPayloadBytes
 }
 
-// maxReportShortfallBytes is how far below the bytes a file lost the Agent's
-// report may fall: the tolerance, and what was written since its last listing.
-func maxReportShortfallBytes(w writerOptions) int64 {
-	if !w.paced() {
-		return lossAccountingToleranceBytes
-	}
-	return lossAccountingToleranceBytes + lossWindowBytes(w) + pacedWriterBufferBytes
+// The silent-loss window.
+//
+// The source lists a file once per poll interval and reports the bytes the
+// last listing showed and it did not read. A record written after that
+// listing and before the file is deleted or compressed was never seen, so
+// nothing can report it, and it is lost: that is inherent to polling the
+// listing, not a defect. The design bounds it to the records written within
+// one poll interval and the margin below before the file went away, because
+// the file was listed at least once in the poll interval before it went away.
+// A record written earlier was in a listing the source acted on, so if it is
+// lost, the Agent knew it and has to say so.
+//
+// The ledger dates the file's rotation (rotated_at, journalled before the
+// writer renames, deletes or compresses anything), and the writer's own
+// pause dates the end: silentDisposalDelayMs after it. The Python writer's
+// journal also dates its writes (write_times: the first sequence of each of
+// the last writes, and when it returned), so a record is dated by when it was
+// written, which a stalled share can put well after its place at the stream's
+// rate: the writer catches up in one write. A journal without them (the Java
+// writer's) is dated by the rate: a paced writer writes at its rate, so a
+// record was written about as many seconds before the rotation as the bytes
+// written after it take at the stream's rate.
+const (
+	// silentLossMarginMs is added to the poll interval:
+	//   - lossScanMarginSeconds, the time between the poll's tick and the
+	//     listing the scan makes of the file;
+	//   - two writer ticks (writerTickMs): a tick's records are written
+	//     together and dated at the end of the write, while the source's read
+	//     of the file can have opened a tick before it; the file is journalled
+	//     up to a tick after its last write. Without the journal's write
+	//     times, a record's age is counted from its bytes at the stream's
+	//     rate, so it can also be that much older than the write that held it.
+	silentLossMarginMs = lossScanMarginSeconds*1000 + 2*writerTickMs
+	// silentLossWindowMs is how long before a file goes away its records may
+	// still be lost without a report.
+	silentLossWindowMs = smbPollIntervalSeconds*1000 + silentLossMarginMs
+)
+
+// silentLossWindow is silentLossWindowMs as a duration.
+func silentLossWindow() time.Duration {
+	return silentLossWindowMs * time.Millisecond
 }
 
-// missedBytesReportPattern reads the warning of RecordMissedBytes, with the
-// kubelet's timestamp when the log was read with timestamps:
+// silentWindow is how long before a file goes away its records may still be
+// lost without a report, for a stream of this writer when the record is dated
+// by the stream's rate: silentLossWindow, plus the time the stream takes to
+// write the 4 KiB tolerance (lossAccountingToleranceBytes). The tolerance
+// counts as reported, so the first silent record is dated from the loss the
+// report leaves, tolerance included, and the tolerance widens the window by
+// its bytes at the stream's rate: 0.02s at 200 kB/s, 0.2s at 20 kB/s, 2s at
+// 2 kB/s. The Java schedule has no rate to convert it with. A record the
+// journal dates (write_times) is written when the journal says, however long
+// its bytes took, so its window is silentLossWindow, without the tolerance.
+func silentWindow(w writerOptions) time.Duration {
+	window := silentLossWindow()
+	if rate := streamRateBytesPerSec(w); rate > 0 {
+		window += time.Duration(float64(lossAccountingToleranceBytes) / float64(rate) * float64(time.Second))
+	}
+	return window
+}
+
+// silentDisposalDelayMs is how long after its journal line the writer deletes
+// or compresses a file of this mode: the pause of a delete-recreate rotation,
+// and the delay of a gzip one. Both are zero when the run forces losses.
+func silentDisposalDelayMs(w writerOptions) int {
+	switch w.mode {
+	case deleteRecreateRotation:
+		return w.deletePauseMs()
+	case gzipRotation:
+		return w.gzipDelayMs()
+	}
+	return 0
+}
+
+// maxSilentBytes is the most a rotation can lose without a report: what a
+// stream writes in the silent-loss window. A writer that is not paced writes
+// nothing near the rotation.
+func maxSilentBytes(w writerOptions) int64 {
+	if !w.paced() {
+		return 0
+	}
+	return streamRateBytesPerSec(w) * silentLossWindowMs / 1000
+}
+
+// maxSilentRecords is maxSilentBytes in records, counted with the paced
+// payload, which is less than a record's line, so the bound is generous.
+func maxSilentRecords(w writerOptions) int {
+	return int(math.Ceil(float64(maxSilentBytes(w)) / pacedWriterPayloadBytes))
+}
+
+// silentLoss is what of a file's loss no report covers.
+type silentLoss struct {
+	// Records and Bytes are what the report leaves out: the file's last
+	// records, since the report covers the first of the lost ones (those the
+	// last listing showed), and what was written after it is the end.
+	Records int
+	Bytes   int64
+	// Uncovered is how many of the file's last records the report does not
+	// cover, the tolerance included: the oldest of them dates the loss, and
+	// the window is widened by the tolerance (silentWindow). At least Records.
+	Uncovered int
+	// OldestAge is how long before the file went away the oldest uncovered
+	// record was written, estimated at the stream's rate, for a journal that
+	// does not say when it wrote each record (the Java writer's). Zero when
+	// nothing is silent.
+	OldestAge time.Duration
+}
+
+// assessSilentLoss splits a file's loss into the part the Agent reported and
+// the part it could not know of. missing records, of which unreadBytes were
+// never collected, are the end of the file; the Agent reported reportedBytes
+// of them, the first ones. The tolerance of lossAccountingToleranceBytes (the
+// padding, a record whose start was read, a marker) counts as reported, so
+// a report that is that close to the loss leaves nothing silent.
+//
+// The oldest uncovered record dates the loss, and it is counted without the
+// tolerance, since the tolerance is not time the source had to list the file in
+// (silentWindow adds it to the window instead). Its time is the journal's
+// (ledgerEntry.writtenAt) when it has it. Else it is estimated from the end of
+// the file: the bytes written after it, at the stream's rate, plus the delay
+// between the journal line and the file going away.
+func assessSilentLoss(w writerOptions, missing int, unreadBytes, reportedBytes int64) silentLoss {
+	if missing <= 0 {
+		return silentLoss{}
+	}
+	uncoveredBytes := unreadBytes - reportedBytes
+	silentBytes := uncoveredBytes - lossAccountingToleranceBytes
+	if silentBytes <= 0 {
+		return silentLoss{}
+	}
+	line := max(1, unreadBytes/int64(missing))
+	loss := silentLoss{
+		Records:   int(min(int64(missing), (silentBytes+line-1)/line)),
+		Bytes:     silentBytes,
+		Uncovered: int(min(int64(missing), (uncoveredBytes+line-1)/line)),
+	}
+	age := time.Duration(silentDisposalDelayMs(w)) * time.Millisecond
+	if rate := streamRateBytesPerSec(w); rate > 0 {
+		// The bytes written after the oldest uncovered record: the other
+		// uncovered ones.
+		after := max(0, uncoveredBytes-line)
+		age += time.Duration(float64(after) / float64(rate) * float64(time.Second))
+	} else {
+		// The Java schedule fills the file right after its head pause and
+		// leaves it be until the period ends.
+		age += time.Duration(max(0, w.periodMs-w.headPauseMs())) * time.Millisecond
+	}
+	loss.OldestAge = age
+	return loss
+}
+
+// missedBytesReportPattern reads the warnings that report missed bytes, with
+// the kubelet's timestamp when the log was read with timestamps. Three
+// messages, from pkg/logs/tailers/smb/tailer.go and
+// pkg/logs/launchers/smb/scanner.go:
 //
 //	<reason>: <N> bytes of SMB file <identifier> (last read as <path>) were not read and are lost
+//	<reason>: <N> bytes of SMB file <identifier> were not read and are lost
+//	<reason>: <N> bytes of SMB file smb://<host>/<share> (<FileId ...>) were not read and are lost
+//
+// The first is RecordMissedBytes, of a file a tailer read. The second is
+// RecordMissedBytesOf with the identifier of the path the file was last read at
+// (a file whose stored position names a file that is no longer listed). The
+// third is RecordMissedBytesOf with the share and the file's FileId, for the
+// resume point of a drained file that is no longer listed.
 var missedBytesReportPattern = regexp.MustCompile(
 	`^(?:(\d{4}-\d{2}-\d{2}T\S+Z) )?(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC \| [A-Z-]+ \| WARN \| (?:\([^)]*\) \| )?` +
-		`(.+?): (\d+) bytes of SMB file (smb://\S+) \(last read as ([^)]*)\) were not read and are lost\s*$`)
+		`(.+?): (\d+) bytes of SMB file (smb://\S+)(?: \((FileId [^)]*)\))?(?: \(last read as ([^)]*)\))? were not read and are lost\s*$`)
 
-// missedBytesReport is one RecordMissedBytes warning of the Agent.
+// missedBytesReport is one warning of the Agent that reports missed bytes.
 type missedBytesReport struct {
-	At         time.Time `json:"at"`
-	Reason     string    `json:"reason"`
-	Bytes      int64     `json:"bytes"`
-	Identifier string    `json:"identifier"`
-	ReadPath   string    `json:"read_path"`
+	At     time.Time `json:"at"`
+	Reason string    `json:"reason"`
+	Bytes  int64     `json:"bytes"`
+	// Identifier is the file's registry identifier, smb://<host>/<share>/<path>,
+	// or smb://<host>/<share> when the warning names the file by FileId.
+	Identifier string `json:"identifier"`
+	// ReadPath is the path the file was last read at: the warning's, or the
+	// identifier's own path when it has none.
+	ReadPath string `json:"read_path"`
+	// FileID is "FileId <n> created <time>" for a warning that names the file
+	// by it, and then the report is of no path.
+	FileID string `json:"file_id,omitempty"`
+}
+
+// identifierPath returns the path of a registry identifier on its share,
+// empty for the share itself.
+func identifierPath(identifier string) string {
+	_, rest, _ := strings.Cut(strings.TrimPrefix(identifier, "smb://"), "/")
+	_, filePath, _ := strings.Cut(rest, "/")
+	return filePath
 }
 
 // parseMissedBytesReports reads every missed-bytes warning of an Agent log.
@@ -137,8 +351,12 @@ func parseMissedBytesReports(log string) []missedBytesReport {
 		if err != nil {
 			at, _ = time.Parse("2006-01-02 15:04:05", match[2])
 		}
+		readPath := match[7]
+		if match[7] == "" {
+			readPath = identifierPath(match[5])
+		}
 		reports = append(reports, missedBytesReport{
-			At: at.UTC(), Reason: match[3], Bytes: bytes, Identifier: match[5], ReadPath: match[6],
+			At: at.UTC(), Reason: match[3], Bytes: bytes, Identifier: match[5], ReadPath: readPath, FileID: match[6],
 		})
 	}
 	return reports
@@ -160,10 +378,11 @@ func smbIdentifier(c cell, stream string) string {
 
 // reportsOfCell keeps the reports about the cell's share.
 func reportsOfCell(c cell, reports []missedBytesReport) []missedBytesReport {
-	prefix := "smb://" + strings.ToLower(c.host()) + "/" + strings.ToLower(c.shareName) + "/"
+	share := "smb://" + strings.ToLower(c.host()) + "/" + strings.ToLower(c.shareName)
 	var kept []missedBytesReport
 	for _, report := range reports {
-		if strings.HasPrefix(report.Identifier, prefix) {
+		identifier := strings.ToLower(report.Identifier)
+		if identifier == share || strings.HasPrefix(identifier, share+"/") {
 			kept = append(kept, report)
 		}
 	}
@@ -201,6 +420,151 @@ func reportsForEntry(c cell, entry ledgerEntry, nextRotation time.Time, reports 
 		}
 	}
 	return matched
+}
+
+// cellReportsInSpan returns the cell's reports that name a file by its path
+// and were made while the ledger's files went away: from the first rotation
+// to one period after the last. A report that names a file by its FileId has
+// no stream to compare, and one made before the first rotation of the ledger
+// or a period after its last is of an earlier or later run of a kept stack.
+func cellReportsInSpan(c cell, ledger []ledgerEntry, reports []missedBytesReport) []missedBytesReport {
+	var first, last time.Time
+	for _, entry := range ledger {
+		if at, ok := entry.rotatedAt(); ok {
+			if first.IsZero() || at.Before(first) {
+				first = at
+			}
+			if at.After(last) {
+				last = at
+			}
+		}
+	}
+	if first.IsZero() {
+		return nil
+	}
+	from, to := first.Add(-time.Second), last.Add(time.Duration(c.writer.periodMs)*time.Millisecond)
+	var kept []missedBytesReport
+	for _, report := range reportsOfCell(c, reports) {
+		if report.FileID != "" || report.At.Before(from) || !report.At.Before(to) {
+			continue
+		}
+		kept = append(kept, report)
+	}
+	return kept
+}
+
+// foreignReports returns the cell's reports, made while the ledger's files
+// went away, that name a file no stream of the ledger has: the Agent said
+// the bytes were lost from another file. A loss the report was needed for
+// would otherwise pass as one that needed none, since a report under another
+// identifier attributes to no file.
+func foreignReports(c cell, ledger []ledgerEntry, reports []missedBytesReport) []missedBytesReport {
+	streams := make(map[string]bool)
+	for _, entry := range ledger {
+		streams[smbIdentifier(c, entry.Stream)] = true
+	}
+	var foreign []missedBytesReport
+	for _, report := range cellReportsInSpan(c, ledger, reports) {
+		if !streams[report.Identifier] {
+			foreign = append(foreign, report)
+		}
+	}
+	return foreign
+}
+
+// strayReports is the bytes the Agent reported under one file of the cell's
+// own streams that no file of the ledger lost: the report names the right
+// stream, but not a file that lost records.
+type strayReports struct {
+	Identifier string
+	ReadPath   string
+	Bytes      int64
+	Reports    int
+	// Why says what the reports fail to match.
+	Why string
+}
+
+// strayReportsOf groups, by the file they name, the cell's reports that name
+// one of its own streams and are no report of a file that lost records
+// (losses[].Reports): one that matches no file of the ledger (a read path or a
+// time that is none of its files'), or the file of an asserted entry that lost
+// no record, since a file whose records were all collected has nothing to
+// report beyond the tolerance (lossAccountingToleranceBytes: a marker the
+// source listed and did not read). Without it a report made under the wrong
+// file of the same stream, or in the wrong time slot of a delete-recreate
+// stream, attributes to no file and the loss it was needed for passes as one
+// that needed none (assertLossesExplained only reads the reports it matched).
+// A report that matches a ledger entry that is not asserted is left out: that
+// file's records are not checked, so its report cannot be judged.
+func strayReportsOf(c cell, ledger, asserted []ledgerEntry, losses []fileLoss, reports []missedBytesReport) []strayReports {
+	streams := make(map[string]bool)
+	for _, entry := range ledger {
+		streams[smbIdentifier(c, entry.Stream)] = true
+	}
+	isAsserted := make(map[fileKey]bool, len(asserted))
+	for _, entry := range asserted {
+		isAsserted[fileKey{runID: entry.RunID, period: entry.Period}] = true
+	}
+	var attributed []missedBytesReport
+	for _, loss := range losses {
+		attributed = append(attributed, loss.Reports...)
+	}
+	next := nextRotations(ledger)
+	type fileOfReport struct{ identifier, readPath string }
+	grouped := make(map[fileOfReport]*strayReports)
+	var order []fileOfReport
+	for _, report := range cellReportsInSpan(c, ledger, reports) {
+		if !streams[report.Identifier] || slices.Contains(attributed, report) {
+			continue
+		}
+		why, judged := "the Agent's report matches no file of the ledger (not by its read path, nor by the time of its rotation)", true
+		for _, entry := range ledger {
+			key := fileKey{runID: entry.RunID, period: entry.Period}
+			if len(reportsForEntry(c, entry, next[key], []missedBytesReport{report})) == 0 {
+				continue
+			}
+			judged = isAsserted[key]
+			why = fmt.Sprintf("%s of %s lost no record", entry.File, entry.RunID)
+			break
+		}
+		if !judged {
+			continue
+		}
+		key := fileOfReport{report.Identifier, report.ReadPath}
+		if grouped[key] == nil {
+			grouped[key] = &strayReports{Identifier: report.Identifier, ReadPath: report.ReadPath, Why: why}
+			order = append(order, key)
+		}
+		grouped[key].Bytes += report.Bytes
+		grouped[key].Reports++
+	}
+	var stray []strayReports
+	for _, key := range order {
+		stray = append(stray, *grouped[key])
+	}
+	return stray
+}
+
+// assertNoForeignReports fails the cell for each of its reports that names a
+// file of no stream of its ledger (foreignReports), and for each file of its
+// own streams that the Agent reported more than the tolerance for without the
+// file having lost a record (strayReportsOf). The tolerance keeps a marker the
+// source listed and did not read from failing a correct source, so a report of
+// that size made under the wrong file is not caught.
+func assertNoForeignReports(t assert.TestingT, c cell, ledger, asserted []ledgerEntry, losses []fileLoss, reports []missedBytesReport) {
+	for _, report := range foreignReports(c, ledger, reports) {
+		assert.Fail(t, "missed bytes reported for another file",
+			"%s: the Agent reported %d missed bytes at %s under %s (read as %q), which is not a file of this cell's streams; the report was attributed to the wrong file",
+			c.name, report.Bytes, report.At.Format(time.RFC3339), report.Identifier, report.ReadPath)
+	}
+	for _, stray := range strayReportsOf(c, ledger, asserted, losses, reports) {
+		if stray.Bytes <= lossAccountingToleranceBytes {
+			continue
+		}
+		assert.Fail(t, "missed bytes reported for a file that lost nothing",
+			"%s: the Agent reported %d missed bytes in %d report(s) under %s (read as %q), more than the %d bytes of tolerance, but %s; the report was attributed to the wrong file",
+			c.name, stray.Bytes, stray.Reports, stray.Identifier, stray.ReadPath, lossAccountingToleranceBytes, stray.Why)
+	}
 }
 
 // fileKey identifies one completed file of one stream.
@@ -262,12 +626,28 @@ type fileLoss struct {
 	// what the writer wrote minus the collected records' lines.
 	UnreadBytes   int64 `json:"unread_bytes"`
 	ReportedBytes int64 `json:"reported_bytes"`
-	// ShortfallBytes is how far the report falls short of UnreadBytes, which
-	// it may by up to AllowedShortfallBytes (maxReportShortfallBytes).
-	ShortfallBytes        int64               `json:"shortfall_bytes"`
-	AllowedShortfallBytes int64               `json:"allowed_shortfall_bytes"`
-	RotatedAt             time.Time           `json:"rotated_at"`
-	Reports               []missedBytesReport `json:"reports"`
+	// The silent loss: what of the loss the report does not cover (see
+	// assessSilentLoss), which can only be what was written since the source's
+	// last listing of the file. It is checked against the window before the
+	// file went away (silentLossWindowMs) and the bound of one window of the
+	// stream's rate (maxSilentRecords).
+	SilentRecords        int   `json:"silent_records"`
+	AllowedSilentRecords int   `json:"allowed_silent_records"`
+	SilentBytes          int64 `json:"silent_bytes"`
+	// DisposedAt is when the writer deleted or compressed the file, from the
+	// ledger's rotated_at, and SilentWindowStart the earliest write that
+	// can be lost without a report (silentWindow for a record dated by the
+	// rate, silentLossWindow for one the journal dates). OldestSilentAt is the
+	// write of the oldest record the report leaves uncovered (zero without a
+	// silent loss), taken from the journal's write times when it has them
+	// (OldestSilentDatedBy "journal"), else estimated at the stream's rate
+	// ("rate").
+	DisposedAt          time.Time           `json:"disposed_at"`
+	SilentWindowStart   time.Time           `json:"silent_window_start"`
+	OldestSilentAt      time.Time           `json:"oldest_silent_at"`
+	OldestSilentDatedBy string              `json:"oldest_silent_dated_by,omitempty"`
+	RotatedAt           time.Time           `json:"rotated_at"`
+	Reports             []missedBytesReport `json:"reports"`
 }
 
 // explainLosses groups the records never collected by the file that held
@@ -320,24 +700,70 @@ func explainLosses(c cell, ledger, asserted []ledgerEntry, check recordCheck, li
 			FirstSequence: entry.FirstSequence, LastSequence: entry.LastSequence,
 			MissingRecords: len(lost), MissingRanges: formatRecordRanges(lost),
 			AllowedRecords: maxLostRecords(c.writer), CollectedRecords: collected,
-			Suffix:                expectedAfterFirstLoss == len(lost),
-			UnreadBytes:           max(0, entry.Bytes-collectedBytes),
-			ReportedBytes:         sumReportedBytes(matched),
-			AllowedShortfallBytes: maxReportShortfallBytes(c.writer),
-			RotatedAt:             rotatedAt,
-			Reports:               matched,
+			Suffix:               expectedAfterFirstLoss == len(lost),
+			UnreadBytes:          max(0, entry.Bytes-collectedBytes),
+			ReportedBytes:        sumReportedBytes(matched),
+			AllowedSilentRecords: maxSilentRecords(c.writer),
+			RotatedAt:            rotatedAt,
+			Reports:              matched,
 		}
-		loss.ShortfallBytes = max(0, loss.UnreadBytes-loss.ReportedBytes)
+		silent := assessSilentLoss(c.writer, len(lost), loss.UnreadBytes, loss.ReportedBytes)
+		allowJournalledStalls(c.writer, entry, rotatedAt, &loss)
+		loss.SilentRecords, loss.SilentBytes = silent.Records, silent.Bytes
+		if !rotatedAt.IsZero() {
+			loss.DisposedAt = rotatedAt.Add(time.Duration(silentDisposalDelayMs(c.writer)) * time.Millisecond)
+			loss.SilentWindowStart = loss.DisposedAt.Add(-silentWindow(c.writer))
+			if silent.Records > 0 {
+				// The lost records are in sequence order, and the report
+				// covers the first of them.
+				oldest := lost[len(lost)-silent.Uncovered]
+				if at, ok := entry.writtenAt(oldest.sequence); ok {
+					loss.OldestSilentAt, loss.OldestSilentDatedBy = at, "journal"
+					// The journal says when the record was written, so the
+					// time the tolerance's bytes take at the stream's rate
+					// (a rate estimate) does not widen the window.
+					loss.SilentWindowStart = loss.DisposedAt.Add(-silentLossWindow())
+				} else {
+					loss.OldestSilentAt, loss.OldestSilentDatedBy = loss.DisposedAt.Add(-silent.OldestAge), "rate"
+				}
+			}
+		}
 		losses = append(losses, loss)
 	}
 	return losses
 }
 
+// allowJournalledStalls raises the record bounds of a file to the records the
+// journal says the writer wrote in the window before the file went away. A
+// stalled share makes the writer catch up in one write, so more bytes than
+// the stream's rate gives can land in the last seconds (see
+// MAX_CATCH_UP_MS in workload/logwriter.py): the rate-based bounds
+// (maxSilentRecords, maxLostRecords) would then fail a correct source for the
+// writer's burst. They stay the floor, so the bounds never get stricter. The
+// loss bound only applies to a file that the writer disposes of while the
+// source reads it up to then; a gzip file kept for its delay lost its
+// records before the compression.
+func allowJournalledStalls(w writerOptions, entry ledgerEntry, rotatedAt time.Time, loss *fileLoss) {
+	if !w.paced() || rotatedAt.IsZero() {
+		return
+	}
+	disposedAt := rotatedAt.Add(time.Duration(silentDisposalDelayMs(w)) * time.Millisecond)
+	written, ok := entry.recordsWrittenSince(disposedAt.Add(-silentWindow(w)))
+	if !ok {
+		return
+	}
+	loss.AllowedSilentRecords = max(loss.AllowedSilentRecords, written)
+	if w.mode == deleteRecreateRotation || (w.mode == gzipRotation && w.forceLoss) {
+		loss.AllowedRecords = max(loss.AllowedRecords, written)
+	}
+}
+
 // assertLossesExplained requires every lost record to be one the cell's
 // rotation can lose and the Agent accounted for: only the end of a file, no
 // more of it than was written in the last poll interval and scan, never all of
-// it, for gzip only while the drain was still reading, and with about as many
-// missed bytes reported for that file as it never delivered.
+// it, for gzip only while the drain was still reading, and every record the
+// Agent did not report missed written in the silent-loss window before the
+// file went away (assertSilentLossInWindow).
 func assertLossesExplained(t assert.TestingT, c cell, losses []fileLoss) {
 	for _, loss := range losses {
 		file := fmt.Sprintf("%s of %s (sequences %d-%d)", loss.File, loss.RunID, loss.FirstSequence, loss.LastSequence)
@@ -360,22 +786,57 @@ func assertLossesExplained(t assert.TestingT, c cell, losses []fileLoss) {
 		if problem := gzipLossProblem(c, loss); problem != "" {
 			assert.Fail(t, "drain ended before the compression", "%s: %s %s", c.name, file, problem)
 		}
-		switch {
-		case loss.ReportedBytes == 0:
-			assert.Fail(t, "silent loss",
-				"%s: %s lost its last %d records (%s), about %d bytes, and the Agent reported no missed bytes for it",
-				c.name, file, loss.MissingRecords, loss.MissingRanges, loss.UnreadBytes)
-		case loss.ShortfallBytes > loss.AllowedShortfallBytes:
-			assert.Fail(t, "partly silent loss",
-				"%s: %s lost its last %d records (%s); the Agent reported %d missed bytes for it, but about %d bytes of it were never collected, "+
-					"more than the %d that can be written after its last listing",
-				c.name, file, loss.MissingRecords, loss.MissingRanges, loss.ReportedBytes, loss.UnreadBytes, loss.AllowedShortfallBytes)
-		case loss.ReportedBytes > loss.UnreadBytes+lossAccountingToleranceBytes:
+		assertSilentLossInWindow(t, c, file, loss)
+		if loss.ReportedBytes > loss.UnreadBytes+lossAccountingToleranceBytes {
 			assert.Fail(t, "missed bytes do not match the file",
 				"%s: the Agent reported %d missed bytes for %s, more than the %d bytes of it that were never collected; the reports were attributed to the wrong file",
 				c.name, loss.ReportedBytes, file, loss.UnreadBytes)
 		}
 	}
+}
+
+// assertSilentLossInWindow requires what the Agent did not report of a file's
+// loss to be what listing-driven polling cannot see: the records written in
+// the silent-loss window before the file was deleted or compressed, and no
+// more of them than the writer writes in it. A record lost earlier was in a
+// listing the source acted on, so the Agent had to report it.
+func assertSilentLossInWindow(t assert.TestingT, c cell, file string, loss fileLoss) {
+	if loss.SilentRecords == 0 {
+		return
+	}
+	if loss.SilentRecords > loss.AllowedSilentRecords {
+		assert.Fail(t, "silent loss beyond the bound",
+			"%s: %s lost about %d records (%d bytes) that the Agent did not report missed, more than the %d a %s rotation can lose without a report: %s",
+			c.name, file, loss.SilentRecords, loss.SilentBytes, loss.AllowedSilentRecords, c.writer.mode, silentBasis(c.writer))
+	}
+	switch {
+	case loss.DisposedAt.IsZero():
+		assert.Fail(t, "silent loss that cannot be dated",
+			"%s: %s lost about %d records without a report, and the ledger has no rotation time to date them against the window", c.name, file, loss.SilentRecords)
+	case loss.OldestSilentAt.Before(loss.SilentWindowStart):
+		assert.Fail(t, "silent loss outside the window",
+			"%s: %s lost about %d records (%d bytes) without a report, the oldest written about %s before the file went away (%s; dated from the %s), outside the %s that a poll interval, its margin and, for a record dated by the rate, the tolerance allow: "+
+				"the source listed the file after that, so it knew of those bytes and had to report them (if the Agent's scans were slow, for example a throttled share, the window is too tight for this run: look for slow scans in the Agent's log before blaming the product)",
+			c.name, file, loss.SilentRecords, loss.SilentBytes, loss.DisposedAt.Sub(loss.OldestSilentAt).Round(10*time.Millisecond),
+			loss.DisposedAt.Format(time.RFC3339Nano), datedByName(loss.OldestSilentDatedBy), loss.DisposedAt.Sub(loss.SilentWindowStart))
+	}
+}
+
+// datedByName says where a silent loss's time comes from.
+func datedByName(datedBy string) string {
+	if datedBy == "journal" {
+		return "writer's journalled write times"
+	}
+	return "stream's rate"
+}
+
+// silentBasis says what a writer's silent-loss bound comes from.
+func silentBasis(w writerOptions) string {
+	if !w.paced() {
+		return "the Java schedule fills each file right after its head pause, so nothing is written near the rotation"
+	}
+	return fmt.Sprintf("%d B/s per stream for %s (a %ds poll interval and %dms of margin), in records of at least %d bytes",
+		streamRateBytesPerSec(w), silentLossWindow(), smbPollIntervalSeconds, silentLossMarginMs, pacedWriterPayloadBytes)
 }
 
 // lossBasis says what a writer's loss bound comes from.
@@ -397,7 +858,7 @@ func gzipLossProblem(c cell, loss fileLoss) string {
 	}
 	compressedAt := loss.RotatedAt.Add(time.Duration(c.writer.gzipDelayMs()) * time.Millisecond)
 	for _, report := range loss.Reports {
-		if strings.HasPrefix(report.Reason, drainTimeoutReason) || !report.At.Before(compressedAt.Add(-lossClockSkew)) {
+		if isDrainDeadlineReason(report.Reason) || !report.At.Before(compressedAt.Add(-lossClockSkew)) {
 			continue
 		}
 		return fmt.Sprintf("was reported lost (%q) %s after its rotation, before the writer compressed it away %s after the rotation: the drain ended with the rotated file still there to read",
@@ -426,7 +887,9 @@ func (suite *azureFilesSuite) assertLossesReported(t assert.TestingT, c cell, le
 	for _, podReports := range byPod {
 		reports = append(reports, podReports...)
 	}
-	assertLossesExplained(t, c, explainLosses(c, ledger, asserted, check, lineBytes, reports))
+	losses := explainLosses(c, ledger, asserted, check, lineBytes, reports)
+	assertLossesExplained(t, c, losses)
+	assertNoForeignReports(t, c, ledger, asserted, losses, reports)
 }
 
 // missedBytesReports reads the missed-bytes warnings of every Agent pod's core
@@ -459,6 +922,16 @@ func checkMissedBytesTotal(before, after []missedBytesReport, agentTotal int64) 
 	return nil
 }
 
+// silentRecordsOf is how many records the Agent did not report missed, of
+// all the files that lost records.
+func silentRecordsOf(losses []fileLoss) int {
+	total := 0
+	for _, loss := range losses {
+		total += loss.SilentRecords
+	}
+	return total
+}
+
 // checkMissedBytesTotals records a loss-accounted cell's losses and reports in
 // the evidence, and, when every cell of the run is an SMB cell, checks that
 // the Agent logged a warning for every missed byte it counted. File cells
@@ -473,9 +946,17 @@ func (suite *azureFilesSuite) checkMissedBytesTotals(c cell, ledger, asserted []
 	}
 	losses := explainLosses(c, ledger, asserted, check, lineBytes, all)
 	cellReports := reportsOfCell(c, all)
-	suite.T().Logf("%s: %d of %d asserted files lost records, %d records in all; the Agent made %d missed-bytes reports for the cell, %d bytes in all",
-		c.name, len(losses), len(asserted), len(check.missing), len(cellReports), sumReportedBytes(cellReports))
+	suite.T().Logf("%s: %d of %d asserted files lost records, %d records in all, %d of them without a report (within %s of the file going away); the Agent made %d missed-bytes reports for the cell, %d bytes in all",
+		c.name, len(losses), len(asserted), len(check.missing), silentRecordsOf(losses), silentWindow(c.writer), len(cellReports), sumReportedBytes(cellReports))
 	exercised := len(losses) > 0
+	reportedBytes := int64(0)
+	for _, loss := range losses {
+		reportedBytes += loss.ReportedBytes
+	}
+	if exercised && reportedBytes == 0 {
+		suite.T().Logf("%s: the Agent reported none of the %d lost records: they are all inside the %s window before their files went away, which no listing could have shown it, so this run did not exercise its reporting of unread bytes (see README.md, The silent-loss bound)",
+			c.name, len(check.missing), silentWindow(c.writer))
+	}
 	if !exercised {
 		hint := fmt.Sprintf("set %s=%s with a paced writer to make the rotations lose data (see README.md)", runForceLoss, runForceLossValue)
 		if c.writer.forceLoss {
@@ -485,8 +966,12 @@ func (suite *azureFilesSuite) checkMissedBytesTotals(c cell, ledger, asserted []
 	}
 	if evidence, err := suite.evidenceDir(); err == nil {
 		evidence.writeJSON(c.name+"-losses.json", map[string]any{
-			"loss_exercised": exercised, "force_loss": c.writer.forceLoss,
+			"loss_exercised": exercised, "reported_loss_exercised": reportedBytes > 0, "force_loss": c.writer.forceLoss,
 			"allowed_records_per_file": maxLostRecords(c.writer), "losses": losses, "reports": cellReports,
+			// What may be lost without a report: the records written in
+			// this window before a file goes away, and at most as many.
+			"silent_loss_window_ms": silentWindow(c.writer).Milliseconds(), "allowed_silent_records_per_file": maxSilentRecords(c.writer),
+			"silent_records": silentRecordsOf(losses),
 		})
 	}
 
@@ -606,10 +1091,13 @@ const (
 	smbEOFReadOpens   = 2
 	smbForceReadEvery = 10
 	// smbDrainOpens is a drain's opens per rotation: the read of what is
-	// left, then two idle polls at the end of the file.
-	smbDrainOpens = 1 + drainIdlePollOpens
-	// drainIdlePollOpens are the opens of the idle polls that end a drain.
-	drainIdlePollOpens = smbDrainIdlePolls * smbEOFReadOpens
+	// left, then the first and the last read at the end of the file. The
+	// polls between them only list the share, and a drain that lasts
+	// close_timeout (5s) is shorter than smbForceReadEvery polls.
+	smbDrainOpens = 1 + drainEdgeReadOpens
+	// drainEdgeReadOpens are the opens of the reads at the end of the file
+	// that start and end a drain.
+	drainEdgeReadOpens = 2 * smbEOFReadOpens
 )
 
 // smbOpensEstimate is how many SMB opens per second a cell's source makes,
@@ -821,4 +1309,349 @@ func (suite *azureFilesSuite) recordLoad(c cell, asserted []ledgerEntry, expecte
 	if evidence, err := suite.evidenceDir(); err == nil {
 		evidence.writeJSON(c.name+"-load.json", report)
 	}
+}
+
+// Silent-loss bound: unit tests. They run without Azure, next to the
+// functions they check (see README.md, "Checks that do not create cloud
+// resources").
+
+func TestSilentLossWindowIsAPollIntervalAndItsMargin(t *testing.T) {
+	// One poll interval, the scan's second, and two writer ticks.
+	assert.Equal(t, smbPollIntervalSeconds*1000+lossScanMarginSeconds*1000+2*writerTickMs, silentLossWindowMs)
+	assert.Equal(t, 2500, silentLossWindowMs)
+	assert.Equal(t, 2500*time.Millisecond, silentLossWindow())
+	// The 4 KiB tolerance counts as reported, so a stream's window is as much
+	// longer as its bytes take to write: little at a high rate, 2s at 2 kB/s.
+	for rate, extra := range map[int]time.Duration{
+		200000: 20480 * time.Microsecond,
+		20000:  204800 * time.Microsecond,
+		2000:   2048 * time.Millisecond,
+	} {
+		w := writerOptions{mode: deleteRecreateRotation, periodMs: 10000, rateBytesPerSec: rate}
+		assert.Equal(t, silentLossWindow()+extra, silentWindow(w), "%d B/s", rate)
+	}
+	assert.Equal(t, silentLossWindow(), silentWindow(defaultWriterOptions()), "the Java schedule has no rate")
+	// The window is wider than what a drain's loss covers (lossWindowBytes)
+	// by the writer's ticks only, never by a whole poll.
+	paced := writerOptions{mode: deleteRecreateRotation, periodMs: 10000, rateBytesPerSec: 200000}
+	assert.Greater(t, maxSilentBytes(paced), lossWindowBytes(paced))
+	assert.Less(t, maxSilentBytes(paced), lossWindowBytes(paced)+streamRateBytesPerSec(paced)*smbPollIntervalSeconds)
+}
+
+func TestSilentLossBoundFollowsTheWriterRate(t *testing.T) {
+	assert.Zero(t, maxSilentBytes(defaultWriterOptions()))
+	assert.Zero(t, maxSilentRecords(defaultWriterOptions()))
+
+	// The pod's rate is shared by its streams.
+	one := writerOptions{mode: gzipRotation, periodMs: 10000, rateBytesPerSec: 200000}
+	two := one
+	two.streams = 2
+	assert.Equal(t, int64(200000), streamRateBytesPerSec(one))
+	assert.Equal(t, int64(100000), streamRateBytesPerSec(two))
+	assert.Equal(t, int64(500000), maxSilentBytes(one))
+	assert.Equal(t, int64(250000), maxSilentBytes(two))
+	assert.Equal(t, 489, maxSilentRecords(one))
+	assert.Equal(t, 245, maxSilentRecords(two))
+
+	// The bound grows with the window, not with the period.
+	slow := one
+	slow.periodMs = 600000
+	assert.Equal(t, maxSilentBytes(one), maxSilentBytes(slow))
+}
+
+func TestSilentLossFollowsTheDisposalOfEachMode(t *testing.T) {
+	for _, tc := range []struct {
+		mode   rotationMode
+		forced bool
+		delay  int
+	}{
+		{deleteRecreateRotation, false, deleteRecreatePauseMs},
+		{deleteRecreateRotation, true, 0},
+		{gzipRotation, false, gzipDelayMs},
+		{gzipRotation, true, 0},
+		{renameRotation, false, 0},
+		{copyTruncateRotation, false, 0},
+	} {
+		w := writerOptions{mode: tc.mode, periodMs: 10000, rateBytesPerSec: 20000, forceLoss: tc.forced}
+		assert.Equal(t, tc.delay, silentDisposalDelayMs(w), "%s forced=%t", tc.mode, tc.forced)
+	}
+}
+
+func TestAssessSilentLoss(t *testing.T) {
+	forced := writerOptions{mode: deleteRecreateRotation, periodMs: 10000, rateBytesPerSec: 20000, forceLoss: true}
+	const line = 1000
+
+	// Nothing lost, or a loss the Agent reported in full or to within the
+	// tolerance, leaves nothing silent.
+	assert.Equal(t, silentLoss{}, assessSilentLoss(forced, 0, 0, 0))
+	assert.Equal(t, silentLoss{}, assessSilentLoss(forced, 30, 30*line, 30*line))
+	assert.Equal(t, silentLoss{}, assessSilentLoss(forced, 30, 30*line, 30*line-lossAccountingToleranceBytes))
+	assert.Equal(t, silentLoss{}, assessSilentLoss(forced, 4, 4*line, 0), "four records are under the tolerance")
+
+	// Nothing reported: all of it, less the tolerance, is silent. The oldest
+	// record the report leaves uncovered is dated without the tolerance, which
+	// silentWindow adds to the window instead: it has the other 29 after it,
+	// at 20000 B/s.
+	got := assessSilentLoss(forced, 30, 30*line, 0)
+	assert.Equal(t, int64(30*line-lossAccountingToleranceBytes), got.Bytes)
+	assert.Equal(t, 26, got.Records)
+	assert.Equal(t, 30, got.Uncovered)
+	assert.Equal(t, time.Duration(float64(29*line)/20000*float64(time.Second)), got.OldestAge)
+
+	// A report covers the first of the lost records, so only the end is silent.
+	got = assessSilentLoss(forced, 60, 60*line, 40*line)
+	assert.Equal(t, int64(60*line-40*line-lossAccountingToleranceBytes), got.Bytes)
+	assert.Equal(t, 16, got.Records)
+	assert.Equal(t, 20, got.Uncovered)
+	assert.Equal(t, time.Duration(float64(19*line)/20000*float64(time.Second)), got.OldestAge)
+
+	// Silent records never outnumber the lost ones.
+	assert.Equal(t, 5, assessSilentLoss(forced, 5, 5*line+10*lossAccountingToleranceBytes, 0).Records)
+
+	// The writer's pause before it deletes or compresses the file ages every
+	// silent record: the oldest of a gzip file is 5s older than the bytes
+	// after it say.
+	gzip := writerOptions{mode: gzipRotation, periodMs: 10000, rateBytesPerSec: 20000}
+	paused := assessSilentLoss(gzip, 30, 30*line, 0)
+	unpaused := assessSilentLoss(writerOptions{mode: gzipRotation, periodMs: 10000, rateBytesPerSec: 20000, forceLoss: true}, 30, 30*line, 0)
+	assert.Equal(t, gzipDelayMs*time.Millisecond, paused.OldestAge-unpaused.OldestAge)
+
+	// A writer that is not paced writes nothing near the rotation: it filled
+	// the file right after its 5s head pause, 55s before the end of a 60s
+	// period, and then the pause before the delete.
+	java := assessSilentLoss(writerOptions{mode: deleteRecreateRotation, periodMs: 60000}, 30, 30*line, 0)
+	assert.Equal(t, (55*time.Second)+deleteRecreatePauseMs*time.Millisecond, java.OldestAge)
+}
+
+// silentFixture is one file of a hundred 1000-byte records, which a writer of
+// 20000 B/s wrote in five seconds and rotated at 12:00:00.
+func silentFixture(w writerOptions) (cell, []ledgerEntry, map[recordKey]struct{}) {
+	c := cell{name: "smb-" + string(w.mode), reader: smbReader, accountName: "acct", shareName: "share", writer: w}
+	ledger := []ledgerEntry{
+		{RunID: "r", Period: "p1", File: "app.log.1", FirstSequence: 1, LastSequence: 100, Bytes: 100000, RotatedAt: "2026-10-06T12:00:00.000Z"},
+		{RunID: "r", Period: "p2", File: "app.log.2", FirstSequence: 101, LastSequence: 102, Bytes: 2000, RotatedAt: "2026-10-06T12:01:00.000Z"},
+	}
+	if w.mode == deleteRecreateRotation {
+		ledger[0].File, ledger[1].File = activeLogName, activeLogName
+	}
+	return c, ledger, expectedRecords(ledger[:1])
+}
+
+// lostOf collects the first collected records of silentFixture's file, so that
+// the file loses its last 100-collected records, each 1000 bytes.
+func lostOf(collected int) (map[recordKey]int, map[recordKey]int64) {
+	counts, sizes := map[recordKey]int{}, map[recordKey]int64{}
+	for sequence := int64(1); sequence <= int64(collected); sequence++ {
+		counts[recordKey{"r", sequence}]++
+		sizes[recordKey{"r", sequence}] = 1000
+	}
+	return counts, sizes
+}
+
+func TestSilentLossMustBeInTheWindow(t *testing.T) {
+	// A delete-recreate rotation that deletes the file at once (forced), with
+	// a stream of 20000 B/s: the window holds 50000 bytes, 2.5s.
+	w := writerOptions{mode: deleteRecreateRotation, periodMs: 10000, rateBytesPerSec: 20000, forceLoss: true}
+	c, ledger, expected := silentFixture(w)
+	report := func(bytes int64) []missedBytesReport {
+		return []missedBytesReport{{At: time.Date(2026, 10, 6, 12, 0, 1, 0, time.UTC), Reason: "Rotated SMB file is no longer listed",
+			Bytes: bytes, Identifier: smbIdentifier(c, ""), ReadPath: activeLogName}}
+	}
+	judge := func(c cell, ledger []ledgerEntry, expected map[recordKey]struct{}, collected int, reports []missedBytesReport) ([]fileLoss, *recordingT) {
+		counts, sizes := lostOf(collected)
+		losses := explainLosses(c, ledger, ledger[:1], checkRecords(expected, nil, counts), sizes, reports)
+		failed := new(recordingT)
+		assertLossesExplained(failed, c, losses)
+		return losses, failed
+	}
+
+	// The last 40 records, 2s of the writer, with no report at all: written
+	// after the source's last listing, as the design allows.
+	losses, failed := judge(c, ledger, expected, 60, nil)
+	require.Len(t, losses, 1)
+	assert.Equal(t, 40, losses[0].MissingRecords)
+	assert.Equal(t, int64(40000), losses[0].UnreadBytes)
+	assert.Equal(t, 36, losses[0].SilentRecords)
+	assert.Equal(t, 49, losses[0].AllowedSilentRecords)
+	assert.Equal(t, time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC), losses[0].DisposedAt)
+	// 2.5s, and the 4 KiB tolerance at 20000 B/s: 0.2048s.
+	assert.Equal(t, time.Date(2026, 10, 6, 11, 59, 57, 295200000, time.UTC), losses[0].SilentWindowStart)
+	assert.Equal(t, "rate", losses[0].OldestSilentDatedBy)
+	assert.False(t, losses[0].OldestSilentAt.Before(losses[0].SilentWindowStart))
+	assert.Empty(t, failed.failures)
+
+	// The last 50, 2.5s: the oldest one the report leaves uncovered is still
+	// inside the window, once the record that dates it is not counted among
+	// the bytes after it.
+	_, failed = judge(c, ledger, expected, 50, nil)
+	assert.Empty(t, failed.failures)
+
+	// The last 70, 3.5s, with no report: more than the bound, and written
+	// earlier than the window. The source listed them, so it had to say so.
+	losses, failed = judge(c, ledger, expected, 30, nil)
+	require.Len(t, losses, 1)
+	assert.Equal(t, 66, losses[0].SilentRecords)
+	require.Len(t, failed.failures, 2)
+	assert.Contains(t, failed.failures[0], "silent loss beyond the bound")
+	assert.Contains(t, failed.failures[0], "more than the 49")
+	assert.Contains(t, failed.failures[1], "silent loss outside the window")
+	assert.Contains(t, failed.failures[1], "the oldest written about 3.45s before the file went away")
+
+	// The same loss, reported up to the last 2s that no listing showed: the
+	// reported records are old, but reported, and the rest is in the window.
+	losses, failed = judge(c, ledger, expected, 30, report(30000))
+	assert.Empty(t, failed.failures)
+	assert.Equal(t, int64(30000), losses[0].ReportedBytes)
+	assert.Equal(t, 36, losses[0].SilentRecords)
+	// Reported short of that, the unreported rest reaches back out of the
+	// window and past the bound.
+	losses, failed = judge(c, ledger, expected, 30, report(10000))
+	assert.Equal(t, 56, losses[0].SilentRecords)
+	require.Len(t, failed.failures, 2)
+	assert.Contains(t, failed.failures[0], "silent loss beyond the bound")
+	assert.Contains(t, failed.failures[1], "silent loss outside the window")
+
+	// A writer that pauses 1s before it deletes the file leaves the source
+	// that long to list the records it wrote: the same 40 lost records, with
+	// no report, were written 2.95s before the file went away.
+	paused := w
+	paused.forceLoss = false
+	pc, pledger, pexpected := silentFixture(paused)
+	losses, failed = judge(pc, pledger, pexpected, 60, nil)
+	require.Len(t, failed.failures, 1)
+	assert.Contains(t, failed.failures[0], "silent loss outside the window")
+	assert.Equal(t, time.Date(2026, 10, 6, 12, 0, 1, 0, time.UTC), losses[0].DisposedAt)
+	// Fewer of them are inside the window again.
+	_, failed = judge(pc, pledger, pexpected, 70, nil)
+	assert.Empty(t, failed.failures)
+
+	// A ledger with no rotation time cannot date a silent loss.
+	undated := slices.Clone(ledger)
+	undated[0].RotatedAt = ""
+	losses, failed = judge(c, undated, expected, 60, nil)
+	assert.True(t, losses[0].DisposedAt.IsZero())
+	require.Len(t, failed.failures, 1)
+	assert.Contains(t, failed.failures[0], "silent loss that cannot be dated")
+
+	// The Java schedule writes each file right after its head pause: nothing
+	// is near the rotation, so a loss without a report fails three times.
+	java := writerOptions{mode: deleteRecreateRotation, periodMs: 60000}
+	jc, jledger, jexpected := silentFixture(java)
+	_, failed = judge(jc, jledger, jexpected, 20, nil)
+	require.Len(t, failed.failures, 3)
+	assert.Contains(t, failed.failures[0], "more than the 0 a delete-recreate rotation can take")
+	assert.Contains(t, failed.failures[1], "silent loss beyond the bound")
+	assert.Contains(t, failed.failures[2], "silent loss outside the window")
+}
+
+// journalledWrites dates the records of silentFixture's file from the journal:
+// the pairs [first sequence, epoch ms of the write].
+func journalledWrites(pairs ...[2]int64) []ledgerEntry {
+	_, ledger, _ := silentFixture(writerOptions{mode: deleteRecreateRotation, periodMs: 10000, rateBytesPerSec: 20000, forceLoss: true})
+	ledger[0].WriteTimes = pairs
+	return ledger
+}
+
+func TestLedgerEntryDatesRecordsByTheJournalsWriteTimes(t *testing.T) {
+	entry := ledgerEntry{FirstSequence: 1, LastSequence: 100, WriteTimes: [][2]int64{{1, 1000}, {41, 2000}, {91, 3500}}}
+	at := func(sequence int64) (int64, bool) {
+		written, ok := entry.writtenAt(sequence)
+		return written.UnixMilli(), ok
+	}
+	// A record was written with the write that began at or before it.
+	for sequence, want := range map[int64]int64{1: 1000, 40: 1000, 41: 2000, 90: 2000, 91: 3500, 100: 3500} {
+		got, ok := at(sequence)
+		assert.True(t, ok, "sequence %d", sequence)
+		assert.Equal(t, want, got, "sequence %d", sequence)
+	}
+	// Before the first pair, which the journal keeps only the last of, or
+	// without any: nothing says when.
+	trimmed := ledgerEntry{FirstSequence: 1, LastSequence: 100, WriteTimes: [][2]int64{{41, 2000}}}
+	_, ok := trimmed.writtenAt(40)
+	assert.False(t, ok)
+	_, ok = (ledgerEntry{FirstSequence: 1, LastSequence: 100}).writtenAt(5)
+	assert.False(t, ok)
+
+	// The records of the writes at or after a time.
+	written, ok := entry.recordsWrittenSince(time.UnixMilli(2000))
+	assert.True(t, ok)
+	assert.Equal(t, 60, written)
+	written, _ = entry.recordsWrittenSince(time.UnixMilli(2001))
+	assert.Equal(t, 10, written)
+	written, _ = entry.recordsWrittenSince(time.UnixMilli(3501))
+	assert.Zero(t, written)
+	_, ok = (ledgerEntry{LastSequence: 100}).recordsWrittenSince(time.UnixMilli(0))
+	assert.False(t, ok)
+}
+
+// A writer that stalled on the share catches up in one write, so the bytes
+// written in the last second of real time can be several seconds of the
+// stream's rate. Dated by the rate, a correct source that lost the burst
+// looked as if it had lost records written seconds before the file went away.
+func TestASilentLossAfterAWriterStallIsDatedByItsWrite(t *testing.T) {
+	// 20000 B/s, 1000-byte records, the file rotated and deleted at 12:00:00:
+	// records 1-40 were written at 11:59:50, and the writer stalled for
+	// more than 3s, then caught up with records 41-100, three seconds of the
+	// rate, in one write that returned at 11:59:59.6. The source's last read
+	// came just before that write, and lost all 60 records.
+	rotatedAt := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	w := writerOptions{mode: deleteRecreateRotation, periodMs: 10000, rateBytesPerSec: 20000, forceLoss: true}
+	c, _, expected := silentFixture(w)
+	counts, sizes := lostOf(40)
+	check := checkRecords(expected, nil, counts)
+	judge := func(ledger []ledgerEntry) ([]fileLoss, *recordingT) {
+		losses := explainLosses(c, ledger, ledger[:1], check, sizes, nil)
+		failed := new(recordingT)
+		assertLossesExplained(failed, c, losses)
+		return losses, failed
+	}
+
+	// By the rate, the oldest record is 2.95s before the end: outside the
+	// 2.7s window, and the 60 records are more than the 49 of its bound.
+	_, ledger, _ := silentFixture(w)
+	losses, failed := judge(ledger)
+	require.Len(t, losses, 1)
+	assert.Equal(t, "rate", losses[0].OldestSilentDatedBy)
+	require.NotEmpty(t, failed.failures)
+
+	// By the journal, the oldest was written 0.4s before the end, and no more
+	// records were lost than the writer wrote in the window.
+	ledger = journalledWrites([2]int64{1, rotatedAt.Add(-10 * time.Second).UnixMilli()}, [2]int64{41, rotatedAt.Add(-400 * time.Millisecond).UnixMilli()})
+	losses, failed = judge(ledger)
+	require.Len(t, losses, 1)
+	assert.Equal(t, "journal", losses[0].OldestSilentDatedBy)
+	assert.Equal(t, rotatedAt.Add(-400*time.Millisecond), losses[0].OldestSilentAt)
+	assert.Equal(t, 60, losses[0].MissingRecords)
+	assert.Equal(t, 60, losses[0].AllowedSilentRecords)
+	assert.Equal(t, 104, losses[0].AllowedRecords, "the rate-based bound is the floor")
+	assert.Empty(t, failed.failures)
+
+	// A burst written before the window is still a silent loss outside it.
+	old := journalledWrites([2]int64{1, rotatedAt.Add(-10 * time.Second).UnixMilli()}, [2]int64{41, rotatedAt.Add(-3 * time.Second).UnixMilli()})
+	losses, failed = judge(old)
+	require.Len(t, losses, 1)
+	require.NotEmpty(t, failed.failures)
+	assert.Contains(t, failed.failures[len(failed.failures)-1], "silent loss outside the window")
+	assert.Contains(t, failed.failures[len(failed.failures)-1], "dated from the writer's journalled write times")
+
+	// The journal dates the record, so the window is the plain 2.5s: the
+	// tolerance's 4 KiB, 0.2s at 20000 B/s, only widen the window of a record
+	// dated by the rate (the other tests).
+	edge := journalledWrites([2]int64{1, rotatedAt.Add(-10 * time.Second).UnixMilli()}, [2]int64{41, rotatedAt.Add(-2500 * time.Millisecond).UnixMilli()})
+	_, failed = judge(edge)
+	assert.Empty(t, failed.failures)
+	edge = journalledWrites([2]int64{1, rotatedAt.Add(-10 * time.Second).UnixMilli()}, [2]int64{41, rotatedAt.Add(-2510 * time.Millisecond).UnixMilli()})
+	losses, failed = judge(edge)
+	require.NotEmpty(t, failed.failures)
+	assert.Contains(t, failed.failures[len(failed.failures)-1], "silent loss outside the window")
+	assert.Equal(t, silentLossWindow(), losses[0].DisposedAt.Sub(losses[0].SilentWindowStart))
+}
+
+func TestDrainDeadlineReasons(t *testing.T) {
+	assert.True(t, isDrainDeadlineReason("SMB rotation drain reached its longest duration, 50s (10 times logs_config.close_timeout)"))
+	assert.True(t, isDrainDeadlineReason("SMB rotation drain timed out after 5s (logs_config.close_timeout)"))
+	// A drain that ended because its file stopped growing, or because the
+	// file was gone, did not run out of time.
+	assert.False(t, isDrainDeadlineReason("SMB rotation drain ended after 5s without new data (logs_config.close_timeout)"))
+	assert.False(t, isDrainDeadlineReason("Rotated SMB file is no longer listed"))
 }
