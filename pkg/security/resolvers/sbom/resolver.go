@@ -284,6 +284,8 @@ type Resolver struct {
 	hostScanLock sync.Mutex
 	// walkProcesses calls its argument on every process the probe knows of.
 	walkProcesses func(func(*model.ProcessCacheEntry))
+	// scanWorkload reads the packages installed in the root of a workload.
+	scanWorkload func(*SBOM) ([]sbomtypes.PackageWithInstalledFiles, error)
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -349,6 +351,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		return nil, fmt.Errorf("couldn't create new SBOM resolver: %w", err)
 	}
 	resolver.sboms = sboms
+	resolver.scanWorkload = resolver.doScan
 
 	if !c.SBOMResolverEnabled {
 		return resolver, nil
@@ -910,7 +913,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	// Only count a cache miss when we actually do the scan
 	r.sbomsCacheMiss.Inc()
 
-	report, scanErr := r.doScan(sb)
+	report, scanErr := r.scanWorkload(sb)
 	if scanErr != nil {
 		return scanErr
 	}
