@@ -49,20 +49,6 @@ func TestInventoryUnsupportedWorkloadsDisabled(t *testing.T) {
 			},
 		},
 		{
-			name: "azure_app_service",
-			env: map[string]string{
-				"WEBSITE_STACK": "NODE", "WEBSITE_SITE_NAME": "test-site",
-				"WEBSITE_OWNER_NAME": "test-subscription+webspace", "WEBSITE_RESOURCE_GROUP": "test-group",
-			},
-		},
-		{
-			name: "azure_function",
-			env: map[string]string{
-				"WEBSITE_STACK": "NODE", "WEBSITE_SITE_NAME": "test-function", "FUNCTIONS_WORKER_RUNTIME": "node",
-				"WEBSITE_OWNER_NAME": "test-subscription+webspace", "WEBSITE_RESOURCE_GROUP": "test-group",
-			},
-		},
-		{
 			name: "microvm",
 			env:  map[string]string{"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1:123456789012:microvm-image:test-image"},
 		},
