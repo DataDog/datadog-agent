@@ -55,6 +55,11 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			http.StatusOK,
 		},
 		{
+			"/api/v1/cluster/eks-identity",
+			"abc123",
+			http.StatusOK,
+		},
+		{
 			"/version",
 			"bandit!",
 			http.StatusForbidden,
