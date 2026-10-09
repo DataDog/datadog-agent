@@ -469,3 +469,66 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	acc.detectHashCollision(aggHash3, *flowA1, *flowB1)
 	assert.Equal(t, uint64(1), acc.hashCollisionFlowCount.Load())
 }
+
+func Test_flowAccumulator_rdnsEnrichment_survivesReAddAfterFlush(t *testing.T) {
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+	timeNow = MockTimeNow
+	flushInterval := 60 * time.Second
+	flowContextTTL := 60 * time.Second
+
+	// The rdnsquerier mock invokes the sync callback (simulating a cache hit) when (lastOctet/10)%2 == 0,
+	// so .20 and .40 both resolve synchronously while add() holds the lock, without any goroutine.
+	const expectedSrcHostname = "hostname-10.0.0.20"
+	const expectedDstHostname = "hostname-10.0.0.40"
+
+	// A new flow object is needed for each add, otherwise the second add would reuse the hostnames
+	// set on the first flow object.
+	newFlow := func() *common.Flow {
+		return &common.Flow{
+			FlowType:       common.TypeNetFlow9,
+			ExporterAddr:   []byte{127, 0, 0, 1},
+			StartTimestamp: 1234568,
+			EndTimestamp:   1234569,
+			Bytes:          20,
+			Packets:        4,
+			SrcAddr:        []byte{10, 0, 0, 20},
+			DstAddr:        []byte{10, 0, 0, 40},
+			IPProtocol:     uint32(6),
+			SrcPort:        2000,
+			DstPort:        80,
+		}
+	}
+
+	flushConfig := common.FlushConfig{
+		FlowCollectionDuration: flushInterval,
+	}
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+
+	// first add creates the flow context for this aggregation hash
+	flow1 := newFlow()
+	acc.add(flow1)
+	flushTime1 := MockTimeNow()
+	flushed := acc.flush(common.FlushContext{
+		FlushTime:     flushTime1,
+		LastFlushedAt: flushTime1,
+	})
+	require.Len(t, flushed, 1)
+	assert.Same(t, flow1, flushed[0])
+	assert.Equal(t, expectedSrcHostname, flushed[0].SrcReverseDNSHostname)
+	assert.Equal(t, expectedDstHostname, flushed[0].DstReverseDNSHostname)
+
+	// second add reuses the flow context that was kept after the flush (its flow is nil)
+	flow2 := newFlow()
+	require.Equal(t, flow1.AggregationHash(), flow2.AggregationHash())
+	acc.add(flow2)
+	flushTime2 := flushTime1.Add(flushInterval)
+	flushed = acc.flush(common.FlushContext{
+		FlushTime:     flushTime2,
+		LastFlushedAt: flushTime1,
+	})
+	require.Len(t, flushed, 1)
+	assert.Same(t, flow2, flushed[0])
+	assert.Equal(t, expectedSrcHostname, flushed[0].SrcReverseDNSHostname)
+	assert.Equal(t, expectedDstHostname, flushed[0].DstReverseDNSHostname)
+}
