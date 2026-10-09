@@ -10,7 +10,6 @@
 #define OTEL_TLS_LIB_H
 
 int otel_span_open(int argc, char **argv);
-int otel_span_open_wait(int argc, char **argv);
 int otel_span_exec(int argc, char **argv);
 int otel_span_fork_exec(int argc, char **argv);
 int otel_span_fork_open(int argc, char **argv);
