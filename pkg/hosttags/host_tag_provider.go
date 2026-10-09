@@ -14,6 +14,7 @@ import (
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/benbjohnson/clock"
@@ -42,7 +43,7 @@ func newHostTagProviderWithClock(clock clock.Clock, duration time.Duration) *Hos
 
 	log.Debugf("Adding host tags to metrics for %v", duration)
 	if duration > 0 {
-		p.hostTags = slices.Clone(hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System)
+		p.hostTags = configUtils.WithoutInfraModeTags(slices.Clone(hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System))
 		expectedTagsDeadline := pkgconfigsetup.StartTime.Add(duration)
 		clock.AfterFunc(expectedTagsDeadline.Sub(clock.Now()), func() {
 			p.Lock()

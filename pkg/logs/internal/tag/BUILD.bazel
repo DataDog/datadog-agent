@@ -23,6 +23,7 @@ go_library(
         "//comp/logs/agent/config",
         "//comp/metadata/host/impl/hosttags",
         "//pkg/config/setup",
+        "//pkg/config/utils",
         "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
     ],
