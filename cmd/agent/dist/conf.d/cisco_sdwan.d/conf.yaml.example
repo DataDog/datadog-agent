@@ -30,6 +30,9 @@ instances:
 
     ## @param max_attempts - integer - optional - default: 3
     ## Max number of retries to apply when polling Cisco Manager API.
+    ## Transient failures (network errors, HTTP 429 and 5xx) are retried with exponential backoff,
+    ## honoring the Retry-After header when present. Waits are capped at 30 seconds, and
+    ## no new wait is started once retrying a request would exceed the check interval.
     #
     # max_attempts: 3
 
@@ -43,6 +46,12 @@ instances:
     ## Maximum is 10000.
     #
     # max_count: 2000
+
+    ## @param max_requests_per_second - number - optional - default: 0
+    ## Max number of requests per second sent to Cisco Manager API, including authentication requests.
+    ## Requests are rate limited using a token bucket. Set to 0 to disable rate limiting.
+    #
+    # max_requests_per_second: 0
 
     ## @param lookback_time_window_minutes - integer - optional - default: 10
     ## The time window to query when polling Cisco Manager metrics.
