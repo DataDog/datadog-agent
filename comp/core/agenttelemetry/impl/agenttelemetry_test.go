@@ -2983,6 +2983,52 @@ func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 	assert.ElementsMatch(t, []string{"section", "status"}, metrics["instrumentation_controller.reconciliations"])
 }
 
+// TestClusterChecksMetricsInClusterAgentProfile guards the cluster-checks / CLC telemetry
+// onboarded to COAT. A metric missing from the allowlist is dropped rather than shipped.
+//
+// These metrics are intentionally emitter-only: their only distinguishing label is the
+// per-node (CLC runner) label, which is high-cardinality and must be dropped, so COAT sums
+// them into meaningful cluster-wide counts/totals (configs dispatched, nodes reporting,
+// rebalancing decisions/moves, failed stats collections). busyness and predicted_utilization
+// are deliberately NOT onboarded: they are per-runner values (a ratio, for utilization) whose
+// additive aggregation across runners is meaningless, so they must stay out of this profile.
+func TestClusterChecksMetricsInClusterAgentProfile(t *testing.T) {
+	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
+	require.NoError(t, err)
+
+	var profile *Profile
+	for _, candidate := range cfg.Profiles {
+		if candidate.Name == "cluster-agent" {
+			profile = candidate
+			break
+		}
+	}
+	require.NotNil(t, profile)
+	require.NotNil(t, profile.Metric)
+
+	metrics := make(map[string][]string, len(profile.Metric.Metrics))
+	for _, metric := range profile.Metric.Metrics {
+		metrics[metric.Name] = metric.PreserveTags
+	}
+
+	// Onboarded, emitter-only (no preserve_tags).
+	for _, name := range []string{
+		"cluster_checks.nodes_reporting",
+		"endpoint_checks.configs_dispatched",
+		"cluster_checks.rebalancing_decisions",
+		"cluster_checks.successful_rebalancing_moves",
+		"cluster_checks.failed_stats_collection",
+	} {
+		preserved, ok := metrics[name]
+		require.Truef(t, ok, "%s is not allowlisted, so it would never be sent", name)
+		assert.Emptyf(t, preserved, "%s must be emitter-only (no preserve_tags)", name)
+	}
+
+	// Deliberately excluded: per-runner values whose additive aggregation is meaningless.
+	assert.NotContains(t, metrics, "cluster_checks.busyness")
+	assert.NotContains(t, metrics, "cluster_checks.predicted_utilization")
+}
+
 // TestDataPlanePreflightModeProfile guards the Agent Data Plane preflight mode metrics.
 //
 // The pre-flight in comp/dataplane/preflightmode reports its outcome purely through these

@@ -460,6 +460,20 @@ profiles:
       - name: cluster_checks.unscheduled_check
         preserve_tags:
           - config_source
+      # cluster checks: node reporting and endpoint-check dispatch. These carry only
+      # a per-node label (dropped, high-cardinality) so they aggregate to emitter-only
+      # counts/totals.
+      # Accepted limitation: zero_metric exclusion (below) drops nodes_reporting==0, so the
+      # "no runners reporting" state produces no signal. Only positive counts are observable.
+      - name: cluster_checks.nodes_reporting
+      - name: endpoint_checks.configs_dispatched
+      # cluster checks: rebalancing activity (additive counters). Sustained high rates
+      # indicate an unstable or churning check distribution.
+      - name: cluster_checks.rebalancing_decisions
+      - name: cluster_checks.successful_rebalancing_moves
+      # cluster checks: stats-collection health. failed_stats_collection is a direct
+      # error signal (DCA cannot collect stats from a runner).
+      - name: cluster_checks.failed_stats_collection
       - name: language_detection_patcher.patches
         preserve_tags:
           - owner_kind
