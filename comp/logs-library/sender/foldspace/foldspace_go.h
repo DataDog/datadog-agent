@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-#define FOLDSPACE_ABI_VERSION 4
+#define FOLDSPACE_ABI_VERSION 1
 
 /* Status codes. The whole invocation error surface, and none of it carries a
  * value, which is why these are codes rather than error objects. */
@@ -33,6 +33,7 @@ enum foldspace_status {
   FOLDSPACE_ERR_NULL_POINTER = 1,
   FOLDSPACE_ERR_INVALID_SENDER = 2,
   FOLDSPACE_ERR_UNKNOWN_ENCODING = 3,
+  FOLDSPACE_ERR_UNKNOWN_SENDER_CLASS = 4,
   FOLDSPACE_ERR_NO_SENDERS = 10,
   FOLDSPACE_ERR_NO_RELIABLE_SENDERS = 11,
   FOLDSPACE_ERR_BATCH_CAPACITY_ZERO = 12,
@@ -45,8 +46,8 @@ enum foldspace_status {
   FOLDSPACE_ERR_MAX_OPEN_BUFFERS_ZERO = 19,
   FOLDSPACE_ERR_MAX_OPEN_BYTES_ZERO = 20,
   FOLDSPACE_ERR_MAX_OPEN_BYTES_BELOW_ONE_BUFFER = 21,
-  FOLDSPACE_ERR_SNAPSHOT_BATCH_ID_NOT_RESERVED = 22,
-  FOLDSPACE_ERR_FIRST_PAYLOAD_BATCH_ID_AT_CEILING = 23
+  FOLDSPACE_ERR_FIRST_BATCH_ID_AT_CEILING = 23,
+  FOLDSPACE_ERR_CONFIG_VALUE_OUT_OF_RANGE = 24
 };
 
 /* Delivery class of one sender, passed as an ordered array at construction.
@@ -160,8 +161,7 @@ typedef struct {
   uint64_t reconnect_backoff_cap_nanos;
   uint64_t drain_timeout_nanos;
   uint64_t stream_lifetime_nanos;
-  uint32_t first_payload_batch_id;
-  uint32_t snapshot_batch_id;
+  uint32_t first_batch_id;
   foldspace_eviction dictionary_eviction;
   foldspace_eviction pattern_eviction;
 } foldspace_config;
