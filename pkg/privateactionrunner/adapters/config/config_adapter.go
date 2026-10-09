@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/gobwas/glob"
@@ -68,7 +67,6 @@ type Config struct {
 	HeartbeatInterval          time.Duration
 	EnableProfiling            bool
 	DisableCredentialTemplates bool
-	CredentialResolver         resolver.PrivateCredentialResolver
 
 	Version string
 

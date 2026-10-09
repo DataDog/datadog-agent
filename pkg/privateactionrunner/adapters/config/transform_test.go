@@ -8,7 +8,6 @@ package config
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"errors"
 	"net/http"
 	"os"
@@ -22,9 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -615,73 +612,6 @@ func TestFromDDConfigPARRestrictedShellAllowedSystemServicesSet(t *testing.T) {
 		"mysql.service": {"read", "restart"},
 		"nginx.service": {"read"},
 	}, cfg.RShellAllowedSystemServices)
-}
-
-func TestFromDDConfigCredentials(t *testing.T) {
-	yaml := `
-private_action_runner:
-  credentials:
-    values:
-      api_token:
-        value: resolved-value
-`
-	mockConfig := configmock.NewFromYAML(t, yaml)
-
-	cfg, err := FromDDConfig(mockConfig, nil)
-	require.NoError(t, err)
-	conn := &privateactionspb.ConnectionInfo{
-		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
-		TokensV2: []*privateactionspb.ConnectionTokenV2{{
-			NameSegments: []string{"root_tokens", "token"},
-			Source: &privateactionspb.ConnectionTokenV2_RunnerCredential_{
-				RunnerCredential: &privateactionspb.ConnectionTokenV2_RunnerCredential{Key: "api_token"},
-			},
-		}},
-	}
-	credentials, err := cfg.CredentialResolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
-	require.NoError(t, err)
-	require.Len(t, credentials.Tokens, 1)
-	assert.Equal(t, "resolved-value", credentials.Tokens[0].Value)
-
-	mockConfig.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "rotated-value"}}, model.SourceSecret)
-	credentials, err = cfg.CredentialResolver.ResolveConnectionInfoToCredential(context.Background(), conn, nil)
-	require.NoError(t, err)
-	require.Len(t, credentials.Tokens, 1)
-	assert.Equal(t, "rotated-value", credentials.Tokens[0].Value)
-}
-
-func TestFromDDConfigInvalidCredentials(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		yaml string
-	}{
-		{
-			name: "scalar credential",
-			yaml: `private_action_runner:
-  credentials:
-    values:
-      api_token: secret-value
-`,
-		},
-		{
-			name: "unsupported restriction",
-			yaml: `private_action_runner:
-  credentials:
-    values:
-      api_token:
-        value: secret-value
-        allowed_actions: [some-action]
-`,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			cfg, err := FromDDConfig(configmock.NewFromYAML(t, test.yaml), nil)
-			require.Error(t, err)
-			assert.Nil(t, cfg)
-			assert.Contains(t, err.Error(), par.CredentialsValues)
-			assert.NotContains(t, err.Error(), "secret-value")
-		})
-	}
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {

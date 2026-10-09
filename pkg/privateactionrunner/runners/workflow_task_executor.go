@@ -14,6 +14,7 @@ import (
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -44,6 +45,7 @@ type WorkflowTaskExecutor struct {
 
 func NewWorkflowTaskExecutor(
 	configuration *config.Config,
+	coreConfig model.Reader,
 	rcClient rcclient.Client,
 	taskVerifier taskverifier.TaskVerifier,
 	traceroute traceroute.Component,
@@ -53,6 +55,11 @@ func NewWorkflowTaskExecutor(
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) (*WorkflowTaskExecutor, error) {
+	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	registry, err := privatebundles.NewRegistry(configuration, rcClient, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
 	if err != nil {
 		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
@@ -62,7 +69,7 @@ func NewWorkflowTaskExecutor(
 		registry:     registry,
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     configuration.CredentialResolver,
+		resolver:     credentialResolver,
 	}, nil
 }
 
