@@ -5,6 +5,18 @@
 
 package cloudservice
 
+// Application-runtime names shared by every inventory derivation path. Platform
+// metadata mapping and wrapped-command detection must select from the same
+// vocabulary, and these exact strings are what downstream consumers join on.
+const (
+	RuntimeNodeJS = "Node.js"
+	RuntimePython = "Python"
+	RuntimeJava   = "Java"
+	RuntimeDotNet = ".NET"
+	RuntimePHP    = "PHP"
+	RuntimeRuby   = "Ruby"
+)
+
 const workloadTypeAzureContainerApp = "azure_container_app"
 
 // InventoryData holds the per-platform serverless fields that feed the
@@ -34,6 +46,8 @@ type InventoryData struct {
 
 	// RuntimeCandidates are raw application-runtime values in priority order.
 	// The inventory resolver normalizes them and selects the first usable value.
+	// Platform-derived candidates use the runtime names declared above; values
+	// read verbatim from platform metadata keep their own naming and case.
 	RuntimeCandidates []string
 
 	// ParentResourceID is the CCRID of the semantic parent (e.g. the Cloud Run
