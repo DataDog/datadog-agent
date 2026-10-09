@@ -12,9 +12,8 @@
 #include "rtloader_mem.h"
 #include "rtloader_types.h"
 
-
-PyObject * jloads = NULL;
-PyObject * jdumps = NULL;
+PyObject *jloads = NULL;
+PyObject *jdumps = NULL;
 
 /**
  * returns a C (NULL terminated UTF-8) string from a python string.
@@ -80,7 +79,8 @@ char *as_string_lossy(PyObject *object)
     return ret;
 }
 
-int init_stringutils(void) {
+int init_stringutils(void)
+{
     PyObject *json = NULL;
     int ret = EXIT_FAILURE;
 
@@ -111,7 +111,8 @@ done:
     return ret;
 }
 
-PyObject *from_json(const char *data) {
+PyObject *from_json(const char *data)
+{
     PyObject *args = NULL;
     PyObject *retval = NULL;
 
@@ -133,7 +134,8 @@ done:
     return retval;
 }
 
-char *as_json(PyObject *object) {
+char *as_json(PyObject *object)
+{
     char *retval = NULL;
     PyObject *dumped = NULL;
 
@@ -149,7 +151,7 @@ char *as_json(PyObject *object) {
     retval = as_string(dumped);
 
 done:
-    //Py_XDECREF can accept (and ignore) NULL references
+    // Py_XDECREF can accept (and ignore) NULL references
     Py_XDECREF(dumped);
     Py_XDECREF(args);
     return retval;
