@@ -39,7 +39,7 @@ func (s *agentKeepRightsSuite) TestKeepRightsPreservesCustomDeny() {
 
 	t := s.newTester(vm)
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// Sanity check: service account starts with all four expected rights.
@@ -70,7 +70,7 @@ func (s *agentKeepRightsSuite) TestKeepRightsPreservesCustomDeny() {
 		)
 		s.Require().NoError(err, "should reinstall agent with DDAGENTUSER_KEEP_RIGHTS=1")
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// 4. The customization must persist; SeServiceLogonRight must still be granted.

@@ -177,6 +177,13 @@ func Run(ctx *pulumi.Context) error {
 			kubernetesagentparams.WithClusterAgentVersion(param.clusterAgentVersion),
 			kubernetesagentparams.WithHelmValues(utils.YAMLMustMarshal(map[string]any{
 				"datadog": map[string]any{
+					// Single Step Instrumentation requires the admission controller,
+					// which is disabled below, and the chart refuses to render otherwise.
+					"apm": map[string]any{
+						"instrumentation": map[string]any{
+							"enabled": false,
+						},
+					},
 					"nodeLabelsAsTags": map[string]any{
 						"benchmark.datadoghq.com/role":    "role",
 						"benchmark.datadoghq.com/variant": "variant",
@@ -241,10 +248,29 @@ func Run(ctx *pulumi.Context) error {
 						"value":    "cluster-agent",
 						"effect":   "NoSchedule",
 					}, param.variant),
+					// The e2e framework defaults throttle the CPU and would OOM-kill the
+					// Cluster Agent on a large simulated cluster. It has a dedicated node,
+					// so generous limits starve nothing and keep them out of the results.
+					"resources": map[string]any{
+						"requests": map[string]any{
+							"cpu":    "200m",
+							"memory": "256Mi",
+						},
+						"limits": map[string]any{
+							"cpu":    "1",
+							"memory": "1Gi",
+						},
+					},
 					"metricsProvider": map[string]any{
 						"registerAPIService": false,
 					},
 					"admissionController": map[string]any{
+						// Disabled by default: both installs would otherwise reconcile the
+						// same cluster-scoped datadog-webhook configurations and fight over
+						// them. It can be re-enabled with --helm-config (applied to both
+						// installs), preferably together with distinct webhookName values
+						// and datadog.apm.instrumentation.enabled if needed.
+						"enabled": false,
 						"agentSidecarInjection": map[string]any{
 							"clusterAgentCommunicationEnabled": false,
 						},
@@ -262,6 +288,21 @@ func Run(ctx *pulumi.Context) error {
 						"value":    "cluster-checks",
 						"effect":   "NoSchedule",
 					}, param.variant),
+					// Same as for the Cluster Agent: the runner hosts the KSM check, whose
+					// memory grows with the number of objects in the cluster. Its CPU is
+					// not limited, as KSM check runs are bursts that a limit would throttle
+					// and stretch on a large cluster. The null value removes the limit set
+					// by the e2e framework defaults.
+					"resources": map[string]any{
+						"requests": map[string]any{
+							"cpu":    "1",
+							"memory": "512Mi",
+						},
+						"limits": map[string]any{
+							"cpu":    nil,
+							"memory": "2Gi",
+						},
+					},
 				},
 				// The datadog-crds subchart renders cluster-scoped CRDs with Helm
 				// ownership annotations, so only one of the two releases may own them.
@@ -273,7 +314,15 @@ func Run(ctx *pulumi.Context) error {
 						"datadogMetrics":                      param.deployCRDs,
 						"datadogPodAutoscalers":               param.deployCRDs,
 						"datadogPodAutoscalerClusterProfiles": param.deployCRDs,
-						"datadogInstrumentations":             param.deployCRDs,
+					},
+				},
+				// The DatadogInstrumentation CRD is rendered by a second alias of the
+				// datadog-crds subchart (enabled by datadog.instrumentationCrd.enabled).
+				// It must not also be enabled under datadog-crds above, or the release
+				// renders it twice and fails with an "already exists" error.
+				"datadog-instrumentation-crd": map[string]any{
+					"crds": map[string]any{
+						"datadogInstrumentations": param.deployCRDs,
 					},
 				},
 			})),
@@ -284,9 +333,9 @@ func Run(ctx *pulumi.Context) error {
 		agentDeps = append(agentDeps, kubernetesAgent)
 	}
 
-	// The churn pods are labeled for Fargate sidecar injection, so they must wait for
-	// the Agent admission controllers to be ready, otherwise they would be admitted
-	// without the Datadog sidecar.
+	// The churn pods are labeled for Fargate sidecar injection, so when the admission
+	// controller is enabled they must wait for it to be ready, otherwise they would be
+	// admitted without the Datadog sidecar. The label also schedules them on Fargate.
 	if _, err := churn.K8sAppDefinition(&awsEnv, cluster.KubeProvider, utils.PulumiDependsOn(agentDeps...)); err != nil {
 		return err
 	}
