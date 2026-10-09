@@ -57,6 +57,12 @@ import (
 // good while a drain lasts reports the drain's unread bytes as missed, unless
 // a restart resumes its file (see stopTailers).
 //
+// Slots: a tailer holds a slot of the launcher's budget of tailers, a drain one
+// of its budget of drains (see WithOpenFilesLimit). A rotated path keeps the slot
+// of its tailer for its next tailer (see keepSlot), and a rotation that finds no
+// drain slot reports the unread rest of the file missed instead of starting a
+// drain (see rotateAway).
+//
 // A path tailed for the first time can hold another file than its stored
 // position names (where the scanner this one replaces stopped reading it, or
 // else the registry offset): the file rotated away while the path was not
@@ -132,6 +138,17 @@ type scanner struct {
 	cursors map[int]string
 	scans   int // scans that had a capped directory, for the pace of probes
 
+	// limited is how many matched files the launcher's limit on tailers left
+	// without a tailer in the last scan (see startTailers). pending holds the
+	// paths whose tailer was removed, by a rotation, a truncation or a replacement,
+	// and whose next tailer takes over the slot of the old one, which the scanner
+	// keeps for it (see keepSlot); true tells that a scan found the path without a
+	// file and without a drain of its old file, and gives it one more (see
+	// releasePending).
+	limited       int
+	limitedLogged bool
+	pending       map[string]bool
+
 	// stoppedAt is where the tailers stopped reading, set once the scanner
 	// stopped, for a scanner that replaces this one (see Launcher.replace).
 	stoppedAt map[string]handoff
@@ -145,6 +162,10 @@ type drain struct {
 	deadline time.Time // the drain ends then at the latest (see drainMaxCloseTimeouts)
 	lastData time.Time // when the drain started or last found new data in its file
 	commitAt string    // path whose identifier the drain commits its offsets under, "" for none (see commitDrainAt)
+	// successor is the path the drain's file rotated away from, when the path
+	// keeps a tailer slot for its next file while the drain lasts (see pending),
+	// "" for none.
+	successor string
 	// committed is an offset of the file the registry can hold for it without
 	// skipping a byte that was not delivered: the offset last committed for
 	// the file before it rotated, or the committed offset its tailer started
@@ -223,6 +244,7 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 		done:      make(chan struct{}),
 
 		pendingInitial: make(map[string]bool),
+		pending:        make(map[string]bool),
 	}
 	if cfg.PollInterval > 0 {
 		// Validate bounds poll_interval; bounding it again keeps the ticker
@@ -255,9 +277,19 @@ func newScanner(l *Launcher, source *sources.LogSource, c client.Client, key cli
 // with prev's drains, the registry offsets prev's drains recorded are not
 // taken for positions stored before s started (see drainedAt), and
 // start_position does not apply again to files prev found after it started.
+//
+// s also takes over the slots prev held on the launcher's budgets (see pending):
+// a tailer slot for each path prev tailed or kept for its next file, and a drain
+// slot for each of prev's drains, so that another source cannot take them before
+// s has started the tailers of the files it inherits, whether or not they
+// rotated meanwhile.
 func (s *scanner) resumeFrom(prev *scanner) {
 	for p, h := range prev.stoppedAt {
 		s.inherited[p] = h
+		s.pending[p] = false
+	}
+	for p, stale := range prev.pending {
+		s.pending[p] = stale
 	}
 	for p := range prev.drainedAt {
 		if _, ok := s.inherited[p]; !ok {
@@ -281,11 +313,13 @@ func (s *scanner) resumeFrom(prev *scanner) {
 		s.pendingInitial[dir] = true
 	}
 	s.since = prev.since
+	s.l.handOverSlots(prev, s, len(s.pending), len(s.draining))
 }
 
 // continueDrain starts a drain that goes on with h, a drain of the scanner
 // this one replaces: from the same offset, with the same deadline and since
-// the same last new data, read through this scanner's client.
+// the same last new data, read through this scanner's client. It reserves no
+// slot: resumeFrom hands over the drain slots of the scanner this one replaces.
 func (s *scanner) continueDrain(h drainHandoff) {
 	log.Infof("SMB rotation drain of %s (%s, read as %s) goes on at offset %d with the source's new configuration", tailer.Identifier(s.host, s.share, h.path), h.file, h.readPath, h.offset)
 	t := s.newTailer(h.path, h.file, h.pattern, false)
@@ -294,7 +328,11 @@ func (s *scanner) continueDrain(h drainHandoff) {
 	t.Start(h.offset)
 	t.StartDraining()
 	s.l.tailers.Add(t)
-	s.draining = append(s.draining, &drain{t: t, deadline: h.deadline, lastData: h.lastData, committed: h.committed, resumePaths: h.resumePaths})
+	d := &drain{t: t, deadline: h.deadline, lastData: h.lastData, committed: h.committed, resumePaths: h.resumePaths}
+	if _, ok := s.pending[h.path]; ok {
+		d.successor = h.path
+	}
+	s.draining = append(s.draining, d)
 }
 
 func (s *scanner) start(ctx context.Context) {
@@ -402,6 +440,9 @@ func (s *scanner) stopTailers() {
 		s.l.tailers.Remove(d.t)
 	}
 	s.draining = nil
+	if !replaced {
+		s.l.forgetSlots(s) // a scanner that replaces this one takes them (see resumeFrom)
+	}
 }
 
 // handOver returns where the stopped drain d left off, for the scanner that
@@ -466,34 +507,26 @@ func (s *scanner) scan(ctx context.Context) {
 			s.replacedInCappedDir(p, t)
 		case !listed:
 			log.Infof("SMB file %s is no longer listed; reading the rest of %s wherever it was moved", t.Identifier(), t.Identity())
-			committed := s.committed[p]
-			s.deactivate(p, t)
-			s.startDrain(t, committed)
-			s.fromStart[p] = true
+			s.rotateAway(v, p, t)
 		case entry.FileID != 0 && t.FileID() != 0 && !t.Identity().Matches(entry.Identity()) && v.cappedUnder(p):
 			s.replacedInCappedDir(p, t)
 		case entry.FileID != 0 && t.FileID() != 0 && !t.Identity().Matches(entry.Identity()):
 			log.Infof("SMB file %s rotated (%s, now %s); reading the new file from the beginning", t.Identifier(), t.Identity(), entry.Identity())
-			committed := s.committed[p]
-			s.deactivate(p, t)
-			s.startDrain(t, committed)
-			s.fromStart[p] = true // started below, in this scan
+			s.rotateAway(v, p, t) // the new file's tailer starts below, in this scan
 		default:
 			s.poll(ctx, p, t, &entry, &errs)
 		}
 	}
 
 	s.resumeRotatedAway(v)
-	for _, p := range sortedKeys(v.matches) {
-		if _, ok := s.active[p]; !ok {
-			s.startTailer(ctx, p, v.matches[p], &errs)
-		}
-	}
+	s.startTailers(ctx, v, &errs)
 
 	s.pollDrains(ctx, v, &errs)
 	if ctx.Err() != nil {
 		return
 	}
+	s.releasePending(v)
+	s.l.syncSlots(s, len(s.active)+len(s.pending), len(s.draining))
 	s.report(&errs)
 }
 
@@ -563,6 +596,7 @@ func (s *scanner) poll(ctx context.Context, p string, t *tailer.Tailer, entry *c
 		t.StartDraining() // its last messages must not commit offsets
 		s.pathCommitted(t)
 		s.stopAsync(t)
+		s.keepSlot(p)
 		s.fromStart[p] = true // started by the caller's loop over new paths
 	case tailer.OutcomeTruncated:
 		log.Infof("SMB file %s was truncated; reading it again from the beginning", t.Identifier())
@@ -572,6 +606,7 @@ func (s *scanner) poll(ctx context.Context, p string, t *tailer.Tailer, entry *c
 		t.StartDraining()
 		s.pathCommitted(t)
 		s.stopAsync(t)
+		s.keepSlot(p)
 		s.fromStart[p] = true
 	default:
 		delete(s.mismatch, p)
@@ -587,10 +622,43 @@ func (s *scanner) poll(ctx context.Context, p string, t *tailer.Tailer, entry *c
 // read from its beginning.
 func (s *scanner) replacedInCappedDir(p string, t *tailer.Tailer) {
 	log.Infof("SMB file %s was replaced or moved in a directory that cannot be listed; its file %s cannot be looked for, and the path's file is read from the beginning", t.Identifier(), t.Identity())
+	s.dropRotated(p, t, "SMB file replaced in a directory that could not be listed")
+}
+
+// rotateAway ends the tailer t of p, whose file left p: a drain reads the rest of
+// the file wherever it was moved, and the path's next file is read from its
+// beginning. The path's next tailer takes over the slot of t (see keepSlot), so
+// the active file never waits for the drain, and the drain takes a slot of the
+// drain budget. A scanner that finds none starts no drain: the unread rest of
+// the file is reported missed instead, as for a file that cannot be looked for
+// (see WithOpenFilesLimit).
+func (s *scanner) rotateAway(v *view, p string, t *tailer.Tailer) {
+	committed := s.committed[p]
+	if !s.l.reserveSlot(s, drainBudget) {
+		log.Warnf("SMB file %s rotated while the Agent already drains logs_config.open_files_limit rotated files: its rest is not read, and reported missed", t.Identifier())
+		if _, entry, found := v.findFile(t.Identity()); found {
+			t.AssumeSize(entry.Size)
+		}
+		s.dropRotated(p, t, "SMB file rotated while the Agent already drained open_files_limit rotated files")
+		return
+	}
+	s.deactivate(p, t)
+	s.startDrain(t, committed, p)
+	s.keepSlot(p)
+	s.fromStart[p] = true
+}
+
+// dropRotated ends the tailer t of p, whose file left p, without reading its
+// rest: the bytes it knew were unread are reported missed, with reason. The file
+// keeps its place, after those bytes, in case it turns up at a path the pattern
+// matches: its next tailer resumes there instead of reading the file from the
+// beginning. The path's next file is read from its beginning, by the tailer that
+// takes over the slot of t.
+func (s *scanner) dropRotated(p string, t *tailer.Tailer, reason string) {
 	file := t.Identity()
 	committed := s.committedOffset(t.Identifier(), t, s.committed[p])
 	s.deactivate(p, t)
-	missed := t.RecordMissedBytes("SMB file replaced in a directory that could not be listed")
+	missed := t.RecordMissedBytes(reason)
 	if file.FileID != 0 {
 		offset := t.Offset() + missed
 		s.resume[file.FileID] = handoff{file: file, offset: offset, size: offset, committed: min(committed, offset)}
@@ -598,6 +666,7 @@ func (s *scanner) replacedInCappedDir(p string, t *tailer.Tailer) {
 	t.StartDraining() // its last messages must not commit offsets
 	s.pathCommitted(t)
 	s.stopAsync(t)
+	s.keepSlot(p)
 	s.fromStart[p] = true
 }
 
@@ -679,7 +748,7 @@ func (s *scanner) resumeElsewhere(p string, stored handoff, v *view) {
 	if h, found := s.resumePoint(stored.file); found && h.offset >= stored.offset {
 		return
 	}
-	at, _, found := v.findFile(stored.file)
+	at, entry, found := v.findFile(stored.file)
 	if !found && !v.unlistable && v.listsAround(p) {
 		if missed := stored.size - stored.offset; missed > 0 {
 			tailer.RecordMissedBytesOf(s.source, identifier, missed, "Rotated SMB file is no longer listed")
@@ -697,6 +766,24 @@ func (s *scanner) resumeElsewhere(p string, stored handoff, v *view) {
 		s.resume[stored.file.FileID] = stored
 		return
 	}
+	if !s.l.reserveSlot(s, drainBudget) {
+		// No drain slot, as for a rotation (see rotateAway): the rest of the file
+		// is reported missed, and the file keeps its place after it. A position
+		// read from the registry has no size, so the listing's is used.
+		size := stored.size
+		if found {
+			size = max(size, entry.Size)
+		}
+		offset := stored.offset
+		if missed := size - offset; missed > 0 {
+			tailer.RecordMissedBytesOf(s.source, identifier, missed, "SMB file rotated while the Agent already drained open_files_limit rotated files")
+			offset = size
+		}
+		if stored.file.FileID != 0 {
+			s.resume[stored.file.FileID] = handoff{file: stored.file, path: at, offset: offset, size: offset, committed: min(stored.committed, offset)}
+		}
+		return
+	}
 	log.Infof("SMB file %s rotated while it was not tailed; reading the rest of %s from offset %d wherever it was moved", identifier, stored.file, stored.offset)
 	t := s.newTailer(p, stored.file, s.patterns[p], false)
 	if found {
@@ -706,7 +793,7 @@ func (s *scanner) resumeElsewhere(p string, stored handoff, v *view) {
 		t.AssumeCommitted() // what the scanner this one replaces sent under p
 	}
 	t.Start(stored.offset)
-	s.startDrain(t, stored.committed)
+	s.startDrain(t, stored.committed, "")
 }
 
 // tailingFile reports whether an active tailer reads the file file.
@@ -719,11 +806,125 @@ func (s *scanner) tailingFile(file client.Identity) bool {
 	return false
 }
 
-// startTailer starts a tailer for the matched path p and polls it.
+// keepSlot keeps the tailer slot of the tailer of p, which was just removed (a
+// rotation, a truncation or a replacement), for the next tailer of p: the next
+// file of the path takes over the slot as it is, and does not reserve another,
+// so the active file never waits and the rotations never grow the tailers. Until
+// then, no other file takes the slot.
+func (s *scanner) keepSlot(p string) {
+	s.pending[p] = false
+}
+
+// backed reports whether a drain other than except keeps the slot of p, the path
+// its file rotated away from.
+func (s *scanner) backed(p string, except *drain) bool {
+	for _, d := range s.draining {
+		if d != except && d.successor == p {
+			return true
+		}
+	}
+	return false
+}
+
+// releasePending gives back the slots kept for the paths that got no tailer
+// this scan, and have no file, when the listing v shows nothing is to be
+// expected from them: a path whose rotated file is still drained keeps its slot,
+// for a writer that creates the new file late, as does a path whose directory
+// cannot be listed. Any other path, that a writer renamed and did not create
+// again, gets one more scan, and then gives its slot back: a file that waited
+// can start.
+func (s *scanner) releasePending(v *view) {
+	for _, p := range sortedKeys(s.pending) {
+		_, listed, known := v.lookup(p)
+		switch {
+		case s.backed(p, nil) || listed || !known:
+			s.pending[p] = false
+		case !s.pending[p]:
+			s.pending[p] = true
+		default:
+			s.dropSlot(p)
+		}
+	}
+}
+
+// dropSlot gives back the tailer slot kept for p.
+func (s *scanner) dropSlot(p string) {
+	delete(s.pending, p)
+	s.l.releaseSlot(s, tailerBudget)
+}
+
+// releaseSuccessor gives back the slot kept for the path of the drain d, which
+// ended, unless its new file is listed, whose tailer is about to take it, or
+// another drain keeps it, or the listing v cannot tell.
+func (s *scanner) releaseSuccessor(d *drain, v *view) {
+	p := d.successor
+	if _, kept := s.pending[p]; !kept || p == "" || s.backed(p, d) {
+		return
+	}
+	if _, listed, known := v.lookup(p); known && !listed {
+		s.dropSlot(p)
+	}
+}
+
+// startTailers starts a tailer for each matched path that has none: the paths
+// whose tailer was removed take over its slot (see keepSlot), and the other files
+// start while the launcher's budget of tailers has a slot (see
+// WithOpenFilesLimit), the most recently modified first. A file that finds no
+// slot waits for the next scan, and nothing already running is stopped for it.
+func (s *scanner) startTailers(ctx context.Context, v *view, errs *scanErrors) {
+	var fresh []string
+	for p := range v.matches {
+		if s.active[p] == nil {
+			fresh = append(fresh, p)
+		}
+	}
+	// The paths that keep a slot go first, whatever their age, which a file that
+	// waits cannot take anyway.
+	first := func(p string) int {
+		if _, kept := s.pending[p]; kept {
+			return 0
+		}
+		return 1
+	}
+	slices.SortFunc(fresh, func(a, b string) int {
+		return cmp.Or(cmp.Compare(first(a), first(b)), v.matches[b].ModTime.Compare(v.matches[a].ModTime), strings.Compare(a, b))
+	})
+	s.limited = 0
+	for _, p := range fresh {
+		s.startTailer(ctx, p, v.matches[p], errs)
+	}
+	switch {
+	case s.limited == 0:
+		s.limitedLogged = false
+		s.source.Messages.RemoveMessage(openFilesLimitKey)
+	default:
+		s.source.Messages.AddMessage(openFilesLimitKey, fmt.Sprintf("%d files not tailed (open_files_limit reached)", s.limited))
+		if !s.limitedLogged {
+			s.limitedLogged = true
+			log.Warnf("SMB source %s: %d matched files are not tailed because the Agent already tails %d files with its smb sources (logs_config.open_files_limit); a file starts when a tailer or a drain ends. Narrow the path to the files that are written, or raise the limit", s.source.Name, s.limited, s.l.openFilesLimit)
+		}
+	}
+}
+
+// openFilesLimitKey is the key of the source status message that says how many
+// files the limit on tailers left out.
+const openFilesLimitKey = "smb_open_files_limit"
+
+// startTailer starts a tailer for the matched path p and polls it. The tailer of
+// a path whose own tailer was removed, by a rotation, a truncation or a
+// replacement, or of a file the scanner this one replaces tailed, takes over the
+// slot kept for the path (see keepSlot). Any other tailer needs a slot of the
+// launcher's budget of tailers, and the file waits when there is none.
 func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry, errs *scanErrors) {
 	if s.drainingFile(entry.Identity()) {
 		// A rotated file being drained, renamed to another matched path.
 		// The path's tailer starts where the drain ends (see endDrain).
+		return
+	}
+	inherited, wasInherited := s.inherited[p]
+	_, kept := s.pending[p]
+	if !kept && !s.l.reserveSlot(s, tailerBudget) {
+		s.limited++ // before any read of the file: a waiting file costs none
 		return
 	}
 	identifier := tailer.Identifier(s.host, s.share, p)
@@ -732,20 +933,27 @@ func (s *scanner) startTailer(ctx context.Context, p string, entry client.Entry,
 			s.conflicts[p] = true
 			log.Warnf("SMB file %s is already tailed by another source; not tailing it for source %s", identifier, s.source.Name)
 		}
+		if kept {
+			delete(s.pending, p) // the path is not this source's
+		}
+		s.l.releaseSlot(s, tailerBudget)
 		return
 	}
 	delete(s.conflicts, p)
 
-	inherited, wasInherited := s.inherited[p]
 	offset, committed, file, ok := s.startPosition(ctx, p, identifier, entry, errs)
 	if !ok {
 		s.l.claims.release(identifier, s)
+		if !kept {
+			s.l.releaseSlot(s, tailerBudget)
+		}
 		return
 	}
 	rotated := s.fromStart[p] || s.drainedAt[p]
 	delete(s.fromStart, p)
 	delete(s.drainedAt, p)
 	delete(s.initial, p)
+	delete(s.pending, p) // the tailer holds the slot from now on
 	pattern := s.patterns[p]
 	delete(s.patterns, p)
 
@@ -927,8 +1135,10 @@ func merge(read, listed client.Identity) client.Identity {
 // startDrain turns t, already removed from the active tailers, into a drain.
 // committed is the committed offset t's file had when t started (see
 // startPosition). The drain is tracked under its own ID (see tailer.GetID),
-// so agent status shows it until it ends.
-func (s *scanner) startDrain(t *tailer.Tailer, committed int64) {
+// so agent status shows it until it ends. successor is the path t's file rotated
+// away from when the path keeps a tailer slot for its next file (see keepSlot),
+// "" otherwise. The caller reserved a slot of the drain budget.
+func (s *scanner) startDrain(t *tailer.Tailer, committed int64, successor string) {
 	// The registry still holds the offset last committed for the file under
 	// t's identifier: the path's new file has not committed anything yet.
 	committed = s.committedOffset(t.Identifier(), t, committed)
@@ -942,6 +1152,7 @@ func (s *scanner) startDrain(t *tailer.Tailer, committed int64) {
 	now := s.l.clock.Now()
 	s.draining = append(s.draining, &drain{
 		t:           t,
+		successor:   successor,
 		deadline:    now.Add(s.l.maxDrain()),
 		lastData:    now,
 		committed:   committed,
@@ -1140,6 +1351,8 @@ func (s *scanner) endDrain(d *drain, v *view, offset int64, reason string) {
 	}
 	s.l.tailers.Remove(t)
 	s.stopAsync(t)
+	s.l.releaseSlot(s, drainBudget)
+	s.releaseSuccessor(d, v)
 }
 
 // commitDrainAt makes the drain d commit its offsets under the identifier of
@@ -1260,7 +1473,10 @@ func (s *scanner) deactivate(p string, t *tailer.Tailer) {
 	s.l.claims.release(t.Identifier(), s)
 }
 
-// stopAsync stops t without blocking the scan on the pipeline.
+// stopAsync stops t, a tailer or a drain that is gone from the scanner, without
+// blocking the scan on the pipeline. Its slot is not freed here: the tailer of a
+// path that rotated hands it to its next tailer (see keepSlot), and the end of a
+// drain frees its own (see endDrain).
 func (s *scanner) stopAsync(t *tailer.Tailer) {
 	s.stopping.Add(1)
 	go func() {
@@ -1672,6 +1888,14 @@ func (s *scanner) probe(ctx context.Context, v *view, errs *scanErrors) {
 	}
 	for p := range s.inherited {
 		if v.cappedUnder(p) && !v.cutUnder(p) && s.active[p] == nil {
+			paths = append(paths, p)
+		}
+	}
+	// A path whose tailer was just removed gets its next file by name, until
+	// that tailer starts or the path gives its slot back: a rotation that creates
+	// the new file after the rename must not leave the path blind (see pending).
+	for p := range s.pending {
+		if s.active[p] == nil && v.cappedUnder(p) && !v.cutUnder(p) {
 			paths = append(paths, p)
 		}
 	}
