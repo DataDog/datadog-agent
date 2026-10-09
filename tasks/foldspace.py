@@ -13,7 +13,7 @@ from tasks.libs.common.utils import join_command
 # DataDog/foldspace ryan.hall/memory-bounds, the top of stack #126.
 # Keep in sync with comp/logs-library/sender/foldspace/nativelib/README.md.
 FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
-FOLDSPACE_GIT_COMMIT = "4b327aaa4ec695d85020d74d5e7ec2d2f21a23d5"
+FOLDSPACE_GIT_COMMIT = "d6d6730d4ff72cf0ea5dbd3f8d73f4dded147a50"
 FOLDSPACE_PACKAGE = "foldspace-go-ffi"
 
 
