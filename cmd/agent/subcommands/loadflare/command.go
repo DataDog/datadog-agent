@@ -179,15 +179,6 @@ func writeArchive(output string, snapshot characterization.Snapshot, config arch
 	}
 	lading, report := inferLading(snapshot)
 	resources := collectResources()
-	settings, err := json.MarshalIndent(config.AllSettingsWithoutDefaultOrSecrets(), "", "  ")
-	if err != nil {
-		return fmt.Errorf("could not encode Agent configuration: %w", err)
-	}
-	settings, err = scrubber.ScrubJSON(settings)
-	if err != nil {
-		return fmt.Errorf("could not scrub Agent configuration: %w", err)
-	}
-
 	files := map[string][]byte{}
 	for name, value := range map[string]any{
 		"observation.json":      observation,
@@ -200,7 +191,7 @@ func writeArchive(output string, snapshot characterization.Snapshot, config arch
 		}
 		files[name] = append(encoded, '\n')
 	}
-	files["agent-config.json"] = append(settings, '\n')
+	addAgentConfig(files, config)
 	if len(lading) > 0 {
 		files["lading.yaml"] = lading
 	}
@@ -236,6 +227,50 @@ func writeArchive(output string, snapshot characterization.Snapshot, config arch
 	}
 	files["manifest.json"] = append(manifestBytes, '\n')
 	return writeZipAtomic(output, files, createdAt)
+}
+
+func addAgentConfig(files map[string][]byte, config archiveConfig) {
+	settings := jsonCompatible(config.AllSettingsWithoutDefaultOrSecrets())
+	encoded, err := json.MarshalIndent(settings, "", "  ")
+	if err == nil {
+		encoded, err = scrubber.ScrubJSON(encoded)
+	}
+	if err != nil {
+		// Configuration capture is useful context, but it must not discard an
+		// otherwise valid observation and inferred replay candidate. Keep the
+		// diagnostic deliberately generic so an encoder error cannot echo config.
+		files["agent-config-error.txt"] = []byte("Agent configuration was omitted because it could not be safely encoded and scrubbed.\n")
+		return
+	}
+	files["agent-config.json"] = append(encoded, '\n')
+}
+
+// jsonCompatible recursively converts YAML-shaped maps into values accepted by
+// encoding/json. Staging configuration can contain map[interface{}]interface{}
+// even though the top-level Agent settings map has string keys.
+func jsonCompatible(value any) any {
+	switch typed := value.(type) {
+	case map[interface{}]interface{}:
+		converted := make(map[string]any, len(typed))
+		for key, item := range typed {
+			converted[fmt.Sprint(key)] = jsonCompatible(item)
+		}
+		return converted
+	case map[string]interface{}:
+		converted := make(map[string]any, len(typed))
+		for key, item := range typed {
+			converted[key] = jsonCompatible(item)
+		}
+		return converted
+	case []interface{}:
+		converted := make([]any, len(typed))
+		for index, item := range typed {
+			converted[index] = jsonCompatible(item)
+		}
+		return converted
+	default:
+		return value
+	}
 }
 
 func writeZipAtomic(output string, files map[string][]byte, modified time.Time) error {

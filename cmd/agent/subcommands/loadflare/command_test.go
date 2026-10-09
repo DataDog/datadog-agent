@@ -21,6 +21,14 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
+type staticArchiveConfig struct {
+	settings map[string]interface{}
+}
+
+func (c staticArchiveConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	return c.settings
+}
+
 func TestWriteArchive(t *testing.T) {
 	start := time.Unix(100, 0).UTC()
 	snapshot := characterization.Snapshot{
@@ -74,6 +82,72 @@ logs_enabled: true
 		require.NoError(t, stream.Close())
 	}
 	require.True(t, checkedConfig)
+}
+
+func TestWriteArchiveNormalizesYAMLMaps(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	snapshot := characterization.Snapshot{
+		SchemaVersion: 1, Kind: characterization.Kind, SessionID: "yaml-map", State: "completed",
+		StartedAt: start, EndsAt: start.Add(time.Minute), EndedAt: start.Add(time.Minute), RequestedDurationSeconds: 60,
+	}
+	config := staticArchiveConfig{settings: map[string]interface{}{
+		"logs_config": map[interface{}]interface{}{
+			"processing_rules": []interface{}{
+				map[interface{}]interface{}{"type": "exclude_at_match", "name": "health"},
+			},
+		},
+	}}
+	output := filepath.Join(t.TempDir(), "load-flare.zip")
+	require.NoError(t, writeArchive(output, snapshot, config))
+
+	reader, err := zip.OpenReader(output)
+	require.NoError(t, err)
+	defer reader.Close()
+	for _, file := range reader.File {
+		if file.Name != "agent-config.json" {
+			continue
+		}
+		stream, openErr := file.Open()
+		require.NoError(t, openErr)
+		var settings map[string]any
+		require.NoError(t, json.NewDecoder(stream).Decode(&settings))
+		require.NoError(t, stream.Close())
+		require.Equal(t, "exclude_at_match", settings["logs_config"].(map[string]any)["processing_rules"].([]any)[0].(map[string]any)["type"])
+		return
+	}
+	require.Fail(t, "agent-config.json was not written")
+}
+
+func TestWriteArchiveKeepsLadingWhenConfigCannotBeEncoded(t *testing.T) {
+	start := time.Unix(100, 0).UTC()
+	snapshot := characterization.Snapshot{
+		SchemaVersion: 1, Kind: characterization.Kind, SessionID: "best-effort-config", State: "completed",
+		StartedAt: start, EndsAt: start.Add(10 * time.Second), EndedAt: start.Add(10 * time.Second), RequestedDurationSeconds: 10,
+		Groups: []characterization.Group{{
+			SourceType: "file", Pipeline: "0",
+			Aggregate: characterization.Aggregate{Events: 100, RawBytes: 100000, SourceCount: 1},
+		}},
+		FilePayloadFamilies: map[string]characterization.Aggregate{
+			"apache_common": {Events: 100, RawBytes: 100000},
+		},
+		RateWindows: []characterization.RateWindow{{FileSourceCount: 1}},
+	}
+	config := staticArchiveConfig{settings: map[string]interface{}{"unsupported": make(chan int)}}
+	output := filepath.Join(t.TempDir(), "load-flare.zip")
+	require.NoError(t, writeArchive(output, snapshot, config))
+
+	reader, err := zip.OpenReader(output)
+	require.NoError(t, err)
+	defer reader.Close()
+	names := make([]string, 0, len(reader.File))
+	for _, file := range reader.File {
+		names = append(names, file.Name)
+	}
+	require.Contains(t, names, "lading.yaml")
+	require.Contains(t, names, "observation.json")
+	require.Contains(t, names, "inference-report.json")
+	require.Contains(t, names, "agent-config-error.txt")
+	require.NotContains(t, names, "agent-config.json")
 }
 
 func TestInferLadingForSupportedFileLoad(t *testing.T) {
