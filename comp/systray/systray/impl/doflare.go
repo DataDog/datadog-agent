@@ -33,7 +33,7 @@ import (
 
 var (
 	validemail = regexp.MustCompile(`^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$`)
-	moduser32  = windows.NewLazyDLL("user32.dll")
+	moduser32  = windows.NewLazySystemDLL("user32.dll")
 
 	procGetDlgItem       = moduser32.NewProc("GetDlgItem")
 	procSetWindowPos     = moduser32.NewProc("SetWindowPos")
