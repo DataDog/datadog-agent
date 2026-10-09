@@ -8,6 +8,7 @@
 package foldspace
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -21,19 +22,8 @@ import (
 // It covers the parts of the bridge that a compile cannot: pinned record
 // marshalling, the caller-owned wake array, effect and notification iteration
 // with their separate frees, and the copy out of a batch lease.
-//
-// The config must be complete, because the library validates it and refuses a
-// zero reconnect backoff.
 func TestNativeCoreRoundTrip(t *testing.T) {
-	core, err := NewNativeCore(Config{
-		Endpoints:              []Endpoint{{Address: "127.0.0.1:1", Class: Reliable}},
-		MaxInflightPayloads:    16,
-		BatchCapacity:          10,
-		MaxPayloadBytes:        1024,
-		ReconnectBackoffBase:   time.Second,
-		ReconnectBackoffFactor: 2,
-		ReconnectBackoffCap:    30 * time.Second,
-	})
+	core, err := NewNativeCore(nativeTestConfig())
 	require.NoError(t, err)
 	t.Cleanup(core.Close)
 
@@ -120,4 +110,53 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 	// Clock advance is the difference between readings, so it only becomes
 	// non-zero once a second, later timestamp has been offered.
 	require.Zero(t, core.TakeClockAdvance())
+}
+
+// TestNativeCoresShareTokenizer builds cores concurrently from the one
+// process-wide tokenizer, as the logs pipelines do at startup, and checks that
+// a core still extracts patterns once the others built beside it are freed.
+func TestNativeCoresShareTokenizer(t *testing.T) {
+	const n = 4
+	cores := make([]Core, n)
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	for i := range n {
+		wg.Go(func() { cores[i], errs[i] = NewNativeCore(nativeTestConfig()) })
+	}
+	wg.Wait()
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
+
+	first, err := sharedTokenizer()
+	require.NoError(t, err)
+	again, err := sharedTokenizer()
+	require.NoError(t, err)
+	require.Same(t, first, again)
+
+	for _, c := range cores[1:] {
+		c.Close()
+	}
+	survivor := cores[0]
+	t.Cleanup(survivor.Close)
+	survivor.Start()
+	admission, _ := survivor.PushLog(Record{
+		Body:            []byte("request 1234 served in 56 ms"),
+		TimestampMillis: time.Now().UnixMilli(),
+	}, uint64(time.Now().UnixNano()), 1, AllSenders(1))
+	require.Equal(t, Accepted, admission)
+}
+
+// nativeTestConfig is complete, because the library validates the config and
+// refuses a zero reconnect backoff.
+func nativeTestConfig() Config {
+	return Config{
+		Endpoints:              []Endpoint{{Address: "127.0.0.1:1", Class: Reliable}},
+		MaxInflightPayloads:    16,
+		BatchCapacity:          10,
+		MaxPayloadBytes:        1024,
+		ReconnectBackoffBase:   time.Second,
+		ReconnectBackoffFactor: 2,
+		ReconnectBackoffCap:    30 * time.Second,
+	}
 }
