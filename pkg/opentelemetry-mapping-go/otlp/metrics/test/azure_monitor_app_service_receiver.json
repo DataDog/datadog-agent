@@ -1,0 +1,146 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "azuremonitor.tenant_id",
+            "value": {
+              "stringValue": ""
+            }
+          },
+          {
+            "key": "azuremonitor.subscription_id",
+            "value": {
+              "stringValue": "11111111-2222-3333-4444-555555555555"
+            }
+          }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": {
+            "name": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/azuremonitorreceiver",
+            "version": "0.162.0"
+          },
+          "metrics": [
+            {
+              "name": "azure_cputime_total",
+              "unit": "Seconds",
+              "gauge": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "azuremonitor.resource_id",
+                        "value": {
+                          "stringValue": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/example-rg/providers/Microsoft.Web/sites/example-app-a"
+                        }
+                      },
+                      {
+                        "key": "name",
+                        "value": {
+                          "stringValue": "example-app-a"
+                        }
+                      },
+                      {
+                        "key": "resource_group",
+                        "value": {
+                          "stringValue": "example-rg"
+                        }
+                      },
+                      {
+                        "key": "type",
+                        "value": {
+                          "stringValue": "Microsoft.Web/sites"
+                        }
+                      },
+                      {
+                        "key": "location",
+                        "value": {
+                          "stringValue": "eastus2"
+                        }
+                      },
+                      {
+                        "key": "metadata_Instance",
+                        "value": {
+                          "stringValue": "ExampleWorkerAB"
+                        }
+                      },
+                      {
+                        "key": "timegrain",
+                        "value": {
+                          "stringValue": "PT1M"
+                        }
+                      }
+                    ],
+                    "startTimeUnixNano": "1790962860000000000",
+                    "timeUnixNano": "1790962860000000000",
+                    "asDouble": 0.063
+                  }
+                ]
+              }
+            },
+            {
+              "name": "azure_cputime_total",
+              "unit": "Seconds",
+              "gauge": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "azuremonitor.resource_id",
+                        "value": {
+                          "stringValue": "/subscriptions/11111111-2222-3333-4444-555555555555/resourceGroups/example-rg/providers/Microsoft.Web/sites/example-app-b"
+                        }
+                      },
+                      {
+                        "key": "name",
+                        "value": {
+                          "stringValue": "example-app-b"
+                        }
+                      },
+                      {
+                        "key": "resource_group",
+                        "value": {
+                          "stringValue": "example-rg"
+                        }
+                      },
+                      {
+                        "key": "type",
+                        "value": {
+                          "stringValue": "Microsoft.Web/sites"
+                        }
+                      },
+                      {
+                        "key": "location",
+                        "value": {
+                          "stringValue": "eastus2"
+                        }
+                      },
+                      {
+                        "key": "metadata_Instance",
+                        "value": {
+                          "stringValue": "ExampleWorkerAB"
+                        }
+                      },
+                      {
+                        "key": "timegrain",
+                        "value": {
+                          "stringValue": "PT1M"
+                        }
+                      }
+                    ],
+                    "startTimeUnixNano": "1790962860000000000",
+                    "timeUnixNano": "1790962860000000000",
+                    "asDouble": 0.075
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
