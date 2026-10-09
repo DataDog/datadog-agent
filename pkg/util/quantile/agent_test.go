@@ -7,6 +7,9 @@ package quantile
 
 import (
 	"math"
+	"os"
+	"runtime"
+	"strconv"
 	"testing"
 	"time"
 	"unsafe"
@@ -290,4 +293,89 @@ func TestAgentInsertSampleRateExpandsBins(t *testing.T) {
 	require.Equal(t, int64(1/sampleRate), a.Sketch.Basic.Cnt)
 	require.Greater(t, len(a.Sketch.bins), Default().binLimit,
 		"a single sample expanded past the binLimit budget")
+}
+
+// TestReproQuantileAllocation is opt-in: the reference cases allocate GiBs on
+// main. Run each subtest in a fresh process to avoid shared bin-pool reuse.
+// DD_QUANTILE_COUNT/RATE/REPEATS provide single-key boundary probes without
+// changing production configuration. Counts outside the exact float range are
+// deliberately excluded; this is not a float-to-int overflow reproducer.
+func TestReproQuantileAllocation(t *testing.T) {
+	if os.Getenv("DD_QUANTILE_REPRO") != "1" {
+		t.Skip("set DD_QUANTILE_REPRO=1 to measure allocations")
+	}
+	if strconv.IntSize != 64 {
+		t.Skip("requires 64-bit counts")
+	}
+	type repro struct {
+		name    string
+		count   uint64
+		rate    float64
+		repeats int
+	}
+	cases := []repro{
+		{name: "interpolate_huge", count: 1420000000000, repeats: 1},
+		{name: "sample_1e9", rate: 1e-9, repeats: 1},
+		{name: "sample_1e12", rate: 1e-12, repeats: 1},
+		{name: "sample_repeated", rate: 1e-9, repeats: 2},
+	}
+	if raw := os.Getenv("DD_QUANTILE_COUNT"); raw != "" {
+		count, err := strconv.ParseUint(raw, 10, 53)
+		require.NoError(t, err)
+		require.Positive(t, count)
+		cases = []repro{{name: "probe", count: count, repeats: 1}}
+	}
+	if raw := os.Getenv("DD_QUANTILE_RATE"); raw != "" {
+		rate, err := strconv.ParseFloat(raw, 64)
+		require.NoError(t, err)
+		require.True(t, rate > 0 && rate < 1 && 1/rate < 1<<53, "rate must give a safe, positive count")
+		cases = []repro{{name: "probe", rate: rate, repeats: 1}}
+	}
+	if raw := os.Getenv("DD_QUANTILE_REPEATS"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		require.NoError(t, err)
+		require.True(t, n > 0 && n <= 1000)
+		for i := range cases {
+			cases[i].repeats = n
+		}
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			perCall := tc.count
+			if tc.rate != 0 {
+				perCall = uint64(1 / tc.rate)
+			}
+			require.True(t, perCall <= (1<<53)/uint64(tc.repeats))
+			if testing.Short() && perCall*uint64(tc.repeats) >= 1000000000000 {
+				t.Skip("GiB-scale allocation on main")
+			}
+			var a Agent
+			runtime.GC()
+			for i := 0; i < tc.repeats; i++ {
+				var before, after runtime.MemStats
+				runtime.ReadMemStats(&before)
+				var err error
+				if tc.rate == 0 {
+					err = a.InsertInterpolate(0, 0, uint(tc.count))
+				} else {
+					a.Insert(1, tc.rate)
+				}
+				runtime.ReadMemStats(&after)
+				require.NoError(t, err)
+				used, allocated := a.Sketch.MemSize()
+				t.Logf("REPRO stage=insert call=%d count=%d rate=%.17g bins=%d total_alloc=%d mem_used=%d mem_allocated=%d heap_alloc=%d heap_sys=%d", i+1, perCall*uint64(i+1), tc.rate, len(a.Sketch.bins), after.TotalAlloc-before.TotalAlloc, used, allocated, after.HeapAlloc, after.HeapSys)
+			}
+			require.Equal(t, int64(perCall*uint64(tc.repeats)), a.Sketch.Basic.Cnt)
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			s := a.Finish()
+			runtime.ReadMemStats(&after)
+			require.NotNil(t, s)
+			used, allocated := s.MemSize()
+			t.Logf("REPRO stage=finish bins=%d total_alloc=%d mem_used=%d mem_allocated=%d", len(s.bins), after.TotalAlloc-before.TotalAlloc, used, allocated)
+			require.Equal(t, a.Sketch.Basic.Cnt, s.Basic.Cnt)
+			runtime.KeepAlive(&a)
+			runtime.KeepAlive(s)
+		})
+	}
 }
