@@ -29,6 +29,18 @@
 // until the password changes (a refreshed secret) or the Agent restarts; a
 // locked-out account is tried once an hour (see client.Guard).
 //
+// Files are limited by two budgets of logs_config.open_files_limit each, shared
+// by all the smb sources, as the file launcher limits its own files: the tailers,
+// and the drains of rotated files. A new file starts a tailer only while a
+// tailer slot is free, the most recently modified first, and nothing running is
+// ever stopped for it, so a stale file that the pattern still matches keeps its
+// slot: narrow the pattern. A rotation, a truncation or a replacement hands the
+// path's slot to its next tailer, so the active file never waits, and takes a
+// drain slot for the rotated file when one is free; when none is, the rest of
+// the file is reported missed. Together the tailers and the drains never exceed
+// twice the limit (see WithOpenFilesLimit). A source replaced by a refreshed
+// secret keeps its slots for its replacement.
+//
 // Listings are bounded, so that a share cannot exhaust the Agent's memory: a
 // directory with more than 100,000 entries, entries that take more than 64 MiB,
 // or a name longer than 255 characters is not listed, and one scan lists that
@@ -99,6 +111,14 @@ type Launcher struct {
 	// closeTimeout is how long a rotated file must have no new data before
 	// its drain ends; drainMaxCloseTimeouts of them bound the drain.
 	closeTimeout time.Duration
+	// openFilesLimit is the limit of each of the two budgets of all the sources
+	// together: the tailers, and the drains of rotated files (see
+	// WithOpenFilesLimit).
+	openFilesLimit int
+	// slots is, by scanner, how many tailer slots and drain slots it holds, which
+	// the scanners keep up to date (see reserveSlot); slotsMu guards it.
+	slotsMu sync.Mutex
+	slots   map[*scanner]slotCounts
 
 	// guard keeps a refused password from being sent again by any source (see
 	// client.Guard). It is the guard of the process, which outlives the launcher.
@@ -138,26 +158,43 @@ type Launcher struct {
 	closing      map[client.Client]chan struct{} // clients logging off in the background; the channel closes when done
 }
 
+// defaultOpenFilesLimit is the limit on tailers when the Agent passes none:
+// the default of logs_config.open_files_limit.
+const defaultOpenFilesLimit = 500
+
+func newOptions(opts []Option) options {
+	o := options{openFilesLimit: defaultOpenFilesLimit}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.openFilesLimit <= 0 {
+		o.openFilesLimit = defaultOpenFilesLimit
+	}
+	return o
+}
+
 // NewLauncher returns a Launcher. closeTimeout is logs_config.close_timeout,
 // which file sources wait for before they stop reading a rotated file: a
 // rotated file keeps being read under its new name until it has had no new
 // data for closeTimeout, and for drainMaxCloseTimeouts close timeouts at most.
-func NewLauncher(closeTimeout time.Duration) *Launcher {
+func NewLauncher(closeTimeout time.Duration, opts ...Option) *Launcher {
 	return &Launcher{
-		closeTimeout: closeTimeout,
-		clock:        clock.New(),
-		wallNow:      time.Now,
-		guard:        client.ProcessGuard(),
-		tailers:      tailers.NewTailerContainer[*tailer.Tailer](),
-		claims:       &claims{owners: make(map[string]*scanner)},
-		addedDone:    make(chan struct{}),
-		removedDone:  make(chan struct{}),
-		scanners:     make(map[*sources.LogSource]*scanner),
-		refused:      make(map[*sources.LogSource]bool),
-		replaced:     make(map[*sources.LogSource]bool),
-		removedEarly: make(map[*sources.LogSource]bool),
-		clients:      make(map[clientKey]*sharedClient),
-		closing:      make(map[client.Client]chan struct{}),
+		closeTimeout:   closeTimeout,
+		openFilesLimit: newOptions(opts).openFilesLimit,
+		clock:          clock.New(),
+		wallNow:        time.Now,
+		guard:          client.ProcessGuard(),
+		tailers:        tailers.NewTailerContainer[*tailer.Tailer](),
+		claims:         &claims{owners: make(map[string]*scanner)},
+		addedDone:      make(chan struct{}),
+		removedDone:    make(chan struct{}),
+		scanners:       make(map[*sources.LogSource]*scanner),
+		refused:        make(map[*sources.LogSource]bool),
+		replaced:       make(map[*sources.LogSource]bool),
+		removedEarly:   make(map[*sources.LogSource]bool),
+		clients:        make(map[clientKey]*sharedClient),
+		closing:        make(map[client.Client]chan struct{}),
+		slots:          make(map[*scanner]slotCounts),
 	}
 }
 
@@ -465,4 +502,84 @@ func (c *claims) release(identifier string, s *scanner) {
 	if c.owners[identifier] == s {
 		delete(c.owners, identifier)
 	}
+}
+
+// budget is one of the two limits on the files the sources hold open: the
+// tailers of the files they read, and the drains of the files that rotated.
+type budget int
+
+const (
+	tailerBudget budget = iota
+	drainBudget
+)
+
+// slotCounts is the slots a scanner holds, by budget.
+type slotCounts struct{ tailers, drains int }
+
+func (c *slotCounts) of(b budget) *int {
+	if b == drainBudget {
+		return &c.drains
+	}
+	return &c.tailers
+}
+
+// reserveSlot takes a slot of the budget b for s, and reports whether there was
+// one: the scanners hold fewer slots of b than the limit. The budgets are
+// separate, so that the tailers and the drains together never exceed twice the
+// limit, and a drain never takes the slot of a tailer, nor the other way round.
+func (l *Launcher) reserveSlot(s *scanner, b budget) bool {
+	l.slotsMu.Lock()
+	defer l.slotsMu.Unlock()
+	held := 0
+	for _, c := range l.slots {
+		held += *c.of(b)
+	}
+	if held >= l.openFilesLimit {
+		return false
+	}
+	c := l.slots[s]
+	*c.of(b)++
+	l.slots[s] = c
+	return true
+}
+
+// releaseSlot gives back a slot of the budget b that s held.
+func (l *Launcher) releaseSlot(s *scanner, b budget) {
+	l.slotsMu.Lock()
+	defer l.slotsMu.Unlock()
+	c := l.slots[s]
+	n := c.of(b)
+	*n = max(*n-1, 0)
+	l.slots[s] = c
+}
+
+// syncSlots sets the slots s holds to its tailers and drains (and the tailers
+// that are waiting for a new file of their path): the slots of the ones that
+// ended are free from then on.
+func (l *Launcher) syncSlots(s *scanner, tailers, drains int) {
+	l.slotsMu.Lock()
+	defer l.slotsMu.Unlock()
+	l.slots[s] = slotCounts{tailers, drains}
+}
+
+// handOverSlots gives next, which replaces prev, the tailer slots and drain
+// slots prev's stop kept for it, with no moment in which another source could
+// take them.
+func (l *Launcher) handOverSlots(prev, next *scanner, tailers, drains int) {
+	l.slotsMu.Lock()
+	defer l.slotsMu.Unlock()
+	delete(l.slots, prev)
+	l.slots[next] = slotCounts{tailers, drains}
+}
+
+// forgetSlots frees every slot of s, which stopped.
+func (l *Launcher) forgetSlots(s *scanner) {
+	l.slotsMu.Lock()
+	defer l.slotsMu.Unlock()
+	delete(l.slots, s)
+}
+
+// setOpenFilesLimit sets the limit, for tests.
+func (l *Launcher) setOpenFilesLimit(n int) {
+	l.openFilesLimit = newOptions([]Option{WithOpenFilesLimit(n)}).openFilesLimit
 }

@@ -165,7 +165,10 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
-	lnchrs.AddLauncher(smblauncher.NewLauncher(time.Duration(a.config.GetInt("logs_config.close_timeout")) * time.Second))
+	lnchrs.AddLauncher(smblauncher.NewLauncher(
+		time.Duration(a.config.GetInt("logs_config.close_timeout"))*time.Second,
+		smblauncher.WithOpenFilesLimit(fileLimits),
+	))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

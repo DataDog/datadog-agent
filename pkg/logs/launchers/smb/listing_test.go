@@ -259,6 +259,29 @@ func TestCappedDirRotationReadmitsPath(t *testing.T) {
 	assert.ElementsMatch(t, want(1, 3), h.finish(), "each line once: the rotated file resumes where it was")
 }
 
+// TestRotationInACappedDirectoryFindsTheNewFileAfterTheRename: a writer that
+// renames the file and creates the new one after a probe saw the path empty does
+// not leave the path blind: the path is read by name until its next tailer
+// starts, though the directory cannot be listed.
+func TestRotationInACappedDirectoryFindsTheNewFileAfterTheRename(t *testing.T) {
+	h := newHarness(t, withPath("app/app*.log"))
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.scan()
+	h.out.waitLines(t, 1)
+
+	h.share.FailNextPath(fake.OpListDir, "app", tooLarge("app", 100)...)
+	h.scan()
+	h.scan()
+	require.NoError(t, h.share.Rename("app/app.log", "app/app.1.log"))
+	h.scan() // a probe: the path is empty
+	require.Empty(t, h.scanner.active)
+
+	h.share.Write("app/app.log", []byte(lines(3, 3)))
+	h.scan()
+	assert.Contains(t, h.scanner.active, "app/app.log", "the new file is found by name")
+	assert.Equal(t, []string{"line 1", "line 3"}, h.out.waitLines(t, 2))
+}
+
 // TestDrainInOversizedDirectoryEndsAndReportsMissedBytes: a drain whose file is in
 // a directory that cannot be listed any more does not last for ever: it ends at
 // its deadline, and the bytes it could not read are reported missed.
