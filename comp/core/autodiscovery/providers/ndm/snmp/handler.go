@@ -41,10 +41,8 @@ func NewHandler(cfg model.Reader, logComp log.Component) *Handler {
 // Key returns the document key this handler owns.
 func (h *Handler) Key() string { return Key }
 
-// Render turns a path's snmp key into one check config per device. An instance
-// whose credential is missing or unusable is skipped and named in the error,
-// the others are still returned. The document's ping settings arrive in a
-// sibling key and are folded back into the instance they name.
+// Render turns a path's snmp key into one check config per device, folding in the
+// ping sibling key. An instance with no usable credential is skipped, not scheduled.
 func (h *Handler) Render(path string, raw json.RawMessage, siblings map[string]json.RawMessage) ([]integration.Config, error) {
 	var doc keyConfig
 	if err := json.Unmarshal(raw, &doc); err != nil {

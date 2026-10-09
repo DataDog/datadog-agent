@@ -126,9 +126,8 @@ func (p *Provider) close() {
 	})
 }
 
-// Update handles a complete NDM Remote Configuration snapshot, emitting all
-// of its changes as one ConfigChanges. Not safe to call concurrently with
-// itself.
+// Update handles a complete NDM Remote Configuration snapshot, emitting all of
+// its changes as one ConfigChanges. Not safe to call concurrently with itself.
 func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	p.stateMutex.Lock()
 

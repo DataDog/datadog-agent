@@ -30,9 +30,8 @@ func parseDocument(raw []byte) (map[string]json.RawMessage, error) {
 	return keys, nil
 }
 
-// dispatch hands each registered key present in the document to its handler.
-// owned reports whether any registered key was present, which is the whole
-// ownership test. The caller must hold p.stateMutex for writing.
+// dispatch hands each registered key present in the document to its handler,
+// reporting whether any was present. The caller must hold p.stateMutex.
 func (p *Provider) dispatch(path string, keys map[string]json.RawMessage) (map[string][]integration.Config, map[string]error, bool) {
 	var (
 		configsByKey map[string][]integration.Config
