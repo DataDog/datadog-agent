@@ -77,6 +77,7 @@ type pkgInUseDistro struct {
 	nonRootPkg string // package run only as nobody
 	nonRootCmd string // shell that runs a nonRootPkg binary as the nobody user
 	dbProbe    string // existing-file path under the package DB dir to write for the refresh trigger
+	upgrade    bool   // rebuild inUsePkg with dpkg-deb and upgrade it in place
 }
 
 // pkgInUseDistros are the workloads exercised end to end. gzip/curl are the
@@ -95,7 +96,7 @@ var pkgInUseDistros = []pkgInUseDistro{
 		inUsePkg: "gzip", inUseBin: "gzip", controlPkg: "coreutils",
 		suidPkg: "util-linux", suidCmd: "su --version >/dev/null 2>&1", stickyCmd: "",
 		nonRootPkg: "grep", nonRootCmd: "/usr/sbin/chroot --userspec=nobody / /usr/bin/grep --version >/dev/null 2>&1",
-		dbProbe: "/var/lib/dpkg/.sbom-refresh-probe"},
+		dbProbe: "/var/lib/dpkg/.sbom-refresh-probe", upgrade: true},
 	{name: "alpine", workload: "sbom-alpine", repo: "wbitt/network-multitool",
 		inUsePkg: "curl", inUseBin: "curl", controlPkg: "busybox",
 		suidPkg: "iputils-ping", suidCmd: "ping -c 1 -W 1 127.0.0.1 >/dev/null 2>&1", stickyCmd: "",
@@ -367,6 +368,148 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 			assert.Equalf(c, "0", v, "%s LastSeenRunning should reset to 0 after a package-DB refresh, got %q", d.inUsePkg, v)
 		}, 6*time.Minute, 20*time.Second, "%s SBOM never reset %s to 0 after the package-DB refresh", d.name, d.inUsePkg)
 	})
+
+	// Phase 6: upgrade. dpkg installs a higher version of the in-use package
+	// while the service runs it, and the refresh rules rescan the workload.
+	s.Run("upgrade", func() {
+		if !d.upgrade {
+			s.T().Skipf("%s: the upgrade phase rebuilds a dpkg package", d.name)
+		}
+		s.runUpgrade(d)
+	})
+}
+
+// upgradeScript rebuilds a dpkg package at its first version and at that version
+// plus "+e2e1", and installs the first ("restore") or the second ("upgrade").
+const upgradeScript = `set -eu
+action=$1 pkg=$2 bin=$3 dir=/var/tmp/sbom-upgrade
+mkdir -p "$dir"
+[ -s "$dir/version" ] || dpkg-query -W -f='${Version}' "$pkg" >"$dir/version"
+version=$(cat "$dir/version")
+if [ ! -s "$dir/upgrade.deb" ]; then
+	rm -rf "$dir/root"
+	mkdir -p "$dir/root/DEBIAN"
+	dpkg-query -L "$pkg" | while read -r f; do
+		if [ -f "$f" ]; then printf '%s\n' "${f#/}"; fi
+	done | tar -C / -cf - -T - | tar -C "$dir/root" -xf -
+	cp "/var/lib/dpkg/info/$pkg.md5sums" "$dir/root/DEBIAN/md5sums"
+	arch=$(dpkg-query -W -f='${Architecture}' "$pkg")
+	for build in "restore:$version" "upgrade:$version+e2e1"; do
+		printf 'Package: %s\nVersion: %s\nArchitecture: %s\nMaintainer: e2e\nDescription: rebuilt by the package-in-use e2e test\n' \
+			"$pkg" "${build#*:}" "$arch" >"$dir/root/DEBIAN/control"
+		# a compressed build overflows the 64Mi memory limit of the pod
+		dpkg-deb -Znone --build --root-owner-group "$dir/root" "$dir/${build%%:*}.deb" >/dev/null
+	done
+fi
+case $action in
+restore) [ "$(dpkg-query -W -f='${Version}' "$pkg")" = "$version" ] || dpkg -i "$dir/restore.deb" >/dev/null ;;
+upgrade) date +%s; dpkg -i "$dir/upgrade.deb" >/dev/null; "$bin" --version >/dev/null ;;
+esac
+`
+
+// runUpgrade installs a higher version of the in-use package of d while its
+// service runs, and checks the usage the rescan of the workload leaves.
+func (s *packageInUseSuite) runUpgrade(d pkgInUseDistro) {
+	repo := d.repo
+	run := func(action string) string {
+		stdout, stderr := s.podExec(d, "sh", "-c", upgradeScript, "sh", action, d.inUsePkg, d.inUseBin)
+		s.T().Logf("PKG-IN-USE[%s] %s: stdout=%q stderr=%q", d.name, action, stdout, stderr)
+		return stdout
+	}
+
+	// Restore and restart first, for a stack kept from a run killed before its cleanup.
+	startedAt := s.nodeEpoch(d)
+	run("restore")
+	s.stopInUseService(d)
+	s.startInUseService(d)
+	defer func() {
+		s.stopInUseService(d)
+		run("restore")
+	}()
+
+	s.Require().EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		ts, _, _ := s.packageUsage(c, repo, d.inUsePkg)
+		assert.GreaterOrEqualf(c, ts, startedAt, "%s LastSeenRunning %d predates the service start %d", d.inUsePkg, ts, startedAt)
+	}, 5*time.Minute, 15*time.Second, "%s SBOM never reported %s in use before the upgrade", d.name, d.inUsePkg)
+
+	// dpkg-query marks dpkg in use before the upgrade, so its reset shows after the rescan.
+	witnessedAt := s.nodeEpoch(d)
+	s.podExec(d, "dpkg-query", "-W", "dpkg")
+	s.Require().EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		ts, _, _ := s.packageUsage(c, repo, "dpkg")
+		assert.GreaterOrEqualf(c, ts, witnessedAt, "dpkg LastSeenRunning %d predates its run at %d", ts, witnessedAt)
+	}, 3*time.Minute, 15*time.Second, "%s SBOM never reported dpkg in use", d.name)
+
+	out := run("upgrade")
+	upgradedAt, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+	s.Require().NoErrorf(err, "the upgrade printed %q", out)
+
+	s.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		scans := s.workloadScans(c, d, upgradedAt)
+		require.NotEmptyf(c, scans, "no scan of the %s workload since the upgrade at %d", d.name, upgradedAt)
+		rescanAt := scans[len(scans)-1].Unix()
+		// The loop runs the binary every 15s, so a payload stamped 20s past the
+		// rescan follows a run of the upgraded build.
+		control, _ := strconv.ParseInt(s.packageProperty(repo, d.controlPkg, propLastSeenRunning), 10, 64)
+		require.Greaterf(c, control, rescanAt+20, "%s LastSeenRunning %d in the newest payload is within 20s of the rescan at %d", d.controlPkg, control, rescanAt)
+
+		dpkg := s.packageProperty(repo, "dpkg", propLastSeenRunning)
+		inUse, _ := strconv.ParseInt(s.packageProperty(repo, d.inUsePkg, propLastSeenRunning), 10, 64)
+		s.T().Logf("PKG-IN-USE[%s] upgraded at %d, rescans %v: dpkg LastSeenRunning=%q, %s LastSeenRunning=%d", d.name, upgradedAt, scans, dpkg, d.inUsePkg, inUse)
+		assert.Equalf(c, "0", dpkg, "dpkg LastSeenRunning should reset to 0 after the rescan, got %q", dpkg)
+		// Known gap: the image SBOM lacks the version the upgrade installed, so the package keeps the usage of the build it replaced.
+		assert.GreaterOrEqualf(c, inUse, startedAt, "%s LastSeenRunning %d predates the service start %d", d.inUsePkg, inUse, startedAt)
+		assert.LessOrEqualf(c, inUse, rescanAt, "%s LastSeenRunning %d follows the rescan at %d", d.inUsePkg, inUse, rescanAt)
+	}, 6*time.Minute, 20*time.Second, "%s SBOM never showed the rescan after the upgrade", d.name)
+
+	// The service kept running the upgraded build.
+	s.podExec(d, "sh", "-c", `kill -0 "$(cat /tmp/inuse.pid)"`)
+}
+
+// workloadScans returns the times, in the order of the log, at which
+// system-probe logged a scan of the workload of d since since.
+func (s *packageInUseSuite) workloadScans(t require.TestingT, d pkgInUseDistro, since int64) []time.Time {
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace).List(s.T().Context(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", d.workload).String(),
+	})
+	require.NoErrorf(t, err, "failed to list %s workload pods", d.workload)
+	require.NotEmptyf(t, pods.Items, "no %s workload pod", d.workload)
+	var id string
+	for _, status := range pods.Items[0].Status.ContainerStatuses {
+		if status.Name == "main" {
+			_, id, _ = strings.Cut(status.ContainerID, "://")
+		}
+	}
+	require.NotEmptyf(t, id, "no container ID for the %s workload", d.workload)
+
+	sinceTime := metav1.NewTime(time.Unix(since, 0))
+	logs, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").GetLogs(s.nodeAgent(t).Name, &corev1.PodLogOptions{
+		Container:  "system-probe",
+		SinceTime:  &sinceTime,
+		Timestamps: true,
+	}).DoRaw(s.T().Context())
+	require.NoError(t, err, "failed to read the system-probe log")
+
+	var scans []time.Time
+	for _, line := range strings.Split(string(logs), "\n") {
+		stamp, msg, _ := strings.Cut(strings.TrimSpace(line), " ")
+		if !strings.Contains(msg, "new sbom generated for '"+id+"'") {
+			continue
+		}
+		at, err := time.Parse(time.RFC3339Nano, stamp)
+		require.NoErrorf(t, err, "system-probe log line %q", line)
+		scans = append(scans, at)
+	}
+	return scans
 }
 
 // hostShellContainer names the container of the pod startHostShell runs.
