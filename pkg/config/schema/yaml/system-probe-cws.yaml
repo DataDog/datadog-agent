@@ -725,10 +725,11 @@ properties:
             type: boolean
             default: false
             comment: |
-              Experimental v3 Security Profile manager. Keeps no local activity
-              tree or profile: emits anomaly_detection events for novel behavior
-              (deduplicated per workload) and lets the backend rebuild the
-              profile. Takes precedence over v2 when enabled.
+              Experimental v3 Security Profile manager, disabled by default and
+              opt-in. Keeps no local activity tree or profile: emits
+              anomaly_detection events for novel behavior (deduplicated per
+              workload) and lets the backend rebuild the profile. Takes
+              precedence over v2 when enabled.
       v2:
         node_type: section
         type: object
@@ -754,6 +755,8 @@ properties:
             - bind
             - connect
             - capabilities
+            - imds
+            - syscalls
             items:
               type: string
           excluded_images:
