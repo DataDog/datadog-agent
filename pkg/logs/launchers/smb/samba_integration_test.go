@@ -76,8 +76,17 @@ const (
 	itLineLen = 128
 	// itWriteEvery paces the writer: about 150 lines per second.
 	itWriteEvery = 5 * time.Millisecond
-	// itCloseTimeout is the default logs_config.close_timeout.
+	// itCloseTimeout is the default logs_config.close_timeout: a rotated
+	// file's drain ends once the file has had no new data for that long.
 	itCloseTimeout = time.Minute
+	// itShortCloseTimeout replaces it in the scenarios that wait for drains
+	// to end, so that they take seconds per rotation rather than a minute.
+	itShortCloseTimeout = 5 * time.Second
+	// itFastCloseTimeout replaces it in testFastFixedWindowRotation, so that
+	// a drain lasts about one rollover period (1.2s) instead of a minute, and
+	// files are often renamed again while drained or just after their drain
+	// ended.
+	itFastCloseTimeout = time.Second
 	// itSettle is how long a scenario keeps reading once every expected line
 	// arrived, so that duplicates and late reads show up: over two polls.
 	itSettle = 3 * time.Second
@@ -167,13 +176,16 @@ func testRenameRotation(t *testing.T, env *sambaEnv, report *itReport) {
 // writes, so the rotated file holds lines not read yet. The writer then waits
 // until the source tails every file of the window again under its new name,
 // from where its drain ended, as with rollovers minutes or hours apart
-// (testFastFixedWindowRotation does not wait). That takes up to about 4s
-// after a rollover: up to a poll interval to see it, the drain's polls until
-// two in a row find nothing new, and one more scan to start the tailer that
-// resumes the drained file. Samba can give the next app.log the inode, and so
-// the FileId, of the app.log.3 it just deleted.
+// (testFastFixedWindowRotation does not wait). With the scenario's close
+// timeout of 5s (itShortCloseTimeout), that takes up to about 8s after a
+// rollover: up to a poll interval to see it, the close timeout without new
+// data in the drained file, up to a poll interval more for the drain's last
+// read, and one more scan to start the tailer that resumes the drained file.
+// Samba can give the next app.log the inode, and so the FileId, of the
+// app.log.3 it just deleted.
 func testFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "window")
+	s.closeTimeout = itShortCloseTimeout
 	file := s.dir + "/app.log"
 	s.startSource(s.newSource(env.currentPassword(), file+"*"))
 	s.startFile(file)
@@ -186,12 +198,14 @@ func testFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) {
 }
 
 // testFastFixedWindowRotation rolls the same window over every 1.2 seconds,
-// faster than a rotated file's drain, as a size-based policy does under heavy
-// logging: a file is often renamed again while it is drained, or after its
-// drain ended but before the tailer of its path started. Wherever the file is
-// by then, its next tailer resumes where the drain ended.
+// as a size-based policy does under heavy logging. With a close timeout of 1s
+// (itFastCloseTimeout), a rotated file's drain lasts about as long as a
+// rollover period: a file is often renamed again while it is drained, or
+// after its drain ended but before the tailer of its path started. Wherever
+// the file is by then, its next tailer resumes where the drain ended.
 func testFastFixedWindowRotation(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "window-fast")
+	s.closeTimeout = itFastCloseTimeout
 	file := s.dir + "/app.log"
 	s.startSource(s.newSource(env.currentPassword(), file+"*"))
 	s.startFile(file)
@@ -443,43 +457,56 @@ func testCompressOnRotateUnpaced(t *testing.T, env *sambaEnv, report *itReport) 
 
 // testLateAppend renames the file while the writer keeps its handle, then
 // writes one more line through that handle 0.5s, 1.5s or 3s later. The
-// rotated file is read until two polls in a row find nothing new: the 0.5s
-// line must survive; the others are reported.
+// rotated file is read until it has had no new data for the close timeout
+// (itShortCloseTimeout here, to keep the scenario short), so each of these
+// lines must arrive. A last rotation appends its line once the rotated file's
+// drain ended: that line is lost, and not reported missed, since no listing
+// saw it.
 func testLateAppend(t *testing.T, env *sambaEnv, report *itReport) {
 	s := newITScenario(t, env, report, "late")
+	s.closeTimeout = itShortCloseTimeout
 	file := s.dir + "/app.log"
 	s.startSource(s.newSource(env.currentPassword(), file))
 	s.startFile(file)
-	delays := []time.Duration{500 * time.Millisecond, 1500 * time.Millisecond, 3 * time.Second}
-	for i, delay := range delays {
+	// rotate writes to the file, renames it to its n-th rotated name while
+	// the writer keeps its handle, and creates the next file.
+	rotate := func(n int) (rotated string, id uint64, renamed time.Time) {
+		t.Helper()
 		require.NoError(t, s.writeLines(file, 100, itWriteEvery, nil))
-		rotated := fmt.Sprintf("%s.%d", file, i+1)
+		id = env.fileID(s.dir, "app.log")
+		rotated = fmt.Sprintf("%s.%d", file, n)
 		require.NoError(t, s.writer.rename(file, rotated, true))
-		renamed := time.Now()
+		renamed = time.Now()
 		require.NoError(t, s.writer.create(file))
 		require.NoError(t, s.writeLines(file, 1, 0, nil))
+		return rotated, id, renamed
+	}
+	delays := []time.Duration{500 * time.Millisecond, 1500 * time.Millisecond, 3 * time.Second}
+	var drained []time.Duration // how long after the rename each drain ended
+	for i, delay := range delays {
+		rotated, id, renamed := rotate(i + 1)
 		time.Sleep(time.Until(renamed.Add(delay)))
 		require.NoError(t, s.writeLines(rotated, 1, 0, func(l *itLine) { l.late = delay }))
 		require.NoError(t, s.writer.closeFile(rotated))
 		require.NoError(t, s.writeLines(file, 50, itWriteEvery, nil))
-		time.Sleep(5 * time.Second) // the rotated file's drain ends
+		drained = append(drained, s.waitDrained(id).Sub(renamed))
 	}
+	rotated, id, renamed := rotate(len(delays) + 1)
+	s.waitDrained(id)
+	after := time.Since(renamed)
+	require.NoError(t, s.writeLines(rotated, 1, 0, func(l *itLine) { l.late, l.mayLose = after, true }))
+	require.NoError(t, s.writer.closeFile(rotated))
+	require.NoError(t, s.writeLines(file, 50, itWriteEvery, nil))
 
-	lost, _ := s.verify(func(l *itLine) bool { return l.late > delays[0] }, nil)
-	s.assertMissedBytesBound(lost)
-	missing := map[time.Duration]bool{}
-	for _, l := range lost {
-		missing[l.late] = true
-	}
-	var outcomes []string
+	lost, _ := s.verify(func(l *itLine) bool { return l.mayLose }, nil)
+	assert.Len(t, lost, 1, "the line appended once the drain ended is lost")
+	assert.Zero(t, s.missedBytes(), "no listing saw the lost line, so it is not reported missed")
+	var delivered []string
 	for _, delay := range delays {
-		outcome := "delivered"
-		if missing[delay] {
-			outcome = "lost"
-		}
-		outcomes = append(outcomes, fmt.Sprintf("%s after the rename: %s", delay, outcome))
+		delivered = append(delivered, delay.String())
 	}
-	s.reportf("line appended to the rotated file %s; %d bytes reported missed", strings.Join(outcomes, ", "), s.missedBytes())
+	s.reportf("lines appended to the rotated file %s after the rename delivered, their drains ending %s after the rename (close timeout %s); the line appended %s after the rename, once the drain ended, lost; %d bytes reported missed",
+		strings.Join(delivered, ", "), durationRange(drained), s.closeTimeout, after.Round(100*time.Millisecond), s.missedBytes())
 }
 
 // testAgentRestart stops the launcher in the middle of a file, while the
@@ -676,7 +703,7 @@ func testPasswordChange(t *testing.T, env *sambaEnv, report *itReport) {
 type itLine struct {
 	seq     int
 	file    string
-	mayLose bool          // written between a copytruncate's copy and its truncation, or to a file compressed and deleted at once
+	mayLose bool          // written between a copytruncate's copy and its truncation, to a file compressed and deleted at once, or to a rotated file once its drain ended
 	doomed  bool          // destroyed while the reader's read was held (readGate)
 	late    time.Duration // written to the rotated file this long after the rename
 }
@@ -698,6 +725,9 @@ type itScenario struct {
 	launcher *Launcher
 	gate     readGate
 	dials    atomic.Int64
+	// closeTimeout is the launcher's logs_config.close_timeout: itCloseTimeout
+	// unless the scenario sets another before it starts its source.
+	closeTimeout time.Duration
 
 	mu      sync.Mutex
 	written []*itLine // by seq-1
@@ -718,6 +748,8 @@ func newITScenario(t *testing.T, env *sambaEnv, report *itReport, name string) *
 		registry: registry,
 		sources:  sources.NewLogSources(),
 		writer:   newSMBWriter(env),
+
+		closeTimeout: itCloseTimeout,
 	}
 	s.coll = newITCollector(name, provider.NextPipelineChan(), registry)
 	t.Cleanup(s.coll.stop)
@@ -763,7 +795,7 @@ func (s *itScenario) startSource(source *sources.LogSource) {
 // startLauncher starts a launcher reading the scenario's sources with
 // registry, which the collector commits offsets to.
 func (s *itScenario) startLauncher(registry *auditorMock.Registry) {
-	l := NewLauncher(itCloseTimeout)
+	l := NewLauncher(s.closeTimeout)
 	l.dial = s.dial
 	l.Start(s.sources, s.provider, registry, tailers.NewTailerTracker())
 	s.launcher = l
@@ -886,6 +918,25 @@ func (s *itScenario) waitWritten(n int) {
 	s.waitFor(func() bool { return s.lastSeq() >= n }, itDeliverTimeout, func() string {
 		return fmt.Sprintf("the writer wrote %d of %d lines", s.lastSeq(), n)
 	})
+}
+
+// waitDrained waits until a drain of the rotated file with FileId id started,
+// then ended, and returns when it saw the drain end.
+func (s *itScenario) waitDrained(id uint64) time.Time {
+	s.t.Helper()
+	draining := func() bool {
+		for _, tl := range s.launcher.tailers.All() {
+			if tl.IsDraining() && tl.FileID() == id {
+				return true
+			}
+		}
+		return false
+	}
+	s.waitFor(draining, itDeliverTimeout, func() string { return fmt.Sprintf("FileId %d is never drained", id) })
+	s.waitFor(func() bool { return !draining() }, s.closeTimeout*drainMaxCloseTimeouts, func() string {
+		return fmt.Sprintf("the drain of FileId %d does not end", id)
+	})
+	return time.Now()
 }
 
 // waitDelivered waits until the line seq was delivered.

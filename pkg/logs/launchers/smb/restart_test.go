@@ -582,9 +582,9 @@ func TestDrainAfterAResumeRecordsOnlyWhatWasDelivered(t *testing.T) {
 			h.share.Append("app/app.log", []byte(lines(2, 2)))
 			require.NoError(t, h.share.Rename("app/app.log", "app/app.log.1"))
 			h.share.Write("app/app.log", nil)
-			for range 4 {
-				h.scan() // the drain reads line 2 and ends; app.log.1's tailer resumes the file after it
-			}
+			h.scan()                  // the drain reads line 2
+			h.scanAfterCloseTimeout() // and ends
+			h.scan()                  // app.log.1's tailer resumes the file after it
 			require.Empty(t, h.scanner.draining)
 			require.EqualValues(t, len(lines(1, 2)), h.activeTailer("app/app.log.1").Offset())
 			h.out.waitLines(t, 2)
@@ -636,8 +636,7 @@ func TestRestartSpanningARotation(t *testing.T) {
 	restarted.scan()
 	require.Len(t, restarted.scanner.draining, 1, "the rotated file is drained from its stored offset")
 	assert.Equal(t, "app/app.log.1", restarted.scanner.draining[0].t.ReadPath())
-	restarted.scan()
-	restarted.scan()
+	restarted.scanAfterCloseTimeout()
 	assert.Empty(t, restarted.scanner.draining)
 	assert.ElementsMatch(t, want(1, 4), restarted.finish(), "each line once")
 	assert.Empty(t, metrics.MissedBytesSnapshot())
@@ -994,7 +993,7 @@ func refreshableSource(password string, opts ...func(*config.LogsConfig)) *sourc
 // rotated file it drains is locked, holding a line neither scanner reads: the
 // new scanner's drain knows the line is there and ends as the replaced one
 // would have, so the line is reported missed once, when the file disappears
-// or at the deadline set when the file rotated.
+// or at the deadline of the replaced scanner's drain.
 func TestSecretRefreshMidDrainHandsTheDrainOver(t *testing.T) {
 	for _, deleted := range []bool{false, true} {
 		t.Run(fmt.Sprintf("rotated file deleted %t", deleted), func(t *testing.T) {
@@ -1022,12 +1021,14 @@ func TestSecretRefreshMidDrainHandsTheDrainOver(t *testing.T) {
 			st.share.Append("app/app.log", []byte(lines(3, 3)))
 			require.NoError(t, st.share.Rename("app/app.log", "app/app.log.1"))
 			st.share.Write("app/app.log", []byte(lines(4, 4)))
-			locked := make([]error, 200)
+			// Locked for longer than the drain lasts: a scan a second, and
+			// the drain reads the file at each.
+			locked := make([]error, 2*drainMaxCloseTimeouts*int(closeTimeout/time.Second))
 			for i := range locked {
 				locked[i] = fake.ErrSharing
 			}
 			st.share.FailNextPath(fake.OpReadAt, "app/app.log.1", locked...)
-			scan() // the rotation is seen: the drain ends by closeTimeout (a minute) from now
+			scan() // the rotation is seen and line 3 listed: the drain ends ten close timeouts from now at the latest
 			st.out.waitLines(t, 3)
 			for range 30 {
 				scan()
@@ -1045,8 +1046,15 @@ func TestSecretRefreshMidDrainHandsTheDrainOver(t *testing.T) {
 				for range 29 {
 					scan()
 				}
-				assert.Empty(t, metrics.MissedBytesSnapshot(), "the drain goes on until its deadline")
-				st.clock.Add(time.Second) // a minute after the rotation, not after the replacement
+				assert.Empty(t, metrics.MissedBytesSnapshot(), "the drain goes on while the listing shows a line it could not read")
+				// A second before the deadline of the replaced scanner's
+				// drain, ten close timeouts after the rotation was seen.
+				reads := drainReads.Load()
+				st.clock.Add(drainMaxCloseTimeouts*closeTimeout - time.Minute)
+				st.waitFor(t, func() bool { return drainReads.Load() > reads }, "the drain polls the rotated file")
+				require.True(t, st.draining())
+				assert.Empty(t, metrics.MissedBytesSnapshot())
+				st.clock.Add(time.Second) // that deadline, not one counted from the replacement
 			}
 			st.waitFor(t, func() bool { return !st.draining() }, "the drain ends")
 			snapshot := metrics.MissedBytesSnapshot()
@@ -1083,12 +1091,11 @@ func TestSecretRefreshAfterADrainEnded(t *testing.T) {
 	st.share.Append("app/app.log", []byte(lines(3, 3)))
 	require.NoError(t, st.share.Rename("app/app.log", "app/app.log.1"))
 	st.share.Write("app/app.log", []byte(lines(4, 4)))
-	// The drain reads line 3, then two polls find nothing new: it ends. Each
-	// scan reads the rotated file once.
-	for scan := int32(1); scan <= 3; scan++ {
-		st.clock.Add(time.Second)
-		st.waitFor(t, func() bool { return drainReads.Load() == scan }, "the drain polls the rotated file")
-	}
+	// The drain reads line 3, then ends once the rotated file has had no new
+	// data for the close timeout.
+	st.clock.Add(time.Second)
+	st.waitFor(t, func() bool { return drainReads.Load() == 1 }, "the drain reads the rotated file")
+	st.clock.Add(closeTimeout)
 	st.waitFor(t, func() bool { return !st.draining() }, "the drain ends")
 	st.out.waitLines(t, 4)
 
