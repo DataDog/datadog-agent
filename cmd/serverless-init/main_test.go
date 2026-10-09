@@ -8,31 +8,453 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
+	"strconv"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	serverlessInitInventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	agentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventoryagentimpl "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/impl"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics/metricstest"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+type inventoryRecordingSerializer struct {
+	serializer.MetricSerializer
+	mu       sync.Mutex
+	payloads [][]byte
+}
+
+func (s *inventoryRecordingSerializer) SendMetadata(payload marshaler.JSONMarshaler) error {
+	data, err := payload.MarshalJSON()
+	if err == nil {
+		s.mu.Lock()
+		s.payloads = append(s.payloads, data)
+		s.mu.Unlock()
+	}
+	return err
+}
+
+func (s *inventoryRecordingSerializer) Payloads() [][]byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.payloads)
+}
+
+type inventoryTestCloudService struct {
+	cloudservice.CloudService
+	data cloudservice.InventoryData
+}
+
+func (s inventoryTestCloudService) CanCollectInventory() bool { return s.data.ResourceID != "" }
+func (s inventoryTestCloudService) GetInventoryData() cloudservice.InventoryData {
+	return s.data
+}
+
+func TestInventoryOneShotReadiness(t *testing.T) {
+	for _, firstRunDelay := range []int{0, 3600} {
+		t.Run(strconv.Itoa(firstRunDelay), func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+			conf := coreconfig.NewMock(t)
+			for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
+				conf.Set(key, true, configmodel.SourceAgentRuntime)
+			}
+			conf.Set("inventories_first_run_delay", firstRunDelay, configmodel.SourceAgentRuntime)
+			conf.Set("inventories_configuration_enabled", false, configmodel.SourceAgentRuntime)
+			conf.Set("site", "datadoghq.eu", configmodel.SourceAgentRuntime)
+			service := inventoryTestCloudService{data: cloudservice.InventoryData{
+				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "test-workload",
+				ParentResourceID: "test-parent", Region: "test-region", RuntimeCandidates: []string{"python"},
+			}}
+			configureInventory(service)
+			serial := &inventoryRecordingSerializer{}
+			hostname, _ := hostnamemock.NewMock("inventory-test")
+			logger := logmock.New(t)
+			collected := make(chan struct{})
+			var firstCollection sync.Once
+
+			// Unlike TestOneShot (graph validation), OneShot actually starts Fx and
+			// the real runner. Wait for its first provider callback to finish before
+			// doing the same publication as setup. No scheduler timing is assumed.
+			err := fxutil.OneShot(func(ia inventoryagent.Component, _ runner.Component) error {
+				select {
+				case <-collected:
+				case <-time.After(5 * time.Second):
+					return errors.New("runner did not collect before initialization")
+				}
+				ia.Submit()
+				if len(serial.Payloads()) != 0 {
+					return errors.New("inventory emitted before initialization")
+				}
+				serverlessInitInventory.UpdateAndSubmit(ia, service, mode.Conf{SidecarMode: true}, conf, map[string]string{
+					"env": "test-env", "service": "test-service", "version": "test-version",
+				})
+				if len(serial.Payloads()) == 0 {
+					return errors.New("publication did not synchronously enqueue inventory")
+				}
+				return nil
+			},
+				fx.Provide(serverlessInitInventory.NewCapabilities),
+				fx.Provide(func(caps *inventoryagent.Capabilities) (inventoryagent.Component, runner.Provider) {
+					p := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
+						Config: conf, Log: logger, Hostname: hostname, Serializer: serial, Capabilities: caps,
+					})
+					callback := p.Provider.Callback
+					require.NotNil(t, callback, "readiness must not unregister an enabled provider")
+					return p.Comp, runner.NewProvider(func(ctx context.Context) time.Duration {
+						interval := callback(ctx)
+						firstCollection.Do(func() { close(collected) })
+						return interval
+					})
+				}),
+				fx.Provide(func() coreconfig.Component { return conf }),
+				fx.Provide(func() logdef.Component { return logger }),
+				runnerfx.Module(),
+				fx.StartTimeout(5*time.Second),
+				fx.StopTimeout(5*time.Second),
+			)
+			require.NoError(t, err)
+			payloads := serial.Payloads()
+			require.NotEmpty(t, payloads)
+			var startupUUID string
+			for index, data := range payloads {
+				var payload struct {
+					UUID     string                 `json:"uuid"`
+					Metadata map[string]interface{} `json:"agent_metadata"`
+				}
+				require.NoError(t, json.Unmarshal(data, &payload))
+				require.NotEmpty(t, payload.UUID)
+				if index == 0 {
+					startupUUID = payload.UUID
+					assert.Equal(t, "startup", payload.Metadata["report_reason"])
+				}
+				assert.Equal(t, startupUUID, payload.UUID)
+				for key, expected := range map[string]string{
+					"resource_id": "test-resource", "resource_name": "test-app", "workload_type": "test-workload",
+					"parent_resource_id": "test-parent", "region": "test-region", "runtime": "python",
+					"deployment_model": "sidecar", "flavor": "serverless-init",
+					"dd_site": "datadoghq.eu", "dd_env": "test-env", "dd_service": "test-service", "dd_version": "test-version",
+					"agent_version_base": version.AgentVersion, "serverless_init_version": serverlessTag.GetExtensionVersion(),
+				} {
+					assert.Equal(t, expected, payload.Metadata[key], key)
+				}
+				assert.Equal(t, float64(conf.StartTime().UnixMilli()), payload.Metadata["agent_startup_time_ms"])
+			}
+		})
+	}
+}
+
+func TestPreloadEarlyPreservesInventoryFirstRunDelay(t *testing.T) {
+	for _, delay := range []string{"", "3600"} {
+		t.Run("delay="+delay, func(t *testing.T) {
+			t.Setenv("DD_INVENTORIES_FIRST_RUN_DELAY", delay)
+			if delay == "" {
+				require.NoError(t, os.Unsetenv("DD_INVENTORIES_FIRST_RUN_DELAY"))
+			}
+			conf := configmock.New(t)
+			before := conf.GetInt("inventories_first_run_delay")
+			require.Positive(t, before)
+			preloadEarly()
+			assert.Equal(t, before, conf.GetInt("inventories_first_run_delay"))
+		})
+	}
+}
+
+func TestInventoryIdentityGate(t *testing.T) {
+	originalConfig := pkgconfigsetup.Datadog()
+	originalConfigPath := originalConfig.ConfigFileUsed()
+	for _, scenario := range []string{"valid", "missing", "serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
+		t.Run(scenario, func(t *testing.T) {
+			conf := coreconfig.NewMock(t)
+			require.NotSame(t, originalConfig, pkgconfigsetup.Datadog())
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			require.NoError(t, os.WriteFile(configPath, []byte("inventories_enabled: true\n"), 0600))
+			pkgconfigsetup.Datadog().(configmodel.BuildableConfig).SetConfigFile(configPath)
+			require.Equal(t, configPath, conf.ConfigFileUsed())
+			for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
+				conf.Set(key, true, configmodel.SourceAgentRuntime)
+			}
+			conf.Set("inventories_first_run_delay", 0, configmodel.SourceAgentRuntime)
+			conf.Set("inventories_configuration_enabled", false, configmodel.SourceAgentRuntime)
+			conf.Set("site", "datadoghq.eu", configmodel.SourceAgentRuntime)
+			conf.Set("logs_enabled", true, configmodel.SourceAgentRuntime)
+			conf.Set("config_id", "local-fleet-config", configmodel.SourceAgentRuntime)
+			conf.Set("fleet_layers", []string{"local-fleet-policy"}, configmodel.SourceAgentRuntime)
+			service := inventoryTestCloudService{data: cloudservice.InventoryData{
+				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "azure_app_service",
+			}}
+			if scenario == "missing" {
+				service.data.ResourceID = ""
+			} else if scenario != "valid" {
+				conf.Set(scenario, false, configmodel.SourceAgentRuntime)
+			}
+			configureInventory(service)
+			// setup reloads configuration after the pre-Fx gate.
+			require.NoError(t, pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil))
+			serial := &inventoryRecordingSerializer{}
+			hostname, _ := hostnamemock.NewMock("inventory-test")
+			provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
+				Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
+			})
+			serverlessInitInventory.UpdateAndSubmit(provides.Comp, service, mode.Conf{}, conf, map[string]string{
+				"env": "test-env", "service": "test-service", "version": "test-version",
+			})
+			if scenario != "valid" {
+				assert.Empty(t, serial.Payloads())
+				assert.Nil(t, provides.Provider.Callback, "no periodic or in-flight collection may be registered")
+				return
+			}
+			require.Len(t, serial.Payloads(), 1, "startup submission is synchronous")
+			require.NotNil(t, provides.Provider.Callback)
+			provides.Provider.Callback(context.Background())
+			require.Len(t, serial.Payloads(), 2)
+			var startupUUID string
+			for index, data := range serial.Payloads() {
+				var payload struct {
+					UUID     string                 `json:"uuid"`
+					Metadata map[string]interface{} `json:"agent_metadata"`
+				}
+				require.NoError(t, json.Unmarshal(data, &payload))
+				assert.Equal(t, service.data.ResourceID, payload.Metadata["resource_id"])
+				assert.Equal(t, service.data.ResourceName, payload.Metadata["resource_name"])
+				assert.Equal(t, service.data.WorkloadType, payload.Metadata["workload_type"])
+				assert.Equal(t, "datadoghq.eu", payload.Metadata["dd_site"], "site is explicitly injected, not collected by the generic refresh")
+				assert.Equal(t, "test-env", payload.Metadata["dd_env"])
+				assert.Equal(t, "test-service", payload.Metadata["dd_service"])
+				assert.Equal(t, "test-version", payload.Metadata["dd_version"])
+				assert.Equal(t, float64(conf.StartTime().UnixMilli()), payload.Metadata["agent_startup_time_ms"])
+				assert.Contains(t, payload.Metadata, "install_method_tool")
+				assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
+				for _, field := range []string{
+					"config_site", "feature_logs_enabled", "fleet_policies_applied", "config_id",
+					"application_monitoring_config", "application_monitoring_config_fleet",
+				} {
+					assert.NotContains(t, payload.Metadata, field, "full-agent local refresh is intentionally skipped")
+				}
+				assert.NotContains(t, payload.Metadata, "full_configuration", "configuration payloads remain separately controlled")
+				assert.Equal(t, "serverless-init", payload.Metadata["flavor"])
+				assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version_base"])
+				assert.Equal(t, serverlessTag.GetExtensionVersion(), payload.Metadata["serverless_init_version"])
+				require.NotEmpty(t, payload.UUID)
+				if index == 0 {
+					startupUUID = payload.UUID
+				} else {
+					assert.Equal(t, startupUUID, payload.UUID, "periodic inventory retains the process UUID")
+				}
+			}
+		})
+		// NewMock's cleanup restores the original config, including its path,
+		// after the subtest's temporary configuration file has been removed.
+		require.Same(t, originalConfig, pkgconfigsetup.Datadog())
+		assert.Equal(t, originalConfigPath, pkgconfigsetup.Datadog().ConfigFileUsed())
+	}
+}
+
+func TestInventorySerializesMissingValues(t *testing.T) {
+	t.Setenv("DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED", "")
+	require.NoError(t, os.Unsetenv("DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED"))
+	originalCommit := version.Commit
+	originalArgs := os.Args
+	t.Cleanup(func() {
+		version.Commit = originalCommit
+		os.Args = originalArgs
+	})
+	conf := coreconfig.NewMock(t)
+	for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
+		conf.Set(key, true, configmodel.SourceAgentRuntime)
+	}
+	conf.Set("inventories_first_run_delay", 0, configmodel.SourceAgentRuntime)
+	conf.Set("inventories_configuration_enabled", false, configmodel.SourceAgentRuntime)
+	serial := &inventoryRecordingSerializer{}
+	hostname, _ := hostnamemock.NewMock("inventory-test")
+	provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
+		Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
+	})
+	require.NotNil(t, provides.Provider.Callback)
+	provides.Comp.Set("install_method_tool_version", "")
+
+	populatedValues := map[string]string{
+		"parent_resource_id": "test-parent", "region": "test-region", "gcp_project_id": "test-project",
+		"aws_account_id": "123456789012", "azure_subscription_id": "test-subscription", "azure_resource_group": "test-group",
+		"agent_commit": "abcdef1",
+		"dd_env":       "test-env", "dd_service": "test-service", "dd_version": "test-version", "dd_site": "datadoghq.eu",
+	}
+	var previousTimestamp int64
+	var commandPreviouslyPopulated bool
+	for _, stage := range []struct {
+		name                  string
+		populated             bool
+		sidecar               bool
+		override              string
+		metadata              []string
+		command               []string
+		wantRuntime           interface{}
+		wrappedCommandEnabled string
+		wantWrappedCommand    string
+	}{
+		{name: "initially missing", sidecar: true},
+		{name: "populated", sidecar: true, populated: true, metadata: []string{"python"}, wantRuntime: "python"},
+		{name: "cleared", sidecar: true},
+		{name: "repopulated", sidecar: true, populated: true, metadata: []string{"python"}, wantRuntime: "python"},
+		{name: "sidecar override wins", sidecar: true, override: " MyCustomRuntime ", metadata: []string{"Java", "Python"}, command: []string{"ruby"}, wantRuntime: "MyCustomRuntime"},
+		{name: "sidecar ignores own command and clears override", sidecar: true, override: " UnKnOwN ", metadata: []string{"Container"}, command: []string{"ruby"}},
+		{name: "sidecar metadata beats command", sidecar: true, metadata: []string{"Ruby"}, command: []string{"node"}, wantRuntime: "Ruby"},
+		{name: "invalid worker falls back to stack", sidecar: true, metadata: []string{" UnKnOwN ", " Python "}, wantRuntime: "Python"},
+		{name: "missing candidates clear runtime", sidecar: true, metadata: []string{"container", "null"}},
+		{name: "sidecar ignores Python launcher", sidecar: true, command: []string{"ddtrace-run", "python", "app.py"}},
+		{name: "sidecar ignores Ruby launcher", sidecar: true, command: []string{"bundle", "exec", "ruby", "app.rb"}},
+		{name: "sidecar ignores Python entry point", sidecar: true, command: []string{"ddtrace-run", "gunicorn", "app:app"}},
+		{name: "sidecar ignores Ruby entry point", sidecar: true, command: []string{"bundle", "exec", "puma"}},
+		{name: "sidecar ignores bare Python entry point", sidecar: true, command: []string{"gunicorn", "app:app"}},
+		{name: "sidecar ignores bare Ruby entry point", sidecar: true, command: []string{"puma"}},
+		{name: "invalid override falls back to command", override: " NuLl ", command: []string{"/usr/bin/python3.12", "app.py", "--password=secret"}, wantRuntime: "Python"},
+		{name: "Python launcher detection", command: []string{"ddtrace-run", "python", "app.py"}, wantRuntime: "Python"},
+		{name: "Ruby launcher detection", command: []string{"bundle", "exec", "ruby", "app.rb"}, wantRuntime: "Ruby"},
+		{name: "bare Python entry point detection", command: []string{"gunicorn", "app:app"}, wantRuntime: "Python"},
+		{name: "Python entry point detection", command: []string{"ddtrace-run", "gunicorn", "app:app"}, wantRuntime: "Python"},
+		{name: "unrecognized Python entry point clears runtime", command: []string{"ddtrace-run", "node", "app.py"}},
+		{name: "bare Ruby entry point detection", command: []string{"puma"}, wantRuntime: "Ruby"},
+		{name: "Ruby entry point detection", command: []string{"bundle", "exec", "puma"}, wantRuntime: "Ruby"},
+		{name: "unrecognized Ruby entry point clears runtime", command: []string{"bundle", "exec", "node", "app.rb"}},
+		{name: "Python launcher override wins", override: "MyPython", command: []string{"ddtrace-run", "gunicorn", "app:app"}, wantRuntime: "MyPython"},
+		{name: "incomplete Python launcher clears runtime", command: []string{"ddtrace-run"}},
+		{name: "Ruby launcher metadata wins", metadata: []string{"MyRuby"}, command: []string{"bundle", "exec", "puma"}, wantRuntime: "MyRuby"},
+		{name: "incomplete Ruby launcher clears runtime", command: []string{"bundle", "exec"}},
+		{name: "ambiguous command clears detection", metadata: []string{"unknown"}, command: []string{"sh", "-c", "node app.js"}},
+		{name: "blank override and null metadata remain missing", override: " \t", metadata: []string{"null"}, command: []string{"./custom-app"}},
+		{name: "command omitted by default", populated: true, command: []string{"python", "app.py", "--token=secret", "--password", "secret"}, wantRuntime: "Python"},
+		{name: "command explicitly disabled", populated: true, wrappedCommandEnabled: "false", command: []string{"python", "app.py", "--token=secret", "--password", "secret"}, wantRuntime: "Python"},
+		{name: "command opted in", populated: true, wrappedCommandEnabled: "true", command: []string{"python", "app.py", "--password=secret"}, wantRuntime: "Python", wantWrappedCommand: "python app.py --password=********"},
+		{name: "command opt-out clears cache", populated: true, wrappedCommandEnabled: "false", command: []string{"python", "app.py", "--token=secret", "--password", "secret"}, wantRuntime: "Python"},
+		{name: "command opted in again", wrappedCommandEnabled: "true", command: []string{"python", "app.py"}, wantRuntime: "Python", wantWrappedCommand: "python app.py"},
+		{name: "sidecar clears command", sidecar: true, wrappedCommandEnabled: "true", command: []string{"python", "app.py"}},
+		{name: "command repopulated", wrappedCommandEnabled: "true", command: []string{"python", "app.py"}, wantRuntime: "Python", wantWrappedCommand: "python app.py"},
+		{name: "no command clears cache", wrappedCommandEnabled: "true"},
+	} {
+		t.Run(stage.name, func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", stage.override)
+			if stage.wrappedCommandEnabled != "" {
+				conf.Set("serverless.inventory_wrapped_command_enabled", stage.wrappedCommandEnabled == "true", configmodel.SourceAgentRuntime)
+			}
+			os.Args = append([]string{"serverless-init"}, stage.command...)
+			service := inventoryTestCloudService{data: cloudservice.InventoryData{
+				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "azure_app_service", RuntimeCandidates: stage.metadata,
+			}}
+			var tags map[string]string
+			version.Commit = ""
+			conf.Set("site", "", configmodel.SourceAgentRuntime)
+			if stage.populated {
+				service.data.ParentResourceID = populatedValues["parent_resource_id"]
+				service.data.Region = populatedValues["region"]
+				service.data.GCPProjectID = populatedValues["gcp_project_id"]
+				service.data.AWSAccountID = populatedValues["aws_account_id"]
+				service.data.AzureSubscriptionID = populatedValues["azure_subscription_id"]
+				service.data.AzureResourceGroup = populatedValues["azure_resource_group"]
+				version.Commit = populatedValues["agent_commit"]
+				conf.Set("site", populatedValues["dd_site"], configmodel.SourceAgentRuntime)
+				tags = map[string]string{
+					"env": populatedValues["dd_env"], "service": populatedValues["dd_service"], "version": populatedValues["dd_version"],
+				}
+			}
+			for _, reason := range []string{"startup", "periodic"} {
+				payloadCount := len(serial.Payloads())
+				before := time.Now().UnixNano()
+				if reason == "startup" {
+					serverlessInitInventory.UpdateAndSubmit(provides.Comp, service, mode.Conf{SidecarMode: stage.sidecar}, conf, tags)
+				} else {
+					provides.Provider.Callback(context.Background())
+				}
+				after := time.Now().UnixNano()
+				require.Len(t, serial.Payloads(), payloadCount+1)
+				var payload struct {
+					Timestamp int64                  `json:"timestamp"`
+					Metadata  map[string]interface{} `json:"agent_metadata"`
+				}
+				require.NoError(t, json.Unmarshal(serial.Payloads()[payloadCount], &payload))
+				assert.GreaterOrEqual(t, payload.Timestamp, before)
+				assert.LessOrEqual(t, payload.Timestamp, after)
+				assert.Greater(t, payload.Timestamp, previousTimestamp)
+				previousTimestamp = payload.Timestamp
+				for key, expected := range populatedValues {
+					if stage.populated {
+						assert.Equal(t, expected, payload.Metadata[key], key)
+					} else {
+						assert.Nil(t, payload.Metadata[key], "%s must be absent or JSON null", key)
+					}
+				}
+				assert.Equal(t, service.data.ResourceID, payload.Metadata["resource_id"])
+				assert.Equal(t, service.data.ResourceName, payload.Metadata["resource_name"])
+				assert.Equal(t, service.data.WorkloadType, payload.Metadata["workload_type"])
+				assert.Equal(t, reason, payload.Metadata["report_reason"])
+				assert.Equal(t, stage.wantRuntime, payload.Metadata["runtime"], "missing runtime must be absent or JSON null, including after clearing")
+				assert.NotContains(t, payload.Metadata, "runtime_candidates")
+				if stage.sidecar {
+					assert.Equal(t, "sidecar", payload.Metadata["deployment_model"])
+				} else {
+					assert.Equal(t, "in-container", payload.Metadata["deployment_model"])
+				}
+				if stage.wantWrappedCommand != "" {
+					assert.Equal(t, stage.wantWrappedCommand, payload.Metadata["wrapped_command"])
+					commandPreviouslyPopulated = true
+				} else if commandPreviouslyPopulated {
+					assert.Contains(t, payload.Metadata, "wrapped_command")
+					assert.Nil(t, payload.Metadata["wrapped_command"], "cleared cached commands serialize as JSON null")
+				} else {
+					assert.NotContains(t, payload.Metadata, "wrapped_command", "never-collected commands must be omitted")
+				}
+				assert.NotContains(t, string(serial.Payloads()[payloadCount]), "secret")
+				assert.Contains(t, payload.Metadata, "install_method_tool_version")
+				assert.Equal(t, "", payload.Metadata["install_method_tool_version"], "core metadata is not normalized")
+				assert.NotContains(t, payload.Metadata, "deployment_id")
+				assert.NotContains(t, payload.Metadata, "tags")
+			}
+		})
+	}
+}
+
+func TestInventoryGateLeavesLocalServiceUnchanged(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("serverless.inventory_enabled", true, configmodel.SourceAgentRuntime)
+	conf.Set("inventories_enabled", true, configmodel.SourceAgentRuntime)
+	configureInventory(&cloudservice.LocalService{})
+	assert.True(t, conf.GetBool("inventories_enabled"))
+}
 
 // TestMetricAgentNoOpWithoutDemux verifies that the methods called by the
 // lifecycle server on the metric agent are safe when the agent has not been
