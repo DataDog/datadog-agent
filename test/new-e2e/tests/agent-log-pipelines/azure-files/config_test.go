@@ -9,14 +9,18 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"math"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	k8scorev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -207,37 +211,219 @@ func TestRunSpecSelectsIndividualCells(t *testing.T) {
 func TestPostRotationMarkerDelaysStraddleEveryDrainWindow(t *testing.T) {
 	spec := testRunSpec(t, runOptions{smbEnabled: true})
 	for _, c := range spec.cells {
-		assert.Equal(t, markerDelaysFor(c.reader), c.markers, c.name)
-		// The appender appends inline, so it must be done before the next
-		// rotation.
-		assert.Less(t, c.markers.lostMs, writerRotationSeconds*1000, c.name)
+		assert.Equal(t, markerDelaysFor(c.reader, renameRotation), c.markers, c.name)
+		assert.Equal(t, 2, c.markers.count(), c.name)
 	}
 
 	// A file source reads the rotated file for at least close_timeout after it
 	// sees the rotation, which cannot come before the rename.
-	file := markerDelaysFor(fileReader)
-	assert.Less(t, file.survivingMs, closeTimeoutSeconds*1000)
+	file := markerDelaysFor(fileReader, renameRotation)
+	assert.Less(t, file.earlyMs, closeTimeoutSeconds*1000)
 
 	// The longest file source drain at actimeo=1 is the unreliable-mount
 	// handoff: it sees the rotation after a scan and an attribute cache
 	// refresh, reads the surviving marker, then waits out its quiet period.
-	longestFileDrainMs := (fileScanPeriodSeconds+1)*1000 + file.survivingMs + fileHandoffQuietSeconds*1000
-	assert.Greater(t, file.lostMs, longestFileDrainMs)
-	assert.Greater(t, file.lostMs, (fileScanPeriodSeconds+1+closeTimeoutSeconds)*1000)
+	longestFileDrainMs := (fileScanPeriodSeconds+1)*1000 + file.earlyMs + fileHandoffQuietSeconds*1000
+	assert.Greater(t, file.lateMs, longestFileDrainMs)
+	assert.Greater(t, file.lateMs, (fileScanPeriodSeconds+1+closeTimeoutSeconds)*1000)
 
 	// The SMB source can drop an idle rotated file at the first poll after the
 	// scan that saw the rotation, and that scan can come right after the
 	// rename. The appender notices the rename up to one of its polls late, so
 	// the surviving marker must land within a poll interval even then.
-	smb := markerDelaysFor(smbReader)
-	assert.Less(t, smb.survivingMs+postRotationMarkerPollMs, (smbDrainIdlePolls-1)*smbPollIntervalSeconds*1000)
+	smb := markerDelaysFor(smbReader, renameRotation)
+	assert.Less(t, smb.earlyMs+postRotationMarkerPollMs, (smbDrainIdlePolls-1)*smbPollIntervalSeconds*1000)
 	// It sees the rotation within a poll of the rename and stops at
 	// close_timeout at the latest, however often new data restarts its idle
 	// polls.
-	assert.Greater(t, smb.lostMs, (smbPollIntervalSeconds+closeTimeoutSeconds)*1000)
+	assert.Greater(t, smb.lateMs, (smbPollIntervalSeconds+closeTimeoutSeconds)*1000)
 
 	assert.Equal(t, "1500,45000", file.appenderValue())
 	assert.Equal(t, "500,45000", smb.appenderValue())
+}
+
+func TestPostRotationMarkersFollowTheRotationMode(t *testing.T) {
+	for _, reader := range []readerKind{fileReader, smbReader} {
+		renamed := markerDelaysFor(reader, renameRotation)
+
+		// gzip deletes the rotated file after gzipDelayMs: the surviving
+		// marker must land before, however late the appender notices the
+		// rename, and the lost marker would only find the file gone.
+		gzipped := markerDelaysFor(reader, gzipRotation)
+		assert.Equal(t, markerDelays{earlyMs: renamed.earlyMs, earlyExpect: markerCollected}, gzipped, reader)
+		assert.Equal(t, strconv.Itoa(renamed.earlyMs), gzipped.appenderValue(), reader)
+		assert.Less(t, gzipped.earlyMs+postRotationMarkerPollMs, gzipDelayMs, reader)
+
+		// copytruncate and delete-recreate leave no renamed file.
+		for _, mode := range []rotationMode{copyTruncateRotation, deleteRecreateRotation} {
+			none := markerDelaysFor(reader, mode)
+			assert.Zero(t, none.count(), "%s %s", reader, mode)
+			assert.Equal(t, "none", none.appenderValue(), "%s %s", reader, mode)
+		}
+	}
+
+	spec := testRunSpec(t, runOptions{rotationMode: "copytruncate", smbEnabled: true})
+	for _, c := range spec.cells {
+		assert.Zero(t, c.markers.count(), c.name)
+		assert.Contains(t, spec.appenderEnv(c), envVar{"LOGWRITER_APPEND_DELAYS_MS", "none"}, c.name)
+	}
+}
+
+func TestWriterOptionsDefaultToTheJavaWriter(t *testing.T) {
+	spec := testRunSpec(t, runOptions{})
+	assert.Equal(t, defaultWriterOptions(), spec.writer)
+	assert.True(t, spec.writer.isDefault())
+	assert.Empty(t, spec.writer.writerEnv())
+	assert.Equal(t, []string{""}, spec.writer.streamDirs())
+	assert.Equal(t, []string{"/mnt/azure-files/ledger.jsonl"}, spec.writer.sharePaths(ledgerName))
+	assert.Equal(t, []string{spec.writerRunID(spec.cells[0])}, spec.streamRunIDs(spec.cells[0]))
+	assert.Equal(t, 5000, spec.writer.headPauseMs())
+	assert.Zero(t, spec.writer.retainedRotations())
+
+	// The Java writer image knows none of the options.
+	for name, opts := range map[string]runOptions{
+		"mode":    {rotationMode: "gzip"},
+		"period":  {periodMs: "10000"},
+		"rate":    {rateBytesPerSec: "1000000"},
+		"streams": {streams: "4"},
+	} {
+		opts.runID, opts.writerImage = testRunID, testWriterImage
+		_, err := newRunSpec(opts)
+		assert.ErrorContains(t, err, "Java writer image", name)
+	}
+	// Spelled-out defaults are still the defaults.
+	java := testRunSpec(t, runOptions{writerImage: testWriterImage, rotationMode: "rename", periodMs: "60000", rateBytesPerSec: "0", streams: "0"})
+	assert.True(t, java.writer.isDefault())
+}
+
+func TestWriterOptionsAreValidated(t *testing.T) {
+	for name, opts := range map[string]runOptions{
+		`unknown rotation mode "logrotate"`: {rotationMode: "logrotate"},
+		"writer period 4000":                {periodMs: "4000"},
+		"writer period 10500ms":             {periodMs: "10500"},
+		"writer period 700000":              {periodMs: "700000"},
+		`writer rate "fast"`:                {rateBytesPerSec: "fast"},
+		"writer rate -1":                    {rateBytesPerSec: "-1"},
+		"writer rate 30000000":              {rateBytesPerSec: "30000000"},
+		"writer streams 33":                 {streams: "33"},
+		// Six 10-minute files at 5 MB/s do not fit in the share.
+		"keeps 24000 MB on the share": {rateBytesPerSec: "5000000", periodMs: "600000"},
+	} {
+		opts.runID = testRunID
+		_, err := newRunSpec(opts)
+		assert.ErrorContains(t, err, name)
+	}
+}
+
+func TestWriterEnvCarriesTheOptions(t *testing.T) {
+	spec := testRunSpec(t, runOptions{
+		cells: "smb", smbEnabled: true,
+		rotationMode: "gzip", periodMs: "10000", rateBytesPerSec: "5000000", streams: "10",
+	})
+	c := spec.cells[0]
+	assert.Equal(t, []envVar{
+		{"LOGWRITER_LOG_DIR", "/mnt/azure-files"},
+		{"LOGWRITER_RUN_ID", testRunID + "-smb"},
+		{"LOGWRITER_TARGET_BYTES_SEQUENCE", writerTargetSequence},
+		// A sixth of the period, like the first-period runway.
+		{"LOGWRITER_HEAD_PAUSE_MS", "1666"},
+		{"LOGWRITER_MAX_RECORDS_PER_PERIOD", "5000"},
+		{"TZ", "UTC"},
+		{"LOGWRITER_ROTATION_MODE", "gzip"},
+		{"LOGWRITER_GZIP_DELAY_MS", "5000"},
+		{"LOGWRITER_PERIOD_MS", "10000"},
+		{"LOGWRITER_INITIAL_FILL_RUNWAY_MS", "1666"},
+		{"LOGWRITER_RATE_BYTES_PER_SEC", "5000000"},
+		{"LOGWRITER_BUFFER_BYTES", "65536"},
+		{"LOGWRITER_PAYLOAD_BYTES", "1024"},
+		{"LOGWRITER_CONSOLE_RECORDS", "false"},
+		// Two minutes of 10s periods.
+		{"LOGWRITER_MAX_ROTATED_FILES", "12"},
+		{"LOGWRITER_STREAMS", "10"},
+	}, spec.writerEnv(c))
+
+	runtime := spec.workloadRuntime("registry-1.docker.io")
+	assert.Equal(t, []envVar{
+		{"LOGWRITER_LOG_DIR", logMountPath},
+		{"LOGWRITER_CRC64_COMMAND", "python3 /app/logwriter.py crc64"},
+		{"LOGWRITER_LEDGER_SOURCE", "journal"},
+		{"LOGWRITER_STREAMS", "10"},
+	}, spec.ledgerEnv(c, runtime))
+	assert.Contains(t, spec.appenderEnv(c), envVar{"LOGWRITER_STREAMS", "10"})
+	assert.Contains(t, spec.appenderEnv(c), envVar{"LOGWRITER_APPEND_DELAYS_MS", "500"})
+
+	streams := spec.streamRunIDs(c)
+	require.Len(t, streams, 10)
+	assert.Equal(t, testRunID+"-smb-svc-1", streams[0])
+	assert.Equal(t, testRunID+"-smb-svc-10", streams[9])
+	for _, id := range streams {
+		// logwriter.py refuses a longer stream run ID.
+		assert.Regexp(t, `^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$`, id)
+	}
+	// The longest cell name with the most streams still fits.
+	longest := testRunSpec(t, runOptions{cells: "file-line-actimeo30", streams: strconv.Itoa(maxWriterStreams)})
+	for _, id := range longest.streamRunIDs(longest.cells[0]) {
+		assert.Regexp(t, `^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$`, id)
+	}
+	assert.Equal(t, "/mnt/azure-files/svc-3/markers.jsonl", spec.writer.sharePaths(postRotationMarkerJournalName)[2])
+
+	// The writer is ready once its first stream has a fingerprintable head.
+	containers := writerContainers(t, spec.writerPodSpec(c, runtime, false))
+	assert.Equal(t, spec.writerEnv(c), containers[0].env)
+	probe := spec.writerPodSpec(c, runtime, false).Containers.(corev1.ContainerArray)[0].(corev1.ContainerArgs).ReadinessProbe.(corev1.ProbeArgs)
+	command := probe.Exec.(corev1.ExecActionArgs).Command.(pulumi.StringArray)
+	assert.Equal(t, pulumi.String("test $(wc -c < /mnt/azure-files/svc-1/app.log) -ge 4096"), command[2])
+}
+
+func TestStreamsShareOneSourcePerCell(t *testing.T) {
+	spec := testRunSpec(t, runOptions{cells: "file-line,smb", smbEnabled: true, streams: "3"})
+	values := spec.agentHelmValues()
+	assert.Contains(t, values, "        path: /mnt/azure-files/file-line/*/app.log\n        exclude_paths:\n          - /mnt/azure-files/file-line/*/app.log.*\n")
+	// Unquoted, YAML would read the pattern as an alias.
+	assert.Contains(t, values, "      - type: smb\n        path: \"*/app.log\"\n")
+	assert.Len(t, regexp.MustCompile(`(?m)^\s+- type: (file|smb)$`).FindAllStringIndex(values, -1), 2)
+
+	// One rotation period that is shorter does not change the sources.
+	short := testRunSpec(t, runOptions{cells: "file-line,smb", smbEnabled: true, periodMs: "10000"})
+	assert.Contains(t, short.agentHelmValues(), "        path: /mnt/azure-files/file-line/app.log\n")
+	assert.Contains(t, short.agentHelmValues(), "      - type: smb\n        path: app.log\n")
+}
+
+func TestPacedWritersKeepEnoughRotatedFiles(t *testing.T) {
+	// The documented high-rate runs fit in the share.
+	for _, opts := range []runOptions{
+		{rateBytesPerSec: "5000000", periodMs: "10000", streams: "10"},
+		{rateBytesPerSec: "5000000"},
+		{rateBytesPerSec: strconv.Itoa(maxWriterRateBytesPerSec), periodMs: "20000"},
+	} {
+		opts.runID = testRunID
+		_, err := newRunSpec(opts)
+		assert.NoError(t, err, "%+v", opts)
+	}
+	for _, period := range []int{minWriterPeriodMs, 10000, defaultWriterPeriodMs, maxWriterPeriodMs} {
+		w := writerOptions{mode: renameRotation, periodMs: period, rateBytesPerSec: 5000000}
+		kept := w.retainedRotations()
+		assert.GreaterOrEqual(t, kept, minRetainedRotations, period)
+		// The retention never deletes a rotated file before its lost marker,
+		// or while any reader may still drain it.
+		assert.GreaterOrEqual(t, kept*period, retainedRotationsMs, period)
+		assert.Greater(t, kept*period, postRotationMarkerLostDelayMs, period)
+	}
+	// The ledger waits long enough for the slowest period.
+	assert.Equal(t, 6*time.Minute, ledgerTimeout(defaultWriterOptions()))
+	assert.Equal(t, 60*time.Minute, ledgerTimeout(writerOptions{periodMs: maxWriterPeriodMs}))
+}
+
+func TestCopyTruncateHoldOutlastsEveryReaderPoll(t *testing.T) {
+	// A record written before the copy started stays in app.log for at least
+	// the hold, which must give a reader that keeps up a scan or a poll to
+	// read it; only what is written during the copy and the hold is at risk.
+	assert.Greater(t, copyTruncateHoldMs, 2*fileScanPeriodSeconds*1000)
+	assert.Greater(t, copyTruncateHoldMs, 2*smbPollIntervalSeconds*1000)
+	// The delete-recreate pause and the gzip delay are shorter than any
+	// period, so a rotation is over before the next one.
+	assert.Less(t, deleteRecreatePauseMs, minWriterPeriodMs)
+	assert.Less(t, gzipDelayMs+copyTruncateHoldMs, minWriterPeriodMs*2)
 }
 
 func TestStockWorkloadRunsTheConfigMapScriptsOnAPinnedPythonImage(t *testing.T) {
@@ -273,9 +459,11 @@ func TestStockWorkloadRunsTheConfigMapScriptsOnAPinnedPythonImage(t *testing.T) 
 	}
 	// The Python writer reads the Java writer's configuration; it has no JVM.
 	assert.Equal(t, spec.writerEnv(c), writer.env)
+	// The ledger reads the Python writer's journal.
 	assert.Equal(t, []envVar{
 		{"LOGWRITER_LOG_DIR", logMountPath},
 		{"LOGWRITER_CRC64_COMMAND", "python3 /app/logwriter.py crc64"},
+		{"LOGWRITER_LEDGER_SOURCE", "journal"},
 	}, ledger.env)
 
 	volumes := podVolumes(t, podSpec)
@@ -362,25 +550,97 @@ func TestRunMetadataNamesTheWriterWorkload(t *testing.T) {
 	assert.Equal(t, workloadConfigMapName, stock["config_map"])
 
 	custom := testRunSpec(t, runOptions{writerImage: testWriterImage}).writerMetadata()
-	assert.Equal(t, map[string]any{"workload": customWorkload, "image": testWriterImage}, custom)
+	assert.Equal(t, map[string]any{"workload": customWorkload, "image": testWriterImage, "options": defaultWriterOptions().metadata()}, custom)
+
+	paced := testRunSpec(t, runOptions{rotationMode: "copytruncate", rateBytesPerSec: "1000000", streams: "2"}).writerMetadata()
+	options, ok := paced["options"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, copyTruncateRotation, options["rotation_mode"])
+	assert.Equal(t, copyTruncateHoldMs, options["copytruncate_hold_ms"])
+	assert.Equal(t, 2, options["streams"])
+	assert.Equal(t, "*/app.log", options["active_log_pattern"])
+	assert.Equal(t, pacedWriterBufferBytes, options["buffer_bytes"])
 }
 
-func TestExpectedSequencesUsesLedgerRanges(t *testing.T) {
-	expected := expectedSequences([]ledgerEntry{
-		{FirstSequence: 1, LastSequence: 3},
-		{FirstSequence: 7, LastSequence: 8},
+func TestExpectedRecordsUseLedgerRangesWithoutUnwrittenOnes(t *testing.T) {
+	expected := expectedRecords([]ledgerEntry{
+		{RunID: "a", FirstSequence: 1, LastSequence: 3},
+		{RunID: "a", FirstSequence: 7, LastSequence: 10, UnwrittenSequences: [][2]int64{{8, 9}}},
+		// Sequences start over in each stream.
+		{RunID: "b", FirstSequence: 1, LastSequence: 2},
 	})
-	assert.Equal(t, map[int64]struct{}{1: {}, 2: {}, 3: {}, 7: {}, 8: {}}, expected)
+	assert.Equal(t, map[recordKey]struct{}{
+		{"a", 1}: {}, {"a", 2}: {}, {"a", 3}: {}, {"a", 7}: {}, {"a", 10}: {},
+		{"b", 1}: {}, {"b", 2}: {},
+	}, expected)
+	assert.Equal(t, int64(2), unwrittenRecords([]ledgerEntry{{UnwrittenSequences: [][2]int64{{8, 9}}}}))
 }
 
-func TestCountSequencesOnlyCountsExpectedSequences(t *testing.T) {
-	counts := countSequences([]string{
-		"run_id=r period=p sequence=1 phase=head",
-		"run_id=r period=p sequence=1 phase=head",
-		"run_id=r period=p sequence=9 phase=fill",
+func TestCountRecordsOnlyCountsExpectedRecords(t *testing.T) {
+	counts := countRecords([]string{
+		"run_id=r period=p sequence=1 record=1 phase=head",
+		"run_id=r period=p sequence=1 record=1 phase=head",
+		"run_id=other period=p sequence=1 record=1 phase=head",
+		"run_id=r period=p sequence=9 record=2 phase=fill",
+		// A line cut inside its sequence number is no record.
+		"run_id=r period=p sequence=2",
 		"post_rotation_marker run_id=r rotation=1 marker_id=r-r1-m1500",
-	}, map[int64]struct{}{1: {}, 2: {}})
-	assert.Equal(t, map[int64]int{1: 2}, counts)
+	}, map[recordKey]struct{}{{"r", 1}: {}, {"r", 2}: {}})
+	assert.Equal(t, map[recordKey]int{{"r", 1}: 2}, counts)
+}
+
+func TestAssertedLedgerTakesTheFirstFilesOfEveryStream(t *testing.T) {
+	ledger := []ledgerEntry{
+		{RunID: "s1", Period: "20260813T1203Z", FirstSequence: 7, LastSequence: 8},
+		{RunID: "s1", Period: "20260813T1200Z", FirstSequence: 1, LastSequence: 2, AtRiskSequences: [][2]int64{{3, 4}}},
+		{RunID: "s1", Period: "20260813T1201Z", FirstSequence: 3, LastSequence: 4},
+		{RunID: "s1", Period: "20260813T1202Z", FirstSequence: 5, LastSequence: 6, AtRiskSequences: [][2]int64{{7, 7}}},
+		{RunID: "s2", Period: "20260813T1200Z", FirstSequence: 1, LastSequence: 1},
+		{RunID: "other", Period: "20260813T1200Z", FirstSequence: 1, LastSequence: 1, AtRiskSequences: [][2]int64{{2, 2}}},
+	}
+	asserted, atRisk := assertedLedger(ledger, []string{"s1", "s2"})
+	var periods []string
+	for _, entry := range asserted {
+		periods = append(periods, entry.RunID+"/"+entry.Period)
+	}
+	assert.Equal(t, []string{"s1/20260813T1200Z", "s1/20260813T1201Z", "s1/20260813T1202Z", "s2/20260813T1200Z"}, periods)
+	// Every rotation of the streams counts, including one past the asserted
+	// files, and no other stream does.
+	assert.Equal(t, map[recordKey]struct{}{{"s1", 3}: {}, {"s1", 4}: {}, {"s1", 7}: {}}, atRisk)
+}
+
+func TestCheckRecordsAllowsOnlyAtRiskLosses(t *testing.T) {
+	c := cell{name: "smb"}
+	expected := map[recordKey]struct{}{{"s", 1}: {}, {"s", 2}: {}, {"s", 3}: {}, {"s", 4}: {}, {"s", 5}: {}}
+	atRisk := map[recordKey]struct{}{{"s", 3}: {}, {"s", 4}: {}}
+
+	allowed := checkRecords(expected, atRisk, map[recordKey]int{{"s", 1}: 1, {"s", 2}: 1, {"s", 4}: 1, {"s", 5}: 1})
+	assert.Equal(t, []recordKey{{"s", 3}}, allowed.atRiskLost)
+	assert.Equal(t, 2, allowed.atRisk)
+	passed := new(recordingT)
+	assertRecordsCollected(passed, c, allowed)
+	assert.Empty(t, passed.failures)
+
+	real := checkRecords(expected, atRisk, map[recordKey]int{{"s", 3}: 2, {"s", 5}: 1})
+	assert.Equal(t, []recordKey{{"s", 1}, {"s", 2}}, real.missing)
+	// An at-risk record may be lost, but never duplicated.
+	assert.Equal(t, []recordKey{{"s", 3}}, real.duplicated)
+	failed := new(recordingT)
+	assertRecordsCollected(failed, c, real)
+	require.Len(t, failed.failures, 2)
+	assert.Contains(t, failed.failures[0], "2 of 5 expected records were never collected although no rotation put them at risk: s:1-2")
+	assert.Contains(t, failed.failures[1], "1 of 5 expected records were collected more than once: s:3")
+}
+
+func TestFormatRecordRangesSummarizes(t *testing.T) {
+	assert.Equal(t, "none", formatRecordRanges(nil))
+	assert.Equal(t, "a:1-3, a:5, b:1", formatRecordRanges([]recordKey{{"a", 1}, {"a", 2}, {"a", 3}, {"a", 5}, {"b", 1}}))
+	var many []recordKey
+	for i := int64(0); i < 30; i++ {
+		many = append(many, recordKey{"a", i * 2})
+	}
+	summary := formatRecordRanges(many)
+	assert.True(t, strings.HasSuffix(summary, " and 20 more ranges"), summary)
 }
 
 func TestCountMarkerIDsIgnoresOrdinaryRecords(t *testing.T) {
@@ -392,24 +652,32 @@ func TestCountMarkerIDsIgnoresOrdinaryRecords(t *testing.T) {
 	assert.Equal(t, map[string]int{"r-r1-m1500": 2}, counts)
 }
 
-func TestMarkersForFilesKeepsOnlyThisRunAndTheseRotations(t *testing.T) {
+func TestMarkersForFilesKeepsOnlyTheseStreamsAndRotations(t *testing.T) {
 	journal := []markerEntry{
 		{RunID: "run-file-line", MarkerID: "keep", RotatedFile: "app.log.a", Status: "appended"},
 		{RunID: "run-file-line", MarkerID: "other-run-file", RotatedFile: "app.log.z", Status: "appended"},
 		{RunID: "older-run", MarkerID: "older-run", RotatedFile: "app.log.a", Status: "appended"},
 		{RunID: "run-file-line", MarkerID: "failed-append", RotatedFile: "app.log.a", Status: "failed"},
+		{RunID: "run-file-line", MarkerID: "file-gone", RotatedFile: "app.log.a", Status: "skipped"},
+		// Every stream rotates a file of the same name at the same time.
+		{RunID: "run-file-line-svc-2", MarkerID: "keep-stream", RotatedFile: "app.log.a", Status: "appended"},
+		{RunID: "run-file-line-svc-3", MarkerID: "other-stream", RotatedFile: "app.log.a", Status: "appended"},
 	}
-	markers := markersForFiles(journal, "run-file-line", map[string]struct{}{"app.log.a": {}})
-	require.Len(t, markers, 1)
+	markers := markersForFiles(journal, map[markerKey]struct{}{
+		{runID: "run-file-line", file: "app.log.a"}:       {},
+		{runID: "run-file-line-svc-2", file: "app.log.a"}: {},
+	})
+	require.Len(t, markers, 2)
 	assert.Equal(t, "keep", markers[0].MarkerID)
+	assert.Equal(t, "keep-stream", markers[1].MarkerID)
 }
 
 func TestAssertMarkerOutcomeRequiresTheEarlyMarkerAndForbidsTheLateOne(t *testing.T) {
 	for _, reader := range []readerKind{fileReader, smbReader} {
-		c := cell{name: string(reader), reader: reader, markers: markerDelaysFor(reader)}
+		c := cell{name: string(reader), reader: reader, markers: markerDelaysFor(reader, renameRotation)}
 		markers := []markerEntry{
-			{MarkerID: "early", MarkerAgeMs: c.markers.survivingMs, RotatedFile: "app.log.a"},
-			{MarkerID: "late", MarkerAgeMs: c.markers.lostMs, RotatedFile: "app.log.a"},
+			{MarkerID: "early", MarkerAgeMs: c.markers.earlyMs, RotatedFile: "app.log.a"},
+			{MarkerID: "late", MarkerAgeMs: c.markers.lateMs, RotatedFile: "app.log.a"},
 		}
 
 		calibrated := new(recordingT)
@@ -427,7 +695,7 @@ func TestAssertMarkerOutcomeRequiresTheEarlyMarkerAndForbidsTheLateOne(t *testin
 
 	// The SMB cell's appender writes no 1.5s marker; one in its journal is
 	// not one of its assertions.
-	smb := cell{name: "smb", reader: smbReader, markers: markerDelaysFor(smbReader)}
+	smb := cell{name: "smb", reader: smbReader, markers: markerDelaysFor(smbReader, renameRotation)}
 	other := new(recordingT)
 	assertMarkerOutcome(other, smb, []markerEntry{{MarkerID: "other", MarkerAgeMs: fileSurvivingMarkerDelayMs}}, map[string]int{})
 	assert.Empty(t, other.failures)
@@ -665,4 +933,670 @@ type recordingT struct {
 
 func (t *recordingT) Errorf(format string, args ...any) {
 	t.failures = append(t.failures, fmt.Sprintf(format, args...))
+}
+
+// newSMBCells are the opt-in SMB cells, each only provisioned when named.
+var newSMBCells = []string{
+	"smb-copytruncate", "smb-delete-recreate", "smb-gzip",
+	"smb-late-1000", "smb-late-2000", "smb-late-3000",
+	"smb-glob-load",
+}
+
+func TestDefaultMatrixKeepsItsFourCells(t *testing.T) {
+	spec := testRunSpec(t, runOptions{smbEnabled: true})
+	var names []string
+	for _, c := range spec.cells {
+		names = append(names, c.name)
+	}
+	assert.Equal(t, []string{"file-line", "file-byte", "file-line-actimeo30", "smb"}, names)
+
+	// Every cell, named, has an account, a share and a service of its own.
+	all := allCells(spec.stackName, testRunID)
+	accounts, shares, services := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	for _, c := range all {
+		assert.Regexp(t, `^[a-z0-9]{3,24}$`, c.accountName, c.name)
+		assert.Regexp(t, `^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])$`, c.shareName, c.name)
+		assert.LessOrEqual(t, len(c.volumeName+"-key"), 63, c.name)
+		assert.False(t, accounts[c.accountName], "%s reuses an account name", c.name)
+		assert.False(t, shares[c.shareName], "%s reuses a share name", c.name)
+		assert.False(t, services[c.service], "%s reuses a service", c.name)
+		accounts[c.accountName], shares[c.shareName], services[c.service] = true, true, true
+	}
+	for _, name := range newSMBCells {
+		found := false
+		for _, c := range all {
+			if c.name == name {
+				found = true
+				assert.Equal(t, smbReader, c.reader, name)
+				assert.False(t, c.inDefaultMatrix, name)
+			}
+		}
+		assert.True(t, found, name)
+	}
+}
+
+func TestNewSMBCellsAreGatedLikeTheSMBCell(t *testing.T) {
+	for _, name := range newSMBCells {
+		gated := testRunSpec(t, runOptions{cells: name})
+		assert.Empty(t, gated.cells, name)
+		require.Len(t, gated.gatedCells, 1, name)
+		assert.Equal(t, name, gated.gatedCells[0].name)
+
+		enabled := testRunSpec(t, runOptions{cells: name, smbEnabled: true})
+		require.Len(t, enabled.cells, 1, name)
+		c := enabled.cells[0]
+		values := enabled.agentHelmValues()
+		assert.Contains(t, values, "      - type: smb\n", name)
+		assert.Contains(t, values, "service: "+c.service+"\n", name)
+		assert.Contains(t, values, "host: "+c.host()+"\n", name)
+		assert.Contains(t, values, fmt.Sprintf("password: %q", smbPasswordHandle(c)), name)
+		assert.Contains(t, values, "secretBackend:", name)
+		assert.NotContains(t, values, "csi:", name)
+	}
+	// They can all run next to the default matrix in one run.
+	spec := testRunSpec(t, runOptions{cells: "smb," + strings.Join(newSMBCells, ","), smbEnabled: true})
+	assert.Len(t, spec.cells, len(newSMBCells)+1)
+	assert.Len(t, regexp.MustCompile(`(?m)^\s+- type: smb$`).FindAllStringIndex(spec.agentHelmValues(), -1), len(newSMBCells)+1)
+}
+
+func TestModeCellsFixTheirRotationMode(t *testing.T) {
+	spec := testRunSpec(t, runOptions{cells: "smb,smb-copytruncate,smb-delete-recreate,smb-gzip", smbEnabled: true})
+	modes := map[string]rotationMode{}
+	for _, c := range spec.cells {
+		modes[c.name] = c.writer.mode
+		assert.Equal(t, markerDelaysFor(smbReader, c.writer.mode), c.markers, c.name)
+		if c.writer.mode != renameRotation {
+			assert.Contains(t, spec.writerEnv(c), envVar{"LOGWRITER_ROTATION_MODE", string(c.writer.mode)}, c.name)
+		}
+	}
+	assert.Equal(t, map[string]rotationMode{
+		"smb": renameRotation, "smb-copytruncate": copyTruncateRotation,
+		"smb-delete-recreate": deleteRecreateRotation, "smb-gzip": gzipRotation,
+	}, modes)
+
+	// Only the modes that delete a rotated file account for losses with the
+	// Agent's missed bytes; copytruncate has its at-risk records.
+	for _, c := range spec.cells {
+		assert.Equal(t, c.writer.mode == gzipRotation || c.writer.mode == deleteRecreateRotation, c.lossAccounted(), c.name)
+	}
+	assert.False(t, (cell{reader: fileReader, writer: writerOptions{mode: gzipRotation}}).lossAccounted())
+
+	// The run's other options apply to the mode cells.
+	paced := testRunSpec(t, runOptions{cells: "smb-gzip", smbEnabled: true, periodMs: "10000", rateBytesPerSec: "100000"})
+	assert.Equal(t, writerOptions{mode: gzipRotation, periodMs: 10000, rateBytesPerSec: 100000}, paced.cells[0].writer)
+	same := testRunSpec(t, runOptions{cells: "smb-gzip", smbEnabled: true, rotationMode: "gzip"})
+	assert.Equal(t, gzipRotation, same.cells[0].writer.mode)
+
+	_, err := newRunSpec(runOptions{runID: testRunID, cells: "smb-copytruncate", smbEnabled: true, rotationMode: "gzip"})
+	assert.ErrorContains(t, err, "cell smb-copytruncate always rotates by copytruncate")
+	_, err = newRunSpec(runOptions{runID: testRunID, cells: "smb-gzip", smbEnabled: true, writerImage: testWriterImage})
+	assert.ErrorContains(t, err, "cell smb-gzip: the Java writer image")
+}
+
+func TestLateMarkerCellsProbeOneAgeEach(t *testing.T) {
+	require.Len(t, lateMarkerProbes, 3)
+	for _, probe := range lateMarkerProbes {
+		name := lateMarkerCellName(probe)
+		spec := testRunSpec(t, runOptions{cells: name, smbEnabled: true})
+		require.Len(t, spec.cells, 1, name)
+		c := spec.cells[0]
+		assert.Equal(t, renameRotation, c.writer.mode, name)
+		// The probe is the early marker; the 45s marker still calibrates.
+		assert.Equal(t, markerDelays{earlyMs: probe.ageMs, earlyExpect: probe.expect, lateMs: postRotationMarkerLostDelayMs}, c.markers, name)
+		assert.Equal(t, strconv.Itoa(probe.ageMs)+",45000", c.markers.appenderValue(), name)
+		assert.Contains(t, spec.appenderEnv(c), envVar{"LOGWRITER_APPEND_DELAYS_MS", strconv.Itoa(probe.ageMs) + ",45000"}, name)
+		assert.True(t, c.markers.needsSettle(), name)
+
+		// The prediction follows the drain's end, one to two poll intervals
+		// after the rename (see lateMarkerProbes): an age the drain cannot
+		// have reached is collected, one past its latest end is lost, and
+		// one in between may go either way.
+		drainEndsAfterMs := (smbDrainIdlePolls - 1) * smbPollIntervalSeconds * 1000
+		drainEndsByMs := smbDrainIdlePolls * smbPollIntervalSeconds * 1000
+		switch probe.expect {
+		case markerCollected:
+			assert.Less(t, probe.ageMs+postRotationMarkerPollMs, drainEndsAfterMs, name)
+		case markerLost:
+			assert.GreaterOrEqual(t, probe.ageMs, drainEndsByMs, name)
+		case markerEither:
+			assert.GreaterOrEqual(t, probe.ageMs+postRotationMarkerPollMs, drainEndsAfterMs, name)
+			assert.Less(t, probe.ageMs, drainEndsByMs, name)
+		}
+
+		_, err := newRunSpec(runOptions{runID: testRunID, cells: name, smbEnabled: true, rotationMode: "gzip"})
+		assert.ErrorContains(t, err, "always rotates by rename", name)
+	}
+}
+
+func TestMarkerExpectationsDriveTheAssertion(t *testing.T) {
+	c := cell{name: "smb-late-1000", reader: smbReader, markers: markerDelays{earlyMs: 1000, earlyExpect: markerEither, lateMs: 45000}}
+	markers := []markerEntry{
+		{MarkerID: "r1-m1000", MarkerAgeMs: 1000, RotatedFile: "app.log.1"},
+		{MarkerID: "r2-m1000", MarkerAgeMs: 1000, RotatedFile: "app.log.2"},
+		{MarkerID: "r1-m45000", MarkerAgeMs: 45000, RotatedFile: "app.log.1"},
+	}
+	// Either outcome of the probe passes; twice does not, nor the late one.
+	passed := new(recordingT)
+	assertMarkerOutcome(passed, c, markers, map[string]int{"r1-m1000": 1})
+	assert.Empty(t, passed.failures)
+	failed := new(recordingT)
+	assertMarkerOutcome(failed, c, markers, map[string]int{"r1-m1000": 2, "r1-m45000": 1})
+	assert.Len(t, failed.failures, 2)
+
+	lost := cell{name: "smb-late-2000", reader: smbReader, markers: markerDelays{earlyMs: 2000, earlyExpect: markerLost, lateMs: 45000}}
+	survived := new(recordingT)
+	assertMarkerOutcome(survived, lost, []markerEntry{{MarkerID: "m2000", MarkerAgeMs: 2000}}, map[string]int{"m2000": 1})
+	require.Len(t, survived.failures, 1)
+	assert.Contains(t, survived.failures[0], "lateMarkerProbes in provisioner.go predicts")
+	assert.Contains(t, survived.failures[0], runCalibrate+"=1")
+
+	// Calibration records the same outcomes instead.
+	outcomes := markerOutcomes(c, markers, map[string]int{"r1-m1000": 1})
+	require.Len(t, outcomes, 3)
+	assert.Equal(t, markerOutcome{MarkerID: "r1-m1000", RotatedFile: "app.log.1", AgeMs: 1000, Expected: markerEither, Collected: 1, Outcome: markerCollected, Matches: true}, outcomes[0])
+	assert.Equal(t, markerLost, outcomes[1].Outcome)
+	assert.Equal(t, markerLost, outcomes[2].Expected)
+	assert.True(t, outcomes[2].Matches)
+	assert.Equal(t, "1000ms: collected 1/2, lost 1/2 (expected either); 45000ms: collected 0/1, lost 1/1 (expected lost)",
+		summarizeMarkerOutcomes(outcomes))
+
+	assert.False(t, markerDelays{earlyMs: 500, earlyExpect: markerCollected}.needsSettle())
+	_, ok := c.markers.expectationFor(1500)
+	assert.False(t, ok)
+	_, ok = markerDelays{}.expectationFor(0)
+	assert.False(t, ok)
+}
+
+func TestCalibrateIsARunOption(t *testing.T) {
+	assert.False(t, testRunSpec(t, runOptions{}).calibrate)
+	spec := testRunSpec(t, runOptions{cells: "smb-late-1000", smbEnabled: true, calibrate: true})
+	assert.True(t, spec.calibrate)
+	// It changes no cell: the markers stay, only their assertion is skipped.
+	assert.Equal(t, testRunSpec(t, runOptions{cells: "smb-late-1000", smbEnabled: true}).cells, spec.cells)
+}
+
+func TestGlobLoadCellWritesManyServicesUnderOneSource(t *testing.T) {
+	spec := testRunSpec(t, runOptions{cells: "smb,smb-glob-load", smbEnabled: true})
+	smb, load := spec.cells[0], spec.cells[1]
+	assert.Equal(t, defaultWriterOptions(), smb.writer)
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 10000, rateBytesPerSec: 2000000, streams: 8}, load.writer)
+	assert.Len(t, spec.streamRunIDs(load), 8)
+	assert.Equal(t, testRunID+"-smb-glob-load-svc-8", spec.streamRunIDs(load)[7])
+	assert.NoError(t, load.writer.validate())
+
+	values := spec.agentHelmValues()
+	// One source for the eight services; the smb cell keeps its one file.
+	assert.Contains(t, values, "      - type: smb\n        path: \"*/app.log\"\n        service: azure-files-smb-glob-load\n")
+	assert.Contains(t, values, "      - type: smb\n        path: app.log\n        service: azure-files-smb\n")
+	assert.Contains(t, spec.writerEnv(load), envVar{"LOGWRITER_STREAMS", "8"})
+	assert.Contains(t, spec.ledgerEnv(load, spec.workloadRuntime("registry.example")), envVar{"LOGWRITER_STREAMS", "8"})
+	assert.NotContains(t, spec.writerEnv(smb), envVar{"LOGWRITER_STREAMS", "8"})
+
+	// The run's options win over the cell's defaults.
+	override := testRunSpec(t, runOptions{cells: "smb-glob-load", smbEnabled: true, streams: "4", rateBytesPerSec: "4000000"})
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 10000, rateBytesPerSec: 4000000, streams: 4}, override.cells[0].writer)
+	// The cell's own rate with the run's longest period would not fit in
+	// its share, although the run's options alone, unpaced, do.
+	_, err := newRunSpec(runOptions{runID: testRunID, cells: "smb-glob-load", smbEnabled: true, periodMs: "600000"})
+	assert.ErrorContains(t, err, "cell smb-glob-load: writer rate 2000000 with a 600000ms period")
+
+	// About 2 MB/s over 8 files: 250 KB per file and poll, 4 chunks each, and
+	// 9 listings, plus the drains.
+	opens := estimateSMBOpens(load.writer)
+	assert.Equal(t, 9, opens.ListingsPerScan)
+	assert.Equal(t, float64(8*4), opens.ReadOpensPerScan)
+	assert.InDelta(t, 8.0*5/10, opens.DrainOpensPerSecond, 0.001)
+	assert.InDelta(t, 9+32+4.0, opens.OpensPerSecond, 0.001)
+	idle := estimateSMBOpens(defaultWriterOptions())
+	assert.Equal(t, 1, idle.ListingsPerScan)
+	assert.InDelta(t, 0.2, idle.ReadOpensPerScan, 0.001)
+}
+
+func TestScenariosAreValidated(t *testing.T) {
+	for name, opts := range map[string]runOptions{
+		`unknown scenario "reboot"`:                   {scenario: "reboot"},
+		"only applies to the network-drop scenario":   {scenario: "agent-restart", networkDropSeconds: "60"},
+		"network drop 30 must be between 31 and 600":  {scenario: "network-drop", networkDropSeconds: "30"},
+		"rotates by rename":                           {scenario: "agent-restart", rotationMode: "gzip"},
+		"reads one app.log":                           {scenario: "key-rotation", streams: "2"},
+		"needs a paced writer":                        {scenario: "network-drop", rateBytesPerSec: "0"},
+		"period of at least 120000ms":                 {scenario: "agent-restart", periodMs: "60000"},
+		"period of at least 240000ms":                 {scenario: "key-rotation", periodMs: "120000"},
+		"period of at least 210000ms":                 {scenario: "network-drop", networkDropSeconds: "120", periodMs: "180000"},
+		"runs with the smb cell alone, not with file": {scenario: "agent-restart", cells: "smb,file-line"},
+		"runs with the smb cell alone, not with smb-": {scenario: "key-rotation", cells: "smb,smb-gzip"},
+		"SMB cells may share the blocked":             {scenario: "network-drop", cells: "smb,smb-gzip"},
+		"runs on the smb cell":                        {scenario: "network-drop", cells: "file-line"},
+		"the Java writer image":                       {scenario: "agent-restart", writerImage: testWriterImage},
+	} {
+		opts.runID, opts.smbEnabled = testRunID, true
+		_, err := newRunSpec(opts)
+		assert.ErrorContains(t, err, name)
+	}
+}
+
+func TestScenariosRunOnTheSMBCell(t *testing.T) {
+	for _, kind := range knownScenarios {
+		spec := testRunSpec(t, runOptions{scenario: " " + string(kind) + " ", smbEnabled: true})
+		assert.Equal(t, kind, spec.scenario.kind)
+		require.Len(t, spec.cells, 1, kind)
+		c := spec.cells[0]
+		assert.Equal(t, scenarioCellName, c.name)
+		// A disruption delays the drains past every marker.
+		assert.Zero(t, c.markers.count(), kind)
+		assert.Contains(t, spec.appenderEnv(c), envVar{"LOGWRITER_APPEND_DELAYS_MS", "none"}, kind)
+		// A paced writer with a period that holds the disruption.
+		assert.Equal(t, renameRotation, c.writer.mode, kind)
+		assert.Zero(t, c.writer.streams, kind)
+		assert.True(t, c.writer.paced(), kind)
+		assert.GreaterOrEqual(t, c.writer.periodMs, spec.scenario.minPeriodMs(), kind)
+		assert.Equal(t, spec.writer, c.writer, kind)
+		assert.Equal(t, kind == keyRotationScenario, c.agentKeyIndex == 1, kind)
+		assert.Equal(t, kind, spec.scenarioMetadata()["name"])
+
+		// The gate still applies: without it, nothing is provisioned.
+		gated := testRunSpec(t, runOptions{scenario: string(kind)})
+		assert.Empty(t, gated.cells, kind)
+	}
+	assert.Nil(t, testRunSpec(t, runOptions{}).scenarioMetadata())
+
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 120000, rateBytesPerSec: 20000},
+		testRunSpec(t, runOptions{scenario: "agent-restart", smbEnabled: true}).writer)
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 300000, rateBytesPerSec: 10000},
+		testRunSpec(t, runOptions{scenario: "key-rotation", smbEnabled: true}).writer)
+	drop := testRunSpec(t, runOptions{scenario: "network-drop", smbEnabled: true})
+	assert.Equal(t, defaultNetworkDropSeconds, drop.scenario.dropSeconds)
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 180000, rateBytesPerSec: 10000}, drop.writer)
+	// A longer drop gets a longer default period.
+	long := testRunSpec(t, runOptions{scenario: "network-drop", networkDropSeconds: "200", smbEnabled: true})
+	assert.Equal(t, (200+networkDropMarginSeconds)*1000, long.writer.periodMs)
+	// Explicit options are kept when they hold the disruption.
+	explicit := testRunSpec(t, runOptions{scenario: "agent-restart", periodMs: "180000", rateBytesPerSec: "5000", smbEnabled: true})
+	assert.Equal(t, writerOptions{mode: renameRotation, periodMs: 180000, rateBytesPerSec: 5000}, explicit.writer)
+
+	// network-drop only blocks the Agent pod's namespace, so the file cells
+	// can run next to it with their usual markers.
+	withFiles := testRunSpec(t, runOptions{scenario: "network-drop", cells: "smb,file-line", smbEnabled: true})
+	require.Len(t, withFiles.cells, 2)
+	assert.Equal(t, markerDelaysFor(fileReader, renameRotation), withFiles.cells[1].markers)
+
+	// The drop outlasts an operation timeout, and the period holds the drop,
+	// the longest backoff after it and a margin.
+	assert.Greater(t, minNetworkDropSeconds, smbOpTimeoutSeconds)
+	assert.Greater(t, keyRotationForcedDropSeconds, smbOpTimeoutSeconds)
+	assert.GreaterOrEqual(t, networkDropPeriodMs, (defaultNetworkDropSeconds+networkDropMarginSeconds)*1000)
+	assert.Greater(t, agentRestartMinPeriodMs, agentRestartDeleteAfterMs)
+	assert.Less(t, keyRotationStartAfterMs+int(keyRotationNaturalAuthWait/time.Millisecond)+keyRotationForcedDropSeconds*1000+(smbMaxBackoffSeconds+60+3*secretRefreshIntervalSeconds)*1000,
+		keyRotationPeriodMs)
+}
+
+func TestKeyRotationEnablesTheSecretRefresh(t *testing.T) {
+	values := testRunSpec(t, runOptions{scenario: "key-rotation", smbEnabled: true}).agentHelmValues()
+	assert.Contains(t, values, "        DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ENABLED: \"false\"\n"+
+		"        DD_SECRET_REFRESH_INTERVAL: \"15\"\n"+
+		"        DD_SECRET_REFRESH_SCATTER: \"false\"\n")
+	// The Agent still reads the key from its mounted Secret.
+	assert.Contains(t, values, `password: "ENC[file@/etc/azure-files-secrets/smb/azurestorageaccountkey]"`)
+
+	for _, opts := range []runOptions{
+		{smbEnabled: true},
+		{scenario: "agent-restart", smbEnabled: true},
+		{scenario: "network-drop", smbEnabled: true},
+	} {
+		assert.NotContains(t, testRunSpec(t, opts).agentHelmValues(), "DD_SECRET_REFRESH", opts.scenario)
+	}
+}
+
+func TestStorageAccountKeyAtPicksKey1OrKey2(t *testing.T) {
+	keys := []any{map[string]any{"keyName": "key1", "value": "first"}, map[string]any{"keyName": "key2", "value": "second"}}
+	key, err := storageAccountKeyAt(keys, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "second", key)
+	key, err = firstStorageAccountKey(keys)
+	require.NoError(t, err)
+	assert.Equal(t, "first", key)
+	_, err = storageAccountKeyAt(keys[:1], 1)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "first")
+}
+
+func TestStorageAccountIDAddressesTheAzureCLI(t *testing.T) {
+	account, err := parseStorageAccountID("/subscriptions/sub-id/resourceGroups/dd-agent-sandbox/providers/Microsoft.Storage/storageAccounts/ddafsmbabc")
+	require.NoError(t, err)
+	assert.Equal(t, storageAccountRef{subscription: "sub-id", resourceGroup: "dd-agent-sandbox", name: "ddafsmbabc"}, account)
+	_, err = parseStorageAccountID("ddafsmbabc")
+	assert.Error(t, err)
+
+	// The renewal prints nothing; the key is read on its own.
+	renew := strings.Join(account.renewKeyArgs(), " ")
+	assert.Equal(t, "storage account keys renew --subscription sub-id --resource-group dd-agent-sandbox --account-name ddafsmbabc --key secondary --output none", renew)
+	list := account.secondaryKeyArgs()
+	assert.Equal(t, []string{"--query", "[?keyName=='key2'].value | [0]", "--output", "tsv"}, list[len(list)-4:])
+}
+
+func TestMissedBytesReportsAreReadFromTheAgentLog(t *testing.T) {
+	log := strings.Join([]string{
+		"2026-10-06T18:29:07.123456789Z 2026-10-06 18:29:07 UTC | CORE | WARN | (pkg/logs/tailers/smb/tailer.go:427 in RecordMissedBytes) | " +
+			"Rotated SMB file is no longer listed: 1234 bytes of SMB file smb://acct.file.core.windows.net/share/svc-1/app.log (last read as svc-1/app.log.06102026_182900) were not read and are lost",
+		"2026-10-06 18:30:01 UTC | CORE | WARN | (pkg/logs/tailers/smb/tailer.go:427 in RecordMissedBytes) | " +
+			"SMB rotation drain timed out after 5s (logs_config.close_timeout): 7 bytes of SMB file smb://acct.file.core.windows.net/share/app.log (last read as app.log) were not read and are lost",
+		"2026-10-06 18:30:02 UTC | CORE | INFO | (pkg/logs/tailers/smb/tailer.go:290 in Stop) | Closed SMB tailer for smb://acct.file.core.windows.net/share/app.log",
+		"2026-10-06 18:30:03 UTC | CORE | WARN | (pkg/logs/tailers/file/tailer.go:388 in func1) | After the rotation close timeout (5s), there were 10 bytes remaining unread",
+	}, "\n")
+	reports := parseMissedBytesReports(log)
+	require.Len(t, reports, 2)
+	assert.Equal(t, missedBytesReport{
+		At: time.Date(2026, 10, 6, 18, 29, 7, 123456789, time.UTC), Reason: "Rotated SMB file is no longer listed", Bytes: 1234,
+		Identifier: "smb://acct.file.core.windows.net/share/svc-1/app.log", ReadPath: "svc-1/app.log.06102026_182900",
+	}, reports[0])
+	assert.Equal(t, time.Date(2026, 10, 6, 18, 30, 1, 0, time.UTC), reports[1].At)
+	assert.Equal(t, "SMB rotation drain timed out after 5s (logs_config.close_timeout)", reports[1].Reason)
+	assert.Equal(t, int64(1241), sumReportedBytes(reports))
+
+	c := cell{accountName: "acct", shareName: "share"}
+	assert.Equal(t, "smb://acct.file.core.windows.net/share/svc-1/app.log", smbIdentifier(c, "svc-1"))
+	assert.Len(t, reportsOfCell(c, reports), 2)
+	assert.Empty(t, reportsOfCell(cell{accountName: "other", shareName: "share"}, reports))
+
+	assert.NoError(t, checkMissedBytesTotal(reports[:1], reports, 1241))
+	assert.NoError(t, checkMissedBytesTotal(reports[:1], reports, 1234))
+	assert.ErrorContains(t, checkMissedBytesTotal(reports, reports, 2000), "some missed bytes have no warning")
+	assert.Error(t, checkMissedBytesTotal(reports, reports, 1000))
+}
+
+// lossFixture is a file of ten 100-byte records, run r, rotated at 12:00:00.
+func lossFixture(mode rotationMode) (cell, []ledgerEntry, map[recordKey]struct{}) {
+	c := cell{name: "smb-" + string(mode), reader: smbReader, accountName: "acct", shareName: "share",
+		writer: writerOptions{mode: mode, periodMs: 60000}}
+	ledger := []ledgerEntry{
+		{RunID: "r", Period: "p1", File: "app.log.1", FirstSequence: 1, LastSequence: 10, Bytes: 1000, RotatedAt: "2026-10-06T12:00:00.000Z"},
+		{RunID: "r", Period: "p2", File: "app.log.2", FirstSequence: 11, LastSequence: 12, Bytes: 200, RotatedAt: "2026-10-06T12:01:00.000Z"},
+	}
+	if mode == deleteRecreateRotation {
+		ledger[0].File, ledger[1].File = activeLogName, activeLogName
+	}
+	return c, ledger, expectedRecords(ledger[:1])
+}
+
+func collectedSequences(sequences ...int64) (map[recordKey]int, map[recordKey]int64) {
+	counts, sizes := map[recordKey]int{}, map[recordKey]int64{}
+	for _, sequence := range sequences {
+		counts[recordKey{"r", sequence}]++
+		sizes[recordKey{"r", sequence}] = 100
+	}
+	return counts, sizes
+}
+
+func TestLossesMustBeTheEndOfAFileAndReported(t *testing.T) {
+	at := func(clock string) time.Time {
+		parsed, err := time.Parse(time.RFC3339, "2026-10-06T"+clock+"Z")
+		require.NoError(t, err)
+		return parsed
+	}
+	for _, mode := range []rotationMode{gzipRotation, deleteRecreateRotation} {
+		c, ledger, expected := lossFixture(mode)
+		readPath := "app.log.1"
+		if mode == deleteRecreateRotation {
+			readPath = activeLogName
+		}
+		report := func(bytes int64, when string) missedBytesReport {
+			return missedBytesReport{At: at(when), Bytes: bytes, Identifier: smbIdentifier(c, ""), ReadPath: readPath}
+		}
+		counts, sizes := collectedSequences(1, 2, 3, 4, 5, 6, 7)
+		check := checkRecords(expected, nil, counts)
+		require.Len(t, check.missing, 3, mode)
+
+		// The last three records, 300 bytes, reported as missed.
+		losses := explainLosses(c, ledger, ledger[:1], check, sizes, []missedBytesReport{report(300, "12:00:02")})
+		require.Len(t, losses, 1, mode)
+		assert.True(t, losses[0].Suffix, mode)
+		assert.Equal(t, int64(300), losses[0].UnreadBytes, mode)
+		assert.Equal(t, int64(300), losses[0].ReportedBytes, mode)
+		assert.Equal(t, "r:8-10", losses[0].MissingRanges, mode)
+		explained := new(recordingT)
+		assertLossesExplained(explained, c, losses)
+		assert.Empty(t, explained.failures, mode)
+
+		// Nothing reported, or for another file: a silent loss.
+		for name, reports := range map[string][]missedBytesReport{
+			"none":         nil,
+			"other stream": {{At: at("12:00:02"), Bytes: 300, Identifier: smbIdentifier(c, "svc-2"), ReadPath: readPath}},
+		} {
+			silent := new(recordingT)
+			assertLossesExplained(silent, c, explainLosses(c, ledger, ledger[:1], check, sizes, reports))
+			require.Len(t, silent.failures, 1, "%s %s", mode, name)
+			assert.Contains(t, silent.failures[0], "the Agent reported no missed bytes for it", mode)
+		}
+
+		// Far fewer bytes reported than lost: partly silent.
+		under := new(recordingT)
+		assertLossesExplained(under, c, []fileLoss{{Suffix: true, UnreadBytes: 50000, ReportedBytes: 300}})
+		require.Len(t, under.failures, 1, mode)
+		assert.Contains(t, under.failures[0], "partly silent loss", mode)
+		over := new(recordingT)
+		assertLossesExplained(over, c, []fileLoss{{Suffix: true, UnreadBytes: 300, ReportedBytes: 50000}})
+		require.Len(t, over.failures, 1, mode)
+		assert.Contains(t, over.failures[0], "attributed to the wrong file", mode)
+
+		// A hole before collected records is never a drain's loss.
+		holed, holedSizes := collectedSequences(1, 2, 3, 5, 6, 7, 8, 9, 10)
+		inside := new(recordingT)
+		assertLossesExplained(inside, c, explainLosses(c, ledger, ledger[:1], checkRecords(expected, nil, holed), holedSizes, []missedBytesReport{report(100, "12:00:02")}))
+		require.Len(t, inside.failures, 1, mode)
+		assert.Contains(t, inside.failures[0], "not its last ones (r:4)", mode)
+	}
+
+	// A deleted file's report is the one made before the next rotation.
+	c, ledger, expected := lossFixture(deleteRecreateRotation)
+	counts, sizes := collectedSequences(1, 2, 3, 4, 5, 6, 7)
+	late := []missedBytesReport{{At: at("12:01:30"), Bytes: 300, Identifier: smbIdentifier(c, ""), ReadPath: activeLogName}}
+	losses := explainLosses(c, ledger, ledger[:1], checkRecords(expected, nil, counts), sizes, late)
+	require.Len(t, losses, 1)
+	assert.Zero(t, losses[0].ReportedBytes)
+
+	// A gzip report names the rotated file.
+	c, ledger, expected = lossFixture(gzipRotation)
+	other := []missedBytesReport{{At: at("12:00:02"), Bytes: 300, Identifier: smbIdentifier(c, ""), ReadPath: "app.log.2"}}
+	losses = explainLosses(c, ledger, ledger[:1], checkRecords(expected, nil, counts), sizes, other)
+	assert.Zero(t, losses[0].ReportedBytes)
+	// Unless the file was gone before the source saw the rotation: then the
+	// drain never found it under its rotated name and reports app.log.
+	unseen := []missedBytesReport{{At: at("12:00:07"), Bytes: 300, Identifier: smbIdentifier(c, ""), ReadPath: activeLogName}}
+	losses = explainLosses(c, ledger, ledger[:1], checkRecords(expected, nil, counts), sizes, unseen)
+	assert.Equal(t, int64(300), losses[0].ReportedBytes)
+
+	// Lines are counted with their newline.
+	lines := recordLineBytes([]string{"x run_id=r period=p sequence=1 record=1", "noise"}, map[recordKey]struct{}{{"r", 1}: {}})
+	assert.Equal(t, map[recordKey]int64{{"r", 1}: 40}, lines)
+}
+
+func TestRestartDuplicatesAreBounded(t *testing.T) {
+	paced := writerOptions{mode: renameRotation, periodMs: 120000, rateBytesPerSec: 20000}
+	assert.Zero(t, restartDuplicateBound(paced, true))
+	// 20000 B/s of 1 KiB payloads over a flush period, a batch wait and a
+	// second, plus one 64 KiB write.
+	assert.Equal(t, int(math.Ceil(20000.0/1024*7))+64, restartDuplicateBound(paced, false))
+	assert.Zero(t, restartDuplicateBound(defaultWriterOptions(), false))
+
+	expected := map[recordKey]struct{}{}
+	for sequence := int64(1); sequence <= 10; sequence++ {
+		expected[recordKey{"r", sequence}] = struct{}{}
+	}
+	all := func(extra map[int64]int) map[recordKey]int {
+		counts := map[recordKey]int{}
+		for key := range expected {
+			counts[key] = 1 + extra[key.sequence]
+		}
+		return counts
+	}
+	c := cell{name: "smb"}
+	resent := all(map[int64]int{5: 1, 6: 1, 7: 1})
+	ok := new(recordingT)
+	assertRestartRecords(ok, c, checkRecords(expected, nil, resent), resent, restartRule{bound: 3})
+	assert.Empty(t, ok.failures)
+
+	tooMany := new(recordingT)
+	assertRestartRecords(tooMany, c, checkRecords(expected, nil, resent), resent, restartRule{bound: 2, graceful: true})
+	require.Len(t, tooMany.failures, 1)
+	assert.Contains(t, tooMany.failures[0], "more than the 2 the Agent can resend after a graceful restart")
+
+	scattered := all(map[int64]int{2: 1, 7: 2})
+	problems := restartDuplicateProblems(checkRecords(expected, nil, scattered), scattered, restartRule{bound: 10})
+	require.Len(t, problems, 2)
+	assert.Contains(t, problems[0], "more than twice")
+	assert.Contains(t, problems[1], "not one run of sequences")
+
+	lost := all(nil)
+	delete(lost, recordKey{"r", 10})
+	missing := new(recordingT)
+	assertRestartRecords(missing, c, checkRecords(expected, nil, lost), lost, restartRule{bound: 3})
+	require.Len(t, missing.failures, 1)
+	assert.Contains(t, missing.failures[0], "never collected across the Agent restart: r:10")
+
+	assert.True(t, gracefulLogsStop("... | INFO | Stopping logs-agent\n... | INFO | logs-agent stopped\n"))
+	assert.False(t, gracefulLogsStop("Timed out when stopping logs-agent, forcing it to stop now\nlogs-agent stopped"))
+	assert.False(t, gracefulLogsStop(""))
+}
+
+func TestRegistryMustOutliveTheAgentPod(t *testing.T) {
+	pod := func(volume k8scorev1.VolumeSource) k8scorev1.Pod {
+		return k8scorev1.Pod{Spec: k8scorev1.PodSpec{
+			Containers: []k8scorev1.Container{{Name: agentContainer, VolumeMounts: []k8scorev1.VolumeMount{{Name: "pointerdir", MountPath: logsRunPath}}}},
+			Volumes:    []k8scorev1.Volume{{Name: "pointerdir", VolumeSource: volume}},
+		}}
+	}
+	// What chart 3.245.0 renders with datadog.logs.enabled.
+	assert.NoError(t, checkRegistryPersists(pod(k8scorev1.VolumeSource{HostPath: &k8scorev1.HostPathVolumeSource{Path: "/var/lib/datadog-agent/logs"}})))
+	assert.ErrorContains(t, checkRegistryPersists(pod(k8scorev1.VolumeSource{EmptyDir: &k8scorev1.EmptyDirVolumeSource{}})), "not a hostPath")
+	assert.ErrorContains(t, checkRegistryPersists(k8scorev1.Pod{}), "mounts nothing at /opt/datadog-agent/run")
+}
+
+func TestDisruptionsAreTimedInsideOnePeriod(t *testing.T) {
+	at := func(clock string) time.Time {
+		parsed, err := time.Parse(time.RFC3339, "2026-10-06T"+clock+"Z")
+		require.NoError(t, err)
+		return parsed
+	}
+	// Periods start at multiples of the period since the epoch.
+	assert.Equal(t, at("12:02:00"), periodStart(at("12:03:59"), 120000))
+	assert.Equal(t, at("12:00:00"), periodStart(at("12:04:59"), 300000))
+
+	start, end := disruptionTiming(at("12:02:05"), 120000, 30*time.Second)
+	assert.Equal(t, at("12:02:30"), start)
+	assert.Equal(t, at("12:04:00"), end)
+	// Too late in the period: the next one.
+	start, end = disruptionTiming(at("12:02:31"), 120000, 30*time.Second)
+	assert.Equal(t, at("12:04:30"), start)
+	assert.Equal(t, at("12:06:00"), end)
+
+	// The drop is centred on the end of the period.
+	block, rotation := networkDropTiming(at("12:03:05"), 180000, 90)
+	assert.Equal(t, at("12:05:15"), block)
+	assert.Equal(t, at("12:06:00"), rotation)
+	block, rotation = networkDropTiming(at("12:05:20"), 180000, 90)
+	assert.Equal(t, at("12:08:15"), block)
+	assert.Equal(t, at("12:09:00"), rotation)
+}
+
+func TestNetworkHelperOnlyTouchesTheAgentNamespace(t *testing.T) {
+	pod := networkHelperPod("network-helper-1", "aks-node-0", "registry-1.docker.io/"+stockWorkloadImage,
+		[]k8scorev1.LocalObjectReference{{Name: "pull"}}, testRunID)
+	assert.Equal(t, e2eNamespace, pod.Namespace)
+	assert.Equal(t, "aks-node-0", pod.Spec.NodeName)
+	assert.True(t, pod.Spec.HostPID)
+	assert.False(t, pod.Spec.HostNetwork, "the helper enters the Agent's network namespace, it does not need the node's")
+	assert.Equal(t, k8scorev1.RestartPolicyNever, pod.Spec.RestartPolicy)
+	require.Len(t, pod.Spec.Containers, 1)
+	container := pod.Spec.Containers[0]
+	assert.True(t, *container.SecurityContext.Privileged)
+	assert.Zero(t, *container.SecurityContext.RunAsUser)
+	// Pinned by digest: the writers' stock image.
+	assert.Regexp(t, `@sha256:[0-9a-f]{64}$`, container.Image)
+	// It is no writer pod: findWriterPod selects on the cell label.
+	assert.NotContains(t, pod.Labels, cellLabel)
+	assert.Equal(t, networkHelperApp, pod.Labels[helperRoleLabel])
+
+	assert.Equal(t, []string{"nsenter", "--mount=/proc/1/ns/mnt", "--net=/proc/4242/ns/net", "--", "iptables", "-w", "5",
+		"-I", "OUTPUT", "1", "-p", "tcp", "-d", "20.60.1.2", "--dport", "445", "-m", "comment", "--comment", "tag", "-j", "DROP"},
+		nsenterIptables("4242", dropRuleArgs("-I", "20.60.1.2", "tag")...))
+	assert.Equal(t, []string{"-D", "OUTPUT", "-p", "tcp", "-d", "20.60.1.2", "--dport", "445", "-m", "comment", "--comment", "tag", "-j", "DROP"},
+		dropRuleArgs("-D", "20.60.1.2", "tag"))
+
+	assert.Equal(t, []string{"20.60.1.2", "20.60.1.3"}, parseAddresses("20.60.1.2      STREAM file.core.windows.net\n20.60.1.2      DGRAM\n20.60.1.3      STREAM\n"))
+	tcp := `  sl  local_address rem_address   st tx_queue rx_queue
+   0: 0A00000A:A1B2 0201033C:01BD 01 00000000:00000000 00:00000000 00000000     0
+   1: 0A00000A:A1B3 0201033C:01BD 06 00000000:00000000 00:00000000 00000000     0
+   2: 0A00000A:A1B4 0201033C:1F90 01 00000000:00000000 00:00000000 00000000     0`
+	assert.Equal(t, 1, countSMBConnections(tcp))
+	listing := `Chain OUTPUT (policy ACCEPT 10 packets, 600 bytes)
+    pkts      bytes target     prot opt in     out     source               destination
+      37     2220 DROP       tcp  --  *      *       0.0.0.0/0            20.60.1.2            tcp dpt:445 /* tag */
+       5      300 DROP       tcp  --  *      *       0.0.0.0/0            20.60.1.3            tcp dpt:445 /* tag */
+       9      540 DROP       tcp  --  *      *       0.0.0.0/0            20.60.1.4            tcp dpt:445 /* other */`
+	assert.Equal(t, int64(42), droppedPacketCount(listing, "tag"))
+
+	id, err := agentContainerID(k8scorev1.Pod{Status: k8scorev1.PodStatus{ContainerStatuses: []k8scorev1.ContainerStatus{
+		{Name: "trace-agent", ContainerID: "containerd://other"}, {Name: agentContainer, ContainerID: "containerd://abc123"},
+	}}})
+	require.NoError(t, err)
+	assert.Equal(t, "abc123", id)
+	_, err = agentContainerID(k8scorev1.Pod{})
+	assert.Error(t, err)
+}
+
+func TestSourceStatusesAreClassified(t *testing.T) {
+	assert.Equal(t, sourceOK, classifySourceStatus("OK"))
+	assert.Equal(t, sourcePending, classifySourceStatus("Pending"))
+	assert.Equal(t, sourceAuthError, classifySourceStatus("Error: cannot read smb://h/s: the server rejected the credentials or denied access. Check the username"))
+	assert.Equal(t, sourceUnreachable, classifySourceStatus("Error: cannot reach smb://h/s, retrying: i/o timeout"))
+	assert.Equal(t, sourceOtherError, classifySourceStatus("Error: not found on smb://h/s"))
+
+	start := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	obs := []statusObservation{
+		{At: start, State: sourceOK},
+		{At: start.Add(5 * time.Second), State: sourceUnreachable},
+		{At: start.Add(10 * time.Second), State: sourceAuthError},
+		{At: start.Add(15 * time.Second), State: sourceOK},
+	}
+	assert.Equal(t, 2, firstObservation(obs, 0, start, sourceAuthError))
+	assert.Equal(t, 3, firstObservation(obs, 3, time.Time{}, sourceOK))
+	assert.Equal(t, 3, firstObservation(obs, 0, start.Add(time.Second), sourceOK))
+	assert.Equal(t, -1, firstObservation(obs, 0, start.Add(20*time.Second), sourceOK))
+}
+
+func TestLoadReportMeasuresThroughputAndLag(t *testing.T) {
+	c := cell{name: "smb-glob-load", writer: writerOptions{mode: renameRotation, periodMs: 10000, rateBytesPerSec: 1000, streams: 2}}
+	asserted := []ledgerEntry{
+		{RunID: "s1", Period: "p1", FirstSequence: 1, LastSequence: 1, Bytes: 5000, RotatedAt: "2026-10-06T12:00:10.000Z"},
+		{RunID: "s1", Period: "p2", FirstSequence: 2, LastSequence: 2, Bytes: 10000, RotatedAt: "2026-10-06T12:00:20.000Z"},
+		{RunID: "s2", Period: "p2", FirstSequence: 1, LastSequence: 1, Bytes: 10000, RotatedAt: "2026-10-06T12:00:20.000Z"},
+	}
+	expected := expectedRecords(asserted)
+	record := func(written string, runID string, sequence int) string {
+		return written + "  INFO  1 --- [        scheduling-1] c.d.e.l.LogWriterService                 : run_id=" + runID +
+			" period=p sequence=" + strconv.Itoa(sequence) + " record=1 phase=fill"
+	}
+	arrived := time.Date(2026, 10, 6, 12, 0, 21, 0, time.UTC)
+	logs := []collectedLog{
+		{message: record("2026-10-06 12:00:19.000", "s1", 2), timestamp: time.Date(2026, 10, 6, 12, 0, 19, 500e6, time.UTC).UnixMilli(), arrived: arrived},
+		{message: record("2026-10-06 12:00:09.000", "s1", 1), timestamp: time.Date(2026, 10, 6, 12, 0, 9, 500e6, time.UTC).UnixMilli(), arrived: arrived.Add(-10 * time.Second)},
+		{message: record("2026-10-06 12:00:18.000", "s2", 1), timestamp: time.Date(2026, 10, 6, 12, 0, 18, 500e6, time.UTC).UnixMilli(), arrived: arrived},
+		{message: "post_rotation_marker run_id=s1", arrived: arrived},
+	}
+	report := buildLoadReport(c, asserted, expected, logs)
+	assert.Equal(t, 3, report.CollectedRecords)
+	assert.Equal(t, int64(25000), report.WrittenBytes)
+	// Each stream's first file is left out: s1's second, s2 has none.
+	assert.InDelta(t, 10000.0/((1.0/2)*10), report.WriterBytesPerSec, 0.001)
+	assert.InDelta(t, 10, report.ArrivalWindowSeconds, 0.001)
+	assert.Equal(t, latencySummary{Count: 3, P50: 2000, P95: 3000, P99: 3000, Max: 3000}, report.PipelineLag)
+	assert.Equal(t, 500.0, report.AgentReadLag.Max)
+	assert.Equal(t, 2500.0, report.DeliveryLag.Max)
+	// Each file's last record arrived 1s after its rotation was journalled.
+	assert.Equal(t, latencySummary{Count: 3, P50: 1000, P95: 1000, P99: 1000, Max: 1000}, report.FileCompletionLag)
+	assert.Equal(t, 3, report.SMBOpens.ListingsPerScan)
+
+	_, ok := recordWriteTime("short")
+	assert.False(t, ok)
+	assert.Equal(t, latencySummary{}, summarizeLatencies(nil))
 }

@@ -7,10 +7,12 @@ package azurefiles
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"hash/crc64"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -115,16 +118,14 @@ func TestPythonWriterKeepsTheJavaRecordAndRotationContract(t *testing.T) {
 	var messages []string
 	for _, file := range files {
 		first, last := fileSequences(t, file)
-		entries = append(entries, ledgerEntry{FirstSequence: first, LastSequence: last})
+		entries = append(entries, ledgerEntry{RunID: runID, FirstSequence: first, LastSequence: last})
 		messages = append(messages, file.lines...)
 	}
-	expected := expectedSequences(entries)
+	expected := expectedRecords(entries)
 	assert.Len(t, expected, int(sequence))
-	counts := countSequences(messages, expected)
-	assert.Len(t, counts, len(expected))
-	for sequence, count := range counts {
-		assert.Equal(t, 1, count, "sequence %d", sequence)
-	}
+	check := checkRecords(expected, nil, countRecords(messages, expected))
+	assert.Empty(t, check.missing)
+	assert.Empty(t, check.duplicated)
 
 	// The active file holds the next period, which starts the sequence after
 	// the last rotated one.
@@ -173,7 +174,18 @@ func TestPythonCRC64MatchesGo(t *testing.T) {
 	}
 }
 
+// The ledger of the Java writer image scans the rotated files; the stock
+// workload's reads the Python writer's journal. For the default rename mode,
+// both must record the same files the same way.
 func TestLedgerScriptRecordsThePythonWriterFiles(t *testing.T) {
+	for _, source := range []string{"scan", "journal"} {
+		t.Run(source, func(t *testing.T) {
+			testLedgerScriptRecordsThePythonWriterFiles(t, source)
+		})
+	}
+}
+
+func testLedgerScriptRecordsThePythonWriterFiles(t *testing.T, source string) {
 	python := requirePython(t)
 	requireTools(t, "sh", "basename", "date", "wc", "tr", "dd", "sha256sum", "awk", "sed", "grep", "head", "tail", "cut", "mkdir", "sleep")
 	spec := testRunSpec(t, runOptions{cells: "file-line"})
@@ -191,21 +203,24 @@ func TestLedgerScriptRecordsThePythonWriterFiles(t *testing.T) {
 	startScript(t, scripts[ledgerScript], filepath.Join(t.TempDir(), "ledger.log"),
 		"LOGWRITER_LOG_DIR="+share,
 		"LOGWRITER_CRC64_COMMAND="+crc64Command,
+		"LOGWRITER_LEDGER_SOURCE="+source,
 	)
-	var ledger []ledgerEntry
-	require.Eventually(t, func() bool {
-		raw, err := os.ReadFile(ledgerPath)
-		if err != nil {
-			return false
-		}
-		ledger, err = decodeJSONLines[ledgerEntry](string(raw), "ledger")
-		return err == nil && len(ledger) == selfTestRotations
-	}, 30*time.Second, 100*time.Millisecond, "ledger.sh did not record the rotated files")
+	ledger := waitForLedger(t, ledgerPath, selfTestRotations)
 
-	sort.Slice(ledger, func(i, j int) bool { return ledger[i].Period < ledger[j].Period })
 	targets := targetSequence(t)
 	for i, file := range rotatedFiles(t, share) {
 		entry := ledger[i]
+		if source == "journal" {
+			// What only the journal has.
+			assert.Equal(t, "renamed", entry.Disposition, file.name)
+			assert.Equal(t, "file", entry.Observed, file.name)
+			assert.Equal(t, int64(len(file.content)), entry.ObservedBytes, file.name)
+			assert.Equal(t, string(renameRotation), entry.RotationMode, file.name)
+			assert.NotEmpty(t, entry.RotatedAt, file.name)
+			entry.Stream, entry.RotationMode, entry.Disposition, entry.Archive = "", "", "", ""
+			entry.UnwrittenSequences, entry.AtRiskSequences, entry.RotatedAt = nil, nil, ""
+			entry.Observed, entry.ObservedBytes = "", 0
+		}
 		first, last := fileSequences(t, file)
 		assert.Equal(t, ledgerEntry{
 			RunID:           spec.writerRunID(c),
@@ -237,7 +252,7 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 
 	// The suite's marker ages, scaled down so the appender is done in a
 	// fraction of a second.
-	delays := markerDelays{survivingMs: 50, lostMs: 100}
+	delays := markerDelays{earlyMs: 50, earlyExpect: markerCollected, lateMs: 100}
 	journalPath := filepath.Join(share, postRotationMarkerJournalName)
 	appenderLog := filepath.Join(t.TempDir(), "appender.log")
 	startScript(t, scripts[appenderScript], appenderLog,
@@ -257,9 +272,9 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	runPythonWriterSelfTest(t, python, scripts, spec, c, share)
 
-	names := make(map[string]struct{}, selfTestRotations)
+	names := make(map[markerKey]struct{}, selfTestRotations)
 	for i := 0; i < selfTestRotations; i++ {
-		names[fmt.Sprintf("app.log.13082026_12%02d", i)] = struct{}{}
+		names[markerKey{runID: runID, file: fmt.Sprintf("app.log.13082026_12%02d", i)}] = struct{}{}
 	}
 	var markers []markerEntry
 	require.Eventually(t, func() bool {
@@ -268,7 +283,7 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 			return false
 		}
 		journal, err := decodeJSONLines[markerEntry](string(raw), "marker journal")
-		markers = markersForFiles(journal, runID, names)
+		markers = markersForFiles(journal, names)
 		return err == nil && len(markers) == 2*selfTestRotations
 	}, 30*time.Second, 50*time.Millisecond, "appender.sh did not mark every rotation")
 
@@ -286,9 +301,9 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 	for i, file := range files {
 		rotation := i + 1
 		early := fmt.Sprintf("post_rotation_marker run_id=%s rotation=%d marker_age_ms=%d marker_id=%s-r%d-m%d rotated_file=%s",
-			runID, rotation, delays.survivingMs, runID, rotation, delays.survivingMs, file.name)
+			runID, rotation, delays.earlyMs, runID, rotation, delays.earlyMs, file.name)
 		late := fmt.Sprintf("post_rotation_marker run_id=%s rotation=%d marker_age_ms=%d marker_id=%s-r%d-m%d rotated_file=%s",
-			runID, rotation, delays.lostMs, runID, rotation, delays.lostMs, file.name)
+			runID, rotation, delays.lateMs, runID, rotation, delays.lateMs, file.name)
 		// The rotated file ends in padding without a newline, so the first
 		// marker extends the padding line, as it does with the Java writer.
 		require.GreaterOrEqual(t, len(file.lines), 2, file.name)
@@ -296,6 +311,547 @@ func TestAppenderScriptMarksThePythonWriterRotations(t *testing.T) {
 		assert.Equal(t, late, file.lines[len(file.lines)-1], file.name)
 		assert.Empty(t, file.tail, file.name)
 	}
+}
+
+// writerLayouts are the shapes the rotation mode tests run each mode in: the
+// Java writer's schedule on one app.log, and two paced streams with a short
+// period, as a pod would run them.
+var writerLayouts = map[string]runOptions{
+	"one-file":    {},
+	"two-streams": {periodMs: "10000", rateBytesPerSec: "40000", streams: "2"},
+}
+
+// recordLinePattern is a writer record with any payload size and period
+// format.
+var recordLinePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}  (?:INFO |WARN |ERROR) 1 --- \[        scheduling-1\] c\.d\.e\.l\.LogWriterService {17}: ` +
+	`run_id=(\S+) period=(\d{8}T\d{4}(?:\d{2})?Z) sequence=(\d+) record=\d+ phase=(?:head|fill) target_bytes=\d+ host=\S+ payload=x+$`)
+
+// diskRecord is a record found in a file of a stream directory.
+type diskRecord struct {
+	runID    string
+	period   string
+	sequence int64
+}
+
+func TestPythonWriterRotationModesJournalEveryRecord(t *testing.T) {
+	python := requirePython(t)
+	scripts := writeWorkloadScripts(t)
+	for _, mode := range knownRotationModes {
+		for layout, opts := range writerLayouts {
+			t.Run(string(mode)+"/"+layout, func(t *testing.T) {
+				opts.cells, opts.rotationMode = "file-line", string(mode)
+				spec := testRunSpec(t, opts)
+				c := spec.cells[0]
+				share := t.TempDir()
+				runPythonWriterSelfTest(t, python, scripts, spec, c, share)
+				streams := spec.streamRunIDs(c)
+				for i, dir := range spec.writer.streamDirs() {
+					checkStreamFiles(t, mode, filepath.Join(share, dir), dir, streams[i])
+				}
+			})
+		}
+	}
+}
+
+// checkStreamFiles checks what a stream left on the share against its
+// journal: the journal accounts for every record the writer wrote, each
+// rotated file holds exactly what its journal line says, and a record is only
+// missing from the share when the mode deleted it or put it at risk.
+func checkStreamFiles(t *testing.T, mode rotationMode, dir, stream, runID string) {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(dir, periodsJournalName))
+	require.NoError(t, err)
+	journal, err := decodeJSONLines[ledgerEntry](string(raw), "journal")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(journal), selfTestRotations)
+
+	files := streamFiles(t, dir)
+	seen := make(map[int64]int)
+	records := make(map[string][]diskRecord, len(files))
+	for name, content := range files {
+		records[name] = parseDiskRecords(t, name, content)
+		for _, record := range records[name] {
+			assert.Equal(t, runID, record.runID, name)
+			seen[record.sequence]++
+		}
+	}
+
+	atRisk := make(map[int64]bool)
+	next := int64(1)
+	for _, entry := range journal {
+		assert.Equal(t, runID, entry.RunID)
+		assert.Equal(t, stream, entry.Stream)
+		assert.Equal(t, string(mode), entry.RotationMode)
+		assert.Equal(t, next, entry.FirstSequence, "%s follows the previous period", entry.Period)
+		next = entry.LastSequence + 1
+		assert.Empty(t, entry.UnwrittenSequences, entry.Period)
+		assert.Equal(t, entry.LastSequence-entry.FirstSequence+1, entry.LineCount, entry.Period)
+		for _, sequences := range entry.AtRiskSequences {
+			// The window opens with the first record after the copied period.
+			assert.Equal(t, entry.LastSequence+1, sequences[0], entry.Period)
+			for sequence := sequences[0]; sequence <= sequences[1]; sequence++ {
+				atRisk[sequence] = true
+			}
+		}
+
+		switch mode {
+		case renameRotation, gzipRotation:
+			if mode == gzipRotation {
+				assert.Equal(t, "compressed", entry.Disposition)
+				assert.Equal(t, entry.File+".gz", entry.Archive)
+				assert.NoFileExists(t, filepath.Join(dir, entry.File), "the compressed file is deleted")
+			} else {
+				assert.Equal(t, "renamed", entry.Disposition)
+			}
+			// The rotated file is exactly what the writer journalled.
+			content, ok := files[entry.File]
+			require.True(t, ok, "%s is not on the share", entry.File)
+			assert.Equal(t, entry.Bytes, int64(len(content)), entry.File)
+			assertHeadChecksums(t, entry, content)
+			require.NotEmpty(t, records[entry.File], entry.File)
+			for i, record := range records[entry.File] {
+				assert.Equal(t, entry.FirstSequence+int64(i), record.sequence, entry.File)
+				assert.Equal(t, entry.Period, record.period, entry.File)
+			}
+			assert.Len(t, records[entry.File], int(entry.LineCount), entry.File)
+		case copyTruncateRotation:
+			assert.Equal(t, "copied", entry.Disposition)
+			content, ok := files[entry.File]
+			require.True(t, ok, "%s is not on the share", entry.File)
+			assertHeadChecksums(t, entry, content)
+			// A copy holds its period, and at most what the writer appended
+			// while the copy was running.
+			for _, record := range records[entry.File] {
+				if record.period != entry.Period {
+					assert.True(t, atRisk[record.sequence], "%s holds sequence %d of %s, which is not at risk", entry.File, record.sequence, record.period)
+				}
+			}
+		case deleteRecreateRotation:
+			assert.Equal(t, "deleted", entry.Disposition)
+			assert.Equal(t, activeLogName, entry.File)
+		}
+	}
+	if mode == copyTruncateRotation {
+		assert.NotEmpty(t, atRisk, "a copytruncate rotation always has the next head record at risk")
+	} else {
+		assert.Empty(t, atRisk)
+	}
+
+	// Every record up to the last one written is either journalled, and then
+	// on the share once unless its mode deleted it or put it at risk, or in
+	// the active file the writer has not rotated yet. A self-test of a paced
+	// copytruncate writer ends right after a truncation, with an empty active
+	// file: its last record is then the end of the last at-risk window.
+	active := records[activeLogName]
+	lastWritten := next - 1
+	for sequence := range atRisk {
+		lastWritten = max(lastWritten, sequence)
+	}
+	if mode != copyTruncateRotation {
+		require.NotEmpty(t, active)
+	}
+	for _, record := range active {
+		assert.GreaterOrEqual(t, record.sequence, next, "the active file only holds what is not journalled yet")
+		lastWritten = max(lastWritten, record.sequence)
+	}
+	for sequence := int64(1); sequence <= lastWritten; sequence++ {
+		switch {
+		case atRisk[sequence]:
+			assert.LessOrEqual(t, seen[sequence], 1, "at-risk sequence %d", sequence)
+		case sequence < next && mode == deleteRecreateRotation:
+			assert.Zero(t, seen[sequence], "sequence %d was deleted with its file", sequence)
+		default:
+			assert.Equal(t, 1, seen[sequence], "sequence %d", sequence)
+		}
+	}
+}
+
+func assertHeadChecksums(t *testing.T, entry ledgerEntry, content []byte) {
+	t.Helper()
+	assert.Equal(t, goCRC64(head2048(content)), entry.First2048CRC64, entry.File)
+	assert.Equal(t, sha256Hex(head2048(content)), entry.First2048SHA256, entry.File)
+	assert.Equal(t, goCRC64(firstLine(content)), entry.FirstLineCRC64, entry.File)
+	assert.Equal(t, sha256Hex(firstLine(content)), entry.FirstLineSHA256, entry.File)
+}
+
+// streamFiles reads the active and rotated files of a stream directory, by
+// name, with a compressed file under the name it had before compression.
+func streamFiles(t *testing.T, dir string) map[string][]byte {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	files := make(map[string][]byte)
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || (name != activeLogName && !strings.HasPrefix(name, activeLogName+".")) {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(dir, name))
+		require.NoError(t, err)
+		if strings.HasSuffix(name, ".gz") {
+			reader, err := gzip.NewReader(bytes.NewReader(content))
+			require.NoError(t, err, name)
+			content, err = io.ReadAll(reader)
+			require.NoError(t, err, name)
+			name = strings.TrimSuffix(name, ".gz")
+			require.NotContains(t, files, name, "%s is on the share both compressed and not", name)
+		}
+		files[name] = content
+	}
+	return files
+}
+
+// parseDiskRecords reads the records of a file. Each line is a record; the
+// padding of the Java writer's schedule ends a file without a newline.
+func parseDiskRecords(t *testing.T, name string, content []byte) []diskRecord {
+	t.Helper()
+	end := bytes.LastIndexByte(content, '\n')
+	assert.Regexp(t, `^p*$`, string(content[end+1:]), "%s ends in something else than padding", name)
+	if end < 0 {
+		return nil
+	}
+	var records []diskRecord
+	for number, line := range strings.Split(string(content[:end]), "\n") {
+		match := recordLinePattern.FindStringSubmatch(line)
+		if !assert.NotNil(t, match, "%s line %d is not a writer record: %.200q", name, number+1, line) {
+			continue
+		}
+		sequence, err := strconv.ParseInt(match[3], 10, 64)
+		require.NoError(t, err)
+		records = append(records, diskRecord{runID: match[1], period: match[2], sequence: sequence})
+	}
+	return records
+}
+
+func TestPythonWriterPacesItsRecords(t *testing.T) {
+	python := requirePython(t)
+	scripts := writeWorkloadScripts(t)
+	spec := testRunSpec(t, runOptions{cells: "file-line", periodMs: "10000", rateBytesPerSec: "40000", streams: "2"})
+	c := spec.cells[0]
+	share := t.TempDir()
+	runPythonWriterSelfTest(t, python, scripts, spec, c, share)
+
+	// Each stream gets half the rate, from the end of the head pause to the
+	// end of the period, in records with the paced payload.
+	headPause := int64(spec.writer.headPauseMs())
+	for _, dir := range spec.writer.streamDirs() {
+		raw, err := os.ReadFile(filepath.Join(share, dir, periodsJournalName))
+		require.NoError(t, err)
+		journal, err := decodeJSONLines[ledgerEntry](string(raw), "journal")
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(journal), selfTestRotations)
+		// The first period starts with the writer, one second in.
+		for _, entry := range journal[1:] {
+			want := (10000 - headPause) * 20000 / 1000
+			// A tick of 250ms is the schedule's resolution.
+			assert.InDelta(t, want, entry.Bytes, float64(20000/4+2*1200), entry.Period)
+			assert.Equal(t, int64(20000*10), entry.TargetBytes, entry.Period)
+		}
+		content, err := os.ReadFile(filepath.Join(share, dir, journal[1].File))
+		require.NoError(t, err)
+		line := firstLine(content)
+		assert.Contains(t, string(line), " payload="+strings.Repeat("x", pacedWriterPayloadBytes))
+		assert.True(t, bytes.HasPrefix(line, []byte("2026-08-13 12:00:20.000  INFO  1 ")), "%s", line)
+	}
+}
+
+func TestPythonWriterRunsItsStreamsInRealTime(t *testing.T) {
+	python := requirePython(t)
+	scripts := writeWorkloadScripts(t)
+	share := t.TempDir()
+	logPath := filepath.Join(t.TempDir(), "writer.log")
+	logFile, err := os.Create(logPath)
+	require.NoError(t, err)
+	defer logFile.Close()
+
+	// One-second periods: each stream thread rotates, compresses and journals
+	// on the real clock, and the writer stops on SIGTERM like a pod.
+	streams := 3
+	cmd := exec.Command(python, scripts[pythonWriterScript])
+	cmd.Env = scriptEnv(
+		"LOGWRITER_LOG_DIR="+share, "LOGWRITER_RUN_ID=realtime", "HOSTNAME=writer-test",
+		"LOGWRITER_PERIOD_MS=1000", "LOGWRITER_HEAD_PAUSE_MS=100", "LOGWRITER_INITIAL_FILL_RUNWAY_MS=0",
+		"LOGWRITER_INITIAL_DELAY_MS=0", "LOGWRITER_INTERVAL_MS=20",
+		"LOGWRITER_RATE_BYTES_PER_SEC=300000", "LOGWRITER_BUFFER_BYTES=65536", "LOGWRITER_STREAMS="+strconv.Itoa(streams),
+		"LOGWRITER_CONSOLE_RECORDS=false", "LOGWRITER_ROTATION_MODE=gzip", "LOGWRITER_GZIP_DELAY_MS=100",
+	)
+	cmd.Stdout, cmd.Stderr = logFile, logFile
+	require.NoError(t, cmd.Start())
+	stopped := false
+	defer func() {
+		if !stopped {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+		if t.Failed() {
+			if output, err := os.ReadFile(logPath); err == nil {
+				t.Logf("logwriter.py:\n%s", output)
+			}
+		}
+	}()
+
+	journals := func() [][]ledgerEntry {
+		all := make([][]ledgerEntry, streams)
+		for i := range all {
+			raw, err := os.ReadFile(filepath.Join(share, fmt.Sprintf("svc-%d", i+1), periodsJournalName))
+			if err == nil {
+				all[i], _ = decodeJSONLines[ledgerEntry](string(raw), "journal")
+			}
+		}
+		return all
+	}
+	require.Eventually(t, func() bool {
+		for _, journal := range journals() {
+			if len(journal) < 2 {
+				return false
+			}
+		}
+		return true
+	}, 20*time.Second, 50*time.Millisecond, "every stream must journal two periods")
+
+	require.NoError(t, cmd.Process.Signal(syscall.SIGTERM))
+	err = cmd.Wait()
+	stopped = true
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	assert.Equal(t, 128+int(syscall.SIGTERM), exitErr.ExitCode())
+
+	for i, journal := range journals() {
+		next := journal[0].FirstSequence
+		assert.Equal(t, int64(1), next)
+		for _, entry := range journal {
+			assert.Equal(t, fmt.Sprintf("realtime-svc-%d", i+1), entry.RunID)
+			assert.Regexp(t, `^\d{8}T\d{6}Z$`, entry.Period)
+			assert.Regexp(t, `^app\.log\.\d{8}_\d{6}$`, entry.File)
+			assert.Equal(t, next, entry.FirstSequence)
+			assert.Positive(t, entry.Bytes)
+			next = entry.LastSequence + 1
+		}
+	}
+}
+
+func TestLedgerScriptRecordsTheWriterJournalOfEveryMode(t *testing.T) {
+	python := requirePython(t)
+	requireTools(t, "sh", "basename", "date", "wc", "tr", "sed", "mkdir", "sleep")
+	scripts := writeWorkloadScripts(t)
+	for name, opts := range map[string]runOptions{
+		"gzip-two-streams": {rotationMode: "gzip", periodMs: "10000", rateBytesPerSec: "40000", streams: "2"},
+		"delete-recreate":  {rotationMode: "delete-recreate"},
+		"copytruncate":     {rotationMode: "copytruncate"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			opts.cells = "file-line"
+			spec := testRunSpec(t, opts)
+			c := spec.cells[0]
+			share := t.TempDir()
+			runPythonWriterSelfTest(t, python, scripts, spec, c, share)
+			startLedgerScript(t, python, scripts, spec, share)
+
+			for _, dir := range spec.writer.streamDirs() {
+				raw, err := os.ReadFile(filepath.Join(share, dir, periodsJournalName))
+				require.NoError(t, err)
+				journal, err := decodeJSONLines[ledgerEntry](string(raw), "journal")
+				require.NoError(t, err)
+				ledger := waitForLedger(t, filepath.Join(share, dir, ledgerName), len(journal))
+				for i, entry := range ledger {
+					// The ledger is the journal line with what the share holds
+					// for its file.
+					observed := entry
+					observed.DiscoveredAt, observed.ObservedAt, observed.Observed, observed.ObservedBytes = "", "", "", 0
+					assert.Equal(t, journal[i], observed, entry.File)
+					assert.NotEmpty(t, entry.DiscoveredAt)
+					switch spec.writer.mode {
+					case gzipRotation:
+						info, err := os.Stat(filepath.Join(share, dir, entry.Archive))
+						require.NoError(t, err)
+						assert.Equal(t, "archive", entry.Observed, entry.File)
+						assert.Equal(t, info.Size(), entry.ObservedBytes, entry.File)
+					case deleteRecreateRotation:
+						assert.Equal(t, "deleted", entry.Observed, entry.File)
+						assert.Equal(t, int64(-1), entry.ObservedBytes, entry.File)
+					case copyTruncateRotation:
+						info, err := os.Stat(filepath.Join(share, dir, entry.File))
+						require.NoError(t, err)
+						assert.Equal(t, "file", entry.Observed, entry.File)
+						assert.Equal(t, info.Size(), entry.ObservedBytes, entry.File)
+						assert.NotEmpty(t, entry.AtRiskSequences, entry.File)
+					}
+				}
+			}
+		})
+	}
+}
+
+// startLedgerScript runs ledger.sh with the configuration of the cell's ledger
+// container, on share.
+func startLedgerScript(t *testing.T, python string, scripts map[string]string, spec runSpec, share string) {
+	t.Helper()
+	var vars []string
+	for _, v := range spec.ledgerEnv(spec.cells[0], spec.workloadRuntime("registry.example")) {
+		switch v.name {
+		case "LOGWRITER_LOG_DIR":
+			v.value = share
+		case "LOGWRITER_CRC64_COMMAND":
+			v.value = python + " " + scripts[pythonWriterScript] + " crc64"
+		}
+		vars = append(vars, v.name+"="+v.value)
+	}
+	startScript(t, scripts[ledgerScript], filepath.Join(t.TempDir(), "ledger.log"), vars...)
+}
+
+func waitForLedger(t *testing.T, ledgerPath string, entries int) []ledgerEntry {
+	t.Helper()
+	var ledger []ledgerEntry
+	require.Eventually(t, func() bool {
+		raw, err := os.ReadFile(ledgerPath)
+		if err != nil {
+			return false
+		}
+		ledger, err = decodeJSONLines[ledgerEntry](string(raw), "ledger")
+		return err == nil && len(ledger) == entries
+	}, 30*time.Second, 100*time.Millisecond, "ledger.sh did not record %d files in %s", entries, ledgerPath)
+	sort.Slice(ledger, func(i, j int) bool { return ledger[i].Period < ledger[j].Period })
+	return ledger
+}
+
+func TestAppenderScriptMarksEveryStream(t *testing.T) {
+	python := requirePython(t)
+	requireTools(t, "sh", "basename", "date", "tr", "sleep")
+	spec := testRunSpec(t, runOptions{cells: "file-line", periodMs: "10000", rateBytesPerSec: "40000", streams: "2"})
+	c := spec.cells[0]
+	scripts := writeWorkloadScripts(t)
+	share := t.TempDir()
+
+	delays := markerDelays{earlyMs: 50, earlyExpect: markerCollected, lateMs: 100}
+	var vars []string
+	for _, v := range spec.appenderEnv(c) {
+		switch v.name {
+		case "LOGWRITER_LOG_DIR":
+			v.value = share
+		case "LOGWRITER_APPEND_DELAYS_MS":
+			v.value = delays.appenderValue()
+		case "LOGWRITER_APPEND_POLL_MS":
+			v.value = "20"
+		}
+		// LOGWRITER_MARKER_JOURNAL_PATH stays the pod's: the streams must not
+		// use it.
+		vars = append(vars, v.name+"="+v.value)
+	}
+	appenderLog := filepath.Join(t.TempDir(), "appender.log")
+	startScript(t, scripts[appenderScript], appenderLog, vars...)
+	require.Eventually(t, func() bool {
+		output, err := os.ReadFile(appenderLog)
+		return err == nil && bytes.Count(output, []byte("appender_ready ")) == 2
+	}, 10*time.Second, 20*time.Millisecond, "appender.sh did not watch both streams")
+	time.Sleep(200 * time.Millisecond)
+	runPythonWriterSelfTest(t, python, scripts, spec, c, share)
+
+	streams := spec.streamRunIDs(c)
+	for i, dir := range spec.writer.streamDirs() {
+		files := rotatedFiles(t, filepath.Join(share, dir))
+		require.Len(t, files, selfTestRotations)
+		names := make(map[markerKey]struct{}, len(files))
+		for _, file := range files {
+			names[markerKey{runID: streams[i], file: file.name}] = struct{}{}
+		}
+		var markers []markerEntry
+		require.Eventually(t, func() bool {
+			raw, err := os.ReadFile(filepath.Join(share, dir, postRotationMarkerJournalName))
+			if err != nil {
+				return false
+			}
+			journal, err := decodeJSONLines[markerEntry](string(raw), "marker journal")
+			markers = markersForFiles(journal, names)
+			return err == nil && len(markers) == 2*selfTestRotations
+		}, 30*time.Second, 50*time.Millisecond, "appender.sh did not mark every rotation of %s", dir)
+
+		files = rotatedFiles(t, filepath.Join(share, dir))
+		var messages []string
+		for _, file := range files {
+			messages = append(messages, file.lines...)
+		}
+		counts := countMarkerIDs(messages)
+		for _, marker := range markers {
+			assert.Equal(t, fmt.Sprintf("%s-r%d-m%d", streams[i], marker.Rotation, marker.MarkerAgeMs), marker.MarkerID)
+			assert.Equal(t, 1, counts[marker.MarkerID], marker.MarkerID)
+		}
+		for _, file := range files {
+			// A paced file ends with a whole record, so each marker is a line
+			// of its own.
+			require.GreaterOrEqual(t, len(file.lines), 3, file.name)
+			assert.Regexp(t, `^post_rotation_marker run_id=`+regexp.QuoteMeta(streams[i])+` .* marker_age_ms=50 `, file.lines[len(file.lines)-2], file.name)
+			assert.Regexp(t, `^post_rotation_marker run_id=`+regexp.QuoteMeta(streams[i])+` .* marker_age_ms=100 `, file.lines[len(file.lines)-1], file.name)
+			assert.Empty(t, file.tail, file.name)
+		}
+	}
+	_, err := os.Stat(filepath.Join(share, postRotationMarkerJournalName))
+	assert.True(t, os.IsNotExist(err), "the single-file journal is not used by streams")
+}
+
+func TestAppenderScriptOnlyMarksRenamedFilesThatAreStillThere(t *testing.T) {
+	requireTools(t, "sh", "basename", "date", "tr", "sleep")
+	scripts := writeWorkloadScripts(t)
+	share := t.TempDir()
+	journalPath := filepath.Join(share, postRotationMarkerJournalName)
+	appenderLog := filepath.Join(t.TempDir(), "appender.log")
+	startScript(t, scripts[appenderScript], appenderLog,
+		"LOGWRITER_LOG_DIR="+share,
+		"LOGWRITER_RUN_ID=run",
+		"LOGWRITER_MARKER_JOURNAL_PATH="+journalPath,
+		"LOGWRITER_APPEND_DELAYS_MS=300,600",
+		"LOGWRITER_APPEND_POLL_MS=20",
+	)
+	require.Eventually(t, func() bool {
+		output, err := os.ReadFile(appenderLog)
+		return err == nil && bytes.Contains(output, []byte("appender_ready "))
+	}, 10*time.Second, 20*time.Millisecond, "appender.sh did not start")
+	time.Sleep(100 * time.Millisecond)
+
+	// A compressed file is not a rotation, and a rotated file deleted before
+	// its markers is not recreated by them.
+	require.NoError(t, os.WriteFile(filepath.Join(share, "app.log.13082026_1200.gz"), []byte("gzip"), 0o600))
+	gone := filepath.Join(share, "app.log.13082026_1201")
+	require.NoError(t, os.WriteFile(gone, []byte("record\n"), 0o600))
+	require.Eventually(t, func() bool {
+		output, err := os.ReadFile(appenderLog)
+		return err == nil && bytes.Contains(output, []byte("appender_rotation_detected file=app.log.13082026_1201 "))
+	}, 10*time.Second, 10*time.Millisecond)
+	require.NoError(t, os.Remove(gone))
+
+	var journal []markerEntry
+	require.Eventually(t, func() bool {
+		raw, err := os.ReadFile(journalPath)
+		if err != nil {
+			return false
+		}
+		journal, err = decodeJSONLines[markerEntry](string(raw), "marker journal")
+		return err == nil && len(journal) == 2
+	}, 10*time.Second, 50*time.Millisecond)
+	for _, marker := range journal {
+		assert.Equal(t, "skipped", marker.Status, marker.MarkerID)
+		assert.Equal(t, "app.log.13082026_1201", marker.RotatedFile)
+	}
+	assert.NoFileExists(t, gone)
+}
+
+func TestAppenderScriptIdlesWithoutMarkers(t *testing.T) {
+	requireTools(t, "sh", "sleep")
+	scripts := writeWorkloadScripts(t)
+	share := t.TempDir()
+	appenderLog := filepath.Join(t.TempDir(), "appender.log")
+	startScript(t, scripts[appenderScript], appenderLog,
+		"LOGWRITER_LOG_DIR="+share, "LOGWRITER_RUN_ID=run", "LOGWRITER_APPEND_DELAYS_MS=none", "LOGWRITER_APPEND_POLL_MS=20")
+	require.Eventually(t, func() bool {
+		output, err := os.ReadFile(appenderLog)
+		return err == nil && bytes.Contains(output, []byte("appender_idle run_id=run reason=no_markers"))
+	}, 10*time.Second, 20*time.Millisecond)
+	rotated := filepath.Join(share, "app.log.13082026_1200")
+	require.NoError(t, os.WriteFile(rotated, []byte("record\n"), 0o600))
+	time.Sleep(300 * time.Millisecond)
+	content, err := os.ReadFile(rotated)
+	require.NoError(t, err)
+	assert.Equal(t, "record\n", string(content))
+	assert.NoFileExists(t, filepath.Join(share, postRotationMarkerJournalName))
 }
 
 // requirePython returns the python3 that runs logwriter.py, or skips.
@@ -421,10 +977,8 @@ func fileSequences(t *testing.T, file writerFile) (int64, int64) {
 	t.Helper()
 	var sequences []int64
 	for _, line := range file.lines {
-		if match := sequencePattern.FindStringSubmatch(line); len(match) == 2 {
-			sequence, err := strconv.ParseInt(match[1], 10, 64)
-			require.NoError(t, err)
-			sequences = append(sequences, sequence)
+		if key, ok := parseRecord(line); ok {
+			sequences = append(sequences, key.sequence)
 		}
 	}
 	require.NotEmpty(t, sequences, file.name)
