@@ -39,6 +39,8 @@ import (
 
 const defaultSleepDuration = 1 * time.Second
 
+var errTailerStopping = errors.New("tailer is stopping")
+
 // DockerContainerLogInterface is an interface that exposes only the required function from DockerUtil
 // located at pkg/util/docker/docker_util.go
 type DockerContainerLogInterface interface {
@@ -278,15 +280,30 @@ func (t *Tailer) setupReader() error {
 }
 
 // tryRestartReader reconnects the reader by setting up a fresh one.
+// It returns errTailerStopping, without reporting the container as errored,
+// if Stop() is called while restarting.
 func (t *Tailer) tryRestartReader(reason string) error {
 	log.Debugf("%s for container %v", reason, t.ContainerID)
+	t.readerCancelFunc()
+	_ = t.reader.Close()
 	t.wait()
+	if t.stopping.Load() {
+		return errTailerStopping
+	}
 	err := t.setupReader()
 	if err != nil {
 		log.Warnf("Could not restart the docker reader for container %v: %v:", t.ContainerID, err)
 		t.erroredContainerID <- t.ContainerID
+		return err
 	}
-	return err
+	if t.stopping.Load() {
+		// Stop() ran while the new reader was being opened, so it closed the
+		// previous one; close this one too or it would never be released.
+		t.readerCancelFunc()
+		_ = t.reader.Close()
+		return errTailerStopping
+	}
+	return nil
 }
 
 // tail sets up and starts the tailer
@@ -360,10 +377,20 @@ func (t *Tailer) readForever() {
 						return
 					}
 					continue
-				case isContextCanceled(err):
+				case isContextCanceled(err), isTimeoutErr(err):
+					// Either our read timeout cancelled the reader's context, or
+					// the request itself timed out. The container is still
+					// running, so reconnect in place: this keeps lastSince,
+					// whereas returning would recreate the tailer from the
+					// registry offset, which lags behind what was already
+					// forwarded and replays those lines as duplicates.
+					//
 					// Note that it could happen that the docker daemon takes a lot of time gathering timestamps
 					// before starting to send any data when it has stored several large log files.
 					// Increasing the docker_client_read_timeout could help avoiding such a situation.
+					if t.stopping.Load() {
+						return
+					}
 					if err := t.tryRestartReader("Restarting reader after a read timeout"); err != nil {
 						return
 					}
@@ -527,7 +554,14 @@ func isClosedConnError(err error) bool {
 
 // isContextCanceled returns true if the error is related to a canceled context,
 func isContextCanceled(err error) bool {
-	return err == context.Canceled
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// isTimeoutErr returns true if the error is a network or client timeout, such
+// as the error returned when http.Client.Timeout fires while reading a body.
+func isTimeoutErr(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 // isReaderClosed returns true if a reader has been closed.
