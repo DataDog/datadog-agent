@@ -17,6 +17,7 @@ import (
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/ioscmd"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
@@ -61,7 +62,7 @@ func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ 
 }
 
 // RunCommand implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RunCommand(_ context.Context, _, _ string, _ config.CredentialSet) (*types.CommandResult, types.TypedError) {
+func (m *mockNetworkConfigManagement) RunCommand(_ context.Context, _ string, _ ioscmd.CommandBlock, _ config.CredentialSet) (*types.CommandResult, types.TypedError) {
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 

@@ -45,8 +45,9 @@ func NewRunCommandHandler(client ipc.HTTPClient) *RunCommandHandler {
 type RunCommandInputs struct {
 	// DeviceID identifies the device to run the command on.
 	DeviceID string `json:"deviceID"`
-	// Command is the command string to send to the device.
-	Command string `json:"command"`
+	// Command is a JSON-encoded ioscmd.CommandBlock. It is passed through to
+	// the agent unchanged; the agent parses and validates it.
+	Command json.RawMessage `json:"command"`
 	// CredentialSet selects which credential set to use when connecting to the device.
 	CredentialSet string `json:"credentialSet"`
 }
@@ -74,11 +75,11 @@ func (h *RunCommandHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse runCommand inputs: %w", err)
 	}
-	if inputs.Command == "" {
+	if len(inputs.Command) == 0 || string(inputs.Command) == "null" {
 		return nil, errors.New("runCommand: Command input is required")
 	}
 
-	body, err := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]any{
 		"device_id":      inputs.DeviceID,
 		"command":        inputs.Command,
 		"credential_set": inputs.CredentialSet,
