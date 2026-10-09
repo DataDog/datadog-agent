@@ -496,6 +496,40 @@ func TestNormalizeTypePassThru(t *testing.T) {
 	assert.Equal(t, newTagStats(), ts)
 }
 
+func TestNormalizeTypeFromGenAI(t *testing.T) {
+	a := &Agent{conf: config.New()}
+
+	for _, tt := range []struct {
+		name     string
+		meta     map[string]string
+		expected string
+	}{
+		{
+			name:     "gen_ai attribute",
+			meta:     map[string]string{"gen_ai.system": "openai"},
+			expected: "llm",
+		},
+		{
+			name:     "no gen_ai attribute",
+			meta:     map[string]string{"ai.system": "openai"},
+			expected: "browser",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := newTagStats()
+			s := newTestSpan()
+			s.Type = "browser"
+			for k, v := range tt.meta {
+				s.Meta[k] = v
+			}
+
+			assert.NoError(t, a.normalize(ts, s))
+			assert.Equal(t, tt.expected, s.Type)
+			assert.Equal(t, newTagStats(), ts)
+		})
+	}
+}
+
 func TestNormalizeTypeTooLong(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
@@ -974,6 +1008,38 @@ func TestNormalizeTypePassThruV1(t *testing.T) {
 	assert.NoError(t, a.normalizeV1(ts, s))
 	assert.Equal(t, before, s.Type())
 	assert.Equal(t, newTagStats(), ts)
+}
+
+func TestNormalizeTypeFromGenAIV1(t *testing.T) {
+	a := &Agent{conf: config.New()}
+
+	for _, tt := range []struct {
+		name     string
+		attrKey  string
+		expected string
+	}{
+		{
+			name:     "gen_ai attribute",
+			attrKey:  "gen_ai.system",
+			expected: "llm",
+		},
+		{
+			name:     "no gen_ai attribute",
+			attrKey:  "ai.system",
+			expected: "browser",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := newTagStats()
+			s := newTestSpanV1(idx.NewStringTable())
+			s.SetType("browser")
+			s.SetStringAttribute(tt.attrKey, "openai")
+
+			assert.NoError(t, a.normalizeV1(ts, s))
+			assert.Equal(t, tt.expected, s.Type())
+			assert.Equal(t, newTagStats(), ts)
+		})
+	}
 }
 
 func TestNormalizeTypeTooLongV1(t *testing.T) {
