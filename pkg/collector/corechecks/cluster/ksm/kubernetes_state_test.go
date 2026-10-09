@@ -369,6 +369,34 @@ func TestProcessMetrics(t *testing.T) {
 			expected:           []metricsExpected{},
 		},
 		{
+			name:   "kube_node_spec_taint",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_spec_taint": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_spec_taint",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "key": "dedicated", "value": "experiment", "effect": "NoSchedule"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(nil),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.taint",
+					val:      1,
+					tags:     []string{"node:nodename", "key:dedicated", "value:experiment", "effect:NoSchedule"},
+					hostname: "nodename",
+				},
+			},
+		},
+		{
 			name:   "kube_zone and kube_region tags from default label joins",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
