@@ -23,7 +23,7 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.66.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
-	github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4
+	github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b
 	github.com/DataDog/rshell v0.0.30
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
