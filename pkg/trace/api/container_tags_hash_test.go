@@ -11,9 +11,10 @@ package api
 // DSM backend, so any tag added to serviceOriginTags must be low cardinality
 // and stable across rolling deploys, restarts and job runs.
 //
-// This file is owned by @DataDog/data-streams-monitoring (see CODEOWNERS). If
-// you need to change these tests, please reach out to #data-streams-monitoring
-// first.
+// This file is owned by @DataDog/data-streams-monitoring (see CODEOWNERS), and
+// container_tags_hash_dbm_test.go by @DataDog/database-monitoring, so changing
+// the allowlist requires an approval from both teams. If you need to change
+// these tests, please reach out to #data-streams-monitoring first.
 
 import (
 	"crypto/sha256"

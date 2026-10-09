@@ -47,7 +47,8 @@ const (
 
 // serviceOriginTags is a set of tags that can be used in the backend to uniquely identify a service.
 // They feed the container tags hash used in DSM/DBM pathway hashes, so they must be low cardinality.
-// Changes are guarded by container_tags_hash_test.go, owned by @DataDog/data-streams-monitoring.
+// Changes are guarded by container_tags_hash_test.go (@DataDog/data-streams-monitoring) and
+// container_tags_hash_dbm_test.go (@DataDog/database-monitoring).
 var serviceOriginTags = map[string]struct{}{
 	"kube_deployment":     {},
 	"kube_cronjob":        {},
