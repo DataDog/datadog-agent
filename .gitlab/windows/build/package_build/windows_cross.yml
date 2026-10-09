@@ -5,13 +5,15 @@ windows_agent_cross_build_x64-a7:
   rules:
     - when: on_success
   script:
-    - bazel build --remote_download_outputs=toplevel //packages/agent/windows:msi_payload_windows
+    - bazel build --remote_download_outputs=toplevel --execution_log_compact_file=$CI_PROJECT_DIR/execlog.binpb.zst //packages/agent/windows:msi_payload_windows
     - mkdir -p omnibus/msi-payload
     - cp "$(bazel info execution_root)/$(bazel cquery --output=files //packages/agent/windows:msi_payload_windows)" omnibus/msi-payload/
   artifacts:
     expire_in: 2 weeks
+    when: always
     paths:
       - omnibus/msi-payload
+      - execlog.binpb.zst
 
 windows_msi_cross_x64-a7:
   extends: .windows_msi_base
