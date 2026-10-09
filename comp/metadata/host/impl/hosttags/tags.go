@@ -56,7 +56,11 @@ func getProvidersDefinitions(ctx context.Context, conf model.Reader) map[string]
 
 	// We should not try to fetch host tags for a cloud we know we are not
 	// running on
-	cloudProvider, _ := cloudproviders.DetectCloudProvider(ctx, false)
+	// We should only attempt to resolve the cloud provider if we need to retrieve cloud provider info
+	var cloudProvider string
+	if conf.GetBool("collect_gce_tags") || conf.GetBool("collect_ec2_tags") || conf.GetBool("collect_ec2_instance_info") {
+		cloudProvider, _ = cloudproviders.DetectCloudProvider(ctx, false)
+	}
 	runsOnOtherCloud := func(provider string) bool {
 		return cloudProvider != "" && cloudProvider != provider
 	}
