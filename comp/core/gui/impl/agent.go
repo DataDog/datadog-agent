@@ -58,10 +58,13 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		err   error
 	)
 	verbose := r.URL.Query().Get("verbose") == "true"
-	if statusType == "collector" {
+	switch statusType {
+	case "collector":
 		stats, err = statusComponent.GetStatusBySections([]string{status.CollectorSection}, "html", verbose)
-	} else {
+	case "general":
 		stats, err = statusComponent.GetStatus("html", verbose, status.CollectorSection)
+	default:
+		stats, err = statusComponent.GetStatusBySections([]string{statusType}, "html", verbose)
 	}
 
 	if err != nil {

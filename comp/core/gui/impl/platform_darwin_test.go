@@ -107,6 +107,7 @@ const expectedBody = `<!DOCTYPE html>
     <div id="tests" class="page"></div>
     <div id="general_status" class="page"></div>
     <div id="collector_status" class="page"></div>
+    <div id="gnmi_status" class="page"></div>
     <div id="settings" class="page"></div>
     <div id="logs" class="page"></div>
     <div id="manage_checks" class="page">
