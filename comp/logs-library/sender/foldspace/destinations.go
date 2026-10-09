@@ -26,6 +26,10 @@ const (
 	// minutes by default, answering with GOAWAY too_many_pings.
 	defaultKeepaliveTime    = 5 * time.Minute
 	defaultKeepaliveTimeout = 20 * time.Second
+	// The intake acks only after a durable write, and failing a stream that is
+	// merely slow costs a resend of its whole window plus a backoff step, so
+	// this sits well above http_timeout's default.
+	defaultAckTimeout = 30 * time.Second
 	// Mirrors the library's own stream lifetime, since a zero value there means
 	// rotate on every open rather than use the default.
 	defaultStreamLifetime = 15 * time.Minute
@@ -59,6 +63,10 @@ type DestinationConfig struct {
 	// an intake whose transport still answers pings is not detected by them.
 	KeepaliveTime    time.Duration
 	KeepaliveTimeout time.Duration
+	// AckTimeout is how long a stream may hold unacked batches with no ack
+	// arriving before it is failed, catching an intake that still answers
+	// pings but has stopped acknowledging.
+	AckTimeout time.Duration
 	// BatchWait bounds how long a partial batch is held. The core seals on record
 	// count and content size; without a time bound a partial batch waits for
 	// enough further records to seal it, however long that takes.
@@ -118,6 +126,10 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	keepaliveTimeout := cfg.GetDuration("logs_config.foldspace.keepalive_timeout")
 	if keepaliveTimeout <= 0 {
 		keepaliveTimeout = defaultKeepaliveTimeout
+	}
+	ackTimeout := cfg.GetDuration("logs_config.foldspace.ack_timeout")
+	if ackTimeout <= 0 {
+		ackTimeout = defaultAckTimeout
 	}
 
 	mainOverride := strings.TrimSpace(cfg.GetString("logs_config.foldspace.dd_url"))
@@ -218,6 +230,7 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 		DualShip:          cfg.GetBool("logs_config.foldspace.dual_ship"),
 		KeepaliveTime:     keepaliveTime,
 		KeepaliveTimeout:  keepaliveTimeout,
+		AckTimeout:        ackTimeout,
 		BatchWait:         batchWait,
 	}, nil
 }
