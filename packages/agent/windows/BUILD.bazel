@@ -44,6 +44,18 @@ pkg_files(
 )
 
 pkg_files(
+    name = "system_probe_binary",
+    srcs = ["//cmd/system-probe"],
+    prefix = "bin/agent",
+)
+
+pkg_filegroup(
+    name = "system_probe_config",
+    srcs = ["//packages/agent/product:system_probe_files"],
+    prefix = "etc/datadog-agent",
+)
+
+pkg_files(
     name = "python_scripts",
     srcs = [
         "//omnibus:python-scripts/packages.py",
@@ -68,6 +80,8 @@ pkg_filegroup(
         ":everything",
         ":license",
         ":python_scripts",
+        ":system_probe_binary",
+        ":system_probe_config",
         ":windows_scripts",
         "//deps/agent_integrations:all_files",
         "//packages/install_dir:embedded",
