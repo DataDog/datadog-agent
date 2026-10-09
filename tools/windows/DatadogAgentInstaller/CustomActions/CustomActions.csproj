@@ -105,7 +105,6 @@
     <Compile Include="Interfaces\ISession.cs" />
     <Compile Include="InstallStateCustomActions.cs" />
     <Compile Include="SessionWrapper.cs" />
-    <Compile Include="Telemetry.cs" />
     <Compile Include="ProcessUserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
