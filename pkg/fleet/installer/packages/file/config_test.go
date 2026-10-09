@@ -8,10 +8,14 @@
 package file
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
+	"testing/iotest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -121,4 +125,24 @@ func TestEnsureConfigFromExampleRejectsEscapingParent(t *testing.T) {
 
 	require.Error(t, EnsureConfigFromExample(root, scriptConfigPath))
 	require.NoFileExists(t, filepath.Join(target, "script-config.yaml"))
+}
+
+func TestEnsureConfigFromExampleFailedCopyCanRetry(t *testing.T) {
+	rootPath, live := configExample(t, "packaged default\n")
+	root, err := os.OpenRoot(rootPath)
+	require.NoError(t, err)
+	defer root.Close()
+
+	copyErr := errors.New("interrupted copy")
+	example := io.MultiReader(strings.NewReader("partial"), iotest.ErrReader(copyErr))
+	require.ErrorIs(t, publishConfig(root, scriptConfigPath, example), copyErr)
+	require.NoFileExists(t, live)
+	entries, err := os.ReadDir(filepath.Dir(live))
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "the incomplete temporary file must be removed")
+
+	require.NoError(t, EnsureConfigFromExample(rootPath, scriptConfigPath))
+	content, err := os.ReadFile(live)
+	require.NoError(t, err)
+	require.Equal(t, "packaged default\n", string(content))
 }
