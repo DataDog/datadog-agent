@@ -69,6 +69,103 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 	}
 }
 
+// newScanResolver returns a resolver that queues the scans of its workloads
+// for the tests to run, and forwards on their call alone.
+func newScanResolver(t *testing.T) *Resolver {
+	t.Helper()
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		cfg: &config.RuntimeSecurityConfig{
+			SBOMResolverEnrichmentInterval: time.Minute,
+			SBOMResolverForwardInterval:    time.Hour,
+		},
+		dataCache:         dataCache,
+		scanChan:          make(chan *SBOM, 10),
+		pendingFileEvents: newPendingFileEvents(t),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
+	}
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	return r
+}
+
+// TestRefreshScanKeepsQueuedWorkload checks that refreshing a container whose
+// scan waits in the queue keeps the container, its scan and its accesses.
+func TestRefreshScanKeepsQueuedWorkload(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		queue func(*Resolver, *SBOM)
+	}{
+		{"first scan", func(r *Resolver, sbom *SBOM) { r.queueWorkload(sbom) }},
+		{"rescan", func(r *Resolver, sbom *SBOM) {
+			sbom.state.Store(computedState)
+			r.refreshScan(sbom)
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newScanResolver(t)
+			sbom := r.newSBOM("container-id", nil, "image:tag")
+			t.Cleanup(sbom.stop)
+			tt.queue(r, sbom)
+			r.queuePendingFileEvent("container-id", "/usr/bin/gzip", 0o755, 0)
+
+			r.refreshScan(sbom)
+
+			if got := sbom.state.Load(); got != pendingState {
+				t.Errorf("state = %d, want pendingState (%d)", got, pendingState)
+			}
+			if _, ok := r.sboms.Peek("container-id"); !ok {
+				t.Errorf("the refresh dropped the queued container")
+			}
+			if n := len(r.scanChan); n != 1 {
+				t.Errorf("%d scans queued, want 1", n)
+			}
+			if want := []containerutils.ContainerID{"container-id"}; !slices.Equal(r.pendingScan, want) {
+				t.Errorf("pending scans = %v, want %v", r.pendingScan, want)
+			}
+			if _, ok := r.pendingFileEvents.Peek("container-id"); !ok {
+				t.Errorf("the refresh released the queued file accesses")
+			}
+		})
+	}
+}
+
+// TestTriggerScanOnFullQueue checks that a container already queued keeps its
+// place when the queue is full, while a container the queue cannot take goes.
+func TestTriggerScanOnFullQueue(t *testing.T) {
+	r := newScanResolver(t)
+	for i := range scanQueueSize - 1 {
+		r.pendingScan = append(r.pendingScan, containerutils.ContainerID(fmt.Sprintf("other-%d", i)))
+	}
+	queued := r.newSBOM("container-id", nil, "image:tag")
+	late := r.newSBOM("late-container-id", nil, "image:tag")
+	t.Cleanup(queued.stop)
+
+	for _, sbom := range []*SBOM{queued, queued, late} {
+		sbom.Lock()
+		r.triggerScan(sbom)
+		sbom.Unlock()
+	}
+
+	if _, ok := r.sboms.Peek("container-id"); !ok {
+		t.Errorf("a full queue dropped the container it held")
+	}
+	if _, ok := r.sboms.Peek("late-container-id"); ok {
+		t.Errorf("a full queue kept a container it could not take")
+	}
+	if n := len(r.scanChan); n != 1 {
+		t.Errorf("%d scans queued, want 1", n)
+	}
+}
+
 func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerID, map[string]pendingFileEvent] {
 	events, err := simplelru.NewLRU[containerutils.ContainerID, map[string]pendingFileEvent](maxSBOMEntries, nil)
 	if err != nil {
