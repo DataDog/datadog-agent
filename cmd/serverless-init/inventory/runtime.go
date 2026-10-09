@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 )
 
 var pythonExecutable = regexp.MustCompile(`^python([0-9]+(\.[0-9]+)*)?$`)
@@ -42,12 +44,12 @@ func commandRuntime(wrappedCommand []string) string {
 	// parse shell expressions, inspect files/processes, or infer runtime versions.
 	switch filepath.Base(wrappedCommand[0]) {
 	case "ddtrace-run":
-		if len(wrappedCommand) > 1 && executableRuntime(wrappedCommand[1]) == "Python" {
-			return "Python"
+		if len(wrappedCommand) > 1 && executableRuntime(wrappedCommand[1]) == cloudservice.RuntimePython {
+			return cloudservice.RuntimePython
 		}
 	case "bundle":
-		if len(wrappedCommand) > 2 && wrappedCommand[1] == "exec" && executableRuntime(wrappedCommand[2]) == "Ruby" {
-			return "Ruby"
+		if len(wrappedCommand) > 2 && wrappedCommand[1] == "exec" && executableRuntime(wrappedCommand[2]) == cloudservice.RuntimeRuby {
+			return cloudservice.RuntimeRuby
 		}
 	}
 	return executableRuntime(wrappedCommand[0])
@@ -57,20 +59,20 @@ func executableRuntime(executable string) string {
 	executable = filepath.Base(executable)
 	switch executable {
 	case "node", "nodejs", "npm":
-		return "Node.js"
+		return cloudservice.RuntimeNodeJS
 	case "java":
-		return "Java"
+		return cloudservice.RuntimeJava
 	case "dotnet":
-		return ".NET"
+		return cloudservice.RuntimeDotNet
 	case "php":
-		return "PHP"
+		return cloudservice.RuntimePHP
 	case "ruby", "rails", "rake", "puma", "sidekiq":
-		return "Ruby"
+		return cloudservice.RuntimeRuby
 	case "gunicorn", "uvicorn", "flask", "celery":
-		return "Python"
+		return cloudservice.RuntimePython
 	}
 	if pythonExecutable.MatchString(executable) {
-		return "Python"
+		return cloudservice.RuntimePython
 	}
 	return ""
 }
