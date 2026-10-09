@@ -38,6 +38,11 @@ spec:
     # Change this if your Datadog site is not datadoghq.com.
     - name: DD_SITE
       value: "datadoghq.com"
+    # For explicit cluster tagging, set OTEL_RESOURCE_ATTRIBUTES to
+    # k8s.cluster.name=<CLUSTER_NAME> and add "env" below. See "Cluster name"
+    # in operator.md for cloud-detector requirements.
+    # - name: OTEL_RESOURCE_ATTRIBUTES
+    #   value: "k8s.cluster.name=<CLUSTER_NAME>"
     # spec.config references DD_API_KEY for profile export and debug symbol
     # upload. This example reads it from a Kubernetes Secret named datadog-secret
     # with key api-key in the OpenTelemetryCollector namespace.
@@ -114,7 +119,14 @@ spec:
         - sources:
           - from: connection
       resourcedetection:
-        detectors: ["system"]
+        detectors:
+          - system
+          # Uncomment env and set OTEL_RESOURCE_ATTRIBUTES above, or uncomment
+          # one cloud detector and its config below.
+          # - env
+          # - eks
+          # - aks
+          # - gcp
         system:
           resource_attributes:
             host.arch:
@@ -123,6 +135,22 @@ spec:
               enabled: false
             os.type:
               enabled: false
+        # EKS requires the EC2 permission documented in operator.md. Set
+        # node_from_env_var to enable the API fallback when IMDS is unavailable.
+        # timeout: 15s
+        # eks:
+        #   node_from_env_var: K8S_NODE_NAME
+        #   resource_attributes:
+        #     k8s.cluster.name:
+        #       enabled: true
+        # aks:
+        #   resource_attributes:
+        #     k8s.cluster.name:
+        #       enabled: true
+        # gcp:
+        #   resource_attributes:
+        #     k8s.cluster.name:
+        #       enabled: true
     exporters:
       # Export profiles and metrics to Datadog through OTLP HTTP.
       otlp_http:

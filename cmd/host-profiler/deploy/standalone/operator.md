@@ -35,6 +35,7 @@ Before deploying, update the provided manifests for your environment:
    - To use another Datadog container registry, replace the `registry.datadoghq.com` prefix in the Host Profiler image with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
    - Review the resource requests and limits under `spec.resources`. For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
    - Review the OpenTelemetry Collector configuration under `spec.config`. Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
+   - To tag profiles by cluster, see [Cluster name](#cluster-name).
 
 3. Choose a network policy manifest:
    - If your cluster enforces Kubernetes NetworkPolicy, use [`operator/network-policy.yaml`](operator/network-policy.yaml) by default.
@@ -42,6 +43,14 @@ Before deploying, update the provided manifests for your environment:
    - If you change the namespace or `OpenTelemetryCollector` name, update the policy metadata and pod selectors.
 
 If your cluster does not enforce NetworkPolicy resources, these manifests do not restrict egress; use your cluster's supported network controls instead.
+
+## Cluster name
+
+In [`operator/collector.yaml`](operator/collector.yaml), uncomment the detector and its config. For an explicit name, uncomment `env` and `OTEL_RESOURCE_ATTRIBUTES` in `spec.env`.
+
+Check the detector requirements before enabling one: [EKS](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#amazon-eks), [AKS](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#azure-aks), or [GKE](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#gcp-metadata).
+
+If your CNI enforces these policies for link-local traffic, add an allow rule for the metadata endpoint (typically `169.254.169.254:80`).
 
 ## Collector health metrics
 

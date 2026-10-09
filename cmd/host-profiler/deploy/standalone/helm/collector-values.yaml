@@ -20,6 +20,10 @@ extraEnvs:
   # Change this if your Datadog site is not datadoghq.com.
   - name: DD_SITE
     value: "datadoghq.com"
+  # For explicit cluster tagging, enable resourceDetection.env below and set
+  # this to k8s.cluster.name=<CLUSTER_NAME>. See "Cluster name" in helm.md.
+  # - name: OTEL_RESOURCE_ATTRIBUTES
+  #   value: "k8s.cluster.name=<CLUSTER_NAME>"
   # helm/collector-config-values.yaml references DD_API_KEY for profile export and debug
   # symbol upload. This example reads it from a Kubernetes Secret named
   # datadog-secret with key api-key in the Helm release namespace.
@@ -40,6 +44,22 @@ presets:
   kubernetesAttributes:
     enabled: true
     extractAllPodLabels: true
+  # Optional resource detection. Enable the preset and required detector(s).
+  # env reads OTEL_RESOURCE_ATTRIBUTES; k8s_api adds UID/node metadata, not the
+  # cluster name. Cloud detector prerequisites are in "Cluster name" in helm.md.
+  # Use a chart release whose resourceDetection preset supports profiles.
+  resourceDetection:
+    enabled: false
+    env:
+      enabled: false
+    k8s_api:
+      enabled: false
+    eks:
+      enabled: false
+    aks:
+      enabled: false
+    gcp:
+      enabled: false
 
 # Required for node and kubelet metadata used during host/profile enrichment.
 clusterRole:
