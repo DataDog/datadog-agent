@@ -130,6 +130,55 @@ func TestGRPCSendHonorsContextWhenStalled(t *testing.T) {
 	}
 }
 
+// An intake that accepts the connection and never sends its HTTP/2 preface
+// leaves the connection connecting, and NewStream waits on it under the
+// stream's own context. OpenStream must give up when its own ctx does.
+func TestGRPCOpenStreamHonorsContextWhenIntakeIsMute(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	var mu sync.Mutex
+	var held []net.Conn
+	go func() {
+		for {
+			c, err := lis.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			held = append(held, c)
+			mu.Unlock()
+		}
+	}()
+	t.Cleanup(func() {
+		_ = lis.Close()
+		mu.Lock()
+		defer mu.Unlock()
+		for _, c := range held {
+			_ = c.Close()
+		}
+	})
+
+	transport := NewGRPCTransport(&DestinationConfig{
+		Senders: []SenderSpec{{ID: 0, Address: lis.Addr().String(), Class: Reliable, APIKey: func() string { return "key" }}},
+	})
+	t.Cleanup(transport.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := transport.OpenStream(ctx, 0, 1)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+	case <-time.After(5 * time.Second):
+		t.Fatal("OpenStream ignored its context while the connection was connecting")
+	}
+}
+
 // Keepalive is configured from the destination, and only while a stream is
 // open: a stream-less ping counts as abuse under default server policy.
 func TestGRPCTransportKeepalive(t *testing.T) {
