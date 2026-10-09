@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Reduce the memory usage of ConfigMap collection in the Kubernetes Orchestrator,
+    which could cause the cluster check runner to be OOMKilled. Only ConfigMap
+    metadata is now fetched from the API server: ``data`` and ``binaryData`` are
+    never retrieved nor kept in memory.
