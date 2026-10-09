@@ -1296,6 +1296,12 @@ func (s *scanner) statusError(errs *scanErrors) error {
 	var msg string
 	switch errs.kind {
 	case client.ErrAuth:
+		if why, fix, _, ok := client.LogonStop(errs.err); ok {
+			// The error may come from another source's logon of the account: the
+			// message names this source's own share, and no server or user.
+			msg = fmt.Sprintf("cannot read %s: %s. The Agent stopped sending logons for this account, so that its retries cannot lock it out. %s", s.target, why, fix)
+			break
+		}
 		if errors.Is(errs.err, client.ErrNotEncrypted) {
 			msg = fmt.Sprintf("cannot read %s: the source sets require_encryption, but the server encrypts neither the session nor the share, so the Agent refuses to connect. The credentials were not refused. Enable encryption on the server, or set require_encryption to false for a network you trust: %v", s.target, errs.err)
 			break

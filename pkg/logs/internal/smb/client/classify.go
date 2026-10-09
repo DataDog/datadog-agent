@@ -148,7 +148,7 @@ func Classify(err error) ErrorKind {
 	}
 	// The Agent's own errors come first: they wrap library errors, redacted or
 	// not, that classify otherwise.
-	if errors.Is(err, errGuestSession) || errors.Is(err, ErrNotEncrypted) {
+	if errors.Is(err, errGuestSession) || errors.Is(err, ErrNotEncrypted) || errors.Is(err, ErrLogonStopped) {
 		return ErrAuth
 	}
 	var redacted *redactedError
@@ -199,6 +199,10 @@ func Classify(err error) ErrorKind {
 // request that is the earliest failed operation, which is the one that
 // caused the others to fail.
 func statusCode(err error) (uint32, bool) {
+	var redacted *redactedError
+	if errors.As(err, &redacted) {
+		return redacted.code, redacted.hasCode
+	}
 	var respErr *protocol.ResponseError
 	if errors.As(err, &respErr) && respErr != nil {
 		return respErr.Code, true

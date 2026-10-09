@@ -296,17 +296,25 @@ func TestRedactErr(t *testing.T) {
 
 	leaky := fmt.Errorf("auth failed for password %s: %w", testPassword, status(statusLogonFailure))
 	err := redactErr(leaky, testPassword)
-	assert.Equal(t, "auth failed for password ********: "+status(statusLogonFailure).Error(), err.Error())
+	assert.Equal(t, redactedMessage, err.Error(), "the whole message goes: no substring of it is kept for a guess to probe")
 	assert.Equal(t, ErrAuth, Classify(err), "the classification survives the redaction")
+	code, ok := statusCode(err)
+	assert.True(t, ok)
+	assert.Equal(t, uint32(statusLogonFailure), code, "so does the status code")
 	assert.Nil(t, errors.Unwrap(err), "the original error, which holds the password, is dropped")
 	for _, verb := range []string{"%v", "%+v", "%s", "%#v"} {
 		assert.NotContains(t, fmt.Sprintf(verb, err), testPassword, verb)
 	}
+
+	// The sentinels of this package survive too, and a password of one character
+	// is looked for like any other.
+	guest := redactErr(fmt.Errorf("%s: %w", "x", errGuestSession), "x")
+	assert.Equal(t, redactedMessage, guest.Error())
+	assert.ErrorIs(t, guest, errGuestSession)
+	assert.Equal(t, ErrAuth, Classify(guest))
+	assert.NotErrorIs(t, guest, ErrClosed)
 }
 
-// TestRedactionKeepsAgentText: the Agent's own text around a library error is
-// not searched for the password, so a password that is a word of it cannot take
-// the text, or what classifies the error, away.
 func TestRedactionKeepsAgentText(t *testing.T) {
 	cfg := Config{Host: "files.example.com", Share: "logs", Username: "u", Password: "encrypt the session", RequireEncryption: true}.withDefaults()
 
@@ -324,7 +332,7 @@ func TestRedactionKeepsAgentText(t *testing.T) {
 	// A library error that holds the password is redacted before the Agent's
 	// text is added, and the guest sentinel survives.
 	guestLib := fmt.Errorf("%s: %w", cfg.Password, &protocol.InvalidResponseError{Message: "guest account doesn't support signing"})
-	guestErr := dialError(guestLib, cfg, cfg.target())
+	guestErr := dialError(guestLib, cfg, cfg.target(), true)
 	assert.NotContains(t, guestErr.Error(), cfg.Password)
 	assert.Contains(t, guestErr.Error(), "check the username and password")
 	assert.ErrorIs(t, guestErr, errGuestSession)

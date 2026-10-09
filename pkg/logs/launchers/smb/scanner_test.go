@@ -279,6 +279,7 @@ func newTestLauncher(share *fake.Share, clk clock.Clock) *Launcher {
 	l := NewLauncher(closeTimeout)
 	l.clock = clk
 	l.dial = share.Dial
+	l.guard = client.NewGuard(clk) // not the guard of the process, which tests would share
 	l.forceReadEvery = 3
 	return l
 }
@@ -1487,7 +1488,9 @@ func TestListingErrorKeepsTailers(t *testing.T) {
 func TestAuthErrorStatus(t *testing.T) {
 	h := newHarness(t)
 	h.share.Write("app/app.log", []byte(lines(1, 1)))
-	h.share.FailNext(fake.OpDial, fmt.Errorf("logon failed with password %s: %w", testPassword, fake.ErrAuth))
+	// Access denied is no refused logon, which stops the account's logons for
+	// good (see logon_test.go): it is retried after 30s.
+	h.share.FailNext(fake.OpDial, fmt.Errorf("logon failed with password %s: %w", testPassword, fake.ErrAccessDenied))
 
 	h.scan()
 	require.True(t, h.source.Status().IsError())

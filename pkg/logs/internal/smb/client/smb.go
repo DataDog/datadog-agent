@@ -99,16 +99,21 @@ func Dial(ctx context.Context, cfg Config) (Client, error) {
 	defer cancel()
 
 	// Dial closes the transport when ctx ends, so it is bounded on its own.
-	sess, err := newDialer(cfg).Dial(ctx, cfg.Host)
+	var sent atomic.Bool
+	d := newDialer(cfg)
+	d.Credentials = recordAuthenticate(d.Credentials, &sent)
+	sess, err := d.Dial(ctx, cfg.Host)
 	if err != nil {
-		return nil, dialError(err, cfg, target)
+		return nil, dialError(err, cfg, target, sent.Load())
 	}
 	done := watchdog(ctx, abortGrace, func() { _ = sess.Abort() })
 	share, err := sess.Mount(ctx, cfg.Share)
 	done()
 	if err != nil {
 		_ = sess.Abort()
-		return nil, checked(fmt.Errorf("smb: connect to %s: %w", target, redactErr(err, cfg.Password)))
+		// The server accepted the credentials: whatever it answers at the tree
+		// connect is no bad logon of the account (see notALogon).
+		return nil, checked(fmt.Errorf("smb: connect to %s: %w", target, notALogon(redactErr(err, cfg.Password))))
 	}
 	if err := checkEncryption(share, cfg.RequireEncryption); err != nil {
 		_ = sess.Abort()
@@ -126,15 +131,67 @@ func Dial(ctx context.Context, cfg Config) (Client, error) {
 // dialError returns the error of a failed session setup: the library's error
 // without the password, with the Agent's own text around it. The Agent's text is
 // added after the password is removed from the library's, so that a password
-// that happens to be a word of it cannot take the Agent's text away.
-func dialError(err error, cfg Config, target string) error {
+// that happens to be a word of it cannot take the Agent's text away. sent tells
+// that the AUTHENTICATE message was sent: a failure with no answer from the
+// server is then marked unanswered (see Guard).
+func dialError(err error, cfg Config, target string, sent bool) error {
 	out := redactErr(err, cfg.Password)
-	if isGuestSession(err) {
+	switch {
+	case isGuestSession(err):
 		out = fmt.Errorf("%w: %w", errGuestSession, out)
-	} else {
+	case sent && noAnswer(err):
+		out = unanswered(negotiateHint(out, cfg))
+	default:
 		out = negotiateHint(out, cfg)
 	}
 	return checked(fmt.Errorf("smb: connect to %s: %w", target, out))
+}
+
+// noAnswer reports whether err is a network failure that left the AUTHENTICATE
+// without an answer: no status code, and not an answer the library could not
+// parse, which the server did send.
+func noAnswer(err error) bool {
+	var invalid *protocol.InvalidResponseError
+	_, answered := statusCode(err)
+	return !answered && !errors.As(err, &invalid) && Classify(err) == ErrTransient
+}
+
+// recordAuthenticate makes creds set sent once the AUTHENTICATE message is made,
+// which the Dialer sends next: from then on the server may count a bad password.
+func recordAuthenticate(creds smb2.Credentials, sent *atomic.Bool) smb2.Credentials {
+	return authenticateRecorder{creds, sent}
+}
+
+type authenticateRecorder struct {
+	smb2.Credentials
+	sent *atomic.Bool
+}
+
+func (r authenticateRecorder) NewInitiator(ctx context.Context, server string) (auth.Initiator, error) {
+	init, err := r.Credentials.NewInitiator(ctx, server)
+	if err != nil {
+		return nil, err
+	}
+	return &recordingInitiator{init, r.sent}, nil
+}
+
+type recordingInitiator struct {
+	auth.Initiator
+	sent *atomic.Bool
+}
+
+func (i *recordingInitiator) AcceptSecContext(challenge []byte) ([]byte, error) {
+	msg, err := i.Initiator.AcceptSecContext(challenge)
+	if err == nil {
+		i.sent.Store(true)
+	}
+	return msg, err
+}
+
+// IsAnonymous keeps the library's check for an initiator that has no credentials.
+func (i *recordingInitiator) IsAnonymous() bool {
+	anon, ok := i.Initiator.(interface{ IsAnonymous() bool })
+	return ok && anon.IsAnonymous()
 }
 
 // checked marks err as built by Dial: the library's text in it was already
@@ -577,20 +634,40 @@ func watchdog(ctx context.Context, grace time.Duration, abort func()) (done func
 	}
 }
 
+// redactedMessage replaces the text of an error that contained the password.
+const redactedMessage = "the error text contained the password and was removed"
+
 // redactedError is an error whose message contained the password. It keeps
-// only the redacted message and the classification of the original error, so
-// unwrapping it cannot reveal the password either.
+// only a fixed message and what classifies the original error, so unwrapping
+// it cannot reveal the password either.
 type redactedError struct {
-	msg  string
-	kind ErrorKind
+	msg     string
+	kind    ErrorKind
+	code    uint32 // the server status code of the original error, if it had one
+	hasCode bool
+	// sentinels are the errors of this package the original error wrapped, so
+	// that errors.Is still finds them.
+	sentinels []error
 }
 
 func (e *redactedError) Error() string { return e.msg }
 
-// redactErr returns err unchanged unless its message contains secret, in
-// which case it returns a redactedError. The library never puts the password
-// in an error; this is a backstop for the guarantee that it never reaches a
-// log line or a status message.
+// Is makes errors.Is(err, sentinel) survive the redaction.
+func (e *redactedError) Is(target error) bool { return slices.Contains(e.sentinels, target) }
+
+// redactSentinels are the errors of this package that classify an error or tell
+// the Guard how it counts.
+var redactSentinels = []error{errGuestSession, ErrNotEncrypted, errNotALogon, ErrTooManyEntries, ErrListingTooLarge, ErrNameTooLong, ErrClosed}
+
+// redactErr returns err unchanged unless its text contains secret, which has at
+// at least one character, in which case it replaces the whole
+// message with a fixed one (no substring replacement, which would leave the
+// rest of the text for a guess to probe), keeping what classifies the error.
+// The library never puts the password in an error; this is a backstop for the
+// guarantee that it never reaches a log line or a status message.
+//
+// It is meant for the text of the library, which may only be searched before
+// the Agent adds its own (see dialError).
 func redactErr(err error, secret string) error {
 	if err == nil || secret == "" {
 		return err
@@ -599,9 +676,15 @@ func redactErr(err error, secret string) error {
 	if errors.As(err, &built) {
 		return err // built by Dial, which searched the library's text
 	}
-	msg := err.Error()
-	if !strings.Contains(msg, secret) {
+	if !strings.Contains(err.Error(), secret) {
 		return err
 	}
-	return &redactedError{msg: strings.ReplaceAll(msg, secret, redactedSecret), kind: Classify(err)}
+	code, hasCode := statusCode(err)
+	redacted := &redactedError{msg: redactedMessage, kind: Classify(err), code: code, hasCode: hasCode}
+	for _, sentinel := range redactSentinels {
+		if errors.Is(err, sentinel) {
+			redacted.sentinels = append(redacted.sentinels, sentinel)
+		}
+	}
+	return redacted
 }

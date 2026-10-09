@@ -23,6 +23,12 @@
 // content is encrypted only if the server enforces it or the source sets
 // require_encryption.
 //
+// Logons: a domain locks an account out after a few bad logons, so the Agent
+// sends one logon at a time per account and none once the server refused the
+// account's password, whatever the number of sources and servers that use it,
+// until the password changes (a refreshed secret) or the Agent restarts; a
+// locked-out account is tried once an hour (see client.Guard).
+//
 // Listings are bounded, so that a share cannot exhaust the Agent's memory: a
 // directory with more than 100,000 entries, entries that take more than 64 MiB,
 // or a name longer than 255 characters is not listed, and one scan lists that
@@ -94,6 +100,10 @@ type Launcher struct {
 	// its drain ends; drainMaxCloseTimeouts of them bound the drain.
 	closeTimeout time.Duration
 
+	// guard keeps a refused password from being sent again by any source (see
+	// client.Guard). It is the guard of the process, which outlives the launcher.
+	guard *client.Guard
+
 	// Test seams.
 	clock          clock.Clock
 	dial           client.DialFunc  // nil means client.Dial
@@ -137,6 +147,7 @@ func NewLauncher(closeTimeout time.Duration) *Launcher {
 		closeTimeout: closeTimeout,
 		clock:        clock.New(),
 		wallNow:      time.Now,
+		guard:        client.ProcessGuard(),
 		tailers:      tailers.NewTailerContainer[*tailer.Tailer](),
 		claims:       &claims{owners: make(map[string]*scanner)},
 		addedDone:    make(chan struct{}),
@@ -372,7 +383,7 @@ func (l *Launcher) acquireClient(cfg *config.SMBConfig) (clientKey, client.Clien
 		shared.refs++
 		return key, shared.client
 	}
-	opts := []client.Option{client.WithClock(l.clock)}
+	opts := []client.Option{client.WithClock(l.clock), client.WithGuard(l.guard)}
 	if l.dial != nil {
 		opts = append(opts, client.WithDialer(l.dial))
 	}
