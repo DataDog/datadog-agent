@@ -25,6 +25,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"
+	"github.com/twmb/murmur3"
 	"go.uber.org/atomic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -51,7 +52,7 @@ const (
 	maxSBOMGenerationRetries = 3
 	maxSBOMEntries           = 1024
 	scanQueueSize            = 100
-	maxPendingFileEvents     = 256
+	maxPendingFileEvents     = 2048
 	// maxForwardWait bounds how long forwarding keeps retrying while the image's
 	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
 	// re-arming when no image SBOM will ever be produced (for example when
@@ -66,8 +67,9 @@ const (
 )
 
 // pendingFileEvent holds the accesses to a file made before the SBOM of its container
-// was ready: the time of the latest, and the sticky properties.
+// was ready: the hash of its usr-merge alias, the latest time, the sticky properties.
 type pendingFileEvent struct {
+	alias          uint64
 	lastAccess     time.Time
 	suidBit        bool
 	accessedByRoot bool
@@ -272,7 +274,7 @@ type Resolver struct {
 
 	// pending file events: file accesses received before the SBOM was ready, deduplicated per file path
 	pendingFileEventsLock sync.Mutex
-	pendingFileEvents     *simplelru.LRU[containerutils.ContainerID, map[string]pendingFileEvent]
+	pendingFileEvents     *simplelru.LRU[containerutils.ContainerID, map[uint64]pendingFileEvent]
 
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
@@ -314,7 +316,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	}
 
 	// one entry per workload waiting for its scan, so the same bound as the sboms cache
-	pendingFileEvents, err := simplelru.NewLRU[containerutils.ContainerID, map[string]pendingFileEvent](maxSBOMEntries, nil)
+	pendingFileEvents, err := simplelru.NewLRU[containerutils.ContainerID, map[uint64]pendingFileEvent](maxSBOMEntries, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
@@ -1070,7 +1072,7 @@ func (r *Resolver) owner(sbom *SBOM, pid uint32, path string) *sbomtypes.Package
 }
 
 // queuePendingFileEvent stores a file access that arrived before the SBOM for the
-// given container was ready, keeping up to maxPendingFileEvents distinct paths per
+// given container was ready, keeping up to maxPendingFileEvents distinct files per
 // container. Accesses are merged per path: the snapshot replay emits one open event
 // per (process, mapped file) pair and runs again on every ruleset reload, so without
 // deduplication the shared libraries mapped by every process of a workload crowd out
@@ -1086,17 +1088,21 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 		suidBit:        fs.FileMode(fileMode)&04000 != 0,
 		accessedByRoot: uid == 0,
 	}
+	if alias := pathAlias(filePath); alias != "" {
+		event.alias = murmur3.StringSum64(alias)
+	}
+	hash := murmur3.StringSum64(filePath)
 
 	r.pendingFileEventsLock.Lock()
 	defer r.pendingFileEventsLock.Unlock()
 
 	events, ok := r.pendingFileEvents.Get(containerID)
 	if !ok {
-		events = make(map[string]pendingFileEvent)
+		events = make(map[uint64]pendingFileEvent)
 		r.pendingFileEvents.Add(containerID, events)
 	}
 
-	if previous, ok := events[filePath]; ok {
+	if previous, ok := events[hash]; ok {
 		event.suidBit = event.suidBit || previous.suidBit
 		event.accessedByRoot = event.accessedByRoot || previous.accessedByRoot
 	} else if len(events) >= maxPendingFileEvents {
@@ -1104,7 +1110,7 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 		return
 	}
 
-	events[filePath] = event
+	events[hash] = event
 }
 
 // processPendingFileEvents applies the accesses queued for sbom to its data and
@@ -1123,8 +1129,8 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 
 	recorded := false
 	sbom.data.mu.Lock()
-	for filePath, event := range events {
-		pkg := sbom.data.files.queryFile(filePath)
+	for hash, event := range events {
+		pkg := sbom.data.files.queryHashes(hash, event.alias)
 		if pkg == nil {
 			continue
 		}

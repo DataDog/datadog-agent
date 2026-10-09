@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe keeps up to 2048 files per container
+    that processes opened or mapped while the scan of the container ran, up
+    from 256. The packages of the files past the 256th, common at a
+    system-probe start, appeared unused.
