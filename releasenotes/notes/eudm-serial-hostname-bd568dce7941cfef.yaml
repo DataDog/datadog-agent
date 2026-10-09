@@ -15,6 +15,6 @@ upgrade:
     change. Device renames take effect after restarting the Agent. In this mode,
     trace-agent reports a hostname resolution error if it cannot obtain the
     hostname through either core-agent RPC or the Agent CLI, instead of using
-    a potentially different OS hostname. EUDM host metadata reports only the
-    selected hostname, including in embedded hardware metadata, and no longer
-    reports alternative OS/cloud names or configured host aliases as identities.
+    a potentially different OS hostname. The serial-suffixed name is the primary Agent
+    hostname and is sent as the canonical name in host metadata. Existing OS/cloud
+    metadata and host aliases are preserved.

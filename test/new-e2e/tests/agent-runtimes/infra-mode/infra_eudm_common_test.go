@@ -40,7 +40,8 @@ func (s *eudmSuite) getSuiteOptions() []e2e.SuiteOption {
 	// The wlan check is automatically loaded via StaticConfigListener
 	// (checks with ad_identifiers: [_end_user_device] are scheduled)
 	agentOptions := []agentparams.Option{
-		agentparams.WithAgentConfig(`infrastructure_mode: "end_user_device"`),
+		agentparams.WithAgentConfig(`infrastructure_mode: "end_user_device"
+host_aliases: ["eudm-test-alias"]`),
 	}
 
 	suiteOptions := []e2e.SuiteOption{}
