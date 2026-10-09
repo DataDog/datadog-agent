@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Private Action Runner: allow integration-level wildcards such as
+    ``com.datadoghq.kubernetes.*`` and ``com.datadoghq.gitlab.*`` in
+    ``private_action_runner.actions_allowlist`` to enable all actions within
+    an integration and its sub-bundles. Wildcards still require an explicit
+    integration name; ``com.datadoghq.*`` and ``*`` are not supported.
