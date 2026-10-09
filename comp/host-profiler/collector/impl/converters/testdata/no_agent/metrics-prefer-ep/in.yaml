@@ -6,6 +6,9 @@ receivers:
     symbol_uploader:
       enabled: false
 service:
+  telemetry:
+    metrics:
+      level: normal
   pipelines:
     profiles:
       processors: []

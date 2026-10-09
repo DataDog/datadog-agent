@@ -52,6 +52,9 @@ properties:
     visibility: public
     description: |-
       List of actions that the Private Action Runner is allowed to execute.
+      A trailing wildcard allows all actions within an integration or sub-bundle,
+      for example com.datadoghq.kubernetes.* or com.datadoghq.gitlab.*.
+      Wildcards require an integration name; com.datadoghq.* and * are not supported.
       See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
       for the list of available actions.
     example: |2-
