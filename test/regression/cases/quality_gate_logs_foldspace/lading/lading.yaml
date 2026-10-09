@@ -21,6 +21,9 @@ blackhole:
       response_delay_millis: 75
   - http:
       binding_addr: "127.0.0.1:9093"
+  - datadog_stateful_logs:
+      grpc_addr: "127.0.0.1:9094"
+      response_delay_millis: 75
 
 target_metrics:
   - prometheus: # core agent telemetry

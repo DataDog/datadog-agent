@@ -72,6 +72,9 @@ type DestinationConfig struct {
 	// count and content size; without a time bound a partial batch waits for
 	// enough further records to seal it, however long that takes.
 	BatchWait time.Duration
+	// StreamMethod is the full gRPC method path every stream opens, in the form
+	// /<package>.<Service>/<Method>.
+	StreamMethod string
 }
 
 // ErrWindowing is returned when max_inflight_payloads is below S × pipeline_depth.
@@ -131,6 +134,11 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	ackTimeout := cfg.GetDuration("logs_config.foldspace.ack_timeout")
 	if ackTimeout <= 0 {
 		ackTimeout = defaultAckTimeout
+	}
+
+	streamMethod, err := parseStreamMethod(cfg.GetString("logs_config.foldspace.grpc_method"))
+	if err != nil {
+		return nil, fmt.Errorf("logs_config.foldspace.grpc_method: %w", err)
 	}
 
 	mainOverride := strings.TrimSpace(cfg.GetString("logs_config.foldspace.dd_url"))
@@ -208,7 +216,6 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	streamLifetime := defaultStreamLifetime
 	const lifetimeKey = "logs_config.foldspace.stream_lifetime"
 	if cfg.IsConfigured(lifetimeKey) {
-		var err error
 		streamLifetime, err = time.ParseDuration(strings.TrimSpace(cfg.GetString(lifetimeKey)))
 		if err != nil || streamLifetime <= 0 {
 			return nil, errors.New(lifetimeKey + " must be a positive duration with units (e.g. 15m or 90s)")
@@ -242,7 +249,22 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 		KeepaliveTimeout:  keepaliveTimeout,
 		AckTimeout:        ackTimeout,
 		BatchWait:         batchWait,
+		StreamMethod:      streamMethod,
 	}, nil
+}
+
+// parseStreamMethod validates a full gRPC method path. Empty selects the
+// agent's own StatefulIntake/StatefulStream.
+func parseStreamMethod(raw string) (string, error) {
+	method := strings.TrimSpace(raw)
+	if method == "" {
+		return statefulStreamFullMethod, nil
+	}
+	service, name, ok := strings.Cut(strings.TrimPrefix(method, "/"), "/")
+	if !strings.HasPrefix(method, "/") || !ok || service == "" || name == "" || strings.Contains(name, "/") {
+		return "", fmt.Errorf("%q is not a gRPC method path of the form /<package>.<Service>/<Method>", method)
+	}
+	return method, nil
 }
 
 func parseHostPort(raw string, defaultPort int) (string, int, error) {
