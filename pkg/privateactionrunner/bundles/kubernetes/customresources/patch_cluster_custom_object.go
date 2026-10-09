@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	typesv1 "k8s.io/apimachinery/pkg/types"
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
@@ -17,10 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-type PatchClusterCustomObjectHandler struct{}
+type PatchClusterCustomObjectHandler struct{ policy resourcePolicy }
 
-func NewPatchClusterCustomObjectHandler() *PatchClusterCustomObjectHandler {
-	return &PatchClusterCustomObjectHandler{}
+func NewPatchClusterCustomObjectHandler(policy resourcePolicy) *PatchClusterCustomObjectHandler {
+	return &PatchClusterCustomObjectHandler{policy: policy}
 }
 
 type PatchClusterCustomObjectInputs struct {
@@ -42,15 +41,14 @@ func (h *PatchClusterCustomObjectHandler) Run(
 		return nil, err
 	}
 
-	client, err := support.DynamicKubeClient(credential)
+	gvr, err := h.policy.groupVersionResource(inputs.Group, inputs.Version, inputs.Plural)
 	if err != nil {
 		return nil, err
 	}
 
-	gvr := schema.GroupVersionResource{
-		Group:    inputs.Group,
-		Version:  inputs.Version,
-		Resource: inputs.Plural,
+	client, err := support.DynamicKubeClient(credential)
+	if err != nil {
+		return nil, err
 	}
 
 	body, err := json.Marshal(inputs.Body)

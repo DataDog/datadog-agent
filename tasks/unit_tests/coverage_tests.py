@@ -77,14 +77,32 @@ class TestManageCoverageCache(unittest.TestCase):
 
 
 class TestUploadToDatadog(unittest.TestCase):
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=False)
     @patch('tasks.coverage.subprocess.check_call')
     @patch('tasks.coverage.shutil.which', return_value=r"C:\tools\datadog-ci.cmd")
-    def test_uses_platform_resolved_command(self, which, check_call):
+    def test_uses_platform_resolved_command(self, which, check_call, _is_windows):
         upload_to_datadog.body(None, coverage_file="coverage.out")
 
         which.assert_called_once_with("datadog-ci")
         check_call.assert_called_once_with(
             [r"C:\tools\datadog-ci.cmd", "coverage", "upload", "--format=go-coverprofile", "coverage.out"]
+        )
+
+    @patch('tasks.libs.common.junit_upload_core.is_windows', return_value=True)
+    @patch('tasks.coverage.subprocess.check_call')
+    @patch('tasks.coverage.shutil.which', return_value=r"C:\tools\datadog-ci.cmd")
+    def test_skips_git_metadata_upload_on_windows(self, which, check_call, _is_windows):
+        upload_to_datadog.body(None, coverage_file="coverage.out")
+
+        check_call.assert_called_once_with(
+            [
+                r"C:\tools\datadog-ci.cmd",
+                "coverage",
+                "upload",
+                "--skip-git-metadata-upload",
+                "--format=go-coverprofile",
+                "coverage.out",
+            ]
         )
 
     @patch('tasks.coverage.shutil.which', return_value=None)

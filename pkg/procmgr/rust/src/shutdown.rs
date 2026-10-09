@@ -69,9 +69,24 @@ mod tests {
         proc.spawn(test_exit_channel().0).unwrap();
         assert!(proc.is_running());
 
+        // Signaling the child means leaving the caller's console, and only
+        // CallerConsoleGuard puts it back. A regression there leaves the supervisor
+        // running with nowhere to log, which none of the assertions below would catch.
+        // Compared in both directions rather than asserting a console exists, since the
+        // test process only has one when the runner gave it one.
+        #[cfg(windows)]
+        let console_before = crate::platform::caller_console_state();
+
         let started = Instant::now();
         proc.request_stop();
         proc.wait_for_stop().await;
+
+        #[cfg(windows)]
+        assert_eq!(
+            crate::platform::caller_console_state(),
+            console_before,
+            "graceful stop must leave the caller console as it found it"
+        );
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(

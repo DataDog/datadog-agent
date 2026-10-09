@@ -66,6 +66,7 @@ type npCollectorImpl struct {
 	pathtestInputChan      chan *common.Pathtest
 	pathtestProcessingChan chan *pathteststore.PathtestContext
 	basicSelector          *basicSelector
+	allowance              *allowance
 
 	// Scheduling related
 	running               bool
@@ -92,6 +93,7 @@ type npCollectorImpl struct {
 func newNoopNpCollectorImpl() *npCollectorImpl {
 	return &npCollectorImpl{
 		collectorConfigs: &collectorConfigs{},
+		allowance:        newAllowance(),
 	}
 }
 
@@ -104,8 +106,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 	}
 
 	var basicSelector *basicSelector
-	if collectorConfigs.basicTestsEnabled && !collectorConfigs.connectionsMonitoringEnabled {
-		basicSelector = newBasicSelector()
+	if collectorConfigs.basicModeEnabled() && !collectorConfigs.connectionsMonitoringEnabled {
+		basicSelector = newBasicSelector(collectorConfigs.basicCandidateLimit, collectorConfigs.basicSelectionLimit)
 	}
 
 	return &npCollectorImpl{
@@ -122,6 +124,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		basicSelector:          basicSelector,
+		allowance:              newAllowance(),
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 		inputChanFullLogLimit:  utillog.NewLogLimit(10, time.Minute*5),
@@ -294,7 +297,7 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 }
 
 func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
-	if !s.collectorConfigs.connectionsMonitoringEnabled && !s.collectorConfigs.basicTestsEnabled {
+	if !s.collectorConfigs.connectionsMonitoringEnabled && !s.collectorConfigs.basicModeEnabled() {
 		return
 	}
 
@@ -491,7 +494,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.TestConfigName = ptest.Pathtest.TestConfigName
 	path.TestConfigSource = ptest.Pathtest.TestConfigSource
 	path.DynamicTestProfile = ptest.Pathtest.DynamicTestProfile
-	if path.DynamicTestProfile == payload.DynamicTestProfileBasic {
+	if s.allowance.inAllowance(path.DynamicTestProfile, s.TimeNowFn()) {
 		path.DynamicTestClass = payload.DynamicTestClassCore
 	}
 	path.Tags = ptest.Pathtest.Tags

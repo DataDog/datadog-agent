@@ -96,3 +96,13 @@ func TestDeviceMap_ExtraUnlock(t *testing.T) {
 	require.NoError(t, err)
 	require.ErrorContains(t, dc.Unlock(), "unlocked")
 }
+
+func TestDeviceContext_LockPrefersFreeLockOverCanceledContext(t *testing.T) {
+	dc := NewDeviceContext(createTestDevice(), nil)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	require.NoError(t, dc.Lock(ctx, 0))
+	require.NoError(t, dc.Unlock())
+}

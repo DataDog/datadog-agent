@@ -411,7 +411,7 @@ func TestWorkerRequeueDropsTracksPointsDropped(t *testing.T) {
 
 	w.requeue(dropped)
 
-	assert.Equal(t, int64(7), sender.dropped.Load(), "point.dropped must reflect points lost when RequeueChan is full")
+	assert.Equal(t, int64(7), sender.dropped.Load(), "points.dropped must reflect points lost when RequeueChan is full")
 	assert.Equal(t, int64(0), sender.count.Load(), "no points were successfully sent")
 }
 

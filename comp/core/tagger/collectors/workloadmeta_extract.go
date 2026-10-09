@@ -171,10 +171,13 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindKubernetesKueueQueue:
 				tagInfos = append(tagInfos, c.handleKubeKueueQueue(ev)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 			case workloadmeta.KindKubernetesKueueResourceFlavor:
 				tagInfos = append(tagInfos, c.handleKubeKueueResourceFlavor(ev)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 			case workloadmeta.KindKubernetesKueueWorkload:
 				tagInfos = append(tagInfos, c.handleKubeKueueWorkload(ev)...)
+				tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			case workloadmeta.KindCRD:
@@ -198,6 +201,9 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		case workloadmeta.EventTypeUnset:
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
+			// A removed Kueue entity is no longer in the store, so the pods
+			// that used it get re-tagged without it.
+			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
@@ -1009,6 +1015,7 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
 	tagList.AddLow(tags.GPUNVLinkCapable, strconv.FormatBool(gpu.NVLinkVersion != "not_nvlink_capable" && gpu.NVLinkVersion != ""))
@@ -1025,6 +1032,29 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	} else {
 		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
 	}
+}
+
+// migProfileTagValue returns the gpu_mig_profile value for a GPU. Like every
+// other device tag, it is set on every device rather than only where it
+// applies -- gpu_parent_uuid falls back to the device's own UUID and
+// gpu_slicing_mode to "none" -- so grouping by it never yields an untagged
+// bucket: devices that are not MIG instances (physical cards, MIG parents,
+// vGPUs) get "none", and a MIG instance whose profile could not be resolved
+// gets "unknown".
+//
+// A resolved profile keeps NVIDIA's name. '+' is the one character outside the
+// tag value charset, and the backend would turn it into '_' anyway; doing it
+// here keeps the documented value the one users see. Collapsing '.' and '+'
+// into '-' instead (as the KSM mig_profile tag's values end up) would merge
+// distinct profiles such as 1g.24gb+me and 1g.24gb-me.
+func migProfileTagValue(gpu *workloadmeta.GPU) string {
+	if gpu.DeviceType != workloadmeta.GPUDeviceTypeMIG {
+		return "none"
+	}
+	if gpu.MIGProfile == "" {
+		return "unknown"
+	}
+	return strings.ReplaceAll(strings.ToLower(gpu.MIGProfile), "+", "_")
 }
 
 func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {
@@ -1099,6 +1129,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 			tagList.AddLow(tags.KubeAppPartOf, value)
 		case kubernetes.KubeAppManagedByLabelKey:
 			tagList.AddLow(tags.KubeAppManagedBy, value)
+		case kubernetes.DynamoGraphDeploymentNameLabelKey:
+			tagList.AddLow(tags.DynamoGraphDeployment, value)
 		}
 
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
@@ -1294,15 +1326,74 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 	_ = c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
 }
 
-func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
+func kueueWorkloadNameForPod(pod *workloadmeta.KubernetesPod) string {
 	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
 	if workloadName == "" {
 		// Known limitation: for plain-Pod groups the Kueue Workload object name
 		// is not guaranteed to equal the pod-group-name label value. When they
-		// diverge, the lookup below fails and we fall back to pod-label queue
-		// tags (fail-closed, no incorrect tags).
+		// diverge, the lookup in getKueueWorkloadForPod fails and we fall back
+		// to pod-label queue tags (fail-closed, no incorrect tags).
 		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
 	}
+	return workloadName
+}
+
+func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
+	return kueueWorkloadNameForPod(pod) != "" ||
+		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
+		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
+		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
+}
+
+// retagKueueDependentPods recomputes the tags of the pods whose Kueue tags can
+// depend on the given Kueue entity. Pod tags are computed from the Kueue
+// entities in the store at that time, and setting, changing or removing those
+// entities later does not generate a new event for the pod.
+func (c *WorkloadMetaCollector) retagKueueDependentPods(entity workloadmeta.Entity) []*types.TagInfo {
+	if !isKueueKind(entity.GetID().Kind) {
+		return nil
+	}
+
+	var tagInfos []*types.TagInfo
+	for _, pod := range c.store.ListKubernetesPods() {
+		if !kueueEntityAffectsPod(entity, pod) {
+			continue
+		}
+		tagInfos = append(tagInfos, c.handleKubePod(workloadmeta.Event{
+			Type:       workloadmeta.EventTypeSet,
+			Entity:     pod,
+			IsComplete: c.entityCompleteness[pod.EntityID],
+		})...)
+	}
+	return tagInfos
+}
+
+func isKueueKind(kind workloadmeta.Kind) bool {
+	return kind == workloadmeta.KindKubernetesKueueWorkload ||
+		kind == workloadmeta.KindKubernetesKueueQueue ||
+		kind == workloadmeta.KindKubernetesKueueResourceFlavor
+}
+
+// kueueEntityAffectsPod reports whether the tags of the pod can depend on the
+// given Kueue entity.
+func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
+	switch e := entity.(type) {
+	case *workloadmeta.KubernetesKueueWorkload:
+		return pod.Namespace == e.Namespace && kueueWorkloadNameForPod(pod) == e.Name
+	case *workloadmeta.KubernetesKueueQueue:
+		// Pods can reach a queue through their Workload, so matching them
+		// exactly would need a Workload lookup per pod. Queue events are rare,
+		// so match every Kueue pod that can use the queue instead.
+		return podHasKueueInfo(pod) && (e.QueueType == workloadmeta.KueueClusterQueue || pod.Namespace == e.Namespace)
+	case *workloadmeta.KubernetesKueueResourceFlavor:
+		return kueueWorkloadNameForPod(pod) != ""
+	default:
+		return false
+	}
+}
+
+func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
+	workloadName := kueueWorkloadNameForPod(pod)
 	if workloadName == "" {
 		return nil
 	}

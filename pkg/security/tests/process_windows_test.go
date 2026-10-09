@@ -28,7 +28,7 @@ func TestBasicTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 
 	t.Run("basic process", func(t *testing.T) {
 		executable := "schtasks.exe"

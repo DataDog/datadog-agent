@@ -9,7 +9,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-long __attribute__((always_inline)) trace__sys_mkdir(void *ctx, u8 async, const char *filename, umode_t mode) {
+static __always_inline long trace__sys_mkdir(void *ctx, u8 async, const char *filename, umode_t mode) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_MKDIR)) {
         return 0;
     }
@@ -38,7 +38,7 @@ HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char *, filename, umode_t, mode) 
     return trace__sys_mkdir(ctx, SYNC_SYSCALL, filename, mode);
 }
 
-int __attribute__((always_inline)) filename_create_common(struct path *p) {
+static __always_inline int filename_create_common(struct path *p) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
@@ -95,14 +95,13 @@ int hook_vfs_mkdir(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_mkdir_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
     }
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_MKDIR);
-        return 0;
+        goto pop_and_exit;
     }
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
@@ -124,6 +123,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAI
 
     resolve_dentry(ctx, prog_type);
 
+pop_and_exit:
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_MKDIR);
     return 0;
@@ -176,8 +176,8 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_mkdir_exit, struct tracepoint_raw_syscalls_s
     return sys_mkdir_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
-int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MKDIR);
+static __always_inline int dr_mkdir_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MKDIR);
     if (!syscall) {
         return 0;
     }
@@ -185,17 +185,17 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, enum TAIL_CALL_P
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_MKDIR);
     if (syscall->state == DISCARDED) {
-        return 0;
+        goto pop_and_exit;
     }
 
     struct mkdir_event_t *event = SPAN_FILL_EVENT(struct mkdir_event_t, EVENT_MKDIR);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->syscall_ctx.id = syscall->ctx_id;
@@ -204,10 +204,15 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, enum TAIL_CALL_P
     event->mode = syscall->mkdir.mode;
 
     fill_file(syscall->mkdir.dentry, &event->file);
+    pop_syscall(EVENT_MKDIR);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_MKDIR);
     return 0;
 }
 

@@ -10,7 +10,7 @@
 #include "helpers/strings.h"
 #include <linux/prctl.h>
 
-long __attribute__((always_inline)) trace__sys_prctl(void *ctx, u8 async, int option, void *arg2, const char *arg5) {
+static __always_inline long trace__sys_prctl(void *ctx, u8 async, int option, void *arg2, const char *arg5) {
     // Unrelated to the prctl event, and ahead of everything it needs: a process
     // naming an anonymous mapping OTEL_CTX is publishing its OTel process context.
     handle_otel_process_ctx_naming(option, (unsigned long)arg2, arg5);
@@ -56,17 +56,17 @@ long __attribute__((always_inline)) trace__sys_prctl(void *ctx, u8 async, int op
     return 0;
 }
 
-int __attribute__((always_inline)) sys_prctl_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_prctl_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     send_otel_process_ctx_naming_event(ctx);
 
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_PRCTL);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_PRCTL);
     if (!syscall) {
         return 0;
     }
 
     struct prctl_event_t *event = SPAN_FILL_EVENT(struct prctl_event_t, EVENT_PRCTL);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->event.flags = syscall->async;
@@ -76,13 +76,18 @@ int __attribute__((always_inline)) sys_prctl_ret_impl(void *ctx, int retval, enu
     event->sent_size = (syscall->prctl.name_size_to_send >= MAX_PRCTL_NAME_LEN)
         ? MAX_PRCTL_NAME_LEN
         : syscall->prctl.name_size_to_send;
+    pop_syscall(EVENT_PRCTL);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_PRCTL);
     return 0;
 }
 
-int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
+static __always_inline int sys_prctl_ret(void *ctx, int retval) {
     return sys_prctl_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

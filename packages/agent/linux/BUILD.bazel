@@ -28,7 +28,6 @@ package_name_variables(
 package_name_selector = {
     "//packages/agent:linux_default": "datadog-agent",
     "//packages/agent:linux_fips": "datadog-fips-agent",
-    "//packages/agent:linux_heroku": "datadog-heroku-agent",
     "//conditions:default": "datadog-agent",
 }
 
@@ -74,15 +73,17 @@ healthcheck_gate(
     }),
 )
 
-# Everything that gets installed under /opt/datadog-agent: the product
-# files plus the licenses gathered for them.
+# Everything that gets installed under the install dir (//:install_dir,
+# /opt/datadog-agent by default): the product files plus the licenses
+# gathered for them.
 pkg_filegroup(
     name = "installed_distro",
     srcs = [
         ":everything_checked",
         ":license_files",
     ],
-    prefix = "/opt/datadog-agent",
+    package_variables = ":variables",
+    prefix = "$(install_dir)",
 )
 
 # Blend the dependencies, the license files and things that vary

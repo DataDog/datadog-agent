@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "registry",
-    srcs = ["scenarios.go"],
+    srcs = [
+        "run.go",
+        "scenarios.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/registry",
     visibility = ["//visibility:public"],
     deps = [
@@ -26,5 +29,6 @@ go_library(
         "//test/e2e-framework/scenarios/local/openshiftvm",
         "//test/e2e-framework/scenarios/local/podman/run",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi/config",
     ],
 )

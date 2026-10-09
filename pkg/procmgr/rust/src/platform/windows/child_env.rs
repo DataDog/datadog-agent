@@ -141,8 +141,10 @@ const CORE_AGENT_SERVICE_NAME: &str = "datadogagent";
 ///    every `DD_*` the Agent service sees. Filtering here would make procmgr disagree
 ///    with the Agent about whether a key is set.
 ///
-/// Empty values count as unset, matching how `config_gate::env_bindings` treats the
-/// process environment.
+/// An entry present with an empty value is returned as `Some("")` rather than `None`:
+/// the SCM merges this block over the inherited environment before the Agent starts, so
+/// the entry shadows any machine-level value of the same name. Callers apply the Agent's
+/// `ok && value != ""` rule to the merged result.
 pub fn agent_service_env_var(name: &str) -> Option<String> {
     let entries = match read_service_environment(CORE_AGENT_SERVICE_NAME) {
         Ok(entries) => entries,
@@ -157,14 +159,15 @@ pub fn agent_service_env_var(name: &str) -> Option<String> {
         .rev()
         .find(|(key, _)| key.eq_ignore_ascii_case(name))
         .map(|(_, value)| value)
-        .filter(|value| !value.is_empty())
 }
 
 fn legacy_scm_service_name(process_name: &str) -> Option<&'static str> {
     match process_name {
         "datadog-agent-process" => Some("datadog-process-agent"),
+        "datadog-agent-sysprobe" => Some("datadog-system-probe"),
         "datadog-agent-action" => Some("datadog-agent-action"),
         "datadog-agent-ddot" => Some("datadog-otel-agent"),
+        "datadog-agent-trace" => Some("datadog-trace-agent"),
         _ => None,
     }
 }
@@ -431,6 +434,10 @@ mod legacy_scm_tests {
             Some("datadog-process-agent")
         );
         assert_eq!(
+            legacy_scm_service_name("datadog-agent-sysprobe"),
+            Some("datadog-system-probe")
+        );
+        assert_eq!(
             legacy_scm_service_name("datadog-agent-action"),
             Some("datadog-agent-action")
         );
@@ -438,7 +445,11 @@ mod legacy_scm_tests {
             legacy_scm_service_name("datadog-agent-ddot"),
             Some("datadog-otel-agent")
         );
-        assert_eq!(legacy_scm_service_name("datadog-agent-trace"), None);
+        assert_eq!(
+            legacy_scm_service_name("datadog-agent-trace"),
+            Some("datadog-trace-agent")
+        );
+        assert_eq!(legacy_scm_service_name("datadog-agent-security"), None);
     }
 
     #[test]

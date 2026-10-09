@@ -91,7 +91,7 @@ func (postgresConfigCollector) Collect(ctx context.Context, reader configfilesdi
 	}
 
 	fallbackConfigArg := postgresFallbackConfigArg(envVars)
-	file, ok, err := readConfigFile(
+	selection, err := selectConfigFile(
 		ctx,
 		reader,
 		postgresGetConfigArgFromCommandline,
@@ -101,7 +101,7 @@ func (postgresConfigCollector) Collect(ctx context.Context, reader configfilesdi
 	if err != nil {
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect postgres config file: %w", err)
 	}
-	if !ok {
+	if selection == nil {
 		// Without a config file, env vars are the only PostgreSQL config source.
 		// Return the error so the scheduler retries.
 		if envErr != nil {
@@ -116,6 +116,7 @@ func (postgresConfigCollector) Collect(ctx context.Context, reader configfilesdi
 		return configfilesdiscoveryimpl.CollectedConfig{EnvVars: envVars}, nil
 	}
 
+	file := selection.file
 	file.PayloadFormat = postgresConfigPayloadFormat
 	return configfilesdiscoveryimpl.CollectedConfig{
 		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},

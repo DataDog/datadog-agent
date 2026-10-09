@@ -47,6 +47,11 @@ var eccCounterTypeToName = map[nvml.EccCounterType]string{
 	nvml.VOLATILE_ECC:  "volatile",
 }
 
+var pageRetirementCauseToName = map[nvml.PageRetirementCause]string{
+	nvml.PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS: "multiple_single_bit",
+	nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR:           "double_bit",
+}
+
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
 	if val {
@@ -276,7 +281,7 @@ func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]
 	}
 
 	if len(ports) == 0 {
-		return nil, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice)
+		fatalErrors = append(fatalErrors, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice))
 	}
 
 	return ports, errors.Join(fatalErrors...)

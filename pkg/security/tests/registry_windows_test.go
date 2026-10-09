@@ -44,7 +44,7 @@ func TestBasicRegistryTestPowershell(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
@@ -91,7 +91,7 @@ func TestBasicRegistryTestRegExe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
@@ -139,7 +139,7 @@ func TestBasicRegistryTestAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {

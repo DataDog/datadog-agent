@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Kubernetes events with messages too long for the events API limit are now truncated and submitted instead of dropped.

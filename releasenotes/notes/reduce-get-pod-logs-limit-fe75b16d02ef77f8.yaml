@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Limit Kubernetes private action Pod logs to 9 MiB.

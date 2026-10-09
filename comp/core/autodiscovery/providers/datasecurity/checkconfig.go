@@ -5,7 +5,11 @@
 
 package datasecurity
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	yaml "go.yaml.in/yaml/v3"
+)
 
 // checkInstance is the instance config handed to the datasecurity Rust check,
 // mirroring its `CheckConfig`. scanning_rules (dd-sds rules) are passed through verbatim.
@@ -14,6 +18,20 @@ type checkInstance struct {
 	TaskID                string            `json:"task_id"`
 	ScanningRules         []json.RawMessage `json:"scanning_rules"`
 	ScanData              []checkSubTask    `json:"scan_data"`
+}
+
+// toYAML marshals through JSON since scanning rules are raw JSON, then round-trips to YAML
+// so the instance is scheduled as YAML and the Agent's scrubbing applies to it.
+func (i checkInstance) toYAML() ([]byte, error) {
+	instJSON, err := json.Marshal(i)
+	if err != nil {
+		return nil, err
+	}
+	var tree any
+	if err := yaml.Unmarshal(instJSON, &tree); err != nil {
+		return nil, err
+	}
+	return yaml.Marshal(tree)
 }
 
 // checkSubTask is a single sub task as consumed by the datasecurity Rust check.

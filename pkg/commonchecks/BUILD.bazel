@@ -82,6 +82,7 @@ go_library(
         "//pkg/collector/corechecks/system/winproc",
         "//pkg/collector/corechecks/systemd",
         "//pkg/collector/corechecks/telemetry",
+        "//pkg/collector/corechecks/vdi",
         "//pkg/util/option",
     ],
 )
@@ -95,7 +96,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     deps = [
         "//comp/core/telemetry/impl",

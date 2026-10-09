@@ -83,7 +83,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 			sample: metricSample,
 			host:   context.Host,
 			tags:   context.Tags(),
-		})
+		}, uint64(contextKey))
 	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)

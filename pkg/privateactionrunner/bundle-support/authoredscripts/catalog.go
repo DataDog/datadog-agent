@@ -6,9 +6,13 @@
 package authoredscripts
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/opencontainers/go-digest"
 )
 
@@ -23,11 +27,8 @@ type Descriptor struct {
 	SHA256  string
 }
 
-// Validate checks that the descriptor contains required identities and valid artifact coordinates.
+// Validate checks that the descriptor contains valid artifact coordinates.
 func (d Descriptor) Validate() error {
-	if d.FQN == "" {
-		return errors.New("authored-script FQN is required")
-	}
 	if d.Package == "" {
 		return errors.New("authored-script package is required")
 	}
@@ -45,9 +46,34 @@ func (d Descriptor) Validate() error {
 	if err := artifactDigest.Validate(); err != nil {
 		return fmt.Errorf("invalid authored-script SHA-256 digest %q: %w", d.SHA256, err)
 	}
+
+	parsedURL, err := url.Parse(d.URL)
+	if err != nil {
+		return fmt.Errorf("could not parse authored-script OCI URL: %w", err)
+	}
+	if parsedURL.Scheme != "oci" {
+		return fmt.Errorf("authored-script package URL uses unsupported scheme %q", parsedURL.Scheme)
+	}
+	if parsedURL.User != nil {
+		return errors.New("authored-script OCI URL must not contain user information")
+	}
+	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return errors.New("authored-script OCI URL must not contain a query or fragment")
+	}
+
+	reference, err := name.NewDigest(strings.TrimPrefix(d.URL, "oci://"), name.StrictValidation)
+	if err != nil {
+		return fmt.Errorf("authored-script package URL must contain a valid immutable OCI digest: %w", err)
+	}
+	expectedDigest := "sha256:" + d.SHA256
+	if reference.DigestStr() != expectedDigest {
+		return fmt.Errorf("authored-script OCI reference digest %q does not match expected digest %q", reference.DigestStr(), expectedDigest)
+	}
 	return nil
 }
 
 type Catalog interface {
+	// WaitForReady waits until the first valid catalog snapshot is available.
+	WaitForReady(ctx context.Context) error
 	Lookup(fqn string) (Descriptor, error)
 }

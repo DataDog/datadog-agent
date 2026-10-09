@@ -224,14 +224,18 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet, nil)
 	if !srcok {
 		if v := GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier
+			return src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""
@@ -420,6 +424,11 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			str.WriteString(",")
 		}
 		var wrote bool
+		// Counted locally and added to DroppedAttributesCount() when the field is emitted,
+		// rather than written back with SetDroppedAttributesCount. Both forms report
+		// DroppedAttributesCount()+N, so the JSON is identical; the write-back additionally
+		// mutated events owned by the caller, which panics once they are read-only.
+		var dropped uint32
 		str.WriteString("{")
 		if v := e.Timestamp(); v != 0 {
 			str.WriteString(`"time_unix_nano":`)
@@ -462,16 +471,20 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					}
 					j++
 				} else {
+					// Unreachable: json.Marshal cannot fail on a Go string (invalid UTF-8 is
+					// coerced to U+FFFD, not rejected). Kept because json.Marshal returns an
+					// error that has to go somewhere -- discarding it would write a nil key
+					// and emit a bare ":". Unlike the value branch above, which json.Marshal
+					// does reject for NaN/Inf doubles.
 					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
-					e.SetDroppedAttributesCount(e.DroppedAttributesCount() + 1)
+					dropped++
 				}
-				j++
 				return true
 			})
 			str.WriteString("}")
 			wrote = true
 		}
-		if v := e.DroppedAttributesCount(); v != 0 {
+		if v := e.DroppedAttributesCount() + dropped; v != 0 {
 			if wrote {
 				str.WriteString(",")
 			}

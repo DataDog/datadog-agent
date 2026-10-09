@@ -250,6 +250,6 @@ Follow-ups   Test-only change, so qa/no-code-change. Runs on PR branches
              via .on_arun_or_e2e_changes. 11m of the 15m budget used.
 ```
 
-Recommend a QA label, and note that the checks accept exactly one. A pull request that only adds tests or CI wiring takes `qa/no-code-change`, whichever branches its job runs on. `qa/rc-required` is for changes that can only be validated on a release candidate — a workload that cannot be emulated, or behavior observable only during RC deployment — so reach for it based on what the *change* needs, not on whether the new job happens to skip pull-request branches. `docs/public/guidelines/contributing.md` has the full list.
+Recommend a QA label, and note that the checks accept exactly one. A pull request that only adds tests or CI wiring takes `qa/no-code-change`, whichever branches its job runs on. `qa/rc-required` is for changes that can only be validated on a release candidate — a workload that cannot be emulated, or behavior observable only during RC deployment — so reach for it based on what the *change* needs, not on whether the new job happens to skip pull-request branches. `doc/guidelines/contributing.md` has the full list.
 
 When a repository document turns out to be wrong, correct it in the same change — the root `AGENTS.md` asks for exactly that.
