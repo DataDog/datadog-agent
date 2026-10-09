@@ -22,7 +22,8 @@ type anomalyAPIDebugView struct {
 	state observerimpl.StateView
 }
 
-func (v anomalyAPIDebugView) StateView() observerimpl.StateView { return v.state }
+func (v anomalyAPIDebugView) StateView() observerimpl.StateView        { return v.state }
+func (v anomalyAPIDebugView) StorageReader() observerdef.StorageReader { return nil }
 
 type anomalyAPIStateView struct {
 	observerimpl.StateView

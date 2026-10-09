@@ -98,6 +98,29 @@ func TestEventReporterRetriesCorrelationAfterNonBlockingSendFailure(t *testing.T
 	assert.Zero(t, forwarder.blockingCalls)
 }
 
+func TestEventReporterRetryKeepsPreparedContext(t *testing.T) {
+	forwarder := &fakeEventPlatformForwarder{errors: []error{errForwarderFull, nil}}
+	storage := &sumRangeStorage{fn: func(observerdef.SeriesRef, int64, int64, observerdef.Aggregate) float64 { return 0 }, contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
+		7: {Pattern: "first", Example: "first log"},
+	}}
+	reporter := &EventReporter{sender: &eventSender{forwarder: forwarder, storage: storage}, maxRetries: defaultMaxRetryAttempts}
+	raw := observerdef.ActiveCorrelation{Pattern: "p", FirstSeen: 1, Anomalies: []observerdef.Anomaly{{
+		Type:      observerdef.AnomalyTypeMetric,
+		Source:    observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
+		SourceRef: &observerdef.QueryHandle{Ref: 7},
+	}}}
+	output := reporterdef.ReportOutput{CorrelatorEvents: []observerdef.CorrelatorEvent{{
+		Kind:        observerdef.CorrelatorEventCorrelationDetected,
+		Correlation: raw,
+	}}}
+	assert.False(t, reporter.Report(output))
+	assert.Nil(t, raw.Anomalies[0].Context)
+	assert.Equal(t, "first", reporter.retryPending[0].correlation.Anomalies[0].Context.Pattern)
+	storage.contexts[7] = &observerdef.MetricContext{Pattern: "second"}
+	assert.True(t, reporter.Report(reporterdef.ReportOutput{}))
+	assert.Empty(t, reporter.retryPending)
+}
+
 func TestEventReporterDoesNotRetryEpisodeAfterNonBlockingSendFailure(t *testing.T) {
 	forwarder := &fakeEventPlatformForwarder{errors: []error{errForwarderFull}}
 	reporter := &EventReporter{

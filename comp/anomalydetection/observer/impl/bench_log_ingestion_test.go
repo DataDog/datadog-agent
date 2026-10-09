@@ -12,6 +12,43 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+var benchmarkLogContextSink observerdef.MetricContext
+
+// BenchmarkLogPatternSteadyIngestion keeps writes in one bucket so point-slice
+// growth does not hide the recurring pattern-context cost.
+func BenchmarkLogPatternSteadyIngestion(b *testing.B) {
+	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	extractor.config.MinClusterSizeBeforeEmit = 1
+	e := newEngine(engineConfig{storage: newTimeSeriesStorage(), extractors: []observerdef.LogMetricsExtractor{extractor}})
+	log := &logObs{content: "GET /users/123 returned 500", tags: []string{"service:api"}, timestampMs: 1000}
+	e.IngestLog("logs", log)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e.IngestLog("logs", log)
+	}
+}
+
+// BenchmarkLogPatternContextResolution measures the cost shifted to an output
+// that requests the current presentation context from the live cluster.
+func BenchmarkLogPatternContextResolution(b *testing.B) {
+	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	extractor.config.MinClusterSizeBeforeEmit = 1
+	storage := newTimeSeriesStorage()
+	e := newEngine(engineConfig{storage: storage, extractors: []observerdef.LogMetricsExtractor{extractor}})
+	e.IngestLog("logs", &logObs{content: "GET /users/123 returned 500", tags: []string{"service:api"}, timestampMs: 1000})
+	metas := storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()})
+	if len(metas) != 1 {
+		b.Fatalf("expected one pattern series, got %d", len(metas))
+	}
+	ref := metas[0].Ref
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		benchmarkLogContextSink, _ = storage.GetContext(ref)
+	}
+}
+
 // diverseLogContent returns distinct line shapes (JSON, kv, syslog, plain) for series s
 // so neighboring series exercise different tokenizer / pattern signatures.
 func diverseLogContent(s int) string {

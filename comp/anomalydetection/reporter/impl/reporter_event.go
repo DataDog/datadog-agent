@@ -103,10 +103,11 @@ func (r *EventReporter) Report(output reporterdef.ReportOutput) bool {
 				continue
 			}
 		case observerdef.CorrelatorEventCorrelationDetected:
-			if err := r.sender.send(ce.Correlation); err != nil {
+			prepared := PrepareCorrelation(ce.Correlation, r.sender.storage)
+			if err := r.sender.send(prepared); err != nil {
 				logging.Errorf("reporter failed to send correlation event pattern=%s: %v",
 					ce.Correlation.Pattern, err)
-				r.retryPending = append(r.retryPending, retryEntry{correlation: ce.Correlation, attempts: 1})
+				r.retryPending = append(r.retryPending, retryEntry{correlation: prepared, attempts: 1})
 				continue
 			}
 		default:

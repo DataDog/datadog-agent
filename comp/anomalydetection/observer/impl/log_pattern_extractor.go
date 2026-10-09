@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"sync"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -107,6 +108,7 @@ func tokenizerFromConfig(cfg LogPatternExtractorConfig) *patterns.Tokenizer {
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
+	contextMu                 sync.RWMutex // cluster mutation and output-time resolution
 	taggedClusterer           *TaggedPatternClusterer
 	registry                  *TagGroupByKeyRegistry
 	NextGarbageCollectionTime int64
@@ -175,6 +177,8 @@ func (e *LogPatternExtractor) Name() string {
 // Reset clears clustering state so reanalysis starts from the currently
 // observed logs.
 func (e *LogPatternExtractor) Reset() {
+	e.contextMu.Lock()
+	defer e.contextMu.Unlock()
 	e.taggedClusterer.Reset()
 	e.NextGarbageCollectionTime = 0
 	e.activePatternCount = 0
@@ -185,6 +189,8 @@ func (e *LogPatternExtractor) Reset() {
 
 // SetObserverTelemetry wires direct telemetry emission.
 func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
+	e.contextMu.Lock()
+	defer e.contextMu.Unlock()
 	e.telemetry = t
 	if t != nil {
 		e.activePatternCount = len(e.taggedClusterer.GetAllClusters())
@@ -194,6 +200,8 @@ func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
+	e.contextMu.Lock()
+	defer e.contextMu.Unlock()
 	if e.telemetry != nil {
 		defer func() { e.telemetry.setLogPatternCount(e.activePatternCount) }()
 	}
@@ -239,20 +247,35 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 
 	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
 
-	group, _ := e.registry.Lookup(groupHash)
+	contextRef, hasCluster := e.taggedClusterer.ClusterRef(groupHash, cluster.ID)
+	if !hasCluster {
+		return result
+	}
 	result.Metrics = []observerdef.MetricOutput{{
-		Name:       metricName,
-		Value:      1,
-		Tags:       tagset.CompositeTagsFromSlice(log.Tags()),
-		HasContext: true,
-		Context: observerdef.MetricContext{
-			Pattern:   cluster.PatternString(),
-			Example:   truncate(message, 160),
-			Source:    e.Name(),
-			SplitTags: group.AsMap(),
-		},
+		Name:            metricName,
+		Value:           1,
+		Tags:            tagset.CompositeTagsFromSlice(log.Tags()),
+		ContextProvider: e,
+		ContextRef:      contextRef,
+		ContextExample:  message,
 	}}
 	return result
+}
+
+// ResolveLogContext renders a live cluster for a selected output. The returned
+// map and strings are independent of later cluster mutations.
+func (e *LogPatternExtractor) ResolveLogContext(ref observerdef.LogContextRef) (observerdef.MetricContext, bool) {
+	e.contextMu.RLock()
+	defer e.contextMu.RUnlock()
+	cluster, group, ok := e.taggedClusterer.ResolveCluster(ref)
+	if !ok {
+		return observerdef.MetricContext{}, false
+	}
+	return observerdef.MetricContext{
+		Pattern:   cluster.PatternString(),
+		Source:    e.Name(),
+		SplitTags: group.AsMap(),
+	}, true
 }
 
 // gcResult holds what was evicted during a garbage-collection pass.
@@ -262,7 +285,7 @@ type gcResult struct {
 }
 
 // maybeGarbageCollect removes stale clusters from all sub-clusterers and
-// returns the context keys evicted so the engine can drop matching contextRefs.
+// returns metric names so the engine can remove their storage series.
 func (e *LogPatternExtractor) maybeGarbageCollect(currentTime int64) gcResult {
 	if e.config.ClusterTimeToLiveSec == 0 || currentTime < e.NextGarbageCollectionTime {
 		return gcResult{}

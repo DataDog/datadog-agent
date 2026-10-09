@@ -130,6 +130,19 @@ Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
+### Log pattern context
+
+Pattern-derived metrics retain a provider reference, group generation, cluster ID,
+and the latest raw example per storage series. Ingestion does not render the
+pattern or construct the split-tag map. `StorageReader.GetContext` resolves the
+live cluster when output needs it; a removed cluster returns nil and output
+falls back to source metadata. All aggregations of one series share the binding.
+The pattern extractor guards cluster mutation and context resolution with its
+own RWMutex. Storage releases its lock before calling the provider. Replacing
+or resetting an extractor clears old cluster state and invalidates its refs.
+Retaining a raw example may increase live heap for long log lines; measure both
+allocations and retained bytes when changing this path.
+
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to a buffered channel. If the channel is full,
@@ -193,6 +206,13 @@ not embed a `correlationEmitter`.
 
 ### Detector-output deduplication vs replay history
 
+Detector and correlator anomalies remain raw: they carry source refs and scalar
+evidence, but do not resolve metric context during detection. Resolve context
+from storage on a copy only when preparing a selected output; message, tags,
+and metadata must use the same prepared correlation. Missing context falls back
+to source metadata. Retry entries retain their prepared correlation so context
+does not change across attempts.
+
 Every detector output must set `Anomaly.SourceRef` to its storage series and
 aggregate, including anomalies from log-derived metrics. The engine discards
 outputs without a reference. Display names are not deduplication identities.
@@ -246,7 +266,7 @@ scoring, or deduplication.
 
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
-dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
+dda inv test --targets=./comp/anomalydetection/observer/impl/ --test-args='-test.run=^$ -test.bench=.' --bazel-args='--test_output=all'
 ```
 
 **Testbench** (algorithm iteration + scenario replay):
@@ -255,9 +275,8 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
 
-# The testbench reporter requires its own build tag, passed through extra args
-# because it is not part of the Agent's selectable build-tag set.
-dda inv test --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
+# The testbench module currently has no Bazel test target. The build task
+# checks compilation with its required python,anomalydetectiontestbench tags.
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.

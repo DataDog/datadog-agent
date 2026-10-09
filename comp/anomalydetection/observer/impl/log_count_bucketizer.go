@@ -44,14 +44,17 @@ type logCountBucketInterval struct {
 }
 
 type logCountBucketSeries struct {
-	namespace  string
-	name       string
-	host       string
-	tags       tagset.CompositeTags
-	seriesKey  uint64
-	context    observerdef.MetricContext
-	hasContext bool
-	anchor     int64
+	namespace       string
+	name            string
+	host            string
+	tags            tagset.CompositeTags
+	seriesKey       uint64
+	context         observerdef.MetricContext
+	hasContext      bool
+	contextProvider observerdef.LogContextProvider
+	contextRef      observerdef.LogContextRef
+	contextExample  string
+	anchor          int64
 	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
 	// not advance it, so storage can evict genuinely idle series first.
 	lastObserved int64
@@ -116,24 +119,30 @@ func (b *materializedLogCountBucketizer) observe(
 
 	if state == nil {
 		state = &logCountBucketSeries{
-			namespace:    namespace,
-			name:         metric.Name,
-			host:         host,
-			tags:         tags,
-			seriesKey:    seriesKey,
-			context:      metric.Context,
-			hasContext:   metric.HasContext,
-			anchor:       timestamp,
-			lastObserved: timestamp,
-			storageRef:   -1,
-			values:       make(map[int64]float64),
+			namespace:       namespace,
+			name:            metric.Name,
+			host:            host,
+			tags:            tags,
+			seriesKey:       seriesKey,
+			context:         metric.Context,
+			hasContext:      metric.HasContext,
+			contextProvider: metric.ContextProvider,
+			contextRef:      metric.ContextRef,
+			contextExample:  metric.ContextExample,
+			anchor:          timestamp,
+			lastObserved:    timestamp,
+			storageRef:      -1,
+			values:          make(map[int64]float64),
 		}
 		b.series[seriesKey] = state
 	} else {
 		state.lastObserved = max(state.lastObserved, timestamp)
-		if metric.HasContext {
+		if metric.ContextProvider != nil || metric.HasContext {
 			state.context = metric.Context
-			state.hasContext = true
+			state.hasContext = metric.HasContext
+			state.contextProvider = metric.ContextProvider
+			state.contextRef = metric.ContextRef
+			state.contextExample = metric.ContextExample
 		}
 	}
 
@@ -171,8 +180,12 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 					state.tags,
 					state.seriesKey,
 				)
-				if state.hasContext && result.Ref >= 0 {
-					storage.SetContext(result.Ref, state.context)
+				if result.Ref >= 0 {
+					if state.contextProvider != nil {
+						storage.SetDeferredContext(result.Ref, state.contextProvider, state.contextRef, state.contextExample)
+					} else if state.hasContext {
+						storage.SetContext(result.Ref, state.context)
+					}
 				}
 				if result.Ref >= 0 {
 					state.storageRef = result.Ref

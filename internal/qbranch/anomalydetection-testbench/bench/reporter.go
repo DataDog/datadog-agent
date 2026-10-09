@@ -29,11 +29,12 @@ type ReportedEvent struct {
 // buildReportedEvents builds the set of ReportedEvents from a correlation history.
 // storage is used for windowed log-rate annotations; pass nil to fall back to
 // DebugInfo.CurrentValue (less accurate but still shows pattern/example).
-func buildReportedEvents(correlations []observerdef.ActiveCorrelation, storage observerdef.StorageReader) []ReportedEvent {
+func buildReportedEvents(correlations []observerdef.ActiveCorrelation, contextStorage, rateStorage observerdef.StorageReader) []ReportedEvent {
 	events := make([]ReportedEvent, 0, len(correlations))
 	for _, ac := range correlations {
-		msg := reporterimpl.BuildChangeMessage(ac, storage)
-		tags := reporterimpl.BuildEventTags(ac)
+		prepared := reporterimpl.PrepareCorrelation(ac, contextStorage)
+		msg := reporterimpl.BuildChangeMessage(prepared, rateStorage)
+		tags := reporterimpl.BuildEventTags(prepared)
 		events = append(events, ReportedEvent{
 			Pattern:       ac.Pattern,
 			Title:         ac.Title,

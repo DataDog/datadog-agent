@@ -783,16 +783,17 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
+	contextStorage := api.tb.debug.StorageReader()
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
-		title, description := observerdef.FormatAnomaly(a)
+		materialized := observerdef.MaterializeAnomaly(a, contextStorage)
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
 			SourceSeriesID:    a.SourceRef.CompactID(),
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
-			Title:             title,
-			Description:       description,
+			Title:             materialized.Title,
+			Description:       materialized.Description,
 			Host:              a.Source.Host,
 			Tags:              a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:         a.Timestamp,
@@ -861,13 +862,14 @@ func (api *BenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) 
 	}
 
 	response := make([]logAnomalyResponse, 0, len(anomalies))
+	contextStorage := api.tb.debug.StorageReader()
 	for _, a := range anomalies {
-		title, description := observerdef.FormatAnomaly(a)
+		materialized := observerdef.MaterializeAnomaly(a, contextStorage)
 		response = append(response, logAnomalyResponse{
 			Source:       a.Source.String(),
 			DetectorName: a.DetectorName,
-			Title:        title,
-			Description:  description,
+			Title:        materialized.Title,
+			Description:  materialized.Description,
 			Tags:         a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:    a.Timestamp,
 			Score:        a.Score,
@@ -1033,6 +1035,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 	}
 
 	response := make([]correlationResponse, len(correlations))
+	contextStorage := api.tb.debug.StorageReader()
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
@@ -1040,11 +1043,11 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 			if tgs == nil {
 				tgs = []string{}
 			}
-			title, description := observerdef.FormatAnomaly(a)
+			materialized := observerdef.MaterializeAnomaly(a, contextStorage)
 			anomalies[j] = anomalyOutput{
 				Source:      a.Source.String(),
-				Title:       title,
-				Description: description,
+				Title:       materialized.Title,
+				Description: materialized.Description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
 				Host:        a.Source.Host,
