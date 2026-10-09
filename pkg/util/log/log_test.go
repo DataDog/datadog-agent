@@ -682,6 +682,31 @@ func TestGetLogLevel(t *testing.T) {
 	assert.Equal(t, WarnLvl, level)
 }
 
+func TestGetLogLevelSpec(t *testing.T) {
+	SetupLogger(Default(), WarnStr)
+
+	spec, err := GetLogLevelSpec()
+	assert.NoError(t, err)
+	assert.Equal(t, "warn", spec, "a plain level setup yields the level name")
+
+	rules, err := types.ParseLevelRules("error,./pkg/collector/...=debug", "github.com/DataDog/datadog-agent")
+	require.NoError(t, err)
+	require.NoError(t, ChangeLogLevelRules(rules))
+
+	spec, err = GetLogLevelSpec()
+	assert.NoError(t, err)
+	assert.Equal(t, "error,./pkg/collector/...=debug", spec)
+}
+
+func TestGetLogLevelSpecNilLogger(t *testing.T) {
+	logger.Store(nil)
+
+	spec, err := GetLogLevelSpec()
+	assert.Error(t, err)
+	assert.Equal(t, "", spec)
+	assert.Equal(t, "cannot get loglevel: logger not initialized", err.Error())
+}
+
 func TestGetLogLevelNilLogger(t *testing.T) {
 	logger.Store(nil)
 

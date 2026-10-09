@@ -187,6 +187,29 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 	return l.rules.Load().DefaultLevel(), nil
 }
 
+// GetLogLevelSpec returns the specification string of the current log level
+// rules, e.g. "error,some/pkg/...=debug", or the plain level name when a
+// single level is configured.
+func GetLogLevelSpec() (string, error) {
+	return logger.getLogLevelSpec()
+}
+
+func (sw *loggerPointer) getLogLevelSpec() (string, error) {
+	l := sw.Load()
+	if l == nil {
+		return "", errors.New("cannot get loglevel: logger not initialized")
+	}
+
+	l.l.RLock()
+	defer l.l.RUnlock()
+
+	if l.inner == nil {
+		return "", errors.New("cannot get loglevel: logger not initialized")
+	}
+
+	return l.rules.Load().Spec(), nil
+}
+
 // ShouldLog returns whether a given log level should be logged by the default logger.
 // When the logger is not initialized yet, the default info level is assumed: info and
 // above pass the check (their entries are buffered by the log helpers until a logger
