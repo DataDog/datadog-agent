@@ -159,8 +159,9 @@ func (s *ccmModeDefaultTaggedSuite) TestDefaultTaggedAllChecksReceiveInfrastruct
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for default-tagged metrics")
 }
 
-// TestConfiguredTaggedAppliesSelectively verifies integration.cloud_cost_only.tagged limits
-// which checks receive infrastructure_mode when the list is non-empty.
+// TestConfiguredTaggedAppliesSelectively verifies the deprecated
+// integration.cloud_cost_only.tagged knob still limits which checks receive the
+// mark when the list is non-empty.
 func (s *ccmModeConfiguredTaggedSuite) TestConfiguredTaggedAppliesSelectively() {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		s.assertMetricHasInfrastructureModeTag(c, "system.cpu.user", "cpu")
