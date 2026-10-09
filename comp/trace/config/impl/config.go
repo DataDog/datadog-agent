@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -151,15 +150,11 @@ func (c *cfg) SetHandler() http.Handler {
 				value := html.UnescapeString(values[len(values)-1])
 				switch key {
 				case "log_level":
-					lvl := strings.ToLower(value)
-					if lvl == "warning" {
-						lvl = "warn"
-					}
-					if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
+					if err := pkgconfigutils.SetLogLevel(value, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
 						httpError(w, http.StatusInternalServerError, err)
 						return
 					}
-					log.Infof("Switched log level to %s", lvl)
+					log.Infof("Switched log level to %s", value)
 				default:
 					log.Infof("Unsupported config change requested (key: %q).", key)
 				}

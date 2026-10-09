@@ -15,6 +15,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -2580,6 +2581,43 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	configC := config.(*cfg)
 	configC.updateAPIKey("foo", "bar")
 	assert.Equal(t, 1, n)
+}
+
+func TestSetConfigHandlerLogLevel(t *testing.T) {
+	config := buildConfigComponent(t, true)
+
+	handler := config.SetHandler().ServeHTTP
+	ipcComp := ipcmock.New(t)
+
+	// the handler writes to the global config; restore it afterwards
+	original := pkgconfigsetup.Datadog().GetString("log_level")
+	t.Cleanup(func() { pkgconfigsetup.Datadog().Set("log_level", original, configmodel.SourceAgentRuntime) })
+
+	tests := []struct {
+		name   string
+		value  string
+		status int
+	}{
+		{"plain level", "debug", http.StatusOK},
+		{"uppercase level", "DEBUG", http.StatusOK},
+		{"deprecated warning spelling", "warning", http.StatusOK},
+		{"per-package spec", "error,github.com/DataDog/datadog-agent/pkg/trace/...=debug", http.StatusOK},
+		{"invalid level", "verbose", http.StatusInternalServerError},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := httptest.NewRecorder()
+			req := httptest.NewRequest("POST", "/config/set?log_level="+url.QueryEscape(tc.value), nil)
+			req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
+			handler(resp, req)
+
+			assert.Equal(t, tc.status, resp.Code)
+			if tc.status == http.StatusOK {
+				assert.Equal(t, tc.value, pkgconfigsetup.Datadog().GetString("log_level"), "the value must be stored as given")
+			}
+		})
+	}
 }
 
 func buildConfigComponent(t *testing.T, setHostnameInConfig bool) Component {
