@@ -323,14 +323,12 @@ func (a *SBOMAPIServer) collectSBOMS() {
 	if sbomResolver := ebpfProbe.Resolvers.SBOMResolver; sbomResolver != nil {
 		seclog.Debugf("registering SBOM listener")
 		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
-			select {
-			case a.sboms <- sbom:
-				sbomResolver.CountEnrichedSBOMForwarded()
-				seclog.Debugf("SBOM for %s sent to APIServer channel", sbomWorkload(sbom))
-			default:
+			if a.sboms.push(sbom) {
 				sbomResolver.CountEnrichedSBOMForwardDropped()
-				seclog.Warnf("dropping SBOM event")
+				seclog.Warnf("dropping the oldest SBOM report waiting to be sent")
 			}
+			sbomResolver.CountEnrichedSBOMForwarded()
+			seclog.Debugf("SBOM for %s queued for the core agent", sbomWorkload(sbom))
 		}); err != nil {
 			seclog.Errorf("failed to register SBOM listener: %s", err)
 		}
@@ -354,33 +352,44 @@ func (a *SBOMAPIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.
 			return nil
 		case <-a.stopChan:
 			return nil
-		case sbom := <-a.sboms:
-			seclog.Debugf("received SBOM for %s, forwarding to core agent", sbomWorkload(sbom))
-
-			bom := sbom.Report.ToCycloneDX()
-
-			data, err := proto.Marshal(bom)
-			if err != nil {
-				return fmt.Errorf("failed to marshal SBOM: %w", err)
+		case <-a.sboms.ready:
+			reports := a.sboms.take()
+			for i, sbom := range reports {
+				if err := sendSBOM(stream, sbom); err != nil {
+					a.sboms.requeue(reports[i:])
+					return err
+				}
 			}
-
-			// The report of the host is the one with an empty container ID.
-			kind := string(workloadmeta.KindContainer)
-			if sbom.RequestID == "" {
-				kind = sbompkg.HostKind
-			}
-
-			msg := &sbompb.SBOMMessage{
-				Data: data,
-				Kind: kind,
-				ID:   sbom.RequestID,
-			}
-
-			if err := stream.Send(msg); err != nil {
-				return fmt.Errorf("failed to send SBOM: %s", err)
-			}
-
-			log.Debugf("Forwarding SBOM for %s to core agent", sbomWorkload(sbom))
 		}
 	}
+}
+
+// sendSBOM sends sbom on stream. A report that fails to marshal is dropped.
+func sendSBOM(stream sbompb.SBOMCollector_GetSBOMStreamServer, sbom *sbompkg.ScanResult) error {
+	seclog.Debugf("received SBOM for %s, forwarding to core agent", sbomWorkload(sbom))
+
+	data, err := proto.Marshal(sbom.Report.ToCycloneDX())
+	if err != nil {
+		seclog.Errorf("failed to marshal SBOM for %s: %v", sbomWorkload(sbom), err)
+		return nil
+	}
+
+	// The report of the host is the one with an empty container ID.
+	kind := string(workloadmeta.KindContainer)
+	if sbom.RequestID == "" {
+		kind = sbompkg.HostKind
+	}
+
+	msg := &sbompb.SBOMMessage{
+		Data: data,
+		Kind: kind,
+		ID:   sbom.RequestID,
+	}
+
+	if err := stream.Send(msg); err != nil {
+		return fmt.Errorf("failed to send SBOM: %s", err)
+	}
+
+	log.Debugf("Forwarding SBOM for %s to core agent", sbomWorkload(sbom))
+	return nil
 }

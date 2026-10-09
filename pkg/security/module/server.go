@@ -29,7 +29,6 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -205,7 +204,7 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 type SBOMAPIServer struct {
 	sbomapi.UnimplementedSBOMCollectorServer
 
-	sboms    chan *sbom.ScanResult
+	sboms    *sbomQueue
 	probe    *sprobe.Probe
 	stopChan chan struct{}
 }
@@ -992,7 +991,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 func NewSBOMAPIServer(probe *sprobe.Probe, stopChan chan struct{}) *SBOMAPIServer {
 	as := &SBOMAPIServer{
 		probe:    probe,
-		sboms:    make(chan *sbom.ScanResult, 100),
+		sboms:    newSBOMQueue(100),
 		stopChan: stopChan,
 	}
 
