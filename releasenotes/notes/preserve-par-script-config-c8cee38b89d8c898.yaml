@@ -1,0 +1,11 @@
+---
+upgrade:
+  - |
+    The Agent now ships Private Action Runner script configuration as a template
+    instead of replacing the live file on subsequent upgrades. If you customized
+    the Agent-installed ``private-action-runner/script-config.yaml`` on a Linux
+    host or ``private-action-runner/powershell-script-config.yaml`` on a Windows
+    host, backup that file to a safe location outside the Agent configuration
+    directory **before your first upgrade to this release**. Copy it back after
+    the upgrade, and again after any rollback, downgrade, or Fleet Automation
+    experiment cancellation.
