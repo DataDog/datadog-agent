@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    gpum: On physical NVIDIA GPUs without MIG, ``gpu.sm_active`` falls back to the GPM GR engine
+    activity (the same value as ``gpu.gr_engine_active``) when no other source is available, unless
+    ``gpu.legacy_sm_active`` is enabled. Set ``gpu.prefer_gr_engine_sm_active`` to ``true`` to report
+    it with priority over the other sources.

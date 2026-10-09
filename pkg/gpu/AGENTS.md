@@ -248,6 +248,13 @@ Active time is derived from kernel execution intervals captured within each coll
 - **Per-process**: Merge intervals for a single process, then compute the percentage of the window that was active.
 - **Device-wide**: Merge intervals across all processes on the device, then compute the percentage of the window that was active.
 
+### Other `sm_active` Sources
+
+- `sampling` collector (Medium): derived from NVML per-process utilization samples.
+- `gpm` collector with `gpu.legacy_sm_active` (High): `GPM_METRIC_SM_UTIL`.
+- `gpm` collector, physical GPUs without MIG (Low, High with `gpu.prefer_gr_engine_sm_active`, off with
+  `gpu.legacy_sm_active`): `GPM_METRIC_GRAPHICS_UTIL`. It ties with `ebpf` at Low, and `ebpf` wins (name order).
+
 ## GPU Spec Guidance
 
 The GPU spec defines what metrics and tags the core check is expected to emit across architectures and device modes.
