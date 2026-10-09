@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "snapshot",
+    srcs = ["snapshot.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/parity/snapshot",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network",
+        "//pkg/network/encoding/unmarshal",
+        "//pkg/network/protocols",
+        "//pkg/process/util",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)
+
+dd_agent_go_test(
+    name = "snapshot_test",
+    srcs = ["snapshot_test.go"],
+    embed = [":snapshot"],
+    deps = [
+        "//pkg/network",
+        "//pkg/network/protocols",
+        "//pkg/network/tracer/testutil/parity",
+        "//pkg/process/util",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_gogo_protobuf//jsonpb",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
