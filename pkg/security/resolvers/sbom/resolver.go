@@ -52,11 +52,6 @@ const (
 	maxSBOMEntries           = 1024
 	scanQueueSize            = 100
 	maxPendingFileEvents     = 256
-	// maxForwardWait bounds how long forwarding keeps retrying while the image's
-	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
-	// re-arming when no image SBOM will ever be produced (for example when
-	// container image SBOM collection is disabled and the image stays pending).
-	maxForwardWait = 30 * time.Minute
 	// hostRescanInterval is the period of the scans of the host packages, the
 	// default period of the host scans of the core agent.
 	hostRescanInterval = time.Hour
@@ -188,14 +183,12 @@ type SBOM struct {
 	data *Data
 
 	workloadKey workloadKey
-	status      workloadmeta.SBOMStatus
 
 	cgroup *cgroupModel.CacheEntry
 	state  *atomic.Int64
 
-	refresher         *debouncer.Debouncer
-	forwarder         *debouncer.Debouncer // Debouncer for forwarding SBOM updates
-	forwardRetryCount int
+	refresher *debouncer.Debouncer
+	forwarder *debouncer.Debouncer // Debouncer for forwarding SBOM updates
 
 	invalidated bool
 
@@ -537,61 +530,17 @@ func (r *Resolver) SetProcessWalker(walk func(func(*model.ProcessCacheEntry))) {
 	r.walkProcesses = walk
 }
 
-func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
-	container, err := r.wmeta.GetContainer(string(containerID))
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get container metadata for '%s': %v", containerID, err)
-	}
-
-	imageID := container.Image.ID
-	if imageID == "" {
-		return nil, fmt.Errorf("Container '%s' has no image ID, cannot forward SBOM", containerID)
-	}
-
-	existingImage, err := r.wmeta.GetImage(imageID)
-	if err != nil || existingImage == nil {
-		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
-		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
-		for _, img := range r.wmeta.ListImages() {
-			for _, digest := range img.RepoDigests {
-				if digest == imageID {
-					existingImage = img
-					break
-				}
-			}
-			if existingImage != nil {
-				break
-			}
-		}
-	}
-
-	if existingImage == nil {
-		return nil, fmt.Errorf("Image metadata for '%s' not found in workloadmeta, cannot forward SBOM for container '%s'", imageID, containerID)
-	}
-
-	if existingImage.SBOM == nil {
-		return nil, fmt.Errorf("Image '%s' has no SBOM, cannot forward SBOM for container '%s'", imageID, containerID)
-	}
-
-	return existingImage.SBOM, nil
-}
-
 // triggerForwarding triggers the forwarding debouncer to send updated SBOM with LastAccess to remote collector
 // This function assumes sbom is already locked by the caller
 func (r *Resolver) triggerForwarding(sbom *SBOM) {
-	// Create forwarder debouncer on demand. Its callback re-arms the debouncer
-	// it holds, as stop clears sbom.forwarder while the callback may still run.
+	// Create forwarder debouncer on demand
 	if sbom.forwarder == nil {
-		var forwarder *debouncer.Debouncer
-		forwarder = debouncer.New(
+		sbom.forwarder = debouncer.New(
 			r.cfg.SBOMResolverForwardInterval, func() {
-				if r.forward(sbom) {
-					forwarder.Call()
-				}
+				r.forward(sbom)
 			},
 		)
-		forwarder.Start()
-		sbom.forwarder = forwarder
+		sbom.forwarder.Start()
 	}
 
 	// Trigger the debouncer (will execute after 5 seconds of inactivity)
@@ -599,45 +548,18 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 }
 
 // forward hands the current SBOM data with LastAccess to the listeners, which
-// send it to the remote collector, and reports whether to forward it again
-// later, as it does while the Trivy SBOM of the image is pending. It returns at
-// once for a stopped SBOM.
-func (r *Resolver) forward(sbom *SBOM) bool {
+// send it to the remote collector. The core agent keeps the report until the
+// SBOM it enriches is ready. It returns at once for a stopped SBOM.
+func (r *Resolver) forward(sbom *SBOM) {
 	sbom.Lock()
 	defer sbom.Unlock()
 
 	if sbom.state.Load() == stoppedState {
-		return false
+		return
 	}
-
-	// The report of a container waits for the Trivy SBOM of its image. The
-	// core agent keeps the report of the host for its next host scan.
-	if sbom.ContainerID != "" && (sbom.status == workloadmeta.Pending || sbom.status == "") {
-		imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
-		if err != nil || imageSBOM == nil {
-			seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
-		} else {
-			sbom.status = imageSBOM.Status
-		}
-	}
-
-	if sbom.ContainerID != "" && (sbom.status == workloadmeta.Pending || sbom.status == "") {
-		// Retry until the image's Trivy SBOM is ready: an idle workload may
-		// produce no further file accesses to re-trigger forwarding, and the
-		// overlayfs scan can take several minutes. Bound the total wait so a
-		// permanently-pending image (e.g. container image SBOM collection
-		// disabled) stops re-arming instead of looping forever.
-		sbom.forwardRetryCount++
-		if time.Duration(sbom.forwardRetryCount)*r.cfg.SBOMResolverForwardInterval > maxForwardWait {
-			seclog.Warnf("Giving up forwarding SBOM for container '%s': image SBOM still pending after %s", sbom.ContainerID, maxForwardWait)
-			return false
-		}
-		return true
-	}
-	sbom.forwardRetryCount = 0
 
 	if sbom.data == nil || len(sbom.data.packages) == 0 {
-		return false
+		return
 	}
 
 	seclog.Debugf("Forwarding SBOM with LastAccess for container %s (%d packages)", sbom.ContainerID, len(sbom.data.packages))
@@ -660,8 +582,6 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 		RequestID:        string(sbom.ContainerID),
 	}
 	r.Notifier.NotifyListeners(SBOMComputed, scanResult)
-
-	return false
 }
 
 // generateSBOM calls the collector to generate the SBOM of a sbom
@@ -1191,9 +1111,6 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	_, ok := r.sboms.Get(id)
 	if !ok {
 		sbom := r.newSBOM(id, workload.GCroupCacheEntry, workloadKey)
-		if imageSBOM, err := r.getContainerSBOM(id); err == nil && imageSBOM != nil {
-			sbom.status = imageSBOM.Status
-		}
 		r.queueWorkload(sbom)
 	}
 }
