@@ -23,6 +23,7 @@ from tasks.libs.dynamic_test.indexers.e2e import (
     FileCoverageDynTestIndexer,
     PackageCoverageDynTestIndexer,
 )
+from tasks.libs.dynamic_test.jev.jev_e2e_selector import generate_pr_summary
 from tasks.libs.dynamic_test.jev_selection import (
     JOB_CANDIDATES_FILE,
     JevDynTestExecutor,
@@ -91,6 +92,7 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
         "selector": "coverage (default) or jev",
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
         "ignore-sha-mismatch": "Evaluate a pipeline whose commit differs from the checkout: the Jev decisions are computed from the current checkout's PR context instead of the pipeline's (local experiments; the mismatch is always an error in CI)",
+        "pr-summary-file": "Jev only: LLM PR summary written by dyntest.generate-jev-pr-summary, passed to Jev instead of the raw diff (a missing file falls back to the raw diff)",
     }
 )
 def evaluate_index(
@@ -101,6 +103,7 @@ def evaluate_index(
     selector: str = "coverage",
     send_stats: bool = True,
     ignore_sha_mismatch: bool = False,
+    pr_summary_file: str = "",
 ):
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
@@ -120,7 +123,10 @@ def evaluate_index(
     GITHUB_TOKEN optionally supplies the PR title/description.
 
     The Jev evaluation is gated by the 'datadog-agent-jev-evaluation'
-    feature flag: disabled, the task exits 0 without evaluating.
+    feature flag: disabled, the task exits 0 without evaluating. With
+    --pr-summary-file, Jev sees the pre-generated LLM summary of the PR
+    changes instead of the raw diff (no LLM call here); whether a summary was
+    used is sent as the jev_llm_summary tag on the published metrics.
     """
     if selector not in {"coverage", "jev"}:
         raise Exit("--selector must be coverage or jev", code=1)
@@ -129,6 +135,7 @@ def evaluate_index(
     head = get_commit_sha(ctx)
     commit_sha = commit_sha or head
     executors: list[DynTestExecutor] = []
+    extra_tags: list[str] = []
     if selector == "jev":
         if not is_enabled(ctx, "datadog-agent-jev-evaluation"):
             print(color_message("Jev evaluation disabled", Color.ORANGE))
@@ -139,7 +146,11 @@ def evaluate_index(
         # the coverage executors keep theirs in S3). The shared evaluator owns
         # the CI Visibility queries; the executor's GitLab jobs fetch
         # supplies the allow-failure set.
-        executor = JevDynTestExecutor(ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch)
+        pr_summary = _read_pr_summary(pr_summary_file)
+        extra_tags = [f"jev_llm_summary:{str(bool(pr_summary)).lower()}"]
+        executor = JevDynTestExecutor(
+            ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch, pr_summary=pr_summary
+        )
         executors = [executor]
         changes = []  # Jev gathers the richer PR diff/context from this checkout.
     else:
@@ -162,6 +173,7 @@ def evaluate_index(
                     f"pipeline_id:{pipeline_id}",
                     f"index_kind:{executor.kind.value}",
                     "service:dynamic_test_evaluator",
+                    *extra_tags,
                 ]
             )
             if send_stats
@@ -197,6 +209,50 @@ def evaluate_index(
             evaluator.send_stats_to_datadog(results)
     if failed:
         raise Exit("Evaluation incomplete; see the errors above", code=1)
+
+
+def _read_pr_summary(path: str) -> str:
+    """The pre-generated LLM PR summary, or "" (raw diff) when none is usable."""
+    if not path:
+        return ""
+    try:
+        with open(path, encoding="utf-8") as f:
+            summary = f.read().strip()
+    except OSError as e:
+        print(color_message(f"No usable LLM PR summary ({e}), passing the raw diff to Jev", Color.ORANGE))
+        return ""
+    print(f"LLM PR summary loaded from {path} ({len(summary)} chars)")
+    return summary
+
+
+@task(
+    help={
+        "output": "File to write the summary to (consumed by dyntest.evaluate-index --pr-summary-file)",
+        "base": "Base branch of the PR (COMPARE_TO_BRANCH, else main)",
+        "model": "AI Gateway model (JEV_SUMMARY_MODEL, else gpt-4o-mini)",
+    }
+)
+def generate_jev_pr_summary(ctx: Context, output: str, base: str = "", model: str = ""):
+    """Generate the LLM summary of the PR changes for the Jev selection, ONCE.
+
+    Runs in its own CI job; the written file is shared as an artifact with
+    the jobs passing it to Jev (dyntest.evaluate-index --pr-summary-file), so
+    the LLM is called once per pipeline. Gated by the
+    'datadog-agent-jev-llm-summary' feature flag: disabled, nothing is
+    written and the consumers pass the raw diff.
+    """
+    if not is_enabled(ctx, "datadog-agent-jev-llm-summary"):
+        print(color_message("LLM PR summary disabled", Color.ORANGE))
+        return
+    summary = generate_pr_summary(
+        base=base or None,
+        model=model or None,
+        dc=os.environ.get("JEV_DC", "us1.ddbuild.io"),
+        token_cmd=os.environ.get("JEV_TOKEN_CMD"),
+    )
+    with open(output, "w", encoding="utf-8") as f:
+        f.write(summary + "\n")
+    print(f"LLM PR summary written to {output}:\n{summary}")
 
 
 @task(
