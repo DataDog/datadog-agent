@@ -22,24 +22,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var _ = declareInlineConfig(TestSecurityProfileV2DNSResponse)
+var _ = declareInlineConfig(TestWorkloadProfileV2DNSResponse)
 
-func TestSecurityProfileV2DNSResponse(t *testing.T) {
-	testSecurityProfileV2DNSResponse(t, []*rules.RuleDefinition{})
+func TestWorkloadProfileV2DNSResponse(t *testing.T) {
+	testWorkloadProfileV2DNSResponse(t, []*rules.RuleDefinition{})
 }
 
-var _ = declareInlineConfig(TestSecurityProfileV2DNSFullResponse)
+var _ = declareInlineConfig(TestWorkloadProfileV2DNSFullResponse)
 
 // A rule on the response code makes the kernel send NOERROR responses on the full response path
 // instead of the short one.
-func TestSecurityProfileV2DNSFullResponse(t *testing.T) {
-	testSecurityProfileV2DNSResponse(t, []*rules.RuleDefinition{{
+func TestWorkloadProfileV2DNSFullResponse(t *testing.T) {
+	testWorkloadProfileV2DNSResponse(t, []*rules.RuleDefinition{{
 		ID:         "test_dns_full_response",
 		Expression: `dns.response.code == NOERROR && dns.question.name == "one.one.one.one"`,
 	}})
 }
 
-func testSecurityProfileV2DNSResponse(t *testing.T, ruleDefs []*rules.RuleDefinition) {
+func testWorkloadProfileV2DNSResponse(t *testing.T, ruleDefs []*rules.RuleDefinition) {
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
