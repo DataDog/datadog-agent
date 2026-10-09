@@ -149,6 +149,18 @@ properties:
         node_type: setting
         type: integer
         default: 5242880
+      stream_lifetime:
+        node_type: setting
+        type: string
+        default: 15m
+        comment: |-
+          How long a stream lives before it rotates, ending its interning
+          (dictionary and pattern) epoch. A positive duration with units, such as
+          15m or 90s; zero, negative, unitless and malformed values are rejected.
+          Independent of connection_reset_interval. Raising it must respect the
+          intake's stream-age limit. For an accelerated replay, divide this and
+          batch_wait by the effective replay speed to keep the epoch cadence per
+          corpus second.
       shutdown_timeout:
         node_type: setting
         type: string

@@ -218,3 +218,14 @@ func TestStreamTimeouts(t *testing.T) {
 		assert.Equal(t, 2*time.Minute, dest.AckTimeout)
 	})
 }
+
+func TestStreamLifetimeEnvOverride(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_FOLDSPACE_STREAM_LIFETIME", "90s")
+	cfg := configmock.New(t)
+	main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+	endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+	endpoints.Main = main
+	dest, err := BuildDestinationConfig(cfg, endpoints)
+	require.NoError(t, err)
+	assert.Equal(t, 90*time.Second, dest.Core.StreamLifetime)
+}
