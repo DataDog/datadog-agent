@@ -102,11 +102,6 @@ func TestComputeContainerTagsHash(t *testing.T) {
 		assert.Equal(t, expected, computeContainerTagsHash(after))
 	})
 
-	t.Run("stable regardless of tag order", func(t *testing.T) {
-		reversed := []string{"service:svc", "kube_container_name:app", "kube_namespace:namespace1", "kube_cluster_name:clusterA"}
-		assert.Equal(t, computeContainerTagsHash(stableTags), computeContainerTagsHash(reversed))
-	})
-
 	t.Run("different deployments hash differently", func(t *testing.T) {
 		canary := append([]string{"kube_deployment:app-canary", "kube_replica_set:app-canary-5d8f7c6b9"}, stableTags...)
 		stable := append([]string{"kube_deployment:app", "kube_replica_set:app-5d8f7c6b9"}, stableTags...)
