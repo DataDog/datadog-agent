@@ -2094,6 +2094,10 @@
         "previous": {
           "$ref": "#/$defs/NamespaceIDs",
           "description": "Namespace IDs of the thread before the syscall"
+        },
+        "mntns_host": {
+          "type": "boolean",
+          "description": "Indicates that the mount namespace of the thread once the syscall returned is the host's initial one"
         }
       },
       "additionalProperties": false,

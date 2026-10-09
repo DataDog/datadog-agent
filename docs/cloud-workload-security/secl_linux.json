@@ -7982,6 +7982,11 @@
           "property_doc_link": "common-namespaceids-mntns-doc"
         },
         {
+          "name": "setns.mntns_host",
+          "definition": "Indicates that the mount namespace of the thread once the syscall returned is the host's initial one, the namespace PID 1 on the host lives in. false if either namespace couldn't be resolved",
+          "property_doc_link": "setns-mntns_host-doc"
+        },
+        {
           "name": "setns.netns",
           "definition": "Network namespace ID, 0 if it couldn't be resolved",
           "property_doc_link": "common-namespaceids-netns-doc"
@@ -17398,6 +17403,18 @@
       "definition": "New group of the process",
       "prefixes": [
         "setgid"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.mntns_host",
+      "link": "setns-mntns_host-doc",
+      "type": "bool",
+      "definition": "Indicates that the mount namespace of the thread once the syscall returned is the host's initial one, the namespace PID 1 on the host lives in. false if either namespace couldn't be resolved",
+      "prefixes": [
+        "setns"
       ],
       "constants": "",
       "constants_link": "",

@@ -52,6 +52,9 @@
                         "timens": {
                             "type": "integer"
                         },
+                        "mntns_host": {
+                            "type": "boolean"
+                        },
                         "previous": {
                             "type": "object",
                             "properties": {

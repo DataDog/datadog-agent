@@ -714,6 +714,8 @@ type SetNSEventSerializer struct {
 	NamespaceIDsSerializer
 	// Namespace IDs of the thread before the syscall
 	Previous *NamespaceIDsSerializer `json:"previous,omitempty"`
+	// Indicates that the mount namespace of the thread once the syscall returned is the host's initial one
+	MntNSHost bool `json:"mntns_host,omitempty"`
 }
 
 // NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved
@@ -1699,6 +1701,7 @@ func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
 		NSType:                 model.CloneFlags(e.SetNS.NSType).StringArray(),
 		NamespaceIDsSerializer: NamespaceIDsSerializer(e.SetNS.NamespaceIDs),
 		Previous:               &previous,
+		MntNSHost:              e.SetNS.MntNSHost,
 	}
 }
 
