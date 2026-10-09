@@ -17,12 +17,80 @@ features:
     ships each line N times. Configure the source on one Agent per share.
     The bytes reported missed for an SMB source are a lower bound: when a
     file is deleted, or compressed and deleted, before the Agent lists it
-    again, the lines it gained since are lost without being counted. The
-    Agent signs every SMB message, which authenticates the server's
-    responses, and refuses guest and anonymous sessions. It does not encrypt
-    the traffic itself: the log lines are encrypted only if the server
-    enforces encryption or the source sets ``require_encryption: true`` in
-    its ``smb`` block. Only the full Agent on Linux, Windows and macOS,
+    again, the lines it gained since are lost without being counted.
+    Hardening: the Agent signs every SMB message, which authenticates the
+    server's responses, and refuses guest and anonymous sessions (a guest
+    session stops the logons of its account and password like a refusal, see
+    Logons). It offers SMB 3.1.1, 3.0.2 and 3.0 only, so
+    that an attacker on the network path cannot force an SMB 2 session, which
+    cannot be encrypted; set ``allow_smb2: true`` in the ``smb`` block for a
+    server that supports nothing newer. It does not encrypt the traffic
+    itself: the log lines are encrypted only if the server enforces encryption
+    or the source sets ``require_encryption: true`` in its ``smb`` block, which
+    makes the Agent refuse, and try again every 30 seconds, a server that
+    encrypts neither the session nor the share (it cannot be combined with
+    ``allow_smb2``). Use the server's fully qualified domain name or its IP
+    address as ``host``: when DNS cannot resolve a single-label name such as
+    ``fileserver``, Windows asks the local subnet (LLMNR, NetBIOS), and a name
+    ending in ``.local`` is resolved with multicast DNS, so any machine on the
+    subnet can answer and receive the account's NTLMv2 response, which can be
+    cracked offline. The Agent logs a warning for such a host. NTLM does not
+    authenticate the server to the Agent: use a dedicated account with the
+    least privilege and a long random password.
+    Logons: a wrong password must not lock out an Active Directory service
+    account, which a few bad logons from any source lock. The Agent sends one
+    logon at a time per account: the user name and the domain (whatever their
+    case), or the user name alone when the source sets no domain, without a
+    ``DOMAIN\`` prefix or an ``@`` suffix. The host is never part of the
+    account, since a domain-joined server chooses the domain by itself.
+    Once the server refused a password (wrong password, unknown user), granted
+    only a guest session, or said that the account is disabled or expired or that
+    its password expired or must be changed, the Agent sends no logon with that
+    account and password, to any host or share, until the password changes (a
+    refreshed secret or a changed source) or the Agent restarts: at most one
+    refused logon per password per Agent process, however many sources and
+    servers use the account. The cost: a refusal by one server also stops the
+    same user and password on every other server. The state is kept in memory:
+    N Agents that use one account send N logons. A locked-out account is tried
+    once an hour, give or take 10%. A logon that was sent and got no answer (a
+    timeout or a lost connection after the AUTHENTICATE message) may still
+    have been counted by a slow domain controller, so that account and
+    password wait 15 minutes, give or take 10%, before the next logon; a logon
+    cancelled because its source was replaced or removed starts no wait. A
+    network error before the logon, a domain controller that cannot be reached,
+    a failed trust, a refused tree connect, an unknown share or a server that
+    does not encrypt never stops anything: the source tries again after its
+    backoff. The status of each source names its own share, says why the Agent
+    stopped, and tells what to fix: the password, then refresh the secret or
+    restart the Agent.
+    File limit: all ``smb`` sources of an Agent together have two budgets of
+    ``logs_config.open_files_limit`` (500 by default, 200 on macOS), one for the
+    active tailers and one for the drains of rotated files, so that they never
+    exceed twice the limit. A new file starts a tailer only while a tailer slot
+    is free, the most recently modified first. The limit never stops anything:
+    a tailer that is running is not replaced by a newer file, so a stale file
+    that the ``path`` still matches keeps its slot; narrow the ``path`` to the
+    files that are written, or raise the limit. A file that gets no slot waits,
+    shows in the source status as "N files not tailed (open_files_limit
+    reached)", and starts when a slot frees, from ``start_position`` or its
+    registry offset like any new file. When a path is rotated, truncated or
+    replaced, its next tailer takes over the slot of the old one, so the active
+    file never waits. The rotated file gets a drain slot if one is free; if
+    none is, its rest is not read, the bytes the Agent had not read are
+    reported missed, and a later tailer of that file does not read them again.
+    Listings: the Agent does not list a directory with more than 100,000
+    entries, whose entries take more than 64 MiB, or that has a name longer
+    than 255 characters, and shows it in the source status. One scan lists at
+    most that much in all, a directory that was refused counting as a full
+    listing, and lists the directories it left first the next time. A
+    directory that stays too large is asked for again after 1 minute, then 2,
+    4, 8 and every 15 minutes. While a scan leaves directories out, it does not
+    conclude that a file whose tailer stopped is gone. In a directory that is
+    not listed the Agent still reads by name the files it tails there and the
+    file of a source that names it; a file that rotates there is read from its
+    new file, and the new files of the directory are not found until it can be
+    listed.
+    Only the full Agent on Linux, Windows and macOS,
     including its container image, includes the SMB log source: the IoT
     Agent, the Heroku Agent and FIPS builds of the Agent do not, and report
     ``smb`` sources as errors in the Agent status. FIPS builds leave it out
