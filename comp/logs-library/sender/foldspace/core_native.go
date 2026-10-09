@@ -81,8 +81,7 @@ func NewNativeCore(cfg Config) (Core, error) {
 	native.reconnect_backoff_cap_nanos = C.uint64_t(cfg.ReconnectBackoffCap)
 	native.drain_timeout_nanos = C.uint64_t(cfg.DrainTimeout)
 	native.stream_lifetime_nanos = C.uint64_t(cfg.StreamLifetime)
-	native.first_payload_batch_id = C.uint32_t(cfg.FirstPayloadBatchID)
-	native.snapshot_batch_id = C.uint32_t(cfg.SnapshotBatchID)
+	native.first_batch_id = C.uint32_t(cfg.FirstBatchID)
 
 	classes := make([]C.uint8_t, len(cfg.Endpoints))
 	for i, e := range cfg.Endpoints {

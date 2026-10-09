@@ -37,6 +37,9 @@ type FakeTransport struct {
 	// its ctx ends.
 	stallStreams int
 	opens        int
+	// blockOpen makes every OpenStream wait until its ctx ends, as a dial to an
+	// intake that never answers does.
+	blockOpen bool
 }
 
 // NewFakeTransport returns a transport with n senders that acks OK.
@@ -63,8 +66,13 @@ func (t *FakeTransport) SetOpenError(sender SenderID, err error) {
 }
 
 // OpenStream returns a FakeStream that records writes and acks OK.
-func (t *FakeTransport) OpenStream(_ context.Context, sender SenderID, _ StreamID) (Stream, error) {
+func (t *FakeTransport) OpenStream(ctx context.Context, sender SenderID, _ StreamID) (Stream, error) {
 	t.mu.Lock()
+	if t.blockOpen {
+		t.mu.Unlock()
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	defer t.mu.Unlock()
 	if t.openErr != nil && t.openErr[sender] != nil {
 		err := t.openErr[sender]
