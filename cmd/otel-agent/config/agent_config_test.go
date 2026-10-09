@@ -455,6 +455,20 @@ func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
 	assert.Equal(t, "info", c.Get("log_level"))
 }
 
+func (suite *ConfigTestSuite) TestLogLevelSpec() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_log_level_spec.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// a per-package specification is kept as configured, the collector
+	// telemetry level doesn't rewrite it
+	assert.Equal(t, "error,./pkg/...=debug", c.Get("log_level"))
+}
+
 func (suite *ConfigTestSuite) TestBadDDConfigFile() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"

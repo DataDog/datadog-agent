@@ -35,6 +35,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	logtypes "github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 type logLevel int
@@ -155,35 +156,47 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 
+	// The log level is either a single level, merged with the collector
+	// telemetry level below (most verbose wins), or a per-package level
+	// specification, which states exactly what should log where and is kept
+	// as configured.
 	activeLogLevel := critical
+	var levelSpec string
 	if pkgconfig.IsConfigured("log_level") {
-		var ok bool
-		logLevel := strings.ToLower(pkgconfig.GetString("log_level"))
-		activeLogLevel, ok = logLevelMap[logLevel]
-		if !ok {
-			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
+		logLevelValue := pkgconfig.GetString("log_level")
+		if lvl, ok := logLevelMap[strings.ToLower(logLevelValue)]; ok {
+			activeLogLevel = lvl
+		} else if err := logtypes.ValidateLevelRules(logLevelValue); err != nil {
+			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", logLevelValue)
+		} else {
+			levelSpec = logLevelValue
 		}
 	}
-	// Set the right log level. The most verbose setting takes precedence.
-	telemetryLogLevel := "info"
-	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
-		if stLogsCfg, ok := stCfgMap["logs"]; ok {
-			if stLogsCfgMap, ok := stLogsCfg.(map[string]any); ok {
-				if stLogsLevel, ok := stLogsCfgMap["level"]; ok {
-					telemetryLogLevel = stLogsLevel.(string)
+	if levelSpec != "" {
+		fmt.Printf("setting log level to: %v\n", levelSpec)
+		pkgconfig.Set("log_level", levelSpec, pkgconfigmodel.SourceFile)
+	} else {
+		// Set the right log level. The most verbose setting takes precedence.
+		telemetryLogLevel := "info"
+		if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
+			if stLogsCfg, ok := stCfgMap["logs"]; ok {
+				if stLogsCfgMap, ok := stLogsCfg.(map[string]any); ok {
+					if stLogsLevel, ok := stLogsCfgMap["level"]; ok {
+						telemetryLogLevel = stLogsLevel.(string)
+					}
 				}
 			}
 		}
+		telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel)]
+		if !ok {
+			return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel)
+		}
+		if telemetryLogMapping < activeLogLevel {
+			activeLogLevel = telemetryLogMapping
+		}
+		fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
+		pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 	}
-	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel)]
-	if !ok {
-		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel)
-	}
-	if telemetryLogMapping < activeLogLevel {
-		activeLogLevel = telemetryLogMapping
-	}
-	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
-	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	// Standalone mode runs without a core Datadog Agent on the same host, so
 	// every client that would otherwise contact it over IPC (trace-agent
