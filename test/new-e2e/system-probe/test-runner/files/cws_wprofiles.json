@@ -3,12 +3,11 @@
 		"pkg/security": {
 			"exclude": false,
 			"run-only": [
-				"TestActivityDump",
-				"TestSecurityProfile"
+				"TestWorkloadProfile"
 			]
 		}
 	},
 	"additional_env_vars": [
-		"DEDICATED_ACTIVITY_DUMP_NODE=1"
+		"DEDICATED_WORKLOAD_PROFILE_NODE=1"
 	]
 }

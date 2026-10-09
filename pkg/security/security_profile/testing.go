@@ -9,125 +9,56 @@
 package securityprofile
 
 import (
-	"errors"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
-	"github.com/cilium/ebpf"
 )
 
-// AddProfile adds a profile to the manager
-func (m *Manager) AddProfile(profile *profile.Profile) {
-	m.newProfiles <- profile
-}
-
-// FakeDumpOverweight fakes a dump stats to force triggering the load controller. For unitary tests purpose only.
-func (m *Manager) FakeDumpOverweight(name string) {
-	m.m.Lock()
-	defer m.m.Unlock()
-	for _, p := range m.activeDumps {
-		if p.Profile.Metadata.Name == name {
-			p.Profile.FakeOverweight()
-		}
-	}
-}
-
-// ListAllProfileStates list all profiles and their versions (debug purpose only)
-func (m *Manager) ListAllProfileStates() {
+// GetProfile returns the live profile of the provided selector, or nil if the manager has none
+func (m *ManagerV2) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Profile {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
-	for _, profile := range m.profiles {
-		profile.ListAllVersionStates()
-	}
-}
-
-// GetProfile returns a profile by its selector
-func (m *Manager) GetProfile(selector cgroupModel.WorkloadSelector) *profile.Profile {
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
-
-	// check if this workload had a Security Profile
 	return m.profiles[selector]
 }
 
-// EvictAllTracedCgroups blacklists all currently traced cgroups by adding them to the discarded map
-func (m *Manager) EvictAllTracedCgroups() {
-	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
-		return
+// GetProfileSnapshot returns a decoded copy of the profile of the provided selector, so that its activity tree
+// can be inspected while the manager keeps inserting events in the live profile
+func (m *ManagerV2) GetProfileSnapshot(selector cgroupModel.WorkloadSelector) (*profile.Profile, error) {
+	live := m.GetProfile(selector)
+	if live == nil {
+		return nil, nil
 	}
 
-	// Iterate through the kernel traced_cgroups map and evict everything
-	var cgroupInode uint64
-	var cookie uint64
-	iterator := m.tracedCgroupsMap.Iterate()
-
-	var cgroupsToEvict []uint64
-	for iterator.Next(&cgroupInode, &cookie) {
-		cgroupsToEvict = append(cgroupsToEvict, cgroupInode)
+	raw, err := live.Encode(config.Profile)
+	if err != nil {
+		return nil, err
 	}
 
-	if err := iterator.Err(); err != nil {
-		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
+	snapshot := profile.New(
+		profile.WithWorkloadSelector(selector),
+		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
+	)
+	if err := snapshot.DecodeFromReader(raw, config.Profile); err != nil {
+		return nil, err
 	}
-
-	for _, cgroupInode := range cgroupsToEvict {
-		// Add to discarded map to blacklist
-		if err := m.tracedCgroupsDiscardedMap.Put(cgroupInode, uint8(1)); err != nil {
-			if !errors.Is(err, ebpf.ErrKeyNotExist) {
-				seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
-			}
-		}
-	}
+	return snapshot, nil
 }
 
-// ClearTracedCgroups clears all entries from the traced cgroups map
-func (m *Manager) ClearTracedCgroups() {
-	if !m.config.RuntimeSecurity.ActivityDumpEnabled {
-		return
-	}
+// PersistAllProfiles persists all the profiles, as the persistence ticker does
+func (m *ManagerV2) PersistAllProfiles() {
+	m.persistAllProfiles()
+}
 
-	m.m.Lock()
-	defer m.m.Unlock()
+// EvictUnusedNodes runs one node eviction cycle, as the eviction ticker does
+func (m *ManagerV2) EvictUnusedNodes() {
+	m.evictUnusedNodes()
+}
 
-	// First, disable and remove all active dumps AND add them to discarded map
-	for _, ad := range m.activeDumps {
-		// Add to discarded map BEFORE disabling
-		if !ad.Profile.Metadata.CGroupContext.CGroupPathKey.IsNull() {
-			if err := m.tracedCgroupsDiscardedMap.Put(ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode, uint8(1)); err != nil {
-				if !errors.Is(err, ebpf.ErrKeyNotExist) {
-					seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
-				}
-			}
-		}
-
-		_ = m.disableKernelEventCollection(ad)
-	}
-	m.activeDumps = nil
-
-	// Then clear the kernel maps (both traced and discarded)
-	var err error
-	var cgroupInode uint64
-	var cookie uint64
-	iterator := m.tracedCgroupsMap.Iterate()
-
-	var cgroupsToDelete []uint64
-	for iterator.Next(&cgroupInode, &cookie) {
-		cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
-	}
-
-	if err = iterator.Err(); err != nil {
-		seclog.Warnf("couldn't iterate over the map traced_cgroups: %v", err)
-	}
-
-	for _, cgroupInode := range cgroupsToDelete {
-		// Add to discarded map FIRST to prevent kernel from re-adding it
-		if err := m.tracedCgroupsDiscardedMap.Put(cgroupInode, uint8(1)); err != nil {
-			if !errors.Is(err, ebpf.ErrKeyNotExist) {
-				seclog.Warnf("couldn't add cgroup to discarded map: %v", err)
-			}
-		}
-		// Then delete from traced map
-		_ = m.tracedCgroupsMap.Delete(cgroupInode)
-	}
+// ProfilingStartupDelayRemaining returns how long the manager keeps ignoring events because of the profiling
+// startup delay, or a negative duration once the delay is over
+func (m *ManagerV2) ProfilingStartupDelayRemaining() time.Duration {
+	now := m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now())
+	return m.config.RuntimeSecurity.SecurityProfileV2ProfilingStartupDelay - time.Duration(now-m.startTimeMono)
 }
