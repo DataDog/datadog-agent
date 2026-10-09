@@ -1305,3 +1305,66 @@ func TestResolvePackageRefreshesSteadyUsage(t *testing.T) {
 		}
 	})
 }
+
+// TestUsageMapsBytecodeToSource checks that the use of Python bytecode credits
+// the package of its source, while the file itself keeps its installing package.
+func TestUsageMapsBytecodeToSource(t *testing.T) {
+	const debian = "/usr/lib/python3/dist-packages/requests/"
+	const alpine = "/usr/lib/python3.12/site-packages/requests/"
+
+	sbom := NewSBOM("container-id", nil, "image")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "python3-requests"}, InstalledFiles: []string{debian + "api.py", debian + "__init__.py"}},
+		{Package: sbomtypes.Package{Name: "py3-requests"}, InstalledFiles: []string{alpine + "api.py"}},
+		{Package: sbomtypes.Package{Name: "py3-requests-pyc"}, InstalledFiles: []string{alpine + "__pycache__/api.cpython-312.pyc", alpine + "__pycache__/compat.cpython-312.pyc"}},
+	})
+	r := &Resolver{}
+
+	for _, tc := range []struct {
+		path        string
+		usage, file string
+	}{
+		{debian + "__pycache__/api.cpython-311.pyc", "python3-requests", ""},
+		{debian + "__pycache__/__init__.cpython-311.opt-1.pyc", "python3-requests", ""},
+		{debian + "api.py", "python3-requests", "python3-requests"},
+		{debian + "__pycache__/missing.cpython-311.pyc", "", ""},
+		{alpine + "__pycache__/api.cpython-312.pyc", "py3-requests", "py3-requests-pyc"},
+		{alpine + "__pycache__/compat.cpython-312.pyc", "py3-requests-pyc", "py3-requests-pyc"},
+	} {
+		for _, lookup := range []struct {
+			keys fileKeys
+			want string
+		}{{newUsageKeys(tc.path), tc.usage}, {newFileKeys(tc.path), tc.file}} {
+			got := ""
+			if pkg := r.owner(sbom, 0, lookup.keys); pkg != nil {
+				got = pkg.Name
+			}
+			if got != lookup.want {
+				t.Errorf("owner of %s = %q, want %q", tc.path, got, lookup.want)
+			}
+		}
+	}
+}
+
+// TestPendingFileEventsMapBytecodeToSource checks that the use of bytecode queued
+// before the scan of its container credits the package of its source.
+func TestPendingFileEventsMapBytecodeToSource(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	r.cfg = &config.RuntimeSecurityConfig{SBOMResolverForwardInterval: time.Hour}
+
+	sbom := NewSBOM("container-id", nil, "image")
+	t.Cleanup(sbom.stop)
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "python3-requests"},
+		InstalledFiles: []string{"/usr/lib/python3/dist-packages/requests/api.py"},
+	}})
+
+	r.queuePendingFileEvent("container-id", "/usr/lib/python3/dist-packages/requests/__pycache__/api.cpython-311.pyc", 0644, false)
+	sbom.Lock()
+	r.processPendingFileEvents(sbom)
+	sbom.Unlock()
+
+	if sbom.data.packages[0].LastAccess.IsZero() {
+		t.Errorf("the queued import left python3-requests unused")
+	}
+}

@@ -9,6 +9,7 @@
 package sbom
 
 import (
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -98,12 +99,58 @@ func (fq *fileQuerier) queryHash(hash uint64) *sbomtypes.Package {
 	return fq.pkgs[fq.owners[i]]
 }
 
-func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
-	var alias uint64
-	if a := pathAlias(path); a != "" {
-		alias = murmur3.StringSum64(a)
+// fileKeys holds the hashes an access to a file matches in the index, those of
+// its path and usr-merge alias, preceded for Python bytecode by its source's.
+type fileKeys struct {
+	source, sourceAlias, path, alias uint64
+}
+
+// newFileKeys returns the keys of the file at path itself.
+func newFileKeys(path string) fileKeys {
+	return fileKeys{path: murmur3.StringSum64(path), alias: aliasHash(path)}
+}
+
+// newUsageKeys returns the keys of the file at path, preceded by those of the
+// source of Python bytecode, whose package a use of the module credits.
+func newUsageKeys(path string) fileKeys {
+	k := newFileKeys(path)
+	if source, ok := pycSource(path); ok {
+		k.source, k.sourceAlias = murmur3.StringSum64(source), aliasHash(source)
 	}
-	return fq.queryHashes(murmur3.StringSum64(path), alias)
+	return k
+}
+
+func aliasHash(path string) uint64 {
+	if alias := pathAlias(path); alias != "" {
+		return murmur3.StringSum64(alias)
+	}
+	return 0
+}
+
+// pycSource returns the source dir/name.py of the bytecode Python caches as
+// dir/__pycache__/name.cpython-312.pyc, if path is such bytecode.
+func pycSource(path string) (string, bool) {
+	dir, name := filepath.Split(path)
+	if !strings.HasSuffix(name, ".pyc") || filepath.Base(dir) != "__pycache__" {
+		return "", false
+	}
+	module, _, _ := strings.Cut(name, ".")
+	return filepath.Join(filepath.Dir(filepath.Clean(dir)), module+".py"), true
+}
+
+func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
+	return fq.queryKeys(newFileKeys(path))
+}
+
+// queryKeys returns the package owning the source of keys, else the one owning
+// their file.
+func (fq *fileQuerier) queryKeys(k fileKeys) *sbomtypes.Package {
+	if k.source != 0 {
+		if pkg := fq.queryHashes(k.source, k.sourceAlias); pkg != nil {
+			return pkg
+		}
+	}
+	return fq.queryHashes(k.path, k.alias)
 }
 
 // queryHashes returns the package owning the file of hash, or on a usr-merged
