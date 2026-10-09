@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 
 	"golang.org/x/crypto/ssh"
@@ -261,6 +262,17 @@ func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*types.Comma
 }
 
 func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	// Device CLI prompts are configurable; if the instance overrides it, apply
+	// it to a copy of the command (never mutate the shared profile command).
+	if cmd.Interactive && c.device != nil && c.device.Prompt != "" {
+		if re, err := regexp.Compile(c.device.Prompt); err != nil {
+			log.Warnf("NCM: ignoring invalid prompt override %q for device %q, using profile default: %v", c.device.Prompt, c.device.IPAddress, err)
+		} else {
+			clone := *cmd
+			clone.Prompt = re
+			cmd = &clone
+		}
+	}
 	return ExecuteCommand(ctx, c.client, cmd)
 }
 
