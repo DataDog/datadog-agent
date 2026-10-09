@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -126,6 +128,66 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("queued file accesses of the removed SBOM were not released")
+	}
+}
+
+func newScanQueueResolver(t *testing.T) (*Resolver, *SBOM) {
+	t.Helper()
+	r := newPendingFileEventsResolver(t)
+	sboms, err := simplelru.NewLRU(10, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	r.scanChan = make(chan *SBOM, 1)
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	t.Cleanup(sbom.stop)
+	sboms.Add(sbom.ContainerID, sbom)
+	if !r.addPendingScan(sbom.ContainerID) {
+		t.Fatalf("addPendingScan failed")
+	}
+	return r, sbom
+}
+
+// TestScanFailedRetriesScan checks that a workload whose scan failed is queued
+// for a scan again. It held its scan slot and waited for good.
+func TestScanFailedRetriesScan(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r, sbom := newScanQueueResolver(t)
+
+		r.scanFailed(sbom, errors.New("scan failed"))
+		time.Sleep(failedScanRetryDelay)
+		synctest.Wait()
+
+		select {
+		case queued := <-r.scanChan:
+			if queued != sbom {
+				t.Errorf("queued unexpected SBOM for a scan")
+			}
+		default:
+			t.Fatalf("the workload was not queued for a scan again")
+		}
+	})
+}
+
+// TestScanFailedReleasesGoneWorkload checks that a workload whose processes are
+// gone releases its scan slot and leaves the scan queue.
+func TestScanFailedReleasesGoneWorkload(t *testing.T) {
+	for _, err := range []error{errNoProcessForContainerID, errNoContainerRoot} {
+		t.Run(err.Error(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				r, sbom := newScanQueueResolver(t)
+
+				r.scanFailed(sbom, err)
+				time.Sleep(failedScanRetryDelay)
+				synctest.Wait()
+
+				if len(r.pendingScan) != 0 || len(r.scanChan) != 0 {
+					t.Errorf("%d pending scans, %d queued, want none", len(r.pendingScan), len(r.scanChan))
+				}
+			})
+		})
 	}
 }
 
