@@ -97,6 +97,12 @@ type Share struct {
 	unmounted        bool
 }
 
+// Encrypted reports whether the requests on this share are encrypted, because
+// the session or the share requires it. DATADOG PATCH 7.
+func (fs *Share) Encrypted() bool {
+	return fs != nil && fs.treeConn.Encrypted()
+}
+
 // Unmount disconnects the current SMB tree and cached DFS trees.
 // The Client retains their sessions until Client.Close.
 //
@@ -139,6 +145,38 @@ func (fs *Share) Open(ctx context.Context, name string) (*File, error) {
 		panic("nil context")
 	}
 	return fs.OpenFile(ctx, name, os.O_RDONLY, 0)
+}
+
+// OpenDir opens the directory name, to read its entries one batch at a time
+// with File.Readdir. Like Share.ReadDir, which reads them all at once, it opens
+// the directory with FILE_DIRECTORY_FILE, so that a server refuses a name that
+// is a file with STATUS_NOT_A_DIRECTORY, and it sends no create context.
+// DATADOG PATCH 8.
+func (fs *Share) OpenDir(ctx context.Context, name string) (*File, error) {
+	if ctx == nil {
+		panic("nil context")
+	}
+	if fs == nil {
+		return nil, os.ErrInvalid
+	}
+	name, err := pathpkg.NormalizeRelPath(pathpkg.ToSMBPath(name))
+	if err != nil {
+		return nil, err
+	}
+
+	req := fs.Request().WithFollowSymlinks(true).
+		Create(name, wire.FILE_READ_DATA|wire.FILE_READ_ATTRIBUTES|wire.READ_CONTROL, wire.FILE_OPEN, wire.FILE_DIRECTORY_FILE, wire.FILE_ATTRIBUTE_NORMAL)
+	res, err := req.Do(ctx)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: name, Err: err}
+	}
+	defer res.Close()
+
+	r, err := res.Create(0)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: name, Err: err}
+	}
+	return fs.newFile(r, name), nil
 }
 
 func (fs *Share) OpenFile(ctx context.Context, name string, flag int, perm os.FileMode) (*File, error) {

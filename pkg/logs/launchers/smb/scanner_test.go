@@ -279,6 +279,7 @@ func newTestLauncher(share *fake.Share, clk clock.Clock) *Launcher {
 	l := NewLauncher(closeTimeout)
 	l.clock = clk
 	l.dial = share.Dial
+	l.guard = client.NewGuard(clk) // not the guard of the process, which tests would share
 	l.forceReadEvery = 3
 	return l
 }
@@ -1487,7 +1488,9 @@ func TestListingErrorKeepsTailers(t *testing.T) {
 func TestAuthErrorStatus(t *testing.T) {
 	h := newHarness(t)
 	h.share.Write("app/app.log", []byte(lines(1, 1)))
-	h.share.FailNext(fake.OpDial, fmt.Errorf("logon failed with password %s: %w", testPassword, fake.ErrAuth))
+	// Access denied is no refused logon, which stops the account's logons for
+	// good (see logon_test.go): it is retried after 30s.
+	h.share.FailNext(fake.OpDial, fmt.Errorf("logon failed with password %s: %w", testPassword, fake.ErrAccessDenied))
 
 	h.scan()
 	require.True(t, h.source.Status().IsError())
@@ -1504,6 +1507,32 @@ func TestAuthErrorStatus(t *testing.T) {
 	assert.Equal(t, 2, h.share.Calls(fake.OpDial))
 	assert.True(t, h.source.Status().IsSuccess())
 	assert.Equal(t, want(1, 1), h.out.waitLines(t, 1))
+}
+
+// TestRequireEncryptionRefusalSaysEncryption covers a server that does not
+// encrypt while the source requires it: the status says so, not that the
+// credentials were rejected, and the Agent tries again after 30s, so that
+// enabling encryption on the server takes effect quickly.
+func TestRequireEncryptionRefusalSaysEncryption(t *testing.T) {
+	h := newHarness(t)
+	h.share.Write("app/app.log", []byte(lines(1, 1)))
+	h.share.FailNext(fake.OpDial, fmt.Errorf("smb: connect to smb://%s/%s: %w", testHost, testShare, client.ErrNotEncrypted))
+
+	h.scan()
+	require.True(t, h.source.Status().IsError())
+	msg := h.source.Status().GetError()
+	assert.Contains(t, msg, "require_encryption")
+	assert.Contains(t, msg, "encrypts neither the session nor the share")
+	assert.NotContains(t, msg, "rejected the credentials")
+	assert.NotContains(t, msg, "Check the username, password")
+
+	h.clock.Add(29 * time.Second)
+	h.scan()
+	assert.Equal(t, 1, h.share.Calls(fake.OpDial))
+	h.clock.Add(time.Second)
+	h.scan()
+	assert.Equal(t, 2, h.share.Calls(fake.OpDial), "retried after 30s")
+	assert.True(t, h.source.Status().IsSuccess())
 }
 
 func TestMissingDirectoryStatus(t *testing.T) {

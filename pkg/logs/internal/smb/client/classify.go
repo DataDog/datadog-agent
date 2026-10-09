@@ -35,6 +35,11 @@ const (
 	// ErrSharing means another open conflicts with ours (sharing violation or
 	// byte-range lock). Retry on the next poll.
 	ErrSharing
+	// ErrTooLarge means a directory has more entries, or bigger ones, than the
+	// client lists (see ErrTooManyEntries, ErrListingTooLarge and
+	// ErrNameTooLong). It needs a change of the source's path or of the
+	// directory; reading it again would give the same result.
+	ErrTooLarge
 )
 
 // String implements fmt.Stringer.
@@ -48,6 +53,8 @@ func (k ErrorKind) String() string {
 		return "auth"
 	case ErrSharing:
 		return "sharing"
+	case ErrTooLarge:
+		return "too large"
 	default:
 		return "other"
 	}
@@ -72,6 +79,7 @@ const (
 	statusPasswordExpired        = 0xC0000071
 	statusAccountDisabled        = 0xC0000072
 	statusIOTimeout              = 0xC00000B5
+	statusNotSupported           = 0xC00000BB
 	statusNetworkNameDeleted     = 0xC00000C9
 	statusNetworkAccessDenied    = 0xC00000CA
 	statusBadNetworkName         = 0xC00000CC
@@ -138,6 +146,11 @@ func Classify(err error) ErrorKind {
 	if err == nil {
 		return ErrOther
 	}
+	// The Agent's own errors come first: they wrap library errors, redacted or
+	// not, that classify otherwise.
+	if errors.Is(err, errGuestSession) || errors.Is(err, ErrNotEncrypted) || errors.Is(err, ErrLogonStopped) {
+		return ErrAuth
+	}
 	var redacted *redactedError
 	if errors.As(err, &redacted) {
 		return redacted.kind
@@ -145,8 +158,8 @@ func Classify(err error) ErrorKind {
 	if errors.Is(err, ErrClosed) {
 		return ErrOther
 	}
-	if errors.Is(err, errGuestSession) {
-		return ErrAuth
+	if errors.Is(err, ErrTooManyEntries) || errors.Is(err, ErrListingTooLarge) || errors.Is(err, ErrNameTooLong) {
+		return ErrTooLarge
 	}
 	if code, ok := statusCode(err); ok {
 		return statusKinds[code]
@@ -186,6 +199,10 @@ func Classify(err error) ErrorKind {
 // request that is the earliest failed operation, which is the one that
 // caused the others to fail.
 func statusCode(err error) (uint32, bool) {
+	var redacted *redactedError
+	if errors.As(err, &redacted) {
+		return redacted.code, redacted.hasCode
+	}
 	var respErr *protocol.ResponseError
 	if errors.As(err, &respErr) && respErr != nil {
 		return respErr.Code, true

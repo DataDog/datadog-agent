@@ -38,6 +38,39 @@ const (
 // ErrClosed is returned by every call made after Close.
 var ErrClosed = errors.New("smb client is closed")
 
+// ErrTooManyEntries is wrapped by the error ListDir returns for a directory
+// with more than maxListEntries entries, which it does not list: reading a
+// directory without a bound would let a very large one, or a server that never
+// stops sending entries, exhaust the Agent's memory. It classifies as
+// ErrTooLarge.
+var ErrTooManyEntries = errors.New("too many entries")
+
+// TooManyEntries returns the error ListDir returns for dir.
+func TooManyEntries(dir string) error {
+	return fmt.Errorf("directory %q has more than %d entries and is not scanned: %w", dir, maxListEntries, ErrTooManyEntries)
+}
+
+// ErrListingTooLarge is wrapped by the error ListDir returns for a directory
+// whose entries would take more than maxListBytes of memory, which it does not
+// list, whatever their number. It classifies as ErrTooLarge.
+var ErrListingTooLarge = errors.New("listing too large")
+
+// ListingTooLarge returns the error ListDir returns for dir.
+func ListingTooLarge(dir string) error {
+	return fmt.Errorf("the entries of directory %q take more than %d MiB and are not scanned: %w", dir, maxListBytes>>20, ErrListingTooLarge)
+}
+
+// ErrNameTooLong is wrapped by the error ListDir returns for a directory with
+// an entry whose name has more than 255 UTF-16 code units, the longest a file
+// name can be: a server that sends one is faulty or hostile, and the listing is
+// refused whole. It classifies as ErrTooLarge.
+var ErrNameTooLong = errors.New("name too long")
+
+// NameTooLong returns the error ListDir returns for dir.
+func NameTooLong(dir string) error {
+	return fmt.Errorf("directory %q has an entry whose name is longer than %d characters, which no file name is, and is not scanned: %w", dir, maxNameUnits, ErrNameTooLong)
+}
+
 // Config describes one share and the account used to mount it.
 //
 // The password is never printed: String and GoString redact it, so the usual
@@ -50,6 +83,16 @@ type Config struct {
 	Password string
 	Domain   string // NTLM domain; empty lets the server choose
 	Port     int    // 0 means 445
+
+	// AllowSMB2 offers SMB 2.0.2 and 2.1 besides SMB 3.x, for servers that
+	// support nothing newer. SMB 2 sessions cannot be encrypted, and the
+	// negotiation that picks the dialect is not authenticated before SMB 3.1.1.
+	AllowSMB2 bool
+	// RequireEncryption makes Dial fail unless the server encrypts the session
+	// or the share (SMB 3 only). Without it, the Agent signs every message but
+	// the content of the files can be read by anyone on the network path
+	// unless the server enforces encryption.
+	RequireEncryption bool
 
 	DialTimeout time.Duration // bounds connect, authentication and mount; 0 means 10s
 	OpTimeout   time.Duration // bounds each ListDir/ReadAt call; 0 means 30s
@@ -126,7 +169,10 @@ func creationKey(t time.Time) int64 {
 // use.
 type Client interface {
 	// ListDir lists dir, relative to the share root ("" is the root), sorted by
-	// name and without "." and "..".
+	// name and without "." and "..". A directory with more than 100,000 entries
+	// (or entries that take more than 64 MiB, or a name longer than 255
+	// characters) is not listed: the error classifies as ErrTooLarge, and no
+	// part of the directory is returned.
 	ListDir(ctx context.Context, dir string) ([]Entry, error)
 	// ReadAt opens path (read-only, share READ|WRITE|DELETE, no lease), reads
 	// up to max bytes from off, and closes the handle before returning. It
@@ -177,14 +223,14 @@ func CleanPath(p string) (string, error) {
 
 // String implements fmt.Stringer without the password.
 func (c Config) String() string {
-	return fmt.Sprintf("{Host:%s Share:%s Username:%s Password:%s Domain:%s Port:%d DialTimeout:%s OpTimeout:%s}",
-		c.Host, c.Share, c.Username, redact(c.Password), c.Domain, c.Port, c.DialTimeout, c.OpTimeout)
+	return fmt.Sprintf("{Host:%s Share:%s Username:%s Password:%s Domain:%s Port:%d AllowSMB2:%t RequireEncryption:%t DialTimeout:%s OpTimeout:%s}",
+		c.Host, c.Share, c.Username, redact(c.Password), c.Domain, c.Port, c.AllowSMB2, c.RequireEncryption, c.DialTimeout, c.OpTimeout)
 }
 
 // GoString implements fmt.GoStringer without the password.
 func (c Config) GoString() string {
-	return fmt.Sprintf("client.Config{Host:%q, Share:%q, Username:%q, Password:%q, Domain:%q, Port:%d, DialTimeout:%d, OpTimeout:%d}",
-		c.Host, c.Share, c.Username, redact(c.Password), c.Domain, c.Port, c.DialTimeout, c.OpTimeout)
+	return fmt.Sprintf("client.Config{Host:%q, Share:%q, Username:%q, Password:%q, Domain:%q, Port:%d, AllowSMB2:%t, RequireEncryption:%t, DialTimeout:%d, OpTimeout:%d}",
+		c.Host, c.Share, c.Username, redact(c.Password), c.Domain, c.Port, c.AllowSMB2, c.RequireEncryption, c.DialTimeout, c.OpTimeout)
 }
 
 // target names the share in logs and errors, without credentials.
@@ -219,6 +265,8 @@ func (c Config) validate() error {
 		return fmt.Errorf("smb: share %q must be a single share name", c.Share)
 	case c.Port < 0 || c.Port > 65535:
 		return fmt.Errorf("smb: port %d is out of range", c.Port)
+	case c.AllowSMB2 && c.RequireEncryption:
+		return errors.New("smb: require_encryption needs SMB 3 and cannot be combined with allow_smb2")
 	}
 	return nil
 }

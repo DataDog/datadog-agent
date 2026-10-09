@@ -54,6 +54,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -661,13 +662,15 @@ func testPasswordChange(t *testing.T, env *sambaEnv, report *itReport) {
 	authError(source)
 	errorStatus := env.redact(statuses[0])
 
-	// 2. The server accepts the old password again: the source recovers once
-	// its authentication backoff (30s) is over.
+	// 2. The server accepts the old password again, but the Agent sends a
+	// refused password once per process: no logon is sent, over the 30s of the
+	// source's own backoff and more, and the source stays in error until its
+	// password changes.
 	env.setPassword(original)
-	restoredAt := time.Now()
-	s.waitFor(source.Status().IsSuccess, time.Minute, func() string { return "status: " + source.Status().GetError() })
-	recoveredAfter := time.Since(restoredAt)
-	s.waitDelivered(s.lastSeq())
+	dialsBefore := s.dials.Load()
+	time.Sleep(35 * time.Second)
+	assert.Equal(t, dialsBefore, s.dials.Load(), "the refused password is not sent again")
+	assert.Contains(t, source.Status().GetError(), "rejected the credentials")
 
 	// 3. The server's password changes again, and so does the source's
 	// configuration.
@@ -693,8 +696,8 @@ func testPasswordChange(t *testing.T, env *sambaEnv, report *itReport) {
 	for _, status := range statuses {
 		assert.Zero(t, env.secretsIn(status), "a password reached the source status: %s", env.redact(status))
 	}
-	s.reportf("auth error status %q; recovered %s after the server took the old password back, %s after the source got the new one; %d lines each delivered once",
-		errorStatus, recoveredAfter.Round(100*time.Millisecond), updatedRecovery.Round(100*time.Millisecond), s.writtenCount())
+	s.reportf("auth error status %q; no logon with the refused password while the server accepted it again, recovered %s after the source got the new one; %d lines each delivered once",
+		errorStatus, updatedRecovery.Round(100*time.Millisecond), s.writtenCount())
 }
 
 // --- scenario harness -----------------------------------------------------
@@ -796,6 +799,7 @@ func (s *itScenario) startSource(source *sources.LogSource) {
 // registry, which the collector commits offsets to.
 func (s *itScenario) startLauncher(registry *auditorMock.Registry) {
 	l := NewLauncher(s.closeTimeout)
+	l.guard = client.NewGuard(clock.New()) // not the guard of the process, which the scenarios would share
 	l.dial = s.dial
 	l.Start(s.sources, s.provider, registry, tailers.NewTailerTracker())
 	s.launcher = l

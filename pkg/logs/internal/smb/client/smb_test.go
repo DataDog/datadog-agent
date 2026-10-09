@@ -10,8 +10,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	smb2 "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/x/protocol"
 )
 
@@ -293,12 +296,48 @@ func TestRedactErr(t *testing.T) {
 
 	leaky := fmt.Errorf("auth failed for password %s: %w", testPassword, status(statusLogonFailure))
 	err := redactErr(leaky, testPassword)
-	assert.Equal(t, "auth failed for password ********: "+status(statusLogonFailure).Error(), err.Error())
+	assert.Equal(t, redactedMessage, err.Error(), "the whole message goes: no substring of it is kept for a guess to probe")
 	assert.Equal(t, ErrAuth, Classify(err), "the classification survives the redaction")
+	code, ok := statusCode(err)
+	assert.True(t, ok)
+	assert.Equal(t, uint32(statusLogonFailure), code, "so does the status code")
 	assert.Nil(t, errors.Unwrap(err), "the original error, which holds the password, is dropped")
 	for _, verb := range []string{"%v", "%+v", "%s", "%#v"} {
 		assert.NotContains(t, fmt.Sprintf(verb, err), testPassword, verb)
 	}
+
+	// The sentinels of this package survive too, and a password of one character
+	// is looked for like any other.
+	guest := redactErr(fmt.Errorf("%s: %w", "x", errGuestSession), "x")
+	assert.Equal(t, redactedMessage, guest.Error())
+	assert.ErrorIs(t, guest, errGuestSession)
+	assert.Equal(t, ErrAuth, Classify(guest))
+	assert.NotErrorIs(t, guest, ErrClosed)
+}
+
+func TestRedactionKeepsAgentText(t *testing.T) {
+	cfg := Config{Host: "files.example.com", Share: "logs", Username: "u", Password: "encrypt the session", RequireEncryption: true}.withDefaults()
+
+	// The encryption check: the error is the Agent's own text, which holds the
+	// password.
+	refusal := checkEncryption(encrypted(false), true)
+	require.ErrorIs(t, refusal, ErrNotEncrypted)
+	require.Contains(t, refusal.Error(), cfg.Password)
+	err := checked(fmt.Errorf("smb: connect to %s: %w", cfg.target(), refusal))
+	assert.Same(t, err, redactErr(err, cfg.Password), "text built by Dial is not searched again")
+	assert.ErrorIs(t, err, ErrNotEncrypted)
+	assert.Contains(t, err.Error(), "does not encrypt")
+	assert.Equal(t, ErrAuth, Classify(err))
+
+	// A library error that holds the password is redacted before the Agent's
+	// text is added, and the guest sentinel survives.
+	guestLib := fmt.Errorf("%s: %w", cfg.Password, &protocol.InvalidResponseError{Message: "guest account doesn't support signing"})
+	guestErr := dialError(guestLib, cfg, cfg.target(), true)
+	assert.NotContains(t, guestErr.Error(), cfg.Password)
+	assert.Contains(t, guestErr.Error(), "check the username and password")
+	assert.ErrorIs(t, guestErr, errGuestSession)
+	assert.Equal(t, ErrAuth, Classify(guestErr), "a guest session needs user action, not a retry")
+	assert.Same(t, guestErr, redactErr(guestErr, cfg.Password))
 }
 
 func TestSMBClientRejectsBadArguments(t *testing.T) {
@@ -335,6 +374,225 @@ func TestDialerRequiresSigning(t *testing.T) {
 	d := newDialer(cfg)
 	assert.True(t, d.RequireMessageSigning, "unsigned sessions, including guest and anonymous ones, are refused")
 	assert.True(t, d.DisableAAPLExtension)
+}
+
+func TestDialerOffersOnlySMB3ByDefault(t *testing.T) {
+	cfg := Config{Host: "h", Share: "s", Username: "u", Password: testPassword}.withDefaults()
+	assert.Equal(t, []smb2.Dialect{smb2.SMB311, smb2.SMB302, smb2.SMB300}, newDialer(cfg).SpecifiedDialects,
+		"SMB 2.x cannot be encrypted and its negotiation is not authenticated: it is not offered unless the source opts in")
+
+	cfg.AllowSMB2 = true
+	assert.Empty(t, newDialer(cfg).SpecifiedDialects, "allow_smb2 leaves the library's list, SMB 3.1.1 down to 2.0.2")
+}
+
+type encrypted bool
+
+func (e encrypted) Encrypted() bool { return bool(e) }
+
+func TestRequireEncryptionFailsClosed(t *testing.T) {
+	assert.NoError(t, checkEncryption(encrypted(true), true))
+	assert.NoError(t, checkEncryption(encrypted(true), false))
+	assert.NoError(t, checkEncryption(encrypted(false), false), "encryption is opt-in")
+
+	err := checkEncryption(encrypted(false), true)
+	require.ErrorIs(t, err, ErrNotEncrypted)
+	assert.Equal(t, ErrAuth, Classify(err), "it needs a change of the server or of the source, so it backs off like an auth failure")
+	assert.Equal(t, ErrAuth, Classify(fmt.Errorf("smb: connect to smb://h/s: %w", err)))
+
+	assert.ErrorContains(t, Config{Host: "h", Share: "s", AllowSMB2: true, RequireEncryption: true}.validate(), "cannot be combined with allow_smb2")
+	assert.NoError(t, Config{Host: "h", Share: "s", RequireEncryption: true}.validate())
+}
+
+func TestNegotiateHintForServersWithoutSMB3(t *testing.T) {
+	notSupported := fmt.Errorf("smb: connect to smb://h/s: %w", status(statusNotSupported))
+	cfg := Config{Host: "h", Share: "s"}
+
+	err := negotiateHint(notSupported, cfg)
+	assert.ErrorIs(t, err, notSupported)
+	assert.ErrorContains(t, err, "allow_smb2: true")
+
+	cfg.AllowSMB2 = true
+	assert.Equal(t, notSupported, negotiateHint(notSupported, cfg), "no hint when SMB 2 is already allowed")
+	cfg.AllowSMB2 = false
+	other := status(statusAccessDenied)
+	assert.Equal(t, other, negotiateHint(other, cfg))
+	assert.Equal(t, io.EOF, negotiateHint(io.EOF, cfg))
+}
+
+// fakeInfo is a directory entry as the library reports it.
+type fakeInfo struct {
+	name string
+}
+
+func (f fakeInfo) Name() string       { return f.name }
+func (f fakeInfo) Size() int64        { return 1 }
+func (f fakeInfo) Mode() os.FileMode  { return 0 }
+func (f fakeInfo) ModTime() time.Time { return time.Time{} }
+func (f fakeInfo) IsDir() bool        { return false }
+func (f fakeInfo) Sys() any           { return nil }
+
+// pages serves a directory of total entries the way File.Readdir does: full
+// batches, then a short one (or none, with io.EOF) at the end.
+func pages(total int, reads *int) func(n int) ([]os.FileInfo, error) {
+	next := 0
+	return func(n int) ([]os.FileInfo, error) {
+		*reads++
+		var infos []os.FileInfo
+		for len(infos) < n && next < total {
+			infos = append(infos, fakeInfo{name: fmt.Sprintf("f%07d.log", next)})
+			next++
+		}
+		if len(infos) == 0 {
+			return nil, io.EOF
+		}
+		return infos, nil
+	}
+}
+
+func TestReadEntries(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		total int
+		reads int // batch reads the listing takes
+	}{
+		{"empty directory", 0, 1},
+		{"less than a batch", 10, 1},
+		{"one full batch, then the end", 1024, 2},
+		{"several batches", 2500, 3},
+		{"exactly the limit", 5000, 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var reads int
+			entries, err := readEntries(pages(tc.total, &reads), 1024, 5000, maxListBytes)
+			require.NoError(t, err)
+			assert.Len(t, entries, tc.total)
+			assert.Equal(t, tc.reads, reads)
+		})
+	}
+}
+
+// TestReadEntriesRefusesWhatTheLimitCannotHold covers a directory over the
+// limit, and a server that never stops sending entries: the listing stops
+// after the batch that crosses the limit, and returns an error, never part of
+// the directory.
+func TestReadEntriesRefusesWhatTheLimitCannotHold(t *testing.T) {
+	var reads int
+	entries, err := readEntries(pages(5001, &reads), 1024, 5000, maxListBytes)
+	require.ErrorIs(t, err, ErrTooManyEntries)
+	assert.Nil(t, entries)
+	assert.Equal(t, 5, reads, "the batch that crossed the limit was the last one read")
+	assert.Equal(t, ErrTooLarge, Classify(err))
+
+	reads = 0
+	_, err = readEntries(pages(1<<30, &reads), 1024, maxListEntries, maxListBytes)
+	require.ErrorIs(t, err, ErrTooManyEntries)
+	assert.LessOrEqual(t, reads, maxListEntries/listBatch+1, "an endless listing stops at the limit")
+}
+
+// namedPages serves a directory that never ends, whose entries are named by
+// name(i), the way File.Readdir does.
+func namedPages(name func(i int) string, reads *int) func(n int) ([]os.FileInfo, error) {
+	next := 0
+	return func(n int) ([]os.FileInfo, error) {
+		*reads++
+		infos := make([]os.FileInfo, 0, n)
+		for range n {
+			infos = append(infos, fakeInfo{name: name(next)})
+			next++
+		}
+		return infos, nil
+	}
+}
+
+// TestReadEntriesStopsAtTheByteBudget: a count of entries does not bound the
+// memory of a listing whose names are long, so the entries have a budget in
+// bytes too, and the listing stops once a batch crosses it. With the limits of
+// ListDir, a server that sends names of the longest allowed length, in
+// multibyte characters, takes the budget long before the count.
+func TestReadEntriesStopsAtTheByteBudget(t *testing.T) {
+	cjk := strings.Repeat("日", maxNameUnits) // 255 UTF-16 code units, 765 bytes
+	var reads int
+	entries, err := readEntries(namedPages(func(int) string { return cjk }, &reads), listBatch, maxListEntries, maxListBytes)
+	require.ErrorIs(t, err, ErrListingTooLarge)
+	assert.Nil(t, entries)
+	perEntry := len(cjk) + entryOverhead
+	assert.Equal(t, maxListBytes/perEntry/listBatch+1, reads, "the batch that crossed the budget was the last one read")
+	assert.Less(t, reads*listBatch, maxListEntries, "the budget, not the count, stopped it")
+	assert.Equal(t, ErrTooLarge, Classify(err))
+
+	// Under the budget, the same entries are listed.
+	reads = 0
+	entries, err = readEntries(pages(3000, &reads), listBatch, maxListEntries, 3000*(len("f0000000.log")+entryOverhead))
+	require.NoError(t, err)
+	assert.Len(t, entries, 3000)
+}
+
+// TestReadEntriesRefusesLongNames: a name longer than 255 UTF-16 code units, the
+// longest a file name can be, refuses the whole listing.
+func TestReadEntriesRefusesLongNames(t *testing.T) {
+	for name, tc := range map[string]struct {
+		name string
+		ok   bool
+	}{
+		"255 ASCII characters":           {strings.Repeat("a", 255), true},
+		"256 ASCII characters":           {strings.Repeat("a", 256), false},
+		"255 characters of 3 bytes":      {strings.Repeat("日", 255), true},
+		"256 characters of 3 bytes":      {strings.Repeat("日", 256), false},
+		"127 astral characters (254)":    {strings.Repeat("😀", 127), true},
+		"128 astral characters (256)":    {strings.Repeat("😀", 128), false},
+		"a name the size of a page":      {strings.Repeat("a", 64*1024), false},
+		"an empty name stays an entry":   {"", true},
+		"a name with invalid UTF-8 byte": {strings.Repeat("\xff", 256), false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			entries, err := readEntries(func(int) ([]os.FileInfo, error) {
+				return []os.FileInfo{fakeInfo{name: "ok.log"}, fakeInfo{name: tc.name}}, io.EOF
+			}, listBatch, maxListEntries, maxListBytes)
+			if tc.ok {
+				require.NoError(t, err)
+				assert.Len(t, entries, 2)
+				return
+			}
+			require.ErrorIs(t, err, ErrNameTooLong)
+			assert.Nil(t, entries, "no part of the listing is returned")
+			assert.Equal(t, ErrTooLarge, Classify(err))
+		})
+	}
+}
+
+func TestListingRefusals(t *testing.T) {
+	err := ListingTooLarge("app/logs")
+	assert.Equal(t, ErrTooLarge, Classify(err))
+	assert.Equal(t, ErrTooLarge, Classify(fmt.Errorf("list: %w", err)))
+	assert.Contains(t, err.Error(), `"app/logs"`)
+	assert.Contains(t, err.Error(), "64 MiB")
+
+	err = NameTooLong("app/logs")
+	assert.Equal(t, ErrTooLarge, Classify(err))
+	assert.Contains(t, err.Error(), `"app/logs"`)
+	assert.Contains(t, err.Error(), "255 characters")
+
+	// One batch past the limits is what a server can make the client hold:
+	// listBatch entries of a directory page, 64 KiB, each, and the entries decoded
+	// from them, about 6 MiB in all.
+	assert.LessOrEqual(t, listBatch*64*1024, 4<<20)
+	assert.Equal(t, 6<<20, listBatch*64*1024+2<<20)
+}
+
+func TestReadEntriesErrors(t *testing.T) {
+	boom := errors.New("boom")
+	_, err := readEntries(func(int) ([]os.FileInfo, error) { return []os.FileInfo{fakeInfo{name: "a"}}, boom }, 1024, 5000, maxListBytes)
+	assert.ErrorIs(t, err, boom, "a failed read returns its error, not the entries read so far")
+}
+
+func TestTooManyEntriesError(t *testing.T) {
+	err := TooManyEntries("app/logs")
+	assert.Equal(t, ErrTooLarge, Classify(err))
+	assert.Equal(t, ErrTooLarge, Classify(fmt.Errorf("list: %w", err)))
+	assert.Contains(t, err.Error(), `"app/logs"`)
+	assert.Contains(t, err.Error(), "100000 entries")
+	assert.Equal(t, "too large", ErrTooLarge.String())
+	assert.Equal(t, 100_000, maxListEntries)
 }
 
 func TestGuestSessionIsAnAuthError(t *testing.T) {
@@ -461,4 +719,24 @@ func TestDialHonorsCallerContext(t *testing.T) {
 	require.Error(t, err)
 	assert.Less(t, time.Since(start), 5*time.Second)
 	assert.Equal(t, ErrTransient, Classify(err))
+}
+
+func TestListingCostCountsAsReadEntriesDoes(t *testing.T) {
+	entries := []Entry{{Name: "a"}, {Name: "bcd"}}
+	assert.Equal(t, 1+3+2*entryOverhead, ListingCost(entries))
+	read := func(maxBytes int) ([]Entry, error) {
+		done := false
+		return readEntries(func(int) ([]os.FileInfo, error) {
+			if done {
+				return nil, io.EOF
+			}
+			done = true
+			return []os.FileInfo{fakeInfo{name: "a"}, fakeInfo{name: "bcd"}}, nil
+		}, 2, 100, maxBytes)
+	}
+	_, err := read(ListingCost(entries) - 1)
+	assert.ErrorIs(t, err, ErrListingTooLarge, "ListDir refuses a listing just over the cost ListingCost gives it")
+	got, err := read(ListingCost(entries))
+	require.NoError(t, err)
+	assert.Len(t, got, 2)
 }

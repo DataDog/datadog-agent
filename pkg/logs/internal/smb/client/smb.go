@@ -9,8 +9,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,6 +31,35 @@ const (
 	// keeps the negotiated maximum private, so a larger READ could fail with
 	// STATUS_INVALID_PARAMETER on some servers.
 	readChunkSize = 64 * 1024
+
+	// listBatch is the number of entries of one read of a directory, and
+	// maxListEntries the most entries ListDir returns. A directory with more
+	// is refused with ErrTooManyEntries: the scanner lists every directory of
+	// a source's pattern on each poll, so an unbounded listing would be
+	// rebuilt in memory every second, from a legitimate directory with
+	// millions of files or from a server that sends entries without end. The
+	// limit is far above what a log directory holds (the launcher tails at most
+	// logs_config.open_files_limit files, 500 by default).
+	//
+	// maxListBytes bounds the memory of the entries as well, since a count
+	// alone does not: a server can send entries whose names fill a whole
+	// directory page, 64 KiB, each. It is refused with ErrListingTooLarge. An
+	// entry costs its name plus entryOverhead, the size of the struct and of the
+	// library's file information.
+	//
+	// A read of listBatch entries may collect one directory page of up to
+	// 64 KiB per entry before the limits are checked (4 MiB), and the library
+	// decodes the entries of those pages into file information, so the batch
+	// bounds how far a server gets past them: about 6 MiB at most.
+	//
+	// maxNameUnits is the longest name an entry may have, in UTF-16 code units:
+	// the longest a file name is on NTFS, ReFS, SMB and Samba. A longer one is
+	// refused with ErrNameTooLong.
+	listBatch      = 64
+	maxListEntries = 100_000
+	maxListBytes   = 64 << 20
+	entryOverhead  = 128
+	maxNameUnits   = 255
 
 	// abortGrace is how long an operation may keep running after its context
 	// ended before the session is aborted. READ and QUERY_DIRECTORY return as
@@ -68,19 +99,25 @@ func Dial(ctx context.Context, cfg Config) (Client, error) {
 	defer cancel()
 
 	// Dial closes the transport when ctx ends, so it is bounded on its own.
-	sess, err := newDialer(cfg).Dial(ctx, cfg.Host)
+	var sent atomic.Bool
+	d := newDialer(cfg)
+	d.Credentials = recordAuthenticate(d.Credentials, &sent)
+	sess, err := d.Dial(ctx, cfg.Host)
 	if err != nil {
-		if isGuestSession(err) {
-			err = fmt.Errorf("%w: %w", errGuestSession, err)
-		}
-		return nil, redactErr(fmt.Errorf("smb: connect to %s: %w", target, err), cfg.Password)
+		return nil, dialError(err, cfg, target, sent.Load())
 	}
 	done := watchdog(ctx, abortGrace, func() { _ = sess.Abort() })
 	share, err := sess.Mount(ctx, cfg.Share)
 	done()
 	if err != nil {
 		_ = sess.Abort()
-		return nil, redactErr(fmt.Errorf("smb: connect to %s: %w", target, err), cfg.Password)
+		// The server accepted the credentials: whatever it answers at the tree
+		// connect is no bad logon of the account (see notALogon).
+		return nil, checked(fmt.Errorf("smb: connect to %s: %w", target, notALogon(redactErr(err, cfg.Password))))
+	}
+	if err := checkEncryption(share, cfg.RequireEncryption); err != nil {
+		_ = sess.Abort()
+		return nil, checked(fmt.Errorf("smb: connect to %s: %w", target, err))
 	}
 	return &smbClient{
 		target:    target,
@@ -89,6 +126,121 @@ func Dial(ctx context.Context, cfg Config) (Client, error) {
 		sess:      sess,
 		share:     share,
 	}, nil
+}
+
+// dialError returns the error of a failed session setup: the library's error
+// without the password, with the Agent's own text around it. The Agent's text is
+// added after the password is removed from the library's, so that a password
+// that happens to be a word of it cannot take the Agent's text away. sent tells
+// that the AUTHENTICATE message was sent: a failure with no answer from the
+// server is then marked unanswered (see Guard).
+func dialError(err error, cfg Config, target string, sent bool) error {
+	out := redactErr(err, cfg.Password)
+	switch {
+	case isGuestSession(err):
+		out = fmt.Errorf("%w: %w", errGuestSession, out)
+	case sent && noAnswer(err):
+		out = unanswered(negotiateHint(out, cfg))
+	default:
+		out = negotiateHint(out, cfg)
+	}
+	return checked(fmt.Errorf("smb: connect to %s: %w", target, out))
+}
+
+// noAnswer reports whether err is a network failure that left the AUTHENTICATE
+// without an answer: no status code, and not an answer the library could not
+// parse, which the server did send.
+func noAnswer(err error) bool {
+	var invalid *protocol.InvalidResponseError
+	_, answered := statusCode(err)
+	return !answered && !errors.As(err, &invalid) && Classify(err) == ErrTransient
+}
+
+// recordAuthenticate makes creds set sent once the AUTHENTICATE message is made,
+// which the Dialer sends next: from then on the server may count a bad password.
+func recordAuthenticate(creds smb2.Credentials, sent *atomic.Bool) smb2.Credentials {
+	return authenticateRecorder{creds, sent}
+}
+
+type authenticateRecorder struct {
+	smb2.Credentials
+	sent *atomic.Bool
+}
+
+func (r authenticateRecorder) NewInitiator(ctx context.Context, server string) (auth.Initiator, error) {
+	init, err := r.Credentials.NewInitiator(ctx, server)
+	if err != nil {
+		return nil, err
+	}
+	return &recordingInitiator{init, r.sent}, nil
+}
+
+type recordingInitiator struct {
+	auth.Initiator
+	sent *atomic.Bool
+}
+
+func (i *recordingInitiator) AcceptSecContext(challenge []byte) ([]byte, error) {
+	msg, err := i.Initiator.AcceptSecContext(challenge)
+	if err == nil {
+		i.sent.Store(true)
+	}
+	return msg, err
+}
+
+// IsAnonymous keeps the library's check for an initiator that has no credentials.
+func (i *recordingInitiator) IsAnonymous() bool {
+	anon, ok := i.Initiator.(interface{ IsAnonymous() bool })
+	return ok && anon.IsAnonymous()
+}
+
+// checked marks err as built by Dial: the library's text in it was already
+// searched for the password, and the Agent's own text must not be.
+func checked(err error) error { return &checkedError{err} }
+
+type checkedError struct{ error }
+
+func (e *checkedError) Unwrap() error { return e.error }
+
+// smb3Dialects are the dialects the Agent offers unless the source sets
+// allow_smb2. A server that supports none of them answers the negotiation with
+// STATUS_NOT_SUPPORTED. Restricting the list keeps an attacker who can alter
+// the unauthenticated negotiation from forcing a downgrade to SMB 2, whose
+// sessions cannot be encrypted. SMB 3.1.1 protects the negotiation itself
+// (pre-authentication integrity); 3.0 and 3.0.2 are kept for Windows Server
+// 2012 and 2012 R2, and Samba before 4.3.
+var smb3Dialects = []smb2.Dialect{smb2.SMB311, smb2.SMB302, smb2.SMB300}
+
+func dialects(cfg Config) []smb2.Dialect {
+	if cfg.AllowSMB2 {
+		return nil // the library's list: SMB 3.1.1 down to 2.0.2
+	}
+	return smb3Dialects
+}
+
+// negotiateHint adds to a dial error the hint that fits a server which supports
+// none of the dialects offered, which answers the negotiation with
+// STATUS_NOT_SUPPORTED.
+func negotiateHint(err error, cfg Config) error {
+	if code, ok := statusCode(err); ok && code == statusNotSupported && !cfg.AllowSMB2 {
+		return fmt.Errorf("%w (the server may support only SMB 2, which the Agent does not offer by default: set allow_smb2: true in the source's smb block to allow it, preferably after upgrading the server)", err)
+	}
+	return err
+}
+
+// ErrNotEncrypted is the error of a dial to a server that does not encrypt the
+// session or the share while the source requires it. It classifies as ErrAuth,
+// so it is retried every 30 seconds: the server's configuration, or the
+// source's, needs a change, and the credentials were accepted.
+var ErrNotEncrypted = errors.New("the server does not encrypt the session or the share, which require_encryption demands: enable encryption on the server (for example Windows 'Encrypt data access' on the share, or Samba 'server smb encrypt = required'), or turn require_encryption off for a network you trust")
+
+// checkEncryption fails closed when the source requires encryption and the
+// mounted share is not encrypted.
+func checkEncryption(share interface{ Encrypted() bool }, require bool) error {
+	if require && !share.Encrypted() {
+		return ErrNotEncrypted
+	}
+	return nil
 }
 
 // newDialer returns the dialer of Dial. cfg has its defaults applied.
@@ -113,6 +265,8 @@ func newDialer(cfg Config) *smb2.Dialer {
 		// guest and anonymous sessions ([MS-SMB2] 3.2.5.3.1), see
 		// isGuestSession.
 		RequireMessageSigning: true,
+		// Only SMB 3 unless the source opts into SMB 2 (see smb3Dialects).
+		SpecifiedDialects: dialects(cfg),
 		// The Apple extension is only needed to manage security descriptors on
 		// macOS servers; skipping it saves a CREATE on the share root.
 		DisableAAPLExtension: true,
@@ -146,25 +300,115 @@ func (c *smbClient) ListDir(ctx context.Context, dir string) ([]Entry, error) {
 	ctx, done := c.begin(ctx)
 	defer done()
 
-	infos, err := c.share.ReadDir(ctx, dir)
+	f, err := c.share.OpenDir(ctx, dir)
 	if err != nil {
 		return nil, c.wrapErr(err)
 	}
-	entries := make([]Entry, 0, len(infos))
-	for _, info := range infos {
-		e := Entry{
-			Name:    info.Name(),
-			Size:    info.Size(),
-			ModTime: info.ModTime(),
-			IsDir:   info.IsDir(),
+	// Close the handle even when ctx ended, so the server does not keep it
+	// open; the library bounds the call.
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), abortGrace)
+		defer cancel()
+		_ = f.Close(closeCtx)
+	}()
+
+	entries, err := readEntries(func(n int) ([]os.FileInfo, error) { return f.Readdir(ctx, n) }, listBatch, maxListEntries, maxListBytes)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrTooManyEntries):
+			return nil, TooManyEntries(dir)
+		case errors.Is(err, ErrListingTooLarge):
+			return nil, ListingTooLarge(dir)
+		case errors.Is(err, ErrNameTooLong):
+			return nil, NameTooLong(dir)
 		}
-		if st, ok := info.(*smb2.FileStat); ok {
-			e.FileID = normalizeFileID(st.FileId)
-			e.CreationTime = st.CreationTime
-		}
-		entries = append(entries, e)
+		return nil, c.wrapErr(err)
 	}
+	slices.SortFunc(entries, func(a, b Entry) int { return strings.Compare(a.Name, b.Name) })
 	return entries, nil
+}
+
+// entryCost is the memory an entry of a listing is counted for.
+func entryCost(name string) int { return len(name) + entryOverhead }
+
+// ListingCost returns what the entries of a listing count for against the limit
+// on the memory of listings (see maxListBytes), the same way ListDir counts
+// them: callers that list many directories bound them together with it.
+func ListingCost(entries []Entry) int {
+	cost := 0
+	for _, e := range entries {
+		cost += entryCost(e.Name)
+	}
+	return cost
+}
+
+// MaxListEntries and MaxListBytes are the most entries, and the most memory in
+// the sense of ListingCost, that one listing may have.
+const (
+	MaxListEntries = maxListEntries
+	MaxListBytes   = maxListBytes
+)
+
+// readEntries reads a directory with readBatch, which returns up to n entries
+// (io.EOF, or fewer than n, at the end), batch entries at a time. It returns
+// ErrTooManyEntries as soon as the directory has more than limit entries,
+// ErrListingTooLarge as soon as they take more than maxBytes (see
+// maxListBytes), and ErrNameTooLong at the first name of more than
+// maxNameUnits UTF-16 code units, without reading the rest: it never returns
+// part of a directory as if it were all of it.
+func readEntries(readBatch func(n int) ([]os.FileInfo, error), batch, limit, maxBytes int) ([]Entry, error) {
+	var (
+		entries []Entry
+		bytes   int
+	)
+	for {
+		infos, err := readBatch(batch)
+		for _, info := range infos {
+			name := info.Name()
+			if utf16Len(name) > maxNameUnits {
+				return nil, ErrNameTooLong
+			}
+			bytes += entryCost(name)
+			e := Entry{
+				Name:    name,
+				Size:    info.Size(),
+				ModTime: info.ModTime(),
+				IsDir:   info.IsDir(),
+			}
+			if st, ok := info.(*smb2.FileStat); ok {
+				e.FileID = normalizeFileID(st.FileId)
+				e.CreationTime = st.CreationTime
+			}
+			entries = append(entries, e)
+		}
+		switch {
+		case len(entries) > limit:
+			return nil, ErrTooManyEntries
+		case bytes > maxBytes:
+			return nil, ErrListingTooLarge
+		}
+		switch {
+		case errors.Is(err, io.EOF):
+			return entries, nil
+		case err != nil:
+			return nil, err
+		case len(infos) < batch:
+			return entries, nil // a short batch is the last one
+		}
+	}
+}
+
+// utf16Len returns the length of s in UTF-16 code units, which is how SMB
+// limits a name.
+func utf16Len(s string) int {
+	n := 0
+	for _, r := range s {
+		n++
+		if r >= 0x10000 {
+			n++ // a surrogate pair
+		}
+	}
+	return n
 }
 
 // ReadAt implements Client.
@@ -390,27 +634,57 @@ func watchdog(ctx context.Context, grace time.Duration, abort func()) (done func
 	}
 }
 
+// redactedMessage replaces the text of an error that contained the password.
+const redactedMessage = "the error text contained the password and was removed"
+
 // redactedError is an error whose message contained the password. It keeps
-// only the redacted message and the classification of the original error, so
-// unwrapping it cannot reveal the password either.
+// only a fixed message and what classifies the original error, so unwrapping
+// it cannot reveal the password either.
 type redactedError struct {
-	msg  string
-	kind ErrorKind
+	msg     string
+	kind    ErrorKind
+	code    uint32 // the server status code of the original error, if it had one
+	hasCode bool
+	// sentinels are the errors of this package the original error wrapped, so
+	// that errors.Is still finds them.
+	sentinels []error
 }
 
 func (e *redactedError) Error() string { return e.msg }
 
-// redactErr returns err unchanged unless its message contains secret, in
-// which case it returns a redactedError. The library never puts the password
-// in an error; this is a backstop for the guarantee that it never reaches a
-// log line or a status message.
+// Is makes errors.Is(err, sentinel) survive the redaction.
+func (e *redactedError) Is(target error) bool { return slices.Contains(e.sentinels, target) }
+
+// redactSentinels are the errors of this package that classify an error or tell
+// the Guard how it counts.
+var redactSentinels = []error{errGuestSession, ErrNotEncrypted, errNotALogon, ErrTooManyEntries, ErrListingTooLarge, ErrNameTooLong, ErrClosed}
+
+// redactErr returns err unchanged unless its text contains secret, which has at
+// at least one character, in which case it replaces the whole
+// message with a fixed one (no substring replacement, which would leave the
+// rest of the text for a guess to probe), keeping what classifies the error.
+// The library never puts the password in an error; this is a backstop for the
+// guarantee that it never reaches a log line or a status message.
+//
+// It is meant for the text of the library, which may only be searched before
+// the Agent adds its own (see dialError).
 func redactErr(err error, secret string) error {
 	if err == nil || secret == "" {
 		return err
 	}
-	msg := err.Error()
-	if !strings.Contains(msg, secret) {
+	var built *checkedError
+	if errors.As(err, &built) {
+		return err // built by Dial, which searched the library's text
+	}
+	if !strings.Contains(err.Error(), secret) {
 		return err
 	}
-	return &redactedError{msg: strings.ReplaceAll(msg, secret, redactedSecret), kind: Classify(err)}
+	code, hasCode := statusCode(err)
+	redacted := &redactedError{msg: redactedMessage, kind: Classify(err), code: code, hasCode: hasCode}
+	for _, sentinel := range redactSentinels {
+		if errors.Is(err, sentinel) {
+			redacted.sentinels = append(redacted.sentinels, sentinel)
+		}
+	}
+	return redacted
 }

@@ -40,6 +40,8 @@ var (
 	ErrNotFound     error = &protocol.ResponseError{Code: 0xC0000034} // STATUS_OBJECT_NAME_NOT_FOUND
 	ErrAuth         error = &protocol.ResponseError{Code: 0xC000006D} // STATUS_LOGON_FAILURE
 	ErrAccessDenied error = &protocol.ResponseError{Code: 0xC0000022} // STATUS_ACCESS_DENIED (ErrAuth kind)
+	ErrLockedOut    error = &protocol.ResponseError{Code: 0xC0000234} // STATUS_ACCOUNT_LOCKED_OUT
+	ErrDisabled     error = &protocol.ResponseError{Code: 0xC0000072} // STATUS_ACCOUNT_DISABLED
 	ErrSharing      error = &protocol.ResponseError{Code: 0xC0000043} // STATUS_SHARING_VIOLATION
 	errNotADir      error = &protocol.ResponseError{Code: 0xC0000103} // STATUS_NOT_A_DIRECTORY
 	errIsADir       error = &protocol.ResponseError{Code: 0xC00000BA} // STATUS_FILE_IS_A_DIRECTORY
@@ -134,6 +136,24 @@ func (s *Share) Mkdir(dir string) {
 	s.addDirs(dir)
 }
 
+// Rmdir removes dir, and every directory and file under it.
+func (s *Share) Rmdir(dir string) {
+	dir = mustClean(dir)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prefix := dir + "/"
+	for p := range s.files {
+		if p == dir || strings.HasPrefix(p, prefix) {
+			delete(s.files, p)
+		}
+	}
+	for d := range s.dirs {
+		if d == dir || strings.HasPrefix(d, prefix) {
+			delete(s.dirs, d)
+		}
+	}
+}
+
 // Write replaces the content of p, creating it (and its parent directories)
 // with a new FileID if needed, and returns the FileID.
 func (s *Share) Write(p string, data []byte) uint64 {
@@ -221,6 +241,19 @@ func (s *Share) Recreate(p string, reuseID uint64) uint64 {
 		f.id = reuseID
 	}
 	return f.id
+}
+
+// SetModTime sets the last write time p's listing reports, which Write and
+// Append otherwise set to the real time. It panics if p does not exist.
+func (s *Share) SetModTime(p string, t time.Time) {
+	p = mustClean(p)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, ok := s.files[p]
+	if !ok {
+		panic("fake: SetModTime of missing file " + p)
+	}
+	f.mtime = t
 }
 
 // Stat returns the current, never stale, entry for p.
