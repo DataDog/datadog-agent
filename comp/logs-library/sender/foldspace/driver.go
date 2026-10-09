@@ -422,17 +422,18 @@ func (d *Driver) senderLoop(sender SenderID) {
 	acks := make(chan streamAck, d.pipelineDepth*2)
 	timers := make(chan scheduledTimer, 4)
 
-	// sendCtx parents every Stream.Send: a stalled intake can block one via gRPC
-	// flow control, and that would hold this goroutine past d.stop being closed,
-	// which is what Stop's d.wg.Wait() waits on. Tying it to d.stop lets shutdown
-	// unblock a stuck send without waiting out the send deadline.
-	sendCtx, cancelSend := context.WithCancel(context.Background())
-	defer cancelSend()
+	// stopCtx parents every OpenStream and Stream.Send: an intake that never
+	// answers a dial, or stalls a send via gRPC flow control, would otherwise
+	// hold this goroutine past d.stop being closed, which is what Stop's
+	// d.wg.Wait() waits on. Tying it to d.stop lets shutdown end either without
+	// waiting out its timeout.
+	stopCtx, cancelStop := context.WithCancel(context.Background())
+	defer cancelStop()
 	go func() {
 		select {
 		case <-d.stop:
-			cancelSend()
-		case <-sendCtx.Done():
+			cancelStop()
+		case <-stopCtx.Done():
 		}
 	}()
 
@@ -473,7 +474,7 @@ func (d *Driver) senderLoop(sender SenderID) {
 							return
 						}
 					}
-					ctx, cancel := context.WithTimeout(context.Background(), d.connectTimeout)
+					ctx, cancel := context.WithTimeout(stopCtx, d.connectTimeout)
 					stream, err := d.transport.OpenStream(ctx, sender, effect.Stream)
 					cancel()
 					if err != nil {
@@ -498,7 +499,7 @@ func (d *Driver) senderLoop(sender SenderID) {
 					}
 					data := append([]byte(nil), effect.Batch.Bytes()...)
 					effect.Batch.Release()
-					ctx, cancel := context.WithTimeout(sendCtx, d.sendTimeout)
+					ctx, cancel := context.WithTimeout(stopCtx, d.sendTimeout)
 					err := current.Send(ctx, effect.BatchID, data)
 					cancel()
 					if err != nil {
