@@ -6,6 +6,7 @@
 package types
 
 import (
+	"cmp"
 	"log/slog"
 	"net/url"
 	"runtime"
@@ -87,17 +88,14 @@ func newLevelRules(level LogLevel, spec string, rules ...rule) *LevelRules {
 	}
 
 	slices.SortStableFunc(deduped, func(a, b rule) int {
-		if len(a.prefix) != len(b.prefix) {
-			if len(a.prefix) > len(b.prefix) {
-				return -1
-			}
-			return 1
+		if c := cmp.Compare(len(b.prefix), len(a.prefix)); c != 0 {
+			return c
 		}
 		if a.recursive != b.recursive {
-			if !a.recursive && b.recursive {
-				return -1
+			if a.recursive {
+				return 1
 			}
-			return 1
+			return -1
 		}
 		return 0
 	})
