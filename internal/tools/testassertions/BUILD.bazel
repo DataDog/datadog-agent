@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "testassertions_lib",
+    srcs = [
+        "extract.go",
+        "loader.go",
+        "main.go",
+        "render.go",
+        "testify.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/internal/tools/testassertions",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "testassertions",
+    embed = [":testassertions_lib"],
+    visibility = ["//:__subpackages__"],
+)
+
+dd_agent_go_test(
+    name = "testassertions_test",
+    srcs = ["main_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":testassertions_lib"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
