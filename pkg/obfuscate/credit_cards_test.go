@@ -279,6 +279,9 @@ func TestCCKeepValues(t *testing.T) {
 	assert.False(t, o.ShouldObfuscateCCKey("skip_me"))
 	assert.False(t, o.ShouldObfuscateCCKey("_some_safe_tag"))
 	assert.False(t, o.ShouldObfuscateCCKey("http.status_code"))
+	assert.False(t, o.ShouldObfuscateCCKey("cloud.account.id"))
+	assert.False(t, o.ShouldObfuscateCCKey("aws.account.id"))
+	assert.False(t, o.ShouldObfuscateCCKey("aws.target.account.id"))
 	assert.True(t, o.ShouldObfuscateCCKey("obfuscate_me"))
 }
 
