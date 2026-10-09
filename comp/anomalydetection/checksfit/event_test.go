@@ -10,6 +10,9 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/checksfit/fitcore"
 )
 
 // goldenEventBytes is the cross-language pin: the Rust implementation in the
@@ -147,4 +150,95 @@ func TestMalformedAnomalyEventPayloadsAreRejected(t *testing.T) {
 	if _, err := DecodeAnomalyEvent(invalidUTF8); !errors.Is(err, errInvalidUTF8) {
 		t.Fatalf("invalid UTF-8 error = %v, want %v", err, errInvalidUTF8)
 	}
+}
+
+func TestDecodeAnomalyEventRejectsUnknownType(t *testing.T) {
+	if _, err := decodeAnomalyEvent(7, []byte("unknown")); err == nil {
+		t.Fatal("a record type outside the protocol must be rejected")
+	}
+}
+
+func TestEventSubscriberReceivesPublishedEvents(t *testing.T) {
+	if !Supported {
+		t.Skip("FIT is unavailable on this platform")
+	}
+	endpoint, err := fitcore.ParseEndpoint("unix:" + newSocketPath(t))
+	if err != nil {
+		t.Fatalf("parse endpoint: %v", err)
+	}
+
+	// A join does not retry: the publisher owns the endpoint, so a subscriber that
+	// arrives first must try again. The consumer does this in its own loop; here it
+	// keeps the test from racing the publisher's bind.
+	subscribeErr := make(chan error, 1)
+	received := make(chan AnomalyEvent, 2)
+	go func() {
+		config := fitcore.NewSubscriberConfig(endpoint)
+		config.SetupTimeout = 5 * time.Second
+		deadline := time.Now().Add(30 * time.Second)
+		var subscriber *EventSubscriber
+		for {
+			subscriber, err = SubscribeEventSubscriber(config)
+			if err == nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				subscribeErr <- err
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		defer func() { _ = subscriber.Close() }()
+		subscribeErr <- nil
+		for range 2 {
+			event, err := subscriber.Receive()
+			if err != nil {
+				return
+			}
+			received <- event
+		}
+	}()
+
+	publisher, err := fitcore.OpenBroadcastPublisher(fitcore.NewBroadcastConfig(endpoint), AnomalyEventsDescriptor)
+	if err != nil {
+		t.Fatalf("open publisher: %v", err)
+	}
+	defer func() { _ = publisher.Close() }()
+
+	want := []AnomalyEvent{
+		{Title: "AAD anomaly: system.load.1", Description: "severity medium->high with 3 contributing series", Timestamp: 1_791_536_046},
+		{Title: "AAD debug trigger: debug.trigger-anomaly.check", Description: "value=1 host=h tags=[] channel=0", Timestamp: 1_791_536_047},
+	}
+	// A send with no subscriber waits for one, so it must not block this goroutine.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, event := range want {
+			payload, err := event.Encode()
+			if err != nil {
+				return
+			}
+			publisher.SendBatch([]fitcore.Record{{Kind: TypeAnomalyEvent, Payload: payload}})
+		}
+	}()
+
+	select {
+	case err := <-subscribeErr:
+		if err != nil {
+			t.Fatalf("subscribe: %v", err)
+		}
+	case <-time.After(60 * time.Second):
+		t.Fatal("the subscriber never joined")
+	}
+	for _, event := range want {
+		select {
+		case got := <-received:
+			if got != event {
+				t.Fatalf("received %+v, want %+v", got, event)
+			}
+		case <-time.After(30 * time.Second):
+			t.Fatal("no event arrived before the deadline")
+		}
+	}
+	<-done
 }

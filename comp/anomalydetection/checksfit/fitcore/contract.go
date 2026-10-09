@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`) at commit
-// 4961722de9009afdbbb711fc0adf14a8f6ff9277 (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
+// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`): the transport
+// comes from commit 4961722de9009afdbbb711fc0adf14a8f6ff9277, and the broadcast
+// transport from commit 788233d2ffcc1e9d19b8e8202ca7908b64c64687
+// (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
 //
 // Local changes: the darwin build requires cgo, unsupported platforms get a
 // stub so this tree still compiles, and test files carry an explicit platform
@@ -27,9 +29,52 @@ const (
 	recordHeaderSize = 8  // payload length and type in front of every record
 )
 
+// Broadcast (single publisher, many subscribers) transport identity. It is
+// deliberately distinct from the SPSC identity so a peer cannot silently treat
+// a broadcast mapping as an SPSC queue.
+const (
+	broadcastLayoutVersion = 1
+	broadcastSlotStride    = 128
+	broadcastSlotsOffset   = 256
+	broadcastWriteOffset   = 128
+)
+
+// Field offsets inside immutable broadcast metadata (offset 0).
+const (
+	broadcastMetaMagic           = 0
+	broadcastMetaLayoutVersion   = 8
+	broadcastMetaProtocolVersion = 12
+	broadcastMetaSession         = 16
+	broadcastMetaRegionSize      = 24
+	broadcastMetaRingOffset      = 28
+	broadcastMetaCapacity        = 32
+	broadcastMetaRecordHeader    = 36
+	broadcastMetaSlotStride      = 40
+	broadcastMetaMaxSubscribers  = 44
+	broadcastMetaSlotsOffset     = 48
+)
+
+// Field offsets inside one subscriber slot, relative to its stride base.
+const (
+	broadcastSlotReadCursor      = 0
+	broadcastSlotState           = 4
+	broadcastSlotGeneration      = 8
+	broadcastSlotProducerWaiting = 12
+)
+
+// Subscriber slot lifecycle states.
+const (
+	broadcastSlotFree     = 0
+	broadcastSlotReserved = 1
+	broadcastSlotActive   = 2
+	broadcastSlotRetiring = 3
+)
+
 var (
-	layoutID    = array8("MQUEUE03")
-	headerMagic = array8("MCHKSHM3")
+	layoutID        = array8("MQUEUE03")
+	headerMagic     = array8("MCHKSHM3")
+	broadcastLayout = array8("MQUEUEBC")
+	broadcastMagic  = array8("MBRDSHM1")
 )
 
 // array8 converts an exact eight-byte string constant to a fixed-size
@@ -96,6 +141,31 @@ func checkContract(body []byte, role byte, protocol ProtocolDescriptor) error {
 	for index, want := range expected {
 		if body[index] != want {
 			return fmt.Errorf("contract mismatch: expected %s, received %s", hexBytes(expected), hexBytes(body))
+		}
+	}
+	return nil
+}
+
+// broadcastContractBytes builds the broadcast compatibility tuple. It matches
+// the SPSC tuple shape but carries the broadcast layout identity and version.
+func broadcastContractBytes(role byte, protocol ProtocolDescriptor) []byte {
+	bytes := make([]byte, 0, 29)
+	bytes = appendUint32BE(bytes, setupVersion)
+	bytes = appendUint32BE(bytes, protocol.Version)
+	bytes = appendUint32BE(bytes, broadcastLayoutVersion)
+	bytes = append(bytes, role)
+	bytes = append(bytes, protocol.ID[:]...)
+	return append(bytes, broadcastLayout[:]...)
+}
+
+func checkBroadcastContract(body []byte, role byte, protocol ProtocolDescriptor) error {
+	expected := broadcastContractBytes(role, protocol)
+	if len(body) != len(expected) {
+		return fmt.Errorf("broadcast contract length: expected %d, received %d", len(expected), len(body))
+	}
+	for index, want := range expected {
+		if body[index] != want {
+			return fmt.Errorf("broadcast contract mismatch: expected %s, received %s", hexBytes(expected), hexBytes(body))
 		}
 	}
 	return nil

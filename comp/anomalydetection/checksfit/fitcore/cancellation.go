@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`) at commit
-// 4961722de9009afdbbb711fc0adf14a8f6ff9277 (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
+// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`): the transport
+// comes from commit 4961722de9009afdbbb711fc0adf14a8f6ff9277, and the broadcast
+// transport from commit 788233d2ffcc1e9d19b8e8202ca7908b64c64687
+// (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
 //
 // Local changes: the darwin build requires cgo, unsupported platforms get a
 // stub so this tree still compiles, and test files carry an explicit platform
@@ -32,6 +34,7 @@ type waitRegistry struct {
 	mu        sync.Mutex
 	cancelled bool
 	waiting   *uint32
+	wakeFn    func(*uint32) error
 	waitDone  chan struct{}
 }
 
@@ -66,7 +69,11 @@ func (r *waitRegistry) cancel() error {
 		// Holding the mutex across the wake keeps the word registered for the
 		// whole call; waitWord never takes this mutex, so the blocked receiver
 		// cannot deadlock against this critical section.
-		err := wakeWord(word)
+		wake := r.wakeFn
+		if wake == nil {
+			wake = wakeWord
+		}
+		err := wake(word)
 		r.mu.Unlock()
 		if err != nil {
 			return err
@@ -86,13 +93,24 @@ func (r *waitRegistry) cancel() error {
 // unregisters. It returns proceed=false when the operation was cancelled
 // before or during the wait, without changing shared queue state.
 func (r *waitRegistry) waitOn(word *uint32, expected uint32) (proceed bool, err error) {
-	return r.waitOnWith(word, expected, waitWord)
+	return r.waitOnWithPolicy(word, expected, waitWord, wakeWord)
+}
+
+// waitOnAll is waitOn with a wake-all cancellation policy. A broadcast
+// subscriber uses it because several subscribers share the write cursor: a
+// wake-one could rouse a different subscriber and strand the cancelled one.
+func (r *waitRegistry) waitOnAll(word *uint32, expected uint32) (proceed bool, err error) {
+	return r.waitOnWithPolicy(word, expected, waitWord, wakeAllWord)
 }
 
 // waitOnWith is waitOn with an injectable wait function, so tests can hold
 // the receiver between registration and its native wait, exactly like the
 // Rust token's wait_on_with.
 func (r *waitRegistry) waitOnWith(word *uint32, expected uint32, waitFn func(*uint32, uint32) error) (proceed bool, err error) {
+	return r.waitOnWithPolicy(word, expected, waitFn, wakeWord)
+}
+
+func (r *waitRegistry) waitOnWithPolicy(word *uint32, expected uint32, waitFn func(*uint32, uint32) error, wakeFn func(*uint32) error) (proceed bool, err error) {
 	r.mu.Lock()
 	if r.cancelled {
 		r.mu.Unlock()
@@ -104,6 +122,7 @@ func (r *waitRegistry) waitOnWith(word *uint32, expected uint32, waitFn func(*ui
 	}
 	done := make(chan struct{})
 	r.waiting = word
+	r.wakeFn = wakeFn
 	r.waitDone = done
 	r.mu.Unlock()
 
@@ -111,6 +130,7 @@ func (r *waitRegistry) waitOnWith(word *uint32, expected uint32, waitFn func(*ui
 
 	r.mu.Lock()
 	r.waiting = nil
+	r.wakeFn = nil
 	r.waitDone = nil
 	close(done)
 	cancelled := r.cancelled

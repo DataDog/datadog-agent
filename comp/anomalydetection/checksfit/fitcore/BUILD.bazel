@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "fitcore",
     srcs = [
+        "broadcast.go",
+        "broadcast_setup.go",
         "cancellation.go",
         "config.go",
         "contract.go",
@@ -27,6 +29,7 @@ go_library(
 dd_agent_go_test(
     name = "fitcore_test",
     srcs = [
+        "broadcast_test.go",
         "config_test.go",
         "contract_test.go",
         "platform_linux_test.go",

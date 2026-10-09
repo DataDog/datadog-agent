@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`) at commit
-// 4961722de9009afdbbb711fc0adf14a8f6ff9277 (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
+// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`): the transport
+// comes from commit 4961722de9009afdbbb711fc0adf14a8f6ff9277, and the broadcast
+// transport from commit 788233d2ffcc1e9d19b8e8202ca7908b64c64687
+// (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
 //
 // Local changes: the darwin build requires cgo, unsupported platforms get a
 // stub so this tree still compiles, and test files carry an explicit platform
@@ -27,6 +29,7 @@ package fitcore
 // instead of crashing or silently falling back.
 extern int os_sync_wait_on_address(void *addr, uint64_t value, size_t size, uint32_t flags) __attribute__((weak_import));
 extern int os_sync_wake_by_address_any(void *addr, size_t size, uint32_t flags) __attribute__((weak_import));
+extern int os_sync_wake_by_address_all(void *addr, size_t size, uint32_t flags) __attribute__((weak_import));
 
 static int fit_shm_open(const char *name, int oflag, mode_t mode) {
 	return shm_open(name, oflag, mode);
@@ -35,13 +38,16 @@ static int fit_shm_unlink(const char *name) {
 	return shm_unlink(name);
 }
 static int fit_sync_available(void) {
-	return os_sync_wait_on_address != NULL && os_sync_wake_by_address_any != NULL;
+	return os_sync_wait_on_address != NULL && os_sync_wake_by_address_any != NULL && os_sync_wake_by_address_all != NULL;
 }
 static int fit_sync_wait(void *addr, uint64_t value) {
 	return os_sync_wait_on_address(addr, value, 4, 0x1);
 }
 static int fit_sync_wake(void *addr) {
 	return os_sync_wake_by_address_any(addr, 4, 0x1);
+}
+static int fit_sync_wake_all(void *addr) {
+	return os_sync_wake_by_address_all(addr, 4, 0x1);
 }
 */
 import "C"
@@ -120,6 +126,19 @@ func waitWord(word *uint32, expected uint32) error {
 // ENOENT means there is no waiter and is normal.
 func wakeWord(word *uint32) error {
 	ret, errno := C.fit_sync_wake(unsafe.Pointer(word))
+	if ret >= 0 {
+		return nil
+	}
+	if errno == syscall.ENOENT {
+		return nil
+	}
+	return errno
+}
+
+// wakeAllWord wakes every waiter on a shared word. A broadcast publication
+// must wake all subscribers because they share one write cursor.
+func wakeAllWord(word *uint32) error {
+	ret, errno := C.fit_sync_wake_all(unsafe.Pointer(word))
 	if ret >= 0 {
 		return nil
 	}

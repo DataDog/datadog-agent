@@ -39,4 +39,5 @@ func shmModeAllowed(uint32) bool { return false }
 func waitWord(*uint32, uint32) error { return errUnsupported }
 
 // wakeWord reports that this platform has no FIT implementation.
-func wakeWord(*uint32) error { return errUnsupported }
+func wakeWord(*uint32) error    { return errUnsupported }
+func wakeAllWord(*uint32) error { return errUnsupported }

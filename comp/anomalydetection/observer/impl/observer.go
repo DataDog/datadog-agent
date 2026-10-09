@@ -353,6 +353,25 @@ func NewComponent(deps Requires) (Provides, error) {
 		}
 	}
 
+	// Subscribe to the anomaly events the isolated anomaly detection process
+	// publishes, and log each one. This is a passive consumer: it joins no
+	// pipeline, and it retries a missing publisher instead of failing startup.
+	if anomalydetectionconfig.AnomalyEventsEnabled(cfg) {
+		eventsCfg := anomalydetectionconfig.AnomalyEvents(cfg)
+		consumer, err := newAnomalyEventConsumer(eventsCfg)
+		if err != nil {
+			return Provides{}, fmt.Errorf("%s: %w", anomalydetectionconfig.AnomalyEventsEnabledConfigKey, err)
+		}
+		if consumer != nil {
+			logging.Infof("anomaly event subscription enabled on %s", eventsCfg.Endpoint)
+			deps.Lifecycle.Append(compdef.Hook{
+				OnStop: func(_ context.Context) error {
+					return consumer.close()
+				},
+			})
+		}
+	}
+
 	// Wire each injected reporter into its own reporterEventSink subscription.
 	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.
 	for _, r := range deps.Reporters {

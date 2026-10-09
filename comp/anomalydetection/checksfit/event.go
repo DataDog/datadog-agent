@@ -6,8 +6,10 @@
 package checksfit
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/checksfit/fitcore"
 )
@@ -109,4 +111,69 @@ func DecodeAnomalyEvent(b []byte) (AnomalyEvent, error) {
 		return AnomalyEvent{}, errTrailingBytes
 	}
 	return out, nil
+}
+
+// EventSubscriber is an AAD-EVNT typed broadcast subscriber handle.
+type EventSubscriber struct {
+	inner *fitcore.Subscription
+}
+
+// SubscribeEventSubscriber joins the publisher's broadcast ring using the
+// AAD-EVNT descriptor. A late subscriber starts at its activation boundary and
+// receives only events published after this call returns.
+func SubscribeEventSubscriber(config fitcore.SubscriberConfig) (*EventSubscriber, error) {
+	inner, err := fitcore.Subscribe(config, AnomalyEventsDescriptor)
+	if err != nil {
+		return nil, err
+	}
+	return &EventSubscriber{inner: inner}, nil
+}
+
+// SubscribeEventSubscriberContext joins while allowing the local supervisor to
+// cancel the handshake through the context.
+func SubscribeEventSubscriberContext(ctx context.Context, config fitcore.SubscriberConfig) (*EventSubscriber, error) {
+	inner, err := fitcore.SubscribeContext(ctx, config, AnomalyEventsDescriptor)
+	if err != nil {
+		return nil, err
+	}
+	return &EventSubscriber{inner: inner}, nil
+}
+
+// SessionID reports the publisher session this subscription belongs to.
+func (s *EventSubscriber) SessionID() uint64 { return s.inner.SessionID() }
+
+// SlotID reports the subscriber slot this subscription holds.
+func (s *EventSubscriber) SlotID() uint32 { return s.inner.SlotID() }
+
+// Close releases the shared mapping.
+func (s *EventSubscriber) Close() error { return s.inner.Close() }
+
+// Unsubscribe releases the slot so it stops pinning publication. After a
+// successful call the slot is free, and calling it again is a no-op.
+func (s *EventSubscriber) Unsubscribe() error { return s.inner.Unsubscribe() }
+
+// Receive waits for one event.
+func (s *EventSubscriber) Receive() (AnomalyEvent, error) {
+	kind, payload, err := s.inner.Receive()
+	if err != nil {
+		return AnomalyEvent{}, err
+	}
+	return decodeAnomalyEvent(kind, payload)
+}
+
+// ReceiveContext waits for one event, or returns an error wrapping
+// fitcore.ErrCancelled after local cancellation.
+func (s *EventSubscriber) ReceiveContext(ctx context.Context) (AnomalyEvent, error) {
+	kind, payload, err := s.inner.ReceiveContext(ctx)
+	if err != nil {
+		return AnomalyEvent{}, err
+	}
+	return decodeAnomalyEvent(kind, payload)
+}
+
+func decodeAnomalyEvent(kind uint32, payload []byte) (AnomalyEvent, error) {
+	if kind != TypeAnomalyEvent {
+		return AnomalyEvent{}, fmt.Errorf("unexpected AAD-EVNT record type %d, want %d", kind, TypeAnomalyEvent)
+	}
+	return DecodeAnomalyEvent(payload)
 }

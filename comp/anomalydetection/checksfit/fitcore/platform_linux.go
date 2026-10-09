@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`) at commit
-// 4961722de9009afdbbb711fc0adf14a8f6ff9277 (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
+// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`): the transport
+// comes from commit 4961722de9009afdbbb711fc0adf14a8f6ff9277, and the broadcast
+// transport from commit 788233d2ffcc1e9d19b8e8202ca7908b64c64687
+// (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
 //
 // Local changes: the darwin build requires cgo, unsupported platforms get a
 // stub so this tree still compiles, and test files carry an explicit platform
@@ -96,6 +98,22 @@ func wakeWord(word *uint32) error {
 		uintptr(unsafe.Pointer(word)),
 		futexOpWake,
 		1,
+		0, 0, 0,
+	)
+	if errno == 0 {
+		return nil
+	}
+	return errno
+}
+
+// wakeAllWord wakes every waiter on a shared word. A broadcast publication must
+// wake all subscribers because they share one write cursor.
+func wakeAllWord(word *uint32) error {
+	_, _, errno := syscall.Syscall6(
+		syscall.SYS_FUTEX,
+		uintptr(unsafe.Pointer(word)),
+		futexOpWake,
+		uintptr(1<<31-1),
 		0, 0, 0,
 	)
 	if errno == 0 {

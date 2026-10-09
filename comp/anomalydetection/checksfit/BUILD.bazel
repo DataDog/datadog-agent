@@ -24,19 +24,5 @@ dd_agent_go_test(
         "session_test.go",
     ],
     embed = [":checksfit"],
-    deps = select({
-        "@rules_go//go/platform:android": [
-            "//comp/anomalydetection/checksfit/fitcore",
-        ],
-        "@rules_go//go/platform:darwin": [
-            "//comp/anomalydetection/checksfit/fitcore",
-        ],
-        "@rules_go//go/platform:ios": [
-            "//comp/anomalydetection/checksfit/fitcore",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//comp/anomalydetection/checksfit/fitcore",
-        ],
-        "//conditions:default": [],
-    }),
+    deps = ["//comp/anomalydetection/checksfit/fitcore"],
 )

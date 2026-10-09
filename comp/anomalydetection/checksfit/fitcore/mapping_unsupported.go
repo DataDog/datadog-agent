@@ -13,10 +13,12 @@ package fitcore
 
 // mapping stands in for the shared-memory mapping on unsupported platforms.
 type mapping struct {
-	fd       int
-	region   []byte
-	name     string
-	capacity int
+	fd         int
+	region     []byte
+	name       string
+	capacity   int
+	regionLen  int
+	ringOffset int
 }
 
 // word reports that this platform has no FIT implementation.
@@ -37,8 +39,18 @@ func createMapping(uint64, int, uint32) (*mapping, string, error) { return nil, 
 // openMapping reports that this platform has no FIT implementation.
 func openMapping(string, uint64, int, uint32) (*mapping, error) { return nil, errUnsupported }
 
+// createBroadcastMapping reports that this platform has no FIT implementation.
+func createBroadcastMapping(uint64, int, uint32, int) (*mapping, string, error) {
+	return nil, "", errUnsupported
+}
+
+// openBroadcastMapping reports that this platform has no FIT implementation.
+func openBroadcastMapping(string, uint64, int, uint32, int, int, int) (*mapping, error) {
+	return nil, errUnsupported
+}
+
 // mapShared reports that this platform has no FIT implementation.
-func mapShared(int, string, int) (*mapping, error) { return nil, errUnsupported }
+func mapShared(int, string, int, int, int) (*mapping, error) { return nil, errUnsupported }
 
 // writeMetadata is unreachable on this platform; the mapping never exists.
 func writeMetadata([]byte, uint64, int, uint32) {}

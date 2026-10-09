@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`) at commit
-// 4961722de9009afdbbb711fc0adf14a8f6ff9277 (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
+// Adapted from the Fast IPC Toolkit's lib/go/fitcore (module `fit`): the transport
+// comes from commit 4961722de9009afdbbb711fc0adf14a8f6ff9277, and the broadcast
+// transport from commit 788233d2ffcc1e9d19b8e8202ca7908b64c64687
+// (ddoghq-sandbox/celian-26q4-innov-fast-ipc-toolkit).
 //
 // Local changes: the darwin build requires cgo, unsupported platforms get a
 // stub so this tree still compiles, and test files carry an explicit platform
@@ -15,6 +17,7 @@ package fitcore
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/netip"
 	"strings"
 	"time"
@@ -25,6 +28,10 @@ const (
 	DefaultSetupTimeout = 60 * time.Second
 	DefaultRingCapacity = 1 << 20
 	MaxRingCapacity     = 1 << 30
+	// DefaultMaxSubscribers is the default broadcast slot-table size, and
+	// MaxSubscribers is the absolute allocation bound.
+	DefaultMaxSubscribers = 64
+	MaxSubscribers        = 4096
 	// MaxSetupTimeout bounds absurd deadlines explicitly. The Rust template
 	// reaches the same effect through its clock's representable range.
 	MaxSetupTimeout = 100 * 365 * 24 * time.Hour
@@ -112,6 +119,68 @@ func validateCapacity(capacity int) error {
 		return errors.New("ring capacity must be a multiple of 8 from 16 bytes through 1 GiB")
 	}
 	return nil
+}
+
+// BroadcastConfig holds the settings for a broadcast publisher, which
+// owns the endpoint, the listener, and the shared mapping for the session.
+type BroadcastConfig struct {
+	Endpoint SetupEndpoint
+	// SetupTimeout bounds each handshake, not the listener's total lifetime:
+	// subscribers may join at any time.
+	SetupTimeout   time.Duration
+	RingCapacity   int
+	MaxSubscribers int
+}
+
+// NewBroadcastConfig uses the given endpoint with the default per-handshake
+// timeout, a 1 MiB ring, and 64 subscriber slots.
+func NewBroadcastConfig(endpoint SetupEndpoint) BroadcastConfig {
+	return BroadcastConfig{
+		Endpoint:       endpoint,
+		SetupTimeout:   DefaultSetupTimeout,
+		RingCapacity:   DefaultRingCapacity,
+		MaxSubscribers: DefaultMaxSubscribers,
+	}
+}
+
+// SubscriberConfig holds the settings for one broadcast subscriber. The
+// publisher owns the resource bounds, so a subscriber only configures the
+// endpoint and connect deadline.
+type SubscriberConfig struct {
+	Endpoint     SetupEndpoint
+	SetupTimeout time.Duration
+}
+
+// NewSubscriberConfig uses the given endpoint with the default connect deadline.
+func NewSubscriberConfig(endpoint SetupEndpoint) SubscriberConfig {
+	return SubscriberConfig{Endpoint: endpoint, SetupTimeout: DefaultSetupTimeout}
+}
+
+func validateBroadcastLayout(capacity, maxSubscribers int) error {
+	if err := validateCapacity(capacity); err != nil {
+		return err
+	}
+	if maxSubscribers < 1 || maxSubscribers > MaxSubscribers {
+		return fmt.Errorf("maximum subscribers must be from 1 through %d", MaxSubscribers)
+	}
+	// Compute in 64-bit: the total can exceed a 32-bit int, and comparing against
+	// MaxUint32 in int would not compile on a 32-bit target.
+	region := int64(broadcastSlotsOffset) + int64(broadcastSlotStride)*int64(maxSubscribers) + int64(capacity)
+	if region > math.MaxUint32 {
+		return errors.New("broadcast mapping exceeds the 32-bit wire size")
+	}
+	return nil
+}
+
+func (c BroadcastConfig) validate() (time.Time, error) {
+	if err := validateBroadcastLayout(c.RingCapacity, c.MaxSubscribers); err != nil {
+		return time.Time{}, err
+	}
+	return setupDeadline(c.SetupTimeout)
+}
+
+func (c SubscriberConfig) validate() (time.Time, error) {
+	return setupDeadline(c.SetupTimeout)
 }
 
 func setupDeadline(timeout time.Duration) (time.Time, error) {

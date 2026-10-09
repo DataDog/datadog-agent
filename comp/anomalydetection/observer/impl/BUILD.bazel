@@ -7,6 +7,7 @@ go_library(
         "advance_log.go",
         "agent_logs.go",
         "anomaly_correlator_time_cluster.go",
+        "anomaly_event_consumer.go",
         "anomaly_scorer.go",
         "baseline.go",
         "component_catalog.go",
@@ -71,6 +72,7 @@ dd_agent_go_test(
     srcs = [
         "agent_logs_test.go",
         "anomaly_correlator_time_cluster_test.go",
+        "anomaly_event_consumer_test.go",
         "anomaly_scorer_test.go",
         "baseline_test.go",
         "bench_detection_test.go",
