@@ -43,8 +43,12 @@ func jsonFormatter(loggerName LoggerName, cfg pkgconfigmodel.Reader) func(ctx co
 	if loggerName == "JMXFETCH" {
 		return func(_ context.Context, r slog.Record) string {
 			if line, ok := parseJMXFetchLine(r.Message); ok {
-				return fmt.Sprintf(`{"agent":"jmxfetch","time":%s,"level":%s,"thread":%s,"logger":%s,"msg":%s}`+"\n",
-					formatters.Quote(line.time), formatters.Quote(line.level), formatters.Quote(line.thread), formatters.Quote(line.logger), formatters.Quote(line.msg))
+				thread := ""
+				if line.thread != "" {
+					thread = `,"thread":` + formatters.Quote(line.thread)
+				}
+				return fmt.Sprintf(`{"agent":"jmxfetch","time":%s,"level":%s%s,"logger":%s,"msg":%s}`+"\n",
+					formatters.Quote(line.time), formatters.Quote(line.level), thread, formatters.Quote(line.logger), formatters.Quote(line.msg))
 			}
 			return `{"msg":` + formatters.Quote(r.Message) + "}\n"
 		}
@@ -70,16 +74,23 @@ type jmxFetchLine struct {
 
 // Parses a JMXFetch log line and returns false
 // if the line doesn't follow that format.
+// The thread section is optional, so a line has either 5 or 6 parts.
 func parseJMXFetchLine(line string) (jmxFetchLine, bool) {
 	parts := strings.SplitN(line, " | ", 6)
-	if len(parts) != 6 || parts[1] != "JMX" {
+	if (len(parts) != 5 && len(parts) != 6) || parts[1] != "JMX" {
 		return jmxFetchLine{}, false
 	}
-	return jmxFetchLine{
-		time:   parts[0],
-		level:  strings.TrimSpace(parts[2]),
-		thread: parts[3],
-		logger: parts[4],
-		msg:    parts[5],
-	}, true
+	l := jmxFetchLine{
+		time:  strings.TrimSpace(parts[0]),
+		level: strings.TrimSpace(parts[2]),
+	}
+	if len(parts) == 6 {
+		l.thread = strings.TrimSpace(parts[3])
+		l.logger = strings.TrimSpace(parts[4])
+		l.msg = parts[5]
+	} else {
+		l.logger = strings.TrimSpace(parts[3])
+		l.msg = parts[4]
+	}
+	return l, true
 }
