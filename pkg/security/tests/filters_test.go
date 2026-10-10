@@ -1518,6 +1518,54 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 	}
 }
 
+func TestFilterBindAddrFamily(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_bind",
+			Expression: `bind.addr.port == 4241`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = test.GetProbeEvent(func() error {
+		return runSyscallTesterFunc(
+			context.Background(),
+			t,
+			syscallTester,
+			"bind",
+			"AF_UNIX",
+		)
+	}, func(event *model.Event) bool {
+		addressFamilyIntf, err := event.GetFieldValue("bind.addr.family")
+		if !assert.NoError(t, err) {
+			return false
+		}
+		addressFamily, ok := addressFamilyIntf.(int)
+		if !assert.True(t, ok) {
+			return false
+		}
+		assert.Containsf(t, []int{unix.AF_INET, unix.AF_INET6}, addressFamily, "should not get a bind event with address family other than AF_INET or AF_INET6")
+		return false
+	}, 2*time.Second, model.BindEventType)
+	if err != nil {
+		if _, ok := err.(ErrTimeout); !ok {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestAuidDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 

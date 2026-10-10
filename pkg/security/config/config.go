@@ -449,6 +449,21 @@ type RuntimeSecurityConfig struct {
 	// default_value: 40
 	EventSamplingConnectThreshold int
 
+	// description: EventSamplingBindEnabled defines if the agent should sample bind events
+	// visibility: private
+	// default_value: true
+	EventSamplingBindEnabled bool
+
+	// description: EventSamplingBindRate defines the rate at which the agent should sample bind events
+	// visibility: private
+	// default_value: 500
+	EventSamplingBindRate int
+
+	// description: EventSamplingBindThreshold defines the ring buffer pressure percentage below which bind events are always admitted when dynamic sampling is enabled
+	// visibility: private
+	// default_value: 60
+	EventSamplingBindThreshold int
+
 	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
 	// visibility: private
 	// default_value: true
@@ -1046,6 +1061,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingConnectEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
 		EventSamplingConnectRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
 		EventSamplingConnectThreshold:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
+		EventSamplingBindEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingBindThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
 		EventSamplingSyscallsEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
 		EventSamplingSyscallsRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
 		EventSamplingSyscallsThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.threshold"),
@@ -1251,6 +1269,8 @@ func (c *RuntimeSecurityConfig) EventSamplingEnabledFor(eventType model.EventTyp
 		enabled = c.EventSamplingOpenEnabled
 	case model.ConnectEventType:
 		enabled = c.EventSamplingConnectEnabled
+	case model.BindEventType:
+		enabled = c.EventSamplingBindEnabled
 	case model.SyscallsEventType:
 		enabled = c.EventSamplingSyscallsEnabled
 	default:
@@ -1284,6 +1304,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	}{
 		{"open", c.EventSamplingOpenThreshold},
 		{"connect", c.EventSamplingConnectThreshold},
+		{"bind", c.EventSamplingBindThreshold},
 		{"syscalls", c.EventSamplingSyscallsThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
