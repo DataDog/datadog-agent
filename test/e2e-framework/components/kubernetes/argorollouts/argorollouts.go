@@ -6,10 +6,10 @@
 package argorollouts
 
 import (
-	kubeHelm "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/helm"
 )
 
 type Params struct {
@@ -51,5 +51,5 @@ func WithNamespace(namespace string) Option {
 type HelmComponent struct {
 	pulumi.ResourceState
 
-	ArgoRolloutsHelmReleaseStatus kubeHelm.ReleaseStatusOutput
+	ArgoRolloutsHelmReleaseStatus helm.ReleaseStatusOutput
 }

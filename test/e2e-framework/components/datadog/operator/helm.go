@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/helm"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
-	kubeHelm "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"go.yaml.in/yaml/v3"
@@ -44,7 +43,7 @@ type HelmComponent struct {
 	pulumi.ResourceState
 
 	LinuxHelmReleaseName   pulumi.StringPtrOutput
-	LinuxHelmReleaseStatus kubeHelm.ReleaseStatusOutput
+	LinuxHelmReleaseStatus helm.ReleaseStatusOutput
 }
 
 func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi.ResourceOption) (*HelmComponent, error) {
