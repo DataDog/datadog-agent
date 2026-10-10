@@ -7,6 +7,7 @@ package sbomutil
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -78,6 +79,9 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 		if comp != nil {
 			normalizedVersion, _ := normalizeVersion(comp.Version)
 			key := comp.Name + "@" + normalizedVersion
+			if prev, ok := newComponentsMap[key]; ok {
+				comp = foldUsage(prev, comp)
+			}
 			newComponentsMap[key] = comp
 		}
 	}
@@ -195,6 +199,56 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 	}
 
 	return mergedBom
+}
+
+// foldUsage combines the usage of two report entries of one name and version,
+// as dpkg builds for two architectures: the latest time, each flag either set.
+func foldUsage(a, b *cyclonedx_v1_4.Component) *cyclonedx_v1_4.Component {
+	folded := &cyclonedx_v1_4.Component{Name: a.Name, Version: a.Version}
+	fold := func(name string, pick func(x, y string) string) {
+		x, xok := propertyValue(a, name)
+		y, yok := propertyValue(b, name)
+		var v string
+		switch {
+		case xok && yok:
+			v = pick(x, y)
+		case xok:
+			v = x
+		case yok:
+			v = y
+		default:
+			return
+		}
+		folded.Properties = append(folded.Properties, &cyclonedx_v1_4.Property{Name: name, Value: &v})
+	}
+	fold(LastAccessProperty, func(x, y string) string {
+		if xs, err := strconv.ParseInt(x, 10, 64); err == nil {
+			if ys, err := strconv.ParseInt(y, 10, 64); err == nil && ys > xs {
+				return y
+			}
+			return x
+		}
+		return y
+	})
+	either := func(x, y string) string {
+		if x == "true" || y == "true" {
+			return "true"
+		}
+		return "false"
+	}
+	fold(HasSetSuidBitProperty, either)
+	fold(RunningAsRootProperty, either)
+	return folded
+}
+
+// propertyValue returns the value of the property name of comp, if it has one.
+func propertyValue(comp *cyclonedx_v1_4.Component, name string) (string, bool) {
+	for _, p := range comp.Properties {
+		if p != nil && p.Name == name {
+			return p.GetValue(), true
+		}
+	}
+	return "", false
 }
 
 // ensureProperty appends a property with the given name and value to the

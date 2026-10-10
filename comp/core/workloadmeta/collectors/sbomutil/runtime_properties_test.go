@@ -469,6 +469,43 @@ func TestMergeRuntimeProperties_ReportReachesDuplicateOSPackages(t *testing.T) {
 	}
 }
 
+// TestMergeRuntimeProperties_FoldsEntriesSharingNameAndVersion checks that both
+// dpkg builds of a two-architecture package reach its one Trivy component.
+func TestMergeRuntimeProperties_FoldsEntriesSharingNameAndVersion(t *testing.T) {
+	used := component("libc6", "2.36-9+deb12u10",
+		prop(LastAccessProperty, "1700000000"),
+		prop(HasSetSuidBitProperty, "false"),
+		prop(RunningAsRootProperty, "true"),
+	)
+	idle := component("libc6", "2.36-9+deb12u10",
+		prop(LastAccessProperty, "0"),
+		prop(HasSetSuidBitProperty, "true"),
+		prop(RunningAsRootProperty, "false"),
+	)
+
+	for name, report := range map[string][]*cyclonedx_v1_4.Component{
+		"used first": {used, idle},
+		"idle first": {idle, used},
+	} {
+		t.Run(name, func(t *testing.T) {
+			existing := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+				{Name: "libc6", Version: "2.36-9+deb12u10", Purl: pointer.Ptr("pkg:deb/debian/libc6@2.36-9+deb12u10?arch=amd64")},
+			}}
+			merged := MergeRuntimeProperties(existing, &cyclonedx_v1_4.Bom{Components: report})
+			require.Len(t, merged.Components, 1)
+
+			for prop, want := range map[string]string{
+				LastAccessProperty:    "1700000000",
+				HasSetSuidBitProperty: "true",
+				RunningAsRootProperty: "true",
+			} {
+				got, _ := findProp(merged.Components[0], prop)
+				assert.Equal(t, want, got, prop)
+			}
+		})
+	}
+}
+
 func TestMergeRuntimeProperties_KeepsComponentsWithoutBomRef(t *testing.T) {
 	// The bom-ref is what identifies a component, so deduplication applies to the
 	// components that carry one and the others are emitted in turn.
