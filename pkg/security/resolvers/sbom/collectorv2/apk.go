@@ -102,6 +102,11 @@ func parseAPKDatabase(r io.Reader) ([]sbomtypes.PackageWithInstalledFiles, error
 		case 'F':
 			currentDir = value
 		case 'R':
+			// apk treats the files of /etc as configuration, which the index
+			// leaves out as dpkg leaves out its conffiles.
+			if currentDir == "etc" || strings.HasPrefix(currentDir, "etc/") {
+				continue
+			}
 			current.files = append(current.files, "/"+filepath.Join(currentDir, value))
 		}
 	}
