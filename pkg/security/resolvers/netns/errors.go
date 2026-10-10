@@ -33,6 +33,8 @@ const (
 	errorClassClassifierExists = "classifier_exists"
 	// errorClassQueueFull is reported when a classifier request is dropped because the queue is full
 	errorClassQueueFull = "queue_full"
+	// errorClassMountQueueFull is reported when a namespace mount or umount is dropped because the queue is full
+	errorClassMountQueueFull = "mount_queue_full"
 	// errorClassNetlinkSocket is reported when no netlink socket can be opened in a network namespace
 	errorClassNetlinkSocket = "netlink_socket"
 	// errorClassLinkList is reported when the interfaces of a network namespace can't be listed
@@ -49,6 +51,7 @@ var errorClasses = []string{
 	errorClassFilterNotFound,
 	errorClassClassifierExists,
 	errorClassQueueFull,
+	errorClassMountQueueFull,
 	errorClassNetlinkSocket,
 	errorClassLinkList,
 	errorClassUnknown,

@@ -1610,13 +1610,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	netNS := event.PIDContext.NetNS
-	pid := event.PIDContext.Pid
-	go func() {
-		_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
-			return utils.NewNSPathFromPid(pid, utils.NetNsType)
-		})
-	}()
+	p.Resolvers.NamespaceResolver.PushNetworkNamespaceHandleRequest(event.PIDContext.NetNS, event.PIDContext.Pid)
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext) {
@@ -1709,7 +1703,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
 				netNSPath := utils.NewNSPathFromPath(mountPath, utils.NetNsType)
-				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, netNSPath)
+				p.Resolvers.NamespaceResolver.PushNetworkNamespaceMountRequest(nsid, netNSPath)
 			}
 		}
 
@@ -1721,10 +1715,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
 		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
-			nsid := uint32(mount.RootPathKey.Inode)
-			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
-				p.FlushNetworkNamespace(namespace)
-			}
+			p.Resolvers.NamespaceResolver.PushNetworkNamespaceUmountRequest(uint32(mount.RootPathKey.Inode))
 		}
 
 	case model.FileOpenEventType:
@@ -2875,15 +2866,6 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			seclog.Tracef("sysctl snapshot sent !")
 		}
 	}
-}
-
-// FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
-// flushes the network namespace in the network namespace resolver as well.
-func (p *EBPFProbe) FlushNetworkNamespace(namespace *netns.NetworkNamespace) {
-	p.Resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
-
-	// cleanup internal structures
-	p.Resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager.Get())
 }
 
 func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
