@@ -22,10 +22,10 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
@@ -65,14 +65,13 @@ func init() {
 
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
-	configToChecks      map[string][]checkid.ID // cache the ID of checks we load for each config
-	loaders             []check.Loader
-	collector           option.Option[collectorcomp.Component]
-	senderManager       sender.SenderManager
-	shadowSenderManager sender.SenderManager
-	shadowCoreLoader    check.Loader
-	infraTagger         *infratags.Tagger // nil = no infra mode tagging
-	m                   sync.RWMutex
+	configToChecks     map[string][]checkid.ID // cache the ID of checks we load for each config
+	loaders            []check.Loader
+	collector          option.Option[collectorcomp.Component]
+	senderManager      sender.SenderManager
+	shadowCheckFactory metriclookbackdef.ShadowCheckFactory
+	infraTagger        *infratags.Tagger // nil = no infra mode tagging
+	m                  sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
@@ -93,15 +92,15 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 	return checkScheduler
 }
 
-// SetMetricLookbackShadowSenderManager sets the sender manager used by metric
-// lookback shadow checks loaded by this scheduler.
-func (s *CheckScheduler) SetMetricLookbackShadowSenderManager(senderManager sender.SenderManager) {
+// SetShadowCheckFactory configures optional product-provided shadow checks.
+// A nil factory omits shadow support entirely.
+func (s *CheckScheduler) SetShadowCheckFactory(factory metriclookbackdef.ShadowCheckFactory) {
 	if s == nil {
 		return
 	}
 	s.m.Lock()
 	defer s.m.Unlock()
-	s.shadowSenderManager = senderManager
+	s.shadowCheckFactory = factory
 }
 
 // Schedule schedules configs to checks
@@ -190,9 +189,9 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 func (s *CheckScheduler) getChecks(config integration.Config, includeShadowChecks bool) ([]check.Check, error) {
 	checks := []check.Check{}
 	numLoaders := len(s.loaders)
-	var shadowCandidates map[int]shadowCandidate
-	if includeShadowChecks {
-		shadowCandidates = shadowCandidatesByInstance(config)
+	var shadowLoaders map[int]metriclookbackdef.ShadowCheckLoader
+	if includeShadowChecks && s.shadowCheckFactory != nil {
+		shadowLoaders = s.shadowCheckFactory.Prepare(config)
 	}
 
 	initConfig := commonInitConfig{}
@@ -232,19 +231,15 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 			log.Debugf("%v: successfully loaded check '%s'", result.loader, config.Name)
 			s.applyInfraTagger(s.senderManager, config.Name, result.check.ID())
 			checks = append(checks, result.check)
-			if includeShadowChecks {
-				if candidate, found := shadowCandidates[instanceIndex]; found {
-					sourceCheckID := result.check.ID()
-					shadowLoader, ok := s.shadowLoaderFor(result.loader)
-					if !ok {
-						log.Debugf("Skipping metric lookback shadow check %s: loader %s does not support shadow execution", check.ShadowID(sourceCheckID), result.loader.Name())
-						continue
+			if loadShadow, found := shadowLoaders[instanceIndex]; found {
+				sourceCheckID := result.check.ID()
+				if shadowCheck, err := loadShadow(result.loader, sourceCheckID); err != nil {
+					log.Warnf("Unable to load shadow check %s: %v", check.ShadowID(sourceCheckID), err)
+				} else if shadowCheck != nil {
+					if manager, ok := check.SenderManagerOverride(shadowCheck); ok {
+						s.applyInfraTagger(manager, config.Name, shadowCheck.ID())
 					}
-					if shadowCheck, err := s.loadShadowCheck(candidate, shadowLoader, sourceCheckID); err != nil {
-						log.Warnf("Unable to load metric lookback shadow check %s: %v", check.ShadowID(sourceCheckID), err)
-					} else {
-						checks = append(checks, shadowCheck)
-					}
+					checks = append(checks, shadowCheck)
 				}
 			}
 		}
@@ -267,26 +262,6 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 	}
 
 	return checks, nil
-}
-
-func (s *CheckScheduler) shadowLoaderFor(loader check.Loader) (check.Loader, bool) {
-	switch loader.Name() {
-	case corecheckLoader.GoCheckLoaderName:
-		if s.shadowCoreLoader != nil {
-			return s.shadowCoreLoader, true
-		}
-		shadowLoader, err := corecheckLoader.NewGoCheckLoader(corecheckLoader.WithLoadMode(corecheckLoader.ShadowLoadMode))
-		if err != nil {
-			log.Debugf("Unable to create metric lookback shadow loader for %s: %v", loader.Name(), err)
-			return nil, false
-		}
-		s.shadowCoreLoader = shadowLoader
-		return shadowLoader, true
-	case "python":
-		return loader, true
-	default:
-		return nil, false
-	}
 }
 
 func (s *CheckScheduler) loadCheckInstance(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int, selectedInstanceLoader string) loadInstanceResult {
@@ -340,7 +315,7 @@ func GetChecksByNameForConfigs(checkName string, configs []integration.Config) [
 
 // GetChecksFromConfigs gets all the check instances for given configurations.
 // When populateCache is true, the call is part of scheduling and includes
-// selected metric lookback shadow checks in the scheduler cache.
+// product-provided shadow checks in the scheduler cache.
 func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	s.m.Lock()
 	defer s.m.Unlock()

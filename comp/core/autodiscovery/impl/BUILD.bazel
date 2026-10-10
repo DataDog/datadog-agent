@@ -8,7 +8,6 @@ go_library(
         "config_poller.go",
         "configmgr.go",
         "configmgr_discovery.go",
-        "configmgr_nodiscovery.go",
         "multimap.go",
         "preparation.go",
         "secrets.go",
@@ -23,7 +22,7 @@ go_library(
         "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/configresolver",
         "//comp/core/autodiscovery/def",
-        "//comp/core/autodiscovery/discoverer",
+        "//comp/core/autodiscovery/discoverer/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/listeners",
         "//comp/core/autodiscovery/providers",
@@ -85,15 +84,12 @@ dd_agent_go_test(
         "store_test.go",
     ],
     embed = [":impl"],
-    gotags_sets = [
-        [
-            "cel",
-            "clusterchecks",
-            "kubeapiserver",
-            "kubelet",
-        ],
-        ["python"],
-    ],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/common/types",

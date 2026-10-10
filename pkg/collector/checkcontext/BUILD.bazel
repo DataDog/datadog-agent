@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "checkcontext",
+    srcs = [
+        "check_context.go",
+        "check_context_test_util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/checkcontext",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadfilter/def",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/id",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
+)

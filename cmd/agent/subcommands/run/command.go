@@ -29,16 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
-	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
-	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
-	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datasecurity"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
@@ -187,7 +182,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -226,7 +220,7 @@ type cliParams struct {
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, product command.ProductComposition) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
@@ -249,7 +243,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			fxinstrumentation.Module(),
-			getSharedFxOption(),
+			getSharedFxOption(product),
 			getPlatformModules(),
 		)
 	}
@@ -272,6 +266,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd, runCmd}
 }
 
+type optionalMetricLookbackDeps struct {
+	fx.In
+
+	MetricLookback metriclookbackdef.Component `optional:"true"`
+}
+
 // run starts the main loop.
 func run(log log.Component,
 	cfg config.Component,
@@ -289,7 +289,7 @@ func run(log log.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
-	metricLookback metriclookbackdef.Component,
+	metricLookback optionalMetricLookbackDeps,
 	_ serializer.MetricSerializer,
 	_ option.Option[logsAgent.Component],
 	_ statsd.Component,
@@ -416,7 +416,7 @@ func run(log log.Component,
 	return <-stopCh
 }
 
-func getSharedFxOption() fx.Option {
+func getSharedFxOption(product command.ProductComposition) fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
@@ -441,10 +441,8 @@ func getSharedFxOption() fx.Option {
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(defaults.DefaultParams()),
+		fx.Options(product.StatusOptions...),
 		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: python.GetPythonVersion,
-			},
 			status.NewHeaderInformationProvider(net.Provider{}),
 			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),
@@ -475,7 +473,7 @@ func getSharedFxOption() fx.Option {
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
 		filterlist.Module(),
-		metriclookbackModule(),
+		fx.Options(product.MetricLookbackOptions...),
 		dogstatsdclientdropdetectorfx.Module(),
 		dogstatsdclienttelemetryfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
@@ -501,6 +499,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		fx.Options(product.AutodiscoveryOptions...),
 		fx.Supply(autodiscovery.Params{PreloadConfigsOnStart: true}),
 		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
@@ -512,12 +511,11 @@ func getSharedFxOption() fx.Option {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
 		logs.Bundle(),
-		observerfx.Module(),
-		logssourcefx.Module(),
-		recorderfx.Module(),
-		reporterfx.Module(),
+		fx.Options(product.AnomalyDetectionOptions...),
+		fx.Options(product.LogsSeverityOptions...),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
+		fx.Options(product.HostMetadataOptions...),
 		orchestratorForwarderFx.Module(orchestratordef.NewDefaultParams()),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
@@ -539,11 +537,13 @@ func getSharedFxOption() fx.Option {
 		networkconfigmanagementfx.Module(),
 		networkdevicesfx.Module(),
 		collectorimpl.Module(),
+		fx.Options(product.CollectorOptions...),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
 		}),
 		process.Bundle(),
 		guifx.Module(),
+		fx.Options(product.GUIOptions...),
 		agent.Bundle(jmxlogger.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
@@ -581,7 +581,7 @@ func getSharedFxOption() fx.Option {
 		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
 		haagentfx.Module(),
-		doqueryactionsfx.Module(),
+		fx.Options(product.DataObservabilityOptions...),
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
@@ -609,7 +609,7 @@ func startAgent(
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	demultiplexer demultiplexer.Component,
-	metricLookback metriclookbackdef.Component,
+	metricLookback optionalMetricLookbackDeps,
 	invChecks inventorychecks.Component,
 	logReceiver option.Option[integrations.Component],
 	collectorComponent collector.Component,
@@ -711,7 +711,9 @@ func startAgent(
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
 	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
-	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
+	if metricLookback.MetricLookback != nil {
+		checkScheduler.SetShadowCheckFactory(metricLookback.MetricLookback.NewShadowCheckFactory(ctx, hostnameDetected))
+	}
 	ac.AddScheduler("check", checkScheduler, true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

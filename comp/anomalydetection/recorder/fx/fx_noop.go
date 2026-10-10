@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !anomalydetection_recorder || !python
+//go:build !anomalydetection_recorder
 
 // Package fx wires recorder components into Agent builds.
 package fx

@@ -20,7 +20,7 @@ import (
 
 func TestInstallCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"integration", "install", "foo==1.0", "-v"},
 		install,
 		func(cliParams *cliParams) {
@@ -31,7 +31,7 @@ func TestInstallCommand(t *testing.T) {
 
 func TestInstallSkipVerificationCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"integration", "install", "foo==1.0", "--unsafe-disable-verification"},
 		install,
 		func(cliParams *cliParams) {
@@ -42,7 +42,7 @@ func TestInstallSkipVerificationCommand(t *testing.T) {
 
 func TestRemoveCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"integration", "remove", "foo"},
 		remove,
 		func(cliParams *cliParams) {
@@ -53,7 +53,7 @@ func TestRemoveCommand(t *testing.T) {
 
 func TestFreezeCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"integration", "freeze"},
 		list,
 		func(cliParams *cliParams) {
@@ -64,7 +64,7 @@ func TestFreezeCommand(t *testing.T) {
 
 func TestShowCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"integration", "show", "foo"},
 		show,
 		func(cliParams *cliParams) {

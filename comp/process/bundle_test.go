@@ -27,7 +27,6 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	settingsmock "github.com/DataDog/datadog-agent/comp/core/settings/mock"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
@@ -49,7 +48,6 @@ import (
 	statusimpl "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -69,11 +67,6 @@ func TestBundleDependencies(t *testing.T) {
 		coreStatusImpl.Module(),
 		settingsmock.MockModule(),
 		statusimpl.Module(),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: python.GetPythonVersion,
-			},
-		),
 		fx.Provide(func() context.Context { return context.TODO() }),
 		rdnsquerier.MockModule(),
 		npcollectormock.MockModule(),

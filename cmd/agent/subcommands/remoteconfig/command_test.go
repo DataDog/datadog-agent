@@ -15,7 +15,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"remote-config"},
 		state,
 		func(_ *cliParams, _ core.BundleParams) {})
@@ -23,7 +23,7 @@ func TestCommand(t *testing.T) {
 
 func TestResetCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"remote-config", "reset"},
 		reset,
 		func(_ *cliParams, _ core.BundleParams) {})

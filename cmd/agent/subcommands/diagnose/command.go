@@ -91,7 +91,7 @@ type cliParams struct {
 type payloadName string
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, product command.ProductComposition) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
@@ -125,6 +125,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 				}),
 				adfx.Module(),
+				fx.Options(product.AutodiscoveryOptions...),
 				haagentfx.Module(),
 				healthplatform.Bundle(),
 				hostnameimpl.Module(),

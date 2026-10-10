@@ -14,7 +14,7 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
+	discovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -145,7 +145,7 @@ type reconcilingConfigManager struct {
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.ConfigDiscoverer, telStore *actelemetry.Store) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, discoveryFactory discovery.Factory, telStore *actelemetry.Store) configManager {
 	cm := &reconcilingConfigManager{
 		activeConfigs:          map[string]integration.Config{},
 		activeServices:         map[string]serviceAndADIDs{},
@@ -159,7 +159,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		healthPlatform:         healthPlatform,
 		telemetryStore:         telStore,
 	}
-	initDiscoveryWorker(cm, disco)
+	initDiscoveryWorker(cm, discoveryFactory)
 	return cm
 }
 

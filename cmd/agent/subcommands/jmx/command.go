@@ -69,7 +69,7 @@ type cliParams struct {
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, product command.ProductComposition) []*cobra.Command {
 	var discoveryRetryInterval uint // unused command-line flag
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
@@ -126,6 +126,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			hostnameimpl.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			adfx.Module(),
+			fx.Options(product.AutodiscoveryOptions...),
 			healthplatform.Bundle(),
 			agent.Bundle(jmxlogger.NewCliParams(cliParams.logFile)),
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.

@@ -15,7 +15,7 @@ import (
 )
 
 // Commands returns the experimental subcommand.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	cmd := expcmd.MakeCommand(func() configcmd.GlobalParams {
 		return configcmd.GlobalParams{
 			ConfFilePath:       globalParams.ConfFilePath,

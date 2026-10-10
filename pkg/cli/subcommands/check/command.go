@@ -34,6 +34,8 @@ import (
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	collectornoopimpl "github.com/DataDog/datadog-agent/comp/collector/collector/noop-impl"
+	"github.com/DataDog/datadog-agent/comp/collector/pythonruntime"
+	"github.com/DataDog/datadog-agent/comp/collector/sharedlibrary"
 	"github.com/DataDog/datadog-agent/comp/core"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
@@ -80,8 +82,6 @@ import (
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -149,7 +149,7 @@ type GlobalParams struct {
 }
 
 // MakeCommand returns a `check` command to be used by agent binaries.
-func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *cobra.Command {
+func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option, additionalOptions ...fx.Option) *cobra.Command {
 	cliParams := &cliParams{}
 	cmd := &cobra.Command{
 		Use:   "check <check_name>",
@@ -204,11 +204,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				orchestratorForwarderFx.Module(orchestratordef.NewNoopParams()),
 				eventplatformfx.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
-				fx.Supply(
-					status.Params{
-						PythonVersionGetFunc: python.GetPythonVersion,
-					},
-				),
 				statusimpl.Module(),
 				// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 				// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
@@ -222,6 +217,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				remotetraceroute.Module(),
+				fx.Options(additionalOptions...),
 			)
 		},
 	}
@@ -262,6 +258,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 	return cmd
 }
 
+type optionalDeps struct {
+	fx.In
+
+	PythonRuntime pythonruntime.Runtime           `optional:"true"`
+	SharedLibrary sharedlibrary.LoaderInitializer `optional:"true"`
+}
+
 func run(
 	config config.Component,
 	cliParams *cliParams,
@@ -281,6 +284,7 @@ func run(
 	ipc ipc.Component,
 	traceroute traceroute.Component,
 	healthPlatform healthplatformdef.Component,
+	optionalDeps optionalDeps,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -305,13 +309,15 @@ func run(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	python.SetHealthPlatform(healthPlatform)
-	if !config.GetBool("python_lazy_loading") {
-		python.InitPython(common.GetPythonPaths()...)
+	if optionalDeps.PythonRuntime != nil {
+		optionalDeps.PythonRuntime.SetHealthPlatform(healthPlatform)
+		if !config.GetBool("python_lazy_loading") {
+			optionalDeps.PythonRuntime.InitPython(common.GetPythonPaths()...)
+		}
 	}
 
-	if config.GetBool("shared_library_check.enabled") {
-		sharedlibrarycheck.InitSharedLibraryChecksLoader()
+	if config.GetBool("shared_library_check.enabled") && optionalDeps.SharedLibrary != nil {
+		optionalDeps.SharedLibrary.InitSharedLibraryChecksLoader()
 	}
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,

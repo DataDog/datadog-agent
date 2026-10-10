@@ -76,7 +76,6 @@ import (
 	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
-	metriclookbackdef "github.com/DataDog/datadog-agent/comp/metriclookback/def"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
@@ -100,7 +99,7 @@ import (
 //     this channel, then stops the agent when the context is cancelled.
 //
 // Returns an error channel that can be used to wait for the agent to stop and get the result.
-func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error) {
+func StartAgentWithDefaults(ctxChan <-chan context.Context, product command.ProductComposition) (<-chan error, error) {
 	errChan := make(chan error)
 
 	// run startAgent in an app, so that the log and config components get initialized
@@ -125,7 +124,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ serializer.MetricSerializer,
 			_ otelcollector.Component,
 			demultiplexer demultiplexer.Component,
-			metricLookback metriclookbackdef.Component,
+			metricLookback optionalMetricLookbackDeps,
 			_ host.Component,
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
@@ -210,7 +209,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
-			getSharedFxOption(),
+			getSharedFxOption(product),
 			getPlatformModules(),
 		)
 		// notify caller that fx.OneShot is done

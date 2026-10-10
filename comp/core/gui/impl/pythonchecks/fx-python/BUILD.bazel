@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-python",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/gui/impl/pythonchecks/fx-python",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/gui/impl/pythonchecks",
+        "//pkg/collector/python",
+        "@org_uber_go_fx//:fx",
+    ],
+)

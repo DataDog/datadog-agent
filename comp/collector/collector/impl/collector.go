@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
+	"github.com/DataDog/datadog-agent/comp/collector/pythonruntime"
+	"github.com/DataDog/datadog-agent/comp/collector/sharedlibrary"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -30,11 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	sharedlibrarycheck "github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -55,6 +55,8 @@ type dependencies struct {
 	HaAgent        haagent.Component
 	HealthPlatform healthplatform.Component
 	Hostname       hostnameinterface.Component
+	PythonRuntime  pythonruntime.Runtime           `optional:"true"`
+	SharedLibrary  sharedlibrary.LoaderInitializer `optional:"true"`
 
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
@@ -67,6 +69,7 @@ type collectorImpl struct {
 	haAgent        haagent.Component
 	healthPlatform healthplatform.Component
 	hostname       hostnameinterface.Component
+	pythonRuntime  pythonruntime.Runtime
 
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]
@@ -128,6 +131,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		haAgent:                deps.HaAgent,
 		healthPlatform:         deps.HealthPlatform,
 		hostname:               deps.Hostname,
+		pythonRuntime:          deps.PythonRuntime,
 		senderManager:          deps.SenderManager,
 		metricSerializer:       deps.MetricSerializer,
 		agentTelemetry:         deps.AgentTelemetry,
@@ -139,13 +143,15 @@ func newCollector(deps dependencies) *collectorImpl {
 		createdAt:              time.Now(),
 	}
 
-	python.SetHealthPlatform(deps.HealthPlatform)
-	if !deps.Config.GetBool("python_lazy_loading") {
-		python.InitPython(common.GetPythonPaths()...)
+	if c.pythonRuntime != nil {
+		c.pythonRuntime.SetHealthPlatform(deps.HealthPlatform)
+		if !deps.Config.GetBool("python_lazy_loading") {
+			c.pythonRuntime.InitPython(common.GetPythonPaths()...)
+		}
 	}
 
-	if deps.Config.GetBool("shared_library_check.enabled") {
-		sharedlibrarycheck.InitSharedLibraryChecksLoader()
+	if deps.Config.GetBool("shared_library_check.enabled") && deps.SharedLibrary != nil {
+		deps.SharedLibrary.InitSharedLibraryChecksLoader()
 	}
 
 	deps.Lc.Append(compdef.Hook{
@@ -175,7 +181,7 @@ func (c *collectorImpl) start(_ context.Context) error {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	run := runner.NewRunner(c.senderManager, c.haAgent)
+	run := runner.NewRunner(c.senderManager, c.haAgent, runner.WithPythonProcessTerminator(c.pythonRuntime))
 	sched := scheduler.NewScheduler(run.GetChan(), run.GetShadowChan())
 
 	// let the runner some visibility into the scheduler

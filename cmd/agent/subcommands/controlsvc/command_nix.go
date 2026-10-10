@@ -16,6 +16,6 @@ import (
 )
 
 // Commands returns nil on Unix.
-func Commands(_ *command.GlobalParams) []*cobra.Command {
+func Commands(_ *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	return nil
 }

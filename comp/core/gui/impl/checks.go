@@ -19,6 +19,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/gui/impl/pythonchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -52,7 +53,7 @@ func getFleetPoliciesPath() string {
 }
 
 // Adds the specific handlers for /checks/ endpoints
-func checkHandler(r *http.ServeMux) {
+func checkHandler(r *http.ServeMux, pyChecks pythonchecks.Lister) {
 	r.HandleFunc("POST /running", sendRunningChecks)
 	r.HandleFunc("POST /getConfig/{fileName}", getCheckConfigFile)
 	r.HandleFunc("POST /getConfig/{checkFolder}/{fileName}", getCheckConfigFile)
@@ -60,7 +61,9 @@ func checkHandler(r *http.ServeMux) {
 	r.HandleFunc("POST /setConfig/{checkFolder}/{fileName}", setCheckConfigFile)
 	r.HandleFunc("DELETE /setConfig/{fileName}", setCheckConfigFile)
 	r.HandleFunc("DELETE /setConfig/{checkFolder}/{fileName}", setCheckConfigFile)
-	r.HandleFunc("POST /listChecks", listChecks)
+	r.HandleFunc("POST /listChecks", func(w http.ResponseWriter, r *http.Request) {
+		listChecks(w, r, pyChecks)
+	})
 	r.HandleFunc("POST /listConfigs", listConfigs)
 }
 
@@ -245,12 +248,15 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getWheelsChecks() ([]string, error) {
+func getWheelsChecks(pyChecksLister pythonchecks.Lister) ([]string, error) {
 	pyChecks := []string{}
+	if pyChecksLister == nil {
+		return pyChecks, nil
+	}
 
 	// The integration list includes JMX integrations, they ship as wheels too.
 	// JMX wheels just contain sample configs, but they do ship.
-	integrations, err := getPythonChecks()
+	integrations, err := pyChecksLister.GetPythonIntegrationList()
 	if err != nil {
 		return []string{}, err
 	}
@@ -265,7 +271,7 @@ func getWheelsChecks() ([]string, error) {
 }
 
 // Sends a list containing the names of all the checks
-func listChecks(w http.ResponseWriter, _ *http.Request) {
+func listChecks(w http.ResponseWriter, _ *http.Request, pyChecks pythonchecks.Lister) {
 	integrations := []string{}
 	for _, path := range checkPaths() {
 		files, err := os.ReadDir(path)
@@ -280,7 +286,7 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
-	wheelsIntegrations, err := getWheelsChecks()
+	wheelsIntegrations, err := getWheelsChecks(pyChecks)
 	if err != nil {
 		log.Errorf("Unable to compile list of installed integrations: %v", err)
 		w.Write([]byte("Unable to compile list of installed integrations."))

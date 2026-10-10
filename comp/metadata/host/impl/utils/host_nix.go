@@ -12,7 +12,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/pythoninfo"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,7 +22,7 @@ const osName = runtime.GOOS
 
 type osVersion [3]interface{}
 
-func getSystemStats() *systemStats {
+func getSystemStats(py pythoninfo.Provider) *systemStats {
 	res, _ := cache.Get[*systemStats](
 		systemStatsCacheKey,
 		func() (*systemStats, error) {
@@ -40,7 +40,7 @@ func getSystemStats() *systemStats {
 				Platform:  runtime.GOOS,
 				Processor: CPUModel,
 				CPUCores:  CPUCores,
-				Pythonv:   python.GetPythonVersion(),
+				Pythonv:   py.GetPythonVersion(),
 			}
 
 			hostInfo := hostinfoutils.GetInformation()

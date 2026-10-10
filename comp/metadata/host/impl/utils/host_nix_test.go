@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 )
@@ -27,13 +26,13 @@ func TestGetSystemStats(t *testing.T) {
 	cpuInfo, err := cpu.Info()
 	require.NoError(t, err)
 
-	ss := getSystemStats()
+	ss := getSystemStats(fakePythonInfo{})
 
 	assert.Equal(t, runtime.GOARCH, ss.Machine)
 	assert.Equal(t, runtime.GOOS, ss.Platform)
 	assert.Equal(t, cpuInfo[0].ModelName, ss.Processor)
 	assert.Equal(t, cpuInfo[0].Cores, ss.CPUCores)
-	assert.Equal(t, python.GetPythonVersion(), ss.Pythonv)
+	assert.Equal(t, "3.11.0", ss.Pythonv)
 
 	hostInfo := hostinfo.GetInformation()
 
@@ -50,5 +49,5 @@ func TestGetSystemStatsCache(t *testing.T) {
 	fakeStats := &systemStats{Machine: "test data"}
 	cache.Cache.Set(systemStatsCacheKey, fakeStats, cache.NoExpiration)
 
-	assert.Equal(t, fakeStats, getSystemStats())
+	assert.Equal(t, fakeStats, getSystemStats(fakePythonInfo{}))
 }
