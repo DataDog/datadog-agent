@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Windows Agent MSI no longer sends obsolete ``apm-onboarding-event``
+    installation onboarding telemetry.
