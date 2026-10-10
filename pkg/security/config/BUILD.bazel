@@ -48,7 +48,10 @@ go_stringer(
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["credential_endpoints_test.go"],
+    srcs = [
+        "credential_endpoints_test.go",
+        "sampling_test.go",
+    ],
     embed = [":config"],
     deps = [
         "//pkg/security/secl/model",
