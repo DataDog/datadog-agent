@@ -54,7 +54,7 @@ ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.24.1
+FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.24.2
 
 # --timeout (global flag, before the subcommand) bounds each network operation so
 # a slow Alpine CDN fails fast instead of hanging the build. Default is 60s.
