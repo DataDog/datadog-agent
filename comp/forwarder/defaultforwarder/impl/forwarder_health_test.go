@@ -70,12 +70,13 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.xx9.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
 		"https://app.xxxx99.datadoghq.com":       {utils.NewAPIKeys("path", "api_key5")},
 		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("path", "api_key6")},
-		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
-		"https://app.datadoghq.internal":  {utils.NewAPIKeys("path", "api_key7")},
-		"https://app.myproxy.com":         {utils.NewAPIKeys("path", "api_key8")},
-		"https://app.ddog-gov.com":        {utils.NewAPIKeys("path", "api_key9")},
-		"https://custom.ddog-gov.com":     {utils.NewAPIKeys("path", "api_key10")},
-		"https://app.xxxx99.ddog-gov.com": {utils.NewAPIKeys("path", "api_key11")},
+		"https://app.datadoghq.internal":         {utils.NewAPIKeys("path", "api_key7")},
+		"https://app.myproxy.com":                {utils.NewAPIKeys("path", "api_key8")},
+		"https://app.ddog-gov.com":               {utils.NewAPIKeys("path", "api_key9")},
+		"https://custom.ddog-gov.com":            {utils.NewAPIKeys("path", "api_key10")},
+		"https://app.xxxx99.ddog-gov.com":        {utils.NewAPIKeys("path", "api_key11")},
+		// customer-specific MRF aliases don't identify the org's site, so they're validated as-is
+		"https://acme.mrf.datadoghq.com": {utils.NewAPIKeys("path", "api_key12")},
 	}
 
 	expectedMap := map[string][]string{
@@ -84,10 +85,11 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://api.us2.datadoghq.com":    {"api_key5", "api_key6"},
 		"https://api.xx9.datadoghq.com":    {"api_key5"},
 		"https://api.xxxx99.datadoghq.com": {"api_key5"},
-		"https://api.datadoghq.internal":   {"api_key7"},
+		"https://app.datadoghq.internal":   {"api_key7"},
 		"https://app.myproxy.com":          {"api_key8"},
 		"https://api.ddog-gov.com":         {"api_key9", "api_key10"},
 		"https://api.xxxx99.ddog-gov.com":  {"api_key11"},
+		"https://acme.mrf.datadoghq.com":   {"api_key12"},
 	}
 
 	// just sort the expected map for easy comparison

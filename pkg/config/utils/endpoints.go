@@ -254,7 +254,8 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 
 // ddDomainPattern matches known Datadog domains (e.g., datadoghq.com,
 // datad0g.eu, ddog-gov.com). This is the shared building block for
-// wellKnownSitesRe, ddSitePattern, ddSiteFromHostnameRe, and ddURLRegexp.
+// wellKnownSitesRe, ddSitePattern, ddSiteFromHostnameRe, mrfAliasRegexp, and
+// ddURLRegexp.
 const ddDomainPattern = `datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com`
 
 var wellKnownSitesRe = regexp.MustCompile(`(?:` + ddDomainPattern + `)$`)
@@ -294,6 +295,37 @@ func ExtractSiteFromURL(rawURL string) string {
 	// matches[1] is the DC label with trailing dot (e.g., "us3.") or empty
 	// matches[2] is the known domain (e.g., "datadoghq.com")
 	return matches[1] + matches[2]
+}
+
+// mrfAliasRegexp matches customer-specific Multi-Region Failover aliases (e.g., "<customer>.mrf.datadoghq.com"). These
+// DNS records point at whichever region the customer's org is currently active in, so unlike the "app.mrf.<site>" URLs
+// built from `multi_region_failover.site`, their site does not tell us where the org lives.
+var mrfAliasRegexp = regexp.MustCompile(`^([a-z0-9-]+)\.mrf\.` + ddSitePattern + `$`)
+
+// isMRFAliasURL reports whether the given URL points at a customer-specific Multi-Region Failover alias.
+func isMRFAliasURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimRight(u.Hostname(), "."))
+	matches := mrfAliasRegexp.FindStringSubmatch(host)
+	return matches != nil && matches[1] != "app"
+}
+
+// APIEndpointFromURL returns the base URL for API calls (e.g., API key validation) related to the given endpoint URL.
+//
+// If the URL belongs to a Datadog site, the API endpoint for that site is returned: "https://app.us3.datadoghq.com"
+// returns "https://api.us3.datadoghq.com". Otherwise, such as for proxies or customer-specific Multi-Region Failover
+// aliases, the URL is returned unchanged.
+func APIEndpointFromURL(rawURL string) string {
+	if isMRFAliasURL(rawURL) {
+		return rawURL
+	}
+	if site := ExtractSiteFromURL(rawURL); site != "" {
+		return "https://api." + site
+	}
+	return rawURL
 }
 
 // BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix.
