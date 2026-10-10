@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log/slog"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -20,11 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func changeLogLevel(level LogLevel) error {
-	return logger.changeLogLevel(level)
+	return logger.changeLogLevelRules(types.NewLevelRules(level))
 }
 
 func TestBasicLogging(t *testing.T) {
@@ -644,10 +644,7 @@ func TestChangeLogLevel(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("change log level to "+tc.String(), func(t *testing.T) {
-			levelVar := new(slog.LevelVar)
-			levelVar.Set(slog.LevelDebug)
-
-			SetupLoggerWithLevelVar(Default(), levelVar)
+			SetupLoggerWithLevelRules(Default(), types.NewRulesSyncFromLevel(DebugLvl))
 
 			err := ChangeLogLevel(tc)
 			assert.NoError(t, err)
@@ -663,7 +660,7 @@ func TestChangeLogLevel(t *testing.T) {
 func TestChangeLogLevelNilLogger(t *testing.T) {
 	logger.Store(nil)
 
-	err := logger.changeLogLevel(InfoLvl)
+	err := logger.changeLogLevelRules(types.NewLevelRules(InfoLvl))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger not initialized", err.Error())
 }
@@ -672,7 +669,7 @@ func TestChangeLogLevelNilInnerLogger(t *testing.T) {
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
-	err := logger.changeLogLevel(InfoLvl)
+	err := logger.changeLogLevelRules(types.NewLevelRules(InfoLvl))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot change loglevel: logger is initialized however logger.inner is nil", err.Error())
 }
@@ -683,6 +680,31 @@ func TestGetLogLevel(t *testing.T) {
 	level, err := GetLogLevel()
 	assert.NoError(t, err)
 	assert.Equal(t, WarnLvl, level)
+}
+
+func TestGetLogLevelSpec(t *testing.T) {
+	SetupLogger(Default(), WarnStr)
+
+	spec, err := GetLogLevelSpec()
+	assert.NoError(t, err)
+	assert.Equal(t, "warn", spec, "a plain level setup yields the level name")
+
+	rules, err := types.ParseLevelRules("error,./pkg/collector/...=debug", "github.com/DataDog/datadog-agent")
+	require.NoError(t, err)
+	require.NoError(t, ChangeLogLevelRules(rules))
+
+	spec, err = GetLogLevelSpec()
+	assert.NoError(t, err)
+	assert.Equal(t, "error,./pkg/collector/...=debug", spec)
+}
+
+func TestGetLogLevelSpecNilLogger(t *testing.T) {
+	logger.Store(nil)
+
+	spec, err := GetLogLevelSpec()
+	assert.Error(t, err)
+	assert.Equal(t, "", spec)
+	assert.Equal(t, "cannot get loglevel: logger not initialized", err.Error())
 }
 
 func TestGetLogLevelNilLogger(t *testing.T) {

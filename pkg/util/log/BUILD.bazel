@@ -41,6 +41,7 @@ dd_agent_go_test(
     ],
     embed = [":log"],
     deps = [
+        "//pkg/util/log/types",
         "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

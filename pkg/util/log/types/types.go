@@ -9,6 +9,7 @@ package types
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 )
 
 // LoggerInterface provides basic logging methods that can be used from outside the log package.
@@ -119,6 +120,34 @@ func (level LogLevel) String() string {
 		return OffStr
 	default:
 		return ""
+	}
+}
+
+// ValidateLogLevel validates the given log level and returns the corresponding
+// LogLevel.
+func ValidateLogLevel(logLevel string) (LogLevel, error) {
+	normalized := strings.ToLower(logLevel)
+	if normalized == "warning" { // support the deprecated "warning" spelling for backwards compatibility
+		normalized = WarnStr
+	}
+
+	switch normalized {
+	case TraceStr:
+		return TraceLvl, nil
+	case DebugStr:
+		return DebugLvl, nil
+	case InfoStr:
+		return InfoLvl, nil
+	case WarnStr:
+		return WarnLvl, nil
+	case ErrorStr:
+		return ErrorLvl, nil
+	case CriticalStr:
+		return CriticalLvl, nil
+	case OffStr:
+		return Off, nil
+	default:
+		return Off, fmt.Errorf("unknown log level: %s", normalized)
 	}
 }
 

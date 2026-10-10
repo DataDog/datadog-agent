@@ -15,6 +15,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers",
     visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log/types"],
 )
 
 dd_agent_go_test(
@@ -29,6 +30,7 @@ dd_agent_go_test(
     ],
     embed = [":handlers"],
     deps = [
+        "//pkg/util/log/types",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
