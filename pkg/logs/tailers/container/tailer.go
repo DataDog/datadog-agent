@@ -39,6 +39,8 @@ import (
 
 const defaultSleepDuration = 1 * time.Second
 
+var errTailerStopping = errors.New("tailer is stopping")
+
 // DockerContainerLogInterface is an interface that exposes only the required function from DockerUtil
 // located at pkg/util/docker/docker_util.go
 type DockerContainerLogInterface interface {
@@ -278,15 +280,28 @@ func (t *Tailer) setupReader() error {
 }
 
 // tryRestartReader reconnects the reader by setting up a fresh one.
+// It returns errTailerStopping if Stop() is called meanwhile.
 func (t *Tailer) tryRestartReader(reason string) error {
 	log.Debugf("%s for container %v", reason, t.ContainerID)
+	t.readerCancelFunc()
+	_ = t.reader.Close()
 	t.wait()
+	if t.stopping.Load() {
+		return errTailerStopping
+	}
 	err := t.setupReader()
 	if err != nil {
 		log.Warnf("Could not restart the docker reader for container %v: %v:", t.ContainerID, err)
 		t.erroredContainerID <- t.ContainerID
+		return err
 	}
-	return err
+	if t.stopping.Load() {
+		// Stop() only closed the previous reader.
+		t.readerCancelFunc()
+		_ = t.reader.Close()
+		return errTailerStopping
+	}
+	return nil
 }
 
 // tail sets up and starts the tailer
@@ -360,10 +375,16 @@ func (t *Tailer) readForever() {
 						return
 					}
 					continue
-				case isContextCanceled(err):
+				case isContextCanceled(err), isTimeoutErr(err):
+					// Reconnect in place to keep lastSince. Recreating the tailer
+					// would resume from the lagging registry offset and re-send lines.
+					//
 					// Note that it could happen that the docker daemon takes a lot of time gathering timestamps
 					// before starting to send any data when it has stored several large log files.
 					// Increasing the docker_client_read_timeout could help avoiding such a situation.
+					if t.stopping.Load() {
+						return
+					}
 					if err := t.tryRestartReader("Restarting reader after a read timeout"); err != nil {
 						return
 					}
@@ -527,7 +548,13 @@ func isClosedConnError(err error) bool {
 
 // isContextCanceled returns true if the error is related to a canceled context,
 func isContextCanceled(err error) bool {
-	return err == context.Canceled
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// isTimeoutErr returns true for network and http.Client timeouts.
+func isTimeoutErr(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 // isReaderClosed returns true if a reader has been closed.
