@@ -1,0 +1,30 @@
+---
+upgrade:
+  - |
+    SBOM scans keep their Trivy analysis cache in memory and free it when the
+    scan completes. On the tarball scan path, which Docker and containerd use
+    unless ``sbom.container_image.use_mount`` or
+    ``sbom.container_image.overlayfs_direct_scan`` is set, each scan now
+    exports and analyzes the whole image, including the scans that follow an
+    Agent restart. Earlier versions answered those scans from the on-disk
+    cache.
+
+    A host upgraded from an earlier version keeps the ``fanal`` directory the
+    on-disk cache wrote under ``sbom.cache_directory``, by default
+    ``<run_path>/sbom-agent``, which is ``/opt/datadog-agent/run/sbom-agent``
+    on Linux. It is safe to delete.
+  - |
+    The SBOM cache telemetry metrics ``sbom.cache_disk_size``,
+    ``sbom.cache_hits_total`` and ``sbom.cache_misses_total`` are removed. They
+    measured the on-disk cache.
+deprecations:
+  - |
+    The SBOM settings ``sbom.cache_directory``, ``sbom.clear_cache_on_exit``,
+    ``sbom.cache.max_disk_size``, ``sbom.cache.clean_interval`` and
+    ``sbom.container_image.overlayfs_disable_cache``, and their environment
+    variables ``DD_SBOM_CACHE_DIRECTORY``, ``DD_SBOM_CLEAR_CACHE_ON_EXIT``,
+    ``DD_SBOM_CACHE_MAX_DISK_SIZE``, ``DD_SBOM_CACHE_CLEAN_INTERVAL`` and
+    ``DD_SBOM_CONTAINER_IMAGE_OVERLAYFS_DISABLE_CACHE``, are deprecated and
+    ignored. They configured the on-disk SBOM cache, which is removed. When
+    SBOM collection is enabled, the Agent logs a warning for each one that is
+    set. Remove them from your configuration. A future release deletes them.
