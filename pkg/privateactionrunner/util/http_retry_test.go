@@ -80,6 +80,29 @@ func TestRetryHTTPRequest_NoRetryOn4xx(t *testing.T) {
 	assert.EqualValues(t, 1, atomic.LoadInt32(&calls), "4xx should not retry")
 }
 
+func TestRetryHTTPRequest_RetriesOn429ThenSucceeds(t *testing.T) {
+	var calls int32
+	result, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+		if atomic.AddInt32(&calls, 1) == 1 {
+			return "", 429, errors.New("rate limited")
+		}
+		return "ok", 200, nil
+	}, fastTestOpts(0))
+
+	require.NoError(t, err)
+	assert.Equal(t, "ok", result)
+	assert.EqualValues(t, 2, atomic.LoadInt32(&calls), "429 should be retried")
+}
+
+func TestIsRetryableHTTPStatus(t *testing.T) {
+	for _, status := range []int{302, 408, 425, 429, 500, 503} {
+		assert.True(t, IsRetryableHTTPStatus(status), status)
+	}
+	for _, status := range []int{400, 401, 403, 404, 409, 422} {
+		assert.False(t, IsRetryableHTTPStatus(status), status)
+	}
+}
+
 func TestRetryHTTPRequest_StopsAtMaxElapsedTime(t *testing.T) {
 	var calls int32
 	originalErr := errors.New("server error")
