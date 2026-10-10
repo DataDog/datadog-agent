@@ -93,6 +93,7 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 func TestFoldspaceDefaults(t *testing.T) {
 	_, l := getLogsConfigKeys(t)
 	assert.False(t, l.foldspaceEnabled())
+	assert.False(t, l.foldspaceDualShip())
 }
 
 // TestFoldspaceTapChannelSize asserts the ingest buffer falls back to the shared
@@ -111,7 +112,9 @@ func TestFoldspaceTapChannelSize(t *testing.T) {
 func TestFoldspaceEnvAndYAML(t *testing.T) {
 	mockConfig, l := getLogsConfigKeys(t)
 	mockConfig.SetInTest("logs_config.foldspace.enabled", true)
+	mockConfig.SetInTest("logs_config.foldspace.dual_ship", true)
 	assert.True(t, l.foldspaceEnabled())
+	assert.True(t, l.foldspaceDualShip())
 }
 
 func TestValidateFoldspaceTCP(t *testing.T) {
