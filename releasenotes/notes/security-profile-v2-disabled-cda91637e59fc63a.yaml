@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    With security profiles disabled, as for runtime usage enrichment without
+    CWS, system-probe keeps no security profile state for the containers it
+    sees. That state grew with every container the host ran.
