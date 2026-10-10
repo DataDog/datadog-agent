@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "server",
+    srcs = [
+        "api_events.go",
+        "api_scalar.go",
+        "api_traces_metrics.go",
+        "formula.go",
+        "intake.go",
+        "metric_units.go",
+        "server.go",
+        "ui_noembed.go",
+    ],
+    embedsrcs = ["units.json"],
+    importpath = "github.com/DataDog/datadog-agent/test/localdog/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/api",
+        "//test/localdog/store",
+    ],
+)
+
+dd_agent_go_test(
+    name = "server_test",
+    srcs = ["server_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":server"],
+    embedsrcs = [
+        "testdata/log_bytes",
+        "testdata/metric_bytes",
+        "testdata/trace_bytes",
+    ],
+    deps = [
+        "//test/localdog/store",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

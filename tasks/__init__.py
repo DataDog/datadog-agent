@@ -55,6 +55,7 @@ from tasks import (
     kmt,
     linter,
     loader,
+    localdog,
     macos,
     modules,
     msi,
@@ -270,6 +271,7 @@ ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
+ns.add_collection(localdog)
 ns.add_collection(kmt)
 ns.add_collection(k8s_versions)
 ns.add_collection(kind_node_image)

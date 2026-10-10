@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "localdog_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/localdog/cmd/localdog",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//test/localdog/server",
+        "//test/localdog/store",
+    ],
+)
+
+go_binary(
+    name = "localdog",
+    embed = [":localdog_lib"],
+    visibility = ["//visibility:public"],
+)

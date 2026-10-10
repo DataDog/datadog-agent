@@ -1,0 +1,5 @@
+# The demo is a Node.js app, and the embedded web app (built with the localdog_ui tag by
+# `dda inv localdog.build --with-ui`) is not part of the Bazel build.
+# gazelle:exclude demo
+# gazelle:exclude server/ui
+# gazelle:exclude server/ui_embed.go

@@ -391,6 +391,7 @@ modules:
   test/fakeintake: default
   test/integration/serverless/recorder-extension: ignored
   test/integration/serverless/src: ignored
+  test/localdog: default
   test/new-e2e:
     lint_targets:
     - .
