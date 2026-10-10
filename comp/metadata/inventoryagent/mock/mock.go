@@ -45,6 +45,11 @@ func (m *inventoryagentMock) Get() map[string]interface{} {
 // Refresh is a mocked function
 func (m *inventoryagentMock) Refresh() {}
 
+// SendNow is a mocked function
+func (m *inventoryagentMock) SendNow() error {
+	return nil
+}
+
 // MockModule defines the fx options for the mock component.
 //
 // Usage:

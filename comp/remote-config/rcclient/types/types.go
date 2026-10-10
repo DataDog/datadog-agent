@@ -24,6 +24,8 @@ const (
 	TaskFlare TaskType = "flare"
 	// TaskDeviceScan is the task sent to request a device scan for NDM device onboarding.
 	TaskDeviceScan TaskType = "ndm-device-scan"
+	// TaskTriggerPayloads is the task sent to request the agent to send some payloads immediately
+	TaskTriggerPayloads TaskType = "trigger_payloads"
 )
 
 // AgentTaskConfig is a deserialized agent task configuration file
@@ -53,6 +55,28 @@ func ParseConfigAgentTask(data []byte, metadata state.Metadata) (AgentTaskConfig
 		Config:   d,
 		Metadata: metadata,
 	}, nil
+}
+
+// PartialFailureError is returned by a RCAgentTaskListener when the task was handled but partially failed.
+// The task is then acknowledged, with the error reported to remote-config.
+type PartialFailureError struct {
+	Err error
+}
+
+// NewPartialFailureError wraps err in a PartialFailureError
+func NewPartialFailureError(err error) error {
+	return &PartialFailureError{Err: err}
+}
+
+func (e *PartialFailureError) Error() string {
+	if e.Err == nil {
+		return "partial failure"
+	}
+	return "partial failure: " + e.Err.Error()
+}
+
+func (e *PartialFailureError) Unwrap() error {
+	return e.Err
 }
 
 // RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
