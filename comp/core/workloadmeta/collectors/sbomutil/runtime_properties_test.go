@@ -166,6 +166,87 @@ func TestMergeRuntimeProperties_EpochNormalization(t *testing.T) {
 	assert.Equal(t, "1700000000", v)
 }
 
+// TestMergeRuntimeProperties_VersionChanges checks what a report does to an
+// image component whose package changed version in the container.
+func TestMergeRuntimeProperties_VersionChanges(t *testing.T) {
+	tests := []struct {
+		name     string
+		image    string // version in the image SBOM, and in the first report
+		reported string // version in the report sent after the change
+		takes    bool   // whether the component takes the values of that report
+	}{
+		{"same version", "1.12-1ubuntu3", "1.12-1ubuntu3", true},
+		// Known gap: the image lists the build the upgrade replaced, which keeps its values.
+		{"upgrade", "1.12-1ubuntu3", "1.13-1ubuntu1", false},
+		{"release only", "1.12-1ubuntu3", "1.12-1ubuntu3.1", false},
+		{"downgrade", "1.12-1ubuntu3", "1.12-1ubuntu2", false},
+		{"epoch bump", "1:1.12-1ubuntu3", "2:1.12-1ubuntu3", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			image := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+				{Name: "gzip", Version: tt.image, Purl: pointer.Ptr("pkg:deb/ubuntu/gzip@" + tt.image + "?arch=amd64")},
+			}}
+			first := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+				component("gzip", tt.image, prop(LastAccessProperty, "1700000000"), prop(HasSetSuidBitProperty, "true"), prop(RunningAsRootProperty, "true")),
+			}}
+			second := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+				component("gzip", tt.reported, prop(LastAccessProperty, "1700000600"), prop(HasSetSuidBitProperty, "false"), prop(RunningAsRootProperty, "false")),
+			}}
+
+			merged := MergeRuntimeProperties(MergeRuntimeProperties(image, first), second)
+
+			require.Len(t, merged.Components, 1)
+			c := merged.Components[0]
+			assert.Equal(t, tt.image, c.Version)
+			want := map[string]string{LastAccessProperty: "1700000000", HasSetSuidBitProperty: "true", RunningAsRootProperty: "true"}
+			if tt.takes {
+				want = map[string]string{LastAccessProperty: "1700000600", HasSetSuidBitProperty: "false", RunningAsRootProperty: "false"}
+			}
+			for name, value := range want {
+				got, _ := findProp(c, name)
+				assert.Equal(t, value, got, name)
+			}
+		})
+	}
+}
+
+// TestMergeRuntimeProperties_PackagesChangedAtRuntime checks that a removed
+// package keeps its last values and that a package installed at runtime stays out.
+func TestMergeRuntimeProperties_PackagesChangedAtRuntime(t *testing.T) {
+	osComponent := func(name, version string) *cyclonedx_v1_4.Component {
+		return &cyclonedx_v1_4.Component{Name: name, Version: version, Purl: pointer.Ptr("pkg:deb/ubuntu/" + name + "@" + version + "?arch=amd64")}
+	}
+	image := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+		osComponent("bash", "5.2.21-2ubuntu4"),
+		osComponent("gzip", "1.12-1ubuntu3"),
+	}}
+	first := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+		component("bash", "5.2.21-2ubuntu4", prop(LastAccessProperty, "1700000000"), prop(RunningAsRootProperty, "true")),
+		component("gzip", "1.12-1ubuntu3", prop(LastAccessProperty, "1700000000"), prop(RunningAsRootProperty, "true")),
+	}}
+	// gzip removed and curl installed in the container
+	second := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+		component("bash", "5.2.21-2ubuntu4", prop(LastAccessProperty, "1700000600"), prop(RunningAsRootProperty, "false")),
+		component("curl", "8.5.0-2ubuntu10", prop(LastAccessProperty, "1700000600"), prop(RunningAsRootProperty, "false")),
+	}}
+
+	merged := MergeRuntimeProperties(MergeRuntimeProperties(image, first), second)
+
+	require.Len(t, merged.Components, 2)
+	for i, want := range []struct{ name, lastSeen, asRoot string }{
+		{"bash", "1700000600", "false"},
+		{"gzip", "1700000000", "true"},
+	} {
+		c := merged.Components[i]
+		assert.Equal(t, want.name, c.Name)
+		got, _ := findProp(c, LastAccessProperty)
+		assert.Equal(t, want.lastSeen, got, want.name)
+		got, _ = findProp(c, RunningAsRootProperty)
+		assert.Equal(t, want.asRoot, got, want.name)
+	}
+}
+
 func TestMergeRuntimeProperties_DefaultsLastSeenRunningToZero(t *testing.T) {
 	existing := &cyclonedx_v1_4.Bom{
 		Components: []*cyclonedx_v1_4.Component{
