@@ -577,6 +577,50 @@ func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
 	assert.Contains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
 }
 
+func TestCheckSenderEventInfraMode(t *testing.T) {
+	tests := []struct {
+		name         string
+		mode         string
+		expectedTags []string
+	}{
+		{"cloud_cost_only is marked", "cloud_cost_only", []string{"env:prod", "infra_mode:cloud_cost_only"}},
+		{"end_user_device is marked", "end_user_device", []string{"env:prod", "infra_mode:end_user_device"}},
+		{"full is not marked", "full", []string{"env:prod"}},
+		{"an unknown mode is not marked", "cloud_cost", []string{"env:prod"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.Set("infrastructure_mode", tt.mode, pkgconfigmodel.SourceFile)
+
+			s := initSender(checkID1, "")
+			s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
+
+			assert.Equal(t, tt.expectedTags, (<-s.eventChan).Tags)
+		})
+	}
+}
+
+func TestCheckSenderEventInfraModeStaysOffMetricsAndServiceChecks(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+
+	s := initSender(checkID1, "")
+
+	s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
+	assert.Contains(t, (<-s.eventChan).Tags, "infra_mode:cloud_cost_only")
+
+	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+	assert.NotContains(t, (<-s.itemChan).(*senderMetricSample).metricSample.Tags, "infra_mode:cloud_cost_only")
+
+	s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
+	assert.NotContains(t, (<-s.itemChan).(*senderHistogramBucket).bucket.Tags, "infra_mode:cloud_cost_only")
+
+	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"env:prod"}, "message")
+	assert.NotContains(t, (<-s.serviceCheckChan).Tags, "infra_mode:cloud_cost_only")
+}
+
 func TestCheckSenderInterface(t *testing.T) {
 	// this test not using anything global
 	// -
