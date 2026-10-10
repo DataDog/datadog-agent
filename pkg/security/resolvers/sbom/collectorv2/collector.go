@@ -57,5 +57,14 @@ func (s *OSScanner) ScanInstalledPackages(ctx context.Context, root string) ([]s
 		}
 		pkgs = append(pkgs, result...)
 	}
+
+	// The kernel reports the files a process opens under their resolved
+	// directories, /usr/bin/bash for the /bin/bash dpkg lists on a merged /usr.
+	dirs := newDirResolver(rootFS)
+	for _, pkg := range pkgs {
+		for i, file := range pkg.InstalledFiles {
+			pkg.InstalledFiles[i] = dirs.path(file)
+		}
+	}
 	return pkgs, nil
 }
