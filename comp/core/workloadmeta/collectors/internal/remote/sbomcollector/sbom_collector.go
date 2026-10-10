@@ -139,9 +139,11 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("existing image %s has no SBOM to merge with", imageID)
 	}
 
-	if existingImage.SBOM.Status == workloadmeta.Pending || existingImage.SBOM.Status == "" {
-		log.Debugf("Image %s SBOM is still in state '%s', skipping merge for now", imageID, existingImage.SBOM.Status)
-		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is still pending", imageID)
+	// A failed scan merged here would outlive the retry that replaces it, since
+	// this collector's source takes precedence in the store.
+	if existingImage.SBOM.Status != workloadmeta.Success {
+		log.Debugf("Image %s SBOM is in state '%s', skipping merge", imageID, existingImage.SBOM.Status)
+		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is in state '%s'", imageID, existingImage.SBOM.Status)
 	}
 
 	// Decompress existing image SBOM to get CycloneDXBOM

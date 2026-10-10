@@ -333,20 +333,31 @@ func TestWorkloadmetaEventFromSBOMEventSet_FallsBackToRepoDigest(t *testing.T) {
 	assert.Equal(t, configDigest, got.ID)
 }
 
-func TestWorkloadmetaEventFromSBOMEventSet_PendingSBOMSkipped(t *testing.T) {
+func TestWorkloadmetaEventFromSBOMEventSet_UnscannedSBOMSkipped(t *testing.T) {
 	const containerID = "container-3"
 	const imageID = "image-3"
 
-	store := newFakeStore()
-	store.containers[containerID] = &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
-		Image:    workloadmeta.ContainerImage{ID: imageID},
-	}
-	store.images[imageID] = seedImageSBOM(t, imageID, workloadmeta.Pending, component("bash", "5.1"))
+	for name, status := range map[string]workloadmeta.SBOMStatus{
+		"pending": workloadmeta.Pending,
+		"failed":  workloadmeta.Failed,
+		"unset":   "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			store := newFakeStore()
+			store.containers[containerID] = &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+				Image:    workloadmeta.ContainerImage{ID: imageID},
+			}
+			store.images[imageID] = seedImageSBOM(t, imageID, status, component("bash", "5.1"))
 
-	event, err := workloadmetaEventFromSBOMEventSet(store, systemProbeMessage(t, containerID))
-	assert.Error(t, err)
-	assert.Nil(t, event.Entity)
+			msg := systemProbeMessage(t, containerID,
+				component("bash", "5.1", prop(sbomutil.LastAccessProperty, "1700000000")),
+			)
+			event, err := workloadmetaEventFromSBOMEventSet(store, msg)
+			assert.Error(t, err)
+			assert.Nil(t, event.Entity)
+		})
+	}
 }
 
 func TestWorkloadmetaEventFromSBOMEventSet_MissingExistingSBOM(t *testing.T) {
