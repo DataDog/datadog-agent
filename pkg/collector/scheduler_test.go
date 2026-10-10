@@ -349,6 +349,41 @@ func TestGetChecksFromConfigsSkipsShadowCheckForUnsupportedLoader(t *testing.T) 
 	assert.Empty(t, shadowSenderManager.destroyedIDs)
 }
 
+func TestGetChecksFromConfigsDoesNotInfraTagCustomChecks(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("infrastructure_mode", "cloud_cost_only")
+	// Even when custom_foo is listed beside an eligible check, it must not get the infra tagger.
+	cfg.SetInTest("integration.cloud_cost_only.tagged", []string{"custom_foo", "cpu"})
+
+	senderManager := &recordingSchedulerSenderManager{name: "normal"}
+	loader := &recordingSchedulerLoader{name: "core"}
+	s := CheckScheduler{
+		configToChecks: make(map[string][]checkid.ID),
+		senderManager:  senderManager,
+		infraTagger:    infratags.NewTagger(cfg),
+	}
+	s.addLoader(loader)
+
+	customConfig := integration.Config{
+		Name:       "custom_foo",
+		Instances:  []integration.Data{integration.Data("name: custom\n")},
+		InitConfig: integration.Data("{}"),
+	}
+	cpuConfig := integration.Config{
+		Name:       "cpu",
+		Instances:  []integration.Data{integration.Data("name: cpu\n")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{customConfig, cpuConfig}, false)
+
+	require.Len(t, checks, 2)
+	assert.Equal(t, "custom_foo", checks[0].String())
+	assert.Equal(t, "cpu", checks[1].String())
+	assert.Equal(t, []checkid.ID{checks[1].ID()}, senderManager.infraTaggedIDs,
+		"custom_* checks must not get SetInfraTagger under cloud_cost_only")
+}
+
 func TestShadowLoaderForPythonReusesLoadedLoader(t *testing.T) {
 	loader := &recordingSchedulerLoader{name: "python"}
 	s := CheckScheduler{}

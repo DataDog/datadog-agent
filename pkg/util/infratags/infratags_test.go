@@ -49,6 +49,11 @@ func TestIsCheckEligible(t *testing.T) {
 		infraModeTags: []string{InfraModeCloudCostTag},
 		taggedChecks:  map[string]struct{}{"cpu": {}},
 	}
+	// custom_* must stay ineligible even when explicitly listed in the allow-list.
+	customAllowlisted := &Tagger{
+		infraModeTags: []string{InfraModeCloudCostTag},
+		taggedChecks:  map[string]struct{}{"custom_foo": {}, "cpu": {}},
+	}
 
 	tests := []struct {
 		name      string
@@ -59,15 +64,28 @@ func TestIsCheckEligible(t *testing.T) {
 		{"nil receiver returns false", nil, "cpu", false},
 		{"empty check name returns false", allChecks, "", false},
 		{"custom_ prefix returns false", allChecks, "custom_check", false},
+		{"custom_ in allow-list still returns false", customAllowlisted, "custom_foo", false},
 		{"nil allow-list tags all non-custom checks", allChecks, "any_integration", true},
 		{"check in allow-list returns true", selective, "cpu", true},
 		{"check not in allow-list returns false", selective, "disk", false},
+		{"allow-listed non-custom check still eligible beside custom_", customAllowlisted, "cpu", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, tt.tagger.IsCheckEligible(tt.checkName))
 		})
 	}
+}
+
+func TestIsCheckEligibleCustomBeatsAllowlistFromConfig(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+	cfg.Set("integration.cloud_cost_only.tagged", []string{"custom_foo", "cpu"}, pkgconfigmodel.SourceFile)
+
+	tagger := NewTagger(cfg)
+	assert.NotNil(t, tagger)
+	assert.False(t, tagger.IsCheckEligible("custom_foo"))
+	assert.True(t, tagger.IsCheckEligible("cpu"))
 }
 
 func TestTaggerAppendTags(t *testing.T) {
