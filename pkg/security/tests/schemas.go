@@ -193,6 +193,12 @@ func (tm *testModule) validateUnshareSchema(t *testing.T, event *model.Event) bo
 }
 
 //nolint:unused
+func (tm *testModule) validateSetNSSchema(t *testing.T, event *model.Event) bool {
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///setns.schema.json")
+}
+
+//nolint:unused
 func (tm *testModule) validateLoadModuleSchema(t *testing.T, event *model.Event) bool {
 	if ebpfLessEnabled {
 		return true

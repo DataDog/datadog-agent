@@ -1319,6 +1319,118 @@ int test_create_socket_send_fd(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// setns_from_path opens the nsfs file at path and joins the namespace it refers to.
+static int setns_from_path(const char *path, int nstype) {
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        perror("open");
+        return EXIT_FAILURE;
+    }
+
+    if (setns(fd, nstype) < 0) {
+        perror("setns");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
+// setns_from_pidfd joins its own mount and network namespaces through a pidfd. With denied set it
+// first drops its capabilities, so the kernel fails on the mount namespace before it validates the
+// network one, and only that EPERM counts as a success.
+static int setns_from_pidfd(int denied) {
+    int fd = syscall(__NR_pidfd_open, getpid(), 0);
+    if (fd < 0) {
+        perror("pidfd_open");
+        return EXIT_FAILURE;
+    }
+
+    if (denied && setuid(1) < 0) {
+        perror("setuid");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    int ret = setns(fd, CLONE_NEWNS | CLONE_NEWNET);
+    int err = errno;
+    close(fd);
+
+    if (denied) {
+        if (ret == 0 || err != EPERM) {
+            fprintf(stderr, "setns should have failed with EPERM, got %d (%s)\n", ret, strerror(err));
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
+    }
+
+    if (ret < 0) {
+        fprintf(stderr, "setns: %s\n", strerror(err));
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+// Usage: syscall_tester setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied>
+int test_setns(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied>\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *mode = argv[1];
+
+    if (strcmp(mode, "net") == 0) {
+        return setns_from_path("/proc/self/ns/net", CLONE_NEWNET);
+    }
+
+    if (strcmp(mode, "mnt") == 0) {
+        return setns_from_path("/proc/self/ns/mnt", CLONE_NEWNS);
+    }
+
+    // nstype 0 lets the kernel infer the namespace type from the file descriptor
+    if (strcmp(mode, "any") == 0) {
+        return setns_from_path("/proc/self/ns/net", 0);
+    }
+
+    if (strcmp(mode, "pidfd") == 0) {
+        return setns_from_pidfd(0);
+    }
+
+    if (strcmp(mode, "pidfd-denied") == 0) {
+        return setns_from_pidfd(1);
+    }
+
+    // Leave the current network namespace, then join it back through the file descriptor
+    // held across the unshare: the reported netns must be the original one, not the new one.
+    if (strcmp(mode, "netns-roundtrip") == 0) {
+        int fd = open("/proc/self/ns/net", O_RDONLY | O_CLOEXEC);
+        if (fd < 0) {
+            perror("open");
+            return EXIT_FAILURE;
+        }
+
+        if (unshare(CLONE_NEWNET) < 0) {
+            perror("unshare");
+            close(fd);
+            return EXIT_FAILURE;
+        }
+
+        if (setns(fd, CLONE_NEWNET) < 0) {
+            perror("setns");
+            close(fd);
+            return EXIT_FAILURE;
+        }
+
+        close(fd);
+        return EXIT_SUCCESS;
+    }
+
+    fprintf(stderr, "Unknown setns mode: %s\n", mode);
+    return EXIT_FAILURE;
+}
+
 int test_network_flow_send_udp4(int argc, char **argv) {
     if (argc < 3) {
         fprintf(stderr, "Please specify the remote IP address and port\n");
@@ -2531,6 +2643,8 @@ int main(int argc, char **argv) {
             exit_code = test_create_socket_send_fd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unshare-flags") == 0) {
             exit_code = test_unshare_flags(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "setns") == 0) {
+            exit_code = test_setns(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {

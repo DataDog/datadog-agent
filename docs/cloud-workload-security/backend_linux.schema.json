@@ -1195,6 +1195,45 @@
       ],
       "description": "MountEventSerializer serializes a mount event to JSON"
     },
+    "NamespaceIDs": {
+      "properties": {
+        "mntns": {
+          "type": "integer",
+          "description": "Mount namespace ID"
+        },
+        "netns": {
+          "type": "integer",
+          "description": "Network namespace ID"
+        },
+        "pidns": {
+          "type": "integer",
+          "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+          "type": "integer",
+          "description": "User namespace ID"
+        },
+        "utsns": {
+          "type": "integer",
+          "description": "UTS namespace ID"
+        },
+        "ipcns": {
+          "type": "integer",
+          "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+          "type": "integer",
+          "description": "Cgroup namespace ID"
+        },
+        "timens": {
+          "type": "integer",
+          "description": "Time namespace ID"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved"
+    },
     "NetworkContext": {
       "properties": {
         "device": {
@@ -2011,6 +2050,56 @@
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
+    "SetNSEvent": {
+      "properties": {
+        "nstype": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
+        },
+        "mntns": {
+          "type": "integer",
+          "description": "Mount namespace ID"
+        },
+        "netns": {
+          "type": "integer",
+          "description": "Network namespace ID"
+        },
+        "pidns": {
+          "type": "integer",
+          "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+          "type": "integer",
+          "description": "User namespace ID"
+        },
+        "utsns": {
+          "type": "integer",
+          "description": "UTS namespace ID"
+        },
+        "ipcns": {
+          "type": "integer",
+          "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+          "type": "integer",
+          "description": "Cgroup namespace ID"
+        },
+        "timens": {
+          "type": "integer",
+          "description": "Time namespace ID"
+        },
+        "previous": {
+          "$ref": "#/$defs/NamespaceIDs",
+          "description": "Namespace IDs of the thread before the syscall"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SetNSEventSerializer serializes a setns event"
+    },
     "SetSockOptEvent": {
       "properties": {
         "socket_type": {
@@ -2626,6 +2715,9 @@
     },
     "setrlimit": {
       "$ref": "#/$defs/SetrlimitEvent"
+    },
+    "setns": {
+      "$ref": "#/$defs/SetNSEvent"
     },
     "socket": {
       "$ref": "#/$defs/SocketEvent"
