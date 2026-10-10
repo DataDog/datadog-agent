@@ -201,24 +201,24 @@ api_key: fakeapikey
 
 additional_endpoints:
   "https://second-org.datadoghq.com":
-  - 'DELA(some-org-uuid, aws)'
+  - 'DELA[some-org-uuid, aws]'
   "https://third-org.datadoghq.com":
   - "some-static-key"
-  - 'DELA(some-other-org-uuid, aws, region=us-east-1)'
+  - 'DELA[some-other-org-uuid, aws, region=us-east-1]'
 `
 
 	testConfig := mock.NewFromYAML(t, datadogYaml)
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
 
-	// A domain whose only entry is a pending DELA(...) directive still gets a resolver (with zero
+	// A domain whose only entry is a pending DELA[...] directive still gets a resolver (with zero
 	// real keys) marked HasPendingDelegatedAuth so the forwarder doesn't drop it before delegated
 	// auth has a chance to deliver a real key.
 	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
 		{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true},
 	})
 
-	// A coexisting static key is preserved; the DELA(...) directive is filtered out of the
+	// A coexisting static key is preserved; the DELA[...] directive is filtered out of the
 	// real-key list until delegated auth resolves it, but the domain is still marked pending.
 	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", []APIKeys{
 		{ConfigSettingPath: "additional_endpoints", Keys: []string{"some-static-key"}, HasPendingDelegatedAuth: true},

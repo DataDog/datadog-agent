@@ -6,12 +6,15 @@
 package resolver
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +44,7 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 }
 
 // TestIsUsableKeepsPendingDelegatedAuthDomain is a regression test: a domain whose only entry is
-// a pending DELA(...) directive has zero real API keys, but must still be usable. Otherwise
+// a pending DELA[...] directive has zero real API keys, but must still be usable. Otherwise
 // default_forwarder.go drops it from the forwarder entirely at startup (see IsUsable's callers),
 // and once delegatedauth resolves the directive and writes the real key back into config, there is
 // no registered resolver left to receive that update - the key is silently lost until restart.
@@ -138,6 +141,175 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
+}
+
+func TestOnUpdateConfigReconcilesWritebackBeforeSubscription(t *testing.T) {
+	const domain = "https://resolving-org.datadoghq.com"
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL: domain,
+		APIKeySet: []utils.APIKeys{
+			{ConfigSettingPath: "additional_endpoints", HasPendingDelegatedAuth: true},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, resolver.GetAPIKeys())
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{domain: {"resolved-key"}})
+	OnUpdateConfig(resolver, logmock.New(t), config)
+
+	assertKeys(t, []string{"resolved-key"}, resolver)
+	assert.False(t, resolver.hasPendingDelegatedAuth)
+	assert.True(t, resolver.IsUsable())
+}
+
+func TestOnUpdateConfigRemovesMissingPendingDomainBeforeSubscription(t *testing.T) {
+	const domain = "https://removed-org.datadoghq.com"
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL: domain,
+		APIKeySet: []utils.APIKeys{
+			{
+				ConfigSettingPath:       "additional_endpoints",
+				Keys:                    []string{"static-key"},
+				HasPendingDelegatedAuth: true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resolver.IsUsable())
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{})
+	OnUpdateConfig(resolver, logmock.New(t), config)
+
+	assert.Empty(t, resolver.GetAPIKeys())
+	assert.False(t, resolver.hasPendingDelegatedAuth)
+	assert.False(t, resolver.IsUsable())
+}
+
+// hookedConfig runs onRead after every GetStringMapStringSlice read.
+type hookedConfig struct {
+	configmodel.BuildableConfig
+	onRead func()
+}
+
+func (c *hookedConfig) GetStringMapStringSlice(key string) map[string][]string {
+	value := c.BuildableConfig.GetStringMapStringSlice(key)
+	c.onRead()
+	return value
+}
+
+func TestUpdateAdditionalEndpointsStaleReadDoesNotOverwriteNewerWrite(t *testing.T) {
+	const domain = "https://concurrent-org.datadoghq.com"
+	resolver, err := NewSingleDomainResolver(domain, []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "old-key"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{domain: {"old-key"}})
+	log := logmock.New(t)
+
+	// Receivers run in registration order, so this fires just before the resolver's callback.
+	dispatched := make(chan struct{})
+	var dispatchedOnce sync.Once
+	config.OnUpdate(func(string, configmodel.Source, any, any, uint64, configmodel.Source) {
+		dispatchedOnce.Do(func() { close(dispatched) })
+	})
+
+	// The OnUpdate callback reads through this wrapper so the test can see when it reads config.
+	callbackRead := make(chan struct{})
+	var callbackOnce sync.Once
+	OnUpdateConfig(resolver, log, &hookedConfig{BuildableConfig: config, onRead: func() {
+		callbackOnce.Do(func() { close(callbackRead) })
+	}})
+
+	// Like the startup reconcile: reads "old-key", then pauses before applying it.
+	read, release := make(chan struct{}), make(chan struct{})
+	var readOnce, releaseOnce sync.Once
+	unpause := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(unpause) // never leave the reload holding the lock if the test fails early
+	paused := &hookedConfig{BuildableConfig: config, onRead: func() {
+		readOnce.Do(func() {
+			close(read)
+			<-release
+		})
+	}}
+	reconciled := make(chan struct{})
+	go func() {
+		defer close(reconciled)
+		updateAdditionalEndpoints(resolver, "additional_endpoints", paused, log)
+	}()
+	select {
+	case <-read:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconcile never read config")
+	}
+
+	// Like a delegated auth write-back landing meanwhile; its OnUpdate callback reconciles too.
+	written := make(chan struct{})
+	go func() {
+		defer close(written)
+		config.Set("additional_endpoints", map[string][]string{domain: {"new-key"}}, configmodel.SourceSecret)
+	}()
+
+	select {
+	case <-dispatched:
+	case <-time.After(5 * time.Second):
+		t.Fatal("config write never notified receivers")
+	}
+
+	// The paused reload holds the resolver lock, so the callback must not get to read config yet
+	// (it blocks on the lock in GetAPIKeysInfo, before reaching its own reload).
+	select {
+	case <-callbackRead:
+		t.Fatal("callback read config while another reload held the resolver lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	unpause()
+	for name, done := range map[string]chan struct{}{"paused reconcile": reconciled, "config write callback": written} {
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s did not finish", name)
+		}
+	}
+
+	assertKeys(t, []string{"new-key"}, resolver)
+}
+
+func TestOnUpdateConfigRemovesDomainAfterResolution(t *testing.T) {
+	const domain = "https://removed-org.datadoghq.com"
+	resolver, err := NewSingleDomainResolver(domain, []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "resolved-key"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{domain: {"resolved-key"}})
+	OnUpdateConfig(resolver, logmock.New(t), config)
+	config.Set("additional_endpoints", map[string][]string{}, configmodel.SourceSecret)
+
+	assert.Empty(t, resolver.GetAPIKeys())
+	assert.False(t, resolver.hasPendingDelegatedAuth)
+	assert.False(t, resolver.IsUsable())
+}
+
+func TestUpdateAdditionalEndpointsKeepsKeysOnMissOutsideInfraSetting(t *testing.T) {
+	const setting = "process_config.additional_endpoints"
+	// Process-style resolvers strip the path, so a trailing slash in config never matches.
+	resolver, err := NewSingleDomainResolver("https://process.datadoghq.eu", []utils.APIKeys{
+		utils.NewAPIKeys(setting, "process-key"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest(setting, map[string][]string{"https://process.datadoghq.eu/": {"rotated-key"}})
+	updateAdditionalEndpoints(resolver, setting, config, logmock.New(t))
+
+	assertKeys(t, []string{"process-key"}, resolver)
+	assert.True(t, resolver.IsUsable())
 }
 
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
