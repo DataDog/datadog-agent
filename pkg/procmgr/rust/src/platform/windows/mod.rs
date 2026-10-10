@@ -17,6 +17,7 @@ mod runtime_user;
 mod secure_utf16;
 mod service_account;
 mod sid;
+mod signaling_helper;
 mod spawn;
 mod token_identity;
 mod wide;
@@ -32,11 +33,7 @@ pub use child_env::agent_service_env_var;
 pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
 #[cfg(test)]
 pub(crate) use console::caller_console_state;
-pub(crate) use console::console_lock;
-pub(crate) use console::inherit_std_handle;
-pub use console::{
-    capture_startup_stdio, is_crash_exit, last_signal, send_force_kill, send_graceful_stop,
-};
+pub use console::{is_crash_exit, last_signal, send_force_kill};
 pub use job_object::JobObject;
 pub(crate) use pipe_caller::pipe_client_may_mutate;
 pub(crate) use pipe_security::create_pipe_server;
@@ -44,6 +41,10 @@ pub(crate) use process::{
     ProcessWaitOutcome, WAIT_INFINITE, terminate_process, wait_for_process_exit_ms,
 };
 pub(crate) use runtime_user::runtime_user_for_pid;
+#[cfg(test)]
+pub(crate) use signaling_helper::Outcome as SignalOutcome;
+pub use signaling_helper::dispatch_internal_console_signal;
+pub(crate) use signaling_helper::{SignalingHelper, send_graceful_stop, wait_for_graceful_stop};
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
 

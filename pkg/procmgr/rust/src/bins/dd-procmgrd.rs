@@ -5,11 +5,16 @@
 
 //! Process-manager daemon entry point.
 //!
-//! On Windows this binary doubles as the SCM service: it calls
+//! On Windows this binary doubles as the SCM service: normal daemon startup calls
 //! `StartServiceCtrlDispatcherW` first and, if SCM is not the launcher,
-//! falls back to console mode. On Unix it runs as a plain console daemon.
+//! falls back to console mode. The internal signaling-helper mode bypasses SCM
+//! initialization. On Unix it runs as a plain console daemon.
 
 fn main() {
+    #[cfg(windows)]
+    if let Some(code) = dd_procmgrd::platform::dispatch_internal_console_signal() {
+        std::process::exit(code);
+    }
     let result = run();
     if let Err(e) = result {
         eprintln!("dd-procmgrd failed: {e:#}");
