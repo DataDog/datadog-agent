@@ -19,7 +19,8 @@ import (
 )
 
 // shouldExecSPLite returns true if system-probe should exec into system-probe-lite.
-// This is the case when use_system_probe_lite is enabled and only the discovery module is active.
+// This is the case when use_system_probe_lite is enabled and the active modules
+// are discovery, optionally with privileged_logs.
 func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtypes.Config) bool {
 	if !sysprobeConfig.GetBool("discovery.use_system_probe_lite") {
 		return false
@@ -35,8 +36,12 @@ func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtyp
 		return false
 	}
 
-	// Exec system-probe-lite if only the discovery module is enabled
-	return cfg.Enabled && len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule)
+	// Exec system-probe-lite if it serves every enabled module
+	servedModules := 1
+	if cfg.ModuleIsEnabled(systemprobeconfig.PrivilegedLogsModule) {
+		servedModules++
+	}
+	return cfg.Enabled && len(cfg.EnabledModules) == servedModules && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule)
 }
 
 // maybeSPLite checks if system-probe should exec into system-probe-lite,
@@ -63,10 +68,11 @@ func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, lo
 
 	// Build args via splite package (source of truth for CLI format)
 	args := (&splite.Config{
-		Socket:   sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
-		LogLevel: sysprobeConfig.GetString("log_level"),
-		LogFile:  sysprobeConfig.GetString("log_file"),
-		PIDFile:  pidFilePath,
+		Socket:         sysprobeConfig.GetString("system_probe_config.sysprobe_socket"),
+		LogLevel:       sysprobeConfig.GetString("log_level"),
+		LogFile:        sysprobeConfig.GetString("log_file"),
+		PIDFile:        pidFilePath,
+		PrivilegedLogs: cfg.ModuleIsEnabled(systemprobeconfig.PrivilegedLogsModule),
 	}).Args()
 
 	return &spLiteExecCmd{
