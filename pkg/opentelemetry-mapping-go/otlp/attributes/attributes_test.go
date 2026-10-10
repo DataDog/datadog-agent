@@ -83,6 +83,22 @@ func TestTagsFromAzureAppServiceAttributes(t *testing.T) {
 		}, TagsFromAttributes(attrs))
 	})
 
+	t.Run("identity from cloud resource ID", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		require.NoError(t, attrs.FromRaw(map[string]any{
+			string(semconv127.CloudPlatformKey):   cloudPlatformAzureAppService,
+			string(semconv127.ServiceNameKey):     testAzureAppServiceName,
+			string(semconv127.CloudResourceIDKey): "/subscriptions/example-subscription/resourceGroups/example-resource-group/providers/Microsoft.Web/sites/different-app",
+		}))
+
+		assert.ElementsMatch(t, []string{
+			"service:" + testAzureAppServiceName,
+			"name:" + testAzureAppServiceName,
+			"subscription_id:" + testAzureSubscriptionID,
+			"resource_group:" + testAzureResourceGroup,
+		}, TagsFromAttributes(attrs))
+	})
+
 	t.Run("service instance is not the billing instance", func(t *testing.T) {
 		attrs := pcommon.NewMap()
 		require.NoError(t, attrs.FromRaw(map[string]any{
