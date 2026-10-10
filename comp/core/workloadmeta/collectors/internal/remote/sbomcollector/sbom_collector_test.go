@@ -9,6 +9,7 @@ package sbomcollector
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -19,6 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -466,4 +469,24 @@ func TestHandleResyncNotifiesEvents(t *testing.T) {
 	(&streamHandler{}).HandleResync(store, events)
 
 	assert.Equal(t, events, store.notified)
+}
+
+// TestIsEnabled checks that the collector follows sbom.enrichment.usage.enabled
+// alone, as system-probe does when it starts its usage consumer.
+func TestIsEnabled(t *testing.T) {
+	for _, usage := range []bool{false, true} {
+		for _, sbom := range []string{"unset", "true", "false"} {
+			t.Run(fmt.Sprintf("usage %v sbom %s", usage, sbom), func(t *testing.T) {
+				agentConfig := configmock.New(t)
+				agentConfig.Set("sbom.enrichment.usage.enabled", usage, model.SourceFile)
+				systemProbeConfig := configmock.NewSystemProbe(t)
+				if sbom != "unset" {
+					systemProbeConfig.Set("runtime_security_config.sbom.enabled", sbom == "true", model.SourceFile)
+				}
+
+				handler := &streamHandler{agentConfig: agentConfig, systemProbeConfig: systemProbeConfig}
+				assert.Equal(t, usage, handler.IsEnabled())
+			})
+		}
+	}
 }

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The Agent collects the runtime usage of SBOM packages whenever
+    ``sbom.enrichment.usage.enabled`` is set, as system-probe computes it,
+    whatever ``runtime_security_config.sbom.enabled`` says.
