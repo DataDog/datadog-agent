@@ -231,29 +231,26 @@ func ProcessExists(pid int) bool {
 	return true
 }
 
-var zombieStateKey = []byte("State")
-
 // IsZombiePid reports whether pid is a zombie, based on the "State" field in
-// /proc/<pid>/status. Zombies have released their network namespace, so
+// /proc/<pid>/stat. Zombies have released their network namespace, so
 // ns-scoped procfs reads for them are expected to fail regardless of
 // privileges.
 func IsZombiePid(procRoot string, pid int) (bool, error) {
-	statusPath := filepath.Join(procRoot, strconv.Itoa(pid), "status")
-	f, err := os.Open(statusPath)
+	stat, err := os.ReadFile(filepath.Join(procRoot, strconv.Itoa(pid), "stat"))
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		key, value, ok := bytes.Cut(line, []byte(":"))
-		if !ok || !bytes.Equal(key, zombieStateKey) {
-			continue
+	processNameEndIndex := bytes.LastIndexByte(stat, byte(')'))
+	if processNameEndIndex > 0 && processNameEndIndex+1 < len(stat) {
+		fieldNum := 0
+		// start fields after process name
+		for field := range bytes.FieldsSeq(stat[processNameEndIndex+1:]) {
+			fieldNum++
+			if fieldNum == 1 {
+				return len(field) > 0 && field[0] == 'Z', nil
+			}
 		}
-		value = bytes.TrimSpace(value)
-		return len(value) > 0 && value[0] == 'Z', nil
 	}
-	return false, scanner.Err()
+	return false, nil
 }
