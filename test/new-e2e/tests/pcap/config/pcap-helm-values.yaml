@@ -1,0 +1,20 @@
+datadog:
+  kubelet:
+    tlsVerify: false
+  networkMonitoring:
+    enabled: true
+  systemProbe:
+    enableDefaultKernelHeadersPaths: true
+  privateActionRunner:
+    enabled: true
+    selfEnroll: false
+    urn: "%s"
+    privateKey: "%s"
+    actionsAllowlist:
+      - "com.datadoghq.remoteaction.pcap.runCapture"
+    taskTimeoutSeconds: 180
+agents:
+  containers:
+    systemProbe:
+      envDict:
+        DD_PACKET_CAPTURE_ENABLED: "true"
