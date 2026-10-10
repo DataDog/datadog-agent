@@ -52,6 +52,7 @@ const (
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
 	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
+	envPackageHookTimeout    = "DD_INSTALLER_PACKAGE_HOOK_TIMEOUT"
 	// envFIPSMode is the canonical FIPS toggle, also recognized by
 	// pkg/fleet/installer/setup/defaultscript/default_script.go.
 	envFIPSMode = "DD_FIPS_MODE"
@@ -194,6 +195,9 @@ type Env struct {
 	OTelCollectorEnabled  bool
 	ProcessManagerEnabled bool
 	ConfigID              string
+	// PackageHookTimeout is validated only when executing a package-owned hook,
+	// so it cannot change the behavior of packages using compiled recipes.
+	PackageHookTimeout string
 
 	Mirror                      string
 	RegistryOverride            string
@@ -296,6 +300,7 @@ func FromEnv() *Env {
 		RemoteUpdates:         strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		OTelCollectorEnabled:  strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
 		ProcessManagerEnabled: processManagerEnabledFromEnv(),
+		PackageHookTimeout:    os.Getenv(envPackageHookTimeout),
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -413,6 +418,7 @@ func (e *MsiParamsEnv) ToEnv(env []string) []string {
 // ToEnv returns a slice of environment variables from the Env struct.
 func (e *Env) ToEnv() []string {
 	var env []string
+	env = appendStringEnv(env, envPackageHookTimeout, e.PackageHookTimeout, "")
 	env = appendStringEnv(env, envAPIKey, e.APIKey, "")
 	env = appendStringEnv(env, envSite, e.Site, "")
 	if e.RemoteUpdates {
@@ -473,6 +479,20 @@ func (e *Env) ToEnv() []string {
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 
 	return env
+}
+
+// GetPackageHookTimeout returns the bounded deadline for a package-owned hook.
+// Five minutes allows installation work while bounding a stuck hook. A longer
+// positive duration can be requested, up to one hour; the limit cannot be disabled.
+func (e *Env) GetPackageHookTimeout() (time.Duration, error) {
+	if e.PackageHookTimeout == "" {
+		return 5 * time.Minute, nil
+	}
+	timeout, err := time.ParseDuration(e.PackageHookTimeout)
+	if err != nil || timeout <= 0 || timeout > time.Hour {
+		return 0, fmt.Errorf("%s must be a positive duration no greater than 1h", envPackageHookTimeout)
+	}
+	return timeout, nil
 }
 
 func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {

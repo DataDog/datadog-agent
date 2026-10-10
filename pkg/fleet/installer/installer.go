@@ -319,16 +319,6 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 		return nil
 	}
 	upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version
-	if upgrade {
-		err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
-		if err != nil {
-			return fmt.Errorf("could not prepare package: %w", err)
-		}
-	}
-	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade)
-	if err != nil {
-		return fmt.Errorf("could not prepare package: %w", err)
-	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -341,15 +331,28 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
+	// Discover the incoming package's opt-in directory before preInstall. On a
+	// first installation the stable path does not exist; on an upgrade it still
+	// belongs to the previous version. Do not change installed state while staging.
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not extract package layers: %w", err)
+	}
+	if upgrade {
+		err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
+		if err != nil {
+			return fmt.Errorf("could not prepare package: %w", err)
+		}
+	}
+	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not prepare package: %w", err)
+	}
 	err = i.db.DeletePackage(pkg.Name)
 	if err != nil {
 		return fmt.Errorf("could not remove package installation in db: %w", err)
 	}
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
-	if err != nil {
-		return fmt.Errorf("could not extract package layers: %w", err)
-	}
 	err = pkg.ExtractLayers(ctx, oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
@@ -461,7 +464,17 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		return nil
 	}
 
-	if runtime.GOOS != "windows" && (pkg == packageDatadogInstaller || pkg == packageDatadogAgent) {
+	deleteBeforeHook := runtime.GOOS != "windows" && (pkg == packageDatadogInstaller || pkg == packageDatadogAgent)
+	if deleteBeforeHook {
+		packageOwned, err := packages.HasPackageHooks(repository.ExperimentPath())
+		if err != nil {
+			return fmt.Errorf("could not inspect experiment hooks: %w", err)
+		}
+		// Compiled Agent hooks can kill this process, but a package-owned hook
+		// must run while its experiment payload is still available on disk.
+		deleteBeforeHook = !packageOwned
+	}
+	if deleteBeforeHook {
 		// Special case for the Linux installer since `preStopExperiment`
 		// will kill the current process, delete the experiment first.
 		err := repository.DeleteExperiment(ctx)
