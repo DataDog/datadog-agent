@@ -683,6 +683,10 @@ properties:
         default: false
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING
+      enable_netns_container_attribution:
+        node_type: setting
+        type: boolean
+        default: false
       enable_protocol_classification:
         node_type: setting
         type: boolean
@@ -750,6 +754,13 @@ properties:
         node_type: setting
         type: integer
         default: 1024
+      netns_container_attribution_owner_images:
+        node_type: setting
+        type: array
+        default:
+        - ztunnel
+        items:
+          type: string
   service_monitoring_config:
     $ref: system-probe-usm.yaml
   ping:

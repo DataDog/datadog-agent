@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	stdatomic "sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -22,6 +23,7 @@ import (
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -100,6 +102,7 @@ type Tracer struct {
 
 	processCache   *processCache
 	containerStore *containers.ContainerStore
+	netnsResolver  stdatomic.Pointer[netnsContainerResolver]
 
 	timeResolver *ktime.Resolver
 
@@ -362,6 +365,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
+	c.NetNSOriginalContainerID = nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
@@ -381,6 +385,35 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if p.ContainerID != nil {
 		c.ContainerID.Source = p.ContainerID
 	}
+
+	if r := t.netnsResolver.Load(); r != nil {
+		if cid, ok := r.resolve(c.NetNS, c.ContainerID.Source); ok {
+			c.NetNSOriginalContainerID = c.ContainerID.Source
+			c.ContainerID.Source = cid
+			// the process tags (service, env, version) describe the proxy, not the pod
+			c.Tags = nil
+		}
+	}
+}
+
+// EnableNetNSContainerAttribution attributes sockets that an allowlisted proxy creates inside another
+// container's network namespace to that container. It has no effect without process event monitoring.
+func (t *Tracer) EnableNetNSContainerAttribution(ctx context.Context, wmeta workloadmeta.Component) error {
+	if !t.config.EnableNetNSContainerAttribution {
+		return nil
+	}
+	if t.processCache == nil {
+		log.Warn("not enabling network namespace container attribution, because it depends on process event monitoring which is disabled")
+		return nil
+	}
+	r, err := newNetNSContainerResolver(t.config.NetNSContainerAttributionOwnerImages)
+	if err != nil {
+		return fmt.Errorf("could not create network namespace container resolver: %w", err)
+	}
+	r.start(ctx, wmeta)
+	t.netnsResolver.Store(r)
+	log.Infof("network namespace container attribution enabled for owner images %v", t.config.NetNSContainerAttributionOwnerImages)
+	return nil
 }
 
 // Pause bypasses the eBPF programs

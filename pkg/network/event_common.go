@@ -280,8 +280,11 @@ type ConnectionStats struct {
 	ContainerID   struct {
 		Source, Dest *intern.Value
 	}
-	CertInfo unique.Handle[CertInfo]
-	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
+	// NetNSOriginalContainerID is the container of the owning process when ContainerID.Source was
+	// reattributed to the container owning the socket's network namespace; nil otherwise.
+	NetNSOriginalContainerID *intern.Value
+	CertInfo                 unique.Handle[CertInfo]
+	DNSStats                 map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code
 	TCPFailures map[uint16]uint32
 

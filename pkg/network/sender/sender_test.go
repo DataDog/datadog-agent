@@ -693,3 +693,38 @@ func TestCollectLoopIgnoresPendingTickAfterCancel(t *testing.T) {
 
 	require.Zero(t, source.calls.Load(), "collectLoop collected after the context was cancelled")
 }
+
+func TestNetworkConnectionNetNSReattributed(t *testing.T) {
+	// two sockets owned by the same proxy process: one in its own container, one that the
+	// tracer attributed to the pod owning the socket's network namespace
+	p := makeConnections(2)
+	p[1].Pid = p[0].Pid
+	p[1].SPort++
+	proxyCID := p[0].ContainerID.Source
+	p[1].ContainerID.Source = intern.GetByString("app-container")
+	p[1].NetNSOriginalContainerID = proxyCID
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(p[0].Pid))), "process", nil, nil, []string{"service:ztunnel"}, nil)
+
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 10
+	d.tagger = fakeTagger
+	payloads := slices.Collect(d.batches(&network.Connections{BufferedData: network.BufferedData{Conns: p}}, 1))
+	require.Len(t, payloads, 1)
+	m, err := model.DecodeMessage(payloads[0])
+	require.NoError(t, err)
+	cc, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
+
+	assert.Equal(t, proxyCID.Get().(string), cc.ContainerForPid[int32(p[0].Pid)], "the PID must keep mapping to the process's own container")
+	require.Len(t, cc.Connections, 2)
+	for _, c := range cc.Connections {
+		tags := cc.GetConnectionsTags(c.TagsIdx)
+		if c.Laddr.ContainerId == "app-container" {
+			assert.NotContains(t, tags, "service:ztunnel", "the proxy's process tags must not move onto the pod")
+		} else {
+			assert.Contains(t, tags, "service:ztunnel")
+		}
+	}
+}

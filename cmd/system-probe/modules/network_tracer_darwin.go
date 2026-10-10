@@ -8,6 +8,9 @@
 package modules
 
 import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
@@ -24,5 +27,9 @@ var NetworkTracer = &module.Factory{
 // Platform-specific endpoints (like network_id on Linux) are not implemented yet
 func (nt *networkTracer) platformRegister(_ *module.Router) error {
 	// No platform-specific endpoints for Darwin yet
+	return nil
+}
+
+func enableNetNSContainerAttribution(_ context.Context, _ *tracer.Tracer, _ module.FactoryDependencies) error {
 	return nil
 }

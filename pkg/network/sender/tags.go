@@ -104,19 +104,26 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 
 	tagsStr := tagsSet.Subset(tagIndexes)
 	if nc.Pid > 0 {
+		// a socket reattributed to its network namespace's container is still owned by the proxy
+		// process, so the PID's service context and process tags describe the proxy, not the pod
+		reattributed := nc.NetNSOriginalContainerID != nil
 		var serviceTags []string
 		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
-			serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			if !reattributed {
+				serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			}
 			if processName := dsc.processNameExtractor.GetProcessName(int32(nc.Pid)); processName != "" {
 				tagsStr = append(tagsStr, "process_name:"+processName)
 			}
 		}
 		tagsStr = append(tagsStr, serviceTags...)
-		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))
-		if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
-			log.Debugf("error getting tags for process %v: %v", nc.Pid, err)
-		} else {
-			tagsStr = append(tagsStr, processTags...)
+		if !reattributed {
+			processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))
+			if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
+				log.Debugf("error getting tags for process %v: %v", nc.Pid, err)
+			} else {
+				tagsStr = append(tagsStr, processTags...)
+			}
 		}
 	}
 	if len(tagsStr) > 0 {
