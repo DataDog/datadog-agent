@@ -6,6 +6,7 @@
 package utils
 
 import (
+	"slices"
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -69,4 +70,56 @@ func TestMarkedInfraModesAreKnown(t *testing.T) {
 	for _, mode := range markedInfraModes {
 		assert.True(t, constants.IsKnownInfraMode(mode), "%q is not a declared infrastructure mode", mode)
 	}
+}
+
+func TestWithoutInfraModeTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     []string
+		expected []string
+	}{
+		{"nil input", nil, []string{}},
+		{"no infra_mode tag", []string{"env:prod", "tag1:value1"}, []string{"env:prod", "tag1:value1"}},
+		{
+			"strips a single infra_mode tag",
+			[]string{"env:prod", "infra_mode:cloud_cost_only", "tag1:value1"},
+			[]string{"env:prod", "tag1:value1"},
+		},
+		{
+			"strips end_user_device infra_mode tag",
+			[]string{"infra_mode:end_user_device", "os_name:darwin"},
+			[]string{"os_name:darwin"},
+		},
+		{
+			"strips every infra_mode tag",
+			[]string{"infra_mode:basic", "env:prod", "infra_mode:none"},
+			[]string{"env:prod"},
+		},
+		{
+			"does not strip tags that merely contain the prefix as a substring",
+			[]string{"not_infra_mode:basic", "infra_mode:basic"},
+			[]string{"not_infra_mode:basic"},
+		},
+		{
+			"all infra_mode tags",
+			[]string{"infra_mode:basic", "infra_mode:none"},
+			[]string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := WithoutInfraModeTags(tc.tags)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestWithoutInfraModeTagsDoesNotMutateInput(t *testing.T) {
+	tags := []string{"infra_mode:basic", "env:prod"}
+	original := slices.Clone(tags)
+
+	_ = WithoutInfraModeTags(tags)
+
+	assert.Equal(t, original, tags)
 }

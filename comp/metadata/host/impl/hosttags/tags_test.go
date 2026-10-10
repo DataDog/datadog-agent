@@ -164,6 +164,20 @@ func TestGetInfraModeTags(t *testing.T) {
 	}
 }
 
+func TestGetInfraModeTagsUnknownMode(t *testing.T) {
+	for _, mode := range []string{"typo_mode", "not_a_mode", "Cloud_Cost_Only"} {
+		t.Run(mode, func(t *testing.T) {
+			mockConfig, ctx := setupTest(t)
+			mockConfig.SetInTest("infrastructure_mode", mode)
+
+			hostTags := Get(ctx, false, mockConfig)
+			for _, tag := range hostTags.System {
+				assert.NotContains(t, tag, "infra_mode:")
+			}
+		})
+	}
+}
+
 func TestGetWithEUDM(t *testing.T) {
 	mockConfig, ctx := setupTest(t)
 	mockConfig.SetInTest("infrastructure_mode", "end_user_device")
@@ -189,6 +203,26 @@ func TestGetWithEUDM(t *testing.T) {
 	assert.Contains(t, hostTags.System, "total_memory_gb:16")
 	assert.Contains(t, hostTags.System, "device_model:MacBookPro18,3")
 	assert.Contains(t, hostTags.System, "hostid:TEST123")
+}
+
+func TestGetEUDMModeTag(t *testing.T) {
+	assert.Equal(t, []string{"infra_mode:end_user_device"}, getEUDMModeTag())
+}
+
+func TestGetEUDMTagsIsModePlusHardware(t *testing.T) {
+	original := collectEUDMTagsFunc
+	t.Cleanup(func() { collectEUDMTagsFunc = original })
+
+	hardwareTags := []string{"os_name:darwin", "cpu_model:Apple_M1_Pro"}
+	collectEUDMTagsFunc = func() []string {
+		return hardwareTags
+	}
+
+	modeTag := getEUDMModeTag()
+	want := append(slices.Clone(modeTag), hardwareTags...)
+
+	assert.Equal(t, want, getEUDMTags())
+	assert.Equal(t, []string{"infra_mode:end_user_device"}, getEUDMModeTag())
 }
 
 func TestEUDMTagsOnUnsupportedOS(t *testing.T) {

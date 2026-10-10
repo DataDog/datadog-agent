@@ -7,6 +7,7 @@ package utils
 
 import (
 	"slices"
+	"strings"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -16,6 +17,11 @@ import (
 // mode of the Agent that produced it. It differs from the `infrastructure_mode`
 // setting name on purpose: the setting name is not a tag key.
 const InfraModeTagKey = "infra_mode"
+
+const (
+	InfraModeFull          = constants.InfraModeFull
+	InfraModeEndUserDevice = constants.InfraModeEndUserDevice
+)
 
 // markedInfraModes lists the modes whose payloads carry the mark.
 //
@@ -56,4 +62,18 @@ func MarkedInfraMode(c pkgconfigmodel.Reader) string {
 		return ""
 	}
 	return mode
+}
+
+const infraModeTagPrefix = InfraModeTagKey + ":"
+
+// WithoutInfraModeTags returns a copy of tags with every infra_mode:* entry removed.
+func WithoutInfraModeTags(tags []string) []string {
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, infraModeTagPrefix) {
+			continue
+		}
+		out = append(out, tag)
+	}
+	return out
 }

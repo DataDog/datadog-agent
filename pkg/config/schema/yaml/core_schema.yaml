@@ -7484,7 +7484,9 @@ properties:
     format: duration
     tags:
     - golang_type:duration
-    comment: Duration during which the host tags will be submitted with metrics.
+    comment: |-
+      Duration during which host tags are submitted with metrics.
+      The ``infra_mode`` host tag is never copied onto metrics this way.
   external_metrics:
     node_type: section
     type: object
