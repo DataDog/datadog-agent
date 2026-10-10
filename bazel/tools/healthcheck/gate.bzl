@@ -27,6 +27,7 @@ def _healthcheck_gate_impl(ctx):
     args = ctx.actions.args()
     args.add("--manifest-path", result.manifest.path)
     args.add("--target-os", os)
+    args.add("--gobuildinfo-path", ctx.executable._gobuildinfo.path)
     inputs = [result.manifest] + result.files
     if is_linux:
         install_prefix = ctx.attr._install_dir[BuildSettingInfo].value
@@ -38,7 +39,7 @@ def _healthcheck_gate_impl(ctx):
     ctx.actions.run_shell(
         outputs = [stamp],
         inputs = depset(direct = inputs),
-        tools = [ctx.executable._healthcheck],
+        tools = [ctx.executable._gobuildinfo, ctx.executable._healthcheck],
         arguments = [args],
         command = "{healthcheck} \"$@\" && touch {stamp}".format(
             healthcheck = ctx.executable._healthcheck.path,
@@ -69,6 +70,11 @@ healthcheck_gate = rule(
             mandatory = True,
             providers = [[PackageFilegroupInfo], [PackageFilesInfo], [PackageSymlinkInfo]],
             doc = "The pkg_filegroup / pkg_files / pkg_symlinks target to check and pass through unchanged.",
+        ),
+        "_gobuildinfo": attr.label(
+            default = "//bazel/tools/healthcheck/gobuildinfo",
+            executable = True,
+            cfg = "exec",
         ),
         "_healthcheck": attr.label(
             default = "//bazel/tools/healthcheck:healthcheck",

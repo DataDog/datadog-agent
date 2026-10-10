@@ -4,6 +4,8 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+package(default_package_metadata = ["//test/new-e2e:go_package_metadata"])
+
 go_library(
     name = "vm-metrics_lib",
     srcs = ["vm-metrics.go"],

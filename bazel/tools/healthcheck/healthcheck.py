@@ -29,6 +29,13 @@ def _format_failures(failures: Failures) -> str:
     return "\n".join(lines)
 
 
+def _format_build_info_problems(problems: dict[str, str]) -> str:
+    lines = [f"Healthcheck failed: {len(problems)} Go executables with bad build info", ""]
+    for executable, problem in sorted(problems.items()):
+        lines.append(f"  {executable}: {problem}")
+    return "\n".join(lines)
+
+
 def _format_conflicts(conflicts: dict[str, dict[str, object]]) -> str:
     lines = ["WARNING: overlapping DLL base addresses (FIPS-relevant only):"]
     for lib_name, data in conflicts.items():
@@ -79,6 +86,10 @@ def main(argv=None) -> int:
         default="readelf",
         help="Path to a readelf binary (--target-os=linux only). Defaults to a $PATH lookup.",
     )
+    parser.add_argument(
+        "--gobuildinfo-path",
+        help="Path to the gobuildinfo helper. When set, Go executables' build info is checked too.",
+    )
     args = parser.parse_args(argv)
 
     if args.target_os == "linux" and not args.install_prefix:
@@ -87,31 +98,39 @@ def main(argv=None) -> int:
     manifest_path = args.manifest_path or _resolve_rlocation(args.manifest_rlocation)
     manifest = manifest_lib.load(manifest_path)
 
+    ok, exit_code = True, 0
     if args.target_os == "windows":
         import windows
 
         conflicts = windows.check(manifest)
         if conflicts:
             print(_format_conflicts(conflicts), file=sys.stderr)
-        else:
-            print("Healthcheck: OK")
-        # Warning-only, matches omnibus behavior: never fails the run.
-        return 0
-
-    if args.target_os == "linux":
-        import linux
-
-        failures = linux.check(manifest, args.install_prefix, args.readelf_path)
+            # Warning-only, matches omnibus behavior: never fails the run.
+            ok = False
     else:
-        import macos
+        if args.target_os == "linux":
+            import linux
 
-        failures = macos.check(manifest)
+            failures = linux.check(manifest, args.install_prefix, args.readelf_path)
+        else:
+            import macos
 
-    if failures:
-        print(_format_failures(failures), file=sys.stderr)
-        return 1
-    print("Healthcheck: OK")
-    return 0
+            failures = macos.check(manifest)
+        if failures:
+            print(_format_failures(failures), file=sys.stderr)
+            ok, exit_code = False, 1
+
+    if args.gobuildinfo_path:
+        import gobuildinfo
+
+        problems = gobuildinfo.check(manifest, args.gobuildinfo_path)
+        if problems:
+            print(_format_build_info_problems(problems), file=sys.stderr)
+            ok, exit_code = False, 1
+
+    if ok:
+        print("Healthcheck: OK")
+    return exit_code
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+package(default_package_metadata = ["//pkg/util/winutil:go_package_metadata"])
+
 dd_agent_go_test(
     name = "eventlog_test",
     srcs = ["example_test.go"],

@@ -2,6 +2,8 @@ load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_go//go:def.bzl", "go_library")
 
+package(default_package_metadata = ["//pkg/security/seclwin:go_package_metadata"])
+
 # gazelle:go_stringer off
 
 # Read the generator output rather than the checked-in secl copies so a single

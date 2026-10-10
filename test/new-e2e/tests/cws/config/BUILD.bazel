@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+package(default_package_metadata = ["//test/new-e2e:go_package_metadata"])
+
 exports_files([
     "e2e-security-agent.yaml",
     "e2e-system-probe.yaml",

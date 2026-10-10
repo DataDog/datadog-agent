@@ -6,6 +6,8 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+package(default_package_metadata = ["//pkg/fleet/installer:go_package_metadata"])
+
 exports_files(
     glob(["**/*.tmpl"]),
     visibility = ["//pkg/procmgr/rust:__pkg__"],
