@@ -131,8 +131,7 @@ func (c *collector) Pull(ctx context.Context) error {
 		// Handle cleanup: send unset events for images in old seenImages but not in new
 		for oldImageID := range c.seenImages {
 			if _, stillExists := newSeenImages[oldImageID]; !stillExists {
-				unsetEvent := generateUnsetImageEvent(oldImageID)
-				imageEvents = append(imageEvents, *unsetEvent)
+				imageEvents = append(imageEvents, generateUnsetImageEvents(oldImageID)...)
 			}
 		}
 
