@@ -173,6 +173,7 @@ func TestServicesAreProcmgrManaged(t *testing.T) {
 		"apm":      traceProcmgrDefinitionFile,
 		"process":  processProcmgrDefinitionFile,
 		"sysprobe": sysprobeProcmgrDefinitionFile,
+		"cws":      securityProcmgrDefinitionFile,
 	}
 
 	coreConf := configmock.New(t)
