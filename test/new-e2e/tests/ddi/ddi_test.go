@@ -16,7 +16,6 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	k8syaml "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/yaml"
 	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -299,9 +299,7 @@ func newDDIWorkload(e config.Env, kubeProvider *kubernetes.Provider, namespace, 
 	if err != nil {
 		return nil, err
 	}
-	_, err = k8syaml.NewConfigGroup(e.Ctx(), namespace+"/"+instrumentationName, &k8syaml.ConfigGroupArgs{
-		YAML: []string{string(ddiManifest)},
-	}, ddiOptions...)
+	_, err = yaml.NewConfigGroup(e.Ctx(), namespace+"/"+instrumentationName, pulumi.Map{"yaml": pulumi.String(ddiManifest)}, ddiOptions...)
 	if err != nil {
 		return nil, err
 	}

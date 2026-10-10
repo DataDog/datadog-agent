@@ -15,7 +15,6 @@ import (
 	apiext "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apiextensions"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
-	kubeHelm "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -23,9 +22,9 @@ import (
 type HelmComponent struct {
 	pulumi.ResourceState
 
-	IstioBaseHelmReleaseStatus    kubeHelm.ReleaseStatusOutput
-	IstiodHelmReleaseStatus       kubeHelm.ReleaseStatusOutput
-	IstioIngressHelmReleaseStatus kubeHelm.ReleaseStatusOutput
+	IstioBaseHelmReleaseStatus    helm.ReleaseStatusOutput
+	IstiodHelmReleaseStatus       helm.ReleaseStatusOutput
+	IstioIngressHelmReleaseStatus helm.ReleaseStatusOutput
 }
 
 func NewHelmInstallation(e config.Env, opts ...pulumi.ResourceOption) (*HelmComponent, error) {

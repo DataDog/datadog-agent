@@ -6,7 +6,6 @@
 package csidriver
 
 import (
-	kubeHelm "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -16,7 +15,7 @@ import (
 type HelmComponent struct {
 	pulumi.ResourceState
 
-	CSIHelmReleaseStatus kubeHelm.ReleaseStatusOutput
+	CSIHelmReleaseStatus helm.ReleaseStatusOutput
 }
 
 type HelmValues pulumi.Map

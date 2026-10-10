@@ -7,17 +7,19 @@ package dda
 
 import (
 	"fmt"
+	"os"
 
 	"dario.cat/mergo"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams"
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/yaml"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	goyaml "go.yaml.in/yaml/v3"
 )
 
 const (
@@ -95,49 +97,35 @@ func (d datadogAgentWorkload) buildDDAConfig(opts ...pulumi.ResourceOption) erro
 	ctx := d.ctx
 	defaultYamlTransformations := d.defaultDDAYamlTransformations()
 
+	var dda map[string]interface{}
 	if d.opts.DDAConfig.YamlFilePath != "" {
-		_, err := yaml.NewConfigGroup(ctx, d.name, &yaml.ConfigGroupArgs{
-			Files:           []string{d.opts.DDAConfig.YamlFilePath},
-			Transformations: defaultYamlTransformations,
-		}, opts...)
+		content, err := os.ReadFile(d.opts.DDAConfig.YamlFilePath)
+		if err == nil {
+			err = goyaml.Unmarshal(content, &dda)
+		}
 
 		if err != nil {
 			d.ctx.Log.Debug(fmt.Sprintf("Error transforming DDAConfig yaml file path: %v", err), nil)
 			return err
 		}
 	} else if d.opts.DDAConfig.YamlConfig != "" {
-		_, err := yaml.NewConfigGroup(ctx, d.name, &yaml.ConfigGroupArgs{
-			YAML:            []string{d.opts.DDAConfig.YamlConfig},
-			Transformations: defaultYamlTransformations,
-		}, opts...)
+		err := goyaml.Unmarshal([]byte(d.opts.DDAConfig.YamlConfig), &dda)
 
 		if err != nil {
 			d.ctx.Log.Debug(fmt.Sprintf("Error transforming DDAConfig yaml: %v", err), nil)
 			return err
 		}
 	} else if d.opts.DDAConfig.MapConfig != nil {
-		_, err := yaml.NewConfigGroup(ctx, d.name, &yaml.ConfigGroupArgs{
-			Objs:            []map[string]interface{}{d.opts.DDAConfig.MapConfig},
-			Transformations: defaultYamlTransformations,
-		}, opts...)
-
-		if err != nil {
-			d.ctx.Log.Debug(fmt.Sprintf("Error transforming DDAConfig map config: %v", err), nil)
-			return err
-		}
+		dda = d.opts.DDAConfig.MapConfig
 	} else {
-		_, err := yaml.NewConfigGroup(ctx, d.name, &yaml.ConfigGroupArgs{
-			Objs:            []map[string]interface{}{d.defaultDDAConfig()},
-			Transformations: defaultYamlTransformations,
-		}, opts...)
-
-		if err != nil {
-			d.ctx.Log.Debug(fmt.Sprintf("Error creating default DDA config: %v", err), nil)
-			return err
-		}
-
+		dda = d.defaultDDAConfig()
 	}
-	return nil
+
+	for _, transformation := range defaultYamlTransformations {
+		transformation(dda)
+	}
+	_, err := yaml.NewConfigGroup(ctx, d.name, pulumi.Map{"objs": pulumi.Array{pulumi.ToMap(dda)}}, opts...)
+	return err
 }
 
 func (d datadogAgentWorkload) defaultDDAConfig() map[string]interface{} {

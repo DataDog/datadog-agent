@@ -17,7 +17,6 @@ go_library(
         "//test/e2e-framework/components/kubernetes",
         "//test/e2e-framework/components/remote",
         "//test/e2e-framework/resources/helm",
-        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/helm/v3:helm",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
