@@ -15,7 +15,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -134,7 +133,7 @@ func testStopDrainsBeforeFlush(t *testing.T) {
 	const iterations = 100
 	for i := 0; i < iterations; i++ {
 		opts := aggregator.DefaultAgentDemultiplexerOptions()
-		opts.FlushInterval = time.Hour // disable automatic flushes
+		opts.FlushInterval = 0 // disable automatic flushes
 		opts.DontStartForwarders = true
 		demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
@@ -180,7 +179,7 @@ func TestStopDrainsThroughWrappedDemux(t *testing.T) {
 	)
 
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.FlushInterval = time.Hour
+	opts.FlushInterval = 0 // disable automatic flushes
 	opts.DontStartForwarders = true
 	demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
