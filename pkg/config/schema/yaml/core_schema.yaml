@@ -7184,6 +7184,14 @@ properties:
       "GA": SDDL_GENERIC_ALL
       account_sid:
       "WD": Everyone
+  dogstatsd_workload_filter_drop_unresolved:
+    node_type: setting
+    type: boolean
+    default: false
+    description: |
+      When DogStatsD workload filtering is enabled (`cel_workload_exclude` rules for the
+      `dogstatsd` product), drop metrics, events and service checks whose origin container
+      cannot be resolved. This includes data sent by processes that do not run in a container.
   dogstatsd_workers_count:
     node_type: setting
     type: integer

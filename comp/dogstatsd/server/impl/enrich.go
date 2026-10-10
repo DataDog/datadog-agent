@@ -26,7 +26,9 @@ var (
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
 
-	tlmFilteredPoints = telemetryimpl.GetCompatComponent().NewSimpleCounter("dogstatsd", "listener_filtered_points", "How many points were filtered out")
+	tlmFilteredPoints         = telemetryimpl.GetCompatComponent().NewSimpleCounter("dogstatsd", "listener_filtered_points", "How many points were filtered out")
+	tlmWorkloadFilteredPoints = telemetryimpl.GetCompatComponent().NewCounter("dogstatsd", "workload_filtered_points",
+		[]string{"message_type"}, "How many points were filtered out based on their origin container")
 )
 
 // enrichConfig contains static parameters used in various enrichment
