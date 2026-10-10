@@ -210,6 +210,10 @@ type Reader interface {
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() []string
 
+	// ConfigFileError returns the last config file parse problem, or an empty string.
+	// A non-empty value means settings from that file may not be in effect.
+	ConfigFileError() string
+
 	// StartTime returns the time at which the agent process started (completes config.Component interface)
 	StartTime() time.Time
 
