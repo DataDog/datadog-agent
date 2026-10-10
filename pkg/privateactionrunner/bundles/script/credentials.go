@@ -6,7 +6,7 @@
 package com_datadoghq_script
 
 import (
-	"fmt"
+	"errors"
 
 	"go.yaml.in/yaml/v3"
 
@@ -16,6 +16,8 @@ import (
 const (
 	schemaIdV1 = "script-credentials-v1"
 )
+
+var errInvalidScriptConfiguration = errors.New("invalid script configuration")
 
 type ScriptBundleConfig struct {
 	SchemaId                      string                                         `yaml:"schemaId"`
@@ -57,10 +59,10 @@ func parseCredentials(credentials *privateconnection.PrivateCredentials) (*Scrip
 	scriptConfig := &ScriptBundleConfig{}
 	err := yaml.Unmarshal([]byte(stringConfig), scriptConfig)
 	if err != nil {
-		return nil, err
+		return nil, errInvalidScriptConfiguration
 	}
 	if scriptConfig.SchemaId != schemaIdV1 {
-		return nil, fmt.Errorf("unexpected schemaId: %s, supported schemaId: %s", scriptConfig.SchemaId, schemaIdV1)
+		return nil, errInvalidScriptConfiguration
 	}
 
 	return scriptConfig, nil

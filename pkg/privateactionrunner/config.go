@@ -38,6 +38,8 @@ const (
 	// Kubernetes action related
 	KubernetesAllowedCustomResources = "private_action_runner.kubernetes_allowed_custom_resources"
 
+	ScriptCredentialFileAllowedRoots = "private_action_runner.script.credential_file_allowed_roots"
+
 	// Restricted Shell
 	RestrictedShellAllowedPaths             = "private_action_runner.restricted_shell.allowed_paths"
 	RestrictedShellAllowedCommands          = "private_action_runner.restricted_shell.allowed_commands"

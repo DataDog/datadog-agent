@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -59,6 +60,65 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 	assert.Equal(t, "application/vnd.api+json", receivedHeaders.Get("Content-Type"), "Content-Type should be application/vnd.api+json")
 	assert.Contains(t, receivedHeaders.Get("User-Agent"), "datadog-agent/", "User-Agent should contain datadog-agent/")
 	assert.Contains(t, receivedBody, `"name":"Kubernetes (runner-name-abc123)"`, "Body should contain connection name")
+}
+
+func TestScriptAutoConnectionCredentialFileAllowed(t *testing.T) {
+	tests := []struct {
+		name  string
+		roots []string
+		want  bool
+	}{
+		{name: "packaged directory", roots: []string{getPrivateActionRunnerDir()}, want: true},
+		{name: "parent directory", roots: []string{filepath.Dir(getPrivateActionRunnerDir())}, want: true},
+		{name: "different directory", roots: []string{t.TempDir()}},
+		{name: "deny all", roots: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, scriptAutoConnectionCredentialFileAllowed(tt.roots))
+		})
+	}
+}
+
+func TestAutoCreateConnections_ScriptCredentialFileRoots(t *testing.T) {
+	tests := []struct {
+		name       string
+		roots      []string
+		wantScript bool
+	}{
+		{name: "packaged directory allowed", roots: []string{getPrivateActionRunnerDir()}, wantScript: true},
+		{name: "different directory", roots: []string{t.TempDir()}},
+		{name: "deny all", roots: []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var createdConnections []string
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				createdConnections = append(createdConnections, string(body))
+				w.WriteHeader(http.StatusCreated)
+				w.Write([]byte(`{"data": {"id": "conn-123"}}`))
+			}))
+			defer server.Close()
+			testClient := newTestClient(server.URL)
+			testClient.httpClient = server.Client()
+			creator := NewConnectionsCreator(*testClient, &mockTagsProvider{}, tt.roots)
+			actionsAllowlist := []string{"com.datadoghq.kubernetes.core.getPods", "com.datadoghq.script.runPredefinedScipt"}
+
+			err := creator.AutoCreateConnections(context.Background(), "runner-id", &enrollment.Result{RunnerName: "runner-abc123"}, actionsAllowlist)
+
+			require.NoError(t, err)
+			allBodies := strings.Join(createdConnections, " ")
+			assert.Contains(t, allBodies, `"name":"Kubernetes (runner-abc123)"`)
+			if tt.wantScript {
+				assert.Contains(t, allBodies, `"name":"Script (runner-abc123)"`)
+			} else {
+				assert.NotContains(t, allBodies, `"name":"Script (runner-abc123)"`)
+			}
+		})
+	}
 }
 
 func TestCreateConnection_StatusCodeHandling(t *testing.T) {
@@ -149,7 +209,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 
 	provider := &mockTagsProvider{}
 
-	creator := NewConnectionsCreator(*testClient, provider)
+	creator := NewConnectionsCreator(*testClient, provider, []string{getPrivateActionRunnerDir()})
 
 	enrollmentResult := &enrollment.Result{
 		RunnerName: "runner-abc123",
@@ -198,7 +258,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 
 	provider := &mockTagsProvider{}
 
-	creator := NewConnectionsCreator(*testClient, provider)
+	creator := NewConnectionsCreator(*testClient, provider, []string{getPrivateActionRunnerDir()})
 
 	enrollmentResult := &enrollment.Result{
 		RunnerName: "runner-abc123",
@@ -233,7 +293,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 
 	provider := &mockTagsProvider{}
 
-	creator := NewConnectionsCreator(*testClient, provider)
+	creator := NewConnectionsCreator(*testClient, provider, []string{getPrivateActionRunnerDir()})
 
 	enrollmentResult := &enrollment.Result{
 		RunnerName: "runner-abc123",
@@ -268,7 +328,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 
 	provider := &mockTagsProvider{}
 
-	creator := NewConnectionsCreator(*testClient, provider)
+	creator := NewConnectionsCreator(*testClient, provider, []string{getPrivateActionRunnerDir()})
 
 	enrollmentResult := &enrollment.Result{
 		RunnerName: "runner-abc123",

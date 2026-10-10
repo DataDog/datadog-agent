@@ -102,6 +102,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Allowlist:                          config.GetStringSlice(par.HTTPAllowlist),
 		AllowIMDSEndpoint:                  config.GetBool(par.HTTPAllowIMDSEndpoint),
 		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
+		ScriptCredentialFileAllowedRoots:   scriptCredentialFileAllowedRoots(config),
 		RShellAllowedPaths:                 rshellAllowedPaths(config),
 		RShellAllowedCommands:              rshellAllowedCommands(config),
 		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
@@ -121,6 +122,16 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Urn:                                urn,
 		DatadogSite:                        ddSite,
 	}, nil
+}
+
+func scriptCredentialFileAllowedRoots(config config.Component) []string {
+	if !config.IsConfigured(par.ScriptCredentialFileAllowedRoots) {
+		return []string{DefaultScriptCredentialFileRoot()}
+	}
+	if roots := config.GetStringSlice(par.ScriptCredentialFileAllowedRoots); len(roots) > 0 {
+		return roots
+	}
+	return []string{}
 }
 
 // kubernetesAllowedCustomResources preserves nil for an unset allowlist so custom
