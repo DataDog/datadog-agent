@@ -4,70 +4,19 @@
   tags: ["arch:amd64", "specific:true"]
   needs: []
 
+lint_most:
+  stage: lint
+  extends: [.bazel:runner:linux-amd64]
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+  script:
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - experimental/aiuto/technical_linters.sh
+
 lint_licenses:
   extends: [.lint, .bazel:defs:cache:progressive]
   script:
     - dda inv -- -e lint-licenses
-
-lint_rust_licenses:
-  extends: .lint
-  script:
-    - dda inv -- -e lint-rust-licenses
-
-lint_shell:
-  extends: .lint
-  script:
-    - shellcheck --version
-    #Excludes:
-    #SC2028: echo may not expand escape sequences. Use printf.
-    #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
-    - shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
-
-lint_filename:
-  extends: .lint
-  script:
-    - dda inv -- -e linter.filenames
-
-lint_copyrights:
-  extends: .lint
-  script:
-    - dda inv -- -e linter.copyrights
-
-lint_docs_links:
-  extends: .lint
-  script:
-    - dda inv -- -e linter.docs-links
-
-lint_codeowners:
-  extends: .lint
-  script:
-    - dda inv -- -e github.lint-codeowner
-
-lint_components:
-  extends: .lint
-  script:
-    - dda inv -- -e lint-components lint-fxutil-oneshot-test
-
-lint_gopls_plugin:
-  extends: .lint
-  script:
-    - dda inv -- -e claude.set-buildtags --check
-
-lint_python:
-  extends: .lint
-  script:
-    - dda inv -- -e linter.python --show-versions
-
-lint_update_go:
-  extends: .lint
-  script:
-    - dda inv -- -e linter.update-go
-
-validate_modules:
-  extends: .lint
-  script:
-    - dda inv -- -e modules.validate
-    - dda inv -- -e modules.validate-used-by-otel
 
 check_modules_replace:
   extends: .lint

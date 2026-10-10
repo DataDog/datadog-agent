@@ -154,6 +154,19 @@ archive_override(
     urls = ["https://github.com/bazelbuild/rules_pkg/archive/1b2295d38b60c4e1013a6d3ddf0e5c2be2f876f2.tar.gz"],  # main as of Oct 01, 2026
 )
 
+http_archive(
+    name = "better_gitlab",
+    files = {
+        "run_actions/main.py": "//experimental/aiuto:run_actions/main.py",
+    },
+    sha256 = "4e38e9396bfeba240edc3b1af1ab0030fc91360be6ec7055b1b05cb8503d39a8",
+    strip_prefix = "better_gitlab-0.0.2",
+    type = "tar.gz",
+    urls = [
+        "https://github.com/tonyaiuto/better_gitlab/archive/refs/tags/0.0.2.tar.gz",
+    ],
+)
+
 ##########################################
 ## Tools that ship with the OS and we wrap
 ##########################################
