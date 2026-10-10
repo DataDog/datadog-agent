@@ -7,14 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-# This the py portable app thing seems very broken or I am not
-# using it right. This is needed to get imports to resolve.
-prog_root = str(Path(sys.argv[0]).parent.parent)
-sys.path.append(prog_root)
-
-# for path in sys.path:
-#    print(" path", path)
-
 from run_actions import action as action_lib
 from run_actions import render, runner
 
@@ -138,10 +130,13 @@ def main(argv: list = None) -> int:
         cmd.append("--tags")
         cmd.append("%s:%s" % (result.action.name, "passed" if result.passed() else "failed"))
     if args.ddci:
-        print(cmd)
-        result = subprocess.run(cmd, capture_output=True)
-        if result.returncode:
-            print("datadog-ci upload failed")
+        try:
+            print(cmd)
+            result = subprocess.run(cmd, capture_output=True)
+            if result.returncode:
+                print("datadog-ci upload failed")
+        except FileNotFoundError:
+            print("datadog-ci not available on this platform")
     return overall_return
 
 

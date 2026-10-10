@@ -23,7 +23,7 @@
 #   lint_releasenotes_unique_ids,         changed-files selection we have
 #   lint_rtloader                         not built yet
 
-set -u
+set -ue
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo=$(cd "${script_dir}/../../" ; /bin/pwd)
@@ -38,15 +38,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -f $HOME/ws/better_gitlab/run_actions/BUILD.bazel ]] ; then
+  cp $HOME/ws/better_gitlab/run_actions/BUILD.bazel experimental/aiuto/run_actions
+fi
+runner_target="${RUN_ACTIONS:-@better_gitlab//run_actions:run_actions}"
+echo bazel build "$runner_target"
 bazel build "$runner_target"
 runner=$(bazel info bazel-bin)/external/+http_archive+better_gitlab/run_actions/run_actions.pyz
 # ls -l $(bazel info bazel-bin)/external/+http_archive+better_gitlab/run_actions
 # echo info=$(bazel info bazel-bin)
-echo runner=$runner
+tmp_runner=/tmp/$(basename $runner)
+/bin/rm -f $tmp_runner
+cp $runner $tmp_runner
+runner=$tmp_runner
+echo $runner
 
 # Action names are the GitLab job names. validate_modules had two script
 # lines, so it becomes two actions.
-python3 "${runner}" "${passthrough[@]+"${passthrough[@]}"}" --ddci \
+"${runner}" "${passthrough[@]+"${passthrough[@]}"}" --ddci \
   lint_codeowners='dda inv -- -e github.lint-codeowner' \
   lint_components='dda inv -- -e lint-components lint-fxutil-oneshot-test' \
   lint_copyrights='dda inv -- -e linter.copyrights' \
