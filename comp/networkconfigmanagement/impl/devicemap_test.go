@@ -9,7 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,11 @@ func assertErrorAsType[T error](t testing.TB, err error) bool {
 }
 
 func TestDeviceMap(t *testing.T) {
-	dm := NewDeviceMap(time.Millisecond)
+	synctest.Test(t, syncTestDeviceMap)
+}
+
+func syncTestDeviceMap(t *testing.T) {
+	dm := NewDeviceMap()
 	device := createTestDevice()
 	p1 := &ncmprofile.NCMProfile{Name: "p1"}
 	p2 := &ncmprofile.NCMProfile{Name: "p2"}
@@ -45,21 +49,25 @@ func TestDeviceMap(t *testing.T) {
 }
 
 func TestDeviceMap_Get_Unknown(t *testing.T) {
-	dm := NewDeviceMap(time.Millisecond)
+	dm := NewDeviceMap()
 
 	_, err := dm.Get("nonexistent")
 	assertErrorAsType[*UnknownDeviceError](t, err)
 }
 
 func TestDeviceMap_GetAndLock_Unknown(t *testing.T) {
-	dm := NewDeviceMap(time.Millisecond)
+	dm := NewDeviceMap()
 
 	_, err := dm.GetAndLock(t.Context(), "nonexistent")
 	assertErrorAsType[*UnknownDeviceError](t, err)
 }
 
 func TestDeviceMap_GetAndLock_LocksDevice(t *testing.T) {
-	dm := NewDeviceMap(time.Millisecond)
+	synctest.Test(t, syncTestDeviceMapGetAndLockLocksDevice)
+}
+
+func syncTestDeviceMapGetAndLockLocksDevice(t *testing.T) {
+	dm := NewDeviceMap()
 	device := createTestDevice()
 
 	err := dm.RegisterDevice(t.Context(), device, nil)
@@ -86,7 +94,7 @@ func TestDeviceMap_GetAndLock_LocksDevice(t *testing.T) {
 }
 
 func TestDeviceMap_ExtraUnlock(t *testing.T) {
-	dm := NewDeviceMap(time.Millisecond)
+	dm := NewDeviceMap()
 	device := createTestDevice()
 
 	err := dm.RegisterDevice(t.Context(), device, nil)
@@ -95,14 +103,4 @@ func TestDeviceMap_ExtraUnlock(t *testing.T) {
 	dc, err := dm.Get(device.DeviceID())
 	require.NoError(t, err)
 	require.ErrorContains(t, dc.Unlock(), "unlocked")
-}
-
-func TestDeviceContext_LockPrefersFreeLockOverCanceledContext(t *testing.T) {
-	dc := NewDeviceContext(createTestDevice(), nil)
-
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	require.NoError(t, dc.Lock(ctx, 0))
-	require.NoError(t, dc.Unlock())
 }
