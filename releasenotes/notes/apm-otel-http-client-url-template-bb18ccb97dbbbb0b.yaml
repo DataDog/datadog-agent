@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    APM : Use the OpenTelemetry ``url.template`` attribute in HTTP client
+    resource names when available, while retaining method-only resource names
+    as the fallback.

@@ -8,13 +8,16 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 const (
@@ -32,11 +35,24 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Owner-only. On Linux the daemon runs with dd-agent as its effective user, so the socket is
+	// created owned by dd-agent. On macOS the daemon runs as root, so the socket is handed to the
+	// Agent's account so it can read the daemon's status, and rootOnlyChanges keeps every other
+	// route for root.
 	if err := os.Chmod(socketPath, 0700); err != nil {
 		return nil, fmt.Errorf("error setting socket permissions: %v", err)
 	}
+	if runtime.GOOS == "darwin" {
+		perms, err := filesystem.NewPermission()
+		if err != nil {
+			return nil, err
+		}
+		if err := perms.RestrictAccessToUser(socketPath); err != nil {
+			return nil, fmt.Errorf("error restricting socket access: %v", err)
+		}
+	}
 	return &localAPIImpl{
-		server:   &http.Server{},
+		server:   &http.Server{ConnContext: connContext},
 		listener: listener,
 		daemon:   daemon,
 	}, nil
@@ -48,7 +64,7 @@ func NewLocalAPIClient() LocalAPIClient {
 		addr: "daemon", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
-				Dial: func(_, _ string) (net.Conn, error) {
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", filepath.Join(paths.RunPath, socketName))
 				},
 			},

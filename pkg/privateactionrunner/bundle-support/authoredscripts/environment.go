@@ -8,6 +8,7 @@
 package authoredscripts
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -31,7 +32,7 @@ var managedEnvironmentVariables = map[string]struct{}{
 }
 
 // BuildEnvironment creates the environment available to an authored script.
-func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
+func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]interface{}) ([]string, error) {
 	if pkg == nil || pkg.Manifest == nil {
 		return nil, errors.New("authored-script package is required")
 	}
@@ -39,7 +40,7 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 		return nil, errors.New("authored-script session is required")
 	}
 
-	executablePath, err := buildExecutablePath(pkg.ToolPaths)
+	executablePath, err := buildExecutablePath(pkg.ExecutableDirectories)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +49,7 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 		"PATH":   executablePath,
 		"TMPDIR": session.TempDirectory,
 	}
-	for _, name := range pkg.Manifest.Config.AllowedEnvVars {
+	for _, name := range pkg.Manifest.AllowedEnvVars {
 		if _, managed := managedEnvironmentVariables[name]; managed {
 			return nil, fmt.Errorf("authored-script environment variable %q is managed by PAR and cannot be declared as an allowed environment variable", name)
 		}
@@ -57,7 +58,7 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 		}
 	}
 
-	for _, variable := range pkg.Manifest.Config.SetSessionEnvVars {
+	for _, variable := range pkg.Manifest.SetSessionEnvVars {
 		if _, managed := managedEnvironmentVariables[variable.Name]; managed {
 			return nil, fmt.Errorf("authored-script session environment variable %q cannot override the managed %q value", variable.Name, variable.Name)
 		}
@@ -66,6 +67,10 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 			return nil, err
 		}
 		environment[variable.Name] = value
+	}
+
+	if err := addParameterEnvironment(environment, pkg.Manifest.ParameterEnvMapping, parameters); err != nil {
+		return nil, err
 	}
 
 	result := make([]string, 0, len(environment))
@@ -78,11 +83,37 @@ func (pkg *Package) BuildEnvironment(session *Session) ([]string, error) {
 	return result, nil
 }
 
-func buildExecutablePath(toolPaths []string) (string, error) {
-	seenDirectories := make(map[string]struct{}, len(toolPaths)+1)
-	executablePaths := make([]string, 0, len(toolPaths)+1)
-	for _, toolPath := range toolPaths {
-		directory := filepath.Dir(toolPath)
+// addParameterEnvironment converts input parameters into environment variable
+// assignments in the environment.
+func addParameterEnvironment(environment map[string]string, parameterEnvMapping map[string]string, parameters map[string]interface{}) error {
+	for name, value := range parameters {
+		envName, ok := parameterEnvMapping[name]
+		if !ok {
+			return fmt.Errorf("authored-script parameter %q has no configured environment variable mapping", name)
+		}
+		if _, exists := environment[envName]; exists {
+			return fmt.Errorf("authored-script parameter %q maps to environment variable %q, which is already set", name, envName)
+		}
+
+		var stringValue string
+		if s, ok := value.(string); ok {
+			stringValue = s
+		} else {
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				return fmt.Errorf("failed to encode authored-script parameter %q: %w", name, err)
+			}
+			stringValue = string(encoded)
+		}
+		environment[envName] = stringValue
+	}
+	return nil
+}
+
+func buildExecutablePath(executableDirectories []string) (string, error) {
+	seenDirectories := make(map[string]struct{}, len(executableDirectories)+1)
+	executablePaths := make([]string, 0, len(executableDirectories)+1)
+	for _, directory := range executableDirectories {
 		if strings.ContainsRune(directory, os.PathListSeparator) {
 			return "", fmt.Errorf("authored-script tool directory %q contains a path separator", directory)
 		}

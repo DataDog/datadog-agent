@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "agent-health-demo_lib",
+    srcs = [
+        "awssso.go",
+        "main.go",
+        "ssh.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-health/cmd/agent-health-demo",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/utils/infra",
+        "//test/new-e2e/tests/agent-health",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+go_binary(
+    name = "agent-health-demo",
+    embed = [":agent-health-demo_lib"],
+    visibility = ["//visibility:public"],
+)

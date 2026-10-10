@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix an issue on AKS clusters where the Cluster Agent and the AKS admission
+    enforcer would repeatedly overwrite each other's changes to the
+    ``datadog-webhook`` ``MutatingWebhookConfiguration``/``ValidatingWebhookConfiguration``
+    objects, causing ``the object has been modified`` errors to be logged in a
+    loop. This affected admission controller features whose webhook rule did
+    not otherwise restrict which namespaces it applies to (for example the
+    ``DatadogInstrumentation`` CRD validating webhook), even when
+    ``admission_controller.add_aks_selectors`` (``DD_ADMISSION_CONTROLLER_ADD_AKS_SELECTORS``)
+    was enabled.

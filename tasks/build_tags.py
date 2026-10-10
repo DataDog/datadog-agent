@@ -43,6 +43,7 @@ GAZELLE_BUILD_TAGS = _data.GAZELLE_BUILD_TAGS
 
 # Per-binary inclusion lists
 AGENT_TAGS = _data.AGENT_TAGS
+AGENT_RECORDER_TAGS = _data.AGENT_RECORDER_TAGS
 AGENT_HEROKU_TAGS = _data.AGENT_HEROKU_TAGS
 FIPS_TAGS = _data.FIPS_TAGS
 CLUSTER_AGENT_TAGS = _data.CLUSTER_AGENT_TAGS
@@ -69,7 +70,6 @@ AGENT_TEST_TAGS = _data.AGENT_TEST_TAGS
 # Exclusion lists
 LINUX_ONLY_TAGS = _data.LINUX_ONLY_TAGS
 AIX_EXCLUDED_TAGS = _data.AIX_EXCLUDED_TAGS
-WINDOWS_INCLUDED_TAGS = _data.WINDOWS_INCLUDED_TAGS
 WINDOWS_EXCLUDED_TAGS = _data.WINDOWS_EXCLUDED_TAGS
 DARWIN_EXCLUDED_TAGS = _data.DARWIN_EXCLUDED_TAGS
 UNIT_TEST_TAGS = _data.UNIT_TEST_TAGS
@@ -153,6 +153,14 @@ build_tags = {
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
+    AgentFlavor.recorder: {
+        "agent": AGENT_RECORDER_TAGS,
+        "trace-agent": TRACE_AGENT_TAGS,
+        "process-agent": PROCESS_AGENT_TAGS,
+        "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
+        "lint": AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+    },
 }
 
 
@@ -166,7 +174,6 @@ def build_tags_codegen_payload() -> dict[str, object]:
         "common_tags": sorted(COMMON_TAGS),
         "unit_test_tags": sorted(UNIT_TEST_TAGS),
         "linux_only_tags": sorted(LINUX_ONLY_TAGS),
-        "windows_included_tags": sorted(WINDOWS_INCLUDED_TAGS),
         "windows_excluded_tags": sorted(WINDOWS_EXCLUDED_TAGS),
         "darwin_excluded_tags": sorted(DARWIN_EXCLUDED_TAGS),
         "flavor_specific_tags": {
@@ -192,7 +199,7 @@ def compute_build_tags_for_flavor(
     the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
     for the given architecture.
 
-    Then, remove from these the provided list of tags to exclude.
+    Then, remove the provided exclusions.
     """
     target_platform = _resolve_target_platform(platform)
 
@@ -257,7 +264,6 @@ def filter_incompatible_tags(include, platform=None):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
     if target_platform == "win32":
-        include = include.union(WINDOWS_INCLUDED_TAGS)
         exclude = exclude.union(WINDOWS_EXCLUDED_TAGS)
 
     if target_platform == "darwin":

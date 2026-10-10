@@ -48,7 +48,7 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -460,7 +460,7 @@ func TestOpenMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))
@@ -507,7 +507,7 @@ func TestOpenDiscarded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("pipefs", func(t *testing.T) {
 		SkipIfNotAvailable(t)
@@ -548,7 +548,7 @@ func TestOpenApproverZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, testFilePtr, err := test.Path("test-open")
 	if err != nil {
@@ -607,12 +607,14 @@ func openMountByID(mountID int) (f *os.File, err error) {
 	return nil, errors.New("mountID not found")
 }
 
-func benchmarkOpenSameFile(b *testing.B, disableFilters bool, rules ...*rules.RuleDefinition) {
-	test, err := newTestModule(b, nil, rules, withStaticOpts(testOpts{disableFilters: disableFilters}))
+// benchmarkOpenSameFile benchmarks repeated opens of one file, with or without
+// filters depending on what its caller declared.
+func benchmarkOpenSameFile(b *testing.B, rules ...*rules.RuleDefinition) {
+	test, err := newTestModule(b, nil, rules)
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("benchtest")
 	if err != nil {
@@ -633,26 +635,32 @@ func benchmarkOpenSameFile(b *testing.B, disableFilters bool, rules ...*rules.Ru
 	}
 }
 
+var _ = declare(BenchmarkOpenNoApprover, testOpts{disableFilters: true})
+
 func BenchmarkOpenNoApprover(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
-	benchmarkOpenSameFile(b, true, rule)
+	benchmarkOpenSameFile(b, rule)
 }
 
+// BenchmarkOpenWithApprover keeps filters on, which is the default config, so it
+// needs no declaration.
 func BenchmarkOpenWithApprover(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.filename == "{{.Root}}/donotmatch"`,
 	}
 
-	benchmarkOpenSameFile(b, false, rule)
+	benchmarkOpenSameFile(b, rule)
 }
 
+var _ = declare(BenchmarkOpenNoKprobe, testOpts{disableFilters: true})
+
 func BenchmarkOpenNoKprobe(b *testing.B) {
-	benchmarkOpenSameFile(b, true)
+	benchmarkOpenSameFile(b)
 }
 
 func createFolder(current string, filesPerFolder, maxDepth int) error {
@@ -682,7 +690,7 @@ func benchmarkFind(b *testing.B, filesPerFolder, maxDepth int, rules ...*rules.R
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	if err := createFolder(test.Root(), filesPerFolder, maxDepth); err != nil {
 		b.Fatal(err)

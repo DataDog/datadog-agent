@@ -319,6 +319,12 @@ func TestNewClientHonorsProxyConfig(t *testing.T) {
 	assert.Equal(t, "https://proxy.example.com:3128", proxyURL.String())
 }
 
+func TestNewPublicClientPreservesHTTPBaseURL(t *testing.T) {
+	cfg := configmock.New(t)
+	pc := NewPublicClient(cfg, "http://fakeintake.test:8080/", nil).(*publicClient)
+	assert.Equal(t, "http://fakeintake.test:8080", pc.ddBaseURL)
+}
+
 func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
@@ -353,6 +359,30 @@ func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
+}
+
+func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusBadRequest} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(`{"errors":["sensitive response"]}`))
+			}))
+			defer srv.Close()
+
+			p := &publicClient{httpClient: srv.Client()}
+			_, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			require.Error(t, err)
+			assert.Equal(t, 1, calls)
+			assert.Equal(t, status == http.StatusUnauthorized || status == http.StatusForbidden, errors.Is(err, ErrEnrollmentUnauthorized))
+			if errors.Is(err, ErrEnrollmentUnauthorized) {
+				assert.NotContains(t, err.Error(), "sensitive response")
+				assert.Contains(t, err.Error(), "restart")
+			}
+		})
+	}
 }
 
 func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {

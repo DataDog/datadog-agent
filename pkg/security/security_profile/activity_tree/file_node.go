@@ -21,13 +21,59 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// FileInfo is a slim, profile-local subset of model.FileEvent.
+type FileInfo struct {
+	model.FileFields
+
+	PathnameStr string
+	BasenameStr string
+	Filesystem  string
+
+	PkgName       string
+	PkgVersion    string
+	PkgEpoch      int
+	PkgRelease    string
+	PkgSrcVersion string
+	PkgSrcEpoch   int
+	PkgSrcRelease string
+
+	HashState model.HashState
+	Hashes    []string
+}
+
+// newFileInfo builds the slim FileInfo from a model.FileEvent, keeping only the fields
+// serialized into the profile or read back while building/rendering the tree.
+func newFileInfo(fe *model.FileEvent) *FileInfo {
+	if fe == nil {
+		return nil
+	}
+	fi := &FileInfo{
+		FileFields:    fe.FileFields,
+		PathnameStr:   fe.PathnameStr,
+		BasenameStr:   fe.BasenameStr,
+		Filesystem:    stringInterner.Deduplicate(fe.Filesystem),
+		PkgName:       stringInterner.Deduplicate(fe.PkgName),
+		PkgVersion:    stringInterner.Deduplicate(fe.PkgVersion),
+		PkgEpoch:      fe.PkgEpoch,
+		PkgRelease:    stringInterner.Deduplicate(fe.PkgRelease),
+		PkgSrcVersion: stringInterner.Deduplicate(fe.PkgSrcVersion),
+		PkgSrcEpoch:   fe.PkgSrcEpoch,
+		PkgSrcRelease: stringInterner.Deduplicate(fe.PkgSrcRelease),
+		HashState:     fe.HashState,
+		Hashes:        fe.Hashes,
+	}
+	fi.User = stringInterner.Deduplicate(fi.User)
+	fi.Group = stringInterner.Deduplicate(fi.Group)
+	return fi
+}
+
 // FileNode holds a tree representation of a list of files
 type FileNode struct {
 	NodeBase
 	MatchedRules   []*model.MatchedRule
 	Name           string
 	IsPattern      bool
-	File           *model.FileEvent
+	File           *FileInfo
 	GenerationType NodeGenerationType
 	Open           *OpenNode
 
@@ -47,7 +93,7 @@ func (fn *FileNode) size() int64 {
 	s += seenBytes(fn.NodeBase)
 	s += int64(len(fn.Name))
 	if fn.File != nil {
-		s += fileEventStringsBytes(fn.File)
+		s += fileInfoStringsBytes(fn.File)
 	}
 	if fn.Open != nil {
 		s += int64(unsafe.Sizeof(*fn.Open))
@@ -68,15 +114,13 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		Name:           name,
 		GenerationType: generationType,
 		IsPattern:      strings.Contains(name, "*"),
-		Children:       make(map[string]*FileNode),
 	}
 	fan.NodeBase = NewNodeBase()
 	if event != nil {
 		fan.AppendImageTagID(imageTagID, event.ResolveEventTime())
 	}
 	if fileEvent != nil {
-		fileEventTmp := *fileEvent
-		fan.File = &fileEventTmp
+		fan.File = newFileInfo(fileEvent)
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
 	}
@@ -188,6 +232,9 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		newEntry = true
 		if dryRun {
 			break
+		}
+		if currentFn.Children == nil {
+			currentFn.Children = make(map[string]*FileNode)
 		}
 		if len(currentPath) <= nextParentIndex+1 {
 			leafNode := NewFileNode(fileEvent, event, parent, imageTagID, generationType, reducedPath, resolvers)

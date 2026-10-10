@@ -12,7 +12,7 @@ The framework these tests import is documented in `test/e2e-framework/AGENTS.md`
 
 Tests live in `tests/<area>/`, where `<area>` is the owning team's directory in `.github/CODEOWNERS`. Area directories are hyphenated but Go package names cannot be, so a new area's package is usually that directory with its separators removed — `tests/agent-runtimes/` holds `package agentruntimes`. Existing areas do not all follow it; `tests/security-agent-functional/` declares `package secagentfunctional`. Read the package clause of a file already in the directory and match it exactly, since one directory cannot hold two package names.
 
-One platform is one `<feature>_test.go`. A Linux and Windows pair shares a body: the suite struct and every assertion live in `<feature>_common_test.go`, while `<feature>_nix_test.go` and `<feature>_win_test.go` hold only entry points, each setting a different `descriptor e2eos.Descriptor`. Branch on `s.descriptor.Family() == e2eos.WindowsFamily` inside the shared body for path differences. `tests/agent-runtimes/infra_basic_*_test.go` is the reference implementation.
+One platform is one `<feature>_test.go`. A Linux and Windows pair shares a body: the suite struct and every assertion live in `<feature>_common_test.go`, while `<feature>_nix_test.go` and `<feature>_win_test.go` hold only entry points, each setting a different `descriptor e2eos.Descriptor`. Branch on `s.descriptor.Family() == e2eos.WindowsFamily` inside the shared body for path differences. `tests/agent-runtimes/infra-mode/infra_basic_*_test.go` is the reference implementation.
 
 ## Each entry point needs its own suite type
 
@@ -24,7 +24,7 @@ So `infra_basic_nix_test.go` declares `basicLinuxSuite` and `infra_basic_win_tes
 
 Ordinary e2e tests carry none. The `_nix`/`_win` filename suffix is a convention teams adopted for readability: it affects neither compilation nor which tests run. CI selects on the *test function* name, passing `--run` and `--skip` regexes through `EXTRA_PARAMS`, so name a Windows entry point such that a Linux job's `--skip "Windows"` excludes it — renaming the file would do nothing.
 
-The exception is `e2eunit`. A package holding plain unit tests alongside e2e tests marks its e2e files `//go:build !e2eunit`, and the unit-test job in `.gitlab/build/source_test/linux.yml` runs with `--tags e2eunit`. Only `tests/installer/windows/` and `tests/windows/common/agent/` do this today; do not add the tag to a test with no unit-test sibling.
+The exception is `e2eunit`. A package holding plain unit tests alongside e2e tests marks its e2e files `//go:build !e2eunit`, and the unit-test job in `.gitlab/build/source_test/linux.yml` runs with `--tags e2eunit`. Only `tests/installer/windows/` does this today; do not add the tag to a test with no unit-test sibling, and drop it once a package's `go_test` target is itself bazelified, since running the same unit test through both the Bazel default matrix and this separate job is redundant.
 
 ## One fakeintake per suite
 
@@ -35,6 +35,14 @@ Write assertions on the assumption that `FilterMetrics` returns your test's payl
 ## Working in this tree
 
 Use the `write-e2e` skill (`.agents/skills/write-e2e/`) to author or extend a test: it covers scoping from a diff, environment and cloud choice, fakeintake assertions, and GitLab wiring. `run-e2e` and `run-windows-e2e` cover running tests that already exist.
+
+A reused stack keeps its fakeintake, and `FlushServerAndResetAggregators` does not touch the Remote
+Config store. So under `E2E_DEV_MODE` every config a previous run pushed with `RCAddConfig` is still
+there, and the agent or installer daemon applies all of them on its first poll — a run can start
+with another run's config deployed. A suite that pushes RC configs must clear them itself in
+`SetupSuite` (`RCListConfigs` then `RCDeleteConfig`), and must make its config ids unique per run:
+ids derived from a counter collide across runs, and the installer daemon deduplicates `UPDATER_TASK`
+by id for the life of its process, so a colliding task is silently never executed.
 
 Several areas add local rules that override the defaults above, either in their own `AGENTS.md` (`tests/windows/`, `tests/gpu/`, `tests/installer/windows/`, and others) or in a directory-scoped skill under `tests/<area>/.claude/skills/`. Check for both before writing in an area.
 

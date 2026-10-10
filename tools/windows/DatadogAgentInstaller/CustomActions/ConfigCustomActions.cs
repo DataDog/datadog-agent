@@ -1,12 +1,11 @@
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Native;
 using WixToolset.Dtf.WindowsInstaller;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
 using YamlDotNet.Serialization;
@@ -37,11 +36,26 @@ namespace Datadog.CustomActions
             public ApmConfig ApmConfig { get; set; }
         }
 
-        private static ActionResult ReadConfig(ISession session)
+        internal static ActionResult ReadConfig(ISession session)
         {
+            session[PrerequisitesCustomActions.ConfigRootUntrustedProperty] = "True";
+            session["DATADOGYAMLEXISTS"] = "no";
+
             try
             {
                 var configFolder = session.Property("APPLICATIONDATADIRECTORY");
+                if (string.IsNullOrEmpty(configFolder))
+                {
+                    throw new InvalidOperationException("APPLICATIONDATADIRECTORY is not set");
+                }
+                SecureDirectory.AssertSecureOwner(session, configFolder, out var exists);
+                session[PrerequisitesCustomActions.ConfigRootUntrustedProperty] = "False";
+                if (!exists)
+                {
+                    session.Log("No existing configuration directory, skipping config import.");
+                    return ActionResult.Success;
+                }
+
                 var configFilePath = Path.Combine(configFolder, "datadog.yaml");
                 if (!File.Exists(configFilePath))
                 {
@@ -421,51 +435,33 @@ namespace Datadog.CustomActions
             return WriteConfig(new SessionWrapper(session));
         }
 
+        /// <summary>
+        /// Creates the config root, run on every install/upgrade/repair/uninstall pass. Only resets
+        /// an existing directory's permissions on a true first install; otherwise it only creates the
+        /// directory if missing.
+        /// </summary>
         private static ActionResult DDCreateFolders(ISession session)
         {
             try
             {
                 var path = session.Property("APPLICATIONDATADIRECTORY");
+                var firstInstall = string.IsNullOrEmpty(session.Property("INSTALLED")) &&
+                                    string.IsNullOrEmpty(session.Property("WIX_UPGRADE_DETECTED"));
 
-                // This section is copied from RollbackDataStore.cs
-                // Create DACL for only SYSTEM and Administrators, disable inheritance
-                FileSystemSecurity security = new DirectorySecurity();
-                security.SetAccessRuleProtection(true, false);
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-                security.AddAccessRule(new FileSystemAccessRule(
-                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow));
-                security.SetOwner(new SecurityIdentifier(
-                    WellKnownSidType.LocalSystemSid, null));
-                security.SetGroup(new SecurityIdentifier(
-                    WellKnownSidType.LocalSystemSid, null));
-
-                if (Directory.Exists(path))
+                if (firstInstall)
                 {
-                    var _oldACL = Directory.GetAccessControl(path, AccessControlSections.All);
-                    session.Log($"{path} current ACL: {_oldACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                    // Create/update the directory so only SYSTEM and Administrators have access
+                    SecureDirectory.CreateAndSecure(session, path);
                 }
                 else
                 {
-                    session.Log($"Creating {path}");
+                    // Upgrade/repair/uninstall/removal-for-upgrade: the directory has already been
+                    // created and configured, so only create it if missing. Resetting an existing
+                    // directory's permissions here could strip access (e.g. ddagentuser's) granted
+                    // after it was first created, with no rollback action to restore it if the
+                    // transaction later fails.
+                    SecureDirectory.CreateIfMissing(session, path);
                 }
-
-                // Create the directory with the above DACL
-                Directory.CreateDirectory(path, (DirectorySecurity)security); // Create directory with ACL if needed
-                session.Log($"Updating ACL on {path}");
-                Directory.SetAccessControl(path, (DirectorySecurity)security); // otherwise update ACL in case directory already existed
-
-                // Log final permissions and owner
-                var _newACL = Directory.GetAccessControl(path, AccessControlSections.All);
-                session.Log($"{path} final ACL: {_newACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
 
                 // Create the logonduration subdirectory; it inherits the DACL above.
                 var logonDurationDir = Path.Combine(path, "logonduration");
@@ -475,7 +471,11 @@ namespace Datadog.CustomActions
                     Directory.CreateDirectory(logonDurationDir);
                 }
             }
-
+            catch (SecureDirectoryException e)
+            {
+                session.LogAndDisplayError(e.Message);
+                return ActionResult.Failure;
+            }
             catch (Exception e)
             {
                 session.Log($"Application directory could not be created/configured: {e}");

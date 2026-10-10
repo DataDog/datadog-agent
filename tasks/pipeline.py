@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 import yaml
 from gitlab import GitlabError
 from gitlab.exceptions import GitlabGetError
-from gitlab.v4.objects import Project
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -240,57 +239,6 @@ def run(
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
         return
 
-    wait_for_pipeline(repo, pipeline)
-
-
-@task
-def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
-    """
-    Follow a pipeline's progress in the CLI.
-    Use --here to follow the latest pipeline on your current branch.
-    Use --git-ref to follow the latest pipeline on a given tag or branch.
-    Use --id to follow a specific pipeline.
-    Use --project-name to specify a repo other than DataDog/datadog-agent (default)
-
-    Examples:
-    dda inv pipeline.follow --git-ref my-branch
-    dda inv pipeline.follow --here
-    dda inv pipeline.follow --id 1234567
-    """
-
-    repo = get_gitlab_repo(project_name)
-
-    args_given = 0
-    if id is not None:
-        args_given += 1
-    if git_ref is not None:
-        args_given += 1
-    if here:
-        args_given += 1
-    if args_given != 1:
-        raise Exit(
-            "ERROR: Exactly one of --here, --git-ref or --id must be given.\nSee --help for an explanation of each.",
-            code=1,
-        )
-
-    if id is not None:
-        pipeline = repo.pipelines.get(id)
-        wait_for_pipeline(repo, pipeline)
-    elif git_ref is not None:
-        wait_for_pipeline_from_ref(repo, git_ref)
-    elif here:
-        git_ref = get_current_branch(ctx)
-        wait_for_pipeline_from_ref(repo, git_ref)
-
-
-def wait_for_pipeline_from_ref(repo: Project, ref):
-    # Get last updated pipeline
-    pipelines = repo.pipelines.list(ref=ref, per_page=1, order_by='updated_at')
-    if len(pipelines) == 0:
-        print(f"No pipelines found for {ref}")
-        raise Exit(code=1)
-
-    pipeline = pipelines[0]
     wait_for_pipeline(repo, pipeline)
 
 

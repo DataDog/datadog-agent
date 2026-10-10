@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io/fs"
 	"path"
+	"strings"
 )
 
 // ScriptDDCleanup is the embedded dd-cleanup script.
@@ -30,7 +31,7 @@ var ScriptDDHostInstall []byte
 
 // systemdUnits holds the unit set for the systemd service manager
 //
-//go:embed tmpl/gen/sd
+//go:embed tmpl/gen/sd tmpl/gen/r
 var systemdUnits embed.FS
 
 // procmgrUnits holds the unit set for the procmgr service manager: the .service for systemd units
@@ -38,6 +39,12 @@ var systemdUnits embed.FS
 //
 //go:embed tmpl/gen/pm
 var procmgrUnits embed.FS
+
+// launchdJobs holds the launchd job definitions for macOS: the stable set and the -exp set,
+// rendered from the same templates (see embedded/tmpl/main.go).
+//
+//go:embed tmpl/gen/darwin
+var launchdJobs embed.FS
 
 // DDOTWindowsProcmgrConfig is the codegen-rendered process manager config for DDOT on Windows
 // (see embedded/tmpl/main.go). Install time replaces __DDOT_*__ placeholders.
@@ -57,11 +64,45 @@ var ADPWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-action.yaml
 var PARWindowsProcmgrConfig string
 
+// ProcessWindowsProcmgrConfig is the codegen-rendered process manager config for the process
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __PROCESS_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-process.yaml
+var ProcessWindowsProcmgrConfig string
+
+// SysprobeWindowsProcmgrConfig is the codegen-rendered process manager config for system-probe
+// on Windows (see embedded/tmpl/main.go). Install time replaces __SYSPROBE_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-sysprobe.yaml
+var SysprobeWindowsProcmgrConfig string
+
+// TraceWindowsProcmgrConfig is the codegen-rendered process manager config for the trace
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __TRACE_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-trace.yaml
+var TraceWindowsProcmgrConfig string
+
+// SecurityWindowsProcmgrConfig is the codegen-rendered process manager config for the security
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __SECURITY_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-security.yaml
+var SecurityWindowsProcmgrConfig string
+
 // PARExecutorWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
 // on-demand executor on Windows (see embedded/tmpl/main.go).
 //
 //go:embed tmpl/gen/windows/datadog-agent-action-executor.yaml
 var PARExecutorWindowsProcmgrConfig string
+
+// PARControlWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
+// control plane on Windows (see embedded/tmpl/main.go). Installer replaces __PAR_*__
+// placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
+var PARControlWindowsProcmgrConfig string
+
+//go:embed tmpl/gen/windows
+var windowsProcmgrConfigs embed.FS
 
 // UnitType is the type of systemd unit.
 type UnitType string
@@ -75,6 +116,9 @@ const (
 
 // GetSystemdUnit returns the unit for the given name, for the plain systemd service manager.
 func GetSystemdUnit(name string, unitType UnitType, ambiantCapabilitiesSupported bool) ([]byte, error) {
+	if strings.HasPrefix(name, "datadog-agent-rshell-privileged") {
+		return systemdUnits.ReadFile(path.Join("tmpl/gen/r", shortFlavorDir(unitType, ambiantCapabilitiesSupported), name))
+	}
 	return systemdUnits.ReadFile(path.Join("tmpl/gen/sd", flavorDir(unitType, ambiantCapabilitiesSupported), name))
 }
 
@@ -92,9 +136,99 @@ func GetProcmgrProcess(name string) ([]byte, error) {
 	return procmgrUnits.ReadFile(path.Join("tmpl/gen/pm", "processes.d", name))
 }
 
+// LaunchdVariant selects one of the two launchd job sets.
+type LaunchdVariant string
+
+const (
+	// LaunchdStable is the job set that runs normally: supervised, through the façade, reading
+	// the stable configuration directory.
+	LaunchdStable LaunchdVariant = ""
+	// LaunchdExperiment is the job set an experiment runs under: unsupervised, direct into the
+	// pool, reading the experiment configuration directory.
+	LaunchdExperiment LaunchdVariant = "-exp"
+)
+
+// GetLaunchdJob returns the launchd job definition for the given label and variant.
+//
+// name is the label without its variant suffix, e.g. "com.datadoghq.agent". The installer daemon
+// has no experiment variant and is only available as LaunchdStable.
+func GetLaunchdJob(name string, variant LaunchdVariant) ([]byte, error) {
+	return launchdJobs.ReadFile(path.Join("tmpl/gen/darwin", name+string(variant)+".plist"))
+}
+
+// LaunchdJobs returns the labels every launchd job definition is embedded for, in the given
+// variant.
+func LaunchdJobs(variant LaunchdVariant) ([]string, error) {
+	entries, err := launchdJobs.ReadDir("tmpl/gen/darwin")
+	if err != nil {
+		return nil, err
+	}
+	var labels []string
+	for _, entry := range entries {
+		label := strings.TrimSuffix(entry.Name(), ".plist")
+		if label == entry.Name() {
+			continue
+		}
+		// The stable variant has no suffix, so it must not match the -exp definitions.
+		switch variant {
+		case LaunchdExperiment:
+			if !strings.HasSuffix(label, string(LaunchdExperiment)) {
+				continue
+			}
+			label = strings.TrimSuffix(label, string(LaunchdExperiment))
+		default:
+			if strings.HasSuffix(label, string(LaunchdExperiment)) {
+				continue
+			}
+		}
+		labels = append(labels, label)
+	}
+	return labels, nil
+}
+
+// ShippedProcmgrConfigFiles returns the basenames of processes.d YAML files the installer embeds
+// for Linux (tmpl/gen/pm/processes.d) and Windows (tmpl/gen/windows). Used by COAT drift tests
+// so a new shipped config cannot land without migratableServices coverage.
+func ShippedProcmgrConfigFiles() ([]string, error) {
+	seen := map[string]struct{}{}
+	for _, dir := range []struct {
+		fs  embed.FS
+		rel string
+	}{
+		{procmgrUnits, "tmpl/gen/pm/processes.d"},
+		{windowsProcmgrConfigs, "tmpl/gen/windows"},
+	} {
+		entries, err := dir.fs.ReadDir(dir.rel)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
+				seen[entry.Name()] = struct{}{}
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for name := range seen {
+		out = append(out, name)
+	}
+	return out, nil
+}
+
 func flavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
 	if ambiantCapabilitiesSupported {
 		return string(unitType)
 	}
 	return string(unitType) + "-nc"
+}
+
+func shortFlavorDir(unitType UnitType, ambiantCapabilitiesSupported bool) string {
+	dir := map[UnitType]string{
+		UnitTypeOCI:    "o",
+		UnitTypeDebRpm: "d",
+	}[unitType]
+	if !ambiantCapabilitiesSupported {
+		dir += "n"
+	}
+	return dir
 }

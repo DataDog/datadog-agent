@@ -5,6 +5,7 @@ load(
     "pkg_filegroup",
 )
 load("//bazel/rules/macos/pkg:pkg_mac_pkg.bzl", "pkg_mac_pkg")
+load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
@@ -44,10 +45,23 @@ package_licenses(
     src = ":everything",
 )
 
+# Gates package builds on the healthcheck: anything depending on this
+# transitively runs it as a build-time validation, once, regardless of how
+# many package formats are built from it. See packages/agent/linux.
+healthcheck_gate(
+    name = "everything_checked",
+    srcs = ":everything",
+    exec_compatible_with = ["@platforms//os:macos"],
+    target_compatible_with = select({
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
 pkg_filegroup(
     name = "whole_distro",
     srcs = [
-        ":everything",
+        ":everything_checked",
         ":license_files",
     ],
 )

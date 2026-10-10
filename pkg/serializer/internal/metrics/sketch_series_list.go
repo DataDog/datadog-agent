@@ -66,7 +66,7 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 			bufferContext := marshaler.NewBufferContext()
 			pb = newPayloadsBuilder(bufferContext, config, strategy, logger, pipelineConfig, pipelineContext)
 		} else {
-			pbv3, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			pbv3, err := newSketchesPayloadBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
 			if err != nil {
 				return err
 			}

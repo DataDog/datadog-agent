@@ -167,49 +167,6 @@ func GetStats() map[string]any {
 	return maps.Clone(l.stats)
 }
 
-// RestartModule triggers a module restart
-func RestartModule(factory *Factory, deps FactoryDependencies) error {
-	l.Lock()
-	defer l.Unlock()
-
-	if l.closed {
-		return errors.New("can't restart module because system-probe is shutting down")
-	}
-
-	currentModule := l.modules[factory.Name]
-	if currentModule == nil {
-		return fmt.Errorf("module %s is not running", factory.Name)
-	}
-	currentRouter, ok := l.routers[factory.Name]
-	if !ok {
-		return fmt.Errorf("module %s does not have an associated router", factory.Name)
-	}
-
-	var newModule Module
-	var err error
-	withModule(factory.Name, func() {
-		currentRouter.Unregister()
-		currentModule.Close()
-		delete(l.modules, factory.Name)
-		newModule, err = factory.Fn(l.cfg, deps)
-	})
-	if err != nil {
-		l.errors[factory.Name] = err
-		delete(l.routers, factory.Name)
-		return err
-	}
-	delete(l.errors, factory.Name)
-	log.Infof("module %s restarted", factory.Name)
-
-	err = newModule.Register(currentRouter)
-	if err != nil {
-		return err
-	}
-
-	l.modules[factory.Name] = newModule
-	return nil
-}
-
 // Close each registered module
 func Close() {
 	l.Lock()

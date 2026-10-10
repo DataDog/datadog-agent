@@ -74,9 +74,17 @@ func (i ICMPConfigRequest) GetSubType() payload.Protocol {
 	return payload.ProtocolICMP
 }
 
-// RunTypeScheduled is the value of SyntheticsTestConfig.RunType for scheduled
-// tests. Used to identify tests that should be cached for fallback execution.
-const RunTypeScheduled = "scheduled"
+const (
+	// RunTypeScheduled is the value of SyntheticsTestConfig.RunType for scheduled
+	// tests. Used to identify tests that should be cached for fallback execution.
+	RunTypeScheduled = "scheduled"
+	// RunTypeFast is the value of SyntheticsTestConfig.RunType for fast tests.
+	RunTypeFast = "fast"
+	// RunTypeCI is the value of SyntheticsTestConfig.RunType for CI tests.
+	RunTypeCI = "ci"
+	// RunTypeTriggered is the value of SyntheticsTestConfig.RunType for triggered tests.
+	RunTypeTriggered = "triggered"
+)
 
 // SyntheticsTestConfig represents the whole config of a network test.
 type SyntheticsTestConfig struct {
@@ -94,6 +102,9 @@ type SyntheticsTestConfig struct {
 	PublicID string `json:"public_id"`
 	ResultID string `json:"result_id"`
 	RunType  string `json:"run_type"`
+
+	// Enrichment is opaque metadata returned unchanged in the Synthetics result.
+	Enrichment json.RawMessage `json:"enrichment,omitempty"`
 
 	TestName            string `json:"test_name"`
 	LocationName        string `json:"location_name"`
@@ -164,12 +175,13 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 			Request    json.RawMessage `json:"request"`
 		} `json:"config"`
 
-		OrgID    int    `json:"org_id"`
-		MainDC   string `json:"main_dc"`
-		PublicID string `json:"public_id"`
-		ResultID string `json:"result_id"`
-		RunType  string `json:"run_type"`
-		Interval int    `json:"tick_every"`
+		OrgID      int             `json:"org_id"`
+		MainDC     string          `json:"main_dc"`
+		PublicID   string          `json:"public_id"`
+		ResultID   string          `json:"result_id"`
+		RunType    string          `json:"run_type"`
+		Interval   int             `json:"tick_every"`
+		Enrichment json.RawMessage `json:"enrichment"`
 
 		TestName            string `json:"test_name"`
 		LocationName        string `json:"location_name"`
@@ -189,6 +201,7 @@ func (c *SyntheticsTestConfig) UnmarshalJSON(data []byte) error {
 	c.ResultID = tmp.ResultID
 	c.RunType = tmp.RunType
 	c.Interval = tmp.Interval
+	c.Enrichment = tmp.Enrichment
 	c.TestName = tmp.TestName
 	c.LocationName = tmp.LocationName
 	c.LocationDisplayName = tmp.LocationDisplayName

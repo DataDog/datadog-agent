@@ -11,13 +11,16 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 )
 
 func setupTest(t *testing.T) (model.Config, context.Context) {
@@ -49,6 +52,27 @@ func TestGetEmptyHostTags(t *testing.T) {
 	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{}, hostTags.System)
+}
+
+func TestGetPrivateActionRunnerTag(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+		wantTag bool
+	}{
+		{name: "enabled", enabled: true, wantTag: true},
+		{name: "disabled", enabled: false, wantTag: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig, ctx := setupTest(t)
+			mockConfig.SetInTest("private_action_runner.enabled", tt.enabled)
+
+			hostTags := Get(ctx, false, mockConfig)
+			assert.Equal(t, tt.wantTag, slices.Contains(hostTags.System, "private_action_runner_enabled:true"))
+		})
+	}
 }
 
 func TestGetWithSplits(t *testing.T) {
@@ -114,7 +138,29 @@ func TestGetWithoutEUDM(t *testing.T) {
 		assert.NotContains(t, tag, "os_version:")
 		assert.NotContains(t, tag, "cpu_model:")
 		assert.NotContains(t, tag, "device_model:")
+		assert.NotContains(t, tag, "hostid:")
 		assert.NotContains(t, tag, "total_memory_gb:")
+	}
+}
+
+func TestGetInfraModeTags(t *testing.T) {
+	tests := []struct {
+		mode string
+		want string
+	}{
+		{"none", "infra_mode:none"},
+		{"basic", "infra_mode:basic"},
+		{"cloud_cost_only", "infra_mode:cloud_cost_only"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.mode, func(t *testing.T) {
+			mockConfig, ctx := setupTest(t)
+			mockConfig.SetInTest("infrastructure_mode", tt.mode)
+
+			hostTags := Get(ctx, false, mockConfig)
+			assert.Contains(t, hostTags.System, tt.want)
+		})
 	}
 }
 
@@ -131,6 +177,7 @@ func TestGetWithEUDM(t *testing.T) {
 			"cpu_model:Apple_M1_Pro",
 			"total_memory_gb:16",
 			"device_model:MacBookPro18,3",
+			"hostid:TEST123",
 		}
 	}
 
@@ -141,6 +188,7 @@ func TestGetWithEUDM(t *testing.T) {
 	assert.Contains(t, hostTags.System, "cpu_model:Apple_M1_Pro")
 	assert.Contains(t, hostTags.System, "total_memory_gb:16")
 	assert.Contains(t, hostTags.System, "device_model:MacBookPro18,3")
+	assert.Contains(t, hostTags.System, "hostid:TEST123")
 }
 
 func TestEUDMTagsOnUnsupportedOS(t *testing.T) {
@@ -167,6 +215,30 @@ func TestSanitizeEUDMTagValue(t *testing.T) {
 	assert.Equal(t, "Apple_M1_Pro", sanitizeEUDMTagValue("Apple M1 Pro"))
 	assert.Equal(t, "MacBookPro18,3", sanitizeEUDMTagValue("MacBookPro18,3"))
 	assert.Equal(t, "trim_me", sanitizeEUDMTagValue("  trim me  "))
+}
+
+func TestGetProvidersDefinitionsSkipsKubernetesNodeTagsOnCLCRunner(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	env.SetFeatures(t, env.Kubernetes)
+
+	mockConfig.SetInTest("clc_runner_enabled", true)
+	mockConfig.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasKubernetesNodeTags := providers["kubernetes"]
+	assert.False(t, hasKubernetesNodeTags, "kubernetes node-tags provider should be skipped on Cluster Checks Runners, which have no reachable local Kubelet")
+
+	_, hasClusterAgentTags := providers["kubernetes_cluster_agent_tags"]
+	assert.True(t, hasClusterAgentTags, "kubernetes_cluster_agent_tags provider should still be registered on Cluster Checks Runners")
+}
+
+func TestGetProvidersDefinitionsIncludesKubernetesNodeTagsOnNodeAgent(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	env.SetFeatures(t, env.Kubernetes)
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasKubernetesNodeTags := providers["kubernetes"]
+	assert.True(t, hasKubernetesNodeTags, "kubernetes node-tags provider should be registered on a regular node Agent")
 }
 
 func TestHostTagsCache(t *testing.T) {
@@ -203,4 +275,24 @@ func TestHostTagsCache(t *testing.T) {
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 	assert.Equal(t, 2, nbCall)
+}
+
+func TestEUDMSystemInfoTags(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		info *systeminfo.SystemInfo
+		want []string
+	}{
+		{name: "unavailable"},
+		{name: "empty", info: &systeminfo.SystemInfo{}},
+		{name: "model only", info: &systeminfo.SystemInfo{Identifier: "MacBookPro18,3"}, want: []string{"device_model:MacBookPro18,3"}},
+		{name: "serial without model", info: &systeminfo.SystemInfo{SerialNumber: "TEST123"}, want: []string{"hostid:TEST123"}},
+		{name: "model and serial", info: &systeminfo.SystemInfo{Identifier: "MacBookPro18,3", SerialNumber: "TEST123"}, want: []string{"device_model:MacBookPro18,3", "hostid:TEST123"}},
+		{name: "whitespace serial", info: &systeminfo.SystemInfo{SerialNumber: " \t\r\n "}},
+		{name: "sanitize serial", info: &systeminfo.SystemInfo{SerialNumber: "  TEST 123\tABC  "}, want: []string{"hostid:TEST_123_ABC"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, eudmSystemInfoTags(tc.info))
+		})
+	}
 }

@@ -232,6 +232,28 @@ func (f *MockEthtool) Stats(iface string) (map[string]uint64, error) {
 
 	if iface == "mlx5_core_mock" {
 		return map[string]uint64{
+			// RoCE/PFC per-priority, link-level "global" pause, and Layer 1 counters.
+			// rx_prio8_packets is deliberately outside the 802.1p 0..7 range and must be dropped.
+			"rx_prio0_pause":                  500,
+			"rx_prio0_pause_duration":         501,
+			"rx_prio0_pause_transition":       502,
+			"rx_prio0_buf_discard":            503,
+			"rx_prio0_cong_discard":           504,
+			"rx_prio0_marked":                 505,
+			"tx_prio0_pause":                  506,
+			"tx_prio0_pause_duration":         507,
+			"rx_prio7_packets":                508,
+			"rx_prio7_pause":                  509,
+			"tx_prio7_pause":                  510,
+			"rx_prio8_packets":                511,
+			"rx_global_pause":                 512,
+			"rx_global_pause_duration":        513,
+			"rx_global_pause_transition":      514,
+			"tx_global_pause":                 515,
+			"tx_global_pause_duration":        516,
+			"rx_pci_signal_integrity":         517,
+			"rx_corrected_bits_phy":           518,
+			"rx_bits_phy":                     519,
 			"rx_packets":                      1,
 			"rx_bytes":                        2,
 			"tx_packets":                      3,
@@ -853,9 +875,16 @@ func (f *MockEthtool) Close() {
 
 func TestEthtoolParsing(t *testing.T) {
 	testcases := []struct {
-		name  string
-		iface string
-		want  map[string]map[string]uint64
+		name string
+		// collectRoce mirrors the gpu.enabled gate: when false the RoCE allowlists
+		// are not consulted and the emitted set must be unchanged.
+		collectRoce bool
+		// roceOnly additionally turns the base collect_ethtool_metrics gate off. That is
+		// the GPU-monitoring host that never enabled ethtool collection, where only the
+		// RoCE allowlists may contribute.
+		roceOnly bool
+		iface    string
+		want     map[string]map[string]uint64
 	}{
 		{
 			name:  "skips unsupported NIC",
@@ -1058,6 +1087,196 @@ func TestEthtoolParsing(t *testing.T) {
 			},
 		},
 		{
+			name:        "parses mlx5_core RoCE counters when roce collection is enabled",
+			collectRoce: true,
+			iface:       "mlx5_core_mock",
+			want: map[string]map[string]uint64{
+				"prio:0": {
+					"mlx5_core.prio.rx_bytes":            187,
+					"mlx5_core.prio.rx_packets":          188,
+					"mlx5_core.prio.rx_discards":         189,
+					"mlx5_core.prio.tx_bytes":            190,
+					"mlx5_core.prio.tx_packets":          191,
+					"mlx5_core.prio.rx_pause":            500,
+					"mlx5_core.prio.rx_pause_duration":   501,
+					"mlx5_core.prio.rx_pause_transition": 502,
+					"mlx5_core.prio.rx_buf_discard":      503,
+					"mlx5_core.prio.rx_cong_discard":     504,
+					"mlx5_core.prio.rx_marked":           505,
+					"mlx5_core.prio.tx_pause":            506,
+					"mlx5_core.prio.tx_pause_duration":   507,
+				},
+				"prio:1": {
+					"mlx5_core.prio.rx_bytes":    192,
+					"mlx5_core.prio.rx_packets":  193,
+					"mlx5_core.prio.rx_discards": 194,
+					"mlx5_core.prio.tx_bytes":    195,
+					"mlx5_core.prio.tx_packets":  196,
+				},
+				"prio:7": {
+					"mlx5_core.prio.rx_packets": 508,
+					"mlx5_core.prio.rx_pause":   509,
+					"mlx5_core.prio.tx_pause":   510,
+				},
+				"global": {
+					"mlx5_core.rx_if_down_packets":         129,
+					"mlx5_core.rx_pause_ctrl_phy":          168,
+					"mlx5_core.tx_pause_ctrl_phy":          169,
+					"mlx5_core.module_unplug":              197,
+					"mlx5_core.rx_global_pause":            512,
+					"mlx5_core.rx_global_pause_duration":   513,
+					"mlx5_core.rx_global_pause_transition": 514,
+					"mlx5_core.tx_global_pause":            515,
+					"mlx5_core.tx_global_pause_duration":   516,
+					"mlx5_core.rx_pci_signal_integrity":    517,
+					"mlx5_core.rx_corrected_bits_phy":      518,
+					"mlx5_core.rx_bits_phy":                519,
+					"mlx5_core.ch_arm":                     100,
+					"mlx5_core.ch_eq_rearm":                103,
+					"mlx5_core.ch_poll":                    99,
+					"mlx5_core.link_down_events_phy":       186,
+					"mlx5_core.module_bad_shorted":         200,
+					"mlx5_core.module_bus_stuck":           198,
+					"mlx5_core.module_high_temp":           199,
+					"mlx5_core.rx_bytes":                   2,
+					"mlx5_core.rx_crc_errors_phy":          154,
+					"mlx5_core.rx_csum_complete":           33,
+					"mlx5_core.rx_csum_none":               32,
+					"mlx5_core.rx_csum_unnecessary":        31,
+					"mlx5_core.rx_discards_phy":            170,
+					"mlx5_core.rx_fragments_phy":           174,
+					"mlx5_core.rx_in_range_len_errors_phy": 161,
+					"mlx5_core.rx_jabbers_phy":             175,
+					"mlx5_core.rx_out_of_buffer":           128,
+					"mlx5_core.rx_out_of_range_len_phy":    162,
+					"mlx5_core.rx_oversize_pkts_buffer":    131,
+					"mlx5_core.rx_oversize_pkts_phy":       163,
+					"mlx5_core.rx_oversize_pkts_sw_drop":   66,
+					"mlx5_core.rx_packets":                 1,
+					"mlx5_core.rx_pp_alloc_empty":          80,
+					"mlx5_core.rx_steer_missed_packets":    130,
+					"mlx5_core.rx_symbol_err_phy":          164,
+					"mlx5_core.rx_undersize_pkts_phy":      173,
+					"mlx5_core.rx_unsupported_op_phy":      167,
+					"mlx5_core.rx_xdp_drop":                37,
+					"mlx5_core.rx_xdp_redirect":            38,
+					"mlx5_core.rx_xdp_tx_err":              44,
+					"mlx5_core.rx_xsk_buff_alloc_err":      118,
+					"mlx5_core.tx_bytes":                   4,
+					"mlx5_core.tx_discards_phy":            171,
+					"mlx5_core.tx_errors_phy":              172,
+					"mlx5_core.tx_packets":                 3,
+					"mlx5_core.tx_queue_dropped":           50,
+					"mlx5_core.tx_queue_stopped":           49,
+					"mlx5_core.tx_queue_wake":              54,
+					"mlx5_core.tx_xdp_err":                 61,
+					"mlx5_core.tx_xsk_err":                 126,
+					"mlx5_core.tx_xsk_full":                125,
+				},
+				"queue:0": {
+					"mlx5_core.queue.rx_packets":              213,
+					"mlx5_core.queue.rx_bytes":                214,
+					"mlx5_core.queue.tx_packets":              335,
+					"mlx5_core.queue.tx_bytes":                336,
+					"mlx5_core.queue.rx_arfs_err":             244,
+					"mlx5_core.queue.rx_buff_alloc_err":       236,
+					"mlx5_core.queue.rx_recover":              245,
+					"mlx5_core.queue.rx_tls_err":              266,
+					"mlx5_core.queue.rx_tls_resync_res_retry": 264,
+					"mlx5_core.queue.rx_tls_resync_res_skip":  265,
+					"mlx5_core.queue.rx_wqe_err":              232,
+					"mlx5_core.queue.rx_xdp_tx_err":           272,
+					"mlx5_core.queue.rx_xdp_tx_full":          271,
+					"mlx5_core.queue.tx_cqe_err":              363,
+					"mlx5_core.queue.tx_dropped":              358,
+					"mlx5_core.queue.tx_recover":              360,
+				},
+				"queue:12": {
+					"mlx5_core.queue.rx_packets":              274,
+					"mlx5_core.queue.rx_bytes":                275,
+					"mlx5_core.queue.tx_packets":              364,
+					"mlx5_core.queue.tx_bytes":                365,
+					"mlx5_core.queue.rx_arfs_err":             305,
+					"mlx5_core.queue.rx_buff_alloc_err":       297,
+					"mlx5_core.queue.rx_recover":              306,
+					"mlx5_core.queue.rx_tls_err":              327,
+					"mlx5_core.queue.rx_tls_resync_res_retry": 325,
+					"mlx5_core.queue.rx_tls_resync_res_skip":  326,
+					"mlx5_core.queue.rx_wqe_err":              293,
+					"mlx5_core.queue.rx_xdp_tx_err":           333,
+					"mlx5_core.queue.rx_xdp_tx_full":          332,
+					"mlx5_core.queue.tx_cqe_err":              392,
+					"mlx5_core.queue.tx_dropped":              387,
+					"mlx5_core.queue.tx_recover":              389,
+				},
+			},
+		},
+		{
+			name:        "parses only RoCE counters when ethtool collection is off",
+			collectRoce: true,
+			roceOnly:    true,
+			iface:       "mlx5_core_mock",
+			want: map[string]map[string]uint64{
+				"prio:0": {
+					"mlx5_core.prio.rx_bytes":            187,
+					"mlx5_core.prio.rx_packets":          188,
+					"mlx5_core.prio.rx_discards":         189,
+					"mlx5_core.prio.tx_bytes":            190,
+					"mlx5_core.prio.tx_packets":          191,
+					"mlx5_core.prio.rx_pause":            500,
+					"mlx5_core.prio.rx_pause_duration":   501,
+					"mlx5_core.prio.rx_pause_transition": 502,
+					"mlx5_core.prio.rx_buf_discard":      503,
+					"mlx5_core.prio.rx_cong_discard":     504,
+					"mlx5_core.prio.rx_marked":           505,
+					"mlx5_core.prio.tx_pause":            506,
+					"mlx5_core.prio.tx_pause_duration":   507,
+				},
+				"prio:1": {
+					"mlx5_core.prio.rx_bytes":    192,
+					"mlx5_core.prio.rx_packets":  193,
+					"mlx5_core.prio.rx_discards": 194,
+					"mlx5_core.prio.tx_bytes":    195,
+					"mlx5_core.prio.tx_packets":  196,
+				},
+				"prio:7": {
+					"mlx5_core.prio.rx_packets": 508,
+					"mlx5_core.prio.rx_pause":   509,
+					"mlx5_core.prio.tx_pause":   510,
+				},
+				// Only the RoCE-gated globals. Base entries such as ch_arm, the csum
+				// counters and the phy error family must be absent here.
+				"global": {
+					"mlx5_core.rx_if_down_packets":         129,
+					"mlx5_core.rx_pause_ctrl_phy":          168,
+					"mlx5_core.tx_pause_ctrl_phy":          169,
+					"mlx5_core.module_unplug":              197,
+					"mlx5_core.rx_global_pause":            512,
+					"mlx5_core.rx_global_pause_duration":   513,
+					"mlx5_core.rx_global_pause_transition": 514,
+					"mlx5_core.tx_global_pause":            515,
+					"mlx5_core.tx_global_pause_duration":   516,
+					"mlx5_core.rx_pci_signal_integrity":    517,
+					"mlx5_core.rx_corrected_bits_phy":      518,
+					"mlx5_core.rx_bits_phy":                519,
+				},
+				// The per-ring traffic side effect is RoCE-gated, so it survives; the base
+				// per-ring error counters do not.
+				"queue:0": {
+					"mlx5_core.queue.rx_packets": 213,
+					"mlx5_core.queue.rx_bytes":   214,
+					"mlx5_core.queue.tx_packets": 335,
+					"mlx5_core.queue.tx_bytes":   336,
+				},
+				"queue:12": {
+					"mlx5_core.queue.rx_packets": 274,
+					"mlx5_core.queue.rx_bytes":   275,
+					"mlx5_core.queue.tx_packets": 364,
+					"mlx5_core.queue.tx_bytes":   365,
+				},
+			},
+		},
+		{
 			name:  "parses hv_netvsc",
 			iface: "hv_netvsc_mock",
 			want: map[string]map[string]uint64{
@@ -1172,7 +1391,7 @@ func TestEthtoolParsing(t *testing.T) {
 				t.Errorf("%s not implemented in mock", err)
 			}
 			iface := strings.ReplaceAll(tc.iface, "_mock", "")
-			got := getEthtoolMetrics(iface, statsMap)
+			got := getEthtoolMetrics(iface, statsMap, !tc.roceOnly, tc.collectRoce)
 			if diff := gocmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("ethtool statistics result diff (-want +got):\n%s", diff)
 			}
@@ -1232,8 +1451,8 @@ ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
 TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342
 `, nil
 	}
-	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
-	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
+	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 drop=1 early_drop=0 search_restart=39936711
+	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 drop=1 early_drop=0 search_restart=36983181`, nil
 }
 
 func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
@@ -1706,6 +1925,56 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(33), "", lo0Tags)
 }
 
+func TestExcludedInterfacesIfaceSysMetrics(t *testing.T) {
+	net := &fakeNetworkStats{}
+	networkCheck := createTestNetworkCheck(net)
+
+	rawInstanceConfig := []byte(`
+excluded_interfaces:
+  - eth1
+excluded_interface_re: "veth.*"
+`)
+
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+	assert.Nil(t, err)
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	mockEthtool := new(MockEthtool)
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	for _, iface := range []string{"eth0", "eth1", "veth1a2b"} {
+		for file, value := range map[string]string{"mtu": "1500", "tx_queue_len": "1000", "carrier": "1"} {
+			err = afero.WriteFile(fs, "/sys/class/net/"+iface+"/"+file, []byte(value), 0644)
+			assert.Nil(t, err)
+		}
+		err = fs.MkdirAll("/sys/class/net/"+iface+"/queues/tx-0", 0755)
+		assert.Nil(t, err)
+		err = fs.MkdirAll("/sys/class/net/"+iface+"/queues/rx-0", 0755)
+		assert.Nil(t, err)
+	}
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	ifaceSysMetrics := []string{"mtu", "tx_queue_len", "up", "num_tx_queues", "num_rx_queues"}
+	for _, metric := range ifaceSysMetrics {
+		mockSender.AssertCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:eth0"})
+		// excluded by name
+		mockSender.AssertNotCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:eth1"})
+		// excluded by pattern
+		mockSender.AssertNotCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:veth1a2b"})
+	}
+}
+
 func TestFetchEthtoolStats(t *testing.T) {
 	mockEthtool := new(MockEthtool)
 
@@ -1752,6 +2021,100 @@ func TestFetchEthtoolStats(t *testing.T) {
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.cpu.rx_xdp_tx", float64(123), "", expectedTagsCPU)
 	expectedTagsGlobal := []string{"device:eth0", "driver_name:ena", "driver_version:mock_version", "global"}
 	mockSender.AssertCalled(t, "MonotonicCount", "system.net.ena.tx_timeout", float64(456), "", expectedTagsGlobal)
+}
+
+// TestEthtoolRoceMetricsGatedOnGPUEnabled validates that the mlx5_core RoCE/PFC
+// counters only reach the sender when GPU monitoring is enabled in datadog.yaml.
+// These counters were emitted unconditionally in PR 51523, which is why it was
+// reverted; this gate is what replaces that behavior.
+// The two gates are independent: gpu.enabled turns on the RoCE allowlists, and the
+// instance's collect_ethtool_metrics turns on the base ones. Either alone must emit only
+// its own counters -- in particular gpu.enabled must not pull in the base mlx5 ethtool set
+// on hosts that never asked for ethtool collection, which is the surface that got #51523
+// reverted.
+func TestEthtoolRoceMetricsGatedOnGPUEnabled(t *testing.T) {
+	testcases := []struct {
+		name       string
+		gpuEnabled bool
+		instance   []byte
+		wantPrio   bool
+		wantBase   bool
+	}{
+		{
+			name:       "emits RoCE counters when gpu.enabled is true and ethtool collection is on",
+			gpuEnabled: true,
+			instance:   []byte(`collect_ethtool_metrics: true`),
+			wantPrio:   true,
+			wantBase:   true,
+		},
+		{
+			name:       "omits RoCE counters when gpu.enabled is false",
+			gpuEnabled: false,
+			instance:   []byte(`collect_ethtool_metrics: true`),
+			wantPrio:   false,
+			wantBase:   true,
+		},
+		{
+			name:       "emits RoCE counters on the default instance when gpu.enabled is true",
+			gpuEnabled: true,
+			instance:   []byte(``),
+			wantPrio:   true,
+			wantBase:   false,
+		},
+		{
+			name:       "emits nothing on the default instance when gpu.enabled is false",
+			gpuEnabled: false,
+			instance:   []byte(``),
+			wantPrio:   false,
+			wantBase:   false,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockEthtool := new(MockEthtool)
+			mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
+			mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
+			getNewEthtool = func() (ethtoolInterface, error) {
+				return mockEthtool, nil
+			}
+
+			cfg := configmock.New(t)
+			cfg.Set("gpu.enabled", tc.gpuEnabled, configmodel.SourceAgentRuntime)
+
+			networkCheck := newCheck(cfg).(*NetworkCheck)
+			networkCheck.net = &fakeNetworkStats{
+				counterStats: []net.IOCountersStat{{Name: "mlx5_core_mock"}},
+			}
+
+			mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+			networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, tc.instance, []byte(``), "test", "provider")
+
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			mockSender.On("Commit").Return()
+
+			err := networkCheck.Run()
+			assert.Nil(t, err)
+
+			prioTags := []string{"device:mlx5_core_mock", "driver_name:mlx5_core", "driver_version:mock_version", "prio:0"}
+			if tc.wantPrio {
+				mockSender.AssertCalled(t, "MonotonicCount", "system.net.mlx5_core.prio.rx_pause", float64(500), "", prioTags)
+			} else {
+				mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.mlx5_core.prio.rx_pause", float64(500), "", prioTags)
+			}
+
+			// ch_arm is in the base global allowlist and in none of the RoCE ones, so it
+			// tracks the base gate only.
+			globalTags := []string{"device:mlx5_core_mock", "driver_name:mlx5_core", "driver_version:mock_version", "global"}
+			if tc.wantBase {
+				mockSender.AssertCalled(t, "MonotonicCount", "system.net.mlx5_core.ch_arm", float64(100), "", globalTags)
+			} else {
+				mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.mlx5_core.ch_arm", float64(100), "", globalTags)
+			}
+		})
+	}
 }
 
 func TestFetchEthtoolStatsENOTTY(t *testing.T) {
@@ -2186,17 +2549,24 @@ conntrack_path: "/usr/bin/conntrack"
 
 	filesystem = afero.NewMemMapFs()
 	fs := filesystem
-	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_insert", []byte(
+	err := afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_ignore_this", []byte(
 		`13`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_count", []byte(
+		`42`),
+		0644)
+	assert.Nil(t, err)
+	err = afero.WriteFile(fs, "/mocked/procfs/sys/net/netfilter/nf_conntrack_max", []byte(
+		`42`),
 		0644)
 	assert.Nil(t, err)
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	expectedTags := []string{"cpu:0"}
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.conntrack.count", float64(42), "", expectedTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.conntrack.max", float64(42), "", expectedTags)
-	mockSender.AssertNotCalled(t, "MonotonicCount", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.count", float64(42), "", []string(nil))
+	mockSender.AssertCalled(t, "Gauge", "system.net.conntrack.max", float64(42), "", []string(nil))
+	mockSender.AssertNotCalled(t, "Gauge", "system.net.conntrack.ignore_this", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestConntrackPathAllowlist(t *testing.T) {
@@ -3042,4 +3412,54 @@ func emptyConnectionStateEntry() *connectionStateEntry {
 		recvQ: []uint64{},
 		sendQ: []uint64{},
 	}
+}
+
+// TestAddConntrackStatsFromProcFileHexParsing documents the current behavior of
+// addConntrackStatsFromProcFile against a real-shaped /proc/net/stat/nf_conntrack
+// sample (double-spaced header, matching the format in the function's own comment).
+func TestAddConntrackStatsFromProcFileHexParsing(t *testing.T) {
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	err := afero.WriteFile(fs, "/mocked/procfs/net/stat/nf_conntrack", []byte(
+		`entries  clashres found new invalid ignore delete chainlength insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart
+00000015  0000027b 00000000 00000000 00000001 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000  00000000 00000000 00000000 00000000
+00000015  00000001 00000002 00000003 00000004 00000005 00000006 00000007 00000008 00000009 0000000a 0000000b 0000000c  0000000d 0000000e 0000000f 00000010`),
+		0644)
+	assert.Nil(t, err)
+
+	stats, err := addConntrackStatsFromProcFile("/mocked/procfs")
+	assert.Nil(t, err)
+	assert.Len(t, stats, 8)
+
+	assert.Equal(t, "0", stats[0].cpuID)
+	assert.Equal(t, float64(0), stats[0].Found)
+	assert.Equal(t, float64(1), stats[0].Invalid)
+	assert.Equal(t, float64(0), stats[0].Ignore)
+	assert.Equal(t, float64(0), stats[0].Insert)
+	assert.Equal(t, float64(0), stats[0].InsertFailed)
+	assert.Equal(t, float64(0), stats[0].Drop)
+	assert.Equal(t, float64(0), stats[0].EarlyDrop)
+	assert.Equal(t, float64(0), stats[0].Error)
+	assert.Equal(t, float64(0), stats[0].SearchRestart)
+	assert.Equal(t, float64(635), stats[0].ClashResolve)
+	assert.Equal(t, float64(0), stats[0].ChainTooLong)
+
+	assert.Equal(t, "7", stats[7].cpuID)
+	assert.Equal(t, float64(2), stats[7].Found)
+	assert.Equal(t, float64(4), stats[7].Invalid)
+	assert.Equal(t, float64(5), stats[7].Ignore)
+	assert.Equal(t, float64(8), stats[7].Insert)
+	assert.Equal(t, float64(9), stats[7].InsertFailed)
+	assert.Equal(t, float64(10), stats[7].Drop)
+	assert.Equal(t, float64(11), stats[7].EarlyDrop)
+	assert.Equal(t, float64(12), stats[7].Error)
+	assert.Equal(t, float64(16), stats[7].SearchRestart)
+	assert.Equal(t, float64(1), stats[7].ClashResolve)
+	assert.Equal(t, float64(7), stats[7].ChainTooLong)
 }

@@ -34,30 +34,6 @@ properties:
           set apm_sampling.enabled but NOT agent_config.enabled, preserving the
           historical behavior where apm_sampling.enabled implicitly gated
           AGENT_CONFIG too.
-  agent_integrations:
-    node_type: section
-    type: object
-    properties:
-      allow_list:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
-      allow_log_config_scheduling:
-        node_type: setting
-        type: boolean
-        default: false
-      block_list:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
   api_key:
     node_type: setting
     type: string

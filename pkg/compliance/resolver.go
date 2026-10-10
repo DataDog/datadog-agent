@@ -32,7 +32,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	yamlv2 "go.yaml.in/yaml/v2"
+	yamlv2 "go.yaml.in/yaml/v2" // due to its usage as a fallback from v3
 	yamlv3 "go.yaml.in/yaml/v3"
 )
 
@@ -80,11 +80,6 @@ type ResolverOptions struct {
 	// StatsdClient is the statsd client used internally by the compliance
 	// resolver (optional)
 	StatsdClient statsd.ClientInterface
-
-	// ReflectorStore contains kubernetes objects fetched using reflectors. This is
-	// used to avoid calling the kube API server with "list" operations that can
-	// return many objects and cause memory spikes.
-	ReflectorStore *ReflectorStore
 
 	DockerProvider
 	KubernetesProvider
@@ -219,7 +214,7 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 			result, err = r.resolveDocker(ctx, *spec.Docker)
 		case spec.KubeApiserver != nil:
 			resultType = "kubernetes"
-			result, err = r.k8sapiserverResolver.resolveKubeApiserver(ctx, rule.ID, *spec.KubeApiserver)
+			result, err = r.k8sapiserverResolver.resolveKubeApiserver(ctx, *spec.KubeApiserver)
 			kubernetesCluster = r.k8sapiserverResolver.resolveKubeClusterID(ctx)
 		case spec.Package != nil:
 			resultType = "package"

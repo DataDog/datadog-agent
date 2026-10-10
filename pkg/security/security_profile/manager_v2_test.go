@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -55,7 +56,7 @@ func newTestProfileWithNodes(name string, nodeCount int) *profile.Profile {
 	for i := 0; i < nodeCount; i++ {
 		p.ActivityTree.ProcessNodes = append(p.ActivityTree.ProcessNodes, &activity_tree.ProcessNode{
 			NodeBase: activity_tree.NewNodeBase(),
-			Process: model.Process{
+			Process: activity_tree.ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/proc",
 					BasenameStr: "proc",
@@ -84,6 +85,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 
 		m.persistProfile(p)
 
+		assert.False(t, p.HasAlreadyBeenSent(), "persisting a disabled profile must not open the send-gated learning window")
 		filePath := filepath.Join(dir, "disabled."+config.Profile.String())
 		_, err := os.Stat(filePath)
 		require.NoError(t, err, "a disabled profile must be persisted so its state survives a restart")
@@ -109,6 +111,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		require.True(t, ok, "the persisted enabled profile should be found on disk")
 		assert.True(t, reloaded.IsEnabled(), "an enabled profile must reload as enabled")
 		assert.False(t, reloaded.ActivityTree.IsEmpty(), "an enabled profile keeps its tree")
+		assert.True(t, p.HasAlreadyBeenSent(), "persisting an enabled profile ends the send-gated learning window")
 	})
 }
 
@@ -121,9 +124,11 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 
 	maxSize := 1 << 20
 	m := &ManagerV2{
-		statsdClient: &statsd.NoOpClient{},
-		resolvers:    &resolvers.EBPFResolvers{CGroupResolver: cgr},
-		profiles:     make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		statsdClient:         &statsd.NoOpClient{},
+		resolvers:            &resolvers.EBPFResolvers{CGroupResolver: cgr},
+		profiles:             make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		evictionRuns:         atomic.NewUint64(0),
+		evictionNodesEvicted: atomic.NewUint64(0),
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
 				SecurityProfileNodeEvictionTimeout: time.Hour,
@@ -144,4 +149,81 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 	m.evictUnusedNodes()
 
 	assert.False(t, p.IsEnabled(), "eviction must not re-enable a disabled profile")
+}
+
+func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
+	start := time.Now()
+	withStart := func() *profile.Profile {
+		p := profile.New()
+		p.Metadata = mtdt.Metadata{Start: start}
+		return p
+	}
+	timeBased := func(period time.Duration) *ManagerV2 {
+		return &ManagerV2{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileV2ProfileReportingDelayTimeBased: true,
+			SecurityProfileV2ProfileReportingDelayDuration:  period,
+		}}}
+	}
+
+	t.Run("default withholds until the profile has been persisted", func(t *testing.T) {
+		p := withStart()
+		m := &ManagerV2{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{}}}
+		assert.False(t, m.shouldSendAnomalyDetection(p, start))
+		p.SetHasAlreadyBeenSent()
+		assert.True(t, m.shouldSendAnomalyDetection(p, start))
+	})
+
+	t.Run("time-based with a zero period sends as soon as the profile starts", func(t *testing.T) {
+		p := withStart()
+		assert.True(t, timeBased(0).shouldSendAnomalyDetection(p, start))
+		assert.False(t, p.HasAlreadyBeenSent(), "time-based stabilization does not depend on persistence")
+	})
+
+	t.Run("time-based waits for the configured period after the profile starts", func(t *testing.T) {
+		p := withStart()
+		m := timeBased(time.Hour)
+		assert.False(t, m.shouldSendAnomalyDetection(p, start))
+		assert.False(t, m.shouldSendAnomalyDetection(p, start.Add(time.Hour-time.Nanosecond)))
+		assert.True(t, m.shouldSendAnomalyDetection(p, start.Add(time.Hour)))
+	})
+
+	t.Run("time-based anchors on the persisted start, not the in-memory creation time", func(t *testing.T) {
+		p := withStart()
+		p.Metadata.Start = start.Add(-time.Hour)
+		assert.True(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, start))
+	})
+
+	t.Run("time-based keeps withholding when the clock jumps backward", func(t *testing.T) {
+		p := withStart()
+		assert.False(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, start.Add(-time.Hour)))
+	})
+
+	t.Run("time-based with an unset start sends immediately", func(t *testing.T) {
+		p := profile.New()
+		require.True(t, p.Metadata.Start.IsZero())
+		assert.True(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, time.Now()))
+	})
+}
+
+func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
+	const startMono = int64(time.Hour)
+	newManager := func(delay time.Duration) *ManagerV2 {
+		return &ManagerV2{
+			startTimeMono: startMono,
+			config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+				SecurityProfileV2ProfilingStartupDelay: delay,
+			}},
+		}
+	}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		assert.False(t, newManager(0).withinProfilingStartupDelay(uint64(startMono)))
+	})
+
+	t.Run("ignores events within the delay and resumes after it", func(t *testing.T) {
+		m := newManager(time.Minute)
+		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono)))
+		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds()-1)))
+		assert.False(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds())))
+	})
 }

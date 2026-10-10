@@ -478,14 +478,15 @@ func TestKafkaCollectorSelectsActiveDistributionConfig(t *testing.T) {
 	}
 }
 
-func TestKafkaCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
+func TestKafkaCollectorUsesFirstBrokerConfigAcrossProcesses(t *testing.T) {
 	reader := &kafkaCollectorTestReader{
 		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
 			Args: []string{"/bin/bash", "/mnt/kafka-wrapper/start-kafka.sh"},
 		},
 		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
 			{Args: []string{"kafka-server-start.sh", "/etc/kafka/server.properties"}},
-			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/server.properties"}},
+			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/other.properties"}},
+			{Args: []string{"java", "kafka.Kafka", "config/server.properties"}},
 		},
 		file: configfilesdiscoveryimpl.ConfigFile{Path: "/etc/kafka/server.properties"},
 	}
@@ -496,42 +497,6 @@ func TestKafkaCollectorReadsUniqueConfigAcrossProcesses(t *testing.T) {
 	assert.Equal(t, []string{"/etc/kafka/server.properties"}, reader.readFileCalls)
 	assert.Equal(t, 1, reader.processCommandlineCalls)
 	require.Len(t, collected.ConfigFiles, 1)
-}
-
-func TestKafkaCollectorSkipsConflictingProcessConfigPaths(t *testing.T) {
-	reader := &kafkaCollectorTestReader{
-		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
-			Args: []string{"/bin/bash", "/mnt/kafka-wrapper/start-kafka.sh"},
-		},
-		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
-			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/server.properties"}},
-			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/other.properties"}},
-		},
-	}
-
-	collected, err := NewKafka().Collect(context.Background(), reader)
-
-	require.NoError(t, err)
-	assert.Empty(t, reader.readFileCalls)
-	assert.Empty(t, collected.ConfigFiles)
-}
-
-func TestKafkaCollectorSkipsUnresolvedMatchingProcessConfigPath(t *testing.T) {
-	reader := &kafkaCollectorTestReader{
-		runtimeCommandline: configfilesdiscoveryimpl.TargetCommandline{
-			Args: []string{"/bin/bash", "/mnt/kafka-wrapper/start-kafka.sh"},
-		},
-		liveProcessCommandlines: []configfilesdiscoveryimpl.TargetCommandline{
-			{Args: []string{"java", "kafka.Kafka", "/etc/kafka/server.properties"}},
-			{Args: []string{"java", "kafka.Kafka", "config/server.properties"}},
-		},
-	}
-
-	collected, err := NewKafka().Collect(context.Background(), reader)
-
-	require.NoError(t, err)
-	assert.Empty(t, reader.readFileCalls)
-	assert.Empty(t, collected.ConfigFiles)
 }
 
 func TestKafkaCollectorUsesRuntimeConfigBeforeProcessConfig(t *testing.T) {
@@ -668,18 +633,23 @@ func (r *kafkaCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeTyp
 
 func (r *kafkaCollectorTestReader) Close() {}
 
-func (r *kafkaCollectorTestReader) ReadFile(_ context.Context, path string) (configfilesdiscoveryimpl.ConfigFile, error) {
-	r.readFileCalls = append(r.readFileCalls, path)
+func (r *kafkaCollectorTestReader) ReadFile(_ context.Context, path configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
+	r.readFileCalls = append(r.readFileCalls, path.String())
 	if r.readFileErr != nil {
 		return configfilesdiscoveryimpl.ConfigFile{}, r.readFileErr
 	}
-	if r.file.Path == path {
+	if r.file.Path == path.String() {
 		return r.file, nil
 	}
-	if file, ok := r.files[path]; ok {
+	if file, ok := r.files[path.String()]; ok {
 		return file, nil
 	}
 	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
+}
+
+// ReadMatchingFiles is not implemented by this test reader.
+func (r *kafkaCollectorTestReader) ReadMatchingFiles(context.Context, configfilesdiscoveryimpl.ConfigFileSearch, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
+	return nil, false, errors.New("not implemented")
 }
 
 func (r *kafkaCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {

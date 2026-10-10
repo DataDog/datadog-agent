@@ -19,6 +19,6 @@ runs:
         key: bazel-${{ hashFiles('MODULE.bazel.lock') }}
         path: |
           .cache/bazel/*/cache
-          .cache/go
-          .cache/ms-go
+          .cache/go/mod/cache
+          .cache/golangci-lint
           .cache/pip

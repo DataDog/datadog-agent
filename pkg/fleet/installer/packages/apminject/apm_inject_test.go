@@ -214,7 +214,7 @@ func TestSetLDPreloadConfig_TmpfsMigratesPersistentPath(t *testing.T) {
 	a := &InjectorInstaller{
 		installPath:    "/opt/datadog-packages/datadog-apm-inject/stable",
 		tmpfsInjectDir: "/run/datadog-apm-inject",
-		launcherPath:   "/run/datadog-apm-inject/launcher.preload.so",
+		launcherDir:    "/run/datadog-apm-inject",
 	}
 
 	out, err := a.setLDPreloadConfigContent(context.TODO(),
@@ -242,6 +242,84 @@ func TestRemoveLDPreloadConfig_TmpfsPath(t *testing.T) {
 		output, err := a.deleteLDPreloadConfigContent(context.TODO(), []byte(input))
 		assert.NoError(t, err)
 		assert.Equal(t, expected, string(output))
+	}
+}
+
+func TestLDPreloadEntryMultilib(t *testing.T) {
+	tests := []struct {
+		name           string
+		packageVersion string
+		arch           string
+		completeLayout bool
+		wantMultilib   bool
+	}{
+		{
+			name:           "released supported package",
+			packageVersion: "0.71.0-1",
+			arch:           "amd64",
+			completeLayout: true,
+			wantMultilib:   true,
+		},
+		{
+			name:           "older package",
+			packageVersion: "0.70.0-1",
+			arch:           "amd64",
+			completeLayout: true,
+		},
+		{
+			name:           "supported version with incomplete OCI layout",
+			packageVersion: "0.71.0-1",
+			arch:           "amd64",
+		},
+		{
+			name:           "non-amd64 package",
+			packageVersion: "0.71.0-1",
+			arch:           "arm64",
+			completeLayout: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			installPath := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(installPath, "version"), []byte(tt.packageVersion+"\n"), 0644))
+			if tt.completeLayout {
+				writeMultilibLayout(t, installPath)
+			}
+			a := &InjectorInstaller{installPath: installPath, goArch: tt.arch}
+
+			entry := a.ldPreloadEntry()
+			if tt.wantMultilib {
+				assert.Equal(t, filepath.Join(installPath, "inject", multilibDir, "launcher.preload.so"), entry)
+			} else {
+				assert.Equal(t, filepath.Join(installPath, "inject", "launcher.preload.so"), entry)
+			}
+		})
+	}
+}
+
+func TestSetLDPreloadConfigMigratesToMultilibTmpfsPath(t *testing.T) {
+	installPath := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(installPath, "version"), []byte("0.71.0-1\n"), 0644))
+	writeMultilibLayout(t, installPath)
+	a := &InjectorInstaller{
+		installPath:    installPath,
+		tmpfsInjectDir: "/run/datadog-apm-inject",
+		launcherDir:    "/run/datadog-apm-inject",
+		goArch:         "amd64",
+	}
+
+	out, err := a.setLDPreloadConfigContent(context.TODO(), []byte(filepath.Join(installPath, "inject", "launcher.preload.so")+"\n"))
+	require.NoError(t, err)
+	assert.Equal(t, "/run/datadog-apm-inject/$LIB/launcher.preload.so\n", string(out))
+}
+
+func writeMultilibLayout(t *testing.T, installPath string) {
+	t.Helper()
+	for _, relativePath := range multilibLauncherPaths {
+		launcherPath := filepath.Join(installPath, "inject", filepath.FromSlash(relativePath))
+		require.NoError(t, os.MkdirAll(filepath.Dir(launcherPath), 0755))
+		require.NoError(t, os.WriteFile(launcherPath, []byte("fixture"), 0644))
 	}
 }
 

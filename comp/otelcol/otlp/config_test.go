@@ -610,6 +610,64 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			},
 		},
 		{
+			name: "metrics infra_attributes.as_tags",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_METRICS_INFRA_ATTRIBUTES_AS_TAGS": "true",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
+				MetricsInfraAttrsAsTags:      true,
+				Logs:                         map[string]interface{}{},
+				TracePort:                    5003,
+				Metrics: map[string]interface{}{
+					"enabled":                                true,
+					"tag_cardinality":                        "low",
+					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
+					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{},
+				Debug:        map[string]interface{}{},
+			},
+		},
+		{
+			// resource_attributes_as_tags already promotes every resource attribute
+			// (including the custom tags infra_attributes.as_tags targets), so the two
+			// are mutually exclusive: resource_attributes_as_tags wins and as_tags is
+			// ignored to avoid leaking the internal datadog.container.tag. namespace.
+			name: "metrics infra_attributes.as_tags ignored when resource_attributes_as_tags is set",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_METRICS_INFRA_ATTRIBUTES_AS_TAGS":    "true",
+				"DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS": "true",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
+				MetricsInfraAttrsAsTags:      false,
+				Logs:                         map[string]interface{}{},
+				TracePort:                    5003,
+				Metrics: map[string]interface{}{
+					"enabled":                                true,
+					"tag_cardinality":                        "low",
+					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
+					"resource_attributes_as_tags":            true,
+					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{},
+				Debug:        map[string]interface{}{},
+			},
+		},
+		{
 			name: "override trace container_tag_promotion",
 			env: map[string]string{
 				"DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_CONTAINER_TAG_PROMOTION": "rename",

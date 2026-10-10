@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes intermittent Fleet Automation config experiment promotion failures
+    on Windows when the experiment directory is temporarily in use or not empty.

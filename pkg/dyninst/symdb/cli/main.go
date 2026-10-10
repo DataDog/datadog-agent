@@ -375,10 +375,7 @@ func run() (retErr error) {
 
 	start := time.Now()
 
-	it, err := symdb.PackagesIterator(localBinPath, objectLoader, extractOpts)
-	if err != nil {
-		return err
-	}
+	it := symdb.PackagesIterator(localBinPath, objectLoader, extractOpts)
 
 	// Build the per-yield encoder. Three modes:
 	//  - -upload: real BatchEncoder shipping to a SymDB intake.

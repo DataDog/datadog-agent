@@ -16,10 +16,14 @@ tasks/
 │   ├── releasing/      — version arithmetic and release JSON helpers
 │   ├── testing/        — test result parsing, flake detection
 │   └── types/          — shared dataclasses and enums
-├── unit_tests/         — pytest tests for task logic (run via dda inv invoke-unit-tests.run)
+├── unit_tests/         — unittest tests for task logic (run via dda inv invoke-unit-tests.run)
 ├── custom_task/        — InvokeLogger: wraps every @task call and logs it to Datadog
 └── BUILD.bazel         — Bazel targets for task code that has been migrated
 ```
+
+Unit-test files must end in `_tests.py`; nested test directories need an
+`__init__.py` for unittest discovery. Verify the reported test count: a successful
+command reporting `Ran 0 tests` has not validated the code.
 
 ## Task Categories
 
@@ -52,6 +56,11 @@ Supporting library code:
 These tasks are typically CI-only and depend on GitLab/GitHub tokens available in CI
 environment variables.
 
+Reuse `libs/ciproviders/gitlab_api.py` for GitLab authentication and clients.
+For a pipeline's jobs, use `pipeline.jobs.list(iterator=True)` (or `get_all=True`),
+not `project.jobs.list(pipeline_id=...)`: the project endpoint does not filter by
+pipeline, and list calls do not fetch every page unless explicitly requested.
+
 ### Everything Else
 
 Release, packaging, tooling, and developer-experience tasks. Examples:
@@ -69,6 +78,30 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 - **Encoding** — pass `encoding="utf-8"` to `ctx.run` for any command carrying non-ASCII text.
 
 To test either branch on any platform, patch `tasks.libs.common.utils.is_windows`.
+
+## Shelling Out to Pulumi
+
+Every pulumi invocation outside `kernel_matrix_testing/` (which owns its own backend
+convention) goes through `run_pulumi` / `pulumi_json` / `pulumi_stack_names` in
+`tasks/e2e_framework/tool.py`. Do not add a bare `ctx.run("pulumi …")` or
+`subprocess.run(["pulumi", …])`.
+
+The helper is what makes the tasks work on machines that do not look like a dev laptop —
+a Datadog workspace, for instance, where the OS user is `bits` for everyone and
+`PULUMI_CONFIG_PASSPHRASE` is never exported. It resolves the project directory, the
+passphrase (from `~/.test_infra_config.yaml` when the environment has none) and the
+`--ci` backend in one place:
+
+- **Secrets travel in `env=`, never in the command string** — argv is visible in `/proc`
+  and in `echo=True` traces. Invoke merges `env=` into the parent environment, so this
+  composes with ambient variables instead of replacing them.
+- **Cloud resource names come from `get_resource_owner_id()`**, not `getpass.getuser()`.
+  It prefers `$REAL_USER` and appends `$WORKSPACE_NAME`, so two remote dev VMs owned by
+  the same developer do not collide on stack or EC2 keypair names in the shared account.
+  The Go equivalent is `localProfile.NamePrefix()`.
+- **A capability that a headless box lacks must degrade, not crash** — see
+  `notify_linux` and `copy_to_clipboard_if_supported`, which probe for `notify-send` and
+  a clipboard before use. Probe *before* any blocking prompt.
 
 ## Incremental Refactoring: Making Task Logic Bazel-Callable
 

@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: Spans with a start time or duration far in the future (for example, from a
+    client with a badly skewed clock, or a broken tracer integration) no longer create
+    trace stats buckets in the future. Previously, such buckets were not flushed until
+    the trace-agent's wall clock reached them, causing memory to accumulate over that
+    entire period, which could look like a memory leak. Future buckets are now clamped
+    to the current time bucket, aligning with the existing behavior of client stats.
+    A debug log is emitted when the clamp occurs.

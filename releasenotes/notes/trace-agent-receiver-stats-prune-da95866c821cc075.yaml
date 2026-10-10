@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: Fixed a potential memory leak in the trace-agent. If a tracer sent very
+    high cardinality payload tags (language, language version,
+    tracer version, endpoint version and service), these would accumulate
+    over the liftetime of the trace-agent. Under normal tracer operation this should
+    never occur.

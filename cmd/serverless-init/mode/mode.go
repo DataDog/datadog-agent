@@ -57,7 +57,6 @@ func DetectMode() Conf {
 	log.Infof("Arguments provided, launching in Init mode")
 	return Conf{
 		LoggerName:                    loggerNameInit,
-		Runner:                        RunInit,
 		TagVersionMode:                "_dd.datadog_init_version",
 		TagVersionModeEnhancedMetrics: "datadog_init_version",
 		SidecarMode:                   false,

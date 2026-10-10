@@ -12,12 +12,15 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
 	"github.com/containerd/containerd/api/types"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/defaults"
 	"github.com/containerd/containerd/v2/pkg/cio"
+	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/typeurl/v2"
 	prototypes "github.com/gogo/protobuf/types"
@@ -341,4 +344,85 @@ func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) container
 		},
 	}
 	return ctn
+}
+
+// TestCleanupContextOutlivesCaller checks that the containerd namespace
+// survives and the caller's cancellation does not.
+func TestCleanupContextOutlivesCaller(t *testing.T) {
+	ctx, cancel := context.WithCancel(namespaces.WithNamespace(context.Background(), "k8s.io"))
+	cancel()
+
+	releaseCtx, releaseCancel := cleanupContext(ctx)
+	defer releaseCancel()
+
+	require.NoError(t, releaseCtx.Err())
+	ns, ok := namespaces.Namespace(releaseCtx)
+	require.True(t, ok)
+	require.Equal(t, "k8s.io", ns)
+
+	deadline, ok := releaseCtx.Deadline()
+	require.True(t, ok)
+	require.WithinDuration(t, time.Now().Add(cleanupTimeout), deadline, time.Minute)
+}
+
+type unpackedImage struct {
+	containerd.Image
+	unpacked map[string]bool
+	errs     map[string]error
+}
+
+func (i *unpackedImage) Name() string {
+	return "docker.io/library/busybox:latest"
+}
+
+func (i *unpackedImage) IsUnpacked(_ context.Context, snapshotter string) (bool, error) {
+	return i.unpacked[snapshotter], i.errs[snapshotter]
+}
+
+func TestUnpackedSnapshotter(t *testing.T) {
+	notLoaded := errors.New("snapshotter not loaded: nydus")
+	tests := []struct {
+		name     string
+		unpacked map[string]bool
+		errs     map[string]error
+		want     string
+		wantErr  bool
+	}{
+		{
+			name:     "unpacked by nydus",
+			unpacked: map[string]bool{"nydus": true},
+			want:     "nydus",
+		},
+		{
+			name:     "unpacked by the default snapshotter beside nydus",
+			unpacked: map[string]bool{defaults.DefaultSnapshotter: true},
+			want:     defaults.DefaultSnapshotter,
+		},
+		{
+			name:     "unpacked by the default snapshotter without nydus",
+			unpacked: map[string]bool{defaults.DefaultSnapshotter: true},
+			errs:     map[string]error{"nydus": notLoaded},
+			want:     defaults.DefaultSnapshotter,
+		},
+		{
+			name:    "unpacked by neither",
+			wantErr: true,
+		},
+		{
+			name:    "default snapshotter fails",
+			errs:    map[string]error{"nydus": notLoaded, defaults.DefaultSnapshotter: errors.New("unavailable")},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := unpackedSnapshotter(context.Background(), &unpackedImage{unpacked: tt.unpacked, errs: tt.errs})
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

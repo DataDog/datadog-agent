@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "rcclient",
@@ -7,6 +8,16 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/remote-config/rcclient/def",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+    ],
+)
+
+dd_agent_go_test(
+    name = "rcclient_test",
+    srcs = ["rc_client_adapter_test.go"],
+    embed = [":rcclient"],
+    deps = [
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
     ],

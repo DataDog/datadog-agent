@@ -8,6 +8,7 @@
 package config
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -376,6 +377,64 @@ func TestValidateSidecarConfig_UDSPath(t *testing.T) {
 		err := validateSidecarConfig(cfg)
 		assert.NoError(t, err)
 	})
+}
+
+func TestAllProxyTypes_ContainsGKEGateway(t *testing.T) {
+	assert.True(t, slices.Contains(AllProxyTypes, ProxyTypeGKEGateway),
+		"AllProxyTypes should contain ProxyTypeGKEGateway")
+}
+
+func TestFromComponent_GKEGatewayClasses(t *testing.T) {
+	mockConfig := common.FakeConfigWithValues(t, map[string]any{
+		"cluster_agent.appsec.injector.mode":    "external",
+		"appsec.proxy.gke.gateway_classes":      []string{"foo"},
+		"appsec.proxy.enabled":                  true,
+		"cluster_agent.appsec.injector.enabled": true,
+	})
+
+	mockLogger := logmock.New(t)
+	cfg := FromComponent(mockConfig, mockLogger)
+
+	assert.Equal(t, []string{"foo"}, cfg.Product.GKE.GatewayClasses)
+}
+
+func TestFromComponent_ProxiesUnknownTypeDropped(t *testing.T) {
+	tests := []struct {
+		name            string
+		proxies         []string
+		wantContains    []ProxyType
+		wantNotContains []ProxyType
+	}{
+		{
+			name:            "known gke-gateway kept, bogus-proxy dropped",
+			proxies:         []string{"gke-gateway", "bogus-proxy"},
+			wantContains:    []ProxyType{ProxyTypeGKEGateway},
+			wantNotContains: []ProxyType{ProxyType("bogus-proxy")},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := common.FakeConfigWithValues(t, map[string]any{
+				"cluster_agent.appsec.injector.mode":    "external",
+				"appsec.proxy.proxies":                  tt.proxies,
+				"appsec.proxy.enabled":                  true,
+				"cluster_agent.appsec.injector.enabled": true,
+			})
+
+			mockLogger := logmock.New(t)
+			cfg := FromComponent(mockConfig, mockLogger)
+
+			for _, pt := range tt.wantContains {
+				_, ok := cfg.Product.Proxies[pt]
+				assert.True(t, ok, "Proxies should contain %q", pt)
+			}
+			for _, pt := range tt.wantNotContains {
+				_, ok := cfg.Product.Proxies[pt]
+				assert.False(t, ok, "Proxies should NOT contain %q", pt)
+			}
+		})
+	}
 }
 
 func TestProcessorString(t *testing.T) {

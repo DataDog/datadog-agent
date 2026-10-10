@@ -7,11 +7,13 @@ package main
 
 import (
 	_ "expvar"
+	"fmt"
 	_ "net/http/pprof"
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/remotecommand"
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/service"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,5 +30,10 @@ func main() {
 	}
 	defer log.Flush()
 
-	os.Exit(runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands())))
+	rootCmd := command.MakeCommand(subcommands.AgentSubcommands())
+	if err := remotecommand.Prepare(rootCmd, os.Args[1:]); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Exit(runcmd.Run(rootCmd))
 }

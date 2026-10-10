@@ -48,6 +48,15 @@ class TestFiles(unittest.TestCase):
                     sha.update(chunk)
             self.assertEqual(sha.hexdigest(), digest, file + " checksum mismatch")
 
+    def test_dd_agent_identity_marker(self):
+        marker = "/opt/datadog-agent/.dd-agent-identity"
+        marker_stat = os.stat(marker)
+        dd_agent = pwd.getpwnam("dd-agent")
+
+        self.assertEqual(marker_stat.st_uid, dd_agent.pw_uid)
+        self.assertEqual(marker_stat.st_gid, dd_agent.pw_gid)
+        self.assertEqual(stat.S_IMODE(marker_stat.st_mode), 0o440)
+
     def test_files_permissions(self):
         for root, dirs, files in os.walk("/"):
             dirs[:] = filter(

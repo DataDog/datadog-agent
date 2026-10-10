@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -115,11 +116,18 @@ func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) {
 	}
 }
 
-func addLogToBuffer(logHandle func()) {
+func addLogToBuffer(bufferFunc func(callerPos string), callerDepth int) {
+	var callerPos string
+	// +2 to skip this function and the log helper calling it, -1 as callerDepth already counts
+	// the frame of the log function itself
+	if _, file, line, ok := runtime.Caller(callerDepth + 2); ok {
+		callerPos = fmt.Sprintf("%s:%d ", file, line)
+	}
+
 	bufferMutex.Lock()
 	defer bufferMutex.Unlock()
 
-	logsBuffer = append(logsBuffer, logHandle)
+	logsBuffer = append(logsBuffer, func() { bufferFunc(callerPos) })
 }
 
 func (sw *DatadogLogger) scrub(s string) string {
@@ -177,7 +185,10 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 	return types.FromSlogLevel(l.level.Level()), nil
 }
 
-// ShouldLog returns whether a given log level should be logged by the default logger
+// ShouldLog returns whether a given log level should be logged by the default logger.
+// When the logger is not initialized yet, the default info level is assumed: info and
+// above pass the check (their entries are buffered by the log helpers until a logger
+// is set up), while trace and debug are dropped.
 func ShouldLog(lvl LogLevel) bool {
 	// The lock stay in the exported function due to the use of `shouldLog` in function that already hold the lock
 	l := logger.Load()
@@ -186,7 +197,7 @@ func ShouldLog(lvl LogLevel) bool {
 		defer l.l.RUnlock()
 		return l.shouldLog(lvl)
 	}
-	return false
+	return lvl >= InfoLvl
 }
 
 // This function should be called with `sw.l` held
@@ -238,12 +249,13 @@ func (sw *loggerPointer) flush() {
  */
 
 // log logs a message at the given level, using either bufferFunc (if logging is not yet set up) or
-// scrubAndLogFunc, and treating the variadic args as the message.
-func log(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string), v ...interface{}) {
+// scrubAndLogFunc, and treating the variadic args as the message. 'callerDepth' is only used for
+// buffered entries, see addLogToBuffer.
+func log(logLevel LogLevel, bufferFunc func(string), scrubAndLogFunc func(string), callerDepth int, v ...interface{}) {
 	l := logger.Load()
 
 	if l == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, callerDepth)
 		return
 	}
 
@@ -251,17 +263,17 @@ func log(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string), v .
 	defer l.l.Unlock()
 
 	if l.inner == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, callerDepth)
 	} else if l.shouldLog(logLevel) {
 		s := BuildLogEntry(v...)
 		scrubAndLogFunc(s)
 	}
 }
-func logWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, fallbackStderr bool, v ...interface{}) error {
+func logWithError(logLevel LogLevel, bufferFunc func(string), scrubAndLogFunc func(string) error, fallbackStderr bool, callerDepth int, v ...interface{}) error {
 	l := logger.Load()
 
 	if l == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, callerDepth)
 		err := formatError(v...)
 		if fallbackStderr {
 			fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
@@ -275,7 +287,7 @@ func logWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(str
 
 	if isInnerNil {
 		if !fallbackStderr {
-			addLogToBuffer(bufferFunc)
+			addLogToBuffer(bufferFunc, callerDepth)
 		}
 	} else if l.shouldLog(logLevel) {
 		defer l.l.Unlock()
@@ -300,11 +312,11 @@ func logWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(str
 *	logFormat functions
  */
 
-func logFormat(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string, ...interface{}), format string, params ...interface{}) {
+func logFormat(logLevel LogLevel, bufferFunc func(string), scrubAndLogFunc func(string, ...interface{}), format string, callerDepth int, params ...interface{}) {
 	l := logger.Load()
 
 	if l == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, callerDepth)
 		return
 	}
 
@@ -312,16 +324,16 @@ func logFormat(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string
 	defer l.l.Unlock()
 
 	if l.inner == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, callerDepth)
 	} else if l.shouldLog(logLevel) {
 		scrubAndLogFunc(format, params...)
 	}
 }
-func logFormatWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string, ...interface{}) error, format string, fallbackStderr bool, params ...interface{}) error {
+func logFormatWithError(logLevel LogLevel, bufferFunc func(string), scrubAndLogFunc func(string, ...interface{}) error, format string, fallbackStderr bool, callerDepth int, params ...interface{}) error {
 	l := logger.Load()
 
 	if l == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, callerDepth)
 		err := formatErrorf(format, params...)
 		if fallbackStderr {
 			fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
@@ -335,7 +347,7 @@ func logFormatWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc fu
 
 	if isInnerNil {
 		if !fallbackStderr {
-			addLogToBuffer(bufferFunc)
+			addLogToBuffer(bufferFunc, callerDepth)
 		}
 	} else if l.shouldLog(logLevel) {
 		defer l.l.Unlock()
@@ -359,11 +371,11 @@ func logFormatWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc fu
 *	logContext functions
  */
 
-func logContext(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string), message string, depth int, context ...interface{}) {
+func logContext(logLevel LogLevel, bufferFunc func(string), scrubAndLogFunc func(string), message string, depth int, context ...interface{}) {
 	l := logger.Load()
 
 	if l == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, depth+1)
 		return
 	}
 
@@ -371,7 +383,7 @@ func logContext(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 	defer l.l.Unlock()
 
 	if l.inner == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, depth+1)
 	} else if l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
 		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth + depth)
@@ -380,11 +392,11 @@ func logContext(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 		_ = l.inner.SetAdditionalStackDepth(defaultStackDepth)
 	}
 }
-func logContextWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
+func logContextWithError(logLevel LogLevel, bufferFunc func(string), scrubAndLogFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
 	l := logger.Load()
 
 	if l == nil {
-		addLogToBuffer(bufferFunc)
+		addLogToBuffer(bufferFunc, depth+1)
 		err := formatErrorc(message, context...)
 		if fallbackStderr {
 			fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
@@ -398,7 +410,7 @@ func logContextWithError(logLevel LogLevel, bufferFunc func(), scrubAndLogFunc f
 
 	if isInnerNil {
 		if !fallbackStderr {
-			addLogToBuffer(bufferFunc)
+			addLogToBuffer(bufferFunc, depth+1)
 		}
 	} else if l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
@@ -651,29 +663,28 @@ func formatErrorc(message string, context ...interface{}) error {
 
 // Trace logs at the trace level
 func Trace(v ...interface{}) {
-	log(TraceLvl, func() { Trace(v...) }, logger.trace, v...)
+	log(TraceLvl, func(callerPos string) { Trace(callerPos + BuildLogEntry(v...)) }, logger.trace, 1, v...)
 }
 
 // Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
-	logFormat(TraceLvl, func() { Tracef(format, params...) }, logger.tracef, format, params...)
+	logFormat(TraceLvl, func(callerPos string) { Trace(callerPos + fmt.Sprintf(format, params...)) }, logger.tracef, format, 1, params...)
 }
 
 // TracefStackDepth logs with format at the trace level and the current stack depth plus the given depth
 func TracefStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > TraceLvl {
+	if !ShouldLog(TraceLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
-	log(TraceLvl, func() { TraceStackDepth(depth, msg) }, func(s string) {
+	log(TraceLvl, func(callerPos string) { Trace(callerPos + msg) }, func(s string) {
 		logger.traceStackDepth(s, depth)
-	}, msg)
+	}, depth, msg)
 }
 
 // TracecStackDepth logs at the trace level with context and the current stack depth plus the additional given one
 func TracecStackDepth(message string, depth int, context ...interface{}) {
-	logContext(TraceLvl, func() { Tracec(message, context...) }, logger.trace, message, depth, context...)
+	logContext(TraceLvl, func(callerPos string) { Tracec(callerPos+message, context...) }, logger.trace, message, depth, context...)
 }
 
 // Tracec logs at the trace level with context
@@ -683,37 +694,35 @@ func Tracec(message string, context ...interface{}) {
 
 // TraceFunc calls and logs the result of 'logFunc' if and only if Trace (or more verbose) logs are enabled
 func TraceFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= TraceLvl {
+	if ShouldLog(TraceLvl) {
 		TraceStackDepth(2, logFunc())
 	}
 }
 
 // Debug logs at the debug level
 func Debug(v ...interface{}) {
-	log(DebugLvl, func() { Debug(v...) }, logger.debug, v...)
+	log(DebugLvl, func(callerPos string) { Debug(callerPos + BuildLogEntry(v...)) }, logger.debug, 1, v...)
 }
 
 // Debugf logs with format at the debug level
 func Debugf(format string, params ...interface{}) {
-	logFormat(DebugLvl, func() { Debugf(format, params...) }, logger.debugf, format, params...)
+	logFormat(DebugLvl, func(callerPos string) { Debug(callerPos + fmt.Sprintf(format, params...)) }, logger.debugf, format, 1, params...)
 }
 
 // DebugfStackDepth logs with format at the debug level and the current stack depth plus the given depth
 func DebugfStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > DebugLvl {
+	if !ShouldLog(DebugLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
-	log(DebugLvl, func() { DebugStackDepth(depth, msg) }, func(s string) {
+	log(DebugLvl, func(callerPos string) { Debug(callerPos + msg) }, func(s string) {
 		logger.debugStackDepth(s, depth)
-	}, msg)
+	}, depth, msg)
 }
 
 // DebugcStackDepth logs at the debug level with context and the current stack depth plus the additional given one
 func DebugcStackDepth(message string, depth int, context ...interface{}) {
-	logContext(DebugLvl, func() { Debugc(message, context...) }, logger.debug, message, depth, context...)
+	logContext(DebugLvl, func(callerPos string) { Debugc(callerPos+message, context...) }, logger.debug, message, depth, context...)
 }
 
 // Debugc logs at the debug level with context
@@ -723,37 +732,35 @@ func Debugc(message string, context ...interface{}) {
 
 // DebugFunc calls and logs the result of 'logFunc' if and only if Debug (or more verbose) logs are enabled
 func DebugFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= DebugLvl {
+	if ShouldLog(DebugLvl) {
 		DebugStackDepth(2, logFunc())
 	}
 }
 
 // Info logs at the info level
 func Info(v ...interface{}) {
-	log(InfoLvl, func() { Info(v...) }, logger.info, v...)
+	log(InfoLvl, func(callerPos string) { Info(callerPos + BuildLogEntry(v...)) }, logger.info, 1, v...)
 }
 
 // Infof logs with format at the info level
 func Infof(format string, params ...interface{}) {
-	logFormat(InfoLvl, func() { Infof(format, params...) }, logger.infof, format, params...)
+	logFormat(InfoLvl, func(callerPos string) { Info(callerPos + fmt.Sprintf(format, params...)) }, logger.infof, format, 1, params...)
 }
 
 // InfofStackDepth logs with format at the info level and the current stack depth plus the given depth
 func InfofStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > InfoLvl {
+	if !ShouldLog(InfoLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
-	log(InfoLvl, func() { InfoStackDepth(depth, msg) }, func(s string) {
+	log(InfoLvl, func(callerPos string) { Info(callerPos + msg) }, func(s string) {
 		logger.infoStackDepth(s, depth)
-	}, msg)
+	}, depth, msg)
 }
 
 // InfocStackDepth logs at the info level with context and the current stack depth plus the additional given one
 func InfocStackDepth(message string, depth int, context ...interface{}) {
-	logContext(InfoLvl, func() { Infoc(message, context...) }, logger.info, message, depth, context...)
+	logContext(InfoLvl, func(callerPos string) { Infoc(callerPos+message, context...) }, logger.info, message, depth, context...)
 }
 
 // Infoc logs at the info level with context
@@ -763,33 +770,32 @@ func Infoc(message string, context ...interface{}) {
 
 // InfoFunc calls and logs the result of 'logFunc' if and only if Info (or more verbose) logs are enabled
 func InfoFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= InfoLvl {
+	if ShouldLog(InfoLvl) {
 		InfoStackDepth(2, logFunc())
 	}
 }
 
 // Warn logs at the warn level and returns an error containing the formated log message
 func Warn(v ...interface{}) error {
-	return logWithError(WarnLvl, func() { _ = Warn(v...) }, logger.warn, false, v...)
+	return logWithError(WarnLvl, func(callerPos string) { _ = Warn(callerPos + BuildLogEntry(v...)) }, logger.warn, false, 1, v...)
 }
 
 // Warnf logs with format at the warn level and returns an error containing the formated log message
 func Warnf(format string, params ...interface{}) error {
-	return logFormatWithError(WarnLvl, func() { _ = Warnf(format, params...) }, logger.warnf, format, false, params...)
+	return logFormatWithError(WarnLvl, func(callerPos string) { _ = Warn(callerPos + fmt.Sprintf(format, params...)) }, logger.warnf, format, false, 1, params...)
 }
 
 // WarnfStackDepth logs with format at the warn level and the current stack depth plus the given depth
 func WarnfStackDepth(depth int, format string, params ...interface{}) error {
 	msg := fmt.Sprintf(format, params...)
-	return logWithError(WarnLvl, func() { _ = WarnStackDepth(depth, msg) }, func(s string) error {
+	return logWithError(WarnLvl, func(callerPos string) { _ = Warn(callerPos + msg) }, func(s string) error {
 		return logger.warnStackDepth(s, depth)
-	}, false, msg)
+	}, false, depth, msg)
 }
 
 // WarncStackDepth logs at the warn level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
 func WarncStackDepth(message string, depth int, context ...interface{}) error {
-	return logContextWithError(WarnLvl, func() { _ = Warnc(message, context...) }, logger.warn, message, false, depth, context...)
+	return logContextWithError(WarnLvl, func(callerPos string) { _ = Warnc(callerPos+message, context...) }, logger.warn, message, false, depth, context...)
 }
 
 // Warnc logs at the warn level with context and returns an error containing the formated log message
@@ -799,33 +805,32 @@ func Warnc(message string, context ...interface{}) error {
 
 // WarnFunc calls and logs the result of 'logFunc' if and only if Warn (or more verbose) logs are enabled
 func WarnFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= WarnLvl {
+	if ShouldLog(WarnLvl) {
 		_ = WarnStackDepth(2, logFunc())
 	}
 }
 
 // Error logs at the error level and returns an error containing the formated log message
 func Error(v ...interface{}) error {
-	return logWithError(ErrorLvl, func() { _ = Error(v...) }, logger.error, true, v...)
+	return logWithError(ErrorLvl, func(callerPos string) { _ = Error(callerPos + BuildLogEntry(v...)) }, logger.error, true, 1, v...)
 }
 
 // Errorf logs with format at the error level and returns an error containing the formated log message
 func Errorf(format string, params ...interface{}) error {
-	return logFormatWithError(ErrorLvl, func() { _ = Errorf(format, params...) }, logger.errorf, format, true, params...)
+	return logFormatWithError(ErrorLvl, func(callerPos string) { _ = Error(callerPos + fmt.Sprintf(format, params...)) }, logger.errorf, format, true, 1, params...)
 }
 
 // ErrorfStackDepth logs with format at the error level and the current stack depth plus the given depth
 func ErrorfStackDepth(depth int, format string, params ...interface{}) error {
 	msg := fmt.Sprintf(format, params...)
-	return logWithError(ErrorLvl, func() { _ = ErrorStackDepth(depth, msg) }, func(s string) error {
+	return logWithError(ErrorLvl, func(callerPos string) { _ = Error(callerPos + msg) }, func(s string) error {
 		return logger.errorStackDepth(s, depth)
-	}, true, msg)
+	}, true, depth, msg)
 }
 
 // ErrorcStackDepth logs at the error level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
 func ErrorcStackDepth(message string, depth int, context ...interface{}) error {
-	return logContextWithError(ErrorLvl, func() { _ = Errorc(message, context...) }, logger.error, message, true, depth, context...)
+	return logContextWithError(ErrorLvl, func(callerPos string) { _ = Errorc(callerPos+message, context...) }, logger.error, message, true, depth, context...)
 }
 
 // Errorc logs at the error level with context and returns an error containing the formated log message
@@ -835,33 +840,32 @@ func Errorc(message string, context ...interface{}) error {
 
 // ErrorFunc calls and logs the result of 'logFunc' if and only if Error (or more verbose) logs are enabled
 func ErrorFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= ErrorLvl {
+	if ShouldLog(ErrorLvl) {
 		_ = ErrorStackDepth(2, logFunc())
 	}
 }
 
 // Critical logs at the critical level and returns an error containing the formated log message
 func Critical(v ...interface{}) error {
-	return logWithError(CriticalLvl, func() { _ = Critical(v...) }, logger.critical, true, v...)
+	return logWithError(CriticalLvl, func(callerPos string) { _ = Critical(callerPos + BuildLogEntry(v...)) }, logger.critical, true, 1, v...)
 }
 
 // Criticalf logs with format at the critical level and returns an error containing the formated log message
 func Criticalf(format string, params ...interface{}) error {
-	return logFormatWithError(CriticalLvl, func() { _ = Criticalf(format, params...) }, logger.criticalf, format, true, params...)
+	return logFormatWithError(CriticalLvl, func(callerPos string) { _ = Critical(callerPos + fmt.Sprintf(format, params...)) }, logger.criticalf, format, true, 1, params...)
 }
 
 // CriticalfStackDepth logs with format at the critical level and the current stack depth plus the given depth
 func CriticalfStackDepth(depth int, format string, params ...interface{}) error {
 	msg := fmt.Sprintf(format, params...)
-	return logWithError(CriticalLvl, func() { _ = CriticalStackDepth(depth, msg) }, func(s string) error {
+	return logWithError(CriticalLvl, func(callerPos string) { _ = Critical(callerPos + msg) }, func(s string) error {
 		return logger.criticalStackDepth(s, depth)
-	}, false, msg)
+	}, false, depth, msg)
 }
 
 // CriticalcStackDepth logs at the critical level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
 func CriticalcStackDepth(message string, depth int, context ...interface{}) error {
-	return logContextWithError(CriticalLvl, func() { _ = Criticalc(message, context...) }, logger.critical, message, true, depth, context...)
+	return logContextWithError(CriticalLvl, func(callerPos string) { _ = Criticalc(callerPos+message, context...) }, logger.critical, message, true, depth, context...)
 }
 
 // Criticalc logs at the critical level with context and returns an error containing the formated log message
@@ -871,50 +875,49 @@ func Criticalc(message string, context ...interface{}) error {
 
 // CriticalFunc calls and logs the result of 'logFunc' if and only if Critical (or more verbose) logs are enabled
 func CriticalFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= CriticalLvl {
+	if ShouldLog(CriticalLvl) {
 		_ = CriticalStackDepth(2, logFunc())
 	}
 }
 
 // InfoStackDepth logs at the info level and the current stack depth plus the additional given one
 func InfoStackDepth(depth int, v ...interface{}) {
-	log(InfoLvl, func() { InfoStackDepth(depth, v...) }, func(s string) {
+	log(InfoLvl, func(callerPos string) { Info(callerPos + BuildLogEntry(v...)) }, func(s string) {
 		logger.infoStackDepth(s, depth)
-	}, v...)
+	}, depth, v...)
 }
 
 // WarnStackDepth logs at the warn level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func WarnStackDepth(depth int, v ...interface{}) error {
-	return logWithError(WarnLvl, func() { _ = WarnStackDepth(depth, v...) }, func(s string) error {
+	return logWithError(WarnLvl, func(callerPos string) { _ = Warn(callerPos + BuildLogEntry(v...)) }, func(s string) error {
 		return logger.warnStackDepth(s, depth)
-	}, false, v...)
+	}, false, depth, v...)
 }
 
 // DebugStackDepth logs at the debug level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func DebugStackDepth(depth int, v ...interface{}) {
-	log(DebugLvl, func() { DebugStackDepth(depth, v...) }, func(s string) {
+	log(DebugLvl, func(callerPos string) { Debug(callerPos + BuildLogEntry(v...)) }, func(s string) {
 		logger.debugStackDepth(s, depth)
-	}, v...)
+	}, depth, v...)
 }
 
 // TraceStackDepth logs at the trace level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func TraceStackDepth(depth int, v ...interface{}) {
-	log(TraceLvl, func() { TraceStackDepth(depth, v...) }, func(s string) {
+	log(TraceLvl, func(callerPos string) { Trace(callerPos + BuildLogEntry(v...)) }, func(s string) {
 		logger.traceStackDepth(s, depth)
-	}, v...)
+	}, depth, v...)
 }
 
 // ErrorStackDepth logs at the error level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func ErrorStackDepth(depth int, v ...interface{}) error {
-	return logWithError(ErrorLvl, func() { _ = ErrorStackDepth(depth, v...) }, func(s string) error {
+	return logWithError(ErrorLvl, func(callerPos string) { _ = Error(callerPos + BuildLogEntry(v...)) }, func(s string) error {
 		return logger.errorStackDepth(s, depth)
-	}, true, v...)
+	}, true, depth, v...)
 }
 
 // CriticalStackDepth logs at the critical level and the current stack depth plus the additional given one and returns an error containing the formated log message
 func CriticalStackDepth(depth int, v ...interface{}) error {
-	return logWithError(CriticalLvl, func() { _ = CriticalStackDepth(depth, v...) }, func(s string) error {
+	return logWithError(CriticalLvl, func(callerPos string) { _ = Critical(callerPos + BuildLogEntry(v...)) }, func(s string) error {
 		return logger.criticalStackDepth(s, depth)
-	}, true, v...)
+	}, true, depth, v...)
 }

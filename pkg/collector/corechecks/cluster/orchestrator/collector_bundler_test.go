@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator && test
+//go:build kubeapiserver && test
 
 package orchestrator
 
@@ -434,6 +434,41 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 		// EKS Auto Mode NodeClass resource
 		"eks.amazonaws.com/v1/nodeclasses",
 
+		// Dynamo
+		"nvidia.com/v1alpha1/dynamocheckpoints",
+		"nvidia.com/v1beta1/dynamocomponentdeployments",
+		"nvidia.com/v1beta1/dynamographdeploymentrequests",
+		"nvidia.com/v1beta1/dynamographdeployments",
+		"nvidia.com/v1beta1/dynamographdeploymentscalingadapters",
+		"nvidia.com/v1alpha1/dynamomodels",
+		"nvidia.com/v1alpha1/dynamoworkermetadatas",
+
+		// KubeRay
+		"ray.io/v1/rayclusters",
+		"ray.io/v1/raycronjobs",
+		"ray.io/v1/rayjobs",
+		"ray.io/v1/rayservices",
+
+		// KubeAI
+		"kubeai.org/v1/models",
+
+		// KServe
+		"serving.kserve.io/v1alpha1/clusterstoragecontainers",
+		"serving.kserve.io/v1alpha2/llminferenceserviceconfigs",
+		"serving.kserve.io/v1alpha2/llminferenceservices",
+		"serving.kserve.io/v1alpha1/localmodelcaches",
+		"serving.kserve.io/v1alpha1/localmodelnamespacecaches",
+		"serving.kserve.io/v1alpha1/localmodelnodegroups",
+		"serving.kserve.io/v1alpha1/localmodelnodes",
+		"serving.kserve.io/v1alpha1/clusterservingruntimes",
+		"serving.kserve.io/v1alpha1/inferencegraphs",
+		"serving.kserve.io/v1beta1/inferenceservices",
+		"serving.kserve.io/v1alpha1/servingruntimes",
+		"serving.kserve.io/v1alpha1/trainedmodels",
+
+		// Gateway API Inference Extension
+		"inference.networking.k8s.io/v1/inferencepools",
+
 		// Gateway API
 		"gateway.networking.k8s.io/v1/gateways",
 		"gateway.networking.k8s.io/v1/httproutes",
@@ -483,9 +518,94 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 	require.ElementsMatch(t, expectedConfigs, foundConfigs)
 }
 
+func TestBuiltinGAIECollector(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		disabled  bool
+		version   string
+		collected bool
+	}{
+		{name: "v1 collected by default", version: "v1", collected: true},
+		{name: "global OOTB disabled", disabled: true, version: "v1"},
+		{name: "API group absent"},
+		{name: "unsupported version", version: "v1alpha2"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := mockconfig.New(t)
+			if testCase.disabled {
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", false)
+			}
+			// GAIE collection does not require opting into the Gateway API family.
+			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.gateway_api", false)
+
+			cache := discovery.DiscoveryCache{
+				CollectorForVersion: map[discovery.CollectorVersion]struct{}{},
+			}
+			if testCase.version != "" {
+				cache.CollectorForVersion[discovery.CollectorVersion{
+					GroupVersion: GAIEAPIGroup + "/" + testCase.version,
+					Kind:         "inferencepools",
+				}] = struct{}{}
+				cache.Groups = []*v1.APIGroup{{
+					Name: GAIEAPIGroup,
+					Versions: []v1.GroupVersionForDiscovery{{
+						GroupVersion: GAIEAPIGroup + "/" + testCase.version,
+						Version:      testCase.version,
+					}},
+				}}
+			}
+			collectorDiscovery := &discovery.DiscoveryCollector{}
+			collectorDiscovery.SetCache(cache)
+			cb := CollectorBundle{collectorDiscovery: collectorDiscovery}
+			for _, config := range newBuiltinCRDConfigs() {
+				if config.group != GAIEAPIGroup {
+					continue
+				}
+				crCollectors := cb.collectorsForBuiltinCRD(config)
+				if testCase.collected {
+					require.Len(t, crCollectors, 1)
+					require.Equal(t, "inference.networking.k8s.io/v1/inferencepools", crCollectors[0].Metadata().FullName())
+				} else {
+					require.Empty(t, crCollectors)
+				}
+			}
+		})
+	}
+}
+
+func TestNewBuiltinKServeCRDConfigs(t *testing.T) {
+	cfg := mockconfig.New(t)
+	cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", true)
+
+	var kserveConfigs []builtinCRDConfig
+	for _, config := range newBuiltinCRDConfigs() {
+		if config.group == KServeAPIGroup {
+			kserveConfigs = append(kserveConfigs, config)
+		}
+	}
+
+	expectedConfigs := []builtinCRDConfig{
+		newBuiltinCRDConfig(KServeAPIGroup, "clusterstoragecontainers", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceserviceconfigs", true, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "llminferenceservices", true, "v1alpha2", "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelcaches", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnamespacecaches", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodegroups", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "localmodelnodes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "clusterservingruntimes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "inferencegraphs", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "inferenceservices", true, "v1beta1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "servingruntimes", true, "v1alpha1"),
+		newBuiltinCRDConfig(KServeAPIGroup, "trainedmodels", true, "v1alpha1"),
+	}
+
+	require.ElementsMatch(t, expectedConfigs, kserveConfigs)
+}
+
 func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 	for _, testCase := range []struct {
 		name                string
+		useDefaults         bool
 		ootbEnabled         bool
 		gatewayAPI          bool
 		serviceMesh         bool
@@ -494,6 +614,13 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 		expectedServiceMesh int // 11 entries (5 Istio + 6 group-level)
 		expectedIngress     int // 6 entries (2 NGINX + 1 Traefik + 3 group-level)
 	}{
+		{
+			name:                "all families enabled by default",
+			useDefaults:         true,
+			expectedGatewayAPI:  5,
+			expectedServiceMesh: 11,
+			expectedIngress:     6,
+		},
 		{
 			name:                "all families enabled",
 			ootbEnabled:         true,
@@ -547,10 +674,12 @@ func TestNewBuiltinCRDConfigsPerFamilyFlags(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg := mockconfig.New(t)
-			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", testCase.ootbEnabled)
-			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.gateway_api", testCase.gatewayAPI)
-			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.service_mesh", testCase.serviceMesh)
-			cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.ingress_controllers", testCase.ingressControllers)
+			if !testCase.useDefaults {
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.enabled", testCase.ootbEnabled)
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.gateway_api", testCase.gatewayAPI)
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.service_mesh", testCase.serviceMesh)
+				cfg.SetInTest("orchestrator_explorer.custom_resources.ootb.ingress_controllers", testCase.ingressControllers)
+			}
 
 			configs := newBuiltinCRDConfigs()
 

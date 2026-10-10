@@ -18,5 +18,5 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 func initCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("plain_setting", "abc")
 	config.BindEnvAndSetDefaultWithDeprecation("renamed_setting", "abc", []string{"old_setting"}, "DD_RENAMED_SETTING")
-	config.BindEnvAndSetDefaultWithDeprecation("my_section.renamed_twice", 10, []string{"oldest_section.oldest_name", "my_section.old_name"})
+	config.BindEnvAndSetDefaultWithDeprecation("my_section.renamed_twice", 10.0, []string{"oldest_section.oldest_name", "my_section.old_name"})
 }

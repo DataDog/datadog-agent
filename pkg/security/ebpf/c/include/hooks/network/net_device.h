@@ -5,10 +5,11 @@
 #include "constants/offsets/netns.h"
 #include "helpers/process.h"
 #include "helpers/span.h"
+#include "helpers/span_fill.h"
 #include "maps.h"
 #include "perf_ring.h"
 
-int __attribute__((always_inline)) start_veth_state_machine() {
+static __always_inline int start_veth_state_machine() {
     u64 id = bpf_get_current_pid_tgid();
     struct veth_state_t state = {
         .state = STATE_NEWLINK,
@@ -183,15 +184,16 @@ int rethook_register_netdevice(ctx_t *ctx) {
     struct veth_state_t *state = bpf_map_lookup_elem(&veth_state_machine, &id);
     if (state == NULL) {
         // this is a simple device registration
-        struct net_device_event_t evt = {
-            .device = device,
-        };
+        struct net_device_event_t *evt = SPAN_FILL_EVENT(struct net_device_event_t, EVENT_NET_DEVICE);
+        if (!evt) {
+            return 0;
+        }
+        evt->device = device;
 
-        struct proc_cache_t *entry = fill_process_context(&evt.process);
-        fill_cgroup_context(entry, &evt.cgroup);
-        fill_span_context(&evt.span);
+        struct proc_cache_t *entry = fill_process_context(&evt->process);
+        fill_cgroup_context(entry, &evt->cgroup);
 
-        send_event(ctx, EVENT_NET_DEVICE, evt);
+        bpf_tail_call_compat(ctx, &span_fill_progs, 0);
         return 0;
     }
 
@@ -231,16 +233,17 @@ int rethook_register_netdevice(ctx_t *ctx) {
         // veth pairs can be created with an existing peer netns, if this is the case, send the veth_pair event now
         if (peer_device->netns != device.netns) {
             // send event
-            struct veth_pair_event_t evt = {
-                .host_device = device,
-                .peer_device = *peer_device,
-            };
+            struct veth_pair_event_t *evt = SPAN_FILL_EVENT(struct veth_pair_event_t, EVENT_VETH_PAIR);
+            if (!evt) {
+                return 0;
+            }
+            evt->host_device = device;
+            evt->peer_device = *peer_device;
 
-            struct proc_cache_t *proc_entry = fill_process_context(&evt.process);
-            fill_cgroup_context(proc_entry, &evt.cgroup);
-            fill_span_context(&evt.span);
+            struct proc_cache_t *proc_entry = fill_process_context(&evt->process);
+            fill_cgroup_context(proc_entry, &evt->cgroup);
 
-            send_event(ctx, EVENT_VETH_PAIR, evt);
+            bpf_tail_call_compat(ctx, &span_fill_progs, 0);
         }
         break;
     }
@@ -248,7 +251,7 @@ int rethook_register_netdevice(ctx_t *ctx) {
     return 0;
 };
 
-__attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
+static __always_inline int trace_dev_change_net_namespace(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
     struct net *net = (struct net *)CTX_PARM2(ctx);
 
@@ -278,16 +281,17 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
     peer_device->peer_netns = device->netns;
 
     // send event
-    struct veth_pair_event_t evt = {
-        .host_device = *peer_device,
-        .peer_device = *device,
-    };
+    struct veth_pair_event_t *evt = SPAN_FILL_EVENT(struct veth_pair_event_t, EVENT_VETH_PAIR_NS);
+    if (!evt) {
+        return 0;
+    }
+    evt->host_device = *peer_device;
+    evt->peer_device = *device;
 
-    struct proc_cache_t *entry = fill_process_context(&evt.process);
-    fill_cgroup_context(entry, &evt.cgroup);
-    fill_span_context(&evt.span);
+    struct proc_cache_t *entry = fill_process_context(&evt->process);
+    fill_cgroup_context(entry, &evt->cgroup);
 
-    send_event(ctx, EVENT_VETH_PAIR_NS, evt);
+    bpf_tail_call_compat(ctx, &span_fill_progs, 0);
     return 0;
 }
 

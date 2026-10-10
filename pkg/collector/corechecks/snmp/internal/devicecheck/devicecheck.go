@@ -289,15 +289,23 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
 
-	// When device metadata is collected, the backend enriches metrics with device tags
-	// from the metadata payload, so only the resource tag is needed on metrics.
-	// Otherwise, there is no enrichment payload and legacy device tags must be kept
-	// so existing queries/monitors keep matching.
+	// `device_tags_source` decides where the device tags on metrics come from:
+	//   - `resource` (default): only the resource tag is sent and the backend enriches the
+	//     metrics with the device tags from the metadata payload.
+	//   - `agent`: the Agent stamps the device tags on every metric and the resource tag is
+	//     omitted, so no backend enrichment happens. For setups that cannot tolerate the delay
+	//     between a metric being submitted and its metadata payload being processed.
+	//   - `both`: the Agent stamps the device tags and still sends the resource tag, so the
+	//     backend enrichment applies on top.
+	//
+	// When device metadata is not collected there is no payload to enrich from, and the config
+	// resolution has already forced the source to `both`.
 	var metricTags []string
-	if d.config.CollectDeviceMetadata {
-		metricTags = []string{"dd.internal.resource:ndm_device:" + d.GetDeviceID()}
-	} else {
-		metricTags = append(tags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())
+	if d.config.DeviceTagsSource.SendDeviceTags() {
+		metricTags = utils.CopyStrings(tags)
+	}
+	if d.config.DeviceTagsSource.SendResourceTag() {
+		metricTags = append(metricTags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())
 	}
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), metricTags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), metricTags)

@@ -84,6 +84,16 @@ type MessageMetadata struct {
 	// This is also used to track the original content size before the message is processed and encoded later
 	// in the pipeline.
 	RawDataLen int
+	// checkpointRawDataLen is the number of source bytes that may be included
+	// when advancing a file tailer's checkpoint after this message. It differs
+	// from RawDataLen when partial records from multiple streams are interleaved:
+	// a completed message can be sent while an earlier record remains buffered,
+	// but it must not move the restart position past that record.
+	//
+	// The companion boolean distinguishes the default behavior (use RawDataLen)
+	// from an explicit zero that holds the checkpoint at its prior value.
+	checkpointRawDataLen    int
+	hasCheckpointRawDataLen bool
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -253,13 +263,22 @@ func (m *MessageContent) SetEncoded(content []byte) {
 // E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
 type ParsingExtra struct {
 	// Used by docker parsers to transmit an offset.
-	Timestamp   string
+	Timestamp string
+	// Stream identifies the container output stream used to reassemble partial lines.
+	Stream      string
 	IsPartial   bool
 	IsTruncated bool
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
 }
+
+const (
+	// StreamStdout identifies a container log record emitted on stdout.
+	StreamStdout = "stdout"
+	// StreamStderr identifies a container log record emitted on stderr.
+	StreamStderr = "stderr"
+)
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
 type ServerlessExtra struct {
@@ -469,6 +488,22 @@ func (m *MessageMetadata) Count() int64 {
 // Size returns the size of the message.
 func (m *MessageMetadata) Size() int64 {
 	return int64(m.RawDataLen)
+}
+
+// RawDataLenForCheckpoint returns the number of source bytes that a file
+// tailer may safely include when advancing its checkpoint for this message.
+func (m *MessageMetadata) RawDataLenForCheckpoint() int {
+	if !m.hasCheckpointRawDataLen {
+		return m.RawDataLen
+	}
+	return m.checkpointRawDataLen
+}
+
+// SetRawDataLenForCheckpoint overrides the source byte count used to advance a
+// file tailer's checkpoint. Passing zero explicitly holds the prior checkpoint.
+func (m *MessageMetadata) SetRawDataLenForCheckpoint(rawDataLen int) {
+	m.checkpointRawDataLen = rawDataLen
+	m.hasCheckpointRawDataLen = true
 }
 
 // RecordProcessingRule records the application of a processing rule to a message.

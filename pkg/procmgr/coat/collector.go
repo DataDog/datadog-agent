@@ -29,6 +29,14 @@ func NewCollector() *Collector {
 	return NewCollectorWithClient(installRoot, newDefaultClient())
 }
 
+// NewCLICollector creates a collector using the dd-procmgr CLI instead of dialing gRPC directly,
+// so binaries that only need this collector (e.g. datadog-installer) don't link
+// google.golang.org/grpc or the generated procmgr protobuf stubs.
+func NewCLICollector() *Collector {
+	installRoot := agentInstallRoot()
+	return NewCollectorWithClient(installRoot, newCLIClient(installRoot))
+}
+
 // NewCollectorWithClient creates a collector with a custom install root and procmgr client.
 func NewCollectorWithClient(installRoot string, client Client) *Collector {
 	return &Collector{
@@ -42,32 +50,45 @@ func (c *Collector) Collect(ctx context.Context) Snapshot {
 	ctx, cancel := clientContext(ctx)
 	defer cancel()
 
+	// The daemon calls run on a tighter budget than the service sweep below them, which is local and
+	// still worth reporting when dd-procmgrd is the thing that failed.
+	daemonCtx, cancelDaemon := daemonPhaseContext(ctx)
+	defer cancelDaemon()
+
 	snapshot := Snapshot{
 		Services: make([]ServiceSnapshot, 0, len(migratableServices)),
 	}
 
 	var processes map[string]ProcessSnapshot
 
-	sess, err := c.client.Connect(ctx)
+	sess, err := c.client.Connect(daemonCtx)
 	if err != nil {
 		logCoatProcmgrErr("coat: dd-procmgrd connect", err)
 		snapshot.Daemon = DaemonSnapshot{}
 		processes = map[string]ProcessSnapshot{}
 	} else {
 		defer func() { _ = sess.Disconnect() }()
-		snapshot.Daemon, err = sess.Status(ctx)
+		snapshot.Daemon, err = sess.Status(daemonCtx)
 		if err != nil {
 			logCoatProcmgrErr("coat: dd-procmgrd status", err)
 			snapshot.Daemon = DaemonSnapshot{}
 			processes = map[string]ProcessSnapshot{}
 		} else {
-			processes, err = sess.List(ctx)
+			processes, err = sess.List(daemonCtx)
 			if err != nil {
 				logCoatProcmgrErr("coat: dd-procmgrd list", err)
 				processes = map[string]ProcessSnapshot{}
 			}
 		}
 	}
+
+	// The OS unit/SCM state does not go through dd-procmgrd, so it is collected whether or not the
+	// calls above succeeded: a unit that is stopped or failed is what COAT needs to see, and that is
+	// when the daemon cannot answer. It runs ahead of the service sweep, on a bounded slice of what
+	// the daemon phase left, so neither it nor the sweep hands the other an expired context.
+	serviceStateCtx, cancelServiceState := daemonServiceStateContext(ctx)
+	snapshot.Daemon.ServiceState = detectDaemonServiceState(serviceStateCtx)
+	cancelServiceState()
 
 	for _, service := range migratableServices {
 		snapshot.Services = append(snapshot.Services, c.collectService(ctx, service, processes))
@@ -110,6 +131,7 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 	status := ServiceSnapshot{
 		ID:             service.ID,
 		ManagementMode: ManagementModeNone,
+		ProcmgrState:   ProcessStateUnknown,
 	}
 
 	for _, marker := range installMarkerPaths(c.installRoot, service) {
@@ -128,8 +150,14 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 
 	if process, ok := processes[service.ProcmgrProcessName]; ok {
 		status.ProcmgrState = process.State
-		status.ManagementMode = ManagementModeProcmgr
-		return status
+		if process.State != ProcessStateInvalidConfig {
+			// Install marker may be missing for layouts the marker paths don't cover
+			// (e.g. Windows DDOT installed outside the checked roots); procmgr
+			// supervision is as strong an install signal as systemd/SCM below.
+			status.Installed = true
+			status.ManagementMode = ManagementModeProcmgr
+			return status
+		}
 	}
 
 	if legacyMode := detectLegacySupervisor(ctx, service); legacyMode != ManagementModeNone {

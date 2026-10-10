@@ -27,14 +27,12 @@ def get_vm_password(
     outputs (the same value RemoteHost.Password uses in-process), so it
     works for any provisioner that exports a password (AWS, Azure, ...).
     """
-    from tasks.e2e_framework import config, tool
+    from tasks.e2e_framework import tool
 
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    passphrase_ctx = tool.use_ci_pulumi_backend(ctx) if ci else config.use_local_pulumi_passphrase(config_path)
-    with passphrase_ctx:
-        out = tool.get_stack_json_outputs(ctx, stack_name)
+    out = tool.get_stack_json_outputs(ctx, stack_name, config_path=config_path, ci=ci)
     if not out:
         raise Exit("No VM found in the stack.")
 

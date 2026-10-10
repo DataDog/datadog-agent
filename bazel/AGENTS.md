@@ -114,8 +114,10 @@ This repo uses **Bzlmod** (MODULE.bazel). WORKSPACE is fully removed in Bazel 9 
   extensions for complex logic.
 - Keep `use_repo(...)` lists accurate. Run `bazel mod tidy` after extension changes to update them automatically.
 - `bazel mod explain <module>` shows why a version is selected. `bazel mod graph` visualises the full dependency graph.
-- In CI, pass `--lockfile_mode=error` to fail the build if the lockfile would need updating — prevents stale lockfiles
-  from silently merging. Only `registryFileHashes` sections are safe to resolve manually in merge conflicts.
+- CI checks lock freshness with `bazel mod deps --lockfile_mode=refresh` followed by `git diff --exit-code`
+  (see `.gitlab/build/bazel/lint.yml`). Prefer that over `--lockfile_mode=error`, which can miss stale cached
+  repository checks and does not report discrepancies exhaustively. Only `registryFileHashes` sections are safe
+  to resolve manually in merge conflicts.
 
 ## Module extensions
 
@@ -223,6 +225,23 @@ cross-platform by design: the binary runs on the CI host while the *target VM* i
 `foo_win_test.go` carry no Go build constraint (`_win` is not a `GOOS` — only `_windows` is), and constraining them
 would stop Windows suites from ever running from Linux CI.
 
+#### A directory-scoped run deletes `write_pb_go` rules
+
+The `write_pb_go` extension (`bazel/rules/write_pb_go/_gazelle_extension.go`) matches a
+`go_library` holding checked-in `*.pb.go` files against the `go_proto_library` that generates them. It
+accumulates `go_proto_library` info as Gazelle walks directories and relies on the proto directory being
+visited *before* the Go directory (there is a `TODO` on that traversal-order dependency). A scoped run
+never visits the proto directory, so the match fails and the extension deletes the rule as stale:
+
+```sh
+bazel run //:gazelle -- pkg/proto/pbgo/trace   # DELETES the write_pb_go rule (and its load)
+bazel run //:gazelle                           # keeps it — the proto dir is visited too
+```
+
+So for any directory with checked-in generated `.pb.go` files (`pkg/proto/pbgo/...`), run Gazelle
+repo-wide, or `git diff` the BUILD file afterwards and restore the `write_pb_go` rule plus its
+`load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")`.
+
 #### `@//` in a generated dep means Gazelle found no target
 
 A label like `"@//test/new-e2e/tests/windows/common"` (rather than `"//test/..."`) is Gazelle's module-path fallback: the
@@ -254,6 +273,7 @@ case-sensitive filesystem — Docker Desktop can expose the two as the same inod
 - Standalone comments (not attached to a specific rule) require an empty line after them; attached comments do not.
 - Single blank line between top-level definitions.
 - No strict line length limit — labels can be long and tools generate BUILD files.
+- Use of `buildifier`, `gazelle` are enforced with unit tests, and the task is mechanical, so it is not noteworthy.  Don't note it in a PR's "how you validated your changes" section.
 
 ### Syntax restrictions
 
@@ -338,7 +358,7 @@ This only applies when the canonical set and the constraint can coexist. A const
 contradicts a canonical set produces no combination at all, and its sources stay out of the wildcard
 test runs. For example `//go:build kubeapiserver && !kubelet` grows to include `kubelet`, because
 `kubeapiserver` and `kubelet` share the canonical set
-`cel clusterchecks kubeapiserver kubelet orchestrator` — and the result then fails the constraint's
+`cel clusterchecks kubeapiserver kubelet` — and the result then fails the constraint's
 own `!kubelet`.
 
 Combinations built this way can be long, and target names are budgeted against the Windows runfiles
@@ -709,6 +729,30 @@ target_compatible_with = select({
 })
 ```
 
+A named target that is `target_compatible_with` an incompatible platform reports
+`Target //foo:bar was skipped`, and `bazel run` then fails with
+`ERROR: No targets found to run`. That is the expected outcome, not a bug — check
+the target's constraints before assuming the rule is broken.
+
+### Running Windows-only generators from Linux
+
+Some code generators reflect over the Go types compiled *into* the generator
+binary (e.g. `//pkg/security/generators/backend_doc`, which produces
+`backend_<os>.schema.json` from the `serializers` types). Their per-platform
+output therefore cannot be cross-compiled: it needs a binary built *for* that
+platform and then actually executed.
+
+For Windows, such a generator runs on Linux under `//bazel/tools/wine:wine_run`,
+which uses a pinned Wine (under box64 on aarch64) from its runfiles, never the
+host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
+the generator for `windows_amd64`, a native `run_binary` and a Wine `run_binary`,
+and an `alias` that selects between them on `@platforms//os:windows`. `wine_run`
+only supports Linux x86_64 and aarch64 (4K pages), so on macOS the Wine target
+is skipped as incompatible. Wine is for local regeneration only (it is flaky
+under box64 on CI): tag the Wine target, the alias and its `write_source_file`
+`manual`, and check the committed output with a `diff_test` against the native
+target, which only runs on Windows.
+
 ## Depsets and rule performance
 
 Accumulating deps with plain lists is O(n²). Use depsets.
@@ -883,11 +927,10 @@ symlink creation without administrator elevation. The `.bazelrc` sets `--enable_
 
 **Runfiles file junctions.** `--enable_runfiles` builds the runfiles tree with directory junctions. Windows junctions
 cannot point at files, so a file runfile shows up as a directory (`d----l`) and `open()` fails with `Permission
-denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path;
-`bazel/patches/rules_pkg-windows-junction-copy.patch` makes the copier follow the reparse point. For generated trees
-that must be reachable as a directory (not file-by-file), `copy_to_directory` so the runfiles entry is one directory
-junction to a real directory of real files (see `//rtloader/test:dir_with_python_home`). Prefer the runfiles library
-over constructing paths under `*.runfiles`.
+denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path. For
+generated trees that must be reachable as a directory (not file-by-file), `copy_to_directory` so the runfiles entry is
+one directory junction to a real directory of real files (see `//rtloader/test:dir_with_python_home`). Prefer the
+runfiles library over constructing paths under `*.runfiles`.
 
 **No sandbox.** Windows uses `--strategy=standalone`. Builds are less hermetic by default — undeclared dependencies that
 happen to be present locally will succeed locally and fail in CI or RBE.
@@ -944,6 +987,9 @@ asserting on wall-clock time fail. Prefer waiting on a signal over a fixed durat
 **Go test link memory.** Windows race/cgo Go test binaries can exhaust the container or host commit limit during
 external linking (`VirtualAlloc ... errno=1455`). Hybrid `dda inv test` runs can lower Bazel test concurrency with
 `DD_BAZEL_TEST_JOBS`; keep this aligned with the Windows unit-test container memory ceiling.
+Linking tests importing the e2e framework peaks at 25x to 30x their binary's on-disk footprint, beyond what `GoLink`
+books: tagging those that fail `go_link:enormous` makes `dd_agent_go_test` book more through the `go_link` exec group's
+`resources:memory`, honored locally since Bazel 9.2.0.
 
 ## Testing
 
@@ -1086,5 +1132,5 @@ Key Bazel macros:
 
 ## See also
 
-- [Rust in the Datadog Agent](../docs/public/guidelines/languages/RUST.md)
+- [Rust in the Datadog Agent](../doc/guidelines/languages/RUST.md)
 - [eBPF Core Checks](../pkg/collector/corechecks/ebpf/AGENTS.md)

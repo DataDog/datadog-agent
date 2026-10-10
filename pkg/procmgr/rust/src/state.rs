@@ -7,20 +7,18 @@ use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessState {
-    /// Config loaded, never started.
     Created,
-    /// Spawn requested, child not yet confirmed alive.
     Starting,
-    /// Child process is alive.
     Running,
-    /// Stop requested, waiting for child to exit.
     Stopping,
-    /// Exited with code 0.
     Exited,
-    /// Exited with non-zero code or signal.
+    /// Died without returning a value: a signal on Unix, a fatal exception code
+    /// on Windows. Terminal and restartable, same shape as `Failed`.
+    Crashed,
     Failed,
-    /// Explicitly stopped during shutdown.
     Stopped,
+    /// Start pass declined to spawn, and no child has ever existed.
+    Skipped,
 }
 
 impl ProcessState {
@@ -36,23 +34,22 @@ impl ProcessState {
         matches!(
             (self, next),
             (Created, Starting)
-                | (Created, Running)
-                | (Created, Failed)
+                | (Created, Skipped)
+                | (Skipped, Starting)
                 | (Starting, Running)
+                // No (Starting, Crashed): a spawn that never produced a process
+                // image cannot have died without returning a value.
                 | (Starting, Failed)
                 | (Running, Stopping)
                 | (Running, Exited)
+                | (Running, Crashed)
                 | (Running, Failed)
                 | (Running, Stopped)
                 | (Stopping, Stopped)
-                | (Stopping, Exited)
-                | (Stopping, Failed)
                 | (Exited, Starting)
-                | (Exited, Running)
+                | (Crashed, Starting)
                 | (Failed, Starting)
-                | (Failed, Running)
                 | (Stopped, Starting)
-                | (Stopped, Running)
         )
     }
 }
@@ -65,8 +62,58 @@ impl fmt::Display for ProcessState {
             ProcessState::Running => write!(f, "running"),
             ProcessState::Stopping => write!(f, "stopping"),
             ProcessState::Exited => write!(f, "exited"),
+            ProcessState::Crashed => write!(f, "crashed"),
             ProcessState::Failed => write!(f, "failed"),
             ProcessState::Stopped => write!(f, "stopped"),
+            ProcessState::Skipped => write!(f, "skipped"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProcessState::*;
+
+    #[test]
+    fn crashed_is_reachable_from_running_and_restartable() {
+        assert!(Running.can_transition_to(Crashed));
+        assert!(Crashed.can_transition_to(Starting));
+    }
+
+    /// A spawn failure stays `Failed`: nothing ran, so nothing crashed. And a
+    /// crashed process reaches `Running` only by going through `Starting`,
+    /// which is what makes the restart spend a burst slot.
+    #[test]
+    fn crashed_rejects_spawn_failure_and_direct_resume() {
+        assert!(!Starting.can_transition_to(Crashed));
+        assert!(!Crashed.can_transition_to(Running));
+    }
+
+    #[test]
+    fn crashed_is_not_alive() {
+        assert!(!Crashed.is_alive());
+    }
+
+    #[test]
+    fn crashed_displays_lowercase() {
+        assert_eq!(Crashed.to_string(), "crashed");
+    }
+
+    #[test]
+    fn skipped_is_reachable_from_created_and_startable() {
+        assert!(Created.can_transition_to(Skipped));
+        assert!(Skipped.can_transition_to(Starting));
+        assert!(!Skipped.is_alive());
+        assert_eq!(Skipped.to_string(), "skipped");
+    }
+
+    #[test]
+    fn skipped_rejects_post_child_states() {
+        assert!(!Running.can_transition_to(Skipped));
+        assert!(!Exited.can_transition_to(Skipped));
+        assert!(!Failed.can_transition_to(Skipped));
+        assert!(!Stopped.can_transition_to(Skipped));
+        assert!(!Crashed.can_transition_to(Skipped));
+        assert!(!Skipped.can_transition_to(Failed));
     }
 }

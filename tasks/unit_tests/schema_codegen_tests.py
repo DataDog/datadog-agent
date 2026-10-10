@@ -164,10 +164,6 @@ class TestGenerateConst(unittest.TestCase):
     def _setting(default, const, type_='string'):
         return {'node_type': 'setting', 'type': type_, 'default': default, 'tags': [f'generate_const:{const}']}
 
-    @staticmethod
-    def _outputs():
-        return {name: [] for name in codegen.constant_outputs}
-
     def test_dedup_agreeing_refs_across_schemas(self):
         # DefaultSite is referenced by two core settings and one system-probe setting, all agreeing.
         core = {
@@ -193,18 +189,14 @@ class TestGenerateConst(unittest.TestCase):
                 }
             }
         }
-        outputs = self._outputs()
-        codegen.gen_generate_const(core, sysprobe, outputs)
+        lines = codegen.gen_generate_const(core, sysprobe)
 
-        # The constants live in their own package, not in the `setup` ones.
-        src = '\n'.join(outputs['constants'])
         # Remove white space added by codegen's formatter
-        contents = re.sub(' +', ' ', src)
+        contents = re.sub(' +', ' ', '\n'.join(lines))
         # DefaultSite is emitted exactly once despite three references, and the block is valid Go.
         self.assertEqual(contents.count('DefaultSite ='), 1)
         self.assertIn('DefaultSecurityAgentCmdPort = 5010', contents)
         self.assertIn('DefaultSite = "datadoghq.com"', contents)
-        self.assertEqual(outputs['core'], [])
 
     def test_conflicting_defaults_raise(self):
         # Same constant tagged on two settings with different defaults must fail codegen.
@@ -215,14 +207,12 @@ class TestGenerateConst(unittest.TestCase):
             }
         }
         with self.assertRaises(RuntimeError) as ctx:
-            codegen.gen_generate_const(core, {'properties': {}}, self._outputs())
+            codegen.gen_generate_const(core, {'properties': {}})
         self.assertIn('DefaultAuditorTTL', str(ctx.exception))
 
     def test_no_tags_emits_nothing(self):
         core = {'properties': {'a': {'node_type': 'setting', 'type': 'string', 'default': 'x'}}}
-        outputs = self._outputs()
-        codegen.gen_generate_const(core, {'properties': {}}, outputs)
-        self.assertEqual(outputs, self._outputs())
+        self.assertIsNone(codegen.gen_generate_const(core, {'properties': {}}))
 
 
 if __name__ == "__main__":
