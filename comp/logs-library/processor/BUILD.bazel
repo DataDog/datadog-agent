@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "processor",
     srcs = [
+        "characterization_observer.go",
         "encoder.go",
         "json.go",
         "json_serverless_init.go",
@@ -16,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
+        "//comp/logs-library/characterization",
         "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
@@ -29,16 +31,19 @@ go_library(
 dd_agent_go_test(
     name = "processor_test",
     srcs = [
+        "characterization_observer_test.go",
         "encoder_test.go",
         "processor_test.go",
     ],
     embed = [":processor"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/logs-library/characterization",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_datadog_agent_payload_v5//pb",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -510,6 +510,17 @@ properties:
     comment: |-
       Duration during which the host tags will be submitted with log events.
       duration-formatted string (parsed by `time.ParseDuration`)
+  experimental_characterization:
+    node_type: section
+    type: object
+    properties:
+      allowed:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Permit authenticated, bounded logs load-characterization sessions. This static capability
+          gate does not collect characterization data unless a runtime session is active.
   experimental_adaptive_sampling:
     node_type: section
     type: object

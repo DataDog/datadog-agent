@@ -109,6 +109,52 @@ var (
 	TlmLogLineSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs", "log_line_sizes",
 		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
 
+	// TlmCharacterizationIngressEvents counts messages observed at pipeline ingress.
+	TlmCharacterizationIngressEvents = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "ingress_events",
+		[]string{"source_type", "pipeline", "has_service", "has_source"}, "Messages observed at Logs pipeline ingress")
+	// TlmCharacterizationIngressBytes counts content bytes observed at pipeline ingress.
+	TlmCharacterizationIngressBytes = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "ingress_bytes",
+		[]string{"source_type", "pipeline"}, "Content bytes observed at Logs pipeline ingress")
+	// TlmCharacterizationPayloadFamilyEvents counts allowlisted structural payload families.
+	TlmCharacterizationPayloadFamilyEvents = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "payload_family_events",
+		[]string{"payload_family", "pipeline"}, "Messages by bounded structural payload-family classification")
+	// TlmCharacterizationPayloadFamilyBytes counts content bytes by allowlisted structural payload family.
+	TlmCharacterizationPayloadFamilyBytes = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "payload_family_bytes",
+		[]string{"payload_family", "pipeline"}, "Content bytes by bounded structural payload-family classification")
+	// TlmCharacterizationMessageSizes records content size at pipeline ingress.
+	TlmCharacterizationMessageSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "message_sizes",
+		[]string{"source_type", "pipeline"}, "Distribution of message content sizes at Logs pipeline ingress", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
+	// TlmCharacterizationRawSizes records pre-transformation source byte size at pipeline ingress.
+	TlmCharacterizationRawSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "raw_sizes",
+		[]string{"source_type", "pipeline"}, "Distribution of raw source byte sizes at Logs pipeline ingress", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
+	// TlmCharacterizationInterarrivalSeconds records bounded aggregate gaps between ingress messages.
+	TlmCharacterizationInterarrivalSeconds = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "interarrival_seconds",
+		[]string{"source_type", "pipeline"}, "Distribution of elapsed seconds between Logs pipeline ingress messages", []float64{0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10})
+	// TlmCharacterizationRotationIntervalSeconds records elapsed time between rotations of the same file source.
+	TlmCharacterizationRotationIntervalSeconds = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "rotation_interval_seconds",
+		nil, "Distribution of elapsed seconds between rotations of the same file source", []float64{1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600})
+	// TlmCharacterizationTagCounts records aggregate tag counts without retaining tag values.
+	TlmCharacterizationTagCounts = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "tag_counts",
+		[]string{"source_type", "pipeline"}, "Distribution of tag counts at Logs pipeline ingress", []float64{0, 1, 2, 4, 8, 16, 32, 64, 128})
+	// TlmCharacterizationTagBytes records aggregate tag bytes without retaining tag values.
+	TlmCharacterizationTagBytes = telemetryimpl.GetCompatComponent().NewHistogram("logs_characterization", "tag_bytes",
+		[]string{"source_type", "pipeline"}, "Distribution of tag metadata byte sizes at Logs pipeline ingress", []float64{0, 32, 128, 512, 2048, 8192, 32768})
+	// TlmCharacterizationObserverDrops counts observations discarded when the bounded queue is full.
+	TlmCharacterizationObserverDrops = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "observer_drops",
+		[]string{"pipeline"}, "Characterization observations dropped because the bounded queue was full")
+	// TlmCharacterizationObserverStartTime records when each pipeline-local observer began collecting.
+	TlmCharacterizationObserverStartTime = telemetryimpl.GetCompatComponent().NewGauge("logs_characterization", "observer_start_time_seconds",
+		[]string{"pipeline"}, "Unix time when characterization began for a Logs pipeline")
+	// TlmCharacterizationSourceCardinality records bounded source cardinality without exporting source identifiers.
+	TlmCharacterizationSourceCardinality = telemetryimpl.GetCompatComponent().NewGauge("logs_characterization", "source_cardinality",
+		[]string{"source_type", "pipeline"}, "Distinct source identities observed at Logs pipeline ingress")
+	// TlmCharacterizationSourceIdentityMissing counts messages for which no source identity was available.
+	TlmCharacterizationSourceIdentityMissing = telemetryimpl.GetCompatComponent().NewCounter("logs_characterization", "source_identity_missing",
+		[]string{"source_type", "pipeline"}, "Messages without a source identity at Logs pipeline ingress")
+	// TlmCharacterizationSourceCardinalitySaturated reports that the bounded identity set reached capacity.
+	TlmCharacterizationSourceCardinalitySaturated = telemetryimpl.GetCompatComponent().NewGauge("logs_characterization", "source_cardinality_saturated",
+		[]string{"source_type", "pipeline"}, "Whether the bounded source-cardinality set reached capacity")
+
 	// TlmSyslogMalformedBytes is the total number of malformed bytes seen by the syslog
 	// framer (bytes that do not form a valid RFC 6587 frame).
 	TlmSyslogMalformedBytes = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_malformed_bytes",

@@ -88,8 +88,9 @@ const (
 )
 
 type oldTailerInfo struct {
-	Pattern      *regexp.Regexp
-	InfoRegistry *status.InfoRegistry
+	Pattern                      *regexp.Regexp
+	InfoRegistry                 *status.InfoRegistry
+	LastCharacterizationRotation time.Time
 }
 
 // NewLauncher returns a new launcher.
@@ -320,6 +321,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 					didRotate = false
 				}
 				if didRotate {
+					tailered.RecordCharacterizationRotation(time.Now())
 					s.rotateTailerWithoutRestart(tailered, file)
 					continue
 				}
@@ -331,6 +333,7 @@ func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
 					continue
 				}
 				if didRotate {
+					tailered.RecordCharacterizationRotation(time.Now())
 					// restart tailer because of file-rotation on file
 					succeeded := s.restartTailerAfterFileRotation(tailered, file)
 					if !succeeded {
@@ -631,18 +634,19 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	tailerOptions := &tailer.TailerOptions{
-		OutputChan:      channel,
-		File:            file,
-		SleepDuration:   s.tailerSleepDuration,
-		Decoder:         decoderInstance,
-		Info:            tailerInfo,
-		TagAdder:        s.tagger,
-		CapacityMonitor: monitor,
-		Registry:        s.registry,
-		Fingerprint:     fingerprint,
-		Fingerprinter:   s.fingerprinter,
-		Rotated:         true,
-		FileOpener:      s.fileOpener,
+		OutputChan:                   channel,
+		File:                         file,
+		SleepDuration:                s.tailerSleepDuration,
+		Decoder:                      decoderInstance,
+		Info:                         tailerInfo,
+		TagAdder:                     s.tagger,
+		CapacityMonitor:              monitor,
+		Registry:                     s.registry,
+		Fingerprint:                  fingerprint,
+		Fingerprinter:                s.fingerprinter,
+		Rotated:                      true,
+		FileOpener:                   s.fileOpener,
+		LastCharacterizationRotation: oldInfo.LastCharacterizationRotation,
 	}
 
 	if fingerprint != nil {
@@ -713,8 +717,9 @@ func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *ta
 	// Only store info if we're using checksum fingerprinting (where it will be retrieved)
 	if oldRegexPattern != nil || oldInfoRegistry != nil {
 		regexAndRegistry := &oldTailerInfo{
-			InfoRegistry: oldInfoRegistry,
-			Pattern:      oldRegexPattern,
+			InfoRegistry:                 oldInfoRegistry,
+			Pattern:                      oldRegexPattern,
+			LastCharacterizationRotation: oldTailer.LastCharacterizationRotation(),
 		}
 		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
 	}

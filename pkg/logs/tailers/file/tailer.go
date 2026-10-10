@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/logs-library/characterization"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -39,6 +40,8 @@ import (
 // drain that a replacement tailer is waiting on ends, under the unreliable-mount
 // profile. It is long enough to ride out short pipeline stalls, which also stop reads.
 const handoffQuietPeriod = 30 * time.Second
+
+const experimentalCharacterizationAllowed = characterization.AllowedConfigKey
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
 // supplied output channel for further processing.
@@ -125,6 +128,10 @@ type Tailer struct {
 	rotationMismatchCacheActive  *atomic.Bool
 	rotationMismatchOffsetActive *atomic.Bool
 
+	// lastCharacterizationRotation is launcher-owned state used only to emit an
+	// aggregate interval. The source identity is never attached to telemetry.
+	lastCharacterizationRotation time.Time
+
 	// stop is monitored by the readForever component, and causes it to stop reading
 	// and close the channel to the decoder.
 	stop chan struct{}
@@ -167,6 +174,8 @@ type TailerOptions struct {
 	Registry        auditor.Registry         // Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
 	FileOpener      opener.FileOpener        // Required
+	// LastCharacterizationRotation carries bounded lifecycle state across a tailer replacement.
+	LastCharacterizationRotation time.Time // Optional
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -230,6 +239,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		cachedFileSize:               atomic.NewInt64(0),
 		rotationMismatchCacheActive:  atomic.NewBool(false),
 		rotationMismatchOffsetActive: atomic.NewBool(false),
+		lastCharacterizationRotation: opts.LastCharacterizationRotation,
 		info:                         opts.Info,
 		bytesRead:                    bytesRead,
 		movingSum:                    movingSum,
@@ -268,21 +278,54 @@ func (t *Tailer) NewRotatedTailer(
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
-		OutputChan:      outputChan,
-		File:            file,
-		SleepDuration:   t.sleepDuration,
-		Decoder:         decoder,
-		Info:            info,
-		Rotated:         true,
-		TagAdder:        tagAdder,
-		CapacityMonitor: capacityMonitor,
-		Fingerprint:     fingerprint,
-		Fingerprinter:   fingerprinter,
-		Registry:        registry,
-		FileOpener:      t.baseFileOpener,
+		OutputChan:                   outputChan,
+		File:                         file,
+		SleepDuration:                t.sleepDuration,
+		Decoder:                      decoder,
+		Info:                         info,
+		Rotated:                      true,
+		TagAdder:                     tagAdder,
+		CapacityMonitor:              capacityMonitor,
+		Fingerprint:                  fingerprint,
+		Fingerprinter:                fingerprinter,
+		Registry:                     registry,
+		FileOpener:                   t.baseFileOpener,
+		LastCharacterizationRotation: t.lastCharacterizationRotation,
 	}
 
 	return NewTailer(options)
+}
+
+// RecordCharacterizationRotation emits only an aggregate interval when the
+// experimental characterizer is allowed and a session is active. It never exports the file identity.
+func (t *Tailer) RecordCharacterizationRotation(now time.Time) {
+	if !pkgconfigsetup.Datadog().GetBool(experimentalCharacterizationAllowed) || !characterization.Default.Active() {
+		return
+	}
+	seconds, ok := t.characterizationRotationInterval(now)
+	if ok {
+		metrics.TlmCharacterizationRotationIntervalSeconds.Observe(seconds)
+	}
+	characterization.Default.RecordRotation(now, seconds)
+}
+
+func (t *Tailer) characterizationRotationInterval(now time.Time) (float64, bool) {
+	if t.lastCharacterizationRotation.IsZero() {
+		t.lastCharacterizationRotation = now
+		return 0, false
+	}
+	if !now.After(t.lastCharacterizationRotation) {
+		return 0, false
+	}
+	seconds := now.Sub(t.lastCharacterizationRotation).Seconds()
+	t.lastCharacterizationRotation = now
+	return seconds, true
+}
+
+// LastCharacterizationRotation returns launcher-owned lifecycle state so a
+// replacement tailer can continue the same aggregate interval series.
+func (t *Tailer) LastCharacterizationRotation() time.Time {
+	return t.lastCharacterizationRotation
 }
 
 // Identifier returns a string that identifies this tailer in the registry.
