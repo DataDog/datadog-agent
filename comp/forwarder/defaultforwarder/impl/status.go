@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
 //go:embed status_templates
@@ -35,6 +36,10 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
+	// The Success expvar may include transactions sent by remote agents, but this status only reports this process.
+	if transactions, ok := forwarderStats["Transactions"].(map[string]interface{}); ok {
+		transactions["Success"] = transaction.LocalTransactionsSuccess()
+	}
 	forwarderStorageMaxSizeInBytes := s.config.GetInt("forwarder_storage_max_size_in_bytes")
 	if forwarderStorageMaxSizeInBytes > 0 {
 		forwarderStats["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)

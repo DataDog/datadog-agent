@@ -171,6 +171,14 @@ func init() {
 	TransactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 }
 
+// LocalTransactionsSuccess returns the number of transactions successfully sent by this process.
+//
+// The `forwarder/Transactions/Success` expvar may also include transactions sent by remote agents (see the remote
+// agent registry), so use this wherever only this process's count is wanted.
+func LocalTransactionsSuccess() int64 {
+	return transactionsSuccess.Value()
+}
+
 // Priority defines the priority of a transaction
 // Transactions with priority `TransactionPriorityNormal` are dropped from the retry queue
 // before dropping transactions with priority `TransactionPriorityHigh`.
