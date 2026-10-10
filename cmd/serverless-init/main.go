@@ -53,14 +53,23 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
+	serverlessInitInventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx-none"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -73,6 +82,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -239,6 +249,22 @@ func setOverride(key string, val interface{}) {
 	}
 }
 
+// configureInventory must run before Fx constructs the component and snapshots
+// its enabled state. Never re-enable a user-disabled inventory pipeline.
+func configureInventory(cloudService cloudservice.CloudService) {
+	var actuallyDisable bool
+	if !pkgconfigsetup.Datadog().GetBool("serverless.inventory_enabled") {
+		actuallyDisable = true
+	}
+	if !cloudService.CanCollectInventory() {
+		log.Info("serverless-init inventory disabled: cloud service cannot collect inventory")
+		actuallyDisable = true
+	}
+	if actuallyDisable {
+		setOverride("inventories_enabled", false)
+	}
+}
+
 func main() {
 
 	preloadEarly()
@@ -265,6 +291,14 @@ func main() {
 
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
+
+	// MicroVM alone restores many instances from one snapshot, so it alone needs a
+	// uuid it can re-identify at each lifecycle transition; nil selects the
+	// process-lifetime uuid every other platform reports.
+	var instanceUUID *serverlessInitInventory.InstanceUUID
+	if cloudService.GetOrigin() == cloudservice.MicroVMOrigin {
+		instanceUUID = serverlessInitInventory.NewInstanceUUID()
+	}
 
 	// Compute tags after the early LoadDatadog so that yaml-configured
 	// `tags` and `extra_tags` (read by configUtils.GetConfiguredTags inside
@@ -304,6 +338,11 @@ func main() {
 		pkgconfigsetup.Datadog().Set("use_dogstatsd", false, model.SourceAgentRuntime)
 	}
 
+	// Gate before Fx construction, including provider registration: skipping
+	// only startup Submit would still allow periodic/in-flight collection of
+	// unresolved inventory. GCP identity reuses configureTags' cached lookup.
+	configureInventory(cloudService)
+
 	metricTags := metrics.Tags{
 		Metric:              metricAgentTags,
 		EnhancedMetric:      serverlessTag.MapToArray(tagConfig.EnhancedMetricTags),
@@ -315,6 +354,34 @@ func main() {
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
+		// Inventory metadata via the shared inventoryagent component + runner.
+		// Three of the component's deps are not in serverless-init's Fx graph,
+		// so they are adapted here:
+		//   - MetricSerializer is reached through the demultiplexer rather than as
+		//     a distinct fx type.
+		//   - ipc.HTTPClient comes from the noop IPC component; it is never
+		//     dereferenced because SkipFullAgentMetadataRefresh skips every
+		//     refreshMetadata collector, including the IPC consumers.
+		//   - the sysprobeconfig option has no provider, so supply None.
+		// This internal Fx capability also skips local core, Fleet, and application-
+		// monitoring collection, but retains construction-time metadata, Set values,
+		// optional configuration payloads, and scheduling. Serverless fields (including
+		// dd_site) and flavor are injected via Set in run(); capabilities also override
+		// the payload UUID and close readiness before Fx starts the runner. Once all
+		// fields are injected, UpdateAndSubmit opens readiness and explicitly calls Submit.
+		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
+		ipcfx.Module(),
+		fx.Provide(func(c ipc.Component) ipc.HTTPClient { return c.GetClient() }),
+		fx.Provide(func() option.Option[sysprobeconfig.Component] { return option.None[sysprobeconfig.Component]() }),
+		fx.Provide(func() *serverlessInitInventory.InstanceUUID { return instanceUUID }),
+		fx.Provide(func(u *serverlessInitInventory.InstanceUUID) *inventoryagent.Capabilities {
+			if u == nil {
+				return serverlessInitInventory.NewCapabilities()
+			}
+			return serverlessInitInventory.NewInstanceCapabilities(u)
+		}),
+		runnerfx.Module(),
+		inventoryagentfx.Module(),
 		delegatedauthfx.Module(),
 		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
@@ -375,10 +442,17 @@ func run(
 	cloudService cloudservice.CloudService,
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
+	// inventoryAgent is requested so Fx constructs the inventoryagent component,
+	// and the runner so its lifecycle collection loop starts. Both are handed to
+	// setup(), which injects the serverless fields and enqueues the first
+	// payload as part of initialization.
+	inventoryAgent inventoryagent.Component,
+	instanceUUID *serverlessInitInventory.InstanceUUID,
+	_ runner.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux,
+		cloudService, tagConfig, metricTags, demux, inventoryAgent, instanceUUID,
 	)
 
 	err := cloudService.Run(modeConf, logConfig)
@@ -441,7 +515,7 @@ func run(
 func setup(
 	secretComp secrets.Component,
 	delegatedAuthComp delegatedauth.Component,
-	_ mode.Conf,
+	modeConf mode.Conf,
 	tagger tagger.Component,
 	compression logscompression.Component,
 	hostname hostnameinterface.Component,
@@ -449,6 +523,8 @@ func setup(
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
+	inventoryAgent inventoryagent.Component,
+	instanceUUID *serverlessInitInventory.InstanceUUID,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -466,6 +542,24 @@ func setup(
 	}
 
 	origin := cloudService.GetOrigin()
+
+	// Update all serverless fields before opening readiness, then enqueue the
+	// first payload synchronously without waiting for the runner's first-run
+	// delay. Capabilities keep the provider closed during Fx startup. This is a
+	// no-op while the feature is gated off; unsupported workloads are disabled
+	// before component construction.
+	// MicroVM remains closed until its lifecycle hook supplies an instance ID.
+	if origin != cloudservice.MicroVMOrigin {
+		serverlessInitInventory.UpdateAndSubmit(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+	}
+
+	// The lifecycle server serializes /run's ID store and /resume's ID load with
+	// this publication. UUID, generic fields, and instance resource ID are all
+	// updated while closed; missing identity cannot open the image-build gate.
+	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
+		serverlessInitInventory.UpdateInstanceAndSubmit(inventoryAgent, instanceUUID, microVMID, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
+	})
+
 	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tagConfig.Tags, tagger, compression, hostname, origin)
 	// Snapshot the startup log tags so the lifecycle server can append lambda_microvm_id
@@ -508,6 +602,7 @@ func setup(
 					metricAgent.SetEnhancedUsageMetricTags(tags)
 				}),
 				BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+				InventorySubmitter:  inventorySubmitter,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -549,6 +644,7 @@ func setup(
 				metricAgent.SetEnhancedUsageMetricTags(tags)
 			}),
 			BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+			InventorySubmitter:  inventorySubmitter,
 		},
 	}
 

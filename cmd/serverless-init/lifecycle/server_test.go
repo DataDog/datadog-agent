@@ -151,6 +151,73 @@ func TestHandleRunParsesInstanceID(t *testing.T) {
 	assert.Equal(t, "vm-abc123", id, "instance ID must be stored on the server for lifecycle metric tags")
 }
 
+// mockInventorySubmitter records the ids passed to SubmitInventory.
+type mockInventorySubmitter struct {
+	mu  sync.Mutex
+	ids []string
+}
+
+func (m *mockInventorySubmitter) SubmitInventory(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ids = append(m.ids, id)
+}
+
+func (m *mockInventorySubmitter) getIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string{}, m.ids...)
+}
+
+// TestHandleRun_InventorySubmitter_InvokedWithInstanceID verifies /run hands
+// the instance id from the request body to the inventory submitter.
+func TestHandleRun_InventorySubmitter_InvokedWithInstanceID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	sub := &mockInventorySubmitter{}
+	srv.SetInventorySubmitter(sub)
+
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+
+	assert.Equal(t, []string{"vm-abc123"}, sub.getIDs())
+}
+
+// TestHandleRun_InventorySubmitter_NotInvokedWithoutInstanceID verifies that an
+// empty /run body does not trigger an inventory submission — the payload can't
+// be finalized without the per-instance id.
+func TestHandleRun_InventorySubmitter_NotInvokedWithoutInstanceID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	sub := &mockInventorySubmitter{}
+	srv.SetInventorySubmitter(sub)
+
+	srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, nil))
+
+	assert.Empty(t, sub.getIDs())
+}
+
+// TestHandleResume_InventorySubmitter_InvokedWithStoredID verifies /resume
+// resubmits inventory with the id captured earlier at /run.
+func TestHandleResume_InventorySubmitter_InvokedWithStoredID(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	sub := &mockInventorySubmitter{}
+	srv.SetInventorySubmitter(sub)
+	srv.instanceID.Store("vm-abc123")
+
+	srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+
+	assert.Equal(t, []string{"vm-abc123"}, sub.getIDs())
+}
+
+// TestHandleRun_NilInventorySubmitter_NoPanic verifies /run is safe when no
+// inventory submitter is wired (the production default when inventory is off).
+func TestHandleRun_NilInventorySubmitter_NoPanic(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	body := strings.NewReader(`{"microvmId":"vm-abc123"}`)
+	assert.NotPanics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
+	})
+}
+
 // TestHandleRun_BodyReadError_Returns500 verifies that a body read failure
 // aborts the handler before any state is mutated, rather than silently
 // proceeding with a truncated/empty body. errReader is defined in
@@ -2000,4 +2067,91 @@ func TestHandleRun_WithForwarder_UpdatesTraceTags(t *testing.T) {
 
 	require.Equal(t, 1, setter.callCount(), "SetTraceTags must be called even when forwarder is configured")
 	assert.Equal(t, "vm-fwd789", setter.lastCall()["lambda_microvm_id"])
+}
+
+func TestHandleResumeInventoryWithoutRun(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	sub := &mockInventorySubmitter{}
+	srv.SetInventorySubmitter(sub)
+	srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+	assert.Empty(t, sub.getIDs(), "resume must not publish without an established identity")
+}
+
+func TestInventoryLifecycleCallbacksSerialized(t *testing.T) {
+	for _, firstHook := range []string{"run", "resume"} {
+		for _, secondHook := range []string{"run", "resume"} {
+			t.Run(firstHook+"/"+secondHook, func(t *testing.T) {
+				srv, _, _, _, _, _ := newTestServer()
+				srv.instanceID.Store("vm-A")
+				entered, release := make(chan struct{}), make(chan struct{})
+				var releaseOnce sync.Once
+				unblock := func() { releaseOnce.Do(func() { close(release) }) }
+				defer unblock()
+				var calls, active atomic.Int32
+				sub := &mockInventorySubmitter{}
+				srv.SetInventorySubmitter(InventorySubmitterFunc(func(id string) {
+					assert.EqualValues(t, 1, active.Inc(), "inventory callbacks must not overlap")
+					defer active.Dec()
+					// This assertion proves lock ownership without assuming the
+					// competing handler was scheduled before a negative assertion.
+					locked := srv.inventoryMu.TryLock()
+					if locked {
+						srv.inventoryMu.Unlock()
+					}
+					assert.False(t, locked, "ID store/load and callback must share one lock")
+					assert.Equal(t, id, srv.InstanceID())
+					if calls.Inc() == 1 {
+						close(entered)
+						select {
+						case <-release:
+						case <-time.After(5 * time.Second):
+							t.Error("timed out releasing inventory callback")
+						}
+						assert.Equal(t, id, srv.InstanceID(), "another run must not replace the ID during publication")
+					}
+					sub.SubmitInventory(id)
+				}))
+				invoke := func(hook, id string) {
+					rec := httptest.NewRecorder()
+					if hook == "run" {
+						srv.handleRun(rec, httptest.NewRequest(http.MethodPost, pathRun, strings.NewReader(`{"microvmId":"`+id+`"}`)))
+					} else {
+						srv.handleResume(rec, httptest.NewRequest(http.MethodPost, pathResume, nil))
+					}
+					assert.Equal(t, http.StatusOK, rec.Code)
+				}
+				firstDone, secondStarted, secondDone := make(chan struct{}), make(chan struct{}), make(chan struct{})
+				go func() { defer close(firstDone); invoke(firstHook, "vm-B") }()
+				waitForInventoryCallback(t, entered)
+				go func() { defer close(secondDone); close(secondStarted); invoke(secondHook, "vm-C") }()
+				waitForInventoryCallback(t, secondStarted)
+				assert.Empty(t, sub.getIDs(), "first publication is still blocked")
+				unblock()
+				waitForInventoryCallback(t, firstDone)
+				waitForInventoryCallback(t, secondDone)
+				firstID := "vm-A"
+				if firstHook == "run" {
+					firstID = "vm-B"
+				}
+				lastID := firstID
+				if secondHook == "run" {
+					lastID = "vm-C"
+				}
+				assert.Equal(t, []string{firstID, lastID}, sub.getIDs())
+				assert.Equal(t, lastID, srv.InstanceID())
+				// Resume after the overlap must not replay any earlier ID.
+				invoke("resume", "")
+				assert.Equal(t, []string{firstID, lastID, lastID}, sub.getIDs())
+			})
+		}
+	}
+}
+
+func waitForInventoryCallback(t *testing.T, signal <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for inventory callback")
+	}
 }
