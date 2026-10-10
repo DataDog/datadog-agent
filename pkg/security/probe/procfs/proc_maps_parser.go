@@ -11,6 +11,7 @@ package procfs
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"iter"
 	"os"
 	"strconv"
@@ -21,7 +22,7 @@ import (
 )
 
 // MaxMmapedFilesPerProcess defines the maximum number of mmaped files per process
-const MaxMmapedFilesPerProcess = 128
+const MaxMmapedFilesPerProcess = 1024
 
 // MapsEntry represents a parsed entry from /proc/[pid]/maps
 type MapsEntry struct {
@@ -115,7 +116,7 @@ type MapsFilterFunc func(entry MapsEntry) bool
 // GetMappedFiles reads /proc/[pid]/maps and returns filtered file paths
 // Parameters:
 //   - pid: process ID to read maps for
-//   - maxFiles: maximum number of files to return (0 = unlimited)
+//   - maxFiles: maximum number of files to return (0 = MaxMmapedFilesPerProcess)
 //   - filter: optional filter function (nil = include all)
 //
 // Returns a deduplicated list of file paths matching the filter
@@ -127,13 +128,17 @@ func GetMappedFiles(pid int32, maxFiles int, filter MapsFilterFunc) ([]string, e
 	}
 	defer mapsFile.Close()
 
+	return readMappedFiles(mapsFile, maxFiles, filter)
+}
+
+func readMappedFiles(r io.Reader, maxFiles int, filter MapsFilterFunc) ([]string, error) {
 	if maxFiles <= 0 {
 		maxFiles = MaxMmapedFilesPerProcess
 	}
 
-	files := make([]string, 0, maxFiles)
+	var files []string
 	seenPaths := make(map[string]struct{})
-	scanner := bufio.NewScanner(mapsFile)
+	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 128), bufio.MaxScanTokenSize)
 
 	for scanner.Scan() && len(files) < maxFiles {
