@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The ``sbom`` check now logs a warning when ``sbom.container_image.enabled``
+    is set but no container runtime could be detected. Container image SBOMs are
+    built from images discovered through the container runtime, so in that
+    situation the check reports itself as healthy while never collecting a single
+    container image SBOM.
