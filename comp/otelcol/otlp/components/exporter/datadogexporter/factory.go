@@ -355,6 +355,26 @@ func (f *factory) createLogsExporter(
 	}
 
 	lf := logsagentexporter.NewFactoryWithType(logch, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
+	timeout := exporterhelper.TimeoutConfig{Timeout: 0}
+	retry := configretry.NewDefaultBackOffConfig()
+	queue := cfg.QueueSettings
+	if logsagentexporter.IsSyncSenderEnabled() {
+		syncSender, err := f.newLogsSyncSender()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create the logs sync sender: %w", err)
+		}
+		if syncSender != nil {
+			if f.coreCfg != nil && f.coreCfg.GetBool("multi_region_failover.enabled") {
+				set.Logger.Warn("multi_region_failover is enabled but the " + logsagentexporter.SyncSenderGateID + " feature gate does not support it: logs are not sent to the failover region")
+			}
+			lf = logsagentexporter.NewFactoryWithSyncSender(syncSender, Type, f.gatewayUsage, f.store.DDOTGWUsage, f.reporter)
+			timeout = exporterhelper.TimeoutConfig{Timeout: cfg.ClientConfig.Timeout}
+			retry = cfg.BackOffConfig
+			queue = logsagentexporter.SyncSenderQueueConfig(queue, f.logsSenderConcurrency(), f.logsBatchSize())
+		} else {
+			set.Logger.Warn("the " + logsagentexporter.SyncSenderGateID + " feature gate is enabled but the logs agent cannot send synchronously; logs use the asynchronous pipeline")
+		}
+	}
 
 	// Orchestrator Explorer (Kubernetes Resources) collection via the
 	// k8sobjectsreceiver is only enabled in standalone mode. In connected mode
@@ -373,7 +393,9 @@ func (f *factory) createLogsExporter(
 	lc := &logsagentexporter.Config{
 		OtelSource:    "otel_agent",
 		LogSourceName: logsagentexporter.LogSourceName,
-		QueueSettings: cfg.QueueSettings,
+		QueueSettings: queue,
+		TimeoutConfig: timeout,
+		RetryConfig:   retry,
 		HostMetadata:  cfg.HostMetadata,
 		// OrchestratorConfig routes logs from the k8sobjectsreceiver to the
 		// orchestrator intake (Orchestrator Explorer / Kubernetes Resources).
@@ -389,6 +411,47 @@ func (f *factory) createLogsExporter(
 		},
 	}
 	return lf.CreateLogs(ctx, set, lc)
+}
+
+const (
+	// defaultLogsPipelines and logsSendersPerPipeline mirror the defaults of logs_config.pipelines
+	// and of the concurrency of each logs pipeline sender.
+	defaultLogsPipelines   = 4
+	logsSendersPerPipeline = 10
+	defaultLogsBatchSize   = 1000
+)
+
+// newLogsSyncSender returns the sync sender of the logs agent, or nil if it cannot send synchronously.
+func (f *factory) newLogsSyncSender() (logsagentpipeline.SyncSender, error) {
+	syncSenderFactory, ok := f.logsAgent.(logsagentpipeline.SyncSenderFactory)
+	if !ok {
+		return nil, nil
+	}
+	return syncSenderFactory.NewSyncSender()
+}
+
+// logsSenderConcurrency returns the number of concurrent sends of the asynchronous logs pipeline,
+// which the sync sender inherits through the sending queue consumers.
+func (f *factory) logsSenderConcurrency() int {
+	pipelines := defaultLogsPipelines
+	perPipeline := logsSendersPerPipeline
+	if f.coreCfg != nil {
+		pipelines = max(1, f.coreCfg.GetInt("logs_config.pipelines"))
+		if configured := f.coreCfg.GetInt("logs_config.batch_max_concurrent_send"); configured > 0 {
+			perPipeline = configured
+		}
+	}
+	return pipelines * perPipeline
+}
+
+// logsBatchSize returns the maximum number of log records in an intake payload.
+func (f *factory) logsBatchSize() int {
+	if f.coreCfg != nil {
+		if size := f.coreCfg.GetInt("logs_config.batch_max_size"); size > 0 {
+			return size
+		}
+	}
+	return defaultLogsBatchSize
 }
 
 // Reporter builds and returns an *inframetadata.Reporter.

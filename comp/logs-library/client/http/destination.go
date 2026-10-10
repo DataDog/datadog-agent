@@ -321,16 +321,15 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 	}
 }
 
-func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
+func (d *Destination) unconditionalSend(payload *message.Payload) error {
+	return d.unconditionalSendWithContext(d.destinationsContext.Context(), payload)
+}
+
+func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload *message.Payload) (err error) {
 	defer func() {
 		tlmSend.Inc(d.host, errorToTag(err))
 	}()
 
-	ctx := d.destinationsContext.Context()
-
-	if err != nil {
-		return err
-	}
 	metrics.BytesSent.Add(int64(payload.UnencodedSize))
 	var sourceTag string
 	compressionKind := "none"
@@ -411,15 +410,15 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if resp.StatusCode == http.StatusForbidden &&
 		d.secrets.IsValueFromSecret(d.endpoint.GetAPIKey()) &&
 		d.secrets.Refresh() {
-		return client.NewRetryableError(errServer)
+		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
 	} else if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden ||
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		tlmDropped.Inc()
-		return errClient
+		return fmt.Errorf("%w: %s", errClient, resp.Status)
 	} else if resp.StatusCode > http.StatusBadRequest {
-		return client.NewRetryableError(errServer)
+		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
 	}
 	d.pipelineMonitor.ReportComponentEgress(payload, d.destMeta.MonitorTag(), d.instanceID)
 	return nil

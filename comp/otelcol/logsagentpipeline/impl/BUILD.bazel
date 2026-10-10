@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "agent.go",
         "statusimpl.go",
+        "sync_sender.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/impl",
     visibility = ["//visibility:public"],
@@ -18,12 +19,15 @@ go_library(
         "//comp/logs-library/client/http",
         "//comp/logs-library/diagnostic",
         "//comp/logs-library/pipeline",
+        "//comp/logs-library/processor",
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
         "//comp/otelcol/logsagentpipeline/def",
         "//comp/serializer/logscompression/def",
         "//pkg/config/model",
+        "//pkg/logs/message",
         "//pkg/logs/status/statusinterface",
+        "//pkg/util/compression",
         "//pkg/util/option",
         "//pkg/util/startstop",
         "@org_uber_go_fx//:fx",
@@ -33,11 +37,16 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["agent_test.go"],
+    srcs = [
+        "agent_test.go",
+        "sync_sender_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/mock",
+        "//comp/logs-library/client",
         "//comp/logs-library/client/http",
         "//comp/logs-library/client/mock",
         "//comp/logs-library/client/tcp",
@@ -50,6 +59,7 @@ dd_agent_go_test(
         "//pkg/logs/sources",
         "//pkg/util/testutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )

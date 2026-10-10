@@ -1,0 +1,19 @@
+---
+enhancements:
+  - |
+    Add the ``datadog.logsagentexporter.UseSyncSender`` feature gate (Alpha,
+    disabled by default) to the logs exporter of the embedded Datadog
+    OpenTelemetry Collector (DDOT). When enabled logs are sent to the Datadog 
+    intake before the export returns. 
+    Intake errors are then reported to the OpenTelemetry pipeline: rejected logs, 
+    for example after a ``403 Forbidden`` response, are counted in
+    ``otelcol_exporter_send_failed_log_records`` instead of being dropped
+    silently, and temporary errors are retried according to the exporter
+    ``retry_on_failure`` and ``timeout`` settings. Only the log records whose
+    delivery failed with a temporary error are retried. 
+    N.B.: Multi-Region Failover endpoints are not supported **for now**
+    when the gate is enabled. 
+    The Agent OTLP ingestion pipeline is unaffected.
+  - |
+    Log messages about logs that the intake rejected now include the HTTP
+    status of the response.
