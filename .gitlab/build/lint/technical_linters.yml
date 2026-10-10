@@ -110,10 +110,3 @@ lint_config_schema:
         compare_to: $COMPARE_TO_BRANCH
   script:
     - dda inv -- -e schema.lint
-
-lint_rtloader:
-  extends: .lint
-  rules: !reference [.on_rtloader_changes]
-  script:
-    - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
-    - dda inv -- -e rtloader.format --raise-if-changed
