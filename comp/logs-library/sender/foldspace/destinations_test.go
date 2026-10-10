@@ -110,6 +110,51 @@ func TestDDURLOverridesMainOnly(t *testing.T) {
 	assert.Equal(t, "extra.example:443", dest.Senders[1].Address)
 }
 
+func TestGRPCMethod(t *testing.T) {
+	build := func(t *testing.T, method *string) (*DestinationConfig, error) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 32)
+		cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
+		if method != nil {
+			cfg.SetInTest("logs_config.foldspace.grpc_method", *method)
+		}
+		main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "main.example", "port": 443})
+		endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+		endpoints.Main = main
+		return BuildDestinationConfig(cfg, endpoints)
+	}
+	ptr := func(s string) *string { return &s }
+
+	t.Run("default", func(t *testing.T) {
+		dest, err := build(t, nil)
+		require.NoError(t, err)
+		assert.Equal(t, statefulStreamFullMethod, dest.StreamMethod)
+	})
+	t.Run("empty selects the default", func(t *testing.T) {
+		dest, err := build(t, ptr("  "))
+		require.NoError(t, err)
+		assert.Equal(t, statefulStreamFullMethod, dest.StreamMethod)
+	})
+	t.Run("override", func(t *testing.T) {
+		dest, err := build(t, ptr(" /datadog.intake.stateful.StatefulLogsService/LogsStream "))
+		require.NoError(t, err)
+		assert.Equal(t, "/datadog.intake.stateful.StatefulLogsService/LogsStream", dest.StreamMethod)
+	})
+	for _, bad := range []string{
+		"datadog.intake.stateful.StatefulLogsService/LogsStream",
+		"/datadog.intake.stateful.StatefulLogsService",
+		"/datadog.intake.stateful.StatefulLogsService/",
+		"//LogsStream",
+		"/a/b/c",
+	} {
+		t.Run("rejects "+bad, func(t *testing.T) {
+			_, err := build(t, ptr(bad))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "logs_config.foldspace.grpc_method")
+		})
+	}
+}
+
 func TestStreamLifetimeIgnoresConnectionReset(t *testing.T) {
 	build := func(t *testing.T, reset time.Duration) time.Duration {
 		cfg := configmock.New(t)

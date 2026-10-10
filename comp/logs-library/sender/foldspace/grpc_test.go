@@ -100,10 +100,11 @@ func TestGRPCSendHonorsContextWhenStalled(t *testing.T) {
 	t.Cleanup(func() { _ = conn.Close() })
 
 	transport := &GRPCTransport{
-		specs: []SenderSpec{{ID: 0, Address: "buf:1", Class: Reliable, APIKey: func() string { return "key" }}},
-		conns: []*grpc.ClientConn{conn},
-		state: 1024,
-		enc:   "identity",
+		specs:  []SenderSpec{{ID: 0, Address: "buf:1", Class: Reliable, APIKey: func() string { return "key" }}},
+		conns:  []*grpc.ClientConn{conn},
+		state:  1024,
+		enc:    "identity",
+		method: statefulStreamFullMethod,
 	}
 	stream, err := transport.OpenStream(dialCtx, 0, 1)
 	require.NoError(t, err)
@@ -191,6 +192,47 @@ func TestGRPCTransportKeepalive(t *testing.T) {
 	assert.False(t, transport.keepalive.PermitWithoutStream)
 }
 
+// The stream opens on the destination's method rather than the agent's own,
+// so an intake serving the same messages under other names receives it.
+func TestGRPCOpenStreamUsesConfiguredMethod(t *testing.T) {
+	const method = "/datadog.intake.stateful.StatefulLogsService/LogsStream"
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	opened := make(chan string, 1)
+	srv := grpc.NewServer(
+		grpc.ForceServerCodec(statefulCodec{}),
+		grpc.UnknownServiceHandler(func(_ any, stream grpc.ServerStream) error {
+			name, _ := grpc.MethodFromServerStream(stream)
+			opened <- name
+			var batch StatefulBatch
+			if err := stream.RecvMsg(&batch); err != nil {
+				return err
+			}
+			return stream.SendMsg(&BatchStatus{BatchID: batch.BatchID, Status: AckOK})
+		}),
+	)
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.Stop)
+
+	transport := NewGRPCTransport(&DestinationConfig{
+		Senders:      []SenderSpec{{ID: 0, Address: lis.Addr().String(), Class: Reliable, APIKey: func() string { return "key" }}},
+		StreamMethod: method,
+	})
+	t.Cleanup(transport.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	stream, err := transport.OpenStream(ctx, 0, 1)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = stream.Close() })
+	require.NoError(t, stream.Send(ctx, 7, []byte("ping")))
+	batchID, status, err := stream.Recv(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(7), batchID)
+	assert.Equal(t, AckOK, status)
+	assert.Equal(t, method, <-opened)
+}
+
 func TestGRPCStreamRoundTrip(t *testing.T) {
 	intake, lis, _ := startBufIntake(t)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -242,9 +284,10 @@ func TestTwoGRPCIntakesReceiveSameBytes(t *testing.T) {
 			{ID: 0, Address: "a:1", Class: Reliable, APIKey: func() string { return "key-a" }},
 			{ID: 1, Address: "b:1", Class: Reliable, APIKey: func() string { return "key-b" }},
 		},
-		conns: []*grpc.ClientConn{dial(lisA), dial(lisB)},
-		state: 1024,
-		enc:   "identity",
+		conns:  []*grpc.ClientConn{dial(lisA), dial(lisB)},
+		state:  1024,
+		enc:    "identity",
+		method: statefulStreamFullMethod,
 	}
 
 	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Reliable}})
