@@ -31,6 +31,10 @@ type Distribution interface {
 type DistributionWriter interface {
 	// Write Datadog Sketch series.
 	WriteDDSketch(meta DistributionMetadata, numPoints int, points DDSketchPoints) error
+	// Write OpenTelemetry Explicit bucket histogram series.
+	WriteOtelExplicitHistogram(meta DistributionMetadata, numPoints int, points OtelExplicitHistogramPoints) error
+	// Write OpenTelemetry Exponential bucket histogram series.
+	WriteOtelExponentialHistogram(meta DistributionMetadata, numPoints int, points OtelExponentialHistogramPoints) error
 }
 
 // DDSketchPoints provides random access to a distribution's sketch points.
@@ -42,4 +46,33 @@ type DDSketchPoints interface {
 	// Returning primitives is a few percent faster at the time of writing, see
 	// https://github.com/DataDog/datadog-agent/pull/52491 for benchmarks.
 	GetDDSketchPoint(i int) (ts int64, cnt int64, min, max, sum, avg float64, k []int32, n []uint32)
+}
+
+// OtelExplicitHistogramPoints provides access to OpenTelemetry explicit bucket histogram points.
+type OtelExplicitHistogramPoints interface {
+	// GetOtelExplicitHistogramPoint returns the histogram point at index i.
+	// Implementers may return bounds and counts backed by the same storage.
+	// Callers must not retain bounds and counts across calls.
+	//
+	// Requirements:
+	// Delta temporality.
+	// len(bounds) = len(counts) = 0 OR len(bounds) + 1 = len(counts)
+	// bounds must be strictly increasing and finite.
+	// Sum must be provided.
+	GetOtelExplicitHistogramPoint(int) (ts int64, haveMin, haveMax bool, min, max, sum float64, cnt uint64, bounds []float64, counts []uint64)
+}
+
+// OtelExponentialHistogramPoints provides access to OpenTelemetry exponential bucket histogram points.
+type OtelExponentialHistogramPoints interface {
+	// GetOtelExponentialHistogramPoint returns the histogram point at index i.
+	// Implementers may return posCnt and negCnt backed by the same storage.
+	// Callers must not retain posCnt and negCnt across calls.
+	//
+	// Requirements:
+	// Delta temporality.
+	// len(posCnt) = 0 OR posOffs + len(posCnt) - 1 ≤ math.MaxInt32
+	// len(negCnt) = 0 OR negOffs + len(negCnt) - 1 ≤ math.MaxInt32
+	// zeroThr is finite and greater or equal to zero.
+	// Sum must be provided.
+	GetOtelExponentialHistogramPoint(int) (ts int64, haveMin, haveMax bool, min, max, sum, zeroThr float64, cnt, zeroCnt uint64, scale, posOffs, negOffs int32, posCnt, negCnt []uint64)
 }

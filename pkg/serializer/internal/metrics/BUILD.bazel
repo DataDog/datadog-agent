@@ -46,6 +46,7 @@ dd_agent_go_test(
     srcs = [
         "events_test.go",
         "iterable_series_test.go",
+        "iterable_series_v3_histogram_test.go",
         "iterable_series_v3_test.go",
         "origin_mapping_test.go",
         "pipeline_test.go",
@@ -77,6 +78,7 @@ dd_agent_go_test(
         "//pkg/util/quantile",
         "//pkg/util/testutil",
         "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_protocolbuffers_protoscope//:protoscope",
         "@com_github_richardartoul_molecule//:molecule",
         "@com_github_richardartoul_molecule//src/codec",
         "@com_github_stretchr_testify//assert",
