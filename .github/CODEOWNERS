@@ -640,6 +640,8 @@
 /pkg/trace/api/otlp*.go                                               @DataDog/opentelemetry
 /pkg/trace/api/loader/                                                @DataDog/agent-runtimes
 /pkg/trace/api/loader/listeners.go                                    @DataDog/agent-apm
+/pkg/trace/api/container_tags_hash_test.go                            @DataDog/data-streams-monitoring
+/pkg/trace/api/container_tags_hash_dbm_test.go                        @DataDog/database-monitoring
 /pkg/trace/traceutil/                                                 @DataDog/agent-apm
 /pkg/trace/stats/                                                     @DataDog/agent-apm
 /pkg/trace/otel/                                                      @DataDog/opentelemetry
