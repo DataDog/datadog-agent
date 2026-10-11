@@ -12,16 +12,21 @@ import (
 	"errors"
 	"fmt"
 
-	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	dimod "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() { registerModule(DynamicInstrumentation) }
@@ -50,8 +55,18 @@ var DynamicInstrumentation = &module.Factory{
 			return nil, fmt.Errorf("failed to create gRPC client for RC subscription: %w", err)
 		}
 
-		m, err := dimod.NewModule(config, client, dimod.WithStatsd(deps.Statsd))
+		opts := []dimod.Option{dimod.WithStatsd(deps.Statsd)}
+		metricProbeStatsd, err := newMetricProbeStatsdClient(deps.CoreConfig)
 		if err != nil {
+			log.Warnf("metric probes will not report metrics: failed to create statsd client: %v", err)
+		} else {
+			opts = append(opts, dimod.WithMetricProbeStatsd(metricProbeStatsd))
+		}
+		m, err := dimod.NewModule(config, client, opts...)
+		if err != nil {
+			if metricProbeStatsd != nil {
+				_ = metricProbeStatsd.Close()
+			}
 			if errors.Is(err, ebpf.ErrNotImplemented) {
 				return nil, module.ErrNotEnabled
 			}
@@ -63,4 +78,20 @@ var DynamicInstrumentation = &module.Factory{
 	NeedsEBPF: func() bool {
 		return true
 	},
+}
+
+// newMetricProbeStatsdClient creates the DogStatsD client that metric probes
+// report to. It is configured like system-probe's own client, except that it
+// doesn't attach system-probe's container ID to the metrics: they describe
+// other processes.
+func newMetricProbeStatsdClient(cfg coreconfig.Component) (ddgostatsd.ClientInterface, error) {
+	provides, err := statsdimpl.NewComponent()
+	if err != nil {
+		return nil, err
+	}
+	return provides.Comp.CreateForHostPort(
+		configutils.GetBindHost(cfg),
+		cfg.GetInt("dogstatsd_port"),
+		ddgostatsd.WithoutOriginDetection(),
+	)
 }
