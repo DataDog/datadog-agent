@@ -117,7 +117,7 @@ func TestDurationThreshold(t *testing.T) {
 		_ = proc.Wait()
 	}()
 
-	port := waitForDropTesterPort(t, filepath.Join(tempDir, "sample.out"))
+	port := waitForListeningPort(t, filepath.Join(tempDir, "sample.out"))
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 
 	probes := testprogs.MustGetProbeDefinitions(t, "drop_tester")
