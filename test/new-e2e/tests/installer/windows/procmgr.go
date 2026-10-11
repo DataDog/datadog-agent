@@ -23,6 +23,7 @@ const (
 	ddotProcmgrProcess         = "datadog-agent-ddot"
 	processAgentProcmgrProcess = "datadog-agent-process"
 	sysprobeProcmgrProcess     = "datadog-agent-sysprobe"
+	securityProcmgrProcess     = "datadog-agent-security"
 )
 
 // assertManagedByProcmgr verifies processName has a processes.d config and that dd-procmgrd
