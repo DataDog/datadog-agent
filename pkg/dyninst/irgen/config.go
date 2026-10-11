@@ -19,6 +19,7 @@ type config struct {
 	additionalTypes          []string
 	skipRuntimeRecoveryProbe bool
 	redaction                *redaction.Config
+	metricProbes             bool
 }
 
 var defaultConfig = config{
@@ -73,6 +74,12 @@ func WithSkipRuntimeRecoveryProbe(skip bool) Option {
 // capture expressions that reference one.
 func WithRedaction(cfg *redaction.Config) Option {
 	return optionFunc(func(c *config) { c.redaction = cfg })
+}
+
+// WithMetricProbes enables IR generation for metric probes. Without it, metric
+// probes are rejected as unsupported.
+func WithMetricProbes(enabled bool) Option {
+	return optionFunc(func(c *config) { c.metricProbes = enabled })
 }
 
 type optionFunc func(c *config)
