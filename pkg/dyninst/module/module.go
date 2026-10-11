@@ -20,6 +20,7 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
@@ -66,6 +67,7 @@ type Option func(*options)
 type options struct {
 	statsd            ddgostatsd.ClientInterface
 	metricProbeStatsd ddgostatsd.ClientInterface
+	workloadMeta      workloadmeta.Component
 }
 
 // WithStatsd sets the statsd client that the module reports metrics to. Without
@@ -79,6 +81,13 @@ func WithStatsd(client ddgostatsd.ClientInterface) Option {
 // anything. The module closes the client when it shuts down.
 func WithMetricProbeStatsd(client ddgostatsd.ClientInterface) Option {
 	return func(o *options) { o.metricProbeStatsd = client }
+}
+
+// WithWorkloadMeta sets the workloadmeta store used to find the Kubernetes pods
+// of the processes that metric probes report about. Without one, metric probe
+// metrics are not tagged with the target's pod.
+func WithWorkloadMeta(wmeta workloadmeta.Component) Option {
+	return func(o *options) { o.workloadMeta = wmeta }
 }
 
 // NewModule creates a new dynamic instrumentation module.
@@ -104,7 +113,11 @@ func NewModule(
 	}
 	var moduleOpts []newUnstartedModuleOption
 	if o.metricProbeStatsd != nil {
-		moduleOpts = append(moduleOpts, withMetricsClient(o.metricProbeStatsd))
+		var lookupContainer func(string) (string, bool)
+		if o.workloadMeta != nil {
+			lookupContainer = podLookup(o.workloadMeta)
+		}
+		moduleOpts = append(moduleOpts, withMetricsClient(o.metricProbeStatsd, lookupContainer))
 	}
 	if k := config.TestingKnobs; k.SinkOverride != nil || k.OnProgramLoaded != nil {
 		moduleOpts = append(moduleOpts, withRuntimeTestingKnobs(&runtimeTestingKnobs{
@@ -155,12 +168,29 @@ func withRuntimeTestingKnobs(k *runtimeTestingKnobs) newUnstartedModuleOption {
 }
 
 // withMetricsClient makes the module report the values of metric probes to
-// client.
-func withMetricsClient(client metricsClient) newUnstartedModuleOption {
+// client. lookupContainer finds the pod of a container; it may be nil.
+func withMetricsClient(
+	client metricsClient, lookupContainer func(containerID string) (podUID string, ok bool),
+) newUnstartedModuleOption {
 	return func(rt *runtimeImpl) {
 		rt.metrics = newMetricsReporter(
-			client, defaultMetricsReportInterval, rt.setProbeMaybeEmitting,
+			client, defaultMetricsReportInterval, rt.setProbeMaybeEmitting, lookupContainer,
 		)
+	}
+}
+
+// podLookup returns a function that finds the Kubernetes pod of a container in
+// workloadmeta.
+func podLookup(wmeta workloadmeta.Component) func(containerID string) (podUID string, ok bool) {
+	return func(containerID string) (string, bool) {
+		container, err := wmeta.GetContainer(containerID)
+		if err != nil {
+			return "", false
+		}
+		if owner := container.Owner; owner != nil && owner.Kind == workloadmeta.KindKubernetesPod {
+			return owner.ID, true
+		}
+		return "", true
 	}
 }
 
