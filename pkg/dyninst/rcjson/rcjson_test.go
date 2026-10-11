@@ -388,6 +388,18 @@ var testCases = []testCase{
 	},
 }
 
+func TestMaxReferenceDepthZero(t *testing.T) {
+	probe, err := UnmarshalProbe([]byte(`{
+		"id": "snapshot-probe",
+		"type": "LOG_PROBE",
+		"captureSnapshot": true,
+		"where": {"methodName": "main.f"},
+		"capture": {"maxReferenceDepth": 0}
+	}`))
+	require.NoError(t, err)
+	require.Equal(t, uint32(0), probe.GetCaptureConfig().GetMaxReferenceDepth())
+}
+
 func TestUnmarshalProbe(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {

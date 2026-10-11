@@ -546,8 +546,11 @@ func (c *irCaptureConfig) GetMaxReferenceDepth() uint32 {
 	if c == nil || c.MaxReferenceDepth == nil {
 		return math.MaxUint32
 	}
-	if *c.MaxReferenceDepth == 0 {
-		panic("maxReferenceDepth is 0")
+	// At depth 0 no pointers are followed, which matches most other tracers:
+	// they capture the top-level values but nothing they reference. Negative
+	// depths are treated like 0, rather than wrapping around to huge ones.
+	if *c.MaxReferenceDepth <= 0 {
+		return 0
 	}
 	return uint32(*c.MaxReferenceDepth)
 }
