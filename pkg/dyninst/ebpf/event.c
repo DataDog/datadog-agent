@@ -202,7 +202,12 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       .prog_id = prog_id,
       .probe_id = params->probe_id,
   };
-  read_goroutine_info(params, regs, header);
+  // Metric probes don't produce events, so they skip everything below that only
+  // serves to describe an event: the goroutine, the stack, pairing with returns
+  // (they have no return events) and pointer chasing.
+  if (!params->is_metric) {
+    read_goroutine_info(params, regs, header);
+  }
 
   if (params->kind == EVENT_KIND_RETURN) {
     // There was no corresponding call, so the deletion failed.
@@ -267,7 +272,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   __maybe_unused int chase_steps = 0;
   uint64_t stack_hash = 0;
   global_ctx.stack_walk->regs = *regs;
-  if (!capture_stack(&global_ctx, params, regs, header, &stack_hash)) {
+  if (!params->is_metric &&
+      !capture_stack(&global_ctx, params, regs, header, &stack_hash)) {
     return;
   }
   global_ctx.regs = &global_ctx.stack_walk->regs;
@@ -279,6 +285,11 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   if (params->stack_machine_pc != 0) {
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
+  }
+  if (params->is_metric) {
+    // The stack machine recorded the hit in metrics_buf; there is no event to
+    // send.
+    return;
   }
   header->condition_eval_error = global_ctx.stack_machine->condition_eval_error ? (global_ctx.stack_machine->condition_nil_deref ? 2 : 1) : 0;
   if (global_ctx.stack_machine->condition_failed) {

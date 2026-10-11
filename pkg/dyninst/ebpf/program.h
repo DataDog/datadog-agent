@@ -80,6 +80,16 @@ struct {
   __type(value, stats_t);
 } stats_buf SEC(".maps");
 
+// Per-probe state of metric probes, keyed by probe_id. Like stats_buf, it is an
+// ARRAY sized per IR probe count and updated with __sync atomics. Only the
+// entries of metric probes are used. max_entries is set by the loader.
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, metric_state_t);
+} metrics_buf SEC(".maps");
+
 // zero_uint32 is a reusable zero key. Used to address PERCPU_ARRAY maps
 // that hold a single per-CPU value (in_progress_calls_buf, the per-CPU
 // events scratch buffer) and also to address slot 0 of the shared

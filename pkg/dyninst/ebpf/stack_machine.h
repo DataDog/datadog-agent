@@ -3085,6 +3085,7 @@ sm_panic_unwind_evict_slots(scratch_buf_t* buf) {
 // all defined above. Include here so the helpers are in scope for the
 // sm_loop op handlers below.
 #include "filter.h"
+#include "metric.h"
 
 static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   global_ctx_t* ctx = (global_ctx_t*)_ctx;
@@ -5125,6 +5126,25 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       sm->pc = body_target_pc;
     } else if (r == 3) {
       sm->pc = op_start;
+    }
+  } break;
+
+  case SM_OP_METRIC_COND_ERROR_CHECK: {
+    uint32_t probe_id = sm_read_program_uint32(sm);
+    if (sm_metric_cond_error_check_noctx(probe_id)) {
+      return 1;
+    }
+  } break;
+
+  case SM_OP_METRIC_UPDATE: {
+    uint32_t probe_id = sm_read_program_uint32(sm);
+    uint32_t kind = sm_read_program_uint8(sm);
+    uint32_t value_kind = sm_read_program_uint8(sm);
+    uint32_t value_size = sm_read_program_uint8(sm);
+    uint32_t value_offset = sm_read_program_uint32(sm);
+    if (sm_metric_update_noctx(probe_id, kind, value_kind, value_size,
+                               value_offset)) {
+      return 1;
     }
   } break;
 

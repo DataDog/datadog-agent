@@ -331,6 +331,74 @@ func (p *Program) RuntimeStats() []RuntimeStats {
 	return out
 }
 
+// MetricError is the kind of an evaluation error recorded for a metric probe.
+// Must be kept in sync with metric_error_t in ../ebpf/types.h.
+type MetricError uint8
+
+const (
+	// MetricErrorNone means that no evaluation error was recorded.
+	MetricErrorNone MetricError = 0
+	// MetricErrorValueUnavailable means that the value couldn't be read.
+	MetricErrorValueUnavailable MetricError = 1
+	// MetricErrorValueNilDeref means that evaluating the value dereferenced
+	// a nil pointer.
+	MetricErrorValueNilDeref MetricError = 2
+	// MetricErrorValueOutOfBounds means that evaluating the value indexed a
+	// collection out of bounds.
+	MetricErrorValueOutOfBounds MetricError = 3
+	// MetricErrorCondition means that the condition couldn't be evaluated.
+	MetricErrorCondition MetricError = 4
+	// MetricErrorConditionNilDeref means that evaluating the condition
+	// dereferenced a nil pointer.
+	MetricErrorConditionNilDeref MetricError = 5
+)
+
+// MetricState is the state of a metric probe, as recorded by the BPF
+// program. Like RuntimeStats, the counters are cumulative over the lifetime
+// of the program.
+type MetricState struct {
+	// Sum is the running sum of a count probe's values.
+	Sum int64
+	// Value holds the bits of a gauge probe's most recent value, sign- or
+	// zero-extended to 64 bits for integers.
+	Value uint64
+	// Updates is the number of times the probe's metric was updated.
+	Updates uint64
+	// EvalErrors is the number of hits that weren't counted because the
+	// probe's condition or value couldn't be evaluated.
+	EvalErrors uint64
+	// LastError is the kind of the most recent evaluation error.
+	LastError MetricError
+}
+
+// MetricStates returns the state of the program's metric probes, indexed by
+// the IR probe_id. Entries of probes that aren't metric probes are zero.
+func (p *Program) MetricStates() []MetricState {
+	m, ok := p.Collection.Maps[metricsBufMapName]
+	if !ok {
+		return nil
+	}
+	out := make([]MetricState, m.MaxEntries())
+	entries := m.Iterate()
+	var key uint32
+	var value metricState
+	for entries.Next(&key, &value) {
+		if int(key) >= len(out) {
+			continue
+		}
+		out[key] = MetricState{
+			Sum:        value.Sum,
+			Value:      value.Value,
+			Updates:    value.Updates,
+			EvalErrors: value.Eval_errors,
+			LastError:  MetricError(value.Last_error),
+		}
+	}
+	return out
+}
+
+const metricsBufMapName = "metrics_buf"
+
 const defaultRingbufSize = 1 << 20 // 1 MiB
 const ringbufMapName = "out_ringbuf"
 
@@ -678,6 +746,13 @@ func (l *Loader) loadData(
 		return nil, errors.New("stats_buf map not found in eBPF spec")
 	}
 	statsBufMapSpec.MaxEntries = statsBufSize
+	// metrics_buf is also keyed by probe_id. Only the entries of metric
+	// probes are used.
+	metricsBufMapSpec, ok := spec.Maps[metricsBufMapName]
+	if !ok {
+		return nil, errors.New("metrics_buf map not found in eBPF spec")
+	}
+	metricsBufMapSpec.MaxEntries = statsBufSize
 
 	if l.config.dyninstDebugEnabled {
 		err = setVariable(spec, "debug_level", uint32(l.config.dyninstDebugLevel))
