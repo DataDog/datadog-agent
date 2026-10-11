@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -88,7 +89,7 @@ func TestMetricsReporter(t *testing.T) {
 		emittingMu.Lock()
 		defer emittingMu.Unlock()
 		emitting = append(emitting, p.GetID())
-	})
+	}, nil /* lookupContainer */)
 	defer r.close()
 
 	program := &ir.Program{Probes: []*ir.Probe{
@@ -185,7 +186,7 @@ func TestMetricsReporterEmittingBeforeLastReport(t *testing.T) {
 	r := newMetricsReporter(&fakeMetricsClient{}, time.Hour, func(ir.ProgramID, ir.ProbeDefinition) {
 		once.Do(func() { close(notifying) })
 		<-release
-	})
+	}, nil /* lookupContainer */)
 	defer r.close()
 	program := &ir.Program{Probes: []*ir.Probe{
 		metricProbe("calls", "COUNT", "calls", nil, reflect.Invalid),
@@ -210,6 +211,42 @@ func TestMetricsReporterEmittingBeforeLastReport(t *testing.T) {
 	}
 	close(release)
 	<-lastReport
+}
+
+func TestMetricsReporterPodTag(t *testing.T) {
+	client := &fakeMetricsClient{}
+	// The container isn't known to workloadmeta at first.
+	var podUID string
+	var known bool
+	lookup := func(containerID string) (string, bool) {
+		require.Equal(t, "abc123", containerID)
+		return podUID, known
+	}
+	r := newMetricsReporter(client, time.Hour, nil /* onEmitting */, lookup)
+	defer r.close()
+
+	program := &ir.Program{Probes: []*ir.Probe{
+		metricProbe("calls", "COUNT", "calls", nil, reflect.Invalid),
+	}}
+	var state loader.MetricState
+	r.register(1, program, func() []loader.MetricState {
+		return []loader.MetricState{state}
+	}, procRuntimeID{containerInfo: &process.ContainerInfo{ContainerID: "abc123"}})
+
+	state = loader.MetricState{Sum: 1, Updates: 1}
+	r.reportAll()
+	require.Equal(t, []string{"debugger.probeid:calls"}, client.take()[0].tags)
+
+	podUID, known = "pod-uid", true
+	state = loader.MetricState{Sum: 2, Updates: 2}
+	r.reportAll()
+	require.Equal(t, []string{"debugger.probeid:calls", "dd.internal.entity_id:pod-uid"}, client.take()[0].tags)
+
+	// The pod is only looked up once it's found.
+	podUID = "other-pod-uid"
+	state = loader.MetricState{Sum: 3, Updates: 3}
+	r.reportAll()
+	require.Equal(t, []string{"debugger.probeid:calls", "dd.internal.entity_id:pod-uid"}, client.take()[0].tags)
 }
 
 func TestGaugeValueDecoder(t *testing.T) {
