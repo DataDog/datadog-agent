@@ -218,7 +218,8 @@ func serializeProgram(
 				Ctx_reg_tab:           f.CtxRegTab,
 				Ctx_reg_data:          f.CtxRegData,
 				Ctx_stack_offset:      f.CtxStackOffset,
-				X__padding:            [3]int8{},
+				Is_metric:             f.IsMetric,
+				X__padding:            [2]int8{},
 			})
 			serialized.bpfAttachPoints = append(serialized.bpfAttachPoints, BPFAttachPoint{
 				PC:     f.InjectionPC,

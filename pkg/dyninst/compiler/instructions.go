@@ -515,6 +515,24 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  []byte{},
 		}
 
+	case MetricCondErrorCheckOp:
+		return staticInstruction{
+			opcode: OpcodeMetricCondErrorCheck,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ProbeID),
+		}
+
+	case MetricUpdateOp:
+		// u32 probe_id + u8 kind + u8 value_kind + u8 value_size +
+		// u32 value_offset
+		bytes := make([]byte, 0, 11)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ProbeID)
+		bytes = append(bytes, uint8(op.Kind), uint8(op.ValueKind), op.ValueSize)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ValueOffset)
+		return staticInstruction{
+			opcode: OpcodeMetricUpdate,
+			bytes:  bytes,
+		}
+
 	case EmitFilterSliceMarkerOp:
 		// u32 filter_data_type_id + u32 elem_byte_size
 		bytes := make([]byte, 0, 8)
