@@ -91,6 +91,30 @@ func TestCommonHeaderProviderRendersConfigFileError(t *testing.T) {
 	assert.Contains(t, html.String(), parseErr)
 }
 
+// TestCommonHeaderProviderTextIndentsConfigFileError guards alignment under the
+// section header. The template indents only the interpolation point, so without
+// a per-line indent every line after the first falls back to column 0.
+func TestCommonHeaderProviderTextIndentsConfigFileError(t *testing.T) {
+	const parseErr = "could not parse /etc/datadog-agent/datadog.yaml: boom.\n" +
+		"All settings from this file are ignored and defaults are in use.\n" +
+		"  1 | api_key: redacted\n" +
+		"> 2 |   xx: yy"
+
+	config := config.NewMock(t)
+
+	provider := newCommonHeaderProvider(agentParams, config)
+	provider.(*headerProvider).constdata["conf_file_error"] = parseErr
+
+	text := new(bytes.Buffer)
+	require.NoError(t, provider.Text(false, text))
+
+	out := text.String()
+	assert.Contains(t, out, "\n    could not parse /etc/datadog-agent/datadog.yaml: boom.")
+	assert.Contains(t, out, "\n    All settings from this file are ignored")
+	assert.Contains(t, out, "\n      1 | api_key: redacted", "quoted lines keep their own padding on top of the indent")
+	assert.Contains(t, out, "\n    > 2 |   xx: yy", "the marker stays flush with the section indent")
+}
+
 // TestCommonHeaderProviderHTMLPreservesConfigErrorLayout guards the quoted YAML
 // context. The newlines reach the HTML either way, but a browser collapses them
 // unless the element preserves whitespace, and the padded line numbers only line
