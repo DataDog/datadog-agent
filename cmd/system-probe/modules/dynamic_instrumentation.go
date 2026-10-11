@@ -55,7 +55,10 @@ var DynamicInstrumentation = &module.Factory{
 			return nil, fmt.Errorf("failed to create gRPC client for RC subscription: %w", err)
 		}
 
-		opts := []dimod.Option{dimod.WithStatsd(deps.Statsd)}
+		opts := []dimod.Option{
+			dimod.WithStatsd(deps.Statsd),
+			dimod.WithWorkloadMeta(deps.WMeta),
+		}
 		metricProbeStatsd, err := newMetricProbeStatsdClient(deps.CoreConfig)
 		if err != nil {
 			log.Warnf("metric probes will not report metrics: failed to create statsd client: %v", err)
