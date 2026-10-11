@@ -11,8 +11,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -40,15 +43,18 @@ type fakeMetricProbeStatsd struct {
 	ddgostatsd.NoOpClient
 	mu     sync.Mutex
 	counts map[string]int64
-	gauges map[string]float64
-	tags   map[string][]string
+	// countReports holds the value of each Count call, by metric name.
+	countReports map[string][]int64
+	gauges       map[string]float64
+	tags         map[string][]string
 }
 
 func newFakeMetricProbeStatsd() *fakeMetricProbeStatsd {
 	return &fakeMetricProbeStatsd{
-		counts: make(map[string]int64),
-		gauges: make(map[string]float64),
-		tags:   make(map[string][]string),
+		counts:       make(map[string]int64),
+		countReports: make(map[string][]int64),
+		gauges:       make(map[string]float64),
+		tags:         make(map[string][]string),
 	}
 }
 
@@ -56,6 +62,7 @@ func (f *fakeMetricProbeStatsd) Count(name string, value int64, tags []string, _
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.counts[name] += value
+	f.countReports[name] = append(f.countReports[name], value)
 	f.tags[name] = tags
 	return nil
 }
@@ -66,6 +73,13 @@ func (f *fakeMetricProbeStatsd) Gauge(name string, value float64, tags []string,
 	f.gauges[name] = value
 	f.tags[name] = tags
 	return nil
+}
+
+// countReportsOf returns the values of the Count calls for a metric.
+func (f *fakeMetricProbeStatsd) countReportsOf(name string) []int64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.countReports[name])
 }
 
 func (f *fakeMetricProbeStatsd) snapshot() (map[string]int64, map[string]float64) {
@@ -305,5 +319,86 @@ func testMetricProbes(t *testing.T, cfg testprogs.Config) {
 	// Metric probes don't produce snapshots otherwise.
 	for _, l := range testServer.getLogs() {
 		assert.Equal(t, "nil_field", l.id, "unexpected log: %s", l.body)
+	}
+}
+
+// TestMetricProbeCountGrows puts a count metric probe on a function of a
+// program that keeps running, calls the function in two batches, and checks
+// that the periodic reports add each batch to the count.
+func TestMetricProbeCountGrows(t *testing.T) {
+	dyninsttest.SkipIfKernelNotSupported(t)
+	for _, cfg := range testprogs.MustGetCommonConfigs(t) {
+		t.Run(cfg.String(), func(t *testing.T) {
+			if cfg.GOARCH != runtime.GOARCH {
+				t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
+			}
+			testMetricProbeCountGrows(t, cfg)
+		})
+	}
+}
+
+func testMetricProbeCountGrows(t *testing.T, cfg testprogs.Config) {
+	const metric = metricPrefix + "requests"
+	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-metric-grow-test")
+	defer cleanup()
+	testServer, statsd, sendUpdate := startMetricProbesModule(t, tempDir)
+
+	bin := testprogs.MustGetBinary(t, "rc_tester", cfg)
+	proc, _ := dyninsttest.StartProcess(context.Background(), t, tempDir, bin)
+	defer func() {
+		_ = proc.Process.Kill()
+		_ = proc.Wait()
+	}()
+	port := waitForListeningPort(t, filepath.Join(tempDir, "sample.out"))
+	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), int32(proc.Process.Pid))
+	require.NoError(t, err)
+	// rc_tester calls main.LookAtTheRequest once per HTTP request.
+	sendUpdate(process.ProcessesUpdate{Updates: []process.Config{{
+		Info: process.Info{
+			ProcessID:  process.ID{PID: int32(proc.Process.Pid)},
+			Executable: exe,
+			Service:    "rc_tester",
+		},
+		RuntimeID: "metric-grow-test",
+		Probes: []ir.ProbeDefinition{
+			metricProbeDefinition(t, "requests", "COUNT", onFunction("main.LookAtTheRequest"), ""),
+		},
+	}}})
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Contains(c, []uploader.Status{uploader.StatusInstalled, uploader.StatusEmitting},
+			metricProbeStatuses(t, testServer)["requests"])
+	}, 3*time.Minute, 100*time.Millisecond, "probe should be installed")
+
+	sendRequests := func(n int) {
+		for i := 0; i < n; i++ {
+			resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/metric", port))
+			require.NoError(t, err)
+			_, _ = io.Copy(io.Discard, resp.Body)
+			require.NoError(t, resp.Body.Close())
+		}
+	}
+	sum := func(values []int64) (total int64) {
+		for _, v := range values {
+			total += v
+		}
+		return total
+	}
+	// The program keeps running, so the counts can only come from the
+	// periodic reports.
+	sendRequests(3)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, int64(3), sum(statsd.countReportsOf(metric)))
+	}, 30*time.Second, 100*time.Millisecond, "the first calls should be reported")
+	firstReports := len(statsd.countReportsOf(metric))
+	sendRequests(2)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, int64(5), sum(statsd.countReportsOf(metric)))
+	}, 30*time.Second, 100*time.Millisecond, "the later calls should be reported")
+	// The later calls came in later reports, and each report only carried the
+	// calls made since the previous one.
+	reports := statsd.countReportsOf(metric)
+	require.Greater(t, len(reports), firstReports)
+	for _, v := range reports {
+		require.Positive(t, v)
 	}
 }
