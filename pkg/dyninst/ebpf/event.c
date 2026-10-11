@@ -90,6 +90,82 @@ notify_panic_unwound_lost(uint32_t prog_id, const di_event_header_t* header) {
   }
 }
 
+// read_goroutine_info records the goroutine ID and the stack depth of the
+// probed call in the event header.
+static inline __attribute__((always_inline)) void
+read_goroutine_info(const probe_params_t* params, struct pt_regs* regs,
+                    di_event_header_t* header) {
+#if defined(bpf_target_x86)
+  if (params->frameless) {
+    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_SP_REG, &header->goid, &header->stack_byte_depth);
+  } else {
+    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_BP_REG, &header->goid, &header->stack_byte_depth);
+  }
+#elif defined(bpf_target_arm64)
+  read_g_fields(regs->DWARF_REGISTER(28), regs->DWARF_SP_REG, &header->goid, &header->stack_byte_depth);
+#else
+#error "Unsupported architecture"
+#endif
+}
+
+// capture_stack walks the stack of the probed call. If userspace hasn't seen
+// the stack before, it copies the stack into the event and sets *stack_hash to
+// its hash; otherwise *stack_hash is 0. Returns false if the stack couldn't be
+// read, in which case the event should be dropped.
+static inline __attribute__((always_inline)) bool
+capture_stack(global_ctx_t* ctx, const probe_params_t* params,
+              struct pt_regs* regs, di_event_header_t* header,
+              uint64_t* stack_hash) {
+  ctx->stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG + params->top_pc_offset;
+  LOG(5, "wrote event pairing expectation %d %lld %d %d %llx",
+      header->event_pairing_expectation, header->goid, header->stack_byte_depth,
+      params->probe_id, ctx->stack_walk->stack.pcs.pcs[0]);
+#if defined(bpf_target_x86)
+  ctx->stack_walk->stack.fps[0] = regs->DWARF_BP_REG;
+  if (params->frameless) {
+    // Call instruction saves return address on the stack.
+    if (bpf_probe_read_user(&ctx->stack_walk->stack.pcs.pcs[1],
+                            sizeof(ctx->stack_walk->stack.pcs.pcs[1]),
+                            (void*)(regs->sp))) {
+      return false;
+    }
+    ctx->stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
+    ctx->stack_walk->idx_shift = 1;
+  }
+#elif defined(bpf_target_arm64)
+  ctx->stack_walk->stack.fps[0] = regs->DWARF_SP_REG - 8;
+  if (params->frameless) {
+    // Call instruction saves return address in the link register.
+    ctx->stack_walk->stack.pcs.pcs[1] = regs->DWARF_REGISTER(30);
+    ctx->stack_walk->stack.fps[1] = regs->DWARF_SP_REG - 8;
+    ctx->stack_walk->idx_shift = 1;
+  }
+#else
+#error "Unsupported architecture"
+#endif
+  ctx->stack_walk->stack.pcs.len =
+      bpf_loop(STACK_DEPTH, populate_stack_frame, &ctx->stack_walk, 0) +
+      1;
+  ctx->stack_walk->stack.pcs.len += ctx->stack_walk->idx_shift;
+  *stack_hash = hash_stack(&ctx->stack_walk->stack.pcs, 0 /* seed */);
+  header->stack_hash = *stack_hash;
+  bool should_submit = !check_stack_hash(*stack_hash);
+  if (should_submit) {
+    header->stack_byte_len =
+        ctx->stack_walk->stack.pcs.len * sizeof(target_ptr_t);
+    copy_stack_loop_ctx_t copy_stack_ctx = {
+        .stack = &ctx->stack_walk->stack.pcs,
+        .buf = ctx->buf,
+    };
+    bpf_loop(ctx->stack_walk->stack.pcs.len, copy_stack_loop,
+             &copy_stack_ctx, 0);
+    scratch_buf_increment_len(ctx->buf, header->stack_byte_len);
+  } else {
+    *stack_hash = 0;
+  }
+  return true;
+}
+
 static inline __attribute__((always_inline)) void
 probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs) {
   LOG(4, "probe_run: %d %d %llx", params->probe_id, params->stack_machine_pc);
@@ -126,17 +202,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       .prog_id = prog_id,
       .probe_id = params->probe_id,
   };
-#if defined(bpf_target_x86)
-  if (params->frameless) {
-    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_SP_REG, &header->goid, &header->stack_byte_depth);
-  } else {
-    read_g_fields(regs->DWARF_REGISTER_14, regs->DWARF_BP_REG, &header->goid, &header->stack_byte_depth);
-  }
-#elif defined(bpf_target_arm64)
-  read_g_fields(regs->DWARF_REGISTER(28), regs->DWARF_SP_REG, &header->goid, &header->stack_byte_depth);
-#else
-#error "Unsupported architecture"
-#endif
+  read_goroutine_info(params, regs, header);
 
   if (params->kind == EVENT_KIND_RETURN) {
     // There was no corresponding call, so the deletion failed.
@@ -201,52 +267,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   __maybe_unused int chase_steps = 0;
   uint64_t stack_hash = 0;
   global_ctx.stack_walk->regs = *regs;
-  global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG + params->top_pc_offset;
-  LOG(5, "wrote event pairing expectation %d %lld %d %d %llx",
-      header->event_pairing_expectation, header->goid, header->stack_byte_depth,
-      params->probe_id, global_ctx.stack_walk->stack.pcs.pcs[0]);
-#if defined(bpf_target_x86)
-  global_ctx.stack_walk->stack.fps[0] = regs->DWARF_BP_REG;
-  if (params->frameless) {
-    // Call instruction saves return address on the stack.
-    if (bpf_probe_read_user(&global_ctx.stack_walk->stack.pcs.pcs[1],
-                            sizeof(global_ctx.stack_walk->stack.pcs.pcs[1]),
-                            (void*)(regs->sp))) {
-      return;
-    }
-    global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
-    global_ctx.stack_walk->idx_shift = 1;
-  }
-#elif defined(bpf_target_arm64)
-  global_ctx.stack_walk->stack.fps[0] = regs->DWARF_SP_REG - 8;
-  if (params->frameless) {
-    // Call instruction saves return address in the link register.
-    global_ctx.stack_walk->stack.pcs.pcs[1] = regs->DWARF_REGISTER(30);
-    global_ctx.stack_walk->stack.fps[1] = regs->DWARF_SP_REG - 8;
-    global_ctx.stack_walk->idx_shift = 1;
-  }
-#else
-#error "Unsupported architecture"
-#endif
-  global_ctx.stack_walk->stack.pcs.len =
-      bpf_loop(STACK_DEPTH, populate_stack_frame, &global_ctx.stack_walk, 0) +
-      1;
-  global_ctx.stack_walk->stack.pcs.len += global_ctx.stack_walk->idx_shift;
-  stack_hash = hash_stack(&global_ctx.stack_walk->stack.pcs, 0 /* seed */);
-  header->stack_hash = stack_hash;
-  bool should_submit = !check_stack_hash(stack_hash);
-  if (should_submit) {
-    header->stack_byte_len =
-        global_ctx.stack_walk->stack.pcs.len * sizeof(target_ptr_t);
-    copy_stack_loop_ctx_t copy_stack_ctx = {
-        .stack = &global_ctx.stack_walk->stack.pcs,
-        .buf = global_ctx.buf,
-    };
-    bpf_loop(global_ctx.stack_walk->stack.pcs.len, copy_stack_loop,
-             &copy_stack_ctx, 0);
-    scratch_buf_increment_len(global_ctx.buf, header->stack_byte_len);
-  } else {
-    stack_hash = 0;
+  if (!capture_stack(&global_ctx, params, regs, header, &stack_hash)) {
+    return;
   }
   global_ctx.regs = &global_ctx.stack_walk->regs;
   frame_data_t frame_data = {
