@@ -199,7 +199,32 @@ var testCases = []testCase{
 				},
 			},
 		},
-		validationErr: `signature is not supported`,
+	},
+	{
+		// System tests, which are shared across tracers, send log probes
+		// like this one and expect them to be installed.
+		name: "log probe without template",
+		input: `{
+				"id": "log-probe-1",
+				"type": "LOG_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod"
+				},
+				"segments": []
+			}`,
+		want: &LogProbe{
+			LogProbeCommon: LogProbeCommon{
+				ProbeCommon: ProbeCommon{
+					ID:      "log-probe-1",
+					Version: 1,
+					Type:    TypeLogProbe.String(),
+					Where: &Where{
+						MethodName: "MyMethod",
+					},
+				},
+			},
+		},
 	},
 	{
 		name: "valid metric probe",
