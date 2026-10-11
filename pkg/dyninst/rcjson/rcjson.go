@@ -164,6 +164,23 @@ type When struct {
 	JSON json.RawMessage `json:"json"`
 }
 
+// getDSL returns the DSL expression of the condition, or "" if w is nil.
+func (w *When) getDSL() string {
+	if w == nil {
+		return ""
+	}
+	return w.DSL
+}
+
+// getJSON returns the JSON representation of the condition, or nil if w is
+// nil.
+func (w *When) getJSON() json.RawMessage {
+	if w == nil {
+		return nil
+	}
+	return w.JSON
+}
+
 // Value specifies a value to be extracted by a probe.
 type Value struct {
 	// DSL is a Datadog Expression Language (DSL) expression that evaluates to
@@ -317,20 +334,10 @@ func (s JSONSegment) GetJSON() json.RawMessage {
 func (s JSONSegment) TemplateSegment() {}
 
 // GetWhenDSL returns the human-readable DSL string for the condition, or "" if unconditional.
-func (l *LogProbeCommon) GetWhenDSL() string {
-	if l.When == nil {
-		return ""
-	}
-	return l.When.DSL
-}
+func (l *LogProbeCommon) GetWhenDSL() string { return l.When.getDSL() }
 
 // GetWhen returns the JSON condition expression for the probe, or nil if unconditional.
-func (l *LogProbeCommon) GetWhen() json.RawMessage {
-	if l.When == nil {
-		return nil
-	}
-	return l.When.JSON
-}
+func (l *LogProbeCommon) GetWhen() json.RawMessage { return l.When.getJSON() }
 
 // GetCaptureConfig returns the capture configuration of the probe.
 func (l *LogProbeCommon) GetCaptureConfig() ir.CaptureConfig {
