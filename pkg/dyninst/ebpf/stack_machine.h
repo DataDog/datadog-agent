@@ -3200,7 +3200,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint8_t regnum = sm_read_program_uint8(sm);
     uint8_t byte_size = sm_read_program_uint8(sm);
     buf_offset_t output_offset = sm->offset + sm_read_program_uint32(sm);
-    struct pt_regs* regs = ctx->regs;
+    bpf_user_pt_regs_t* regs = ctx->regs;
     if (!regs) {
       LOG(2, "enqueue: missing regs");
       // Zero the data and move along. In the future when we track availability
@@ -3697,7 +3697,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       dict_ptr = sm->saved_dict_ptr;
     } else {
       // Entry probe: read from the register value saved in PT_REGS.
-      struct pt_regs* regs = ctx->regs;
+      bpf_user_pt_regs_t* regs = ctx->regs;
       if (regs) {
         switch (dict_register) {
         case 0: dict_ptr = regs->DWARF_REGISTER(0); break;
@@ -5000,7 +5000,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // verifier accepts sm_loop -> sm_run -> probe_run's worst-case
     // call chain. The helper takes gp by value (rather than the full
     // pt_regs*) so its signature uses verifier-friendly scalar types.
-    struct pt_regs* regs = ctx->regs;
+    bpf_user_pt_regs_t* regs = ctx->regs;
     uint64_t gp = regs ? regs->DWARF_REGISTER(0) : 0;
     if (!sm_panic_unwind_prepare(gp, buf)) {
       sm->condition_failed = true;

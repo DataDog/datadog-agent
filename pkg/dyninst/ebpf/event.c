@@ -200,7 +200,13 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   __maybe_unused int process_steps = 0;
   __maybe_unused int chase_steps = 0;
   uint64_t stack_hash = 0;
-  global_ctx.stack_walk->regs = *regs;
+  // Copy only the user-visible registers. The verifier limits context reads
+  // to the running kernel's struct pt_regs, which can be smaller than the one
+  // in our headers: Linux 6.18 dropped lockdep_hardirqs and exit_rcu from the
+  // arm64 struct, so copying the whole struct gets the program rejected.
+  // bpf_user_pt_regs_t is struct user_pt_regs on arm64, which struct pt_regs
+  // starts with, and struct pt_regs itself on x86.
+  global_ctx.stack_walk->regs = *(const bpf_user_pt_regs_t*)regs;
   global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG + params->top_pc_offset;
   LOG(5, "wrote event pairing expectation %d %lld %d %d %llx",
       header->event_pairing_expectation, header->goid, header->stack_byte_depth,
