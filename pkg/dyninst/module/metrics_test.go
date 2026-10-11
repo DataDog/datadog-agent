@@ -8,6 +8,7 @@
 package module
 
 import (
+	"encoding/json"
 	"math"
 	"reflect"
 	"sync"
@@ -114,7 +115,7 @@ func TestMetricsReporter(t *testing.T) {
 	}
 	r.register(1, program, readStates, procRuntimeID{
 		service: "checkout", environment: "prod", version: "1.2.3",
-	})
+	}, nil /* newErrorUploader */)
 
 	// Nothing has been hit yet.
 	r.reportAll()
@@ -193,7 +194,7 @@ func TestMetricsReporterEmittingBeforeLastReport(t *testing.T) {
 	}}
 	r.register(1, program, func() []loader.MetricState {
 		return []loader.MetricState{{Sum: 1, Updates: 1}}
-	}, procRuntimeID{})
+	}, procRuntimeID{}, nil /* newErrorUploader */)
 
 	// A periodic report finds the probe hit and notifies it as emitting.
 	go r.reportAll()
@@ -231,7 +232,7 @@ func TestMetricsReporterPodTag(t *testing.T) {
 	var state loader.MetricState
 	r.register(1, program, func() []loader.MetricState {
 		return []loader.MetricState{state}
-	}, procRuntimeID{containerInfo: &process.ContainerInfo{ContainerID: "abc123"}})
+	}, procRuntimeID{containerInfo: &process.ContainerInfo{ContainerID: "abc123"}}, nil /* newErrorUploader */)
 
 	state = loader.MetricState{Sum: 1, Updates: 1}
 	r.reportAll()
@@ -247,6 +248,91 @@ func TestMetricsReporterPodTag(t *testing.T) {
 	state = loader.MetricState{Sum: 3, Updates: 3}
 	r.reportAll()
 	require.Equal(t, []string{"debugger.probeid:calls", "dd.internal.entity_id:pod-uid"}, client.take()[0].tags)
+}
+
+type fakeLogsUploader struct {
+	events [][]byte
+	closed bool
+}
+
+func (u *fakeLogsUploader) Enqueue(data json.RawMessage) { u.events = append(u.events, data) }
+func (u *fakeLogsUploader) Close()                       { u.closed = true }
+
+func TestMetricsReporterEvalErrors(t *testing.T) {
+	client := &fakeMetricsClient{}
+	r := newMetricsReporter(client, time.Hour, nil /* onEmitting */, nil /* lookupContainer */)
+	defer r.close()
+	now := time.Unix(1000, 0)
+	r.now = func() time.Time { return now }
+
+	probe := metricProbe("calls", "COUNT", "calls", nil, reflect.Int32)
+	probe.ProbeDefinition.(*rcjson.MetricProbe).Value = &rcjson.Value{DSL: "x.I32"}
+	probe.ProbeDefinition.(*rcjson.MetricProbe).Where = &rcjson.Where{MethodName: "main.f"}
+	program := &ir.Program{Probes: []*ir.Probe{probe}}
+	var state loader.MetricState
+	uploader := &fakeLogsUploader{}
+	r.register(1, program, func() []loader.MetricState {
+		return []loader.MetricState{state}
+	}, procRuntimeID{service: "svc"}, func() LogsUploader { return uploader })
+
+	type event struct {
+		Service  string `json:"service"`
+		Message  string `json:"message"`
+		Debugger struct {
+			Snapshot struct {
+				Probe struct {
+					ID       string `json:"id"`
+					Location struct {
+						Method string `json:"method"`
+					} `json:"location"`
+				} `json:"probe"`
+				EvaluationErrors []struct {
+					Expr    string `json:"expr"`
+					Message string `json:"message"`
+				} `json:"evaluationErrors"`
+			} `json:"snapshot"`
+		} `json:"debugger"`
+	}
+	lastEvent := func() event {
+		require.NotEmpty(t, uploader.events)
+		var e event
+		require.NoError(t, json.Unmarshal(uploader.events[len(uploader.events)-1], &e))
+		return e
+	}
+
+	// The first errors are reported right away.
+	state = loader.MetricState{EvalErrors: 2, LastError: loader.MetricErrorValueNilDeref}
+	r.reportAll()
+	require.Len(t, uploader.events, 1)
+	e := lastEvent()
+	require.Equal(t, "svc", e.Service)
+	require.Equal(t, "Evaluation errors for probe id calls: 2 hits were skipped", e.Message)
+	require.Equal(t, "calls", e.Debugger.Snapshot.Probe.ID)
+	require.Equal(t, "main.f", e.Debugger.Snapshot.Probe.Location.Method)
+	require.Len(t, e.Debugger.Snapshot.EvaluationErrors, 1)
+	require.Equal(t, "x.I32", e.Debugger.Snapshot.EvaluationErrors[0].Expr)
+	require.Equal(t, "nil pointer dereference", e.Debugger.Snapshot.EvaluationErrors[0].Message)
+	// Errors don't count as hits.
+	require.Empty(t, client.take())
+
+	// Later errors wait until the interval has passed, and are reported
+	// together.
+	state = loader.MetricState{EvalErrors: 5, LastError: loader.MetricErrorValueNilDeref}
+	now = now.Add(time.Minute)
+	r.reportAll()
+	require.Len(t, uploader.events, 1)
+	state = loader.MetricState{EvalErrors: 6, LastError: loader.MetricErrorCondition}
+	now = now.Add(metricErrorEventInterval)
+	r.reportAll()
+	require.Len(t, uploader.events, 2)
+	e = lastEvent()
+	require.Equal(t, "Evaluation errors for probe id calls: 4 hits were skipped", e.Message)
+	require.Equal(t, "@when", e.Debugger.Snapshot.EvaluationErrors[0].Expr)
+	require.Equal(t, "error evaluating condition", e.Debugger.Snapshot.EvaluationErrors[0].Message)
+
+	// Unregistering closes the uploader.
+	r.unregister(1)
+	require.True(t, uploader.closed)
 }
 
 func TestGaugeValueDecoder(t *testing.T) {

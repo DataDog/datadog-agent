@@ -8,6 +8,7 @@
 package module
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,6 +50,8 @@ type metricsReporter struct {
 	// to. It returns ok=false if the container is unknown, and an empty UID
 	// if the container is known but not part of a pod. It may be nil.
 	lookupContainer func(containerID string) (podUID string, ok bool)
+	// now returns the current time. Overridden by tests.
+	now func() time.Time
 
 	mu       sync.Mutex
 	programs map[ir.ProgramID]*metricsProgram
@@ -69,6 +73,11 @@ type metricsProgram struct {
 	// containerResolved is set once the container has been found in
 	// workloadmeta and the probes' tags have been completed accordingly.
 	containerResolved bool
+	// errorEvents uploads the evaluation-error events of the program's
+	// probes. It may be nil.
+	errorEvents LogsUploader
+	service     string
+	processTags string
 }
 
 type reportedMetricProbe struct {
@@ -81,7 +90,23 @@ type reportedMetricProbe struct {
 	// the BPF program, to the reported value.
 	gaugeValue func(bits uint64) float64
 	emitting   bool
+
+	// The DSL of the probe's value and condition, for evaluation errors.
+	valueDSL string
+	whenDSL  string
+	// pendingErrors is the number of hits skipped because of evaluation
+	// errors that haven't been reported in an evaluation-error event yet.
+	pendingErrors uint64
+	// lastError is the most recent evaluation error.
+	lastError loader.MetricError
+	// lastErrorEvent is when the probe's last evaluation-error event was
+	// sent.
+	lastErrorEvent time.Time
 }
+
+// metricErrorEventInterval is the minimum interval between two
+// evaluation-error events of a metric probe.
+const metricErrorEventInterval = 5 * time.Minute
 
 var metricsReportErrorLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
 
@@ -97,6 +122,7 @@ func newMetricsReporter(
 		client:          client,
 		onEmitting:      onEmitting,
 		lookupContainer: lookupContainer,
+		now:             time.Now,
 		programs:        make(map[ir.ProgramID]*metricsProgram),
 		stop:            make(chan struct{}),
 		done:            make(chan struct{}),
@@ -128,12 +154,16 @@ func (r *metricsReporter) close() {
 
 // register starts reporting the metric probes of a program. It does nothing if
 // the program has no metric probes. readStates reads the program's metric
-// probe state; it is called until unregister returns.
+// probe state; it is called until unregister returns. newErrorUploader returns
+// the uploader for the probes' evaluation-error events; it is only called if
+// the program has metric probes, and the uploader is closed by unregister. It
+// may be nil.
 func (r *metricsReporter) register(
 	programID ir.ProgramID,
 	program *ir.Program,
 	readStates func() []loader.MetricState,
 	runtimeID procRuntimeID,
+	newErrorUploader func() LogsUploader,
 ) {
 	var probes []*reportedMetricProbe
 	for probeID, probe := range program.Probes {
@@ -141,6 +171,7 @@ func (r *metricsReporter) register(
 		if !ok || probe.GetKind() != ir.ProbeKindMetric {
 			continue
 		}
+		valueDSL, _ := mp.GetValue()
 		probes = append(probes, &reportedMetricProbe{
 			probeID:    uint32(probeID),
 			def:        probe.ProbeDefinition,
@@ -148,14 +179,24 @@ func (r *metricsReporter) register(
 			name:       metricProbeNamePrefix + sanitizeMetricName(mp.GetMetricName()),
 			tags:       metricProbeTags(probe.ProbeDefinition, runtimeID),
 			gaugeValue: gaugeValueDecoder(probe),
+			valueDSL:   valueDSL,
+			whenDSL:    mp.GetWhenDSL(),
 		})
 	}
 	if len(probes) == 0 {
 		return
 	}
-	p := &metricsProgram{readStates: readStates, probes: probes}
+	p := &metricsProgram{
+		readStates:  readStates,
+		probes:      probes,
+		service:     runtimeID.service,
+		processTags: strings.Join(runtimeID.processTags, ","),
+	}
 	if ci := runtimeID.containerInfo; ci != nil {
 		p.containerID = ci.ContainerID
+	}
+	if newErrorUploader != nil {
+		p.errorEvents = newErrorUploader()
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -173,13 +214,21 @@ func (r *metricsReporter) report(programID ir.ProgramID) {
 	}
 }
 
-// unregister stops reporting the metric probes of a program. It must be called
-// before the program's BPF maps are closed. Hits since the previous report
-// aren't reported; call report first.
+// unregister stops reporting the metric probes of a program and closes their
+// evaluation-error uploader. It must be called before the program's BPF maps
+// are closed. Hits since the previous report aren't reported; call report
+// first.
 func (r *metricsReporter) unregister(programID ir.ProgramID) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	p, ok := r.programs[programID]
+	if !ok {
+		return
+	}
 	delete(r.programs, programID)
+	if p.errorEvents != nil {
+		p.errorEvents.Close()
+	}
 }
 
 func (r *metricsReporter) reportAll() {
@@ -205,6 +254,7 @@ func (r *metricsReporter) reportLocked(p *metricsProgram) (newlyEmitting []*repo
 		}
 		cur, prev := states[probe.probeID], p.last[probe.probeID]
 		p.last[probe.probeID] = cur
+		r.reportEvalErrorsLocked(p, probe, cur, prev)
 		// The BPF program updates the sum or value and the update count
 		// separately, so a read can see one change without the other. A probe
 		// is reported when either changed, so that a change of its sum is
@@ -235,6 +285,65 @@ func (r *metricsReporter) reportLocked(p *metricsProgram) (newlyEmitting []*repo
 		}
 	}
 	return newlyEmitting
+}
+
+// reportEvalErrorsLocked sends an evaluation-error event for a probe whose
+// hits were skipped because its condition or value couldn't be evaluated. To
+// avoid flooding the logs of probes that fail on every hit, it sends at most
+// one event per metricErrorEventInterval; the event counts all the hits
+// skipped since the previous one.
+func (r *metricsReporter) reportEvalErrorsLocked(
+	p *metricsProgram, probe *reportedMetricProbe, cur, prev loader.MetricState,
+) {
+	if cur.EvalErrors > prev.EvalErrors {
+		probe.pendingErrors += cur.EvalErrors - prev.EvalErrors
+		probe.lastError = cur.LastError
+	}
+	if probe.pendingErrors == 0 || p.errorEvents == nil {
+		return
+	}
+	now := r.now()
+	if !probe.lastErrorEvent.IsZero() && now.Sub(probe.lastErrorEvent) < metricErrorEventInterval {
+		return
+	}
+	event, err := decode.EncodeEvaluationErrors(
+		probe.def, p.service, p.processTags, now,
+		fmt.Sprintf(
+			"Evaluation errors for probe id %s: %d hits were skipped",
+			probe.def.GetID(), probe.pendingErrors,
+		),
+		[]decode.EvaluationError{metricEvaluationError(probe)},
+	)
+	if err != nil {
+		if metricsReportErrorLogLimiter.Allow() {
+			log.Warnf("failed to encode evaluation errors of probe %s: %v", probe.def.GetID(), err)
+		}
+		return
+	}
+	p.errorEvents.Enqueue(event)
+	probe.pendingErrors = 0
+	probe.lastErrorEvent = now
+}
+
+// metricEvaluationError describes the most recent evaluation error of a metric
+// probe. The messages match the ones the decoder uses for snapshots.
+func metricEvaluationError(probe *reportedMetricProbe) decode.EvaluationError {
+	whenDSL := probe.whenDSL
+	if whenDSL == "" {
+		whenDSL = "@when"
+	}
+	switch probe.lastError {
+	case loader.MetricErrorCondition:
+		return decode.EvaluationError{Expression: whenDSL, Message: "error evaluating condition"}
+	case loader.MetricErrorConditionNilDeref:
+		return decode.EvaluationError{Expression: whenDSL, Message: "nil pointer dereference"}
+	case loader.MetricErrorValueNilDeref:
+		return decode.EvaluationError{Expression: probe.valueDSL, Message: "nil pointer dereference"}
+	case loader.MetricErrorValueOutOfBounds:
+		return decode.EvaluationError{Expression: probe.valueDSL, Message: "index out of bounds"}
+	default:
+		return decode.EvaluationError{Expression: probe.valueDSL, Message: "value is not available"}
+	}
 }
 
 // resolveContainerLocked adds the pod of the target's container to the tags

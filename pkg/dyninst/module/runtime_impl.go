@@ -240,7 +240,12 @@ func (rt *runtimeImpl) Load(
 	}
 	rt.dispatcher.RegisterSink(programID, s)
 	if rt.metrics != nil {
-		rt.metrics.register(programID, irProgram, loadedProgram.MetricStates, runtimeID)
+		rt.metrics.register(
+			programID, irProgram, loadedProgram.MetricStates, runtimeID,
+			func() LogsUploader {
+				return rt.logsFactory.GetUploader(logsUploaderMetadata(runtimeID))
+			},
+		)
 	}
 
 	return &loadedProgramImpl{
