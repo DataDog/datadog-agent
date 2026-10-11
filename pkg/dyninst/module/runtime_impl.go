@@ -180,6 +180,10 @@ func (rt *runtimeImpl) Load(
 		irgenOpts = append(irgenOpts, irgen.WithSkipRuntimeRecoveryProbe(true))
 	}
 	irgenOpts = append(irgenOpts, irgen.WithRedaction(redactionConfigForPID(processID.PID)))
+	// Metric probes are only supported when their values can be reported.
+	if rt.metrics != nil {
+		irgenOpts = append(irgenOpts, irgen.WithMetricProbes(true))
+	}
 	irProgram, err := rt.irGenerator.GenerateIR(programID, executable.Path, probes, irgenOpts...)
 	if err != nil {
 		return nil, &irGenFailedError{err: err}
