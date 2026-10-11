@@ -204,18 +204,6 @@ func (rt *runtimeImpl) Load(
 		return nil, fmt.Errorf("failed to create decoder: %w", err)
 	}
 
-	var tags string
-	if gi := runtimeID.gitInfo; gi != nil {
-		tags = fmt.Sprintf(
-			"git.commit.sha:%s,git.repository_url:%s",
-			gi.CommitSha, gi.RepositoryURL,
-		)
-	}
-	var containerID, entityID string
-	if ci := runtimeID.containerInfo; ci != nil {
-		containerID = ci.ContainerID
-		entityID = ci.EntityID
-	}
 	for i := range irProgram.Issues {
 		issue := &irProgram.Issues[i]
 		issueErr := (*irIssueError)(&issue.Issue)
@@ -242,13 +230,9 @@ func (rt *runtimeImpl) Load(
 		processID:    processID,
 		service:      runtimeID.service,
 		processTags:  strings.Join(runtimeID.processTags, ","),
-		logUploader: rt.logsFactory.GetUploader(uploader.LogsUploaderMetadata{
-			Tags:        tags,
-			EntityID:    entityID,
-			ContainerID: containerID,
-		}),
-		buffer: eventbuf.NewBuffer(rt.eventbufBudget),
-		probes: irProgram.Probes,
+		logUploader:  rt.logsFactory.GetUploader(logsUploaderMetadata(runtimeID)),
+		buffer:       eventbuf.NewBuffer(rt.eventbufBudget),
+		probes:       irProgram.Probes,
 	}
 	var s dispatcher.Sink = realSink
 	if k := rt.testingKnobs; k != nil && k.sinkOverride != nil {
@@ -267,6 +251,28 @@ func (rt *runtimeImpl) Load(
 		executable:    executable,
 		loadedProgram: loadedProgram,
 	}, nil
+}
+
+// logsUploaderMetadata returns the metadata of the uploader that sends the logs
+// and snapshots of a process's probes.
+func logsUploaderMetadata(runtimeID procRuntimeID) uploader.LogsUploaderMetadata {
+	var tags string
+	if gi := runtimeID.gitInfo; gi != nil {
+		tags = fmt.Sprintf(
+			"git.commit.sha:%s,git.repository_url:%s",
+			gi.CommitSha, gi.RepositoryURL,
+		)
+	}
+	var containerID, entityID string
+	if ci := runtimeID.containerInfo; ci != nil {
+		containerID = ci.ContainerID
+		entityID = ci.EntityID
+	}
+	return uploader.LogsUploaderMetadata{
+		Tags:        tags,
+		EntityID:    entityID,
+		ContainerID: containerID,
+	}
 }
 
 type loadedProgramImpl struct {
