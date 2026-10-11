@@ -28,6 +28,7 @@ type typeInfo C.type_info_t
 type probeParams C.probe_params_t
 type throttlerParams C.throttler_params_t
 type stats C.stats_t
+type metricState C.metric_state_t
 
 func opcodeByte(opcode compiler.Opcode) uint8 {
 	switch opcode {
@@ -167,6 +168,10 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_EMIT_FILTER_MAP_ELEMENT
 	case compiler.OpcodeFilterMapAdvance:
 		return C.SM_OP_FILTER_MAP_ADVANCE
+	case compiler.OpcodeMetricCondErrorCheck:
+		return C.SM_OP_METRIC_COND_ERROR_CHECK
+	case compiler.OpcodeMetricUpdate:
+		return C.SM_OP_METRIC_UPDATE
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}
