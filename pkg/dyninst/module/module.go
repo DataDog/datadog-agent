@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -402,11 +403,12 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 			update := &updates[i]
 			runtimeID := m.store.ensureExists(update)
 			m.diagnostics.retain(runtimeID, configuredProbes(update))
+			probes := m.validProbes(runtimeID, update)
 			actuatorUpdates = append(actuatorUpdates, actuator.ProcessUpdate{
 				Info:   update.Info,
-				Probes: update.Probes,
+				Probes: probes,
 			})
-			for _, probe := range update.Probes {
+			for _, probe := range probes {
 				m.diagnostics.reportReceived(runtimeID, probe)
 			}
 			if update.ShouldUploadSymDB {
@@ -429,11 +431,59 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 	}
 }
 
-// configuredProbes returns all the probes configured for the process.
+// configuredProbes returns all the probes configured for the process, whether
+// or not they can be instrumented.
 func configuredProbes(update *process.Config) []ir.ProbeIDer {
-	probes := make([]ir.ProbeIDer, 0, len(update.Probes))
+	probes := make([]ir.ProbeIDer, 0, len(update.Probes)+len(update.InvalidProbes))
 	for _, probe := range update.Probes {
 		probes = append(probes, probe)
 	}
+	for _, probe := range update.InvalidProbes {
+		probes = append(probes, probe)
+	}
 	return probes
+}
+
+// validProbes reports an error for each probe configured for the process whose
+// definition is invalid, and returns the probes that remain.
+func (m *Module) validProbes(
+	runtimeID procRuntimeID, update *process.Config,
+) []ir.ProbeDefinition {
+	for _, invalid := range update.InvalidProbes {
+		m.reportInvalidProbe(runtimeID, invalid, invalid.Issue)
+	}
+	valid := make([]ir.ProbeDefinition, 0, len(update.Probes))
+	for _, probe := range update.Probes {
+		if err := validateProbe(probe); err != nil {
+			m.reportInvalidProbe(runtimeID, probe, ir.Issue{
+				Kind:    ir.IssueKindInvalidProbeDefinition,
+				Message: err.Error(),
+			})
+			continue
+		}
+		valid = append(valid, probe)
+	}
+	return valid
+}
+
+func (m *Module) reportInvalidProbe(
+	runtimeID procRuntimeID, probe ir.ProbeIDer, issue ir.Issue,
+) {
+	if m.diagnostics.reportError(
+		runtimeID, probe, (*irIssueError)(&issue), issue.Kind.String(),
+	) {
+		log.Debugf(
+			"reported issue %v for probe %v %v: %v",
+			issue.Kind, probe.GetID(), probe.GetVersion(), issue.Message,
+		)
+	}
+}
+
+// validateProbe checks that a probe's definition is one that can be
+// instrumented. Only probes defined in the Remote Config format are checked.
+func validateProbe(probe ir.ProbeDefinition) error {
+	if p, ok := probe.(rcjson.Probe); ok {
+		return rcjson.Validate(p)
+	}
+	return nil
 }
