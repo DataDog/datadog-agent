@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"iter"
 	"math"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
@@ -212,17 +213,69 @@ type Sampling struct {
 // MetricProbe is a probe that emits a metric.
 type MetricProbe struct {
 	ProbeCommon
-	// Kind is the kind of metric to emit (e.g. "count", "gauge", "histogram").
+	// When specifies a condition for the probe to be triggered.
+	When *When `json:"when,omitempty"`
+	// Kind is the kind of metric to emit (e.g. "COUNT", "GAUGE"). It is matched
+	// case-insensitively.
 	Kind string `json:"kind"`
 	// MetricName is the name of the metric to emit.
 	MetricName string `json:"metricName"`
-	// Value is the value of the metric to emit.
+	// Value is the value of the metric to emit. Count probes without a value
+	// count their hits.
 	Value *Value `json:"value,omitempty"`
 }
 
+var _ ir.MetricProbeDefinition = (*MetricProbe)(nil)
+
 func (m *MetricProbe) validate() error {
-	return validateWhere(m.Where)
+	if err := validateWhere(m.Where); err != nil {
+		return err
+	}
+	if m.MetricName == "" {
+		return errors.New("metricName must be set")
+	}
+	if m.GetMetricKind() == 0 {
+		return fmt.Errorf("unknown metric kind %q", m.Kind)
+	}
+	return nil
 }
+
+// GetMetricKind returns the kind of metric the probe emits, or 0 if the kind
+// is unknown.
+func (m *MetricProbe) GetMetricKind() ir.MetricKind {
+	switch strings.ToUpper(m.Kind) {
+	case "COUNT":
+		return ir.MetricKindCount
+	case "GAUGE":
+		return ir.MetricKindGauge
+	case "HISTOGRAM":
+		return ir.MetricKindHistogram
+	case "DISTRIBUTION":
+		return ir.MetricKindDistribution
+	default:
+		return 0
+	}
+}
+
+// GetMetricName returns the name of the metric the probe emits.
+func (m *MetricProbe) GetMetricName() string { return m.MetricName }
+
+// GetValue returns the value expression of the probe. The JSON is empty if the
+// probe has no value expression.
+func (m *MetricProbe) GetValue() (string, json.RawMessage) {
+	if m.Value == nil {
+		return "", nil
+	}
+	return m.Value.DSL, m.Value.JSON
+}
+
+// GetWhen returns the JSON condition expression for the probe, or nil if
+// unconditional.
+func (m *MetricProbe) GetWhen() json.RawMessage { return m.When.getJSON() }
+
+// GetWhenDSL returns the human-readable DSL string for the condition, or "" if
+// unconditional.
+func (m *MetricProbe) GetWhenDSL() string { return m.When.getDSL() }
 
 // GetCaptureConfig returns the capture configuration of the probe.
 func (m *MetricProbe) GetCaptureConfig() ir.CaptureConfig {

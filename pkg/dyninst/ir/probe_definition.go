@@ -54,6 +54,22 @@ type ProbeDefinition interface {
 	GetWhenDSL() string
 }
 
+// MetricProbeDefinition is implemented by the definitions of probes of kind
+// ProbeKindMetric.
+type MetricProbeDefinition interface {
+	ProbeDefinition
+	// GetMetricKind returns the kind of metric that the probe emits, or 0 if
+	// the definition names an unknown kind.
+	GetMetricKind() MetricKind
+	// GetMetricName returns the name of the metric, without the prefix
+	// common to all metric probe metrics.
+	GetMetricName() string
+	// GetValue returns the DSL and the JSON AST of the expression whose value
+	// the probe reports. The JSON is empty if the probe has no value
+	// expression.
+	GetValue() (dsl string, json json.RawMessage)
+}
+
 // CaptureExpressionDefinition defines a single capture expression on a probe.
 type CaptureExpressionDefinition interface {
 	GetName() string
