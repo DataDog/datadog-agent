@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
@@ -400,11 +401,11 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 		for i := range updates {
 			update := &updates[i]
 			runtimeID := m.store.ensureExists(update)
+			m.diagnostics.retain(runtimeID, configuredProbes(update))
 			actuatorUpdates = append(actuatorUpdates, actuator.ProcessUpdate{
 				Info:   update.Info,
 				Probes: update.Probes,
 			})
-			m.diagnostics.retain(runtimeID, update.Probes)
 			for _, probe := range update.Probes {
 				m.diagnostics.reportReceived(runtimeID, probe)
 			}
@@ -426,4 +427,13 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
 		}
 	}
+}
+
+// configuredProbes returns all the probes configured for the process.
+func configuredProbes(update *process.Config) []ir.ProbeIDer {
+	probes := make([]ir.ProbeIDer, 0, len(update.Probes))
+	for _, probe := range update.Probes {
+		probes = append(probes, probe)
+	}
+	return probes
 }
