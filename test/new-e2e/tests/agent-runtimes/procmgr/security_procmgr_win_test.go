@@ -27,8 +27,8 @@ const (
 	securityLegacySCMServiceName  = "datadog-security-agent"
 	securityProcmgrConfigFileName = "datadog-agent-security.yaml"
 
-	// Gate is system-probe.yaml (cws Servicedef / processes.d), not security-agent.yaml.
-	securitySystemProbeConfig         = "log_level: debug\nruntime_security_config:\n  enabled: true\n"
+	// procmgr gate reads system-probe.yaml; the binary reads security-agent.yaml for CWS.
+	securityRuntimeSecurityConfig     = "log_level: debug\nruntime_security_config:\n  enabled: true\n"
 	securityDisabledSystemProbeConfig = "log_level: debug\nruntime_security_config:\n  enabled: false\n"
 )
 
@@ -47,7 +47,8 @@ func TestSecurityAgentManagedByProcmgrWindows(t *testing.T) {
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
 				ec2.WithAgentOptions(
-					agentparams.WithSystemProbeConfig(securitySystemProbeConfig),
+					agentparams.WithSystemProbeConfig(securityRuntimeSecurityConfig),
+					agentparams.WithSecurityAgentConfig(securityRuntimeSecurityConfig),
 				),
 			),
 		),
