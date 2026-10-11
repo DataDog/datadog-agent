@@ -337,6 +337,26 @@ func populateStackPCsIfMissing(
 	}
 }
 
+// probeLocation returns the location of a probe, as reported in snapshots.
+func probeLocation(probe ir.ProbeDefinition) (locationData, error) {
+	switch where := probe.GetWhere().(type) {
+	case ir.FunctionWhere:
+		return locationData{Method: where.Location()}, nil
+	case ir.LineWhere:
+		function, file, lineStr := where.Line()
+		line, err := strconv.Atoi(lineStr)
+		if err != nil {
+			return locationData{}, fmt.Errorf("invalid line number: %v", lineStr)
+		}
+		return locationData{Method: function, File: file, Line: line}, nil
+	default:
+		return locationData{}, fmt.Errorf(
+			"probe %s is not on a supported location: %T",
+			probe.GetID(), where,
+		)
+	}
+}
+
 func (s *message) init(
 	decoder *Decoder,
 	event Event,
@@ -548,26 +568,12 @@ func (s *message) init(
 		s.Debugger.Snapshot.Captures = &s.Debugger.Snapshot.captures
 	}
 
-	switch where := probe.GetWhere().(type) {
-	case ir.FunctionWhere:
-		s.Debugger.Snapshot.Probe.Location.Method = where.Location()
-		s.Logger.Method = where.Location()
-	case ir.LineWhere:
-		function, file, lineStr := where.Line()
-		line, err := strconv.Atoi(lineStr)
-		if err != nil {
-			return probe, fmt.Errorf("invalid line number: %v", lineStr)
-		}
-		s.Debugger.Snapshot.Probe.Location.Method = function
-		s.Debugger.Snapshot.Probe.Location.File = file
-		s.Debugger.Snapshot.Probe.Location.Line = line
-		s.Logger.Method = function
-	default:
-		return probe, fmt.Errorf(
-			"probe %s is not on a supported location: %T",
-			probe.GetID(), where,
-		)
+	location, err := probeLocation(probe)
+	if err != nil {
+		return probe, err
 	}
+	s.Debugger.Snapshot.Probe.Location = location
+	s.Logger.Method = location.Method
 
 	s.Logger.Version = probe.GetVersion()
 	s.Logger.ThreadID = int(header.Goid)
