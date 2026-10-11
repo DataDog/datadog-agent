@@ -17,6 +17,8 @@ go_library(
         "issue.go",
         "issuekind_string.go",
         "location.go",
+        "metric_kind.go",
+        "metric_kind_string.go",
         "probe_definition.go",
         "probe_kind.go",
         "probe_kind_string.go",
@@ -45,6 +47,14 @@ go_stringer(
     output = "issuekind_string.go",
     trimprefix = "IssueKind",
     types = ["IssueKind"],
+)
+
+go_stringer(
+    name = "metric_kind_string",
+    src = "metric_kind.go",
+    output = "metric_kind_string.go",
+    trimprefix = "MetricKind",
+    types = ["MetricKind"],
 )
 
 go_stringer(
