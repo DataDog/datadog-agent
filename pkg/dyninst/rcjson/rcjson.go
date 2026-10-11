@@ -345,16 +345,9 @@ type LogProbe struct {
 }
 
 func (l *LogProbe) validate() error {
-	if err := validateWhere(l.Where); err != nil {
-		return err
-	}
-	if l.Template == "" {
-		return errors.New("template must be set")
-	}
-	if len(l.Segments) == 0 {
-		return errors.New("segments must be set")
-	}
-	return nil
+	// A probe without a template is valid, and logs an empty message, as in
+	// other tracers.
+	return validateWhere(l.Where)
 }
 
 // GetThrottleConfig returns the throttle configuration of the probe.
@@ -637,9 +630,9 @@ func validateWhere(where *Where) error {
 	if where == nil {
 		return errors.New("where is required")
 	}
-	if where.Signature != "" {
-		return errors.New("signature is not supported")
-	}
+	// The signature is ignored rather than rejected: Go has no overloading, so
+	// the method name alone identifies the function, and the UI sets a
+	// signature on Go method probes anyway.
 	if where.MethodName == "" {
 		return errors.New("methodName must be set for probes")
 	}
