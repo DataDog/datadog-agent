@@ -63,6 +63,9 @@ type runtimeImpl struct {
 	// crashes while loading programs. If empty, tombstone files are not
 	// created.
 	tombstoneFilePath string
+	// metrics reports the values of metric probes. nil if there is no client
+	// to report them to.
+	metrics *metricsReporter
 
 	stats runtimeStats
 }
@@ -252,6 +255,9 @@ func (rt *runtimeImpl) Load(
 		s = k.sinkOverride(realSink, realSink.buffer, rt.eventbufBudget)
 	}
 	rt.dispatcher.RegisterSink(programID, s)
+	if rt.metrics != nil {
+		rt.metrics.register(programID, irProgram, loadedProgram.MetricStates, runtimeID)
+	}
 
 	return &loadedProgramImpl{
 		runtime:       rt,
@@ -319,6 +325,11 @@ func (l *loadedProgramImpl) EvictBufferOlderThan(cutoffKtimeNs uint64) {
 }
 
 func (l *loadedProgramImpl) Close() error {
+	// Stop reading the metric probes before their BPF map is closed. Detach
+	// reported them one last time.
+	if l.runtime.metrics != nil {
+		l.runtime.metrics.unregister(l.programID)
+	}
 	l.loadedProgram.Close()
 	// Detach before unregistering: UnregisterSink drains the sink, which
 	// emits buffered events and would otherwise re-report diagnostics for a
@@ -344,6 +355,13 @@ var detachLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
 
 func (a *attachedProgramImpl) Detach(failure error) error {
 	err := a.inner.Detach(failure)
+	// Now that the probes can't be hit anymore, report the metric probes one
+	// last time. This has to happen before the program is unlinked from its
+	// process, which would keep the probes from being marked as emitting, and
+	// before any error is reported for them.
+	if a.runtime.metrics != nil {
+		a.runtime.metrics.report(a.programID)
+	}
 	if failure != nil {
 		if detachLogLimiter.Allow() {
 			log.Warnf("detaching program %v from process %v due to error: %v", a.programID, a.runtimeID.ID, failure)
