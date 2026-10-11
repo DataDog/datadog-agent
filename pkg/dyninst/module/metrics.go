@@ -44,6 +44,10 @@ type metricsReporter struct {
 	// onEmitting is called the first time a probe's metric is reported, with
 	// mu held.
 	onEmitting func(ir.ProgramID, ir.ProbeDefinition)
+	// lookupContainer looks up the Kubernetes pod that a container belongs
+	// to. It returns ok=false if the container is unknown, and an empty UID
+	// if the container is known but not part of a pod. It may be nil.
+	lookupContainer func(containerID string) (podUID string, ok bool)
 
 	mu       sync.Mutex
 	programs map[ir.ProgramID]*metricsProgram
@@ -60,6 +64,11 @@ type metricsProgram struct {
 	probes     []*reportedMetricProbe
 	// last is the state read by the previous report, indexed by probe ID.
 	last []loader.MetricState
+	// containerID is the ID of the target process's container, if any.
+	containerID string
+	// containerResolved is set once the container has been found in
+	// workloadmeta and the probes' tags have been completed accordingly.
+	containerResolved bool
 }
 
 type reportedMetricProbe struct {
@@ -82,13 +91,15 @@ func newMetricsReporter(
 	client metricsClient,
 	interval time.Duration,
 	onEmitting func(ir.ProgramID, ir.ProbeDefinition),
+	lookupContainer func(containerID string) (podUID string, ok bool),
 ) *metricsReporter {
 	r := &metricsReporter{
-		client:     client,
-		onEmitting: onEmitting,
-		programs:   make(map[ir.ProgramID]*metricsProgram),
-		stop:       make(chan struct{}),
-		done:       make(chan struct{}),
+		client:          client,
+		onEmitting:      onEmitting,
+		lookupContainer: lookupContainer,
+		programs:        make(map[ir.ProgramID]*metricsProgram),
+		stop:            make(chan struct{}),
+		done:            make(chan struct{}),
 	}
 	go r.run(interval)
 	return r
@@ -142,9 +153,13 @@ func (r *metricsReporter) register(
 	if len(probes) == 0 {
 		return
 	}
+	p := &metricsProgram{readStates: readStates, probes: probes}
+	if ci := runtimeID.containerInfo; ci != nil {
+		p.containerID = ci.ContainerID
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.programs[programID] = &metricsProgram{readStates: readStates, probes: probes}
+	r.programs[programID] = p
 }
 
 // report reports the metric probes of a program that were hit since the
@@ -179,6 +194,7 @@ func (r *metricsReporter) reportAll() {
 // previous report. It returns the probes that were reported for the first
 // time.
 func (r *metricsReporter) reportLocked(p *metricsProgram) (newlyEmitting []*reportedMetricProbe) {
+	r.resolveContainerLocked(p)
 	states := p.readStates()
 	if len(p.last) < len(states) {
 		p.last = append(p.last, make([]loader.MetricState, len(states)-len(p.last))...)
@@ -219,6 +235,38 @@ func (r *metricsReporter) reportLocked(p *metricsProgram) (newlyEmitting []*repo
 		}
 	}
 	return newlyEmitting
+}
+
+// resolveContainerLocked adds the pod of the target's container to the tags
+// of the program's probes, once workloadmeta knows about the container. The
+// container may not be known yet when the program is loaded, so this is
+// retried on every report until it succeeds.
+//
+// TODO(andrei): this is the extent of container tagging for metric probes.
+// DogStatsD turns dd.internal.entity_id into the pod's tags, at the core
+// agent's dogstatsd_tag_cardinality. Per-container tags (kube_container_name,
+// image_name, image_tag, container_id, ...) are missing, and targets that run
+// in containers outside Kubernetes (plain Docker, ECS) get no container tags at
+// all. Doing better needs either DogStatsD to accept a container ID from
+// system-probe (today the |c: field is only honored with
+// dogstatsd_origin_detection_client), or looking up the container's tags with
+// the tagger in system-probe, which needs dogstatsd_tag_cardinality to be
+// synced from the core agent (it isn't part of config sync today).
+func (r *metricsReporter) resolveContainerLocked(p *metricsProgram) {
+	if p.containerResolved || p.containerID == "" || r.lookupContainer == nil {
+		return
+	}
+	podUID, ok := r.lookupContainer(p.containerID)
+	if !ok {
+		return
+	}
+	p.containerResolved = true
+	if podUID == "" {
+		return
+	}
+	for _, probe := range p.probes {
+		probe.tags = append(probe.tags, "dd.internal.entity_id:"+sanitizeMetricTag(podUID))
+	}
 }
 
 // notifyEmitting calls onEmitting for the probes of a program that a report
