@@ -208,7 +208,8 @@ func serializeProgram(
 				Kind:                  int8(f.EventKind),
 				Probe_id:              f.ProbeID,
 				Top_pc_offset:         int8(f.TopPCOffset),
-				X__padding:            [2]int8{},
+				Is_metric:             f.IsMetric,
+				X__padding:            [1]int8{},
 			})
 			serialized.bpfAttachPoints = append(serialized.bpfAttachPoints, BPFAttachPoint{
 				PC:     f.InjectionPC,

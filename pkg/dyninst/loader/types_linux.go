@@ -38,7 +38,8 @@ type probeParams struct {
 	Top_pc_offset         int8
 	No_return_reason      int8
 	Throttle_mode         int8
-	X__padding            [2]int8
+	Is_metric             bool
+	X__padding            [1]int8
 }
 type throttlerParams struct {
 	Ns     uint64
@@ -54,6 +55,14 @@ type stats struct {
 	Recovery_no_open_calls   uint64
 	Recovery_filtered_goexit uint64
 	Recovery_invalid_state   uint64
+}
+type metricState struct {
+	Sum         int64
+	Value       uint64
+	Updates     uint64
+	Eval_errors uint64
+	Last_error  uint8
+	X__padding  [7]uint8
 }
 
 func opcodeByte(opcode compiler.Opcode) uint8 {
@@ -194,6 +203,10 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x42
 	case compiler.OpcodeFilterMapAdvance:
 		return 0x43
+	case compiler.OpcodeMetricCondErrorCheck:
+		return 0x44
+	case compiler.OpcodeMetricUpdate:
+		return 0x45
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}
