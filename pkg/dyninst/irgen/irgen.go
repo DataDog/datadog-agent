@@ -1294,6 +1294,49 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 // probes are created (so we have Events and InjectionPoints) but before type
 // expansion. Returns one analyzedProbe per instance and exploration roots for
 // type expansion.
+// isFloatType returns true if the variable has a float32 or float64 type.
+func isFloatType(v *ir.Variable) bool {
+	k, ok := v.Type.GetGoKind()
+	return ok && (k == reflect.Float32 || k == reflect.Float64)
+}
+
+// variableIsAvailable returns true if the variable has a location at any of
+// the injection points.
+func variableIsAvailable(ips []ir.InjectionPoint, v *ir.Variable) bool {
+	locIdx := 0
+	for _, ip := range ips {
+		for locIdx < len(v.Locations) &&
+			v.Locations[locIdx].Range[1] <= ip.PC {
+			locIdx++
+		}
+		if locIdx < len(v.Locations) &&
+			ip.PC >= v.Locations[locIdx].Range[0] {
+			return true
+		}
+	}
+	return false
+}
+
+// floatIsRegisterOnly returns true if a float variable's locations
+// at the given injection points consist exclusively of register pieces.
+// Such variables cannot be read by the eBPF runtime.
+func floatIsRegisterOnly(ips []ir.InjectionPoint, v *ir.Variable) bool {
+	locIdx := 0
+	for _, ip := range ips {
+		for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
+			locIdx++
+		}
+		if locIdx < len(v.Locations) && ip.PC >= v.Locations[locIdx].Range[0] {
+			for _, piece := range v.Locations[locIdx].Pieces {
+				if _, isReg := piece.Op.(ir.Register); !isReg {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 func analyzeAllProbes(
 	probes []*ir.Probe,
 	budgets map[ir.SubprogramID]uint32,
@@ -1376,48 +1419,6 @@ func analyzeAllProbes(
 			// resolve through the normal variable-matching paths.
 			if haveReturn {
 				varByName["@duration"] = durationVar
-			}
-
-			// isFloatType returns true if the variable has a float32 or float64 type.
-			isFloatType := func(v *ir.Variable) bool {
-				k, ok := v.Type.GetGoKind()
-				return ok && (k == reflect.Float32 || k == reflect.Float64)
-			}
-
-			// Check variable availability at injection points.
-			variableIsAvailable := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
-				locIdx := 0
-				for _, ip := range ips {
-					for locIdx < len(v.Locations) &&
-						v.Locations[locIdx].Range[1] <= ip.PC {
-						locIdx++
-					}
-					if locIdx < len(v.Locations) &&
-						ip.PC >= v.Locations[locIdx].Range[0] {
-						return true
-					}
-				}
-				return false
-			}
-
-			// floatIsRegisterOnly returns true if a float variable's locations
-			// at the given injection points consist exclusively of register pieces.
-			// Such variables cannot be read by the eBPF runtime.
-			floatIsRegisterOnly := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
-				locIdx := 0
-				for _, ip := range ips {
-					for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
-						locIdx++
-					}
-					if locIdx < len(v.Locations) && ip.PC >= v.Locations[locIdx].Range[0] {
-						for _, piece := range v.Locations[locIdx].Pieces {
-							if _, isReg := piece.Op.(ir.Register); !isReg {
-								return false
-							}
-						}
-					}
-				}
-				return true
 			}
 
 			// Build segment references for matching.
