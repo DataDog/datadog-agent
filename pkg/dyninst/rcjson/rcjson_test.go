@@ -322,7 +322,7 @@ var testCases = []testCase{
 	{
 		name:         "invalid json",
 		input:        `{invalid json}`,
-		unmarshalErr: `failed to parse json: .*`,
+		unmarshalErr: `failed to parse probe definition: .*`,
 	},
 	{
 		name: "invalid probe type",
@@ -330,7 +330,36 @@ var testCases = []testCase{
 				"id": "invalid-probe",
 				"type": "INVALID_TYPE"
 			}`,
-		unmarshalErr: `failed to parse json: invalid config type: INVALID_TYPE`,
+		unmarshalErr: `failed to parse probe definition: invalid config type: INVALID_TYPE`,
+	},
+	{
+		name: "trigger probe",
+		input: `{
+				"id": "trigger-probe",
+				"type": "TRIGGER_PROBE",
+				"where": {"methodName": "MyMethod"}
+			}`,
+		unmarshalErr: `^probe type TRIGGER_PROBE is not supported$`,
+	},
+	{
+		name: "span decoration probe",
+		input: `{
+				"id": "span-decoration-probe",
+				"type": "SPAN_DECORATION_PROBE",
+				"where": {"methodName": "MyMethod"}
+			}`,
+		unmarshalErr: `^probe type SPAN_DECORATION_PROBE is not supported$`,
+	},
+	{
+		name: "log probe with a malformed segment",
+		input: `{
+				"id": "log-probe-1",
+				"type": "LOG_PROBE",
+				"where": {"methodName": "MyMethod"},
+				"template": "Hello",
+				"segments": [{"unknown": "Hello"}]
+			}`,
+		unmarshalErr: `^failed to parse LOG_PROBE definition: unknown segment type at index 0`,
 	},
 }
 
