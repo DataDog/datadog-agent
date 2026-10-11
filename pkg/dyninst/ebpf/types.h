@@ -62,6 +62,10 @@ typedef struct stats {
   uint64_t recovery_no_open_calls;
   uint64_t recovery_filtered_goexit;
   uint64_t recovery_invalid_state;
+  // Number of probe hits dropped because another invocation on the same CPU
+  // was using the per-CPU scratch maps (it was preempted or, in sleepable
+  // mode, sleeping on a page fault).
+  uint64_t busy_drops;
 } stats_t;
 
 typedef enum dynamic_size_class {

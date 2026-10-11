@@ -54,6 +54,7 @@ type stats struct {
 	Recovery_no_open_calls   uint64
 	Recovery_filtered_goexit uint64
 	Recovery_invalid_state   uint64
+	Busy_drops               uint64
 }
 
 func opcodeByte(opcode compiler.Opcode) uint8 {

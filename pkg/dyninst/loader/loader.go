@@ -296,6 +296,10 @@ type RuntimeStats struct {
 	// value indicates either a runtime.recovery firing pattern this
 	// code doesn't understand or a DWARF/ABI mismatch.
 	RecoveryInvalidState uint64
+	// BusyDrops counts probe hits dropped because another invocation on the
+	// same CPU was using the per-CPU scratch maps (it was preempted or, in
+	// sleepable mode, sleeping on a page fault).
+	BusyDrops uint64
 }
 
 // RuntimeStats returns the per-probe runtime stats for the program,

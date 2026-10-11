@@ -66,6 +66,38 @@ struct {
   __type(value, call_depths_t);
 } in_progress_calls_buf SEC(".maps");
 
+// cpu_scratch_busy marks this CPU's per-CPU scratch maps as owned by a probe
+// invocation. Uprobe programs run with migration disabled but can be
+// preempted (on preempt=full/lazy kernels) or, when loaded as sleepable, sleep
+// on a page fault; another thread scheduled on the same CPU must not reuse
+// the scratch maps in the meantime.
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, 1);
+  __type(key, uint32_t);
+  __type(value, uint64_t);
+} cpu_scratch_busy SEC(".maps");
+
+// cpu_scratch_acquire claims this CPU's scratch maps. It returns false if
+// another invocation on this CPU holds them.
+static inline __attribute__((always_inline)) bool cpu_scratch_acquire(void) {
+  uint64_t* busy = bpf_map_lookup_elem(&cpu_scratch_busy, &zero_uint32);
+  if (!busy) {
+    return false;
+  }
+  return __sync_val_compare_and_swap(busy, 0, 1) == 0;
+}
+
+// cpu_scratch_release releases this CPU's scratch maps. Migration is disabled
+// for the duration of the program, so this runs on the CPU that acquired them.
+static inline __attribute__((always_inline)) void cpu_scratch_release(void) {
+  uint64_t* busy = bpf_map_lookup_elem(&cpu_scratch_busy, &zero_uint32);
+  if (busy) {
+    // An atomic exchange: the BPF toolchain (clang 12) has no atomic store.
+    __sync_lock_test_and_set(busy, 0);
+  }
+}
+
 // notify_panic_unwound_lost publishes a DROP_REASON_PANIC_UNWOUND_LOST
 // notification carrying the unwound range from the recovery probe's
 // event header. Probe_id, stack_byte_depth, last_seq and entry_ktime_ns
@@ -501,8 +533,11 @@ int probe_run_with_cookie(struct pt_regs* regs) {
 
   if (params->throttle_mode == THROTTLE_AT_START && should_throttle(params->throttler_idx, start_ns)) {
     __sync_fetch_and_add(&stats->throttled_cnt, 1);
+  } else if (!cpu_scratch_acquire()) {
+    __sync_fetch_and_add(&stats->busy_drops, 1);
   } else {
     probe_run(start_ns, params, regs);
+    cpu_scratch_release();
   }
 
   __sync_fetch_and_add(&stats->cpu_ns, bpf_ktime_get_ns() - start_ns);
