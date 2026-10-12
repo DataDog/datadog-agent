@@ -33,7 +33,7 @@ import (
 )
 
 // MinimumKernelVersion is the minimum kernel version required by the ebpf program.
-var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
+var MinimumKernelVersion = kernel.VersionCode(5, 18, 0)
 
 // SkipIfKernelNotSupported skips the test if the kernel version is not supported.
 func SkipIfKernelNotSupported(t *testing.T) {
