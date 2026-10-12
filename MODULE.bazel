@@ -98,6 +98,7 @@ bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
+bazel_dep(name = "rules_swift", version = "4.2.1")
 bazel_dep(name = "toml.bzl", version = "0.5.0")
 bazel_dep(name = "toolchains_llvm", version = "1.11.2")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
@@ -112,6 +113,15 @@ single_version_override(
         "//bazel/patches:protobuf-crate-universe-extensions.patch",  # protocolbuffers/protobuf#28230
     ],
     version = "35.1",
+)
+
+single_version_override(
+    module_name = "rules_cc",
+    patch_strip = 1,
+    patches = [
+        # Deployment target missing from the macOS triple, which rules_swift relies on
+        "//bazel/patches:rules_cc-versioned-macos-triple.patch",
+    ],
 )
 
 single_version_override(

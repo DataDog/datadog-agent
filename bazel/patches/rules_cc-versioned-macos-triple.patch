@@ -1,0 +1,24 @@
+--- a/cc/private/toolchain/unix_cc_toolchain_config.bzl
++++ b/cc/private/toolchain/unix_cc_toolchain_config.bzl
+@@ -2077,6 +2077,12 @@
+     ])
+     if ctx.attr.compiler == "clang":
+         features.append(clang_trace_feature)
++
++    # Embed the deployment target like apple_support does, as consumers such as rules_swift expect.
++    target_system_name = ctx.attr.target_system_name
++    if not is_linux and "-apple-" in target_system_name and not target_system_name[-1].isdigit():
++        target_system_name += str(_target_os_version(ctx))
++
+     return cc_common.create_cc_toolchain_config_info(
+         ctx = ctx,
+         features = features,
+@@ -2085,7 +2091,7 @@
+         cxx_builtin_include_directories = ctx.attr.cxx_builtin_include_directories,
+         toolchain_identifier = ctx.attr.toolchain_identifier,
+         host_system_name = ctx.attr.host_system_name,
+-        target_system_name = ctx.attr.target_system_name,
++        target_system_name = target_system_name,
+         target_cpu = ctx.attr.cpu,
+         target_libc = ctx.attr.target_libc,
+         compiler = ctx.attr.compiler,
