@@ -542,6 +542,56 @@ func (m *ManagerV3) FillProfileContextFromWorkloadID(id containerutils.WorkloadI
 	ctx.Tags = workloadTags
 }
 
+// Rough per-entry byte costs used to estimate the RAM held by v3's profile state.
+// v3 keeps no activity tree, so its whole profile footprint is the per-workload
+// seen sets and pending refreshes. These numbers are approximations: they count
+// the entry payloads plus a fixed per-entry map overhead, not exact runtime
+// allocation.
+const (
+	// v3NodeStateBytes is the size of a nodeState value (int64 + uint32 + uint32).
+	v3NodeStateBytes = 16
+	// v3MapEntryOverhead approximates the Go runtime map bucket overhead per entry.
+	v3MapEntryOverhead = 48
+	// v3SeenEntryBytes is one seen-set entry: the [16]byte identity key, the
+	// *nodeState pointer, the nodeState value, and map overhead.
+	v3SeenEntryBytes = 16 + 8 + v3NodeStateBytes + v3MapEntryOverhead
+	// v3RefreshEntryBytes is one pendingRefresh entry: the [16]byte key, an int64
+	// last_seen, and map overhead.
+	v3RefreshEntryBytes = 16 + 8 + v3MapEntryOverhead
+)
+
+// v3SizeEstimate is a rough snapshot of the RAM held by v3's profile state.
+type v3SizeEstimate struct {
+	// workloads is the number of (image_name, image_tag) seen sets.
+	workloads int
+	// nodes is the total node identities tracked across all seen sets.
+	nodes int
+	// pendingRefreshes is the total staged last_seen refreshes across all workloads.
+	pendingRefreshes int
+	// estimatedBytes is the approximate total RAM footprint of the above.
+	estimatedBytes int64
+}
+
+// estimateProfileSize returns a rough estimate of the memory held by v3's seen sets
+// and pending refreshes, which is the entire footprint of its profile state. It is
+// intended for observability, not accounting: the byte figure is derived from fixed
+// per-entry costs, not measured allocation.
+func (m *ManagerV3) estimateProfileSize() v3SizeEstimate {
+	m.seenLock.Lock()
+	defer m.seenLock.Unlock()
+
+	est := v3SizeEstimate{workloads: len(m.seen)}
+	for _, set := range m.seen {
+		est.nodes += len(set)
+	}
+	for _, staged := range m.pendingRefresh {
+		est.pendingRefreshes += len(staged)
+	}
+	est.estimatedBytes = int64(est.nodes)*v3SeenEntryBytes +
+		int64(est.pendingRefreshes)*v3RefreshEntryBytes
+	return est
+}
+
 // SendStats is a no-op for the PoC.
 func (m *ManagerV3) SendStats() error { return nil }
 
