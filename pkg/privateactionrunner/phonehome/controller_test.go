@@ -402,7 +402,10 @@ func TestConcurrencyPoliciesDisableAndCancellation(t *testing.T) {
 	cancel()
 	require.Zero(t, f.c.step(ctx, f.clock.Now()))
 	require.Zero(t, f.pm.starts)
+	f.identity(t)
 	t.Setenv(app.PhoneHomePOCEnvVar, "false")
+	require.Zero(t, f.tick(0))
+	require.Zero(t, f.pm.starts)
 	Run(context.Background(), f.c.cfg, "host", f.source)
 	require.Zero(t, f.pm.starts)
 }

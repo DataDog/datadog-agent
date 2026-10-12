@@ -32,7 +32,10 @@ non-FIPS, non-containerized Linux node Agent, split mode, with matching config,
 resolved secrets, hostname, user, local filesystem and absolute identity path.
 No extra PAR config, OPMS extra headers or live credential/endpoint rotation.
 The RC observation must match the enrollment key and supported RC/site endpoint;
-custom mismatched endpoints fail closed. Loopback RC/PAR endpoints are allowed
+custom mismatched endpoints fail closed. The reader freezes its startup key and
+endpoints, including loopback endpoints, so changes cannot bypass the gate for
+reusable identities. The POC opt-in is checked again at Start dispatch.
+Loopback RC/PAR endpoints are allowed
 only in the explicitly configured internal mock mode.
 
 Before **every** new service Start, including a stopped enrolled PAR or a new

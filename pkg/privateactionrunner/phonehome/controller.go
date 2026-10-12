@@ -151,7 +151,7 @@ func active(p *pb.ProcessDetail) bool {
 func (c *controller) step(ctx context.Context, now time.Time) time.Duration {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if ctx.Err() != nil || !c.cfg.GetBool(par.Enabled) {
+	if ctx.Err() != nil || !enrollment.PhoneHomePOC() || !c.cfg.GetBool(par.Enabled) {
 		c.source.Demand(false)
 		return 0
 	}
@@ -358,7 +358,7 @@ func (c *controller) step(ctx context.Context, now time.Time) time.Duration {
 	if !reusable && !c.observation.ScopeReady {
 		return set("waiting", c.observation.ScopeReason, pollInterval)
 	}
-	if ctx.Err() != nil || !c.cfg.GetBool(par.Enabled) {
+	if ctx.Err() != nil || !enrollment.PhoneHomePOC() || !c.cfg.GetBool(par.Enabled) {
 		c.source.Demand(false)
 		return 0
 	}
@@ -396,7 +396,7 @@ func (c *controller) launch(ctx context.Context, now time.Time, uuid string, nee
 		}
 		return set("waiting", reason, delay)
 	}
-	if ctx.Err() != nil || !c.cfg.GetBool(par.Enabled) {
+	if ctx.Err() != nil || !enrollment.PhoneHomePOC() || !c.cfg.GetBool(par.Enabled) {
 		c.source.Demand(false)
 		return abort("disabled_or_stopping", 0)
 	}

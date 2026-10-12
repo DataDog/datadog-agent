@@ -29,6 +29,22 @@ func (s *statusService) GetOrgStatus() remote.OrgStatus          { return s.rc }
 func (s *statusService) GetPARScope() remote.PARScopeObservation { return s.scope }
 func (s *statusService) SetPARDiscoveryDemand(v bool)            { s.wanted = v }
 
+func TestReaderFreezesLoopbackEndpointsEvenForIdentityReuse(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "true")
+	cfg := configmock.New(t)
+	cfg.SetInTest("remote_configuration.enabled", true)
+	cfg.SetInTest("api_key", "key")
+	cfg.SetInTest("dd_url", "http://127.0.0.1:1234")
+	cfg.SetInTest("remote_configuration.rc_dd_url", "http://127.0.0.1:5678")
+	now := time.Now()
+	service := &statusService{rc: remote.MockOrgStatus("key", "http://127.0.0.1:5678", remote.OrgStatus{State: remote.OrgStatusObserved, Enabled: true, Authorized: true, ObservedAt: now, ValidUntil: now.Add(time.Minute), Generation: 1})}
+	source := NewSource(cfg, service)
+	require.True(t, source.Read(now).RCReady)
+	cfg.SetInTest("dd_url", "http://127.0.0.1:4321")
+	require.False(t, source.Read(now).RCReady)
+	require.Equal(t, "rc_credential_or_endpoint_mismatch", source.Read(now).RCReason)
+}
+
 func TestReaderSeparatesRCAndScopeAndFailsClosed(t *testing.T) {
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 	cfg := configmock.New(t)
