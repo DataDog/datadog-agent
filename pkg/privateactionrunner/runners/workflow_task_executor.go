@@ -100,7 +100,15 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 	unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
 	unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
 
-	credential, err := e.resolver.ResolveConnectionInfoToCredential(ctx, unwrappedTask.Data.Attributes.ConnectionInfo, nil)
+	// Reject unknown or disabled actions before exposing any credentials.
+	if _, err := e.getAllowedAction(unwrappedTask); err != nil {
+		return nil, unwrappedTask, err
+	}
+	actionContext := resolver.ActionContext{
+		BundleID:   unwrappedTask.Data.Attributes.BundleID,
+		ActionName: unwrappedTask.Data.Attributes.Name,
+	}
+	credential, err := e.resolver.ResolveConnectionInfoToCredential(ctx, unwrappedTask.Data.Attributes.ConnectionInfo, actionContext, nil)
 	if err != nil {
 		logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID), log.ErrorField(err))
 		return nil, unwrappedTask, err
@@ -140,6 +148,34 @@ func (e *WorkflowTaskExecutor) RunTask(
 ) (output interface{}, err error) {
 	task := preparedTask.Task
 	fqn := task.GetFQN()
+	action, err := e.getAllowedAction(task)
+	if err != nil {
+		return nil, err
+	}
+
+	logger := log.FromContext(ctx)
+
+	ctx = telemetry.WithService(ctx, observability.ParService)
+	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
+	span.SetResourceName(fqn)
+	span.SetTag("task_id", task.Data.ID)
+	defer func() { span.Finish(err) }()
+
+	startTime := observability.ReportExecutionStart(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
+	output, err = action.Run(ctx, task, preparedTask.Credential)
+	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
+
+	if err != nil {
+		return nil, util.DefaultActionError(err)
+	}
+
+	return output, nil
+}
+
+// getAllowedAction is shared by preparation and execution so both apply the
+// same dispatch and authorization rules.
+func (e *WorkflowTaskExecutor) getAllowedAction(task *types.Task) (types.Action, error) {
+	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
 	bundle := e.registry.GetBundle(bundleName)
 	if bundle == nil {
@@ -162,21 +198,5 @@ func (e *WorkflowTaskExecutor) RunTask(
 		))
 	}
 
-	logger := log.FromContext(ctx)
-
-	ctx = telemetry.WithService(ctx, observability.ParService)
-	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
-	span.SetResourceName(fqn)
-	span.SetTag("task_id", task.Data.ID)
-	defer func() { span.Finish(err) }()
-
-	startTime := observability.ReportExecutionStart(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
-	output, err = action.Run(ctx, task, preparedTask.Credential)
-	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
-
-	if err != nil {
-		return nil, util.DefaultActionError(err)
-	}
-
-	return output, nil
+	return action, nil
 }

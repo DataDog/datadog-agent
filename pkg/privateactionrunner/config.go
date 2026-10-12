@@ -60,4 +60,6 @@ const (
 // CredentialConfig defines a named credential and its usage configuration.
 type CredentialConfig struct {
 	Value string `mapstructure:"value"`
+	// Nil allows every action; a configured empty list denies every action.
+	AllowedActions []string `mapstructure:"allowed_actions"`
 }

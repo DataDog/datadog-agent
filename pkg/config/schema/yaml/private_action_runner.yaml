@@ -89,14 +89,30 @@ properties:
           properties:
             value:
               type: string
+            allowed_actions:
+              type: array
+              items:
+                type: string
+                pattern: '^com\.datadoghq\.[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*\.([A-Za-z0-9_-]+|\*)$'
         description: |-
           Named credential objects available to Private Action Runner tasks.
           Each object must contain a value field, which may use an ENC[...] handle
           resolved by Agent secret management.
+          Optional allowed_actions restricts which actions may use this credential.
+          Omit it to allow all actions; an empty list denies all actions. Null is invalid.
+          Entries are case-sensitive action names or trailing integration/sub-bundle
+          wildcards, such as com.datadoghq.mongodb.*. Global actions_allowlist rules
+          still apply. Exact lists must explicitly include testConnection if needed.
+          These restrictions control use by actions, not the fetching of ENC[...] secrets
+          during Agent configuration loading or refresh, and do not restrict destinations.
         example: |2-
 
             api_token:
               value: ENC[api_token]
+            mongodb_password:
+              value: ENC[mongodb_password]
+              allowed_actions:
+                - com.datadoghq.mongodb.*
   http_timeout_seconds:
     node_type: setting
     type: integer
