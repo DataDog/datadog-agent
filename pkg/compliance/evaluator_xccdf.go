@@ -142,11 +142,8 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		for {
 			s, err := r.ReadString('\n')
 			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				p.ErrorCh <- fmt.Errorf("error reading line: '%v'", s)
-				continue
+				// the error is final: either EOF once oscap-io exits, or os.ErrClosed once Wait closed the pipe
+				return
 			}
 			s = strings.TrimRight(s, "\n")
 
@@ -157,12 +154,16 @@ func (p *oscapIO) Run(ctx context.Context) error {
 			log.Debugf("<- %s", s)
 			line := strings.Split(s, " ")
 			if len(line) != 2 {
-				p.ErrorCh <- fmt.Errorf("invalid output: '%v'", line)
+				if !p.sendError(fmt.Errorf("invalid output: '%v'", line)) {
+					return
+				}
 				continue
 			}
 			result, err := strconv.Atoi(line[1])
 			if err != nil {
-				p.ErrorCh <- fmt.Errorf("strconv.Atoi '%s': %v", line[1], err)
+				if !p.sendError(fmt.Errorf("strconv.Atoi '%s': %v", line[1], err)) {
+					return
+				}
 				continue
 			}
 
@@ -171,20 +172,26 @@ func (p *oscapIO) Run(ctx context.Context) error {
 			if enableSysChar {
 				doc, err := scap.ReadDocument(r)
 				if err != nil {
-					p.ErrorCh <- fmt.Errorf("scap.ReadDocument: %v", err)
+					if !p.sendError(fmt.Errorf("scap.ReadDocument: %v", err)) {
+						return
+					}
 					continue
 				}
 
 				syschar, err := scap.SysChar(doc)
 				if err != nil {
-					p.ErrorCh <- fmt.Errorf("scap.SysChar: %v", err)
+					if !p.sendError(fmt.Errorf("scap.SysChar: %v", err)) {
+						return
+					}
 					continue
 				}
 
 				data["system_characteristics"] = syschar
 			}
 
-			p.ResultCh <- &oscapIOResult{Rule: line[0], Result: result, Data: data}
+			if !p.sendResult(&oscapIOResult{Rule: line[0], Result: result, Data: data}) {
+				return
+			}
 		}
 	}()
 
@@ -240,6 +247,25 @@ func (p *oscapIO) Stop() {
 	defer oscapIOsMu.Unlock()
 	delete(oscapIOs, p.File)
 	close(p.DoneCh)
+}
+
+// sendResult and sendError give up once the oscap-io process exited: nothing receives from its channels after that
+func (p *oscapIO) sendResult(result *oscapIOResult) bool {
+	select {
+	case p.ResultCh <- result:
+		return true
+	case <-p.DoneCh:
+		return false
+	}
+}
+
+func (p *oscapIO) sendError(err error) bool {
+	select {
+	case p.ErrorCh <- err:
+		return true
+	case <-p.DoneCh:
+		return false
+	}
 }
 
 func (p *oscapIO) Kill() error {
