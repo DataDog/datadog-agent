@@ -149,6 +149,7 @@ type CoreAgentService struct {
 	clients            *clients
 	orgStatusPoller    *orgStatusPoller
 	parDiscoveryDemand atomic.Bool
+	parScopePoller     *parScopePoller
 
 	// Channels to stop the services main goroutines
 	stopConfigPoller chan struct{}
@@ -370,6 +371,7 @@ type options struct {
 	clientTTL                      time.Duration
 	disableConfigPollLoop          bool
 	orgStatusRefreshInterval       time.Duration
+	parScopeDiscovery              bool
 	// for mocking creating db instance in test
 	uptaneFactory func(md *uptane.Metadata) (coreAgentUptaneClient, error)
 	// The allowed products for each subscription products value. Overridable
@@ -673,6 +675,9 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	cas.mu.newProducts = make(map[rdata.Product]struct{})
 	cas.mu.uptane = uptaneClient
 
+	if options.parScopeDiscovery {
+		cas.parScopePoller = newPARScopePoller(cfg, clock, cas.GetOrgStatus, &cas.parDiscoveryDemand)
+	}
 	cfg.OnUpdate(cas.apiKeyUpdateCallback())
 
 	return cas, nil
@@ -704,6 +709,9 @@ func (s *CoreAgentService) Start() {
 	refreshBypassCh := make(chan chan<- struct{})
 	s.refreshBypassCh = refreshBypassCh
 	s.orgStatusPoller.start(s.clock, s.api, s.rcType)
+	if s.parScopePoller != nil {
+		s.parScopePoller.start()
+	}
 
 	go func() {
 		if s.disableConfigPollLoop {
@@ -794,6 +802,9 @@ func (s *CoreAgentService) logRefreshError(err error) {
 func (s *CoreAgentService) Stop() error {
 	var err error
 	s.stopOnce.Do(func() {
+		if s.parScopePoller != nil {
+			s.parScopePoller.stop()
+		}
 		s.orgStatusPoller.stop()
 		close(s.stopConfigPoller)
 

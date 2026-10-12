@@ -8,6 +8,7 @@ package phonehome
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -88,6 +89,7 @@ type fixture struct {
 	state                State
 	posts, registrations int
 	behavior             string
+	publicPEM            string
 	requestDone          chan struct{}
 }
 
@@ -108,10 +110,25 @@ func newFixture(t *testing.T) *fixture {
 			w.WriteHeader(500)
 			return
 		}
+		var request struct {
+			Data struct {
+				Attributes struct {
+					PublicKey string `json:"public_key_pem"`
+				} `json:"attributes"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		f.publicPEM = request.Data.Attributes.PublicKey
 		f.posts++
 		switch f.behavior {
 		case "quota":
 			reject(w, 403, "your organization has reached the maximum number of private action runners")
+			return
+		case "auth":
+			reject(w, 401, "invalid auth context")
+			return
+		case "bad_input":
+			reject(w, 400, "value not allowed")
 			return
 		case "scope":
 			reject(w, 403, "required scope missing")
@@ -158,7 +175,7 @@ func (f *fixture) tick(after time.Duration) time.Duration {
 }
 func (f *fixture) restart() {
 	old := f.c
-	f.c = &controller{cfg: old.cfg, hostname: old.hostname, source: f.source, now: f.clock.Now, pm: f.pm, emit: old.emit, jitter: old.jitter}
+	f.c = &controller{cfg: old.cfg, hostname: old.hostname, source: old.source, now: f.clock.Now, pm: f.pm, emit: old.emit, jitter: old.jitter}
 }
 func (f *fixture) enroll(t *testing.T) {
 	t.Helper()

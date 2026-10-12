@@ -95,6 +95,7 @@ func newRemoteConfigService(deps Dependencies) (rcservice.Component, error) {
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
 
 	options := []remoteconfig.Option{
+		remoteconfig.WithPARScopeDiscovery(),
 		remoteconfig.WithAPIKey(apiKey),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
 		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("site"), deps.Cfg.GetString("remote_configuration.config_root")),

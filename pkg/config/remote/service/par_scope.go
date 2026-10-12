@@ -8,7 +8,7 @@ package service
 import "time"
 
 // PARScopeObservation is separate from RC org/key status. RC authorization is
-// never proof of PAR enrollment permission. The producer is added in stack PR 3.
+// never proof of PAR enrollment permission.
 type PARScopeObservation struct {
 	Reason    string
 	CheckedAt time.Time
@@ -21,14 +21,30 @@ func (s PARScopeObservation) Granted(now time.Time) bool {
 		!now.Before(s.CheckedAt) && now.Before(s.CheckedAt.Add(2*time.Minute))
 }
 
-// GetPARScope is deliberately unknown until an RC-owned producer is installed.
-// The RC-only slice cannot authorize fresh PAR enrollment.
+// GetPARScope reads without forcing discovery, and fails closed even between
+// worker ticks when RC, demand, provenance or freshness has changed.
 func (s *CoreAgentService) GetPARScope() PARScopeObservation {
-	return PARScopeObservation{Reason: "par_scope_unchecked"}
+	if s == nil || s.parScopePoller == nil {
+		return PARScopeObservation{Reason: "par_scope_unchecked"}
+	}
+	p := s.parScopePoller
+	now := p.clock.Now()
+	rc, ready := p.gate(now)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	result := p.observation
+	if !ready {
+		result.Reason = "par_scope_waiting_for_rc_or_demand"
+	} else if result.Reason == "scope_present" && !result.Granted(now, rc.Generation) {
+		result.Reason = "par_scope_stale_or_mismatched"
+	}
+	return result
 }
 
 // SetPARDiscoveryDemand expresses interest, not permission to issue a request.
 // A producer must independently enforce RC readiness and its own deadlines.
 func (s *CoreAgentService) SetPARDiscoveryDemand(wanted bool) {
-	s.parDiscoveryDemand.Store(wanted)
+	if s.parDiscoveryDemand.Swap(wanted) != wanted && s.parScopePoller != nil {
+		s.parScopePoller.demandChanged()
+	}
 }
