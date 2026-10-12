@@ -329,6 +329,7 @@ export function MetricsView({
         name: g.baseName,
         displayName: g.baseName,
         virtual: g.virtual,
+        metricTypes: formatMetricTypes(g.members),
       })),
     [visibleGroups]
   );
@@ -340,6 +341,7 @@ export function MetricsView({
     if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
       setTagFilterInput('');
+      setSelectedMetricTypes(new Set());
     }
   }, [state.activeScenario]);
 
