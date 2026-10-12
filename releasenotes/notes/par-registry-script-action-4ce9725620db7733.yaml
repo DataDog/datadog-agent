@@ -3,7 +3,8 @@ features:
   - |
     Private Action Runner can execute authored scripts from anonymous OCI
     registries using the ``com.datadoghq.script.runRegistryScript`` action,
-    without a Remote Configuration catalog entry. The script connection's
-    ``allowedRegistries`` list controls allowed registry hosts and repository
-    paths. Script URIs can use tags or immutable digests. This action is not
-    supported on Windows.
+    without a Remote Configuration catalog entry. The Agent's
+    ``private_action_runner.allowed_registries`` setting in ``datadog.yaml``
+    controls allowed registry hosts and repository paths for all connections.
+    Script URIs can use tags or immutable digests. This action is not supported
+    on Windows.

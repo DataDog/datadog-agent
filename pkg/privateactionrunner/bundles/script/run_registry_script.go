@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	authoredscriptsoci "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts/oci"
@@ -22,12 +23,13 @@ import (
 )
 
 type RunRegistryScriptHandler struct {
-	resolver *authoredscriptsoci.RegistryResolver
-	initErr  error
+	resolver          *authoredscriptsoci.RegistryResolver
+	initErr           error
+	allowedRegistries []string
 }
 
-func NewRunRegistryScriptHandler(client *http.Client) *RunRegistryScriptHandler {
-	h := &RunRegistryScriptHandler{}
+func NewRunRegistryScriptHandler(client *http.Client, allowedRegistries []string) *RunRegistryScriptHandler {
+	h := &RunRegistryScriptHandler{allowedRegistries: slices.Clone(allowedRegistries)}
 	cache, err := os.UserCacheDir()
 	if err == nil {
 		// Keep registry-authorized packages separate from RC-authorized packages.
@@ -49,15 +51,11 @@ type RunRegistryScriptOutputs struct {
 	DurationMillis int    `json:"durationMillis"`
 }
 
-func (h *RunRegistryScriptHandler) Run(ctx context.Context, task *types.Task, credentials *privateconnection.PrivateCredentials) (output interface{}, err error) {
+func (h *RunRegistryScriptHandler) Run(ctx context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (output interface{}, err error) {
 	if task == nil || task.Data.Attributes == nil {
 		return nil, errors.New("registry-script task is required")
 	}
 	inputs, err := types.ExtractInputs[RunRegistryScriptInputs](task)
-	if err != nil {
-		return nil, err
-	}
-	configuration, err := parseCredentials(credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +68,7 @@ func (h *RunRegistryScriptHandler) Run(ctx context.Context, task *types.Task, cr
 	if h.resolver == nil {
 		return nil, errors.New("registry-script resolver is not configured")
 	}
-	pkg, err := h.resolver.Resolve(ctx, inputs.URI, configuration.AllowedRegistries)
+	pkg, err := h.resolver.Resolve(ctx, inputs.URI, h.allowedRegistries)
 	if err != nil {
 		return nil, err
 	}

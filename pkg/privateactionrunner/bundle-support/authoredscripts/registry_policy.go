@@ -28,29 +28,29 @@ func parseRegistryRule(entry string) (string, string, error) {
 	u, err := url.Parse("oci://" + entry)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" ||
 		strings.ContainsAny(entry, "*@%?#\\ \t\r\n") || strings.Contains(entry, "://") {
-		return "", "", fmt.Errorf("invalid allowedRegistries entry %q: expected host[:port] or host[:port]/repository-prefix", entry)
+		return "", "", fmt.Errorf("invalid private_action_runner.allowed_registries entry %q: expected host[:port] or host[:port]/repository-prefix", entry)
 	}
 	registry, err := name.NewRegistry(u.Host, name.StrictValidation)
 	if err != nil {
-		return "", "", fmt.Errorf("invalid allowedRegistries entry %q: %w", entry, err)
+		return "", "", fmt.Errorf("invalid private_action_runner.allowed_registries entry %q: %w", entry, err)
 	}
 	path := strings.TrimPrefix(u.Path, "/")
 	if path != "" {
 		// Validate the path independently of registry-specific defaults: a Docker
 		// Hub rule such as docker.io/team is a namespace prefix, not library/team.
 		if _, err := name.NewRepository("validation.invalid/"+path, name.StrictValidation); err != nil || strings.Contains(path, ":") {
-			return "", "", fmt.Errorf("invalid allowedRegistries repository prefix %q", entry)
+			return "", "", fmt.Errorf("invalid private_action_runner.allowed_registries repository prefix %q", entry)
 		}
 		for _, segment := range strings.Split(path, "/") {
 			if segment == "" || segment == "." || segment == ".." {
-				return "", "", fmt.Errorf("invalid allowedRegistries repository prefix %q", entry)
+				return "", "", fmt.Errorf("invalid private_action_runner.allowed_registries repository prefix %q", entry)
 			}
 		}
 	}
 	return registry.RegistryStr(), path, nil
 }
 
-// AuthorizeRegistryURI checks the connection policy before any network or cache
+// AuthorizeRegistryURI checks the Agent policy before any network or cache
 // access. An absent or empty allowlist denies every registry.
 func AuthorizeRegistryURI(uri string, allowed []string) (name.Reference, error) {
 	if err := ValidateAllowedRegistries(allowed); err != nil {
@@ -75,5 +75,5 @@ func AuthorizeRegistryURI(uri string, allowed []string) (name.Reference, error) 
 			return ref, nil
 		}
 	}
-	return nil, fmt.Errorf("script OCI repository %q is not permitted by allowedRegistries", ref.Context().Name())
+	return nil, fmt.Errorf("script OCI repository %q is not permitted by private_action_runner.allowed_registries", ref.Context().Name())
 }

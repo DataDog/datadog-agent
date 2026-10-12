@@ -1,14 +1,4 @@
 schemaId: script-credentials-v1
-# runRegistryScript downloads dd-authored-scripts packages anonymously. Entries
-# allow an entire host (optionally with a port) or a repository path and its
-# descendants. Missing or empty allowedRegistries denies every registry.
-# Example entries: registry.example.com, registry.example.com/team/scripts
-# Action inputs:
-#   uri: oci://registry.example.com/team/scripts/echo:v1
-#   parameters: {message: hello}
-# URI tags and @sha256: digests are supported. Tags are resolved on every run;
-# extracted packages are cached by digest. Registry scripts require a non-Windows runner.
-allowedRegistries: []
 runPredefinedScript:
   echo:
     command:

@@ -10,7 +10,6 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 )
 
@@ -19,7 +18,6 @@ const (
 )
 
 type ScriptBundleConfig struct {
-	AllowedRegistries             []string                                       `yaml:"allowedRegistries,omitempty"`
 	SchemaId                      string                                         `yaml:"schemaId"`
 	RunPredefinedScript           map[string]RunPredefinedScriptConfig           `yaml:"runPredefinedScript,omitempty"`
 	RunPredefinedPowershellScript map[string]RunPredefinedPowershellScriptConfig `yaml:"runPredefinedPowershellScript,omitempty"`
@@ -66,9 +64,6 @@ func parseCredentials(credentials *privateconnection.PrivateCredentials) (*Scrip
 	}
 	if scriptConfig.SchemaId != schemaIdV1 {
 		return nil, fmt.Errorf("unexpected schemaId: %s, supported schemaId: %s", scriptConfig.SchemaId, schemaIdV1)
-	}
-	if err := authoredscripts.ValidateAllowedRegistries(scriptConfig.AllowedRegistries); err != nil {
-		return nil, err
 	}
 
 	return scriptConfig, nil

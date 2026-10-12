@@ -19,7 +19,7 @@ import (
 // RunRegistryScriptHandler is unsupported on Windows, like RC-authored scripts.
 type RunRegistryScriptHandler struct{}
 
-func NewRunRegistryScriptHandler(_ *http.Client) *RunRegistryScriptHandler {
+func NewRunRegistryScriptHandler(_ *http.Client, _ []string) *RunRegistryScriptHandler {
 	return &RunRegistryScriptHandler{}
 }
 

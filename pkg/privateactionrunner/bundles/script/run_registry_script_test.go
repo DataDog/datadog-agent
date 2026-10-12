@@ -104,8 +104,7 @@ func TestRunRegistryScript(t *testing.T) {
 	require.NoError(t, err)
 	resolver, err := authoredscriptsoci.NewRegistryResolver(t.TempDir(), server.Client())
 	require.NoError(t, err)
-	handler := &RunRegistryScriptHandler{resolver: resolver}
-	credentials := registryCredentials(host + "/team")
+	handler := &RunRegistryScriptHandler{resolver: resolver, allowedRegistries: []string{host + "/team"}}
 	task := registryScriptTask("oci://" + ref.Name())
 
 	// Installer overrides and local Docker credentials must not affect this action.
@@ -114,41 +113,44 @@ func TestRunRegistryScript(t *testing.T) {
 	t.Setenv("DOCKER_CONFIG", dockerConfig)
 	require.NoError(t, os.WriteFile(filepath.Join(dockerConfig, "config.json"), []byte("invalid config: must not be read"), 0o600))
 
-	output, err := handler.Run(context.Background(), task, credentials)
+	output, err := handler.Run(context.Background(), task, nil)
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.(*RunRegistryScriptOutputs).Stdout)
 	reads := blobReads.Load()
 	require.Positive(t, reads)
 
-	output, err = handler.Run(context.Background(), task, credentials)
+	output, err = handler.Run(context.Background(), task, nil)
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.(*RunRegistryScriptOutputs).Stdout)
 	require.Equal(t, reads, blobReads.Load(), "cache hit must not fetch layers")
 
 	beforeDenied := requests.Load()
-	_, err = handler.Run(context.Background(), task, registryCredentials())
+	// Connection credentials cannot grant access when the Agent denies it.
+	deniedHandler := &RunRegistryScriptHandler{resolver: resolver}
+	_, err = deniedHandler.Run(context.Background(), task, registryCredentials(host))
 	require.ErrorContains(t, err, "not permitted")
-	_, err = handler.Run(context.Background(), task, registryCredentials(host+"/other"))
+	deniedHandler.allowedRegistries = []string{host + "/other"}
+	_, err = deniedHandler.Run(context.Background(), task, registryCredentials(host))
 	require.ErrorContains(t, err, "not permitted")
 	require.Equal(t, beforeDenied, requests.Load(), "deny before network or cached execution")
 
 	second := registryScriptImage(t, "2", `printf 'updated:%s' "$SCRIPT_MESSAGE"`)
 	require.NoError(t, remote.Write(ref, second, remote.WithAuth(authn.Anonymous)))
-	output, err = handler.Run(context.Background(), task, credentials)
+	output, err = handler.Run(context.Background(), task, nil)
 	require.NoError(t, err)
 	require.Equal(t, "updated:hello", output.(*RunRegistryScriptOutputs).Stdout)
 
-	output, err = handler.Run(context.Background(), registryScriptTask("oci://"+ref.Context().Digest(digest.String()).Name()), credentials)
+	output, err = handler.Run(context.Background(), registryScriptTask("oci://"+ref.Context().Digest(digest.String()).Name()), nil)
 	require.NoError(t, err)
 	require.Equal(t, "hello", output.(*RunRegistryScriptOutputs).Stdout)
 
 	task.Data.Attributes.Inputs = map[string]interface{}{"uri": "oci://" + ref.Name(), "parameters": map[string]interface{}{"message": 123}}
-	_, err = handler.Run(context.Background(), task, credentials)
+	_, err = handler.Run(context.Background(), task, nil)
 	require.Error(t, err, "manifest parameter schema must be enforced")
 
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = handler.Run(canceled, registryScriptTask("oci://"+ref.Name()), credentials)
+	_, err = handler.Run(canceled, registryScriptTask("oci://"+ref.Name()), nil)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -156,10 +158,8 @@ func TestRunRegistryScriptRejectsInvalidInputs(t *testing.T) {
 	handler := &RunRegistryScriptHandler{}
 	_, err := handler.Run(context.Background(), nil, nil)
 	require.ErrorContains(t, err, "task is required")
-	_, err = handler.Run(context.Background(), registryScriptTask("oci://registry.test/script:v1"), nil)
-	require.ErrorContains(t, err, "credentials are required")
 	task := registryScriptTask("oci://registry.test/script:v1")
 	task.Data.Attributes.Inputs = map[string]interface{}{"uri": "oci://registry.test/script:v1", "parameters": []string{"wrong"}}
-	_, err = handler.Run(context.Background(), task, registryCredentials("registry.test"))
+	_, err = handler.Run(context.Background(), task, nil)
 	require.ErrorContains(t, err, "unmarshaling inputs")
 }

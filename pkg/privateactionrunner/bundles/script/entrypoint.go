@@ -6,18 +6,19 @@
 package com_datadoghq_script
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type Script struct {
 	actions map[string]types.Action
 }
 
-func NewScript(client *http.Client) *Script {
+func NewScript(client *http.Client, allowedRegistries []string) *Script {
 	return &Script{
 		actions: map[string]types.Action{
-			"runRegistryScript":             NewRunRegistryScriptHandler(client),
+			"runRegistryScript":             NewRunRegistryScriptHandler(client, allowedRegistries),
 			"runPredefinedScript":           NewRunPredefinedScriptHandler(),
 			"runPredefinedPowershellScript": NewRunPredefinedPowershellScriptHandler(),
 			"runShellScript":                NewRunShellScriptHandler(),

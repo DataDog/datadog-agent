@@ -123,7 +123,7 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.remoteaction.networkdevices":          com_datadoghq_remoteaction_networkdevices.NewNetworkDevices(encryptionStore, ipcClient),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
 			"com.datadoghq.remoteaction.rshell":                  com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration),
-			"com.datadoghq.script":                               com_datadoghq_script.NewScript(configuration.AgentHTTPClient),
+			"com.datadoghq.script":                               com_datadoghq_script.NewScript(configuration.AgentHTTPClient, configuration.AllowedRegistries),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),
 		},
 	}, nil
