@@ -33,6 +33,8 @@ BSD_COPYRIGHT_REGEX = [
 PATH_EXCLUSION_REGEX = [
     # Git internal folder
     '/.git/',
+    # bazel cache has 3rd party code
+    '/.cache/bazel/',
     # These are auto-generated files but without headers to indicate it
     '/vendor/',
     '/pkg/clusteragent/autoscaling/custommetrics/api/generated/',

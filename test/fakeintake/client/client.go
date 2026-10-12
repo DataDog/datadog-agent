@@ -545,6 +545,7 @@ type ComplianceFinding struct {
 	FrameworkID string `json:"agent_framework_id"`
 	RuleID      string `json:"agent_rule_id"`
 	Result      string `json:"result"`
+	HostCCRID   string `json:"host_ccrid"`
 }
 
 // GetComplianceFindings returns the compliance findings received at the
@@ -1283,6 +1284,19 @@ func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
 		ndmflows = append(ndmflows, c.ndmflowAggregator.GetPayloadsByName(name)...)
 	}
 	return ndmflows, nil
+}
+
+// GetNetpathEvents returns all received netpath events.
+func (c *Client) GetNetpathEvents() ([]*aggregator.Netpath, error) {
+	err := c.getNetpathEvents()
+	if err != nil {
+		return nil, err
+	}
+	var netpaths []*aggregator.Netpath
+	for _, name := range c.netpathAggregator.GetNames() {
+		netpaths = append(netpaths, c.netpathAggregator.GetPayloadsByName(name)...)
+	}
+	return netpaths, nil
 }
 
 // GetLatestNetpathEvents returns the latest netpath events by destination

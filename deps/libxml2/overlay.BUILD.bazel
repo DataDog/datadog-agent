@@ -125,6 +125,8 @@ cc_library(
     copts = [
         "-O2",
         "-std=gnu11",
+        "-Wno-array-bounds",
+        "-Wno-format-extra-args",
     ],
     implementation_deps = [
         ":xml2_config_h",

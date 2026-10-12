@@ -12,10 +12,10 @@ load(
 # a Windows runfiles path (see _test_tag_set_check_name). Only needed for sets
 # that build on Windows.
 _TAG_SET_SUFFIX_ALIASES = {
-    "cel+clusterchecks+kubeapiserver+kubelet+orchestrator": "dca",
-    "cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator": "dca_docker",
-    "cel+clusterchecks+containerd+docker+kubeapiserver+kubelet+orchestrator": "dca_containerd_docker",
-    "cel+clusterchecks+docker+kubeapiserver+kubelet+orchestrator+python": "dca_docker_python",
+    "cel+clusterchecks+kubeapiserver+kubelet": "dca",
+    "cel+clusterchecks+docker+kubeapiserver+kubelet": "dca_docker",
+    "cel+clusterchecks+containerd+docker+kubeapiserver+kubelet": "dca_containerd_docker",
+    "cel+clusterchecks+docker+kubeapiserver+kubelet+python": "dca_docker_python",
 }
 
 # Windows caps a process's current directory at MAX_PATH even where longer paths
@@ -88,6 +88,8 @@ def dd_agent_go_test(
         **kwargs: Remaining attrs forwarded to each go_test (srcs, embed, deps, …).
     """
     user_tags = tags or []
+    if "go_link:enormous" in user_tags:  # `GoLink` peaks at 6.1 GiB RSS for unit tests importing the e2e framework
+        kwargs["exec_properties"] = kwargs.get("exec_properties", {}) | {"go_link.resources:memory": "6144"}
     user_tcw = [] if target_compatible_with == None else target_compatible_with
 
     #TODO(regis): make our Gazelle extension manage the following attributes (didn't want to bloat #56569)

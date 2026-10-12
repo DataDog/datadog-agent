@@ -540,20 +540,14 @@ func start(log log.Component,
 		}
 	}
 
-	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
-	// don't import cmd/agent
-
-	// create and setup the autoconfig instance
-	// The autoconfig instance setup happens in the workloadmeta start hook
-	// create and setup the Collector and others.
-	common.LoadComponents(ac, config)
-
 	// Set up check collector
 	registerChecks(wmeta, taggerComp, config)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
 
 	// start the autoconfig, this will immediately run any configured check
-	ac.LoadAndRun(mainCtx)
+	if err := ac.LoadAndRun(mainCtx); err != nil {
+		return err
+	}
 
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
@@ -692,8 +686,7 @@ func start(log log.Component,
 		}
 
 		var csiDriverWatcher libraryinjection.CSIDriverWatcher
-		if config.GetBool("admission_controller.auto_instrumentation.enabled") &&
-			config.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") {
 			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
 		}
 

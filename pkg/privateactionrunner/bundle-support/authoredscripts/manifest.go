@@ -59,6 +59,8 @@ type EnvironmentVariable struct {
 type Dependency struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
+	// BinDir is relative to this dependency's extracted root. Empty means the root itself.
+	BinDir string `json:"binDir"`
 }
 
 // loadManifest reads and validates the metadata.json manifest for an authored-script

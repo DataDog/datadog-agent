@@ -301,7 +301,7 @@ func BuildProxySettings(agentConfig Config) (map[string]string, error) {
 	var u *url.URL
 
 	if u, err = url.Parse(proxyHost); err != nil {
-		return nil, fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
+		return nil, fmt.Errorf("unable to import value of settings 'proxy_host': %w", err)
 	}
 
 	// set scheme if missing
