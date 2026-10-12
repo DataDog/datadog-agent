@@ -199,4 +199,8 @@ wall-clock request cadence and grant-to-enrollment latency are **not measured**.
 Production follow-ups: packaging/permissions, config parity and rotation,
 backend recovery contracts, pending-evidence cleanup and crash durability,
 revocation, AAA capacity, other platforms/flavors, rollout and real Linux QA.
-Release notes and remote PR/CI publication remain a separate approval step.
+Draft stack: [#58014](https://github.com/DataDog/datadog-agent/pull/58014) →
+[#58015](https://github.com/DataDog/datadog-agent/pull/58015) →
+[#58016](https://github.com/DataDog/datadog-agent/pull/58016).
+Release notes and real Linux QA remain before merge-readiness. Local test results
+do not establish the outcome of remote CI.
