@@ -270,6 +270,12 @@ func TestExplicitFalseTraceManagedServicesEnvVar(t *testing.T) {
 	assert.Equal(t, false, testConfig.Get("serverless.trace_managed_services"))
 }
 
+func TestSkipExecutionEnvVar(t *testing.T) {
+	t.Setenv("DD_SKIP_EXECUTION", "http_check tls")
+	testConfig := newTestConf(t)
+	assert.Equal(t, []string{"http_check", "tls"}, testConfig.GetStringSlice("skip_execution"))
+}
+
 func TestDDHostnameFileEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_HOSTNAME_FILE", "somefile")

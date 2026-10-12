@@ -1309,6 +1309,20 @@ properties:
     tags:
     - golang_type:int64
     - template_section:Agent
+  skip_execution:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+    description: |-
+      List of check names (e.g. "http_check", "tls") that the Core Agent must
+      not schedule. The checks are skipped in the check scheduler and never
+      enter the runner, but can still be executed manually with `agent check`.
+      Temporary mechanism to avoid double execution while the Agent Check
+      Runner (ACR) executes those checks out of process. Not intended to
+      remain once ACR is an official product.
+    comment: Temporary ACR bridge - remove when ACR owns check selection.
   enable_metadata_collection:
     node_type: setting
     type: boolean

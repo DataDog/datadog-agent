@@ -121,7 +121,11 @@ ACR has no equivalent Go launcher yet. Add a `GetDefaultCheckRunnerBin` accessor
 ## Open items
 
 - **Duplicate execution** (running the same checks in both the Core Agent and ACR) is a GA
-  concern, not a first-deploy concern. The nearest lever is `integration.excluded` →
-  `IsCheckAllowed` in `pkg/collector/infra_mode.go`.
+  concern, not a first-deploy concern. The temporary lever is the top-level `skip_execution`
+  setting (`DD_SKIP_EXECUTION`, space-separated check names, e.g. `DD_SKIP_EXECUTION="http_check
+  tls"`): `CheckScheduler.Schedule` in `pkg/collector/scheduler.go` drops those configs before
+  loading, so the Core Agent never schedules them while ACR still receives the full config
+  stream and selects them via its own whitelist. Skipped checks can still be run manually with
+  `agent check`. This mechanism is meant to be removed once ACR owns check selection.
 - **Enablement** lives outside this repository: the Helm chart and datadog-operator must set the
   container spec and env, as they do for `DD_DATA_PLANE_ENABLED`.
