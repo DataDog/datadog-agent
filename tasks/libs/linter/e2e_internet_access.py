@@ -6,15 +6,13 @@ import functools
 from collections import Counter
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass
-from pathlib import Path, PurePath
+from pathlib import Path
 
 import yaml
 
-from tasks.libs.common.utils import join_command
-
+REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_PATH = "test/new-e2e/internet-access.yaml"
 SCANNED_DIRS = ("test/new-e2e/", "test/e2e-framework/")
-SCANNED_PATHSPECS = tuple(f"{directory}*.go" for directory in SCANNED_DIRS)
 TREE_SITTER_DEPS = ("tree-sitter==0.26.0", "tree-sitter-go==0.25.0")
 POLICY_DOC = "test/new-e2e/codereview_guideline.md"
 STATUSES = ("justified", "debt", "untriaged")
@@ -124,16 +122,16 @@ def select_scope(paths: Iterable[str]) -> list[str] | None:
     return scope
 
 
-def target_pathspecs(scope: list[str] | None) -> tuple[str, ...]:
-    """Return the `git ls-files` pathspecs selecting the Go files of `scope` (every scanned file when None)."""
-    if scope is None:
-        return SCANNED_PATHSPECS
-    return tuple(f"{path}*.go" if path.endswith("/") else path for path in scope)
-
-
-def ls_files_command(root: PurePath, pathspecs: Iterable[str]) -> str:
-    """Return the shell command listing the tracked files of `root` matching `pathspecs`, NUL-separated."""
-    return join_command(["git", "-C", str(root), "ls-files", "-z", "--", *pathspecs])
+def scanned_files(root: Path, scope: list[str] | None) -> list[str]:
+    """Return the Go files on disk under `root` that fall in `scope` (every scanned file when None), relative to `root`."""
+    files = set()
+    for base in SCANNED_DIRS if scope is None else scope:
+        path = root / base
+        if path.is_dir():
+            files.update(child for child in path.rglob("*.go") if child.is_file())
+        elif path.suffix == ".go" and path.is_file():
+            files.add(path)
+    return sorted(file.relative_to(root).as_posix() for file in files)
 
 
 def in_scope(file: str, scope: Collection[str] | None) -> bool:

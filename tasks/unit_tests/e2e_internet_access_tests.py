@@ -4,29 +4,26 @@ import sys
 import tempfile
 import unittest
 from importlib.util import find_spec
-from pathlib import Path, PureWindowsPath
-from unittest import mock
+from pathlib import Path
 
 from tasks.libs.linter.e2e_internet_access import (
     REGISTRY_PATH,
-    SCANNED_PATHSPECS,
+    REPO_ROOT,
     Entry,
     Usage,
     check,
     find_usages,
     in_scope,
     load_registry,
-    ls_files_command,
     normalize_paths,
     scan,
+    scanned_files,
     select_scope,
     summarize,
-    target_pathspecs,
 )
 
 TREE_SITTER_AVAILABLE = find_spec("tree_sitter") is not None and find_spec("tree_sitter_go") is not None
 SKIP_REASON = "run with: dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 invoke-unit-tests.run"
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestOptionalDependency(unittest.TestCase):
@@ -193,34 +190,51 @@ class TestSelectScope(unittest.TestCase):
         self.assertEqual(select_scope(["pkg/c.go"]), [])
 
 
-class TestTargetPathspecs(unittest.TestCase):
+class TestScannedFiles(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        for name in (
+            "test/new-e2e/tests/apm/a_test.go",
+            "test/new-e2e/tests/apm/sub/b_test.go",
+            "test/new-e2e/tests/apm/notes.md",
+            "test/new-e2e/tests/other/c_test.go",
+            "test/e2e-framework/d.go",
+            "pkg/e.go",
+        ):
+            (self.root / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / name).write_text("package x\n")
+
     def test_full_scan(self):
-        self.assertEqual(target_pathspecs(None), SCANNED_PATHSPECS)
-
-    def test_scoped(self):
-        scope = ["test/new-e2e/tests/a_test.go", "test/new-e2e/tests/apm/"]
-        self.assertEqual(target_pathspecs(scope), ("test/new-e2e/tests/a_test.go", "test/new-e2e/tests/apm/*.go"))
-
-    def test_empty_scope(self):
-        self.assertEqual(target_pathspecs([]), ())
-
-
-class TestLsFilesCommand(unittest.TestCase):
-    PATHSPECS = ("test/new-e2e/*.go", "test/e2e-framework/*.go")
-
-    @mock.patch("tasks.libs.common.utils.is_windows", return_value=False)
-    def test_posix(self, _is_windows):
         self.assertEqual(
-            ls_files_command(Path("/src/dd agent"), self.PATHSPECS),
-            "git -C '/src/dd agent' ls-files -z -- 'test/new-e2e/*.go' 'test/e2e-framework/*.go'",
+            scanned_files(self.root, None),
+            [
+                "test/e2e-framework/d.go",
+                "test/new-e2e/tests/apm/a_test.go",
+                "test/new-e2e/tests/apm/sub/b_test.go",
+                "test/new-e2e/tests/other/c_test.go",
+            ],
         )
 
-    @mock.patch("tasks.libs.common.utils.is_windows", return_value=True)
-    def test_windows(self, _is_windows):
+    def test_scoped_scan(self):
+        scope = ["test/new-e2e/tests/apm/", "test/new-e2e/tests/apm/a_test.go", "test/new-e2e/tests/other/c_test.go"]
         self.assertEqual(
-            ls_files_command(PureWindowsPath(r"C:\src\dd agent"), self.PATHSPECS),
-            'git -C "C:\\src\\dd agent" ls-files -z -- test/new-e2e/*.go test/e2e-framework/*.go',
+            scanned_files(self.root, scope),
+            [
+                "test/new-e2e/tests/apm/a_test.go",
+                "test/new-e2e/tests/apm/sub/b_test.go",
+                "test/new-e2e/tests/other/c_test.go",
+            ],
         )
+
+    def test_missing_scope_paths(self):
+        self.assertEqual(scanned_files(self.root, ["test/new-e2e/tests/deleted/", "test/new-e2e/gone_test.go"]), [])
+
+
+class TestRepoRoot(unittest.TestCase):
+    def test_repo_root(self):
+        self.assertTrue((REPO_ROOT / REGISTRY_PATH).is_file())
 
 
 class TestInScope(unittest.TestCase):
