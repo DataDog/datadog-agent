@@ -223,6 +223,7 @@ func newTestService(t *testing.T, api *mockAPI, coreAgentUptane *mockCoreAgentUp
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
 	service.clock = clock
+	service.orgStatusPoller.clock = clock
 	service.mu.uptane = coreAgentUptane
 	return service
 }
