@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"go.uber.org/goleak"
 )
@@ -36,10 +35,10 @@ func TestOSCAPIOReaderStopsWithProcess(t *testing.T) {
 	// returns once oscap-io is gone, after its pipes and DoneCh are closed
 	_ = p.Run(context.Background())
 
-	// a result received this late sends the reader back to the closed pipe
+	// taking a result the reader is already blocked on sends it back to the closed pipe
 	select {
 	case <-p.ResultCh:
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 
 	goleak.VerifyNone(t, ignoreExisting)
