@@ -20,7 +20,7 @@ Documentation this skill is derived from (read them if a step fails):
 - Recorder + gensim: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7272235685/Using+the+recorder+to+record+gensim+staging+scenarios
 - Gensim hands-on (Lima + kind setup): https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6238700466/Gensim+Hands+On
 - Lima setup script this replaces: `q_branch/setup-k8s-host.sh`, `q_branch/gadget-k8s-host.lima.yaml`
-- Scenarios: https://github.com/DataDog/gensim-episodes
+- Scenarios: the `gensim-episodes` repo
 
 Validation status: every step was run end to end on a 2 vCPU / 3.7 GiB Ubuntu 22.04 x86_64 VM (shortened episode,
 see step 7), except creating the VM with `aws.create-vm` (step 2). Report any deviation to the user.
