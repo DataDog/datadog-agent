@@ -23,7 +23,11 @@ class TestJevSelection(unittest.TestCase):
             self.assertEqual(jev_selection("installer"), select.return_value)
         # In-process call, no interpreter/module/output-file arguments
         self.assertEqual(select.call_args.args, ("installer",))
-        self.assertEqual(select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token"})
+        self.assertEqual(
+            select.call_args.kwargs, {"dc": "us1.ddbuild.io", "token_cmd": "custom-token", "pr_summary": ""}
+        )
+        jev_selection("installer", pr_summary="summary")
+        self.assertEqual(select.call_args.kwargs["pr_summary"], "summary")
 
     @patch(f"{MODULE}.select_suite")
     def test_selector_failures_return_no_skip_decisions(self, select):
@@ -194,6 +198,7 @@ class TestSharedEvaluator(unittest.TestCase):
         executor._index.add_tests("job", "candidates", {"TestPass", "TestFail", "TestFlaky", "TestSkipKeep"})
         evaluator = DatadogDynTestEvaluator(MagicMock(), IndexKind.JEV, executor, "42", telemetry_handler=MagicMock())
         evaluator.index = executor.index()  # normally set by initialize()
+        evaluator._unreliable_jobs = set()  # skip the (networked) allow-failure fetch
         results = evaluator.evaluate([])  # DatadogDynTestEvaluator.evaluate, no subclass
         self.assertEqual(len(results), 1)
         result = results[0]

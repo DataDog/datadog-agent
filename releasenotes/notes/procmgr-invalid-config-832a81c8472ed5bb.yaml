@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Process Manager now lists unloadable ``processes.d`` YAML files as
+    ``InvalidConfig`` in ``dd-procmgr list``, ``describe``, and ``status``,
+    instead of omitting them after a log line. ``dd-procmgr start`` on those
+    entries fails until the file is fixed and reloaded.

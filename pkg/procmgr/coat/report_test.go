@@ -135,6 +135,15 @@ func TestReportNotesSeparateSpawnFailureFromWorkloadFailure(t *testing.T) {
 		"a restart count above zero is not by itself a crash loop")
 }
 
+func TestReportNotesPointAtSkipReasonsForSkippedHolds(t *testing.T) {
+	notes := strings.Join(reportNotes(), "\n")
+
+	assert.Contains(t, notes, "state=skipped",
+		"a start-hold is Skipped, not an unnamed Created or Blocked state")
+	assert.Contains(t, notes, "skip_reasons",
+		"skip_reasons is what separates a config gate from ordering or auto_start_false")
+}
+
 func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
 		connectErr: errors.New("open \\\\.\\pipe\\datadog-procmgrd: file does not exist"),
@@ -191,25 +200,27 @@ func TestReportDescribeFailureFallsBackToListData(t *testing.T) {
 	assert.Contains(t, report.Warnings[0], "describe datadog-agent-process")
 }
 
-// A gate-blocked process and an inert catalog entry are both Created, and auto_start is the only
-// field that separates them. It comes from Describe, so losing that call loses the distinction.
+// A gate-blocked process and an inert catalog entry are both Skipped. skip_reasons
+// is what separates them, and it comes from Describe (and List).
 func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
 		daemon: DaemonSnapshot{Reachable: true, Ready: true},
 		processes: map[string]ProcessSnapshot{
-			"datadog-agent-process":  {Name: "datadog-agent-process", State: ProcessStateCreated},
-			"datadog-agent-sysprobe": {Name: "datadog-agent-sysprobe", State: ProcessStateCreated},
+			"datadog-agent-process":  {Name: "datadog-agent-process", State: ProcessStateSkipped},
+			"datadog-agent-sysprobe": {Name: "datadog-agent-sysprobe", State: ProcessStateSkipped},
 		},
 		details: map[string]ProcessSnapshot{
 			"datadog-agent-process": {
-				Name:      "datadog-agent-process",
-				State:     ProcessStateCreated,
-				AutoStart: true,
+				Name:        "datadog-agent-process",
+				State:       ProcessStateSkipped,
+				AutoStart:   true,
+				SkipReasons: []string{"config_gate"},
 			},
 			"datadog-agent-sysprobe": {
-				Name:      "datadog-agent-sysprobe",
-				State:     ProcessStateCreated,
-				AutoStart: false,
+				Name:        "datadog-agent-sysprobe",
+				State:       ProcessStateSkipped,
+				AutoStart:   false,
+				SkipReasons: []string{"auto_start_false"},
 			},
 		},
 	})
@@ -217,12 +228,12 @@ func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
 	report := collector.Report(context.Background(), ScrubOptions{})
 
 	gated := reportProcessByName(t, report, "datadog-agent-process")
-	assert.Equal(t, ProcessStateCreated, gated.State)
-	assert.True(t, gated.AutoStart, "auto_start is what marks this as blocked rather than inert")
+	assert.Equal(t, ProcessStateSkipped, gated.State)
+	assert.Equal(t, []string{"config_gate"}, gated.SkipReasons)
 
 	inert := reportProcessByName(t, report, "datadog-agent-sysprobe")
-	assert.Equal(t, ProcessStateCreated, inert.State)
-	assert.False(t, inert.AutoStart)
+	assert.Equal(t, ProcessStateSkipped, inert.State)
+	assert.Equal(t, []string{"auto_start_false"}, inert.SkipReasons)
 }
 
 func TestReportSeparatesCrashLoopFromFailedSpawn(t *testing.T) {
@@ -531,6 +542,106 @@ func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
 		assert.Nil(t, processes[0].Args, "no argument should survive, not even a harmless one")
 		assert.NotEmpty(t, processes[0].Command, "the executable is not an argument and stays")
 	})
+}
+
+func TestScrubConfigErrorRedactsSecretSequences(t *testing.T) {
+	report := SupportReport{
+		Processes: []ProcessSnapshot{{
+			Name:        "broken",
+			State:       ProcessStateInvalidConfig,
+			ConfigError: "parsing /tmp/broken.yaml: --password s3cret",
+		}},
+	}
+
+	report.Scrub(ScrubOptions{})
+
+	assert.Equal(t, "parsing /tmp/broken.yaml: --password "+wantRedacted, report.Processes[0].ConfigError)
+}
+
+func TestScrubConfigErrorHonoursCustomWords(t *testing.T) {
+	report := SupportReport{
+		Processes: []ProcessSnapshot{{
+			ConfigError: "parsing /tmp/broken.yaml: start --PASSPHRASE s3cret",
+		}},
+	}
+
+	report.Scrub(ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
+
+	assert.Equal(t,
+		"parsing /tmp/broken.yaml: start --PASSPHRASE "+wantRedacted,
+		report.Processes[0].ConfigError)
+}
+
+func TestScrubConfigErrorKeepsNonSecretParseErrors(t *testing.T) {
+	err := "parsing /tmp/broken.yaml: missing field `command`"
+	report := SupportReport{Processes: []ProcessSnapshot{{ConfigError: err}}}
+
+	report.Scrub(ScrubOptions{})
+
+	assert.Equal(t, err, report.Processes[0].ConfigError)
+}
+
+func TestScrubConfigErrorSurvivesStripArguments(t *testing.T) {
+	err := "parsing /tmp/broken.yaml: missing field `command`"
+	report := SupportReport{Processes: []ProcessSnapshot{{
+		Args:        []string{"--config", "/etc/datadog-agent/datadog.yaml"},
+		ConfigError: err,
+	}}}
+
+	report.Scrub(ScrubOptions{StripArguments: true})
+
+	assert.Nil(t, report.Processes[0].Args)
+	assert.Equal(t, err, report.Processes[0].ConfigError)
+}
+
+// An args array written as a string comes back quoted in the parse error, so the setting that
+// drops arguments has to drop them on this route too, without taking the diagnosis with it.
+func TestScrubConfigErrorStripsEchoedScalars(t *testing.T) {
+	report := SupportReport{Processes: []ProcessSnapshot{{
+		ConfigError: `parsing /tmp/broken.yaml: args: invalid type: string "--token abc123", expected a sequence at line 3 column 7`,
+	}}}
+
+	report.Scrub(ScrubOptions{StripArguments: true})
+
+	assert.Equal(t,
+		`parsing /tmp/broken.yaml: args: invalid type: string "`+wantRedacted+`", expected a sequence at line 3 column 7`,
+		report.Processes[0].ConfigError)
+}
+
+// A number is echoed in backticks rather than quotes, and an argument does not stop being one for
+// having been written without them.
+func TestScrubConfigErrorStripsEchoedNumbers(t *testing.T) {
+	report := SupportReport{Processes: []ProcessSnapshot{{
+		ConfigError: "parsing /tmp/broken.yaml: args: invalid type: integer `1234567`, expected a sequence at line 2 column 7",
+	}}}
+
+	report.Scrub(ScrubOptions{StripArguments: true})
+
+	assert.Equal(t,
+		"parsing /tmp/broken.yaml: args: invalid type: integer `"+wantRedacted+"`, expected a sequence at line 2 column 7",
+		report.Processes[0].ConfigError)
+}
+
+// Stripping is what removes a value procutil does not recognize as a secret. Without it the echo
+// is the parse error's diagnostic, and support reads it to see what the file actually said.
+func TestScrubConfigErrorKeepsEchoedScalarsWithoutStripping(t *testing.T) {
+	err := `parsing /tmp/broken.yaml: args: invalid type: string "--verbose", expected a sequence`
+	report := SupportReport{Processes: []ProcessSnapshot{{ConfigError: err}}}
+
+	report.Scrub(ScrubOptions{})
+
+	assert.Equal(t, err, report.Processes[0].ConfigError)
+}
+
+// Serde spells identifiers in backticks and data in double quotes, so stripping must not reach the
+// name of the field that failed: it is not a value and support needs it to find the mistake.
+func TestScrubConfigErrorKeepsFieldNamesWhenStripping(t *testing.T) {
+	err := "parsing /tmp/broken.yaml: unknown field `comand`, expected one of `description`, `command`"
+	report := SupportReport{Processes: []ProcessSnapshot{{ConfigError: err}}}
+
+	report.Scrub(ScrubOptions{StripArguments: true})
+
+	assert.Equal(t, err, report.Processes[0].ConfigError)
 }
 
 // Every leak found in this scrubber has been one instance of a single invariant: a flare must keep
