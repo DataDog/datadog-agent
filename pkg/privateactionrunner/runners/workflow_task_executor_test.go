@@ -8,7 +8,7 @@ package runners
 import (
 	"context"
 	"errors"
-	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -85,6 +85,8 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	connectionInfo := &privateactionspb.ConnectionInfo{RunnerId: "runner-id"}
 	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
 	unwrappedTask.Data.Attributes.ConnectionInfo = connectionInfo
+	dequeuedTask.Data.Attributes.Inputs = map[string]interface{}{"url": "https://unsigned.example.com"}
+	unwrappedTask.Data.Attributes.Inputs = map[string]interface{}{"url": "https://signed.example.com"}
 	credential := &privateconnection.PrivateCredentials{
 		Type: privateconnection.TokenAuthType,
 		Tokens: []privateconnection.PrivateCredentialsToken{
@@ -107,7 +109,7 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	assert.Nil(t, failureTask)
 	assert.Same(t, dequeuedTask, verifier.gotTask)
 	assert.Same(t, connectionInfo, credentialResolver.gotConn)
-	assert.Equal(t, resolver.ActionContext{BundleID: "signed-bundle", ActionName: "signed-action"}, credentialResolver.gotAction)
+	assert.Equal(t, resolver.ActionContext{BundleID: "signed-bundle", ActionName: "signed-action", HTTPRequestURL: "https://signed.example.com"}, credentialResolver.gotAction)
 	assert.Same(t, unwrappedTask, got.Task)
 	assert.Same(t, credential, got.Credential)
 	assert.Equal(t, "job-id", got.Task.Data.Attributes.JobId)
@@ -306,7 +308,7 @@ func TestPrepareTaskRejectsActionBeforeResolvingCredentials(t *testing.T) {
 
 func TestPrepareTaskEnforcesCredentialPolicyUsingVerifiedIdentity(t *testing.T) {
 	for _, allowed := range []bool{true, false} {
-		t.Run(fmt.Sprint(allowed), func(t *testing.T) {
+		t.Run(strconv.FormatBool(allowed), func(t *testing.T) {
 			credentialResolver, err := resolver.NewPrivateCredentialResolver(configmock.NewFromYAML(t, `
 private_action_runner:
   credentials:

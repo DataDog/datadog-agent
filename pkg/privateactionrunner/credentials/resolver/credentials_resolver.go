@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"reflect"
 	"regexp"
@@ -39,6 +40,9 @@ type PrivateCredentialResolver interface {
 type ActionContext struct {
 	BundleID   string
 	ActionName string
+	// HTTPRequestURL comes from the verified task inputs. Connection tests derive
+	// their destination from the resolved connection details instead.
+	HTTPRequestURL string
 }
 
 // Only exact FQNs and trailing integration/sub-bundle wildcards are supported.
@@ -98,7 +102,7 @@ func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig,
 		// avoid the config helper's weak conversions of scalars into lists.
 		DecodeHook: func(from, to reflect.Value) (any, error) {
 			if to.Type() == reflect.TypeOf([]string(nil)) && (from.Kind() != reflect.Slice || from.IsNil()) {
-				return nil, errors.New("allowed_actions must be a non-null list")
+				return nil, errors.New("credential restrictions must be non-null lists")
 			}
 			return from.Interface(), nil
 		},
@@ -111,6 +115,9 @@ func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig,
 		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
 	}
 	for _, credential := range values {
+		if err := privateconnection.HTTPDomainAllowlist(credential.AllowedHTTPDomains).Validate(); err != nil {
+			return nil, fmt.Errorf("invalid allowed_http_domains in %s: expected hostnames, IP addresses, or *.domain patterns", par.CredentialsValues)
+		}
 		for _, pattern := range credential.AllowedActions {
 			if !actionPattern.MatchString(pattern) {
 				return nil, fmt.Errorf("invalid allowed_actions in %s: expected an action FQN or a trailing integration/sub-bundle wildcard", par.CredentialsValues)
@@ -147,26 +154,43 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_CONNECTION_TOKENS_V2:
-		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2(), action)
+		resolvedTokens, domainRestrictions, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2(), action)
 		if err != nil {
 			return nil, err
 		}
 		tokens, details = privateconnection.ExtractConnectionDetails(&privateactionspb.ConnectionInfo{Tokens: resolvedTokens})
+		credential := &privateconnection.PrivateCredentials{Type: privateconnection.TokenAuthType, HttpDetails: details, HTTPDomainRestrictions: domainRestrictions}
+		if len(domainRestrictions) > 0 {
+			var target *url.URL
+			if action.ActionName == "testConnection" {
+				target, err = details.TestURL()
+			} else {
+				target, err = url.Parse(action.HTTPRequestURL)
+			}
+			if err != nil {
+				return nil, errors.New("cannot authorize runner credential: invalid HTTP destination")
+			}
+			if err := credential.ValidateHTTPURL(target); err != nil {
+				return nil, err
+			}
+		}
 		credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
 		}
-		return &privateconnection.PrivateCredentials{Tokens: credentialTokens, Type: privateconnection.TokenAuthType, HttpDetails: details}, nil
+		credential.Tokens = credentialTokens
+		return credential, nil
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
 
-func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2, action ActionContext) ([]*privateactionspb.ConnectionToken, error) {
+func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2, action ActionContext) ([]*privateactionspb.ConnectionToken, []privateconnection.HTTPDomainAllowlist, error) {
 	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
+	var domainRestrictions []privateconnection.HTTPDomainAllowlist
 	var credentialValues map[string]par.CredentialConfig
 	for _, token := range tokens {
 		if token == nil || len(token.GetNameSegments()) == 0 {
-			return nil, errors.New("connection token and its name must not be empty")
+			return nil, nil, errors.New("connection token and its name must not be empty")
 		}
 		var value string
 		switch source := token.GetSource().(type) {
@@ -174,34 +198,40 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 			value = source.PlainText.GetValue()
 		case *privateactionspb.ConnectionTokenV2_RunnerCredential_:
 			if p.config == nil {
-				return nil, errors.New("runner credential configuration is unavailable")
+				return nil, nil, errors.New("runner credential configuration is unavailable")
 			}
 			key := source.RunnerCredential.GetKey()
 			if key == "" {
-				return nil, fmt.Errorf("runner credential key for connection token %q must not be empty", connlib.GetName(token))
+				return nil, nil, fmt.Errorf("runner credential key for connection token %q must not be empty", connlib.GetName(token))
 			}
 			// Read once per task so all tokens use the same config snapshot.
 			if credentialValues == nil {
 				var err error
 				credentialValues, err = readCredentialValues(p.config)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 			}
 			credential, found := credentialValues[key]
 			if !found {
-				return nil, fmt.Errorf("could not resolve connection token %q: requested runner credential is not available", connlib.GetName(token))
+				return nil, nil, fmt.Errorf("could not resolve connection token %q: requested runner credential is not available", connlib.GetName(token))
 			}
 			if !action.allows(credential.AllowedActions) {
-				return nil, fmt.Errorf("runner credential %q is not allowed for action %q", key, action.BundleID+"."+action.ActionName)
+				return nil, nil, fmt.Errorf("runner credential %q is not allowed for action %q", key, action.BundleID+"."+action.ActionName)
+			}
+			if credential.AllowedHTTPDomains != nil {
+				if action.BundleID != "com.datadoghq.http" || (action.ActionName != "request" && action.ActionName != "testConnection" && action.ActionName != "getChecksumFromURL") {
+					return nil, nil, fmt.Errorf("runner credential %q requires an HTTP action supporting domain restrictions", key)
+				}
+				domainRestrictions = append(domainRestrictions, privateconnection.HTTPDomainAllowlist(credential.AllowedHTTPDomains))
 			}
 			value = credential.Value
 		default:
-			return nil, fmt.Errorf("unsupported source for connection token %q", connlib.GetName(token))
+			return nil, nil, fmt.Errorf("unsupported source for connection token %q", connlib.GetName(token))
 		}
 		resolved = append(resolved, privateconnection.NewPlainTextToken(token.GetNameSegments(), value))
 	}
-	return resolved, nil
+	return resolved, domainRestrictions, nil
 }
 
 func resolveTokenAuthTokens(ctx context.Context, tokens []*privateactionspb.ConnectionToken) ([]privateconnection.PrivateCredentialsToken, error) {

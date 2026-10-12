@@ -62,4 +62,7 @@ type CredentialConfig struct {
 	Value string `mapstructure:"value"`
 	// Nil allows every action; a configured empty list denies every action.
 	AllowedActions []string `mapstructure:"allowed_actions"`
+	// Nil leaves destinations unrestricted; an empty list denies every destination.
+	// When set, only HTTP actions may use the credential.
+	AllowedHTTPDomains []string `mapstructure:"allowed_http_domains"`
 }
