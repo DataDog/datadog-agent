@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Private Action Runner can execute authored scripts from anonymous OCI
+    registries using the ``com.datadoghq.script.runRegistryScript`` action,
+    without a Remote Configuration catalog entry. The script connection's
+    ``allowedRegistries`` list controls allowed registry hosts and repository
+    paths. Script URIs can use tags or immutable digests. This action is not
+    supported on Windows.

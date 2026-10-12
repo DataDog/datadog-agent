@@ -105,7 +105,7 @@ func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute tra
 			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),
 			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(ipcClient),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
-			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
+			"com.datadoghq.script":                               com_datadoghq_script.NewScript(configuration.AgentHTTPClient),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),
 		},
 	}, nil
