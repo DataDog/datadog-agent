@@ -44,6 +44,7 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 			{Name: "Tags", Type: arrow.ListOf(arrow.BinaryTypes.String)}, // tags as list of strings
 			{Name: "Dropped", Type: arrow.FixedWidthTypes.Boolean},       // true if live channel dropped this observation
 			{Name: "MetricType", Type: arrow.BinaryTypes.String},         // original metric type
+			{Name: "SampleRate", Type: arrow.PrimitiveTypes.Float64},     // original sample rate
 		},
 		nil,
 	)
@@ -99,6 +100,7 @@ type metricBatchBuilder struct {
 	times       []int64
 	metricNames []string
 	metricTypes []string
+	sampleRates []float64
 	valueFloats []float64
 	tags        [][]string
 	dropped     []bool
@@ -117,6 +119,7 @@ func (b *metricBatchBuilder) add(metric recorder.MetricData) {
 		metricType = "Unknown"
 	}
 	b.metricTypes = append(b.metricTypes, metricType)
+	b.sampleRates = append(b.sampleRates, metric.SampleRate)
 	b.valueFloats = append(b.valueFloats, metric.Value)
 	b.dropped = append(b.dropped, metric.Dropped)
 	b.tags = append(b.tags, metric.Tags)
@@ -138,6 +141,7 @@ func (b *metricBatchBuilder) build() arrow.RecordBatch {
 	tagsValueBuilder := tagsBuilder.ValueBuilder().(*array.StringBuilder)
 	droppedBuilder := recordBuilder.Field(5).(*array.BooleanBuilder)
 	metricTypeBuilder := recordBuilder.Field(6).(*array.StringBuilder)
+	sampleRateBuilder := recordBuilder.Field(7).(*array.Float64Builder)
 
 	for _, id := range b.runIDs {
 		runIDBuilder.Append(id)
@@ -149,6 +153,7 @@ func (b *metricBatchBuilder) build() arrow.RecordBatch {
 	valueBuilder.AppendValues(b.valueFloats, nil)
 	droppedBuilder.AppendValues(b.dropped, nil)
 	metricTypeBuilder.AppendValues(b.metricTypes, nil)
+	sampleRateBuilder.AppendValues(b.sampleRates, nil)
 
 	for _, tagList := range b.tags {
 		tagsBuilder.Append(true)
@@ -165,6 +170,7 @@ func (b *metricBatchBuilder) build() arrow.RecordBatch {
 	b.times = nil
 	b.metricNames = nil
 	b.metricTypes = nil
+	b.sampleRates = nil
 	b.valueFloats = nil
 	b.tags = nil
 	b.dropped = nil

@@ -24,6 +24,7 @@ type MetricData struct {
 	Source     string   // Source/namespace
 	Name       string   // Metric name
 	MetricType string   // Original metric type; empty for legacy recordings
+	SampleRate float64  // Original sample rate
 	Value      float64  // Metric value
 	Timestamp  int64    // Unix timestamp in seconds
 	Tags       []string // Tags in "key:value" format

@@ -19,7 +19,7 @@ import (
 )
 
 func TestNewParquetMetricViewResolvesHostTag(t *testing.T) {
-	view := newParquetMetricView("system.cpu", 1, []string{"env:prod", "host:web-1", "service:api"}, 100, "")
+	view := newParquetMetricView("system.cpu", 1, []string{"env:prod", "host:web-1", "service:api"}, 100, "", 1)
 
 	assert.Equal(t, "web-1", view.GetHost())
 	assert.Equal(t, []string{"env:prod", "service:api"}, view.GetTags().UnsafeToReadOnlySliceString())
@@ -40,7 +40,32 @@ func TestMetricTypeFallbackForNullableParquetColumn(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 	for _, row := range rows {
-		assert.Equal(t, observerdef.UnknownType, newParquetMetricView(row.MetricName, 0, nil, 0, row.MetricType).GetMetricType())
+		view := newParquetMetricView(row.MetricName, 0, nil, 0, row.MetricType, 1)
+		assert.Equal(t, observerdef.UnknownType, view.GetMetricType())
+		assert.Equal(t, float64(1), view.GetSampleRate())
+	}
+}
+
+func TestSampleRateFallbackForNullableParquetColumn(t *testing.T) {
+	schema := arrow.NewSchema([]arrow.Field{{Name: "SampleRate", Type: arrow.PrimitiveTypes.Float64, Nullable: true}}, nil)
+	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer builder.Release()
+	rates := builder.Field(0).(*array.Float64Builder)
+	rates.AppendNull()
+	rates.Append(0)
+	rates.Append(0.1)
+	record := builder.NewRecord()
+	defer record.Release()
+
+	rows, err := extractMetricsFromRecord(record)
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	expected := []float64{1, 0, 0.1}
+	for i, row := range rows {
+		data := metricDataFromFGM(row)
+		require.Equal(t, expected[i], data.SampleRate)
+		view := newParquetMetricView(data.Name, data.Value, data.Tags, data.Timestamp, data.MetricType, data.SampleRate)
+		require.Equal(t, expected[i], view.GetSampleRate())
 	}
 }
 

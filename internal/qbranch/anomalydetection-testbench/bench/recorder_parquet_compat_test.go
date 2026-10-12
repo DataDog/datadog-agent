@@ -27,11 +27,11 @@ func TestRecorderParquetV1LoadsInBothTestbenchModes(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, metricWriter.WriteMetric(recorderdef.MetricData{
 		Source: "check", Name: "system.cpu", Value: 2.5, Timestamp: 1000,
-		Tags: []string{"host:test", "env:dev"}, MetricType: "Gauge",
+		Tags: []string{"host:test", "env:dev"}, MetricType: "Gauge", SampleRate: 0.1,
 	}))
 	require.True(t, metricWriter.WriteMetric(recorderdef.MetricData{
 		Source: "check", Name: "system.cpu", Value: 3.5, Timestamp: 1001,
-		Tags: []string{"host:test"}, Dropped: true, MetricType: "MonotonicCount",
+		Tags: []string{"host:test"}, Dropped: true, MetricType: "MonotonicCount", SampleRate: 0,
 	}))
 	require.True(t, logWriter.WriteLog(recorderdef.LogData{
 		Source: "logs", TimestampMs: 1000500, Content: []byte("first"),
@@ -54,7 +54,10 @@ func TestRecorderParquetV1LoadsInBothTestbenchModes(t *testing.T) {
 	require.Equal(t, int64(1000), metrics[0].Timestamp)
 	require.False(t, metrics[0].Dropped)
 	require.Equal(t, "Gauge", metrics[0].MetricType)
-	require.Equal(t, pkgmetrics.GaugeType, newParquetMetricView(metrics[0].Name, metrics[0].Value, metrics[0].Tags, metrics[0].Timestamp, metrics[0].MetricType).GetMetricType())
+	require.Equal(t, float64(0.1), metrics[0].SampleRate)
+	view := newParquetMetricView(metrics[0].Name, metrics[0].Value, metrics[0].Tags, metrics[0].Timestamp, metrics[0].MetricType, metrics[0].SampleRate)
+	require.Equal(t, pkgmetrics.GaugeType, view.GetMetricType())
+	require.Equal(t, float64(0.1), view.GetSampleRate())
 	require.ElementsMatch(t, []string{"host:test", "env:dev"}, metrics[0].Tags)
 	require.Equal(t, "check", metrics[1].Source)
 	require.Equal(t, "system.cpu", metrics[1].Name)
@@ -63,7 +66,10 @@ func TestRecorderParquetV1LoadsInBothTestbenchModes(t *testing.T) {
 	require.Equal(t, []string{"host:test"}, metrics[1].Tags)
 	require.True(t, metrics[1].Dropped)
 	require.Equal(t, "MonotonicCount", metrics[1].MetricType)
-	require.Equal(t, pkgmetrics.MonotonicCountType, newParquetMetricView(metrics[1].Name, metrics[1].Value, metrics[1].Tags, metrics[1].Timestamp, metrics[1].MetricType).GetMetricType())
+	require.Equal(t, float64(0), metrics[1].SampleRate)
+	view = newParquetMetricView(metrics[1].Name, metrics[1].Value, metrics[1].Tags, metrics[1].Timestamp, metrics[1].MetricType, metrics[1].SampleRate)
+	require.Equal(t, pkgmetrics.MonotonicCountType, view.GetMetricType())
+	require.Equal(t, float64(0), view.GetSampleRate())
 
 	logs, err := readAllLogs(dir)
 	require.NoError(t, err)
@@ -92,6 +98,7 @@ func TestRecorderParquetV1LoadsInBothTestbenchModes(t *testing.T) {
 		require.Equal(t, metrics[i].Value, streamedMetrics[i].Value)
 		require.Equal(t, metrics[i].Timestamp, streamedMetrics[i].Timestamp)
 		require.Equal(t, metrics[i].MetricType, streamedMetrics[i].MetricType)
+		require.Equal(t, metrics[i].SampleRate, streamedMetrics[i].SampleRate)
 		require.Equal(t, metrics[i].Dropped, streamedMetrics[i].Dropped)
 		require.ElementsMatch(t, metrics[i].Tags, streamedMetrics[i].Tags)
 	}

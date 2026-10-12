@@ -66,7 +66,7 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView, contextKey u
 		metricType = "Unknown"
 	}
 	h.recorder.metrics.WriteMetric(recorder.MetricData{
-		Source: h.name, Name: sample.GetName(), MetricType: metricType, Value: sample.GetValue(),
+		Source: h.name, Name: sample.GetName(), MetricType: metricType, SampleRate: sample.GetSampleRate(), Value: sample.GetValue(),
 		Timestamp: timestamp, Tags: tags, Dropped: dropped,
 	})
 }
