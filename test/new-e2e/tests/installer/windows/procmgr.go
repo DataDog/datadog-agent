@@ -78,16 +78,16 @@ func (s *BaseSuite) procmgrCommandUntilState(processName, verb, wantState string
 // started. The config existing is the point: asserting only that the legacy SCM service is
 // stopped would pass for a process procmgr had happily started instead.
 //
-// Created rather than "anything but Running", which a process that started and then exited
+// Skipped rather than "anything but Running", which a process that started and then exited
 // or failed would also satisfy. A process dd-procmgrd never spawned because its config gate
-// was closed stays in Created, so that is the state the claim actually rests on.
+// was closed stays in Skipped, so that is the state the claim actually rests on.
 func (s *BaseSuite) assertNotRunningUnderProcmgr(processName string) {
 	s.T().Helper()
 	s.Require().Host(s.Env().RemoteHost).FileExists(s.procmgrConfigPath(processName),
 		"%s should have a processes.d config", processName)
 
 	// Only the read is retried, so a dd-procmgrd channel that aborts a call does not read as a
-	// verdict on the state. The state itself gets one chance: Created is not a stage anything
+	// verdict on the state. The state itself gets one chance: Skipped is not a stage anything
 	// passes through, so a retry could only mask a process that was started and stopped again.
 	var state string
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
@@ -96,7 +96,7 @@ func (s *BaseSuite) assertNotRunningUnderProcmgr(processName string) {
 		assert.NoError(c, err)
 	}, 1*time.Minute, 5*time.Second, "should be able to read the %s state from dd-procmgrd", processName)
 
-	s.Require().Equal("Created", state,
+	s.Require().Equal("Skipped", state,
 		"%s should never have been started by dd-procmgrd", processName)
 }
 

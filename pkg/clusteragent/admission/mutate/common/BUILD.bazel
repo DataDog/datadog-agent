@@ -57,8 +57,10 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "@com_github_evanphx_json_patch_v5//:json-patch",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_client_go//dynamic",
     ],
 )

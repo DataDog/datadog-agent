@@ -464,5 +464,32 @@ class TestCheckSnakeCaseNames(unittest.TestCase):
         self.assertTrue(any("UPPER_prefix" in e for e in errors))
 
 
+class TestCheckTemplateSectionOnPublic(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_template_section_on_public, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_private_setting_with_template_section_is_error(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertTrue(
+            any("private_setting" in e and "only valid on public nodes" in e for e in errors),
+            f"Expected error for private_setting, got: {errors}",
+        )
+
+    def test_private_section_with_template_section_is_error(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertTrue(
+            any("[private_section]" in e for e in errors),
+            f"Expected error for private_section, got: {errors}",
+        )
+
+    def test_public_setting_with_template_section_passes(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertFalse(
+            any("public_setting" in e for e in errors),
+            f"public_setting should not produce an error, got: {errors}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

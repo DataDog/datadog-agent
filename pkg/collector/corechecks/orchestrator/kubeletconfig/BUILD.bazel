@@ -13,6 +13,7 @@ go_library(
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
         "//comp/core/tagger/def",
+        "//comp/core/tagger/utils",
         "//comp/core/workloadmeta/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",

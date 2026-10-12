@@ -105,7 +105,10 @@ if [ -x "$BUILD_DIR/bin/gotestsum" ]; then
     log "gotestsum already installed"
 else
     log "Installing gotestsum"
+    # Unset OBJECT_MODE for Go's external linker — gcc-8 picks the 32-bit
+    # crt0.o otherwise (see stages/04-agent.sh).
     ( cd "$AGENT_SRC/internal/tools" && \
+        unset OBJECT_MODE && \
         GOBIN="$BUILD_DIR/bin" \
         GOCACHE="$BUILD_DIR/gocache" TMPDIR="$BUILD_DIR/buildtmp" \
         PATH="/opt/go/bin:$PATH" \

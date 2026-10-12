@@ -479,6 +479,24 @@ func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, e
 	return t.Tag(types.GetGlobalEntityID(), cardinality)
 }
 
+// GetInfraTags returns the infrastructure mode tags for this Agent, or nil when
+// the mode does not carry a mark.
+//
+// It comes from the stream rather than the local config, so a Cluster Check
+// Runner reports the mode of the Cluster Agent that dispatches its checks even
+// when the setting was not applied to the runner itself.
+func (t *remoteTagger) GetInfraTags() []string {
+	tags, err := t.Tag(types.GetInfraTagsEntityID(), types.LowCardinality)
+	if err != nil {
+		t.log.Warnf("error getting infra tags: %s", err)
+		return nil
+	}
+	if len(tags) == 0 {
+		return nil
+	}
+	return tags
+}
+
 // EnrichTags enriches the tags with the global tags.
 // Agents running the remote tagger don't have the ability to enrich tags based
 // on the origin info. Only the core agent or dogstatsd can have origin info,
