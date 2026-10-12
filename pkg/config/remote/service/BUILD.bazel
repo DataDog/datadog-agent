@@ -5,8 +5,9 @@ go_library(
     name = "service",
     srcs = [
         "clients.go",
-        "org_status_mock.go",
+        "par_scope.go",
         "service.go",
+        "status_mock.go",
         "subscriptions.go",
         "tracer_predicates.go",
         "util.go",

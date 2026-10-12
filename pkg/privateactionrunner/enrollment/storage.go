@@ -95,7 +95,11 @@ func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
 		return fmt.Errorf("failed to marshal identity content to JSON: %w", err)
 	}
 
-	if err := os.WriteFile(filePath, jsonData, 0600); err != nil {
+	if PhoneHomePOC() {
+		if err := writePhoneHomeFile(filePath, jsonData); err != nil {
+			return err
+		}
+	} else if err := os.WriteFile(filePath, jsonData, 0600); err != nil {
 		return fmt.Errorf("failed to write temporary identity file: %w", err)
 	}
 

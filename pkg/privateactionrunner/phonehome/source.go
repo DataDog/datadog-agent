@@ -1,0 +1,120 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package phonehome
+
+import (
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remote "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+)
+
+// Prerequisites is a credential-free, value observation. Injected observations
+// in controller tests are not evidence that real discovery has run.
+type Prerequisites struct {
+	RCReady        bool
+	RCReason       string
+	ScopeReady     bool
+	ScopeReason    string
+	ScopeCheckedAt time.Time
+	NextCheck      time.Time
+}
+
+// Source owns observations and discovery demand; reading never forces a request.
+type Source interface {
+	Read(time.Time) Prerequisites
+	Demand(bool)
+}
+
+type rcSource struct {
+	cfg     model.Reader
+	service rcservice.Component
+}
+
+// NewSource adapts the optional RC service without an HTTP client or fallback.
+func NewSource(cfg model.Reader, service rcservice.Component) Source {
+	return &rcSource{cfg: cfg, service: service}
+}
+
+func (r *rcSource) Demand(wanted bool) {
+	if r.service != nil {
+		r.service.SetPARDiscoveryDemand(wanted)
+	}
+}
+
+func (r *rcSource) Read(now time.Time) Prerequisites {
+	p := Prerequisites{RCReason: "rc_service_unavailable", ScopeReason: "par_scope_unchecked"}
+	if !configutils.IsRemoteConfigEnabled(r.cfg) {
+		p.RCReason = "rc_locally_disabled"
+		return p
+	}
+	if r.service == nil {
+		return p
+	}
+	rc := r.service.GetOrgStatus()
+	if rc.State != remote.OrgStatusObserved {
+		p.RCReason = "rc_" + string(rc.State)
+		return p
+	}
+	key := r.cfg.GetString("api_key")
+	rcURL := configutils.GetMainEndpoint(r.cfg, "https://config.", "remote_configuration.rc_dd_url")
+	parURL := enrollmentEndpoint(r.cfg)
+	expectedRC := "https://config." + enrollmentSite(r.cfg)
+	mockPair := os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
+	if !rc.Matches(key, rcURL) || (rcURL != expectedRC && !mockPair) || (os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && !mockPair) {
+		p.RCReason = "rc_credential_or_endpoint_mismatch"
+		return p
+	}
+	if !rc.Ready(now) {
+		switch {
+		case !rc.Enabled:
+			p.RCReason = "rc_org_disabled"
+		case !rc.Authorized:
+			p.RCReason = "rc_key_unauthorized"
+		default:
+			p.RCReason = "rc_stale"
+		}
+		return p
+	}
+	p.RCReady, p.RCReason = true, "rc_ready"
+	scope := r.service.GetPARScope()
+	p.ScopeReason, p.ScopeCheckedAt, p.NextCheck = scope.Reason, scope.CheckedAt, scope.NextCheck
+	if p.ScopeReason == "" {
+		p.ScopeReason = "par_scope_unchecked"
+	}
+	p.ScopeReady = scope.Granted(now, rc.Generation) && scope.Matches(key, parURL)
+	if scope.Reason == "scope_present" && !p.ScopeReady {
+		p.ScopeReason = "par_scope_stale_or_mismatched"
+	}
+	return p
+}
+
+func enrollmentSite(cfg model.Reader) string {
+	site := configutils.ExtractSiteFromURL(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"))
+	if site == "" {
+		site = "datadoghq.com"
+	}
+	return site
+}
+
+func enrollmentEndpoint(cfg model.Reader) string {
+	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
+		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"), "/")
+	}
+	return "https://api." + enrollmentSite(cfg)
+}
+
+func loopbackURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.User == nil && u.RawQuery == "" && u.Fragment == "" && u.Path == "" &&
+		(u.Scheme == "http" || u.Scheme == "https") && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1")
+}
