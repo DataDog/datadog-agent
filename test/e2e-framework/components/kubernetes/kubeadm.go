@@ -163,7 +163,7 @@ systemctl restart containerd`, kubeadmContainerdRepoReleasever)
 			// as far as Init:ImagePullBackOff and no further.
 			runtimeScript = fmt.Sprintf(`kmaj=$(echo %[1]s | cut -d. -f1); kmin=$(echo %[1]s | cut -d. -f2)
 crio_ver=""
-for d in 0 1 2 3 4; do
+for d in 0 1 2 3 4 5; do
   cand="v${kmaj}.$((kmin-d))"
   if curl -fsSL -o /dev/null "https://pkgs.k8s.io/addons:/cri-o:/stable:/${cand}/rpm/repodata/repomd.xml"; then crio_ver="$cand"; break; fi
 done
