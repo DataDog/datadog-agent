@@ -429,7 +429,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 
 // setupPersistenceTicker creates the ticker channel for periodic profile persistence
 func (m *ManagerV2) setupPersistenceTicker() <-chan time.Time {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return make(chan time.Time)
 	}
 
@@ -438,7 +438,7 @@ func (m *ManagerV2) setupPersistenceTicker() <-chan time.Time {
 
 // setupNodeEvictionTicker creates the ticker channel for periodic node eviction
 func (m *ManagerV2) setupNodeEvictionTicker() <-chan time.Time {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled || m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled || m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
 		return make(chan time.Time)
 	}
 
@@ -447,7 +447,7 @@ func (m *ManagerV2) setupNodeEvictionTicker() <-chan time.Time {
 
 // setupProfileCleanupTicker creates the ticker channel for periodic profile cleanup
 func (m *ManagerV2) setupProfileCleanupTicker() <-chan time.Time {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled || m.config.RuntimeSecurity.SecurityProfileCleanupDelay <= 0 {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled || m.config.RuntimeSecurity.SecurityProfileCleanupDelay <= 0 {
 		return make(chan time.Time)
 	}
 
@@ -457,7 +457,7 @@ func (m *ManagerV2) setupProfileCleanupTicker() <-chan time.Time {
 
 // setupStalePurgesTicker creates the ticker channel for periodic purge of stale pending events
 func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return make(chan time.Time)
 	}
 
@@ -1033,7 +1033,7 @@ func (m *ManagerV2) SendStats() error {
 // insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
 // Returns the profile and whether the event was actually inserted (new data added).
 func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool) {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return nil, false
 	}
 
@@ -1497,7 +1497,7 @@ func (m *ManagerV2) seededSyscalls() []uint32 {
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos
 func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadID, ctx *model.SecurityProfileContext, imageTag string) {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return
 	}
 
