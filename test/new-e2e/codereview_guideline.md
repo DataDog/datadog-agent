@@ -62,7 +62,7 @@ Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel, r
 #### Internet access exceptions
 Host provisioners create VMs without Internet access. A test that still needs it opts in with `WithInternetAccess()`, and every such usage must be listed in [`internet-access.yaml`](internet-access.yaml) with a `status` and a `reason`. The file is owned by agent-devx, so adding an entry requires our review; `dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 linter.e2e-internet-access` enforces this in CI and pre-commit. The pre-commit hook does not see deleted files, so an entry left stale by a deletion is only caught in CI.
 
-Try every alternative above before requesting an exception. Package manager installs, image pulls that bypass the ECR pull-through cache, and third-party downloads are never valid reasons: such entries are recorded as `debt` and must be fixed.
+Try every alternative above before requesting an exception. Package manager installs, image pulls that bypass the ECR pull-through cache, third-party downloads, and downloads of Datadog's own public install scripts and packages (use a mirror in the QA AWS account) are never valid reasons: such entries are recorded as `debt` and must be fixed.
 
 ### Pin your dependencies
 When depending on something external, pin both the version and a sha256sum to avoid hard-to-track behavior changes which can cause unexpected breakages.
