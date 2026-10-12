@@ -54,7 +54,6 @@ func (cv *CollectorVersions) CollectorForVersion(groupVersion string) (K8sCollec
 type OrchestratorInformerFactory struct {
 	InformerFactory              informers.SharedInformerFactory
 	UnassignedPodInformerFactory informers.SharedInformerFactory
-	TerminatedPodInformerFactory informers.SharedInformerFactory
 	DynamicInformerFactory       dynamicinformer.DynamicSharedInformerFactory
 	CRDInformerFactory           externalversions.SharedInformerFactory
 	VPAInformerFactory           vpai.SharedInformerFactory
