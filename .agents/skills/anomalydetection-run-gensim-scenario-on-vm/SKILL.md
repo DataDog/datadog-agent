@@ -52,6 +52,9 @@ Also confirm any other ambiguity (several scenarios, custom images, non-default 
 Size matters. A 2 vCPU / 3.7 GiB VM can run kind + the Agent + an 11-service scenario, but it is saturated (load
 average ~10 on 2 vCPUs, Agent probes time out): the recording is degraded. Use at least 4 vCPU / 16 GiB.
 
+Use a **disposable VM** you are allowed to repurpose: the steps below install packages, replace inotify limits, create a
+kind cluster and mutate `kubectl` state. Never point them at a machine that runs anything you care about.
+
 To create one (needs the e2e AWS setup, see `doc/how-to/test/e2e/`; do not run the interactive setup):
 
 ```bash
@@ -83,7 +86,8 @@ the episode creates; ask if the user wants another value.
 
 ## Step 4 — Install tooling and create the cluster
 
-On the VM. Versions match `q_branch/gadget-k8s-host.lima.yaml`.
+On the VM. Versions match `q_branch/gadget-k8s-host.lima.yaml`. Install the tooling **only if the step 2 probe reported
+missing tools**, and stop if any of it fails: a partially installed VM produces a degraded recording rather than an error.
 
 ```bash
 # Docker CE (skip if `docker` already exists)
@@ -144,7 +148,10 @@ EOF
 kubectl wait --for=condition=Ready node --all --timeout=180s
 ```
 
-The context is `kind-gadget-dev`.
+The context is `kind-gadget-dev`. Every `kubectl` and `helm` command below must run against it: a VM that already has a
+kubeconfig pointing at a real cluster keeps that context, and the deployment must never land there. Run
+`kubectl config use-context kind-gadget-dev` and confirm with `kubectl config current-context` (it must print
+`kind-gadget-dev`) in every new session before touching the cluster.
 
 ## Step 5 — Deploy the recorder Agent
 
@@ -294,17 +301,23 @@ org. Expected behavior:
 **Wait for the last flush before fetching.** The Agent only writes a parquet file once per flush interval (1 minute by
 default), so the end of the episode is not on disk until the next flush: wait at least one full flush interval after
 `end_time` in the results file (`ls -l --time-style=full-iso /tmp/observer-metrics` in the Agent container should show a
-parquet file newer than `end_time`), then, from the local machine, stream the files out (no `kubectl cp` needed):
+parquet file newer than `end_time`), then, from the local machine, stream the files out (no `kubectl cp` needed).
+
+Ask the user for a **new, empty** output directory (default below): these commands never delete anything. If the path
+already exists, stop and offer another one, or ask the user explicitly before removing it — never `rm -rf` a path you
+did not create in this run, it may hold unrelated files.
 
 ```bash
-OUT=<output-dir>            # default /tmp/vm-scenarios/<episode-name>
-rm -rf $OUT; mkdir -p $OUT/parquet
-ssh <vm> 'P=$(kubectl get pod -l app.kubernetes.io/component=agent -o name | head -1); kubectl exec $P -c agent -- tar cf - -C /tmp/observer-metrics .' | tar xf - -C $OUT/parquet
-scp <vm>:~/gensim/<id>/results/<episode-name>-1.json $OUT/episode.json
-for f in $OUT/parquet/*.parquet; do [ "$(tail -c4 $f)" = PAR1 ] || echo "truncated: $f"; done
+OUT=<output-dir>            # must not exist yet; default /tmp/vm-scenarios/<episode-name>
+if [ -e "$OUT" ]; then echo "STOP: $OUT already exists"; else mkdir -p "$OUT/parquet"; fi
+ssh <vm> 'P=$(kubectl get pod -l app.kubernetes.io/component=agent -o name | head -1); kubectl exec $P -c agent -- tar cf - -C /tmp/observer-metrics .' | tar xf - -C "$OUT/parquet"
+scp <vm>:~/gensim/<id>/results/<episode-name>-1.json "$OUT/episode.json"
+for f in "$OUT"/parquet/*.parquet; do [ "$(tail -c4 "$f")" = PAR1 ] || echo "STOP: truncated $f"; done
 ```
 
-Expect `observer-metrics-*.parquet`, `observer-logs-*.parquet`, `advances.jsonl`, `detect_digests.jsonl`.
+Expect `observer-metrics-*.parquet`, `observer-logs-*.parquet`, `advances.jsonl`, `detect_digests.jsonl`. Stop instead of
+continuing if the directory existed, if any file is reported truncated (re-fetch or re-record it), or if either parquet
+family is missing.
 
 **Trim to the episode.** The Agent records from its start, so the directory also holds data from before and after the
 episode. The timestamp in a parquet filename is the *flush* time (close to the end of the file's data), not its start, so
@@ -323,17 +336,26 @@ def seconds(v):                      # Time may be s, ms, us or ns
     for d in (1, 1e3, 1e6, 1e9):
         if 1e9 < v / d < 4e9:
             return v / d
+    raise SystemExit(f"unexpected Time value {v}")
 kept = dropped = 0
 for f in sorted(glob.glob(f"{out}/parquet/*.parquet")):
-    t = pq.read_table(f, columns=["Time"]).column(0)
+    try:
+        t = pq.read_table(f, columns=["Time"]).column(0)
+    except Exception as exc:
+        raise SystemExit(f"cannot read {f}: {exc}")
     mm = pc.min_max(t).as_py() if len(t) else None
     if mm and seconds(mm["max"]) >= start and seconds(mm["min"]) <= end:
         kept += 1
     else:
         os.remove(f); dropped += 1
 print(f"kept {kept}, removed {dropped}")
+if kept == 0:
+    raise SystemExit("no file overlaps the episode window: the recording is unusable")
 EOF
 ```
+
+The recording is usable only if at least one `observer-metrics` and one `observer-logs` file survive this trim with rows
+inside `start_time`..`end_time`; otherwise report it as failed rather than handing it to the testbench.
 
 The first and last kept files straddle the window, so they can hold up to one flush interval of data outside it. `advances.jsonl` and
 `detect_digests.jsonl` span the whole Agent run and are left untouched; mention it to the user. The unfiltered recording
@@ -354,6 +376,31 @@ kind delete cluster --name gadget-dev                        # on the VM
 dda inv aws.destroy-vm --stack-name=<name>                   # VMs created in step 2, from the local machine
 ```
 
+## Final response
+
+Report every field below, and say explicitly whether the recording is usable:
+
+| Field | Content |
+|---|---|
+| Episode | Scenario id and episode name; full episode or shortened test run |
+| VM | ssh target; created in step 2, reused, or destroyed |
+| Image | `datadog/agent-dev:<tag>` and the pipeline it came from |
+| Output | Absolute `<OUT>` path and the trim counts (kept / removed) |
+| Window | `start_time`..`end_time` from `episode.json` and the flush interval used |
+| Recording gaps | Agent restarts, saturation, or flush gaps; otherwise "no gaps" |
+| Teardown | What was uninstalled or deleted, and what still runs on the VM |
+
+## Example
+
+Request: *"Record the kafka-partition-saturation episode on a VM and fetch the parquet."*
+
+Result: episode `kafka-partition-saturation` (shortened run, ~4 min) recorded with
+`datadog/agent-dev:my-branch-recorder-full` on `ubuntu@10.0.1.23`, a VM created in step 2. Output
+`/tmp/vm-scenarios/kafka-partition-saturation` holds 12 `observer-metrics-*.parquet` and 8 `observer-logs-*.parquet`
+after trimming 31 files down to 20 (11 removed as out-of-window), window `2026-05-04T10:12:00Z`..`2026-05-04T10:16:30Z`,
+no gaps; `advances.jsonl` and `detect_digests.jsonl` still span the whole Agent run. The recording is usable. Teardown:
+release and Agent uninstalled, kind cluster deleted, VM destroyed.
+
 ## Pitfalls
 
 | Symptom | Cause / fix |
@@ -367,3 +414,5 @@ dda inv aws.destroy-vm --stack-name=<name>                   # VMs created in st
 | ssh call that starts `play-episode.sh` never returns | Background process kept stdin: add `< /dev/null` |
 | `kubectl wait -l app.kubernetes.io/instance=<release>` finds nothing | Chart pods lack that label: use `--all` |
 | Recording starts before / ends after the episode | Expected: trim in step 8 |
+| `kubectl`/`helm` touch an unexpected cluster | kubeconfig points elsewhere: `kubectl config use-context kind-gadget-dev` |
+| `STOP: <OUT> already exists` | Output path is not fresh: use another path, or ask before removing it |
