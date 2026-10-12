@@ -153,7 +153,7 @@ type TracingConfig struct {
 func NewTracingConfig(cfg model.Reader) TracingConfig {
 	return TracingConfig{
 		Enabled:        cfg.GetBool("gpu.tracing.enabled"),
-		TracerVersions: cfg.GetStringMapString("gpu.tracing.ddTraceVersions"),
+		TracerVersions: cfg.GetStringMapString("gpu.tracing.tracer_versions"),
 	}
 }
 

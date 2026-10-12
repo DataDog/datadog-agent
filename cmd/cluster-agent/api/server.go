@@ -88,7 +88,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	if err != nil {
 		// we use the listener to handle commands for the agent, there's
 		// no way we can recover from this error
-		return fmt.Errorf("unable to create the api server: %v", err)
+		return fmt.Errorf("unable to create the api server: %w", err)
 	}
 
 	// DCA client token
