@@ -44,9 +44,11 @@ dd_agent_go_test(
     ],
     embed = [":runners"],
     deps = [
+        "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/bundles",
+        "//pkg/privateactionrunner/credentials/resolver",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",

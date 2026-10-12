@@ -12,11 +12,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
+	"regexp"
+	"strings"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
@@ -29,8 +32,34 @@ const (
 )
 
 type PrivateCredentialResolver interface {
-	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
+	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, action ActionContext, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
 }
+
+// ActionContext identifies the action from the verified task, never its unsigned wrapper.
+type ActionContext struct {
+	BundleID   string
+	ActionName string
+}
+
+// Only exact FQNs and trailing integration/sub-bundle wildcards are supported.
+var actionPattern = regexp.MustCompile(`^com\.datadoghq\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:[A-Za-z0-9_-]+|\*)$`)
+
+func (a ActionContext) allows(patterns []string) bool {
+	if patterns == nil {
+		return true
+	}
+	fqn := a.BundleID + "." + a.ActionName
+	if !actionPattern.MatchString(fqn) || strings.Contains(fqn, "*") || strings.Contains(a.ActionName, ".") {
+		return false
+	}
+	for _, pattern := range patterns {
+		if pattern == fqn || (strings.HasSuffix(pattern, ".*") && strings.HasPrefix(a.BundleID+".", strings.TrimSuffix(pattern, "*"))) {
+			return true
+		}
+	}
+	return false
+}
+
 type privateCredentialResolver struct {
 	config model.Reader
 }
@@ -61,14 +90,37 @@ func NewPrivateCredentialResolver(config model.Reader) (PrivateCredentialResolve
 
 func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig, error) {
 	values := make(map[string]par.CredentialConfig)
-	if err := structure.UnmarshalKey(config, par.CredentialsValues, &values, structure.ErrorUnused); err != nil {
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:      &values,
+		ErrorUnused: true,
+		DecodeNil:   true,
+		// A null policy must not become an omitted (unrestricted) policy. Also
+		// avoid the config helper's weak conversions of scalars into lists.
+		DecodeHook: func(from, to reflect.Value) (any, error) {
+			if to.Type() == reflect.TypeOf([]string(nil)) && (from.Kind() != reflect.Slice || from.IsNil()) {
+				return nil, errors.New("allowed_actions must be a non-null list")
+			}
+			return from.Interface(), nil
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
+	}
+	if err := decoder.Decode(config.Get(par.CredentialsValues)); err != nil {
 		// Decoder errors can contain secret values; do not expose them to callers.
 		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
+	}
+	for _, credential := range values {
+		for _, pattern := range credential.AllowedActions {
+			if !actionPattern.MatchString(pattern) {
+				return nil, fmt.Errorf("invalid allowed_actions in %s: expected an action FQN or a trailing integration/sub-bundle wildcard", par.CredentialsValues)
+			}
+		}
 	}
 	return values, nil
 }
 
-func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
+func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, action ActionContext, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
 	if connInfo == nil {
 		return nil, nil
 	}
@@ -95,7 +147,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_CONNECTION_TOKENS_V2:
-		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2())
+		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2(), action)
 		if err != nil {
 			return nil, err
 		}
@@ -109,7 +161,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
 
-func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2) ([]*privateactionspb.ConnectionToken, error) {
+func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2, action ActionContext) ([]*privateactionspb.ConnectionToken, error) {
 	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
 	var credentialValues map[string]par.CredentialConfig
 	for _, token := range tokens {
@@ -139,6 +191,9 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 			credential, found := credentialValues[key]
 			if !found {
 				return nil, fmt.Errorf("could not resolve connection token %q: requested runner credential is not available", connlib.GetName(token))
+			}
+			if !action.allows(credential.AllowedActions) {
+				return nil, fmt.Errorf("runner credential %q is not allowed for action %q", key, action.BundleID+"."+action.ActionName)
 			}
 			value = credential.Value
 		default:
