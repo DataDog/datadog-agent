@@ -37,6 +37,7 @@
         },
         "x86_64": {
             "610": "ami-0506f01ccb6dddeda",
+            "610-e2e": "ami-0506f01ccb6dddeda",
             "79": "ami-0a5755e5aa21778a5"
         }
     },
