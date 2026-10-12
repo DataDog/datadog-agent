@@ -218,7 +218,7 @@ add the line after `# END COMPONENTS`: rules are last-match-wins.
 ## Code Review
 
 Code reviewer plugins for Go and Python are available from the
-Datadog Claude Marketplace (DataDog/claude-marketplace, internal-only repo):
+Datadog Claude Marketplace (ddoghq/claude-marketplace, internal-only repo):
 
 - `/go-review`, `/go-improve` - Go code review and iterative improvement
 - `/py-review`, `/py-improve` - Python code review and iterative improvement

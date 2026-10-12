@@ -112,6 +112,7 @@ type ProcessSnapshot struct {
 	Before              []string `json:"before,omitempty"`
 	Stdout              string   `json:"stdout,omitempty"`
 	Stderr              string   `json:"stderr,omitempty"`
+	ConfigError         string   `json:"config_error,omitempty"`
 	// SkipReasons are why the start pass declined to spawn (or a later respawn).
 	SkipReasons []string `json:"skip_reasons,omitempty"`
 }

@@ -10,10 +10,10 @@ package runner
 import (
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -354,6 +354,10 @@ func Test_getRequestID(t *testing.T) {
 }
 
 func TestSubmitterHeartbeatProcess(t *testing.T) {
+	synctest.Test(t, syncTestSubmitterHeartbeatProcess)
+}
+
+func syncTestSubmitterHeartbeatProcess(t *testing.T) {
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor(flavor.ProcessAgent)
@@ -365,14 +369,17 @@ func TestSubmitterHeartbeatProcess(t *testing.T) {
 	deps := getSubmitterDeps(t, nil, nil)
 	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
-	mockedClock := clock.NewMock()
-	s.clock = mockedClock
 	s.Start()
-	mockedClock.Add(15 * time.Second)
+	time.Sleep(15 * time.Second)
+	synctest.Wait()
 	s.Stop()
 }
 
 func TestSubmitterHeartbeatCore(t *testing.T) {
+	synctest.Test(t, syncTestSubmitterHeartbeatCore)
+}
+
+func syncTestSubmitterHeartbeatCore(t *testing.T) {
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor(flavor.DefaultAgent)
@@ -384,10 +391,9 @@ func TestSubmitterHeartbeatCore(t *testing.T) {
 	deps := getSubmitterDeps(t, nil, nil)
 	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
-	mockedClock := clock.NewMock()
-	s.clock = mockedClock
 	s.Start()
-	mockedClock.Add(15 * time.Second)
+	time.Sleep(15 * time.Second)
+	synctest.Wait()
 	s.Stop()
 }
 
