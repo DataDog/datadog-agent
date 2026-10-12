@@ -482,7 +482,6 @@
 /comp/logs @DataDog/agent-log-pipelines
 /comp/logs-library @DataDog/agent-log-pipelines
 /comp/metadata @DataDog/fleet-automation
-/comp/ndm @DataDog/network-device-monitoring-core
 /comp/ndmtmp @DataDog/network-device-monitoring-core
 /comp/netflow @DataDog/ndm-integrations
 /comp/networkpath @DataDog/network-path
@@ -666,6 +665,7 @@
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform
 /comp/core/autodiscovery/providers/ndm                                @DataDog/network-device-monitoring-core @DataDog/container-platform
+/comp/ndm                                                             @DataDog/network-device-monitoring-core
 /comp/core/gui/impl/systray/                                          @DataDog/windows-products @DataDog/fleet-remediation
 /comp/healthplatform/issues/ad-misconfiguration                       @DataDog/container-platform @DataDog/fleet-remediation
 /comp/healthplatform/issues/gpuenvironment                            @DataDog/accelerator-telemetry @DataDog/fleet-remediation
