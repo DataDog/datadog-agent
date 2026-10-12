@@ -291,3 +291,68 @@ func TestRunnerCredentialPolicyRefreshAndAllOrNothing(t *testing.T) {
 		assert.NotContains(t, err.Error(), "invalid-secret-policy")
 	}
 }
+
+func TestRunnerCredentialHTTPDomains(t *testing.T) {
+	for _, test := range []struct {
+		name, domains, bundle, action, target, testPath string
+		allowed                                         bool
+	}{
+		{name: "allowed", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "request", target: "https://api.example.com/path", allowed: true},
+		{name: "other domain", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "request", target: "https://other.example.com"},
+		{name: "wildcard", domains: "['*.example.com']", bundle: "com.datadoghq.http", action: "request", target: "https://api.example.com", allowed: true},
+		{name: "empty denies", domains: "[]", bundle: "com.datadoghq.http", action: "request", target: "https://api.example.com"},
+		{name: "non http denied", domains: "[api.example.com]", bundle: "com.datadoghq.mongodb", action: "find", target: "https://api.example.com"},
+		{name: "unknown http action", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "unknown", target: "https://api.example.com"},
+		{name: "missing url", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "request"},
+		{name: "invalid url", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "request", target: "https://api.example.com/%invalid-secret"},
+		{name: "checksum", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "getChecksumFromURL", target: "https://api.example.com", allowed: true},
+		{name: "test connection", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "testConnection", target: "https://ignored.example.net", testPath: "/health", allowed: true},
+		{name: "absolute test path denied", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "testConnection", testPath: "https://evil.test/secret-value"},
+		{name: "scheme relative test path denied", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "testConnection", testPath: "//evil.test/secret-value"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := configmock.NewFromYAML(t, "private_action_runner:\n  credentials:\n    values:\n      password:\n        value: secret-value\n        allowed_http_domains: "+test.domains+"\n")
+			resolver, err := NewPrivateCredentialResolver(config)
+			require.NoError(t, err)
+			conn := runnerCredentialConnection("password")
+			if test.testPath != "" {
+				for _, token := range []struct {
+					segments []string
+					value    string
+				}{
+					{[]string{"base_url"}, "https://api.example.com"},
+					{[]string{"testing", "path"}, test.testPath},
+				} {
+					conn.TokensV2 = append(conn.TokensV2, &privateactionspb.ConnectionTokenV2{
+						NameSegments: token.segments,
+						Source:       &privateactionspb.ConnectionTokenV2_PlainText_{PlainText: &privateactionspb.ConnectionTokenV2_PlainText{Value: token.value}},
+					})
+				}
+			}
+			credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, ActionContext{BundleID: test.bundle, ActionName: test.action, HTTPRequestURL: test.target}, nil)
+			if test.allowed {
+				require.NoError(t, err)
+				require.Len(t, credentials.HTTPDomainRestrictions, 1)
+				require.Len(t, credentials.Tokens, 1)
+				assert.Equal(t, "secret-value", credentials.Tokens[0].Value)
+			} else {
+				require.Error(t, err)
+				assert.Nil(t, credentials)
+				assert.NotContains(t, err.Error(), "secret-value")
+				assert.NotContains(t, err.Error(), "invalid-secret")
+			}
+		})
+	}
+}
+
+func TestRunnerCredentialInvalidDomainPolicies(t *testing.T) {
+	for _, policy := range []string{"null", "api.example.com", "{}", "[null]", "[42]", "['https://api.example.com']", "['api.example.com:443']", "['*']"} {
+		t.Run(policy, func(t *testing.T) {
+			config := configmock.NewFromYAML(t, "private_action_runner:\n  credentials:\n    values:\n      password:\n        value: secret-value\n        allowed_http_domains: "+policy+"\n")
+			resolver, err := NewPrivateCredentialResolver(config)
+			require.Error(t, err)
+			assert.Nil(t, resolver)
+			assert.NotContains(t, err.Error(), "secret-value")
+		})
+	}
+}

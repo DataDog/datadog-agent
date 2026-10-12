@@ -8,8 +8,6 @@ package com_datadoghq_http
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/url"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -40,13 +38,9 @@ func (h *TestConnectionHandler) Run(
 	}
 
 	testing := credential.HttpDetails.Testing
-	baseURL, err := url.Parse(credential.HttpDetails.BaseURL)
+	testURL, err := credential.HttpDetails.TestURL()
 	if err != nil {
-		return nil, fmt.Errorf("invalid base URL: %w", err)
-	}
-	testURL, err := baseURL.Parse(testing.Path)
-	if err != nil {
-		return nil, fmt.Errorf("invalid testing path: %w", err)
+		return nil, err
 	}
 
 	task.Data.Attributes.Inputs = map[string]interface{}{

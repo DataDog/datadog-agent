@@ -19,6 +19,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -29,6 +30,7 @@ import (
 )
 
 type GetChecksumFromURLHandler struct {
+	httpTimeout        time.Duration
 	httpClientProvider httpclient.Provider
 }
 
@@ -45,10 +47,11 @@ type GetChecksumFromURLOutputs struct {
 func NewGetChecksumFromURLHandler(runnerConfig *config.Config) types.Action {
 	return &GetChecksumFromURLHandler{
 		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig),
+		httpTimeout:        runnerConfig.HTTPTimeout,
 	}
 }
 
-func (g GetChecksumFromURLHandler) Run(ctx context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
+func (g GetChecksumFromURLHandler) Run(ctx context.Context, task *types.Task, credential *privateconnection.PrivateCredentials) (interface{}, error) {
 	inputs, err := types.ExtractInputs[GetChecksumFromURLInputs](task)
 	if err != nil {
 		return nil, err
@@ -56,7 +59,7 @@ func (g GetChecksumFromURLHandler) Run(ctx context.Context, task *types.Task, _ 
 	if inputs.URL == "" {
 		return nil, errors.New("no URL provided")
 	}
-	data, err := fetchDataFromURL(ctx, g.httpClientProvider, inputs.URL)
+	data, err := fetchDataFromURL(ctx, g.httpClientProvider, inputs.URL, credential, g.httpTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -72,12 +75,21 @@ func (g GetChecksumFromURLHandler) Run(ctx context.Context, task *types.Task, _ 
 	return &GetChecksumFromURLOutputs{Checksum: checksum}, nil
 }
 
-func fetchDataFromURL(ctx context.Context, httpClientProvider httpclient.Provider, url string) ([]byte, error) {
+func fetchDataFromURL(ctx context.Context, httpClientProvider httpclient.Provider, url string, credential *privateconnection.PrivateCredentials, timeout time.Duration) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	client, err := httpClientProvider.NewDefaultClient()
+	if err := credential.ValidateHTTPURL(req.URL); err != nil {
+		return nil, err
+	}
+	// Preserve the provider's default timeout and network protections.
+	var client httpclient.HTTPClient
+	if credential != nil && len(credential.HTTPDomainRestrictions) > 0 {
+		client, err = httpClientProvider.NewClient(&httpclient.RunnerHttpClientConfig{HTTPDomainRestrictions: credential.HTTPDomainRestrictions, HTTPTimeout: timeout})
+	} else {
+		client, err = httpClientProvider.NewDefaultClient()
+	}
 	if err != nil {
 		return nil, err
 	}

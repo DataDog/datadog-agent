@@ -122,6 +122,11 @@ func (h *Handler) Run(
 		return nil, util.DefaultActionErrorWithDisplayError(err, "fail to build request url")
 	}
 
+	// Recheck the final destination before constructing a request containing secrets.
+	if err := credential.ValidateHTTPURL(requestURL); err != nil {
+		return nil, util.DefaultActionError(err)
+	}
+
 	// BUILD BODY
 	body, err := buildBody(inputs.Body, headers["Content-Type"], credential)
 	if err != nil {
@@ -165,9 +170,14 @@ func (h *Handler) Run(
 		initHTTPRequestHeader(headers, req)
 	}
 	// MAKE REQUEST
+	var domainRestrictions []privateconnection.HTTPDomainAllowlist
+	if credential != nil {
+		domainRestrictions = credential.HTTPDomainRestrictions
+	}
 	client, err := h.httpClientProvider.NewClient(&httpclient.RunnerHttpClientConfig{
-		AllowIMDSEndpoints: h.allowIMDSEndpoints,
-		HTTPTimeout:        h.httpTimeout,
+		AllowIMDSEndpoints:     h.allowIMDSEndpoints,
+		HTTPDomainRestrictions: domainRestrictions,
+		HTTPTimeout:            h.httpTimeout,
 		Transport: &httpclient.RunnerHttpTransportConfig{
 			InsecureSkipVerify: boolValueOrDefault(inputs.AllowExpiredCertificate, false),
 		},

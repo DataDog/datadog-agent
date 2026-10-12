@@ -108,6 +108,7 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 		BundleID:   unwrappedTask.Data.Attributes.BundleID,
 		ActionName: unwrappedTask.Data.Attributes.Name,
 	}
+	actionContext.HTTPRequestURL, _ = unwrappedTask.Data.Attributes.Inputs["url"].(string)
 	credential, err := e.resolver.ResolveConnectionInfoToCredential(ctx, unwrappedTask.Data.Attributes.ConnectionInfo, actionContext, nil)
 	if err != nil {
 		logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID), log.ErrorField(err))

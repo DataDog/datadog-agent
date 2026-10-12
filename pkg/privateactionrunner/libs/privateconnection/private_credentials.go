@@ -20,6 +20,9 @@ type PrivateCredentials struct {
 	Type        AuthType
 	Tokens      []PrivateCredentialsToken
 	HttpDetails HttpDetails
+	// Every referenced credential's domain allowlist must permit the request,
+	// including redirects. Keep the lists separate to preserve their intersection.
+	HTTPDomainRestrictions []HTTPDomainAllowlist
 }
 
 type PrivateCredentialsToken struct {
