@@ -987,7 +987,10 @@ metrics:
   nvlink.ber.effective:
     metadata:
       metric_type: gauge
-      description: Per-link effective bit error rate for the NVLink port
+      description: >-
+        Per-link effective bit error rate for the NVLink port, decoded from NVML's
+        packed mantissa/exponent representation (mantissa * 10^-exponent). Healthy
+        links typically report a value close to zero.
       aggregation: lifetime_error
     tagsets:
       - device
@@ -1003,7 +1006,10 @@ metrics:
   nvlink.ber.symbol:
     metadata:
       metric_type: gauge
-      description: Per-link symbol bit error rate for the NVLink port
+      description: >-
+        Per-link symbol bit error rate for the NVLink port, decoded from NVML's
+        packed mantissa/exponent representation (mantissa * 10^-exponent). Healthy
+        links typically report a value close to zero.
     tagsets:
       - device
       - nvlink
