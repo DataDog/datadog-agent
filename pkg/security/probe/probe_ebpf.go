@@ -679,7 +679,7 @@ func (p *EBPFProbe) Init() error {
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
-	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
+	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled || p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
