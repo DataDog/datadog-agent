@@ -592,38 +592,28 @@ func scrubAllLeafValues(data interface{}) interface{} {
 }
 
 func scrubPrivateActionRunnerCredentialValues(data interface{}) {
-	credentials, ok := mapValue(data, "credentials")
-	if !ok {
-		return
-	}
-
-	values, ok := mapValue(credentials, "values")
-	if !ok {
-		return
-	}
-
-	setMapValue(credentials, "values", scrubAllLeafValues(values))
+	updateMapValuesCaseInsensitive(data, "credentials", func(credentials interface{}) interface{} {
+		updateMapValuesCaseInsensitive(credentials, "values", scrubAllLeafValues)
+		return credentials
+	})
 }
 
-func mapValue(data interface{}, key string) (interface{}, bool) {
-	switch value := data.(type) {
-	case map[string]interface{}:
-		result, ok := value[key]
-		return result, ok
-	case map[interface{}]interface{}:
-		result, ok := value[key]
-		return result, ok
-	default:
-		return nil, false
-	}
-}
-
-func setMapValue(data interface{}, key string, value interface{}) {
+// Update every matching key in place, preserving its spelling. Multiple case
+// variants may coexist in the original config, and all must be scrubbed.
+func updateMapValuesCaseInsensitive(data interface{}, key string, update func(interface{}) interface{}) {
 	switch target := data.(type) {
 	case map[string]interface{}:
-		target[key] = value
+		for k, value := range target {
+			if strings.EqualFold(k, key) {
+				target[k] = update(value)
+			}
+		}
 	case map[interface{}]interface{}:
-		target[key] = value
+		for k, value := range target {
+			if name, ok := k.(string); ok && strings.EqualFold(name, key) {
+				target[k] = update(value)
+			}
+		}
 	}
 }
 
