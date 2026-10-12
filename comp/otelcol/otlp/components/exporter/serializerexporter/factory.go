@@ -261,7 +261,11 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		hostGetter = cfg.HostProvider
 	}
 	// Create the metrics translator
-	tr, err := translatorFromConfig(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
+	newTranslator := translatorFromConfig
+	if f.ipath == ddot && nativeOTelHistogramsGate.IsEnabled() {
+		newTranslator = minimalTranslatorFromConfig
+	}
+	tr, err := newTranslator(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}

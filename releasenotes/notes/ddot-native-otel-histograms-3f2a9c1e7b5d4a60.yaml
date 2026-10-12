@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    The Datadog Distribution of the OpenTelemetry Collector (DDOT) can send OpenTelemetry
+    explicit bucket and exponential histograms as is, instead of converting them to
+    DDSketch. Enable it with the alpha feature gate
+    ``--feature-gates=+datadog.serializerexporter.NativeOTelHistograms``. With the gate on,
+    DDOT translates metrics with the minimal translator: only delta histograms and sums are
+    sent (cumulative ones are dropped, so keep the ``cumulativetodelta`` processor in the
+    pipeline), and metric remapping is not applied. These histograms need the v3 sketches
+    intake: list the endpoint in ``serializer_experimental_use_v3_api.sketches.endpoints``,
+    otherwise they are dropped.

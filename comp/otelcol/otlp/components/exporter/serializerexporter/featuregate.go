@@ -30,3 +30,20 @@ var useSyncForwarderGate = featuregate.GlobalRegistry().MustRegister(
 func IsSyncForwarderEnabled() bool {
 	return useSyncForwarderGate.IsEnabled()
 }
+
+// nativeOTelHistogramsGate, when enabled, makes DDOT translate metrics with the
+// minimal translator: OTel histograms are sent as is (V3 histogram types)
+// instead of being converted to DDSketch. Only delta histograms are sent;
+// cumulative histograms are dropped, so the pipeline needs cumulativetodelta.
+// The V2 sketch payload cannot carry these histograms, so the endpoint has to
+// be listed in serializer_experimental_use_v3_api.sketches.endpoints.
+//
+// Disabled by default (Alpha). Enable via
+//
+//	--feature-gates=+datadog.serializerexporter.NativeOTelHistograms
+var nativeOTelHistogramsGate = featuregate.GlobalRegistry().MustRegister(
+	"datadog.serializerexporter.NativeOTelHistograms",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Send OTel histograms from DDOT in the native V3 format instead of converting them to DDSketch."),
+	featuregate.WithRegisterReferenceURL("https://datadoghq.atlassian.net/browse/OTAGENT-1079"),
+)

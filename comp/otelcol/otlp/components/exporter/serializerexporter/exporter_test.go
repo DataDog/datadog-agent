@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -61,17 +62,20 @@ type metricRecorder struct {
 	serializer.Serializer // embed for implementing serializer.MetricSerializer
 
 	sketchSeriesList metrics.SketchSeriesList
+	distributions    []metrics.Distribution // non-DDSketch distributions
 	series           []*metrics.Serie
 }
 
 // SendSketch implements the MetricSerializer interface
 func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
 	for s.MoveNext() {
-		c := s.Current()
-		if c == nil {
-			continue
+		switch c := s.Current().(type) {
+		case nil:
+		case *metrics.SketchSeries:
+			r.sketchSeriesList = append(r.sketchSeriesList, c)
+		default:
+			r.distributions = append(r.distributions, c)
 		}
-		r.sketchSeriesList = append(r.sketchSeriesList, c.(*metrics.SketchSeries))
 	}
 	return nil
 }
@@ -1520,4 +1524,105 @@ func initSyncSerializerForTest(t testing.TB, logger *zap.Logger, cfg *ExporterCo
 		return nil, nil, errors.New("failed to cast forwarder to *defaultforwarderimpl.OTelSyncForwarder")
 	}
 	return s, sf, nil
+}
+
+func newHistogramsMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	rm.Resource().Attributes().PutStr("host.name", "test-host")
+	ms := rm.ScopeMetrics().AppendEmpty().Metrics()
+
+	m := ms.AppendEmpty()
+	m.SetName("delta.explicit")
+	m.SetEmptyHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := m.Histogram().DataPoints().AppendEmpty()
+	dp.SetTimestamp(pcommon.Timestamp(42 * time.Second))
+	dp.Attributes().PutStr("k", "v")
+	dp.SetCount(3)
+	dp.SetSum(3)
+	dp.ExplicitBounds().FromRaw([]float64{1})
+	dp.BucketCounts().FromRaw([]uint64{1, 2})
+
+	m = ms.AppendEmpty()
+	m.SetName("cumulative.explicit")
+	m.SetEmptyHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	dp = m.Histogram().DataPoints().AppendEmpty()
+	dp.SetCount(3)
+	dp.ExplicitBounds().FromRaw([]float64{1})
+	dp.BucketCounts().FromRaw([]uint64{1, 2})
+
+	m = ms.AppendEmpty()
+	m.SetName("delta.exponential")
+	m.SetEmptyExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	edp := m.ExponentialHistogram().DataPoints().AppendEmpty()
+	edp.SetTimestamp(pcommon.Timestamp(42 * time.Second))
+	edp.SetCount(2)
+	edp.Positive().BucketCounts().FromRaw([]uint64{2})
+
+	m = ms.AppendEmpty()
+	m.SetName("test.gauge")
+	m.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+	return md
+}
+
+func consumeWithNativeHistogramsGate(t *testing.T, enabled bool) *metricRecorder {
+	reg := featuregate.GlobalRegistry()
+	prev := nativeOTelHistogramsGate.IsEnabled()
+	require.NoError(t, reg.Set(nativeOTelHistogramsGate.ID(), enabled))
+	t.Cleanup(func() { require.NoError(t, reg.Set(nativeOTelHistogramsGate.ID(), prev)) })
+
+	rec := &metricRecorder{}
+	ctx := context.Background()
+	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
+		return "", nil
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	exp, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(component.MustNewType("datadog")), cfg)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+	require.NoError(t, exp.ConsumeMetrics(ctx, newHistogramsMetrics()))
+	require.NoError(t, exp.Shutdown(ctx))
+	return rec
+}
+
+func TestNativeOTelHistogramsGate(t *testing.T) {
+	t.Run("enabled", func(t *testing.T) {
+		rec := consumeWithNativeHistogramsGate(t, true)
+		assert.Empty(t, rec.sketchSeriesList)
+
+		names := map[string]metrics.DistributionMetadata{}
+		for _, d := range rec.distributions {
+			switch d := d.(type) {
+			case *otelExplicitHistogramSeries:
+				names[d.Name] = d.DistributionMetadata
+			case *otelExponentialHistogramSeries:
+				names[d.Name] = d.DistributionMetadata
+			default:
+				t.Fatalf("unexpected distribution %T", d)
+			}
+		}
+		// The cumulative histogram is dropped.
+		require.Len(t, names, 2)
+		require.Contains(t, names, "delta.explicit")
+		require.Contains(t, names, "delta.exponential")
+		assert.Equal(t, "test-host", names["delta.explicit"].Host)
+		assert.Contains(t, tagsOf(names["delta.explicit"].Tags), "k:v")
+
+		var gauge bool
+		for _, s := range rec.series {
+			gauge = gauge || s.Name == "test.gauge"
+		}
+		assert.True(t, gauge)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		rec := consumeWithNativeHistogramsGate(t, false)
+		assert.Empty(t, rec.distributions)
+		names := map[string]bool{}
+		for _, s := range rec.sketchSeriesList {
+			names[s.Name] = true
+		}
+		assert.True(t, names["delta.explicit"])
+		assert.True(t, names["delta.exponential"])
+	})
 }
