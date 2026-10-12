@@ -99,6 +99,9 @@ type ManagerV3 struct {
 	queueSize                *atomic.Uint64
 	pendingProfiles          *atomic.Uint64
 
+	// eventsEmitted counts anomaly_detection events sent for novel behavior, drained on SendStats.
+	eventsEmitted *atomic.Uint64
+
 	resolvedCgroups     map[containerutils.CGroupID]struct{}
 	resolvedCgroupsLock sync.Mutex
 
@@ -125,6 +128,7 @@ func NewManagerV3(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		profilePendingEvents: make(map[containerutils.CGroupID]*pendingProfile),
 		queueSize:            atomic.NewUint64(0),
 		pendingProfiles:      atomic.NewUint64(0),
+		eventsEmitted:        atomic.NewUint64(0),
 		resolvedCgroups:      make(map[containerutils.CGroupID]struct{}),
 		seen:                 make(map[cgroupModel.WorkloadSelector]map[[16]byte]*nodeState),
 		pendingRefresh:       make(map[cgroupModel.WorkloadSelector]map[[16]byte]int64),
@@ -309,6 +313,7 @@ func (m *ManagerV3) emitIfNovel(event *model.Event, snapshot bool) {
 		nodeHashes[i] = item.hash
 	}
 	m.sendAnomalyDetection(event, nodeHashes, refreshes, snapshot)
+	m.eventsEmitted.Inc()
 }
 
 // record updates the stored state for every node an event touches. It returns whether the event
@@ -592,8 +597,35 @@ func (m *ManagerV3) estimateProfileSize() v3SizeEstimate {
 	return est
 }
 
-// SendStats is a no-op for the PoC.
-func (m *ManagerV3) SendStats() error { return nil }
+// SendStats emits v3's profile-state gauges and the count of anomaly_detection events emitted
+// since the last call.
+func (m *ManagerV3) SendStats() error {
+	est := m.estimateProfileSize()
+
+	gauges := []struct {
+		metric string
+		value  float64
+	}{
+		{metrics.MetricSecurityProfileV3Workloads, float64(est.workloads)},
+		{metrics.MetricSecurityProfileV3Nodes, float64(est.nodes)},
+		{metrics.MetricSecurityProfileV3PendingRefreshes, float64(est.pendingRefreshes)},
+		{metrics.MetricSecurityProfileV3SizeInBytes, float64(est.estimatedBytes)},
+		{metrics.MetricSecurityProfileV3TagResolutionEventsQueued, float64(m.queueSize.Load())},
+		{metrics.MetricSecurityProfileV3TagResolutionCgroupsPending, float64(m.pendingProfiles.Load())},
+	}
+	for _, g := range gauges {
+		if err := m.statsdClient.Gauge(g.metric, g.value, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", g.metric, err)
+		}
+	}
+
+	if emitted := m.eventsEmitted.Swap(0); emitted > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV3EventsEmitted, int64(emitted), []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricSecurityProfileV3EventsEmitted, err)
+		}
+	}
+	return nil
+}
 
 // SyncTracedCgroups is a no-op: v3 does not manage kernel-space traced cgroups.
 func (m *ManagerV3) SyncTracedCgroups() {}

@@ -676,6 +676,36 @@ var (
 	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
 	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
 
+	// Security Profile v3 metrics (experimental)
+
+	// MetricSecurityProfileV3Workloads reports the number of per-workload seen sets v3 holds
+	// Tags: -
+	MetricSecurityProfileV3Workloads = newRuntimeMetric(".security_profile_v3.workloads")
+
+	// MetricSecurityProfileV3Nodes reports the total node identities tracked across all seen sets
+	// Tags: -
+	MetricSecurityProfileV3Nodes = newRuntimeMetric(".security_profile_v3.nodes")
+
+	// MetricSecurityProfileV3PendingRefreshes reports the staged last_seen refreshes awaiting a piggyback
+	// Tags: -
+	MetricSecurityProfileV3PendingRefreshes = newRuntimeMetric(".security_profile_v3.pending_refreshes")
+
+	// MetricSecurityProfileV3SizeInBytes reports the estimated RAM footprint of v3's profile state
+	// Tags: -
+	MetricSecurityProfileV3SizeInBytes = newRuntimeMetric(".security_profile_v3.size_in_bytes")
+
+	// MetricSecurityProfileV3EventsEmitted counts anomaly_detection events v3 emitted for novel behavior
+	// Tags: -
+	MetricSecurityProfileV3EventsEmitted = newRuntimeMetric(".security_profile_v3.events_emitted")
+
+	// MetricSecurityProfileV3TagResolutionEventsQueued reports events buffered waiting for tag resolution
+	// Tags: -
+	MetricSecurityProfileV3TagResolutionEventsQueued = newRuntimeMetric(".security_profile_v3.tag_resolution.events_queued")
+
+	// MetricSecurityProfileV3TagResolutionCgroupsPending reports cgroups waiting for tag resolution
+	// Tags: -
+	MetricSecurityProfileV3TagResolutionCgroupsPending = newRuntimeMetric(".security_profile_v3.tag_resolution.cgroups_pending")
+
 	// Event sampling metrics (kernel-side)
 
 	// MetricEventSampleTotal is the name of the metric used to report total events that hit the sampling logic in kernel
