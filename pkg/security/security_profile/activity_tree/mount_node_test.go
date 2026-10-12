@@ -51,8 +51,8 @@ func TestInsertMountDedup(t *testing.T) {
 
 	firstSeen, lastSeen, ok := at.Mounts[0].GetSeenTimes(tagID)
 	require.True(t, ok)
-	assert.Equal(t, t0, firstSeen)
-	assert.Equal(t, t1, lastSeen)
+	assert.Equal(t, t0.UnixNano(), firstSeen)
+	assert.Equal(t, t1.UnixNano(), lastSeen)
 }
 
 func TestInsertMountDifferentRootDedups(t *testing.T) {
@@ -249,6 +249,6 @@ func TestMountsProtoRoundTrip(t *testing.T) {
 	require.NotZero(t, dstTagID)
 	firstSeen, lastSeen, ok := root.GetSeenTimes(dstTagID)
 	require.True(t, ok)
-	assert.Equal(t, first, firstSeen)
-	assert.Equal(t, last, lastSeen)
+	assert.Equal(t, first.UnixNano(), firstSeen)
+	assert.Equal(t, last.UnixNano(), lastSeen)
 }
