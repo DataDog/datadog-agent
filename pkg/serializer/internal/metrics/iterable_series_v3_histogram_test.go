@@ -21,35 +21,35 @@ import (
 )
 
 type testExplicitPoint struct {
-	ts               int64
-	haveMin, haveMax bool
-	min, max, sum    float64
-	cnt              uint64
-	bounds           []float64
-	counts           []uint64
+	ts                        int64
+	haveMin, haveMax, haveSum bool
+	min, max, sum             float64
+	cnt                       uint64
+	bounds                    []float64
+	counts                    []uint64
 }
 
 type testExplicitPoints []testExplicitPoint
 
-func (p testExplicitPoints) GetOtelExplicitHistogramPoint(i int) (int64, bool, bool, float64, float64, float64, uint64, []float64, []uint64) {
+func (p testExplicitPoints) GetOtelExplicitHistogramPoint(i int) (int64, bool, bool, bool, float64, float64, float64, uint64, []float64, []uint64) {
 	x := p[i]
-	return x.ts, x.haveMin, x.haveMax, x.min, x.max, x.sum, x.cnt, x.bounds, x.counts
+	return x.ts, x.haveMin, x.haveMax, x.haveSum, x.min, x.max, x.sum, x.cnt, x.bounds, x.counts
 }
 
 type testExponentialPoint struct {
-	ts                      int64
-	haveMin, haveMax        bool
-	min, max, sum, zeroThr  float64
-	cnt, zeroCnt            uint64
-	scale, posOffs, negOffs int32
-	posCnt, negCnt          []uint64
+	ts                        int64
+	haveMin, haveMax, haveSum bool
+	min, max, sum, zeroThr    float64
+	cnt, zeroCnt              uint64
+	scale, posOffs, negOffs   int32
+	posCnt, negCnt            []uint64
 }
 
 type testExponentialPoints []testExponentialPoint
 
-func (p testExponentialPoints) GetOtelExponentialHistogramPoint(i int) (int64, bool, bool, float64, float64, float64, float64, uint64, uint64, int32, int32, int32, []uint64, []uint64) {
+func (p testExponentialPoints) GetOtelExponentialHistogramPoint(i int) (int64, bool, bool, bool, float64, float64, float64, float64, uint64, uint64, int32, int32, int32, []uint64, []uint64) {
 	x := p[i]
-	return x.ts, x.haveMin, x.haveMax, x.min, x.max, x.sum, x.zeroThr, x.cnt, x.zeroCnt, x.scale, x.posOffs, x.negOffs, x.posCnt, x.negCnt
+	return x.ts, x.haveMin, x.haveMax, x.haveSum, x.min, x.max, x.sum, x.zeroThr, x.cnt, x.zeroCnt, x.scale, x.posOffs, x.negOffs, x.posCnt, x.negCnt
 }
 
 func newTestHistogramBuilder(t *testing.T, maxPoints int) (*payloadsBuilderV3, *PipelineContext) {
@@ -83,7 +83,7 @@ func TestPayloadsBuilderV3_ExplicitHistogramProtoExample(t *testing.T) {
 
 	require.NoError(t, pb.WriteOtelExplicitHistogram(
 		metrics.DistributionMetadata{Name: "h"}, 1,
-		testExplicitPoints{{ts: 1000, sum: 30, cnt: 5, bounds: []float64{10}, counts: []uint64{2, 3}}},
+		testExplicitPoints{{ts: 1000, haveSum: true, sum: 30, cnt: 5, bounds: []float64{10}, counts: []uint64{2, 3}}},
 	))
 
 	requireProtoscope(t, pb, pipelineContext, `3: {
@@ -101,7 +101,7 @@ func TestPayloadsBuilderV3_ExplicitHistogramProtoExample(t *testing.T) {
 		22: {2 3}      # binCnts
 		23: {0z}       # sourceTypeNameRefs
 		24: {1z}       # originInfoRefs
-		30: {0}        # pointFlags
+		30: {4}        # pointFlags: sum
 		31: {5}        # valsUint64: count
 	}`)
 }
@@ -114,6 +114,7 @@ func TestPayloadsBuilderV3_ExponentialHistogramProtoExample(t *testing.T) {
 		metrics.DistributionMetadata{Name: "h"}, 1,
 		testExponentialPoints{{
 			ts:      1000,
+			haveSum: true,
 			sum:     18,
 			cnt:     10,
 			zeroCnt: 1,
@@ -140,7 +141,7 @@ func TestPayloadsBuilderV3_ExponentialHistogramProtoExample(t *testing.T) {
 		22: {2 0 3 4}            # binCnts: positive, then negative
 		23: {0z}
 		24: {1z}
-		30: {0}                  # pointFlags
+		30: {4}                  # pointFlags: sum
 		31: {10 1}               # valsUint64: count, zeroCount
 	}`)
 }
@@ -151,10 +152,10 @@ func TestPayloadsBuilderV3_ExplicitHistogramMinMaxFloat(t *testing.T) {
 	require.NoError(t, pb.WriteOtelExplicitHistogram(
 		metrics.DistributionMetadata{Name: "h", NoIndex: true}, 3,
 		testExplicitPoints{
-			{ts: 1000, haveMin: true, min: 0.5, sum: 1.5, cnt: 3, bounds: []float64{1, 2}, counts: []uint64{1, 2, 0}},
+			{ts: 1000, haveMin: true, haveSum: true, min: 0.5, sum: 1.5, cnt: 3, bounds: []float64{1, 2}, counts: []uint64{1, 2, 0}},
 			// summary-only point
-			{ts: 1010, haveMax: true, max: 3, sum: 2.5, cnt: 1},
-			{ts: 1020, haveMin: true, haveMax: true, min: -1, max: 1, sum: 0, cnt: math.MaxUint64, counts: []uint64{math.MaxUint64}},
+			{ts: 1010, haveMax: true, haveSum: true, max: 3, sum: 2.5, cnt: 1},
+			{ts: 1020, haveMin: true, haveMax: true, haveSum: true, min: -1, max: 1, sum: 0, cnt: math.MaxUint64, counts: []uint64{math.MaxUint64}},
 		},
 	))
 	require.Equal(t, uint64(9), pb.stats.valuesFloat32)
@@ -178,7 +179,7 @@ func TestPayloadsBuilderV3_ExplicitHistogramMinMaxFloat(t *testing.T) {
 		22: {1 2 0 18446744073709551615}
 		23: {0z}
 		24: {1z}
-		30: {1 2 3}              # pointFlags: min, max, min|max
+		30: {5 6 7}              # pointFlags: sum|min, sum|max, sum|min|max
 		31: {3 1 18446744073709551615}
 	}`)
 }
@@ -189,8 +190,8 @@ func TestPayloadsBuilderV3_ExponentialHistogramFloat64(t *testing.T) {
 	require.NoError(t, pb.WriteOtelExponentialHistogram(
 		metrics.DistributionMetadata{Name: "h"}, 2,
 		testExponentialPoints{
-			{ts: 1000, haveMin: true, haveMax: true, min: 0.1, max: 7, sum: 12.3, zeroThr: 1e-9, cnt: 4, scale: -3, posOffs: math.MaxInt32, posCnt: []uint64{4}},
-			{ts: 1010, sum: 0, cnt: 2, zeroCnt: 2, scale: 20, posOffs: math.MinInt32, negOffs: 5},
+			{ts: 1000, haveMin: true, haveMax: true, haveSum: true, min: 0.1, max: 7, sum: 12.3, zeroThr: 1e-9, cnt: 4, scale: -3, posOffs: math.MaxInt32, posCnt: []uint64{4}},
+			{ts: 1010, haveSum: true, sum: 0, cnt: 2, zeroCnt: 2, scale: 20, posOffs: math.MinInt32, negOffs: 5},
 		},
 	))
 	require.Equal(t, uint64(6), pb.stats.valuesFloat64)
@@ -217,7 +218,7 @@ func TestPayloadsBuilderV3_ExponentialHistogramFloat64(t *testing.T) {
 		22: {4}
 		23: {0z}
 		24: {1z}
-		30: {3 0}
+		30: {7 4}
 		31: {4 0 2 2}
 	}`)
 }
@@ -233,8 +234,8 @@ func TestPayloadsBuilderV3_HistogramZeroValues(t *testing.T) {
 		metrics.DistributionMetadata{Name: "x"}, 1,
 		testExponentialPoints{{ts: 1000, haveMax: true, cnt: 1, zeroCnt: 1, scale: 1, posOffs: 2, negOffs: 3}},
 	))
-	// explicit: sum, min; exponential: sum, max, zero threshold
-	require.Equal(t, uint64(5), pb.stats.valuesZero)
+	// explicit: min; exponential: max, zero threshold
+	require.Equal(t, uint64(3), pb.stats.valuesZero)
 
 	requireProtoscope(t, pb, pipelineContext, `3: {
 		1: {1 "e" 1 "x"}
@@ -264,7 +265,7 @@ func TestPayloadsBuilderV3_HistogramPointsLimit(t *testing.T) {
 	r.NoError(pb.WriteOtelExplicitHistogram(metrics.DistributionMetadata{Name: "empty"}, 0, testExplicitPoints{}))
 	r.NoError(pb.WriteOtelExponentialHistogram(metrics.DistributionMetadata{Name: "big"}, 3, make(testExponentialPoints, 3)))
 	r.NoError(pb.WriteOtelExplicitHistogram(metrics.DistributionMetadata{Name: "ok"}, 1,
-		testExplicitPoints{{ts: 1000, sum: 1, cnt: 1, counts: []uint64{1}}}))
+		testExplicitPoints{{ts: 1000, haveSum: true, sum: 1, cnt: 1, counts: []uint64{1}}}))
 
 	requireProtoscope(t, pb, pipelineContext, `3: {
 		1: {2 "ok"}
@@ -281,13 +282,13 @@ func TestPayloadsBuilderV3_HistogramPointsLimit(t *testing.T) {
 		22: {1}
 		23: {0z}
 		24: {1z}
-		30: {0}
+		30: {4}
 		31: {1}
 	}`)
 }
 
 // TestPayloadsBuilderV3_HistogramPermutations covers every combination of
-// histogram type, value type and min/max presence for a single point.
+// histogram type, value type and sum/min/max presence for a single point.
 func TestPayloadsBuilderV3_HistogramPermutations(t *testing.T) {
 	// Values chosen so that each set compacts to exactly one value type.
 	// bound is the explicit bound, or the exponential zero threshold.
@@ -308,80 +309,86 @@ func TestPayloadsBuilderV3_HistogramPermutations(t *testing.T) {
 
 	for _, exponential := range []bool{false, true} {
 		for _, vc := range valueCases {
-			for _, haveMin := range []bool{false, true} {
-				for _, haveMax := range []bool{false, true} {
-					kind := "explicit"
-					if exponential {
-						kind = "exponential"
-					}
-					name := fmt.Sprintf("%s/%s/min=%v/max=%v", kind, vc.name, haveMin, haveMax)
-					t.Run(name, func(t *testing.T) {
-						// Absent min/max carry a value that would otherwise force Float64.
-						min, max := math.Pi, math.Pi
-						var flags uint64
-						vals := []string{vc.sumLit}
-						if haveMin {
-							min = vc.min
-							flags |= pointFlagsHaveMin
-							vals = append(vals, vc.minLit)
-						}
-						if haveMax {
-							max = vc.max
-							flags |= pointFlagsHaveMax
-							vals = append(vals, vc.maxLit)
-						}
-						vals = append(vals, vc.boundLit)
-
-						pb, pipelineContext := newTestHistogramBuilder(t, 1000)
-						var metricType int64
-						var header, numBins, binCnts, uints string
+			for _, haveSum := range []bool{false, true} {
+				for _, haveMin := range []bool{false, true} {
+					for _, haveMax := range []bool{false, true} {
+						kind := "explicit"
 						if exponential {
-							metricType = metricOtelExponentialHistogram
-							header, numBins, binCnts, uints = "1z -2z 3z", "2 1", "1 2 3", "10 4"
-							require.NoError(t, pb.WriteOtelExponentialHistogram(
-								metrics.DistributionMetadata{Name: "h"}, 1,
-								testExponentialPoints{{
-									ts: 1000, haveMin: haveMin, haveMax: haveMax, min: min, max: max, sum: vc.sum, zeroThr: vc.bound,
-									cnt: 10, zeroCnt: 4, scale: 1, posOffs: -2, negOffs: 3, posCnt: []uint64{1, 2}, negCnt: []uint64{3},
-								}},
-							))
-						} else {
-							metricType = metricOtelExplicitHistogram
-							numBins, binCnts, uints = "2", "1 2", "3"
-							require.NoError(t, pb.WriteOtelExplicitHistogram(
-								metrics.DistributionMetadata{Name: "h"}, 1,
-								testExplicitPoints{{
-									ts: 1000, haveMin: haveMin, haveMax: haveMax, min: min, max: max, sum: vc.sum,
-									cnt: 3, bounds: []float64{vc.bound}, counts: []uint64{1, 2},
-								}},
-							))
+							kind = "exponential"
 						}
+						name := fmt.Sprintf("%s/%s/sum=%v/min=%v/max=%v", kind, vc.name, haveSum, haveMin, haveMax)
+						t.Run(name, func(t *testing.T) {
+							// Absent sum/min/max carry a value that would otherwise force Float64.
+							sum, min, max := math.Pi, math.Pi, math.Pi
+							var flags uint64
+							var vals []string
+							if haveSum {
+								sum = vc.sum
+								flags |= pointFlagsHaveSum
+								vals = append(vals, vc.sumLit)
+							}
+							if haveMin {
+								min = vc.min
+								flags |= pointFlagsHaveMin
+								vals = append(vals, vc.minLit)
+							}
+							if haveMax {
+								max = vc.max
+								flags |= pointFlagsHaveMax
+								vals = append(vals, vc.maxLit)
+							}
+							vals = append(vals, vc.boundLit)
 
-						numValues := uint64(len(vals))
-						stats := map[int64]uint64{
-							valueZero:    pb.stats.valuesZero,
-							valueSint64:  pb.stats.valuesSint64,
-							valueFloat32: pb.stats.valuesFloat32,
-							valueFloat64: pb.stats.valuesFloat64,
-						}
-						require.Equal(t, map[int64]uint64{valueZero: 0, valueSint64: 0, valueFloat32: 0, valueFloat64: 0, vc.valueType: numValues}, stats)
+							pb, pipelineContext := newTestHistogramBuilder(t, 1000)
+							var metricType int64
+							var header, numBins, binCnts, uints string
+							if exponential {
+								metricType = metricOtelExponentialHistogram
+								header, numBins, binCnts, uints = "1z -2z 3z", "2 1", "1 2 3", "10 4"
+								require.NoError(t, pb.WriteOtelExponentialHistogram(
+									metrics.DistributionMetadata{Name: "h"}, 1,
+									testExponentialPoints{{
+										ts: 1000, haveMin: haveMin, haveMax: haveMax, haveSum: haveSum, min: min, max: max, sum: sum, zeroThr: vc.bound,
+										cnt: 10, zeroCnt: 4, scale: 1, posOffs: -2, negOffs: 3, posCnt: []uint64{1, 2}, negCnt: []uint64{3},
+									}},
+								))
+							} else {
+								metricType = metricOtelExplicitHistogram
+								numBins, binCnts, uints = "2", "1 2", "3"
+								require.NoError(t, pb.WriteOtelExplicitHistogram(
+									metrics.DistributionMetadata{Name: "h"}, 1,
+									testExplicitPoints{{
+										ts: 1000, haveMin: haveMin, haveMax: haveMax, haveSum: haveSum, min: min, max: max, sum: sum,
+										cnt: 3, bounds: []float64{vc.bound}, counts: []uint64{1, 2},
+									}},
+								))
+							}
 
-						// Value columns, in field order. Integer headers always precede
-						// the point's values when both are in valsSint64.
-						sint64Col := header
-						floatCols := ""
-						switch vc.valueType {
-						case valueZero:
-						case valueSint64:
-							sint64Col = strings.TrimSpace(header + " " + strings.Join(vals, " "))
-						default:
-							floatCols = fmt.Sprintf("%d: {%s}", valueField[vc.valueType], strings.Join(vals, " "))
-						}
-						if sint64Col != "" {
-							sint64Col = fmt.Sprintf("17: {%s}", sint64Col)
-						}
+							numValues := uint64(len(vals))
+							stats := map[int64]uint64{
+								valueZero:    pb.stats.valuesZero,
+								valueSint64:  pb.stats.valuesSint64,
+								valueFloat32: pb.stats.valuesFloat32,
+								valueFloat64: pb.stats.valuesFloat64,
+							}
+							require.Equal(t, map[int64]uint64{valueZero: 0, valueSint64: 0, valueFloat32: 0, valueFloat64: 0, vc.valueType: numValues}, stats)
 
-						requireProtoscope(t, pb, pipelineContext, fmt.Sprintf(`3: {
+							// Value columns, in field order. Integer headers always precede
+							// the point's values when both are in valsSint64.
+							sint64Col := header
+							floatCols := ""
+							switch vc.valueType {
+							case valueZero:
+							case valueSint64:
+								sint64Col = strings.TrimSpace(header + " " + strings.Join(vals, " "))
+							default:
+								floatCols = fmt.Sprintf("%d: {%s}", valueField[vc.valueType], strings.Join(vals, " "))
+							}
+							if sint64Col != "" {
+								sint64Col = fmt.Sprintf("17: {%s}", sint64Col)
+							}
+
+							requireProtoscope(t, pb, pipelineContext, fmt.Sprintf(`3: {
 							1: {1 "h"}
 							9: {10 0 0}
 							10: {%d}
@@ -400,7 +407,8 @@ func TestPayloadsBuilderV3_HistogramPermutations(t *testing.T) {
 							30: {%d}
 							31: {%s}
 						}`, metricType|vc.valueType, sint64Col, floatCols, numBins, binCnts, flags, uints))
-					})
+						})
+					}
 				}
 			}
 		}

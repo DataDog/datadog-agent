@@ -58,8 +58,7 @@ type OtelExplicitHistogramPoints interface {
 	// Delta temporality.
 	// len(bounds) = len(counts) = 0 OR len(bounds) + 1 = len(counts)
 	// bounds must be strictly increasing and finite.
-	// Sum must be provided.
-	GetOtelExplicitHistogramPoint(int) (ts int64, haveMin, haveMax bool, min, max, sum float64, cnt uint64, bounds []float64, counts []uint64)
+	GetOtelExplicitHistogramPoint(int) (ts int64, haveMin, haveMax, haveSum bool, min, max, sum float64, cnt uint64, bounds []float64, counts []uint64)
 }
 
 // OtelExponentialHistogramPoints provides access to OpenTelemetry exponential bucket histogram points.
@@ -73,6 +72,5 @@ type OtelExponentialHistogramPoints interface {
 	// len(posCnt) = 0 OR posOffs + len(posCnt) - 1 ≤ math.MaxInt32
 	// len(negCnt) = 0 OR negOffs + len(negCnt) - 1 ≤ math.MaxInt32
 	// zeroThr is finite and greater or equal to zero.
-	// Sum must be provided.
-	GetOtelExponentialHistogramPoint(int) (ts int64, haveMin, haveMax bool, min, max, sum, zeroThr float64, cnt, zeroCnt uint64, scale, posOffs, negOffs int32, posCnt, negCnt []uint64)
+	GetOtelExponentialHistogramPoint(int) (ts int64, haveMin, haveMax, haveSum bool, min, max, sum, zeroThr float64, cnt, zeroCnt uint64, scale, posOffs, negOffs int32, posCnt, negCnt []uint64)
 }

@@ -135,6 +135,7 @@ const (
 
 	pointFlagsHaveMin = 0x01
 	pointFlagsHaveMax = 0x02
+	pointFlagsHaveSum = 0x04
 )
 
 const (
@@ -658,12 +659,15 @@ func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata, nu
 	return pb.finishTxn(numPoints)
 }
 
-func histogramPointFlags(haveMin, haveMax bool) (f uint64) {
+func histogramPointFlags(haveMin, haveMax, haveSum bool) (f uint64) {
 	if haveMin {
 		f |= pointFlagsHaveMin
 	}
 	if haveMax {
 		f |= pointFlagsHaveMax
+	}
+	if haveSum {
+		f |= pointFlagsHaveSum
 	}
 	return
 }
@@ -681,9 +685,11 @@ func (pb *payloadsBuilderV3) WriteOtelExplicitHistogram(
 	pointKind := pointKindZero
 
 	for i := 0; i < numPoints; i++ {
-		_, haveMin, haveMax, min, max, sum, _, bounds, _ := points.GetOtelExplicitHistogramPoint(i)
+		_, haveMin, haveMax, haveSum, min, max, sum, _, bounds, _ := points.GetOtelExplicitHistogramPoint(i)
 
-		pointKind = pointKind.unionOf(sum)
+		if haveSum {
+			pointKind = pointKind.unionOf(sum)
+		}
 		if haveMin {
 			pointKind = pointKind.unionOf(min)
 		}
@@ -704,7 +710,7 @@ func (pb *payloadsBuilderV3) WriteOtelExplicitHistogram(
 	pb.txn.Int64(columnType, typeValue)
 
 	for i := 0; i < numPoints; i++ {
-		ts, haveMin, haveMax, min, max, sum, cnt, bounds, counts := points.GetOtelExplicitHistogramPoint(i)
+		ts, haveMin, haveMax, haveSum, min, max, sum, cnt, bounds, counts := points.GetOtelExplicitHistogramPoint(i)
 
 		pb.writePointCommon(ts)
 
@@ -713,12 +719,14 @@ func (pb *payloadsBuilderV3) WriteOtelExplicitHistogram(
 			pb.txn.Uint64(columnSketchBinCnts, c)
 		}
 
-		pb.txn.Uint64(columnPointFlags, histogramPointFlags(haveMin, haveMax))
+		pb.txn.Uint64(columnPointFlags, histogramPointFlags(haveMin, haveMax, haveSum))
 		pb.txn.Uint64(columnValsUint64, cnt)
 
 		switch valueType {
 		case valueZero:
-			pb.stats.valuesZero++
+			if haveSum {
+				pb.stats.valuesZero++
+			}
 			if haveMin {
 				pb.stats.valuesZero++
 			}
@@ -727,8 +735,10 @@ func (pb *payloadsBuilderV3) WriteOtelExplicitHistogram(
 			}
 			pb.stats.valuesZero += uint64(len(bounds))
 		case valueSint64:
-			pb.txn.Sint64(columnValueSint64, int64(sum))
-			pb.stats.valuesSint64++
+			if haveSum {
+				pb.txn.Sint64(columnValueSint64, int64(sum))
+				pb.stats.valuesSint64++
+			}
 			if haveMin {
 				pb.txn.Sint64(columnValueSint64, int64(min))
 				pb.stats.valuesSint64++
@@ -742,8 +752,10 @@ func (pb *payloadsBuilderV3) WriteOtelExplicitHistogram(
 			}
 			pb.stats.valuesSint64 += uint64(len(bounds))
 		case valueFloat32:
-			pb.txn.Float32(columnValueFloat32, float32(sum))
-			pb.stats.valuesFloat32++
+			if haveSum {
+				pb.txn.Float32(columnValueFloat32, float32(sum))
+				pb.stats.valuesFloat32++
+			}
 			if haveMin {
 				pb.txn.Float32(columnValueFloat32, float32(min))
 				pb.stats.valuesFloat32++
@@ -757,8 +769,10 @@ func (pb *payloadsBuilderV3) WriteOtelExplicitHistogram(
 			}
 			pb.stats.valuesFloat32 += uint64(len(bounds))
 		case valueFloat64:
-			pb.txn.Float64(columnValueFloat64, sum)
-			pb.stats.valuesFloat64++
+			if haveSum {
+				pb.txn.Float64(columnValueFloat64, sum)
+				pb.stats.valuesFloat64++
+			}
 			if haveMin {
 				pb.txn.Float64(columnValueFloat64, min)
 				pb.stats.valuesFloat64++
@@ -791,7 +805,7 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 	pointKind := pointKindZero
 
 	for i := 0; i < numPoints; i++ {
-		_, haveMin, haveMax, min, max, sum, zeroThr, _, _, _, _, _, _, _ := points.GetOtelExponentialHistogramPoint(i)
+		_, haveMin, haveMax, haveSum, min, max, sum, zeroThr, _, _, _, _, _, _, _ := points.GetOtelExponentialHistogramPoint(i)
 
 		if haveMin {
 			pointKind = pointKind.unionOf(min)
@@ -799,7 +813,9 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 		if haveMax {
 			pointKind = pointKind.unionOf(max)
 		}
-		pointKind = pointKind.unionOf(sum)
+		if haveSum {
+			pointKind = pointKind.unionOf(sum)
+		}
 		pointKind = pointKind.unionOf(zeroThr)
 	}
 
@@ -812,7 +828,7 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 	pb.txn.Int64(columnType, typeValue)
 
 	for i := 0; i < numPoints; i++ {
-		ts, haveMin, haveMax, min, max, sum, zeroThr, cnt, zeroCnt, scale, posOffs, negOffs, posCnt, negCnt := points.GetOtelExponentialHistogramPoint(i)
+		ts, haveMin, haveMax, haveSum, min, max, sum, zeroThr, cnt, zeroCnt, scale, posOffs, negOffs, posCnt, negCnt := points.GetOtelExponentialHistogramPoint(i)
 
 		pb.writePointCommon(ts)
 
@@ -831,13 +847,16 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 		pb.txn.Sint64(columnValueSint64, int64(posOffs))
 		pb.txn.Sint64(columnValueSint64, int64(negOffs))
 
-		pb.txn.Uint64(columnPointFlags, histogramPointFlags(haveMin, haveMax))
+		pb.txn.Uint64(columnPointFlags, histogramPointFlags(haveMin, haveMax, haveSum))
 		pb.txn.Uint64(columnValsUint64, cnt)
 		pb.txn.Uint64(columnValsUint64, zeroCnt)
 
 		switch valueType {
 		case valueZero:
-			pb.stats.valuesZero += 2
+			pb.stats.valuesZero++
+			if haveSum {
+				pb.stats.valuesZero++
+			}
 			if haveMin {
 				pb.stats.valuesZero++
 			}
@@ -845,7 +864,10 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 				pb.stats.valuesZero++
 			}
 		case valueSint64:
-			pb.txn.Sint64(columnValueSint64, int64(sum))
+			if haveSum {
+				pb.txn.Sint64(columnValueSint64, int64(sum))
+				pb.stats.valuesSint64++
+			}
 			if haveMin {
 				pb.txn.Sint64(columnValueSint64, int64(min))
 				pb.stats.valuesSint64++
@@ -855,9 +877,12 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 				pb.stats.valuesSint64++
 			}
 			pb.txn.Sint64(columnValueSint64, int64(zeroThr))
-			pb.stats.valuesSint64 += 2
+			pb.stats.valuesSint64++
 		case valueFloat32:
-			pb.txn.Float32(columnValueFloat32, float32(sum))
+			if haveSum {
+				pb.txn.Float32(columnValueFloat32, float32(sum))
+				pb.stats.valuesFloat32++
+			}
 			if haveMin {
 				pb.txn.Float32(columnValueFloat32, float32(min))
 				pb.stats.valuesFloat32++
@@ -867,9 +892,12 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 				pb.stats.valuesFloat32++
 			}
 			pb.txn.Float32(columnValueFloat32, float32(zeroThr))
-			pb.stats.valuesFloat32 += 2
+			pb.stats.valuesFloat32++
 		case valueFloat64:
-			pb.txn.Float64(columnValueFloat64, sum)
+			if haveSum {
+				pb.txn.Float64(columnValueFloat64, sum)
+				pb.stats.valuesFloat64++
+			}
 			if haveMin {
 				pb.txn.Float64(columnValueFloat64, min)
 				pb.stats.valuesFloat64++
@@ -879,7 +907,7 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 				pb.stats.valuesFloat64++
 			}
 			pb.txn.Float64(columnValueFloat64, zeroThr)
-			pb.stats.valuesFloat64 += 2
+			pb.stats.valuesFloat64++
 		}
 	}
 
