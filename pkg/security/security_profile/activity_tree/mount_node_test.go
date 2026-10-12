@@ -49,10 +49,10 @@ func TestInsertMountDedup(t *testing.T) {
 	require.False(t, at.InsertMount(testNsA, "/data", "/", "ext4", model.MountAttrReadOnly, tagID, Runtime, t1, false))
 	require.Len(t, at.Mounts, 1)
 
-	times, ok := at.Mounts[0].GetSeenTimes(tagID)
+	firstSeen, lastSeen, ok := at.Mounts[0].GetSeenTimes(tagID)
 	require.True(t, ok)
-	assert.Equal(t, t0, times.FirstSeen)
-	assert.Equal(t, t1, times.LastSeen)
+	assert.Equal(t, t0, firstSeen)
+	assert.Equal(t, t1, lastSeen)
 }
 
 func TestInsertMountDifferentRootDedups(t *testing.T) {
@@ -247,8 +247,8 @@ func TestMountsProtoRoundTrip(t *testing.T) {
 
 	dstTagID := dst.GetImageTagID("img:v1")
 	require.NotZero(t, dstTagID)
-	times, ok := root.GetSeenTimes(dstTagID)
+	firstSeen, lastSeen, ok := root.GetSeenTimes(dstTagID)
 	require.True(t, ok)
-	assert.Equal(t, first, times.FirstSeen)
-	assert.Equal(t, last, times.LastSeen)
+	assert.Equal(t, first, firstSeen)
+	assert.Equal(t, last, lastSeen)
 }
