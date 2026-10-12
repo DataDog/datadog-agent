@@ -79,7 +79,7 @@ TRIGGER_ALL_TESTS_PATHS = [
     "tasks/build_tags.py",
     ".gitlab/build/source_test/*",
     ".gitlab-ci.yml",
-    "gitlab-config.yml",
+    "gitlab-source.yml",
 ]
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"

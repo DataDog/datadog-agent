@@ -16,7 +16,7 @@ from tasks.schema.generate import schema_codegen
 VERSION_FILE = "test/fakeintake/version/VERSION"
 
 # Paths that rebuild the published image (client/CLI/docs don't).
-# Keep in sync with .fakeintake_server_paths in gitlab-config.yml.
+# Keep in sync with .fakeintake_server_paths in gitlab-source.yml.
 SERVER_PATH_PREFIXES = (
     "test/fakeintake/cmd/server/",
     "test/fakeintake/server/",

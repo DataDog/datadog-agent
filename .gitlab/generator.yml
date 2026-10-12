@@ -1,0 +1,16 @@
+# How the datadog-agent-ci DDCI task engine generates the GitLab configuration of a change.
+# The engine fetches the files matching `inputs` (doublestar globs on repository paths, at most 500 files and 20 MiB)
+# at the change's head commit into an empty directory, writes the change context
+# to a file, runs `command` there with `env` and passes the standard output to GitLab as the pipeline
+# configuration. `{context}` is replaced by the path of the context file. `command` runs without a shell, starts
+# with python3 and must complete within 20 seconds with at most 4 MiB of output; on any failure the engine falls
+# back to the full pipeline.
+# Only Python 3 and PyYAML are available: tasks/unit_tests/dda_gitlab_generate_tests.py checks the generator
+# runs with these inputs alone.
+inputs:
+  - gitlab-source.yml
+  - .dda/extend/pythonpath/utils/__init__.py
+  - .dda/extend/pythonpath/utils/gitlab/*.py
+env:
+  PYTHONPATH: .dda/extend/pythonpath
+command: [python3, -m, utils.gitlab.generate, --context, "{context}", --output, "-"]

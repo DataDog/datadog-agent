@@ -5,7 +5,7 @@ Load this when working through Step 1 (retry policy, `failure_reason`) or Steps
 
 ## The default retry policy, and why it changes the flake prior
 
-`gitlab-config.yml:177-180` retries every job once on any failure by default:
+`gitlab-source.yml:177-180` retries every job once on any failure by default:
 
 ```yaml
 default:
@@ -21,7 +21,7 @@ once.
 
 Two exceptions retry on a narrower trigger, so a `script_failure` there was only
 attempted once:
-- `gitlab-config.yml:1499-1511` `.retry_only_infra_failure` — used by most e2e,
+- `gitlab-source.yml:1499-1511` `.retry_only_infra_failure` — used by most e2e,
   Windows, and macOS jobs. Retries only on GitLab's infra-flavoured
   `failure_reason` values (below).
 - `.gitlab/test/kernel_matrix_testing/common.yml:258-268` — same idea, plus
@@ -32,7 +32,7 @@ one, grep for it rather than resolving the full CI config — the pipeline
 definition is tens of thousands of lines:
 
 ```bash
-grep -rn '<job-name>' .gitlab/ gitlab-config.yml
+grep -rn '<job-name>' .gitlab/ gitlab-source.yml
 ```
 
 There's no way to see this from `ddgl` either: GitLab's job-list endpoint doesn't

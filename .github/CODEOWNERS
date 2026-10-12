@@ -14,7 +14,7 @@
 
 # Config files for various CI systems / tasks
 /.*                                             @DataDog/agent-devx
-/gitlab-config.yml                               @DataDog/agent-devx
+/gitlab-source.yml                               @DataDog/agent-devx
 /.claude/settings.json                          @DataDog/agent-devx
 /.claude/agents/tend.md                         @DataDog/single-machine-performance
 /.claude/agents/weed.md                         @DataDog/single-machine-performance
@@ -129,6 +129,7 @@
 # Files that only describe structure (eg. includes, rules) are owned by agent-devx
 
 /.gitlab/.ci-linters.yml                                                  @DataDog/agent-devx @DataDog/agent-build
+/.gitlab/generator.yml                                                    @DataDog/agent-devx
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
 /.gitlab/.post/*                                                          @DataDog/agent-devx
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
