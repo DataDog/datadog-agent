@@ -37,13 +37,10 @@ from tasks.libs.linter.e2e_internet_access import (
     REGISTRY_PATH,
     REPO_ROOT,
     TREE_SITTER_DEPS,
-    check,
-    load_registry,
+    Registry,
     normalize_paths,
     scan,
-    scanned_files,
     select_scope,
-    summarize,
 )
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
@@ -970,9 +967,9 @@ def e2e_internet_access(_, path=None):
         ) from None
 
     scope = select_scope(normalize_paths(path or [], REPO_ROOT))
-    entries, errors = load_registry((REPO_ROOT / REGISTRY_PATH).read_text())
-    errors += check(scan(REPO_ROOT, scanned_files(REPO_ROOT, scope)), entries, scope)
-    print(summarize(entries))
+    registry = Registry.parse((REPO_ROOT / REGISTRY_PATH).read_text())
+    errors = registry.errors + registry.check(scan(REPO_ROOT, scope), scope)
+    print(registry.summary())
     if errors:
         for error in errors:
             print(color_message(error, Color.RED), file=sys.stderr)
