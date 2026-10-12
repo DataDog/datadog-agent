@@ -36,13 +36,14 @@ type Source interface {
 }
 
 type rcSource struct {
-	cfg     model.Reader
-	service rcservice.Component
+	cfg                model.Reader
+	service            rcservice.Component
+	key, rcURL, parURL string
 }
 
 // NewSource adapts the optional RC service without an HTTP client or fallback.
 func NewSource(cfg model.Reader, service rcservice.Component) Source {
-	return &rcSource{cfg: cfg, service: service}
+	return &rcSource{cfg: cfg, service: service, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", "remote_configuration.rc_dd_url"), parURL: enrollmentEndpoint(cfg)}
 }
 
 func (r *rcSource) Demand(wanted bool) {
@@ -60,6 +61,11 @@ func (r *rcSource) Read(now time.Time) Prerequisites {
 	if r.service == nil {
 		return p
 	}
+	scope := r.service.GetPARScope()
+	p.ScopeReason, p.ScopeCheckedAt, p.NextCheck = scope.Reason, scope.CheckedAt, scope.NextCheck
+	if p.ScopeReason == "" {
+		p.ScopeReason = "par_scope_unchecked"
+	}
 	rc := r.service.GetOrgStatus()
 	if rc.State != remote.OrgStatusObserved {
 		p.RCReason = "rc_" + string(rc.State)
@@ -70,7 +76,7 @@ func (r *rcSource) Read(now time.Time) Prerequisites {
 	parURL := enrollmentEndpoint(r.cfg)
 	expectedRC := "https://config." + enrollmentSite(r.cfg)
 	mockPair := os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
-	if !rc.Matches(key, rcURL) || (rcURL != expectedRC && !mockPair) || (os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && !mockPair) {
+	if key != r.key || rcURL != r.rcURL || parURL != r.parURL || !rc.Matches(key, rcURL) || (rcURL != expectedRC && !mockPair) || (os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && !mockPair) {
 		p.RCReason = "rc_credential_or_endpoint_mismatch"
 		return p
 	}
@@ -86,11 +92,6 @@ func (r *rcSource) Read(now time.Time) Prerequisites {
 		return p
 	}
 	p.RCReady, p.RCReason = true, "rc_ready"
-	scope := r.service.GetPARScope()
-	p.ScopeReason, p.ScopeCheckedAt, p.NextCheck = scope.Reason, scope.CheckedAt, scope.NextCheck
-	if p.ScopeReason == "" {
-		p.ScopeReason = "par_scope_unchecked"
-	}
 	p.ScopeReady = scope.Granted(now, rc.Generation) && scope.Matches(key, parURL)
 	if scope.Reason == "scope_present" && !p.ScopeReady {
 		p.ScopeReason = "par_scope_stale_or_mismatched"
