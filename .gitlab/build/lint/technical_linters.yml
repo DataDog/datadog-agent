@@ -41,7 +41,9 @@ lint_docs_links:
 lint_e2e_internet_access:
   extends: .lint
   script:
-    - dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 -- -e linter.e2e-internet-access
+    # `dda inv --dep` is a no-op with DDA_NO_DYNAMIC_DEPS=1, so install into dda's own environment instead
+    - python3 -m pip install tree-sitter==0.26.0 tree-sitter-go==0.25.0
+    - dda inv -- -e linter.e2e-internet-access
 
 lint_codeowners:
   extends: .lint
