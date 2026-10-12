@@ -223,7 +223,7 @@ require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/Microsoft/go-winio v0.6.3-0.20260925173824-7e8af9b09c4b
+	github.com/Microsoft/go-winio v0.6.3
 	github.com/Microsoft/hcsshim v0.14.1
 	github.com/NVIDIA/go-nvml v0.13.1-0
 	github.com/ProtonMail/go-crypto v1.5.2
@@ -349,7 +349,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.8
 	github.com/oliveagle/jsonpath v0.1.4
-	github.com/open-policy-agent/opa v1.18.2
+	github.com/open-policy-agent/opa v1.21.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.159.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.159.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.159.0
@@ -374,7 +374,7 @@ require (
 	github.com/prometheus/procfs v0.22.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/rabbitmq/amqp091-go v1.15.0
-	github.com/redis/go-redis/v9 v9.22.0
+	github.com/redis/go-redis/v9 v9.23.0
 	github.com/rickar/props v1.1.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
