@@ -1,5 +1,6 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load(":config_files_test.bzl", "config_files_test_suite")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -15,7 +16,13 @@ pkg_files(
         owner = "root",
     ),
     prefix = "etc/datadog-agent/private-action-runner",
+    renames = select({
+        "@platforms//os:windows": {"powershell-script-config.yaml": "powershell-script-config.yaml.example"},
+        "//conditions:default": {"script-config.yaml": "script-config.yaml.example"},
+    }),
 )
+
+config_files_test_suite(name = "config_files_test")
 
 pkg_install(
     name = "install",
