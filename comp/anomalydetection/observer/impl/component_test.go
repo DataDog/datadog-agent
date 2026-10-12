@@ -62,7 +62,7 @@ func (l *testLifecycle) Append(h compdef.Hook) {
 func requireNoObserverMetricFamilies(t *testing.T, telemetryComp telemetry.Component) {
 	t.Helper()
 
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	for _, family := range metricFamilies {

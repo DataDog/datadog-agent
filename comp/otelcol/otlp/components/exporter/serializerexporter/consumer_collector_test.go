@@ -49,6 +49,24 @@ func TestExporterWorkloadMetrics(t *testing.T) {
 			tags:         []string{"version:1.0", "command:otelcontribcol", "instance:instance-1"},
 			wantName:     "otel.datadog_exporter.metrics.running.azureappservices",
 		},
+		{
+			name:         "azurefunctions",
+			metricSuffix: "azurefunctions",
+			tags:         []string{"version:1.0", "command:otelcontribcol", "instance:instance-1"},
+			wantName:     "otel.datadog_exporter.metrics.running.azurefunctions",
+		},
+		{
+			name:         "cloudrun",
+			metricSuffix: "cloudrun",
+			tags:         []string{"version:1.0", "command:otelcontribcol", "instance:instance-1"},
+			wantName:     "otel.datadog_exporter.metrics.running.cloudrun",
+		},
+		{
+			name:         "cloudrunfunctions",
+			metricSuffix: "cloudrunfunctions",
+			tags:         []string{"version:1.0", "command:otelcontribcol", "instance:instance-1"},
+			wantName:     "otel.datadog_exporter.metrics.running.cloudrunfunctions",
+		},
 	}
 
 	for _, tt := range tests {
@@ -131,6 +149,44 @@ func TestAddRuntimeTelemetryMetric_AzureAppServices(t *testing.T) {
 	assert.ElementsMatch(t, tags, c.series[0].Tags.UnsafeToReadOnlySliceString())
 }
 
+func TestAddRuntimeTelemetryMetric_AzureFunctionsIdentity(t *testing.T) {
+	c := newTestCollectorConsumer(component.BuildInfo{})
+	firstApp := []string{
+		"instance:shared-instance",
+		"name:first-app",
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+	}
+	firstAppReordered := []string{
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+		"name:first-app",
+		"instance:shared-instance",
+	}
+	secondApp := []string{
+		"instance:shared-instance",
+		"name:second-app",
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+	}
+
+	// Multiple functions in one app instance have the same four-field identity,
+	// while a different app remains distinct even when its instance string matches.
+	c.ConsumeTagSet("azurefunctions", firstApp)
+	c.ConsumeTagSet("azurefunctions", firstAppReordered)
+	c.ConsumeTagSet("azurefunctions", secondApp)
+	c.addRuntimeTelemetryMetric("", nil)
+
+	require.Len(t, c.series, 2)
+	var got [][]string
+	for _, serie := range c.series {
+		assert.Equal(t, "otel.datadog_exporter.metrics.running.azurefunctions", serie.Name)
+		assert.Empty(t, serie.Host)
+		got = append(got, serie.Tags.UnsafeToReadOnlySliceString())
+	}
+	assert.ElementsMatch(t, [][]string{firstApp, secondApp}, got)
+}
+
 func TestAddRuntimeTelemetryMetric_AzureAppServicesDedupKeyIsUnambiguous(t *testing.T) {
 	c := newTestCollectorConsumer(component.BuildInfo{})
 	first := []string{
@@ -159,6 +215,56 @@ func TestAddRuntimeTelemetryMetric_AzureAppServicesDedupKeyIsUnambiguous(t *test
 		got = append(got, serie.Tags.UnsafeToReadOnlySliceString())
 	}
 	assert.ElementsMatch(t, [][]string{first, second}, got)
+}
+
+func TestAddRuntimeTelemetryMetric_GCPServerlessIdentityDedup(t *testing.T) {
+	c := newTestCollectorConsumer(component.BuildInfo{})
+	base := []string{
+		"instance:instance-1",
+		"service_name:service-1",
+		"project_id:project-1",
+		"location:location-1",
+	}
+	c.ConsumeTagSet("cloudrun", base)
+	c.ConsumeTagSet("cloudrun", []string{
+		"location:location-1",
+		"project_id:project-1",
+		"service_name:service-1",
+		"instance:instance-1",
+	})
+	c.ConsumeTagSet("cloudrun", []string{
+		"instance:instance-1",
+		"service_name:service-1",
+		"project_id:project-2",
+		"location:location-1",
+	})
+	c.ConsumeTagSet("cloudrun", []string{
+		"instance:instance-1",
+		"service_name:service-1",
+		"project_id:project-1",
+		"location:location-2",
+	})
+	c.ConsumeTagSet("cloudrun", []string{
+		"instance:instance-1",
+		"service_name:service-2",
+		"project_id:project-1",
+		"location:location-1",
+	})
+	c.ConsumeTagSet("cloudrun", []string{
+		"instance:instance-2",
+		"service_name:service-1",
+		"project_id:project-1",
+		"location:location-1",
+	})
+
+	c.addRuntimeTelemetryMetric("", nil)
+
+	require.Len(t, c.series, 5, "only an identical four-field identity should deduplicate")
+	for _, serie := range c.series {
+		assert.Equal(t, "otel.datadog_exporter.metrics.running.cloudrun", serie.Name)
+		assert.Empty(t, serie.Host)
+		assert.Len(t, serie.Tags.UnsafeToReadOnlySliceString(), 4)
+	}
 }
 
 func TestAddRuntimeTelemetryMetric_HostAndFargate(t *testing.T) {

@@ -276,6 +276,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "Capabilities that the process successfully used since it started running"
+                },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace"
                 }
             },
             "additionalProperties": false,
@@ -311,6 +325,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "id": {
                     "type": "string",
                     "description": "Container ID"
+                },
+                "pod_uid": {
+                    "type": "string",
+                    "description": "Kubernetes pod UID"
                 },
                 "source": {
                     "type": "string",
@@ -1419,6 +1437,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "array",
                     "description": "CapsUsed lists the capabilities that this process effectively made use of"
                 },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+                },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
                     "description": "Context of the user session for this event"
@@ -1601,6 +1633,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "CapsUsed lists the capabilities that this process effectively made use of"
+                },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
                 },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
@@ -1958,6 +2004,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "event_type_state": {
                     "type": "string",
                     "description": "State of the event type in this profile"
+                },
+                "profile_already_sent": {
+                    "type": "boolean",
+                    "description": "True if the profile had already been persisted to the backend when this event was emitted"
                 }
             },
             "additionalProperties": false,
@@ -1967,7 +2017,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "version",
                 "tags",
                 "event_in_profile",
-                "event_type_state"
+                "event_type_state",
+                "profile_already_sent"
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
@@ -3068,6 +3119,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "type": "array",
             "description": "Capabilities that the process successfully used since it started running"
+        },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace"
         }
     },
     "additionalProperties": false,
@@ -3081,6 +3146,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `caps_attempted` | Capabilities that the process attempted to use since it started running |
 | `caps_used` | Capabilities that the process successfully used since it started running |
+| `caps_attempted_host_userns` | Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace |
+| `caps_used_host_userns` | Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace |
 
 
 ## `ConnectEvent`
@@ -3129,6 +3196,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Container ID"
         },
+        "pod_uid": {
+            "type": "string",
+            "description": "Kubernetes pod UID"
+        },
         "source": {
             "type": "string",
             "description": "Source of the container entry (event or procfs)"
@@ -3153,6 +3224,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | Container ID |
+| `pod_uid` | Kubernetes pod UID |
 | `source` | Source of the container entry (event or procfs) |
 | `created_at` | Creation time of the container |
 | `variables` | Variable values |
@@ -4722,6 +4794,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "array",
             "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+        },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
             "description": "Context of the user session for this event"
@@ -4845,6 +4931,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `credentials` | Credentials associated with the process |
 | `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
 | `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
+| `caps_attempted_host_userns` | CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace |
+| `caps_used_host_userns` | CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
@@ -4969,6 +5057,20 @@ ancestor lineage to find the same value. |
             },
             "type": "array",
             "description": "CapsUsed lists the capabilities that this process effectively made use of"
+        },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
         },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
@@ -5108,6 +5210,8 @@ ancestor lineage to find the same value. |
 | `credentials` | Credentials associated with the process |
 | `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
 | `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
+| `caps_attempted_host_userns` | CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace |
+| `caps_used_host_userns` | CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
@@ -5511,6 +5615,10 @@ ancestor lineage to find the same value. |
         "event_type_state": {
             "type": "string",
             "description": "State of the event type in this profile"
+        },
+        "profile_already_sent": {
+            "type": "boolean",
+            "description": "True if the profile had already been persisted to the backend when this event was emitted"
         }
     },
     "additionalProperties": false,
@@ -5520,7 +5628,8 @@ ancestor lineage to find the same value. |
         "version",
         "tags",
         "event_in_profile",
-        "event_type_state"
+        "event_type_state",
+        "profile_already_sent"
     ],
     "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
 }
@@ -5534,6 +5643,7 @@ ancestor lineage to find the same value. |
 | `tags` | List of tags associated to this profile |
 | `event_in_profile` | True if the corresponding event is part of this profile |
 | `event_type_state` | State of the event type in this profile |
+| `profile_already_sent` | True if the profile had already been persisted to the backend when this event was emitted |
 
 
 ## `SetSockOptEvent`

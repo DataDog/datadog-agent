@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:dd_agent_go_test on
 
@@ -13,5 +14,15 @@ go_library(
         "//pkg/sbom/types",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+    ],
+)
+
+dd_agent_go_test(
+    name = "sbom_test",
+    srcs = ["sbom_test.go"],
+    embed = [":sbom"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@com_github_stretchr_testify//assert",
     ],
 )

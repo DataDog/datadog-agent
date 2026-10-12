@@ -17,6 +17,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/proto/pbgo/sbom",
+        "//pkg/sbom",
         "//pkg/util/flavor",
         "//pkg/util/grpc",
         "//pkg/util/log",

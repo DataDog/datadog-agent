@@ -1,4 +1,7 @@
 service:
+  telemetry:
+    metrics:
+      level: normal
   pipelines:
     profiles:
       receivers: [profiling]

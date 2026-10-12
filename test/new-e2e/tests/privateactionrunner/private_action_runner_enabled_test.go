@@ -57,6 +57,7 @@ func generateTestPrivateActionRunnerConfig(t *testing.T) string {
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
+  split_enabled: false
   self_enroll: false
   urn: %s
   private_key: %s
@@ -78,7 +79,7 @@ func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 	t.Parallel()
 	config := generateTestPrivateActionRunnerConfig(t)
 	suite := &linuxPrivateActionRunnerEnabledSuite{
-		privilegedSigningKey: generateTestSigningKey(t, privilegedRshellKeyID),
+		privilegedSigningKey: generateTestSigningKey(t, privilegedRshellKeyID+"-"+uuid.NewString()),
 	}
 	e2e.Run(t, suite, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -154,11 +155,8 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	}, 2*time.Minute, 5*time.Second)
 
 	s.Require().NoError(client.FlushPAR())
-	s.deleteRCConfig(runnerKeysRCProduct, privilegedRshellKeyID)
-	s.T().Cleanup(func() { s.deleteRCConfig(runnerKeysRCProduct, privilegedRshellKeyID) })
-
-	stats, err := client.RCStats()
-	s.Require().NoError(err)
+	s.deleteRCConfig(runnerKeysRCProduct, s.privilegedSigningKey.id)
+	s.T().Cleanup(func() { s.deleteRCConfig(runnerKeysRCProduct, s.privilegedSigningKey.id) })
 	s.Require().NoError(client.RCAddConfig(
 		strconv.FormatInt(testRunnerOrgID, 10),
 		runnerKeysRCProduct,
@@ -168,13 +166,11 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	))
 	setPARTaskSigningKey(s.T(), client, s.privilegedSigningKey)
 
-	// Wait for the Core Agent to fetch the TUF target after it was added. Two
-	// polls avoid racing the request which was already in flight at RCAddConfig.
+	// Core Agent polls do not guarantee PAR has installed this signing key.
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		current, statsErr := client.RCStats()
-		require.NoError(c, statsErr)
-		require.GreaterOrEqual(c, current.Polls, stats.Polls+2)
-	}, 45*time.Second, time.Second)
+		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s | grep -F %q",
+			"Successfully updated keys", privateActionRunnerLogFile, s.privilegedSigningKey.id))
+	}, 45*time.Second, time.Second, "PAR should install the task signing key")
 
 	nonElevated := s.runPrivilegedRshellTask("cat " + privilegedRshellFixture)
 	s.Require().True(nonElevated.Success, "non-elevated rshell command should complete: %+v", nonElevated)
@@ -300,6 +296,23 @@ func (s *linuxPrivateActionRunnerEnabledSuite) assertPrivilegedHelperUIDs() {
 		}
 	}
 	s.FailNow("helper process status has no Uid line: %s", status)
+}
+
+func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerEnabledHostTag() {
+	fakeintake := s.Env().FakeIntake.Client()
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		hosts, err := fakeintake.GetHosts()
+		require.NoError(c, err)
+		require.NotEmpty(c, hosts, "no hosts have sent host-tags payloads yet")
+
+		for _, host := range hosts {
+			payloads, err := fakeintake.GetHostTags(host)
+			require.NoError(c, err)
+			require.NotEmpty(c, payloads, "no host-tags payloads for host %s", host)
+			assert.Contains(c, payloads[len(payloads)-1].HostTags, "private_action_runner_enabled:true")
+		}
+	}, 5*time.Minute, 10*time.Second, "Private Action Runner enabled host tag did not reach fakeintake")
 }
 
 func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhenEnabled() {

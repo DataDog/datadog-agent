@@ -66,7 +66,7 @@ func TestSELinux(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("setenforce", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -169,7 +169,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	savedBoolValue, err := getBoolValue(TestBoolName)
 	if err != nil {

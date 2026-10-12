@@ -103,12 +103,18 @@ func TestHoltResidual_RampWithSpike_FiresOnce(t *testing.T) {
 
 	a := result.Anomalies[0]
 	assert.Equal(t, "holt_residual", a.DetectorName)
-	assert.Contains(t, a.Title, "Holt residual")
+	title, description := observer.FormatAnomaly(a)
+	assert.Equal(t, "Holt residual: metric:avg", title)
+	assert.Contains(t, description, "deviated from forecast")
 	require.NotNil(t, a.Score)
 	assert.Greater(t, *a.Score, 4.5, "score should clear the |z| threshold")
 	assert.NotNil(t, a.SourceRef, "SourceRef must be populated for downstream correlators")
 	require.NotNil(t, a.DebugInfo, "DebugInfo must be populated")
 	assert.Equal(t, 4.5, a.DebugInfo.Threshold)
+	assert.NotZero(t, a.DebugInfo.Forecast)
+	assert.NotZero(t, a.DebugInfo.Residual)
+	assert.NotZero(t, a.DebugInfo.HoltLevel)
+	assert.NotZero(t, a.DebugInfo.ValueMADs)
 	// Fire timestamp lands on the second spike point (M=2 confirmation).
 	assert.Equal(t, spikeStart+spikeLen-1, a.Timestamp)
 }
@@ -296,8 +302,7 @@ func TestHoltResidual_Name(t *testing.T) {
 
 // TestHoltResidual_InterfaceContracts checks the structural promises that
 // the catalog and engine both rely on: HoltResidualDetector must satisfy
-// observer.Detector AND observer.SeriesRemover (it is stateful and is NOT
-// listed in statelessDetectorAllowlist).
+// observer.Detector AND observer.SeriesRemover so eviction frees its state.
 func TestHoltResidual_InterfaceContracts(_ *testing.T) {
 	d := NewHoltResidualDetector()
 	var _ observer.Detector = d

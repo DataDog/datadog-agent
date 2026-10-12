@@ -884,7 +884,7 @@ def docs_links(ctx):
     # Double quoted because `cmd` passes a single quote through to Git, which then matches nothing.
     # In a pathspec `*` spans directories, so this reaches every nested page.
     result = ctx.run(
-        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "docs/public/*.md"',
+        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "doc/*.md"',
         warn=True,
         hide=True,
     )

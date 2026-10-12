@@ -11,14 +11,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 )
 
 // ============================================================================
@@ -93,6 +94,15 @@ func (s *eudmSuite) TestEUDMChecks() {
 // mode. The marker tag is emitted on every supported OS; OS/hardware tag
 // keys are emitted on macOS and Windows.
 func (s *eudmSuite) TestEUDMHostTags() {
+	// Restart the agent to reset the host metadata backoff
+	var err error
+	if s.descriptor.Family() == e2eos.WindowsFamily {
+		_, err = svcmanager.NewWindows(s.Env().RemoteHost).Restart("datadogagent")
+	} else {
+		_, err = svcmanager.NewSystemctl(s.Env().RemoteHost).Restart("datadog-agent")
+	}
+	require.NoError(s.T(), err, "failed to restart datadog-agent service")
+
 	fakeintake := s.Env().FakeIntake.Client()
 
 	// Hardware tag keys are populated by the agent on macOS and Windows only
@@ -113,35 +123,27 @@ func (s *eudmSuite) TestEUDMHostTags() {
 	expectHardwareTags := s.descriptor.Family() == e2eos.WindowsFamily ||
 		s.descriptor.Family() == e2eos.MacOSFamily
 
+	hostname := s.Env().Agent.Client.Hostname()
+
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		hosts, err := fakeintake.GetHosts()
-		if !assert.NoError(c, err, "failed to fetch hosts from fakeintake") {
+		payloads, err := fakeintake.GetHostTags(hostname)
+		if !assert.NoError(c, err, "failed to fetch host-tags for %s", hostname) {
 			return
 		}
-		if !assert.NotEmpty(c, hosts, "no hosts have sent host-tags payloads yet") {
+		if !assert.NotEmpty(c, payloads, "no host-tags payloads for %s yet", hostname) {
 			return
 		}
 
-		for _, host := range hosts {
-			payloads, err := fakeintake.GetHostTags(host)
-			if !assert.NoError(c, err, "failed to fetch host-tags for host %s", host) {
-				continue
-			}
-			if !assert.NotEmpty(c, payloads, "no host-tags payloads for host %s", host) {
-				continue
-			}
+		// Latest payload — host_tags are eventually consistent.
+		tags := payloads[len(payloads)-1].HostTags
 
-			// Latest payload — host_tags are eventually consistent.
-			tags := payloads[len(payloads)-1].HostTags
+		assert.Contains(c, tags, "infra_mode:end_user_device",
+			"expected infra_mode marker on host %s; got %v", hostname, tags)
 
-			assert.Contains(c, tags, "infra_mode:end_user_device",
-				"expected infra_mode marker on host %s; got %v", host, tags)
-
-			if expectHardwareTags {
-				for _, key := range hardwareTagKeys {
-					assert.Truef(c, hasTagWithPrefix(tags, key),
-						"expected a tag with prefix %q on host %s; got %v", key, host, tags)
-				}
+		if expectHardwareTags {
+			for _, key := range hardwareTagKeys {
+				assert.Truef(c, hasTagWithPrefix(tags, key),
+					"expected a tag with prefix %q on host %s; got %v", key, hostname, tags)
 			}
 		}
 	}, 5*time.Minute, 15*time.Second, "EUDM host tags did not appear in fakeintake host-tags payload")

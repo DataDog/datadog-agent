@@ -15,6 +15,7 @@ import (
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
 	com_datadoghq_gitlab_customattributes "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/customattributes"
@@ -41,6 +42,7 @@ import (
 	com_datadoghq_kubernetes_admissionregistration "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/admission"
 	com_datadoghq_kubernetes_apiextensions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apiextensions"
 	com_datadoghq_kubernetes_apps "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apps"
+	com_datadoghq_kubernetes_autoscaling "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/autoscaling"
 	com_datadoghq_kubernetes_batch "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/batch"
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
@@ -62,7 +64,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) *Registry {
+func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) (*Registry, error) {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
@@ -91,9 +93,10 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.kubernetes.admissionregistration":     com_datadoghq_kubernetes_admissionregistration.NewKubernetesAdmissionregistration(),
 			"com.datadoghq.kubernetes.apiextensions":             com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
 			"com.datadoghq.kubernetes.apps":                      com_datadoghq_kubernetes_apps.NewKubernetesApps(),
+			"com.datadoghq.kubernetes.autoscaling":               com_datadoghq_kubernetes_autoscaling.NewKubernetesAutoscaling(),
 			"com.datadoghq.kubernetes.batch":                     com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":                      com_datadoghq_kubernetes_core.NewKubernetesCore(),
-			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
+			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration.KubernetesAllowedCustomResources),
 			"com.datadoghq.kubernetes.discovery":                 com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.kubernetes.kubeactions":               com_datadoghq_kubernetes_kubeactions.NewKubernetesKubeActions(ka),
 			"com.datadoghq.kubernetes.networking":                com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),
@@ -105,7 +108,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),
 		},
-	}
+	}, nil
 }
 
 func (r *Registry) GetBundle(fqn string) types.Bundle {

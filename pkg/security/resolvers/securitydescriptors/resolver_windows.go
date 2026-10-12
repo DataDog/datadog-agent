@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 )
 
+var aceRe = regexp.MustCompile(`\(([^\)]+)\)`)
+
 // Resolver defines a resolver
 type Resolver struct {
 	userGroupResolver *usergroup.Resolver
@@ -118,8 +120,7 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 	}
 
 	// Use regex to find all ACEs
-	re := regexp.MustCompile(`\(([^\)]+)\)`)
-	matches := re.FindAllStringSubmatch(sddl, -1)
+	matches := aceRe.FindAllStringSubmatch(sddl, -1)
 	if matches == nil {
 		return "", errors.New("no ACEs found in DACL")
 	}

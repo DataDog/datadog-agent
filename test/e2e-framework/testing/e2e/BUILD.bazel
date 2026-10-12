@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "e2e",
     srcs = [
+        "civisibility.go",
         "suite.go",
         "suite_params.go",
         "suite_utils.go",
@@ -21,6 +22,7 @@ go_library(
         "//test/e2e-framework/testing/utils/common",
         "//test/e2e-framework/testing/utils/infra",
         "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_datadog_dd_trace_go_v2//civisibility",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",

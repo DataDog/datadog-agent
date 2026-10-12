@@ -155,14 +155,19 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					c.ConsumeTagSet("fargate", []string{src.Tag()})
 				}
 			case source.AzureContainerAppsKind:
-				dims := src.SourceIdentifier.Dimensions
-				if c, ok := consumer.(TagSetConsumer); ok && attributes.IsAzureContainerAppsIdentified(dims) {
-					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(dims))
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurecontainerapps", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
 			case source.AzureAppServiceKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
 					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
+			case source.AzureFunctionsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurefunctions", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.GCPCloudRunKind, source.GCPCloudFunctionsKind:
+				consumeGCPServerlessSource(consumer, src)
 			}
 		}
 	}

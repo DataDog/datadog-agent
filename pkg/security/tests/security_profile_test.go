@@ -22,7 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
@@ -71,7 +73,7 @@ func TestSecurityProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -255,7 +257,7 @@ func TestAnomalyDetection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -456,7 +458,7 @@ func TestAnomalyDetectionVariables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -558,7 +560,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	err = test.StopAllActivityDumps()
 	if err != nil {
@@ -720,7 +722,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -907,7 +909,7 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerInstance, dump, err := test.StartADockerGetDump()
 	if err != nil {
@@ -1022,7 +1024,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1199,7 +1201,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1375,7 +1377,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1567,7 +1569,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1748,7 +1750,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1929,7 +1931,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -2104,7 +2106,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerInstance1, dump, err := test.StartADockerGetDump()
 	if err != nil {
@@ -2303,7 +2305,7 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -2428,7 +2430,7 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -2551,7 +2553,7 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -2642,7 +2644,7 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -2777,7 +2779,7 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -2897,7 +2899,7 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -3052,7 +3054,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -3251,4 +3253,91 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 
 	})
 
+}
+
+var _ = declareInlineConfig(TestSecurityProfileV2DNSResponse)
+
+func TestSecurityProfileV2DNSResponse(t *testing.T) {
+	testSecurityProfileV2DNSResponse(t, []*rules.RuleDefinition{})
+}
+
+var _ = declareInlineConfig(TestSecurityProfileV2DNSFullResponse)
+
+// A rule on the response code makes the kernel send NOERROR responses on the full response path
+// instead of the short one.
+func TestSecurityProfileV2DNSFullResponse(t *testing.T) {
+	testSecurityProfileV2DNSResponse(t, []*rules.RuleDefinition{{
+		ID:         "test_dns_full_response",
+		Expression: `dns.response.code == NOERROR && dns.question.name == "one.one.one.one"`,
+	}})
+}
+
+func testSecurityProfileV2DNSResponse(t *testing.T, ruleDefs []*rules.RuleDefinition) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets. See dns_test.go
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		enableSecurityProfile: true,
+		networkIngressEnabled: true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	dockerInstance, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+
+	cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
+	if _, err = cmd.CombinedOutput(); err != nil {
+		t.Fatal(err)
+	}
+
+	p := test.probe.PlatformProbe.(*probe.EBPFProbe)
+	tags, err := p.Resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(dockerInstance.containerID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	selector := &api.WorkloadSelectorMessage{Name: utils.GetTagValue("image_name", tags), Tag: "*"}
+
+	// the response carries no process context, it has to be attributed to nslookup's request
+	assert.Eventually(t, func() bool {
+		msg, err := p.GetProfileManager().SaveSecurityProfile(&api.SecurityProfileSaveParams{Selector: selector})
+		if err != nil || msg.GetError() != "" {
+			return false
+		}
+		defer os.Remove(msg.GetFile())
+
+		profile, err := DecodeSecurityProfile(msg.GetFile())
+		if err != nil {
+			return false
+		}
+		for _, node := range profile.ActivityTree.FindMatchingRootNodes("nslookup") {
+			dnsNode, ok := node.DNSNames["one.one.one.one"]
+			if !ok {
+				continue
+			}
+			for _, req := range dnsNode.Requests {
+				if req.Response != nil && len(req.Response.IPs) > 0 {
+					return true
+				}
+			}
+		}
+		return false
+	}, 10*time.Second, 500*time.Millisecond, "the DNS response should be recorded in nslookup's profile")
 }

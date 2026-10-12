@@ -10,6 +10,8 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -204,9 +206,21 @@ type PolicyState struct {
 	Rules   []*RuleState `json:"rules,omitempty"`
 }
 
+// ActionStatus defines the load status of an action
+type ActionStatus string
+
+const (
+	// ActionStatusLoaded indicates that the action was loaded successfully
+	ActionStatusLoaded ActionStatus = "loaded"
+	// ActionStatusRejected indicates that the action couldn't be loaded and won't be executed
+	ActionStatusRejected ActionStatus = "rejected"
+)
+
 // RuleAction is used to report policy was loaded
 // easyjson:json
 type RuleAction struct {
+	Status        ActionStatus         `json:"status"`
+	Message       string               `json:"message,omitempty"`
 	Filter        *string              `json:"filter,omitempty"`
 	Set           *RuleSetAction       `json:"set,omitempty"`
 	Kill          *RuleKillAction      `json:"kill,omitempty"`
@@ -319,8 +333,76 @@ func NewPolicyState(name, source, version, policyType, replacePolicyID string, s
 	}
 }
 
+// jsonSafeValue returns a JSON serializable representation of a value. Values of rejected
+// actions weren't validated and may not be serializable, which
+// would prevent the whole report from being sent.
+func jsonSafeValue(value interface{}) interface{} {
+	if _, err := json.Marshal(value); err != nil {
+		return fmt.Sprintf("%v", value)
+	}
+	return value
+}
+
+func newRuleAction(def *rules.ActionDefinition, status ActionStatus) RuleAction {
+	ruleAction := RuleAction{Status: status, Filter: def.Filter}
+	if def.Kill != nil {
+		ruleAction.Kill = &RuleKillAction{
+			Scope:  def.Kill.Scope,
+			Signal: def.Kill.Signal,
+		}
+	}
+	if def.Set != nil {
+		ruleAction.Set = &RuleSetAction{
+			Name:         def.Set.Name,
+			Value:        jsonSafeValue(def.Set.Value),        // interface so we need to check that it is json safe
+			DefaultValue: jsonSafeValue(def.Set.DefaultValue), // interface so we need to check that it is json safe
+			Field:        def.Set.Field,
+			Capture:      def.Set.Capture,
+			Expression:   def.Set.Expression,
+			Append:       def.Set.Append,
+			Scope:        string(def.Set.Scope),
+			Size:         def.Set.Size,
+			Inherited:    def.Set.Inherited,
+			ScopeField:   def.Set.ScopeField,
+			Private:      def.Set.Private,
+		}
+		if def.Set.TTL != nil {
+			ruleAction.Set.TTL = def.Set.TTL.String()
+		}
+	}
+	if def.Hash != nil {
+		ruleAction.Hash = &HashAction{
+			Enabled:     true,
+			Field:       def.Hash.Field,
+			MaxFileSize: def.Hash.MaxFileSize,
+		}
+	}
+	if def.CoreDump != nil {
+		ruleAction.CoreDump = &CoreDumpAction{
+			Process:       def.CoreDump.Process,
+			Mount:         def.CoreDump.Mount,
+			Dentry:        def.CoreDump.Dentry,
+			NoCompression: def.CoreDump.NoCompression,
+		}
+	}
+	if def.Log != nil {
+		ruleAction.Log = &LogAction{
+			Level:   def.Log.Level,
+			Message: def.Log.Message,
+		}
+	}
+	if def.NetworkFilter != nil {
+		ruleAction.NetworkFilter = &NetworkFilterAction{
+			Filter: def.NetworkFilter.BPFFilter,
+			Policy: def.NetworkFilter.Policy,
+			Scope:  def.NetworkFilter.Scope,
+		}
+	}
+	return ruleAction
+}
+
 // RuleStateFromRule returns a rule state based on the given rule
-func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status string, message string) *RuleState {
+func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status string, message string, actionErrors map[*rules.ActionDefinition]error) *RuleState {
 	ruleState := &RuleState{
 		ID:                     rule.Def.ID,
 		Version:                rule.Policy.Version,
@@ -335,57 +417,22 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 	}
 
 	for _, action := range rule.Actions {
-		ruleAction := RuleAction{Filter: action.Def.Filter}
-		switch {
-		case action.Def.Kill != nil:
-			ruleAction.Kill = &RuleKillAction{
-				Scope:  action.Def.Kill.Scope,
-				Signal: action.Def.Kill.Signal,
-			}
-		case action.Def.Set != nil:
-			ruleAction.Set = &RuleSetAction{
-				Name:         action.Def.Set.Name,
-				Value:        action.Def.Set.Value,
-				DefaultValue: action.Def.Set.DefaultValue,
-				Field:        action.Def.Set.Field,
-				Capture:      action.Def.Set.Capture,
-				Expression:   action.Def.Set.Expression,
-				Append:       action.Def.Set.Append,
-				Scope:        string(action.Def.Set.Scope),
-				Size:         action.Def.Set.Size,
-				Inherited:    action.Def.Set.Inherited,
-				ScopeField:   action.Def.Set.ScopeField,
-				Private:      action.Def.Set.Private,
-			}
-			if action.Def.Set.TTL != nil {
-				ruleAction.Set.TTL = action.Def.Set.TTL.String()
-			}
-		case action.Def.Hash != nil:
-			ruleAction.Hash = &HashAction{
-				Enabled:     true,
-				Field:       action.Def.Hash.Field,
-				MaxFileSize: action.Def.Hash.MaxFileSize,
-			}
-		case action.Def.CoreDump != nil:
-			ruleAction.CoreDump = &CoreDumpAction{
-				Process:       action.Def.CoreDump.Process,
-				Mount:         action.Def.CoreDump.Mount,
-				Dentry:        action.Def.CoreDump.Dentry,
-				NoCompression: action.Def.CoreDump.NoCompression,
-			}
-		case action.Def.Log != nil:
-			ruleAction.Log = &LogAction{
-				Level:   action.Def.Log.Level,
-				Message: action.Def.Log.Message,
-			}
-		case action.Def.NetworkFilter != nil:
-			ruleAction.NetworkFilter = &NetworkFilterAction{
-				Filter: action.Def.NetworkFilter.BPFFilter,
-				Policy: action.Def.NetworkFilter.Policy,
-				Scope:  action.Def.NetworkFilter.Scope,
-			}
+		ruleState.Actions = append(ruleState.Actions, newRuleAction(action.Def, ActionStatusLoaded))
+	}
+
+	// actions of the rule definition that were not loaded
+	for _, actionDef := range rule.Def.Actions {
+		// a `null` entry in the YAML actions list yields a nil definition
+		if actionDef == nil {
+			continue
 		}
-		ruleState.Actions = append(ruleState.Actions, ruleAction)
+		if !slices.ContainsFunc(rule.Actions, func(action *rules.Action) bool { return action.Def == actionDef }) {
+			ruleAction := newRuleAction(actionDef, ActionStatusRejected)
+			if err := actionErrors[actionDef]; err != nil {
+				ruleAction.Message = err.Error()
+			}
+			ruleState.Actions = append(ruleState.Actions, ruleAction)
+		}
 	}
 
 	for _, pInfo := range rule.ModifiedBy {
@@ -443,6 +490,16 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 		policyState.Rules = append(policyState.Rules, ruleState)
 	}
 
+	actionErrors := make(map[*rules.ActionDefinition]error)
+	if err != nil {
+		for _, err := range err.Errors {
+			var aerr *rules.ErrActionLoad
+			if errors.As(err, &aerr) {
+				actionErrors[aerr.Action] = aerr.Err
+			}
+		}
+	}
+
 	ruleIDs := make(map[eval.RuleID]struct{})
 	for _, rule := range rs.GetRules() {
 		if _, found := ruleIDs[rule.Def.ID]; found {
@@ -455,7 +512,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.Type, pInfo.ReplacePolicyID, PolicyStatusLoaded, "")
 				mp[pInfo.Name] = policyState
 			}
-			addOrUpdateRuleState(policyState, RuleStateFromRule(rule.PolicyRule, pInfo, "loaded", ""))
+			addOrUpdateRuleState(policyState, RuleStateFromRule(rule.PolicyRule, pInfo, "loaded", "", actionErrors))
 		}
 	}
 
@@ -480,7 +537,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 					} else if policyState.Status == PolicyStatusLoaded {
 						policyState.Status = PolicyStatusPartiallyLoaded
 					}
-					addOrUpdateRuleState(policyState, RuleStateFromRule(rerr.Rule, pInfo, string(rerr.Type()), rerr.Err.Error()))
+					addOrUpdateRuleState(policyState, RuleStateFromRule(rerr.Rule, pInfo, string(rerr.Type()), rerr.Err.Error(), actionErrors))
 				}
 			} else if pErr, ok := err.(*rules.ErrPolicyLoad); ok {
 				policyName := pErr.Name
@@ -506,7 +563,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 			} else if policyState.Status == PolicyStatusLoaded {
 				policyState.Status = PolicyStatusPartiallyFiltered
 			}
-			addOrUpdateRuleState(policyState, RuleStateFromRule(rule, pInfo, "filtered", ""))
+			addOrUpdateRuleState(policyState, RuleStateFromRule(rule, pInfo, "filtered", "", nil))
 		}
 	}
 

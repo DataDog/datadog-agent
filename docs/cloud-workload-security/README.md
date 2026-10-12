@@ -161,6 +161,8 @@ If a `*.go` file in `pkg/security` has been edited you will first need to genera
 Please run:
 ```sh
 dda inv -e security-agent.cws-go-generate
+# on Linux, also regenerate backend_windows.schema.json (under Wine)
+dda inv -e security-agent.cws-go-generate --windows
 # or only the specific file
 go generate ./path/to/the/touched/file
 ```

@@ -21,8 +21,10 @@ export PYTHON_VERSION PYTHON_MAJ_MIN
 
 # ── Rust SDK version ──────────────────────────────────────────────────────────
 # IBM Rust SDK for AIX. The SDK is installed at /opt/freeware/lib/RustSDK/<ver>/bin.
-# All stage scripts reference $RUST_VERSION; update only this one line to upgrade.
-RUST_VERSION="1.92"
+# Used for the Python-extension build stages; saluki's own Rust version is
+# installed separately by setup-host.sh. All stage scripts reference
+# $RUST_VERSION; update only this one line to upgrade.
+RUST_VERSION="1.96"
 export RUST_VERSION
 
 # ── Build tree layout ─────────────────────────────────────────────────────────
@@ -47,6 +49,24 @@ fi
 AGENT_SRC=$_dir
 unset _dir
 export AGENT_SRC
+
+# ── Agent Data Plane (saluki) version ────────────────────────────────────────
+# Pinned in deps/agent_data_plane/agent_data_plane.MODULE.bazel. Used by
+# 00-checkout.sh to clone saluki at this tag, and by setup-host.sh to install
+# the Rust SDK version saluki pins. Pre-set the variable to override.
+if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+    _adp_module="$AGENT_SRC/deps/agent_data_plane/agent_data_plane.MODULE.bazel"
+    if [ -f "$_adp_module" ]; then
+        AGENT_DATA_PLANE_VERSION=$(sed -n 's/^VERSION = "\(.*\)".*/\1/p' "$_adp_module" | head -1)
+    fi
+    if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
+        printf 'ERROR: env.sh could not read AGENT_DATA_PLANE_VERSION from %s\n' "$_adp_module" >&2
+        printf '       Is the source tree complete? Pre-set the variable to override.\n' >&2
+        exit 1
+    fi
+fi
+unset _adp_module
+export AGENT_DATA_PLANE_VERSION
 
 # DESTDIR approach (critical — read before modifying):
 #   EMBEDDED     = final install path baked into all binaries at configure time
@@ -93,9 +113,12 @@ fi
 
 if [ -n "${AGENT_BUILD:-}" ]; then
     AGENT_VRMF=$(printf '%s' "$AGENT_VERSION" | sed 's/\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/').$(printf '%s' "$AGENT_BUILD" | sed 's/\..*//')
+
+    # --- Output artifact path ---
+    BFF_PATH="$BUILD_DIR/datadog-agent-${AGENT_VERSION}-${AGENT_BUILD}.aix.ppc64.bff"
 fi
 
-export AGENT_VERSION AGENT_BUILD AGENT_VRMF
+export AGENT_VERSION AGENT_BUILD AGENT_VRMF BFF_PATH
 
 # ── Toolchain ─────────────────────────────────────────────────────────────────
 

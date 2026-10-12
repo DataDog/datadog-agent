@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver
 
 //nolint:revive // TODO(CAPP) Fix revive linter
 package orchestrator
@@ -49,6 +49,7 @@ const (
 	KubeRayAPIGroup         = "ray.io"
 	KubeAIAPIGroup          = "kubeai.org"
 	KServeAPIGroup          = "serving.kserve.io"
+	GAIEAPIGroup            = "inference.networking.k8s.io"
 
 	// Gateway API
 	GatewayAPIGroup = "gateway.networking.k8s.io"
@@ -590,6 +591,9 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(KServeAPIGroup, "inferenceservices", isOOTBCRDEnabled, "v1beta1"),
 		newBuiltinCRDConfig(KServeAPIGroup, "servingruntimes", isOOTBCRDEnabled, "v1alpha1"),
 		newBuiltinCRDConfig(KServeAPIGroup, "trainedmodels", isOOTBCRDEnabled, "v1alpha1"),
+
+		// Gateway API Inference Extension resources
+		newBuiltinCRDConfig(GAIEAPIGroup, "inferencepools", isOOTBCRDEnabled, "v1"),
 
 		// Gateway API resources
 		newBuiltinCRDConfig(GatewayAPIGroup, "gateways", isGatewayAPIEnabled, "v1", "v1beta1"),
