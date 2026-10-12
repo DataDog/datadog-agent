@@ -22,6 +22,22 @@ void chased_slices_init(chased_slices_t* slices) {
   slices->len = 0;
 }
 
+// chased_slices_push records that the data of a string or slice, len bytes
+// of type type_id starting at addr, is about to be captured. It returns false,
+// telling the caller not to capture the data, if an entry with the same
+// address and type already covers at least len bytes, or if the set is full
+// (MAX_CHASED_SLICES entries). Otherwise it appends an entry and returns true.
+// For aliases of a buffer that differ in length, this captures the longest
+// one: a shorter alias after a longer one is skipped, while a longer alias
+// after a shorter one is captured again, and the decoder renders both from
+// the longer data item.
+//
+// TODO(andrei): Only aliases that start at the same address are recognized.
+// A string or slice that starts inside a captured one (e.g. buf[5:10] after
+// buf[:100]) is captured again. Recognizing it would take a containment check
+// here, e.g. a search of the captured ranges by address, and a decoder that
+// resolves a pointer into the middle of a captured data item; today the
+// decoder looks data items up by exact (type, address).
 static bool chased_slices_push(chased_slices_t* slices, uint64_t addr, uint32_t type_id, uint32_t len) {
   if (!slices) {
     LOG(1, "chased_slices_push: null %lld %d %d\n", addr, type_id, len);
