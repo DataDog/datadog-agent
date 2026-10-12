@@ -32,6 +32,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -3454,4 +3455,12 @@ func TestShippedTroubleshootingProfileIsGated(t *testing.T) {
 	names = collectMetricNames(t, a, sndr)
 	assert.NotContains(t, names, "transactions.errors")
 	assert.Contains(t, names, "transactions.retries")
+}
+
+func TestDetectedFeatures(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes, env.Docker, env.Containerd)
+	assert.Equal(t, []string{"containerd", "docker", "kubernetes"}, detectedFeatures())
+
+	env.SetFeatures(t)
+	assert.Equal(t, []string{}, detectedFeatures())
 }
