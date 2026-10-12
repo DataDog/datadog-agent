@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
-func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
+func buildPayload(aggFlow *common.Flow, app dpi.Application, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
 		FlushTimestamp: flushTime.UnixMilli(),
 		FlowType:       string(aggFlow.FlowType),
@@ -62,6 +63,21 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 		TCPFlags: format.TCPFlags(aggFlow.TCPFlags),
 		NextHop: payload.NextHop{
 			IP: format.IPAddr(aggFlow.NextHop),
+		},
+		DPI: payload.DPI{
+			ApplicationID:          aggFlow.ApplicationID,
+			ApplicationName:        app.Name,
+			ApplicationDescription: app.Description,
+			Category:               app.Category,
+			SubCategory:            app.SubCategory,
+			ApplicationGroup:       app.ApplicationGroup,
+			P2PTechnology:          app.P2PTechnology,
+			TunnelTechnology:       app.TunnelTechnology,
+			EncryptedTechnology:    app.EncryptedTechnology,
+			TrafficClass:           app.TrafficClass,
+			BusinessRelevance:      app.BusinessRelevance,
+			ApplicationSet:         app.ApplicationSet,
+			ApplicationFamily:      app.ApplicationFamily,
 		},
 		AdditionalFields: aggFlow.AdditionalFields,
 	}

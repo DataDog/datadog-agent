@@ -689,19 +689,16 @@ def run(
 
     if use_prebuilt_binaries:
         s3_uri = os.environ.get("E2E_PREBUILD_S3_URI", "")
-        if s3_uri and targets:
-            # New flow: download per-package tarballs from S3
-            if not _download_prebuilt_binaries(ctx, s3_uri, targets):
-                print("WARNING: Failed to download pre-built binaries from S3, disabling use_prebuilt_binaries")
-                use_prebuilt_binaries = False
-        elif not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
-            print(
-                "WARNING: required artifacts test-binaries.tar.zst and manifest.json not found, disabling use_prebuilt_binaries"
-            )
+        if not s3_uri or not targets:
+            print("WARNING: E2E_PREBUILD_S3_URI or targets not set, disabling use_prebuilt_binaries")
+            use_prebuilt_binaries = False
+        elif not _download_prebuilt_binaries(ctx, s3_uri, targets):
+            print("WARNING: Failed to download pre-built binaries from S3, disabling use_prebuilt_binaries")
             use_prebuilt_binaries = False
 
     if use_prebuilt_binaries:
-        ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
+        # Run through the bazel wrapper so the taskset CPU pin (see tools/bazel, #56994) applies
+        bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"
 
