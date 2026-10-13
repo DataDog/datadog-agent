@@ -12,7 +12,7 @@ run_codeql_scan:
   stage: source_test
   rules:
   - !reference [.on_scheduled_main]
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
   allow_failure: true # This job should not impact the overall status of the pipeline
   variables:
     ARCH: arm64

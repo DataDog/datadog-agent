@@ -3,6 +3,7 @@ go 1.26.7
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
 // This should be revisited for go 1.25.x
+// Keep in sync with _GODEBUG_DEFAULT in bazel/rules/go/go_binary.bzl.
 godebug tlsmlkem=0
 
 use (

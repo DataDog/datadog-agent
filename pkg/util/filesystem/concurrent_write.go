@@ -21,7 +21,26 @@ import (
 )
 
 const lockSuffix = ".lock"
-const retryDelay = 500 * time.Millisecond
+const initialRetryDelay = 100 * time.Millisecond
+const initialRetryCount = 10
+const maxRetryDelay = 5 * time.Second
+
+// artifactRetryBackoff starts with ten 100ms waits, then doubles the delay up to 5s.
+// Its zero value is ready to use; each operation must have its own instance.
+type artifactRetryBackoff struct {
+	initialRetries int
+	delay          time.Duration
+}
+
+func (b *artifactRetryBackoff) nextDelay() time.Duration {
+	if b.initialRetries < initialRetryCount {
+		b.initialRetries++
+		b.delay = initialRetryDelay
+	} else {
+		b.delay = min(2*b.delay, maxRetryDelay)
+	}
+	return b.delay
+}
 
 // ArtifactBuilder is a generic interface for building, serializing, and deserializing artifacts.
 // The type parameter T represents the in-memory type of the artifact.
@@ -34,10 +53,13 @@ type ArtifactBuilder[T any] interface {
 
 // FetchArtifact attempts to fetch an artifact from the specified location using the provided factory.
 // This function is blocking and will keep retrying until either the artifact is successfully retrieved
-// or the provided context is done. If the context is done before the artifact is retrieved, it returns
+// or the provided context is done. The first ten retries wait 100ms each, then use
+// exponential backoff up to 5s.
+// If the context is done before the artifact is retrieved, it returns
 // an error indicating that the artifact could not be read in the given time.
 func FetchArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (T, error) {
 	var zero T
+	var backoff artifactRetryBackoff
 	for {
 		res, err := TryFetchArtifact(location, factory)
 		if err == nil {
@@ -47,7 +69,7 @@ func FetchArtifact[T any](ctx context.Context, location string, factory Artifact
 		select {
 		case <-ctx.Done():
 			return zero, errors.New("unable to read the artifact in the given time")
-		case <-time.After(retryDelay):
+		case <-time.After(backoff.nextDelay()):
 			// try again
 		}
 	}
@@ -77,7 +99,8 @@ func TryFetchArtifact[T any](location string, factory ArtifactBuilder[T]) (T, er
 // When the lock is acquired, the function checks if another process has already created the artifact.
 // If not, it moves the temporary artifact to its final location.
 //
-// The function will repeatedly try to acquire the lock until the context is canceled or the lock is acquired.
+// The function will repeatedly try to acquire the lock until the context is canceled or the lock is acquired,
+// waiting 100ms each for the first ten retries, then using exponential backoff up to 5s.
 //
 // This function is thread-safe and non-blocking.
 func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory ArtifactBuilder[T]) (T, error) {
@@ -131,6 +154,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 	var lockErr error
 
 	// trying to read artifact or locking file
+	var backoff artifactRetryBackoff
 	for {
 		// First check if another process were able to create and save artifact during wait
 		res, err := TryFetchArtifact(location, factory)
@@ -155,7 +179,7 @@ func FetchOrCreateArtifact[T any](ctx context.Context, location string, factory 
 				log.Errorf("failed to acquire lock for %v: %v", location, lockErr)
 			}
 			return zero, errors.Join(errors.New("unable to read the artifact or acquire the lock in the given time"), lockErr)
-		case <-time.After(retryDelay):
+		case <-time.After(backoff.nextDelay()):
 			// try again
 		}
 	}

@@ -294,6 +294,17 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.78.5"),
 	}
 
+	privateActionRunnerYaml := Replacer{
+		YAMLKeyRegex: regexp.MustCompile(`^private_action_runner$`),
+		ProcessValue: func(data any) any {
+			wrapped := data
+			scrubber.ScrubDataObj(&wrapped)
+			scrubPrivateActionRunnerCredentialValues(wrapped)
+			return wrapped
+		},
+		LastUpdated: parseVersion("7.85.0"),
+	}
+
 	// HTTP header-style API keys with "key" suffix
 	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
@@ -376,6 +387,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
 	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
+	scrubber.AddReplacer(SingleLine, privateActionRunnerYaml)
 
 	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
@@ -576,6 +588,32 @@ func scrubAllLeafValues(data interface{}) interface{} {
 		return defaultReplacement
 	default:
 		return defaultReplacement
+	}
+}
+
+func scrubPrivateActionRunnerCredentialValues(data interface{}) {
+	updateMapValuesCaseInsensitive(data, "credentials", func(credentials interface{}) interface{} {
+		updateMapValuesCaseInsensitive(credentials, "values", scrubAllLeafValues)
+		return credentials
+	})
+}
+
+// Update every matching key in place, preserving its spelling. Multiple case
+// variants may coexist in the original config, and all must be scrubbed.
+func updateMapValuesCaseInsensitive(data interface{}, key string, update func(interface{}) interface{}) {
+	switch target := data.(type) {
+	case map[string]interface{}:
+		for k, value := range target {
+			if strings.EqualFold(k, key) {
+				target[k] = update(value)
+			}
+		}
+	case map[interface{}]interface{}:
+		for k, value := range target {
+			if name, ok := k.(string); ok && strings.EqualFold(name, key) {
+				target[k] = update(value)
+			}
+		}
 	}
 }
 

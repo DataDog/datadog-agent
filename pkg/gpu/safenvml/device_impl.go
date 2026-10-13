@@ -545,6 +545,16 @@ func (d *safeDeviceImpl) GetVirtualizationMode() (nvml.GpuVirtualizationMode, er
 	return mode, NewNvmlAPIErrorOrNil("GetVirtualizationMode", ret)
 }
 
+func (d *safeDeviceImpl) GetGridLicensableFeatures() (nvml.GridLicensableFeatures, error) {
+	// The Go binding uses the v4 struct layout, which older versions of the
+	// function would fill incorrectly, so require the _v4 symbol.
+	if err := d.lib.lookup(toNativeName("GetGridLicensableFeatures_v4")); err != nil {
+		return nvml.GridLicensableFeatures{}, err
+	}
+	features, ret := d.nvmlDevice.GetGridLicensableFeatures()
+	return features, NewNvmlAPIErrorOrNil("GetGridLicensableFeatures_v4", ret)
+}
+
 func (d *safeDeviceImpl) GetSupportedEventTypes() (uint64, error) {
 	if err := d.lib.lookup(toNativeName("GetSupportedEventTypes")); err != nil {
 		return 0, err

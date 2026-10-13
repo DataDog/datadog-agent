@@ -35,6 +35,7 @@ from tasks.libs.anomalydetection.eval import (
     ABLATION_CORRELATORS,
     DETECTORS,
     EXTRACTORS,
+    F1_SCORING_VERSION,
     SCENARIOS,
     SUPPORTED_CORRELATORS,
     StepLogger,
@@ -515,20 +516,20 @@ def eval_scenarios(
     Default (no --only): uses testbench defaults (bocpd and
       anomaly_scorer; time_cluster is disabled).
     With --only: enables ONLY listed components + extractors, disables everything else.
-      time_cluster is auto-added if not specified.
+      anomaly_scorer is auto-added to emit the high-severity episodes scored by F1.
     With --config: JSON params file for testbench; overrides --only when both are set.
 
     Examples:
         dda inv anomalydetection.eval-scenarios                            # defaults
-        dda inv anomalydetection.eval-scenarios --only scanmw              # scanmw + time_cluster (auto)
-        dda inv anomalydetection.eval-scenarios --only bocpd,time_cluster  # explicit
+        dda inv anomalydetection.eval-scenarios --only scanmw              # scanmw + anomaly_scorer (auto)
+        dda inv anomalydetection.eval-scenarios --only bocpd,anomaly_scorer # explicit
         dda inv anomalydetection.eval-scenarios --config /tmp/params.json  # custom params
 
     Args:
         scenario: Run a single scenario (e.g. "213_pagerduty"). Default: all scenarios.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for scoring.
-        only: Comma-separated components to enable (passed as --only to testbench). Auto-adds time_cluster.
+        only: Comma-separated components to enable (passed as --only to testbench). Auto-adds anomaly_scorer.
         build: Whether to build the anomalydetection-testbench and anomalydetection-scorer binaries.
         main_report_path: Path for the aggregated JSON report.
         config: Path to anomalydetection-testbench JSON params file (--config). Empty: omit flag.
@@ -542,7 +543,7 @@ def eval_scenarios(
     only_flag = ""
     if only:
         components = {name.strip() for name in only.split(",") if name.strip()}
-        components.add("time_cluster")
+        components.add("anomaly_scorer")
         only_flag = ",".join(sorted(components))
         print(color_message(f"Only: {only_flag}", Color.BLUE))
 
@@ -1028,6 +1029,7 @@ def _bayesian_evaluation_inputs(
         sorted(s.strip() for s in scenarios.split(",") if s.strip()) if scenarios else sorted(SCENARIOS)
     )
     inputs = {
+        "scoring_version": F1_SCORING_VERSION if eval_backend == "local" else "ddeval",
         "scenarios": selected_scenarios if eval_backend == "local" else [],
         "scenarios_dir": os.path.abspath(scenarios_dir) if eval_backend == "local" else "",
         "sigma": float(sigma),
