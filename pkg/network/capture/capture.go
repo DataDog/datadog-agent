@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build linux && pcap && cgo
 
@@ -290,11 +290,9 @@ func (c *capturer) drainLoop(ctx context.Context) {
 		// length shrinks to the trimmed headers.
 		ci.CaptureLength = n
 
-		// MaxBytes is checked before the write, not after, so the cap is never
-		// exceeded and the file never ends on a half-written record. Dropping
-		// this packet ends the capture — a later, smaller packet must not be
-		// allowed to slip in under the cap, because that would reorder the
-		// capture relative to the wire and silently misrepresent what happened.
+		// Check MaxBytes before writing, so the file never exceeds it or ends
+		// mid-record. Stop rather than skip: writing a later, smaller packet
+		// would leave a gap the reader cannot see.
 		recordSize := pcapPacketHeaderSize + uint64(n)
 		if c.cfg.MaxBytes > 0 && fileBytes+recordSize > c.cfg.MaxBytes {
 			return

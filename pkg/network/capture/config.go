@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build linux && pcap && cgo
 
@@ -43,21 +43,10 @@ type CaptureConfig struct {
 	Duration time.Duration
 	// MaxPackets is the maximum number of packets to capture. 0 means no limit.
 	MaxPackets uint64
-	// MaxBytes is the maximum size of the produced PCAP file, in bytes. 0 means
-	// no limit.
-	//
-	// This is a hard cap, not a threshold: the file never exceeds MaxBytes. A
-	// packet that would push it over is not written and the capture stops
-	// instead, so the last packet in the file is always complete. Accounting
-	// covers the real on-disk size — the 24-byte global header plus a 16-byte
-	// record header per packet — because the caller's budget is the size of the
-	// artefact it has to upload and store, not the packet bytes alone.
-	//
-	// One exception: the 24-byte global header is written before the drain loop
-	// starts, so it is a floor. A MaxBytes below it produces a 24-byte file, and
-	// any MaxBytes too small for the header plus one record produces a valid but
-	// empty capture. Real budgets are orders of magnitude larger; the property
-	// worth relying on is that the output is always a readable pcap.
+	// MaxBytes is the maximum size of the produced PCAP file, pcap headers
+	// included. 0 means no limit. The capture stops before the first packet
+	// that would exceed it, so the file always ends on a complete record. The
+	// 24-byte file header is written regardless, so it is the smallest output.
 	MaxBytes uint64
 	// SnapLen is the maximum number of bytes libpcap copies per packet. 0 and
 	// any value above maxSnapLen mean maxSnapLen. Every packet is additionally

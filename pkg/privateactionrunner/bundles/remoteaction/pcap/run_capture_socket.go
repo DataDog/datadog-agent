@@ -31,12 +31,9 @@ import (
 // used as the response-header timeout below.
 const setupGracePeriod = 30 * time.Second
 
-// captureHTTPClient returns an http.Client dedicated to packet_capture
-// requests. It deliberately does not reuse sysprobeclient.Get's shared
-// client: that client's 5s ResponseHeaderTimeout and 10s overall Timeout are
-// sized for quick check-style requests and are too short for a capture,
-// which can legitimately stream for up to
-// maxDurationSecs (120s) afterwards.
+// captureHTTPClient returns an http.Client for capture requests. The shared
+// system-probe client's timeouts suit quick requests, not a response that
+// streams for up to maxDurationSecs.
 var captureHTTPClient = funcs.MemoizeArgNoError[string, *http.Client](func(socketPath string) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{

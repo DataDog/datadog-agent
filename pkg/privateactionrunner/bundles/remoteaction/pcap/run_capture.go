@@ -23,31 +23,12 @@ const (
 	// defaultSnapLen matches system-probe's ceiling; system-probe trims every
 	// packet to its headers regardless.
 	defaultSnapLen = 128
-	// defaultMaxPackets and defaultMaxBytes bound an otherwise unbounded capture.
-	// The constraint they serve is not the pipeline but the usability of the
-	// artefact: Wireshark's limit is packet count, not file size, and it costs
-	// roughly 0.5-1 KB of RAM per packet for dissection state. Header-only
-	// capture packs ~9x more packets into a megabyte than an ordinary
-	// full-packet capture, so file-size intuitions from normal pcaps do not
-	// transfer.
-	//
-	// A busy host produces 2-3M packets in 30s, and 2M covers most of that while
-	// staying openable: ~2 GB of Wireshark RAM, slow to load but usable. Beyond
-	// that, minutes-to-load and re-dissection on every filter change; 9M swaps or
-	// OOMs a 16 GB laptop. The busiest hosts (~6M packets in 30s unfiltered) are
-	// still truncated, so a full-duration window there needs a BPF filter, not a
-	// higher cap.
+	// defaultMaxPackets keeps the capture openable in Wireshark, whose memory
+	// use grows with packet count (roughly 0.5-1 KB per packet), not file size.
 	defaultMaxPackets = 2_000_000
-	// defaultMaxBytes is the largest upload we are willing to ship. It backstops
-	// defaultMaxPackets rather than binding first: at ~76 bytes per header-only
-	// record, 2M packets is ~152 MB, just under. It takes effect when packets are
-	// larger than the header-only assumption (e.g. a raised snapLen), which is
-	// exactly the case where a packet count is the wrong guardrail.
-	//
-	// Sizing note: the intake's real ceiling is a 30s edge timeout rather than a
-	// content-length limit. Header-only pcaps compress ~4x, so 160 MiB is ~40 MB
-	// on the wire and assumes the host can sustain ~11 Mbit/s to the intake. A
-	// slow uplink fails on time, not on size.
+	// defaultMaxBytes backstops defaultMaxPackets: at ~76 bytes per header-only
+	// record, 2M packets is ~152 MB. It binds first only when packets are
+	// larger, e.g. with a raised snapLen.
 	defaultMaxBytes = 160 * 1024 * 1024
 	minDurationSecs = 1
 	maxDurationSecs = 120
@@ -89,13 +70,9 @@ func NewRunCaptureHandler(cfg *config.Config) *RunCaptureHandler {
 
 // RunCaptureInputs holds the inputs for the runCapture action.
 type RunCaptureInputs struct {
-	// CaptureID correlates this capture with the pcap the Agent uploads to the
-	// networkpcap EVP track. The caller mints it because Action Platform task
-	// results expire after 4 hours while the captured bytes are retained far
-	// longer, so the track — keyed on this value — is the only durable way to
-	// find a capture again. Optional on the wire for backwards compatibility;
-	// when empty the Agent falls back to a locally generated UUID, which is
-	// only retrievable by an unfiltered track query.
+	// CaptureID identifies the uploaded pcap. Action results expire, so the
+	// caller should supply it to find the capture afterwards; when empty a
+	// random ID is generated.
 	CaptureID    string `json:"captureId,omitempty"`
 	BPFFilter    string `json:"bpfFilter"`
 	DurationSecs int    `json:"durationSecs"`
@@ -120,7 +97,7 @@ type RunCaptureResult struct {
 	CaptureErrors int `json:"captureErrors"`
 }
 
-// Run validates inputs and performs a packet capture via the platform-specific doCapture helper.
+// Run validates inputs, triggers the capture on system-probe and uploads the result.
 func (h *RunCaptureHandler) Run(
 	ctx context.Context,
 	task *types.Task,
@@ -131,9 +108,7 @@ func (h *RunCaptureHandler) Run(
 		return nil, err
 	}
 
-	// An empty bpfFilter is valid and means "capture everything" — the UI does not
-	// require the user to supply one, so the Capture API may dispatch without it.
-	// system-probe treats "" as match-all rather than as an error.
+	// An empty bpfFilter is valid and captures everything.
 
 	if inputs.DurationSecs < minDurationSecs || inputs.DurationSecs > maxDurationSecs {
 		return nil, fmt.Errorf("durationSecs must be between %d and %d, got %d", minDurationSecs, maxDurationSecs, inputs.DurationSecs)
@@ -143,12 +118,9 @@ func (h *RunCaptureHandler) Run(
 		inputs.SnapLen = defaultSnapLen
 	}
 
-	// Neither cap can be disabled. Any non-positive value falls back to the
-	// default rather than meaning "unbounded", because with no BPF filter
-	// unbounded is millions of packets on a busy host. Treating <= 0 rather than
-	// == 0 as "unset" also closes a sharp edge: these are converted to uint64
-	// before reaching the capturer, so a negative would wrap to an enormous
-	// limit and disable the cap by accident.
+	// Neither cap can be disabled: non-positive values fall back to the
+	// defaults. A negative value would otherwise wrap to a huge limit when
+	// converted to uint64.
 	if inputs.MaxPackets <= 0 {
 		inputs.MaxPackets = defaultMaxPackets
 	}
@@ -156,10 +128,8 @@ func (h *RunCaptureHandler) Run(
 		inputs.MaxBytes = defaultMaxBytes
 	}
 
-	// Prefer the caller's ID. Minting our own is a fallback for callers that
-	// do not supply one, not the normal path: a self-minted ID is returned in
-	// the action result, which expires after 4 hours, so a caller that relies
-	// on it loses the ability to locate the capture in the track after that.
+	// A generated ID is only returned in the action result, which expires, so
+	// the capture is hard to find later.
 	captureID := inputs.CaptureID
 	if captureID == "" {
 		captureID = uuid.New().String()

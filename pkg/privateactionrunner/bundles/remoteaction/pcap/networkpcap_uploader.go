@@ -21,14 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
-// defaultNetworkPcapIntakeHostPrefix is prepended to the configured Datadog
-// site to build the default destination host for the "networkpcap" EVP
-// attachment track's public intake. As of 2026-08-18 this hostname is not
-// yet routed in either staging or prod; network_pcap.logs_dd_url lets an
-// operator override it in the meantime
-// (e.g. "cws-intake.datad0g.com:443", which is routed and serves the same
-// track lookup — the hostname only selects the intake door, the path below
-// selects the track).
+// defaultNetworkPcapIntakeHostPrefix is prepended to the Datadog site to build
+// the intake host; network_pcap.logs_dd_url overrides it.
 const defaultNetworkPcapIntakeHostPrefix = "pcap-intake."
 
 const networkPcapPath = "/api/v2/networkpcap"
@@ -38,10 +32,8 @@ const (
 	uploadRetryBackoff = 2 * time.Second
 )
 
-// networkPcapUploader uploads a captured pcap file to the "networkpcap" EVP
-// attachment track's public intake (POST /api/v2/networkpcap, DD-API-KEY
-// auth), which is an upload_only track requiring multipart/form-data with a
-// JSON "event" part and exactly one attachment part.
+// networkPcapUploader uploads a captured pcap file to the networkpcap intake
+// as multipart/form-data: a JSON "event" part and one pcap attachment part.
 type networkPcapUploader struct {
 	url        string
 	apiKey     string
@@ -67,8 +59,7 @@ func newNetworkPcapUploader(cfg *config.Config) *networkPcapUploader {
 }
 
 // networkPcapEvent is the JSON metadata carried in the multipart "event"
-// part. The track enforces max-attachment-count: 1, so all per-capture
-// metadata must ride here rather than as a second attachment.
+// part. The intake accepts a single attachment, so all metadata goes here.
 type networkPcapEvent struct {
 	DDSource  string `json:"ddsource"`
 	CaptureID string `json:"capture_id"`
@@ -110,23 +101,15 @@ func writeNetworkPcapAttachment(w *multipart.Writer, pcapBytes []byte) error {
 	return err
 }
 
-// Upload sends pcapBytes to the networkpcap EVP track's public intake as a
-// zstd-compressed, streamed multipart/form-data request (event → gzip-style
-// codec → io.Pipe → request body, so the compressed payload is never
-// materialized in memory — mirrors the secdump forwarder's pattern in
-// pkg/security/security_profile/storage/backend/forwarder.go).
+// Upload sends pcapBytes as a zstd-compressed, streamed multipart request, so
+// the compressed payload is never held in memory.
 //
-// Unlike secdump, this retries on transient failures, on 429 and 5xx, and on
-// 408 (the 30s intake-edge timeout, which is this track's real per-capture
-// size ceiling, not max-content-size). It does not retry 413: the capture is
-// already too large and retrying the same bytes cannot succeed. A pcap capture is not
-// re-derivable, so failures are surfaced rather than silently dropped.
+// It retries on transport errors, 408, 429 and 5xx. It does not retry 413:
+// resending the same bytes cannot succeed. A capture cannot be re-taken, so
+// failures are returned rather than dropped.
 func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, captureID string) error {
-	// The capture always runs on this same machine (run_capture_socket.go
-	// talks to system-probe over a local unix socket), so the runner's own
-	// hostname is the capture's hostname. A resolution failure is not fatal:
-	// the worker falls back to treating the event as host-less rather than
-	// dropping it, and a pcap capture cannot be re-fetched.
+	// The capture ran on this host. A hostname lookup failure is not fatal:
+	// the capture is uploaded without one rather than lost.
 	hostnameValue, err := hostname.Get(ctx)
 	if err != nil {
 		log.Warnf("networkpcap upload: failed to resolve hostname for capture_id=%s: %s", captureID, err)
@@ -202,7 +185,7 @@ func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, capt
 		case http.StatusAccepted:
 			return nil
 		case http.StatusRequestTimeout:
-			lastErr = fmt.Errorf("networkpcap intake hit the 30s edge timeout (408); capture_id=%s may be too large for this host's uplink", captureID)
+			lastErr = fmt.Errorf("networkpcap intake timed out (408) receiving capture_id=%s", captureID)
 			continue
 		case http.StatusRequestEntityTooLarge:
 			return fmt.Errorf("networkpcap intake rejected capture as too large (413), capture_id=%s", captureID)

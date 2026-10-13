@@ -21,30 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// TestRunCapture_RealEndToEnd exercises the *full* runCapture pipeline: a
-// real capture against a live system-probe (as in
-// TestSocketCaptureTrigger_RealSystemProbe), followed by a real
-// networkPcapUploader.Upload of the resulting pcap bytes to a real,
-// reachable "networkpcap" EVP intake using real Datadog credentials.
-//
-// This closes the gap that TestSocketCaptureTrigger_RealSystemProbe leaves:
-// that test only proves the capture leg works; it never calls Upload, so it
-// never proves a capture actually reaches (and is accepted by) the event
-// platform. This test proves the latter — 202 Accepted from the real
-// intake. It does NOT independently confirm the resulting attachment lands
-// in S3/Husky: that requires storage-side access this harness does not
-// have. Treat a passing run as "edge-accepted", not "storage-confirmed".
-//
-// As of 2026-08-18, "pcap-intake.<site>" is not yet routed in staging, so
-// PCAP_REAL_E2E_INTAKE_HOST must be set to a currently-routed override (e.g.
-// "cws-intake.datad0g.com:443") via network_pcap.logs_dd_url.
+// TestRunCapture_RealEndToEnd runs a real capture against a live system-probe
+// and uploads it with the real uploader to a real intake. It proves the intake
+// accepts the upload (202), not that the attachment reaches storage.
 //
 // Enable with:
 //
 //	PCAP_REAL_E2E_TEST=1 \
 //	PCAP_REAL_E2E_API_KEY=<real DD_API_KEY, e.g. from `dd-auth --domain dd.datad0g.com --output -- env`> \
 //	PCAP_REAL_E2E_SITE=datad0g.com \
-//	PCAP_REAL_E2E_INTAKE_HOST=cws-intake.datad0g.com:443 \
+//	PCAP_REAL_E2E_INTAKE_HOST=<intake host:port> \
 //	PCAP_REAL_SYSPROBE_SOCKET=/opt/datadog-agent/run/sysprobe.sock \
 //	PCAP_REAL_SYSPROBE_IFACE=eth0 \
 //	dda inv test --targets=./pkg/privateactionrunner/bundles/remoteaction/pcap/... --build-include=<tags incl. pcap>
@@ -65,7 +51,7 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	}
 
 	intakeHost := os.Getenv("PCAP_REAL_E2E_INTAKE_HOST")
-	require.NotEmpty(t, intakeHost, "PCAP_REAL_E2E_INTAKE_HOST must be set to a currently-routed host:port override, e.g. cws-intake.datad0g.com:443 (pcap-intake.<site> is not yet routed)")
+	require.NotEmpty(t, intakeHost, "PCAP_REAL_E2E_INTAKE_HOST must be set to the intake host:port")
 
 	socketPath := os.Getenv("PCAP_REAL_SYSPROBE_SOCKET")
 	if socketPath == "" {
@@ -108,22 +94,13 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	t.Logf("uploaded capture_id=%s (%d bytes) to https://%s/api/v2/networkpcap and got 202 — this confirms edge-accept only, NOT confirmed storage landing in S3/Husky", captureID, len(pcapBytes), intakeHost)
 }
 
-// TestRunCapture_RealEndToEndViaRun is TestRunCapture_RealEndToEnd's stricter
-// sibling: it drives the action through Run() with a real *types.Task instead
-// of calling Capture() and Upload() directly.
+// TestRunCapture_RealEndToEndViaRun drives the action through Run() with a
+// real task, so input extraction, validation and defaulting are covered too.
+// It checks that:
 //
-// That distinction is the whole point. Everything Run() owns — input
-// extraction, validation, defaulting, and honouring the caller's captureId —
-// is invisible to the other test, which constructs the handler's collaborators
-// itself and never builds a task. This test covers the contract the Capture
-// API actually dispatches against:
-//
-//   - captureId supplied by the caller must reach the upload unchanged, so the
-//     capture is findable in the networkpcap track afterwards. A self-minted ID
-//     would only be returned in the action result, which expires.
-//   - bpfFilter omitted entirely must be accepted and mean "capture
-//     everything", because the capture UI does not ask the user for a filter.
-//   - maxPackets must actually bound the capture, not just be accepted.
+//   - the caller's captureId reaches the upload unchanged;
+//   - an omitted bpfFilter is accepted and captures everything;
+//   - maxPackets bounds the capture.
 //
 // Enable with the same variables as TestRunCapture_RealEndToEnd. No traffic
 // generator is needed: with no filter, ambient host traffic is enough.
@@ -141,7 +118,7 @@ func TestRunCapture_RealEndToEndViaRun(t *testing.T) {
 	}
 
 	intakeHost := os.Getenv("PCAP_REAL_E2E_INTAKE_HOST")
-	require.NotEmpty(t, intakeHost, "PCAP_REAL_E2E_INTAKE_HOST must be set to a currently-routed host:port override")
+	require.NotEmpty(t, intakeHost, "PCAP_REAL_E2E_INTAKE_HOST must be set to the intake host:port")
 
 	socketPath := os.Getenv("PCAP_REAL_SYSPROBE_SOCKET")
 	if socketPath == "" {
