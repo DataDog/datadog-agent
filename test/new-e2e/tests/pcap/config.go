@@ -29,9 +29,8 @@ const (
 	// defaultCaptureFilter is a BPF filter applied during capture to bound output size.
 	defaultCaptureFilter = "tcp"
 
-	// minHelmChartVersion is the earliest Datadog chart release that includes PAR sidecar
-	// support with the PCAP action bundle.  Drop this override once the framework default
-	// is bumped to at least this version.
+	// minHelmChartVersion is the earliest Datadog chart release with PAR sidecar
+	// support for the PCAP action bundle.
 	minHelmChartVersion = "3.197.2"
 )
 

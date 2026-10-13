@@ -2085,8 +2085,8 @@ properties:
     node_type: section
     title: Network Pcap Configuration
     type: object
-    description: Destination configuration for the networkpcap EVP attachment
-      track, used by the Private Action Runner's remote packet capture action.
+    description: Upload destination for packet captures taken by the Private
+      Action Runner's remote packet capture action.
     tags:
     - full-agent-only:true
     - platform_only:windows,linux
@@ -2095,9 +2095,8 @@ properties:
         node_type: setting
         type: string
         default: ''
-        description: Overrides the destination host:port for the networkpcap
-          EVP attachment track (e.g. "cws-intake.datad0g.com:443"). Empty
-          means use the default "pcap-intake.<site>" host.
+        description: Overrides the host:port packet captures are uploaded
+          to. Empty means "pcap-intake.<site>".
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '

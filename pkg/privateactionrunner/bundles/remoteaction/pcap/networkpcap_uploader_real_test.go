@@ -16,28 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
-// TestNetworkPcapUploader_RealIntake exercises the real networkPcapUploader
-// (real zstd compression, real io.Pipe-streamed multipart body) against a
-// real, reachable "networkpcap" EVP intake, using a synthetic pcap payload
-// instead of a live system-probe capture. It isolates the upload leg from
-// the capture leg (see TestRunCapture_RealEndToEnd for the latter, which
-// additionally requires a live system-probe with eBPF/root privileges) so
-// the uploader's wire contract can be validated on any machine with network
-// access and real credentials — no eBPF environment needed.
-//
-// A passing run proves the actual Go implementation (not just an equivalent
-// curl invocation) is accepted (202) by the real intake. It does NOT prove
-// the resulting attachment lands in S3/Husky storage — that is a separate,
-// currently-unverifiable claim (no available tooling in this project can
-// inspect the destination bucket or query the internal intake-backend's own
-// staging logs).
+// TestNetworkPcapUploader_RealIntake uploads a synthetic pcap with the real
+// uploader to a real intake, so the upload wire format can be checked without
+// a system-probe. It proves the intake accepts the upload (202), not that the
+// attachment reaches storage.
 //
 // Enable with:
 //
 //	PCAP_REAL_UPLOAD_TEST=1 \
 //	PCAP_REAL_UPLOAD_API_KEY=<real DD_API_KEY, e.g. from `dd-auth --domain dd.datad0g.com --output -- env`> \
 //	PCAP_REAL_UPLOAD_SITE=datad0g.com \
-//	PCAP_REAL_UPLOAD_INTAKE_HOST=cws-intake.datad0g.com:443 \
+//	PCAP_REAL_UPLOAD_INTAKE_HOST=<intake host:port> \
 //	dda inv test --targets=./pkg/privateactionrunner/bundles/remoteaction/pcap/...
 func TestNetworkPcapUploader_RealIntake(t *testing.T) {
 	if os.Getenv("PCAP_REAL_UPLOAD_TEST") != "1" {
@@ -53,7 +42,7 @@ func TestNetworkPcapUploader_RealIntake(t *testing.T) {
 	}
 
 	intakeHost := os.Getenv("PCAP_REAL_UPLOAD_INTAKE_HOST")
-	require.NotEmpty(t, intakeHost, "PCAP_REAL_UPLOAD_INTAKE_HOST must be set to a currently-routed host:port override, e.g. cws-intake.datad0g.com:443 (pcap-intake.<site> is not yet routed)")
+	require.NotEmpty(t, intakeHost, "PCAP_REAL_UPLOAD_INTAKE_HOST must be set to the intake host:port")
 
 	uploader := newNetworkPcapUploader(&config.Config{
 		APIKey:               apiKey,

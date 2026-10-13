@@ -79,9 +79,8 @@ func newRecordingHandler() (*RunCaptureHandler, *recordingCaptureTrigger) {
 	return handler, rec
 }
 
-// An omitted bpfFilter means "capture everything", not an error. The capture UI
-// does not require the user to supply a filter, so the Capture API dispatches
-// without one; compileBPFFilter treats "" as match-all.
+// An omitted bpfFilter means "capture everything", not an error. Callers may
+// dispatch without one.
 func TestRunCapture_OmittedBPFFilterIsAccepted(t *testing.T) {
 	handler, rec := newRecordingHandler()
 	task := newTask(map[string]interface{}{
@@ -226,12 +225,6 @@ func TestRunCaptureValidation_ValidInputs(t *testing.T) {
 
 // TestRunCaptureDefaults asserts the values Run() actually hands to the
 // capturer when the optional bounds are omitted.
-//
-// This previously checked the constants against hardcoded literals and then
-// only that the call did not error, because there was no way to observe the
-// resolved inputs. recordingCaptureTrigger removes that limitation, so assert
-// on the real thing — duplicating the literals here just meant every change to
-// a default had to be made in two places.
 func TestRunCaptureDefaults(t *testing.T) {
 	handler, rec := newRecordingHandler()
 
