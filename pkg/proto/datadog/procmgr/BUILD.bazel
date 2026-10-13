@@ -22,15 +22,16 @@ go_proto_library(
     visibility = ["//visibility:public"],
 )
 
-_LINUX_OR_WINDOWS = select({
+_SHIPPED_OS = select({
     "@platforms//os:linux": [],
     "@platforms//os:windows": [],
+    "@platforms//os:macos": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
 
 rust_prost_library(
     name = "procmgr_rust_proto",
     proto = ":procmgr_proto",
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    target_compatible_with = _SHIPPED_OS,
     visibility = ["//visibility:public"],
 )

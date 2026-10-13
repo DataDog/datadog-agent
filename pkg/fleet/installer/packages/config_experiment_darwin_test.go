@@ -220,8 +220,11 @@ func TestPromoteConfigExperimentRestartsTheStableSet(t *testing.T) {
 // keep running the stable configuration for the whole life of an experiment.
 func TestExperimentJobsMatchTheEmbeddedDefinitions(t *testing.T) {
 	assert.NotContains(t, agentJobs, installerJob)
+	assert.NotContains(t, agentJobs, procmgrJob)
 	assert.Contains(t, stableJobs, installerJob)
-	assert.Len(t, stableJobs, len(agentJobs)+1)
+	assert.Contains(t, stableJobs, procmgrJob)
+	// installerJob and procmgrJob are not in agentJobs (no experiment variants).
+	assert.Len(t, stableJobs, len(agentJobs)+2)
 
 	for i, label := range agentJobs {
 		assert.Equal(t, label+"-exp", experimentJobs[i])

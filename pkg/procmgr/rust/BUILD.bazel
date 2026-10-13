@@ -2,9 +2,10 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
-_LINUX_OR_WINDOWS = select({
+_SHIPPED_OS = select({
     "@platforms//os:linux": [],
     "@platforms//os:windows": [],
+    "@platforms//os:macos": [],
     "//conditions:default": ["@platforms//:incompatible"],
 })
 
@@ -35,6 +36,10 @@ _LIB_DEPS = [
     "@platforms//os:linux": [
         "@crates//:nix",
     ],
+    "@platforms//os:macos": [
+        "@crates//:libc",
+        "@crates//:nix",
+    ],
     "@platforms//os:windows": [
         "//comp/core/log/rust:dd-agent-log",
         "@crates//:windows-registry",
@@ -49,7 +54,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    target_compatible_with = _SHIPPED_OS,
     visibility = ["//visibility:public"],
     deps = _LIB_DEPS,
 )
@@ -69,7 +74,7 @@ rust_library(
     crate_name = "dd_procmgrd",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    target_compatible_with = _SHIPPED_OS,
     deps = _LIB_DEPS + _TEST_HELPERS_DEPS,
 )
 
@@ -86,7 +91,7 @@ rust_binary(
         "//conditions:default": [],
     }),
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    target_compatible_with = _SHIPPED_OS,
     visibility = ["//visibility:public"],
     deps = [
         ":dd-procmgrd-lib",
@@ -115,7 +120,7 @@ rust_binary(
         "//conditions:default": [],
     }),
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    target_compatible_with = _SHIPPED_OS,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/procmgr/rust/client:dd-procmgr-client",
@@ -151,14 +156,29 @@ pkg_files(
     visibility = ["//packages:__subpackages__"],
 )
 
+pkg_files(
+    name = "all_files_macos",
+    srcs = [
+        ":dd-procmgr",
+        ":dd-procmgrd",
+    ],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+    prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//packages:__subpackages__"],
+)
+
 pkg_install(
     name = "install",
     srcs = select({
         "@platforms//os:linux": [":all_files_linux"],
         "@platforms//os:windows": [":all_files_windows"],
+        "@platforms//os:macos": [":all_files_macos"],
         "//conditions:default": [],
     }),
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    target_compatible_with = _SHIPPED_OS,
 )
 
 # ============================================================================
@@ -205,7 +225,7 @@ rust_test(
         },
     }),
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    target_compatible_with = _SHIPPED_OS,
     # runfiles: schema sync resolves DD_CONFIG_SCHEMA_CORE_YAML on every OS.
     # Do not also append _TEST_HELPERS_DEPS: on Windows that select already
     # lists @crates//:runfiles, and Bazel rejects the duplicate label.
@@ -220,7 +240,7 @@ rust_test(
     crate = ":dd-procmgr",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX_OR_WINDOWS,
+    target_compatible_with = _SHIPPED_OS,
 )
 
 rust_test(

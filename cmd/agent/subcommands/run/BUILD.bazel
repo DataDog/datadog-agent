@@ -20,6 +20,7 @@ go_library(
         "command_notwin.go",
         "command_snmptraps.go",
         "command_windows.go",
+        "dependent_services_darwin.go",
         "dependent_services_nix.go",
         "dependent_services_windows.go",
         "metriclookback.go",

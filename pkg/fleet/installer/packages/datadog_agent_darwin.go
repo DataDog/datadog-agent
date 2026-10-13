@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 
+	yaml "go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
@@ -96,8 +98,13 @@ var agentJobs = []string{
 // halfway through.
 const installerJob = "com.datadoghq.installer"
 
-// stableJobs are the launchd jobs that run normally, in the order they are loaded.
-var stableJobs = append(append([]string{}, agentJobs...), installerJob)
+// procmgrJob is the Datadog process manager daemon (dd-procmgrd). It has no experiment variant:
+// a configuration experiment never swaps which supervisor is running.
+const procmgrJob = "com.datadoghq.procmgr"
+
+// stableJobs are the launchd jobs that run normally, in the order they are loaded. procmgrJob is
+// loaded first, mirroring the order it starts in on Linux and Windows.
+var stableJobs = append(append([]string{procmgrJob}, agentJobs...), installerJob)
 
 // experimentJobs are the jobs an experiment runs under, by full label.
 var experimentJobs = experimentLabels()
@@ -240,20 +247,53 @@ func stableIsPlaceholder(repositories *repository.Repositories, pkg string) (boo
 // Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
 // and one that fails must not also leave the others stopped -- the installer daemon, loaded last,
 // is what lets Fleet repair the host remotely.
-func installStableJobs(ctx HookContext) (err error) {
+//
+// procmgrJob is loaded only when process_manager.enabled (default true); when disabled its
+// LaunchDaemon definition is removed instead, mirroring dd-procmgr-service on Windows.
+func installStableJobs(ctx HookContext, layout agentLayout) (err error) {
 	span, ctx := ctx.StartSpan("install_stable_jobs")
 	defer func() {
 		span.Finish(err)
 	}()
 
 	client := launchdClient()
+	procmgrEnabled := processManagerEnabled(layout)
+
 	var errs []error
 	for _, label := range stableJobs {
+		if label == procmgrJob && !procmgrEnabled {
+			removeJob(ctx, client, label)
+			continue
+		}
 		if err := loadStableJob(ctx, client, label); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// processManagerEnabled reads process_manager.enabled from layout's installed datadog.yaml,
+// defaulting to true (matching the schema default) when the file is missing or malformed.
+func processManagerEnabled(layout agentLayout) bool {
+	data, err := os.ReadFile(filepath.Join(layout.installRoot, "etc", "datadog.yaml"))
+	if err != nil {
+		log.Debugf("process_manager.enabled: could not read datadog.yaml, assuming the default (enabled): %v", err)
+		return true
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		log.Warnf("process_manager.enabled: could not parse datadog.yaml, assuming the default (enabled): %v", err)
+		return true
+	}
+	processManager, ok := cfg["process_manager"].(map[any]any)
+	if !ok {
+		return true
+	}
+	enabled, ok := processManager["enabled"].(bool)
+	if !ok {
+		return true
+	}
+	return enabled
 }
 
 // loadStableJob writes one stable job definition from the embedded copy and loads it.
@@ -361,7 +401,7 @@ func postInstallDMG(ctx HookContext, layout agentLayout) error {
 	if err := registerPackageRepository(ctx, layout); err != nil {
 		errs = append(errs, err)
 	}
-	if err := installStableJobs(ctx); err != nil {
+	if err := installStableJobs(ctx, layout); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
