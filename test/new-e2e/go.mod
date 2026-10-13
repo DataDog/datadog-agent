@@ -26,6 +26,7 @@ require (
 	github.com/DataDog/orchestrion v1.12.2
 	github.com/aws/aws-sdk-go-v2 v1.44.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.40
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.324.0
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.91.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.108.0
 	github.com/cenkalti/backoff/v7 v7.0.0
@@ -127,7 +128,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.40 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.40 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.41 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.324.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.61.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.94.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
