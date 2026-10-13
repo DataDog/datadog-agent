@@ -1,0 +1,42 @@
+---
+enhancements:
+  - |
+    An SBOM scan with application analyzers, such as ``languages``, that runs
+    out of time now reports the OS packages alone, marked with the
+    ``datadog:scan:OSFallback`` metadata property. The rescan gets two more
+    minutes past the scan timeout. Container image scans, and container scans
+    of the Agent deployed as a sidecar (ECS Fargate, EKS Fargate, ECS sidecar
+    mode), then retry the full scan as after a failure, and an image keeps its
+    OS packages when a retry fails. Host scans retry at their next periodic
+    refresh. With ``sbom.enrichment.usage.enabled``, the runtime usage of an
+    image waits for its full SBOM.
+  - |
+    Host SBOM scans, and container scans of the Agent deployed as a sidecar,
+    take their timeout from the new ``sbom.host.scan_timeout`` setting, 600
+    seconds by default. They stopped after 30 seconds.
+  - |
+    The host SBOM of a flare gives half of its time to the application scan
+    and half to the OS packages alone, so a host that scans fast gets its full
+    SBOM.
+fixes:
+  - |
+    Fixed an Agent crash when an SBOM scan with the ``languages`` analyzer
+    reads a ``pyproject.toml`` whose Poetry group declares no dependencies.
+  - |
+    Fixed SBOM scans with the ``languages`` analyzer failing on a file that
+    denies the Agent read access, and running for minutes on hosts with many
+    files installed by OS packages.
+  - |
+    Fixed SBOM scans with the ``os`` analyzer alone missing packages when
+    ``sbom.host.additional_directories`` or
+    ``sbom.container_image.additional_directories`` is set.
+  - |
+    Fixed SBOM scans of container images exported to a tarball reading every
+    layer to its end after running out of time.
+  - |
+    Fixed every container image SBOM scan failing at once when
+    ``sbom.container_image.scan_timeout`` is negative. A negative value now
+    means 30 seconds, as zero does.
+  - |
+    Fixed SBOMs of rpm-ostree systems that keep a Berkeley DB or NDB rpm
+    database under ``/usr/share/rpm`` missing their rpm packages.
