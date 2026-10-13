@@ -2,6 +2,83 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.3:
+
+7.84.3
+======
+
+.. _Release Notes_7.84.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-14
+
+- Please refer to the `7.84.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7843>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.3_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The Agent now ships Private Action Runner script configuration as a template
+  instead of replacing the live file on subsequent upgrades. If you customized
+  the Agent-installed ``private-action-runner/script-config.yaml`` on a Linux
+  host or ``private-action-runner/powershell-script-config.yaml`` on a Windows
+  host, backup that file to a safe location outside the Agent configuration
+  directory **before your first upgrade to this release**. Copy it back after
+  the upgrade, and again after any rollback, downgrade, or Fleet Automation
+  experiment cancellation.
+
+
+.. _Release Notes_7.84.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the ``submit_histogram_bucket_multi`` function to the ``aggregator`` module
+  that Python checks use. It takes the same arguments as ``submit_histogram_bucket``,
+  but the Agent tracks each bucket by its bounds as well as its tags, so the buckets
+  of a histogram can share the same tags. This lets OpenMetrics checks send histogram
+  buckets as distributions without the ``upper_bound`` and ``lower_bound`` tags.
+
+
+.. _Release Notes_7.84.3_Security Notes:
+
+Security Notes
+--------------
+
+- Restrict Private Action Runner Kubernetes custom resource actions from
+  accessing core and native Kubernetes APIs by default. Existing workflows
+  using non-native custom resource groups remain compatible. Operators can
+  configure the new
+  ``private_action_runner.kubernetes_allowed_custom_resources`` setting
+  to restrict access to an exact list of resources.
+
+
+.. _Release Notes_7.84.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a bug in the automatic TCP socket offset guessing used by network
+  monitoring on Linux: on kernels without BTF, the guesser could lock onto
+  a false-positive offset for the round-trip time, causing the RTT
+  reported for TCP connections to be read from an unrelated kernel
+  field while the RTT variance scan still finds the correct field.
+  The guesser now rejects such false matches and re-scans until it
+  finds the correct fields.
+
+- Fixed the ``gpu.nvlink.ber.effective`` and ``gpu.nvlink.ber.symbol``
+  metrics reporting NVML's packed bit error rate encoding instead of the
+  actual rate. The Agent now decodes the value (mantissa × 10^-exponent), so a
+  healthy link reports a value close to zero instead of 4095. Monitors and
+  dashboards that use these metrics need their thresholds updated.
+
+- Prevent Windows installer telemetry from reading settings from an Agent configuration directory with an unexpected owner.
+
+
 .. _Release Notes_7.84.2:
 
 7.84.2
