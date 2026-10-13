@@ -75,6 +75,8 @@ static __always_inline int sys_prctl_ret_impl(void *ctx, int retval, enum TAIL_C
 
     // before the prctl event, which ends with a tail call
     if (syscall->prctl.flags & PRCTL_FLAG_OTEL_PROCESS_CTX) {
+        // TEMPORARY span-dbg: an entry line without this one means the cached syscall was lost.
+        bpf_printk("span-dbg prctl exit tgid=%d retval=%d flags=%d", bpf_get_current_pid_tgid() >> 32, retval, syscall->prctl.flags);
         send_otel_process_ctx_event(ctx);
     }
 

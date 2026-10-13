@@ -987,7 +987,8 @@ func (l *tracePipeLogger) handleEvent(event *TraceEvent) {
 	taskPath := utilkernel.HostProc(strconv.Itoa(int(utils.Getpid())), "task", event.PID)
 	_, err := os.Stat(taskPath)
 
-	if event.Task == l.executable || event.Task == "syscall_tester" || (event.Task == "<...>" && err == nil) {
+	// TEMPORARY: span-dbg lines come from the span testers, whatever their name.
+	if event.Task == l.executable || event.Task == "syscall_tester" || (event.Task == "<...>" && err == nil) || strings.Contains(event.Raw, "span-dbg") {
 		l.tb.Log(strings.TrimSuffix(event.Raw, "\n"))
 	}
 }

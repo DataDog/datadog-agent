@@ -1585,19 +1585,22 @@ func (p *EBPFResolver) applyTracerMetadata(pid uint32, tmeta tracermetadatamodel
 // the given pid publishes.
 func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
+		spanDbgf("pid %d: trigger ignored: span tracking enabled=%t, otel_tls map=%t", pid, p.config.SpanTrackingEnabled, p.otelTLSMap != nil)
 		return
 	}
 
 	p.otelProcCtxLock.Lock()
 	defer p.otelProcCtxLock.Unlock()
 
-	if _, pending := p.otelProcCtxPending[pid]; pending {
+	if queuedAt, pending := p.otelProcCtxPending[pid]; pending {
+		spanDbgf("pid %d: trigger coalesced: already pending for %s", pid, time.Since(queuedAt))
 		return
 	}
 
 	select {
 	case p.otelProcCtxQueue <- pid:
 		p.otelProcCtxPending[pid] = time.Now()
+		spanDbgf("pid %d: queued (queue %d/%d, has process entry=%t)", pid, len(p.otelProcCtxQueue), cap(p.otelProcCtxQueue), p.hasEntry(pid))
 	default:
 		p.countSpanCtx(spanCtxStepProcessCtx, spanCtxQueueFull)
 		seclog.Warnf("OTel process context queue full, dropping pid %d", pid)
@@ -1629,9 +1632,11 @@ func (s *OTelProcessContextSnapshot) Resolve(pid uint32) {
 		return
 	}
 	if !p.hasEntry(pid) {
+		spanDbgf("pid %d: snapshot skipped: no process entry", pid)
 		return
 	}
 
+	spanDbgf("pid %d: snapshot resolution", pid)
 	p.resolveAndUpdateOTelTLS(pid, &s.target)
 }
 
@@ -1656,8 +1661,10 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 			delete(p.otelProcCtxPending, pid)
 			p.otelProcCtxLock.Unlock()
 			p.reportOTelProcCtxQueueLatency(queuedAt)
+			spanDbgf("pid %d: dequeued after %s (queue %d left)", pid, time.Since(queuedAt), len(p.otelProcCtxQueue))
 
 			if !p.hasEntry(pid) {
+				spanDbgf("pid %d: dropped: no process entry", pid)
 				p.countSpanCtx(spanCtxStepProcessCtx, spanCtxNoProcessEntry)
 				continue
 			}
@@ -1675,18 +1682,23 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 
 	procCtx, err := target.processContext()
 	if err != nil {
+		spanDbgf("pid %d: process context read failed after %s: %v (procCtxAddr=%#x, candidate objects=%d)", pid, time.Since(start), err, target.procCtxAddr, len(target.mapsObjects))
 		p.reportSpanCtxError(spanCtxStepProcessCtx, pid, err)
 		return
 	}
 	if procCtx == nil {
 		// The process publishes no OTel process context at all.
+		spanDbgf("pid %d: no OTEL_CTX mapping found in maps (candidate objects=%d, maps error=%v): %s", pid, len(target.mapsObjects), target.mapsErr, debugOTelMapsSummary(pid))
 		return
 	}
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
 	seclog.Debugf("read the OTel process context of pid %d", pid)
 
+	spanDbgf("pid %d: process context read at %#x after %s", pid, target.procCtxAddr, time.Since(start))
+
 	attributeKeys, err := otelAttributeKeys(procCtx)
 	if err != nil {
+		spanDbgf("pid %d: attribute keys failed: %v", pid, err)
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
 		return
 	}
@@ -1703,10 +1715,12 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 			resolveErr = p.updateOTelTLS(pid, res)
 			p.reportOTelTLSLatency(start, true)
 		}
+		spanDbgf("pid %d: TLS offsets resolved after %s (candidate objects=%d): err=%v", pid, time.Since(start), len(target.mapsObjects), resolveErr)
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, resolveErr)
 		return
 	}
 
+	spanDbgf("pid %d: already registered in otel_tls after %s, lookup err=%v", pid, time.Since(start), lookupErr)
 	p.reportSpanCtx(spanCtxStepOTelTLS, pid, nil)
 	p.reportOTelTLSLatency(start, false)
 }

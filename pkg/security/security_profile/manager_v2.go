@@ -416,13 +416,21 @@ func (m *ManagerV2) Start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-sendTickerChan:
+			start := time.Now()
 			m.persistAllProfiles()
+			spanDbgSlow(start, "persistAllProfiles")
 		case <-nodeEvictionTickerChan:
+			start := time.Now()
 			m.evictUnusedNodes()
+			spanDbgSlow(start, "evictUnusedNodes")
 		case <-profileCleanupTickerChan:
+			start := time.Now()
 			m.cleanupPendingProfiles()
+			spanDbgSlow(start, "cleanupPendingProfiles")
 		case <-stalePurgeTickerChan:
+			start := time.Now()
 			m.purgeStalePendingEvents(time.Now())
+			spanDbgSlow(start, "purgeStalePendingEvents")
 		}
 	}
 }
@@ -657,6 +665,9 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	if m.withinProfilingStartupDelay(event.TimestampRaw) {
 		return
 	}
+
+	// TEMPORARY span-dbg: this runs on the event handling goroutine.
+	defer spanDbgSlow(time.Now(), "ProcessEvent of a %s event of pid %d", event.GetEventType(), event.ProcessContext.Pid)
 
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
@@ -1688,6 +1699,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 // HandleSampleRefresh handles a sample refresh event from the kernel.
 // It updates the LastSeen timestamp of the process node associated with the given cookie.
 func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
+	defer spanDbgSlow(time.Now(), "HandleSampleRefresh of cookie %d", cookie)
 	m.sampleRefreshReceived.Inc()
 
 	entry, ok := m.sampleCookieMap.Get(cookie)
@@ -1796,4 +1808,12 @@ func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMe
 // NO-OP in V2: V2 doesn't support transcoding through this API.
 func (m *ManagerV2) GenerateTranscoding(_ *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	return nil, nil
+}
+
+// TEMPORARY span-dbg: ManagerV2 work slow enough to stall event handling, or
+// to hold profilesLock against it.
+func spanDbgSlow(start time.Time, format string, args ...any) {
+	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
+		seclog.Warnf("span-dbg: slow profile manager v2: "+format+" took %s", append(args, elapsed)...)
+	}
 }

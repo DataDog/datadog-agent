@@ -45,7 +45,10 @@ static int __attribute__((always_inline)) is_otel_process_ctx_naming(int option,
 
     // 1 more than the size to count the NUL terminator
     char vma_name[OTEL_CTX_VMA_NAME_SIZE + 1] = {};
-    if (bpf_probe_read_str(&vma_name, sizeof(vma_name), name) != OTEL_CTX_VMA_NAME_SIZE) {
+    long read = bpf_probe_read_str(&vma_name, sizeof(vma_name), name);
+    // TEMPORARY span-dbg: a negative read means the name page wasn't resident.
+    bpf_printk("span-dbg prctl entry tgid=%d tid=%d read_str=%ld", bpf_get_current_pid_tgid() >> 32, (u32)bpf_get_current_pid_tgid(), read);
+    if (read != OTEL_CTX_VMA_NAME_SIZE) {
         return 0;
     }
 

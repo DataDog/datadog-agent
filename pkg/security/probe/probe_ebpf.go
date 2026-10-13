@@ -1581,6 +1581,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		cgroupContext model.CGroupContext
 	)
 
+	// TEMPORARY span-dbg: on perf buffer kernels the reorderer calls this
+	// synchronously, so a slow event stalls every event behind it.
+	handleStart := time.Now()
+	slowEventType := model.UnknownEventType
+	defer func() {
+		if elapsed := time.Since(handleStart); elapsed > 250*time.Millisecond {
+			seclog.Warnf("span-dbg: slow event handler: %s event of pid %d took %s (cpu %d)", slowEventType, event.PIDContext.Pid, elapsed, CPU)
+		}
+	}()
+
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
 		seclog.Errorf("failed to decode event: %s", err)
@@ -1589,6 +1599,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
+	slowEventType = eventType
 	if eventType > model.MaxKernelEventType {
 		p.monitors.eventStreamMonitor.CountInvalidEvent(dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
@@ -2231,7 +2242,14 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	case model.OTelProcessCtxEventType:
 		var ev model.OTelProcessCtxEvent
 		if _, err := ev.UnmarshalBinary(data[offset:]); err == nil {
+			// TEMPORARY span-dbg: how long the event sat between the kernel and here.
+			var now unix.Timespec
+			_ = unix.ClockGettime(unix.CLOCK_MONOTONIC, &now)
+			seclog.Warnf("span-dbg: pid %d: otel_process_ctx event received, %s after the kernel sent it",
+				ev.Pid, time.Duration(now.Nano()-int64(event.TimestampRaw)))
 			p.Resolvers.ProcessResolver.ResolveOTelProcessContext(ev.Pid)
+		} else {
+			seclog.Warnf("span-dbg: otel_process_ctx event failed to decode: %v (%d bytes)", err, len(data)-offset)
 		}
 		return false
 	case model.NopEventType:

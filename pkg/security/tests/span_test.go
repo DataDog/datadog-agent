@@ -17,6 +17,7 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -71,10 +72,11 @@ func (tm *testModule) runSpanTester(cmdFunc func(cmd string, args []string, envs
 	tm.eventMonitor.SendStats()
 	resolvedBefore := tm.statsdClient.Get(spanCtxResolvedKey)
 
-	var out bytes.Buffer
+	var out syncBuffer
 	cmd := cmdFunc(bin, args, []string{spanTesterContinueFileEnv + "=" + continueFile})
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+	started := time.Now()
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
@@ -85,7 +87,12 @@ func (tm *testModule) runSpanTester(cmdFunc func(cmd string, args []string, envs
 
 	err = tm.waitSpanCtxResolved(resolvedBefore, done)
 	if errors.Is(err, errSpanTesterExited) {
-		return out.Bytes(), err
+		return out.Bytes(), fmt.Errorf("%w%s", err, tm.spanTesterTimeoutDump(continueFile, started, out.Bytes()))
+	}
+	if err != nil {
+		err = fmt.Errorf("%w%s", err, tm.spanTesterTimeoutDump(continueFile, started, out.Bytes()))
+	} else {
+		tm.t.Logf("span-dbg: %s resolved %s after start (pids %v)", filepath.Base(bin), time.Since(started), spanTesterPids(continueFile))
 	}
 
 	// Unconditional: the tester must exit even when the resolution failed.

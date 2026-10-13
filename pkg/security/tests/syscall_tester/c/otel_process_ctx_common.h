@@ -15,6 +15,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -158,7 +159,12 @@ static inline int otel_process_ctx_publish(const uint8_t *payload, size_t payloa
     __atomic_signal_fence(__ATOMIC_SEQ_CST);
     header->monotonic_published_at_ns = (uint64_t)now.tv_sec * 1000000000ull + (uint64_t)now.tv_nsec;
 
-    prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, (unsigned long)mapping, (unsigned long)page_size, (unsigned long)"OTEL_CTX");
+    int prctl_ret = prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, (unsigned long)mapping, (unsigned long)page_size, (unsigned long)"OTEL_CTX");
+    int prctl_errno = errno;
+    // TEMPORARY span-dbg: correlates with the agent's and the eBPF span-dbg lines.
+    fprintf(stderr, "span-dbg tester pid=%d tid=%ld: published OTEL_CTX header at %p (payload %zu bytes) at monotonic %llu ns, prctl=%d errno=%d\n",
+            getpid(), (long)syscall(SYS_gettid), mapping, payload_size,
+            (unsigned long long)header->monotonic_published_at_ns, prctl_ret, prctl_errno);
     return 0;
 }
 
@@ -173,6 +179,7 @@ static inline int otel_wait_for_agent(void) {
     }
     for (int i = 0; i < 3000; i++) { // 30s, past runSpanTester's own timeout
         if (access(path, F_OK) == 0) {
+            fprintf(stderr, "span-dbg tester pid=%d: continue file seen after ~%d ms\n", getpid(), i * 10);
             return 0;
         }
         usleep(10000);
