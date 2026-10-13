@@ -137,8 +137,11 @@ func setupHostMetadataMock(t *testing.T) {
 	networkGet = networkMock
 	platformGet = platformMock
 	osVersionGet = func() string { return "testOS" }
-	dmi.SetupMock(t, "hypervisorUUID", "dmiUUID", "boardTag", "boardVendor")
+	// cloudproviders.Mock neutralizes DMI signals (including board vendor/product UUID) so the
+	// real machine running the test can't be misdetected as a cloud provider; call it before
+	// setting our own DMI fixture values below so those values are the ones actually in effect.
 	cloudproviders.Mock(t, "some_cloud_provider", "some_host_id", "test_source", "test_id_1234")
+	dmi.SetupMock(t, "hypervisorUUID", "dmiUUID", "boardTag", "boardVendor")
 	pkgSigningGet = pkgSigningMock
 }
 
