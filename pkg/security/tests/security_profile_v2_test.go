@@ -16,9 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var _ = declareInlineConfig(TestSecurityProfileV2Mounts)
@@ -32,70 +33,54 @@ func TestSecurityProfileV2Mounts(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNodeForAD() {
-		t.Skip("Skip test when not run in dedicated env")
-	}
-
-	outputDir := t.TempDir()
-	os.MkdirAll(outputDir, 0755)
-	defer os.RemoveAll(outputDir)
-
-	fakeManualTagger := NewFakeManualTagger()
-	selector := &cgroupModel.WorkloadSelector{Image: "fake_v2_mounts", Tag: "latest"}
-	fakeManualTagger.SpecifyNextSelector(selector)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
-		enableActivityDump:                true,
-		activityDumpRateLimiter:           200,
-		activityDumpTracedCgroupsCount:    3,
-		activityDumpDuration:              testActivityDumpDuration,
-		activityDumpLocalStorageDirectory: outputDir,
-		activityDumpLocalStorageFormats:   []string{"profile"},
-		activityDumpTracedEventTypes:      []string{"exec", "open", "mount"},
-		enableSecurityProfile:             true,
-		securityProfileDir:                outputDir,
-		securityProfileWatchDir:           true,
-		tagger:                            fakeManualTagger,
+		enableSecurityProfile: true,
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
-	t.Run("seeded-mounts", func(t *testing.T) {
-		dockerInstance, err := test.StartADocker()
+	dockerInstance, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+
+	cmd := dockerInstance.Command("sleep", []string{"1"}, []string{})
+	if _, err = cmd.CombinedOutput(); err != nil {
+		t.Fatal(err)
+	}
+
+	p := test.probe.PlatformProbe.(*probe.EBPFProbe)
+	tags, err := p.Resolvers.TagsResolver.ResolveWithErr(containerutils.ContainerID(dockerInstance.containerID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	selector := &api.WorkloadSelectorMessage{Name: utils.GetTagValue("image_name", tags), Tag: "*"}
+
+	// The workload never setns's, so every mount it reports lives in its base mount
+	// namespace and must be flagged accordingly in the saved V2 profile.
+	assert.Eventually(t, func() bool {
+		msg, err := p.GetProfileManager().SaveSecurityProfile(&api.SecurityProfileSaveParams{Selector: selector})
+		if err != nil || msg.GetError() != "" {
+			return false
+		}
+		defer os.Remove(msg.GetFile())
+
+		prof, err := DecodeSecurityProfile(msg.GetFile())
 		if err != nil {
-			t.Fatal(err)
+			return false
 		}
-		defer dockerInstance.stop()
-
-		p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
-		if !ok {
-			t.Skip("not supported")
+		if len(prof.ActivityTree.Mounts) == 0 {
+			return false
 		}
-		manager, ok := p.GetProfileManager().(*securityprofile.ManagerV2)
-		if !ok {
-			t.Fatal("V2 profile manager is not active")
+		for _, mn := range prof.ActivityTree.Mounts {
+			if !mn.InBaseNamespace {
+				return false
+			}
 		}
-
-		// Wait for the workload to link to its V2 profile and seed its mount table
-		// from the resolver. The workload never setns's, so every mount lives in its
-		// base mount namespace and must be flagged accordingly.
-		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			prof := manager.GetProfile(cgroupModel.WorkloadSelector{Image: selector.Image, Tag: "*"})
-			if !assert.NotNil(c, prof, "no V2 profile for the workload yet") {
-				return
-			}
-
-			prof.Lock()
-			defer prof.Unlock()
-
-			if !assert.NotEmpty(c, prof.ActivityTree.Mounts, "workload mount table not seeded yet") {
-				return
-			}
-			for _, mn := range prof.ActivityTree.Mounts {
-				assert.True(c, mn.InBaseNamespace, "expected mount %q to be flagged in the base namespace", mn.MountPoint)
-			}
-		}, 30*time.Second, 500*time.Millisecond)
-	})
+		return true
+	}, 30*time.Second, 500*time.Millisecond, "the workload mounts should be recorded in the base namespace")
 }
