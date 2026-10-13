@@ -78,7 +78,6 @@ func TestLinuxTestSuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
 			scenec2.WithAgentOptions(agentParams...),
 			// provision.sh installs packages from pip, npm and gem.
-			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 		))),
 	}
 	e2e.Run(t, &linuxTestSuite{}, options...)
@@ -272,7 +271,6 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 		scenec2.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfigStr),
 			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
-		scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 	)),
 	)
 	s.validateDiscoveryMode(mode)
@@ -422,7 +420,6 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscoveryPrivilegedLogs(agen
 		scenec2.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfigStr),
 			agentparams.WithSystemProbeConfig(systemProbeConfigStr)),
-		scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 	)),
 	)
 	client := s.Env().FakeIntake.Client()
