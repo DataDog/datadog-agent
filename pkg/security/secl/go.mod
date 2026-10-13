@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/security/secl
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.85.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.85.0-rc.5
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/alecthomas/participle/v2 v2.1.4
 	github.com/charlievieth/strcase v0.0.6
@@ -22,7 +22,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/atomic v1.12.0
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/text v0.42.0
 	sigs.k8s.io/yaml v1.6.0

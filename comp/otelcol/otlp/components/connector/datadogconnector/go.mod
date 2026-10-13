@@ -3,18 +3,18 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/d
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/proto v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace/otel v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/option v0.85.0-rc.4
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/proto v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/trace v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/option v0.85.0-rc.5
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.159.0
@@ -33,38 +33,38 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/serializer v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/quantile v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.85.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/create v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/fips v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/serializer v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.85.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.5 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.4 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
@@ -155,7 +155,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect

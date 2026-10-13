@@ -677,7 +677,7 @@ func (p *EBPFProbe) Init() error {
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
-	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
+	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled || p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
@@ -1602,13 +1602,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	netNS := event.PIDContext.NetNS
-	pid := event.PIDContext.Pid
-	go func() {
-		_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
-			return utils.NewNSPathFromPid(pid, utils.NetNsType)
-		})
-	}()
+	p.Resolvers.NamespaceResolver.PushNetworkNamespaceHandleRequest(event.PIDContext.NetNS, event.PIDContext.Pid)
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext) {

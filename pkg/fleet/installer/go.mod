@@ -4,11 +4,11 @@ go 1.26.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.1
-	github.com/DataDog/datadog-agent/pkg/fips v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/template v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/log v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/fips v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/template v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/log v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/version v0.85.0-rc.5
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/evanphx/json-patch/v5 v5.9.11
@@ -24,13 +24,13 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.yaml.in/yaml/v2 v2.4.4
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/text v0.42.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.85.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.85.0-rc.5 // indirect
 	github.com/docker/cli v29.8.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect

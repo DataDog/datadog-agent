@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/security/seclwin
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.85.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.85.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.85.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.85.0-rc.5
 )
 
 require (
@@ -14,7 +14,7 @@ require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/weppos/publicsuffix-go v0.50.3 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
