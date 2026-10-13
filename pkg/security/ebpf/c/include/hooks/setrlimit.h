@@ -58,10 +58,8 @@ HOOK_SYSCALL_ENTRY2(setrlimit,
     return handle_setrlimit_common(ctx, resource, new_rlim, 0);
 }
 
-HOOK_ENTRY("security_task_setrlimit")
-int hook_security_task_setrlimit(ctx_t *ctx)
+static __always_inline int handle_task_setrlimit(struct task_struct *task)
 {
-    struct task_struct *task = (struct task_struct *)CTX_PARM1(ctx);
     if (!task) {
         return 0;
     }
@@ -80,6 +78,23 @@ int hook_security_task_setrlimit(ctx_t *ctx)
     // Update the cache with the target process information
     cache->setrlimit.pid = root_pid;
 
+    return 0;
+}
+
+HOOK_ENTRY("security_task_setrlimit")
+int hook_security_task_setrlimit(ctx_t *ctx)
+{
+    return handle_task_setrlimit((struct task_struct *)CTX_PARM1(ctx));
+}
+
+// BPF LSM variant of the hook above, used instead of it when the bpf LSM is active.
+// LSM programs always get their arguments as an array of u64, whatever the kprobe/fentry mode.
+SEC("lsm/task_setrlimit")
+int hook_lsm_task_setrlimit(unsigned long long *ctx)
+{
+    handle_task_setrlimit((struct task_struct *)ctx[0]);
+
+    // never deny the operation
     return 0;
 }
 

@@ -177,6 +177,7 @@ type EBPFProbe struct {
 	useRingBuffers        bool
 	useMmapableMaps       bool
 	useSyscallTaskStorage bool
+	useBPFLSM             bool
 	cgroup2MountPath      string
 
 	// On demand1
@@ -298,6 +299,34 @@ func (p *EBPFProbe) selectSyscallTaskStorageMode() {
 	}
 
 	p.useSyscallTaskStorage = true
+}
+
+func (p *EBPFProbe) selectBPFLSMMode() {
+	if !p.config.Probe.EventStreamUseBPFLSM {
+		p.useBPFLSM = false
+		return
+	}
+
+	if !p.kernelVersion.HaveBPFLSMProgramType() {
+		p.useBPFLSM = false
+		seclog.Debugf("BPF LSM program type not supported on this kernel, using kprobe/fentry hooks")
+		return
+	}
+
+	active, err := kernel.IsBPFLSMActive()
+	if err != nil {
+		p.useBPFLSM = false
+		seclog.Debugf("failed to retrieve the list of active LSMs, using kprobe/fentry hooks: %v", err)
+		return
+	}
+
+	if !active {
+		p.useBPFLSM = false
+		seclog.Debugf("bpf LSM isn't part of the active LSMs, using kprobe/fentry hooks")
+		return
+	}
+
+	p.useBPFLSM = true
 }
 
 // initCgroup2MountPath initiatlizses p.cgroup2MountPath
@@ -631,19 +660,32 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if err := p.initEBPFManager(); err != nil {
-		if !p.useFentry || !p.config.Probe.EventStreamUseKprobeFallback {
-			return err
+		if p.useBPFLSM {
+			seclog.Warnf("failed to load BPF LSM programs, fallback to kprobe/fentry hooks: %v", err)
+			p.useBPFLSM = false
+
+			if err := p.Manager.Stop(manager.CleanAll); err != nil {
+				seclog.Errorf("failed to clean manager while deactivating BPF LSM mode: %v", err)
+			}
+
+			err = p.initEBPFManager()
 		}
 
-		seclog.Warnf("fentry not supported, fallback to kprobes: %v", err)
-		p.useFentry = false
+		if err != nil {
+			if !p.useFentry || !p.config.Probe.EventStreamUseKprobeFallback {
+				return err
+			}
 
-		if err := p.Manager.Stop(manager.CleanAll); err != nil {
-			seclog.Errorf("failed to clean manager while deactivating fentry mode: %v", err)
-		}
+			seclog.Warnf("fentry not supported, fallback to kprobes: %v", err)
+			p.useFentry = false
 
-		if err = p.initEBPFManager(); err != nil {
-			return err
+			if err := p.Manager.Stop(manager.CleanAll); err != nil {
+				seclog.Errorf("failed to clean manager while deactivating fentry mode: %v", err)
+			}
+
+			if err = p.initEBPFManager(); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -3570,6 +3612,13 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
 	}
 
+	// load either the BPF LSM programs or the kprobe/fentry hooks they replace
+	if p.useBPFLSM {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetBPFLSMReplacedProgramFunctions()...)
+	} else {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetBPFLSMProgramFunctions()...)
+	}
+
 	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
 	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
 	// and use the get_task_pid kretprobe fallback instead
@@ -3688,6 +3737,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	p.selectFentryMode()
 	p.selectRingBuffersMode()
 	p.selectSyscallTaskStorageMode()
+	p.selectBPFLSMMode()
 	p.useMmapableMaps = p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(p.useRingBuffers, p.useSyscallTaskStorage)
