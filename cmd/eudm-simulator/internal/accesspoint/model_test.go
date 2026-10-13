@@ -62,6 +62,9 @@ func TestWirelessResourcesAndClientsAcrossBatchBoundary(t *testing.T) {
 	radios := map[string]metadata.WirelessInterfaceMetadata{}
 	var addresses []metadata.IPAddressMetadata
 	for _, payload := range payloads {
+		if len(payload.WirelessInterfaces) > 0 && (len(payload.Devices) > 0 || len(payload.Interfaces) > 0 || len(payload.IPAddresses) > 0) {
+			t.Fatal("synthetic wireless resources must not prevent standard AP inventory ingestion")
+		}
 		count := len(payload.Devices) + len(payload.Interfaces) + len(payload.WirelessInterfaces) + len(payload.IPAddresses)
 		if count > metadata.PayloadMetadataBatchSize || payload.Namespace != identity.Namespace(runID) || payload.CollectTimestamp != at.Unix() {
 			t.Fatal("invalid metadata batch boundary, namespace, or timestamp")

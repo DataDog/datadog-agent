@@ -1292,9 +1292,11 @@ The replay implementation subsequently passed:
   and missing WLAN identity tags before submission.
 
 The recorded native bundle includes `system.wlan.check.errors` and
-`system.wlan.status`, but no RSSI, noise, TX-rate, or RX-rate samples. It cannot
-supply the Wi-Fi degradation scenario; capture again on a device exposing healthy
-physical WLAN measurements before that acceptance run.
+`system.wlan.status`, but no RSSI, noise, TX-rate, or RX-rate samples. An
+AP-associated scenario can generate explicitly declared WLAN measurements from
+the captured metric cadence; they receive the synthetic client and AP radio's
+exact BSSID/SSID during identity rewriting. Treat those measurements as scenario
+evidence rather than proof that the capture host exposed physical WLAN values.
 
 The old artifact-only privacy check cannot establish the new live gate. For live
 acceptance, retain producing builds, platform, invocation, coverage, activation

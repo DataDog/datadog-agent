@@ -26,6 +26,20 @@ const (
 	WirelessAccessPoints   Conclusion = "wireless_access_points"
 )
 
+var syntheticWirelessMetrics = map[string]bool{
+	"system.wlan.rssi":   true,
+	"system.wlan.noise":  true,
+	"system.wlan.txrate": true,
+	"system.wlan.rxrate": true,
+}
+
+// CanSynthesizeMetric reports whether a missing endpoint metric can be
+// generated for this cohort. Synthesis is intentionally limited to WLAN
+// measurements whose AP association supplies their wireless identity.
+func (g GroupDef) CanSynthesizeMetric(name string) bool {
+	return (g.AccessPoint != "" || g.BSSID != "" || g.SSID != "") && syntheticWirelessMetrics[name]
+}
+
 // Expectation is written only to the local report.
 type Expectation struct {
 	AffectedCohorts []string   `yaml:"affected_cohorts" json:"affected_cohorts"`
@@ -218,13 +232,6 @@ func (s *Scenario) ValidateEvidence(group GroupDef, profile Profile) error {
 		}
 		return nil
 	}
-	if group.AccessPoint != "" || group.BSSID != "" || group.SSID != "" {
-		for _, name := range []string{"system.wlan.rssi", "system.wlan.noise", "system.wlan.txrate", "system.wlan.rxrate"} {
-			if !slices.Contains(profile.MetricNames, name) {
-				return fmt.Errorf("cohort %q: wireless association requires captured %s", group.Group, name)
-			}
-		}
-	}
 	if err := checkSoftware(s.Software[group.Group]); err != nil {
 		return err
 	}
@@ -252,7 +259,7 @@ func (s *Scenario) ValidateEvidence(group GroupDef, profile Profile) error {
 			}
 		}
 		for metric := range phase.Metrics[group.Group] {
-			if !slices.Contains(profile.MetricNames, metric) {
+			if !slices.Contains(profile.MetricNames, metric) && !group.CanSynthesizeMetric(metric) {
 				return fmt.Errorf("cohort %q: metric %q was not captured", group.Group, metric)
 			}
 		}

@@ -124,6 +124,11 @@ func zoomBadUpdateRequest(t *testing.T) Request {
 	return checkedMacOSScenarioRequest(t, "zoom-bad-update.yaml")
 }
 
+func badAPRequest(t *testing.T) Request {
+	t.Helper()
+	return checkedMacOSScenarioRequest(t, "bad-ap.yaml")
+}
+
 func checkedMacOSScenarioRequest(t *testing.T, name string) Request {
 	t.Helper()
 	capture := capturedFixture(t, "macos")
@@ -423,6 +428,21 @@ func TestZoomBadUpdateFleetRunsAtNativeCadence(t *testing.T) {
 	assertCompleteCadences(t, request, result, sink)
 	if len(result.Ledger) != 6 || result.DeclaredDevices != 6 || result.Expectation.Conclusion != schema.ProcessSoftwareVersion || !slices.Equal(result.Expectation.AffectedCohorts, []string{"zoom-rollout"}) {
 		t.Fatal("Zoom incident lost its complete fleet or expected process/software conclusion")
+	}
+}
+
+func TestBadAPFleetRunsAtNativeCadence(t *testing.T) {
+	request := badAPRequest(t)
+	sink := &recordingDelivery{start: request.Plan.Start}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	result, err := Run(ctx, request, Options{Workers: 4, QueueCapacity: 1, Clock: &advancingClock{now: request.Plan.Start}, Delivery: sink})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCompleteCadences(t, request, result, sink)
+	if len(result.Ledger) != 6 || result.DeclaredDevices != 6 || result.Expectation.Conclusion != schema.WirelessAccessPoints || !slices.Equal(result.Expectation.AffectedCohorts, []string{"east-clients"}) {
+		t.Fatal("bad-AP incident lost its complete fleet or expected wireless access-point conclusion")
 	}
 }
 

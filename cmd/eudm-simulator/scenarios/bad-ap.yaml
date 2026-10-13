@@ -1,0 +1,199 @@
+version: 1
+scenario:
+  name: bad-ap
+  description: Correlates poor endpoint Wi-Fi with a degraded access point while a comparison AP remains healthy.
+expectation:
+  affected_cohorts:
+    - east-clients
+  conclusion: wireless_access_points
+monitor_window: 5m
+visibility_delay: 5m
+fleet:
+  - group: east-clients
+    count: 3
+    os: macos
+    access_point: east-ap
+    radio: radio-5ghz
+    baseline_variance: 0.05
+  - group: west-clients
+    count: 3
+    os: macos
+    access_point: west-ap
+    radio: radio-5ghz
+    baseline_variance: 0.05
+network_devices:
+  integration: snmp
+  access_points:
+    - name: east-ap
+      ip_address: 192.0.2.10
+      vendor: aruba
+      model: AP-535
+      device_type: access_point
+      profile: aruba-access-point
+      sys_object_id: 1.3.6.1.4.1.14823.1.1.57
+      serial_number: CN00000001
+      os_name: ArubaOS
+      os_version: 10.7.1.0
+      version: 10.7.1.0
+      location: east-wing
+      interfaces:
+        - kind: ethernet
+          index: 1
+          name: uplink
+        - kind: radio
+          index: 2
+          name: radio-5ghz
+          ssid: Corp-WiFi
+          band: 5GHz
+    - name: west-ap
+      ip_address: 192.0.2.11
+      vendor: aruba
+      model: AP-535
+      device_type: access_point
+      profile: aruba-access-point
+      sys_object_id: 1.3.6.1.4.1.14823.1.1.57
+      serial_number: CN00000002
+      os_name: ArubaOS
+      os_version: 10.7.1.0
+      version: 10.7.1.0
+      location: west-wing
+      interfaces:
+        - kind: ethernet
+          index: 1
+          name: uplink
+        - kind: radio
+          index: 2
+          name: radio-5ghz
+          ssid: Corp-WiFi
+          band: 5GHz
+phases:
+  - name: healthy
+    duration: 10m
+    metrics:
+      east-clients:
+        system.wlan.rssi: -55
+        system.wlan.noise: -95
+        system.wlan.txrate: 600
+        system.wlan.rxrate: 600
+      west-clients:
+        system.wlan.rssi: -55
+        system.wlan.noise: -95
+        system.wlan.txrate: 600
+        system.wlan.rxrate: 600
+    network_metrics:
+      east-ap:
+        device:
+          snmp.device.reachable: 1
+          snmp.cpu.usage: 12
+          snmp.memory.usage: 35
+        interfaces:
+          uplink:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.ifBandwidthInUsage.rate: 8
+            snmp.ifBandwidthOutUsage.rate: 6
+          radio-5ghz:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.apChannelNoise: -95
+            snmp.apChannelBwRate: 12
+            snmp.apChannelFrameRetryRate: 2
+            snmp.apChannelFrameReceiveErrorRate: 0.5
+            snmp.apBSSBwRate: 10
+            snmp.bsnApIfNoOfUsers: 3
+            snmp.ifInErrors: 0
+            snmp.ifOutErrors: 0
+      west-ap:
+        device:
+          snmp.device.reachable: 1
+          snmp.cpu.usage: 12
+          snmp.memory.usage: 35
+        interfaces:
+          uplink:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.ifBandwidthInUsage.rate: 8
+            snmp.ifBandwidthOutUsage.rate: 6
+          radio-5ghz:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.apChannelNoise: -95
+            snmp.apChannelBwRate: 12
+            snmp.apChannelFrameRetryRate: 2
+            snmp.apChannelFrameReceiveErrorRate: 0.5
+            snmp.apBSSBwRate: 10
+            snmp.bsnApIfNoOfUsers: 3
+            snmp.ifInErrors: 0
+            snmp.ifOutErrors: 0
+  - name: onset
+    duration: 5m
+    metrics:
+      east-clients:
+        system.wlan.rssi: {ramp: {from: -55, to: -82}}
+        system.wlan.noise: {ramp: {from: -95, to: -70}}
+        system.wlan.txrate: {ramp: {from: 600, to: 24}}
+        system.wlan.rxrate: {ramp: {from: 600, to: 18}}
+      west-clients:
+        system.wlan.rssi: -55
+        system.wlan.noise: -95
+        system.wlan.txrate: 600
+        system.wlan.rxrate: 600
+    network_metrics:
+      east-ap:
+        interfaces:
+          radio-5ghz:
+            snmp.apChannelNoise: {ramp: {from: -95, to: -70}}
+            snmp.apChannelBwRate: {ramp: {from: 12, to: 92}}
+            snmp.apChannelFrameRetryRate: {ramp: {from: 2, to: 35}}
+            snmp.apChannelFrameReceiveErrorRate: {ramp: {from: 0.5, to: 18}}
+            snmp.apBSSBwRate: {ramp: {from: 10, to: 88}}
+            snmp.ifInErrors: {ramp: {from: 0, to: 40}}
+            snmp.ifOutErrors: {ramp: {from: 0, to: 25}}
+  - name: sustained
+    duration: 10m
+    metrics:
+      east-clients:
+        system.wlan.rssi: -82
+        system.wlan.noise: -70
+        system.wlan.txrate: 24
+        system.wlan.rxrate: 18
+      west-clients:
+        system.wlan.rssi: -55
+        system.wlan.noise: -95
+        system.wlan.txrate: 600
+        system.wlan.rxrate: 600
+    network_metrics:
+      east-ap:
+        interfaces:
+          radio-5ghz:
+            snmp.apChannelNoise: -70
+            snmp.apChannelBwRate: 92
+            snmp.apChannelFrameRetryRate: 35
+            snmp.apChannelFrameReceiveErrorRate: 18
+            snmp.apBSSBwRate: 88
+            snmp.ifInErrors: 40
+            snmp.ifOutErrors: 25
+  - name: recovery
+    duration: 10m
+    metrics:
+      east-clients:
+        system.wlan.rssi: {ramp: {from: -82, to: -55}}
+        system.wlan.noise: {ramp: {from: -70, to: -95}}
+        system.wlan.txrate: {ramp: {from: 24, to: 600}}
+        system.wlan.rxrate: {ramp: {from: 18, to: 600}}
+      west-clients:
+        system.wlan.rssi: -55
+        system.wlan.noise: -95
+        system.wlan.txrate: 600
+        system.wlan.rxrate: 600
+    network_metrics:
+      east-ap:
+        interfaces:
+          radio-5ghz:
+            snmp.apChannelNoise: {ramp: {from: -70, to: -95}}
+            snmp.apChannelBwRate: {ramp: {from: 92, to: 12}}
+            snmp.apChannelFrameRetryRate: {ramp: {from: 35, to: 2}}
+            snmp.apChannelFrameReceiveErrorRate: {ramp: {from: 18, to: 0.5}}
+            snmp.apBSSBwRate: {ramp: {from: 88, to: 10}}
+            snmp.ifInErrors: {ramp: {from: 40, to: 0}}
+            snmp.ifOutErrors: {ramp: {from: 25, to: 0}}

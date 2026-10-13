@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const megabyte = 1024 * 1024
@@ -46,6 +48,9 @@ func Apply(ctx Context, sample *telemetry.Sample) error {
 }
 
 func applyMetrics(ctx Context, sample *telemetry.Sample, phase schema.Phase) error {
+	if err := synthesizeWirelessMetrics(ctx, sample, phase.Metrics[ctx.Group.Group]); err != nil {
+		return err
+	}
 	processes := phase.Processes[ctx.Group.Group]
 	var userDelta, systemDelta, memoryDelta, totalMemory float64
 	for _, def := range processes {
@@ -104,6 +109,96 @@ func applyMetrics(ctx Context, sample *telemetry.Sample, phase schema.Phase) err
 		}
 	}
 	return nil
+}
+
+// synthesizeWirelessMetrics fills only explicitly declared WLAN measurements
+// for an associated cohort. A captured WLAN series supplies native shape and
+// tags when available; otherwise a neutral template is created and the normal
+// identity pass replaces its placeholder BSSID, SSID, and client MAC.
+func synthesizeWirelessMetrics(ctx Context, sample *telemetry.Sample, patterns map[string]schema.Pattern) error {
+	existing := map[string]bool{}
+	var wlanTemplate, pointTemplate *metrics.Serie
+	for _, serie := range sample.Metrics {
+		if serie == nil {
+			continue
+		}
+		existing[serie.Name] = true
+		if pointTemplate == nil && len(serie.Points) > 0 {
+			pointTemplate = serie
+		}
+		if wlanTemplate == nil && strings.HasPrefix(serie.Name, "system.wlan.") && len(serie.Points) > 0 {
+			wlanTemplate = serie
+		}
+	}
+	var names []string
+	for name := range patterns {
+		if !existing[name] && ctx.Group.CanSynthesizeMetric(name) {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		template := wlanTemplate
+		if template == nil {
+			template = pointTemplate
+		}
+		if template == nil || len(template.Points) == 0 {
+			return fmt.Errorf("cannot synthesize %s without a captured metric timestamp", name)
+		}
+		points := slices.Clone(template.Points)
+		for i := range points {
+			points[i].Value = 0
+		}
+		var capturedTags []string
+		var device string
+		var interval int64
+		var noIndex bool
+		var resources []metrics.Resource
+		if wlanTemplate != nil {
+			capturedTags = wlanTemplate.Tags.UnsafeToReadOnlySliceString()
+			device = wlanTemplate.Device
+			interval = wlanTemplate.Interval
+			noIndex = wlanTemplate.NoIndex
+			resources = slices.Clone(wlanTemplate.Resources)
+		}
+		tags := wirelessIdentityTags(capturedTags)
+		sample.Metrics = append(sample.Metrics, &metrics.Serie{
+			Name:           name,
+			Points:         points,
+			Tags:           tagset.CompositeTagsFromSlice(tags),
+			Host:           template.Host,
+			Device:         device,
+			MType:          metrics.APIGaugeType,
+			Interval:       interval,
+			SourceTypeName: "System",
+			NoIndex:        noIndex,
+			Resources:      resources,
+			Source:         metrics.MetricSourceWlan,
+		})
+	}
+	return nil
+}
+
+func wirelessIdentityTags(captured []string) []string {
+	tags := slices.Clone(captured)
+	present := map[string]bool{}
+	for _, tag := range tags {
+		key, _, ok := strings.Cut(tag, ":")
+		if ok {
+			present[key] = true
+		}
+	}
+	for _, identity := range []struct{ key, value string }{
+		{"bssid", "02:00:00:00:00:01"},
+		{"ssid", "synthetic-wireless"},
+		{"mac_address", "02:00:00:00:00:02"},
+	} {
+		key, value := identity.key, identity.value
+		if !present[key] && !(key == "mac_address" && present["client_mac"]) {
+			tags = append(tags, key+":"+value)
+		}
+	}
+	return tags
 }
 
 // A declared process target can be larger than the captured host's idle

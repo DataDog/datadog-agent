@@ -10,6 +10,7 @@ The definitions are in <<<repo("cmd/eudm-simulator/scenarios")>>>.
 | --- | --- | --- |
 | `healthy-macos.yaml` | 3 macOS devices | No incident overlay |
 | `zoom-bad-update.yaml` | 3 affected and 3 comparison macOS devices | At least one captured `zoom.us` process template and a `zoom.us` software inventory entry |
+| `bad-ap.yaml` | 3 affected and 3 comparison macOS devices across two generated APs | A metrics stream; captured WLAN series are reused when available and missing declared WLAN measurements are generated |
 
 Every endpoint requires metrics, legacy host metadata, Agent/host inventories, processes, and software inventory. An advertised host-system-info provider contributes hardware evidence. macOS includes connections when its running producer advertises them.
 
@@ -43,6 +44,13 @@ observable. Capture a healthy macOS endpoint with the exact `zoom.us` process
 at least once, the exact application name in software inventory, and at least
 35 minutes of telemetry. Missing Zoom process cycles in the affected cohort are
 filled from the captured process template.
+
+The bad-AP incident also lasts 35 minutes. It associates each client cohort
+with a generated AP radio, which makes the endpoint WLAN metrics use the exact
+BSSID emitted for that radio in NDM metadata. The east radio develops high
+noise, utilization, retry/error rates, and interface errors while its clients'
+RSSI and throughput degrade. The west AP and client cohort remain healthy for
+comparison, and the east AP and clients recover together.
 
 ## Advanced scenarios
 
@@ -150,7 +158,7 @@ For a custom process/software scenario, confirm that the process is captured at 
 
 ### Metrics
 
-Only allowed endpoint metric names that exist in the capture can be overlaid. The allowed names and ranges are in <<<repo("cmd/eudm-simulator/internal/schema/validate.go")>>>. Use the captured metric's units: for example, host CPU is a percentage, memory values are MiB, `system.mem.pct_usable` is a fraction, and WLAN RSSI/noise are dBm. A completed capture that has only WLAN status/error counters does not support a Wi-Fi degradation overlay.
+Only allowed endpoint metric names that exist in the capture can normally be overlaid. AP-associated cohorts are the narrow exception: explicitly declared `system.wlan.rssi`, `system.wlan.noise`, `system.wlan.txrate`, and `system.wlan.rxrate` series are generated when absent. A captured WLAN series supplies their timestamps and native tags when available; otherwise another metric timestamp and neutral wireless identity placeholders are used. The normal identity pass then assigns the client and AP radio's exact BSSID/SSID. The allowed names and ranges are in <<<repo("cmd/eudm-simulator/internal/schema/validate.go")>>>. Use the captured metric's units: for example, host CPU is a percentage, memory values are MiB, `system.mem.pct_usable` is a fraction, and WLAN RSSI/noise are dBm.
 
 ### VPN connections
 

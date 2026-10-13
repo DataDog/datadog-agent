@@ -19,6 +19,7 @@ import (
 	softwareimpl "github.com/DataDog/datadog-agent/comp/softwareinventory/impl"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func steady(value float64) schema.Pattern {
@@ -188,6 +189,40 @@ func TestCPUOnlyProcessOverlayPreservesProcessAndHostMemory(t *testing.T) {
 		t.Fatal(err)
 	}
 	closeEnough(t, metricValues(sample)["system.mem.pct_usable"], .5)
+}
+
+func TestMissingAssociatedWirelessMetricsAreSynthesized(t *testing.T) {
+	ctx := contextFixture("zoom.us", "zoom.us")
+	ctx.Group.AccessPoint = "east-ap"
+	ctx.Scenario.Fleet[0] = ctx.Group
+	ctx.Scenario.Phases[0].Metrics = map[string]map[string]schema.Pattern{
+		"rollout": {
+			"system.wlan.rssi":   steady(-55),
+			"system.wlan.noise":  steady(-95),
+			"system.wlan.txrate": steady(600),
+			"system.wlan.rxrate": steady(600),
+		},
+	}
+	ctx.PhaseIndex, ctx.Stream = 0, schema.Metrics
+	tags := tagset.CompositeTagsFromSlice([]string{"bssid:02:aa:bb:cc:dd:ee", "mac_address:02:11:22:33:44:55", "ssid:captured", "status:ok"})
+	sample := &telemetry.Sample{Metrics: []*metrics.Serie{{Name: "system.wlan.status", Host: "capture-host", Tags: tags, MType: metrics.APIGaugeType, Source: metrics.MetricSourceWlan, Points: []metrics.Point{{Ts: 15, Value: 1}}}}}
+	if err := Apply(ctx, sample); err != nil {
+		t.Fatal(err)
+	}
+	values := metricValues(sample)
+	for name, want := range map[string]float64{"system.wlan.rssi": -55, "system.wlan.noise": -95, "system.wlan.txrate": 600, "system.wlan.rxrate": 600} {
+		if got, ok := values[name]; !ok || got != want {
+			t.Fatalf("synthesized %s = %v, %v; want %v", name, got, ok, want)
+		}
+	}
+	if len(sample.Metrics) != 5 {
+		t.Fatalf("got %d series, want status plus four synthesized WLAN measurements", len(sample.Metrics))
+	}
+	for _, serie := range sample.Metrics[1:] {
+		if serie.Host != "capture-host" || serie.Source != metrics.MetricSourceWlan || serie.MType != metrics.APIGaugeType || serie.Points[0].Ts != 15 || !reflect.DeepEqual(serie.Tags, tags) {
+			t.Fatalf("synthesized WLAN series lost its captured shape or identity tags: %+v", serie)
+		}
+	}
 }
 
 func TestMissingProcessIsSynthesizedOnceFromCapturedTemplate(t *testing.T) {

@@ -895,6 +895,9 @@ func TestWirelessEvidenceThroughAgentNDMBatchesAndMetricDelivery(t *testing.T) {
 			}
 			for _, payload := range payloads {
 				batches++
+				if len(payload.WirelessInterfaces) > 0 && (len(payload.Devices) > 0 || len(payload.Interfaces) > 0 || len(payload.IPAddresses) > 0) {
+					t.Fatal("synthetic wireless resources were mixed with standard AP inventory")
+				}
 				count := len(payload.Devices) + len(payload.Interfaces) + len(payload.WirelessInterfaces) + len(payload.IPAddresses)
 				if count > 100 || payload.Namespace != identity.Namespace(runID) || payload.CollectTimestamp != at.Unix() {
 					t.Fatal("serialized NDM batch lost its resource bound, namespace or cadence")

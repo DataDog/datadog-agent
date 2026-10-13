@@ -26,6 +26,9 @@ func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loade
 	processes := timelines[schema.Processes]
 	for phaseIndex, phase := range s.Phases {
 		for _, name := range requiredMetricEvidence(phase, group) {
+			if group.CanSynthesizeMetric(name) {
+				continue
+			}
 			family := telemetrycapture.MetricFamily(name)
 			if b.Manifest.MetricCadences[family] <= 0 {
 				return fmt.Errorf("cohort %q phase %q lacks captured metric family for %q", group.Group, phase.Name, name)
@@ -118,6 +121,9 @@ func validateCycleEvidence(b *bundle.Loaded, cycle cycle, stream schema.Stream, 
 	var required []string
 	if stream == schema.Metrics {
 		for _, name := range requiredMetricEvidence(phase, group) {
+			if group.CanSynthesizeMetric(name) {
+				continue
+			}
 			if families[telemetrycapture.MetricFamily(name)] {
 				required = append(required, name)
 			}
@@ -149,9 +155,6 @@ func requiredMetricEvidence(phase schema.Phase, group schema.GroupDef) []string 
 				break
 			}
 		}
-	}
-	if group.AccessPoint != "" || group.BSSID != "" || group.SSID != "" {
-		required = append(required, "system.wlan.rssi", "system.wlan.noise", "system.wlan.txrate", "system.wlan.rxrate")
 	}
 	return required
 }

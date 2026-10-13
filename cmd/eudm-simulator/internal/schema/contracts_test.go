@@ -223,6 +223,20 @@ func TestConnectionSelectorsRequireCapturedStream(t *testing.T) {
 	}
 }
 
+func TestAssociatedWirelessMetricsMayBeSynthesized(t *testing.T) {
+	s := healthy(t)
+	s.Fleet[0].AccessPoint = "east-ap"
+	s.Phases[0].Metrics = map[string]map[string]Pattern{"mac": {"system.wlan.rxrate": {Steady: &SteadyPattern{Value: 600}}}}
+	profile := baselineRef("macos").Profile
+	if err := s.ValidateEvidence(s.Fleet[0], profile); err != nil {
+		t.Fatal(err)
+	}
+	s.Fleet[0].AccessPoint = ""
+	if err := s.ValidateEvidence(s.Fleet[0], profile); err == nil {
+		t.Fatal("accepted an uncaptured WLAN metric without a wireless association")
+	}
+}
+
 func TestInvalidExpectationsPhasesAndPatterns(t *testing.T) {
 	for _, mutate := range []func(*Scenario){
 		func(s *Scenario) { s.Expectation.Conclusion = "invented" },

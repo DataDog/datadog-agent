@@ -148,8 +148,9 @@ func (m *Model) Wireless(group schema.GroupDef) (*identity.Wireless, error) {
 	return nil, errors.New("cohort access point is not in this model")
 }
 
-// Metadata returns owned Agent payloads, accounting for wireless resources in
-// the same batch limit as device, interface, and address resources.
+// Metadata returns owned Agent payloads. Standard SNMP inventory and the
+// synthetic wireless extension are emitted as separate events so a backend
+// that has not enabled wireless ingestion can still index the AP devices.
 func (m *Model) Metadata(at time.Time, batchSize int) []metadata.NetworkDevicesMetadata {
 	if len(m.accessPoints) == 0 {
 		return nil
@@ -178,7 +179,9 @@ func (m *Model) Metadata(at time.Time, batchSize int) []metadata.NetworkDevicesM
 		}
 		addresses = append(addresses, ap.address)
 	}
-	return metadata.BatchPayloadsWithWirelessInterfaces(integrations.Integration(m.scenario.EffectiveIntegration()), m.namespace, "", at, batchSize, devices, interfaces, wireless, addresses, nil, nil, nil, nil)
+	integration := integrations.Integration(m.scenario.EffectiveIntegration())
+	payloads := metadata.BatchPayloads(integration, m.namespace, "", at, batchSize, devices, interfaces, addresses, nil, nil, nil, nil)
+	return append(payloads, metadata.BatchPayloadsWithWirelessInterfaces(integration, m.namespace, "", at, batchSize, nil, nil, wireless, nil, nil, nil, nil, nil)...)
 }
 
 func opaque(parts ...string) string {
