@@ -15,6 +15,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
@@ -199,6 +200,27 @@ func TestCacheEntryRecordsReceiveTime(t *testing.T) {
 	require.True(t, entry.Timestamp.Equal(deviceTime), "device timestamp is kept as reported")
 	require.False(t, entry.ReceivedAt.Before(before), "ReceivedAt uses the agent clock")
 	require.False(t, entry.ReceivedAt.After(time.Now()))
+}
+
+func TestStreamStateRequiresSync(t *testing.T) {
+	server := startServer(t)
+	server.SetDelaySync(true)
+
+	c := newTestClient(t, server)
+	startClient(t, c)
+
+	event := waitSubscribeEvent(t, server)
+	assert.Equal(t, client.StreamStateNotReady, c.StreamState())
+
+	require.NoError(t, server.SendSyncResponse(event.StreamID))
+	require.Eventually(t, func() bool {
+		return c.StreamState() == client.StreamStateConnected
+	}, time.Second, time.Millisecond)
+
+	require.NoError(t, server.CloseStream(event.StreamID))
+	require.Eventually(t, func() bool {
+		return c.StreamState() == client.StreamStateReconnecting
+	}, time.Second, time.Millisecond)
 }
 
 func TestReconnectAfterStreamClose(t *testing.T) {
