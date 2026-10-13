@@ -8,6 +8,8 @@
 ---
 enhancements:
   - |
-    CWS: the default value of ``runtime_security_config.sbom.forward_interval``
+    CWS: the default values of the SBOM usage enrichment intervals have been
+    increased. ``runtime_security_config.sbom.enrichment_interval`` is now
+    ``30m`` (previously ``1m``) and ``runtime_security_config.sbom.forward_interval``
     is now ``1m`` (previously ``20s``), reducing how often SBOMs enriched with
-    runtime usage information are forwarded.
+    runtime usage information are updated and forwarded.
