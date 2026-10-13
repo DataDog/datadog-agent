@@ -1115,6 +1115,15 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 		component = pod.Labels[kubernetes.DynamoComponentTypeLabelKey]
 	}
 	tagList.AddLow(tags.InferenceWorkloadComponent, component)
+	// Ray also runs training and batch jobs. Only tag pods selected for Serve.
+	if cluster := pod.Labels[kubernetes.RayClusterLabelKey]; cluster != "" && pod.Labels[kubernetes.RayServeLabelKey] == "true" {
+		tagList.AddLow(tags.InferenceWorkload, cluster)
+		component := pod.Labels[kubernetes.RayNodeTypeLabelKey]
+		if component == "worker" && pod.Labels[kubernetes.RayNodeGroupLabelKey] != "" {
+			component = pod.Labels[kubernetes.RayNodeGroupLabelKey]
+		}
+		tagList.AddLow(tags.InferenceWorkloadComponent, component)
+	}
 
 	for name, value := range pod.Labels {
 		switch name {
