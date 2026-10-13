@@ -1,8 +1,57 @@
 diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 --- a/builder/cmake_builder.rs
 +++ b/builder/cmake_builder.rs
-@@ -483,12 +483,21 @@ impl CmakeBuilder {
+@@ -75,6 +75,27 @@ const fn cmake_nasm_small_flags(value: bool) -> &'static str {
+     }
+ }
+
++/// CMake and Ninja execute from a nested build directory, while Bazel's MSVC
++/// flags contain paths relative to the execroot. Make those declared external
++/// inputs independent of the subprocess working directory.
++fn absolutize_bazel_execroot_paths(flags: &str) -> String {
++    let execroot = env::current_dir().expect("failed to determine Bazel execroot");
++    flags
++        .split_whitespace()
++        .map(|flag| {
++            let (prefix, path) = flag
++                .strip_prefix("/external:I")
++                .map_or(("", flag), |path| ("/external:I", path));
++            if path.starts_with("external/") || path.starts_with("external\\") {
++                format!("{prefix}{}", execroot.join(path).display())
++            } else {
++                flag.to_owned()
++            }
++        })
++        .collect::<Vec<_>>()
++        .join(" ")
++}
++
+ pub(crate) struct CmakeBuilder {
+     manifest_dir: PathBuf,
+     out_dir: PathBuf,
+@@ -210,6 +231,16 @@ impl CmakeBuilder {
+             }
+         }
+
++        if target_os() == "windows" {
++            for env_var in ["CFLAGS", "CXXFLAGS", "LDFLAGS"] {
++                if let Some(flags) = optional_env_optional_crate_target(env_var) {
++                    let flags = absolutize_bazel_execroot_paths(&flags);
++                    set_env_for_target(env_var, &flags);
++                    set_env(env_var, &flags);
++                }
++            }
++        }
++
+         let mut cmake_cfg = self.get_cmake_config();
+         if is_fips_build() {
+             if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
+@@ -483,11 +514,24 @@ impl CmakeBuilder {
      fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
++        // Force CMake to hash object paths before Windows' path limit becomes
++        // a problem inside Bazel's deeply nested output directories.
++        cmake_cfg.define("CMAKE_OBJECT_PATH_MAX", "200");
++
          if is_fips_build() {
              cmake_cfg.generator("Ninja");
 -            let env_map = self
@@ -28,4 +77,3 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 +                }
              }
          }
-
