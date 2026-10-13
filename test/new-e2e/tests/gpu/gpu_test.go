@@ -539,8 +539,7 @@ func (v *gpuBaseSuite[Env]) TestCOATMetricsReported() {
 
 		mappingPct := metrics["gpu.container_gpu_mapping_failure_pct"]
 		if assert.Len(c, mappingPct, 1, "gpu.container_gpu_mapping_failure_pct should be reported once, even when it is 0") {
-			assert.GreaterOrEqual(c, mappingPct[0].Value, 0.0)
-			assert.LessOrEqual(c, mappingPct[0].Value, 100.0)
+			assert.Zero(c, mappingPct[0].Value, "GPU containers in the test environment should all be matched to devices")
 		}
 	}, 5*time.Minute, 10*time.Second)
 
