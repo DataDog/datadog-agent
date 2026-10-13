@@ -102,6 +102,9 @@ func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *stor
 func (cr *ConfigRetriever) processorCallback(processor autoscalingProcessor, update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	timestamp := cr.clock.Now()
 
+	// Note the update for `cluster-agent status`, including configs that fail to apply
+	recordRemoteConfigUpdate()
+
 	processor.preProcess()
 	for configKey, rawConfig := range update {
 		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, rawSize: %d, size: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, rawConfig.Metadata.RawLength, len(rawConfig.Config), cr.isLeader())
