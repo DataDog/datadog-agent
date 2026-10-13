@@ -45,6 +45,34 @@ func TestTagGroupByKeyRegistry_LookupReturnsFalseForUnknownHash(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestTagGroupByKeyRegistrySplitTagsSurviveRemoval(t *testing.T) {
+	registry := NewTagGroupByKeyRegistry()
+	group := TagGroupByKey{Source: "containerd", Service: "api", Env: "prod", Host: "node-1"}
+	hash := registry.Register(group)
+	require.Nil(t, registry.byHash[hash].splitTags)
+	snapshot := registry.lookupSplitTags(hash)
+	require.Equal(t, group.AsMap(), snapshot)
+	registry.Register(group)
+	require.Equal(t, snapshot, registry.lookupSplitTags(hash))
+
+	registry.delete(hash)
+	require.Nil(t, registry.lookupSplitTags(hash))
+	require.Equal(t, group.AsMap(), snapshot)
+	registry.Register(group)
+	require.Equal(t, snapshot, registry.lookupSplitTags(hash))
+	registry.reset()
+	require.Empty(t, registry.byHash)
+	require.Equal(t, group.AsMap(), snapshot)
+}
+
+func TestTagGroupByKeyRegistryEmptySplitTags(t *testing.T) {
+	registry := NewTagGroupByKeyRegistry()
+	hash := registry.Register(TagGroupByKey{})
+	require.Nil(t, registry.lookupSplitTags(hash))
+	require.Nil(t, registry.lookupSplitTags(hash))
+	require.Nil(t, registry.lookupSplitTags(hash+1))
+}
+
 func TestTagGroupByKeyRegistry_EmptyCombosAreDistinct(t *testing.T) {
 	r := NewTagGroupByKeyRegistry()
 	// Two empty groups share the same hash (all fields absent).

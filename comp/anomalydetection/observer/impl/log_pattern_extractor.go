@@ -239,7 +239,6 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 
 	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
 
-	group, _ := e.registry.Lookup(groupHash)
 	result.Metrics = []observerdef.MetricOutput{{
 		Name:       metricName,
 		Value:      1,
@@ -249,7 +248,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			Pattern:   cluster.PatternString(),
 			Example:   truncate(message, 160),
 			Source:    e.Name(),
-			SplitTags: group.AsMap(),
+			SplitTags: e.registry.lookupSplitTags(groupHash),
 		},
 	}}
 	return result

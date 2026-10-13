@@ -63,12 +63,18 @@ func tagGroupByKeyHash(c TagGroupByKey) uint64 {
 // TagGroupByKeyRegistry stores active tag groups by their stable uint64 hash.
 // It is NOT thread-safe; access must be confined to a single goroutine.
 type TagGroupByKeyRegistry struct {
-	byHash map[uint64]TagGroupByKey
+	byHash map[uint64]registeredTagGroup
+}
+
+type registeredTagGroup struct {
+	group          TagGroupByKey
+	splitTags      map[string]string
+	splitTagsValid bool
 }
 
 // NewTagGroupByKeyRegistry creates an empty TagGroupByKeyRegistry.
 func NewTagGroupByKeyRegistry() *TagGroupByKeyRegistry {
-	return &TagGroupByKeyRegistry{byHash: make(map[uint64]TagGroupByKey)}
+	return &TagGroupByKeyRegistry{byHash: make(map[uint64]registeredTagGroup)}
 }
 
 // Register inserts (or confirms) a TagGroupByKey and returns its stable hash.
@@ -81,14 +87,27 @@ func (r *TagGroupByKeyRegistry) Register(group TagGroupByKey) uint64 {
 
 func (r *TagGroupByKeyRegistry) register(hash uint64, group TagGroupByKey) {
 	if _, exists := r.byHash[hash]; !exists {
-		r.byHash[hash] = group
+		r.byHash[hash] = registeredTagGroup{group: group}
 	}
 }
 
 // Lookup returns the TagGroupByKey for the given hash, and whether it was found.
 func (r *TagGroupByKeyRegistry) Lookup(hash uint64) (TagGroupByKey, bool) {
-	group, ok := r.byHash[hash]
-	return group, ok
+	entry, ok := r.byHash[hash]
+	return entry.group, ok
+}
+
+func (registry *TagGroupByKeyRegistry) lookupSplitTags(hash uint64) map[string]string {
+	entry, ok := registry.byHash[hash]
+	if !ok {
+		return nil
+	}
+	if !entry.splitTagsValid {
+		entry.splitTags = entry.group.AsMap()
+		entry.splitTagsValid = true
+		registry.byHash[hash] = entry
+	}
+	return entry.splitTags
 }
 
 func (r *TagGroupByKeyRegistry) delete(hash uint64) {
@@ -96,7 +115,7 @@ func (r *TagGroupByKeyRegistry) delete(hash uint64) {
 }
 
 func (r *TagGroupByKeyRegistry) reset() {
-	r.byHash = make(map[uint64]TagGroupByKey)
+	r.byHash = make(map[uint64]registeredTagGroup)
 }
 
 // extractTagGroupByKey scans a flat "key:value" tag slice and extracts the

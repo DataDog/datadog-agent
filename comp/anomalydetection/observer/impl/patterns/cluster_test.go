@@ -16,6 +16,44 @@ import (
 // Fixed event time for SignatureClusterer tests (Unix seconds, non-zero).
 const testUnixSec = int64(1704067200)
 
+func TestPatternClustererRenderedPatternTracksMerges(t *testing.T) {
+	for _, incomingType := range []TokenType{TypeNumericValue, TypeHTTPStatusCode} {
+		t.Run(fmt.Sprint(incomingType), func(t *testing.T) {
+			clusterer := NewPatternClusterer()
+			tokens := []Token{WordToken("request"), WhitespaceToken(1), NumericValueToken("123")}
+			cluster, ok := clusterer.ProcessTokens(tokens, "request 123", testUnixSec)
+			require.True(t, ok)
+			original := cluster.PatternString()
+			require.Equal(t, "request 123", original)
+			require.Equal(t, original, cluster.PatternString())
+
+			incoming := []Token{WordToken("request"), WhitespaceToken(1), {Type: incomingType, Value: "500"}}
+			if incomingType == TypeHTTPStatusCode {
+				require.NotEqual(t, TokenListSignature(tokens), TokenListSignature(incoming))
+			}
+			merged, ok := clusterer.ProcessTokens(incoming, "request 500", testUnixSec+1)
+			require.True(t, ok)
+			require.Same(t, cluster, merged)
+			require.Equal(t, "request *", merged.PatternString())
+			require.Equal(t, "request 123", original)
+
+			incoming[2].Value = "501"
+			merged, ok = clusterer.ProcessTokens(incoming, "request 501", testUnixSec+2)
+			require.True(t, ok)
+			require.Same(t, cluster, merged)
+			require.Equal(t, "request *", merged.PatternString())
+		})
+	}
+}
+
+func TestMergeTokensReportsOnlyNewWildcards(t *testing.T) {
+	pattern := []Token{WordToken("hello"), WhitespaceToken(1), WordToken("world")}
+	require.False(t, mergeTokenLists(pattern, []Token{WordToken("hello"), WhitespaceToken(1), WordToken("world")}))
+	require.True(t, mergeTokenLists(pattern, []Token{WordToken("hello"), WhitespaceToken(1), WordToken("earth")}))
+	require.False(t, mergeTokenLists(pattern, []Token{WordToken("hello"), WhitespaceToken(1), WordToken("mars")}))
+	require.True(t, mergeTokenLists(pattern, []Token{WordToken("goodbye"), WhitespaceToken(1), WordToken("mars")}))
+}
+
 func TestSignatureClustererEmpty(t *testing.T) {
 	sc := NewSignatureClusterer()
 	if len(sc.GetClusters()) != 0 {

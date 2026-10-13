@@ -25,6 +25,9 @@ type Cluster struct {
 	// LastSeenUnix is wall-clock time (Unix seconds) of the most recent log
 	// assigned to this cluster (including merges into an existing pattern).
 	LastSeenUnix int64
+
+	patternString      string
+	patternStringValid bool
 }
 
 // "Shallow" copy of the cluster
@@ -38,11 +41,16 @@ type ClusterInfo struct {
 
 // PatternString returns the human-readable pattern for this cluster.
 func (c *Cluster) PatternString() string {
+	if c.patternStringValid {
+		return c.patternString
+	}
 	var b strings.Builder
 	for _, t := range c.Pattern {
 		b.WriteString(t.PatternString())
 	}
-	return b.String()
+	c.patternString = b.String()
+	c.patternStringValid = true
+	return c.patternString
 }
 
 // unixSecFromDoc reads Unix seconds from doc["timestamp_unix"] or doc["timestamp"]
@@ -215,7 +223,9 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSe
 	clusters := pc.clustersBySignature[sig]
 	for _, c := range clusters {
 		if pc.canMergeTokenLists(c.Pattern, tokens) {
-			mergeTokenLists(c.Pattern, tokens)
+			if mergeTokenLists(c.Pattern, tokens) {
+				c.patternStringValid = false
+			}
 			c.Count++
 			c.LastSeenUnix = unixSec
 			return c, true
@@ -230,7 +240,9 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSe
 		}
 		for _, c := range otherClusters {
 			if pc.canMergeTokenLists(c.Pattern, tokens) {
-				mergeTokenLists(c.Pattern, tokens)
+				if mergeTokenLists(c.Pattern, tokens) {
+					c.patternStringValid = false
+				}
 				c.Count++
 				c.LastSeenUnix = unixSec
 				return c, true
@@ -476,12 +488,15 @@ func sameKeys(a, b []string) bool {
 }
 
 // mergeTokenLists merges incoming tokens into the pattern, wildcarding differences.
-func mergeTokenLists(pattern, incoming []Token) {
+func mergeTokenLists(pattern, incoming []Token) bool {
+	changed := false
 	for i := range pattern {
-		if pattern[i].Value != incoming[i].Value {
+		if !pattern[i].IsWild && pattern[i].Value != incoming[i].Value {
 			pattern[i].IsWild = true
+			changed = true
 		}
 	}
+	return changed
 }
 
 // Classify returns the cluster matching the given message without modifying any state.

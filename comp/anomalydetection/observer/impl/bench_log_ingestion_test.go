@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -155,5 +156,68 @@ func BenchmarkLogContextSteadyState(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		log.timestampMs = int64(i+2) * 1_000
 		e.IngestLog("logs", log)
+	}
+}
+
+func BenchmarkLogContextReuse(benchmark *testing.B) {
+	for _, scenario := range []struct {
+		name        string
+		series      int
+		groups      int
+		longMessage bool
+		churn       bool
+		control     bool
+	}{
+		{name: "single", series: 1, groups: 1},
+		{name: "shared_cluster", series: 64, groups: 1},
+		{name: "many_groups", series: 64, groups: 16},
+		{name: "long_message", series: 64, groups: 1, longMessage: true},
+		{name: "churn", series: 256, groups: 128, churn: true},
+		{name: "signature_json_control", series: 64, groups: 1, control: true},
+	} {
+		benchmark.Run(scenario.name, func(benchmark *testing.B) {
+			config := DefaultLogPatternExtractorConfig()
+			config.MinClusterSizeBeforeEmit = 1
+			if scenario.churn {
+				config.MaxPatterns = 32
+				config.MaxTagGroups = 32
+			}
+			extractors := []observerdef.LogMetricsExtractor{NewLogPatternExtractor(config)}
+			if scenario.control {
+				extractors = []observerdef.LogMetricsExtractor{NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())}
+			}
+			engine := newEngine(engineConfig{
+				storage:    newTimeSeriesStorage(),
+				extractors: extractors,
+			})
+			logs := make([]*logObs, scenario.series)
+			for series := range logs {
+				message := fmt.Sprintf("ERROR request %d failed", series)
+				if scenario.longMessage {
+					message += " " + strings.Repeat("diagnostic ", 512)
+				}
+				if scenario.control {
+					message = fmt.Sprintf(`{"message":"request failed","duration":%d,"bytes":%d}`, series+1, series+10)
+				}
+				logs[series] = &logObs{
+					content: message,
+					status:  "error",
+					tags: []string{
+						"source:containerd",
+						fmt.Sprintf("service:api-%d", series%scenario.groups),
+						"env:prod",
+						"host:node-1",
+						fmt.Sprintf("pod:api-%d", series),
+					},
+					timestampMs: 1_000,
+				}
+				engine.IngestLog("logs", logs[series])
+			}
+			benchmark.ReportAllocs()
+			benchmark.ResetTimer()
+			for iteration := 0; iteration < benchmark.N; iteration++ {
+				engine.IngestLog("logs", logs[iteration%len(logs)])
+			}
+		})
 	}
 }

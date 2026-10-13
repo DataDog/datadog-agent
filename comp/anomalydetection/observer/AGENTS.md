@@ -148,6 +148,14 @@ are unaffected.
 
 ### Tag ownership and host identity
 
+Log pattern strings are cached on clusters and rebuilt only when a merge newly
+wildcards a token. Split-tag maps are cached lazily on registered tag groups.
+Published strings and maps are immutable: contexts copy their references while
+keeping examples per series, and old anomaly snapshots remain valid after a
+pattern changes or a cluster/group is evicted. Cluster mutation and cache access
+remain confined to the engine's single writer. Changes to pattern tokens must
+invalidate the rendered-pattern cache.
+
 Metrics-pipeline tags enter the observer as immutable `tagset.CompositeTags`.
 Core observer paths (ingestion, filtering, storage, detectors, and
 correlators) retain and iterate that view; they must not flatten, sort, or

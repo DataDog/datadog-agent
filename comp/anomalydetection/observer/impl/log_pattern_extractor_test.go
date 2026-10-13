@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -15,6 +16,81 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
+
+func TestEngineLogPatternContextSnapshotsAcrossSeriesAndReset(t *testing.T) {
+	for _, bucketized := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bucketized=%t", bucketized), func(t *testing.T) {
+			config := DefaultLogPatternExtractorConfig()
+			config.MinClusterSizeBeforeEmit = 1
+			extractor := NewLogPatternExtractor(config)
+			storage := newTimeSeriesStorage()
+			engine := newEngine(engineConfig{
+				storage:    storage,
+				extractors: []observerdef.LogMetricsExtractor{extractor},
+				logCountBuckets: LogCountBucketConfig{
+					Enabled: bucketized, BucketSeconds: 5, IdleTTLSeconds: 10,
+				},
+			})
+			ingest := func(pod, message string, sec int64) {
+				engine.IngestLog("logs", &logObs{
+					content: message, timestampMs: sec * 1000,
+					tags: []string{"service:api", "env:prod", "host:node-1", "pod:" + pod},
+				})
+			}
+			ingest("api-a", "GET /users/123 returned 500", 1000)
+			ingest("api-b", "GET /users/456 returned 500", 1000)
+			ingest("api-a", "GET /users/789 returned 500", 1000)
+			engine.Advance(1004)
+			metas := storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()})
+			require.Len(t, metas, 2)
+			snapshots := make(map[string]observerdef.MetricContext)
+			refs := make(map[string]observerdef.SeriesRef)
+			for _, meta := range metas {
+				context, ok := storage.GetContext(meta.Ref)
+				require.True(t, ok)
+				if meta.Tags.Find(func(tag string) bool { return tag == "pod:api-a" }) {
+					snapshots["api-a"], refs["api-a"] = context, meta.Ref
+				} else {
+					snapshots["api-b"], refs["api-b"] = context, meta.Ref
+				}
+			}
+			require.Equal(t, snapshots["api-a"].Pattern, snapshots["api-b"].Pattern)
+			require.Contains(t, snapshots["api-a"].Pattern, "*")
+			require.Equal(t, "GET /users/789 returned 500", snapshots["api-a"].Example)
+			require.Equal(t, "GET /users/456 returned 500", snapshots["api-b"].Example)
+			require.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "node-1"}, snapshots["api-a"].SplitTags)
+
+			anomaly := observerdef.Anomaly{SourceRef: &observerdef.QueryHandle{Ref: refs["api-a"]}}
+			engine.enrichAnomaly(&anomaly)
+			require.NotNil(t, anomaly.Context)
+			ingest("api-a", "GET /users/999 delivered 500", 1005)
+			engine.Advance(1009)
+			latest, ok := storage.GetContext(refs["api-a"])
+			require.True(t, ok)
+			require.NotEqual(t, snapshots["api-a"].Pattern, latest.Pattern)
+			require.Equal(t, snapshots["api-a"], *anomaly.Context)
+			require.Equal(t, "GET /users/999 delivered 500", latest.Example)
+
+			extractor.taggedClusterer.GarbageCollectBefore(1010)
+			require.Empty(t, extractor.registry.byHash)
+			require.Equal(t, snapshots["api-a"], *anomaly.Context)
+			require.Equal(t, "api", anomaly.Context.SplitTags["service"])
+			extractor.Reset()
+			require.Equal(t, snapshots["api-a"], *anomaly.Context)
+		})
+	}
+}
+
+func TestLogPatternExtractorLongExampleRemainsBounded(t *testing.T) {
+	config := DefaultLogPatternExtractorConfig()
+	config.MinClusterSizeBeforeEmit = 1
+	extractor := NewLogPatternExtractor(config)
+	message := "ERROR " + strings.Repeat("é", 1000)
+	output := extractor.ProcessLog(&mockLogView{content: message})
+	require.Len(t, output.Metrics, 1)
+	require.Equal(t, truncate(message, 160), output.Metrics[0].Context.Example)
+	require.Len(t, []rune(output.Metrics[0].Context.Example), 163)
+}
 
 func TestLogPatternExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
