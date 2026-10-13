@@ -118,10 +118,10 @@ func (is *rpmTestSuite) TestRpm() {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=%s\n"+
-		"gpgkey=%s://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
+		"gpgkey=%s://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"\t%s://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"\t%s://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"\t%s://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public",
 		yumrepo, repogpgcheck, protocol, protocol, protocol, protocol)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)

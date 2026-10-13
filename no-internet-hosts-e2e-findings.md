@@ -194,6 +194,38 @@ test-code work.
   local error: tls: bad record MAC`. A localhost TLS error does not obviously relate to
   internet access; may be a flake amplified by a slow agent. Needs investigation.
 
+## Follow-up: fixes applied on this branch (2026-10-13)
+
+After the triage above, the **bucket 1 / bucket 2 failures that are fixable in test code**
+were fixed on this same branch, following the pattern already used by
+`test/e2e-framework/components/datadog/agent/host_linuxos.go` (S3-backed URLs for the
+Datadog testing infrastructure):
+
+1. **`apttesting.datad0g.com/test-keys` → `s3.amazonaws.com/apttesting.datad0g.com/test-keys`**
+   everywhere (the S3 bucket serves the same files — verified):
+   - `TESTING_KEYS_URL` values: `tests/fleet/agent/install.go`,
+     `tests/installer/unix/package_definitions.go`, `tests/installer/script/default_script_test.go`,
+     `tests/agent-platform/tests/install_script_test.go`, `upgrade_test.go`, `persisting_integrations_test.go`
+   - hardcoded `gpgkey`/`curl` URLs: `ddot_install_test.go`, `step_by_step_test.go`
+   - `rpm_test.go` also pointed its `gpgkey` at `keys.datadoghq.com` (production keys) while
+     using the S3 yumtesting pipeline repo — the pipeline RPMs are signed with the **test**
+     `DATADOG_RPM_KEY_CURRENT` (verified: fingerprint `83661EE4…`), so it now uses the S3
+     test-keys like its sibling tests.
+2. **`tests/agent-platform/tests/package_signing_test.go`**: the production signing keys
+   (fetched from `keys.datadoghq.com`, which has no S3 equivalent) are now **vendored** under
+   `tests/agent-platform/tests/fixtures/signing-keys/` and written to the host with
+   `RemoteHost.WriteFile` instead of being curl'd at runtime.
+3. **`test/e2e-framework/components/datadog/updater/install_script.sh`**:
+   `TESTING_KEYS_URL`/`TESTING_APT_URL`/`TESTING_YUM_URL` switched from the public hosts
+   (`keys.datadoghq.com`, `apttesting.datad0g.com`, `yumtesting.datad0g.com`) to their
+   S3 equivalents, consistent with the rest of the framework.
+
+**Not fixable with S3 URLs** (still open, from the buckets above): the testing OCI registry
+`installtesting.datad0g.com.internal.dda-testing.com` (infra), public base-OS/docker mirrors,
+remote-config/CWS/diagnose real-backend endpoints, netpath external destinations, the
+production `yum.datadoghq.com` repo used by fleet-upgrade, and `ghcr.io` for the apm
+tracegen image.
+
 ## Summary
 
 Removing the explicit `WithInternetAccess()` opt-ins from host E2E tests breaks **54 of the
