@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -251,6 +252,46 @@ func rateLimitedHandler(failures int32) handler {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
+}
+
+func TestGetRequestRetrySendsOnlyCurrentToken(t *testing.T) {
+	tokens := newHandler(func(w http.ResponseWriter, _ *http.Request, calls int32) {
+		// Each login gets a new token
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf("token%d", calls)))
+	})
+
+	var sentTokens [][]string
+	endpoint := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		sentTokens = append(sentTokens, r.Header.Values("X-XSRF-TOKEN"))
+		if calls == 1 {
+			// Cisco answers an expired session with the HTML login page, triggering a re-login
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/j_security_check", emptyHandler)
+	mux.HandleFunc("/dataservice/client/token", tokens.Func)
+	mux.HandleFunc("/test", endpoint.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	resp, err := client.get(context.Background(), "/test", nil)
+	require.NoError(t, err)
+	require.Equal(t, []byte("ok"), resp)
+	require.Equal(t, 2, tokens.numberOfCalls())
+	// The retry sends only the token from the re-login, not the stale one as well
+	require.Equal(t, [][]string{{"token1"}, {"token2"}}, sentTokens)
 }
 
 func TestGetRequestBacksOffExponentially(t *testing.T) {
