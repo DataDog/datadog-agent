@@ -262,6 +262,8 @@ func installStableJobs(ctx HookContext, layout agentLayout) (err error) {
 	var errs []error
 	for _, label := range stableJobs {
 		if label == procmgrJob && !procmgrEnabled {
+			// Best-effort: removeJob only logs (same as uninstall). A leftover loaded job is
+			// cleared on the next Agent start via syncProcmgrWithConfig when enabled is false.
 			removeJob(ctx, client, label)
 			continue
 		}
