@@ -641,7 +641,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: SBOMResolverForwardInterval defines the interval for forwarding SBOMs
 	// visibility: private
-	// default_value: 20s
+	// default_value: 1m
 	SBOMResolverForwardInterval time.Duration
 
 	// description: SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
