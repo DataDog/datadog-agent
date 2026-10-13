@@ -34,6 +34,11 @@ const (
 
 	addAllSourcesRequestSize = 56
 	sourceRefRequestSize     = 24
+
+	// descriptionContextFlag marks request contexts that carry the source
+	// reference of a description request. Other requests take contexts from
+	// a counter that never reaches this bit.
+	descriptionContextFlag uint64 = 1 << 63
 )
 
 // Control is a non-blocking connection to the private Darwin NStat kernel
@@ -93,9 +98,26 @@ func (c *Control) QueryAll() error {
 	return c.send(encodeSourceRequest(c.nextContext.Add(1), messageQuerySource, sourceRefAll))
 }
 
-// RequestDescription requests identity and tuple data for one source.
+// RequestDescription requests identity and tuple data for one source. The
+// kernel echoes the request context in its response, so an error response
+// names the source through DescriptionSourceRef.
 func (c *Control) RequestDescription(sourceRef uint64) error {
-	return c.send(encodeSourceRequest(c.nextContext.Add(1), messageGetSourceDesc, sourceRef))
+	return c.send(encodeDescriptionRequest(sourceRef))
+}
+
+// DescriptionContext returns the request context of a description request
+// for sourceRef.
+func DescriptionContext(sourceRef uint64) uint64 {
+	return descriptionContextFlag | sourceRef
+}
+
+// DescriptionSourceRef returns the source a response context belongs to when
+// the context is that of a description request.
+func DescriptionSourceRef(context uint64) (uint64, bool) {
+	if context&descriptionContextFlag == 0 {
+		return 0, false
+	}
+	return context &^ descriptionContextFlag, true
 }
 
 // Poll waits until a datagram can be read. A false result with no error means
@@ -189,6 +211,10 @@ func encodeAddAllSources(context uint64, provider uint32) []byte {
 	binary.LittleEndian.PutUint32(request[32:36], provider)
 	binary.LittleEndian.PutUint32(request[36:40], ^uint32(0))
 	return request
+}
+
+func encodeDescriptionRequest(sourceRef uint64) []byte {
+	return encodeSourceRequest(DescriptionContext(sourceRef), messageGetSourceDesc, sourceRef)
 }
 
 func encodeSourceRequest(context uint64, messageType uint32, sourceRef uint64) []byte {

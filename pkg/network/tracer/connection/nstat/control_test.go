@@ -55,6 +55,20 @@ func TestEncodeSourceRequest(t *testing.T) {
 	require.Equal(t, uint64(42), binary.LittleEndian.Uint64(request[16:24]))
 }
 
+func TestDescriptionRequestContextNamesSource(t *testing.T) {
+	request := encodeDescriptionRequest(42)
+
+	require.Equal(t, messageGetSourceDesc, binary.LittleEndian.Uint32(request[8:12]))
+	require.Equal(t, uint64(42), binary.LittleEndian.Uint64(request[16:24]))
+	sourceRef, ok := DescriptionSourceRef(binary.LittleEndian.Uint64(request[0:8]))
+	require.True(t, ok)
+	require.Equal(t, uint64(42), sourceRef)
+
+	control := &Control{}
+	_, ok = DescriptionSourceRef(control.nextContext.Add(1))
+	require.False(t, ok, "counter contexts are not description contexts")
+}
+
 func TestClosedControlRejectsOperations(t *testing.T) {
 	control := &Control{fd: -1}
 

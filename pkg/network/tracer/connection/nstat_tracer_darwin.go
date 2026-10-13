@@ -15,6 +15,7 @@ import (
 	"math/bits"
 	"net"
 	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 
@@ -37,7 +38,6 @@ const (
 	nstatQueryInterval       = time.Second
 	nstatPollInterval        = 250 * time.Millisecond
 	nstatPendingRemovalTTL   = 5 * time.Second
-	nstatDescriptionRetry    = 100 * time.Millisecond
 	nstatDescriptionBatch    = 8
 	nstatSubscriptionTimeout = 2 * time.Second
 	nstatUnmatchedTTL        = 2 * time.Second
@@ -52,6 +52,18 @@ const (
 	// stop once the window has passed.
 	nstatConnectProbeRefresh = time.Second
 	nstatConnectProbeWindow  = 15 * time.Second
+
+	// A source without a tuple is described again after nstatDescriptionRetry,
+	// doubling up to nstatDescriptionRetryMax. Counts showing activity reset
+	// the delay, since a source usually gains its tuple when it connects or
+	// first sends.
+	nstatDescriptionRetry    = 100 * time.Millisecond
+	nstatDescriptionRetryMax = 5 * time.Second
+
+	// QueryAll reports counts for every live source each second. An
+	// unpublished source silent for this long is described again so the
+	// kernel can answer ENOENT if its removal was lost.
+	nstatSilentSourceProbe = 30 * time.Second
 
 	tcpStateClosed      = 0
 	tcpStateListen      = 1
@@ -94,6 +106,7 @@ var nstatTracerTelemetry = struct {
 	descriptionErrors  telemetry.Counter
 	droppedSources     telemetry.Counter
 	removals           telemetry.Counter
+	lostRemovals       telemetry.Counter
 	runtimeFailures    telemetry.Counter
 	directionConflicts telemetry.Counter
 	directionInferred  telemetry.Counter
@@ -109,10 +122,11 @@ var nstatTracerTelemetry = struct {
 	datagrams:          telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "datagrams", nil, "NStat datagrams received"),
 	events:             telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "events", nil, "NStat messages decoded"),
 	parserErrors:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "parser_errors", []string{"reason"}, "NStat datagrams rejected"),
-	kernelErrors:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "kernel_errors", nil, "Error responses from the NStat kernel control"),
+	kernelErrors:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "kernel_errors", []string{"request", "errno"}, "Error responses from the NStat kernel control, by request (subscribe, describe, or query) and errno"),
 	descriptionErrors:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "description_errors", nil, "NStat source description requests that failed"),
 	droppedSources:     telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "dropped_sources", nil, "NStat sources dropped at the tracking limit"),
 	removals:           telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "removals", []string{"resolution"}, "NStat source removals: published (resolved), described but not published (filtered), or never described (unresolved)"),
+	lostRemovals:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "lost_removals", nil, "Unpublished NStat sources dropped because the kernel no longer had them and their removal never arrived"),
 	runtimeFailures:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "runtime_failures", nil, "Fatal NStat runtime failures"),
 	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
 	directionInferred:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_inferred", []string{"result"}, "TCP directions inferred from ports, and inferences later overridden by direction evidence"),
@@ -143,6 +157,8 @@ type nstatSource struct {
 
 	descriptionRequested     bool
 	nextDescription          time.Time
+	descriptionRetries       uint8
+	lastSeen                 time.Time
 	removed                  bool
 	removedAt                time.Time
 	tcpStateObserved         bool
@@ -331,6 +347,7 @@ func (t *nstatTracer) run() {
 	defer t.wg.Done()
 	buffer := make([]byte, nstatDatagramBufferSize)
 	nextQuery := t.now().Add(nstatQueryInterval)
+	var nextScan time.Time
 
 	for {
 		select {
@@ -360,9 +377,17 @@ func (t *nstatTracer) run() {
 		}
 
 		now := t.now()
-		t.queuePendingDescriptions(now)
+		// Every reply wakes the loop, so the full source scans are paced
+		// separately. Added sources are queued as their events arrive.
+		scan := !now.Before(nextScan)
+		if scan {
+			t.queuePendingDescriptions(now)
+			nextScan = now.Add(nstatDescriptionRetry)
+		}
 		t.pumpDescriptionRequests(now)
-		t.expirePendingRemovals(now)
+		if scan {
+			t.expirePendingRemovals(now)
+		}
 		if !now.Before(nextQuery) {
 			if err := t.queryAll(); err != nil {
 				if !t.isStopping() {
@@ -466,13 +491,25 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 	t.mu.Lock()
 	switch event.Kind {
 	case nstat.EventError:
-		nstatTracerTelemetry.kernelErrors.Inc()
+		errno := strconv.FormatUint(uint64(event.Error), 10)
 		if _, subscribed := t.subscriptionContexts[event.Context]; subscribed {
+			nstatTracerTelemetry.kernelErrors.Inc("subscribe", errno)
 			delete(t.subscriptionContexts, event.Context)
 			select {
 			case t.subscriptionErrors <- fmt.Errorf("NStat provider subscription failed with kernel error %d", event.Error):
 			default:
 			}
+		} else if sourceRef, ok := nstat.DescriptionSourceRef(event.Context); ok {
+			nstatTracerTelemetry.kernelErrors.Inc("describe", errno)
+			if unix.Errno(event.Error) == unix.ENOENT {
+				t.removeVanishedSource(sourceRef)
+			}
+		} else {
+			// Only QueryAll errors land here. XNU fails it with ENOBUFS or
+			// ENOMEM when its replies stop fitting and it ends the walk early.
+			// The walk is newest-first, so the oldest sources miss their counts,
+			// the same ones on every query while the pressure lasts.
+			nstatTracerTelemetry.kernelErrors.Inc("query", errno)
 		}
 	case nstat.EventSuccess:
 		if _, subscribed := t.subscriptionContexts[event.Context]; subscribed {
@@ -511,17 +548,21 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 			if source.removed && source.conn != nil {
 				closed = t.closeAndRemoveSource(event.SourceRef, source)
 			} else if source.removed && nstatSourceResolved(source) {
-				t.removeFilteredSource(event.SourceRef, source)
+				t.removeUnpublishedSource(event.SourceRef, source, "filtered")
 			}
 		}
 	case nstat.EventRemoved:
+		// XNU handles each request inside the send that issued it and queues a
+		// source's final counts and description before its removal, so only
+		// error replies arrive for this source reference after this event.
 		if source := t.sources[event.SourceRef]; source != nil {
-			t.removeTCPListener(event.SourceRef, source)
 			if source.conn != nil {
 				closed = t.closeAndRemoveSource(event.SourceRef, source)
-			} else if nstatSourceResolved(source) {
-				t.removeFilteredSource(event.SourceRef, source)
+			} else if !nstatSourceAwaitingTuple(source) {
+				t.removeUnpublishedSource(event.SourceRef, source, "filtered")
 			} else {
+				// XNU answers this request with ENOENT, which drops the source;
+				// nstatPendingRemovalTTL covers a lost reply.
 				source.removed = true
 				source.removedAt = t.now()
 				source.descriptionRequested = true
@@ -539,9 +580,6 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 }
 
 func (t *nstatTracer) queueDescriptionLocked(sourceRef uint64, source *nstatSource) {
-	if !nstatSourceWantsDescription(source) {
-		return
-	}
 	if _, queued := t.descriptionQueued[sourceRef]; queued {
 		return
 	}
@@ -577,10 +615,16 @@ func (t *nstatTracer) pumpDescriptionRequests(now time.Time) {
 			continue
 		}
 		source.descriptionRequested = true
-		if nstatSourceResolved(source) {
+		switch {
+		case nstatSourceAwaitingTuple(source):
+			source.nextDescription = now.Add(nstatDescriptionDelay(source.descriptionRetries))
+			if source.descriptionRetries < math.MaxUint8 {
+				source.descriptionRetries++
+			}
+		case source.conn != nil:
 			source.nextDescription = now.Add(nstatConnectProbeRefresh)
-		} else {
-			source.nextDescription = now.Add(nstatDescriptionRetry)
+		default:
+			source.nextDescription = now.Add(nstatSilentSourceProbe)
 		}
 		requests = append(requests, sourceRef)
 	}
@@ -625,7 +669,7 @@ func (t *nstatTracer) getSource(sourceRef uint64) *nstatSource {
 			return nil
 		}
 	}
-	source := &nstatSource{afterEnumeration: t.enumerationComplete}
+	source := &nstatSource{afterEnumeration: t.enumerationComplete, lastSeen: t.now()}
 	t.sources[sourceRef] = source
 	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
 	return source
@@ -639,6 +683,7 @@ func (t *nstatTracer) markEnumerationCompleteLocked() {
 }
 
 func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event nstat.Event) {
+	source.lastSeen = t.now()
 	if event.Provider != 0 {
 		source.provider = event.Provider
 	}
@@ -660,6 +705,10 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		t.syncTCPListener(sourceRef, source)
 	}
 	if event.Counts != nil {
+		if nstatSourceAwaitingTuple(source) && nstatCountsShowActivity(source.counts, *event.Counts) {
+			source.descriptionRetries = 0
+			source.nextDescription = time.Time{}
+		}
 		source.counts = *event.Counts
 		source.connectAttempts = max(source.connectAttempts, event.Counts.ConnectAttempts)
 		previousSuccesses := source.connectSuccesses
@@ -831,10 +880,23 @@ func nstatSourceResolved(source *nstatSource) bool {
 	return false
 }
 
-// nstatSourceWantsDescription reports whether a source should be described
-// again: it is still unresolved, or it is a connect awaiting conn_probe_failed.
-func nstatSourceWantsDescription(source *nstatSource) bool {
-	return !nstatSourceResolved(source) || nstatSourcePendingConnect(source)
+// nstatSourceAwaitingTuple reports whether a source still lacks the tuple it
+// needs to be published. A listener never gains a peer, so it is complete
+// once indexed for direction.
+func nstatSourceAwaitingTuple(source *nstatSource) bool {
+	return !nstatSourceResolved(source) && !source.listenerIndexed
+}
+
+// nstatDescriptionDelay doubles the retry delay for each description request
+// already sent, up to nstatDescriptionRetryMax.
+func nstatDescriptionDelay(retries uint8) time.Duration {
+	return min(nstatDescriptionRetry<<min(retries, 16), nstatDescriptionRetryMax)
+}
+
+func nstatCountsShowActivity(previous, current nstat.Counts) bool {
+	return current.ConnectAttempts > previous.ConnectAttempts ||
+		current.TXPackets > previous.TXPackets ||
+		current.RXPackets > previous.RXPackets
 }
 
 // nstatSourcePendingConnect reports a published TCP connect that is still in
@@ -848,11 +910,15 @@ func nstatSourcePendingConnect(source *nstatSource) bool {
 		len(source.conn.TCPFailures) == 0
 }
 
-// wantsDescriptionLocked is nstatSourceWantsDescription with the probe window
-// applied: a pending connect past its window stops being refreshed.
+// wantsDescriptionLocked reports whether a source should be described again:
+// it still lacks its tuple, it is unpublished and has gone silent, or it is a
+// connect awaiting conn_probe_failed within the probe window.
 func (t *nstatTracer) wantsDescriptionLocked(source *nstatSource, now time.Time) bool {
-	if !nstatSourceResolved(source) {
+	if nstatSourceAwaitingTuple(source) {
 		return true
+	}
+	if source.conn == nil {
+		return !source.removed && now.Sub(source.lastSeen) >= nstatSilentSourceProbe
 	}
 	if !nstatSourcePendingConnect(source) {
 		return false
@@ -1274,14 +1340,32 @@ func (t *nstatTracer) enrichTCPPacket(
 	return currentMatch
 }
 
-// removeFilteredSource drops a removed source that was described but never
-// published, so it does not wait out the pending-removal TTL.
-func (t *nstatTracer) removeFilteredSource(sourceRef uint64, source *nstatSource) {
+// removeUnpublishedSource drops a source that never became a connection, so
+// it does not wait out the pending-removal TTL.
+func (t *nstatTracer) removeUnpublishedSource(sourceRef uint64, source *nstatSource, resolution string) {
 	t.removeTCPListener(sourceRef, source)
 	delete(t.sources, sourceRef)
 	delete(t.descriptionQueued, sourceRef)
 	nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
-	nstatTracerTelemetry.removals.Inc("filtered")
+	nstatTracerTelemetry.removals.Inc(resolution)
+}
+
+// removeVanishedSource handles an ENOENT answer to a description request.
+// Unless the source was already removed, its removal was lost. Published
+// sources are left to connection expiry.
+func (t *nstatTracer) removeVanishedSource(sourceRef uint64) {
+	source := t.sources[sourceRef]
+	if source == nil || source.conn != nil {
+		return
+	}
+	if !source.removed {
+		nstatTracerTelemetry.lostRemovals.Inc()
+	}
+	resolution := "unresolved"
+	if !nstatSourceAwaitingTuple(source) {
+		resolution = "filtered"
+	}
+	t.removeUnpublishedSource(sourceRef, source, resolution)
 }
 
 // closeAndRemoveSource handles a close the kernel reported, so TCP sources

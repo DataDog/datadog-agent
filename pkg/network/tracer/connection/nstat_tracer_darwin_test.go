@@ -10,6 +10,7 @@ package connection
 import (
 	"errors"
 	"io"
+	"math"
 	"net/netip"
 	"sync"
 	"testing"
@@ -966,7 +967,7 @@ func TestNStatTracerReindexesReusedAndRemovedListenerSource(t *testing.T) {
 	require.Len(t, tracer.listeners, 1)
 
 	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 11})
-	require.False(t, tracer.sources[11].listenerIndexed)
+	require.NotContains(t, tracer.sources, uint64(11), "a removed listener is dropped without waiting for a description")
 	require.Empty(t, tracer.listeners)
 }
 
@@ -1392,6 +1393,162 @@ func TestNStatTracerPrioritizesNewDescriptionsWithoutStarvingRetries(t *testing.
 
 	tracer.pumpDescriptionRequests(now)
 	require.Equal(t, []uint64{100, 101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, control.descriptions())
+}
+
+func TestNStatTracerBacksOffDescriptionsUntilSourceHasTuple(t *testing.T) {
+	control := newFakeNStatControl()
+	tracer := newNStatTracerWithControl(testNStatConfig(), control)
+	start := time.Unix(400, 0)
+	now := start
+	tracer.now = func() time.Time { return now }
+	scan := func() {
+		tracer.queuePendingDescriptions(now)
+		tracer.pumpDescriptionRequests(now)
+	}
+	requestCount := func(sourceRef uint64) int {
+		count := 0
+		for _, requested := range control.descriptions() {
+			if requested == sourceRef {
+				count++
+			}
+		}
+		return count
+	}
+
+	const listener, unbound = 91, 92
+	for _, sourceRef := range []uint64{listener, unbound} {
+		tracer.processEvent(nstat.Event{Kind: nstat.EventAdded, SourceRef: sourceRef, Provider: nstat.ProviderTCPKernel})
+	}
+	scan()
+	require.Equal(t, []uint64{listener, unbound}, control.descriptions())
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: listener,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPListenerFlow(5001, "192.0.2.10", 8080),
+	})
+	partial := testNStatTCPFlow(5002, tcpStateClosed)
+	partial.Remote = nstat.Endpoint{}
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: unbound,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      partial,
+	})
+	require.True(t, tracer.sources[listener].listenerIndexed)
+
+	var retries []time.Duration
+	for now.Before(start.Add(4 * time.Second)) {
+		now = now.Add(nstatDescriptionRetry)
+		before := requestCount(unbound)
+		scan()
+		if requestCount(unbound) > before {
+			retries = append(retries, now.Sub(start))
+		}
+	}
+	require.Equal(t, []time.Duration{
+		100 * time.Millisecond,
+		300 * time.Millisecond,
+		700 * time.Millisecond,
+		1500 * time.Millisecond,
+		3100 * time.Millisecond,
+	}, retries)
+	require.Equal(t, 1, requestCount(listener), "an indexed listener is not described again")
+
+	// A connect shows up in counts first, so the next scan describes the
+	// source without waiting out the backoff.
+	before := requestCount(unbound)
+	tracer.processEvent(nstat.Event{Kind: nstat.EventCounts, SourceRef: unbound, Counts: &nstat.Counts{ConnectAttempts: 1}})
+	scan()
+	require.Equal(t, before+1, requestCount(unbound))
+	require.Equal(t, nstatDescriptionRetry, nstatDescriptionDelay(0))
+	require.Equal(t, nstatDescriptionRetryMax, nstatDescriptionDelay(math.MaxUint8))
+}
+
+func TestNStatTracerDropsSourcesTheKernelNoLongerHas(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	lost := nstatTracerTelemetry.lostRemovals.WithValues()
+	unresolved := nstatTracerTelemetry.removals.WithValues("unresolved")
+	missing := nstatTracerTelemetry.kernelErrors.WithValues("describe", "2")
+	truncated := nstatTracerTelemetry.kernelErrors.WithValues("query", "55")
+	lostBefore, unresolvedBefore := lost.Get(), unresolved.Get()
+	missingBefore, truncatedBefore := missing.Get(), truncated.Get()
+	describeError := func(sourceRef uint64, errno unix.Errno) {
+		tracer.processEvent(nstat.Event{Kind: nstat.EventError, Context: nstat.DescriptionContext(sourceRef), Error: uint32(errno)})
+	}
+
+	const ghost, removed, published, backpressure = 101, 102, 103, 104
+	for _, sourceRef := range []uint64{ghost, removed, backpressure} {
+		tracer.processEvent(nstat.Event{Kind: nstat.EventAdded, SourceRef: sourceRef, Provider: nstat.ProviderTCPKernel})
+	}
+	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: removed})
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: published,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(5003, tcpStateEstablished),
+	})
+
+	describeError(ghost, unix.ENOENT)
+	require.NotContains(t, tracer.sources, uint64(ghost))
+	require.Equal(t, lostBefore+1, lost.Get(), "a source the kernel lost without a removal counts as a lost removal")
+
+	describeError(removed, unix.ENOENT)
+	require.NotContains(t, tracer.sources, uint64(removed))
+	require.Equal(t, lostBefore+1, lost.Get(), "a removal that arrived is not lost")
+	require.Equal(t, unresolvedBefore+2, unresolved.Get())
+
+	describeError(published, unix.ENOENT)
+	require.NotNil(t, tracer.sources[published].conn, "published connections are left to connection expiry")
+	describeError(backpressure, unix.ENOBUFS)
+	require.Contains(t, tracer.sources, uint64(backpressure))
+	require.Equal(t, missingBefore+3, missing.Get())
+
+	tracer.processEvent(nstat.Event{Kind: nstat.EventError, Context: 7, Error: uint32(unix.ENOBUFS)})
+	require.Equal(t, truncatedBefore+1, truncated.Get())
+}
+
+func TestNStatTracerProbesSilentUnpublishedSources(t *testing.T) {
+	control := newFakeNStatControl()
+	tracer := newNStatTracerWithControl(testNStatConfig(), control)
+	start := time.Unix(420, 0)
+	now := start
+	tracer.now = func() time.Time { return now }
+	scan := func() {
+		tracer.queuePendingDescriptions(now)
+		tracer.pumpDescriptionRequests(now)
+	}
+
+	const filtered, listener, published = 111, 112, 113
+	for sourceRef, flow := range map[uint64]*nstat.Flow{
+		filtered:  testNStatLoopbackTCPFlow(5001, "127.0.0.1", 50000, 8080),
+		listener:  testNStatTCPListenerFlow(5002, "192.0.2.10", 8080),
+		published: testNStatTCPFlow(5003, tcpStateEstablished),
+	} {
+		tracer.processEvent(nstat.Event{Kind: nstat.EventDescription, SourceRef: sourceRef, Provider: nstat.ProviderTCPKernel, Flow: flow})
+	}
+	require.Nil(t, tracer.sources[filtered].conn)
+	require.NotNil(t, tracer.sources[published].conn)
+
+	now = start.Add(nstatSilentSourceProbe - time.Millisecond)
+	scan()
+	require.Empty(t, control.descriptions())
+
+	tracer.processEvent(nstat.Event{Kind: nstat.EventCounts, SourceRef: listener, Counts: &nstat.Counts{}})
+	now = start.Add(nstatSilentSourceProbe)
+	scan()
+	require.Equal(t, []uint64{filtered}, control.descriptions(), "only the silent unpublished source is probed")
+	scan()
+	require.Equal(t, []uint64{filtered}, control.descriptions())
+
+	tracer.processEvent(nstat.Event{Kind: nstat.EventError, Context: nstat.DescriptionContext(filtered), Error: uint32(unix.ENOENT)})
+	require.NotContains(t, tracer.sources, uint64(filtered))
+
+	now = now.Add(nstatSilentSourceProbe)
+	scan()
+	require.Equal(t, []uint64{filtered, listener}, control.descriptions())
+	tracer.processEvent(nstat.Event{Kind: nstat.EventError, Context: nstat.DescriptionContext(listener), Error: uint32(unix.ENOENT)})
+	require.Empty(t, tracer.listeners, "a listener whose removal was lost stops giving direction evidence")
 }
 
 func TestNStatTracerStartAndStop(t *testing.T) {
