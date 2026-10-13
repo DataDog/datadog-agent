@@ -2,8 +2,10 @@
 name: anomalydetection-run-gensim-scenario-on-vm
 description: >-
   Record a gensim episode with the anomaly-detection recorder on a remote Linux VM (kind cluster + Datadog Agent
-  recorder image) and fetch the recording locally for the testbench. Use for "record a gensim scenario on a VM",
-  "set up the gensim VM", "run the kafka-partition-saturation episode and fetch the parquet".
+  recorder image) and fetch the recording locally for the testbench. Agent Anomaly Detection team only: it records
+  Agent data into parquet files for our evals and is not a general-purpose gensim or Agent benchmarking procedure.
+  Use for "record a gensim scenario on a VM", "set up the gensim VM", "run the kafka-partition-saturation episode and
+  fetch the parquet".
 allowed-tools: Bash, Read, AskUserQuestion
 argument-hint: "[scenario path in gensim-episodes] [episode name] [VM ssh target]"
 ---
