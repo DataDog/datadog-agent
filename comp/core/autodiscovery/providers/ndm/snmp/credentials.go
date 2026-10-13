@@ -18,17 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-// credentialsDir and credentialsFilename locate the credential file Fleet
-// Automation writes, relative to confd_path. The file sits in a subdirectory
-// because the file config provider collects every yaml directly under snmp.d
-// as a check config.
+// credentialsDir and credentialsFilename locate the credential file, relative
+// to confd_path. It needs the subdirectory: the file config provider collects
+// every yaml directly under snmp.d as a check config.
 const (
 	credentialsDir      = "snmp.d/credentials"
 	credentialsFilename = "snmp_credentials.yaml"
 )
 
-// credential is one entry of the credential file. The yaml names match
-// pkg/snmp.Authentication, and ID is the join key an RC instance references.
+// credential is one entry of the credential file. ID is the join key an RC
+// instance references.
 type credential struct {
 	ID              string `yaml:"id"`
 	Name            string `yaml:"name"`
@@ -43,13 +42,11 @@ type credential struct {
 	ContextEngineID string `yaml:"context_engine_id"`
 }
 
-// credentialsDocument is the credential file.
 type credentialsDocument struct {
 	Credentials []credential `yaml:"credentials"`
 }
 
-// credentialStore reads the credential file Fleet Automation writes to
-// conf.d/snmp.d/credentials/snmp_credentials.yaml.
+// credentialStore reads the credential file Fleet Automation writes.
 type credentialStore struct {
 	cfg model.Reader
 }
@@ -58,13 +55,11 @@ func newCredentialStore(cfg model.Reader) *credentialStore {
 	return &credentialStore{cfg: cfg}
 }
 
-// path returns where the credential file is expected.
 func (s *credentialStore) path() string {
 	return filepath.Join(s.cfg.GetString("confd_path"), credentialsDir, credentialsFilename)
 }
 
-// load returns the credentials indexed by id, re-reading the file on every
-// call. An absent file is an empty set.
+// load returns the credentials indexed by id, re-reading the file every call.
 func (s *credentialStore) load() (map[string]credential, error) {
 	doc, err := readCredentialsFile(s.path())
 	if err != nil {
@@ -85,8 +80,7 @@ func (s *credentialStore) load() (map[string]credential, error) {
 	return creds, nil
 }
 
-// readCredentialsFile parses the credential file. No file content ever reaches
-// the returned error.
+// readCredentialsFile parses the credential file. No file content reaches the error.
 func readCredentialsFile(path string) (credentialsDocument, error) {
 	body, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -105,8 +99,7 @@ func readCredentialsFile(path string) (credentialsDocument, error) {
 	return doc, nil
 }
 
-// validate reports why a credential cannot produce a usable check instance.
-// No credential value ever reaches the returned error.
+// validate reports why a credential is unusable. No credential value reaches the error.
 func validate(c credential) error {
 	switch c.SNMPVersion {
 	case "1", "2c":

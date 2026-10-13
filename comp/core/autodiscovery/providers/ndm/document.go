@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-// parseDocument splits an NDM document into its top-level feature keys,
-// leaving each value untouched for its handler to unmarshal.
+// parseDocument splits an NDM document into its top-level keys, leaving each
+// value for its handler to unmarshal.
 func parseDocument(raw []byte) (map[string]json.RawMessage, error) {
 	var keys map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &keys); err != nil {
@@ -64,8 +64,6 @@ func (p *Provider) dispatch(path string, keys map[string]json.RawMessage) (map[s
 	return configsByKey, errsByKey, owned
 }
 
-// siblingKeys returns the document's keys other than own, for a handler whose
-// settings the backend sends outside the key it owns.
 func siblingKeys(keys map[string]json.RawMessage, own string) map[string]json.RawMessage {
 	siblings := make(map[string]json.RawMessage, len(keys)-1)
 	for key, raw := range keys {
@@ -76,8 +74,7 @@ func siblingKeys(keys map[string]json.RawMessage, own string) map[string]json.Ra
 	return siblings
 }
 
-// applyStatus aggregates a path's per-key results into the one apply state
-// Remote Configuration allows per path.
+// applyStatus aggregates a path's per-key results into one apply state.
 func applyStatus(errsByKey map[string]error, keys []string) state.ApplyStatus {
 	if len(errsByKey) == 0 {
 		return state.ApplyStatus{State: state.ApplyStateAcknowledged}
@@ -95,7 +92,6 @@ func applyStatus(errsByKey map[string]error, keys []string) state.ApplyStatus {
 	}
 }
 
-// errorSet renders a path's per-key errors for GetConfigErrors.
 func errorSet(errsByKey map[string]error, keys []string) types.ErrorMsgSet {
 	if len(errsByKey) == 0 {
 		return nil

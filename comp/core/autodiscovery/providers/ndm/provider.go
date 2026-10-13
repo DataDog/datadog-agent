@@ -25,8 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-// Provider is the Remote Configuration listener for the NDM product and the
-// autodiscovery streaming config provider for the checks it produces.
+// Provider turns NDM Remote Configuration documents into autodiscovery configs.
 type Provider struct {
 	log      log.Component
 	handlers map[string]handler.Handler
@@ -45,8 +44,7 @@ type Provider struct {
 
 var _ types.StreamingConfigProvider = (*Provider)(nil)
 
-// NewProvider builds the provider from the registered handlers, one per
-// document key. It fails if two handlers claim the same key.
+// NewProvider builds the provider from its handlers, one per document key.
 func NewProvider(logComp log.Component, handlers []handler.Handler) (*Provider, error) {
 	byKey := make(map[string]handler.Handler, len(handlers))
 	for _, h := range handlers {
@@ -182,8 +180,8 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 	p.sendChanges(changes)
 }
 
-// diffPath replaces a path's configs with the ones its handlers returned,
-// recording only what changed. The caller must hold p.stateMutex for writing.
+// diffPath replaces a path's configs, recording only what changed. The caller
+// must hold p.stateMutex for writing.
 func (p *Provider) diffPath(path string, configsByKey map[string][]integration.Config, changes *integration.ConfigChanges) {
 	current := p.activeByPath[path]
 
@@ -209,8 +207,7 @@ func (p *Provider) diffPath(path string, configsByKey map[string][]integration.C
 	p.activeByPath[path] = configsByKey
 }
 
-// removePath drops everything held for a path that left the configuration.
-// The caller must hold p.stateMutex for writing.
+// removePath drops a departed path's state. The caller must hold p.stateMutex.
 func (p *Provider) removePath(path string, changes *integration.ConfigChanges) {
 	for _, configs := range p.activeByPath[path] {
 		changes.Unschedule = append(changes.Unschedule, configs...)
@@ -235,7 +232,6 @@ func (p *Provider) sendChanges(changes integration.ConfigChanges) {
 	}
 }
 
-// sameConfigs reports whether two config sets are identical.
 func sameConfigs(a, b []integration.Config) bool {
 	if len(a) != len(b) {
 		return false
@@ -250,7 +246,6 @@ func sameConfigs(a, b []integration.Config) bool {
 	return true
 }
 
-// documentKeys renders a document's top-level keys, sorted, for a log line.
 type documentKeys map[string]json.RawMessage
 
 func (d documentKeys) String() string {
