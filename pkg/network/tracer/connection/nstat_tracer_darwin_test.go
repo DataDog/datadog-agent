@@ -1551,6 +1551,61 @@ func TestNStatTracerProbesSilentUnpublishedSources(t *testing.T) {
 	require.Empty(t, tracer.listeners, "a listener whose removal was lost stops giving direction evidence")
 }
 
+func TestNStatTracerKeepsExpiredConnectionUnpublished(t *testing.T) {
+	control := newFakeNStatControl()
+	tracer := newNStatTracerWithControl(testNStatConfig(), control)
+	start := time.Unix(440, 0)
+	now := start
+	tracer.now = func() time.Time { return now }
+	var closed []*network.ConnectionStats
+	tracer.closeCallback = func(conn *network.ConnectionStats) { closed = append(closed, conn) }
+	expired := nstatTracerTelemetry.expiredConnections.WithValues()
+	expiredRemovals := nstatTracerTelemetry.removals.WithValues("expired")
+	expiredBefore, removalsBefore := expired.Get(), expiredRemovals.Get()
+
+	const removedLater, vanished = 121, 122
+	counts := &nstat.Counts{TXPackets: 3, TXBytes: 300, RXPackets: 4, RXBytes: 400, ConnectAttempts: 1, ConnectSuccesses: 1}
+	for sourceRef, port := range map[uint64]uint16{removedLater: 50001, vanished: 50002} {
+		flow := testNStatTCPFlow(5001, tcpStateEstablished)
+		flow.Local.Port = port
+		tracer.processEvent(nstat.Event{Kind: nstat.EventDescription, SourceRef: sourceRef, Provider: nstat.ProviderTCPKernel, Flow: flow, Counts: counts})
+	}
+	var buffer network.ConnectionBuffer
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Len(t, buffer.Connections(), 2)
+	for _, conn := range buffer.Connections() {
+		require.NoError(t, tracer.Remove(&conn))
+	}
+	require.Equal(t, expiredBefore+2, expired.Get())
+
+	// The kernel still has the source, so later counts and its final
+	// description must not publish the connection again.
+	tracer.processEvent(nstat.Event{Kind: nstat.EventCounts, SourceRef: removedLater, Counts: counts})
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: removedLater,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      tracer.sources[removedLater].flow,
+	})
+	buffer.Reset()
+	require.NoError(t, tracer.GetConnections(&buffer, nil))
+	require.Empty(t, buffer.Connections())
+	require.Empty(t, tracer.byCookie)
+
+	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: removedLater})
+	require.NotContains(t, tracer.sources, uint64(removedLater))
+	require.Empty(t, closed, "the caller already removed the connection")
+
+	now = start.Add(nstatSilentSourceProbe)
+	tracer.queuePendingDescriptions(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, []uint64{vanished}, control.descriptions(), "an expired source whose removal was lost is probed")
+	tracer.processEvent(nstat.Event{Kind: nstat.EventError, Context: nstat.DescriptionContext(vanished), Error: uint32(unix.ENOENT)})
+	require.Empty(t, tracer.sources)
+	require.Empty(t, closed)
+	require.Equal(t, removalsBefore+2, expiredRemovals.Get())
+}
+
 func TestNStatTracerStartAndStop(t *testing.T) {
 	control := newFakeNStatControl()
 	tracer := newNStatTracerWithControl(testNStatConfig(), control)

@@ -107,6 +107,7 @@ var nstatTracerTelemetry = struct {
 	droppedSources     telemetry.Counter
 	removals           telemetry.Counter
 	lostRemovals       telemetry.Counter
+	expiredConnections telemetry.Counter
 	runtimeFailures    telemetry.Counter
 	directionConflicts telemetry.Counter
 	directionInferred  telemetry.Counter
@@ -125,8 +126,9 @@ var nstatTracerTelemetry = struct {
 	kernelErrors:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "kernel_errors", []string{"request", "errno"}, "Error responses from the NStat kernel control, by request (subscribe, describe, or query) and errno"),
 	descriptionErrors:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "description_errors", nil, "NStat source description requests that failed"),
 	droppedSources:     telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "dropped_sources", nil, "NStat sources dropped at the tracking limit"),
-	removals:           telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "removals", []string{"resolution"}, "NStat source removals: published (resolved), described but not published (filtered), or never described (unresolved)"),
+	removals:           telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "removals", []string{"resolution"}, "NStat source removals: published (resolved), described but not published (filtered), never described (unresolved), or unpublished by connection expiry (expired)"),
 	lostRemovals:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "lost_removals", nil, "Unpublished NStat sources dropped because the kernel no longer had them and their removal never arrived"),
+	expiredConnections: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "expired_connections", nil, "NStat connections removed by connection expiry because their counts stopped arriving"),
 	runtimeFailures:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "runtime_failures", nil, "Fatal NStat runtime failures"),
 	directionConflicts: telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_conflicts", nil, "Conflicting direction evidence observed"),
 	directionInferred:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "direction_inferred", []string{"result"}, "TCP directions inferred from ports, and inferences later overridden by direction evidence"),
@@ -161,6 +163,7 @@ type nstatSource struct {
 	lastSeen                 time.Time
 	removed                  bool
 	removedAt                time.Time
+	retired                  bool
 	tcpStateObserved         bool
 	tcpEstablished           bool
 	tcpEstablishedAfterStart bool
@@ -559,7 +562,7 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 			if source.conn != nil {
 				closed = t.closeAndRemoveSource(event.SourceRef, source)
 			} else if !nstatSourceAwaitingTuple(source) {
-				t.removeUnpublishedSource(event.SourceRef, source, "filtered")
+				t.removeUnpublishedSource(event.SourceRef, source, nstatUnpublishedResolution(source))
 			} else {
 				// XNU answers this request with ENOENT, which drops the source;
 				// nstatPendingRemovalTTL covers a lost reply.
@@ -721,7 +724,7 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		return
 	}
 	if source.conn == nil {
-		if !nstatSourceResolved(source) || !nstatSourceEnabled(t.config, source) {
+		if source.retired || !nstatSourceResolved(source) || !nstatSourceEnabled(t.config, source) {
 			return
 		}
 		if !t.includeLoopback && t.flowIsLoopback(source.flow) {
@@ -1361,11 +1364,18 @@ func (t *nstatTracer) removeVanishedSource(sourceRef uint64) {
 	if !source.removed {
 		nstatTracerTelemetry.lostRemovals.Inc()
 	}
-	resolution := "unresolved"
-	if !nstatSourceAwaitingTuple(source) {
-		resolution = "filtered"
+	t.removeUnpublishedSource(sourceRef, source, nstatUnpublishedResolution(source))
+}
+
+func nstatUnpublishedResolution(source *nstatSource) string {
+	switch {
+	case source.retired:
+		return "expired"
+	case nstatSourceAwaitingTuple(source):
+		return "unresolved"
+	default:
+		return "filtered"
 	}
-	t.removeUnpublishedSource(sourceRef, source, resolution)
 }
 
 // closeAndRemoveSource handles a close the kernel reported, so TCP sources
@@ -1520,20 +1530,23 @@ func (t *nstatTracer) GetConnections(buffer *network.ConnectionBuffer, filter fu
 
 func (t *nstatTracer) FlushPending() {}
 
+// Remove unpublishes a connection the caller expired. Expiry means its counts
+// stopped arriving, not that the kernel removed the source, so the source
+// stays tracked until the kernel removes it. Dropping it would let its next
+// counts or final description publish it again under the same cookie, with
+// cumulative counters the caller has already reported.
 func (t *nstatTracer) Remove(conn *network.ConnectionStats) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	for sourceRef, source := range t.sources {
-		if source.conn != nil && source.conn.Cookie == conn.Cookie {
-			t.removeTCPListener(sourceRef, source)
-			delete(t.sources, sourceRef)
-			delete(t.descriptionQueued, sourceRef)
-			delete(t.byCookie, conn.Cookie)
-			t.tuples.remove(conn.Cookie)
-			nstatTracerTelemetry.activeSources.Set(float64(len(t.sources)))
-			break
-		}
+	source := t.byCookie[conn.Cookie]
+	if source == nil || source.conn == nil {
+		return nil
 	}
+	delete(t.byCookie, conn.Cookie)
+	t.tuples.remove(conn.Cookie)
+	source.conn = nil
+	source.retired = true
+	nstatTracerTelemetry.expiredConnections.Inc()
 	return nil
 }
 
