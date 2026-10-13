@@ -73,6 +73,8 @@ func TestMarkedInfraModeTags(t *testing.T) {
 		{"end_user_device", "end_user_device", []string{"infra_mode:end_user_device"}},
 		{"full returns nil", "full", nil},
 		{"basic returns nil", "basic", nil},
+		{"none returns nil", "none", nil},
+		{"an unknown mode returns nil", "cloud_cost", nil},
 	}
 
 	for _, tc := range tests {

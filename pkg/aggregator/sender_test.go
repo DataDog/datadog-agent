@@ -577,24 +577,29 @@ func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
 	assert.Contains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
 }
 
-func TestCheckSenderEventInfraMode(t *testing.T) {
+func TestCheckSenderEventAppendsInfraModeEventTags(t *testing.T) {
 	tests := []struct {
-		name         string
-		mode         string
-		expectedTags []string
+		name               string
+		infraModeEventTags []string
+		expectedTags       []string
 	}{
-		{"cloud_cost_only is marked", "cloud_cost_only", []string{"env:prod", "infra_mode:cloud_cost_only"}},
-		{"end_user_device is marked", "end_user_device", []string{"env:prod", "infra_mode:end_user_device"}},
-		{"full is not marked", "full", []string{"env:prod"}},
-		{"an unknown mode is not marked", "cloud_cost", []string{"env:prod"}},
+		{
+			name:               "appends injected mark tags",
+			infraModeEventTags: []string{"infra_mode:cloud_cost_only"},
+			expectedTags:       []string{"env:prod", "infra_mode:cloud_cost_only"},
+		},
+		{
+			name:               "nil mark tags leaves event tags unchanged",
+			infraModeEventTags: nil,
+			expectedTags:       []string{"env:prod"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			cfg.Set("infrastructure_mode", tt.mode, pkgconfigmodel.SourceFile)
-
 			s := initSender(checkID1, "")
+			s.sender.infraModeEventTags = tt.infraModeEventTags
+
 			s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
 
 			assert.Equal(t, tt.expectedTags, (<-s.eventChan).Tags)
