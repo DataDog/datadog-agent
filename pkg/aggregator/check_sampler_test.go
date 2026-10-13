@@ -610,6 +610,170 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
 }
 
+func testCheckHistogramBucketNegativeInfinityBucket(t *testing.T, store *tags.Store) {
+	for _, tc := range []struct {
+		name  string
+		upper float64
+	}{
+		{"negative upper bound", -1.0},
+		{"zero upper bound", 0.0},
+		{"positive upper bound", 5.0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			taggerComponent := nooptagger.NewComponent()
+			checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+			tagmatcher := filterlistimpl.NewNoopTagMatcher()
+			matcher := metricname.NewMatcher([]string{}, false)
+
+			checkSampler.addBucket(&metrics.HistogramBucket{
+				Name:       "my.histogram",
+				Value:      4,
+				LowerBound: math.Inf(-1),
+				UpperBound: tc.upper,
+				Tags:       []string{"foo", "bar"},
+				Timestamp:  12345.0,
+			}, tagmatcher)
+
+			checkSampler.commit(12349.0, &matcher)
+			_, flushed := checkSampler.flush()
+			require.Len(t, flushed, 1)
+			require.Len(t, flushed[0].Points, 1)
+
+			// compared directly: the approx helper divides by the expected value, so it cannot check a zero bound
+			assert.Equal(t, sketchOf(tc.upper, tc.upper, 4).Basic, flushed[0].Points[0].Sketch.Basic)
+		})
+	}
+}
+
+func TestCheckHistogramBucketNegativeInfinityBucket(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketNegativeInfinityBucket)
+}
+
+func testCheckHistogramBucketNegativeInfinityFullHistogram(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	// Same buckets an OpenMetrics check sends for le="-1.0" 4, le="5.0" 10, le="+Inf" 12
+	for _, b := range []struct {
+		lower, upper float64
+		value        int64
+	}{
+		{math.Inf(-1), -1.0, 4},
+		{-1.0, 5.0, 6},
+		{5.0, math.Inf(1), 2},
+	} {
+		checkSampler.addBucket(&metrics.HistogramBucket{
+			Name:            "my.histogram",
+			Value:           b.value,
+			LowerBound:      b.lower,
+			UpperBound:      b.upper,
+			Tags:            []string{"foo", "bar"},
+			Timestamp:       12345.0,
+			MultipleBuckets: true,
+		}, tagmatcher)
+	}
+
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	require.Len(t, flushed, 1)
+
+	expSketch := &quantile.Agent{}
+	expSketch.InsertInterpolate(-1.0, -1.0, 4)
+	expSketch.InsertInterpolate(-1.0, 5.0, 6)
+	expSketch.InsertInterpolate(5.0, 5.0, 2)
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch.Finish()},
+		},
+	}, flushed[0], .03)
+	// no observation dropped
+	assert.Equal(t, int64(12), flushed[0].Points[0].Sketch.Basic.Cnt)
+}
+
+func TestCheckHistogramBucketNegativeInfinityFullHistogram(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketNegativeInfinityFullHistogram)
+}
+
+func testCheckHistogramBucketBothInfiniteBounds(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	// No finite bound to collapse to: the bucket is dropped.
+	checkSampler.addBucket(&metrics.HistogramBucket{
+		Name:       "my.histogram",
+		Value:      4,
+		LowerBound: math.Inf(-1),
+		UpperBound: math.Inf(1),
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12345.0,
+	}, tagmatcher)
+
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	assert.Len(t, flushed, 0)
+}
+
+func TestCheckHistogramBucketBothInfiniteBounds(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketBothInfiniteBounds)
+}
+
+func testCheckHistogramBucketNegativeInfinityMonotonic(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	newBucket := func(value int64, ts float64) *metrics.HistogramBucket {
+		return &metrics.HistogramBucket{
+			Name:            "my.histogram",
+			Value:           value,
+			LowerBound:      math.Inf(-1),
+			UpperBound:      -1.0,
+			Tags:            []string{"foo", "bar"},
+			Timestamp:       ts,
+			Monotonic:       true,
+			MultipleBuckets: true,
+		}
+	}
+
+	// First raw value is not flushed (FlushFirstValue false), only recorded.
+	checkSampler.addBucket(newBucket(4, 12345.0), tagmatcher)
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	require.Len(t, flushed, 0)
+
+	checkSampler.addBucket(newBucket(10, 12400.0), tagmatcher)
+	checkSampler.commit(12401.0, &matcher)
+	_, flushed = checkSampler.flush()
+	require.Len(t, flushed, 1)
+
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
+		Points: []metrics.SketchPoint{
+			{Ts: 12400.0, Sketch: sketchOf(-1.0, -1.0, 6)},
+		},
+	}, flushed[0], .03)
+}
+
+func TestCheckHistogramBucketNegativeInfinityMonotonic(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketNegativeInfinityMonotonic)
+}
+
 func testCheckDistribution(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
