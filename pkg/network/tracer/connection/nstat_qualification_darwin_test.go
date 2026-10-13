@@ -9,6 +9,7 @@ package connection
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -444,6 +446,90 @@ func TestNStatQualificationRefusedConnection(t *testing.T) {
 		conn, ok := closed.find(pid, remotePort)
 		return ok && conn.IsClosed && conn.TCPFailures[network.TCPFailureErrnoConnRefused] > 0
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestNStatQualificationConnectTimeout(t *testing.T) {
+	requireNStatQualification(t)
+	if cookies, err := unix.SysctlUint32("net.inet.tcp.syncookie"); err == nil && cookies != 0 {
+		t.Skipf("net.inet.tcp.syncookie=%d answers SYNs to a full accept queue; set it to 0 to run", cookies)
+	}
+
+	// net.Listen uses somaxconn as the backlog, so the listener is built by
+	// hand with room for one queued connection. Nothing accepts, so the first
+	// connection fills the queue and the kernel drops later SYNs without a reset.
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = unix.Close(fd) })
+	require.NoError(t, unix.Bind(fd, &unix.SockaddrInet4{Addr: [4]byte{127, 0, 0, 1}}))
+	require.NoError(t, unix.Listen(fd, 1))
+	bound, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	listenPort := uint16(bound.(*unix.SockaddrInet4).Port)
+	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(listenPort)))
+
+	tracer, closed := startNStatQualificationTracer(t)
+
+	filler, err := net.DialTimeout("tcp4", address, 2*time.Second)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = filler.Close() })
+	fillerPort := uint16(filler.LocalAddr().(*net.TCPAddr).Port)
+
+	dialed := make(chan error, 1)
+	go func() {
+		conn, err := net.DialTimeout("tcp4", address, 12*time.Second)
+		if conn != nil {
+			_ = conn.Close()
+		}
+		dialed <- err
+	}()
+
+	pid := uint32(os.Getpid())
+	var probePort uint16
+	var candidates []string
+	latched := assert.Eventually(t, func() bool {
+		candidates = candidates[:0]
+		tracer.mu.Lock()
+		defer tracer.mu.Unlock()
+		for _, source := range tracer.sources {
+			flow := source.flow
+			if flow == nil || flow.PID != pid || flow.Remote.Port != listenPort || flow.Local.Port == fillerPort {
+				continue
+			}
+			candidates = append(candidates, fmt.Sprintf(
+				"port=%d state=%d published=%t known=%t latched=%t expired=%t",
+				flow.Local.Port,
+				flow.TCPState,
+				source.conn != nil,
+				flow.ConnStatusKnown,
+				source.connProbeFailed,
+				source.connProbeExpired,
+			))
+			if source.connProbeFailed {
+				probePort = flow.Local.Port
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second, 50*time.Millisecond)
+	require.Truef(t, latched, "conn_probe_failed was not latched for the connect to %s; candidates=%v", address, candidates)
+
+	select {
+	case err := <-dialed:
+		var netErr net.Error
+		require.Truef(t, errors.As(err, &netErr) && netErr.Timeout(), "connect to the full queue must time out, got %v", err)
+	case <-time.After(15 * time.Second):
+		require.Fail(t, "connect to the full queue did not return")
+	}
+
+	var conn network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		var ok bool
+		conn, ok = closed.findTuple(pid, probePort, listenPort)
+		return ok
+	}, 5*time.Second, 10*time.Millisecond, "closed connection %d -> %d was not delivered", probePort, listenPort)
+	require.True(t, conn.IsClosed)
+	require.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
+	require.Equal(t, map[uint16]uint32{network.TCPFailureErrnoTimedOut: 1}, conn.TCPFailures)
 }
 
 func TestNStatQualificationAbortiveCloseLifecycle(t *testing.T) {
