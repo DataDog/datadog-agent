@@ -57,7 +57,7 @@ func (client *Client) newRequest(ctx context.Context, method, uri string, body i
 func (client *Client) do(req *http.Request) ([]byte, int, http.Header, error) {
 	// Cross-forgery token
 	client.authenticationMutex.Lock()
-	req.Header.Add("X-XSRF-TOKEN", client.token)
+	req.Header.Set("X-XSRF-TOKEN", client.token)
 	client.authenticationMutex.Unlock()
 
 	log.Tracef("Executing cisco sd-wan api request %s %s", req.Method, req.URL.Path)
@@ -87,21 +87,17 @@ func (client *Client) do(req *http.Request) ([]byte, int, http.Header, error) {
 
 // get executes a GET request to the given endpoint with the given query params
 func (client *Client) get(ctx context.Context, endpoint string, params map[string]string) ([]byte, error) {
-	req, err := client.newRequest(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	query := req.URL.Query()
-	for key, value := range params {
-		query.Add(key, value)
-	}
-	req.URL.RawQuery = query.Encode()
-
 	var statusCode int
 
 	operation := func() ([]byte, error) {
-		err := client.authenticate(ctx)
+		// Build a new request for every attempt, so state set on a previous attempt (like a
+		// re-authentication token) does not leak into the next one
+		req, err := client.newGetRequest(ctx, endpoint, params)
+		if err != nil {
+			return nil, backoff.Permanent(err)
+		}
+
+		err = client.authenticate(ctx)
 		if err != nil {
 			return nil, client.authRetryError(ctx, err)
 		}
@@ -147,6 +143,21 @@ func (client *Client) get(ctx context.Context, endpoint string, params map[strin
 	}
 
 	return nil, fmt.Errorf("%s http responded with %d code", endpoint, statusCode)
+}
+
+// newGetRequest creates a GET request to the given endpoint with the given query params
+func (client *Client) newGetRequest(ctx context.Context, endpoint string, params map[string]string) (*http.Request, error) {
+	req, err := client.newRequest(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	query := req.URL.Query()
+	for key, value := range params {
+		query.Add(key, value)
+	}
+	req.URL.RawQuery = query.Encode()
+	return req, nil
 }
 
 // logRetryGiveUp logs why retrying a failed request stopped, when it ran out of attempts
