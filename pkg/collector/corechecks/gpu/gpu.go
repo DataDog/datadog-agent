@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,9 @@ import (
 
 const (
 	gpuMetricsNs = "gpu."
+
+	// draCDISpecsMissingThreshold is how long unresolved DRA claims without CDI specs must persist before being reported.
+	draCDISpecsMissingThreshold = 5 * time.Minute
 )
 
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
@@ -71,6 +75,9 @@ type Check struct {
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
+	driverEventsEnabled bool                             // driverEventsEnabled is true when driver events are requested from system-probe
+	sysprobeData        *sysprobeDataTracker             // sysprobeData tracks failures of the system-probe data sources; only touched from the Run goroutine
+	draCDIMissingSince  time.Time                        // draCDIMissingSince is when unresolved DRA claims without CDI specs were first seen; only touched from the Run goroutine
 }
 
 type checkTelemetry struct {
@@ -107,6 +114,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		rateCalculator:      nvidia.NewRateCalculator(),
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
 		sysprobeNvmlState:   newSysprobeNvmlStateNotifier(),
+		sysprobeData:        newSysprobeDataTracker(),
 	}
 }
 
@@ -191,6 +199,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	c.spCache = nil
 	c.prmCache = nil
+	c.driverEventsEnabled = false
+	c.sysprobeData = newSysprobeDataTracker()
 	var driverEventsSource nvidia.DriverEventsSource
 	if c.gpuConfig.Enabled {
 		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled {
@@ -204,6 +214,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 			}
 			if c.gpuConfig.DriverEventsEnabled {
 				driverEventsSource = nvidia.NewDriverEventsCache(client)
+				c.driverEventsEnabled = true
 			}
 		}
 	}
@@ -393,14 +404,18 @@ func (c *Check) Run() error {
 
 	// Refresh system-probe data before collecting metrics.
 	if c.spCache != nil && c.gpuConfig.EnableEBPFProbes {
-		if err := c.spCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+		err := c.spCache.Refresh()
+		c.sysprobeData.record(gpuenvironment.SystemProbeSourceEBPF, err, currentExecutionTime)
+		if err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error refreshing system-probe stats cache: %v", err)
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
 		}
 	}
 
 	if c.prmCache != nil {
-		if err := c.prmCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+		err := c.prmCache.Refresh()
+		c.sysprobeData.record(gpuenvironment.SystemProbeSourcePRM, err, currentExecutionTime)
+		if err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error refreshing PRM cache: %v", err)
 		}
 	}
@@ -416,11 +431,17 @@ func (c *Check) Run() error {
 		nvidia.ResetEventRegistrations(c.collectors)
 	}
 
-	// Attempt refreshing device events
-	if err := c.deviceEvtGatherer.Refresh(currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
+	// Attempt refreshing device events. Only the system-probe driver events
+	// source returns errors here.
+	err = c.deviceEvtGatherer.Refresh(currentExecutionTime)
+	if c.driverEventsEnabled {
+		c.sysprobeData.record(gpuenvironment.SystemProbeSourceDriverEvents, err, currentExecutionTime)
+	}
+	if err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error refreshing device events cache: %v", err)
 		// Might cause empty metrics in collectors depending on device events
 	}
+	c.syncSysprobeDataHealthIssue(currentExecutionTime)
 
 	// Make sure workload tag resolution attempts retrieving the most up to date values.
 	// Stale cache entries (from previous runs) might still be used as a fallback.
@@ -429,6 +450,7 @@ func (c *Check) Run() error {
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
+	c.syncDRACDIHealthIssue(currentExecutionTime)
 
 	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
@@ -471,6 +493,29 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 	}
 }
 
+func (c *Check) syncSysprobeDataHealthIssue(now time.Time) {
+	if c.issueReporter == nil {
+		return
+	}
+
+	failures := c.sysprobeData.failures(now)
+	if len(failures) == 0 {
+		c.issueReporter.ResolveIssue(gpuenvironment.SystemProbeDataIssueID)
+		return
+	}
+
+	issue, err := gpuenvironment.NewSystemProbeDataIssue().BuildIssue(failures)
+	if err != nil {
+		log.Warnf("failed to build GPU system-probe data health issue: %v", err)
+		return
+	}
+	issue.Id = gpuenvironment.SystemProbeDataIssueID
+
+	if err := c.issueReporter.ReportIssue(issue); err != nil {
+		log.Warnf("failed to report GPU system-probe data health issue: %v", err)
+	}
+}
+
 func gpuHealthIssueID(reason string) string {
 	return gpuenvironment.IssueID + ":" + reason
 }
@@ -505,6 +550,62 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	}
 
 	return gpuToContainers
+}
+
+// countUnresolvedDRAContainers returns the number of running non-Datadog
+// containers holding NVIDIA DRA GPU claims that were not resolved to devices.
+func (c *Check) countUnresolvedDRAContainers() int {
+	count := 0
+	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
+		if containers.HasUnresolvedDRAGPUClaim(container) && !containers.IsDatadogAgentContainer(c.wmeta, container) {
+			count++
+		}
+	}
+	return count
+}
+
+// syncDRACDIHealthIssue reports an issue when containers hold NVIDIA DRA GPU
+// claims that could not be resolved and no CDI spec directory contains NVIDIA
+// DRA claim specs, for at least draCDISpecsMissingThreshold. The threshold
+// avoids reporting the window in which the last claim spec has been removed
+// but its container is still listed as running.
+func (c *Check) syncDRACDIHealthIssue(now time.Time) {
+	if c.issueReporter == nil {
+		return
+	}
+
+	unresolvedDRAContainers := c.countUnresolvedDRAContainers()
+	var specsErr error
+	if unresolvedDRAContainers > 0 {
+		specsErr = containers.CheckNvidiaDRACDISpecs()
+	}
+	if specsErr == nil {
+		c.draCDIMissingSince = time.Time{}
+		c.issueReporter.ResolveIssue(gpuenvironment.DRACDIIssueID)
+		return
+	}
+
+	if c.draCDIMissingSince.IsZero() {
+		c.draCDIMissingSince = now
+	}
+	if now.Sub(c.draCDIMissingSince) < draCDISpecsMissingThreshold {
+		return
+	}
+
+	issue, err := gpuenvironment.NewDRACDIIssue().BuildIssue(map[string]string{
+		gpuenvironment.DRACDIContextKeySearchedPaths:  strings.Join(containers.CDISpecDirs, ","),
+		gpuenvironment.DRACDIContextKeyError:          specsErr.Error(),
+		gpuenvironment.DRACDIContextKeyContainerCount: strconv.Itoa(unresolvedDRAContainers),
+	})
+	if err != nil {
+		log.Warnf("failed to build GPU DRA CDI health issue: %v", err)
+		return
+	}
+	issue.Id = gpuenvironment.DRACDIIssueID
+
+	if err := c.issueReporter.ReportIssue(issue); err != nil {
+		log.Warnf("failed to report GPU DRA CDI health issue: %v", err)
+	}
 }
 
 type deviceSamplesCollection struct {
