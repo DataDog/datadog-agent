@@ -15,17 +15,29 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpuenvironment"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysprobetestutil "github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 )
 
 func TestSysprobeDataTracker(t *testing.T) {
@@ -127,6 +139,120 @@ func TestSyncDRACDIHealthIssue(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(specDir, containers.NvidiaDRAClaimSpecFileName("other")), []byte("{}"), 0o644))
 	check.syncDRACDIHealthIssue(2, start.Add(2*draCDISpecsMissingThreshold))
 	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
+}
+
+type failingDeviceCache struct {
+	ddnvml.DeviceCache
+}
+
+func (failingDeviceCache) AllPhysicalDevices() ([]ddnvml.Device, error) {
+	return nil, errors.New("device cache unavailable")
+}
+
+func newDRAContainer(id string) *workloadmeta.Container {
+	return &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+		Runtime:  workloadmeta.ContainerRuntimeContainerd,
+		State:    workloadmeta.ContainerState{Running: true},
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{{
+			Name:       string(gpuutil.GpuNvidiaDRA),
+			CdiDevices: []string{"k8s.gpu.nvidia.com/claim=" + id + "-gpu-0"},
+		}},
+	}
+}
+
+func TestGetGPUToContainersMapSyncsDRACDIHealthIssue(t *testing.T) {
+	original := containers.CDISpecDirs
+	t.Cleanup(func() { containers.CDISpecDirs = original })
+	containers.CDISpecDirs = []string{t.TempDir()}
+
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
+	healthStore := healthplatformmock.New(t)
+	check.SetIssueReporter(healthStore)
+
+	workloadContainer := newDRAContainer("workload")
+	agentContainer := newDRAContainer("agent")
+	wmetaMock.Set(workloadContainer)
+	wmetaMock.Set(agentContainer)
+	wmetaMock.Set(&workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.Itoa(os.Getpid())},
+		Pid:      int32(os.Getpid()),
+		Owner:    &agentContainer.EntityID,
+	})
+
+	start := time.Now()
+	check.getGPUToContainersMap(start)
+	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
+
+	check.getGPUToContainersMap(start.Add(draCDISpecsMissingThreshold))
+	issue := healthStore.GetIssue(gpuenvironment.DRACDIIssueID)
+	require.NotNil(t, issue)
+	// The Agent's own container is not counted.
+	assert.Equal(t, "1", issue.GetExtra().GetFields()[gpuenvironment.DRACDIContextKeyContainerCount].GetStringValue())
+
+	// Without the device list the containers are not inspected, so the issue
+	// must not be resolved even though no unresolved claims remain.
+	wmetaMock.Unset(workloadContainer)
+	check.deviceCache = failingDeviceCache{DeviceCache: check.deviceCache}
+	check.getGPUToContainersMap(start.Add(2 * draCDISpecsMissingThreshold))
+	assert.NotNil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
+}
+
+func TestRunRecordsSysprobeDataSources(t *testing.T) {
+	socketPath := sysprobetestutil.SystemProbeSocketPath(t, "gpu-check")
+	server, err := sysprobetestutil.NewSystemProbeTestServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/debug/stats":
+			_, _ = w.Write([]byte(`{}`))
+		case "/gpu/driver-events":
+			_, _ = w.Write([]byte(`[]`))
+		case "/gpu/prm-metrics":
+			http.Error(w, "GPU PRM endpoint is disabled", http.StatusServiceUnavailable)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}), socketPath)
+	require.NoError(t, err)
+	server.Start()
+	t.Cleanup(server.Close)
+
+	spConfig := pkgconfigsetup.SystemProbe()
+	for key, value := range map[string]interface{}{
+		"system_probe_config.sysprobe_socket":  socketPath,
+		"gpu_monitoring.enabled":               true,
+		"gpu_monitoring.enable_ebpf_probes":    true,
+		"gpu_monitoring.prm_endpoint_enabled":  true,
+		"gpu_monitoring.driver_events_enabled": true,
+	} {
+		original := spConfig.Get(key)
+		spConfig.SetInTest(key, value)
+		t.Cleanup(func() { spConfig.SetInTest(key, original) })
+	}
+
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithProcessData(nil, nvml.SUCCESS))
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	require.NotNil(t, check.spCache)
+	require.NotNil(t, check.prmCache)
+	require.True(t, check.driverEventsEnabled)
+	// PRM is only requested from system-probe when a collector registered a request.
+	check.prmCache.RegisterRequest(model.PRMRequest{DeviceUUID: testutil.DefaultGpuUUID, Port: 1, Group: 34})
+
+	require.NoError(t, check.Run())
+
+	errorClasses := make(map[string]string)
+	for _, failure := range check.sysprobeData.failures(time.Now().Add(sysprobeDataUnavailableThreshold)) {
+		errorClasses[failure.Source] = failure.ErrorClass
+	}
+	assert.Equal(t, map[string]string{
+		gpuenvironment.SystemProbeSourceEBPF: gpuenvironment.SystemProbeErrorModuleNotLoaded,
+		gpuenvironment.SystemProbeSourcePRM:  gpuenvironment.SystemProbeErrorSourceDisabled,
+	}, errorClasses)
+
+	driverEvents, ok := check.sysprobeData.sources[gpuenvironment.SystemProbeSourceDriverEvents]
+	require.True(t, ok, "driver events refresh was not recorded")
+	assert.NoError(t, driverEvents.lastErr)
 }
 
 func TestHealthIssueSyncWithNilReporter(t *testing.T) {
