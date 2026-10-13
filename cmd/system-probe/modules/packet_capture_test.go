@@ -8,7 +8,9 @@
 package modules
 
 import (
+	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,4 +44,40 @@ func TestHandleCaptureSendsHeadersBeforeFirstPacket(t *testing.T) {
 	_, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, "0", resp.Trailer.Get("X-Packet-Count"))
+}
+
+// TestHandleCaptureFlushDoesNotRaceWithPackets checks that the handler's
+// initial flush is serialized with the drain loop's packet writes. Run with
+// -race: on a busy interface the first packets are written while the handler
+// is still flushing the response headers.
+func TestHandleCaptureFlushDoesNotRaceWithPackets(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("opening a capture handle requires root")
+	}
+
+	conn, err := net.Dial("udp", "127.0.0.1:9")
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		payload := []byte("pcap-race")
+		for ctx.Err() == nil {
+			_, _ = conn.Write(payload)
+		}
+	}()
+
+	srv := httptest.NewServer(http.HandlerFunc(handleCapture))
+	t.Cleanup(srv.Close)
+
+	body := `{"interface":"lo","bpfFilter":"udp port 9","durationSecs":2}`
+	resp, err := http.Post(srv.URL, "application/json", strings.NewReader(body))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	_, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.NotEqual(t, "0", resp.Trailer.Get("X-Packet-Count"))
 }
