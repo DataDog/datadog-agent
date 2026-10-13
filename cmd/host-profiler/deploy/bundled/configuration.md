@@ -25,7 +25,7 @@ The following settings can be overridden in the Datadog Agent configuration for 
 
 | Name                                  | Values | Default          | Description                                                                                                                                      |
 |:--------------------------------------|:-------|:-----------------|:-------------------------------------------------------------------------------------------------------------------------------------------------|
-| `hostprofiler.health_metrics.enabled` | bool   | `true`           | Sends internal Host Profiler health metrics to Datadog.                                                                                          |
+| `hostprofiler.health_metrics.enabled` | bool   | `true`           | Sends internal Host Profiler health metrics to Datadog. Automatically disabled when `infrastructure_mode: none`.                                 |
 | `hostprofiler.health_metrics.target`  | string | `127.0.0.1:8889` | Address used for the Host Profiler internal Prometheus metrics endpoint. Change this only if the default address conflicts with another service. |
 
 ### Diagnostics

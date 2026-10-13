@@ -24,6 +24,13 @@ from tasks.libs.common.color import color_message
 PYTHON_FTP_URL = "https://www.python.org/ftp/python/"
 PYTHON_SBOM_LINUX_URL_TEMPLATE = "https://www.python.org/ftp/python/{version}/Python-{version}.tgz.spdx.json"
 
+# Patch versions the automated upgrade must never select, mapped to the reason.
+# Drop an entry once the version is older than the current one.
+EXCLUDED_PYTHON_VERSIONS = {
+    # The Agent imports Python checks from several goroutines, so some checks randomly fail to load.
+    "3.13.16": "the python/cpython#130094 backport makes concurrent imports raise _DeadlockError",
+}
+
 
 def _version_tuple(version: str) -> tuple[int, ...]:
     """Convert a version string like '3.13.8' to a comparable tuple (3, 13, 8)."""
@@ -172,6 +179,11 @@ def _get_latest_python_version(major_minor: str) -> str | None:
         match = re.search(pattern, line)
         if match:
             version_str = match.group(1)
+            if version_str in EXCLUDED_PYTHON_VERSIONS:
+                print(
+                    color_message(f"Skipping Python {version_str}: {EXCLUDED_PYTHON_VERSIONS[version_str]}", "yellow")
+                )
+                continue
             if _validate_version_string(version_str):
                 versions.append(version_str)
 

@@ -77,8 +77,26 @@ type Config struct {
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
-	if _, ok := c.ActionsAllowlist[bundleId]; ok {
-		return c.ActionsAllowlist[bundleId].HasAny(actionName, "*")
+	if c.ActionsAllowlist[bundleId].Has(actionName) {
+		return true
+	}
+
+	// Wildcards may cover an integration and its sub-bundles, but must never
+	// enable the entire com.datadoghq namespace.
+	if !strings.HasPrefix(bundleId, "com.datadoghq.") {
+		return false
+	}
+	parts := strings.Split(bundleId, ".")
+	for _, part := range parts {
+		if part == "" || strings.Contains(part, "*") {
+			return false
+		}
+	}
+	for len(parts) >= 3 {
+		if c.ActionsAllowlist[strings.Join(parts, ".")].Has("*") {
+			return true
+		}
+		parts = parts[:len(parts)-1]
 	}
 	return false
 }

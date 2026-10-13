@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/netip"
@@ -34,6 +35,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -729,6 +731,11 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 		networkID, err = getNetworkID(sysProbeClient)
 		if err == nil {
 			return networkID, nil
+		}
+		if errors.Is(err, network.ErrCloudProviderUnsupported) {
+			// the host's cloud provider is known and doesn't support network ID
+			// resolution: retrying won't produce a different result
+			return "", err
 		}
 		log.Debugf(
 			"failed to fetch network ID (attempt %d/%d): %s",

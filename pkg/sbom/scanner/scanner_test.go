@@ -171,7 +171,6 @@ func TestRetryLogic_Error(t *testing.T) {
 			// Set up the configuration as the default one is too slow
 			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-			cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 			// Create a scanner and start it
 			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
@@ -235,7 +234,6 @@ func TestRetryLogic_NotSupported(t *testing.T) {
 	// Keep the backoff short so a mistaken retry would show up quickly.
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime)
 
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 	ctx, cancel := context.WithCancel(context.Background())
@@ -292,7 +290,6 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	// Set up the configuration as the default one is too slow
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
@@ -358,7 +355,6 @@ func TestRetryChannelFull(t *testing.T) {
 		// Set up the configuration
 		cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 		cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-		cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 		// Create a scanner and start it
 		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
@@ -386,5 +382,35 @@ func TestRetryChannelFull(t *testing.T) {
 		cancel()
 		synctest.Wait()
 		shutdown.WaitUntil(time.After(5 * time.Second))
+	})
+}
+
+func TestConfiguredDeprecatedSettings(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		cfg := configmock.New(t)
+		for _, key := range deprecatedSettings {
+			assert.True(t, cfg.IsKnown(key), "%s is missing from the schema", key)
+		}
+		assert.Empty(t, configuredDeprecatedSettings(cfg))
+	})
+
+	t.Run("yaml", func(t *testing.T) {
+		cfg := configmock.NewFromYAML(t, `
+sbom:
+  cache_directory: /var/cache/sbom
+  clear_cache_on_exit: true
+  cache:
+    clean_interval: 10m
+    max_disk_size: 1000
+  container_image:
+    overlayfs_disable_cache: false
+`)
+		assert.Equal(t, deprecatedSettings, configuredDeprecatedSettings(cfg))
+	})
+
+	t.Run("env", func(t *testing.T) {
+		t.Setenv("DD_SBOM_CACHE_MAX_DISK_SIZE", "1000")
+		cfg := configmock.New(t)
+		assert.Equal(t, []string{"sbom.cache.max_disk_size"}, configuredDeprecatedSettings(cfg))
 	})
 }

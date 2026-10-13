@@ -42,7 +42,11 @@ clusterAgent:
 				scenec2.WithInstanceType("t3.xlarge"),
 			),
 			scenkind.WithFakeintakeOptions(
-				fakeintake.WithMemory(2048),
+				// The task memory is shared with a datadog-agent sidecar. With 31m of retention, a smaller
+				// task gets OOM-killed and replaced by one with a new IP, failing all remaining queries.
+				// Fargate requires 1024 CPU units for more than 4096MiB.
+				fakeintake.WithCPU(1024),
+				fakeintake.WithMemory(6144),
 				fakeintake.WithRetentionPeriod("31m"),
 			),
 			scenkind.WithDeployDogstatsd(),

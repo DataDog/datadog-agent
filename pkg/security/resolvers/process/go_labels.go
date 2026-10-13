@@ -11,12 +11,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"go/version"
+	"runtime"
 	"strconv"
-	"strings"
 
+	"github.com/go-delve/delve/pkg/goversion"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process/gooffsets"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -24,15 +25,6 @@ import (
 // goLabelsOffsetsValueSize is the serialized size of go_labels_offsets_t:
 // 6 * u32 + 1 * s32 = 28 bytes.
 const goLabelsOffsetsValueSize = 28
-
-// Supported Go version range. The struct offsets below are hand-maintained per
-// release, so a version we have never seen must be rejected rather than silently
-// read with the offsets of an older one.
-const (
-	minGoVersion = "go1.13"
-	// maxGoVersion is exclusive.
-	maxGoVersion = "go1.28"
-)
 
 var (
 	// errDecodeSymbol is returned when the TLS offset could not be recovered from
@@ -42,65 +34,6 @@ var (
 	// out of the binary, so we cannot tell whether the runtime keeps g in TLS.
 	errRuntimeIsCgoUnavailable = errors.New("runtime.iscgo value unavailable")
 )
-
-// stripGoVersion reduces a Go buildinfo version string down to its bare
-// "goX.Y.Z" toolchain version.
-func stripGoVersion(goVersion string) string {
-	if i := strings.IndexByte(goVersion, ' '); i >= 0 {
-		return goVersion[:i]
-	}
-	return goVersion
-}
-
-// getGoLabelsOffsets returns the Go runtime struct offsets for pprof label reading,
-// based on the Go version. Kept in sync with the OTel eBPF profiler's
-// interpreter/go/offsets.go (DataDog fork); update both together.
-//
-// References:
-//   - runtime.g: https://github.com/golang/go/blob/master/src/runtime/runtime2.go
-//   - runtime.m: https://github.com/golang/go/blob/master/src/runtime/runtime2.go
-//   - runtime.hmap: https://github.com/golang/go/blob/master/src/runtime/map.go
-func getGoLabelsOffsets(goVersion string) (mOffset, curg, labels, hmapCount, hmapLog2BucketCount, hmapBuckets uint32) {
-	// m_offset: offset of 'm' field in runtime.g — stable across versions.
-	mOffset = 48
-
-	// curg: offset of 'curg' field in runtime.m.
-	curg = 192
-	if version.Compare(goVersion, "go1.25") >= 0 {
-		curg = 184
-	}
-
-	// labels: offset of 'labels' field in runtime.g.
-	// Go 1.24+ changed labels from a map to a slice — signal that to eBPF by
-	// leaving hmap_buckets at 0.
-	switch {
-	case version.Compare(goVersion, "go1.26") >= 0:
-		labels = 352
-		return
-	case version.Compare(goVersion, "go1.25") >= 0:
-		labels = 344
-		return
-	case version.Compare(goVersion, "go1.24") >= 0:
-		labels = 352
-		return
-	}
-
-	// Go <1.24: labels is a map, need hmap offsets.
-	hmapLog2BucketCount = 9
-	hmapBuckets = 16
-
-	switch {
-	case version.Compare(goVersion, "go1.23") >= 0:
-		labels = 352
-	case version.Compare(goVersion, "go1.21") >= 0:
-		labels = 344
-	case version.Compare(goVersion, "go1.17") >= 0:
-		labels = 360
-	default:
-		labels = 344
-	}
-	return
-}
 
 // resolveGoLabels discovers the Go runtime offsets for pprof label reading
 // and pushes them to the go_labels_procs BPF map.
@@ -126,14 +59,24 @@ func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 	if goVersion == "" {
 		return fmt.Errorf("%w: not a Go binary", errSpanCtxGone)
 	}
-	goVersion = stripGoVersion(goVersion)
 
-	if version.Compare(goVersion, minGoVersion) < 0 || version.Compare(goVersion, maxGoVersion) >= 0 {
-		return fmt.Errorf("%w: Go version %s (need >= %s and < %s)", errSpanCtxUnsupported, goVersion, minGoVersion, maxGoVersion)
+	parsedGoVersion, ok := goversion.Parse(goVersion)
+	if !ok {
+		return fmt.Errorf("%w: failed to parse Go version %s", errSpanCtxUnsupported, goVersion)
+	}
+	// Compare by major.minor only: the runtime layout only changes between minors.
+	minorGoVersion := goversion.GoVersion{Major: parsedGoVersion.Major, Minor: parsedGoVersion.Minor}
+
+	// A version newer than the ones the offsets were generated from must be rejected.
+	if !minorGoVersion.AfterOrEqual(gooffsets.MinGoVersion) || minorGoVersion.AfterOrEqual(gooffsets.MaxGoVersion) {
+		return fmt.Errorf("%w: Go version %s (need >= %s and < %s)", errSpanCtxUnsupported, goVersion, gooffsets.MinGoVersion.String(), gooffsets.MaxGoVersion.String())
 	}
 
-	// Get struct offsets from the version table.
-	mOffset, curgOffset, labelsOffset, hmapCount, hmapLog2BC, hmapBuckets := getGoLabelsOffsets(goVersion)
+	// Get struct offsets from the generated version table.
+	offsets, err := gooffsets.GetGoRuntimeOffsets(minorGoVersion, runtime.GOARCH)
+	if err != nil {
+		return fmt.Errorf("%w: %w", errSpanCtxUnsupported, err)
+	}
 
 	// Get the TLS G offset by decoding the runtime's own g-load sequence.
 	tlsOffset, err := extractTLSGOffset(elfFile)
@@ -149,8 +92,7 @@ func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 	}
 
 	// Serialize and push to BPF map.
-	value := serializeGoLabelsOffsets(mOffset, curgOffset, labelsOffset,
-		hmapCount, hmapLog2BC, hmapBuckets, tlsOffset)
+	value := serializeGoLabelsOffsets(offsets, tlsOffset)
 
 	if err := p.goLabelsMap.Put(pid, value); err != nil {
 		return fmt.Errorf("%w: %w", errSpanCtxMapError, err)
@@ -159,14 +101,14 @@ func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 }
 
 // serializeGoLabelsOffsets serializes the go_labels_offsets_t struct for the BPF map.
-func serializeGoLabelsOffsets(mOffset, curg, labels, hmapCount, hmapLog2BC, hmapBuckets uint32, tlsOffset int32) []byte {
+func serializeGoLabelsOffsets(offsets gooffsets.GoRuntimeOffsets, tlsOffset int32) []byte {
 	buf := make([]byte, goLabelsOffsetsValueSize)
-	binary.NativeEndian.PutUint32(buf[0:4], mOffset)
-	binary.NativeEndian.PutUint32(buf[4:8], curg)
-	binary.NativeEndian.PutUint32(buf[8:12], labels)
-	binary.NativeEndian.PutUint32(buf[12:16], hmapCount)
-	binary.NativeEndian.PutUint32(buf[16:20], hmapLog2BC)
-	binary.NativeEndian.PutUint32(buf[20:24], hmapBuckets)
+	binary.NativeEndian.PutUint32(buf[0:4], offsets.MOffset)
+	binary.NativeEndian.PutUint32(buf[4:8], offsets.Curg)
+	binary.NativeEndian.PutUint32(buf[8:12], offsets.Labels)
+	binary.NativeEndian.PutUint32(buf[12:16], offsets.HmapCount)
+	binary.NativeEndian.PutUint32(buf[16:20], offsets.HmapLog2BucketCount)
+	binary.NativeEndian.PutUint32(buf[20:24], offsets.HmapBuckets)
 	binary.NativeEndian.PutUint32(buf[24:28], uint32(tlsOffset))
 	return buf
 }

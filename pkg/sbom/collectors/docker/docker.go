@@ -64,14 +64,9 @@ type Collector struct {
 	closed bool
 }
 
-// CleanCache cleans the cache
-func (c *Collector) CleanCache() error {
-	return c.trivyCollector.CleanCache()
-}
-
 // Init initializes the collector
 func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
+	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
 	}

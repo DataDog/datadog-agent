@@ -22,5 +22,6 @@ dd_agent_go_test(
     name = "backend_test",
     srcs = ["backend_test.go"],
     embed = [":backend"],
+    tags = ["go_link:enormous"],
     deps = ["@com_github_stretchr_testify//require"],
 )

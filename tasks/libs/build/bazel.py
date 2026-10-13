@@ -212,7 +212,6 @@ def bazel(
     env: dict[str, str] | None = None,
     ignore_errors: bool = False,
     input: str | None = None,
-    sudo: bool = False,
 ) -> str | subprocess.CompletedProcess[str]:
     """Execute a bazel command.
 
@@ -224,7 +223,7 @@ def bazel(
 
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise SystemExit(bazel_not_found_message("red"))
-    cmd = (("sudo",) if sudo else ()) + (bazelisk, *_insert_omnibazel_flags(args))
+    cmd = (bazelisk, *_insert_omnibazel_flags(args))
     cmdline = join_command(cmd)
     print(color_message(cmdline.replace(bazelisk, "bazel", 1), "bold"), file=sys.stderr)  # brevity: abspath -> bazel
 

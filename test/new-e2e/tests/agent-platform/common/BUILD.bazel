@@ -35,6 +35,7 @@ dd_agent_go_test(
     name = "common_test",
     srcs = ["test_client_test.go"],
     embed = [":common"],
+    tags = ["go_link:enormous"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -227,7 +227,7 @@ func (m *Manager) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 
 // ListSecurityProfiles returns the list of security profiles
 func (m *Manager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
-	out, err := listSecurityProfilesCommon(m.config, &m.profilesLock, m.profiles, m.resolvers.TimeResolver, params)
+	out, err := listSecurityProfilesCommon(m.config.RuntimeSecurity.SecurityProfileEnabled, &m.profilesLock, m.profiles, m.resolvers.TimeResolver, params)
 	if err != nil {
 		return out, err
 	}
@@ -250,29 +250,29 @@ func (m *Manager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*
 
 // SaveSecurityProfile saves the requested security profile to disk
 func (m *Manager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
-	return saveSecurityProfileCommon(m.config, &m.profilesLock, m.profiles, params)
+	return saveSecurityProfileCommon(m.config.RuntimeSecurity.SecurityProfileEnabled, &m.profilesLock, m.profiles, params)
 }
 
 // ListSecurityProfiles lists the security profiles for the ManagerV2
 func (m *ManagerV2) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
-	return listSecurityProfilesCommon(m.config, &m.profilesLock, m.profiles, m.resolvers.TimeResolver, params)
+	return listSecurityProfilesCommon(m.config.RuntimeSecurity.SecurityProfileV2Enabled, &m.profilesLock, m.profiles, m.resolvers.TimeResolver, params)
 }
 
 // SaveSecurityProfile saves the requested security profile to disk for the ManagerV2
 func (m *ManagerV2) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
-	return saveSecurityProfileCommon(m.config, &m.profilesLock, m.profiles, params)
+	return saveSecurityProfileCommon(m.config.RuntimeSecurity.SecurityProfileV2Enabled, &m.profilesLock, m.profiles, params)
 }
 
 // Common functions for both Manager and ManagerV2
 // listSecurityProfilesCommon is the shared implementation for listing security profiles
 func listSecurityProfilesCommon(
-	cfg *config.Config,
+	enabled bool,
 	profilesLock *sync.Mutex,
 	profiles map[cgroupModel.WorkloadSelector]*profile.Profile,
 	resolver *ktime.Resolver,
 	_ *api.SecurityProfileListParams,
 ) (*api.SecurityProfileListMessage, error) {
-	if !cfg.RuntimeSecurity.SecurityProfileEnabled {
+	if !enabled {
 		return &api.SecurityProfileListMessage{
 			Error: ErrSecurityProfileManagerDisabled.Error(),
 		}, ErrSecurityProfileManagerDisabled
@@ -293,12 +293,12 @@ func listSecurityProfilesCommon(
 
 // saveSecurityProfileCommon is the shared implementation for saving a security profile
 func saveSecurityProfileCommon(
-	cfg *config.Config,
+	enabled bool,
 	profilesLock *sync.Mutex,
 	profiles map[cgroupModel.WorkloadSelector]*profile.Profile,
 	params *api.SecurityProfileSaveParams,
 ) (*api.SecurityProfileSaveMessage, error) {
-	if !cfg.RuntimeSecurity.SecurityProfileEnabled {
+	if !enabled {
 		return &api.SecurityProfileSaveMessage{
 			Error: ErrSecurityProfileManagerDisabled.Error(),
 		}, ErrSecurityProfileManagerDisabled

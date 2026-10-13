@@ -27,7 +27,7 @@ from tasks.kernel_matrix_testing.libvirt import (
 )
 from tasks.kernel_matrix_testing.tool import Exit, error, info, warn
 from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT, VMCONFIG
-from tasks.schema.generate import schema_codegen
+from tasks.libs.build.bazel import bazel
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
@@ -228,8 +228,7 @@ def launch_stack(
     if local:
         check_env(ctx)
 
-    build_start_microvms_binary(ctx)
-    start_cmd = start_microvms_cmd(
+    start_microvms(
         provision_instance=provision_instance,
         provision_microvms=provision_microvms,
         instance_type_x86=X86_INSTANCE_TYPE,
@@ -242,12 +241,9 @@ def launch_stack(
         stack_name=stack,
         local=local,
         with_gdb=with_gdb,
+        prefix=f"aws-vault exec {AWS_ACCOUNT} -- " if provision_instance else None,
+        env=env,
     )
-
-    prefix = ""
-    if provision_instance:
-        prefix = f"aws-vault exec {AWS_ACCOUNT} -- "
-    ctx.run(f"{prefix}{start_cmd}", env=env)
     info(f"[+] Stack {stack} successfully setup")
 
 
@@ -265,24 +261,17 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
     }
 
     vm_config = f"{stack_dir}/{VMCONFIG}"
-    prefix = ""
-    if remote_vms_in_config(vm_config):
-        prefix = f"aws-vault exec {AWS_ACCOUNT} -- "
-
-    build_start_microvms_binary(ctx)
-    start_cmd = start_microvms_cmd(infra_env="aws/agent-sandbox", stack_name=stack, destroy=True, local=True)
-    ctx.run(f"{prefix}{start_cmd}", env=env)
-
-
-def build_start_microvms_binary(ctx):
-    # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx)
-
-    # building the binary improves start up time for local usage where we invoke this multiple times.
-    ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
+    start_microvms(
+        infra_env="aws/agent-sandbox",
+        stack_name=stack,
+        destroy=True,
+        local=True,
+        prefix=f"aws-vault exec {AWS_ACCOUNT} -- " if remote_vms_in_config(vm_config) else None,
+        env=env,
+    )
 
 
-def start_microvms_cmd(
+def start_microvms(
     infra_env,
     instance_type_x86=None,
     instance_type_arm=None,
@@ -301,6 +290,8 @@ def start_microvms_cmd(
     run_agent=False,
     agent_version=None,
     with_gdb=False,
+    prefix=None,
+    env=None,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -322,8 +313,14 @@ def start_microvms_cmd(
         "--provision-microvms" if provision_microvms else "",
         "--setup-gdb" if with_gdb else "",
     ]
-    go_args = ' '.join(filter(lambda x: x != "", args))
-    return f"./test/new-e2e/start-microvms {go_args}"
+    bazel(
+        "run",
+        *(f"--run_under={prefix}",) if prefix else (),
+        "//test/new-e2e/scenarios/system-probe:start-microvms",
+        "--",
+        *" ".join(args).split(),
+        env=env,
+    )
 
 
 def ec2_instance_ids(ctx: Context, ip_list: list[str]) -> list[str]:

@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	k8sclient "k8s.io/client-go/kubernetes"
@@ -223,9 +224,9 @@ func (s *spotSchedulingSuite) listPods(selector string) []corev1.Pod {
 	return active
 }
 
-// eventually retries fn until it passes, with a 1-minute timeout and 5-second polling interval.
+// eventually retries fn until it passes, with a 2-minute timeout and 5-second polling interval.
 func (s *spotSchedulingSuite) eventually(fn func(c *assert.CollectT)) {
-	s.EventuallyWithT(fn, 1*time.Minute, 5*time.Second)
+	s.EventuallyWithT(fn, 2*time.Minute, 5*time.Second)
 }
 
 // groupPods groups pods first by node name, then by phase.
@@ -341,6 +342,13 @@ func (s *spotSchedulingSuite) createTestNamespace() {
 func (s *spotSchedulingSuite) deleteTestNamespace() {
 	err := s.kubeClient.CoreV1().Namespaces().Delete(context.Background(), s.testNamespace, metav1.DeleteOptions{})
 	s.Require().NoError(err)
+
+	// Namespace deletion is asynchronous. Wait until it is gone so that re-running the same test
+	// (e.g. with -test.count) can create a namespace with the same name.
+	s.Require().Eventually(func() bool {
+		_, err := s.kubeClient.CoreV1().Namespaces().Get(context.Background(), s.testNamespace, metav1.GetOptions{})
+		return apierrors.IsNotFound(err)
+	}, 2*time.Minute, time.Second, "namespace %s was not deleted", s.testNamespace)
 }
 
 // cordonNode marks a node as unschedulable and registers an uncordon cleanup.

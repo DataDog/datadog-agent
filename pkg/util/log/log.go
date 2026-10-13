@@ -185,7 +185,10 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 	return types.FromSlogLevel(l.level.Level()), nil
 }
 
-// ShouldLog returns whether a given log level should be logged by the default logger
+// ShouldLog returns whether a given log level should be logged by the default logger.
+// When the logger is not initialized yet, the default info level is assumed: info and
+// above pass the check (their entries are buffered by the log helpers until a logger
+// is set up), while trace and debug are dropped.
 func ShouldLog(lvl LogLevel) bool {
 	// The lock stay in the exported function due to the use of `shouldLog` in function that already hold the lock
 	l := logger.Load()
@@ -194,7 +197,7 @@ func ShouldLog(lvl LogLevel) bool {
 		defer l.l.RUnlock()
 		return l.shouldLog(lvl)
 	}
-	return false
+	return lvl >= InfoLvl
 }
 
 // This function should be called with `sw.l` held
@@ -670,8 +673,7 @@ func Tracef(format string, params ...interface{}) {
 
 // TracefStackDepth logs with format at the trace level and the current stack depth plus the given depth
 func TracefStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > TraceLvl {
+	if !ShouldLog(TraceLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
@@ -692,8 +694,7 @@ func Tracec(message string, context ...interface{}) {
 
 // TraceFunc calls and logs the result of 'logFunc' if and only if Trace (or more verbose) logs are enabled
 func TraceFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= TraceLvl {
+	if ShouldLog(TraceLvl) {
 		TraceStackDepth(2, logFunc())
 	}
 }
@@ -710,8 +711,7 @@ func Debugf(format string, params ...interface{}) {
 
 // DebugfStackDepth logs with format at the debug level and the current stack depth plus the given depth
 func DebugfStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > DebugLvl {
+	if !ShouldLog(DebugLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
@@ -732,8 +732,7 @@ func Debugc(message string, context ...interface{}) {
 
 // DebugFunc calls and logs the result of 'logFunc' if and only if Debug (or more verbose) logs are enabled
 func DebugFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= DebugLvl {
+	if ShouldLog(DebugLvl) {
 		DebugStackDepth(2, logFunc())
 	}
 }
@@ -750,8 +749,7 @@ func Infof(format string, params ...interface{}) {
 
 // InfofStackDepth logs with format at the info level and the current stack depth plus the given depth
 func InfofStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel > InfoLvl {
+	if !ShouldLog(InfoLvl) {
 		return
 	}
 	msg := fmt.Sprintf(format, params...)
@@ -772,8 +770,7 @@ func Infoc(message string, context ...interface{}) {
 
 // InfoFunc calls and logs the result of 'logFunc' if and only if Info (or more verbose) logs are enabled
 func InfoFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= InfoLvl {
+	if ShouldLog(InfoLvl) {
 		InfoStackDepth(2, logFunc())
 	}
 }
@@ -808,8 +805,7 @@ func Warnc(message string, context ...interface{}) error {
 
 // WarnFunc calls and logs the result of 'logFunc' if and only if Warn (or more verbose) logs are enabled
 func WarnFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= WarnLvl {
+	if ShouldLog(WarnLvl) {
 		_ = WarnStackDepth(2, logFunc())
 	}
 }
@@ -844,8 +840,7 @@ func Errorc(message string, context ...interface{}) error {
 
 // ErrorFunc calls and logs the result of 'logFunc' if and only if Error (or more verbose) logs are enabled
 func ErrorFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= ErrorLvl {
+	if ShouldLog(ErrorLvl) {
 		_ = ErrorStackDepth(2, logFunc())
 	}
 }
@@ -880,8 +875,7 @@ func Criticalc(message string, context ...interface{}) error {
 
 // CriticalFunc calls and logs the result of 'logFunc' if and only if Critical (or more verbose) logs are enabled
 func CriticalFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
-	if currentLevel <= CriticalLvl {
+	if ShouldLog(CriticalLvl) {
 		_ = CriticalStackDepth(2, logFunc())
 	}
 }

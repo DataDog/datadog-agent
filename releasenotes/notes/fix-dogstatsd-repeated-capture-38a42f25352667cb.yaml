@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix a packet buffer leak when DogStatsD traffic capture runs more than
+    once without restarting the Agent.
+  - |
+    Fix deadlocks when DogStatsD traffic capture is stopped or a write fails.
+    Partially-read packets are no longer written to the capture file, and
+    Agent shutdown now waits for an ongoing capture to flush instead of
+    truncating it.

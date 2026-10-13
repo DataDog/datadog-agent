@@ -18,6 +18,8 @@ func resetSysPath() {
 	dmiProductUUIDPath = "/sys/devices/virtual/dmi/id/product_uuid"
 	dmiBoardAssetTagPath = "/sys/devices/virtual/dmi/id/board_asset_tag"
 	dmiBoardVendorPath = "/sys/devices/virtual/dmi/id/board_vendor"
+	dmiProductNamePath = "/sys/devices/virtual/dmi/id/product_name"
+	dmiChassisAssetTagPath = "/sys/devices/virtual/dmi/id/chassis_asset_tag"
 }
 
 // SetupMock configures DMI files with provided data
@@ -35,4 +37,22 @@ func SetupMock(t *testing.T, hypervisorUUID, productUUID, boardAssetTag, boardVe
 	dmiProductUUIDPath = setTestFile(productUUID, "product_uuid")
 	dmiBoardAssetTagPath = setTestFile(boardAssetTag, "board_asset_tag")
 	dmiBoardVendorPath = setTestFile(boardVendor, "board_vendor")
+}
+
+// SetupMockProductName configures the DMI product name file with the provided data
+func SetupMockProductName(t *testing.T, productName string) {
+	tempDir := t.TempDir()
+	t.Cleanup(func() { dmiProductNamePath = "/sys/devices/virtual/dmi/id/product_name" })
+	tempPath := filepath.Join(tempDir, "product_name")
+	_ = os.WriteFile(tempPath, []byte(productName), os.ModePerm)
+	dmiProductNamePath = tempPath
+}
+
+// SetupMockChassisAssetTag configures the DMI chassis asset tag file with the provided data
+func SetupMockChassisAssetTag(t *testing.T, chassisAssetTag string) {
+	tempDir := t.TempDir()
+	t.Cleanup(func() { dmiChassisAssetTagPath = "/sys/devices/virtual/dmi/id/chassis_asset_tag" })
+	tempPath := filepath.Join(tempDir, "chassis_asset_tag")
+	_ = os.WriteFile(tempPath, []byte(chassisAssetTag), os.ModePerm)
+	dmiChassisAssetTagPath = tempPath
 }

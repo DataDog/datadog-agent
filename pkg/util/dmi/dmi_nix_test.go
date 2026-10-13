@@ -36,3 +36,17 @@ func TestGetSystemSpecificHosttMetadata(t *testing.T) {
 	assert.Equal(t, "", GetBoardAssetTag())
 	assert.Equal(t, "", GetBoardVendor())
 }
+
+func TestGetProductNameAndChassisAssetTag(t *testing.T) {
+	SetupMockProductName(t, "Google Compute Engine\n")
+	assert.Equal(t, "Google Compute Engine", GetProductName())
+
+	SetupMockChassisAssetTag(t, "7783-7084-3265-9085-8269-3286-77\n")
+	assert.Equal(t, "7783-7084-3265-9085-8269-3286-77", GetChassisAssetTag())
+
+	dmiProductNamePath = "does not exist"
+	dmiChassisAssetTagPath = "does not exist"
+
+	assert.Equal(t, "", GetProductName())
+	assert.Equal(t, "", GetChassisAssetTag())
+}

@@ -40,6 +40,19 @@ Before deploying, update the provided Helm values files for your environment. Th
 
 If your cluster does not enforce NetworkPolicy resources, these values do not restrict egress; use your cluster's supported network controls instead.
 
+## Collector health metrics
+
+Health metrics are not sent to Datadog by default because they can incur additional charges: they are emitted by each host and may affect Infrastructure Monitoring billing, depending on your plan and whether the host is already billed by Datadog. See [host billing](https://docs.datadoghq.com/account_management/billing/#hosts) and [usage details](https://docs.datadoghq.com/account_management/plan_and_usage/usage_details/).
+
+If you're still looking to enable them, set Collector metrics level to `normal`:
+
+```yaml
+service:
+  telemetry:
+    metrics:
+      level: normal
+```
+
 ## Deploy
 
 Deploy or update the OpenTelemetry Collector Helm release with the provided values files. Adapt this command to your Helm workflow and chosen namespace.

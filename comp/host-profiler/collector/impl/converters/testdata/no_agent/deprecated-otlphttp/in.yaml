@@ -4,6 +4,9 @@ exporters:
       dd-api-key: test-api-key
     profiles_endpoint: https://intake.profile.us3.datadoghq.com/v1development/profiles
 service:
+  telemetry:
+    metrics:
+      level: normal
   pipelines:
     profiles:
       processors: []

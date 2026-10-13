@@ -8,8 +8,8 @@
 // Package main holds the Go span-context syscall tester.
 //
 // It drives the agent's Go pprof-label span reader: it creates a tracer-info
-// memfd, sets span labels either directly or through dd-trace-go, and then
-// triggers the syscall a CWS rule watches (open, execve or fork+execve).
+// memfd, has dd-trace-go set span labels, and then triggers the syscall a CWS
+// rule watches (open, execve or fork+execve).
 package main
 
 import (
@@ -19,7 +19,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -29,15 +28,6 @@ import (
 )
 
 var (
-	goSpanTest              bool
-	goSpanExecTest          bool
-	goSpanNoLabelsTest      bool
-	goSpanNoLabelsExecTest  bool
-	goSpanForkExecTest      bool
-	goSpanSpanID            string
-	goSpanLocalRootSpanID   string
-	goSpanFilePath          string
-	goSpanExecTarget        string
 	ddtraceSpanTest         bool
 	ddtraceSpanExecTest     bool
 	ddtraceNoSpanTest       bool
@@ -48,8 +38,7 @@ var (
 )
 
 // setupGoTracerMemfd creates and seals the tracer-info memfd that drives the
-// agent's resolveGoLabels flow. Shared by all Go-span test modes (with/without
-// pprof labels, open or exec).
+// agent's resolveGoLabels flow.
 func setupGoTracerMemfd(serviceName, memfdName string) (int, error) {
 	type TracerMeta struct {
 		SchemaVersion  uint8  `msgpack:"schema_version"`
@@ -86,10 +75,27 @@ func setupGoTracerMemfd(serviceName, memfdName string) (int, error) {
 		return -1, fmt.Errorf("memfd seal: %w", errno)
 	}
 
-	// Wait for the agent to process the memfd seal event and populate the
-	// go_labels_procs BPF map.
-	time.Sleep(500 * time.Millisecond)
+	if err := waitForAgent(); err != nil {
+		unix.Close(fd)
+		return -1, err
+	}
 	return fd, nil
+}
+
+// Mirrors spanTesterContinueFileEnv in span_test.go.
+const continueFileEnv = "SPAN_TESTER_CONTINUE_FILE"
+
+func waitForAgent() error {
+	path := os.Getenv(continueFileEnv)
+	if path == "" {
+		return nil
+	}
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("timed out waiting for %s", path)
 }
 
 // triggerOpen creates filePath, closes, and unlinks — the CWS rule fires on
@@ -129,46 +135,13 @@ func triggerForkExec(target, filePath string) error {
 	return cmd.Run()
 }
 
-// RunGoSpanTest creates a tracer-info memfd (triggering Go label offset
-// resolution), optionally sets pprof labels (skipped for negative-path
-// scenarios), and then triggers the syscall the rule watches. The trigger is:
-//   - open of filePath when execTarget == ""
-//   - in-process execve of execTarget when forkExec == false
-//   - fork+execve (os/exec.Cmd.Run) of execTarget when forkExec == true
-//
-// The fork+execve mode is used by the "fork_exec_propagates_to_child"
-// regression test.
-func RunGoSpanTest(spanID, localRootSpanID, filePath, execTarget string, setLabels, forkExec bool) error {
-	fd, err := setupGoTracerMemfd("go-span-test", "datadog-tracer-info-gotest01")
-	if err != nil {
-		return err
-	}
-	defer unix.Close(fd)
-
-	if setLabels {
-		// Set pprof labels exactly like dd-trace-go does.
-		// Keys: "span id" and "local root span id", values: decimal strings.
-		labels := pprof.Labels("span id", spanID, "local root span id", localRootSpanID)
-		ctx := pprof.WithLabels(context.Background(), labels)
-		pprof.SetGoroutineLabels(ctx)
-		defer pprof.SetGoroutineLabels(context.Background())
-	}
-
-	if forkExec {
-		return triggerForkExec(execTarget, filePath)
-	}
-	if execTarget != "" {
-		return triggerExec(execTarget, filePath)
-	}
-	return triggerOpen(filePath)
-}
-
 // RunDDTraceSpanTest uses dd-trace-go to create a real span (which sets pprof
 // labels via the profiler code-hotspots integration) and then triggers the
-// syscall the rule watches. Trigger selection mirrors RunGoSpanTest:
+// syscall the rule watches. The trigger is:
 //   - open of filePath when execTarget == ""
-//   - in-process execve when forkExec == false
-//   - fork+execve when forkExec == true
+//   - in-process execve of execTarget when forkExec == false
+//   - fork+execve (os/exec.Cmd.Run) of execTarget when forkExec == true, which
+//     the "fork_exec_propagates_to_child" regression test uses
 //
 // If startSpan is false, the tracer is started but no active span is created —
 // the eBPF reader should yield an empty span context (negative path).
@@ -221,15 +194,6 @@ func RunDDTraceSpanTest(filePath, execTarget string, startSpan, forkExec bool) e
 }
 
 func main() {
-	flag.BoolVar(&goSpanTest, "go-span-test", false, "when set, runs the Go pprof labels span test (open, labels set)")
-	flag.BoolVar(&goSpanExecTest, "go-span-exec-test", false, "when set, runs the Go pprof labels span exec test (exec, labels set)")
-	flag.BoolVar(&goSpanNoLabelsTest, "go-span-no-labels-test", false, "when set, runs the Go span open test WITHOUT setting pprof labels (negative path)")
-	flag.BoolVar(&goSpanNoLabelsExecTest, "go-span-no-labels-exec-test", false, "when set, runs the Go span exec test WITHOUT setting pprof labels (negative path)")
-	flag.BoolVar(&goSpanForkExecTest, "go-span-fork-exec-test", false, "when set, sets pprof labels then fork+execs the target via os/exec (parent's labels are not inherited by the child's new tgid — pins the current fork+exec gap)")
-	flag.StringVar(&goSpanSpanID, "go-span-span-id", "", "span ID for the Go span test (decimal string)")
-	flag.StringVar(&goSpanLocalRootSpanID, "go-span-local-root-span-id", "", "local root span ID for the Go span test (decimal string)")
-	flag.StringVar(&goSpanFilePath, "go-span-file-path", "", "file path to open / touch for the Go span test")
-	flag.StringVar(&goSpanExecTarget, "go-span-exec-target", "", "executable to exec for the Go span exec test (e.g. /usr/bin/touch)")
 	flag.BoolVar(&ddtraceSpanTest, "ddtrace-span-test", false, "when set, runs the dd-trace-go span test (open, active span)")
 	flag.BoolVar(&ddtraceSpanExecTest, "ddtrace-span-exec-test", false, "when set, runs the dd-trace-go span exec test (exec, active span)")
 	flag.BoolVar(&ddtraceNoSpanTest, "ddtrace-no-span-test", false, "when set, runs the dd-trace-go open test WITHOUT an active span (negative path)")
@@ -239,29 +203,6 @@ func main() {
 	flag.StringVar(&ddtraceSpanExecTarget, "ddtrace-span-exec-target", "", "executable to exec for the dd-trace-go span exec test (e.g. /usr/bin/touch)")
 
 	flag.Parse()
-
-	switch {
-	case goSpanTest:
-		if err := RunGoSpanTest(goSpanSpanID, goSpanLocalRootSpanID, goSpanFilePath, "", true, false); err != nil {
-			panic(err)
-		}
-	case goSpanExecTest:
-		if err := RunGoSpanTest(goSpanSpanID, goSpanLocalRootSpanID, goSpanFilePath, goSpanExecTarget, true, false); err != nil {
-			panic(err)
-		}
-	case goSpanNoLabelsTest:
-		if err := RunGoSpanTest("", "", goSpanFilePath, "", false, false); err != nil {
-			panic(err)
-		}
-	case goSpanNoLabelsExecTest:
-		if err := RunGoSpanTest("", "", goSpanFilePath, goSpanExecTarget, false, false); err != nil {
-			panic(err)
-		}
-	case goSpanForkExecTest:
-		if err := RunGoSpanTest(goSpanSpanID, goSpanLocalRootSpanID, goSpanFilePath, goSpanExecTarget, true, true); err != nil {
-			panic(err)
-		}
-	}
 
 	switch {
 	case ddtraceSpanTest:

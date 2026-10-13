@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from tasks.libs.dynamic_test.jev.jev_client import decide, get_ai_gateway_token
-from tasks.libs.dynamic_test.jev.jev_e2e_selector import select_suite
+from tasks.libs.dynamic_test.jev.jev_e2e_selector import DEFAULT_SUMMARY_MODEL, generate_pr_summary, select_suite
 from tasks.libs.dynamic_test.jev.pr_context import changed_files, fetch_pr_info
 from tasks.libs.dynamic_test.jev.test_discovery import list_suites
 
@@ -154,3 +154,47 @@ class TestJevTools(unittest.TestCase):
             # The context (state without the test code) is printed ONCE for the
             # whole suite - not once per Jev call
             section.assert_called_once()
+
+    def test_injected_llm_summary_replaces_the_diff_without_any_llm_call(self):
+        module = "tasks.libs.dynamic_test.jev.jev_e2e_selector"
+
+        def run(**kwargs):
+            with (
+                patch(f"{module}.os.path.isdir", return_value=True),
+                patch(f"{module}.fetch_ddci_metadata", return_value=None),
+                patch(f"{module}.fetch_pr_info", return_value={}),
+                patch(f"{module}.changed_files", return_value=([], "base")),
+                patch(f"{module}.pr_diff", return_value="RAW DIFF"),
+                patch(f"{module}.suite_definition", return_value=("", "")),
+                patch(f"{module}.get_ai_gateway_token", return_value="fake"),
+                patch(f"{module}.gitlab_section"),
+                patch(f"{module}._printed_contexts", set()),
+                patch(f"{module}.list_suites", return_value=[("TestA", "a_test.go", "code")]),
+                patch(f"{module}.summarize_pr") as summarize,
+                patch(f"{module}.ask_jev", return_value={"answers": answers()}) as ask,
+            ):
+                select_suite("fleet", workers=1, **kwargs)
+            # The selection never generates the summary itself
+            summarize.assert_not_called()
+            return ask.call_args.args[1]
+
+        state = run(pr_summary="LLM SUMMARY")
+        self.assertIn("LLM SUMMARY", state)
+        self.assertNotIn("RAW DIFF", state)
+        self.assertIn("RAW DIFF", run())
+
+    def test_generate_pr_summary_makes_one_llm_call(self):
+        module = "tasks.libs.dynamic_test.jev.jev_e2e_selector"
+        with (
+            patch(f"{module}.fetch_ddci_metadata", return_value=None),
+            patch(f"{module}.fetch_pr_info", return_value={"title": "T"}),
+            patch(f"{module}.changed_files", return_value=([("a.go", "")], "base")),
+            patch(f"{module}.pr_diff", return_value="RAW DIFF"),
+            patch(f"{module}.get_ai_gateway_token", return_value="fake"),
+            patch(f"{module}.summarize_pr", return_value="LLM SUMMARY") as summarize,
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            self.assertEqual(generate_pr_summary(), "LLM SUMMARY")
+        summarize.assert_called_once()
+        self.assertEqual(summarize.call_args.args, ("fake", {"title": "T"}, [("a.go", "")], "base", "RAW DIFF"))
+        self.assertEqual(summarize.call_args.kwargs["model"], DEFAULT_SUMMARY_MODEL)

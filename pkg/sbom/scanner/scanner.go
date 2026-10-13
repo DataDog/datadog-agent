@@ -34,22 +34,26 @@ var (
 	globalScanner *Scanner
 )
 
-type scannerConfig struct {
-	cacheCleanInterval time.Duration
+// deprecatedSettings configured the on-disk Trivy cache. SBOM scans keep their
+// cache in memory and ignore them.
+var deprecatedSettings = []string{
+	"sbom.cache_directory",
+	"sbom.cache.clean_interval",
+	"sbom.cache.max_disk_size",
+	"sbom.clear_cache_on_exit",
+	"sbom.container_image.overlayfs_disable_cache",
 }
 
 // Scanner defines the scanner
 type Scanner struct {
-	cfg scannerConfig
-
 	startOnce sync.Once
-	running   bool
 	disk      filesystem.Disk
 	// scanQueue is the workqueue used to process scan requests
 	scanQueue workqueue.TypedRateLimitingInterface[sbom.ScanRequest]
-	// cacheMutex is used to protect the cache from concurrent access
-	// It cannot be cleaned when a scan is running
-	cacheMutex sync.Mutex
+	// scanMutex runs one scan at a time. A scan the flare provider starts with
+	// PerformScan waits for the one the queue is running, which holds the
+	// scanner to the memory and CPU of a single scan.
+	scanMutex sync.Mutex
 
 	wmeta      option.Option[workloadmeta.Component]
 	collectors map[string]collectors.Collector
@@ -69,11 +73,8 @@ func NewScanner(cfg config.Component, collectors map[string]collectors.Collector
 				MetricsProvider: telemetry.QueueMetricsProvider,
 			},
 		),
-		disk:  filesystem.NewDisk(),
-		wmeta: wmeta,
-		cfg: scannerConfig{
-			cfg.GetDuration("sbom.cache.clean_interval"),
-		},
+		disk:       filesystem.NewDisk(),
+		wmeta:      wmeta,
 		collectors: collectors,
 	}
 }
@@ -86,6 +87,10 @@ func CreateGlobalScanner(cfg config.Component, wmeta option.Option[workloadmeta.
 		return nil, errors.New("global SBOM scanner already set, should only happen once")
 	}
 
+	for _, key := range configuredDeprecatedSettings(cfg) {
+		log.Warnf("%s is deprecated and ignored because SBOM scans keep their cache in memory. Remove it from the configuration.", key)
+	}
+
 	for name, collector := range collectors.Collectors {
 		if err := collector.Init(cfg, wmeta); err != nil {
 			return nil, fmt.Errorf("failed to initialize SBOM collector '%s': %w", name, err)
@@ -94,6 +99,17 @@ func CreateGlobalScanner(cfg config.Component, wmeta option.Option[workloadmeta.
 
 	globalScanner = NewScanner(cfg, collectors.Collectors, wmeta)
 	return globalScanner, nil
+}
+
+// configuredDeprecatedSettings returns the deprecated settings set in cfg.
+func configuredDeprecatedSettings(cfg config.Component) []string {
+	var keys []string
+	for _, key := range deprecatedSettings {
+		if cfg.IsConfigured(key) {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
 
 // SetGlobalScanner sets a global instance of the SBOM scanner. It should be
@@ -112,7 +128,7 @@ func GetGlobalScanner() *Scanner {
 // Start starts the scanner
 func (s *Scanner) Start(ctx context.Context) {
 	s.startOnce.Do(func() {
-		s.start(ctx)
+		s.startScanRequestHandler(ctx)
 	})
 }
 
@@ -194,41 +210,6 @@ func sendResult(ctx context.Context, requestID string, result *sbom.ScanResult, 
 		result.Error = fmt.Errorf("timeout while sending scan result for '%s'", requestID)
 		log.Errorf("%s", result.Error)
 	}
-}
-
-// startCacheCleaner periodically cleans the SBOM cache of all collectors
-func (s *Scanner) startCacheCleaner(ctx context.Context) {
-	cleanTicker := time.NewTicker(s.cfg.cacheCleanInterval)
-	defer func() {
-		cleanTicker.Stop()
-		s.running = false
-	}()
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-cleanTicker.C:
-				s.cacheMutex.Lock()
-				log.Debug("cleaning SBOM cache")
-				for _, collector := range s.collectors {
-					if err := collector.CleanCache(); err != nil {
-						log.Warnf("could not clean SBOM cache: %v", err)
-					}
-				}
-				s.cacheMutex.Unlock()
-			}
-		}
-	}()
-}
-
-func (s *Scanner) start(ctx context.Context) {
-	if s.running {
-		return
-	}
-	s.running = true
-	s.startCacheCleaner(ctx)
-	s.startScanRequestHandler(ctx)
 }
 
 func (s *Scanner) startScanRequestHandler(ctx context.Context) {
@@ -329,9 +310,9 @@ func (s *Scanner) checkDiskSpace(collectorName string, imgMeta *workloadmeta.Con
 func (s *Scanner) PerformScan(ctx context.Context, request sbom.ScanRequest, collector collectors.Collector) *sbom.ScanResult {
 	createdAt := time.Now()
 
-	s.cacheMutex.Lock()
+	s.scanMutex.Lock()
 	scanResult := collector.Scan(ctx, request)
-	s.cacheMutex.Unlock()
+	s.scanMutex.Unlock()
 
 	generationDuration := time.Since(createdAt)
 

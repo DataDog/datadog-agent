@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: Fix a ``send on closed channel`` panic in the trace-agent that could occur
+    during shutdown when trace payloads were still being processed after the HTTP
+    receiver's 5 second graceful shutdown deadline. Payloads still in flight at that
+    point are now dropped and reported in a single warning log.

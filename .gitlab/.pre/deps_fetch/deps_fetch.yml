@@ -202,9 +202,9 @@ fetch_openjdk:
   stage: deps_fetch
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
-    JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip
-    JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9
-    JDK_SHA256: 052f09448d5b8d9afb7a8e5049d40d7fafa8f5884afe6043bb2359787fd41e84
+    JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.32.1_1.zip
+    JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.32.1%2B1
+    JDK_SHA256: f8c7da672f5dba36b6f870608820b6b598cfae91296929f1b8f21ef2f1e8a0dd
   script:
     - wget "$JDK_URL/$JDK_FILENAME" -O "$JDK_FILENAME"
     - echo "$JDK_SHA256  $JDK_FILENAME" | sha256sum -c
