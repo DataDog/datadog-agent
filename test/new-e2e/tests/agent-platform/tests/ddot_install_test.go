@@ -83,7 +83,6 @@ func TestDDOTInstallScript(t *testing.T) {
 			}
 
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
-			vmOpts = append(vmOpts)
 
 			e2e.Run(tt,
 				&ddotInstallSuite{osVersion: version, osDesc: osDesc},
