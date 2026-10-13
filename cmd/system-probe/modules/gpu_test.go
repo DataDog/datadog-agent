@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gputestutil "github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/gpu/traininginfo"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -80,6 +81,33 @@ func TestGPUModuleSurvivesDriverEventStartupError(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/gpu/driver-events", nil))
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestGPUModuleRegistersTrainingInfoEndpoint(t *testing.T) {
+	router := http.NewServeMux()
+	moduleRouter := module.NewRouter("gpu", router)
+	gpuModule := &GPUMonitoringModule{
+		trainingInfoHandler: traininginfo.NewHandler(gpuconfig.JobsConfig{}, nil, t.TempDir(), nil),
+	}
+	require.NoError(t, gpuModule.Register(moduleRouter))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/gpu/training-info", nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, "[]", w.Body.String())
+}
+
+func TestListGPUProcesses(t *testing.T) {
+	ddnvml.WithMockNVML(t, gputestutil.NewMockNVML(gputestutil.WithDeviceCount(1)))
+
+	processes, err := listGPUProcesses(ddnvml.NewDeviceCache())
+	require.NoError(t, err)
+
+	var expected []traininginfo.GPUProcess
+	for _, pid := range gputestutil.DefaultActivePIDs() {
+		expected = append(expected, traininginfo.GPUProcess{PID: uint32(pid), DeviceUUID: gputestutil.GPUUUIDs[0]})
+	}
+	assert.ElementsMatch(t, expected, processes)
 }
 
 func TestGetAgentPIDs(t *testing.T) {

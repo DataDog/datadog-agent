@@ -39,6 +39,12 @@ tags:
     optional: true
   gpu_host:
     regex: "^true$"
+  # Training job identifiers read by system-probe from the environment of the
+  # processes using the device (gpu.jobs.<run|group> with type: env).
+  training_run_id:
+    optional: true
+  training_group_id:
+    optional: true
   pid:
     regex: "^\\d+(,\\d+)*$" # multiple PIDs are supported and should be split by commas
   nspid:
@@ -93,6 +99,8 @@ tagsets:
       - gpu_fabric_cluster_uuid
       - gpu_fabric_clique_id
       - gpu_host
+      - training_run_id
+      - training_group_id
   nvlink:
     tags:
       - nvlink_port

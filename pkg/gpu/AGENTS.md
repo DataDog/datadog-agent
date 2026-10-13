@@ -23,6 +23,7 @@ pkg/gpu/
 ├── safenvml/          # Safe wrapper around NVML library
 ├── ebpf/              # eBPF program and types
 ├── containers/        # Container detection for GPU workloads
+├── traininginfo/      # /training-info endpoint: allowlisted training job env vars of GPU processes
 └── config/            # Configuration
 ```
 

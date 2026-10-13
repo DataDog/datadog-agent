@@ -1452,6 +1452,28 @@ properties:
             node_type: setting
             type: integer
             default: 30
+      training_info:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          Configuration for reading training job identifiers (gpu.jobs.run and
+          gpu.jobs.group with type: env in datadog.yaml) from the environment of
+          the processes using GPUs.
+        properties:
+          allowed_env_vars:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            visibility: public
+            description: |-
+              Additional environment variables that can be read from the processes
+              using GPUs, on top of the built-in allowlist. gpu.jobs keys of type env
+              must be allowlisted, otherwise they are ignored. Only add variables that
+              do not hold secrets, as their values are sent to Datadog as tags on GPU
+              metrics.
   windows_crash_detection:
     node_type: section
     title: Datadog Agent Windows Crash Detection module
