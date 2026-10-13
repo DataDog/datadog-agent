@@ -215,12 +215,12 @@ func TestControllerUpdate(t *testing.T) {
 			wantChanges: []integration.ConfigChanges{{}},
 		},
 		{
-			name:          "unchanged re-delivery does not reschedule",
+			name:          "re-delivery at the same RC path unschedules the previous check",
 			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskConfig)}, {"rc-1": rawScanTask("rc-1", scanTaskConfig)}},
 			wantStatus:    map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
 			wantChanges: []integration.ConfigChanges{
 				{Schedule: []integration.Config{wantScheduledConfig}},
-				{},
+				{Schedule: []integration.Config{wantScheduledConfig}, Unschedule: []integration.Config{wantScheduledConfig}},
 			},
 		},
 		{
@@ -236,7 +236,7 @@ func TestControllerUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "deleted RC path unschedules its check and keeps the others",
+			name: "deleted RC path unschedules its check",
 			remoteConfigs: []map[string]state.RawConfig{
 				{"rc-1": rawScanTask("rc-1", scanTaskConfig), "rc-2": rawScanTask("rc-2", scanTaskConfig)},
 				{"rc-2": rawScanTask("rc-2", scanTaskConfig)},
@@ -247,7 +247,8 @@ func TestControllerUpdate(t *testing.T) {
 			},
 			wantChanges: []integration.ConfigChanges{
 				{Schedule: []integration.Config{wantScheduledConfig, wantScheduledConfig}},
-				{Unschedule: []integration.Config{wantScheduledConfig}},
+				// rc-1 is unscheduled as deleted; rc-2 is re-delivered so it is rescheduled.
+				{Schedule: []integration.Config{wantScheduledConfig}, Unschedule: []integration.Config{wantScheduledConfig, wantScheduledConfig}},
 			},
 		},
 		{

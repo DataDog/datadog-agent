@@ -169,12 +169,8 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 			Source:    c.String(),
 			Instances: []integration.Data{integration.Data(instance)},
 		}
+		// Unschedule any config already scheduled for this path to avoid cumulating stale configs.
 		if prev, ok := c.scheduledByPath[path]; ok {
-			// Unchanged task re-delivered alongside other updates: don't rerun the one-off check.
-			if prev.Equal(&newCfg) {
-				applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-				continue
-			}
 			changes.Unschedule = append(changes.Unschedule, prev)
 		}
 		changes.Schedule = append(changes.Schedule, newCfg)
