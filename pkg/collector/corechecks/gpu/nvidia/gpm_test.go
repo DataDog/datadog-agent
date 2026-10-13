@@ -184,20 +184,21 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
+	// LegacySMActive disables the GR engine sm_active source, so only the GPM metrics are emitted here.
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{Config: gpuconfig.Config{LegacySMActive: true}})
 	require.NoError(t, err)
 	gpmCol := collector.(*gpmCollector)
 
 	result, err := gpmCol.Collect()
 	assert.NoError(t, err)
-	assert.Len(t, result, 3)
+	assert.Len(t, result, 2)
 
 	foundMetrics := make(map[string]bool)
 	for _, metric := range requireMetrics(t, result) {
 		foundMetrics[metric.Name] = true
 
 		switch metric.Name {
-		case "metric1", "sm_active":
+		case "metric1":
 			assert.Equal(t, 43.0, metric.Value)
 		case "metric3":
 			assert.Equal(t, 45.0, metric.Value)

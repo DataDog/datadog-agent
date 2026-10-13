@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    gpum: Add GPM GR engine activity as a fallback source for ``gpu.sm_active``. Set
-    ``gpu.prefer_gr_engine_sm_active`` to ``true`` to prefer it over other sources.
