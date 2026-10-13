@@ -5,6 +5,7 @@
 package agentplatform
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -23,6 +24,13 @@ type packageSigningTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 	osName string
 }
+
+// The production signing keys are vendored in fixtures/signing-keys so the test
+// does not have to fetch them from keys.datadoghq.com, which is not reachable from
+// hosts provisioned without internet access.
+//
+//go:embed fixtures/signing-keys
+var signingKeysFS embed.FS
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
@@ -76,7 +84,7 @@ func (is *packageSigningTestSuite) TestPackageSigning() {
 		is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring))
 		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
 		for _, key := range keys {
-			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key))
+			is.writeSigningKey(key)
 			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring))
 		}
 		aptTrustedKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
@@ -84,7 +92,7 @@ func (is *packageSigningTestSuite) TestPackageSigning() {
 	} else {
 		keys := []string{"DATADOG_RPM_KEY_E09422B3.public", "DATADOG_RPM_KEY_CURRENT.public", "DATADOG_RPM_KEY_FD4BF915.public", "DATADOG_RPM_KEY_E09422B3.public"}
 		for _, key := range keys {
-			is.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key))
+			is.writeSigningKey(key)
 			is.Env().RemoteHost.MustExecute("sudo rpm --import /tmp/" + key)
 		}
 	}
@@ -124,4 +132,13 @@ func (is *packageSigningTestSuite) TestPackageSigning() {
 		t.Errorf("Missing keys: %v", missingKeys)
 	}
 
+}
+
+// writeSigningKey copies one of the vendored production signing keys to /tmp on the host,
+// replacing the previous runtime download from keys.datadoghq.com.
+func (is *packageSigningTestSuite) writeSigningKey(key string) {
+	content, err := signingKeysFS.ReadFile("fixtures/signing-keys/" + key)
+	is.Require().NoErrorf(err, "reading embedded signing key %s", key)
+	_, err = is.Env().RemoteHost.WriteFile("/tmp/"+key, content)
+	is.Require().NoErrorf(err, "writing signing key %s to the host", key)
 }
