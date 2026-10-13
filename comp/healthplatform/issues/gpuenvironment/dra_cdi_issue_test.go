@@ -67,7 +67,7 @@ func TestBuildDRACDIIssue(t *testing.T) {
 
 			require.NotNil(t, issue.Remediation)
 			assert.NotEmpty(t, issue.Remediation.Summary)
-			require.Len(t, issue.Remediation.Steps, 6)
+			require.Len(t, issue.Remediation.Steps, 7)
 			assert.True(t, strings.HasPrefix(issue.Remediation.Steps[0].Text, "Helm chart:"))
 			assert.True(t, strings.HasPrefix(issue.Remediation.Steps[1].Text, "Datadog Operator:"))
 
