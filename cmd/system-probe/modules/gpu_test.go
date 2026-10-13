@@ -47,6 +47,17 @@ func TestGPUModuleRegistersPRMEndpointWhenEnabled(t *testing.T) {
 	assert.NotEqual(t, http.StatusNotFound, w.Code)
 }
 
+func TestGPUModulePRMEndpointDisabledReturnsUnavailable(t *testing.T) {
+	router := http.NewServeMux()
+	moduleRouter := module.NewRouter("gpu", router)
+	gpuModule := &GPUMonitoringModule{cfg: &gpuconfig.Config{PRMEndpointEnabled: false}}
+	require.NoError(t, gpuModule.Register(moduleRouter))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/gpu/prm-metrics", nil))
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 func TestGPUModuleDriverEventsDisabledDoesNotPanic(t *testing.T) {
 	pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.enable_ebpf_probes", false)
 	pkgconfigsetup.SystemProbe().SetInTest("gpu_monitoring.driver_events_enabled", false)

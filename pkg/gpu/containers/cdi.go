@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -34,8 +35,8 @@ func NvidiaDRAClaimSpecFileName(claimUID string) string {
 	return nvidiaDRAClaimSpecPrefix + claimUID + ".yaml"
 }
 
-// CheckNvidiaDRACDISpecs returns nil if at least one of CDISpecDirs contains
-// NVIDIA DRA claim specs, and otherwise an error describing, for each
+// CheckNvidiaDRACDISpecs returns nil if at least one of CDISpecDirs contains a
+// readable NVIDIA DRA claim spec, and otherwise an error describing, for each
 // directory, why it has none.
 func CheckNvidiaDRACDISpecs() error {
 	var errs []error
@@ -54,12 +55,25 @@ func checkDirHasNvidiaDRASpecs(dir string) error {
 	if err != nil {
 		return fmt.Errorf("read CDI spec dir: %w", err)
 	}
+	var openErr error
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), NvidiaDRAClaimSpecPrefix) {
-			return nil
+		if !strings.HasPrefix(entry.Name(), nvidiaDRAClaimSpecPrefix) {
+			continue
 		}
+		f, err := os.Open(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			if openErr == nil {
+				openErr = fmt.Errorf("open CDI spec: %w", err)
+			}
+			continue
+		}
+		f.Close()
+		return nil
 	}
-	return fmt.Errorf("no NVIDIA DRA claim specs (%s*) in %s", NvidiaDRAClaimSpecPrefix, dir)
+	if openErr != nil {
+		return openErr
+	}
+	return fmt.Errorf("no NVIDIA DRA claim specs (%s*) in %s", nvidiaDRAClaimSpecPrefix, dir)
 }
 
 // HasUnresolvedDRAGPUClaim returns true if the container is running and holds

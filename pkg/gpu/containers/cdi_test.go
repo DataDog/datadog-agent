@@ -47,6 +47,18 @@ func TestCheckNvidiaDRACDISpecs(t *testing.T) {
 		assert.Contains(t, err.Error(), empty)
 		assert.Contains(t, err.Error(), otherVendor)
 	})
+
+	t.Run("NVIDIA DRA claim specs are not readable", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("file permissions are not enforced for root")
+		}
+		unreadable := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(unreadable, NvidiaDRAClaimSpecFileName("uid")), []byte("{}"), 0o000))
+		setCDISpecDirs(t, unreadable)
+		err := CheckNvidiaDRACDISpecs()
+		require.Error(t, err)
+		assert.ErrorIs(t, err, os.ErrPermission)
+	})
 }
 
 func TestHasUnresolvedDRAGPUClaim(t *testing.T) {
