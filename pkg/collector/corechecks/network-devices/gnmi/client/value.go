@@ -6,6 +6,7 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -31,9 +32,9 @@ func decodeTypedValue(value *gnmipb.TypedValue) (any, error) {
 	case *gnmipb.TypedValue_LeaflistVal:
 		return typed.LeaflistVal.GetElement(), nil
 	case *gnmipb.TypedValue_JsonVal:
-		return string(typed.JsonVal), nil
+		return decodeJSONValue(typed.JsonVal)
 	case *gnmipb.TypedValue_JsonIetfVal:
-		return string(typed.JsonIetfVal), nil
+		return decodeJSONValue(typed.JsonIetfVal)
 	case *gnmipb.TypedValue_AsciiVal:
 		return typed.AsciiVal, nil
 	case *gnmipb.TypedValue_ProtoBytes:
@@ -43,4 +44,15 @@ func decodeTypedValue(value *gnmipb.TypedValue) (any, error) {
 	default:
 		return nil, fmt.Errorf("unsupported typed value %T", typed)
 	}
+}
+
+func decodeJSONValue(raw []byte) (any, error) {
+	if len(raw) == 0 {
+		return "", nil
+	}
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return string(raw), nil
+	}
+	return decoded, nil
 }

@@ -260,6 +260,39 @@ func TestReportMetrics(t *testing.T) {
 			},
 		},
 		{
+			name: "module-qualified JSON-IETF path matches wire profile path",
+			cfg: &config.CheckConfig{
+				Instance: config.InstanceConfig{Address: deviceAddress},
+				Profile: config.ProfileDefinition{
+					Metrics: []config.MetricConfig{
+						{
+							Path:   "/interfaces/interface/state/counters/in-octets",
+							Metric: "snmp.ifHCInOctets",
+							Type:   config.MetricTypeMonotonicCount,
+							Tags:   map[string]string{"interface": "name"},
+						},
+					},
+				},
+			},
+			snapshot: []client.CachedValue{
+				{
+					Key: client.CacheKey{
+						Path: "/openconfig/interfaces/interface/state/counters/in-octets",
+						Keys: map[string]string{"name": "eth0"},
+					},
+					Entry: client.CacheEntry{Value: uint64(42)},
+				},
+			},
+			wantMetrics: []expectedMetric{
+				{
+					method: "MonotonicCount",
+					name:   "snmp.ifHCInOctets",
+					value:  42,
+					tags:   append(baseTags, "interface:eth0"),
+				},
+			},
+		},
+		{
 			name: "profile path with surrounding whitespace",
 			cfg: &config.CheckConfig{
 				Instance: config.InstanceConfig{

@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
+	gnmi "github.com/openconfig/gnmi/proto/gnmi"
 )
 
 const (
@@ -37,6 +38,7 @@ type InstanceConfig struct {
 	CollectTopology            bool     `yaml:"collect_topology"`
 	UseTLS                     bool     `yaml:"use_tls"`
 	InsecureSkipVerify         bool     `yaml:"insecure_skip_verify"`
+	Encoding                   string   `yaml:"encoding"`
 }
 
 // CheckConfig combines a validated instance config with its loaded profile.
@@ -107,7 +109,15 @@ func validateInstanceConfig(instance *InstanceConfig) error {
 	if instance.InsecureSkipVerify && !instance.UseTLS {
 		return errors.New("`insecure_skip_verify` requires `use_tls: true`")
 	}
+	if _, err := ParseEncoding(instance.Encoding); err != nil {
+		return err
+	}
 	return nil
+}
+
+// ResolvedEncoding returns the configured gNMI subscribe encoding.
+func (c *InstanceConfig) ResolvedEncoding() (gnmi.Encoding, error) {
+	return ParseEncoding(c.Encoding)
 }
 
 // String returns a redacted representation safe for logs and error messages.

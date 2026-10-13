@@ -62,3 +62,9 @@ instances:
     ## Whether to collect topology metadata from the device.
     #
     # collect_topology: false
+
+    ## @param encoding - string - optional - default: json_ietf
+    ## gNMI subscription encoding requested from the device.
+    ## Supported values: proto, json, json_ietf
+    #
+    # encoding: json_ietf
