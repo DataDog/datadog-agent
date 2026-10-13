@@ -275,12 +275,8 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	// (fail-fast timeouts + multi-mirror failover) before the install, so a mirror outage
 	// doesn't fail this test. Both the amd64 (archive.ubuntu.com) and arm64 (ports.ubuntu.com)
 	// variants of the image are handled.
-	_, err = client.ExecuteWithRetry(
-		"printf \"Acquire::Retries \\\"1\\\";\\nAcquire::http::Timeout \\\"10\\\";\\nAcquire::https::Timeout \\\"10\\\";\\n\\\" > /etc/apt/apt.conf.d/99datadog-mirror-resilience && " +
-			"printf \"http://archive.ubuntu.com/ubuntu\\nhttp://mirror.leaseweb.net/ubuntu\\n\\\" > /etc/apt/mirrorlist.main && " +
-			"printf \"http://ports.ubuntu.com/ubuntu-ports\\nhttp://mirror.leaseweb.net/ubuntu-ports\\n\\\" > /etc/apt/mirrorlist.ports && " +
-			"sed -i -e \"s#http://archive.ubuntu.com\\S*#mirror+file:/etc/apt/mirrorlist.main#g\" -e \"s#http://security.ubuntu.com\\S*#mirror+file:/etc/apt/mirrorlist.main#g\" -e \"s#http://ports.ubuntu.com\\S*#mirror+file:/etc/apt/mirrorlist.ports#g\" /etc/apt/sources.list && " +
-			"apt-get update && apt-get install -y curl sudo")
+	const containerAptHardeningAndInstall = `printf "Acquire::Retries \"1\";\nAcquire::http::Timeout \"10\";\nAcquire::https::Timeout \"10\";\n" > /etc/apt/apt.conf.d/99datadog-mirror-resilience && printf "http://archive.ubuntu.com/ubuntu\nhttp://mirror.leaseweb.net/ubuntu\n" > /etc/apt/mirrorlist.main && printf "http://ports.ubuntu.com/ubuntu-ports\nhttp://mirror.leaseweb.net/ubuntu-ports\n" > /etc/apt/mirrorlist.ports && sed -i -e "s#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g" -e "s#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g" -e "s#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g" /etc/apt/sources.list && apt-get update && apt-get install -y curl sudo`
+	_, err = client.ExecuteWithRetry(containerAptHardeningAndInstall)
 	require.NoError(is.T(), err)
 
 	installOptions := []installparams.Option{
