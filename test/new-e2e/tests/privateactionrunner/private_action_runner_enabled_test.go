@@ -57,6 +57,7 @@ func generateTestPrivateActionRunnerConfig(t *testing.T) string {
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
+  split_enabled: false
   self_enroll: false
   urn: %s
   private_key: %s
@@ -295,6 +296,23 @@ func (s *linuxPrivateActionRunnerEnabledSuite) assertPrivilegedHelperUIDs() {
 		}
 	}
 	s.FailNow("helper process status has no Uid line: %s", status)
+}
+
+func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerEnabledHostTag() {
+	fakeintake := s.Env().FakeIntake.Client()
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		hosts, err := fakeintake.GetHosts()
+		require.NoError(c, err)
+		require.NotEmpty(c, hosts, "no hosts have sent host-tags payloads yet")
+
+		for _, host := range hosts {
+			payloads, err := fakeintake.GetHostTags(host)
+			require.NoError(c, err)
+			require.NotEmpty(c, payloads, "no host-tags payloads for host %s", host)
+			assert.Contains(c, payloads[len(payloads)-1].HostTags, "private_action_runner_enabled:true")
+		}
+	}, 5*time.Minute, 10*time.Second, "Private Action Runner enabled host tag did not reach fakeintake")
 }
 
 func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhenEnabled() {

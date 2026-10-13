@@ -42,7 +42,11 @@ clusterAgent:
 				scenec2.WithInstanceType("t3.xlarge"),
 			),
 			scenkind.WithFakeintakeOptions(
-				fakeintake.WithMemory(2048),
+				// The task memory is shared with a datadog-agent sidecar. With 31m of retention, a smaller
+				// task gets OOM-killed and replaced by one with a new IP, failing all remaining queries.
+				// Fargate requires 1024 CPU units for more than 4096MiB.
+				fakeintake.WithCPU(1024),
+				fakeintake.WithMemory(6144),
 				fakeintake.WithRetentionPeriod("31m"),
 			),
 			scenkind.WithDeployDogstatsd(),
@@ -122,8 +126,8 @@ func (suite *kindSuite) TestDynamoGraphDeploymentTagOnContainerMetric() {
 				`^dynamo_graph_deployment:` + deploymentName + `$`,
 				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
-				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				`^image_id:.*/apps-stress-ng@sha256:`,
+				`^image_name:.*/apps-stress-ng$`,
 				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,

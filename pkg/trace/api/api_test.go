@@ -233,6 +233,73 @@ func TestServerShutdown(t *testing.T) {
 	wg.Wait()
 }
 
+// TestStopWithBlockedHandler reproduces a shutdown where a handler is still
+// blocked handing its payload to the out channel when the graceful shutdown
+// times out. Stop must not return until that handler has exited, so that the
+// caller can close the out channels without a "send on closed channel" panic.
+func TestStopWithBlockedHandler(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		features string
+	}{
+		{name: "v1"},
+		{name: "v0", features: "disable-convert-traces"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := newTestReceiverConfigNoPort()
+			if tc.features != "" {
+				conf.Features[tc.features] = struct{}{}
+			}
+			ln := testutil.TCPListener(t)
+			tcpAddr := ln.Addr().(*net.TCPAddr)
+			conf.ReceiverHost = tcpAddr.IP.String()
+			conf.ReceiverPort = tcpAddr.Port
+			// With the default of a single connection slot, Accept would block
+			// on the slot held by the request below and stall server.Shutdown.
+			conf.MaxConnections = 10
+
+			// Unbuffered and never read, so the handler blocks on its send.
+			out := make(chan *Payload)
+			outV1 := make(chan *PayloadV1)
+			r := NewHTTPReceiver(conf, sampler.NewDynamicConfig(), out, outV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			r.shutdownTimeout = 100 * time.Millisecond
+			r.SetTCPListener(ln)
+			r.Start()
+
+			bts, err := testutil.GetTestTraces(1, 1, true).MarshalMsg(nil)
+			require.NoError(t, err)
+			req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/v0.4/traces", r.Addr()), bytes.NewReader(bts))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/msgpack")
+			// The response is only flushed once the handler returns, so send
+			// in the background.
+			go func() {
+				if resp, err := http.DefaultClient.Do(req); err == nil {
+					resp.Body.Close()
+				}
+			}()
+			// The handler creates its tag stats right after decoding the
+			// payload. From there it does no more network reads before
+			// blocking on the out channel, which nothing reads, so closing
+			// the connection in Stop can no longer make it fail early.
+			require.Eventually(t, func() bool {
+				r.Stats.RLock()
+				defer r.Stats.RUnlock()
+				return len(r.Stats.Stats) > 0
+			}, 5*time.Second, 10*time.Millisecond)
+
+			err = r.Stop()
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
+			assert.EqualValues(t, 1, r.droppedOnShutdown.Load())
+
+			// What the agent does after Stop returns; this used to race with
+			// the blocked handler and panic.
+			close(out)
+			close(outV1)
+		})
+	}
+}
+
 func TestReceiverRequestBodyLength(t *testing.T) {
 	assert := assert.New(t)
 
@@ -2367,6 +2434,245 @@ func TestGetProcessTags(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetSDKOtlpExport(t *testing.T) {
+	tests := []struct {
+		name     string
+		payload  *pb.TracerPayload
+		expected string
+	}{
+		{
+			name: "payload tags win over span meta",
+			payload: &pb.TracerPayload{
+				Tags: map[string]string{
+					tagSDKOtlpExport: "false",
+				},
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{Meta: map[string]string{tagSDKOtlpExport: "span-meta-value"}},
+						},
+					},
+				},
+			},
+			expected: "false",
+		},
+		{
+			name: "first span meta when payload tags absent",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{
+						Spans: []*pb.Span{
+							{Meta: map[string]string{tagSDKOtlpExport: "false"}},
+							{Meta: map[string]string{tagSDKOtlpExport: "ignored"}},
+						},
+					},
+				},
+			},
+			expected: "false",
+		},
+		{
+			name: "first span of the first non-empty chunk is used",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{
+					{}, // empty chunk, must be skipped
+					{
+						Spans: []*pb.Span{
+							{Meta: map[string]string{tagSDKOtlpExport: "false"}},
+						},
+					},
+					{
+						Spans: []*pb.Span{
+							{Meta: map[string]string{tagSDKOtlpExport: "ignored"}},
+						},
+					},
+				},
+			},
+			expected: "false",
+		},
+		{
+			name:     "absent everywhere",
+			payload:  &pb.TracerPayload{},
+			expected: "",
+		},
+		{
+			name: "chunks but no spans",
+			payload: &pb.TracerPayload{
+				Chunks: []*pb.TraceChunk{{}},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getSDKOtlpExport(tc.payload))
+		})
+	}
+}
+
+func TestGetSDKOtlpExportV1(t *testing.T) {
+	newPayload := func(payloadVal string, chunkSpanVals ...[]string) *idx.InternalTracerPayload {
+		tp := &idx.InternalTracerPayload{Strings: idx.NewStringTable()}
+		if payloadVal != "" {
+			tp.SetStringAttribute(tagSDKOtlpExport, payloadVal)
+		}
+		for _, spanVals := range chunkSpanVals {
+			chunk := &idx.InternalTraceChunk{Strings: tp.Strings}
+			for _, v := range spanVals {
+				span := idx.NewInternalSpan(tp.Strings, &idx.Span{})
+				if v != "" {
+					span.SetStringAttribute(tagSDKOtlpExport, v)
+				}
+				chunk.Spans = append(chunk.Spans, span)
+			}
+			tp.Chunks = append(tp.Chunks, chunk)
+		}
+		return tp
+	}
+
+	tests := []struct {
+		name     string
+		payload  *idx.InternalTracerPayload
+		expected string
+	}{
+		{
+			name:     "payload attributes win over span attributes",
+			payload:  newPayload("false", []string{"span-attr-value"}),
+			expected: "false",
+		},
+		{
+			name:     "first span attributes when payload attributes absent",
+			payload:  newPayload("", []string{"false", "ignored"}),
+			expected: "false",
+		},
+		{
+			name:     "first span of the first non-empty chunk is used",
+			payload:  newPayload("", []string{}, []string{"false"}, []string{"ignored"}),
+			expected: "false",
+		},
+		{
+			name:     "absent everywhere",
+			payload:  newPayload("", []string{""}),
+			expected: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, getSDKOtlpExportV1(tc.payload))
+		})
+	}
+}
+
+// TestSDKOtlpExportHoistedToPayloadTags exercises the write site: the value must
+// land in TracerPayload.Tags, and must be entirely absent (not an empty string)
+// when no carrier provided it.
+func TestSDKOtlpExportHoistedToPayloadTags(t *testing.T) {
+	send := func(t *testing.T, tp *pb.TracerPayload) *pb.TracerPayload {
+		t.Helper()
+		conf := newTestReceiverConfigWithFeatures("disable-convert-traces")
+		r := newTestReceiverFromConfig(conf)
+		server := httptest.NewServer(r.handleWithVersion(V07, r.handleTraces))
+		defer server.Close()
+
+		wire, err := tp.MarshalMsg(nil)
+		require.NoError(t, err)
+		req, err := http.NewRequest("POST", server.URL, bytes.NewReader(wire))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/msgpack")
+
+		resp, err := (&http.Client{}).Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		select {
+		case p := <-r.out:
+			// The value must not leak onto the stats path.
+			assert.Empty(t, p.ProcessTags)
+			return p.TracerPayload
+		case <-time.After(5 * time.Second):
+			t.Fatal("no data received on r.out")
+			return nil
+		}
+	}
+
+	t.Run("hoisted from first span of first non-empty chunk", func(t *testing.T) {
+		out := send(t, &pb.TracerPayload{Chunks: []*pb.TraceChunk{
+			{},
+			{Spans: []*pb.Span{
+				{Service: "svc", TraceID: 1, SpanID: 2, Meta: map[string]string{tagSDKOtlpExport: "false"}},
+			}},
+		}})
+		assert.Equal(t, "false", out.Tags[tagSDKOtlpExport])
+	})
+
+	t.Run("absent everywhere writes no key", func(t *testing.T) {
+		out := send(t, &pb.TracerPayload{Chunks: []*pb.TraceChunk{
+			{Spans: []*pb.Span{{Service: "svc", TraceID: 1, SpanID: 2}}},
+		}})
+		_, ok := out.Tags[tagSDKOtlpExport]
+		assert.False(t, ok, "expected no %q key in TracerPayload.Tags, got %#v", tagSDKOtlpExport, out.Tags)
+	})
+}
+
+// TestSDKOtlpExportHoistedToPayloadAttributesV1 is the idx/v1 equivalent of
+// TestSDKOtlpExportHoistedToPayloadTags.
+func TestSDKOtlpExportHoistedToPayloadAttributesV1(t *testing.T) {
+	send := func(t *testing.T, tp *idx.InternalTracerPayload) *idx.InternalTracerPayload {
+		t.Helper()
+		r := newTestReceiverFromConfig(newTestReceiverConfig())
+		handler := r.handleWithVersion(V10, r.handleTraces)
+
+		bts, err := tp.MarshalMsg(nil)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", "/v1.0/traces", bytes.NewReader(bts))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/msgpack")
+		handler.ServeHTTP(rr, req)
+
+		result := rr.Result()
+		defer result.Body.Close()
+		require.Equal(t, http.StatusOK, result.StatusCode)
+
+		select {
+		case p := <-r.outV1:
+			assert.Empty(t, p.ProcessTags)
+			return p.TracerPayload
+		default:
+			t.Fatal("no trace sent for processing")
+			return nil
+		}
+	}
+
+	t.Run("hoisted from first span", func(t *testing.T) {
+		tp := &idx.InternalTracerPayload{Strings: idx.NewStringTable()}
+		chunk := &idx.InternalTraceChunk{Strings: tp.Strings}
+		span := idx.NewInternalSpan(tp.Strings, &idx.Span{})
+		span.SetStringAttribute(tagSDKOtlpExport, "false")
+		chunk.Spans = append(chunk.Spans, span)
+		tp.Chunks = append(tp.Chunks, chunk)
+
+		out := send(t, tp)
+		v, ok := out.GetAttributeAsString(tagSDKOtlpExport)
+		assert.True(t, ok)
+		assert.Equal(t, "false", v)
+	})
+
+	t.Run("absent everywhere writes no attribute", func(t *testing.T) {
+		tp := &idx.InternalTracerPayload{Strings: idx.NewStringTable()}
+		chunk := &idx.InternalTraceChunk{Strings: tp.Strings}
+		chunk.Spans = append(chunk.Spans, idx.NewInternalSpan(tp.Strings, &idx.Span{}))
+		tp.Chunks = append(tp.Chunks, chunk)
+
+		out := send(t, tp)
+		_, ok := out.GetAttributeAsString(tagSDKOtlpExport)
+		assert.False(t, ok, "expected no %q attribute on the tracer payload", tagSDKOtlpExport)
+	})
 }
 
 func TestUpdateAPIKey(t *testing.T) {

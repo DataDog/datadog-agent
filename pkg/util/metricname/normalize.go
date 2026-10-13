@@ -165,6 +165,47 @@ func NormalizeAppend(dst []byte, name string) ([]byte, bool) {
 	return dst, true
 }
 
+// NormalizePrefixRules normalizes metric_filterlist_prefix rules.
+// Prefix and ExceptPrefix are normalized as prefixes; ExceptExact as full names.
+// Empty Prefix and ExceptPrefix entries are valid. Empty ExceptExact is dropped.
+func NormalizePrefixRules(rules []PrefixRule) (normalized []PrefixRule, droppedRules, droppedExceptions []string) {
+	normalized = make([]PrefixRule, 0, len(rules))
+	// string(key) copies before buf is reused.
+	var buf [MaxLength]byte
+
+	for _, rule := range rules {
+		prefixKey, ok := NormalizePrefixAppend(buf[:0], rule.Prefix)
+		if !ok {
+			droppedRules = append(droppedRules, rule.Prefix)
+			continue
+		}
+
+		normRule := PrefixRule{Prefix: string(prefixKey)}
+
+		for _, exact := range rule.ExceptExact {
+			key, ok := NormalizeAppend(buf[:0], exact)
+			if !ok {
+				droppedExceptions = append(droppedExceptions, exact)
+				continue
+			}
+			normRule.ExceptExact = append(normRule.ExceptExact, string(key))
+		}
+
+		for _, prefix := range rule.ExceptPrefix {
+			key, ok := NormalizePrefixAppend(buf[:0], prefix)
+			if !ok {
+				droppedExceptions = append(droppedExceptions, prefix)
+				continue
+			}
+			normRule.ExceptPrefix = append(normRule.ExceptPrefix, string(key))
+		}
+
+		normalized = append(normalized, normRule)
+	}
+
+	return normalized, droppedRules, droppedExceptions
+}
+
 // NormalizePrefixAppend appends the metric name prefix as the intake would store
 // the start of the names it matches to dst, and returns the extended slice.
 //

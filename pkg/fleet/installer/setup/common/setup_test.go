@@ -51,6 +51,18 @@ func (i *setupInstallerSpy) ForceInstall(context.Context, string, []string) erro
 	return nil
 }
 
+func TestCheckAgentFlavorWithoutAgent(t *testing.T) {
+	for _, fipsMode := range []bool{false, true} {
+		s := &Setup{
+			Env:      &env.Env{FIPSMode: fipsMode},
+			Packages: Packages{install: make(map[string]packageWithVersion)},
+		}
+		require.NoError(t, s.CheckAgentFlavor())
+		s.Packages.Install(DatadogAPMLibraryDotNetPackage, "3")
+		require.NoError(t, s.CheckAgentFlavor())
+	}
+}
+
 func TestParActionsAllowlist_ExplicitEnv(t *testing.T) {
 	explicit := "com.datadoghq.http.request,com.datadoghq.http.response"
 	got := parActionsAllowlist(explicit, "linux", true)

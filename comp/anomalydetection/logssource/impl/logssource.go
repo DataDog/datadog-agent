@@ -56,7 +56,7 @@ type Requires struct {
 	// Autodiscovery is optional: when absent the AD scheduler is simply not started
 	// and the observer falls back to generic container and kubelet log collection
 	// without AD-scheduled config overlays.
-	Autodiscovery autodiscovery.Component `fx:"optional"`
+	Autodiscovery autodiscovery.Component `optional:"true"`
 }
 
 // Provides defines the output of the logssource component.

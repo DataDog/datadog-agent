@@ -411,6 +411,15 @@ func (s *hostBenchmarksSuite) TestProbes() {
 // provisioner redirects compliance_config.endpoints, so --report findings land
 // at /api/v2/compliance.
 func (s *hostBenchmarksSuite) TestReporting() {
+	// The CCRID the agent is expected to report for this host. IMDSv2 tokens are
+	// accepted whether or not the instance still allows IMDSv1, so this reads the
+	// instance ID independently of the agent's own IMDS handling.
+	instanceID := strings.TrimSpace(s.runHost(
+		`curl -s -H "X-aws-ec2-metadata-token: $(curl -s -X PUT http://169.254.169.254/latest/api/token ` +
+			`-H 'X-aws-ec2-metadata-token-ttl-seconds: 60')" http://169.254.169.254/latest/meta-data/instance-id`))
+	require.NotEmpty(s.T(), instanceID, "could not read the instance ID from IMDS")
+	wantCCRIDSuffix := ":instance/" + instanceID
+
 	s.runHost(fmt.Sprintf("sudo %s compliance check --report 2>/dev/null", securityAgent))
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		findings, err := s.Env().FakeIntake.Client().GetComplianceFindings()
@@ -419,6 +428,14 @@ func (s *hostBenchmarksSuite) TestReporting() {
 		for _, f := range findings {
 			if f.FrameworkID == s.distro.frameworkID {
 				reported = true
+				// The reporting path stamps the host CCRID resolved once at
+				// startup — here the CLI one, since the findings come from
+				// `compliance check --report`. A mismatch means the startup
+				// resolution broke, not that the payload was mangled.
+				assert.Truef(c,
+					strings.HasPrefix(f.HostCCRID, "arn:aws:ec2:") && strings.HasSuffix(f.HostCCRID, wantCCRIDSuffix),
+					"finding %s reached fakeintake with host_ccrid %q, want the EC2 ARN of instance %s",
+					f.RuleID, f.HostCCRID, instanceID)
 				break
 			}
 		}
