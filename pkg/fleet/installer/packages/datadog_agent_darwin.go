@@ -249,7 +249,8 @@ func stableIsPlaceholder(repositories *repository.Repositories, pkg string) (boo
 // is what lets Fleet repair the host remotely.
 //
 // procmgrJob is loaded only when process_manager.enabled (default true); when disabled its
-// LaunchDaemon definition is removed instead, mirroring dd-procmgr-service on Windows.
+// LaunchDaemon definition is removed instead. The core Agent cannot apply this setting at
+// runtime: it runs as _dd-agent and cannot modify the system launchd domain (root required).
 func installStableJobs(ctx HookContext, layout agentLayout) (err error) {
 	span, ctx := ctx.StartSpan("install_stable_jobs")
 	defer func() {
@@ -262,8 +263,8 @@ func installStableJobs(ctx HookContext, layout agentLayout) (err error) {
 	var errs []error
 	for _, label := range stableJobs {
 		if label == procmgrJob && !procmgrEnabled {
-			// Best-effort: removeJob only logs (same as uninstall). A leftover loaded job is
-			// cleared on the next Agent start via syncProcmgrWithConfig when enabled is false.
+			// Best-effort: removeJob only logs (same as uninstall). Re-run install/upgrade to
+			// re-apply after a failed remove; the Agent cannot boot out system jobs.
 			removeJob(ctx, client, label)
 			continue
 		}

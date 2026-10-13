@@ -312,8 +312,8 @@ properties:
       On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
       On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
       This setting is ignored on Linux and does not enable or disable the systemd unit.
-      On macOS, the LaunchDaemon `com.datadoghq.procmgr` runs dd-procmgrd when this option is true.
-      The core Agent applies the setting at startup (enable/bootstrap/kickstart, or disable/bootout).
+      On macOS, the installer loads the LaunchDaemon `com.datadoghq.procmgr` when this option is true
+      (and removes it when false). The core Agent does not start or stop that job at runtime.
     tags:
     - template_section:Common
     properties:
@@ -323,14 +323,13 @@ properties:
         default: true
         visibility: public
         description: |-
-          When true, the core Agent starts the process manager daemon on Windows (`dd-procmgr-service`)
-          and on macOS (`com.datadoghq.procmgr`). When false on those platforms, the Agent does not
-          start it (on macOS it also disables and boots out the LaunchDaemon).
+          When true (Windows), the core Agent starts the dd-procmgr-service Windows service.
+          When true (macOS), the installer loads the com.datadoghq.procmgr LaunchDaemon; when false,
+          the installer removes it. The macOS Agent does not apply this setting at runtime.
           On Linux, the process manager daemon is started by systemd; this option is ignored.
         comment: |-
           Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
-          On macOS the core agent enables/bootstraps/kickstarts com.datadoghq.procmgr when enabled, and
-          disables/boots it out when disabled.
+          On macOS the installer loads or removes com.datadoghq.procmgr from process_manager.enabled.
           On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
   tag_value_split_separator:
     node_type: setting
