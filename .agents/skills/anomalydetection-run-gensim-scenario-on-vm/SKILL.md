@@ -1,420 +1,197 @@
 ---
 name: anomalydetection-run-gensim-scenario-on-vm
 description: >-
-  Record a gensim episode with the anomaly-detection recorder on a remote Linux VM (kind cluster + Datadog Agent
-  recorder image) and fetch the recording locally for the testbench. Agent Anomaly Detection team only: it records
-  Agent data into parquet files for our evals and is not a general-purpose gensim or Agent benchmarking procedure.
-  Use for "record a gensim scenario on a VM", "set up the gensim VM", "run the kafka-partition-saturation episode and
-  fetch the parquet".
+  Record gensim episodes on a remote Linux VM with the anomaly-detection recorder and fetch Parquet recordings
+  for the Agent Anomaly Detection team's testbench evals. Use for "record a gensim scenario on a VM",
+  "set up the gensim VM", or "record a batch of episodes and fetch the parquet". Not a general-purpose
+  gensim or Agent benchmarking workflow.
 allowed-tools: Bash, Read, AskUserQuestion
-argument-hint: "[scenario path in gensim-episodes] [episode name] [VM ssh target]"
 ---
 
-> **Scope:** this skill is only for the Agent Anomaly Detection team. It uses the recorder component to record data
-> from the Agent into parquet files, in order to run our evals. It is not a general-purpose gensim or Agent
-> benchmarking procedure.
+# Record gensim episodes on a VM
 
-Runs a gensim episode on a remote x86_64 Ubuntu VM instead of a local Lima VM, records it with the
-`recorder-full` Agent image, and copies the part of the recording that covers the episode to the local machine.
+Owner: Agent Anomaly Detection (`@DataDog/agent-anomaly-detection`).
 
-Documentation this skill is derived from (read them if a step fails):
+Run the bundled shell helpers one at a time and check their exit status. Inspect the relevant function when
+troubleshooting or adapting another Linux image. They do not automatically tear down resources: reuse a healthy VM,
+cluster, and recorder for a batch instead of provisioning for every episode.
 
-- Recorder + gensim: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7272235685/Using+the+recorder+to+record+gensim+staging+scenarios
-- Gensim hands-on (Lima + kind setup): https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6238700466/Gensim+Hands+On
-- Lima setup script this replaces: `q_branch/setup-k8s-host.sh`, `q_branch/gadget-k8s-host.lima.yaml`
-- Scenarios: the `gensim-episodes` repo
+The original inline procedure was exercised on Ubuntu 22.04 x86_64 with a shortened episode. The extracted helpers
+have local fixture tests; do not claim a live VM run unless you actually performed one.
 
-Validation status: every step was run end to end on a 2 vCPU / 3.7 GiB Ubuntu 22.04 x86_64 VM (shortened episode,
-see step 7), except creating the VM with `aws.create-vm` (step 2). Report any deviation to the user.
+## 1. Collect inputs and authorization
 
-Notation: `<vm>` is the ssh target (`user@host`, add `-p <port>` where needed); commands marked "on the VM" run through
-`ssh <vm> '...'`. `kubectl` and `helm` run on the VM, no tunnel to the cluster is needed.
+Ask for missing inputs and resolve ambiguity before changing resources:
 
-## Step 1 — Collect inputs
-
-Ask with `AskUserQuestion` for everything not already given. Never guess these, and never print secret values.
-
-| Input | Notes |
+| Input | Requirement |
 |---|---|
-| Env file (local path) | Must define `DD_API_KEY` and `DD_APP_KEY` (dddev org). **Never read, cat or echo it**; check only variable names and non-emptiness (step 3) |
-| VM | An existing `user@host` (and ssh port), or create one with `dda inv aws.create-vm` (step 2) |
-| Scenario | Directory under `postmortems/<id>/` in a local `gensim-episodes` checkout, and an episode name from its `episodes/*.yaml`. The episode is not a directory |
-| `gensim-episodes` checkout | Local path; if none, `git clone git@github.com:DataDog/gensim-episodes.git` |
-| Recorder image | `datadog/agent-dev:<tag>` built by CI job `dev_branch-recorder-full` (tag looks like `<branch>-recorder-full`), or ask which pipeline to use. Must be amd64 for an x86_64 VM |
-| Output directory | Where to store the recording, default `/tmp/vm-scenarios/<episode-name>` |
-| Run length | Full episode (about 32 min) or shortened test run (about 4 min, step 7) |
-| Recording settings | Flush interval (default `1m`) and retention (default `90m`, must be longer than the episode plus the final wait of step 8) |
-| Cluster name | `clusterName` for the Agent, `<name>-gensim-cluster` |
-| Teardown | Whether to uninstall / delete the cluster / destroy the VM when done |
+| VM | Disposable `user@host` the user authorizes you to repurpose, or an authorized new AWS VM |
+| Scenario | Directory in the `gensim-episodes` repo containing `play-episode.sh` and `chart/`; episode from `episodes/*.yaml` |
+| Env file | Local file defining `DD_API_KEY` and `DD_APP_KEY` for dddev; do not read, echo, or print values |
+| Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full`; confirm pipeline and amd64 platform |
+| Run settings | Full/shortened mode, cluster name, flush (default `1m`), retention (default `90m`), optional recording-only mode |
+| Output | Fresh absolute directory per run, default `/tmp/vm-scenarios/<episode>`; do not overwrite an existing directory |
+| Batch / teardown | Episodes to run and resources to remove afterwards; retain resources until the batch finishes |
 
-Also confirm any other ambiguity (several scenarios, custom images, non-default namespace) before acting.
+Use at least 4 vCPU / 16 GiB and about 20 GB free disk. A 2 vCPU / 3.7 GiB VM was saturated and produced degraded
+recordings. Retention must exceed the whole batch plus the final flush wait; fetch each episode immediately to avoid
+eviction. Do not operate on production machines or clusters: these steps install software, change host settings,
+deploy workloads, and create dddev monitors/events. Confirm the disposable host and dddev credentials first.
+The helpers require `--disposable-vm` to record that authorization; the flag is not a substitute for obtaining it.
 
-## Step 2 — VM
+Set `SKILL` to this skill's absolute directory, and `VM` to the confirmed SSH target.
+Local dependencies: Bash, SSH/SCP, rsync, Python 3, and PyArrow for fetching (use `uv run --with pyarrow bash ...`).
+Set `SSH_PORT` for a non-default SSH port. Use the user's SSH configuration; verify unknown host fingerprints instead
+of disabling host-key checking.
 
-Size matters. A 2 vCPU / 3.7 GiB VM can run kind + the Agent + an 11-service scenario, but it is saturated (load
-average ~10 on 2 vCPUs, Agent probes time out): the recording is degraded. Use at least 4 vCPU / 16 GiB.
+## 2. Provision or reuse the VM and cluster
 
-Use a **disposable VM** you are allowed to repurpose: the steps below install packages, replace inotify limits, create a
-kind cluster and mutate `kubectl` state. Never point them at a machine that runs anything you care about.
-
-To create one (needs the e2e AWS setup, see `doc/how-to/test/e2e/`; do not run the interactive setup):
-
-```bash
-dda inv aws.create-vm --instance-type=t3.2xlarge --no-install-agent --stack-name=<name>
-```
-
-`--no-install-agent` avoids a host Agent competing for resources. Take the ssh user/host from the task output.
-Destroy later with `dda inv aws.destroy-vm --stack-name=<name>`.
-
-Probe the VM before changing it (the first connection may need `-o StrictHostKeyChecking=accept-new`):
+If creating a VM, use the repo's non-interactive e2e AWS setup first (`doc/how-to/test/e2e/`); ask for the GitHub team
+if needed for `dda inv e2e.setup --team=<team>`. From the Agent checkout:
 
 ```bash
-ssh <vm> 'uname -m; nproc; free -h; df -h /; for t in docker kind kubectl helm python3 curl; do printf "$t: "; command -v $t || echo missing; done; sudo -n true && echo sudo-ok'
+bash "$SKILL/scripts/vm.sh" create-vm --disposable-vm "$STACK" t3.2xlarge
 ```
 
-Needs `x86_64` (or adapt every `amd64` below), passwordless sudo, and ~20 GB of free disk.
-
-## Step 3 — Copy the env file
+Use the SSH target printed by `dda inv aws.create-vm`. `--no-install-agent` avoids a competing host Agent.
+For a created or reused VM:
 
 ```bash
-ssh <vm> 'mkdir -p ~/gensim'
-scp <env-file> <vm>:~/gensim/env
-ssh <vm> 'chmod 600 ~/gensim/env && printf "DD_ENV=qbranch_gensim\nKUBE_NAMESPACE=default\n" >> ~/gensim/env'
-ssh <vm> 'awk -F= "{print \$1\": \" (length(\$2)>0 ? \"set\" : \"EMPTY\")}" ~/gensim/env'
+bash "$SKILL/scripts/vm.sh" probe "$VM"
 ```
 
-The file must end with a newline before appending. Stop if a key reports `EMPTY`. `DD_ENV` tags the data and the monitor
-the episode creates; ask if the user wants another value.
+Require x86_64, passwordless sudo, Docker without sudo, kind, kubectl, Helm, Python 3 with PyYAML, and inotify limits
+of at least 524288 watches / 1024 instances. Stop on missing prerequisites. Load
+[the bootstrap reference](references/bootstrap.md) only for missing tools, Docker permissions, or low inotify limits.
+Prefer a pre-provisioned VM; a custom AMI is an optional future optimization, not part of this run.
 
-## Step 4 — Install tooling and create the cluster
-
-On the VM. Versions match `q_branch/gadget-k8s-host.lima.yaml`. Install the tooling **only if the step 2 probe reported
-missing tools**, and stop if any of it fails: a partially installed VM produces a degraded recording rather than an error.
+Create a cluster only if `gadget-dev` does not already exist:
 
 ```bash
-# Docker CE (skip if `docker` already exists)
-sudo apt-get update -qq && sudo apt-get install -y -qq curl ca-certificates gpg apt-transport-https
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-sudo apt-get update -qq && sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo systemctl enable --now docker
-
-sudo usermod -aG docker "$USER"
-
-# kubectl
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
-sudo apt-get update -qq && sudo apt-get install -y -qq kubectl
-
-# kind and helm
-sudo curl -fsSLo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64 && sudo chmod +x /usr/local/bin/kind
-curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | sudo DESIRED_VERSION=v3.20.2 bash
-
-# inotify limits (kind / Agent fail with "too many open files" otherwise); warnings on unrelated keys are harmless
-printf "fs.inotify.max_user_watches=524288\nfs.inotify.max_user_instances=1024\n" | sudo tee /etc/sysctl.d/99-kind.conf >/dev/null
-sudo sysctl --system >/dev/null
-
-# play-episode.sh needs python3 + pyyaml + curl
-python3 -c "import yaml" 2>/dev/null || sudo apt-get install -y -qq python3-yaml
+bash "$SKILL/scripts/vm.sh" create-cluster --disposable-vm "$VM"
 ```
 
-**Close the ssh multiplexed connection from the local machine**: `ssh -O exit <vm>`. With `ControlMaster auto` the open
-session keeps its old groups and kind fails with "permission denied" on the docker socket. Then, in a new session:
+The [kind asset](assets/kind.yaml) declares one worker so signals stay in one recorder directory. An existing cluster
+is refused rather than replaced. Reuse it only after checking it is the intended disposable cluster and its nodes
+are Ready: run `bash "$SKILL/scripts/vm.sh" reuse-cluster --disposable-vm "$VM"` to export its dedicated kubeconfig
+without recreating it. Helpers use `~/gensim/kubeconfig` and require `kind-gadget-dev`; direct kubectl/Helm commands
+must use that kubeconfig and explicit context too. Do not import an unrelated current production context.
+
+## 3. Deploy the recorder once
+
+Use the settings authorized in step 1:
 
 ```bash
-helm repo add datadog https://helm.datadoghq.com --force-update && helm repo update
-docker info >/dev/null && echo docker-ok     # must work without sudo
+bash "$SKILL/scripts/vm.sh" deploy-recorder --disposable-vm "$VM" "$ENV_FILE" "$TAG" "$CLUSTER_NAME" 1m 90m false
 ```
 
-Create the cluster with **one worker only** (two workers split signals across two parquet directories):
+The helper renders [the values asset](assets/recorder-values.yaml), uploads the env file with mode 600, creates the
+secret through stdin without exposing the key in command arguments, loads a single-platform image archive, and waits
+for rollout. Docker 29's multi-arch store makes `kind load docker-image` unreliable, so use the archive.
+Secrets remain on the disposable VM until removal; do not print the env file or enable shell tracing.
+
+Confirm exactly one recorder Agent pod, all containers Ready, zero restarts, and metrics/log Parquet files after a
+flush interval. Check host load and probe warnings; stop and resize a saturated VM instead of accepting a degraded run.
+Reusing the recorder avoids image loads and restarts. Redeployment can discard pod-local data; fetch first.
+
+## 4. Prepare and run episodes
+
+Copy each scenario into a fresh remote directory; only the VM copy is modified:
 
 ```bash
-kind create cluster --name gadget-dev --config /dev/stdin <<'EOF'
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-networking:
-  apiServerAddress: "127.0.0.1"
-  apiServerPort: 6443
-nodes:
-  - role: control-plane
-    extraPortMappings:
-      - containerPort: 30000
-        hostPort: 30000
-      - containerPort: 30080
-        hostPort: 30080
-      - containerPort: 30443
-        hostPort: 30443
-  - role: worker
-EOF
-kubectl wait --for=condition=Ready node --all --timeout=180s
+bash "$SKILL/scripts/scenario.sh" prepare --disposable-vm "$VM" "$SCENARIO_ID" "$SCENARIO_DIR"
+bash "$SKILL/scripts/scenario.sh" run --disposable-vm "$VM" "$SCENARIO_ID" "$EPISODE" "$RELEASE" full qbranch_gensim
 ```
 
-The context is `kind-gadget-dev`. Every `kubectl` and `helm` command below must run against it: a VM that already has a
-kubeconfig pointing at a real cluster keeps that context, and the deployment must never land there. Run
-`kubectl config use-context kind-gadget-dev` and confirm with `kubectl config current-context` (it must print
-`kind-gadget-dev`) in every new session before touching the cluster.
+`prepare` excludes old results, removes the scenario's bundled Agent template, builds Compose images if present,
+and loads them into kind. It refuses to overwrite a remote scenario directory. For another episode of that scenario,
+reuse the prepared copy and invoke only `run`. For a same-name rerun, prepare a different scenario id to preserve results.
+Uninstall the previous scenario release before switching scenarios so unrelated workloads do not contaminate the next
+recording; keep the VM, cluster, and recorder.
 
-## Step 5 — Deploy the recorder Agent
+`run` deploys the chart, waits for readiness, records Agent pod/container identities before and after the episode,
+and writes `results/<episode>-1.json` and `results/<episode>.log`. It starts the episode with `nohup` and detached stdin,
+as in the original procedure, then waits for its exit. Retain the tool session and wait for completion.
+On failure, inspect the remote log instead of blindly rerunning. A disconnected SSH session does not prove the episode
+or its workloads stopped: inspect them before retrying.
 
-Load the image. **Do not use `kind load docker-image`**: with Docker 29's multi-arch image store it fails with
-`ctr: content digest ... not found`. Save a single platform and load the archive:
+Use `shortened` instead of `full` only when requested: it changes warmup/baseline/disruption/cooldown to 30/60/90/30 s
+in the VM copy. Recopy the original scenario before a subsequent full run. Full episodes usually take about 32 min;
+the monitor can add up to 300 s waiting for baseline OK.
+
+An Alert-state warning or `"success": false` in the monitor results does not establish recording failure.
+Judge recording success separately from fetched data. Missing `episode.json` means there is no usable scenario window.
+
+## 5. Fetch and validate each recording
+
+Pass the actual recorder flush interval in seconds:
 
 ```bash
-IMAGE=datadog/agent-dev:<tag>
-docker pull --platform linux/amd64 "$IMAGE"
-docker image save --platform linux/amd64 -o /tmp/agent-recorder.tar "$IMAGE"
-kind load image-archive /tmp/agent-recorder.tar --name gadget-dev && rm /tmp/agent-recorder.tar
-docker exec gadget-dev-worker crictl images | grep agent-dev
+uv run --with pyarrow bash "$SKILL/scripts/fetch.sh" "$VM" "$SCENARIO_ID" "$EPISODE" "$OUT" 60
 ```
 
-Create the secret without echoing the key:
+The helper creates the output directory exclusively, waits until one flush interval after the episode end, checks
+Agent identity/restarts, fetches an archive with checked SSH status, rejects unsafe entries, and reads every Parquet
+column to detect corruption. It fails rather than handing partial data to the testbench.
+Recordings from the original procedure without episode Agent snapshots can still be fetched; report their
+restart/replacement history as unknown rather than claiming it was verified.
+
+Preserve the original trim rule: keep whole files whose minimum/maximum `Time` overlaps `start_time`..`end_time`,
+not filenames (flush time). Integer timestamps may be seconds, milliseconds, microseconds, or nanoseconds.
+Both metrics/log families must contain nonempty in-window data. Report observed timestamp coverage and sample gaps;
+sparse timestamps are a warning, not a new rejection rule. Investigate coverage warnings before claiming a complete
+recording. These checks do not prove every metric series is complete; also report restarts, saturation, and probe errors.
+
+Outputs: `episode.json`, `validation.json`, Agent status snapshots, and `parquet/` with retained files. Boundary files
+may include samples outside the window. `advances.jsonl` and `detect_digests.jsonl`, when present, remain untrimmed and
+span the Agent run. Unfiltered remote files remain until retention or restart. On failure, retain partial output for
+diagnosis and retry into a fresh directory; do not delete user-selected data.
+
+Replay only after validation succeeds, with output named for the episode under a parent of scenario directories:
 
 ```bash
-set -a; . ~/gensim/env; set +a
-kubectl create secret generic datadog-secret --from-literal api-key="$DD_API_KEY"
+dda inv anomalydetection.launch-testbench --scenarios-dir "$(dirname "$OUT")" --build
 ```
 
-Write the values (set `NAME`, `TAG`, `FLUSH`, `RETENTION` from step 1):
+## 6. Teardown and report
 
-```bash
-NAME=<name>; TAG=<tag>; FLUSH=1m; RETENTION=90m
-cat > ~/datadog-values.yaml <<EOF
-datadog:
-  apiKeyExistingSecret: "datadog-secret"
-  clusterName: "${NAME}-gensim-cluster"
-  logLevel: "INFO"
-  apm:
-    instrumentation:
-      enabled: true
-  logs:
-    enabled: true
-    containerCollectAll: true
-  processAgent:
-    enabled: true
-    processCollection: true
-  kubelet:
-    tlsVerify: false
-  clusterChecks:
-    enabled: true
-  env:
-  - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
-    value: "true"
-  - name: DD_ANOMALY_DETECTION_RECORDING_OUTPUT_DIR
-    value: "/tmp/observer-metrics"
-  - name: DD_ANOMALY_DETECTION_RECORDING_FLUSH_INTERVAL
-    value: "${FLUSH}"
-  - name: DD_ANOMALY_DETECTION_RECORDING_RETENTION
-    value: "${RETENTION}"
-agents:
-  image:
-    repository: datadog/agent-dev
-    tag: ${TAG}
-    pullPolicy: Never
-    doNotCheckTag: true
-clusterAgent:
-  enabled: true
-  replicas: 1
-EOF
-helm upgrade --install datadog-agent -f ~/datadog-values.yaml datadog/datadog
-kubectl rollout status daemonset/datadog-agent --timeout=180s
-```
+Perform only authorized teardown, after fetching all episodes. On the VM, uninstall selected releases with
+`KUBECONFIG="$HOME/gensim/kubeconfig" helm --kube-context kind-gadget-dev --namespace default uninstall <release>`
+(or `datadog-agent`). Delete kind only when selected: `kind delete cluster --name gadget-dev`.
+Destroy a VM created in step 2 only when selected: `dda inv aws.destroy-vm --stack-name=<stack>` from the checkout.
+Report resources and secrets still present when the VM is retained.
 
-Optional: `DD_ANOMALY_DETECTION_RECORDING_ONLY=true` records without detecting. Prefer the
-`DD_ANOMALY_DETECTION_RECORDING_*` variables of the recorder page over the `DD_OBSERVER_*` ones from the older
-hands-on page. Check the recorder works:
+Use this final-response template per episode:
 
-```bash
-kubectl get pods   # agent 3/3, cluster agent 1/1, 0 restarts
-POD=$(kubectl get pod -l app.kubernetes.io/component=agent -o name | head -1)
-kubectl exec $POD -c agent -- ls /tmp/observer-metrics   # first parquet files appear after one flush interval (1m by default)
-```
-
-Recording starts when the Agent starts, so the files cover more than the episode; step 8 trims them. Changing the values
-and re-running `helm upgrade` restarts the Agent and starts a clean recording.
-
-## Step 6 — Load the scenario images
-
-From the local machine:
-
-```bash
-rsync -a --exclude results --exclude run-result.json <gensim-episodes>/postmortems/<id> <vm>:~/gensim/
-```
-
-On the VM, in `~/gensim/<id>`:
-
-```bash
-cd ~/gensim/<id>
-rm -f chart/templates/datadog-agent.yaml    # the episode must not deploy its own Agent
-nohup sh -c 'docker compose build && echo BUILD_DONE' > /tmp/build.log 2>&1 < /dev/null &
-until grep -q -E 'BUILD_DONE|ERROR|failed' /tmp/build.log; do sleep 5; done; tail -3 /tmp/build.log
-docker image save -o /tmp/scenario.tar $(docker compose config --images)     # archive: same Docker 29 caveat
-kind load image-archive /tmp/scenario.tar --name gadget-dev && rm /tmp/scenario.tar
-docker exec gadget-dev-worker crictl images | grep -c gensim    # expect one per service
-```
-
-Building ~11 images takes a few minutes. Stop if the log reports an error. If the scenario has no `docker-compose.yaml`,
-its images are public and nothing needs building.
-
-## Step 7 — Run the episode
-
-```bash
-cd ~/gensim/<id>
-set -a; . ~/gensim/env; set +a
-helm install <release> ./chart --set datadog.env="$DD_ENV"
-kubectl wait --for=condition=Ready pod --all --timeout=300s
-kubectl get events --field-selector type=Warning --sort-by=.lastTimestamp | tail    # probe warnings during startup are expected
-cut -d' ' -f1-3 /proc/loadavg
-./play-episode.sh list-episodes
-```
-
-Check the Agent has 0 restarts before playing: a restarted Agent container loses `/tmp/observer-metrics`, and a
-CPU-starved Agent produces gaps. If the VM is saturated, stop and resize rather than record.
-
-The full episode takes ~32 minutes: phase durations are hardcoded at the top of `play-episode.sh` (warmup 120 s, baseline
-600 s, disruption 600 s, cooldown 600 s). For a **test run**, shorten them in the VM copy only (never in the user's checkout):
-
-```bash
-sed -i -E 's/^WARMUP_DURATION=.*/WARMUP_DURATION=30/; s/^BASELINE_DURATION=.*/BASELINE_DURATION=60/; s/^DISRUPTION_DURATION=.*/DISRUPTION_DURATION=90/; s/^COOLDOWN_DURATION=.*/COOLDOWN_DURATION=30/' play-episode.sh
-```
-
-Run it in the background (redirect stdin, otherwise the ssh call hangs) and wait for completion:
-
-```bash
-nohup ./play-episode.sh run-episode <episode-name> > /tmp/episode.log 2>&1 < /dev/null &
-until grep -q 'All cycles complete' /tmp/episode.log || ! pgrep -f '[p]lay-episode.sh run-episode' >/dev/null; do sleep 10; done
-tail -20 /tmp/episode.log
-ls results/
-```
-
-`play-episode.sh` needs `DD_API_KEY` / `DD_APP_KEY` in its environment; it creates a monitor and posts events in the dddev
-org. Expected behavior:
-
-- The baseline phase waits for the monitor to reach OK (up to 300 s), so it can last longer than configured, and the
-  monitor shows `No Data` at first.
-- `WARNING: Monitor did not reach Alert state during disruption` is **normal**, and `"success": false` in the results file
-  goes with it. It does not mean the recording failed; ignore it.
-- `results/<episode-name>-1.json` is written at the end and holds `start_time`, `end_time` and the
-  baseline/disruption/cooldown windows.
-- `pgrep -f` matches its own ssh command line: use the `[p]` bracket form, as above.
-
-## Step 8 — Fetch and trim the recording
-
-**Wait for the last flush before fetching.** The Agent only writes a parquet file once per flush interval (1 minute by
-default), so the end of the episode is not on disk until the next flush: wait at least one full flush interval after
-`end_time` in the results file (`ls -l --time-style=full-iso /tmp/observer-metrics` in the Agent container should show a
-parquet file newer than `end_time`), then, from the local machine, stream the files out (no `kubectl cp` needed).
-
-Ask the user for a **new, empty** output directory (default below): these commands never delete anything. If the path
-already exists, stop and offer another one, or ask the user explicitly before removing it — never `rm -rf` a path you
-did not create in this run, it may hold unrelated files.
-
-```bash
-OUT=<output-dir>            # must not exist yet; default /tmp/vm-scenarios/<episode-name>
-if [ -e "$OUT" ]; then echo "STOP: $OUT already exists"; else mkdir -p "$OUT/parquet"; fi
-ssh <vm> 'P=$(kubectl get pod -l app.kubernetes.io/component=agent -o name | head -1); kubectl exec $P -c agent -- tar cf - -C /tmp/observer-metrics .' | tar xf - -C "$OUT/parquet"
-scp <vm>:~/gensim/<id>/results/<episode-name>-1.json "$OUT/episode.json"
-for f in "$OUT"/parquet/*.parquet; do [ "$(tail -c4 "$f")" = PAR1 ] || echo "STOP: truncated $f"; done
-```
-
-Expect `observer-metrics-*.parquet`, `observer-logs-*.parquet`, `advances.jsonl`, `detect_digests.jsonl`. Stop instead of
-continuing if the directory existed, if any file is reported truncated (re-fetch or re-record it), or if either parquet
-family is missing.
-
-**Trim to the episode.** The Agent records from its start, so the directory also holds data from before and after the
-episode. The timestamp in a parquet filename is the *flush* time (close to the end of the file's data), not its start, so
-do not select by filename. Select by the `Time` column inside each file and keep the files overlapping
-`start_time`..`end_time` of `episode.json`. This needs `pyarrow` (`uv run --with pyarrow python3 - <<'EOF'` works):
-
-```bash
-OUT=<output-dir> python3 - <<'EOF'
-import glob, json, os, datetime as dt
-import pyarrow.parquet as pq, pyarrow.compute as pc
-out = os.environ["OUT"]
-ep = json.load(open(f"{out}/episode.json"))
-ts = lambda s: dt.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc).timestamp()
-start, end = ts(ep["start_time"]), ts(ep["end_time"])
-def seconds(v):                      # Time may be s, ms, us or ns
-    for d in (1, 1e3, 1e6, 1e9):
-        if 1e9 < v / d < 4e9:
-            return v / d
-    raise SystemExit(f"unexpected Time value {v}")
-kept = dropped = 0
-for f in sorted(glob.glob(f"{out}/parquet/*.parquet")):
-    try:
-        t = pq.read_table(f, columns=["Time"]).column(0)
-    except Exception as exc:
-        raise SystemExit(f"cannot read {f}: {exc}")
-    mm = pc.min_max(t).as_py() if len(t) else None
-    if mm and seconds(mm["max"]) >= start and seconds(mm["min"]) <= end:
-        kept += 1
-    else:
-        os.remove(f); dropped += 1
-print(f"kept {kept}, removed {dropped}")
-if kept == 0:
-    raise SystemExit("no file overlaps the episode window: the recording is unusable")
-EOF
-```
-
-The recording is usable only if at least one `observer-metrics` and one `observer-logs` file survive this trim with rows
-inside `start_time`..`end_time`; otherwise report it as failed rather than handing it to the testbench.
-
-The first and last kept files straddle the window, so they can hold up to one flush interval of data outside it. `advances.jsonl` and
-`detect_digests.jsonl` span the whole Agent run and are left untouched; mention it to the user. The unfiltered recording
-stays in the Agent pod until it is deleted or restarted.
-
-Without `episode.json` (episode not played) the data is not a usable scenario and cannot be trimmed. Say so.
-
-Replay: `dda inv anomalydetection.launch-testbench --scenarios-dir <parent of OUT> --build` (point at the directory that
-contains `<episode-name>/`, not at the episode itself).
-
-## Step 9 — Teardown
-
-Only what the user chose in step 1:
-
-```bash
-helm uninstall <release>; helm uninstall datadog-agent       # on the VM
-kind delete cluster --name gadget-dev                        # on the VM
-dda inv aws.destroy-vm --stack-name=<name>                   # VMs created in step 2, from the local machine
-```
-
-## Final response
-
-Report every field below, and say explicitly whether the recording is usable:
-
-| Field | Content |
+| Field | Report |
 |---|---|
-| Episode | Scenario id and episode name; full episode or shortened test run |
-| VM | ssh target; created in step 2, reused, or destroyed |
-| Image | `datadog/agent-dev:<tag>` and the pipeline it came from |
-| Output | Absolute `<OUT>` path and the trim counts (kept / removed) |
-| Window | `start_time`..`end_time` from `episode.json` and the flush interval used |
-| Recording gaps | Agent restarts, saturation, or flush gaps; otherwise "no gaps" |
-| Teardown | What was uninstalled or deleted, and what still runs on the VM |
+| Episode | Scenario id, episode, full/shortened mode |
+| VM / image | SSH target, created/reused status, exact image tag and source pipeline |
+| Output | Absolute path, kept metrics/log file and in-window row counts, removed file count |
+| Window | Start/end, flush interval, observed coverage from `validation.json` |
+| Quality | Usable/failed, sample gaps, restarts, saturation/probe errors; distinguish unknown from verified |
+| Teardown | Releases/cluster/VM removed, resources and secrets retained |
 
-## Example
+Example request: "Record a shortened kafka-partition-saturation episode on ubuntu@10.0.1.23 with
+datadog/agent-dev:my-branch-recorder-full from pipeline 123, use ~/dddev.env, save under /tmp/vm-scenarios, and keep the VM."
 
-Request: *"Record the kafka-partition-saturation episode on a VM and fetch the parquet."*
+Illustrative result: shortened episode, reused VM, specified image/pipeline, output
+`/tmp/vm-scenarios/kafka-partition-saturation`; 4 metrics files / 1000 rows and 4 log files / 200 rows retained, 2 files
+removed; window 10:12–10:16 UTC, flush 60 s, maximum observed gaps 15 s metrics / 30 s logs, no restarts or probe errors
+observed; validation passed. VM, cluster, recorder, scenario release, and env file retained as requested.
+Fill these fields from real observations, not the example.
 
-Result: episode `kafka-partition-saturation` (shortened run, ~4 min) recorded with
-`datadog/agent-dev:my-branch-recorder-full` on `ubuntu@10.0.1.23`, a VM created in step 2. Output
-`/tmp/vm-scenarios/kafka-partition-saturation` holds 12 `observer-metrics-*.parquet` and 8 `observer-logs-*.parquet`
-after trimming 31 files down to 20 (11 removed as out-of-window), window `2026-05-04T10:12:00Z`..`2026-05-04T10:16:30Z`,
-no gaps; `advances.jsonl` and `detect_digests.jsonl` still span the whole Agent run. The recording is usable. Teardown:
-release and Agent uninstalled, kind cluster deleted, VM destroyed.
+## Troubleshooting references
 
-## Pitfalls
+Read only for a failed or unfamiliar step:
 
-| Symptom | Cause / fix |
-|---|---|
-| kind: permission denied on `/var/run/docker.sock` | ssh multiplexing kept the old session: `ssh -O exit <vm>` |
-| `kind load docker-image` → `content digest ... not found` | Docker 29 image store: use `docker image save --platform` + `kind load image-archive` |
-| Image does not start / exec format error | arm64 image on an x86_64 VM: use the amd64 variant |
-| Agent probes time out, load average >> vCPUs | VM too small: resize before recording |
-| kind or Agent "too many open files" | inotify limits not raised |
-| Signals split across parquet directories | More than one worker node: keep one |
-| ssh call that starts `play-episode.sh` never returns | Background process kept stdin: add `< /dev/null` |
-| `kubectl wait -l app.kubernetes.io/instance=<release>` finds nothing | Chart pods lack that label: use `--all` |
-| Recording starts before / ends after the episode | Expected: trim in step 8 |
-| `kubectl`/`helm` touch an unexpected cluster | kubeconfig points elsewhere: `kubectl config use-context kind-gadget-dev` |
-| `STOP: <OUT> already exists` | Output path is not fresh: use another path, or ask before removing it |
+- Recorder configuration: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7272235685/Using+the+recorder+to+record+gensim+staging+scenarios
+- Lima/kind setup: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6238700466/Gensim+Hands+On
+- Original setup in the `gensim-episodes` repo: `q_branch/setup-k8s-host.sh`, `q_branch/gadget-k8s-host.lima.yaml`.
+- Docker permission denied after bootstrap: close the multiplexed SSH connection and reconnect to pick up group membership.
+- Exec format errors: confirm an amd64 image for the x86_64 VM.
+- Multiple recorder pods or restarting containers: stop, fix topology/resources, and start a new recording.
+
+To validate helper changes without provisioning resources, run
+`uv run --no-project --with pyarrow --with pyyaml bash "$SKILL/scripts/test.sh"` and ShellCheck on `scripts/*.sh`.
+The tests mock SSH/SCP/dda and use generated Parquet fixtures; they do not validate a live chart or AMI.
