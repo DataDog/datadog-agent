@@ -292,6 +292,10 @@ entries:
   function: TestProcessAutodiscoverySuite
   status: debt
   reason: Installs redis-server and nginx with apt-get in SetupSuite; must move to a prebaked AMI.
+- file: test/new-e2e/tests/fleet/config_macos_test.go
+  function: TestFleetConfigMacOS
+  status: debt
+  reason: Fetches the macOS install script from install.datadoghq.com and the Agent from the dd-agent-macostesting bucket; should use a QA-account mirror.
 - file: test/new-e2e/tests/fleet/suite/suite.go
   function: Run
   status: debt
