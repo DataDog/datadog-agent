@@ -133,8 +133,7 @@ func kubernetesAllowedCustomResources(config config.Component) []string {
 	return config.GetStringSlice(par.KubernetesAllowedCustomResources)
 }
 
-func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
-	allowlist := make(map[string]sets.Set[string])
+func makeActionsAllowlist(config config.Component) ActionsAllowlist {
 	actionFqns := config.GetStringSlice(par.ActionsAllowlist)
 
 	if config.GetBool(par.DefaultActionsEnabled) {
@@ -152,6 +151,18 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
 	}
 
+	allowlist := NewActionsAllowlist(actionFqns)
+	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
+	for bundleID, actionsSet := range bundleInheritedActions {
+		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
+	}
+
+	return allowlist
+}
+
+// NewActionsAllowlist parses action FQNs without adding defaults or inherited actions.
+func NewActionsAllowlist(actionFqns []string) ActionsAllowlist {
+	allowlist := make(ActionsAllowlist)
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]
@@ -159,11 +170,6 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 			previous = sets.New[string]()
 		}
 		allowlist[bundleName] = previous.Insert(actionName)
-	}
-
-	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
-	for bundleID, actionsSet := range bundleInheritedActions {
-		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
 	}
 
 	return allowlist

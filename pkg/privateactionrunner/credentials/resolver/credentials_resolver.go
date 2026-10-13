@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -47,12 +48,7 @@ func allowsAction(task *types.Task, patterns []string) bool {
 	if !actionPattern.MatchString(fqn) || strings.Contains(fqn, "*") || strings.Contains(task.Data.Attributes.Name, ".") {
 		return false
 	}
-	for _, pattern := range patterns {
-		if pattern == fqn || (strings.HasSuffix(pattern, ".*") && strings.HasPrefix(task.Data.Attributes.BundleID+".", strings.TrimSuffix(pattern, "*"))) {
-			return true
-		}
-	}
-	return false
+	return config.NewActionsAllowlist(patterns).IsActionAllowed(task.Data.Attributes.BundleID, task.Data.Attributes.Name)
 }
 
 type privateCredentialResolver struct {
@@ -140,6 +136,18 @@ func (p *privateCredentialResolver) ResolveCredentials(ctx context.Context, task
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_BASIC_AUTH:
+		if len(connInfo.GetTokensV2()) > 0 {
+			resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2(), task)
+			if err != nil {
+				return nil, err
+			}
+			tokens, details = privateconnection.ExtractConnectionDetails(&privateactionspb.ConnectionInfo{Tokens: resolvedTokens})
+			credentialTokens, err := resolveTokenAuthTokens(ctx, tokens)
+			if err != nil {
+				return nil, err
+			}
+			return &privateconnection.PrivateCredentials{Tokens: credentialTokens, Type: privateconnection.BasicAuthType, HttpDetails: details}, nil
+		}
 		credentialTokens, err := resolveBasicAuthTokens(ctx, tokens)
 		if err != nil {
 			return nil, err
