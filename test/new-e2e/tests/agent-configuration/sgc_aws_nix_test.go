@@ -29,8 +29,7 @@ secret_backend_config:
 			scenec2.WithAgentOptions(
 				agentparams.WithSkipAPIKeyInConfig(),
 				agentparams.WithAgentConfig(config),
-			),
-			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())),
+			)),
 	))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {

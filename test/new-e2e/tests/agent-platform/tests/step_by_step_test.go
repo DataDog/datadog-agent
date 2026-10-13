@@ -111,7 +111,7 @@ func TestStepByStepScript(t *testing.T) {
 				version = 0
 			}
 
-			vmOpts = append(vmOpts, ec2.WithOS(osDesc), ec2.WithInternetAccess())
+			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
 			e2e.Run(tt,
 				&stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, osDesc: osDesc},
