@@ -12,12 +12,8 @@ import (
 	"strings"
 )
 
-// httpDomainAllowlist permits exact hostnames/IPs or subdomains of a *.domain
-// pattern. Ports and schemes are not part of a domain restriction.
-type httpDomainAllowlist []string
-
-// Validate rejects URLs, ports, and ambiguous wildcard patterns.
-func (domains httpDomainAllowlist) validate() error {
+// validateHTTPDomains rejects URLs, ports, and ambiguous wildcard patterns.
+func validateHTTPDomains(domains []string) error {
 	for _, pattern := range domains {
 		host := strings.TrimSuffix(strings.ToLower(pattern), ".")
 		wildcard := strings.HasPrefix(host, "*.")
@@ -45,8 +41,8 @@ func (domains httpDomainAllowlist) validate() error {
 	return nil
 }
 
-// AllowsURL compares parsed hostnames, never URL prefixes or DNS results.
-func (domains httpDomainAllowlist) allowsURL(u *url.URL) bool {
+// allowsHTTPURL compares parsed hostnames, never URL prefixes or DNS results.
+func allowsHTTPURL(domains []string, u *url.URL) bool {
 	if u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Opaque != "" || u.Hostname() == "" {
 		return false
 	}

@@ -37,11 +37,11 @@ func TestHTTPDomainAllowlist(t *testing.T) {
 		{"xn--bcher-kva.example", "https://xn--bcher-kva.example", true},
 	} {
 		t.Run(test.pattern+"/"+test.target, func(t *testing.T) {
-			domains := httpDomainAllowlist{test.pattern}
-			require.NoError(t, domains.validate())
+			domains := []string{test.pattern}
+			require.NoError(t, validateHTTPDomains(domains))
 			u, err := url.Parse(test.target)
 			require.NoError(t, err)
-			assert.Equal(t, test.allowed, domains.allowsURL(u))
+			assert.Equal(t, test.allowed, allowsHTTPURL(domains, u))
 		})
 	}
 }
@@ -49,7 +49,7 @@ func TestHTTPDomainAllowlist(t *testing.T) {
 func TestInvalidHTTPDomainPatterns(t *testing.T) {
 	for _, pattern := range []string{"", "*", "https://example.com", "example.com:443", "example.com/path", "user@example.com", "foo.*.com", "*example.com", "example..com", "example.com..", "-bad.example", "bad-.example", " example.com", "example.com ", "[::1]", "*.127.0.0.1", "fe80::1%eth0", "bücher.example"} {
 		t.Run(pattern, func(t *testing.T) {
-			require.Error(t, httpDomainAllowlist{pattern}.validate())
+			require.Error(t, validateHTTPDomains([]string{pattern}))
 		})
 	}
 }
