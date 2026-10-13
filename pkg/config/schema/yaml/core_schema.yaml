@@ -6469,10 +6469,7 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Data Security: when true, Postgres scan connections whose integration instance sets
-          no `ssl`, or sets `ssl` to `disable`, `allow` or `prefer`, are elevated to `ssl: require`.
-          Unix socket hosts are not supported in this mode, as they do not support SSL: scans
-          targeting them are rejected.
+          Data Security: when true, scans are enforced to use SSL, with no fallback to plaintext.
   data_streams:
     node_type: section
     type: object
