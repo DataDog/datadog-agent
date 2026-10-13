@@ -29,13 +29,6 @@ const (
 	DefaultMetadataCollectionInterval = 10 * time.Minute
 
 	interfaceStatusMetric = "snmp.interface.status"
-
-	pathHostname        = "/system/state/hostname"
-	pathVendorName      = "/system/state/vendor-name"
-	pathSerialNumber    = "/system/state/serial-number"
-	pathPlatform        = "/system/state/platform"
-	pathSoftwareVersion = "/system/state/software-version"
-	pathHardwareVersion = "/system/state/hardware-version"
 )
 
 // ShouldReportMetadata reports whether metadata should be submitted based on the last report time.
@@ -58,16 +51,17 @@ func MetadataCollectionInterval(cfg *config.CheckConfig) time.Duration {
 }
 
 // InterfaceSnapshotComplete reports whether every discovered interface has a stable ifindex.
-func InterfaceSnapshotComplete(snapshot []client.CachedValue) bool {
+func InterfaceSnapshotComplete(snapshot []client.CachedValue, metadata config.MetadataConfig) bool {
+	resolved := metadata.Resolved()
 	index := indexSnapshot(snapshot)
-	names := interfaceNames(index)
+	names := interfaceNames(index, metadata, nil)
 	if len(names) == 0 {
 		return true
 	}
 
 	for _, name := range names {
-		keys := map[string]string{"name": name}
-		ifIndex, ok := firstInt32Value(index, "/interfaces/interface/state/ifindex", keys)
+		keys := metadata.InterfaceKeyValues(name)
+		ifIndex, ok := firstInt32Value(index, resolved.Interface.IfIndex, keys)
 		if !ok || ifIndex <= 0 {
 			return false
 		}
@@ -90,11 +84,11 @@ func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.
 	tags = sortutil.UniqInPlace(tags)
 
 	device := buildDeviceMetadata(deviceID, cfg, snapshot, tags)
-	interfaces := buildInterfaceMetadata(deviceID, snapshot)
+	interfaces := buildInterfaceMetadata(deviceID, cfg.Profile.Metadata, snapshot)
 
 	var topologyLinks []devicemetadata.TopologyLinkMetadata
 	if cfg.Instance.CollectTopology {
-		topologyLinks = buildTopologyLinks(deviceID, snapshot, interfaces)
+		topologyLinks = buildTopologyLinks(deviceID, cfg.Profile.Topology, snapshot, interfaces)
 	}
 
 	if isEmptyMetadata(device, interfaces, topologyLinks) {
@@ -138,7 +132,7 @@ func ReportInterfaceStatus(s sender.Sender, cfg *config.CheckConfig, snapshot []
 	}
 
 	deviceID := buildDeviceID(cfg.Instance.Address)
-	interfaces := buildInterfaceMetadata(deviceID, snapshot)
+	interfaces := buildInterfaceMetadata(deviceID, cfg.Profile.Metadata, snapshot)
 	if len(interfaces) == 0 {
 		return nil
 	}
@@ -209,13 +203,15 @@ func isEmptyMetadata(device devicemetadata.DeviceMetadata, interfaces []deviceme
 
 func buildDeviceMetadata(deviceID string, cfg *config.CheckConfig, snapshot []client.CachedValue, tags []string) devicemetadata.DeviceMetadata {
 	index := indexSnapshot(snapshot)
+	metadata := cfg.Profile.Metadata.Resolved()
 
-	hostname := firstStringValue(index, pathHostname, nil)
-	vendor := firstStringValue(index, pathVendorName, nil)
-	serialNumber := firstStringValue(index, pathSerialNumber, nil)
-	platform := firstStringValue(index, pathPlatform, nil)
-	softwareVersion := firstStringValue(index, pathSoftwareVersion, nil)
-	hardwareVersion := firstStringValue(index, pathHardwareVersion, nil)
+	componentKeys := resolveDeviceComponentKeys(index, metadata.Device)
+	hostname := deviceMetadataString(index, metadata.Device.Hostname, componentKeys)
+	vendor := deviceMetadataString(index, metadata.Device.VendorName, componentKeys)
+	serialNumber := deviceMetadataString(index, metadata.Device.SerialNumber, componentKeys)
+	platform := deviceMetadataString(index, metadata.Device.Platform, componentKeys)
+	softwareVersion := deviceMetadataString(index, metadata.Device.SoftwareVersion, componentKeys)
+	hardwareVersion := deviceMetadataString(index, metadata.Device.HardwareVersion, componentKeys)
 
 	productName := platform
 	if productName == "" {
@@ -239,9 +235,57 @@ func buildDeviceMetadata(deviceID string, cfg *config.CheckConfig, snapshot []cl
 	}
 }
 
-func buildInterfaceMetadata(deviceID string, snapshot []client.CachedValue) []devicemetadata.InterfaceMetadata {
+func resolveDeviceComponentKeys(index snapshotIndex, metadata config.DeviceMetadataConfig) map[string]string {
+	candidates := make([]client.CachedValue, 0)
+	for _, cached := range index[metadata.ComponentType] {
+		componentType, ok := stringValue(cached.Entry.Value)
+		if !ok {
+			continue
+		}
+		if separator := strings.LastIndex(componentType, ":"); separator >= 0 {
+			componentType = componentType[separator+1:]
+		}
+		if strings.EqualFold(strings.TrimSpace(componentType), "chassis") {
+			candidates = append(candidates, cached)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return stableKeyString(candidates[i].Key.Keys) < stableKeyString(candidates[j].Key.Keys)
+	})
+	keys := make(map[string]string, len(candidates[0].Key.Keys))
+	for key, value := range candidates[0].Key.Keys {
+		keys[key] = value
+	}
+	return keys
+}
+
+func deviceMetadataString(index snapshotIndex, path string, componentKeys map[string]string) string {
+	if strings.Contains(path, "/components/component/") {
+		if len(componentKeys) == 0 {
+			return ""
+		}
+		return firstStringValue(index, path, componentKeys)
+	}
+	return firstStringValue(index, path, nil)
+}
+
+func stableKeyString(keys map[string]string) string {
+	parts := make([]string, 0, len(keys))
+	for key, value := range keys {
+		parts = append(parts, key+"="+value)
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "\x00")
+}
+
+func buildInterfaceMetadata(deviceID string, metadata config.MetadataConfig, snapshot []client.CachedValue) []devicemetadata.InterfaceMetadata {
+	resolved := metadata.Resolved()
 	index := indexSnapshot(snapshot)
-	names := interfaceNames(index)
+	names := interfaceNames(index, metadata, nil)
 	if len(names) == 0 {
 		return nil
 	}
@@ -249,25 +293,25 @@ func buildInterfaceMetadata(deviceID string, snapshot []client.CachedValue) []de
 
 	interfaces := make([]devicemetadata.InterfaceMetadata, 0, len(names))
 	for _, name := range names {
-		keys := map[string]string{"name": name}
+		keys := metadata.InterfaceKeyValues(name)
 
-		ifIndex, ok := firstInt32Value(index, "/interfaces/interface/state/ifindex", keys)
+		ifIndex, ok := firstInt32Value(index, resolved.Interface.IfIndex, keys)
 		if !ok || ifIndex <= 0 {
-			log.Debugf("skipping interface %q metadata for %s: missing OpenConfig ifindex", name, deviceID)
+			log.Debugf("skipping interface %q metadata for %s: missing ifindex at %s", name, deviceID, resolved.Interface.IfIndex)
 			continue
 		}
 
-		ifType, _ := firstInt32Value(index, "/interfaces/interface/state/type", keys)
+		ifType, _ := firstInt32Value(index, resolved.Interface.Type, keys)
 		if ifType == 0 {
-			ifType = parseIANAIfType(firstStringValue(index, "/interfaces/interface/state/type", keys))
+			ifType = parseIANAIfType(firstStringValue(index, resolved.Interface.Type, keys))
 		}
 
 		isPhysical := physicalInterface(ifType)
 
-		adminStatus := parseAdminStatus(firstStringValue(index, "/interfaces/interface/state/admin-status", keys))
-		operStatus := parseOperStatus(firstStringValue(index, "/interfaces/interface/state/oper-status", keys))
+		adminStatus := parseAdminStatus(firstStringValue(index, resolved.Interface.AdminStatus, keys))
+		operStatus := parseOperStatus(firstStringValue(index, resolved.Interface.OperStatus, keys))
 
-		interfaceName := firstStringValue(index, "/interfaces/interface/state/name", keys)
+		interfaceName := firstStringValue(index, resolved.Interface.Name, keys)
 		if interfaceName == "" {
 			interfaceName = name
 		}
@@ -277,8 +321,8 @@ func buildInterfaceMetadata(deviceID string, snapshot []client.CachedValue) []de
 			IDTags:      []string{"interface:" + interfaceName},
 			Index:       ifIndex,
 			Name:        interfaceName,
-			Description: firstStringValue(index, "/interfaces/interface/state/description", keys),
-			MacAddress:  firstStringValue(index, "/interfaces/interface/state/mac-address", keys),
+			Description: firstStringValue(index, resolved.Interface.Description, keys),
+			MacAddress:  firstStringValue(index, resolved.Interface.MACAddress, keys),
 			AdminStatus: adminStatus,
 			OperStatus:  operStatus,
 			Type:        ifType,
