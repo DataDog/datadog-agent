@@ -14,23 +14,17 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
-load("//compliance/rules:purl.bzl", "purl_for_generic")
+load("//compliance/rules:purl.bzl", "purl_for_golang")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
-package(
-    default_package_metadata = [":package_metadata"],
-    default_visibility = ["//visibility:public"],
-)
+package(default_visibility = ["//visibility:public"])
 
 package_metadata(
-    name = "package_metadata",
-    attributes = [
-        ":license",
-    ],
-    purl = purl_for_generic(
-        download_url = "https://github.com/DataDog/datadog-agent/releases/tag/{version}",
-        package = "datadog-agent",
-        version = release_json.get("current_milestone"),
+    name = "go_package_metadata",
+    attributes = [":license"],
+    purl = purl_for_golang(
+        "github.com/DataDog/datadog-agent",
+        release_json.get("current_milestone"),
     ),
 )
 
