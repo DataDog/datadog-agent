@@ -129,7 +129,9 @@ func TestUserGroup(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		disableSecurityProfileV2: true,
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
