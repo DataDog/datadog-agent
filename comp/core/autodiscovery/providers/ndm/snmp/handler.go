@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package snmp turns the "snmp" key of the NDM Remote Configuration document
+// Package snmp turns the "snmp" key of an NDM Remote Configuration document
 // into snmp check configs.
 package snmp
 
@@ -23,11 +23,9 @@ import (
 // Key is the document key this handler owns.
 const Key = "snmp"
 
-// configSource is the Source every config this handler produces carries.
 const configSource = names.NDMRemoteConfig + ":" + Key
 
-// Handler turns the "snmp" key of an Agent's NDM document into one snmp check
-// config per device.
+// Handler renders the "snmp" document key into one check config per device.
 type Handler struct {
 	creds *credentialStore
 	log   log.Component
@@ -112,8 +110,7 @@ func (h *Handler) Render(path string, raw json.RawMessage, siblings map[string]j
 	return configs, nil
 }
 
-// resolve joins an instance with its credential, or returns why it cannot be
-// scheduled. The reason never names a credential value.
+// resolve returns an instance's credential, or a reason naming no credential value.
 func resolve(instance documentInstance, creds map[string]credential) (credential, string) {
 	if instance.IPAddress == "" {
 		return credential{}, fmt.Sprintf("an instance referencing credential %q has no ip_address", instance.CredID)

@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 )
 
-// keyConfig is the value of the "snmp" key of the NDM Remote Configuration
-// document. The JSON names are the backend contract and must not be renamed.
+// keyConfig is the value of the document's snmp key. The JSON names are the
+// backend contract.
 type keyConfig struct {
 	InitConfig initConfig         `json:"init_config"`
 	Instances  []documentInstance `json:"instances"`
@@ -59,7 +59,7 @@ type documentInstance struct {
 }
 
 // checkInitConfig is the init config handed to the snmp check. The yaml names
-// come from pkg/collector/corechecks/snmp/internal/checkconfig.
+// come from checkconfig.
 type checkInitConfig struct {
 	Namespace             string                            `yaml:"namespace,omitempty"`
 	DeviceTagsSource      string                            `yaml:"device_tags_source,omitempty"`
@@ -73,8 +73,7 @@ type checkInitConfig struct {
 	Ping                  *checkPingBlock                   `yaml:"ping,omitempty"`
 }
 
-// checkPingBlock is the check's ping block. Its interval and timeout are
-// milliseconds, which is what the document's _ms names carry.
+// checkPingBlock is the check's ping block; interval and timeout are milliseconds.
 type checkPingBlock struct {
 	Enabled  *bool                `yaml:"enabled,omitempty"`
 	Count    int                  `yaml:"count,omitempty"`
@@ -87,8 +86,8 @@ type checkPingLinuxBlock struct {
 	UseRawSocket *bool `yaml:"use_raw_socket,omitempty"`
 }
 
-// checkInstance is one instance handed to the snmp check. Every field the
-// document leaves unset is omitted so the check applies its own default.
+// checkInstance is one instance handed to the snmp check. An unset field is
+// omitted so the check applies its own default.
 type checkInstance struct {
 	IPAddress             string                              `yaml:"ip_address"`
 	SNMPVersion           string                              `yaml:"snmp_version"`
@@ -120,8 +119,7 @@ type checkInstance struct {
 	InterfaceConfigs      []snmpintegration.InterfaceConfig   `yaml:"interface_configs,omitempty"`
 }
 
-// renderInitConfig turns the document's init_config into the check's, with
-// the ping options every pinged device of the document inherits.
+// renderInitConfig turns the document's init_config into the check's.
 func renderInitConfig(ic initConfig, sharedPing *pingOptions) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInitConfig{
 		Namespace:             ic.Namespace,
@@ -141,8 +139,8 @@ func renderInitConfig(ic initConfig, sharedPing *pingOptions) (integration.Data,
 	return integration.Data(body), nil
 }
 
-// renderInstance joins a document instance with its resolved credential into
-// one check instance. A nil ping leaves ping off for the device.
+// renderInstance joins a document instance with its credential. A nil ping
+// leaves ping off for the device.
 func renderInstance(in documentInstance, c credential, ping *pingOptions) (integration.Data, error) {
 	body, err := yaml.Marshal(checkInstance{
 		IPAddress:             in.IPAddress,
@@ -181,8 +179,7 @@ func renderInstance(in documentInstance, c credential, ping *pingOptions) (integ
 	return integration.Data(body), nil
 }
 
-// renderSharedPing turns the ping section's init_config into the check's ping
-// block, with no enabled flag.
+// renderSharedPing turns the ping init_config into the check's ping block.
 func renderSharedPing(p *pingOptions) *checkPingBlock {
 	if p == nil {
 		return nil
@@ -194,8 +191,7 @@ func renderSharedPing(p *pingOptions) *checkPingBlock {
 	return &block
 }
 
-// renderDevicePing turns one device's ping options into the check's ping
-// block, enabling ping on it.
+// renderDevicePing turns a device's ping options into its ping block, enabling ping.
 func renderDevicePing(p *pingOptions) *checkPingBlock {
 	if p == nil {
 		return nil
@@ -205,7 +201,6 @@ func renderDevicePing(p *pingOptions) *checkPingBlock {
 	return &block
 }
 
-// pingEnabled is the value every pinged device's instance points enabled at.
 var pingEnabled = true
 
 func pingBlock(p pingOptions) checkPingBlock {

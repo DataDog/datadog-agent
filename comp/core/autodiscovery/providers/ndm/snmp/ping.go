@@ -10,12 +10,10 @@ import (
 	"fmt"
 )
 
-// pingKey is the document key the ping settings arrive under. The snmp handler
-// folds them back into its instances until ping is a check of its own.
+// pingKey is the document key the ping settings arrive under.
 const pingKey = "ping"
 
-// pingKeyConfig is the value of the "ping" key of the NDM Remote
-// Configuration document. The JSON names are the backend contract.
+// pingKeyConfig is the value of the document's ping key.
 type pingKeyConfig struct {
 	InitConfig pingOptions    `json:"init_config"`
 	Instances  []pingInstance `json:"instances"`
@@ -33,8 +31,7 @@ type pingLinuxOptions struct {
 	UseRawSocket *bool `json:"use_raw_socket"`
 }
 
-// pingInstance is one device of the ping key's instances list. Its presence is
-// what enables ping on that device: the schema carries no enabled flag.
+// pingInstance is one device of the ping key's instances; its presence enables ping.
 type pingInstance struct {
 	IPAddress string `json:"ip_address"`
 	pingOptions
@@ -48,8 +45,7 @@ type pingSection struct {
 	hasInitConfig bool
 }
 
-// parsePingSection reads the document's ping key. An absent key yields a nil
-// section, which pings nothing.
+// parsePingSection reads the document's ping key. An absent key yields nil.
 func parsePingSection(raw json.RawMessage) (*pingSection, error) {
 	if len(raw) == 0 {
 		return nil, nil
@@ -78,8 +74,7 @@ func parsePingSection(raw json.RawMessage) (*pingSection, error) {
 	return section, nil
 }
 
-// forDevice returns the ping options of one device, and whether ping is
-// enabled on it at all.
+// forDevice returns a device's ping options, and whether it is pinged at all.
 func (s *pingSection) forDevice(ipAddress string) (pingOptions, bool) {
 	if s == nil {
 		return pingOptions{}, false
@@ -88,8 +83,7 @@ func (s *pingSection) forDevice(ipAddress string) (pingOptions, bool) {
 	return options, pinged
 }
 
-// shared returns the options every pinged device inherits, or nil when the
-// section set none.
+// shared returns the options every pinged device inherits, or nil.
 func (s *pingSection) shared() *pingOptions {
 	if s == nil || !s.hasInitConfig {
 		return nil
@@ -97,8 +91,7 @@ func (s *pingSection) shared() *pingOptions {
 	return &s.initConfig
 }
 
-// unmatched returns the pinged devices that no snmp instance polls, in
-// document order. They cannot be scheduled: ping rides on the snmp check.
+// unmatched returns the pinged devices no snmp instance polls, in document order.
 func (s *pingSection) unmatched(polled map[string]struct{}) []string {
 	if s == nil {
 		return nil
