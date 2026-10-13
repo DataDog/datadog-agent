@@ -760,8 +760,10 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		"setrlimit": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setrlimit", hasFentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prlimit64", hasFentry, EntryAndExit)},
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_security_task_setrlimit"),
+			// only one of these programs is loaded, depending on whether BPF LSM is used
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
+				hookFunc(SetrlimitLSMFunctionName),
+				hookFunc(SetrlimitKprobeFunctionName),
 			}},
 		},
 		"prctl": {

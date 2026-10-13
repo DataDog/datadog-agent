@@ -287,6 +287,11 @@ func (k *Version) HasTaskStorage() bool {
 	return k.Code != 0 && k.Code >= Kernel5_11
 }
 
+// HaveBPFLSMProgramType returns true if the kernel supports BPF_PROG_TYPE_LSM programs (CONFIG_BPF_LSM)
+func (k *Version) HaveBPFLSMProgramType() bool {
+	return features.HaveProgramType(ebpf.LSM) == nil
+}
+
 // hasTaskStorageForProgramType returns true if the kernel supports using task local storage for the given program type
 // See https://github.com/torvalds/linux/commit/a10787e6d58c24b51e91c19c6d16c5da89fcaa4b
 func (k *Version) hasTaskStorageForProgramType(progType ebpf.ProgramType) bool {
