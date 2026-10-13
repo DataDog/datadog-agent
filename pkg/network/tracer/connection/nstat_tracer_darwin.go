@@ -1145,9 +1145,15 @@ func (t *nstatTracer) hasTCPListener(conn *network.ConnectionStats) bool {
 	}
 	if conn.Family == network.AFINET6 {
 		key.address = netip.IPv6Unspecified()
-	} else {
-		key.address = netip.IPv4Unspecified()
+		return len(t.listeners[key]) > 0
 	}
+	key.address = netip.IPv4Unspecified()
+	if len(t.listeners[key]) > 0 {
+		return true
+	}
+	// A dual-stack wildcard listener is described as ::, but XNU describes
+	// the IPv4 connections it accepts as AF_INET.
+	key.address, key.family = netip.IPv6Unspecified(), network.AFINET6
 	return len(t.listeners[key]) > 0
 }
 

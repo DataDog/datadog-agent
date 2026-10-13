@@ -401,6 +401,55 @@ func TestNStatTracerLateListenerOverridesPortInference(t *testing.T) {
 	require.Equal(t, overriddenBefore+1, overridden.Get())
 }
 
+func TestNStatTracerMatchesIPv4ConnectionsToDualStackListener(t *testing.T) {
+	// Both ports rank as registered, so only the listener gives a direction.
+	accepted := testNStatTCPFlow(5001, tcpStateEstablished)
+	accepted.Local.Port = 8080
+	accepted.Remote.Port = 40000
+	for _, tc := range []struct {
+		name     string
+		listener string
+		expected network.ConnectionDirection
+	}{
+		{name: "dual_stack", listener: "::", expected: network.INCOMING},
+		{name: "ipv4_wildcard", listener: "0.0.0.0", expected: network.INCOMING},
+		{name: "other_ipv6_address", listener: "2001:db8::10", expected: network.UNKNOWN},
+	} {
+		for _, listenerFirst := range []bool{true, false} {
+			order := "listener_late"
+			if listenerFirst {
+				order = "listener_first"
+			}
+			t.Run(tc.name+"/"+order, func(t *testing.T) {
+				tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+				tracer.ephemeralFirst, tracer.ephemeralLast = 49152, 65535
+				listener := nstat.Event{
+					Kind:      nstat.EventDescription,
+					SourceRef: 61,
+					Provider:  nstat.ProviderTCPKernel,
+					Flow:      testNStatTCPListenerFlow(5001, tc.listener, 8080),
+				}
+				if listenerFirst {
+					tracer.processEvent(listener)
+				}
+				tracer.processEvent(nstat.Event{
+					Kind:      nstat.EventDescription,
+					SourceRef: 62,
+					Provider:  nstat.ProviderTCPKernel,
+					Flow:      accepted,
+				})
+				if !listenerFirst {
+					tracer.processEvent(listener)
+				}
+
+				require.True(t, tracer.sources[61].listenerIndexed)
+				require.Equal(t, network.AFINET, tracer.sources[62].conn.Family)
+				require.Equal(t, tc.expected, tracer.sources[62].conn.Direction)
+			})
+		}
+	}
+}
+
 func TestNStatTracerClassifiesResetFromNStatAndPacketEvidence(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
