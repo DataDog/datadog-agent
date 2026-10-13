@@ -6,10 +6,13 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -218,6 +221,95 @@ func TestGetRequestRetries(t *testing.T) {
 	require.ErrorContains(t, err, "http responded with 400 code")
 	require.Equal(t, []byte(nil), resp)
 	require.Equal(t, 10, handler.numberOfCalls())
+}
+
+// recordingTransport serves requests from a mux without opening sockets, so it can be used
+// inside a synctest bubble, and records the virtual time at which each request is sent
+type recordingTransport struct {
+	mux   *http.ServeMux
+	start time.Time
+	sent  []time.Duration
+}
+
+func (rt *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.sent = append(rt.sent, time.Since(rt.start))
+	recorder := httptest.NewRecorder()
+	rt.mux.ServeHTTP(recorder, req)
+	return recorder.Result(), nil
+}
+
+func rateLimitedTestClient(t *testing.T, options ...ClientOptions) (*Client, *recordingTransport, handler) {
+	mux, handler := setupCommonServerMuxWithFixture("/test", "")
+	client, err := NewClient("sdwan.test", "testuser", "testpass", true, options...)
+	require.NoError(t, err)
+	transport := &recordingTransport{mux: mux, start: time.Now()}
+	client.httpClient.Transport = transport
+	return client, transport, handler
+}
+
+func TestGetRequestRateLimited(t *testing.T) {
+	tests := []struct {
+		name         string
+		burst        int
+		expectedSent []time.Duration
+	}{
+		{
+			name:  "burst of 1 paces every request",
+			burst: 1,
+			// 2 login requests, then 3 GET requests
+			expectedSent: []time.Duration{0, 100 * time.Millisecond, 200 * time.Millisecond, 300 * time.Millisecond, 400 * time.Millisecond},
+		},
+		{
+			name:         "burst of 3 sends the first 3 requests at once",
+			burst:        3,
+			expectedSent: []time.Duration{0, 0, 0, 100 * time.Millisecond, 200 * time.Millisecond},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				client, transport, handler := rateLimitedTestClient(t, WithRateLimit(10, tt.burst, time.Second))
+
+				for i := 0; i < 3; i++ {
+					_, err := client.get("/test", nil)
+					require.NoError(t, err)
+				}
+
+				require.Equal(t, tt.expectedSent, transport.sent)
+				require.Equal(t, 3, handler.numberOfCalls())
+			})
+		})
+	}
+}
+
+func TestGetRequestRateLimitMaxWait(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// The second login request would wait ~1000s for a token
+		client, transport, handler := rateLimitedTestClient(t, WithRateLimit(0.001, 1, 100*time.Millisecond))
+
+		_, err := client.get("/test", nil)
+		require.ErrorContains(t, err, "cisco sd-wan api rate limiter")
+		// The limiter fails immediately instead of waiting for a token it cannot get in time
+		require.Equal(t, []time.Duration{0}, transport.sent)
+		require.Zero(t, time.Since(transport.start))
+		require.Equal(t, 0, handler.numberOfCalls())
+	})
+}
+
+func TestGetRequestRateLimitCancelled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		client, transport, handler := rateLimitedTestClient(t, WithContext(ctx), WithRateLimit(0.01, 1, time.Hour))
+
+		time.AfterFunc(100*time.Millisecond, cancel)
+
+		_, err := client.get("/test", nil)
+		require.ErrorIs(t, err, context.Canceled)
+		// The second login request is interrupted by the cancellation, not by a token becoming available
+		require.Equal(t, []time.Duration{0}, transport.sent)
+		require.Equal(t, 100*time.Millisecond, time.Since(transport.start))
+		require.Equal(t, 0, handler.numberOfCalls())
+	})
 }
 
 func TestGetRequestUnmarshalling(t *testing.T) {

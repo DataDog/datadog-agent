@@ -7,6 +7,8 @@
 package ciscosdwan
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -31,29 +33,31 @@ const (
 
 // Configuration for the Cisco SD-WAN check
 type checkCfg struct {
-	VManageEndpoint                 string `yaml:"vmanage_endpoint"`
-	Username                        string `yaml:"username"`
-	Password                        string `yaml:"password"`
-	Namespace                       string `yaml:"namespace"`
-	MaxAttempts                     int    `yaml:"max_attempts"`
-	MaxPages                        int    `yaml:"max_pages"`
-	MaxCount                        int    `yaml:"max_count"`
-	LookbackTimeWindowMinutes       int    `yaml:"lookback_time_window_minutes"`
-	UseHTTP                         bool   `yaml:"use_http"`
-	Insecure                        bool   `yaml:"insecure"`
-	CAFile                          string `yaml:"ca_file"`
-	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
-	MinCollectionInterval           int    `yaml:"min_collection_interval"`
-	CollectHardwareMetrics          *bool  `yaml:"collect_hardware_metrics"`
-	CollectInterfaceMetrics         *bool  `yaml:"collect_interface_metrics"`
-	CollectTunnelMetrics            *bool  `yaml:"collect_tunnel_metrics"`
-	CollectControlConnectionMetrics *bool  `yaml:"collect_control_connection_metrics"`
-	CollectOMPPeerMetrics           *bool  `yaml:"collect_omp_peer_metrics"`
-	CollectDeviceCountersMetrics    *bool  `yaml:"collect_device_counters_metrics"`
-	CollectBFDSessionStatus         *bool  `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
-	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
-	CollectBGPNeighborStates        *bool  `yaml:"collect_bgp_neighbor_states"`
+	VManageEndpoint                 string  `yaml:"vmanage_endpoint"`
+	Username                        string  `yaml:"username"`
+	Password                        string  `yaml:"password"`
+	Namespace                       string  `yaml:"namespace"`
+	MaxAttempts                     int     `yaml:"max_attempts"`
+	MaxPages                        int     `yaml:"max_pages"`
+	MaxCount                        int     `yaml:"max_count"`
+	LookbackTimeWindowMinutes       int     `yaml:"lookback_time_window_minutes"`
+	MaxRequestsPerSecond            float64 `yaml:"max_requests_per_second"`
+	RateLimitBurst                  int     `yaml:"rate_limit_burst"`
+	UseHTTP                         bool    `yaml:"use_http"`
+	Insecure                        bool    `yaml:"insecure"`
+	CAFile                          string  `yaml:"ca_file"`
+	SendNDMMetadata                 *bool   `yaml:"send_ndm_metadata"`
+	MinCollectionInterval           int     `yaml:"min_collection_interval"`
+	CollectHardwareMetrics          *bool   `yaml:"collect_hardware_metrics"`
+	CollectInterfaceMetrics         *bool   `yaml:"collect_interface_metrics"`
+	CollectTunnelMetrics            *bool   `yaml:"collect_tunnel_metrics"`
+	CollectControlConnectionMetrics *bool   `yaml:"collect_control_connection_metrics"`
+	CollectOMPPeerMetrics           *bool   `yaml:"collect_omp_peer_metrics"`
+	CollectDeviceCountersMetrics    *bool   `yaml:"collect_device_counters_metrics"`
+	CollectBFDSessionStatus         *bool   `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus           *bool   `yaml:"collect_hardware_status"`
+	CollectCloudApplicationsMetrics *bool   `yaml:"collect_cloud_applications_metrics"`
+	CollectBGPNeighborStates        *bool   `yaml:"collect_bgp_neighbor_states"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -62,6 +66,9 @@ type CiscoSdwanCheck struct {
 	interval      time.Duration
 	config        checkCfg
 	metricsSender *report.SDWanSender
+	// ctx is cancelled when the check is stopped or unscheduled, to interrupt API requests
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // Run executes the check
@@ -249,13 +256,20 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		c.interval = time.Second * time.Duration(c.config.MinCollectionInterval)
 	}
 
+	if c.config.MaxRequestsPerSecond < 0 {
+		return fmt.Errorf("max_requests_per_second must be positive, got %v", c.config.MaxRequestsPerSecond)
+	}
+	if c.config.MaxRequestsPerSecond > 0 && c.config.MaxRequestsPerSecond*c.interval.Seconds() < 1 {
+		return fmt.Errorf("max_requests_per_second must allow at least one request per check interval (%s), got %v", c.interval, c.config.MaxRequestsPerSecond)
+	}
+
 	c.metricsSender = report.NewSDWanSender(sender, c.config.Namespace)
 
 	return nil
 }
 
 func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
-	var clientOptions []client.ClientOptions
+	clientOptions := []client.ClientOptions{client.WithContext(c.ctx)}
 
 	if c.config.Insecure || c.config.CAFile != "" {
 		options, err := client.WithTLSConfig(c.config.Insecure, c.config.CAFile)
@@ -282,12 +296,32 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 		clientOptions = append(clientOptions, client.WithLookback(time.Minute*time.Duration(c.config.LookbackTimeWindowMinutes)))
 	}
 
+	if c.config.MaxRequestsPerSecond > 0 {
+		// A burst of 0 would never allow any request, default to strict pacing
+		burst := c.config.RateLimitBurst
+		if burst <= 0 {
+			burst = 1
+		}
+		// A rate limiter wait must not outlast a check run
+		clientOptions = append(clientOptions, client.WithRateLimit(c.config.MaxRequestsPerSecond, burst, c.interval))
+	}
+
 	return clientOptions, nil
 }
 
 // Interval returns the scheduling time for the check
 func (c *CiscoSdwanCheck) Interval() time.Duration {
 	return c.interval
+}
+
+// Stop interrupts the API requests of a running check
+func (c *CiscoSdwanCheck) Stop() {
+	c.cancel()
+}
+
+// Cancel interrupts the API requests of a running check when it is unscheduled
+func (c *CiscoSdwanCheck) Cancel() {
+	c.cancel()
 }
 
 // IsHASupported returns true if the check supports HA
@@ -305,8 +339,11 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &CiscoSdwanCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		interval:  defaultCheckInterval,
+		ctx:       ctx,
+		cancel:    cancel,
 	}
 }
