@@ -102,7 +102,8 @@ func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *stor
 func (cr *ConfigRetriever) processorCallback(product string, processor autoscalingProcessor, update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	timestamp := cr.clock.Now()
 
-	// Note the update for `cluster-agent status`, including configs that fail to apply
+	// Note the update for `cluster-agent status`, including configs that fail to
+	// apply. Records wall-clock time, not cr.clock -- see productStatus
 	recordRemoteConfigUpdate(product, update)
 
 	processor.preProcess()

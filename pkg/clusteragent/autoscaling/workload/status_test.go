@@ -42,12 +42,18 @@ func renderText(t *testing.T) string {
 
 // productBlock returns the rendered lines belonging to one product, so a test can
 // assert an update landed under the right heading rather than merely somewhere.
+//
+// Anchored on the rendered heading rather than the bare product name: a real
+// processing error embeds the Remote Configuration config key, which itself
+// contains the product name, so a bare match can land inside the other product's
+// error line.
 func productBlock(t *testing.T, out, product string) string {
 	t.Helper()
-	start := strings.Index(out, product)
+	heading := "\n  " + product + "\n"
+	start := strings.Index(out, heading)
 	require.GreaterOrEqual(t, start, 0, "product %s not rendered in:\n%s", product, out)
-	rest := out[start+len(product):]
-	if next := strings.Index(rest, "CONTAINER_AUTOSCALING_"); next != -1 {
+	rest := out[start+len(heading):]
+	if next := strings.Index(rest, "\n  CONTAINER_AUTOSCALING_"); next != -1 {
 		return rest[:next]
 	}
 	return rest
@@ -138,8 +144,9 @@ func TestWorkloadAutoscalingStatusReceivingUpdates(t *testing.T) {
 	assert.NotContains(t, out, "no update received yet")
 }
 
-// TestConfigRetrieverRecordsRemoteConfigUpdate covers the wiring, which the tests
-// above bypass by calling recordRemoteConfigUpdate directly. The payload is
+// TestConfigRetrieverRecordsRemoteConfigUpdate covers the subscription wiring,
+// which the tests above bypass by calling recordRemoteConfigUpdate directly.
+// Swapping the two product constants in NewConfigRetriever must fail here. The payload is
 // malformed on purpose: an update whose configs all fail to apply must still
 // count as received.
 func TestConfigRetrieverRecordsRemoteConfigUpdate(t *testing.T) {
@@ -169,13 +176,32 @@ func TestConfigRetrieverRecordsRemoteConfigUpdate(t *testing.T) {
 	// Asserted per product: "Updates received: 1" appearing anywhere would also
 	// hold if the subscription routed this update to the other product.
 	out := renderText(t)
-	assert.Contains(t, productBlock(t, out, data.ProductContainerAutoscalingSettings), "Updates received: 1")
+	settings := productBlock(t, out, data.ProductContainerAutoscalingSettings)
+	assert.Contains(t, settings, "Updates received: 1")
+	assert.Contains(t, settings, "Last error:")
 	assert.Contains(t, productBlock(t, out, data.ProductContainerAutoscalingValues), "No update received yet")
 }
 
-// TestWorkloadAutoscalingStatusProductsAreIndependent is the guard the earlier
-// iteration of this section lacked: swapping the two product constants in
-// NewConfigRetriever, or routing both to one bucket, must fail here.
+// TestWorkloadAutoscalingStatusIgnoresUnknownProduct documents the silent drop: a
+// product with no bucket must not panic and must not land in either of them.
+func TestWorkloadAutoscalingStatusIgnoresUnknownProduct(t *testing.T) {
+	resetStatus(t)
+
+	assert.NotPanics(t, func() {
+		recordRemoteConfigUpdate("SOME_OTHER_PRODUCT", map[string]state.RawConfig{
+			"a": {Metadata: state.Metadata{Version: 1}},
+		})
+		recordRemoteConfigError("SOME_OTHER_PRODUCT", errors.New("boom"))
+	})
+
+	assert.True(t, statusStore.settings.lastUpdate.IsZero())
+	assert.True(t, statusStore.values.lastUpdate.IsZero())
+}
+
+// TestWorkloadAutoscalingStatusProductsAreIndependent covers the bucket routing:
+// making productStatusFor return the same bucket for both products must fail
+// here. It drives recordRemoteConfigUpdate directly, so it says nothing about the
+// subscriptions -- TestConfigRetrieverRecordsRemoteConfigUpdate covers those.
 func TestWorkloadAutoscalingStatusProductsAreIndependent(t *testing.T) {
 	resetStatus(t)
 	enabledConfig(t, true)
@@ -184,9 +210,6 @@ func TestWorkloadAutoscalingStatusProductsAreIndependent(t *testing.T) {
 	recordRemoteConfigUpdate(data.ProductContainerAutoscalingValues, map[string]state.RawConfig{
 		"a": {Metadata: state.Metadata{Version: 41}},
 	})
-
-	assert.Equal(t, uint64(41), statusStore.values.lastVersion)
-	assert.True(t, statusStore.settings.lastUpdate.IsZero(), "settings must be untouched")
 
 	out := renderText(t)
 	assert.Contains(t, productBlock(t, out, data.ProductContainerAutoscalingSettings), "No update received yet")

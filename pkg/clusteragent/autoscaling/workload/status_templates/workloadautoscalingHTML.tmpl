@@ -13,7 +13,7 @@
       <br>
       <br>{{ .Product }}
       {{- if not .Received }}
-      <br>&nbsp;&nbsp;No update received yet
+      <br>&nbsp;&nbsp;No update received yet (expected if no DatadogPodAutoscaler is configured remotely)
       {{- else }}
       <br>&nbsp;&nbsp;Last config version: {{ .LastVersion }}
       <br>&nbsp;&nbsp;Last update: {{ .LastUpdate }} ({{ .LastUpdateAge }} ago)

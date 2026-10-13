@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //go:embed status_templates
@@ -88,12 +89,20 @@ func productStatusFor(product string) *productStatus {
 	case data.ProductContainerAutoscalingValues:
 		return &statusStore.values
 	}
+
+	log.Warnf("No workload autoscaling status bucket for Remote Configuration product %q", product)
 	return nil
 }
 
 // InitStatus registers the live state used by the workload autoscaling status.
-// isLeader is required.
+// Both arguments are required; the status degrades to "not started" without them
+// rather than panicking later in the status handler
 func InitStatus(store *store, isLeader func() bool) {
+	if store == nil || isLeader == nil {
+		log.Errorf("Workload autoscaling status not registered: store and isLeader are both required")
+		return
+	}
+
 	statusStore.Lock()
 	defer statusStore.Unlock()
 	statusStore.store = store
