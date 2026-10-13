@@ -7,3 +7,6 @@ package model
 
 // DelaDirectivePrefix marks delegated-auth values in additional endpoint API key slots.
 const DelaDirectivePrefix = "DELA["
+
+// DelaLogsEndpointsKey is the logs setting delegated auth writes resolved API keys back into.
+const DelaLogsEndpointsKey = "logs_config.additional_endpoints"

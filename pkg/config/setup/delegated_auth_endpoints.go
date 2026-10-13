@@ -125,7 +125,21 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 // listShapeDelegatedAuthEndpointKeys lists the list-shaped settings enabled for write-back.
 var listShapeDelegatedAuthEndpointKeys = []string{
 	// Supported for HTTP logs endpoints. TCP endpoints skip pending directives.
-	"logs_config.additional_endpoints",
+	pkgconfigmodel.DelaLogsEndpointsKey,
+}
+
+// logsUseHTTPWithAdditionalEndpoints mirrors how the logs agent picks HTTP when additional endpoints
+// are configured (BuildEndpointsWithConfig in comp/logs/agent/config): only when HTTP is forced, the
+// logs URL is an HTTP proxy, or Observability Pipelines Worker is enabled. Otherwise it uses TCP,
+// which ignores delegated-auth entries.
+func logsUseHTTPWithAdditionalEndpoints(config pkgconfigmodel.Reader) bool {
+	if config.GetBool("logs_config.use_http") || config.GetBool("logs_config.force_use_http") {
+		return true
+	}
+	if url := config.GetString("logs_config.logs_dd_url"); strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
+		return true
+	}
+	return config.GetBool("observability_pipelines_worker.logs.enabled") || config.GetBool("vector.logs.enabled")
 }
 
 // configureListShapeAdditionalEndpointsDelegatedAuth scans the list-shape additional_endpoints
@@ -146,7 +160,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 			if !ok || !strings.HasPrefix(strings.TrimSpace(directive), pkgconfigmodel.DelaDirectivePrefix) {
 				continue
 			}
-			if !config.GetBool("logs_config.use_http") && !config.GetBool("logs_config.force_use_http") {
+			if !logsUseHTTPWithAdditionalEndpoints(config) {
 				log.Warnf("Additional endpoint entry %d at %q uses delegated auth, which requires HTTP logs transport; set logs_config.force_use_http to enable it", index, configKey)
 				continue
 			}

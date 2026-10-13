@@ -1270,6 +1270,23 @@ func (suite *EndpointsTestSuite) TestMRFHTTPEndpointConnectionResetInterval() {
 	suite.True(mrfFound, "MRF endpoint not found")
 }
 
+func TestAwaitsDelegatedAuthKey(t *testing.T) {
+	const directive = "DELA[org-uuid, aws]"
+
+	pending := NewEndpoint(directive, "logs_config.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
+	assert.True(t, pending.AwaitsDelegatedAuthKey(), "pending on the write-back setting")
+
+	other := NewEndpoint(directive, "database_monitoring.samples.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
+	assert.False(t, other.AwaitsDelegatedAuthKey(), "nothing writes keys back to this setting")
+
+	disabled := NewEndpoint(directive, "logs_config.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
+	disabled.credential.Store(&endpointCredential{pending: true, invalid: true})
+	assert.False(t, disabled.AwaitsDelegatedAuthKey(), "disabled until restart")
+
+	static := NewEndpoint("static-key", "logs_config.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
+	assert.False(t, static.AwaitsDelegatedAuthKey(), "already has a key")
+}
+
 func TestEndpointsTestSuite(t *testing.T) {
 	suite.Run(t, new(EndpointsTestSuite))
 }

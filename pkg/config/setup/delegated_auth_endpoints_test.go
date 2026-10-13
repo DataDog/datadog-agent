@@ -344,6 +344,26 @@ logs_config:
 	assert.Empty(t, rec.recorded)
 }
 
+func TestListShapeDirectiveRegistersWhenLogsUseHTTPWithoutForcing(t *testing.T) {
+	// The logs agent also picks HTTP for an HTTP(S) logs_dd_url proxy or Observability Pipelines Worker.
+	const entries = `  additional_endpoints:
+    - host: org2.datadoghq.com
+      api_key: DELA[org-uuid-2, aws]
+`
+	for name, yaml := range map[string]string{
+		"https proxy":                    "logs_config:\n  logs_dd_url: https://proxy.example.com:3834\n" + entries,
+		"http proxy":                     "logs_config:\n  logs_dd_url: http://proxy.example.com:3834\n" + entries,
+		"observability pipelines worker": "logs_config:\n" + entries + "observability_pipelines_worker:\n  logs:\n    enabled: true\n",
+		"legacy vector":                  "logs_config:\n" + entries + "vector:\n  logs:\n    enabled: true\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := newRecordingComponent()
+			configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), confFromYAML(t, yaml), rec, nil)
+			assert.Len(t, rec.recorded, 1)
+		})
+	}
+}
+
 func TestListShapeWritebackPreservesAPIKeyFieldCasing(t *testing.T) {
 	rec := newRecordingComponent()
 	config := confFromYAML(t, `

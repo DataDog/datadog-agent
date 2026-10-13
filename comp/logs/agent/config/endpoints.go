@@ -363,6 +363,17 @@ func (e *Endpoint) GetAPIKeyIfReady() (string, bool) {
 	return credential.apiKey, !credential.pending && !credential.invalid
 }
 
+// AwaitsDelegatedAuthKey reports whether this endpoint is waiting for a key delegated auth will write
+// back. It is false once a runtime config change has disabled the endpoint until restart, and for
+// directives in settings that nothing writes back: no key will ever arrive for those.
+func (e *Endpoint) AwaitsDelegatedAuthKey() bool {
+	if e.credential == nil || e.configSettingPath != model.DelaLogsEndpointsKey {
+		return false
+	}
+	credential := e.credential.Load()
+	return credential != nil && credential.pending && !credential.invalid
+}
+
 // IsWaitingForDelegatedAuth reports whether this endpoint must not send until config write-back.
 func (e *Endpoint) IsWaitingForDelegatedAuth() bool {
 	if e.credential == nil {
