@@ -107,7 +107,9 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                               //nolint:errcheck
 	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })         //nolint:errcheck
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return flarecommon.MarshalDatadogRuntimeConfigDumpYAML() }) //nolint:errcheck
-	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return remote.GetGoRoutineDump() })
+	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) {
+		return remote.GetGoRoutineDump(pkgconfigsetup.Datadog().GetInt("metrics_port"))
+	})
 	getPerformanceProfileDCA(fb, pdata)
 	getProfilingDataDCA(fb)
 

@@ -13,20 +13,26 @@ import (
 type validationState string
 
 const (
+	validationStateError   validationState = "error"
 	validationStateFail    validationState = "fail"
 	validationStateOK      validationState = "ok"
 	validationStateMissing validationState = "missing"
 )
 
 type gpuConfigValidationResult struct {
-	Config         gpuspec.GPUConfig        `json:"config"`
-	DeviceCount    int                      `json:"device_count"`
-	DetailedResult gpuspec.ValidationResult `json:"detailed_result"`
-	State          validationState          `json:"state"`
+	Config          gpuspec.GPUConfig        `json:"config"`
+	DeviceCount     int                      `json:"device_count"`
+	DetailedResult  gpuspec.ValidationResult `json:"detailed_result"`
+	RetrievalErrors []string                 `json:"retrieval_errors,omitempty"`
+	State           validationState          `json:"state"`
 }
 
 func (r *gpuConfigValidationResult) hasFailures() bool {
 	return r.DeviceCount > 0 && r.DetailedResult.HasFailures()
+}
+
+func (r *gpuConfigValidationResult) hasRetrievalErrors() bool {
+	return len(r.RetrievalErrors) > 0
 }
 
 type orgValidationResults struct {
@@ -36,6 +42,9 @@ type orgValidationResults struct {
 }
 
 func determineResultState(result gpuConfigValidationResult) validationState {
+	if result.hasRetrievalErrors() {
+		return validationStateError
+	}
 	if result.hasFailures() {
 		return validationStateFail
 	}

@@ -29,8 +29,7 @@ mod tests {
     use crate::test_helpers;
 
     fn sleep_config() -> crate::config::ProcessConfig {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        test_helpers::make_config(cmd, args)
+        test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS)
     }
 
     #[tokio::test]
@@ -59,12 +58,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_shutdown_graceful_stop_signal() {
+        use std::time::Instant;
+
+        let mut proc = ManagedProcess::new_config(
+            "graceful".into(),
+            test_helpers::test_uuid(),
+            test_helpers::graceful_stop_test_config(),
+        );
+        proc.spawn(test_exit_channel().0).unwrap();
+        assert!(proc.is_running());
+
+        // Signaling the child means leaving the caller's console, and only
+        // CallerConsoleGuard puts it back. A regression there leaves the supervisor
+        // running with nowhere to log, which none of the assertions below would catch.
+        // Compared in both directions rather than asserting a console exists, since the
+        // test process only has one when the runner gave it one.
+        #[cfg(windows)]
+        let console_before = crate::platform::caller_console_state();
+
+        let started = Instant::now();
+        proc.request_stop();
+        proc.wait_for_stop().await;
+
+        #[cfg(windows)]
+        assert_eq!(
+            crate::platform::caller_console_state(),
+            console_before,
+            "graceful stop must leave the caller console as it found it"
+        );
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            started.elapsed().as_secs() < 2,
+            "graceful stop should not wait for stop_timeout force-kill (took {:?})",
+            started.elapsed()
+        );
+    }
+
+    #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
-        let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
-        cfg.stop_timeout = Some(1);
-        let mut proc =
-            ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);
+        // Use ping (via sleep_config) instead of powershell: ping ignores graceful
+        // stop on Windows, and powershell.exe is not always on PATH in CI containers.
+        let mut proc = ManagedProcess::new_config(
+            "stubborn".into(),
+            test_helpers::test_uuid(),
+            sleep_config(),
+        );
         proc.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![proc];

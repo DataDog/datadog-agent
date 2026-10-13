@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -59,6 +60,10 @@ type systemContext struct {
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
 
+	// releaseMu guards the fields below against the release monitor goroutine
+	// (they are otherwise only touched from the event consumer goroutine).
+	releaseMu sync.Mutex
+
 	// cudaKernelCache caches kernel data and handles background loading
 	cudaKernelCache *cuda.KernelCache
 
@@ -75,6 +80,7 @@ type systemContextOptions struct {
 	tm                   telemetry.Component
 	fatbinParsingEnabled bool
 	config               *config.Config
+	deviceCache          ddnvml.DeviceCache
 }
 
 type systemContextOption func(*systemContextOptions)
@@ -109,6 +115,12 @@ func withConfig(config *config.Config) systemContextOption {
 	}
 }
 
+func withDeviceCache(deviceCache ddnvml.DeviceCache) systemContextOption {
+	return func(opts *systemContextOptions) {
+		opts.deviceCache = deviceCache
+	}
+}
+
 func newSystemContextOptions(optList ...systemContextOption) *systemContextOptions {
 	opts := &systemContextOptions{
 		fatbinParsingEnabled: false,
@@ -117,6 +129,11 @@ func newSystemContextOptions(optList ...systemContextOption) *systemContextOptio
 	for _, opt := range optList {
 		opt(opts)
 	}
+
+	if opts.deviceCache == nil {
+		opts.deviceCache = ddnvml.NewDeviceCache()
+	}
+
 	return opts
 }
 
@@ -129,7 +146,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 		visibleDevicesCache:          make(map[int][]ddnvml.Device),
 		cudaVisibleDevicesPerProcess: make(map[int]string),
 		workloadmeta:                 opts.wmeta,
-		deviceCache:                  ddnvml.NewDeviceCache(),
+		deviceCache:                  opts.deviceCache,
 		deviceCacheRefreshInterval:   opts.config.DeviceCacheRefreshInterval,
 		lastDeviceCacheRefreshTime:   time.Now(),
 	}
@@ -152,8 +169,11 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 
 // removeProcess removes any data associated with a process from the system context.
 func (ctx *systemContext) removeProcess(pid int) {
-	delete(ctx.selectedDeviceByPIDAndTID, pid)
+	ctx.releaseMu.Lock()
 	delete(ctx.visibleDevicesCache, pid)
+	ctx.releaseMu.Unlock()
+
+	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.cudaVisibleDevicesPerProcess, pid)
 
 	if ctx.cudaKernelCache != nil {
@@ -229,6 +249,9 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 // containerIDFunc is a function that returns the container ID for the given process. As retrieving the container ID
 // might be expensive, we pass a function that can be called to retrieve it only when needed
 func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
+	ctx.releaseMu.Lock()
+	defer ctx.releaseMu.Unlock()
+
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
 		err := ctx.periodicDeviceCacheRefresh()
@@ -307,14 +330,57 @@ func (ctx *systemContext) setUpdatedVisibleDevicesEnvVar(pid int, envVar string)
 	ctx.cudaVisibleDevicesPerProcess[pid] = envVar
 
 	// Invalidate the visible devices cache to force a re-scan of the devices
+	ctx.releaseMu.Lock()
 	delete(ctx.visibleDevicesCache, pid)
+	ctx.releaseMu.Unlock()
 }
 
 func (ctx *systemContext) periodicDeviceCacheRefresh() error {
+	// caller must hold releaseMu
 	now := time.Now()
 	if now.Sub(ctx.lastDeviceCacheRefreshTime) < ctx.deviceCacheRefreshInterval {
 		return nil
 	}
 	ctx.lastDeviceCacheRefreshTime = now
 	return ctx.deviceCache.Refresh()
+}
+
+// releaseNVMLForReset shuts NVML down so a GPU reset can proceed. The caches
+// are NOT dropped here: the eBPF event consumer keeps running during the
+// window, and emptying the device/visible-devices caches at release time
+// would leave driver events without a mapping, so they would be discarded.
+// The pre-reset mapping is kept instead (best-effort attribution for the
+// events in flight) and invalidated at reacquire time.
+// Called from the release monitor goroutine; the race with an in-flight NVML
+// call from the event consumer is accepted (the collision leaves a clean API
+// error, it does not affect the reset).
+func (ctx *systemContext) releaseNVMLForReset() {
+	// The gated release FIRST (arms the released flag — rejecting new gated
+	// users — waits for in-flight ones and shuts the library down; a shutdown
+	// error does not arm the flag, so the lease monitor retries next tick
+	// instead of latching a released state over an initialized library).
+	if err := ddnvml.ReleaseNVML(); err != nil {
+		log.Warnf("error shutting down NVML for the release in the GPU monitoring probe (will retry next tick): %v", err)
+		return
+	}
+}
+
+// reacquireNVML ends the deliberate-release state: the next device cache
+// use re-initializes NVML and re-enumerates (the layout may have changed
+// during the window, e.g. after a MIG reconfiguration). The NVML-backed
+// caches are dropped only here — see releaseNVMLForReset for why they must
+// survive the release itself.
+func (ctx *systemContext) reacquireNVML() {
+	// Mirror of the release ordering: drop every NVML-backed handle while new
+	// users are still rejected, and clear the gate last. Clearing first would
+	// admit a concurrent request that then reads a pre-shutdown handle out of
+	// the not-yet-invalidated caches.
+	ctx.deviceCache.Invalidate()
+
+	ctx.releaseMu.Lock()
+	ctx.visibleDevicesCache = make(map[int][]ddnvml.Device)
+	ctx.lastDeviceCacheRefreshTime = time.Time{}
+	ctx.releaseMu.Unlock()
+
+	ddnvml.ReacquireNVML()
 }

@@ -83,7 +83,7 @@ const (
 	postResume    = "POST " + pathResume
 	postTerminate = "POST " + pathTerminate
 
-	baseMetricPrefix    = "aws.lambda.enhanced.microvm."
+	baseMetricPrefix    = "aws.lambda.microvm.enhanced."
 	runMetricName       = baseMetricPrefix + "run"
 	suspendMetricName   = baseMetricPrefix + "suspend"
 	resumeMetricName    = baseMetricPrefix + "resume"

@@ -73,12 +73,30 @@ message RemoteAction {
 
 message ConnectionInfo {
   string connection_id = 1;
-  // Legacy format with inline and file-backed values.
   repeated ConnectionToken tokens = 2;
   CredentialsType credentials_type = 3;
   string runner_id = 4;
-  // Connection tokens consumed by the private actions runner.
+  // Connection tokens whose values are inline or resolved by the runner.
   repeated ConnectionTokenV2 tokens_v2 = 5;
+}
+
+message ConnectionTokenV2 {
+  reserved 3, 4;
+  repeated string name_segments = 1;
+
+  oneof source {
+    PlainText plain_text = 2;
+    RunnerCredential runner_credential = 5;
+  }
+
+  message PlainText {
+    string value = 1;
+  }
+
+  message RunnerCredential {
+    // Identifier in the runner credential catalog.
+    string key = 1;
+  }
 }
 
 // The ConnectionToken is similar to connectionpb.ConnectionToken, but is specifically limited to data pertinent to private actions.
@@ -109,29 +127,10 @@ message ConnectionToken {
   }
 }
 
-// Connection tokens with inline values or runner-resolved secrets.
-message ConnectionTokenV2 {
-  repeated string name_segments = 1;
-
-  oneof source {
-    PlainText plain_text = 2;
-    DatadogAgentSecret datadog_agent_secret = 4;
-  }
-
-  message PlainText {
-    string value = 1;
-  }
-
-  message DatadogAgentSecret {
-    string handle = 1;
-  }
-}
-
 enum CredentialsType {
   UNSPECIFIED = 0;
   TOKEN_AUTH = 1;
   BASIC_AUTH = 2;
   OAUTH2 = 3;
-  // Credentials are encoded in tokens_v2.
   CONNECTION_TOKENS_V2 = 5;
 }

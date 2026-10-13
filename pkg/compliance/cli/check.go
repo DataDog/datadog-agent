@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // CheckParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
@@ -80,21 +79,19 @@ func RunCheck(log log.Component, config config.Component, secretsComp secrets.Co
 		return nil
 	}
 
+	// Resolved once: querying the cloud provider metadata endpoints is costly.
+	hostCCRID := compliance.FetchHostCCRID(context.Background(), config)
+
 	var resolver compliance.Resolver
 	if checkArgs.OverrideRegoInput != "" {
 		resolver = newFakeResolver(checkArgs.OverrideRegoInput)
 	} else {
-		var reflectorStore *compliance.ReflectorStore
-		if flavor.GetFlavor() == flavor.ClusterAgent {
-			reflectorStore = startComplianceReflectorStore(context.Background())
-		}
 		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
 			Hostname:           hname,
 			HostRoot:           os.Getenv("HOST_ROOT"),
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
 			KubernetesProvider: complianceKubernetesProvider,
-			ReflectorStore:     reflectorStore,
 			StatsdClient:       statsdClient,
 		})
 	}
@@ -146,6 +143,7 @@ func RunCheck(log log.Component, config config.Component, secretsComp secrets.Co
 				}
 			}
 			for _, event := range ruleEvents {
+				event.HostCCRID = hostCCRID
 				b, _ := json.MarshalIndent(event, "", "\t")
 				fmt.Println(string(b))
 				if event.Result != compliance.CheckSkipped {

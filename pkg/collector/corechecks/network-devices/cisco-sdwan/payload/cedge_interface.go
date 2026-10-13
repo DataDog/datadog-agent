@@ -6,7 +6,6 @@
 package payload
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -173,7 +172,7 @@ func parseCEdgeIP(ip string) (string, error) {
 	}
 	ipAddr := net.ParseIP(ip)
 	if ipAddr == nil || ipAddr.IsUnspecified() {
-		return "", errors.New("invalid ip address")
+		return "", fmt.Errorf("invalid ip address: %q", ip)
 	}
 	return ipAddr.String(), nil
 }
@@ -181,7 +180,7 @@ func parseCEdgeIP(ip string) (string, error) {
 func parseMask(mask string) (int32, error) {
 	ipMask := net.ParseIP(mask)
 	if ipMask == nil {
-		return 0, errors.New("invalid mask")
+		return 0, fmt.Errorf("invalid mask: %q", mask)
 	}
 	parsedMask := net.IPMask(ipMask.To4())
 	prefixLen, _ := parsedMask.Size()

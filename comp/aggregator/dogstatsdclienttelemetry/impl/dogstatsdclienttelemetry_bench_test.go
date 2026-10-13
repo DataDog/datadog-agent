@@ -38,7 +38,7 @@ func BenchmarkComponentFinalDogStatsDSerieObserver_1MFinalSeries(b *testing.B) {
 	} {
 		b.Run(benchmark.name, func(b *testing.B) {
 			telemetry := telemetrymock.New(b)
-			provides := NewComponent(Requires{Telemetry: telemetry})
+			provides := NewComponent(Requires{Telemetry: telemetry, DropDetector: &recordingDropDetector{}})
 			series := make([]*metrics.Serie, finalDogStatsDClientTelemetrySeriesPerOperation)
 			for i := range series {
 				series[i] = &metrics.Serie{

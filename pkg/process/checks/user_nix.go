@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LookupIDProbe wraps user.LookupId with an optional cache.
+// LookupIDProbe resolves users with an optional per-UID cache.
 type LookupIDProbe struct {
 	config pkgconfigmodel.Reader
 
@@ -28,7 +28,7 @@ type LookupIDProbe struct {
 // NewLookupIDProbe returns a new LookupIDProbe from the config
 func NewLookupIDProbe(coreConfig pkgconfigmodel.Reader) *LookupIDProbe {
 	if coreConfig.GetBool("process_config.cache_lookupid") {
-		log.Debug("Using cached calls to `user.LookupID`")
+		log.Debug("Using cached user lookups")
 	}
 	return &LookupIDProbe{
 		// Inject global logger and config to make it easy to use components
@@ -43,7 +43,7 @@ func (p *LookupIDProbe) lookupIDWithCache(uid string) (*user.User, error) {
 	result, ok := p.lookupIDCache.Get(uid)
 	if !ok {
 		var err error
-		u, err := p.lookupID(uid)
+		u, err := p.lookupIDUncached(uid)
 		if err == nil {
 			p.lookupIDCache.SetDefault(uid, u)
 		} else {
@@ -62,10 +62,20 @@ func (p *LookupIDProbe) lookupIDWithCache(uid string) (*user.User, error) {
 	}
 }
 
-// LookupID returns the user.User for the given uid, using a cache if configured.
+func (p *LookupIDProbe) lookupIDUncached(uid string) (*user.User, error) {
+	if u := lookupHostUser(uid); u != nil {
+		return u, nil
+	}
+	return p.lookupID(uid)
+}
+
+// LookupID returns the cached user or error when caching is enabled and the UID is cached.
+// Otherwise, it prefers HOST_ETC/passwd and falls back to the local user database
+// when HOST_ETC is unset, the file cannot be read, or no matching entry is found.
+// The optional cache retains results and errors for one hour, including local fallbacks.
 func (p *LookupIDProbe) LookupID(uid string) (*user.User, error) {
 	if p.config.GetBool("process_config.cache_lookupid") {
 		return p.lookupIDWithCache(uid)
 	}
-	return p.lookupID(uid)
+	return p.lookupIDUncached(uid)
 }

@@ -10,7 +10,6 @@ go_library(
         "system_file_tester.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test",
-    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = [
         "//test/e2e-framework/testing/components",
@@ -47,9 +46,11 @@ dd_agent_go_test(
         "install_test.go",
         "npm_test.go",
         "persisting_integrations_test.go",
+        "procmgr_localsystem_test.go",
         "upgrade_test.go",
     ],
     embed = [":install-test"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/runner",

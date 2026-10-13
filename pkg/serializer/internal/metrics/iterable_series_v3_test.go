@@ -9,12 +9,14 @@ package metrics
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
@@ -652,4 +654,66 @@ func TestValueEncoding(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestNewSeriesPayloadBuilderV3WithConfig(t *testing.T) {
+	cfg := configmock.New(t)
+
+	cfg.SetInTest("serializer_max_series_payload_size", 100_000)
+	cfg.SetInTest("serializer_max_series_uncompressed_payload_size", 300_000)
+	cfg.SetInTest("serializer_max_series_points_per_payload", 42)
+
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pb, err := newSeriesPayloadBuilderV3WithConfig(cfg, noopimpl.New(), pipelineConfig, &PipelineContext{})
+	require.NoError(t, err)
+	ref, err := newPayloadsBuilderV3(100_000, 300_000, 42, noopimpl.New(), pipelineConfig, &PipelineContext{})
+	require.NoError(t, err)
+
+	assert.Equal(t, ref.compressor.MaxCompressedSize(), pb.compressor.MaxCompressedSize())
+	assert.Equal(t, ref.compressor.MaxUncompressedSize(), pb.compressor.MaxUncompressedSize())
+	assert.Equal(t, 42, pb.maxPointsPerPayload)
+}
+
+func TestNewSketchesPayloadBuilderV3WithConfig(t *testing.T) {
+	t.Run("legacy", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("serializer_max_payload_size", 100_000)
+		cfg.SetInTest("serializer_max_uncompressed_payload_size", 300_000)
+
+		pipelineConfig := PipelineConfig{
+			Filter: AllowAllFilter{},
+			V3:     true,
+		}
+		pb, err := newSketchesPayloadBuilderV3WithConfig(cfg, noopimpl.New(), pipelineConfig, &PipelineContext{})
+		require.NoError(t, err)
+		ref, err := newPayloadsBuilderV3(100_000, 300_000, 42, noopimpl.New(), pipelineConfig, &PipelineContext{})
+		require.NoError(t, err)
+
+		assert.Equal(t, ref.compressor.MaxCompressedSize(), pb.compressor.MaxCompressedSize())
+		assert.Equal(t, ref.compressor.MaxUncompressedSize(), pb.compressor.MaxUncompressedSize())
+		assert.Equal(t, math.MaxInt, pb.maxPointsPerPayload)
+	})
+
+	t.Run("specific", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("serializer_experimental_use_v3_api.sketches.max_compressed_payload_size", 110_000)
+		cfg.SetInTest("serializer_experimental_use_v3_api.sketches.max_uncompressed_payload_size", 330_000)
+		cfg.SetInTest("serializer_experimental_use_v3_api.sketches.max_points_per_payload", 43)
+
+		pipelineConfig := PipelineConfig{
+			Filter: AllowAllFilter{},
+			V3:     true,
+		}
+		pb, err := newSketchesPayloadBuilderV3WithConfig(cfg, noopimpl.New(), pipelineConfig, &PipelineContext{})
+		require.NoError(t, err)
+		ref, err := newPayloadsBuilderV3(110_000, 330_000, 43, noopimpl.New(), pipelineConfig, &PipelineContext{})
+		require.NoError(t, err)
+
+		assert.Equal(t, ref.compressor.MaxCompressedSize(), pb.compressor.MaxCompressedSize())
+		assert.Equal(t, ref.compressor.MaxUncompressedSize(), pb.compressor.MaxUncompressedSize())
+		assert.Equal(t, 43, pb.maxPointsPerPayload)
+	})
 }

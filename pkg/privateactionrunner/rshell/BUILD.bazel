@@ -7,8 +7,10 @@ load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 
 dd_agent_go_binary(
     name = "rshell",
-    cgo = False,
     embed = ["@com_github_datadog_rshell//cmd/rshell:rshell_lib"],
+    # The privileged helper uses AllThreadsSyscall, which requires a cgo-free binary.
+    pure = "on",
+    static = "on",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

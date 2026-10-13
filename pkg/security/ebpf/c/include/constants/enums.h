@@ -164,10 +164,17 @@ enum tls_format
     DEFAULT_TLS_FORMAT
 };
 
+enum prctl_flags
+{
+    PRCTL_FLAG_SEND_EVENT = 1 << 0,
+    PRCTL_FLAG_OTEL_PROCESS_CTX = 1 << 1,
+};
+
 enum otel_runtime_language
 {
     OTEL_RUNTIME_NATIVE = 0,
     OTEL_RUNTIME_GOLANG = 1,
+    OTEL_RUNTIME_NODEJS = 2,
 };
 
 enum bpf_cmd_def

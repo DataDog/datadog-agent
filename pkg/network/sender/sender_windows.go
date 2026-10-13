@@ -16,14 +16,9 @@ func fetchIISTagsCache() map[string][]string {
 	return httpprotocol.GetIISTagsCache()
 }
 
-// fetchProcessCacheTags retrieves process cache tags
-func fetchProcessCacheTags(tracer ConnectionsSource) map[uint32][]string {
-	return tracer.GetProcessCacheTags()
-}
-
 // fetchServiceData fetches IIS tags, process cache tags, and the listeners
 func fetchServiceData(tracer ConnectionsSource) (map[string][]string, map[uint32][]string, map[listenKey]int32) {
-	return fetchIISTagsCache(), fetchProcessCacheTags(tracer), getListeningPortToPIDMap()
+	return fetchIISTagsCache(), tracer.GetProcessCacheTags(), getListeningPortToPIDMap()
 }
 
 // getProcessTags returns process tags for a PID using the system-probe process cache.

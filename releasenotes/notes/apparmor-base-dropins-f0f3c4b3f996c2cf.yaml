@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Avoid modifying package-owned AppArmor base profiles when APM injection can use distro-provided drop-ins, preventing prompts during future AppArmor upgrades.

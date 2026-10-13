@@ -1,0 +1,17 @@
+---
+features:
+  - |
+    The software inventory now reports the running operating system on Windows and
+    macOS, and installed kernel-mode drivers on Windows. These are collected
+    alongside installed applications and are identified by the ``os`` and
+    ``driver`` software types.
+
+    The operating system is reported as a single entry whose version carries the
+    full patch level: ``10.0.26100.4652`` on Windows, including the update build
+    revision, and ``26.4.1 (25E253)`` on macOS, including the build that
+    supplemental updates advance.
+
+    Only OEM and third-party drivers are reported; the drivers that ship with
+    Windows are excluded. Both software-only drivers, such as endpoint-protection
+    filter drivers that are not bound to any hardware device, and driver packages
+    that register no kernel service of their own are included.

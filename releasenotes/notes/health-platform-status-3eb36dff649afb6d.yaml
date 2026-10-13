@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Added a "Health Platform" section to ``agent status``, showing the number
+    of active issues detected by the agent (broken down by severity) and the
+    status of reporting to Datadog: whether it is working, the last
+    successful send time, and the number of bytes sent. Run
+    ``agent diagnose`` for details on individual detected issues.

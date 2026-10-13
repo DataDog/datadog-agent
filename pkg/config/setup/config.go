@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -422,10 +423,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		return err
 	}
 
-	// Configure delegated auth after secrets are resolved but before other components initialize
-	// Cloud provider detection happens automatically within the delegatedauth component
-	// Use a background context since LoadDatadog doesn't take a context parameter.
-	// The context is still useful for cancellation during cloud provider detection and initial API key fetch.
+	// Configure delegated auth after secrets are resolved but before other components initialize.
 	if err := configureDelegatedAuth(context.Background(), config, delegatedAuthComp); err != nil {
 		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
@@ -489,6 +487,13 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		// region itself once detection picks AWS.
 	}
 
+	startupCtx := ctx
+	cancelStartup := func() {}
+	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
+		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	}
+	defer cancelStartup()
+
 	// Scan all registered prefixes to find which ones have delegated auth enabled
 	for _, section := range delegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
@@ -499,21 +504,20 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 
 		log.Infof("Configuring delegated authentication for '%s'", section.description)
 
-		// Call AddInstance - the component auto-initializes on the first call
-		// Config and ProviderConfig are only used on the first call
-		err := delegatedAuthComp.AddInstance(ctx, delegatedauth.InstanceParams{
-			Config:          config,
-			ProviderConfig:  providerConfig,
-			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
-			APIKeyConfigKey: section.apiKeyPath,
+		err := delegatedAuthComp.AddInstance(startupCtx, delegatedauth.InstanceParams{
+			Config:            config,
+			ProviderConfig:    providerConfig,
+			OrgUUID:           orgUUID,
+			RefreshInterval:   config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey:   section.apiKeyPath,
+			AllowAsyncStartup: section.apiKeyPath == "api_key",
 		})
 		if err != nil {
 			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
 		}
 	}
 
-	return nil
+	return ctx.Err()
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
@@ -717,7 +721,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		// updating it.
 		yamlConf, err := yaml.Marshal(config.AllSettings())
 		if err != nil {
-			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %w", err)
 		}
 
 		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
@@ -969,6 +973,15 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
 
+	// A value outside the declared set applies no mode override and carries no
+	// `infra_mode` mark on the payloads, so report it rather than letting a typo
+	// look like a working configuration. Other readers of the raw setting still
+	// see the typo, so this does not claim the Agent behaves as `full`.
+	if infraMode != "" && !constants.IsKnownInfraMode(infraMode) {
+		log.Warnf("invalid value for 'infrastructure_mode': %q, expected one of %v",
+			infraMode, constants.KnownInfraModes)
+	}
+
 	// Apply legacy alias: copy values from legacy key to integration.additional
 	// Legacy `allowed_additional_checks` -> `integration.additional`
 	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
@@ -976,13 +989,13 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	if infraMode == "end_user_device" {
+	if infraMode == constants.InfraModeEndUserDevice {
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("logon_duration.enabled", true, pkgconfigmodel.SourceInfraMode)
-	} else if infraMode == "none" {
+	} else if infraMode == constants.InfraModeNone {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 		// Avoid detailed ECS task metadata collection when not collecting infrastructure.

@@ -122,6 +122,7 @@ func (s ContainerSource) String() string {
 type ContainerContext struct {
 	*Releasable
 	ContainerID     containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	PodUID          string                     `field:"pod_uid,opts:gen_getters"`                                   // SECLDoc[pod_uid] Definition:`Kubernetes pod UID`
 	CreatedAt       uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags            []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 	ContainerSource ContainerSource            `field:"-"`
@@ -156,6 +157,8 @@ type SecurityProfileContext struct {
 	Tags           []string                   `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
 	EventTypes     []EventType                `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
 	EventTypeState EventFilteringProfileState `field:"-"`           // State of the event type in this profile
+	// ProfileAlreadySent is true when the profile had already been persisted to the backend at the time this event was emitted
+	ProfileAlreadySent bool `field:"-"`
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -730,12 +733,13 @@ func (de *DNSEvent) Matches(new *DNSEvent) bool {
 
 // IMDSEvent represents an IMDS event
 type IMDSEvent struct {
-	Type          string `field:"type"`           // SECLDoc[type] Definition:`the type of IMDS event`
-	CloudProvider string `field:"cloud_provider"` // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
-	URL           string `field:"url"`            // SECLDoc[url] Definition:`the queried IMDS URL`
-	Host          string `field:"host"`           // SECLDoc[host] Definition:`the host of the HTTP protocol`
-	UserAgent     string `field:"user_agent"`     // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
-	Server        string `field:"server"`         // SECLDoc[server] Definition:`the server header of a response`
+	Type             string `field:"type"`              // SECLDoc[type] Definition:`the type of IMDS event`
+	CloudProvider    string `field:"cloud_provider"`    // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
+	URL              string `field:"url"`               // SECLDoc[url] Definition:`the queried IMDS URL`
+	Host             string `field:"host"`              // SECLDoc[host] Definition:`the host of the HTTP protocol`
+	UserAgent        string `field:"user_agent"`        // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
+	Server           string `field:"server"`            // SECLDoc[server] Definition:`the server header of a response`
+	CredentialSource uint32 `field:"credential_source"` // SECLDoc[credential_source] Definition:`the credential endpoint that served the IMDS event` Constants:`Credential sources`
 
 	// The fields below are optional and cloud specific fields
 	AWS AWSIMDSEvent `field:"aws"` // SECLDoc[aws] Definition:`the AWS specific data parsed from the IMDS event`

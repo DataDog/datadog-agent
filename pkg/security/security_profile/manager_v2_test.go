@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -85,6 +86,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 
 		m.persistProfile(p)
 
+		assert.False(t, p.HasAlreadyBeenSent(), "persisting a disabled profile must not open the send-gated learning window")
 		filePath := filepath.Join(dir, "disabled."+config.Profile.String())
 		_, err := os.Stat(filePath)
 		require.NoError(t, err, "a disabled profile must be persisted so its state survives a restart")
@@ -110,6 +112,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		require.True(t, ok, "the persisted enabled profile should be found on disk")
 		assert.True(t, reloaded.IsEnabled(), "an enabled profile must reload as enabled")
 		assert.False(t, reloaded.ActivityTree.IsEmpty(), "an enabled profile keeps its tree")
+		assert.True(t, p.HasAlreadyBeenSent(), "persisting an enabled profile ends the send-gated learning window")
 	})
 }
 
@@ -147,4 +150,186 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 	m.evictUnusedNodes()
 
 	assert.False(t, p.IsEnabled(), "eviction must not re-enable a disabled profile")
+}
+
+func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
+	start := time.Now()
+	withStart := func() *profile.Profile {
+		p := profile.New()
+		p.Metadata = mtdt.Metadata{Start: start}
+		return p
+	}
+	timeBased := func(period time.Duration) *ManagerV2 {
+		return &ManagerV2{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileV2ProfileReportingDelayTimeBased: true,
+			SecurityProfileV2ProfileReportingDelayDuration:  period,
+		}}}
+	}
+
+	t.Run("default withholds until the profile has been persisted", func(t *testing.T) {
+		p := withStart()
+		m := &ManagerV2{config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{}}}
+		assert.False(t, m.shouldSendAnomalyDetection(p, start))
+		p.SetHasAlreadyBeenSent()
+		assert.True(t, m.shouldSendAnomalyDetection(p, start))
+	})
+
+	t.Run("time-based with a zero period sends as soon as the profile starts", func(t *testing.T) {
+		p := withStart()
+		assert.True(t, timeBased(0).shouldSendAnomalyDetection(p, start))
+		assert.False(t, p.HasAlreadyBeenSent(), "time-based stabilization does not depend on persistence")
+	})
+
+	t.Run("time-based waits for the configured period after the profile starts", func(t *testing.T) {
+		p := withStart()
+		m := timeBased(time.Hour)
+		assert.False(t, m.shouldSendAnomalyDetection(p, start))
+		assert.False(t, m.shouldSendAnomalyDetection(p, start.Add(time.Hour-time.Nanosecond)))
+		assert.True(t, m.shouldSendAnomalyDetection(p, start.Add(time.Hour)))
+	})
+
+	t.Run("time-based anchors on the persisted start, not the in-memory creation time", func(t *testing.T) {
+		p := withStart()
+		p.Metadata.Start = start.Add(-time.Hour)
+		assert.True(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, start))
+	})
+
+	t.Run("time-based keeps withholding when the clock jumps backward", func(t *testing.T) {
+		p := withStart()
+		assert.False(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, start.Add(-time.Hour)))
+	})
+
+	t.Run("time-based with an unset start sends immediately", func(t *testing.T) {
+		p := profile.New()
+		require.True(t, p.Metadata.Start.IsZero())
+		assert.True(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, time.Now()))
+	})
+}
+
+func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
+	const startMono = int64(time.Hour)
+	newManager := func(delay time.Duration) *ManagerV2 {
+		return &ManagerV2{
+			startTimeMono: startMono,
+			config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+				SecurityProfileV2ProfilingStartupDelay: delay,
+			}},
+		}
+	}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		assert.False(t, newManager(0).withinProfilingStartupDelay(uint64(startMono)))
+	})
+
+	t.Run("ignores events within the delay and resumes after it", func(t *testing.T) {
+		m := newManager(time.Minute)
+		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono)))
+		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds()-1)))
+		assert.False(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds())))
+	})
+}
+
+func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
+	cookieMap, _ := lru.New[uint64, sampleCookieEntry](128)
+	m := &ManagerV2{
+		sampleCookieMap:       cookieMap,
+		sampleRefreshReceived: atomic.NewUint64(0),
+		sampleRefreshHits:     atomic.NewUint64(0),
+		sampleRefreshMisses:   atomic.NewUint64(0),
+	}
+	return m, cookieMap
+}
+
+func TestManagerV2_HandleSampleRefresh(t *testing.T) {
+	t.Run("unknown_cookie", func(t *testing.T) {
+		m, _ := newTestManagerV2()
+		m.HandleSampleRefresh(42)
+		assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
+	})
+
+	t.Run("valid_cookie_updates_process_and_event_node", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+		eventNodeBase := activity_tree.NewNodeBase()
+
+		initialTime := time.Now().Add(-time.Hour)
+		processNode.AppendImageTagID(imageTagID, initialTime)
+		eventNodeBase.AppendImageTagID(imageTagID, initialTime)
+
+		cookieMap.Add(uint64(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: &eventNodeBase,
+			imageTag:      "v1",
+		})
+
+		m.HandleSampleRefresh(1)
+
+		_, procLastSeen, ok := processNode.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.Greater(t, procLastSeen, initialTime.UnixNano())
+
+		_, evtLastSeen, ok := eventNodeBase.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.Greater(t, evtLastSeen, initialTime.UnixNano())
+	})
+
+	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		initialTime := time.Now().Add(-time.Hour)
+		processNode.AppendImageTagID(imageTagID, initialTime)
+
+		cookieMap.Add(uint64(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: nil,
+			imageTag:      "v1",
+		})
+
+		m.HandleSampleRefresh(1)
+
+		_, procLastSeen, ok := processNode.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.Greater(t, procLastSeen, initialTime.UnixNano())
+	})
+
+	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+
+		cookieMap.Add(uint64(2), sampleCookieEntry{
+			profile:     prof,
+			processNode: nil,
+			imageTag:    "v1",
+		})
+
+		m.HandleSampleRefresh(2)
+		assert.False(t, cookieMap.Contains(uint64(2)))
+	})
+
+	t.Run("empty_seen_map_removes_cookie", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		cookieMap.Add(uint64(3), sampleCookieEntry{
+			profile:     prof,
+			processNode: processNode,
+			imageTag:    "v1",
+		})
+
+		m.HandleSampleRefresh(3)
+		assert.False(t, cookieMap.Contains(uint64(3)))
+	})
 }

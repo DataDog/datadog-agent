@@ -126,6 +126,28 @@ func TestTrackContext(t *testing.T) {
 	testWithTagsStore(t, testTrackContext)
 }
 
+func testRetainedContextTagsRemainValidAfterContextRemoval(t *testing.T, store *tags.Store) {
+	resolver := newContextResolver(nooptagger.NewComponent(), store, "test")
+	sample := &metrics.MetricSample{
+		Name: "my.metric.name",
+		Tags: []string{"service:web", "env:prod"},
+	}
+
+	key := resolver.trackContext(sample, 0, filterlistimpl.NewNoopTagMatcher())
+	context, ok := resolver.get(key)
+	require.True(t, ok)
+	retainedTags := context.Tags()
+
+	resolver.remove(key)
+	store.Shrink()
+
+	metrics.AssertCompositeTagsEqual(t, retainedTags, tagset.CompositeTagsFromSlice(sample.Tags))
+}
+
+func TestRetainedContextTagsRemainValidAfterContextRemoval(t *testing.T) {
+	testWithTagsStore(t, testRetainedContextTagsRemainValidAfterContextRemoval)
+}
+
 func testExpireContexts(t *testing.T, store *tags.Store) {
 	matcher := filterlistimpl.NewNoopTagMatcher()
 	mSample1 := metrics.MetricSample{

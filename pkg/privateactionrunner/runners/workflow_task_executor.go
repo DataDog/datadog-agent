@@ -14,10 +14,12 @@ import (
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -43,6 +45,8 @@ type WorkflowTaskExecutor struct {
 
 func NewWorkflowTaskExecutor(
 	configuration *config.Config,
+	coreConfig model.Reader,
+	rcClient rcclient.Client,
 	taskVerifier taskverifier.TaskVerifier,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
@@ -50,14 +54,23 @@ func NewWorkflowTaskExecutor(
 	encryptionStore *encryptioncontext.Store,
 	ha helmactions.Component,
 	ka kubeactions.Component,
-	secretResolver resolver.SecretResolver,
-) *WorkflowTaskExecutor {
+) (*WorkflowTaskExecutor, error) {
+	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	registry, err := privatebundles.NewRegistry(configuration, rcClient, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
+	if err != nil {
+		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
+	}
+
 	return &WorkflowTaskExecutor{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka),
+		registry:     registry,
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(secretResolver, configuration.AgentSecretManagementEnabled),
-	}
+		resolver:     credentialResolver,
+	}, nil
 }
 
 func (e *WorkflowTaskExecutor) PrepareTask(

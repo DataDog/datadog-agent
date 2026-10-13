@@ -6,6 +6,8 @@
 package eks
 
 import (
+	"fmt"
+
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
 	awsEks "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/eks"
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/iam"
@@ -46,7 +48,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 				prefixLists = append(prefixLists, pl.Id)
 			}
 		}
-		clusterSG, err := ec2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName("eks-sg"), &ec2.SecurityGroupArgs{
+		clusterSGArgs := &ec2.SecurityGroupArgs{
 			NamePrefix:  e.CommonNamer().DisplayName(255, pulumi.String("eks-sg")),
 			Description: pulumi.StringPtr("EKS Cluster sg for stack: " + e.Ctx().Stack()),
 			Ingress: ec2.SecurityGroupIngressArray{
@@ -66,7 +68,25 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 				},
 			},
 			VpcId: pulumi.StringPtr(e.DefaultVPCID()),
-		}, e.WithProviders(config.ProviderAWS))
+		}
+		if params.WithoutInternetAccess {
+			// Restrict the cluster SG egress (control plane ENIs) to the VPC: the API endpoint is
+			// private-only, so all control-plane traffic stays in the VPC and internet egress is not
+			// needed. The default would be allow-all.
+			vpc, err := ec2.LookupVpc(e.Ctx(), &ec2.LookupVpcArgs{Id: pulumi.StringRef(e.DefaultVPCID())}, e.WithProvider(config.ProviderAWS))
+			if err != nil {
+				return fmt.Errorf("failed to look up VPC %s: %w", e.DefaultVPCID(), err)
+			}
+			clusterSGArgs.Egress = ec2.SecurityGroupEgressArray{
+				ec2.SecurityGroupEgressArgs{
+					CidrBlocks: pulumi.StringArray{pulumi.String(vpc.CidrBlock)},
+					FromPort:   pulumi.Int(0),
+					ToPort:     pulumi.Int(0),
+					Protocol:   pulumi.String("-1"),
+				},
+			}
+		}
+		clusterSG, err := ec2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName("eks-sg"), clusterSGArgs, e.WithProviders(config.ProviderAWS))
 		if err != nil {
 			return err
 		}
@@ -193,6 +213,16 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 		// Deps for nodes and workloads
 		nodeDeps := make([]pulumi.Resource, 0)
 
+		// When blocking internet access, create the per-stack no-internet node security group, used in
+		// place of the account's default security groups in every node group launch template and in the ENIConfigs.
+		var noInternetSG *ec2.SecurityGroup
+		if params.WithoutInternetAccess {
+			noInternetSG, err = localEks.NewNoInternetNodeSG(e, cluster, pulumi.Parent(comp))
+			if err != nil {
+				return err
+			}
+		}
+
 		_, err = v1.NewClusterRoleBinding(e.Ctx(), e.Namer.ResourceName("eks-cluster-role-binding-read-only"), &v1.ClusterRoleBindingArgs{
 			RoleRef: v1.RoleRefArgs{
 				ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
@@ -213,7 +243,13 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 
 		// Create configuration for POD subnets if any
 		if podSubnets := e.EKSPODSubnets(); len(podSubnets) > 0 {
-			eniConfigs, err := localEks.NewENIConfigs(e, podSubnets, append(lo.Map(e.DefaultSecurityGroups(), func(sg string, _ int) pulumi.StringInput { return pulumi.String(sg) }), cluster.EksCluster.VpcConfig().ClusterSecurityGroupId().Elem()), pulumi.Provider(eksKubeProvider), pulumi.Parent(comp))
+			eniSGs := append(lo.Map(e.DefaultSecurityGroups(), func(sg string, _ int) pulumi.StringInput { return pulumi.String(sg) }), cluster.EksCluster.VpcConfig().ClusterSecurityGroupId().Elem())
+			if noInternetSG != nil {
+				// Pod ENIs: use only the no-internet SG; attaching the EKS-managed cluster SG (allow-all
+				// egress) or the account default SGs would re-enable internet access.
+				eniSGs = pulumi.StringArray{noInternetSG.ID()}
+			}
+			eniConfigs, err := localEks.NewENIConfigs(e, podSubnets, eniSGs, pulumi.Provider(eksKubeProvider), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
@@ -270,21 +306,21 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 
 		// Create managed node groups
 		if params.LinuxNodeGroup {
-			_, err = localEks.NewAL2023LinuxNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			_, err = localEks.NewAL2023LinuxNodeGroup(e, cluster, linuxNodeRole, noInternetSG, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
 		}
 
 		if params.LinuxARMNodeGroup {
-			_, err := localEks.NewAL2023LinuxARMNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			_, err := localEks.NewAL2023LinuxARMNodeGroup(e, cluster, linuxNodeRole, noInternetSG, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
 		}
 
 		if params.BottleRocketNodeGroup {
-			_, err := localEks.NewBottlerocketNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			_, err := localEks.NewBottlerocketNodeGroup(e, cluster, linuxNodeRole, noInternetSG, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
@@ -310,7 +346,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			}
 
 			nodeDeps = append(nodeDeps, winCNIPatch)
-			_, err = localEks.NewWindowsNodeGroup(e, cluster, windowsNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			_, err = localEks.NewWindowsNodeGroup(e, cluster, windowsNodeRole, noInternetSG, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}
@@ -318,7 +354,7 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 
 		if params.GPUNodeGroup {
 			// Create GPU node group first so the node exists for the device plugin to schedule on
-			gpuNodeGroup, err := localEks.NewGPULinuxNodeGroup(e, cluster, linuxNodeRole, params.GPUInstanceType, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			gpuNodeGroup, err := localEks.NewGPULinuxNodeGroup(e, cluster, linuxNodeRole, noInternetSG, params.GPUInstanceType, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}

@@ -60,7 +60,8 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 		runner := vm.OS.Runner()
 		commonEnvironment := env
 		packageManager := vm.OS.PackageManager()
-		curlCommand, err := packageManager.Ensure("curl", nil, "", os.WithPulumiResourceOptions(opts...))
+		// curl is pre-baked in AWS e2e AMIs; assert it's present instead of falling back to a package-manager install.
+		curlCommand, err := packageManager.AssertInstalled("curl", os.WithPulumiResourceOptions(opts...))
 		if err != nil {
 			return err
 		}
@@ -99,7 +100,7 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 			return fmt.Errorf("could not generate kind cluster config: %w", err)
 		}
 
-		kindInstall, err := InstallKindBinary(env, vm, kindVersionConfig.KindVersion, opts...)
+		kindBinary, kindInstall, err := requireKindBinary(env, vm, kindVersionConfig.KindVersion, opts...)
 		if err != nil {
 			return err
 		}
@@ -156,8 +157,8 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 		createCluster, err := runner.Command(
 			commonEnvironment.CommonNamer().ResourceName("kind-create-cluster"),
 			&command.Args{
-				Create:   pulumi.Sprintf("kind create cluster --name %s --config %s --image %s --wait %s", kindClusterName, clusterConfigFilePath, nodeImage, kindReadinessWait),
-				Delete:   pulumi.Sprintf("kind delete cluster --name %s", kindClusterName),
+				Create:   pulumi.Sprintf("%s create cluster --name %s --config %s --image %s --wait %s", kindBinary, kindClusterName, clusterConfigFilePath, nodeImage, kindReadinessWait),
+				Delete:   pulumi.Sprintf("%s delete cluster --name %s", kindBinary, kindClusterName),
 				Triggers: pulumi.Array{pulumi.String(kindConfig)},
 			},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(clusterConfig, kindInstall), pulumi.DeleteBeforeReplace(true))...,
@@ -169,7 +170,7 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 		kubeConfigCmd, err := runner.Command(
 			commonEnvironment.CommonNamer().ResourceName("kind-kubeconfig"),
 			&command.Args{
-				Create: pulumi.Sprintf("kind get kubeconfig --name %s", kindClusterName),
+				Create: pulumi.Sprintf("%s get kubeconfig --name %s", kindBinary, kindClusterName),
 			},
 			utils.MergeOptions(opts, utils.PulumiDependsOn(createCluster))...,
 		)
@@ -259,16 +260,21 @@ func NewLocalKindClusterWithConfig(env config.Env, name string, kubeVersion stri
 	}, opts...)
 }
 
-func InstallKindBinary(env config.Env, vm *remote.Host, kindVersion string, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
-	kindArch := vm.OS.Descriptor().Architecture
-	if kindArch == os.AMD64Arch {
-		kindArch = "amd64"
+func requireKindBinary(env config.Env, vm *remote.Host, kindVersion string, opts ...pulumi.ResourceOption) (string, pulumi.Resource, error) {
+	kindBinary := KindBinaryName(kindVersion)
+	if kindBinary == "" {
+		return "", nil, fmt.Errorf("no preinstalled kind binary for kind version %s", kindVersion)
 	}
-	return vm.OS.Runner().Command(
+
+	cmd, err := vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("kind-install"),
 		&command.Args{
-			Create: pulumi.Sprintf(`curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/%s/kind-linux-%s" && sudo install kind /usr/local/bin/kind`, kindVersion, kindArch),
+			Create: pulumi.Sprintf("[ -x /usr/local/bin/%s ] || { echo \"kind %s is not preinstalled on this image\" >&2; exit 1; }", kindBinary, kindVersion),
 		},
 		opts...,
 	)
+	if err != nil {
+		return "", nil, err
+	}
+	return kindBinary, cmd, nil
 }

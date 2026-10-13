@@ -28,6 +28,7 @@ go_library(
         "//cmd/agent/subcommands/launchgui",
         "//cmd/agent/subcommands/otel",
         "//cmd/agent/subcommands/processchecks",
+        "//cmd/agent/subcommands/remotecommand",
         "//cmd/agent/subcommands/remoteconfig",
         "//cmd/agent/subcommands/run",
         "//cmd/agent/subcommands/secret",

@@ -31,18 +31,6 @@ var debugStrSectionNames = []string{".debug_str", ".zdebug_str", ".debug_str.dwo
 var debugInfoSectionNames = []string{".debug_info", ".zdebug_info"}
 var globalDebugDirectories = []string{"/usr/lib/debug"}
 
-var sectionTypesToKeepForDynamicSymbols = []elf.SectionType{
-	elf.SHT_GNU_HASH,
-	elf.SHT_HASH,
-	elf.SHT_REL,
-	elf.SHT_RELA, //nolint:misspell
-	elf.SHT_DYNSYM,
-	elf.SHT_DYNAMIC,
-	elf.SHT_GNU_VERDEF,
-	elf.SHT_GNU_VERNEED,
-	elf.SHT_GNU_VERSYM,
-}
-
 var selfPid = os.Getpid()
 
 type FileHelper interface {
@@ -183,15 +171,15 @@ func (e *elfWrapper) ElfData() ([]byte, error) {
 func (e *elfWrapper) GetSectionsRequiredForDynamicSymbols() []SectionInfo {
 	var sections []SectionInfo
 	for _, section := range e.elfFile.Sections {
-		if slices.Contains(sectionTypesToKeepForDynamicSymbols, section.Type) {
-			sections = append(sections, SectionInfo{Name: section.Name, Flags: section.Flags})
+		if section.Type != elf.SHT_DYNSYM {
+			continue
 		}
-		if section.Type == elf.SHT_DYNSYM {
-			// Add STRTAB (usually .dynstr) section linked to the DYNSYM (usually .dynsym) section if it exists
-			if section.Link != 0 {
-				linkSection := e.elfFile.Sections[section.Link]
-				sections = append(sections, SectionInfo{Name: linkSection.Name, Flags: linkSection.Flags})
-			}
+		sections = append(sections, SectionInfo{Name: section.Name, Flags: section.Flags})
+
+		// Symbol names are in the linked STRTAB (usually .dynstr)
+		if section.Link != 0 && int(section.Link) < len(e.elfFile.Sections) {
+			linkSection := e.elfFile.Sections[section.Link]
+			sections = append(sections, SectionInfo{Name: linkSection.Name, Flags: linkSection.Flags})
 		}
 	}
 

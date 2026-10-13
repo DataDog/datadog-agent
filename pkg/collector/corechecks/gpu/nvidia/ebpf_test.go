@@ -10,6 +10,7 @@ package nvidia
 import (
 	"testing"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +27,7 @@ func TestSystemProbeCache(t *testing.T) {
 		{
 			name: "new_cache_is_invalid",
 			testFunc: func(t *testing.T) {
-				cache := NewSystemProbeCache()
+				cache := NewSystemProbeCache(NewSystemProbeClient())
 				assert.False(t, cache.IsValid())
 				assert.Nil(t, cache.GetStats())
 			},
@@ -34,7 +35,7 @@ func TestSystemProbeCache(t *testing.T) {
 		{
 			name: "cache_validity_after_refresh",
 			testFunc: func(t *testing.T) {
-				cache := NewSystemProbeCache()
+				cache := NewSystemProbeCache(NewSystemProbeClient())
 
 				// Mock successful refresh by manually setting stats
 				testStats := &model.GPUStats{
@@ -82,6 +83,10 @@ func TestEbpfCollectorCollect(t *testing.T) {
 			testFunc: testCollectWithSingleActiveProcess,
 		},
 		{
+			name:     "collect_skips_unknown_memory_limit",
+			testFunc: testCollectSkipsUnknownMemoryLimit,
+		},
+		{
 			name:     "collect_with_multiple_active_processes",
 			testFunc: testCollectWithMultipleActiveProcesses,
 		},
@@ -120,9 +125,9 @@ func TestEbpfCollectorCollect(t *testing.T) {
 
 func testCollectWithInvalidCache(t *testing.T) {
 	dev := setupMockDevice(t)
-	cache := NewSystemProbeCache()
+	cache := NewSystemProbeCache(NewSystemProbeClient())
 
-	collector, err := newEbpfCollector(dev, cache)
+	collector, err := newEbpfCollector(dev, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -151,7 +156,7 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -191,6 +196,22 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	assert.Equal(t, "123", memoryLimit.AssociatedWorkloads()[0].ID)
 }
 
+func testCollectSkipsUnknownMemoryLimit(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_UNKNOWN
+		}
+	}))
+	cache := createMockCacheWithStats(nil)
+
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
+	require.NoError(t, err)
+
+	metrics, err := collector.Collect()
+	require.NoError(t, err)
+	require.Nil(t, findMetric(metrics, "memory.limit"))
+}
+
 func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	exe := "/bin/test"
 	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
@@ -227,7 +248,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -271,7 +292,7 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	// First collect with process 123
@@ -350,7 +371,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -420,7 +441,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -481,7 +502,7 @@ func testCollectEmitsSmActiveMetrics(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -550,7 +571,7 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 		},
 	}
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -595,7 +616,7 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 		stats: &model.GPUStats{},
 	}
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -620,7 +641,7 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 // Helper functions
 
 func createMockCacheWithStats(statsTuples []model.ProcessStatsTuple) *SystemProbeCache {
-	cache := NewSystemProbeCache()
+	cache := NewSystemProbeCache(NewSystemProbeClient())
 	cache.stats = &model.GPUStats{
 		ProcessMetrics: statsTuples,
 	}

@@ -52,6 +52,7 @@ func GenerateTestPrivateActionRunnerConfig(t *testing.T) string {
 	urn, privateKeyB64 := GenerateTestRunnerIdentity(t)
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
+  split_enabled: false
   private_key: %s
   urn: %s
 `, privateKeyB64, urn)

@@ -265,6 +265,20 @@
           },
           "type": "array",
           "description": "Capabilities that the process successfully used since it started running"
+        },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace"
         }
       },
       "additionalProperties": false,
@@ -300,6 +314,10 @@
         "id": {
           "type": "string",
           "description": "Container ID"
+        },
+        "pod_uid": {
+          "type": "string",
+          "description": "Kubernetes pod UID"
         },
         "source": {
           "type": "string",
@@ -891,6 +909,10 @@
           "type": "string",
           "description": "server is the server header of a response"
         },
+        "credential_source": {
+          "type": "string",
+          "description": "credential_source is the credential endpoint that served the IMDS event"
+        },
         "aws": {
           "$ref": "#/$defs/AWSIMDSEvent",
           "description": "AWS holds the AWS specific data parsed from the IMDS event"
@@ -1404,6 +1426,20 @@
           "type": "array",
           "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+        },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
           "description": "Context of the user session for this event"
@@ -1586,6 +1622,20 @@
           },
           "type": "array",
           "description": "CapsUsed lists the capabilities that this process effectively made use of"
+        },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
         },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
@@ -1943,6 +1993,10 @@
         "event_type_state": {
           "type": "string",
           "description": "State of the event type in this profile"
+        },
+        "profile_already_sent": {
+          "type": "boolean",
+          "description": "True if the profile had already been persisted to the backend when this event was emitted"
         }
       },
       "additionalProperties": false,
@@ -1952,7 +2006,8 @@
         "version",
         "tags",
         "event_in_profile",
-        "event_type_state"
+        "event_type_state",
+        "profile_already_sent"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },

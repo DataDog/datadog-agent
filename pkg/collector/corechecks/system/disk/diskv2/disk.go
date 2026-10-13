@@ -21,7 +21,7 @@ import (
 	"github.com/shirou/gopsutil/v4/common"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/spf13/afero"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -665,10 +665,9 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
 	}
 	go func() {
-		defer func() {
-			c.partitionEnumInFlight.Store(false)
-		}()
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
+		// Clear the gate before publishing the result so back-to-back calls don't race the clear.
+		c.partitionEnumInFlight.Store(false)
 		resultCh <- partitionsResult{partitions, err}
 	}()
 	select {
@@ -693,11 +692,10 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	timeoutCh := c.clock.After(timeout)
 	// Start the disk usage call in a separate goroutine.
 	go func() {
-		defer func() {
-			c.diskUsageInFlight.Delete(mountpoint)
-		}()
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
 		usage, err := c.diskUsage(mountpoint)
+		// Clear before publishing so back-to-back calls for the same mountpoint aren't rejected.
+		c.diskUsageInFlight.Delete(mountpoint)
 		resultCh <- usageResult{usage, err}
 	}()
 	// Use select to wait for either the disk usage result or a timeout.

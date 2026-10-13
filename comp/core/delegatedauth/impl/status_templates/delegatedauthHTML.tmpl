@@ -7,7 +7,9 @@
     <br>&nbsp;&nbsp;<span class="error">Reason: {{ .disabledReason }}</span>
     {{- end }}
     {{- else }}
+    {{- if .provider }}
     <span class="stat_subtitle">Cloud Provider:</span> {{ .provider }}<br>
+    {{- end }}
     {{- if .awsRegion }}
     <span class="stat_subtitle">AWS Region:</span> {{ .awsRegion }}<br>
     {{- end }}
@@ -18,12 +20,17 @@
     {{- if $info.CredentialSource }}
     &nbsp;&nbsp;Credential Source: {{ $info.CredentialSource }}<br>
     {{- end }}
+    {{- if $info.RefreshInterval }}
     &nbsp;&nbsp;Refresh Interval: {{ $info.RefreshInterval }}<br>
+    {{- end }}
     {{- if $info.LastRefresh }}
     &nbsp;&nbsp;Last Refresh: {{ $info.LastRefresh }}<br>
     {{- end }}
     {{- if $info.NextRefresh }}
     &nbsp;&nbsp;Next Refresh: {{ $info.NextRefresh }}<br>
+    {{- end }}
+    {{- if $info.NextRetry }}
+    &nbsp;&nbsp;Next Retry: {{ $info.NextRetry }}<br>
     {{- end }}
     {{- if $info.Error }}
     &nbsp;&nbsp;<span class="error">Error: {{ $info.Error }}</span><br>
