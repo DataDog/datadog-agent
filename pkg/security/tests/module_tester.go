@@ -289,6 +289,10 @@ func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb f
 			tb.Logf("Filtering event: got rule %q, expected %q", r.ID, ruleID)
 			return
 		}
+		// TEMPORARY span-dbg: which event parks the probe goroutine on <-message below.
+		if strings.HasPrefix(r.ID, "test_otel_span") {
+			tb.Logf("span-dbg: rule %s matched at %s, before the action returned or not: %s", r.ID, time.Now().Format("15:04:05.000"), tm.debugEvent(e))
+		}
 		select {
 		case <-ctx.Done():
 			return
