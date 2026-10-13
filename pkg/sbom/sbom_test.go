@@ -69,3 +69,24 @@ func TestIsEnriched(t *testing.T) {
 		})
 	}
 }
+
+func TestScanOptionsOSOnly(t *testing.T) {
+	tests := []struct {
+		name      string
+		analyzers []string
+		want      bool
+	}{
+		{name: "nil", want: false},
+		{name: "empty", analyzers: []string{}, want: false},
+		{name: "os", analyzers: []string{"os"}, want: true},
+		{name: "os twice", analyzers: []string{"os", "os"}, want: false},
+		{name: "languages", analyzers: []string{"languages"}, want: false},
+		{name: "os and languages", analyzers: []string{"os", "languages"}, want: false},
+		{name: "upper case", analyzers: []string{"OS"}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ScanOptions{Analyzers: tt.analyzers}.OSOnly())
+		})
+	}
+}

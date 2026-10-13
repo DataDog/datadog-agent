@@ -414,3 +414,53 @@ sbom:
 		assert.Equal(t, []string{"sbom.cache.max_disk_size"}, configuredDeprecatedSettings(cfg))
 	})
 }
+
+func TestTimeout(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		options func(compConfig.Component) sbom.ScanOptions
+		want    time.Duration
+	}{
+		{
+			name:    "host",
+			options: sbom.ScanOptionsFromConfigForHosts,
+			want:    10 * time.Minute,
+		},
+		{
+			name:    "host with languages",
+			yaml:    "sbom: {host: {analyzers: [os, languages]}}",
+			options: sbom.ScanOptionsFromConfigForHosts,
+			want:    12 * time.Minute,
+		},
+		{
+			name:    "host with languages and a zero timeout",
+			yaml:    "sbom: {host: {analyzers: [os, languages], scan_timeout: 0}}",
+			options: sbom.ScanOptionsFromConfigForHosts,
+			want:    defaultScanTimeout + sbom.OSFallbackTimeout,
+		},
+		{
+			name:    "container image",
+			options: sbom.ScanOptionsFromConfigForContainers,
+			want:    10 * time.Minute,
+		},
+		{
+			name:    "container image with languages",
+			yaml:    "sbom: {container_image: {analyzers: [os, languages]}}",
+			options: sbom.ScanOptionsFromConfigForContainers,
+			want:    12 * time.Minute,
+		},
+		{
+			name:    "zero options",
+			options: func(compConfig.Component) sbom.ScanOptions { return sbom.ScanOptions{} },
+			want:    defaultScanTimeout + sbom.OSFallbackTimeout,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCollector := collectors.NewMockCollector()
+			mockCollector.On("Options").Return(tt.options(configmock.NewFromYAML(t, tt.yaml)))
+			assert.Equal(t, tt.want, timeout(mockCollector))
+		})
+	}
+}
