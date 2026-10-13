@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
@@ -74,11 +73,7 @@ func (d defaultHTTPClientProvider) NewClient(clientConfig *RunnerHttpClientConfi
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(fmt.Errorf("error creating HTTP client: %w", err), "Failed to create HTTP client")
 	}
-	wrapped := d.wrapClient(client)
-	if len(clientConfig.HTTPDomainRestrictions) > 0 {
-		wrapped = &credentialPolicyClient{inner: wrapped}
-	}
-	return wrapped, nil
+	return d.wrapClient(client), nil
 }
 
 // urlAllowlistClient wraps an HTTPClient to enforce the URL allowlist before making requests.
@@ -92,18 +87,4 @@ func (c *urlAllowlistClient) Do(req *http.Request) (*http.Response, error) {
 		return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
 	}
 	return c.inner.Do(req)
-}
-
-// credentialPolicyClient strips net/http's URL-bearing error wrapper when a
-// credential policy rejects a redirect. URLs can contain secret query values.
-type credentialPolicyClient struct {
-	inner HTTPClient
-}
-
-func (c *credentialPolicyClient) Do(req *http.Request) (*http.Response, error) {
-	resp, err := c.inner.Do(req)
-	if errors.Is(err, privateconnection.ErrHTTPDomainNotAllowed) {
-		return resp, privateconnection.ErrHTTPDomainNotAllowed
-	}
-	return resp, err
 }

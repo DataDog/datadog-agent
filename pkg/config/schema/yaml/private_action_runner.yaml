@@ -109,7 +109,8 @@ properties:
           wildcards, such as com.datadoghq.mongodb.*. Global actions_allowlist rules
           still apply. Exact lists must explicitly include testConnection if needed.
           Optional allowed_http_domains restricts a credential to HTTP actions and
-          the listed destination hostnames or IP addresses, including redirects.
+          the initial destination hostnames or IP addresses in the verified task payload.
+          This is checked only during credential resolution; redirects are not restricted.
           Entries are case-insensitive exact hosts or *.example.com patterns, which
           match subdomains but not example.com itself. Use ASCII/punycode hostnames;
           URLs, paths, ports, and other wildcards are invalid. Schemes and ports are

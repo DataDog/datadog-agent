@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package privateconnection
+package resolver
 
 import (
 	"errors"
@@ -12,15 +12,12 @@ import (
 	"strings"
 )
 
-// HTTPDomainAllowlist permits exact hostnames/IPs or subdomains of a *.domain
+// httpDomainAllowlist permits exact hostnames/IPs or subdomains of a *.domain
 // pattern. Ports and schemes are not part of a domain restriction.
-type HTTPDomainAllowlist []string
-
-// ErrHTTPDomainNotAllowed contains no URL or secret values.
-var ErrHTTPDomainNotAllowed = errors.New("request domain is not allowed by runner credential policy")
+type httpDomainAllowlist []string
 
 // Validate rejects URLs, ports, and ambiguous wildcard patterns.
-func (domains HTTPDomainAllowlist) Validate() error {
+func (domains httpDomainAllowlist) validate() error {
 	for _, pattern := range domains {
 		host := strings.TrimSuffix(strings.ToLower(pattern), ".")
 		wildcard := strings.HasPrefix(host, "*.")
@@ -49,7 +46,7 @@ func (domains HTTPDomainAllowlist) Validate() error {
 }
 
 // AllowsURL compares parsed hostnames, never URL prefixes or DNS results.
-func (domains HTTPDomainAllowlist) AllowsURL(u *url.URL) bool {
+func (domains httpDomainAllowlist) allowsURL(u *url.URL) bool {
 	if u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Opaque != "" || u.Hostname() == "" {
 		return false
 	}
@@ -73,35 +70,4 @@ func normalizeHTTPHost(host string) string {
 		return ip.String()
 	}
 	return host
-}
-
-// ValidateHTTPURL requires all credential restrictions to permit the URL.
-// Errors deliberately omit URLs, which may contain credential values.
-func (p *PrivateCredentials) ValidateHTTPURL(u *url.URL) error {
-	if p == nil {
-		return nil
-	}
-	for _, domains := range p.HTTPDomainRestrictions {
-		if !domains.AllowsURL(u) {
-			return ErrHTTPDomainNotAllowed
-		}
-	}
-	return nil
-}
-
-// TestURL derives the connection-test destination consistently for credential
-// authorization and HTTP execution. A test path may itself be an absolute URL.
-func (h HttpDetails) TestURL() (*url.URL, error) {
-	if h.Testing == nil || h.BaseURL == "" {
-		return nil, errors.New("connection does not have a base URL and testing configuration")
-	}
-	base, err := url.Parse(h.BaseURL)
-	if err != nil {
-		return nil, errors.New("invalid connection base URL")
-	}
-	u, err := base.Parse(h.Testing.Path)
-	if err != nil {
-		return nil, errors.New("invalid connection testing path")
-	}
-	return u, nil
 }

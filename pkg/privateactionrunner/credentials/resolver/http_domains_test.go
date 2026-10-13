@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package privateconnection
+package resolver
 
 import (
 	"net/url"
@@ -37,11 +37,11 @@ func TestHTTPDomainAllowlist(t *testing.T) {
 		{"xn--bcher-kva.example", "https://xn--bcher-kva.example", true},
 	} {
 		t.Run(test.pattern+"/"+test.target, func(t *testing.T) {
-			domains := HTTPDomainAllowlist{test.pattern}
-			require.NoError(t, domains.Validate())
+			domains := httpDomainAllowlist{test.pattern}
+			require.NoError(t, domains.validate())
 			u, err := url.Parse(test.target)
 			require.NoError(t, err)
-			assert.Equal(t, test.allowed, domains.AllowsURL(u))
+			assert.Equal(t, test.allowed, domains.allowsURL(u))
 		})
 	}
 }
@@ -49,23 +49,7 @@ func TestHTTPDomainAllowlist(t *testing.T) {
 func TestInvalidHTTPDomainPatterns(t *testing.T) {
 	for _, pattern := range []string{"", "*", "https://example.com", "example.com:443", "example.com/path", "user@example.com", "foo.*.com", "*example.com", "example..com", "example.com..", "-bad.example", "bad-.example", " example.com", "example.com ", "[::1]", "*.127.0.0.1", "fe80::1%eth0", "bücher.example"} {
 		t.Run(pattern, func(t *testing.T) {
-			require.Error(t, HTTPDomainAllowlist{pattern}.Validate())
+			require.Error(t, httpDomainAllowlist{pattern}.validate())
 		})
 	}
-}
-
-func TestHTTPDomainRestrictionsIntersect(t *testing.T) {
-	u, err := url.Parse("https://api.example.com")
-	require.NoError(t, err)
-	var credentials *PrivateCredentials
-	require.NoError(t, credentials.ValidateHTTPURL(u))
-	credentials = &PrivateCredentials{}
-	require.NoError(t, credentials.ValidateHTTPURL(u))
-	credentials.HTTPDomainRestrictions = []HTTPDomainAllowlist{{"*.example.com"}, {"api.example.com"}}
-	require.NoError(t, credentials.ValidateHTTPURL(u))
-	credentials.HTTPDomainRestrictions = append(credentials.HTTPDomainRestrictions, HTTPDomainAllowlist{"other.example.com"})
-	require.ErrorIs(t, credentials.ValidateHTTPURL(u), ErrHTTPDomainNotAllowed)
-	credentials.HTTPDomainRestrictions = []HTTPDomainAllowlist{{}}
-	require.ErrorIs(t, credentials.ValidateHTTPURL(u), ErrHTTPDomainNotAllowed)
-	require.ErrorIs(t, credentials.ValidateHTTPURL(nil), ErrHTTPDomainNotAllowed)
 }
