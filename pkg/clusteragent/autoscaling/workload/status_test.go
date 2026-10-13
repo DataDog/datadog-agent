@@ -139,6 +139,9 @@ func TestWorkloadAutoscalingStatusReceivingUpdates(t *testing.T) {
 	out := renderText(t)
 	// The highest version across the update is what gets reported
 	assert.Contains(t, out, "Last config version: 12")
+	// A healthy product must not grow either failure line
+	assert.NotContains(t, out, "Configs failed:")
+	assert.NotContains(t, out, "Last error:")
 	assert.Contains(t, out, "Configs in last update: 2")
 	assert.Contains(t, out, "Updates received: 1")
 	assert.NotContains(t, out, "no update received yet")
@@ -229,6 +232,7 @@ func TestWorkloadAutoscalingStatusReportsOnlyTheLatestUpdate(t *testing.T) {
 	})
 	recordRemoteConfigError(data.ProductContainerAutoscalingSettings, errors.New("bad spec"))
 	require.Contains(t, renderText(t), "Last error: bad spec")
+	require.Contains(t, renderText(t), "Configs failed: 1 of 1")
 
 	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, map[string]state.RawConfig{
 		"a": {Metadata: state.Metadata{Version: 4}},
@@ -238,6 +242,53 @@ func TestWorkloadAutoscalingStatusReportsOnlyTheLatestUpdate(t *testing.T) {
 	assert.Contains(t, out, "Last config version: 4")
 	assert.NotContains(t, out, "Last config version: 99")
 	assert.NotContains(t, out, "Last error:")
+	// errorCount is the third entry in the reset list, so the easiest to miss
+	assert.NotContains(t, out, "Configs failed:")
 	// The running total keeps accumulating across updates
 	assert.Contains(t, out, "Updates received: 2")
+}
+
+// TestWorkloadAutoscalingStatusErrorStaysOnOneLine covers a config carrying
+// several bad entries: processItem returns errors.Join over them, which is
+// newline-separated, and the section renders one field per line.
+func TestWorkloadAutoscalingStatusErrorStaysOnOneLine(t *testing.T) {
+	resetStatus(t)
+	enabledConfig(t, true)
+	InitStatus(autoscalingstore.NewStore[model.PodAutoscalerInternal](), func() bool { return true })
+
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, map[string]state.RawConfig{
+		"a": {Metadata: state.Metadata{Version: 1}},
+	})
+	recordRemoteConfigError(data.ProductContainerAutoscalingSettings,
+		errors.Join(errors.New("first entry bad"), errors.New("second entry bad")))
+
+	for _, line := range strings.Split(renderText(t), "\n") {
+		if line == "" {
+			continue
+		}
+		assert.True(t, strings.HasPrefix(line, " "),
+			"every rendered line must stay indented, got %q in:\n%s", line, renderText(t))
+	}
+}
+
+// TestWorkloadAutoscalingStatusCountsFailingConfigs is the point of the count:
+// without it, one failing config and most of them failing render identically.
+func TestWorkloadAutoscalingStatusCountsFailingConfigs(t *testing.T) {
+	resetStatus(t)
+	enabledConfig(t, true)
+	InitStatus(autoscalingstore.NewStore[model.PodAutoscalerInternal](), func() bool { return true })
+
+	update := map[string]state.RawConfig{}
+	for _, key := range []string{"a", "b", "c", "d", "e"} {
+		update[key] = state.RawConfig{Metadata: state.Metadata{Version: 1}}
+	}
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, update)
+
+	// processorCallback calls this once per failing config.
+	for _, key := range []string{"a", "b", "c"} {
+		recordRemoteConfigError(data.ProductContainerAutoscalingSettings, errors.New("bad "+key))
+	}
+
+	assert.Contains(t, productBlock(t, renderText(t), data.ProductContainerAutoscalingSettings),
+		"Configs failed: 3 of 5")
 }

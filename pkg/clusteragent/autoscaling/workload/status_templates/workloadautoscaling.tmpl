@@ -18,7 +18,8 @@
     Last update: {{ .LastUpdate }} ({{ .LastUpdateAge }} ago)
     Configs in last update: {{ .ConfigCount }}
     Updates received: {{ .UpdateCount }}
-    {{- if .LastError }}
+    {{- if .ErrorCount }}
+    Configs failed: {{ .ErrorCount }} of {{ .ConfigCount }}
     Last error: {{ .LastError }}
     {{- end }}
   {{- end }}

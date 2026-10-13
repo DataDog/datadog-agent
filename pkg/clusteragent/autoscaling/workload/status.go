@@ -10,6 +10,7 @@ package workload
 import (
 	"embed"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,7 +41,11 @@ type productStatus struct {
 	lastVersion uint64
 	configCount int
 	updateCount uint64
-	lastError   string
+	errorCount  int
+	// lastError is an arbitrary one of the failing configs, not the
+	// chronologically last: the caller iterates the update map, whose order Go
+	// randomises
+	lastError string
 }
 
 // record notes an update. Versions are per-config, so the highest in the update
@@ -55,6 +60,7 @@ func (p *productStatus) record(update map[string]state.RawConfig) {
 	// would otherwise be reported as current for the life of the process
 	p.lastVersion = 0
 	p.lastError = ""
+	p.errorCount = 0
 	for _, rawConfig := range update {
 		if rawConfig.Metadata.Version > p.lastVersion {
 			p.lastVersion = rawConfig.Metadata.Version
@@ -73,8 +79,11 @@ func (p productStatus) info(product string) map[string]interface{} {
 	info["LastUpdateAge"] = time.Since(p.lastUpdate).Truncate(time.Second).String()
 	info["ConfigCount"] = p.configCount
 	info["UpdateCount"] = p.updateCount
-	if p.lastError != "" {
-		info["LastError"] = p.lastError
+	if p.errorCount > 0 {
+		info["ErrorCount"] = p.errorCount
+		// processItem returns errors.Join over a config's bad entries, which is
+		// newline-separated; the section renders one field per line
+		info["LastError"] = strings.ReplaceAll(p.lastError, "\n", "; ")
 	}
 	return info
 }
@@ -123,6 +132,7 @@ func recordRemoteConfigError(product string, err error) {
 	statusStore.Lock()
 	defer statusStore.Unlock()
 	if tracked := productStatusFor(product); tracked != nil {
+		tracked.errorCount++
 		tracked.lastError = err.Error()
 	}
 }
