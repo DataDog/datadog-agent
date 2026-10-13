@@ -2,6 +2,8 @@
 enhancements:
   - |
     Add the ``inference_workload`` and ``inference_workload_component`` tags to
-    Ray Kubernetes pods and containers with ``ray.io/serve=true``. Use the
+    Ray Kubernetes pods and containers that use the official
+    ``rayproject/ray-llm`` image in a ``ray-head`` or ``ray-worker`` container
+    and have ``ray.io/serve=true``. Use the
     ``ray.io/cluster`` label for the workload name. Use the worker group for
     worker components, with the node type as a fallback. Head pods use ``head``.

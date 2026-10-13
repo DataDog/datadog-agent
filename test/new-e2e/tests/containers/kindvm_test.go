@@ -165,7 +165,7 @@ func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 	})
 }
 
-func (suite *kindSuite) TestRayInferenceTagsOnContainerMetric() {
+func (suite *kindSuite) TestNonLLMRayPodHasNoInferenceTagsOnContainerMetric() {
 	const namespace = "workload-cpustress"
 	ctx := suite.T().Context()
 	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
@@ -181,10 +181,11 @@ func (suite *kindSuite) TestRayInferenceTagsOnContainerMetric() {
 	suite.Require().NotEmpty(podName, "no stress-ng pod found for Ray tag test")
 
 	labels := map[string]string{
-		"ray.io/cluster":   "ray-inference",
-		"ray.io/serve":     "true",
-		"ray.io/node-type": "worker",
-		"ray.io/group":     "decode",
+		"ray.io/cluster":              "ray-inference",
+		"app.kubernetes.io/component": "ray-non-llm",
+		"ray.io/serve":                "true",
+		"ray.io/node-type":            "worker",
+		"ray.io/group":                "decode",
 	}
 	pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
 	suite.Require().NoError(err)
@@ -216,19 +217,24 @@ func (suite *kindSuite) TestRayInferenceTagsOnContainerMetric() {
 	})
 	suite.Require().NoError(setLabels(ctx, labels))
 
-	// This checks the Kubernetes collector, tagger, container check, and forwarder.
+	// The component tag proves that the Agent processed the updated pod labels.
+	// The stress-ng image must not qualify as a Ray LLM image.
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		metrics, err := suite.Fakeintake.FilterMetrics("container.cpu.usage",
 			client.WithTags[*aggregator.MetricSeries]([]string{
 				"kube_namespace:" + namespace,
 				"pod_name:" + podName,
 				"container_name:stress-ng",
-				"inference_workload:ray-inference",
-				"inference_workload_component:decode",
+				"kube_app_component:ray-non-llm",
 			}),
 		)
 		require.NoError(c, err)
-		assert.NotEmpty(c, metrics, "no container metric with Ray inference tags received")
+		require.NotEmpty(c, metrics, "no container metric with updated pod labels received")
+		for _, metric := range metrics {
+			for _, tag := range metric.Tags {
+				assert.False(c, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"), "non-LLM pod received inference tag %q", tag)
+			}
+		}
 	}, 2*time.Minute, 10*time.Second)
 }
 
