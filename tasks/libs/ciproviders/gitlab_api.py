@@ -28,6 +28,7 @@ from invoke.exceptions import Exit
 from requests.adapters import HTTPAdapter
 
 from tasks.libs.common.auth import datadog_infra_token
+from tasks.libs.common.bits_code import require_host_authentication
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_current_pr, get_default_branch
@@ -50,6 +51,7 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_oauth_token(ctx) -> str:
+    require_host_authentication("GitLab OAuth token generation")
     res = ctx.run("ddtool auth gitlab token", hide=True)
 
     if "ddtool auth gitlab login" in res.stderr:
@@ -63,6 +65,7 @@ def get_gitlab_oauth_token(ctx) -> str:
 
 
 def get_gitlab_token(ctx, repo='DataDog/datadog-agent', verbose=False) -> str:
+    require_host_authentication("Authenticated GitLab API access")
     # CI must not depend on feature-flag credentials to avoid using an expired legacy token.
     if (
         not running_in_ci()
