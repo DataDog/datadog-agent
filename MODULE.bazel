@@ -31,6 +31,7 @@ package(default_visibility = ["//visibility:public"])
 exports_files(["clang/native/libclang.dll"])
 """,
     sha256 = "4dd2d3b82fab35e2bf9ca717d7b63ac990a3519c7e312f19fa8e86dcc712f7fb",
+    strip_prefix = "libclang-18.1.1.data/platlib",
     type = "zip",
     urls = ["https://files.pythonhosted.org/packages/0b/2d/3f480b1e1d31eb3d6de5e3ef641954e5c67430d5ac93b7fa7e07589576c7/libclang-18.1.1-py2.py3-none-win_amd64.whl"],
 )
