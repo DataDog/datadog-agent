@@ -37,6 +37,8 @@ const (
 	defaultPostgresPort = 5432
 	// sslRequire is the ssl mode weaker modes are elevated to when `data_security.enforce_ssl` is set.
 	sslRequire = "require"
+	// sslAllow is the postgres integration default, used for an invalid `ssl` value.
+	sslAllow = "allow"
 	// rcSubscriptionRetryInterval is how often we re-check for a postgres integration.
 	rcSubscriptionRetryInterval = 10 * time.Second
 )
@@ -282,10 +284,28 @@ func buildPostgresConnection(instance map[string]any, e entity, enforceSSL bool)
 	}, nil
 }
 
+var validSSLModes = map[string]struct{}{
+	"disable": {}, "allow": {}, "prefer": {}, "require": {}, "verify-ca": {}, "verify-full": {},
+}
+
+func parsePostgresSSLMode(instance map[string]any) (mode string, valid bool) {
+	raw := instance["ssl"]
+	if raw == nil {
+		return "", true
+	}
+	mode, _ = raw.(string)
+	_, valid = validSSLModes[mode]
+	return mode, valid
+}
+
 // postgresSSLMode returns the ssl mode to scan with. When enforcing, anything weaker than
 // `require` (including unset or invalid) is elevated to it, and Unix sockets (no TLS) are rejected.
 func postgresSSLMode(instance map[string]any, host string, enforceSSL bool) (string, error) {
-	mode := instanceString(instance, "ssl")
+	mode, valid := parsePostgresSSLMode(instance)
+	if !valid {
+		log.Warnf("invalid postgres ssl mode %v for host %q, defaulting to %q", instance["ssl"], host, sslAllow)
+		mode = sslAllow
+	}
 	if !enforceSSL {
 		return mode, nil
 	}
