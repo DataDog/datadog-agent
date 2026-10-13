@@ -33,10 +33,9 @@ properties:
     default: false
     visibility: public
     description: |-
-      On physical NVIDIA GPUs without MIG, gpu.sm_active falls back to the GPM GR engine activity (the
-      same value as gpu.gr_engine_active) when no other source is available. Set to true to report it
-      with priority over the sampling and eBPF sources. This source is not used if gpu.legacy_sm_active
-      is enabled.
+      gpu.sm_active falls back to the GPM GR engine activity (the same value as gpu.gr_engine_active)
+      when no other source is available. Set to true to report it with priority over the sampling and
+      eBPF sources. This source is not used if gpu.legacy_sm_active is enabled.
   nccl:
     node_type: section
     type: object

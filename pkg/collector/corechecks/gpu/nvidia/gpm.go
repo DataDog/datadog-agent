@@ -22,15 +22,14 @@ import (
 const sampleBufferSize = 2
 
 type gpmCollector struct {
-	lib                  ddnvml.SafeNVML
-	device               ddnvml.Device
-	parentPhysicalDevice *ddnvml.PhysicalDevice
-	migInstanceID        int // only for collectors for MIG devices, contains the instance ID of the MIG device
-	samples              [sampleBufferSize]nvml.GpmSample
-	metricsToCollect     map[nvml.GpmMetricId]gpmMetric
-	nextSampleToCollect  int
-	emitLegacySMActive   bool
-	// emitGrEngineSMActive reports GRAPHICS_UTIL (gr_engine_active) as sm_active too, with grEngineSMActivePriority
+	lib                      ddnvml.SafeNVML
+	device                   ddnvml.Device
+	parentPhysicalDevice     *ddnvml.PhysicalDevice
+	migInstanceID            int // only for collectors for MIG devices, contains the instance ID of the MIG device
+	samples                  [sampleBufferSize]nvml.GpmSample
+	metricsToCollect         map[nvml.GpmMetricId]gpmMetric
+	nextSampleToCollect      int
+	emitLegacySMActive       bool
 	emitGrEngineSMActive     bool
 	grEngineSMActivePriority MetricPriority
 }
@@ -98,11 +97,10 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 	}
 	if deps != nil {
 		collector.emitLegacySMActive = deps.Config.LegacySMActive
-		// GRAPHICS_UTIL closely tracks the time any SM was active, so it's also reported as sm_active. Not on MIG
-		// devices or MIG-enabled GPUs, where it hasn't been validated, nor with the legacy sm_active. Low priority by
-		// default so that it's only a fallback: it loses the tie with ebpf, as the collector whose name sorts first wins.
-		physicalDevice, isPhysical := device.(*ddnvml.PhysicalDevice)
-		collector.emitGrEngineSMActive = isPhysical && !physicalDevice.HasMIGFeatureEnabled && !deps.Config.LegacySMActive
+		// GRAPHICS_UTIL is also reported as sm_active because it approximates the percentage of time during
+		// which at least one SM is executing work, unlike SM_UTIL which averages utilization across all SMs.
+		collector.emitGrEngineSMActive = !deps.Config.LegacySMActive
+		// Keep this source below sampling (Medium) and eBPF (MediumLow) by default.
 		collector.grEngineSMActivePriority = Low
 		if deps.Config.PreferGrEngineSMActive {
 			collector.grEngineSMActivePriority = High

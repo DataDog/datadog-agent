@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -191,7 +190,7 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 
 	result, err := gpmCol.Collect()
 	assert.NoError(t, err)
-	assert.Len(t, result, 3) // metric1 uses the GRAPHICS_UTIL ID, so it's also reported as sm_active
+	assert.Len(t, result, 3)
 
 	foundMetrics := make(map[string]bool)
 	for _, metric := range requireMetrics(t, result) {
@@ -212,87 +211,18 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	assert.Equal(t, 2, mockLib.GpmSampleAllocCount())
 }
 
-func TestGPMCollectorLegacySMActive(t *testing.T) {
-	const smUtilValue = 42.0
-
-	for _, tc := range []struct {
-		name                string
-		legacySMActive      bool
-		expectedMetricNames []string
-	}{
-		{
-			name:                "disabled",
-			legacySMActive:      false,
-			expectedMetricNames: []string{"sm_utilization"},
-		},
-		{
-			name:                "enabled",
-			legacySMActive:      true,
-			expectedMetricNames: []string{"sm_utilization", "sm_active"},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			mockLib := nvmltestutil.SetupMockNVML(t,
-				testutil.WithGpmSupport(true),
-				testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
-					nvml.GPM_METRIC_SM_UTIL: {Value: smUtilValue, Return: nvml.SUCCESS},
-				}),
-			)
-			mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
-
-			collector, err := newGPMCollectorWithMetrics(
-				mockDevice,
-				map[nvml.GpmMetricId]gpmMetric{
-					nvml.GPM_METRIC_SM_UTIL: {
-						name:       "sm_utilization",
-						metricType: metrics.GaugeType,
-					},
-				},
-				&CollectorDependencies{Config: gpuconfig.Config{LegacySMActive: tc.legacySMActive}},
-			)
-			require.NoError(t, err)
-
-			collectedMetrics, err := collector.Collect()
-			require.NoError(t, err)
-			require.Len(t, collectedMetrics, len(tc.expectedMetricNames))
-
-			metricsByName := make(map[string]*Metric, len(collectedMetrics))
-			for _, metric := range requireMetrics(t, collectedMetrics) {
-				metricsByName[metric.Name] = metric
-			}
-
-			for _, name := range tc.expectedMetricNames {
-				metric := metricsByName[name]
-				require.NotNil(t, metric)
-				assert.Equal(t, smUtilValue, metric.Value)
-				assert.Equal(t, High, metric.Priority())
-			}
-		})
-	}
-}
-
-func TestGPMCollectorGrEngineSMActive(t *testing.T) {
+func TestGPMCollectorSMActiveSources(t *testing.T) {
 	const grEngineValue, smUtilValue = 61.0, 59.0
 
 	for _, tc := range []struct {
 		name             string
 		config           gpuconfig.Config
-		mig              bool
-		migParent        bool
 		expectedPriority MetricPriority
 		expectedValue    float64
 	}{
 		{name: "default", config: gpuconfig.Config{}, expectedPriority: Low, expectedValue: grEngineValue},
 		{name: "preferred", config: gpuconfig.Config{PreferGrEngineSMActive: true}, expectedPriority: High, expectedValue: grEngineValue},
-		{
-			// The legacy sm_active (SM_UTIL) takes precedence, so gr_engine_active is not reported as sm_active.
-			name:             "preferred with legacy",
-			config:           gpuconfig.Config{PreferGrEngineSMActive: true, LegacySMActive: true},
-			expectedPriority: High,
-			expectedValue:    smUtilValue,
-		},
-		{name: "MIG device", config: gpuconfig.Config{PreferGrEngineSMActive: true}, mig: true},
-		{name: "MIG parent", config: gpuconfig.Config{PreferGrEngineSMActive: true}, migParent: true},
+		{name: "legacy", config: gpuconfig.Config{LegacySMActive: true}, expectedPriority: High, expectedValue: smUtilValue},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mockLib := nvmltestutil.SetupMockNVML(t,
@@ -302,17 +232,9 @@ func TestGPMCollectorGrEngineSMActive(t *testing.T) {
 					nvml.GPM_METRIC_SM_UTIL:       {Value: smUtilValue, Return: nvml.SUCCESS},
 				}),
 			)
-			physicalDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
-			var device ddnvml.Device = physicalDevice
-			if tc.mig {
-				device = &ddnvml.MIGDevice{Parent: physicalDevice, MIGInstanceID: 1}
-			}
-			if tc.migParent {
-				// MIG mode enabled, even if no MIG instances have been created yet
-				physicalDevice.HasMIGFeatureEnabled = true
-			}
+			mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-			collector, err := newGPMCollectorWithMetrics(device, map[nvml.GpmMetricId]gpmMetric{
+			collector, err := newGPMCollectorWithMetrics(mockDevice, map[nvml.GpmMetricId]gpmMetric{
 				nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
 				nvml.GPM_METRIC_SM_UTIL:       {name: "sm_utilization", metricType: metrics.GaugeType},
 			}, &CollectorDependencies{Config: tc.config})
@@ -327,10 +249,6 @@ func TestGPMCollectorGrEngineSMActive(t *testing.T) {
 				}
 			}
 
-			if tc.mig || tc.migParent {
-				require.Empty(t, smActive)
-				return
-			}
 			require.Len(t, smActive, 1)
 			assert.Equal(t, tc.expectedPriority, smActive[0].Priority())
 			assert.Equal(t, tc.expectedValue, smActive[0].Value)

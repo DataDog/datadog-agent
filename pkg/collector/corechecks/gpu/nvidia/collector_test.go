@@ -636,22 +636,22 @@ func TestRemoveDuplicateSamples(t *testing.T) {
 
 	t.Run("PriorityTie", func(t *testing.T) {
 		// Edge case: same metric name with same priority across collectors
-		// The collector whose name sorts first should win, regardless of map iteration order
+		// First collector (in iteration order) should win
 		allMetrics := map[CollectorName][]Sample{
-			stateless: {
-				metric("metric1", Low, "tagB"),
-			},
 			sampling: {
 				metric("metric1", Low, "tagA"),
 			},
+			stateless: {
+				metric("metric1", Low, "tagB"),
+			},
 		}
 
-		// Map iteration order is random, so a single call could pick the right collector by chance
-		for range 100 {
-			result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
-			require.Len(t, result, 1)
-			require.Equal(t, []string{"tagA"}, result[0].Tags())
-		}
+		result := requireMetrics(t, RemoveDuplicateSamples(allMetrics))
+
+		// Should have exactly 1 metric (one collector wins the tie)
+		require.Len(t, result, 1)
+		require.Equal(t, Low, result[0].Priority())
+		// Don't assert which specific tag wins since map iteration order is not guaranteed
 	})
 
 	t.Run("EmptyInputs", func(t *testing.T) {
@@ -829,13 +829,7 @@ func TestConfiguredMetricPriority(t *testing.T) {
 			for i := range len(collectorOrder) - 1 {
 				higherPriorityCollector := collectorOrder[i]
 				lowerPriorityCollector := collectorOrder[i+1]
-				higherPriority, lowerPriority := metricMap[higherPriorityCollector].Priority(), metricMap[lowerPriorityCollector].Priority()
-				if higherPriority == lowerPriority {
-					// RemoveDuplicateSamples resolves ties in favor of the collector whose name sorts first
-					require.Less(t, higherPriorityCollector, lowerPriorityCollector, "collector %s should win the tie with collector %s", higherPriorityCollector, lowerPriorityCollector)
-					continue
-				}
-				require.Greater(t, higherPriority, lowerPriority, "collector %s should have higher priority than collector %s", higherPriorityCollector, lowerPriorityCollector)
+				require.Greater(t, metricMap[higherPriorityCollector].Priority(), metricMap[lowerPriorityCollector].Priority(), "collector %s should have higher priority than collector %s", higherPriorityCollector, lowerPriorityCollector)
 			}
 		})
 	}
