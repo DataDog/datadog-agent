@@ -11,12 +11,14 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/networkdevices/gnmistatus/def",
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/corechecks",
         "//pkg/collector/corechecks/network-devices/gnmi/client",
         "//pkg/collector/corechecks/network-devices/gnmi/config",
         "//pkg/collector/corechecks/network-devices/gnmi/report",
+        "//pkg/collector/corechecks/network-devices/gnmi/status",
         "//pkg/util/log",
         "//pkg/util/option",
     ],
@@ -24,14 +26,20 @@ go_library(
 
 dd_agent_go_test(
     name = "gnmi_test",
-    srcs = ["gnmi_test.go"],
+    srcs = [
+        "gnmi_status_test.go",
+        "gnmi_test.go",
+    ],
+    embed = [":gnmi"],
     gotags_sets = [["gnmi"]],
     include_default = False,
     deps = [
-        ":gnmi",
         "//comp/core/autodiscovery/integration",
         "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/network-devices/gnmi/client",
+        "//pkg/collector/corechecks/network-devices/gnmi/config",
         "//pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver",
+        "//pkg/collector/corechecks/network-devices/gnmi/status",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
