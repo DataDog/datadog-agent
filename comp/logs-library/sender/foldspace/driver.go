@@ -103,6 +103,10 @@ type Driver struct {
 // when this driver owns the auditor sink. Dual-ship leaves it nil: the primary
 // destination owns the real message's metadata, so there is nothing here to
 // release and nothing to track.
+//
+// meta points at a copy, never into the message. The pending table holds it
+// until the record's batch is acknowledged, and an interior pointer would keep
+// the whole message alive, content included, for that long.
 type ingestItem struct {
 	record Record
 	meta   *message.MessageMetadata
@@ -201,8 +205,9 @@ func (d *Driver) Tap() *DriverTap { return &DriverTap{input: d.input, stopping: 
 // This driver owns the auditor sink here, so the message's metadata rides along
 // to be released once the record is durable.
 func (d *Driver) Offer(msg *message.Message) {
+	meta := msg.MessageMetadata
 	select {
-	case d.input <- ingestItem{record: recordFromMessage(msg), meta: &msg.MessageMetadata}:
+	case d.input <- ingestItem{record: recordFromMessage(msg), meta: &meta}:
 	case <-d.ingestStopping:
 	}
 }
