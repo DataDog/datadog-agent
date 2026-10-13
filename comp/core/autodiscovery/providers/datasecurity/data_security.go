@@ -137,6 +137,15 @@ func (c *controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 // update translates each RC scan task into a datasecurity check instance and schedules it.
 func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	changes := integration.ConfigChanges{}
+
+	// RC delivers the full set of active tasks: a path we scheduled but no longer receive was deleted.
+	for path, prev := range c.scheduledByPath {
+		if _, ok := updates[path]; !ok {
+			changes.Unschedule = append(changes.Unschedule, prev)
+			delete(c.scheduledByPath, path)
+		}
+	}
+
 	for path, rawConfig := range updates {
 		var payload scanTaskPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
@@ -160,8 +169,12 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 			Source:    c.String(),
 			Instances: []integration.Data{integration.Data(instance)},
 		}
-		// Unschedule any config already scheduled for this path to avoid cumulating stale configs.
 		if prev, ok := c.scheduledByPath[path]; ok {
+			// Unchanged task re-delivered alongside other updates: don't rerun the one-off check.
+			if prev.Equal(&newCfg) {
+				applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+				continue
+			}
 			changes.Unschedule = append(changes.Unschedule, prev)
 		}
 		changes.Schedule = append(changes.Schedule, newCfg)
@@ -169,7 +182,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
-	if len(changes.Schedule) == 0 {
+	if len(changes.Schedule) == 0 && len(changes.Unschedule) == 0 {
 		return
 	}
 
