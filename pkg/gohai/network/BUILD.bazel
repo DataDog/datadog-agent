@@ -14,10 +14,12 @@ go_library(
         "//pkg/gohai/utils",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_vishvananda_netlink//:netlink",
+            "@com_github_vishvananda_netlink//nl",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_vishvananda_netlink//:netlink",
+            "@com_github_vishvananda_netlink//nl",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
@@ -36,10 +38,12 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_vishvananda_netlink//:netlink",
+            "@com_github_vishvananda_netlink//nl",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_vishvananda_netlink//:netlink",
+            "@com_github_vishvananda_netlink//nl",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),

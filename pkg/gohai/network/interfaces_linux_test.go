@@ -13,19 +13,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netlink/nl"
+	"golang.org/x/sys/unix"
 )
 
-func mockAddressList(t *testing.T, addresses []netlink.Addr, err error) *int {
+func mockAddressList(t *testing.T, messages [][]byte, err error) *int {
 	t.Helper()
 	original := listAddresses
 	t.Cleanup(func() { listAddresses = original })
 	calls := 0
-	listAddresses = func(link netlink.Link, family int) ([]netlink.Addr, error) {
-		require.Nil(t, link)
-		require.Equal(t, netlink.FAMILY_ALL, family)
+	listAddresses = func() ([][]byte, error) {
 		calls++
-		return addresses, err
+		return messages, err
 	}
 	return &calls
 }
@@ -36,16 +35,16 @@ func TestCollectInfoLinuxAddressSnapshot(t *testing.T) {
 		{Index: 3, Name: "tap0", Flags: net.FlagUp},
 		{Index: 9, Name: "ppp0", Flags: net.FlagUp},
 	}
-	calls := mockAddressList(t, []netlink.Addr{
-		{LinkIndex: 9, IPNet: createIPNetAddr("192.0.2.2/32"), Peer: createIPNetAddr("192.0.2.1/24")},
-		{LinkIndex: 42, IPNet: createIPNetAddr("198.51.100.10/24")},
-		{LinkIndex: 999, IPNet: createIPNetAddr("203.0.113.1/24")},
-		{LinkIndex: 42, IPNet: createIPNetAddr("2001:db8:1::10/64")},
-		{LinkIndex: 9, IPNet: createIPNetAddr("2001:db8:2::2/128"), Peer: createIPNetAddr("2001:db8:2::1/64")},
-		{LinkIndex: 42, IPNet: createIPNetAddr("198.51.100.20/25")},
-		{LinkIndex: 42, IPNet: createIPNetAddr("2001:db8:1::20/96")},
-		{LinkIndex: 42},
-		{LinkIndex: 42, IPNet: &net.IPNet{}},
+	calls := mockAddressList(t, [][]byte{
+		addressMessage(9, unix.AF_INET, 24, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("192.0.2.1").To4()), nl.NewRtAttr(unix.IFA_LOCAL, net.ParseIP("192.0.2.2").To4())),
+		addressMessage(42, unix.AF_INET, 24, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("198.51.100.10").To4())),
+		addressMessage(999, unix.AF_INET, 24, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("203.0.113.1").To4())),
+		addressMessage(42, unix.AF_INET6, 64, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("2001:db8:1::10").To16())),
+		addressMessage(9, unix.AF_INET6, 64, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("2001:db8:2::1").To16()), nl.NewRtAttr(unix.IFA_LOCAL, net.ParseIP("2001:db8:2::2").To16())),
+		addressMessage(42, unix.AF_INET, 25, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("198.51.100.20").To4())),
+		addressMessage(42, unix.AF_INET6, 96, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("2001:db8:1::20").To16())),
+		addressMessage(42, unix.AF_INET, 24),
+		addressMessage(42, unix.AF_INET, 24, nl.NewRtAttr(unix.IFA_ADDRESS, nil)),
 	}, nil)
 	snapshot, err := loadInterfaces(ifaces)
 	require.NoError(t, err)
@@ -76,7 +75,7 @@ func TestCollectInfoLinuxAddressSnapshot(t *testing.T) {
 func TestLoadInterfacesRejectsPartialDump(t *testing.T) {
 	for _, err := range []error{errors.New("address dump failed"), syscall.EINTR} {
 		t.Run(err.Error(), func(t *testing.T) {
-			mockAddressList(t, []netlink.Addr{{LinkIndex: 1, IPNet: createIPNetAddr("192.0.2.1/24")}}, err)
+			mockAddressList(t, [][]byte{addressMessage(1, unix.AF_INET, 24, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("192.0.2.1").To4()))}, err)
 			ifaces, gotErr := loadInterfaces([]net.Interface{{Index: 1}})
 			require.ErrorIs(t, gotErr, err)
 			require.Nil(t, ifaces)
@@ -84,5 +83,63 @@ func TestLoadInterfacesRejectsPartialDump(t *testing.T) {
 			require.ErrorIs(t, gotErr, err)
 			require.Nil(t, info)
 		})
+	}
+}
+
+func addressMessage(index, family int, prefix uint8, attrs ...*nl.RtAttr) []byte {
+	message := nl.NewIfAddrmsg(family)
+	message.Index = uint32(index)
+	message.Prefixlen = prefix
+	data := message.Serialize()
+	for _, attr := range attrs {
+		data = append(data, attr.Serialize()...)
+	}
+	return data
+}
+
+func TestParseAddress(t *testing.T) {
+	v4 := nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("192.0.2.1").To4())
+	local4 := nl.NewRtAttr(unix.IFA_LOCAL, net.ParseIP("192.0.2.2").To4())
+	v6 := nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("2001:db8::1").To16())
+	local6 := nl.NewRtAttr(unix.IFA_LOCAL, net.ParseIP("2001:db8::2").To16())
+	for _, test := range []struct {
+		name    string
+		message []byte
+		want    string
+	}{
+		{"IPv4", addressMessage(42, unix.AF_INET, 24, v4), "192.0.2.1/24"},
+		{"IPv4 peer", addressMessage(42, unix.AF_INET, 24, v4, local4), "192.0.2.2/24"},
+		{"local before peer", addressMessage(42, unix.AF_INET, 24, local4, v4), "192.0.2.2/24"},
+		{"IPv6", addressMessage(42, unix.AF_INET6, 64, v6), "2001:db8::1/64"},
+		{"IPv6 peer", addressMessage(42, unix.AF_INET6, 64, v6, local6), "2001:db8::2/64"},
+		{"no address", addressMessage(42, unix.AF_INET, 24), ""},
+		{"unsupported family", addressMessage(42, unix.AF_UNSPEC, 24, v4), ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			index, addr, err := parseAddress(test.message)
+			require.NoError(t, err)
+			require.Equal(t, 42, index)
+			if test.want == "" {
+				require.Nil(t, addr)
+			} else {
+				require.NotNil(t, addr)
+				require.Equal(t, test.want, addr.String())
+			}
+		})
+	}
+}
+
+func TestLoadInterfacesRejectsMalformedMessages(t *testing.T) {
+	for _, message := range [][]byte{
+		nil,
+		append(addressMessage(42, unix.AF_INET, 24), 2, 0, 1, 0),
+		addressMessage(42, unix.AF_INET, 33, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("192.0.2.1").To4())),
+		addressMessage(42, unix.AF_INET, 24, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("2001:db8::1").To16())),
+	} {
+		valid := addressMessage(42, unix.AF_INET, 24, nl.NewRtAttr(unix.IFA_ADDRESS, net.ParseIP("192.0.2.1").To4()))
+		mockAddressList(t, [][]byte{valid, message}, nil)
+		ifaces, err := loadInterfaces([]net.Interface{{Index: 42}})
+		require.Error(t, err)
+		require.Nil(t, ifaces)
 	}
 }
