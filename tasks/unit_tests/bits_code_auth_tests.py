@@ -8,7 +8,7 @@ from invoke import Result, UnexpectedExit
 
 from tasks.auth import gitlab
 from tasks.libs.ciproviders.github_api import GithubAPI, generate_local_github_token
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_oauth_token, get_gitlab_token
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_api, get_gitlab_oauth_token, get_gitlab_token
 from tasks.libs.common.auth import datadog_infra_token, dd_auth_api_app_keys, get_aws_vault_env
 from tasks.libs.common.bits_code import running_in_bits_code
 from tasks.libs.releasing.version import query_version
@@ -35,6 +35,22 @@ class BitsCodeAuthTests(unittest.TestCase):
             ctx.run.assert_not_called()
             popen.assert_not_called()
             prompt.assert_not_called()
+
+    def test_gitlab_factory_rejects_before_feature_flags_or_credentials(self):
+        with (
+            patch("tasks.libs.ciproviders.gitlab_api.is_enabled") as feature_flag,
+            patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_token") as token_helper,
+            patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_oauth_token") as oauth_helper,
+            patch("tasks.libs.ciproviders.gitlab_api.gitlab.Gitlab") as client,
+            patch("subprocess.Popen") as popen,
+            patch("builtins.input") as prompt,
+        ):
+            for token in (None, "explicit-test-token"):
+                with self.subTest(token=token):
+                    with self.assertRaisesRegex(RuntimeError, "Authenticated GitLab API access"):
+                        get_gitlab_api(token=token)
+            for dependency in (feature_flag, token_helper, oauth_helper, client, popen, prompt):
+                dependency.assert_not_called()
 
     def test_private_github_fails_before_client_or_token_generation(self):
         with (
@@ -99,6 +115,19 @@ class RegularAuthTests(unittest.TestCase):
         for marker in ("", "0", "true"):
             with patch.dict(os.environ, {"DD_BITS_CODE": marker}):
                 self.assertFalse(running_in_bits_code())
+
+    def test_regular_gitlab_factory_preserves_explicit_token(self):
+        with (
+            patch("tasks.libs.ciproviders.gitlab_api.is_enabled", return_value=True) as feature_flag,
+            patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_oauth_token") as oauth_helper,
+            patch("tasks.libs.ciproviders.gitlab_api.gitlab.Gitlab") as client,
+        ):
+            self.assertIs(get_gitlab_api(token="explicit-test-token"), client.return_value)
+            feature_flag.assert_called_once()
+            oauth_helper.assert_not_called()
+            client.assert_called_once_with(
+                "https://gitlab.ddbuild.io", oauth_token="explicit-test-token", retry_transient_errors=True
+            )
 
     def test_regular_github_still_uses_local_auth(self):
         with (
