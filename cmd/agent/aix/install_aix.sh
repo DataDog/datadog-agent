@@ -201,13 +201,22 @@ if [ -z "$current_fileset" ]; then
 fi
 
 installed_fileset=$(/usr/bin/lslpp -l datadog-agent 2>/dev/null | awk '$1 == "datadog-agent" { print $2; exit }' || true)
-if [ -n "$installed_fileset" ] && [ "$installed_fileset" = "$current_fileset" ]; then
-    printf '%b\n* Reinstalling Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
+# installp(1) defines -F and -g as mutually exclusive alternatives: -F forces
+# an update or reinstall when the fileset is already installed, -g installs
+# regardless of whether the fileset is already installed (fresh install).
+if [ -n "$installed_fileset" ]; then
+    install_flags=-acFXYd
+    if [ "$installed_fileset" = "$current_fileset" ]; then
+        printf '%b\n* Reinstalling Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
+    else
+        printf '%b\n* Updating Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
+    fi
 else
+    install_flags=-acgXYd
     printf '%b\n* Installing Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
 fi
 
-if ! $sudo_cmd /usr/sbin/installp -acgFXYd "$bff_file" -e "$installp_log" datadog-agent; then
+if ! $sudo_cmd /usr/sbin/installp "$install_flags" "$bff_file" -e "$installp_log" datadog-agent; then
     printf '%bThe Datadog Agent package installation failed.%b\n' "$RED" "$NC" >&2
     if [ -s "$installp_log" ]; then
         printf 'installp log (%s):\n' "$installp_log" >&2
@@ -217,15 +226,33 @@ if ! $sudo_cmd /usr/sbin/installp -acgFXYd "$bff_file" -e "$installp_log" datado
 fi
 
 install_info=/etc/datadog-agent/install_info
+staged_install_info="$temp_dir/install_info"
 {
     printf '%s\n' '---'
     printf '%s\n' 'install_method:'
     printf '%s\n' '  tool: install_script_aix'
     printf '%s\n' '  tool_version: install_script_aix'
     printf '  installer_version: install_script_aix-%s\n' "$install_script_version"
-} | $sudo_cmd tee "$install_info" >/dev/null
-$sudo_cmd chown dd-agent:dd-agent "$install_info"
-$sudo_cmd chmod 640 "$install_info"
+} > "$staged_install_info"
+
+# Never write directly to $install_info: the dd-agent user can write in
+# /etc/datadog-agent and could replace the file with a symlink that root's
+# tee would follow. Stage the metadata in a fresh root-owned directory on
+# the destination filesystem instead, then move it into place with mv: a
+# rename within a filesystem replaces a symlinked destination without
+# following it.
+staging_dir="/etc/datadog-agent/.install_info.staging.$$"
+if ! $sudo_cmd mkdir "$staging_dir"; then
+    fail "could not create staging directory for install_info."
+fi
+$sudo_cmd cp "$staged_install_info" "$staging_dir/install_info"
+$sudo_cmd chown dd-agent:dd-agent "$staging_dir/install_info"
+$sudo_cmd chmod 640 "$staging_dir/install_info"
+if ! $sudo_cmd mv -f "$staging_dir/install_info" "$install_info"; then
+    $sudo_cmd rm -rf "$staging_dir"
+    fail "could not move install_info into place."
+fi
+$sudo_cmd rmdir "$staging_dir"
 
 if [ -n "${DD_INSTALL_ONLY:-}" ]; then
     printf '%b\nDatadog Agent %s was installed but not started because DD_INSTALL_ONLY is set.\nStart it with:\n\n    startsrc -g datadog-agent\n%b' "$GREEN" "$current_fileset" "$NC"
