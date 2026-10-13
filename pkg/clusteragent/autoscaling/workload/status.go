@@ -81,11 +81,44 @@ func (p productStatus) info(product string) map[string]interface{} {
 	info["UpdateCount"] = p.updateCount
 	if p.errorCount > 0 {
 		info["ErrorCount"] = p.errorCount
-		// processItem returns errors.Join over a config's bad entries, which is
-		// newline-separated; the section renders one field per line
-		info["LastError"] = strings.ReplaceAll(p.lastError, "\n", "; ")
+		info["LastError"] = formatLastError(p.lastError)
 	}
 	return info
+}
+
+// maxStatusErrorLen bounds the rendered error. Without it a config with many bad
+// entries produces one very long line, which a terminal wraps into continuations
+// that carry none of the section's indentation
+const maxStatusErrorLen = 512
+
+// formatLastError renders a joined error on a single line, because the section
+// renders one field per line.
+//
+// processItem returns errors.Join over a config's bad entries, which separates
+// with newlines, and its per-entry messages carry only config-level identity --
+// so several bad entries in one config produce byte-identical messages. Dropping
+// the duplicates keeps the distinct information and avoids repeating one sentence
+// N times.
+func formatLastError(joined string) string {
+	seen := make(map[string]struct{})
+	distinct := make([]string, 0, 1)
+	for _, part := range strings.Split(joined, "\n") {
+		if part == "" {
+			continue
+		}
+		if _, duplicate := seen[part]; duplicate {
+			continue
+		}
+		seen[part] = struct{}{}
+		distinct = append(distinct, part)
+	}
+
+	message := strings.Join(distinct, "; ")
+	if len(message) > maxStatusErrorLen {
+		// Trim any partial rune the cut may have left behind
+		message = strings.ToValidUTF8(message[:maxStatusErrorLen], "") + "..."
+	}
+	return message
 }
 
 // productStatusFor routes a product to its bucket. A switch rather than a map

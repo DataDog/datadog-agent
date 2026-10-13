@@ -10,6 +10,7 @@ package workload
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -262,13 +263,52 @@ func TestWorkloadAutoscalingStatusErrorStaysOnOneLine(t *testing.T) {
 	recordRemoteConfigError(data.ProductContainerAutoscalingSettings,
 		errors.Join(errors.New("first entry bad"), errors.New("second entry bad")))
 
-	for _, line := range strings.Split(renderText(t), "\n") {
+	out := renderText(t)
+
+	// Pins the collapse itself: truncating to the first sub-message would also
+	// satisfy the indentation invariant below.
+	assert.Contains(t, out, "Last error: first entry bad; second entry bad")
+
+	for _, line := range strings.Split(out, "\n") {
 		if line == "" {
 			continue
 		}
 		assert.True(t, strings.HasPrefix(line, " "),
-			"every rendered line must stay indented, got %q in:\n%s", line, renderText(t))
+			"every rendered line must stay indented, got %q in:\n%s", line, out)
 	}
+}
+
+// TestWorkloadAutoscalingStatusCollapsesDuplicateErrors covers the common real
+// shape: a config's per-entry messages carry only config-level identity, so
+// several bad entries in one config produce the same sentence repeatedly.
+func TestWorkloadAutoscalingStatusCollapsesDuplicateErrors(t *testing.T) {
+	resetStatus(t)
+	enabledConfig(t, true)
+	InitStatus(autoscalingstore.NewStore[model.PodAutoscalerInternal](), func() bool { return true })
+
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, map[string]state.RawConfig{
+		"a": {Metadata: state.Metadata{Version: 1}},
+	})
+	same := errors.New("received invalid PodAutoscaler from config id:7f3a, discarding")
+	recordRemoteConfigError(data.ProductContainerAutoscalingSettings, errors.Join(same, same, same))
+
+	block := productBlock(t, renderText(t), data.ProductContainerAutoscalingSettings)
+	assert.Contains(t, block, "Last error: received invalid PodAutoscaler from config id:7f3a, discarding")
+	assert.NotContains(t, block, "discarding; received invalid")
+}
+
+// TestFormatLastErrorBoundsLength keeps one pathological config from producing a
+// line a terminal wraps into unindented continuations.
+func TestFormatLastErrorBoundsLength(t *testing.T) {
+	parts := make([]string, 0, 50)
+	for i := range 50 {
+		parts = append(parts, fmt.Sprintf("distinct failure number %d padded out to a realistic length", i))
+	}
+
+	got := formatLastError(strings.Join(parts, "\n"))
+	assert.LessOrEqual(t, len(got), maxStatusErrorLen+3)
+	assert.True(t, strings.HasSuffix(got, "..."))
+	assert.NotContains(t, got, "\n")
 }
 
 // TestWorkloadAutoscalingStatusCountsFailingConfigs is the point of the count:
