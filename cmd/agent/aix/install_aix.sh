@@ -11,6 +11,8 @@ set -e
 install_script_version=1.0.0
 default_repo_url="https://dd-agent-aix.s3.amazonaws.com"
 
+# Terminal color detection
+# Colors are enabled only when outputting to a terminal (not when piped/redirected)
 if [ -t 1 ]; then
     RED='\033[31m'
     GREEN='\033[32m'
@@ -33,14 +35,12 @@ Installs the AIX/ppc64 BFF package and configures it from DD_* environment
 variables on first install.
 
 Package selection variables:
-  DD_REPO_URL              Package base URL. Defaults to
-                           https://dd-agent-aix.s3.amazonaws.com
-  DD_AGENT_DIST_CHANNEL    Package channel: stable (default), beta, nightly,
-                           or dev. Packages are stored below <base>/<channel>/.
   DD_AGENT_VERSION         Exact Agent version, without the package build
                            number (for example, 7.84.0).
-  DD_AGENT_MINOR_VERSION   Exact Agent 7 minor and patch version (for example,
-                           84.0). Ignored when DD_AGENT_VERSION is set.
+  DD_AGENT_DIST_CHANNEL    Package channel: stable (default), beta, nightly,
+                           or dev.
+  DD_REPO_URL              Package base URL. Defaults to
+                           https://dd-agent-aix.s3.amazonaws.com
   DD_AGENT_BUILD           installp package build number. Defaults to 1.
   DD_BFF_PATH              Use a local BFF instead of downloading one.
   DD_INSECURE              If non-empty, skip TLS certificate validation.
@@ -115,28 +115,25 @@ download_file() {
     source_url=$1
     destination=$2
 
-    if [ "$downloader" = curl ]; then
-        if [ -n "${DD_INSECURE:-}" ]; then
-            curl --fail --location --retry 2 --insecure --output "$destination" "$source_url"
+    insecure_flags=
+    if [ -n "${DD_INSECURE:-}" ]; then
+        if [ "$downloader" = curl ]; then
+            insecure_flags="--insecure"
         else
-            curl --fail --location --retry 2 --output "$destination" "$source_url"
+            insecure_flags="--no-check-certificate"
         fi
-    elif [ -n "${DD_INSECURE:-}" ]; then
-        wget --no-check-certificate --output-document="$destination" "$source_url"
+    fi
+
+    if [ "$downloader" = curl ]; then
+        curl --fail --location --retry 2 $insecure_flags --output "$destination" "$source_url"
     else
-        wget --output-document="$destination" "$source_url"
+        wget $insecure_flags --output-document="$destination" "$source_url"
     fi
 }
 
 agent_version=
 if [ -n "${DD_AGENT_VERSION:-}" ]; then
     agent_version=$DD_AGENT_VERSION
-elif [ -n "${DD_AGENT_MINOR_VERSION:-}" ]; then
-    case "$DD_AGENT_MINOR_VERSION" in
-        *.*) ;;
-        *) fail "DD_AGENT_MINOR_VERSION must include a patch version (for example, 84.0)." ;;
-    esac
-    agent_version="7.$(printf '%s' "$DD_AGENT_MINOR_VERSION" | tr '~' '-')"
 fi
 
 if [ -n "$agent_version" ]; then
@@ -205,17 +202,15 @@ fi
 
 installed_fileset=$(/usr/bin/lslpp -l datadog-agent 2>/dev/null | awk '$1 == "datadog-agent" { print $2; exit }' || true)
 if [ -n "$installed_fileset" ] && [ "$installed_fileset" = "$current_fileset" ]; then
-    install_flags=-acFNXYd
     printf '%b\n* Reinstalling Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
 else
-    install_flags=-aXYgd
     printf '%b\n* Installing Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
 fi
 
-if ! $sudo_cmd /usr/sbin/installp "$install_flags" "$bff_file" -e "$installp_log" datadog-agent; then
+if ! $sudo_cmd /usr/sbin/installp -acgFXYd "$bff_file" -e "$installp_log" datadog-agent; then
     printf '%bThe Datadog Agent package installation failed.%b\n' "$RED" "$NC" >&2
     if [ -s "$installp_log" ]; then
-        printf 'installp log:\n' >&2
+        printf 'installp log (%s):\n' "$installp_log" >&2
         cat "$installp_log" >&2
     fi
     exit 1
