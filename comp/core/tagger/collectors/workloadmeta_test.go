@@ -2543,6 +2543,84 @@ func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 	}
 }
 
+func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		cluster       string
+		serve         string
+		nodeType      string
+		group         string
+		wantWorkload  string
+		wantComponent string
+	}{
+		{name: "head", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "head", group: "headgroup", wantWorkload: "ray-aggregated-4spzc", wantComponent: "head"},
+		{name: "aggregated", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "worker", group: "aggregated", wantWorkload: "ray-aggregated-4spzc", wantComponent: "aggregated"},
+		{name: "decode", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "decode", wantWorkload: "ray-disaggregated-hc686", wantComponent: "decode"},
+		{name: "prefill", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "prefill", wantWorkload: "ray-disaggregated-hc686", wantComponent: "prefill"},
+		{name: "custom group", cluster: "serve", serve: "true", nodeType: "worker", group: "gpu-workers", wantWorkload: "serve", wantComponent: "gpu-workers"},
+		{name: "no group", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "no node type", cluster: "serve", serve: "true", group: "decode", wantWorkload: "serve"},
+		{name: "batch", cluster: "batch", nodeType: "worker", group: "decode"},
+		{name: "serve disabled", cluster: "serve", serve: "false", nodeType: "head"},
+		{name: "no cluster", serve: "true", nodeType: "worker", group: "decode"},
+		{name: "unrelated pod"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "ray-container"
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+			})
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+			pod := &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "ray-pod"},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "ray-pod", Namespace: "ray",
+					Labels: map[string]string{
+						kubernetes.RayClusterLabelKey:   tt.cluster,
+						kubernetes.RayServeLabelKey:     tt.serve,
+						kubernetes.RayNodeTypeLabelKey:  tt.nodeType,
+						kubernetes.RayNodeGroupLabelKey: tt.group,
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "ray"}},
+			}
+			check := func(wantWorkload, wantComponent string) {
+				tagInfos := collector.handleKubePod(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod, IsComplete: true})
+				require.Len(t, tagInfos, 2)
+				for _, tagInfo := range tagInfos {
+					var inferenceTags []string
+					for _, tag := range tagInfo.LowCardTags {
+						if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {
+							inferenceTags = append(inferenceTags, tag)
+						}
+					}
+					var expected []string
+					if wantWorkload != "" {
+						expected = append(expected, "inference_workload:"+wantWorkload)
+					}
+					if wantComponent != "" {
+						expected = append(expected, "inference_workload_component:"+wantComponent)
+					}
+					assert.ElementsMatch(t, expected, inferenceTags)
+					for _, tag := range append(tagInfo.HighCardTags, tagInfo.OrchestratorCardTags...) {
+						assert.False(t, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"))
+					}
+				}
+			}
+			check(tt.wantWorkload, tt.wantComponent)
+			// An update must replace the tags when the pod no longer serves.
+			delete(pod.Labels, kubernetes.RayServeLabelKey)
+			check("", "")
+		})
+	}
+}
+
 func TestHandleKubeCRD(t *testing.T) {
 	const (
 		crdNamespace = "datadog"
