@@ -107,6 +107,43 @@ func TestParseTCPUpdate(t *testing.T) {
 	}, event.Flow)
 }
 
+func TestParseTCPConnProbeFailed(t *testing.T) {
+	for name, tc := range map[string]struct {
+		length int
+		// offset < 0 leaves connstatus unwritten.
+		offset int
+		status uint32
+		known  bool
+		failed bool
+	}{
+		"macOS 12 layout":                 {length: tcpDescriptorSizeV12, offset: tcpConnStatusV12, status: tcpConnProbeFailed, known: true, failed: true},
+		"macOS 12 layout ignores 332":     {length: tcpDescriptorSizeV12, offset: tcpConnStatusV14, status: tcpConnProbeFailed, known: true},
+		"macOS 14 layout":                 {length: tcpDescriptorSizeV14, offset: tcpConnStatusV14, status: tcpConnProbeFailed, known: true, failed: true},
+		"macOS 14 layout ignores 324":     {length: tcpDescriptorSizeV14, offset: tcpConnStatusV12, status: tcpConnProbeFailed, known: true},
+		"appended fields keep macOS 14":   {length: tcpDescriptorSizeV14 + 8, offset: tcpConnStatusV14, status: tcpConnProbeFailed, known: true, failed: true},
+		"other probe bits":                {length: tcpDescriptorSizeV14, offset: tcpConnStatusV14, status: 0x7, known: true},
+		"length between known layouts":    {length: tcpDescriptorSizeV12 + 4, offset: tcpConnStatusV14, status: tcpConnProbeFailed},
+		"descriptor ends before connstat": {length: tcpMinimumSize, offset: -1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			description := message(messageSourceDesc, descriptionData+tc.length)
+			putUint32(description, descriptionProvider, ProviderTCPKernel)
+			flow := description[descriptionData:]
+			putUint32(flow, tcpState, 2)
+			if tc.offset >= 0 {
+				putUint32(flow, tc.offset, tc.status)
+			}
+
+			events, err := ParseDatagram(description)
+
+			require.NoError(t, err)
+			require.Len(t, events, 1)
+			require.Equal(t, tc.known, events[0].Flow.ConnStatusKnown)
+			require.Equal(t, tc.failed, events[0].Flow.ConnProbeFailed)
+		})
+	}
+}
+
 func TestParseUDPDescriptionAndCounts(t *testing.T) {
 	description := message(messageSourceDesc, descriptionData+udpMinimumSize)
 	putUint64(description, descriptionSourceRef, 8)

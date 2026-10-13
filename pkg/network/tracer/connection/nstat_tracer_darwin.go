@@ -46,8 +46,12 @@ const (
 	nstatTCPRTTScale         = 32
 	nstatTCPRTTVarianceScale = 16
 
-	// Real SYN timeouts take tens of seconds (net.inet.tcp.keepinit).
-	nstatConnectTimeoutMinAge = 5 * time.Second
+	// Counts queries carry no descriptor, so a pending connect is described
+	// again at this interval to observe conn_probe_failed before it closes.
+	// The kernel sets the flag about five seconds into a connect, so refreshes
+	// stop once the window has passed.
+	nstatConnectProbeRefresh = time.Second
+	nstatConnectProbeWindow  = 15 * time.Second
 
 	tcpStateClosed      = 0
 	tcpStateListen      = 1
@@ -98,6 +102,8 @@ var nstatTracerTelemetry = struct {
 	filteredSources    telemetry.Counter
 	unmatchedTuples    telemetry.Counter
 	latePacketMatches  telemetry.Counter
+	connStatusUnknown  telemetry.Counter
+	connProbeMissed    telemetry.Counter
 	activeSources      telemetry.Gauge
 }{
 	datagrams:          telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "datagrams", nil, "NStat datagrams received"),
@@ -115,6 +121,8 @@ var nstatTracerTelemetry = struct {
 	filteredSources:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "filtered_sources", []string{"reason"}, "Resolved NStat sources not published"),
 	unmatchedTuples:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "unmatched_tuples", []string{"result"}, "Unmatched TCP packets: new tuples tracked, or skipped because the tracking set was full"),
 	latePacketMatches:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "late_packet_matches", []string{"missed"}, "NStat connections created after packets for their tuple went unmatched"),
+	connStatusUnknown:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "conn_status_unknown", nil, "TCP sources whose descriptor length matches no known connstatus layout"),
+	connProbeMissed:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "conn_probe_missed", nil, "TCP connects still in SYN_SENT after the probe window without conn_probe_failed"),
 	activeSources:      telemetryimpl.GetCompatComponent().NewGauge("network_tracer__nstat", "active_sources", nil, "NStat sources currently tracked"),
 }
 
@@ -143,6 +151,10 @@ type nstatSource struct {
 	connectSuccessesObserved bool
 	afterEnumeration         bool
 	closed                   bool
+	connProbeFailed          bool
+	connProbeDeadline        time.Time
+	connProbeExpired         bool
+	connStatusUnknown        bool
 	connectAttempts          uint32
 	connectSuccesses         uint32
 	direction                network.ConnectionDirection
@@ -348,7 +360,7 @@ func (t *nstatTracer) run() {
 		}
 
 		now := t.now()
-		t.queueUnresolvedDescriptions(now)
+		t.queuePendingDescriptions(now)
 		t.pumpDescriptionRequests(now)
 		t.expirePendingRemovals(now)
 		if !now.Before(nextQuery) {
@@ -421,7 +433,7 @@ func (t *nstatTracer) handleRuntimeFailure(err error) {
 				delete(t.descriptionQueued, sourceRef)
 				continue
 			}
-			closed = append(closed, t.closeAndRemoveSource(sourceRef, source))
+			closed = append(closed, t.teardownSource(sourceRef, source))
 		}
 		nstatTracerTelemetry.activeSources.Set(0)
 		closeCallback := t.closeCallback
@@ -527,7 +539,7 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 }
 
 func (t *nstatTracer) queueDescriptionLocked(sourceRef uint64, source *nstatSource) {
-	if nstatSourceResolved(source) {
+	if !nstatSourceWantsDescription(source) {
 		return
 	}
 	if _, queued := t.descriptionQueued[sourceRef]; queued {
@@ -541,11 +553,11 @@ func (t *nstatTracer) queueDescriptionLocked(sourceRef uint64, source *nstatSour
 	t.descriptionQueued[sourceRef] = struct{}{}
 }
 
-func (t *nstatTracer) queueUnresolvedDescriptions(now time.Time) {
+func (t *nstatTracer) queuePendingDescriptions(now time.Time) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	for sourceRef, source := range t.sources {
-		if !nstatSourceResolved(source) && !now.Before(source.nextDescription) {
+		if !now.Before(source.nextDescription) && t.wantsDescriptionLocked(source, now) {
 			t.queueDescriptionLocked(sourceRef, source)
 		}
 	}
@@ -561,11 +573,15 @@ func (t *nstatTracer) pumpDescriptionRequests(now time.Time) {
 		}
 		delete(t.descriptionQueued, sourceRef)
 		source := t.sources[sourceRef]
-		if source == nil || nstatSourceResolved(source) || now.Before(source.nextDescription) {
+		if source == nil || now.Before(source.nextDescription) || !t.wantsDescriptionLocked(source, now) {
 			continue
 		}
 		source.descriptionRequested = true
-		source.nextDescription = now.Add(nstatDescriptionRetry)
+		if nstatSourceResolved(source) {
+			source.nextDescription = now.Add(nstatConnectProbeRefresh)
+		} else {
+			source.nextDescription = now.Add(nstatDescriptionRetry)
+		}
 		requests = append(requests, sourceRef)
 	}
 	t.mu.Unlock()
@@ -630,6 +646,15 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		if nstat.IsTCPProvider(source.provider) {
 			direction, evidence := source.observeTCPState(event.Flow.TCPState)
 			t.setSourceDirection(source, direction, evidence)
+			// The kernel clears the flag once the connect succeeds, so it is
+			// latched here for the close that may follow.
+			if event.Flow.ConnProbeFailed {
+				source.connProbeFailed = true
+			}
+			if !event.Flow.ConnStatusKnown && !source.connStatusUnknown {
+				source.connStatusUnknown = true
+				nstatTracerTelemetry.connStatusUnknown.Inc()
+			}
 		}
 		source.flow = mergeNStatFlow(source.flow, event.Flow)
 		t.syncTCPListener(sourceRef, source)
@@ -665,6 +690,9 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 			return
 		}
 		source.conn = t.newConnection(sourceRef, source)
+		now := t.now()
+		source.nextDescription = now.Add(nstatConnectProbeRefresh)
+		source.connProbeDeadline = now.Add(nstatConnectProbeWindow)
 	}
 	t.applySource(source)
 }
@@ -803,6 +831,40 @@ func nstatSourceResolved(source *nstatSource) bool {
 	return false
 }
 
+// nstatSourceWantsDescription reports whether a source should be described
+// again: it is still unresolved, or it is a connect awaiting conn_probe_failed.
+func nstatSourceWantsDescription(source *nstatSource) bool {
+	return !nstatSourceResolved(source) || nstatSourcePendingConnect(source)
+}
+
+// nstatSourcePendingConnect reports a published TCP connect that is still in
+// SYN_SENT with no outcome observed yet, on a layout that carries the flag.
+func nstatSourcePendingConnect(source *nstatSource) bool {
+	return source.conn != nil && source.conn.Type == network.TCP &&
+		!source.removed && !source.closed && !source.connProbeFailed &&
+		!source.connProbeExpired && source.flow.ConnStatusKnown &&
+		source.flow.TCPState == tcpStateSynSent &&
+		!source.tcpEstablished && source.connectSuccesses == 0 &&
+		len(source.conn.TCPFailures) == 0
+}
+
+// wantsDescriptionLocked is nstatSourceWantsDescription with the probe window
+// applied: a pending connect past its window stops being refreshed.
+func (t *nstatTracer) wantsDescriptionLocked(source *nstatSource, now time.Time) bool {
+	if !nstatSourceResolved(source) {
+		return true
+	}
+	if !nstatSourcePendingConnect(source) {
+		return false
+	}
+	if now.Before(source.connProbeDeadline) {
+		return true
+	}
+	source.connProbeExpired = true
+	nstatTracerTelemetry.connProbeMissed.Inc()
+	return false
+}
+
 func mergeNStatFlow(current, update *nstat.Flow) *nstat.Flow {
 	if current == nil {
 		flow := *update
@@ -825,6 +887,8 @@ func mergeNStatFlow(current, update *nstat.Flow) *nstat.Flow {
 		merged.InterfaceIndex = update.InterfaceIndex
 	}
 	merged.TCPState = update.TCPState
+	merged.ConnStatusKnown = update.ConnStatusKnown
+	merged.ConnProbeFailed = update.ConnProbeFailed
 	merged.Local = mergeNStatEndpoint(merged.Local, update.Local)
 	merged.Remote = mergeNStatEndpoint(merged.Remote, update.Remote)
 	return &merged
@@ -1220,7 +1284,26 @@ func (t *nstatTracer) removeFilteredSource(sourceRef uint64, source *nstatSource
 	nstatTracerTelemetry.removals.Inc("filtered")
 }
 
+// closeAndRemoveSource handles a close the kernel reported, so TCP sources
+// count as closed and may infer a connect failure.
 func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
+	conn := t.removeConnectionSource(sourceRef, source)
+	if conn.Type == network.TCP && !source.closed {
+		t.markTCPClosed(source)
+	}
+	t.finishConnection(conn)
+	return conn
+}
+
+// teardownSource delivers a connection the tracer stopped observing. The
+// socket may still be open, so no TCP close or failure is recorded.
+func (t *nstatTracer) teardownSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
+	conn := t.removeConnectionSource(sourceRef, source)
+	t.finishConnection(conn)
+	return conn
+}
+
+func (t *nstatTracer) removeConnectionSource(sourceRef uint64, source *nstatSource) *network.ConnectionStats {
 	t.removeTCPListener(sourceRef, source)
 	delete(t.sources, sourceRef)
 	delete(t.descriptionQueued, sourceRef)
@@ -1229,14 +1312,14 @@ func (t *nstatTracer) closeAndRemoveSource(sourceRef uint64, source *nstatSource
 	conn := source.conn
 	delete(t.byCookie, conn.Cookie)
 	t.tuples.remove(conn.Cookie)
-	if conn.Type == network.TCP && !source.closed {
-		t.markTCPClosed(source)
-	}
+	return conn
+}
+
+func (t *nstatTracer) finishConnection(conn *network.ConnectionStats) {
 	if !conn.IsClosed {
 		conn.IsClosed = true
 		conn.Duration = time.Duration(t.now().UnixNano() - int64(conn.Duration))
 	}
-	return conn
 }
 
 func (t *nstatTracer) recordUnmatchedLocked(packet network.ConnectionTuple, tcp *layers.TCP) {
@@ -1266,8 +1349,7 @@ func nstatResetErrno(source *nstatSource, handshakeSeen bool) uint16 {
 
 func (t *nstatTracer) markTCPClosed(source *nstatSource) {
 	conn := source.conn
-	age := time.Duration(t.now().UnixNano() - int64(conn.Duration))
-	if nstatConnectTimedOut(source, age) {
+	if nstatConnectTimedOut(source) {
 		if conn.TCPFailures == nil {
 			conn.TCPFailures = make(map[uint16]uint32)
 		}
@@ -1276,16 +1358,17 @@ func (t *nstatTracer) markTCPClosed(source *nstatSource) {
 	source.closed = true
 	conn.Monotonic.TCPClosed = 1
 	conn.IsClosed = true
-	conn.Duration = age
+	conn.Duration = time.Duration(t.now().UnixNano() - int64(conn.Duration))
 }
 
-// nstatConnectTimedOut infers ETIMEDOUT for a connect that never succeeded and
-// closed without a reset. The minimum age excludes connects the application
-// cancelled early, such as Happy Eyeballs losers.
-func nstatConnectTimedOut(source *nstatSource, age time.Duration) bool {
-	return source.connectAttempts > 0 && source.connectSuccesses == 0 &&
-		!source.tcpEstablished && len(source.conn.TCPFailures) == 0 &&
-		age >= nstatConnectTimeoutMinAge
+// nstatConnectTimedOut infers ETIMEDOUT for a connect that closed without
+// establishing or a reset after the kernel exhausted its SYN connectivity
+// probes. Connects cancelled earlier, such as Happy Eyeballs losers, never
+// reach the probe limit.
+func nstatConnectTimedOut(source *nstatSource) bool {
+	return source.connProbeFailed && source.connectAttempts > 0 &&
+		source.connectSuccesses == 0 && !source.tcpEstablished &&
+		len(source.conn.TCPFailures) == 0
 }
 
 func (t *nstatTracer) expirePendingRemovals(now time.Time) {

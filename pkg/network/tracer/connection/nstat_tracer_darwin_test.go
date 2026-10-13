@@ -556,19 +556,19 @@ func TestNStatTracerClosesFailedAttemptWithoutOverwritingFailure(t *testing.T) {
 func TestNStatTracerInfersConnectTimeout(t *testing.T) {
 	timedOut := map[uint16]uint32{network.TCPFailureErrnoTimedOut: 1}
 	for _, tc := range []struct {
-		name     string
-		state    uint32
-		counts   nstat.Counts
-		reset    bool
-		removed  bool
-		age      time.Duration
-		failures map[uint16]uint32
+		name        string
+		probeFailed bool
+		established bool
+		reset       bool
+		removed     bool
+		failures    map[uint16]uint32
 	}{
-		{name: "closed_after_min_age", state: tcpStateSynSent, counts: nstat.Counts{ConnectAttempts: 1}, age: 6 * time.Second, failures: timedOut},
-		{name: "closed_early", state: tcpStateSynSent, counts: nstat.Counts{ConnectAttempts: 1}, age: time.Second},
-		{name: "reset_seen", state: tcpStateSynSent, counts: nstat.Counts{ConnectAttempts: 1}, reset: true, age: 6 * time.Second, failures: map[uint16]uint32{network.TCPFailureErrnoConnRefused: 1}},
-		{name: "removed_after_min_age", state: tcpStateSynSent, counts: nstat.Counts{ConnectAttempts: 1}, removed: true, age: 6 * time.Second, failures: timedOut},
-		{name: "established_then_removed", state: tcpStateEstablished, counts: nstat.Counts{ConnectAttempts: 1, ConnectSuccesses: 1}, removed: true, age: 6 * time.Second},
+		{name: "probe_failed_then_closed", probeFailed: true, failures: timedOut},
+		{name: "probe_failed_then_removed", probeFailed: true, removed: true, failures: timedOut},
+		{name: "probe_failed_then_established_then_removed", probeFailed: true, established: true, removed: true},
+		{name: "probe_failed_then_reset", probeFailed: true, reset: true, failures: map[uint16]uint32{network.TCPFailureErrnoConnRefused: 1}},
+		{name: "no_probe_failure_closed_late"},
+		{name: "no_probe_failure_removed_late", removed: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
@@ -577,21 +577,45 @@ func TestNStatTracerInfersConnectTimeout(t *testing.T) {
 			var closed *network.ConnectionStats
 			tracer.closeCallback = func(conn *network.ConnectionStats) { closed = conn }
 
-			counts := tc.counts
+			counts := nstat.Counts{ConnectAttempts: 1}
 			tracer.processEvent(nstat.Event{
 				Kind:      nstat.EventDescription,
 				SourceRef: 71,
 				Provider:  nstat.ProviderTCPKernel,
-				Flow:      testNStatTCPFlow(7171, tc.state),
+				Flow:      testNStatTCPFlow(7171, tcpStateSynSent),
 				Counts:    &counts,
 			})
 			conn := tracer.sources[71].conn
+
+			now = now.Add(5 * time.Second)
+			if tc.probeFailed {
+				flow := testNStatTCPFlow(7171, tcpStateSynSent)
+				flow.ConnProbeFailed = true
+				tracer.processEvent(nstat.Event{
+					Kind:      nstat.EventDescription,
+					SourceRef: 71,
+					Provider:  nstat.ProviderTCPKernel,
+					Flow:      flow,
+				})
+				require.True(t, tracer.sources[71].connProbeFailed)
+			}
+			if tc.established {
+				counts = nstat.Counts{ConnectAttempts: 1, ConnectSuccesses: 1}
+				tracer.processEvent(nstat.Event{
+					Kind:      nstat.EventDescription,
+					SourceRef: 71,
+					Provider:  nstat.ProviderTCPKernel,
+					Flow:      testNStatTCPFlow(7171, tcpStateEstablished),
+					Counts:    &counts,
+				})
+				require.True(t, tracer.sources[71].connProbeFailed, "the latched flag survives the kernel clearing it")
+			}
 			if tc.reset {
 				packet := &layers.TCP{Seq: 20, ACK: true, RST: true}
 				require.True(t, tracer.enrichTCPPacket(conn.ConnectionTuple, false, false, packet, newDarwinPacketAnalyzer(8)).matched)
 			}
 
-			now = now.Add(tc.age)
+			now = now.Add(25 * time.Second)
 			if tc.removed {
 				tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 71})
 				require.NotNil(t, closed)
@@ -607,7 +631,8 @@ func TestNStatTracerInfersConnectTimeout(t *testing.T) {
 			}
 
 			require.True(t, conn.IsClosed)
-			require.Equal(t, tc.age, conn.Duration)
+			require.Equal(t, uint16(1), conn.Monotonic.TCPClosed)
+			require.Equal(t, 30*time.Second, conn.Duration)
 			if tc.failures == nil {
 				require.Empty(t, conn.TCPFailures)
 			} else {
@@ -615,6 +640,147 @@ func TestNStatTracerInfersConnectTimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNStatTracerTeardownDoesNotInferTCPClose(t *testing.T) {
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	now := time.Unix(320, 0)
+	tracer.now = func() time.Time { return now }
+	var closed []*network.ConnectionStats
+	tracer.closeCallback = func(conn *network.ConnectionStats) {
+		closed = append(closed, conn)
+	}
+
+	for sourceRef, probeFailed := range map[uint64]bool{72: true, 73: false} {
+		flow := testNStatTCPFlow(uint32(sourceRef), tcpStateSynSent)
+		flow.Local.Port = 50000 + uint16(sourceRef)
+		flow.ConnProbeFailed = probeFailed
+		tracer.processEvent(nstat.Event{
+			Kind:      nstat.EventDescription,
+			SourceRef: sourceRef,
+			Provider:  nstat.ProviderTCPKernel,
+			Flow:      flow,
+			Counts:    &nstat.Counts{ConnectAttempts: 1},
+		})
+	}
+	require.True(t, tracer.sources[72].connProbeFailed)
+
+	now = now.Add(6 * time.Second)
+	tracer.handleRuntimeFailure(errors.New("nstat control closed"))
+
+	require.Len(t, closed, 2)
+	for _, conn := range closed {
+		require.True(t, conn.IsClosed)
+		require.Equal(t, 6*time.Second, conn.Duration)
+		require.Zero(t, conn.Monotonic.TCPClosed)
+		require.Empty(t, conn.TCPFailures)
+	}
+	require.Empty(t, tracer.sources)
+}
+
+func TestNStatTracerRefreshesPendingConnectDescriptions(t *testing.T) {
+	control := newFakeNStatControl()
+	tracer := newNStatTracerWithControl(testNStatConfig(), control)
+	now := time.Unix(340, 0)
+	tracer.now = func() time.Time { return now }
+	flow := func(sourceRef uint64, state uint32) *nstat.Flow {
+		flow := testNStatTCPFlow(uint32(sourceRef), state)
+		flow.Local.Port = 50000 + uint16(sourceRef)
+		return flow
+	}
+
+	const (
+		pending       = 81
+		established   = 82
+		reset         = 83
+		closedState   = 84
+		probeFailed   = 85
+		unknownLayout = 86
+	)
+	start := now
+	unknown := nstatTracerTelemetry.connStatusUnknown.WithValues()
+	missed := nstatTracerTelemetry.connProbeMissed.WithValues()
+	unknownBefore, missedBefore := unknown.Get(), missed.Get()
+	for _, sourceRef := range []uint64{pending, established, reset, closedState, probeFailed, unknownLayout} {
+		described := flow(sourceRef, tcpStateSynSent)
+		described.ConnStatusKnown = sourceRef != unknownLayout
+		tracer.processEvent(nstat.Event{
+			Kind:      nstat.EventDescription,
+			SourceRef: sourceRef,
+			Provider:  nstat.ProviderTCPKernel,
+			Flow:      described,
+			Counts:    &nstat.Counts{ConnectAttempts: 1},
+		})
+	}
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventUpdate,
+		SourceRef: established,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      flow(established, tcpStateEstablished),
+		Counts:    &nstat.Counts{ConnectAttempts: 1, ConnectSuccesses: 1},
+	})
+	packet := &layers.TCP{Seq: 20, ACK: true, RST: true}
+	tuple := tracer.sources[reset].conn.ConnectionTuple
+	require.True(t, tracer.enrichTCPPacket(tuple, false, false, packet, newDarwinPacketAnalyzer(8)).matched)
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventUpdate,
+		SourceRef: closedState,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      flow(closedState, tcpStateClosed),
+	})
+	flagged := flow(probeFailed, tcpStateSynSent)
+	flagged.ConnProbeFailed = true
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: probeFailed,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      flagged,
+	})
+	redescribed := flow(unknownLayout, tcpStateSynSent)
+	redescribed.ConnStatusKnown = false
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: unknownLayout,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      redescribed,
+	})
+	require.Equal(t, unknownBefore+1, unknown.Get())
+
+	tracer.queuePendingDescriptions(now.Add(nstatConnectProbeRefresh - time.Millisecond))
+	tracer.pumpDescriptionRequests(now.Add(nstatConnectProbeRefresh - time.Millisecond))
+	require.Empty(t, control.descriptions())
+
+	now = now.Add(nstatConnectProbeRefresh)
+	tracer.queuePendingDescriptions(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, []uint64{pending}, control.descriptions())
+
+	tracer.queuePendingDescriptions(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, []uint64{pending}, control.descriptions())
+
+	now = now.Add(nstatConnectProbeRefresh)
+	tracer.queuePendingDescriptions(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, []uint64{pending, pending}, control.descriptions())
+
+	now = start.Add(nstatConnectProbeWindow - time.Millisecond)
+	tracer.queuePendingDescriptions(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, []uint64{pending, pending, pending}, control.descriptions())
+
+	now = now.Add(nstatConnectProbeRefresh)
+	tracer.queuePendingDescriptions(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, []uint64{pending, pending, pending}, control.descriptions())
+	require.True(t, tracer.sources[pending].connProbeExpired)
+	require.False(t, tracer.sources[unknownLayout].connProbeExpired)
+	require.Equal(t, missedBefore+1, missed.Get())
+
+	now = now.Add(nstatConnectProbeRefresh)
+	tracer.queuePendingDescriptions(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, missedBefore+1, missed.Get())
 }
 
 func TestNStatTracerFixesTCPErrorsIncompleteAtCreation(t *testing.T) {
@@ -823,7 +989,7 @@ func TestNStatTracerWaitsForCompleteTCPTuple(t *testing.T) {
 	var buffer network.ConnectionBuffer
 	require.NoError(t, tracer.GetConnections(&buffer, nil))
 	require.Empty(t, buffer.Connections())
-	tracer.queueUnresolvedDescriptions(now)
+	tracer.queuePendingDescriptions(now)
 	tracer.pumpDescriptionRequests(now)
 	require.Equal(t, []uint64{14}, control.descriptions())
 
@@ -1178,12 +1344,12 @@ func TestNStatTracerBoundsAndRetriesDescriptionRequests(t *testing.T) {
 
 	tracer.pumpDescriptionRequests(now)
 	require.Len(t, control.descriptions(), nstatDescriptionBatch)
-	tracer.queueUnresolvedDescriptions(now)
+	tracer.queuePendingDescriptions(now)
 	tracer.pumpDescriptionRequests(now)
 	require.Len(t, control.descriptions(), nstatDescriptionBatch+2)
 
 	now = now.Add(nstatDescriptionRetry)
-	tracer.queueUnresolvedDescriptions(now)
+	tracer.queuePendingDescriptions(now)
 	tracer.pumpDescriptionRequests(now)
 	require.Len(t, control.descriptions(), 2*nstatDescriptionBatch+2)
 }
@@ -1440,10 +1606,11 @@ func testNStatConfig() *config.Config {
 
 func testNStatTCPFlow(pid, state uint32) *nstat.Flow {
 	return &nstat.Flow{
-		UniquePID:      uint64(pid) << 32,
-		PID:            pid,
-		InterfaceIndex: 14,
-		TCPState:       state,
+		UniquePID:       uint64(pid) << 32,
+		PID:             pid,
+		InterfaceIndex:  14,
+		TCPState:        state,
+		ConnStatusKnown: true,
 		Local: nstat.Endpoint{
 			Address: netip.MustParseAddr("192.0.2.10"),
 			Port:    50000,

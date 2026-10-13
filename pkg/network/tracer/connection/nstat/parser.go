@@ -77,6 +77,15 @@ const (
 	tcpLocal          = 124
 	tcpRemote         = 152
 	tcpMinimumSize    = 260
+	// connstatus follows the uuids. macOS 14 inserted persona_id and uid
+	// before it, so the descriptor length selects the offset. Fields appended
+	// after fallback_mode keep the macOS 14 offset.
+	tcpDescriptorSizeV12  = 336
+	tcpConnStatusV12      = 324
+	tcpDescriptorSizeV14  = 344
+	tcpConnStatusV14      = 332
+	tcpConnProbeFailed    = 0x8
+	tcpConnStatusFieldLen = 4
 
 	udpLocal          = 56
 	udpRemote         = 84
@@ -145,8 +154,15 @@ type Flow struct {
 	EffectivePID       uint32
 	InterfaceIndex     uint32
 	TCPState           uint32
-	Local              Endpoint
-	Remote             Endpoint
+	// ConnStatusKnown reports that the descriptor layout carries connstatus,
+	// so ConnProbeFailed is meaningful.
+	ConnStatusKnown bool
+	// ConnProbeFailed reports that SYN retransmissions reached the kernel's
+	// connectivity probe limit before the connection established. The kernel
+	// recomputes it from live state, so it clears if the connect later succeeds.
+	ConnProbeFailed bool
+	Local           Endpoint
+	Remote          Endpoint
 }
 
 // Event is one decoded message from an NStat datagram.
@@ -343,6 +359,11 @@ func parseFlow(data []byte, offset int, provider uint32) (Flow, error) {
 	}
 	if IsTCPProvider(provider) {
 		flow.TCPState = binary.LittleEndian.Uint32(description[tcpState : tcpState+4])
+		if offset, ok := tcpConnStatusOffset(len(description)); ok {
+			status := binary.LittleEndian.Uint32(description[offset : offset+tcpConnStatusFieldLen])
+			flow.ConnStatusKnown = true
+			flow.ConnProbeFailed = status&tcpConnProbeFailed != 0
+		}
 	}
 	if flow.PID >= 1<<30 ||
 		flow.InterfaceIndex >= 1<<24 ||
@@ -350,6 +371,17 @@ func parseFlow(data []byte, offset int, provider uint32) (Flow, error) {
 		return Flow{}, ErrABIMismatch
 	}
 	return flow, nil
+}
+
+func tcpConnStatusOffset(length int) (int, bool) {
+	switch {
+	case length == tcpDescriptorSizeV12:
+		return tcpConnStatusV12, true
+	case length >= tcpDescriptorSizeV14:
+		return tcpConnStatusV14, true
+	default:
+		return 0, false
+	}
 }
 
 func parseEndpoint(data []byte, offset int) (Endpoint, error) {
