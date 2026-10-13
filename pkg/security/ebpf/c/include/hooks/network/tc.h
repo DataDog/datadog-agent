@@ -96,7 +96,14 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
 
     struct packet_t *pkt = parse_packet(skb, EGRESS);
     if (!pkt) {
-        return TC_ACT_UNSPEC;
+        // drop actions must not fail open on packets the parser doesn't handle (unknown L4 protocols,
+        // IPv6 extension headers, ...). Drop filters match on the raw packet data, so fall back on the
+        // partially parsed packet: the pid is resolved from the socket cookie or the current task.
+        pkt = get_packet();
+        if (!pkt) {
+            return TC_ACT_UNSPEC;
+        }
+        pkt->network_direction = EGRESS;
     }
     resolve_pid(skb, pkt);
 

@@ -39,7 +39,6 @@ ALL_TAGS = set([
     "ec2",
     "fargateprocess",
     "goexperiment.systemcrypto",  # used for FIPS mode
-    "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
@@ -52,7 +51,6 @@ ALL_TAGS = set([
     "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",
-    "orchestrator",
     "osusergo",
     "otlp",
     "pcap",  # used by system-probe to compile packet filters using google/gopacket/pcap, which requires cgo to link libpcap
@@ -105,7 +103,6 @@ AGENT_TAGS = set([
     "docker",
     "ec2",
     "fargateprocess",
-    "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
@@ -114,7 +111,6 @@ AGENT_TAGS = set([
     "netcgo",
     "nvml",
     "oracle",
-    "orchestrator",
     "otlp",
     "podman",
     "python",
@@ -138,12 +134,10 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "docker",
         "ec2",
         "fargateprocess",
-        "jetson",
         "kubeapiserver",
         "kubelet",
         "nvml",
         "oracle",
-        "orchestrator",
         "podman",
         "systemd",
         "trivy",
@@ -162,7 +156,6 @@ CLUSTER_AGENT_TAGS = set([
     "clusterchecks",
     "datadog.no_waf",
     "kubeapiserver",
-    "orchestrator",
     "zlib",
     "ec2",
     "cel",
@@ -178,7 +171,7 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
 DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib"])
+IOT_AGENT_TAGS = set(["systemd", "zlib"])
 
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = set(["ec2"])
@@ -281,7 +274,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "bpf", "nvml", "pcap", "podman", "trivy", "crio"])
+LINUX_ONLY_TAGS = set(["netcgo", "systemd", "bpf", "nvml", "pcap", "podman", "trivy", "crio"])
 
 # List of tags to always remove when building on AIX
 AIX_EXCLUDED_TAGS = set([
@@ -289,24 +282,14 @@ AIX_EXCLUDED_TAGS = set([
     "clusterchecks",
     "containerd",
     "cri",
-    "crio",
     "docker",
     "fargateprocess",
-    "jetson",
     "jmx",
     "kubeapiserver",
     "kubelet",
-    "bpf",
-    "netcgo",
     "npm",
-    "nvml",
-    "orchestrator",
-    "pcap",
-    "podman",
     "sharedlibrarycheck",
-    "systemd",
     "systemprobechecks",
-    "trivy",
 ])
 
 # List of tags to always remove when building on Windows

@@ -731,3 +731,25 @@ func (s *configSuite) assertCollectorConfigPath(experiment bool) {
 			"the running collector should read %s", want)
 	}, 2*time.Minute, 5*time.Second)
 }
+
+// TestInstallerSocketIsOwnerOnly pins pkg/fleet/daemon/local_api_unix.go on Linux: the installer
+// daemon runs with dd-agent as its effective user (cmd/installer/subcommands withDatadogAgent), so
+// the socket it creates is owned by dd-agent, and its 0700 mode keeps every other account off the
+// local API, which carries no per-caller authorization there.
+func (s *configSuite) TestInstallerSocketIsOwnerOnly() {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		s.T().Skip("the unix socket ownership model only applies to Linux here; Windows uses a named pipe")
+	}
+
+	s.Agent.MustInstall(agent.WithRemoteUpdates())
+	defer s.Agent.MustUninstall()
+
+	const socketPath = "/opt/datadog-packages/run/installer.sock"
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		perms, err := s.Host.GetFilePermissions(socketPath)
+		require.NoError(c, err, "the installer daemon should have created its socket")
+		assert.Equal(c, "dd-agent", perms.Owner, "the installer socket should be owned by the daemon's effective user")
+		assert.Equal(c, "dd-agent", perms.Group, "the installer socket should belong to the daemon's effective group")
+		assert.Equal(c, "700", perms.Mode, "the installer socket must be owner-only")
+	}, 2*time.Minute, 5*time.Second)
+}

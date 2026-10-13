@@ -60,7 +60,7 @@ You can give more info about your build context using the `-b`, `-f` and `-p` fl
 dda inv print-default-build-tags -b otel-agent -p windows
 > otlp,zlib
 dda inv print-default-build-tags -f fips
-> bundle_installer,datadog.no_waf,ec2,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,kvstore,ncm,oracle,orchestrator,otlp,python,requirefips,trivy_no_javadb,zlib
+> bundle_installer,datadog.no_waf,ec2,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,kvstore,ncm,oracle,otlp,python,requirefips,trivy_no_javadb,zlib
 ```
 Run `dda inv print-default-build-tags --help` for more details.
 ///
