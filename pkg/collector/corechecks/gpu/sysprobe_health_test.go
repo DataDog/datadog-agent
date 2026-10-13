@@ -22,13 +22,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpuenvironment"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
-	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 )
 
 func TestSysprobeDataTracker(t *testing.T) {
@@ -104,34 +101,21 @@ func TestSyncDRACDIHealthIssue(t *testing.T) {
 	specDir := t.TempDir()
 	containers.CDISpecDirs = []string{specDir}
 
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	healthStore := healthplatformmock.New(t)
-	check := &Check{wmeta: wmetaMock}
+	check := &Check{}
 	check.SetIssueReporter(healthStore)
 	start := time.Now()
 
 	// No unresolved claims: a directory without specs is not an issue.
-	check.syncDRACDIHealthIssue(start.Add(draCDISpecsMissingThreshold))
+	check.syncDRACDIHealthIssue(0, start.Add(draCDISpecsMissingThreshold))
 	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
-
-	for _, id := range []string{"c1", "c2"} {
-		wmetaMock.Set(&workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
-			Runtime:  workloadmeta.ContainerRuntimeContainerd,
-			State:    workloadmeta.ContainerState{Running: true},
-			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{{
-				Name:       string(gpuutil.GpuNvidiaDRA),
-				CdiDevices: []string{"k8s.gpu.nvidia.com/claim=" + id + "-gpu-0"},
-			}},
-		})
-	}
 
 	// Below the threshold nothing is reported.
-	check.syncDRACDIHealthIssue(start)
-	check.syncDRACDIHealthIssue(start.Add(draCDISpecsMissingThreshold - time.Second))
+	check.syncDRACDIHealthIssue(2, start)
+	check.syncDRACDIHealthIssue(2, start.Add(draCDISpecsMissingThreshold-time.Second))
 	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
 
-	check.syncDRACDIHealthIssue(start.Add(draCDISpecsMissingThreshold))
+	check.syncDRACDIHealthIssue(2, start.Add(draCDISpecsMissingThreshold))
 	issue := healthStore.GetIssue(gpuenvironment.DRACDIIssueID)
 	require.NotNil(t, issue)
 	assert.Equal(t, gpuenvironment.DRACDIIssueName, issue.IssueName)
@@ -141,7 +125,7 @@ func TestSyncDRACDIHealthIssue(t *testing.T) {
 
 	// NVIDIA DRA claim specs appearing resolve the issue, even with unresolved claims.
 	require.NoError(t, os.WriteFile(filepath.Join(specDir, containers.NvidiaDRAClaimSpecFileName("other")), []byte("{}"), 0o644))
-	check.syncDRACDIHealthIssue(start.Add(2 * draCDISpecsMissingThreshold))
+	check.syncDRACDIHealthIssue(2, start.Add(2*draCDISpecsMissingThreshold))
 	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
 }
 
@@ -150,6 +134,6 @@ func TestHealthIssueSyncWithNilReporter(t *testing.T) {
 
 	require.NotPanics(t, func() {
 		check.syncSysprobeDataHealthIssue(time.Now())
-		check.syncDRACDIHealthIssue(time.Now())
+		check.syncDRACDIHealthIssue(1, time.Now())
 	})
 }

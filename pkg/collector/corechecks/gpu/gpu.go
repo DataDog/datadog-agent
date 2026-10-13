@@ -449,8 +449,7 @@ func (c *Check) Run() error {
 
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
-	gpuToContainersMap := c.getGPUToContainersMap()
-	c.syncDRACDIHealthIssue(currentExecutionTime)
+	gpuToContainersMap := c.getGPUToContainersMap(currentExecutionTime)
 
 	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
@@ -520,7 +519,7 @@ func gpuHealthIssueID(reason string) string {
 	return gpuenvironment.IssueID + ":" + reason
 }
 
-func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
+func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.Container {
 	allPhysicalDevices, err := c.deviceCache.AllPhysicalDevices()
 	if err != nil {
 		if logLimitCheck.ShouldLog() {
@@ -529,11 +528,16 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		return nil
 	}
 	gpuToContainers := make(map[string][]*workloadmeta.Container, len(allPhysicalDevices))
+	unresolvedDRAContainers := 0
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		if containers.IsDatadogAgentContainer(c.wmeta, container) {
 			log.Debugf("Container %s is a Datadog container, skipping for device assignment", container.Name)
 			continue
+		}
+
+		if containers.HasUnresolvedDRAGPUClaim(container) {
+			unresolvedDRAContainers++
 		}
 
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
@@ -549,32 +553,22 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		}
 	}
 
+	c.syncDRACDIHealthIssue(unresolvedDRAContainers, now)
+
 	return gpuToContainers
 }
 
-// countUnresolvedDRAContainers returns the number of running non-Datadog
-// containers holding NVIDIA DRA GPU claims that were not resolved to devices.
-func (c *Check) countUnresolvedDRAContainers() int {
-	count := 0
-	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
-		if containers.HasUnresolvedDRAGPUClaim(container) && !containers.IsDatadogAgentContainer(c.wmeta, container) {
-			count++
-		}
-	}
-	return count
-}
-
-// syncDRACDIHealthIssue reports an issue when containers hold NVIDIA DRA GPU
-// claims that could not be resolved and no CDI spec directory contains NVIDIA
-// DRA claim specs, for at least draCDISpecsMissingThreshold. The threshold
-// avoids reporting the window in which the last claim spec has been removed
-// but its container is still listed as running.
-func (c *Check) syncDRACDIHealthIssue(now time.Time) {
+// syncDRACDIHealthIssue reports an issue when unresolvedDRAContainers running
+// containers hold NVIDIA DRA GPU claims that could not be resolved and no CDI
+// spec directory contains readable NVIDIA DRA claim specs, for at least
+// draCDISpecsMissingThreshold. The threshold avoids reporting the window in
+// which the last claim spec has been removed but its container is still listed
+// as running.
+func (c *Check) syncDRACDIHealthIssue(unresolvedDRAContainers int, now time.Time) {
 	if c.issueReporter == nil {
 		return
 	}
 
-	unresolvedDRAContainers := c.countUnresolvedDRAContainers()
 	var specsErr error
 	if unresolvedDRAContainers > 0 {
 		specsErr = containers.CheckNvidiaDRACDISpecs()
