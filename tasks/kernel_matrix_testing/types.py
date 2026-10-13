@@ -36,6 +36,7 @@ class PlatformInfo(TypedDict, total=False):
     os_id: str  # Short ID for the OS (e.g., "centos" for CentOS)  # noqa: F841
     image: Required[str]  # Name of the image file
     alt_version_names: list[str]  # Alternative version names (e.g., "jammy" for Ubuntu 22)  # noqa: F841
+    test_flags: dict[str, bool]  # Test flags exported to the test binaries by the KMT test-runner
 
 
 class Platforms(TypedDict):  # noqa: F841

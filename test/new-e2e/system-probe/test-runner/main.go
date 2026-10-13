@@ -26,6 +26,8 @@ import (
 
 	"github.com/fatih/color"
 	"golang.org/x/sys/unix"
+
+	systemprobeconfig "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/config"
 )
 
 const matchAllPackages = "*"
@@ -208,12 +210,18 @@ func createDir(d string) error {
 	return nil
 }
 
-func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
+func collectEnvVars(testConfig *testConfig, bpfDir string) ([]string, error) {
 	var env []string
 	env = append(env, baseEnv...)
 	env = append(env,
 		"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
 	)
+
+	flagEnv, err := kmtTestFlagEnvVars()
+	if err != nil {
+		return nil, err
+	}
+	env = append(env, flagEnv...)
 
 	if testConfig.extraEnv != "" {
 		env = append(env, strings.Split(testConfig.extraEnv, " ")...)
@@ -230,7 +238,36 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
 		}
 	}
 
-	return env
+	return env, nil
+}
+
+// kmtTestFlagEnvVars returns the environment variables communicating the
+// test flags of the KMT platform this runner is executing on, as defined in
+// test/new-e2e/system-probe/config/platforms.json, to the test binaries.
+func kmtTestFlagEnvVars() ([]string, error) {
+	arch, release, err := getArchAndRelease()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get arch: %w", err)
+	}
+	if arch == "aarch64" {
+		arch = "arm64"
+	}
+
+	flags, err := systemprobeconfig.TestFlagEnvVars(arch, release)
+	if err != nil {
+		return nil, err
+	}
+
+	var env []string
+	for name, value := range flags {
+		env = append(env, fmt.Sprintf("%s=%s", name, value))
+	}
+	if len(env) == 0 {
+		fmt.Printf("no KMT platform matches kernel %s on %s, no test flags set\n", release, arch)
+	} else {
+		fmt.Printf("KMT platform test flags for kernel %s on %s: %s\n", release, arch, strings.Join(env, " "))
+	}
+	return env, nil
 }
 
 func testPass(testConfig *testConfig, props map[string]string) error {
@@ -266,7 +303,10 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	}
 	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
 
-	envVars := collectEnvVars(testConfig, bpfDir)
+	envVars, err := collectEnvVars(testConfig, bpfDir)
+	if err != nil {
+		return fmt.Errorf("collect env vars: %w", err)
+	}
 
 	var testContainer *testContainer
 	if testConfig.InContainerImage != "" {
