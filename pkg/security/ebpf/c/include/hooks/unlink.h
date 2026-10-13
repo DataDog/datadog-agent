@@ -77,7 +77,7 @@ int hook_vfs_unlink(ctx_t *ctx) {
 
     // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
-    set_file_inode(dentry, &syscall->unlink.file, invalidate_type);
+    set_file_inode(dentry, &syscall->unlink.file, invalidate_type, PATH_ID_BEFORE_INVALIDATION);
     fill_file(dentry, &syscall->unlink.file);
 
     if (invalidate_type == PATH_ID_INVALIDATE_TYPE_GLOBAL) {

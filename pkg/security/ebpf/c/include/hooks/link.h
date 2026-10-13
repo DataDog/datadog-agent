@@ -68,7 +68,7 @@ int hook_complete_walk(ctx_t *ctx) {
     syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.src_path);
 
     // force a new path id to force path resolution
-    set_file_inode(src_dentry, &syscall->link.src_file, PATH_ID_INVALIDATE_TYPE_LOCAL);
+    set_file_inode(src_dentry, &syscall->link.src_file, PATH_ID_INVALIDATE_TYPE_LOCAL, PATH_ID_BEFORE_INVALIDATION);
     fill_file(src_dentry, &syscall->link.src_file);
 
     syscall->resolver.dentry = src_dentry;
