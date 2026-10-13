@@ -1,0 +1,1013 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
+
+// Package activitytree holds activitytree related files
+package activitytree
+
+import (
+	"regexp"
+	"sort"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
+)
+
+// PathPatternConfig controls sibling pattern mining on FileNode maps.
+// Mining is opt-in per ActivityTree via Stats.SetPathPatternConfig; v2
+// security profiles enable it, v1 profiles and activity dumps leave it
+// off.
+type PathPatternConfig struct {
+	Enabled bool
+	// MaxChildren is the child count above which an insert runs a merge
+	// pass with MinGroupSizeOnInsert.
+	MaxChildren          int
+	MinGroupSizeOnInsert int
+	// MinGroupSize is the threshold of the FinalizePatterns pass run when
+	// a profile is saved.
+	MinGroupSize int
+	// MinDateGroupSize lowers the group size needed when the template
+	// replaces a date: a dated name is already strong evidence of
+	// rotation. Ignored when not below the pass threshold.
+	MinDateGroupSize int
+}
+
+// DefaultPathPatternConfig returns the enabled configuration used by v2
+// security profiles.
+func DefaultPathPatternConfig() PathPatternConfig {
+	return PathPatternConfig{
+		Enabled:              true,
+		MaxChildren:          15,
+		MinGroupSizeOnInsert: 5,
+		MinGroupSize:         3,
+		MinDateGroupSize:     2,
+	}
+}
+
+// tokenClass is the character class of one token of a file name.
+// classLiteral tokens (separators, pieces with unusual characters) never
+// generalize; every other class has a typed placeholder.
+type tokenClass uint8
+
+const (
+	classLiteral tokenClass = iota
+	classNum
+	classHex
+	classUUID
+	classAlpha
+	classAlnum
+	classDate
+	// classContainerID and classAny are only written by the PathsReducer;
+	// the tokenizer never produces them.
+	classContainerID
+	classAny
+)
+
+// minHexLen is the shortest piece classified as a hex identifier, so
+// short words made of a-f letters ("cafe", "bad") stay alpha.
+const minHexLen = 8
+
+type classInfo struct {
+	code        string
+	placeholder string
+	regex       string
+	// width ranks how much a placeholder accepts; lower is narrower.
+	width int
+}
+
+var classes = [...]classInfo{
+	classNum:   {code: "N", placeholder: "<num>", regex: `[0-9]+`, width: 1},
+	classUUID:  {code: "U", placeholder: "<uuid>", regex: `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`, width: 1},
+	classHex:   {code: "H", placeholder: "<hex>", regex: `[0-9a-fA-F]{8,}`, width: 2},
+	classAlpha: {code: "A", placeholder: "<alpha>", regex: `[A-Za-z]+`, width: 3},
+	classAlnum: {code: "M", placeholder: "<alnum>", regex: `[0-9A-Za-z]*(?:[0-9][A-Za-z]|[A-Za-z][0-9])[0-9A-Za-z]*`, width: 4},
+	classDate: {code: "D", placeholder: "<date>", regex: `(?:19|20)[0-9]{2}[-_.]?(?:0[1-9]|1[0-2])[-_.]?(?:0[1-9]|[12][0-9]|3[01])` +
+		`(?:[T_-](?:[01][0-9]|2[0-3])[-_.:]?[0-5][0-9][-_.:]?[0-5][0-9]Z?)?`, width: 1},
+	classContainerID: {code: "C", placeholder: "<container_id>", regex: `(?:[0-9a-fA-F]{64}|[0-9a-fA-F]{32}-[0-9]+|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){4})`, width: 1},
+	// <any> must always sit between literals, or it would match every sibling.
+	classAny: {code: "X", placeholder: "<any>", regex: `[^/]*`, width: 5},
+}
+
+var placeholderClasses = map[string]tokenClass{
+	classes[classNum].placeholder:         classNum,
+	classes[classUUID].placeholder:        classUUID,
+	classes[classHex].placeholder:         classHex,
+	classes[classAlpha].placeholder:       classAlpha,
+	classes[classAlnum].placeholder:       classAlnum,
+	classes[classDate].placeholder:        classDate,
+	classes[classContainerID].placeholder: classContainerID,
+	classes[classAny].placeholder:         classAny,
+}
+
+type nameToken struct {
+	text  string
+	class tokenClass
+}
+
+// tokenizeName splits name into separator, UUID, date and piece tokens.
+func tokenizeName(name string) []nameToken {
+	var out []nameToken
+	i := 0
+	for i < len(name) {
+		if isSeparator(name[i]) {
+			out = append(out, nameToken{text: name[i : i+1], class: classLiteral})
+			i++
+			continue
+		}
+		if isUUIDAt(name, i) {
+			out = append(out, nameToken{text: name[i : i+36], class: classUUID})
+			i += 36
+			continue
+		}
+		if n := dateLenAt(name, i); n > 0 {
+			out = append(out, nameToken{text: name[i : i+n], class: classDate})
+			i += n
+			continue
+		}
+		j := i
+		for j < len(name) && !isSeparator(name[j]) {
+			j++
+		}
+		out = appendPieceTokens(out, name[i:j])
+		i = j
+	}
+	return out
+}
+
+func appendPieceTokens(out []nameToken, piece string) []nameToken {
+	hasAlpha, hasDigit, allHex := false, false, true
+	for i := 0; i < len(piece); i++ {
+		c := piece[i]
+		switch {
+		case isDigit(c):
+			hasDigit = true
+		case isAlpha(c):
+			hasAlpha = true
+			if !isHexLetter(c) {
+				allHex = false
+			}
+		default:
+			return append(out, nameToken{text: piece, class: classLiteral})
+		}
+	}
+	switch {
+	case !hasAlpha:
+		return append(out, nameToken{text: piece, class: classNum})
+	case allHex && len(piece) >= minHexLen:
+		return append(out, nameToken{text: piece, class: classHex})
+	case !hasDigit:
+		return append(out, nameToken{text: piece, class: classAlpha})
+	}
+	return append(out, nameToken{text: piece, class: classAlnum})
+}
+
+// leadingLetters returns the run of letters at the start of s.
+func leadingLetters(s string) string {
+	i := 0
+	for i < len(s) && isAlpha(s[i]) {
+		i++
+	}
+	return s[:i]
+}
+
+// trailingLetters returns the run of letters at the end of s.
+func trailingLetters(s string) string {
+	i := len(s)
+	for i > 0 && isAlpha(s[i-1]) {
+		i--
+	}
+	return s[i:]
+}
+
+func allDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if !isDigit(s[i]) {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// isUUIDAt reports whether a canonical 8-4-4-4-12 UUID starts at name[i]
+// and ends at a separator or the end of name.
+func isUUIDAt(name string, i int) bool {
+	const uuidLen = 36
+	if len(name)-i < uuidLen {
+		return false
+	}
+	if end := i + uuidLen; end < len(name) && !isSeparator(name[end]) {
+		return false
+	}
+	for k := 0; k < uuidLen; k++ {
+		c := name[i+k]
+		switch k {
+		case 8, 13, 18, 23:
+			if c != '-' {
+				return false
+			}
+		default:
+			if !isHexChar(c) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// dateLenAt returns the length of the date starting at name[i], with an
+// optional time of day, or 0. Accepted forms: YYYY-MM-DD (or with _ or .),
+// YYYYMMDD, then optionally THHMMSS, -HH-MM-SS, _HH:MM:SS (Z allowed).
+// The year must be 19xx or 20xx and the month and day valid, so plain
+// numbers stay <num>. The date must end at a separator or the end of name.
+func dateLenAt(name string, i int) int {
+	n := calendarDateLen(name[i:])
+	if n == 0 {
+		return 0
+	}
+	if t := timeOfDayLen(name[i+n:]); t > 0 && isTokenEnd(name, i+n+t) {
+		return n + t
+	}
+	if isTokenEnd(name, i+n) {
+		return n
+	}
+	return 0
+}
+
+func calendarDateLen(s string) int {
+	if len(s) >= 10 && isSeparator(s[4]) && s[7] == s[4] &&
+		isYear(s[:4]) && isTwoDigitsIn(s[5:7], 1, 12) && isTwoDigitsIn(s[8:10], 1, 31) {
+		return 10
+	}
+	if len(s) >= 8 && isYear(s[:4]) && isTwoDigitsIn(s[4:6], 1, 12) && isTwoDigitsIn(s[6:8], 1, 31) {
+		return 8
+	}
+	return 0
+}
+
+func timeOfDayLen(s string) int {
+	if len(s) < 7 || (s[0] != 'T' && s[0] != '-' && s[0] != '_') || !isTwoDigitsIn(s[1:3], 0, 23) {
+		return 0
+	}
+	j := 3
+	var sep byte
+	if isTimeSeparator(s[j]) {
+		sep = s[j]
+		j++
+	}
+	if len(s) < j+2 || !isTwoDigitsIn(s[j:j+2], 0, 59) {
+		return 0
+	}
+	j += 2
+	if sep != 0 {
+		if len(s) <= j || s[j] != sep {
+			return 0
+		}
+		j++
+	}
+	if len(s) < j+2 || !isTwoDigitsIn(s[j:j+2], 0, 59) {
+		return 0
+	}
+	j += 2
+	if j < len(s) && s[j] == 'Z' {
+		j++
+	}
+	return j
+}
+
+func isYear(s string) bool {
+	return (s[:2] == "19" || s[:2] == "20") && isDigit(s[2]) && isDigit(s[3])
+}
+
+func isTwoDigitsIn(s string, lo, hi int) bool {
+	if !isDigit(s[0]) || !isDigit(s[1]) {
+		return false
+	}
+	v := int(s[0]-'0')*10 + int(s[1]-'0')
+	return lo <= v && v <= hi
+}
+
+func isTimeSeparator(c byte) bool {
+	return isSeparator(c) || c == ':'
+}
+
+func isTokenEnd(name string, j int) bool {
+	return j == len(name) || isSeparator(name[j])
+}
+
+func isDigit(c byte) bool {
+	return '0' <= c && c <= '9'
+}
+
+func isAlpha(c byte) bool {
+	return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
+}
+
+func isHexLetter(c byte) bool {
+	return ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+}
+
+func isSeparator(c byte) bool {
+	return c == '-' || c == '.' || c == '_'
+}
+
+// structureSignature returns a canonical skeleton of name: separators
+// kept literally, one class code per token, and unusual pieces quoted
+// with NUL (which cannot appear in a file name) so they never collide.
+// Examples: "sess-42" -> "A-N", "sess42" -> "M", "2024-01-15.log" -> "N-N-N.A".
+func structureSignature(name string) string {
+	var out strings.Builder
+	for _, tok := range tokenizeName(name) {
+		if tok.class != classLiteral {
+			out.WriteString(classes[tok.class].code)
+		} else if len(tok.text) == 1 && isSeparator(tok.text[0]) {
+			out.WriteString(tok.text)
+		} else {
+			out.WriteByte(0)
+			out.WriteString(tok.text)
+			out.WriteByte(0)
+		}
+	}
+	return out.String()
+}
+
+// buildTemplate returns the merged name for a cluster of same-signature
+// siblings, keeping tokens on which all siblings agree and replacing the
+// others with the placeholder of their class. Mixed letter/digit tokens
+// keep the letter prefix and suffix shared by all siblings.
+// Examples: [sess-1, sess-22] -> "sess-<num>", [sess1, sess22] -> "sess<num>".
+func buildTemplate(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	if len(names) == 1 {
+		return names[0]
+	}
+	tokenized := make([][]nameToken, len(names))
+	for i, n := range names {
+		tokenized[i] = tokenizeName(n)
+	}
+	ref := tokenized[0]
+	var out strings.Builder
+	texts := make([]string, len(names))
+	for k, tok := range ref {
+		allSame := true
+		for i, toks := range tokenized {
+			if k >= len(toks) {
+				allSame = false
+				texts[i] = ""
+				continue
+			}
+			texts[i] = toks[k].text
+			if texts[i] != tok.text {
+				allSame = false
+			}
+		}
+		switch {
+		case allSame || tok.class == classLiteral:
+			out.WriteString(tok.text)
+		case tok.class == classAlnum:
+			out.WriteString(alnumTemplate(texts))
+		default:
+			out.WriteString(classes[tok.class].placeholder)
+		}
+	}
+	return out.String()
+}
+
+// alnumTemplate builds the template of one mixed letter/digit position:
+// the letter prefix and suffix shared by all texts are kept, and the rest
+// becomes <num> when it is digits only for every text, <alnum> otherwise.
+// Examples: [sess42, sess7] -> "sess<num>", [a7k2x9, q9w8e7] -> "<alnum>".
+func alnumTemplate(texts []string) string {
+	prefix := leadingLetters(texts[0])
+	suffix := trailingLetters(texts[0])
+	for _, t := range texts[1:] {
+		if leadingLetters(t) != prefix {
+			prefix = ""
+		}
+		if trailingLetters(t) != suffix {
+			suffix = ""
+		}
+	}
+	class := classNum
+	for _, t := range texts {
+		if !allDigits(t[len(prefix) : len(t)-len(suffix)]) {
+			class = classAlnum
+			break
+		}
+	}
+	return prefix + classes[class].placeholder + suffix
+}
+
+// affixKey identifies the letter prefix and suffix of every mixed
+// letter/digit token of name, so that families such as sess1, sess2 are
+// split from unrelated random IDs sharing the same signature.
+func affixKey(name string) string {
+	var key strings.Builder
+	for _, tok := range tokenizeName(name) {
+		if tok.class != classAlnum {
+			continue
+		}
+		key.WriteString(leadingLetters(tok.text))
+		key.WriteByte(0)
+		key.WriteString(trailingLetters(tok.text))
+		key.WriteByte(0)
+	}
+	return key.String()
+}
+
+// hasSharedLetters reports whether an affixKey carries a letter prefix or
+// suffix. Keys of names without mixed tokens are empty and count as shared.
+func hasSharedLetters(key string) bool {
+	return key == "" || strings.Trim(key, "\x00") != ""
+}
+
+// Thresholds of a random-looking mixed token: generated IDs are long and
+// either mix case (5nVjCHLMxA) or alternate letters and digits (4fo3s6f9),
+// unlike real names such as utf8, gb2312, urllib3 or EST5EDT.
+const (
+	minRandomTokenLen  = 6
+	minRandomTokenRuns = 4
+)
+
+// letterDigitRuns counts the alternating letter and digit runs of s.
+func letterDigitRuns(s string) int {
+	runs := 0
+	for i := 0; i < len(s); i++ {
+		if i == 0 || isDigit(s[i]) != isDigit(s[i-1]) {
+			runs++
+		}
+	}
+	return runs
+}
+
+func hasMixedCase(s string) bool {
+	lower, upper := false, false
+	for i := 0; i < len(s); i++ {
+		lower = lower || ('a' <= s[i] && s[i] <= 'z')
+		upper = upper || ('A' <= s[i] && s[i] <= 'Z')
+	}
+	return lower && upper
+}
+
+// looksRandom reports whether name holds a mixed letter/digit token that
+// looks generated rather than chosen.
+func looksRandom(name string) bool {
+	for _, tok := range tokenizeName(name) {
+		if tok.class != classAlnum || len(tok.text) < minRandomTokenLen {
+			continue
+		}
+		if hasMixedCase(tok.text) || letterDigitRuns(tok.text) >= minRandomTokenRuns {
+			return true
+		}
+	}
+	return false
+}
+
+// mostlyRandom reports whether more than half of names look random.
+func mostlyRandom(names []string) bool {
+	random := 0
+	for _, n := range names {
+		if looksRandom(n) {
+			random++
+		}
+	}
+	return 2*random > len(names)
+}
+
+// clusterMembers splits a signature bucket into the member sets to
+// template: one per affix family sharing letters with at least
+// minGroupSize members, then the remaining members together when they
+// are numerous enough and mostly look like generated IDs.
+func clusterMembers(members []string, minGroupSize int) [][]string {
+	families := make(map[string][]string)
+	var keys []string
+	for _, m := range members {
+		k := affixKey(m)
+		if _, ok := families[k]; !ok {
+			keys = append(keys, k)
+		}
+		families[k] = append(families[k], m)
+	}
+	sort.Strings(keys)
+	var (
+		out  [][]string
+		rest []string
+	)
+	for _, k := range keys {
+		if len(families[k]) >= minGroupSize && hasSharedLetters(k) {
+			out = append(out, families[k])
+		} else {
+			rest = append(rest, families[k]...)
+		}
+	}
+	if len(rest) >= minGroupSize && mostlyRandom(rest) {
+		sort.Strings(rest)
+		out = append(out, rest)
+	}
+	return out
+}
+
+type templatePart struct {
+	literal string
+	class   tokenClass
+}
+
+// parseTemplate splits a template into literal and placeholder parts.
+// ok is false when the template holds no placeholder.
+func parseTemplate(template string) (parts []templatePart, ok bool) {
+	literalStart := 0
+	for i := 0; i < len(template); i++ {
+		if template[i] != '<' {
+			continue
+		}
+		end := strings.IndexByte(template[i:], '>')
+		if end < 0 {
+			break
+		}
+		class, known := placeholderClasses[template[i:i+end+1]]
+		if !known {
+			continue
+		}
+		if literalStart < i {
+			parts = append(parts, templatePart{literal: template[literalStart:i]})
+		}
+		parts = append(parts, templatePart{class: class})
+		ok = true
+		i += end
+		literalStart = i + 1
+	}
+	if literalStart < len(template) {
+		parts = append(parts, templatePart{literal: template[literalStart:]})
+	}
+	return parts, ok
+}
+
+// isPatternName reports whether name holds a placeholder, either mined or
+// written by the PathsReducer. A literal "*", found in profiles saved
+// before the reducer wrote placeholders, is not a pattern.
+func isPatternName(name string) bool {
+	_, ok := parseTemplate(name)
+	return ok
+}
+
+// templateScope tells which nodes a template may stand for.
+type templateScope uint8
+
+const (
+	// scopeNone templates are never installed.
+	scopeNone templateScope = iota
+	// scopeDirectories templates only stand for directories, so that a new
+	// file never matches them and the path below them is still checked.
+	scopeDirectories
+	scopeAll
+)
+
+// templateScopeOf returns where template may be installed. A literal
+// anchor or a placeholder narrower than <alpha> and <alnum> allows any
+// node. Otherwise <alnum> is limited to directories and <alpha> is
+// refused, so fixed names (tmp / var / etc) never collapse into <alpha>.
+func templateScopeOf(template string) templateScope {
+	parts, ok := parseTemplate(template)
+	if !ok {
+		return scopeNone
+	}
+	scope := scopeNone
+	for _, p := range parts {
+		if p.literal != "" {
+			for i := 0; i < len(p.literal); i++ {
+				if !isSeparator(p.literal[i]) {
+					return scopeAll
+				}
+			}
+			continue
+		}
+		switch p.class {
+		case classAlpha:
+		case classAlnum:
+			scope = scopeDirectories
+		default:
+			return scopeAll
+		}
+	}
+	return scope
+}
+
+// directoryMembers returns the members that already have children. A
+// directory created by the current insert is still empty, so directory-only
+// templates are mostly installed by FinalizePatterns.
+func directoryMembers(children map[string]*FileNode, members []string) []string {
+	var out []string
+	for _, name := range members {
+		if c := children[name]; c != nil && len(c.Children) > 0 {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+type compiledPattern struct {
+	re *regexp.Regexp
+	// specificity orders matching patterns; higher wins.
+	specificity int
+	// directoryOnly patterns never match the last component of a path.
+	directoryOnly bool
+}
+
+func compilePattern(template string) *compiledPattern {
+	parts, _ := parseTemplate(template)
+	var (
+		expr        strings.Builder
+		specificity int
+	)
+	expr.WriteByte('^')
+	for _, p := range parts {
+		if p.literal != "" {
+			expr.WriteString(regexp.QuoteMeta(p.literal))
+			specificity += 10 * len(p.literal)
+			continue
+		}
+		expr.WriteString(classes[p.class].regex)
+		specificity -= classes[p.class].width
+	}
+	expr.WriteByte('$')
+	return &compiledPattern{
+		re:            regexp.MustCompile(expr.String()),
+		specificity:   specificity,
+		directoryOnly: templateScopeOf(template) == scopeDirectories,
+	}
+}
+
+// matcher returns the compiled pattern of a pattern node, compiling it on
+// first use. Rebuilt from Name, so it survives profile reloads.
+func (fn *FileNode) matcher() *compiledPattern {
+	if fn.pattern == nil {
+		fn.pattern = compilePattern(fn.Name)
+	}
+	return fn.pattern
+}
+
+// signatureOf returns the structure signature of name, cached on fn when
+// name is fn's own name.
+func (fn *FileNode) signatureOf(name string) string {
+	if name != fn.Name {
+		return structureSignature(name)
+	}
+	if fn.signature == "" {
+		fn.signature = structureSignature(name)
+	}
+	return fn.signature
+}
+
+type signatureBucket struct {
+	signature string
+	members   []string
+}
+
+// groupChildrenBySignature partitions non-pattern children by structural
+// signature, sorted by signature for deterministic iteration.
+func groupChildrenBySignature(children map[string]*FileNode) []signatureBucket {
+	byKey := make(map[string][]string)
+	for name, child := range children {
+		if child == nil || child.IsPattern {
+			continue
+		}
+		sig := child.signatureOf(name)
+		byKey[sig] = append(byKey[sig], name)
+	}
+	out := make([]signatureBucket, 0, len(byKey))
+	for sig, names := range byKey {
+		sort.Strings(names)
+		out = append(out, signatureBucket{signature: sig, members: names})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].signature < out[j].signature })
+	return out
+}
+
+// mergeInto folds src into fn in place: unions NodeBase observations,
+// Children, MatchedRules, Open flags/mode, and keeps the more
+// authoritative GenerationType. fn.Name is left to the caller. Every node
+// dropped on the way is recorded in stats as moved to its new owner.
+func (fn *FileNode) mergeInto(src *FileNode, stats *Stats) {
+	if src == nil {
+		return
+	}
+	stats.recordMovedNode(&src.NodeBase, &fn.NodeBase)
+	fn.mergeSeen(&src.NodeBase)
+
+	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, src.MatchedRules)
+
+	if fn.File == nil {
+		fn.File = src.File
+	}
+
+	if src.Open != nil {
+		if fn.Open == nil {
+			cp := *src.Open
+			fn.Open = &cp
+		} else {
+			fn.Open.Flags |= src.Open.Flags
+			fn.Open.Mode |= src.Open.Mode
+		}
+	}
+
+	if generationPriority(src.GenerationType) > generationPriority(fn.GenerationType) {
+		fn.GenerationType = src.GenerationType
+	}
+
+	if len(src.Children) > 0 && fn.Children == nil {
+		fn.Children = make(map[string]*FileNode, len(src.Children))
+	}
+	for name, child := range src.Children {
+		if existing, ok := fn.Children[name]; ok {
+			existing.mergeInto(child, stats)
+			if stats != nil {
+				stats.FileNodes--
+				stats.FileNodesMerged++
+			}
+		} else {
+			fn.Children[name] = child
+		}
+	}
+}
+
+// mergeSeen widens, for every image tag of src, b's first/last seen range
+// (unix nanoseconds, 0 = unset).
+func (b *NodeBase) mergeSeen(src *NodeBase) {
+	src.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
+		for i := range b.seen {
+			e := &b.seen[i]
+			if e.id != id {
+				continue
+			}
+			if firstSeen != 0 && (e.firstSeen == 0 || firstSeen < e.firstSeen) {
+				e.firstSeen = firstSeen
+			}
+			if lastSeen > e.lastSeen {
+				e.lastSeen = lastSeen
+			}
+			return
+		}
+		b.seen = append(b.seen[:len(b.seen):len(b.seen)], seenEntry{id: id, firstSeen: firstSeen, lastSeen: lastSeen})
+	})
+}
+
+func generationPriority(t NodeGenerationType) int {
+	switch t {
+	case Snapshot:
+		return 4
+	case Runtime:
+		return 3
+	case WorkloadWarmup:
+		return 2
+	case ProfileDrift:
+		return 1
+	}
+	return 0
+}
+
+// collapseBucket folds members into a single pattern node named template
+// and installs it in children.
+func collapseBucket(children map[string]*FileNode, template string, members []string, stats *Stats) bool {
+	if len(members) < 2 {
+		return false
+	}
+	head := children[members[0]]
+	if head == nil {
+		return false
+	}
+	sizeBefore := stringMapBytes(children)
+	for _, name := range members {
+		if c := children[name]; c != nil {
+			sizeBefore += fileSubtreeSizeBytes(c)
+		}
+	}
+	existing := children[template]
+	if existing != nil {
+		sizeBefore += fileSubtreeSizeBytes(existing)
+	}
+
+	head.Name = template
+	head.IsPattern = true
+	head.pattern = nil
+	head.signature = ""
+	for _, name := range members[1:] {
+		sibling := children[name]
+		if sibling == nil {
+			continue
+		}
+		head.mergeInto(sibling, stats)
+		delete(children, name)
+		if stats != nil {
+			stats.FileNodes--
+			stats.FileNodesMerged++
+		}
+	}
+	if head.File != nil {
+		head.File.BasenameStr = template
+	}
+	rewriteSubtreePaths(head, 0, template)
+	delete(children, members[0])
+	owner := head
+	if existing != nil && existing != head {
+		existing.mergeInto(head, stats)
+		owner = existing
+		if stats != nil {
+			stats.FileNodes--
+			stats.FileNodesMerged++
+		}
+	}
+	children[template] = owner
+	if stats != nil {
+		stats.SizeBytes += stringMapBytes(children) + fileSubtreeSizeBytes(owner) - sizeBefore
+	}
+	return true
+}
+
+// rewriteSubtreePaths replaces, in the PathnameStr of fn and its
+// descendants, the path component that names the collapsed node.
+// depthFromEnd is fn's distance below the collapsed node.
+func rewriteSubtreePaths(fn *FileNode, depthFromEnd int, template string) {
+	if fn.File != nil && fn.File.PathnameStr != "" {
+		parts := strings.Split(fn.File.PathnameStr, "/")
+		if idx := len(parts) - 1 - depthFromEnd; idx >= 0 {
+			parts[idx] = template
+			fn.File.PathnameStr = strings.Join(parts, "/")
+		}
+	}
+	for _, child := range fn.Children {
+		rewriteSubtreePaths(child, depthFromEnd+1, template)
+	}
+}
+
+// mergeChildren runs one merge pass over children, collapsing every
+// signature bucket with at least minGroupSize members into a pattern
+// node. Templates that replace a date only need MinDateGroupSize
+// members. Returns the number of buckets collapsed.
+func mergeChildren(children map[string]*FileNode, minGroupSize int, stats *Stats) int {
+	if len(children) == 0 || minGroupSize < 2 {
+		return 0
+	}
+	return mergeBuckets(children, groupChildrenBySignature(children), minGroupSize, stats)
+}
+
+func mergeBuckets(children map[string]*FileNode, buckets []signatureBucket, minGroupSize int, stats *Stats) int {
+	dateGroupSize := minGroupSize
+	if n := pathPatternCfgFrom(stats).MinDateGroupSize; n >= 2 && n < minGroupSize {
+		dateGroupSize = n
+	}
+	datePlaceholder := classes[classDate].placeholder
+	collapsed := 0
+	for _, b := range buckets {
+		threshold := minGroupSize
+		if strings.Contains(b.signature, classes[classDate].code) {
+			threshold = dateGroupSize
+		}
+		if len(b.members) < threshold {
+			continue
+		}
+		for _, members := range clusterMembers(b.members, threshold) {
+			template := buildTemplate(members)
+			if len(members) < minGroupSize && !strings.Contains(template, datePlaceholder) {
+				continue
+			}
+			switch templateScopeOf(template) {
+			case scopeNone:
+				continue
+			case scopeDirectories:
+				members = directoryMembers(children, members)
+				if len(members) < minGroupSize || !mostlyRandom(members) {
+					continue
+				}
+				template = buildTemplate(members)
+				if templateScopeOf(template) == scopeNone {
+					continue
+				}
+			}
+			if collapseBucket(children, template, members, stats) {
+				collapsed++
+			}
+		}
+	}
+	return collapsed
+}
+
+// maybeMergeChildren runs a merge pass on the signature bucket of name
+// when mining is enabled and the child count exceeds the configured
+// fan-out threshold. Other buckets did not change since the last insert.
+func maybeMergeChildren(children map[string]*FileNode, name string, stats *Stats) int {
+	cfg := pathPatternCfgFrom(stats)
+	if !cfg.Enabled || cfg.MaxChildren <= 0 || len(children) <= cfg.MaxChildren || cfg.MinGroupSizeOnInsert < 2 {
+		return 0
+	}
+	child := children[name]
+	if child == nil || child.IsPattern {
+		return 0
+	}
+	sig := child.signatureOf(name)
+	var members []string
+	for n, c := range children {
+		if c != nil && !c.IsPattern && c.signatureOf(n) == sig {
+			members = append(members, n)
+		}
+	}
+	if len(members) < 2 {
+		return 0
+	}
+	sort.Strings(members)
+	return mergeBuckets(children, []signatureBucket{{signature: sig, members: members}}, cfg.MinGroupSizeOnInsert, stats)
+}
+
+// insertChildAndMerge stores child under name, runs the fan-out merge pass,
+// and returns the node that now owns name: child itself, or the pattern node
+// it was folded into.
+func insertChildAndMerge(children map[string]*FileNode, name string, child *FileNode, stats *Stats) *FileNode {
+	children[name] = child
+	maybeMergeChildren(children, name, stats)
+	if owner, ok := findChildWithPatternFallback(children, name, false, stats); ok {
+		return owner
+	}
+	children[name] = child
+	return child
+}
+
+// findChildWithPatternFallback returns the exact-name child if present,
+// otherwise the most specific sibling pattern node matching name.
+// lastComponent excludes directory-only patterns, so a new file never
+// matches them. A disabled config skips the pattern scan entirely.
+func findChildWithPatternFallback(children map[string]*FileNode, name string, lastComponent bool, stats *Stats) (*FileNode, bool) {
+	if c, ok := children[name]; ok {
+		return c, true
+	}
+	if !pathPatternCfgFrom(stats).Enabled {
+		return nil, false
+	}
+	var best *FileNode
+	for _, c := range children {
+		if c == nil || !c.IsPattern {
+			continue
+		}
+		m := c.matcher()
+		if (lastComponent && m.directoryOnly) || !m.re.MatchString(name) {
+			continue
+		}
+		if best == nil {
+			best = c
+			continue
+		}
+		bm := best.matcher()
+		if m.specificity > bm.specificity || (m.specificity == bm.specificity && c.Name < best.Name) {
+			best = c
+		}
+	}
+	return best, best != nil
+}
+
+// withPatternComponent replaces, in path, the component name that starts
+// its suffix rest with owner, the name of the node that took it.
+func withPatternComponent(path, rest, name, owner string) string {
+	if name == owner || !strings.HasSuffix(path, rest) {
+		return path
+	}
+	start := len(path) - len(rest)
+	if strings.HasPrefix(rest, "/") {
+		start++
+	}
+	if !strings.HasPrefix(path[start:], name) {
+		return path
+	}
+	return path[:start] + owner + path[start+len(name):]
+}
+
+// rulePathFromProfilePath converts a profile path to a SECL path value,
+// turning typed placeholders into "*" globs.
+func rulePathFromProfilePath(path string) string {
+	parts, ok := parseTemplate(path)
+	if !ok {
+		return pathutils.CheckForPatterns(path)
+	}
+	var glob strings.Builder
+	for _, p := range parts {
+		if p.literal != "" {
+			glob.WriteString(p.literal)
+		} else {
+			glob.WriteByte('*')
+		}
+	}
+	out := pathutils.CheckForPatterns(glob.String())
+	if !strings.HasPrefix(out, "~") {
+		out = "~" + out
+	}
+	return out
+}
+
+func pathPatternCfgFrom(stats *Stats) PathPatternConfig {
+	if stats == nil {
+		return PathPatternConfig{}
+	}
+	return stats.patternCfg
+}
