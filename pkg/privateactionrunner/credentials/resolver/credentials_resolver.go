@@ -18,13 +18,13 @@ import (
 	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
@@ -33,31 +33,22 @@ const (
 )
 
 type PrivateCredentialResolver interface {
-	ResolveConnectionInfoToCredential(ctx context.Context, conn *privateactionspb.ConnectionInfo, action ActionContext, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error)
-}
-
-// ActionContext identifies the action from the verified task, never its unsigned wrapper.
-type ActionContext struct {
-	BundleID   string
-	ActionName string
-	// HTTPRequestURL comes from the verified task inputs. Connection tests derive
-	// their destination from the resolved connection details instead.
-	HTTPRequestURL string
+	ResolveCredentials(ctx context.Context, task *types.Task) (*privateconnection.PrivateCredentials, error)
 }
 
 // Only exact FQNs and trailing integration/sub-bundle wildcards are supported.
 var actionPattern = regexp.MustCompile(`^com\.datadoghq\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:[A-Za-z0-9_-]+|\*)$`)
 
-func (a ActionContext) allows(patterns []string) bool {
+func allowsAction(task *types.Task, patterns []string) bool {
 	if patterns == nil {
 		return true
 	}
-	fqn := a.BundleID + "." + a.ActionName
-	if !actionPattern.MatchString(fqn) || strings.Contains(fqn, "*") || strings.Contains(a.ActionName, ".") {
+	fqn := task.GetFQN()
+	if !actionPattern.MatchString(fqn) || strings.Contains(fqn, "*") || strings.Contains(task.Data.Attributes.Name, ".") {
 		return false
 	}
 	for _, pattern := range patterns {
-		if pattern == fqn || (strings.HasSuffix(pattern, ".*") && strings.HasPrefix(a.BundleID+".", strings.TrimSuffix(pattern, "*"))) {
+		if pattern == fqn || (strings.HasSuffix(pattern, ".*") && strings.HasPrefix(task.Data.Attributes.BundleID+".", strings.TrimSuffix(pattern, "*"))) {
 			return true
 		}
 	}
@@ -115,7 +106,7 @@ func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig,
 		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
 	}
 	for _, credential := range values {
-		if err := httpDomainAllowlist(credential.AllowedHTTPDomains).validate(); err != nil {
+		if err := validateHTTPDomains(credential.AllowedHTTPDomains); err != nil {
 			return nil, fmt.Errorf("invalid allowed_http_domains in %s: expected hostnames, IP addresses, or *.domain patterns", par.CredentialsValues)
 		}
 		for _, pattern := range credential.AllowedActions {
@@ -127,7 +118,12 @@ func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig,
 	return values, nil
 }
 
-func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx context.Context, connInfo *privateactionspb.ConnectionInfo, action ActionContext, userUUID *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
+// ResolveCredentials checks restrictions against the verified task before returning secrets.
+func (p *privateCredentialResolver) ResolveCredentials(ctx context.Context, task *types.Task) (*privateconnection.PrivateCredentials, error) {
+	if task == nil || task.Data.Attributes == nil {
+		return nil, errors.New("missing task for credential resolution")
+	}
+	connInfo := task.Data.Attributes.ConnectionInfo
 	if connInfo == nil {
 		return nil, nil
 	}
@@ -154,7 +150,7 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 			HttpDetails: details,
 		}, nil
 	case privateactionspb.CredentialsType_CONNECTION_TOKENS_V2:
-		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2(), action)
+		resolvedTokens, err := p.resolveConnectionTokensV2(connInfo.GetTokensV2(), task)
 		if err != nil {
 			return nil, err
 		}
@@ -168,9 +164,9 @@ func (p *privateCredentialResolver) ResolveConnectionInfoToCredential(ctx contex
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }
 
-func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2, action ActionContext) ([]*privateactionspb.ConnectionToken, error) {
+func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privateactionspb.ConnectionTokenV2, task *types.Task) ([]*privateactionspb.ConnectionToken, error) {
 	resolved := make([]*privateactionspb.ConnectionToken, 0, len(tokens))
-	var domainRestrictions []httpDomainAllowlist
+	var domainRestrictions [][]string
 	var credentialValues map[string]par.CredentialConfig
 	for _, token := range tokens {
 		if token == nil || len(token.GetNameSegments()) == 0 {
@@ -200,14 +196,11 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 			if !found {
 				return nil, fmt.Errorf("could not resolve connection token %q: requested runner credential is not available", connlib.GetName(token))
 			}
-			if !action.allows(credential.AllowedActions) {
-				return nil, fmt.Errorf("runner credential %q is not allowed for action %q", key, action.BundleID+"."+action.ActionName)
+			if !allowsAction(task, credential.AllowedActions) {
+				return nil, fmt.Errorf("runner credential %q is not allowed for action %q", key, task.GetFQN())
 			}
 			if credential.AllowedHTTPDomains != nil {
-				if action.BundleID != "com.datadoghq.http" || (action.ActionName != "request" && action.ActionName != "testConnection" && action.ActionName != "getChecksumFromURL") {
-					return nil, fmt.Errorf("runner credential %q requires an HTTP action supporting domain restrictions", key)
-				}
-				domainRestrictions = append(domainRestrictions, httpDomainAllowlist(credential.AllowedHTTPDomains))
+				domainRestrictions = append(domainRestrictions, credential.AllowedHTTPDomains)
 			}
 			value = credential.Value
 		default:
@@ -216,13 +209,13 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 		resolved = append(resolved, privateconnection.NewPlainTextToken(token.GetNameSegments(), value))
 	}
 	if len(domainRestrictions) > 0 {
-		target, err := action.httpDestination(resolved)
+		target, err := httpDestination(task, resolved)
 		if err != nil {
 			// URLs and connection details may contain secrets.
 			return nil, errors.New("cannot authorize runner credential: invalid HTTP destination")
 		}
 		for _, domains := range domainRestrictions {
-			if !domains.allowsURL(target) {
+			if !allowsHTTPURL(domains, target) {
 				return nil, errors.New("request domain is not allowed by runner credential policy")
 			}
 		}
@@ -232,9 +225,19 @@ func (p *privateCredentialResolver) resolveConnectionTokensV2(tokens []*privatea
 
 // httpDestination reads only the verified payload. It does not constrain
 // redirects or any later HTTP execution behavior.
-func (a ActionContext) httpDestination(tokens []*privateactionspb.ConnectionToken) (*url.URL, error) {
-	if a.ActionName != "testConnection" {
-		return url.Parse(a.HTTPRequestURL)
+func httpDestination(task *types.Task, tokens []*privateactionspb.ConnectionToken) (*url.URL, error) {
+	attributes := task.Data.Attributes
+	if attributes.BundleID != "com.datadoghq.http" {
+		return nil, errors.New("domain restrictions require an HTTP action")
+	}
+	switch attributes.Name {
+	case "request", "getChecksumFromURL":
+		target, _ := attributes.Inputs["url"].(string)
+		return url.Parse(target)
+	case "testConnection":
+		// Connection tests construct their URL from the connection details.
+	default:
+		return nil, errors.New("HTTP action does not support domain restrictions")
 	}
 	_, details := privateconnection.ExtractConnectionDetails(&privateactionspb.ConnectionInfo{Tokens: tokens})
 	if details.Testing == nil || details.BaseURL == "" {

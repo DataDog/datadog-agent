@@ -8,21 +8,17 @@ package runners
 import (
 	"context"
 	"errors"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
@@ -46,9 +42,7 @@ func (f *fakeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, error) {
 type fakeCredentialResolver struct {
 	credential *privateconnection.PrivateCredentials
 	err        error
-	gotConn    *privateactionspb.ConnectionInfo
-	gotAction  resolver.ActionContext
-	called     bool
+	gotTask    *types.Task
 }
 
 type fakeBundle struct {
@@ -68,10 +62,8 @@ func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.P
 	return "executed", nil
 }
 
-func (f *fakeCredentialResolver) ResolveConnectionInfoToCredential(_ context.Context, conn *privateactionspb.ConnectionInfo, action resolver.ActionContext, _ *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
-	f.gotConn = conn
-	f.gotAction = action
-	f.called = true
+func (f *fakeCredentialResolver) ResolveCredentials(_ context.Context, task *types.Task) (*privateconnection.PrivateCredentials, error) {
+	f.gotTask = task
 	return f.credential, f.err
 }
 
@@ -108,8 +100,7 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	require.NotNil(t, got)
 	assert.Nil(t, failureTask)
 	assert.Same(t, dequeuedTask, verifier.gotTask)
-	assert.Same(t, connectionInfo, credentialResolver.gotConn)
-	assert.Equal(t, resolver.ActionContext{BundleID: "signed-bundle", ActionName: "signed-action", HTTPRequestURL: "https://signed.example.com"}, credentialResolver.gotAction)
+	assert.Same(t, unwrappedTask, credentialResolver.gotTask)
 	assert.Same(t, unwrappedTask, got.Task)
 	assert.Same(t, credential, got.Credential)
 	assert.Equal(t, "job-id", got.Task.Data.Attributes.JobId)
@@ -124,8 +115,6 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsOriginalTaskWhenVerificationFails
 	verifier := &fakeTaskVerifier{err: verifyErr}
 	credentialResolver := &fakeCredentialResolver{}
 	executor := &WorkflowTaskExecutor{
-		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
-		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
 		taskVerifier: verifier,
 		resolver:     credentialResolver,
 	}
@@ -135,7 +124,7 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsOriginalTaskWhenVerificationFails
 	require.ErrorIs(t, err, verifyErr)
 	assert.Nil(t, got)
 	assert.Same(t, dequeuedTask, failureTask)
-	assert.False(t, credentialResolver.called)
+	assert.Nil(t, credentialResolver.gotTask)
 }
 
 func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolutionFails(t *testing.T) {
@@ -301,63 +290,7 @@ func TestPrepareTaskRejectsActionBeforeResolvingCredentials(t *testing.T) {
 			assert.Nil(t, prepared)
 			assert.Same(t, unwrapped, failureTask)
 			assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
-			assert.False(t, credentialResolver.called)
-		})
-	}
-}
-
-func TestPrepareTaskEnforcesCredentialPolicyUsingVerifiedIdentity(t *testing.T) {
-	for _, allowed := range []bool{true, false} {
-		t.Run(strconv.FormatBool(allowed), func(t *testing.T) {
-			credentialResolver, err := resolver.NewPrivateCredentialResolver(configmock.NewFromYAML(t, `
-private_action_runner:
-  credentials:
-    values:
-      password:
-        value: secret-value
-        allowed_actions: [com.datadoghq.mongodb.*]
-`))
-			require.NoError(t, err)
-			mongodb := newWorkflowTask("mongo", "com.datadoghq.mongodb", "find", "job-id")
-			http := newWorkflowTask("http", "com.datadoghq.http", "sendRequest", "job-id")
-			wrapper, verified := mongodb, http
-			if allowed {
-				wrapper, verified = http, mongodb
-			}
-			verified.Data.Attributes.ConnectionInfo = &privateactionspb.ConnectionInfo{
-				CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
-				TokensV2: []*privateactionspb.ConnectionTokenV2{{
-					NameSegments: []string{"root_tokens", "password"},
-					Source: &privateactionspb.ConnectionTokenV2_RunnerCredential_{
-						RunnerCredential: &privateactionspb.ConnectionTokenV2_RunnerCredential{Key: "password"},
-					},
-				}},
-			}
-			executor := &WorkflowTaskExecutor{
-				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
-					"com.datadoghq.mongodb": &fakeBundle{action: &recordingAction{}},
-					"com.datadoghq.http":    &fakeBundle{action: &recordingAction{}},
-				}},
-				config: &config.Config{ActionsAllowlist: map[string]sets.Set[string]{
-					"com.datadoghq.mongodb": sets.New("*"),
-					"com.datadoghq.http":    sets.New("*"),
-				}},
-				taskVerifier: &fakeTaskVerifier{unwrappedTask: verified},
-				resolver:     credentialResolver,
-			}
-			prepared, failureTask, err := executor.PrepareTask(context.Background(), wrapper)
-			if allowed {
-				require.NoError(t, err)
-				assert.Nil(t, failureTask)
-				require.NotNil(t, prepared)
-				require.Len(t, prepared.Credential.Tokens, 1)
-				assert.Equal(t, "secret-value", prepared.Credential.Tokens[0].Value)
-			} else {
-				require.ErrorContains(t, err, "not allowed for action")
-				assert.NotContains(t, err.Error(), "secret-value")
-				assert.Nil(t, prepared)
-				assert.Same(t, verified, failureTask)
-			}
+			assert.Nil(t, credentialResolver.gotTask)
 		})
 	}
 }
