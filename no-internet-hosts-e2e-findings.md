@@ -2,8 +2,8 @@
 
 **Branch:** `kfairise/no-internet-hosts-e2e`
 **PR:** https://github.com/DataDog/datadog-agent/pull/58058 (draft, experimental — do not merge)
-**Pipeline:** GitLab #144264658
-**Status:** IN PROGRESS — updated as failures arrive
+**Pipeline:** GitLab #144280192 — **FAILED** (terminal), 61 failed jobs out of 884
+**Author's note:** experimental probe branch; failures are expected and were not fixed.
 
 ## Context
 
@@ -14,7 +14,7 @@ The E2E framework's AWS host provisioner (`awshost.Provisioner`) now prepends a
 
 This branch removes **every explicit `WithInternetAccess()` opt-in from host-based new-e2e
 tests** (67 files, 78 call sites) so that they run against the no-internet default. The goal
-is not to make them pass, but to inventory:
+was to inventory:
 
 1. which tests actually depend on internet access,
 2. what exactly each one needs from the network, and
@@ -42,162 +42,178 @@ All `ec2.WithInternetAccess()` / `scenec2.WithInternetAccess()` occurrences unde
 opt-ins existed under `test/new-e2e` anyway), and `ec2.ParamsFromEnvironment`'s
 append of `WithInternetAccess()` (config-driven path, not a test).
 
-### Known caveats discovered during the removal
+### Caveats discovered during the removal
 
 - **`tests/data-security/postgres_provisioner.go`** called `ec2.NewVM(..., ec2.WithInternetAccess())`
   directly — **not** through `awshost.Provisioner`. `NewVM` has **no no-internet default**
-  (`withoutInternetAccess` defaults to `false`), so removing the option there is a no-op:
+  (`withoutInternetAccess` defaults to `false`), so removing the option there was a no-op:
   the VM keeps internet. To truly test it, `WithoutInternetAccess()` would have to be added.
 - Several tests had in-code comments explaining the internet dependency, e.g.
-  `tests/discovery/linux_test.go`: *“provision.sh installs packages from pip, npm and gem”*.
-- The macOS fleet config job (`new-e2e-fleet-config-macos`) is manual/nightly-only on
-  branch pipelines; its failures won't show up in this run.
+  `tests/discovery/linux_test.go`: *"provision.sh installs packages from pip, npm and gem"*.
+- Two code issues were found and fixed on the branch before results were meaningful (they
+  are part of the branch, not of the investigation): a now-unused `scenec2` import
+  (`run_nix_test.go`, caught by `go_e2e_test_binaries` + flavor lints) and two no-op
+  `vmOpts = append(vmOpts)` statements flagged by govet (`install_script_test.go`,
+  `ddot_install_test.go`).
+
+## Method
+
+- Draft PR → GitLab branch pipeline (`RUN_E2E_TESTS=auto`): jobs triggered by the changed
+  test paths, windows included (touching `agent-runtimes`/`fleet` paths flips
+  `SKIP_WINDOWS=false`).
+- Every failed job's log was collected automatically and triaged; failing tests and network
+  error signatures were extracted.
+- **Baseline:** each failing job was compared against the same job on unrelated branches'
+  pipelines that ran the same day (e.g. #144275341, #144275372, #144276865, #144277884,
+  #144280607, #144286162). Identical failures on other branches ⇒ **pre-existing**;
+  new/extra subtests only on this branch ⇒ **no-internet-caused**.
 
 ## CI coverage of this run
 
-Pipeline jobs relevant to host tests (305 `new-e2e-*` jobs queued in total, incl. k8s ones
-not affected by this change). Host-based jobs affected by the removal:
+- **Not run on branch pipelines (coverage gaps):** `new-e2e-agent-configuration` (linux, manual
+  — the linux sgc/secrets/configrefresh/inventory/api/gui suites were not exercised; only the
+  windows variant ran), `new-e2e-agent-platform-install-script-macos-x64` (skipped),
+  `new-e2e-fleet-config-macos` (skipped/manual). 129 new-e2e jobs were manual on this pipeline.
+- **Passed without internet:** `new-e2e-privateactionrunner` (+ windows), `new-e2e-cws: [TestECSFargate]`,
+  `new-e2e-data-security` (note: no-op removal, see caveat above), `new-e2e-discovery`,
+  `new-e2e-ndm-snmp`, `new-e2e-netpath` (linux — the Windows variant failed, bucket 5),
+  `new-e2e-apm: [TestDockerFakeintakeSuiteTCP/UDS]` (the docker variants pass — their images
+  come from the ECR pull-through cache, unlike the VM variants that pull from ghcr.io), and
+  `TestLinuxFlareSuite/TestFlareProfiling`.
+- **Did not run on this pipeline (manual/skipped):** `new-e2e-agent-health`, `new-e2e-amp`,
+  `new-e2e-amp-adp`, `new-e2e-ha-agent`, `new-e2e-ha-agent-failover`, `new-e2e-agent-telemetry`,
+  `new-e2e-agent-configuration` (linux), `new-e2e-fleet-config-macos`,
+  `new-e2e-agent-platform-install-script-macos-x64` — 129 new-e2e jobs were manual in total.
 
-- linux: `agent-configuration`, `agent-subcommands`, `agent-runtimes`, `agent-platform-install-script-*`,
-  `agent-platform-ddot-*`, `package-signing-*`, `cspm`, `cws`, `discovery`, `data-security`,
-  `ndm-snmp`, `remote-config`, `apm`, `fleet-config` (linux group), `netpath`
-- windows: `*-windows` variants (`agent-configuration`, `agent-subcommands`, `agent-runtimes`,
-  `cws-windows`, `netpath-windows`, `privateactionrunner-windows`, `fleet-config` windows groups)
-- macOS: `agent-platform-install-script-macos-x64` (queued; macOS fleet config is manual)
+## Results — 61 failed jobs, classified
 
-## Findings per failure
+| Class | Jobs |
+|---|---|
+| **No-internet-caused** | **54** |
+| Pre-existing (also fail with internet today) | 2 (`new-e2e-cws: [TestAgentSuiteGCP]`, `new-e2e-cws: [TestKindSuite]`) |
+| CI/infra noise, unrelated to this branch | 5 (4× `kmt_*_cleanup_*_manual`, `upload_secagent_tests_arm64` — "Instance NOT found") |
 
-Failures are grouped by root cause. Pipeline #144280192 was still running when this
-snapshot was written; more entries may follow (see “monitoring status” at the end).
+The 54 no-internet failures group into **7 root-cause buckets** below. (Jobs can appear in
+several buckets when several dependencies are blocked; the *first* blocking one is usually
+the reported cause.)
 
-> Baseline methodology: for each failing job, the same job was checked on other branches'
-> pipelines running today (e.g. #144275341, #144275372, #144276865, #144277884, #144280607,
-> #144286162). A failure that reproduces identically on unrelated branches is classified
-> **pre-existing**; a failure whose subtests differ from the baseline (or that appears only on
-> this branch) is classified **no-internet-caused**.
+### Bucket 1 — Datadog *testing*-repo GPG keys served from the public host `apttesting.datad0g.com` — 31 jobs
 
-### Bucket 1 — Datadog *testing* package-repo GPG keys served from the public endpoint `apttesting.datad0g.com` (13 jobs)
+The testing apt/yum repos themselves use **S3-backed `baseurl`s**
+(`s3.amazonaws.com/apttesting.datad0g.com/...`, `s3.amazonaws.com/yumtesting.datad0g.com/...`)
+which stay reachable without internet — but the **signing keys** are fetched from the
+CloudFront-backed public host `apttesting.datad0g.com/test-keys/...`. Every package
+installation from a testing repo fails at key retrieval/import. This is the single biggest
+blocker of the run.
 
-The testing apt/yum repos use **S3-backed `baseurl`s** (`s3.amazonaws.com/apttesting.datad0g.com/...`,
-`s3.amazonaws.com/yumtesting.datad0g.com/...`) which remain reachable without internet, but the
-**signing keys** are fetched from the public CloudFront-backed host `apttesting.datad0g.com/test-keys/...`.
-Package installation fails at key retrieval/import.
-
-| Job | Failing test(s) | Key fetch that fails |
+| Job family | Failing tests | Mechanism |
 |---|---|---|
-| `new-e2e-agent-platform-ddot-amazonlinux-a7-x86_64` / `-arm64` | `TestDDOTInstallScript/*/TestDDOTInstall/install_ddot` (all Amazon Linux versions) | `gpgkey=https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_*.public` in the test-written `/etc/yum.repos.d/datadog.repo` (`ddot_install_test.go`, `ddotRhelTest`) |
-| `new-e2e-agent-platform-ddot-ubuntu-a7-x86_64` | `TestDDOTInstallScript/*/TestDDOTInstall/create_/usr/share_keyring_and_source_list` | `curl https://apttesting.datad0g.com/test-keys/DATADOG_APT_KEY_CURRENT.public` for the deb keyring |
-| `new-e2e-agent-platform-ddot-debian-a7-x86_64` / `-arm64` | same as ubuntu | same |
-| `new-e2e-agent-platform-ddot-suse-a7-x86_64` / `-arm64` | same | same |
-| `new-e2e-agent-platform-ddot-centos-a7-x86_64` | same (+ centos-vault base repo problem, bucket 3) | same |
-| `new-e2e-agent-platform-install-script-centos-a7-x86_64` / `-centos-iot-agent` / `-centos-fips` / `-centos-fips-iot-agent` / `-amazonlinux-a7-x64` / `-suse-a7-x86_64` / `-suse-iot-agent-a7-x86_64` | `TestInstallScript/*/TestInstallAgent` — `Failed to retrieve GPG key for repo 'datadog'` / `Gpg Keys not imported, cannot verify repomd.xml` | install script's testing repo key import (`apttesting.datad0g.com/test-keys/…`) |
+| `new-e2e-agent-platform-ddot-{amazonlinux×2, ubuntu×2, debian×2, suse×2, centos}` (9 jobs) | `TestDDOTInstallScript/*/TestDDOTInstall` | RPM `gpgkey=` URLs / `curl …/test-keys/DATADOG_(APT\|RPM)_KEY_CURRENT.public` for the deb keyring, written by `ddot_install_test.go` |
+| `new-e2e-agent-platform-install-script-{centos, centos-iot, centos-fips, centos-fips-iot, amazonlinux, suse, suse-iot, ubuntu, debian, debian-iot}` (10 jobs) | `TestInstallScript/*/TestInstallAgent` | testing install script's key import: `Failed to retrieve GPG key for repo 'datadog'`, `Gpg Keys not imported, cannot verify repomd.xml`, `Failed to download one or more APT GPG keys` |
+| `new-e2e-installer: [TestPackages/{agent_, ddot_, apm_inject_, upgrade_scenario_}]` + `[TestPackageAgentFapolicyd]` (5 jobs) | all `TestPackages/*` subtests | same key fetch from the installer bootstrap |
+| `new-e2e-installer-ansible: [TestPackages/{agent_, apm_inject_, upgrade_scenario_}]` + `[TestPackageAgentFapolicyd]` (4 jobs) | all | same |
+| `new-e2e-installer-script` (1 job) | `TestScripts/*` (all distros) | `Download failed with curl … Failed to connect to installtesting.datad0g.com.internal.dda-testing.com port 443` (also bucket 4) |
+| `new-e2e-fleet-config: [linux]`, `new-e2e-fleet-extensions: [linux]` (2 jobs) | all platform subtests | `TESTING_KEYS_URL=apttesting.datad0g.com/test-keys` (also buckets 4/5) |
 
 **To pass without internet:** publish the APT/RPM test-keys on an S3/internal endpoint
 (e.g. `s3.amazonaws.com/apttesting.datad0g.com/test-keys/…` next to the packages) and point
-every `gpgkey`/keyring URL (test code *and* install scripts) there. The change is small and
-mechanical; alternatively the keys could be vendored onto the VMs via the S3 artifact bucket.
+every `gpgkey`/keyring/`TESTING_KEYS_URL` reference (test code *and* the testing install
+scripts) there. Mechanical, test-side change — the single highest-leverage fix of this run.
 
-### Bucket 2 — Datadog *production* public key host `keys.datadoghq.com` (1 job)
+### Bucket 2 — Datadog *production* public key host `keys.datadoghq.com` — 2 jobs
 
-- **Job:** `new-e2e-package-signing-debian-a7-x86_64`
-- **Failing test:** `TestPackageSigningComponent/Test_package_signing_on_debian-x86-64-11_/TestPackageSigning`
-- **Root cause:** the test runs
-  `curl -o /tmp/DATADOG_APT_KEY_CURRENT.public https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public`
-  (`package_signing_test.go`) — `keys.datadoghq.com:443` connection timed out.
-- **To pass without internet:** vendor the production signing keys in the repo/test fixtures or
-  fetch them from the internal artifacts bucket.
+- **Jobs:** `new-e2e-package-signing-debian-a7-x86_64`, `-suse-a7-x86_64`
+- **Failing test:** `TestPackageSigningComponent/*/TestPackageSigning`
+- **Root cause:** `curl https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public` /
+  `DATADOG_RPM_KEY_E09422B3.public` (`package_signing_test.go`) — connection timed out.
+- **To pass:** vendor the production signing keys in the test fixtures or fetch them from the
+  internal artifacts bucket (they are static public keys).
 
-### Bucket 3 — public base-OS mirrors / third-party repos reachable only via internet (7 jobs)
+### Bucket 3 — public base-OS mirrors / third-party apt-yum repos — 6+ jobs
 
-| Job | Failing test | What needs the internet |
+| Job | Failing point | What needs internet |
 |---|---|---|
-| `new-e2e-agent-platform-install-script-docker` | `TestInstallScript/test_install_script_on_a_docker_container_(using_SysVInit)/TestInstallAgent` | `apt-get update && apt-get install -y curl sudo` **inside** the throwaway Ubuntu 22.04 container (`install_script_test.go:272`); `archive.ubuntu.com`/`security.ubuntu.com` blocked. Image itself comes from the ECR pull-through cache (OK). Fix: pre-bake curl+sudo in the target image, or use an internal apt mirror |
-| `new-e2e-cspm: [TestHostBenchmarksRHEL8/RHEL9/RHEL10]` | suite fails during **provisioning** (pulumi `remote-aws-vm-cmd-dnf-install-...rpm`) | the dnf install of the pipeline agent RPM refreshes **every repo enabled on the e2e AMI**; the pre-configured `docker-ce-stable` repo points at `download.docker.com` → metadata fetch times out. Fix: `--disablerepo=docker-ce-stable` (or `--cacheonly`) for the agent RPM install, or drop/disable that repo from the AMI, or mirror docker-ce internally |
-| `new-e2e-cspm: [TestHostBenchmarksAlmaLinux9]` | same provisioning step | AlmaLinux base repo `appstream` mirrorlist (`mirrors.almalinux.org`) is public — no AWS-internal mirror exists for Alma. Fix: internal mirror of Alma base repos in the QA VPC (or pre-bake the agent RPM deps in the AMI) |
-| `new-e2e-agent-platform-ddot-centos-a7-x86_64`, `install-script-centos-*` (CentOS 7.9) | package install | CentOS 7 is EOL: base repos live on `archive.kernel.org/centos-vault` (public). Fix: internal mirror of centos-vault, or pre-baked repo state in the AMI |
-| `new-e2e-installer-ansible: [TestPackageAgentFapolicyd]` | `TestPackageAgentFapolicyd/TestInstallWithFapolicyd` | the ansible playbook installs **docker** at runtime from `docker-ce-stable` (`download.docker.com`). Fix: same as cspm (pre-baked docker in AMI — docker is already pre-baked in the `*-e2e` AMIs — or internal docker-ce mirror) |
+| `new-e2e-agent-platform-install-script-docker` | `TestInstallScript/docker_(using_SysVInit)/TestInstallAgent` | `apt-get update && apt-get install -y curl sudo` **inside** the throwaway Ubuntu 22.04 container (`install_script_test.go:272`); `archive.ubuntu.com`/`security.ubuntu.com` blocked. The container image itself comes from the ECR pull-through cache (OK) |
+| `new-e2e-cspm: [TestHostBenchmarksRHEL8/RHEL9/RHEL10]` (3 jobs) | suite fails during **provisioning** (pulumi `remote-aws-vm-cmd-dnf-install-<agent>.rpm`) | dnf install of the pipeline agent RPM refreshes **every repo enabled on the e2e AMI**; the pre-configured `docker-ce-stable` repo (`download.docker.com`) times out |
+| `new-e2e-cspm: [TestHostBenchmarksAlmaLinux9]` | same provisioning step | AlmaLinux base repo `appstream` mirrorlist (`mirrors.almalinux.org`) is public — no AWS-internal mirror exists for Alma |
+| `new-e2e-agent-platform-install-script-ubuntu/debian/debian-iot` (3 jobs) | agent install | Ubuntu/Debian base mirrors (`us-east-1.ec2.archive.ubuntu.com`, `security.ubuntu.com`, `deb.debian.org`) **and** `docker-ce` repo on the e2e AMI are all public |
+| `new-e2e-agent-platform-ddot-centos-a7-x86_64` (+centos install-script jobs) | package install | CentOS 7 is EOL — base repos live on `archive.kernel.org/centos-vault` (public) |
+| `new-e2e-installer-ansible: [TestPackageAgentFapolicyd]` (+ `new-e2e-installer` variant) | `TestInstallWithFapolicyd` | ansible playbook installs docker at runtime from `docker-ce-stable` |
 
-### Bucket 4 — “internal” testing OCI registry alias unreachable from no-internet VMs (4+ jobs)
+**To pass:** internal mirrors of base-OS repos + docker-ce (or pre-baked repo state) in the QA
+VPC; disable/avoid the `docker-ce-stable` repo during agent RPM installs
+(`--disablerepo=docker-ce-stable`); pre-bake `curl`/`sudo` in install-target container images.
 
-`installtesting.datad0g.com.internal.dda-testing.com` (the “internal” alias of the testing
-package registry) **resolves to public/internet-facing infrastructure**: connections from
-no-internet VMs time out (`network timeout`, `Failed to connect … port 443`).
+### Bucket 4 — “internal” testing OCI registry alias unreachable from no-internet VMs — 9 jobs
 
-| Job | Failing test(s) | Symptom |
+`installtesting.datad0g.com.internal.dda-testing.com` (the "internal" alias of the testing
+package registry) **still routes via internet-facing infrastructure**: connections time out
+(`network timeout`, `Failed to connect … port 443`). The installer cannot pull agent packages.
+
+| Job family | Failing tests | Symptom |
 |---|---|---|
-| `new-e2e-installer-script` | `TestScripts/*` (all distros) | install script sets `DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com`; `Download failed with curl … Failed to connect to installtesting.datad0g.com.internal.dda-testing.com port 443` |
-| `new-e2e-fleet-config` (windows groups ×2) | all `TestFleetConfig/windows-server:*` subtests | installer cannot fetch packages: `could not download agent package pipeline-144280192 — installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-144280192: network timeout` |
-| `new-e2e-fleet-extensions` (windows ×2) | all `TestFleetExtensions/windows-server:*` subtests | same |
-| `new-e2e-fleet-upgrade` (windows ×2) | all `TestFleetUpgrade/windows-server:*` subtests | same + bootstrap hits `https://install.datadoghq.com/v2/` and `https://gcr.io/v2/` (`dial tcp 108.138.64.x:443: i/o timeout` — CloudFront) |
+| `new-e2e-fleet-config: [windows ×2 groups]`, `new-e2e-fleet-extensions: [windows ×2]`, `new-e2e-fleet-upgrade: [windows ×2]` | all windows-server 2016/2019/2022 subtests | `could not download agent package pipeline-144280192 — installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-144280192: network timeout` |
+| `new-e2e-fleet-config/extensions/upgrade: [linux]` (3 jobs) | all platform subtests | same registry + `TESTING_KEYS_URL` (bucket 1) |
+| `new-e2e-installer-script` | `TestScripts/*` | same registry (`DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE=…internal.dda-testing.com`) |
 
-**To pass without internet:** the testing OCI registry needs genuinely VPC-reachable
-endpoints (private hosted zone + internal LB / S3-backed). For the Windows fleet bootstrap,
-the production endpoints (`install.datadoghq.com`, `gcr.io`) must also be avoided or mirrored.
-This is infrastructure work (agent-devx), not test-code work.
+**To pass:** host the testing OCI registry on genuinely VPC-reachable infrastructure
+(private DNS + internal LB / S3-backed). This is infrastructure work (agent-devx), not
+test-code work.
 
-### Bucket 5 — tests/agents talking to real Datadog public endpoints (6 jobs)
+### Bucket 5 — tests/agents talking to real Datadog public endpoints — 7 jobs
 
-| Job | Failing test | Endpoint needed | Fix direction |
+| Job | Failing tests | Endpoint needed | Fix direction |
 |---|---|---|---|
-| `new-e2e-remote-config` | `TestRcTracerSuite/TestRemoteConfigTracerUpdate` (explicitly “Requires a valid Datadog API key”, `ProvisionerNoFakeIntake`) | agent RC client → `api.datadoghq.com` RC API; expected log lines (`/api/v0.1/configurations`, `roots`, `targets`) never appear; also `couldn't get the repositories state … expired at 1970-01-01` | point remote config at an internal RC backend (fakeintake-style RC mock) |
-| `new-e2e-cws: [TestAgentSuiteEC2]` | `Test00RulesetLoadedDefaultFile`, `Test01RulesetLoadedDefaultRC`, `Test02Selftests`, `Test99CWSEnabled` (baseline on other branches only `Test03OpenSignal` fails — pre-existing backend issue) | `GET https://api.datadoghq.com/api/v2/remote_config/products/cws/policy/download` — default CWS ruleset comes from remote config | internal RC route/mock; `Test03OpenSignal` (“attributes” missing in signal) is pre-existing |
-| `new-e2e-cws-windows` | same ruleset subtests (`Test00RulesetLoadedDefaultFile`, `Test01RulesetLoadedDefaultRC`, `Test02Selftests`, `Test99CWSEnabled`; baseline only `Test03CreateFileSignal` fails) | same RC policy download | same |
-| `new-e2e-agent-subcommands` | `TestLinuxDiagnoseSuite` (all subtests) | diagnose performs live endpoint checks: `Post https://resources-intake.datadoghq.com./api/v2/genresources` times out → “diagnose reported a transient endpoint failure that did not clear on retry” | point the agent at internal intake endpoints (fakeintake) or make diagnose tolerate unreachable endpoints |
-| `new-e2e-agent-subcommands` | `TestLinuxFlareSuite/TestFlareDefaultFiles` | flare output includes failing endpoint/connectivity checks (same genresources timeout) | same |
-| `new-e2e-netpath-windows` | `TestWindowsNetworkPathIntegrationSuite/TestWindowsNetworkPathIntegrationMetrics` | the monitored destinations in `fixtures/network_path.yaml` are **external**: `api.datadoghq.eu:443` (TCP) and `8.8.8.8` (UDP); without internet no network path is ever collected (“could not find matching netpath”) | monitor internal destinations instead (e.g. the fakeintake LB or an in-VPC service) |
+| `new-e2e-remote-config` | `TestRcTracerSuite/TestRemoteConfigTracerUpdate` (test doc: "Requires a valid Datadog API key") | agent RC client → real RC API (`/api/v0.1/configurations`, TUF roots/targets never retrieved) | point remote config at an internal RC backend/mock |
+| `new-e2e-cws: [TestAgentSuiteEC2]`, `new-e2e-cws-windows` | `Test00RulesetLoadedDefaultFile`, `Test01RulesetLoadedDefaultRC`, `Test02Selftests`, `Test99CWSEnabled` (baseline branches only fail `Test03OpenSignal`/`Test03CreateFileSignal` — a **pre-existing** backend `attributes` issue) | `GET https://api.datadoghq.com/api/v2/remote_config/products/cws/policy/download` — the default CWS ruleset comes from remote config | internal RC route/mock |
+| `new-e2e-agent-subcommands` (+ `-windows`) | `TestLinuxDiagnoseSuite`/`TestWindowsDiagnoseSuite` (all subtests), `TestLinuxFlareSuite/TestFlareDefaultFiles` | diagnose performs live endpoint checks: `POST https://resources-intake.datadoghq.com./api/v2/genresources` times out → "diagnose reported a transient endpoint failure that did not clear on retry" | point the agent at internal intake endpoints (fakeintake) for diagnose, or tolerate unreachable endpoints |
+| `new-e2e-fleet-upgrade: [linux]` | `TestFleetUpgrade$`/`TestFleetIntegrationPreservation$` | **production** yum repo `https://yum.datadoghq.com/stable/7/...` (the upgrade test deliberately pulls production packages) + `instrumentation-telemetry-intake.datadoghq.com` | internal mirror of production package repos for QA, or vendor the "previous release" packages |
+| `new-e2e-netpath-windows` | `TestWindowsNetworkPathIntegrationSuite/TestWindowsNetworkPathIntegrationMetrics` | monitored destinations in `fixtures/network_path.yaml` are **external**: `api.datadoghq.eu:443` (TCP) and `8.8.8.8` (UDP); no path is ever collected | monitor internal destinations (e.g. the fakeintake LB or an in-VPC service) |
+| `new-e2e-fleet windows` (all) | — | installer bootstrap also hits `https://install.datadoghq.com/v2/` and `https://gcr.io/v2/` (`dial tcp 108.138.64.x:443 i/o timeout` — CloudFront) | production bootstrap endpoints must be avoidable/mirrored for QA |
 
-### Bucket 6 — docker images pulled from registries without an internal route (2 jobs)
+### Bucket 6 — docker images from registries without an internal route — 2 jobs
 
-- **`new-e2e-apm: [TestVMFakeintakeSuiteTCP]` and `[TestVMFakeintakeSuiteUDS]`** — SetupSuite
-  fails with `Error response from daemon: Get "https://ghcr.io/v2/"`. The test pulls
-  `ghcr.io/datadog/apps-tracegen:<version>` (`tests/apm/vm_test.go:60`) — **GHCR is not
-  proxied** by the ECR pull-through cache (which only supports DockerHub / Public ECR / Quay,
-  and this is documented as intentional in `test/new-e2e/codereview_guideline.md`).
-- **To pass without internet:** mirror `ghcr.io/datadog/apps-tracegen` into an internally
-  reachable registry (QA ECR) and update the pull commands.
+- **`new-e2e-apm: [TestVMFakeintakeSuiteTCP]` / `[TestVMFakeintakeSuiteUDS]`** — SetupSuite
+  fails: `Error response from daemon: Get "https://ghcr.io/v2/"`. The tests pull
+  `ghcr.io/datadog/apps-tracegen:<version>` (`tests/apm/vm_test.go:60`). **GHCR is not
+  proxied** by the ECR pull-through cache (which supports only DockerHub / Public ECR / Quay,
+  per `test/new-e2e/codereview_guideline.md`).
+- **To pass:** mirror `ghcr.io/datadog/apps-tracegen` into a QA-reachable registry and update
+  the pull commands.
 
-### Bucket 7 — unclear / needs deeper investigation (3 jobs)
+### Bucket 7 — unclear / needs deeper investigation — 2 jobs
 
 - **`new-e2e-agent-runtimes-windows`** — only `TestAuthArtifactIPCSecurityWindowsSuite/TestServersideIPCCertUsage`
-  fails (both attempts): `Stop-Service datadogagent` fails (“cannot be stopped … Cannot stop
-  dd-procmgr-service”), error at `auth_artifact_common_test.go:117`. The sibling suite
-  `TestIPCSecurityWindowsSuite` passes. Not failing on other branches today. The internet
-  dependency (if any) is unclear — the agent may be stuck during shutdown due to unreachable
-  DD endpoints, but nothing in the log pins it. **Needs a dedicated Windows debug run.**
-- **`new-e2e-agent-subcommands` — `TestLinuxSecretSuite/TestAgentConfigRefresh`** —
-  `could not reach agent: Get "https://localhost:5001/agent/secret/refresh": local error: tls: bad record MAC`.
-  A localhost TLS error is odd and does not obviously relate to internet access; may be a
-  flake amplified by the slow agent. Needs investigation.
-- **`new-e2e-agent-configuration`** — failed on another branch (13:38) while ours is still
-  running; classification pending.
-
-### Pre-existing failures unrelated to this branch (2 jobs)
-
-- **`new-e2e-cws: [TestAgentSuiteGCP]`** — `Test03OpenSignal` only: signal lacks the
-  `attributes` field — same on several unrelated branches today; GCP suite is untouched by
-  this diff; job is `allow_failure: true`.
-- **`new-e2e-cws: [TestKindSuite]`** — identical subtest failures (`Test00RulesetLoadedDefaultFile`,
-  `Test01RulesetLoadedDefaultRC`, `Test02Selftests`, `Test03…`, `Test04…`) on unrelated branches
-  (e.g. #144277884) — the Kind suite already runs (with internet) on main and fails the same way.
-
-### Notable: jobs that PASS without internet (so far)
-
-- `new-e2e-privateactionrunner` (✅), `new-e2e-cws: [TestECSFargate]` (✅),
-  `new-e2e-data-security` (✅ — note: its `postgres_provisioner.go` builds the VM with
-  `ec2.NewVM()` which has **no** no-internet default, so the removal was a no-op there),
-  `new-e2e-discovery` (✅ — despite the in-code comment that `provision.sh` installs from
-  pip/npm/gem; those either run against pre-baked tooling or are not exercised),
-  `TestLinuxFlareSuite/TestFlareProfiling` (✅ within agent-subcommands).
-
-### Coverage gaps of this run (jobs that did not execute on a branch pipeline)
-
-- `new-e2e-agent-configuration` (linux) — **manual** on branch pipelines: the linux
-  agent-configuration suites (sgc, secrets, configrefresh, inventory, api, gui) were not
-  exercised. Only the `-windows` variant ran.
-- macOS host tests — `new-e2e-agent-platform-install-script-macos-x64` and
-  `new-e2e-fleet-config-macos` are **skipped/manual** on branch pipelines; the macOS
-  fleet-config suite (whose `suite.go` opt-in was removed) is not exercised by this run.
+  fails (both attempts): `Stop-Service datadogagent` fails ("cannot be stopped … Cannot stop
+  dd-procmgr-service"), error at `auth_artifact_common_test.go:117`. The sibling suite
+  `TestIPCSecurityWindowsSuite` passes; no other branch failed this job today. The internet
+  dependency (if any) is unclear — the agent may be stuck during shutdown on unreachable DD
+  endpoints. **Needs a dedicated Windows debug run.**
+- **`new-e2e-agent-subcommands` — `TestLinuxSecretSuite/TestAgentConfigRefresh`** (and the
+  Windows secret suite counterpart) — `could not reach agent: Get "https://localhost:5001/agent/secret/refresh":
+  local error: tls: bad record MAC`. A localhost TLS error does not obviously relate to
+  internet access; may be a flake amplified by a slow agent. Needs investigation.
 
 ## Summary
 
-(interim — final summary at pipeline completion)
+Removing the explicit `WithInternetAccess()` opt-ins from host E2E tests breaks **54 of the
+jobs that run on a branch pipeline**, for essentially **six real dependencies on the public
+internet** (plus 2 unexplained), in order of impact:
+
+1. **`apttesting.datad0g.com` test-keys (31 jobs)** — keys must move to S3/internal. Small,
+   mechanical, unblocks ddot/install-script/installer/fleet-linux suites.
+2. **"Internal" testing OCI registry is internet-facing (9+ jobs)** — needs genuinely
+   VPC-reachable endpoints; blocks all fleet/installer suites. Infra work.
+3. **Public base-OS/docker mirrors (cspm, install-script deb/ubuntu, fapolicyd)** — needs
+   internal mirrors of Ubuntu/Debian/RHEL-extra/Alma/centos-vault/docker-ce, or pre-baked
+   repo state/AMIs, plus `--disablerepo` hygiene during agent installs.
+4. **Real Datadog endpoints used by tests** (remote-config, CWS ruleset via RC policy,
+   diagnose/flare connectivity checks, netpath destinations, production yum repo for
+   upgrades) — needs internal RC/intake mocks or internal mirrors, and test destinations
+   moved in-VPC.
+5. **`keys.datadoghq.com` (package-signing)** — vendor the static keys.
+6. **`ghcr.io` (apm tracegen image)** — mirror to a QA registry.
+
+Not covered by this run: the linux `agent-configuration` suites and the macOS host tests
+(manual/skipped on branch pipelines) — they should be spot-checked separately (e.g. via the
+`no-internet-kubernetes`-style follow-up or a nightly run).
