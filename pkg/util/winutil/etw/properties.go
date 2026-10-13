@@ -24,6 +24,26 @@ import (
 
 const errorEvtInvalidEventData = windows.Errno(0x3AB5)
 
+// TDH_OUTTYPE values, see https://learn.microsoft.com/en-us/windows/win32/api/tdh/ne-tdh-_tdh_out_type
+const (
+	tdhOutTypeHexInt32   = 18
+	tdhOutTypeWin32Error = 30
+	tdhOutTypeNTStatus   = 31
+	tdhOutTypeHResult    = 32
+)
+
+// formattingOutType returns the output type to format a property with.
+// TdhFormatProperty renders status codes as their message text, with unexpanded inserts such as
+// "The instruction at 0x%p referenced memory at 0x%p.", which loses the code itself; format them as hex instead.
+func formattingOutType(outType uintptr) uintptr {
+	switch outType {
+	case tdhOutTypeWin32Error, tdhOutTypeNTStatus, tdhOutTypeHResult:
+		return tdhOutTypeHexInt32
+	default:
+		return outType
+	}
+}
+
 type propertyParser struct {
 	record  *C.EVENT_RECORD
 	info    C.PTRACE_EVENT_INFO
@@ -133,7 +153,7 @@ func (p *propertyParser) parseSimpleType(i int) (string, error) {
 		return "", fmt.Errorf("failed to get property length: %w", windows.Errno(ret))
 	}
 	inType := uintptr(C.DDGetInType(p.info, C.int(i)))
-	outType := uintptr(C.DDGetOutType(p.info, C.int(i)))
+	outType := formattingOutType(uintptr(C.DDGetOutType(p.info, C.int(i))))
 	mapInfo := C.DDGetMapInfo(p.record, p.info, C.int(i))
 	defer C.DDFreeMapInfo(mapInfo)
 
