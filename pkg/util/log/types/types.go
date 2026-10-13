@@ -130,6 +130,9 @@ func ValidateLogLevel(logLevel string) (LogLevel, error) {
 	if normalized == "warning" { // support the deprecated "warning" spelling for backwards compatibility
 		normalized = WarnStr
 	}
+	if normalized == "disabled" { // compatibility with opentelemetry
+		normalized = OffStr
+	}
 
 	switch normalized {
 	case TraceStr:
