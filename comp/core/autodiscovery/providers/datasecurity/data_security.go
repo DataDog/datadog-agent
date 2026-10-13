@@ -35,10 +35,10 @@ const (
 	postgresPlatform        = "postgres"
 	// defaultPostgresPort is used when the matched instance omits the port.
 	defaultPostgresPort = 5432
-	// sslRequire is the ssl mode weaker modes are elevated to when `data_security.enforce_ssl` is set.
-	sslRequire = "require"
-	// sslAllow is the postgres integration default, used for an invalid `ssl` value.
-	sslAllow = "allow"
+	// ssl modes kept as is when `data_security.enforce_ssl` is set; weaker ones are elevated to sslRequire.
+	sslRequire    = "require"
+	sslVerifyCA   = "verify-ca"
+	sslVerifyFull = "verify-full"
 	// rcSubscriptionRetryInterval is how often we re-check for a postgres integration.
 	rcSubscriptionRetryInterval = 10 * time.Second
 )
@@ -284,28 +284,12 @@ func buildPostgresConnection(instance map[string]any, e entity, enforceSSL bool)
 	}, nil
 }
 
-var validSSLModes = map[string]struct{}{
-	"disable": {}, "allow": {}, "prefer": {}, "require": {}, "verify-ca": {}, "verify-full": {},
-}
-
-func parsePostgresSSLMode(instance map[string]any) (mode string, valid bool) {
-	raw := instance["ssl"]
-	if raw == nil {
-		return "", true
-	}
-	mode, _ = raw.(string)
-	_, valid = validSSLModes[mode]
-	return mode, valid
-}
-
 // postgresSSLMode returns the ssl mode to scan with. When enforcing, anything weaker than
 // `require` (including unset or invalid) is elevated to it, and Unix sockets (no TLS) are rejected.
 func postgresSSLMode(instance map[string]any, host string, enforceSSL bool) (string, error) {
-	mode, valid := parsePostgresSSLMode(instance)
-	if !valid {
-		log.Warnf("invalid postgres ssl mode %v for host %q, defaulting to %q", instance["ssl"], host, sslAllow)
-		mode = sslAllow
-	}
+	// TODO(DATASEC-428): an invalid `ssl` is forwarded as is and the Rust check rejects the whole task.
+	// Either fall back to a valid mode (`allow`) here, or fail per sub task in the Rust check.
+	mode := instanceString(instance, "ssl")
 	if !enforceSSL {
 		return mode, nil
 	}
@@ -313,7 +297,7 @@ func postgresSSLMode(instance map[string]any, host string, enforceSSL bool) (str
 		return "", fmt.Errorf("postgres host %q is a Unix socket, which cannot be encrypted (data_security.enforce_ssl is set)", host)
 	}
 	switch mode {
-	case sslRequire, "verify-ca", "verify-full":
+	case sslRequire, sslVerifyCA, sslVerifyFull:
 		return mode, nil
 	}
 	log.Infof("data_security.enforce_ssl: elevating postgres ssl mode %q to %q for host %q", mode, sslRequire, host)
