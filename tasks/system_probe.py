@@ -1333,6 +1333,17 @@ def generate_lookup_tables(ctx):
         ctx.run(f"go generate {file}")
 
 
+@task
+def generate_gooffsets(ctx):
+    """
+    Generate the Go runtime offsets lookup table used to read Go pprof labels
+    """
+    if is_windows:
+        return
+
+    ctx.run("go generate ./pkg/security/resolvers/process/gooffsets/gooffsets.go")
+
+
 def is_root():
     return os.getuid() == 0
 

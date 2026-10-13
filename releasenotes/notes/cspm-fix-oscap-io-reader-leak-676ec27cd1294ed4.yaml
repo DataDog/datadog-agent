@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CSPM: XCCDF compliance checks no longer leak a goroutine every time the
+    ``oscap-io`` process exits, which made memory grow over time.
