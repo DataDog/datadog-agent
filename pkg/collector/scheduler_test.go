@@ -26,6 +26,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -149,11 +150,11 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 
 	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
 	shadowSenderManager := &recordingSchedulerSenderManager{name: "shadow"}
-	// Production initializes the aggregator check context before checks are loaded.
-	// This lets the scheduler test verify successful rtloader callback registration
-	// without leaking the global check context into later tests.
-	releaseCheckContext := collectoraggregator.ScopeInitCheckContext(normalSenderManager, option.None[integrations.Component](), nooptagger.NewComponent(), workloadfilterfxmock.SetupMockFilter(t))
-	t.Cleanup(releaseCheckContext)
+	var logOutput bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndMsgFormat(&logOutput, pkglog.WarnLvl)
+	require.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+	t.Cleanup(func() { pkglog.SetupLogger(pkglog.Default(), "debug") })
 
 	sourceID := checkid.ID("cpu:loaded-source-id")
 	var calls []schedulerLoadCall
@@ -208,6 +209,70 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 	assert.Equal(t, []checkid.ID{sourceID}, normalSenderManager.infraTaggedIDs)
 	assert.Equal(t, []checkid.ID{check.ShadowID(sourceID), check.ShadowID(sourceID)}, shadowSenderManager.requestedIDs)
 	assert.Equal(t, []checkid.ID{check.ShadowID(sourceID)}, shadowSenderManager.infraTaggedIDs)
+	assert.Empty(t, shadowLoadSenderManager.unregisterCallbacks)
+	assert.NotContains(t, logOutput.String(), "Unable to register metric lookback rtloader callback route")
+}
+
+func TestGetChecksFromConfigsRegistersPythonShadowCallbackRouteAndCleansUp(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("metric_lookback.enabled", true)
+	cfg.SetInTest("metric_lookback.enabled_checks", []string{"python_check"})
+
+	normalSenderManager := &recordingSchedulerSenderManager{name: "normal"}
+	shadowSenderManager := &recordingSchedulerSenderManager{name: "shadow"}
+	// Production initializes the aggregator check context before Python checks are loaded.
+	// Python shadow checks use this context for rtloader callback routing; unlike Go
+	// shadows, they should still register and clean up callback sender-manager overrides.
+	releaseCheckContext := collectoraggregator.ScopeInitCheckContext(normalSenderManager, option.None[integrations.Component](), nooptagger.NewComponent(), workloadfilterfxmock.SetupMockFilter(t))
+	t.Cleanup(releaseCheckContext)
+
+	sourceID := checkid.ID("python_check:loaded-source-id")
+	loader := &recordingSchedulerLoader{name: "python", normalCheckID: sourceID}
+	s := CheckScheduler{
+		configToChecks:      make(map[string][]checkid.ID),
+		senderManager:       normalSenderManager,
+		infraTagger:         infratags.NewTagger(cfg),
+		shadowSenderManager: shadowSenderManager,
+	}
+	s.addLoader(loader)
+
+	config := integration.Config{
+		Name:       "python_check",
+		Instances:  []integration.Data{integration.Data("name: first\n")},
+		InitConfig: integration.Data("loader: python\n"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{config}, true)
+
+	require.Len(t, checks, 2)
+	shadowCheck := checks[1]
+	require.True(t, check.IsShadow(shadowCheck))
+	require.Len(t, loader.calls, 2)
+	loadedShadowID := loader.calls[1].checkID
+
+	shadowSenderOverride, ok := check.SenderManagerOverride(shadowCheck)
+	require.True(t, ok)
+	shadowSenderOverrideAdapter, ok := shadowSenderOverride.(*shadowCheckSenderManager)
+	require.True(t, ok)
+	require.Len(t, shadowSenderOverrideAdapter.unregisterCallbacks, 1)
+
+	checkContext, err := collectoraggregator.GetCheckContext()
+	require.NoError(t, err)
+	shadowRequestsBefore := len(shadowSenderManager.requestedIDs)
+	normalRequestsBefore := len(normalSenderManager.requestedIDs)
+	_, err = checkContext.GetSender(loadedShadowID)
+	require.NoError(t, err)
+	require.Len(t, shadowSenderManager.requestedIDs, shadowRequestsBefore+1)
+	assert.Equal(t, check.ShadowID(sourceID), shadowSenderManager.requestedIDs[shadowRequestsBefore])
+	assert.Len(t, normalSenderManager.requestedIDs, normalRequestsBefore)
+
+	shadowSenderOverrideAdapter.DestroySender(loadedShadowID)
+	assert.Empty(t, shadowSenderOverrideAdapter.unregisterCallbacks)
+
+	_, err = checkContext.GetSender(loadedShadowID)
+	require.NoError(t, err)
+	require.Len(t, normalSenderManager.requestedIDs, normalRequestsBefore+1)
+	assert.Equal(t, loadedShadowID, normalSenderManager.requestedIDs[normalRequestsBefore])
 }
 
 func TestGetChecksFromConfigsDoesNotLoadShadowChecksWhenCacheIsNotPopulated(t *testing.T) {
