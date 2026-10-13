@@ -517,27 +517,6 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
 }
 
-func TestCheckSenderInfraTagger_OnlyTagsEligibleChecks(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-	cfg.Set("integration.cloud_cost_only.tagged", []string{"my.metric"}, pkgconfigmodel.SourceFile)
-	tagger := infratags.NewMetricTagger(cfg)
-	require.NotNil(t, tagger)
-
-	// eligible check: scheduler sets the tagger on the sender
-	eligible := initSender(checkID1, "")
-	eligible.sender.SetInfraTagger(tagger)
-	eligible.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
-	sample := (<-eligible.itemChan).(*senderMetricSample)
-	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
-
-	// ineligible check (not in allow-list): scheduler does not set the tagger
-	ineligible := initSender(checkID2, "")
-	ineligible.sender.Gauge("my.other_metric", 1.0, "my-hostname", []string{"env:prod"})
-	sample = (<-ineligible.itemChan).(*senderMetricSample)
-	assert.NotContains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
-}
-
 func TestCheckSenderInfraTagger_NilTagger(t *testing.T) {
 	s := initSender(checkID1, "")
 
@@ -552,8 +531,7 @@ func TestCheckSenderInfraTagger_NilTagger(t *testing.T) {
 	assert.NotContains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
 }
 
-func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
-	// empty tagged list means all non-custom checks are eligible
+func TestCheckSenderInfraTagger_TagsWhenSet(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 	tagger := infratags.NewMetricTagger(cfg)
@@ -562,7 +540,6 @@ func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
 	s := initSender(checkID1, "")
 	s.sender.SetInfraTagger(tagger)
 
-	// any check metric gets the infra tag
 	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
 	sample := (<-s.itemChan).(*senderMetricSample)
 	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
@@ -571,7 +548,6 @@ func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
 	sample = (<-s.itemChan).(*senderMetricSample)
 	assert.Contains(t, sample.metricSample.Tags, "infra_mode:cloud_cost_only")
 
-	// histogram buckets also get the infra tag
 	s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
 	bucket := (<-s.itemChan).(*senderHistogramBucket)
 	assert.Contains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")

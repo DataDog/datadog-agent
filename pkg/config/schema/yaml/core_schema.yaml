@@ -8021,19 +8021,6 @@ properties:
               Infrastructure basic mode section [UNDOCUMENTED]
               Note: All checks starting with "custom_" are always allowed.
               integration.basic.allowed: default allowed checks (internal, should not need user configuration)
-      cloud_cost_only:
-        node_type: section
-        type: object
-        properties:
-          tagged:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-            comment: 'integration.cloud_cost_only.tagged: DEPRECATED. Checks to tag when
-              infrastructure_mode=cloud_cost_only (empty means all non-custom checks). Prefer the
-              default empty list; this knob will be removed in a future Agent release.'
       enabled:
         node_type: setting
         type: boolean

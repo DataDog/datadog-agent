@@ -5,12 +5,11 @@ features:
     allowlist as payload marks (``cloud_cost_only`` and ``end_user_device``).
     Eligible Agent integration metrics receive a single ``infra_mode:<mode>``
     tag. ``custom_*`` checks and plain DogStatsD metrics are never marked.
-deprecations:
-  - |
-    ``integration.cloud_cost_only.tagged`` is deprecated. An empty list (the
-    default) already tags all non-custom checks. Prefer leaving the list empty.
-    The knob will be removed in a future Agent release.
 upgrade:
+  - |
+    ``integration.cloud_cost_only.tagged`` has been removed. Under
+    ``cloud_cost_only``, all non-custom Agent integration metrics receive
+    ``infra_mode:cloud_cost_only``.
   - |
     The cpu check no longer injects a private ``infra_mode`` tag on
     ``system.cpu.user``. Under ``cloud_cost_only``, that series is marked once

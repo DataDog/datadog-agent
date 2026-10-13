@@ -18,45 +18,32 @@ import (
 
 func TestNewMetricTagger(t *testing.T) {
 	tests := []struct {
-		name             string
-		mode             string
-		taggedChecks     []string // only applied for cloud_cost_only
-		wantNil          bool
-		wantTag          string
-		wantAllowlistLen int // 0 means taggedChecks map is nil (all non-custom eligible)
+		name    string
+		mode    string
+		wantNil bool
+		wantTag string
 	}{
 		{
-			name:    "cloud_cost_only with empty allow-list returns non-nil",
+			name:    "cloud_cost_only returns non-nil",
 			mode:    "cloud_cost_only",
 			wantNil: false,
 			wantTag: "infra_mode:cloud_cost_only",
 		},
 		{
-			name:             "cloud_cost_only with allow-list returns non-nil",
-			mode:             "cloud_cost_only",
-			taggedChecks:     []string{"cpu"},
-			wantNil:          false,
-			wantTag:          "infra_mode:cloud_cost_only",
-			wantAllowlistLen: 1,
-		},
-		{
-			name:    "end_user_device marks eligible metrics without allowlist",
+			name:    "end_user_device marks eligible metrics",
 			mode:    "end_user_device",
 			wantNil: false,
 			wantTag: "infra_mode:end_user_device",
 		},
-		{"full mode returns nil", "full", nil, true, "", 0},
-		{"basic mode returns nil", "basic", nil, true, "", 0},
-		{"none mode returns nil", "none", nil, true, "", 0},
-		{"unknown mode returns nil", "some_future_mode", nil, true, "", 0},
+		{"full mode returns nil", "full", true, ""},
+		{"basic mode returns nil", "basic", true, ""},
+		{"none mode returns nil", "none", true, ""},
+		{"unknown mode returns nil", "some_future_mode", true, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.Set("infrastructure_mode", tt.mode, pkgconfigmodel.SourceFile)
-			if tt.mode == "cloud_cost_only" && tt.taggedChecks != nil {
-				cfg.Set("integration.cloud_cost_only.tagged", tt.taggedChecks, pkgconfigmodel.SourceFile)
-			}
 
 			tagger := NewMetricTagger(cfg)
 			if tt.wantNil {
@@ -65,21 +52,12 @@ func TestNewMetricTagger(t *testing.T) {
 			}
 			assert.NotNil(t, tagger)
 			assert.Equal(t, []string{tt.wantTag}, tagger.infraModeTags)
-			if tt.wantAllowlistLen == 0 {
-				assert.Nil(t, tagger.taggedChecks)
-			} else {
-				assert.Len(t, tagger.taggedChecks, tt.wantAllowlistLen)
-			}
 		})
 	}
 }
 
 func TestIsCheckEligible(t *testing.T) {
 	allChecks := &MetricTagger{infraModeTags: []string{InfraModeCloudCostTag}}
-	selective := &MetricTagger{
-		infraModeTags: []string{InfraModeCloudCostTag},
-		taggedChecks:  map[string]struct{}{"cpu": {}},
-	}
 
 	tests := []struct {
 		name      string
@@ -90,9 +68,7 @@ func TestIsCheckEligible(t *testing.T) {
 		{"nil receiver returns false", nil, "cpu", false},
 		{"empty check name returns false", allChecks, "", false},
 		{"custom_ prefix returns false", allChecks, "custom_check", false},
-		{"nil allow-list tags all non-custom checks", allChecks, "any_integration", true},
-		{"check in allow-list returns true", selective, "cpu", true},
-		{"check not in allow-list returns false", selective, "disk", false},
+		{"non-custom check returns true", allChecks, "any_integration", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

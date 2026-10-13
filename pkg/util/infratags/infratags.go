@@ -19,19 +19,14 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // InfraModeCloudCostTag is the historical constant for the CCM metrics mark.
 // Prefer building the tag from configutils.InfraModeTagKey and MarkedInfraMode.
 const InfraModeCloudCostTag = "infra_mode:cloud_cost_only"
-
-var taggedDeprecationOnce sync.Once
 
 // MetricTagger holds the pre-resolved infra mode tagging state for Agent integration metrics.
 // A nil *MetricTagger disables tagging.
@@ -39,59 +34,30 @@ var taggedDeprecationOnce sync.Once
 // This is not tagger.Component: eligibility is check-name based and stays on the metrics path.
 type MetricTagger struct {
 	infraModeTags []string
-	taggedChecks  map[string]struct{} // nil = all non-custom checks eligible
 }
 
 // NewMetricTagger resolves the infra mode tagging configuration from cfg.
 // Returns nil if the active infrastructure_mode does not trigger tagging.
-//
-// The optional integration.<mode>.tagged allowlist exists only for
-// cloud_cost_only (and is deprecated). Other marked modes never probe that
-// key, so nodetreemodel does not warn about an unknown config path.
+// Marked modes tag all non-custom checks; there is no per-mode check allowlist.
 func NewMetricTagger(cfg pkgconfigmodel.Reader) *MetricTagger {
 	mode := configutils.MarkedInfraMode(cfg)
 	if mode == "" {
 		return nil
 	}
-	tags := []string{fmt.Sprintf("%s:%s", configutils.InfraModeTagKey, mode)}
-
-	if mode != constants.InfraModeCloudCostOnly {
-		return &MetricTagger{infraModeTags: tags}
+	return &MetricTagger{
+		infraModeTags: []string{fmt.Sprintf("%s:%s", configutils.InfraModeTagKey, mode)},
 	}
-
-	checks := cfg.GetStringSlice("integration." + constants.InfraModeCloudCostOnly + ".tagged")
-	if len(checks) == 0 {
-		return &MetricTagger{infraModeTags: tags}
-	}
-
-	taggedDeprecationOnce.Do(func() {
-		log.Warnf("integration.%s.tagged is deprecated and will be removed in a future Agent release. "+
-			"when set, only listed non-custom checks receive infra_mode tags", mode)
-	})
-
-	taggedChecks := make(map[string]struct{}, len(checks))
-	for _, c := range checks {
-		taggedChecks[c] = struct{}{}
-	}
-	return &MetricTagger{infraModeTags: tags, taggedChecks: taggedChecks}
 }
 
 // IsCheckEligible reports whether the given check should receive infra mode tags.
 func (t *MetricTagger) IsCheckEligible(checkName string) bool {
-	// nil = no infra mode tagging
 	if t == nil {
 		return false
 	}
-	// empty check name or custom check = never eligible
 	if checkName == "" || strings.HasPrefix(checkName, "custom_") {
 		return false
 	}
-	// empty taggedChecks = all non-custom checks eligible
-	if t.taggedChecks == nil {
-		return true
-	}
-	_, ok := t.taggedChecks[checkName]
-	return ok
+	return true
 }
 
 // AppendTags appends the pre-resolved infra_mode tags, skipping values already present.
