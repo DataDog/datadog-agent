@@ -159,8 +159,13 @@ func (s *TerminatedPodCollectorTestSuite) processEvents(expectedPods int, events
 		s.fakeWatcher.Action(event.Type, pod)
 	}
 
-	hasExpectedPods := func() bool { return len(s.handledPods) == expectedPods }
-	s.Require().Eventually(hasExpectedPods, 5*time.Second, 100*time.Millisecond)
+	if expectedPods == 0 {
+		hasHandledPods := func() bool { return len(s.handledPods) > 0 }
+		s.Require().Never(hasHandledPods, 5*time.Second, 100*time.Millisecond)
+	} else {
+		hasExpectedPods := func() bool { return len(s.handledPods) == expectedPods }
+		s.Require().Eventually(hasExpectedPods, 5*time.Second, 100*time.Millisecond)
+	}
 
 	pods := make([]*corev1.Pod, 0, expectedPods)
 	for range expectedPods {
