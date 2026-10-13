@@ -90,6 +90,11 @@ func (m *OrderedPerfMap) Resume() error {
 	return m.perfMap.Resume()
 }
 
+// DebugState describes the reorderer. TEMPORARY span-dbg.
+func (m *OrderedPerfMap) DebugState(timeout time.Duration) string {
+	return m.reOrderer.DebugState(timeout)
+}
+
 // SendStats is a no-op for the ordered perf map.
 func (m *OrderedPerfMap) SendStats() error {
 	return nil

@@ -174,6 +174,8 @@ func (tm *testModule) spanTesterTimeoutDump(continueFile string, started time.Ti
 	if !ok {
 		return b.String()
 	}
+	// Before the direct resolution: it must describe the stream as the timeout found it.
+	fmt.Fprintf(&b, "span-dbg: event stream: %s\n", ebpfProbe.DebugEventStreamState())
 	resolver := ebpfProbe.Resolvers.ProcessResolver
 	for _, pid := range pids {
 		fmt.Fprintf(&b, "span-dbg: resolver state of %d before: %s\n", pid, resolver.DebugOTelProcessContextState(pid))

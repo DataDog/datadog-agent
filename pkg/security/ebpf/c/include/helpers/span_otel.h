@@ -37,7 +37,9 @@ static __always_inline int unregister_otel_tls() {
 // TEMPORARY span-dbg: a 24-byte format built on the stack from immediates.
 // A string literal lands in .rodata, which kernels before 5.2 can't load, and
 // clang copies even a stack char array out of .rodata; the volatile stores
-// keep it from folding these back into a constant.
+// keep it from folding these back into a constant. The newline must be the
+// byte right before the closing NUL (offset 22) or pkg/ebpf's printk patcher,
+// which strips it on 5.9+, fails the whole manager init: pad with spaces.
 #define span_dbg_printk(w0, w1, w2, ...)                                 \
     ({                                                                   \
         u64 ____fmt[3];                                                  \

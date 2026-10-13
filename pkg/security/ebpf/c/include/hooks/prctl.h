@@ -80,12 +80,12 @@ static __always_inline int sys_prctl_ret_impl(void *ctx, int retval, enum TAIL_C
     if (syscall->prctl.flags & PRCTL_FLAG_OTEL_PROCESS_CTX) {
         // TEMPORARY span-dbg: an entry line without this one means the cached syscall was lost.
         // Prints "out <tgid> <retval> <flags>".
-        span_dbg_printk(0x6762642d6e617073ULL, 0x2064252074756f20ULL, 0x00000a6425206425ULL, // "span-dbg out %d %d %d\n"
+        span_dbg_printk(0x6762642d6e617073ULL, 0x2064252074756f20ULL, 0x000a206425206425ULL, // "span-dbg out %d %d %d \n"
                         bpf_get_current_pid_tgid() >> 32, retval, syscall->prctl.flags);
         send_otel_process_ctx_event(ctx);
     } else if (syscall->prctl.flags & PRCTL_FLAG_SPAN_DBG_NAMING_MISS) {
         // Prints "miss <tgid> <retval>": the name read failed or didn't match.
-        span_dbg_printk(0x6762642d6e617073ULL, 0x6425207373696d20ULL, 0x000000000a642520ULL, // "span-dbg miss %d %d\n"
+        span_dbg_printk(0x6762642d6e617073ULL, 0x6425207373696d20ULL, 0x000a202020642520ULL, // "span-dbg miss %d %d   \n"
                         bpf_get_current_pid_tgid() >> 32, retval);
     }
 

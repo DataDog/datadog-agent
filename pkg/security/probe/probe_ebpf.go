@@ -222,6 +222,10 @@ type EBPFProbe struct {
 	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
 	// is read on the event hot path.
 	kernelTracksCGroupID bool
+
+	// TEMPORARY span-dbg: what handleEvent is busy with, for DebugEventStreamState
+	spanDbgHandlerStart atomic.Int64
+	spanDbgHandlerType  atomic.Uint32
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -1585,7 +1589,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// synchronously, so a slow event stalls every event behind it.
 	handleStart := time.Now()
 	slowEventType := model.UnknownEventType
+	p.spanDbgHandlerStart.Store(handleStart.UnixNano())
 	defer func() {
+		p.spanDbgHandlerStart.Store(0)
 		if elapsed := time.Since(handleStart); elapsed > 250*time.Millisecond {
 			seclog.Warnf("span-dbg: slow event handler: %s event of pid %d took %s (cpu %d)", slowEventType, event.PIDContext.Pid, elapsed, CPU)
 		}
@@ -1600,6 +1606,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	eventType := event.GetEventType()
 	slowEventType = eventType
+	p.spanDbgHandlerType.Store(uint32(eventType))
 	if eventType > model.MaxKernelEventType {
 		p.monitors.eventStreamMonitor.CountInvalidEvent(dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
@@ -4495,4 +4502,18 @@ func trimRightZeros(b []byte) []byte {
 		i--
 	}
 	return b[:i+1]
+}
+
+// DebugEventStreamState describes where events are between the kernel and
+// handleEvent. TEMPORARY span-dbg, for the functional tests' timeout dumps.
+func (p *EBPFProbe) DebugEventStreamState() string {
+	handler := "idle"
+	if start := p.spanDbgHandlerStart.Load(); start != 0 {
+		handler = fmt.Sprintf("busy for %s on a %s event", time.Since(time.Unix(0, start)), model.EventType(p.spanDbgHandlerType.Load()))
+	}
+	stream := "<event stream has no debug state>"
+	if dbg, ok := p.eventStream.(interface{ DebugState(time.Duration) string }); ok {
+		stream = dbg.DebugState(time.Second)
+	}
+	return fmt.Sprintf("handleEvent %s; event stream: %s", handler, stream)
 }

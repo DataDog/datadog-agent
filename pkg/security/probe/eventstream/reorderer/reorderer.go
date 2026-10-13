@@ -10,6 +10,7 @@ package reorderer
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -189,6 +190,9 @@ type ReOrderer struct {
 	metric      Metric
 	Metrics     chan Metric
 	generation  uint64
+	// TEMPORARY span-dbg: snapshot requests answered by the Start loop itself,
+	// so an unanswered one means the loop is stuck in the handler.
+	debugReq chan chan string
 }
 
 // Start event handler loop
@@ -232,6 +236,8 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 
 			// force dequeue of a generation in case of low event rate
 			r.heap.dequeue(r.handler, r.generation-r.opts.Retention, &r.metric, &r.opts)
+		case reply := <-r.debugReq:
+			reply <- r.debugSnapshot(lastTm)
 		case <-metricTicker.C:
 			r.metric.QueueSize = r.heap.len()
 
@@ -279,5 +285,33 @@ func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extrac
 		opts:        opts,
 		Metrics:     make(chan Metric, 10),
 		generation:  opts.Retention * 2, // start with retention to avoid direct dequeue at start
+		debugReq:    make(chan chan string),
+	}
+}
+
+// TEMPORARY span-dbg: debugSnapshot must run on the Start loop, which owns the heap.
+func (r *ReOrderer) debugSnapshot(lastTm uint64) string {
+	s := fmt.Sprintf("generation=%d (release <= %d), heap=%d, queue=%d/%d, last enqueued ts=%d",
+		r.generation, r.generation-r.opts.Retention, r.heap.len(), len(r.queue), cap(r.queue), lastTm)
+	if r.heap.len() > 0 {
+		top := r.heap.heap[0]
+		s += fmt.Sprintf(", top: ts=%d generation=%d", top.timestamp, top.generation)
+	}
+	return s
+}
+
+// DebugState asks the Start loop for a snapshot. TEMPORARY span-dbg.
+func (r *ReOrderer) DebugState(timeout time.Duration) string {
+	reply := make(chan string, 1)
+	select {
+	case r.debugReq <- reply:
+	case <-time.After(timeout):
+		return fmt.Sprintf("reorderer loop did not take the request within %s: it is blocked in the event handler (queue=%d/%d)", timeout, len(r.queue), cap(r.queue))
+	}
+	select {
+	case s := <-reply:
+		return s
+	case <-time.After(timeout):
+		return "reorderer loop took the request but did not answer"
 	}
 }
