@@ -1,0 +1,31 @@
+diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
+--- a/builder/cmake_builder.rs
++++ b/builder/cmake_builder.rs
+@@ -483,12 +483,21 @@ impl CmakeBuilder {
+     fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
+         if is_fips_build() {
+             cmake_cfg.generator("Ninja");
+-            let env_map = self
+-                .collect_vcvarsall_bat()
+-                .map_err(|x| panic!("{}", x))
+-                .unwrap();
+-            for (key, value) in env_map {
+-                cmake_cfg.env(key, value);
++            // Bazel supplies a complete hermetic MSVC environment without a
++            // Visual Studio installation or vcvarsall.bat. Preserve Cargo's
++            // normal discovery when any part of that environment is absent.
++            let has_explicit_msvc_environment =
++                ["CC", "CXX", "AR", "CFLAGS", "CXXFLAGS", "LDFLAGS"]
++                    .iter()
++                    .all(|name| env::var_os(name).is_some());
++            if !has_explicit_msvc_environment {
++                let env_map = self
++                    .collect_vcvarsall_bat()
++                    .map_err(|x| panic!("{}", x))
++                    .unwrap();
++                for (key, value) in env_map {
++                    cmake_cfg.env(key, value);
++                }
+             }
+         }
+
