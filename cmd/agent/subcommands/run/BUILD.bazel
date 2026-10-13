@@ -80,6 +80,7 @@ go_library(
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/lsof/fx",
+        "//comp/core/metricsevaluator/fx",
         "//comp/core/pid/def",
         "//comp/core/pid/impl",
         "//comp/core/profiler/fx",

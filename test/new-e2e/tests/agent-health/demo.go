@@ -47,6 +47,21 @@ type Scenario struct {
 // DemoScenarios maps scenario name to its definition for the agent-health "vm"
 // demo environment. Keys match the --scenario values accepted by the CLI.
 var DemoScenarios = map[string]Scenario{
+	highMemoryK8sScenario: {
+		Issue:       "high_memory_k8s",
+		Description: "Push the node Agent container to 93% of its memory limit to trigger the high memory issue",
+		Actions: map[string]ScenarioAction{
+			"retrigger": {
+				Commands: []string{demoNodeAgentExec(startMemHogCommand)},
+				Message:  "Memory allocated in the Agent container — the issue appears once the 5 minute average crosses 90% of the limit.",
+			},
+			"remediate": {
+				Commands: []string{demoNodeAgentExec(stopMemHogCommand)},
+				Message:  "Memory released — the issue resolves at the next evaluation, within about a minute.",
+			},
+		},
+		CreateDefaults: map[string]string{},
+	},
 	"docker-permissions": {
 		Issue:       "docker_socket_permission",
 		Description: "Remove dd-agent from the docker group to trigger the Docker socket permission issue",
