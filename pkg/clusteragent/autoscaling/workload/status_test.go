@@ -9,8 +9,9 @@ package workload
 
 import (
 	"bytes"
+	"errors"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ func resetStatus(t *testing.T) {
 	t.Helper()
 	statusStore.Lock()
 	statusStore.store, statusStore.isLeader = nil, nil
-	statusStore.lastRemoteConfigUpdate = time.Time{}
+	statusStore.settings, statusStore.values = productStatus{}, productStatus{}
 	statusStore.Unlock()
 }
 
@@ -37,6 +38,19 @@ func renderText(t *testing.T) string {
 	b := new(bytes.Buffer)
 	require.NoError(t, Provider{}.Text(false, b))
 	return b.String()
+}
+
+// productBlock returns the rendered lines belonging to one product, so a test can
+// assert an update landed under the right heading rather than merely somewhere.
+func productBlock(t *testing.T, out, product string) string {
+	t.Helper()
+	start := strings.Index(out, product)
+	require.GreaterOrEqual(t, start, 0, "product %s not rendered in:\n%s", product, out)
+	rest := out[start+len(product):]
+	if next := strings.Index(rest, "CONTAINER_AUTOSCALING_"); next != -1 {
+		return rest[:next]
+	}
+	return rest
 }
 
 func renderHTML(t *testing.T) string {
@@ -91,7 +105,10 @@ func TestWorkloadAutoscalingStatusStarted(t *testing.T) {
 	out := renderText(t)
 	assert.Contains(t, out, "DatadogPodAutoscalers: 2")
 	assert.Contains(t, out, "Leader: true")
-	assert.Contains(t, out, "Remote Config: no update received yet")
+	// Both products are listed even before anything arrives
+	assert.Contains(t, out, data.ProductContainerAutoscalingSettings)
+	assert.Contains(t, out, data.ProductContainerAutoscalingValues)
+	assert.Contains(t, out, "No update received yet")
 	assert.Contains(t, renderHTML(t), "DatadogPodAutoscalers: 2")
 }
 
@@ -108,10 +125,16 @@ func TestWorkloadAutoscalingStatusReceivingUpdates(t *testing.T) {
 	enabledConfig(t, true)
 	InitStatus(autoscalingstore.NewStore[model.PodAutoscalerInternal](), func() bool { return true })
 
-	recordRemoteConfigUpdate()
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, map[string]state.RawConfig{
+		"a": {Metadata: state.Metadata{Version: 7}},
+		"b": {Metadata: state.Metadata{Version: 12}},
+	})
 
 	out := renderText(t)
-	assert.Contains(t, out, "Remote Config: last update received")
+	// The highest version across the update is what gets reported
+	assert.Contains(t, out, "Last config version: 12")
+	assert.Contains(t, out, "Configs in last update: 2")
+	assert.Contains(t, out, "Updates received: 1")
 	assert.NotContains(t, out, "no update received yet")
 }
 
@@ -127,7 +150,7 @@ func TestConfigRetrieverRecordsRemoteConfigUpdate(t *testing.T) {
 	InitStatus(store, func() bool { return true })
 	_, rcClient := newMockConfigRetriever(t, func() bool { return true }, store, clock.RealClock{})
 
-	require.Contains(t, renderText(t), "Remote Config: no update received yet")
+	require.Contains(t, renderText(t), "No update received yet")
 
 	var applied []state.ApplyStatus
 	rcClient.triggerUpdate(
@@ -142,5 +165,56 @@ func TestConfigRetrieverRecordsRemoteConfigUpdate(t *testing.T) {
 	// counts as received" rather than just "some update arrived".
 	require.Len(t, applied, 1)
 	require.Equal(t, state.ApplyStateError, applied[0].State)
-	assert.Contains(t, renderText(t), "Remote Config: last update received")
+
+	// Asserted per product: "Updates received: 1" appearing anywhere would also
+	// hold if the subscription routed this update to the other product.
+	out := renderText(t)
+	assert.Contains(t, productBlock(t, out, data.ProductContainerAutoscalingSettings), "Updates received: 1")
+	assert.Contains(t, productBlock(t, out, data.ProductContainerAutoscalingValues), "No update received yet")
+}
+
+// TestWorkloadAutoscalingStatusProductsAreIndependent is the guard the earlier
+// iteration of this section lacked: swapping the two product constants in
+// NewConfigRetriever, or routing both to one bucket, must fail here.
+func TestWorkloadAutoscalingStatusProductsAreIndependent(t *testing.T) {
+	resetStatus(t)
+	enabledConfig(t, true)
+	InitStatus(autoscalingstore.NewStore[model.PodAutoscalerInternal](), func() bool { return true })
+
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingValues, map[string]state.RawConfig{
+		"a": {Metadata: state.Metadata{Version: 41}},
+	})
+
+	assert.Equal(t, uint64(41), statusStore.values.lastVersion)
+	assert.True(t, statusStore.settings.lastUpdate.IsZero(), "settings must be untouched")
+
+	out := renderText(t)
+	assert.Contains(t, productBlock(t, out, data.ProductContainerAutoscalingSettings), "No update received yet")
+	assert.Contains(t, productBlock(t, out, data.ProductContainerAutoscalingValues), "Last config version: 41")
+}
+
+// TestWorkloadAutoscalingStatusReportsOnlyTheLatestUpdate covers the reset: an
+// update carries the product's whole config set, so a stale version or a
+// recovered error must not be reported as current.
+func TestWorkloadAutoscalingStatusReportsOnlyTheLatestUpdate(t *testing.T) {
+	resetStatus(t)
+	enabledConfig(t, true)
+	InitStatus(autoscalingstore.NewStore[model.PodAutoscalerInternal](), func() bool { return true })
+
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, map[string]state.RawConfig{
+		"a": {Metadata: state.Metadata{Version: 99}},
+	})
+	recordRemoteConfigError(data.ProductContainerAutoscalingSettings, errors.New("bad spec"))
+	require.Contains(t, renderText(t), "Last error: bad spec")
+
+	recordRemoteConfigUpdate(data.ProductContainerAutoscalingSettings, map[string]state.RawConfig{
+		"a": {Metadata: state.Metadata{Version: 4}},
+	})
+
+	out := renderText(t)
+	assert.Contains(t, out, "Last config version: 4")
+	assert.NotContains(t, out, "Last config version: 99")
+	assert.NotContains(t, out, "Last error:")
+	// The running total keeps accumulating across updates
+	assert.Contains(t, out, "Updates received: 2")
 }

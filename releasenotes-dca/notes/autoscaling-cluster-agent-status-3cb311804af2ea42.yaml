@@ -4,4 +4,5 @@ features:
     The ``cluster-agent status`` command and flare now include an Autoscaling
     section reporting the state of workload autoscaling: the number of
     ``DatadogPodAutoscaler`` objects in the store, whether this replica is the
-    leader, and when the last Remote Configuration update was received.
+    leader, and per Remote Configuration product the version, age and size of
+    the last update received along with a running update count.

@@ -9,7 +9,21 @@
     {{- else }}
       DatadogPodAutoscalers: {{ .PodAutoscalerCount }}
       <br>Leader: {{ if .IsLeader }}true{{ else }}false{{ end }}
-      <br>Remote Config: {{ if .RemoteConfigReceived }}last update received {{ .LastRemoteConfigUpdateAge }} ago{{ else }}no update received yet (expected if no DatadogPodAutoscaler is configured remotely){{ end }}
+      {{- range .RemoteConfigProducts }}
+      <br>
+      <br>{{ .Product }}
+      {{- if not .Received }}
+      <br>&nbsp;&nbsp;No update received yet
+      {{- else }}
+      <br>&nbsp;&nbsp;Last config version: {{ .LastVersion }}
+      <br>&nbsp;&nbsp;Last update: {{ .LastUpdate }} ({{ .LastUpdateAge }} ago)
+      <br>&nbsp;&nbsp;Configs in last update: {{ .ConfigCount }}
+      <br>&nbsp;&nbsp;Updates received: {{ .UpdateCount }}
+      {{- if .LastError }}
+      <br>&nbsp;&nbsp;Last error: {{ .LastError }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
     {{- end }}
     {{- end }}
   </span>

@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 //go:embed status_templates
@@ -25,9 +27,68 @@ var statusStore struct {
 	sync.RWMutex
 	store    *store
 	isLeader func() bool
-	// Wall-clock, not the retriever's injected clock: only ever rendered as an
-	// age against time.Now(), so both ends must come from the same clock
-	lastRemoteConfigUpdate time.Time
+	settings productStatus
+	values   productStatus
+}
+
+// productStatus is what the last Remote Configuration update for one product
+// carried. Times are wall-clock, not the retriever's injected clock, because
+// they are rendered as an age against time.Now()
+type productStatus struct {
+	lastUpdate  time.Time
+	lastVersion uint64
+	configCount int
+	updateCount uint64
+	lastError   string
+}
+
+// record notes an update. Versions are per-config, so the highest in the update
+// is the most useful single number to show
+func (p *productStatus) record(update map[string]state.RawConfig) {
+	p.lastUpdate = time.Now()
+	p.configCount = len(update)
+	p.updateCount++
+
+	// An update carries the product's whole current config set, not a delta, so
+	// reset rather than accumulate: a stale high version or a recovered error
+	// would otherwise be reported as current for the life of the process
+	p.lastVersion = 0
+	p.lastError = ""
+	for _, rawConfig := range update {
+		if rawConfig.Metadata.Version > p.lastVersion {
+			p.lastVersion = rawConfig.Metadata.Version
+		}
+	}
+}
+
+func (p productStatus) info(product string) map[string]interface{} {
+	info := map[string]interface{}{"Product": product, "Received": !p.lastUpdate.IsZero()}
+	if p.lastUpdate.IsZero() {
+		return info
+	}
+
+	info["LastVersion"] = p.lastVersion
+	info["LastUpdate"] = p.lastUpdate.UTC().Format(time.RFC3339)
+	info["LastUpdateAge"] = time.Since(p.lastUpdate).Truncate(time.Second).String()
+	info["ConfigCount"] = p.configCount
+	info["UpdateCount"] = p.updateCount
+	if p.lastError != "" {
+		info["LastError"] = p.lastError
+	}
+	return info
+}
+
+// productStatusFor routes a product to its bucket. A switch rather than a map
+// keyed by product: the set is fixed at compile time, so an unknown product is a
+// programming error rather than something to allocate for
+func productStatusFor(product string) *productStatus {
+	switch product {
+	case data.ProductContainerAutoscalingSettings:
+		return &statusStore.settings
+	case data.ProductContainerAutoscalingValues:
+		return &statusStore.values
+	}
+	return nil
 }
 
 // InitStatus registers the live state used by the workload autoscaling status.
@@ -39,11 +100,22 @@ func InitStatus(store *store, isLeader func() bool) {
 	statusStore.isLeader = isLeader
 }
 
-// recordRemoteConfigUpdate notes that a Remote Configuration update arrived
-func recordRemoteConfigUpdate() {
+// recordRemoteConfigUpdate notes a Remote Configuration update for a product
+func recordRemoteConfigUpdate(product string, update map[string]state.RawConfig) {
 	statusStore.Lock()
 	defer statusStore.Unlock()
-	statusStore.lastRemoteConfigUpdate = time.Now()
+	if tracked := productStatusFor(product); tracked != nil {
+		tracked.record(update)
+	}
+}
+
+// recordRemoteConfigError notes a config that failed to apply
+func recordRemoteConfigError(product string, err error) {
+	statusStore.Lock()
+	defer statusStore.Unlock()
+	if tracked := productStatusFor(product); tracked != nil {
+		tracked.lastError = err.Error()
+	}
 }
 
 // Provider populates the workload autoscaling status section
@@ -85,7 +157,8 @@ func populateStatus(stats map[string]interface{}) {
 	info := map[string]interface{}{}
 
 	statusStore.RLock()
-	liveStore, isLeader, lastUpdate := statusStore.store, statusStore.isLeader, statusStore.lastRemoteConfigUpdate
+	liveStore, isLeader := statusStore.store, statusStore.isLeader
+	settings, values := statusStore.settings, statusStore.values
 	statusStore.RUnlock()
 
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
@@ -105,12 +178,13 @@ func populateStatus(stats map[string]interface{}) {
 	info["PodAutoscalerCount"] = liveStore.Count()
 	info["IsLeader"] = isLeader()
 
-	// Not a health signal either way: Remote Configuration calls back only when
-	// the config set changes, so an org with no remote DatadogPodAutoscaler never
-	// gets one and stable configs stop producing them. Report the fact only.
-	info["RemoteConfigReceived"] = !lastUpdate.IsZero()
-	if !lastUpdate.IsZero() {
-		info["LastRemoteConfigUpdateAge"] = time.Since(lastUpdate).Truncate(time.Second).String()
+	// Remote Configuration calls back only when a product's config set changes,
+	// so "no update received yet" is the normal state for an organization with no
+	// remote DatadogPodAutoscaler, and a steady state stops producing updates.
+	// These are a record of what arrived, not a health verdict.
+	info["RemoteConfigProducts"] = []map[string]interface{}{
+		settings.info(data.ProductContainerAutoscalingSettings),
+		values.info(data.ProductContainerAutoscalingValues),
 	}
 
 	stats["workloadAutoscaling"] = info
