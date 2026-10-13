@@ -7,7 +7,10 @@
       "kernel": "6.0.7-301.fc37",
       "os_version": "37",
       "image": "Fedora-Cloud-Base-37.x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "fedora_38": {
       "os_name": "Fedora Linux",
@@ -15,7 +18,10 @@
       "kernel": "6.2.9-300.fc38",
       "os_version": "38",
       "image": "Fedora-Cloud-Base-38.x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "amazon_4.14": {
       "os_name": "Amazon Linux",
@@ -23,7 +29,10 @@
       "kernel": "4.14.355-275.570.amzn2",
       "os_version": "2",
       "image": "amzn2-x86_64-4.14.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251015_301103a6",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "amazon_5.10": {
       "os_name": "Amazon Linux",
@@ -31,7 +40,10 @@
       "kernel": "5.10.244-240.970.amzn2",
       "os_version": "2",
       "image": "amzn2-x86_64-5.10.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251015_301103a6",
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "amazon_5.4": {
       "os_name": "Amazon Linux",
@@ -39,7 +51,10 @@
       "kernel": "5.4.284-196.380.amzn2",
       "os_version": "2",
       "image": "amzn2-x86_64-5.4.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "amazon_2023": {
       "os_name": "Amazon Linux",
@@ -47,7 +62,10 @@
       "kernel": "6.1.119-129.201.amzn2023",
       "os_version": "2023",
       "image": "amzn2023-amd64-2023.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251015_301103a6",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "centos_7.9": {
       "os_name": "CentOS Linux",
@@ -55,7 +73,10 @@
       "kernel": "3.10.0-1160.80.1.el7",
       "os_version": "7.9.2009",
       "image": "centos-7.9-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "centos_8": {
       "os_name": "CentOS Stream",
@@ -63,7 +84,10 @@
       "kernel": "4.18.0-552.3.1.el8",
       "os_version": "8",
       "image": "centos-8-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "debian_10": {
       "os_name": "Debian GNU/Linux",
@@ -74,7 +98,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "buster"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "debian_11": {
       "os_name": "Debian GNU/Linux",
@@ -85,7 +112,10 @@
       "image_version": "20260413_5fca70eb",
       "alt_version_names": [
         "bullseye"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "debian_12": {
       "os_name": "Debian GNU/Linux",
@@ -96,7 +126,10 @@
       "image_version": "20251015_301103a6",
       "alt_version_names": [
         "bookworm"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "oracle_7.9": {
       "os_name": "Oracle Linux Server",
@@ -104,7 +137,10 @@
       "kernel": "3.10.0-1160.105.1.0.1.el7",
       "os_version": "7.9",
       "image": "oracle-7.9-x86_64.qcow.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "oracle_8.9": {
       "os_name": "Oracle Linux Server",
@@ -112,7 +148,10 @@
       "kernel": "5.15.0-200.131.27.el8uek",
       "os_version": "8.9",
       "image": "oracle-8.9-x86_64.qcow.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "oracle_9.3": {
       "os_name": "Oracle Linux Server",
@@ -120,7 +159,10 @@
       "kernel": "5.15.0-200.131.27.el9uek",
       "os_version": "9.3",
       "image": "oracle-9.3-x86_64.qcow.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "rocky_8.5": {
       "os_name": "Rocky Linux",
@@ -128,7 +170,10 @@
       "kernel": "4.18.0-348.el8.0.2",
       "os_version": "8.5",
       "image": "rocky-8.5-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "rocky_9.3": {
       "os_name": "Rocky Linux",
@@ -136,7 +181,10 @@
       "kernel": "5.14.0-362.8.1.el9_3",
       "os_version": "9.3",
       "image": "rocky-9.3-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_16.04": {
       "os_name": "Ubuntu",
@@ -147,7 +195,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "xenial"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_18.04": {
       "os_name": "Ubuntu",
@@ -158,7 +209,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "bionic"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_20.04": {
       "os_name": "Ubuntu",
@@ -169,7 +223,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "focal"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_22.04": {
       "os_name": "Ubuntu",
@@ -180,7 +237,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "jammy"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_23.10": {
       "os_name": "Ubuntu",
@@ -191,7 +251,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "mantic"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_24.04": {
       "os_name": "Ubuntu",
@@ -202,7 +265,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "noble"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "opensuse_15.3": {
       "os_name": "openSUSE Leap",
@@ -210,7 +276,10 @@
       "kernel": "5.3.18-150300.59.106.1",
       "os_version": "15.3",
       "image": "opensuse-15.3-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "opensuse_15.5": {
       "os_name": "openSUSE Leap",
@@ -218,7 +287,10 @@
       "kernel": "5.14.21-150500.55.88.1",
       "os_version": "15.5",
       "image": "opensuse-15.5-x86_64.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251015_301103a6",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "suse_12.5": {
       "os_name": "SLES",
@@ -226,7 +298,10 @@
       "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-x86_64.qcow2.xz",
-      "image_version": "20251120_7497a561"
+      "image_version": "20251120_7497a561",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "debian_9": {
       "os_name": "Debian GNU/Linux",
@@ -237,7 +312,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "stretch"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "fedora_40": {
       "os_name": "Fedora Linux",
@@ -245,7 +323,10 @@
       "kernel": "6.8.5-301.fc40",
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_24.10": {
       "os_name": "Ubuntu",
@@ -256,7 +337,10 @@
       "image_version": "20241028_31340374",
       "alt_version_names": [
         "oracular"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "rocky_9.4": {
       "os_name": "Rocky Linux",
@@ -264,7 +348,10 @@
       "kernel": "5.14.0-427.20.1.el9_4",
       "os_version": "9.4",
       "image": "rocky-9.4-x86_64.qcow2.xz",
-      "image_version": "20260421_d736dd42"
+      "image_version": "20260421_d736dd42",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "rocky_8.4": {
       "os_name": "Rocky Linux",
@@ -272,7 +359,10 @@
       "kernel": "4.18.0-305.3.1.el8_4",
       "os_version": "8.4",
       "image": "rocky-8.4-x86_64.qcow2.xz",
-      "image_version": "20250320_7cf8bbf7"
+      "image_version": "20250320_7cf8bbf7",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_25.04": {
       "image": "ubuntu-25.04-x86_64.qcow2.xz",
@@ -283,7 +373,10 @@
       "os_version": "25.04",
       "alt_version_names": [
         "plucky"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "ubuntu_25.10": {
       "image": "ubuntu-25.10-x86_64.qcow2.xz",
@@ -294,7 +387,10 @@
       "os_version": "25.10",
       "alt_version_names": [
         "questing"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "ubuntu_26.04": {
       "image": "ubuntu-26.04-x86_64.qcow2.xz",
@@ -305,7 +401,10 @@
       "os_version": "26.04",
       "alt_version_names": [
         "resolute"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "amazon_6.12": {
       "image": "amzn2023-x86_64-6.12.qcow2.xz",
@@ -313,7 +412,10 @@
       "os_name": "Amazon Linux",
       "os_id": "amzn",
       "kernel": "6.12.90-120.164.amzn2023",
-      "os_version": "2023"
+      "os_version": "2023",
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     }
   },
   "arm64": {
@@ -323,7 +425,10 @@
       "kernel": "6.0.7-301.fc37",
       "os_version": "37",
       "image": "Fedora-Cloud-Base-37.arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "fedora_38": {
       "os_name": "Fedora Linux",
@@ -331,7 +436,10 @@
       "kernel": "6.2.9-300.fc38",
       "os_version": "38",
       "image": "Fedora-Cloud-Base-38.arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "amazon_4.14": {
       "os_name": "Amazon Linux",
@@ -339,7 +447,10 @@
       "kernel": "4.14.355-275.570.amzn2",
       "os_version": "2",
       "image": "amzn2-arm64-4.14.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251015_301103a6",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "amazon_5.4": {
       "os_name": "Amazon Linux",
@@ -347,7 +458,10 @@
       "kernel": "5.4.284-196.380.amzn2",
       "os_version": "2",
       "image": "amzn2-arm64-5.4.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "centos_7.9": {
       "os_name": "CentOS Linux",
@@ -355,7 +469,10 @@
       "kernel": "4.18.0-348.20.1.el7",
       "os_version": "7.9.2009",
       "image": "centos-7.9-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "centos_8": {
       "os_name": "CentOS Stream",
@@ -363,7 +480,10 @@
       "kernel": "4.18.0-552.3.1.el8",
       "os_version": "8",
       "image": "centos-8-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "debian_10": {
       "os_name": "Debian GNU/Linux",
@@ -374,7 +494,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "buster"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "debian_11": {
       "os_name": "Debian GNU/Linux",
@@ -385,7 +508,10 @@
       "image_version": "20260413_5fca70eb",
       "alt_version_names": [
         "bullseye"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "debian_12": {
       "os_name": "Debian GNU/Linux",
@@ -396,7 +522,10 @@
       "image_version": "20251015_301103a6",
       "alt_version_names": [
         "bookworm"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "oracle_8.9": {
       "os_name": "Oracle Linux Server",
@@ -404,7 +533,10 @@
       "kernel": "5.15.0-200.131.27.el8uek",
       "os_version": "8.9",
       "image": "oracle-8.9-arm64.qcow.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "oracle_9.3": {
       "os_name": "Oracle Linux Server",
@@ -412,7 +544,10 @@
       "kernel": "5.15.0-200.131.27.el9uek",
       "os_version": "9.3",
       "image": "oracle-9.3-arm64.qcow.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "rocky_8.5": {
       "os_name": "Rocky Linux",
@@ -420,7 +555,10 @@
       "kernel": "4.18.0-348.el8.0.2",
       "os_version": "8.5",
       "image": "rocky-8.5-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "rocky_9.3": {
       "os_name": "Rocky Linux",
@@ -428,7 +566,10 @@
       "kernel": "5.14.0-362.8.1.el9_3",
       "os_version": "9.3",
       "image": "rocky-9.3-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "amazon_5.10": {
       "os_name": "Amazon Linux",
@@ -436,7 +577,10 @@
       "kernel": "5.10.244-240.970.amzn2",
       "os_version": "2",
       "image": "amzn2-arm64-5.10.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251015_301103a6",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "amazon_2023": {
       "os_name": "Amazon Linux",
@@ -444,7 +588,10 @@
       "kernel": "6.1.119-129.201.amzn2023",
       "os_version": "2023",
       "image": "amzn2023-arm64-2023.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251015_301103a6",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_18.04": {
       "os_name": "Ubuntu",
@@ -455,7 +602,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "bionic"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_20.04": {
       "os_name": "Ubuntu",
@@ -466,7 +616,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "focal"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_22.04": {
       "os_name": "Ubuntu",
@@ -477,7 +630,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "jammy"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_23.10": {
       "os_name": "Ubuntu",
@@ -488,7 +644,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "mantic"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_24.04": {
       "os_name": "Ubuntu",
@@ -499,7 +658,10 @@
       "image_version": "20241003_a9a46356",
       "alt_version_names": [
         "noble"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "opensuse_15.3": {
       "os_name": "openSUSE Leap",
@@ -507,7 +669,10 @@
       "kernel": "5.3.18-150300.59.106.1",
       "os_version": "15.3",
       "image": "opensuse-15.3-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "opensuse_15.5": {
       "os_name": "openSUSE Leap",
@@ -515,7 +680,10 @@
       "kernel": "5.14.21-150500.55.88.1",
       "os_version": "15.5",
       "image": "opensuse-15.5-arm64.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251015_301103a6",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "suse_12.5": {
       "os_name": "SLES",
@@ -523,7 +691,10 @@
       "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-arm64.qcow2.xz",
-      "image_version": "20251120_7497a561"
+      "image_version": "20251120_7497a561",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "fedora_40": {
       "os_name": "Fedora Linux",
@@ -531,7 +702,10 @@
       "kernel": "6.8.5-301.fc40",
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20241003_a9a46356",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_24.10": {
       "os_name": "Ubuntu",
@@ -542,7 +716,10 @@
       "image_version": "20241028_31340374",
       "alt_version_names": [
         "oracular"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "rocky_9.4": {
       "os_name": "Rocky Linux",
@@ -550,7 +727,10 @@
       "kernel": "5.14.0-427.18.1.el9_4",
       "os_version": "9.4",
       "image": "rocky-9.4-arm64.qcow2.xz",
-      "image_version": "20260421_d736dd42"
+      "image_version": "20260421_d736dd42",
+      "test_flags": {
+        "network-tracer-fentry-supported": false
+      }
     },
     "ubuntu_25.04": {
       "image": "ubuntu-25.04-arm64.qcow2.xz",
@@ -561,7 +741,10 @@
       "os_version": "25.04",
       "alt_version_names": [
         "plucky"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "ubuntu_25.10": {
       "image": "ubuntu-25.10-arm64.qcow2.xz",
@@ -572,7 +755,10 @@
       "os_version": "25.10",
       "alt_version_names": [
         "questing"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "ubuntu_26.04": {
       "image": "ubuntu-26.04-arm64.qcow2.xz",
@@ -583,7 +769,10 @@
       "os_version": "26.04",
       "alt_version_names": [
         "resolute"
-      ]
+      ],
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     },
     "amazon_6.12": {
       "image": "amzn2023-arm64-6.12.qcow2.xz",
@@ -591,7 +780,10 @@
       "os_name": "Amazon Linux",
       "os_id": "amzn",
       "kernel": "6.12.90-120.164.amzn2023",
-      "os_version": "2023"
+      "os_version": "2023",
+      "test_flags": {
+        "network-tracer-fentry-supported": true
+      }
     }
   }
 }

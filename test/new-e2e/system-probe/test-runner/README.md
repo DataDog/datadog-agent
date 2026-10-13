@@ -8,3 +8,16 @@ It is leveraging the [gotestsum](https://github.com/gotestyourself/gotestsum) bi
 
 The results of the tests (including the junit summary file) are stored in the `/ci-visibility` directory on the target micro-VM.
 See `buildTestConfiguration` in main.go of this package for the list of different parameters supported by this test-runner
+
+## Platform test flags
+
+Each KMT platform in
+[test/new-e2e/system-probe/config/platforms.json](../config/platforms.json)
+can define a `test_flags` map. The test-runner matches the micro-VM's
+`uname` architecture and kernel release against the platforms list and exports
+every flag as an environment variable for the test binaries, using the
+`DD_KMT_TEST_FLAG_` prefix: dashes are replaced by underscores and the key is
+upper-cased. For example, the `network-tracer-fentry-supported` flag is exposed
+as `DD_KMT_TEST_FLAG_NETWORK_TRACER_FENTRY_SUPPORTED` (which gates the `Fentry`
+build mode in `pkg/ebpf/ebpftest.SupportedBuildModes`). When no platform
+matches the running kernel (e.g. custom kernels), no flags are set.
