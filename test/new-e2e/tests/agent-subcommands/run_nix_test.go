@@ -27,7 +27,7 @@ type linuxRunSuite struct {
 
 func TestLinuxRunSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxRunSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
+	e2e.Run(t, &linuxRunSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (s *linuxRunSuite) TestRunWhenAgentAlreadyRunning() {

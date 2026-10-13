@@ -360,7 +360,7 @@ type hostBenchmarksSuite struct {
 
 func testHostBenchmarks(t *testing.T, d distro) {
 	t.Parallel()
-	instanceOpts := []ec2.VMOption{ec2.WithOS(d.os), ec2.WithInternetAccess()}
+	instanceOpts := []ec2.VMOption{ec2.WithOS(d.os)}
 	e2e.Run(t, &hostBenchmarksSuite{distro: d},
 		e2e.WithStackName("cspm-host-"+d.name),
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(

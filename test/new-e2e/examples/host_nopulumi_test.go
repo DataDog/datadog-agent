@@ -40,7 +40,6 @@ func TestNoPulumiHostInstaller(t *testing.T) {
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(
 					ec2.WithOS(e2eos.Ubuntu2204E2E),
-					ec2.WithInternetAccess(),
 				),
 				ec2.WithoutAgent(),
 			),

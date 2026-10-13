@@ -79,7 +79,7 @@ sudo usermod -a -G docker dd-agent
 			// Create the /var/run/datadog directory and ensure
 			// permissions are correct so the agent can create
 			// unix sockets for the UDS transport and communicate with the docker socket.
-			ec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript), ec2.WithInternetAccess()),
+			ec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
 		),
 	)
 	return opts
@@ -124,7 +124,6 @@ func TestVMFakeintakeSuiteTCP(t *testing.T) {
 		awshost.WithRunOptions(
 			// Enable the UDS receiver in the trace-agent
 			ec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(tcp, ""))),
-			ec2.WithEC2InstanceOptions(),
 		),
 	)
 	e2e.Run(t, NewVMFakeintakeSuite(tcp), options...)

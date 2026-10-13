@@ -54,7 +54,7 @@ func TestWindowsPARSplitLifecycleSuite(t *testing.T) {
 	e2e.Run(t, suite, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.WindowsServerDefault), scenec2.WithInternetAccess()),
+				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.WindowsServerDefault)),
 				scenec2.WithFakeIntakeOptions(awsfakeintake.WithLoadBalancer()),
 				scenec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
 			),

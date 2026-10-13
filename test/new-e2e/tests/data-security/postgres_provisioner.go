@@ -32,7 +32,7 @@ func postgresScanProvisioner() provisioners.PulumiEnvRunFunc[postgresScanEnv] {
 			return err
 		}
 
-		host, err := ec2.NewVM(awsEnv, "agent-host", ec2.WithInternetAccess())
+		host, err := ec2.NewVM(awsEnv, "agent-host")
 		if err != nil {
 			return err
 		}
