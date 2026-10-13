@@ -26,9 +26,13 @@ import (
 // directly. It is a variable so tests can point it at fixtures.
 var CDISpecDirs = []string{"/host/var/run/cdi", "/var/run/cdi"}
 
-// NvidiaDRAClaimSpecPrefix is the file name prefix of the CDI spec the NVIDIA
-// DRA driver writes for each claim: <prefix><claim UID>.yaml.
-const NvidiaDRAClaimSpecPrefix = "k8s.gpu.nvidia.com-claim_"
+const nvidiaDRAClaimSpecPrefix = "k8s.gpu.nvidia.com-claim_"
+
+// NvidiaDRAClaimSpecFileName returns the file name of the CDI spec that the
+// NVIDIA DRA driver writes for the claim with the given UID.
+func NvidiaDRAClaimSpecFileName(claimUID string) string {
+	return nvidiaDRAClaimSpecPrefix + claimUID + ".yaml"
+}
 
 // CheckNvidiaDRACDISpecs returns nil if at least one of CDISpecDirs contains
 // NVIDIA DRA claim specs, and otherwise an error describing, for each

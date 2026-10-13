@@ -19,16 +19,19 @@ func TestBuildSystemProbeDataIssue(t *testing.T) {
 		failures      []SystemProbeSourceFailure
 		expectedTitle string
 		expectedSteps int
-		expectedDesc  []string
+		// expectedDeploymentSteps is the number of leading Helm chart and Datadog Operator steps.
+		expectedDeploymentSteps int
+		expectedDesc            []string
 	}{
 		{
 			name: "single source unreachable",
 			failures: []SystemProbeSourceFailure{
 				{Source: SystemProbeSourceEBPF, ErrorClass: SystemProbeErrorUnreachable, Error: "dial unix: no such file"},
 			},
-			expectedTitle: "GPU monitoring is not receiving data from system-probe for: ebpf",
-			expectedSteps: 2,
-			expectedDesc:  []string{"gpu.process.*"},
+			expectedTitle:           "GPU monitoring is not receiving data from system-probe for: ebpf",
+			expectedSteps:           4,
+			expectedDeploymentSteps: 2,
+			expectedDesc:            []string{"gpu.process.*"},
 		},
 		{
 			name: "multiple sources sorted, module not loaded and timeout",
@@ -36,18 +39,31 @@ func TestBuildSystemProbeDataIssue(t *testing.T) {
 				{Source: SystemProbeSourcePRM, ErrorClass: SystemProbeErrorTimeout, Error: "context deadline exceeded"},
 				{Source: SystemProbeSourceDriverEvents, ErrorClass: SystemProbeErrorModuleNotLoaded, Error: "status_code: 404"},
 			},
-			expectedTitle: "GPU monitoring is not receiving data from system-probe for: driver_events, prm",
-			expectedSteps: 4,
-			expectedDesc:  []string{"XID", "NVLink"},
+			expectedTitle:           "GPU monitoring is not receiving data from system-probe for: driver_events, prm",
+			expectedSteps:           6,
+			expectedDeploymentSteps: 2,
+			expectedDesc:            []string{"XID", "NVLink"},
 		},
 		{
 			name: "source disabled in system-probe",
 			failures: []SystemProbeSourceFailure{
 				{Source: SystemProbeSourceDriverEvents, ErrorClass: SystemProbeErrorSourceDisabled, Error: "status_code: 503"},
 			},
-			expectedTitle: "GPU monitoring is not receiving data from system-probe for: driver_events",
-			expectedSteps: 3,
-			expectedDesc:  []string{"XID"},
+			expectedTitle:           "GPU monitoring is not receiving data from system-probe for: driver_events",
+			expectedSteps:           5,
+			expectedDeploymentSteps: 2,
+			expectedDesc:            []string{"XID"},
+		},
+		{
+			name: "unreachable and source disabled",
+			failures: []SystemProbeSourceFailure{
+				{Source: SystemProbeSourceEBPF, ErrorClass: SystemProbeErrorUnreachable},
+				{Source: SystemProbeSourceDriverEvents, ErrorClass: SystemProbeErrorSourceDisabled},
+			},
+			expectedTitle:           "GPU monitoring is not receiving data from system-probe for: driver_events, ebpf",
+			expectedSteps:           8,
+			expectedDeploymentSteps: 4,
+			expectedDesc:            []string{"XID", "gpu.process.*"},
 		},
 		{
 			name: "empty error class defaults to other",
@@ -83,6 +99,8 @@ func TestBuildSystemProbeDataIssue(t *testing.T) {
 			require.Len(t, issue.Remediation.Steps, tt.expectedSteps)
 			for i, step := range issue.Remediation.Steps {
 				assert.Equal(t, int32(i+1), step.Order)
+				isDeploymentStep := strings.HasPrefix(step.Text, "Helm chart:") || strings.HasPrefix(step.Text, "Datadog Operator:")
+				assert.Equal(t, i < tt.expectedDeploymentSteps, isDeploymentStep, "step %d: %s", step.Order, step.Text)
 			}
 
 			require.NotNil(t, issue.Extra)

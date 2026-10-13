@@ -473,15 +473,22 @@ func (c *collector) createProcessEvents(pidToGPUs map[int][]string) []workloadme
 	return events
 }
 
+// gpucontainers.CDISpecDirs and migMinorsPath are variables so tests can point them at
+// fixtures; the node-local chain reads real files and is otherwise untestable.
+//
+// CDI specs are written by the DRA driver into the host's /var/run/cdi, which
+// is a real directory on disk rather than a kernel filesystem -- so a
+// containerized Agent only sees it through a mount. The standard deployment
+// mounts the host's /var/run at /host/var/run (Dockerfiles/manifests/agent.yaml),
+// so that prefix is tried first and works with no extra wiring; the bare path
+// covers a host-installed Agent and deployments that bind /var/run/cdi
+// directly. migMinorsPath needs no prefix: /proc/driver is a procfs entry
+// owned by the nvidia driver and is visible in any procfs instance, including
+// the container's own.
 // nvidiaDRADriver is the DRA driver name for NVIDIA GPUs; only its CDI
 // device names can be resolved by this collector.
 const nvidiaDRADriver = "gpu.nvidia.com"
 
-// migMinorsPath is a variable so tests can point it at fixtures; the
-// node-local chain reads real files and is otherwise untestable. It needs no
-// host prefix: /proc/driver is a procfs entry owned by the nvidia driver and
-// is visible in any procfs instance, including the container's own. The CDI
-// spec directories are in gpucontainers.CDISpecDirs.
 var migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
 
 // createContainerGPUEvents publishes the Container<->GPU edge for DRA-allocated
@@ -795,7 +802,7 @@ type cdiSpec struct {
 // selected by name: reading every node in the file would attribute all of the
 // claim's devices to any container holding one of them.
 func cdiDeviceNodes(claimUID, deviceKey string) ([]cdiDeviceNode, error) {
-	name := gpucontainers.NvidiaDRAClaimSpecPrefix + claimUID + ".yaml"
+	name := gpucontainers.NvidiaDRAClaimSpecFileName(claimUID)
 	var data []byte
 	var err error
 	for _, dir := range gpucontainers.CDISpecDirs {

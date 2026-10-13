@@ -152,27 +152,48 @@ func (t *SystemProbeDataIssue) BuildIssue(failures []SystemProbeSourceFailure) (
 	}, nil
 }
 
+// systemProbeDataSteps returns the Helm chart and Datadog Operator settings
+// first, then the manual steps.
 func systemProbeDataSteps(errorClasses map[string]struct{}) []*healthplatform.RemediationStep {
+	_, unreachable := errorClasses[SystemProbeErrorUnreachable]
+	_, moduleNotLoaded := errorClasses[SystemProbeErrorModuleNotLoaded]
+	_, sourceDisabled := errorClasses[SystemProbeErrorSourceDisabled]
+	_, timeout := errorClasses[SystemProbeErrorTimeout]
+	_, other := errorClasses[SystemProbeErrorOther]
+
 	var texts []string
-	if _, ok := errorClasses[SystemProbeErrorUnreachable]; ok {
+	if unreachable || moduleNotLoaded {
+		texts = append(texts,
+			"Helm chart: set datadog.gpuMonitoring.enabled and datadog.gpuMonitoring.privilegedMode to true; only privileged mode deploys system-probe with the GPU monitoring module and shares its socket with the Agent",
+			"Datadog Operator: set spec.features.gpu.enabled and spec.features.gpu.privilegedMode to true in the DatadogAgent resource; only privileged mode deploys system-probe with the GPU monitoring module and shares its socket with the Agent",
+		)
+	}
+	if sourceDisabled {
+		texts = append(texts,
+			"Helm chart: configure GPU monitoring through datadog.gpuMonitoring.* (for example datadog.gpuMonitoring.enableEbpfProbes), which sets the same values on the Agent and system-probe containers; set any DD_GPU_MONITORING_* variable added in agents.containers.agent.env or agents.containers.systemProbe.env on both containers",
+			"Datadog Operator: set any DD_GPU_MONITORING_* variable added in spec.override.nodeAgent.containers on both the agent and system-probe containers",
+		)
+	}
+
+	if unreachable {
 		texts = append(texts, "Verify that system-probe is running (in Kubernetes, the system-probe container of the Agent pod) and that its socket (system_probe_config.sysprobe_socket) is shared with the Agent")
 	}
-	if _, ok := errorClasses[SystemProbeErrorModuleNotLoaded]; ok {
+	if moduleNotLoaded {
 		texts = append(texts,
 			"Verify that gpu_monitoring.enabled is set to true in system-probe.yaml",
 			"Check the system-probe logs for 'error creating module gpu'",
 		)
 	}
-	if _, ok := errorClasses[SystemProbeErrorSourceDisabled]; ok {
+	if sourceDisabled {
 		texts = append(texts,
 			"Verify that the config_key of each affected source has the same value for the Agent and system-probe, including DD_ environment variables set on only one of the containers",
 			"Check the system-probe logs for GPU monitoring startup errors, such as an unsupported kernel, eBPF compilation disabled, or NVML or /dev/kmsg unavailable",
 		)
 	}
-	if _, ok := errorClasses[SystemProbeErrorTimeout]; ok {
+	if timeout {
 		texts = append(texts, "If system-probe is responding slowly, increase gpu.sp_process_metrics_request_timeout in datadog.yaml")
 	}
-	if _, ok := errorClasses[SystemProbeErrorOther]; ok {
+	if other {
 		texts = append(texts, "Check the Agent logs for GPU check errors mentioning system-probe")
 	}
 	texts = append(texts, "Review GPU monitoring setup: "+gpuDocsURL)

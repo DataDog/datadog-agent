@@ -31,7 +31,7 @@ func TestCheckNvidiaDRACDISpecs(t *testing.T) {
 	otherVendor := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(otherVendor, "k8s.example.com-claim_uid.yaml"), []byte("{}"), 0o644))
 	withSpec := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(withSpec, NvidiaDRAClaimSpecPrefix+"uid.yaml"), []byte("{}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(withSpec, NvidiaDRAClaimSpecFileName("uid")), []byte("{}"), 0o644))
 
 	t.Run("dir with NVIDIA DRA claim specs", func(t *testing.T) {
 		setCDISpecDirs(t, missing, withSpec)

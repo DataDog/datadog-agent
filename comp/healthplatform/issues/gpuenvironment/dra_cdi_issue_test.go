@@ -6,6 +6,7 @@
 package gpuenvironment
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,7 +67,9 @@ func TestBuildDRACDIIssue(t *testing.T) {
 
 			require.NotNil(t, issue.Remediation)
 			assert.NotEmpty(t, issue.Remediation.Summary)
-			assert.Len(t, issue.Remediation.Steps, 4)
+			require.Len(t, issue.Remediation.Steps, 6)
+			assert.True(t, strings.HasPrefix(issue.Remediation.Steps[0].Text, "Helm chart:"))
+			assert.True(t, strings.HasPrefix(issue.Remediation.Steps[1].Text, "Datadog Operator:"))
 
 			require.NotNil(t, issue.Extra)
 			fields := issue.Extra.GetFields()

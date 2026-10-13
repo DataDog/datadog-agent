@@ -140,7 +140,7 @@ func TestSyncDRACDIHealthIssue(t *testing.T) {
 	assert.Equal(t, "2", issue.GetExtra().GetFields()[gpuenvironment.DRACDIContextKeyContainerCount].GetStringValue())
 
 	// NVIDIA DRA claim specs appearing resolve the issue, even with unresolved claims.
-	require.NoError(t, os.WriteFile(filepath.Join(specDir, containers.NvidiaDRAClaimSpecPrefix+"other.yaml"), []byte("{}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(specDir, containers.NvidiaDRAClaimSpecFileName("other")), []byte("{}"), 0o644))
 	check.syncDRACDIHealthIssue(start.Add(2 * draCDISpecsMissingThreshold))
 	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
 }

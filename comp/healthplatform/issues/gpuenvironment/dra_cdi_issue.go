@@ -80,10 +80,12 @@ func (t *DRACDIIssue) BuildIssue(context map[string]string) (*healthplatform.Iss
 		Remediation: &healthplatform.Remediation{
 			Summary: "Mount the host CDI spec directory (/var/run/cdi) into the Agent container.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Run 'ls /var/run/cdi' on the host to verify that the NVIDIA DRA driver writes CDI specs there"},
-				{Order: 2, Text: "If the Agent runs in a container, mount the host /var/run/cdi directory at /host/var/run/cdi (read-only) in the Agent container"},
-				{Order: 3, Text: "Verify that the Agent process has read permissions on the CDI spec files"},
-				{Order: 4, Text: "Review GPU monitoring setup: " + gpuDocsURL},
+				{Order: 1, Text: "Helm chart: setting datadog.criSocketPath or datadog.dockerSocketPath replaces the default /var/run mount with the socket directory only; add a hostPath volume for /var/run/cdi in agents.volumes and mount it at /host/var/run/cdi (read-only) with agents.volumeMounts"},
+				{Order: 2, Text: "Datadog Operator: setting spec.global.criSocketPath or spec.global.dockerSocketPath replaces the default /var/run mount with the socket only; add a hostPath volume for /var/run/cdi in spec.override.nodeAgent.volumes and mount it at /host/var/run/cdi (read-only) in spec.override.nodeAgent.containers.agent.volumeMounts"},
+				{Order: 3, Text: "Run 'ls /var/run/cdi' on the host to verify that the NVIDIA DRA driver writes CDI specs there"},
+				{Order: 4, Text: "For other deployments, mount the host /var/run/cdi directory at /host/var/run/cdi (read-only) in the Agent container"},
+				{Order: 5, Text: "Verify that the Agent process has read permissions on the CDI spec files"},
+				{Order: 6, Text: "Review GPU monitoring setup: " + gpuDocsURL},
 			},
 		},
 		Tags: []string{"gpu", "dra", "cdi"},
