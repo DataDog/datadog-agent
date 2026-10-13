@@ -36,6 +36,21 @@ func ScalarString(value string) *gnmipb.TypedValue {
 	}
 }
 
+// InterfaceNameUpdate returns an Update for a keyed interface name path.
+func InterfaceNameUpdate(interfaceName string) *gnmipb.Update {
+	return &gnmipb.Update{
+		Path: &gnmipb.Path{
+			Elem: []*gnmipb.PathElem{
+				{Name: "interfaces"},
+				{Name: "interface", Key: map[string]string{"name": interfaceName}},
+				{Name: "state"},
+				{Name: "name"},
+			},
+		},
+		Val: ScalarString(interfaceName),
+	}
+}
+
 // InterfaceInOctetsUpdate returns an Update for a keyed interface counter path using TypedValue.
 func InterfaceInOctetsUpdate(interfaceName string, octets uint64) *gnmipb.Update {
 	return &gnmipb.Update{
