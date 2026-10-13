@@ -30,7 +30,7 @@ func TestNewComponentSharesRegistryBetweenOutputs(t *testing.T) {
 	stats := make(map[string]interface{})
 	require.NoError(t, provides.StatusProvider.Provider.JSON(false, stats))
 
-	devices, ok := stats["devices"].([]status.DeviceState)
+	devices, ok := stats["devices"].([]status.DeviceDisplay)
 	require.True(t, ok)
 	require.Len(t, devices, 1)
 	assert.Equal(t, "10.0.0.1", devices[0].Address)

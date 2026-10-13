@@ -16,7 +16,6 @@ go_library(
         "//comp/core/autodiscovery/integration",
         "//pkg/collector/check/defaults",
         "//pkg/config/setup",
-        "@com_github_openconfig_gnmi//proto/gnmi",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
@@ -34,7 +33,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/config/mock",
-        "@com_github_openconfig_gnmi//proto/gnmi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

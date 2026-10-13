@@ -25,11 +25,11 @@ const (
 )
 
 // statusDevices returns the devices exposed by the status provider.
-func statusDevices(t *testing.T, registry *gnmiStatus.Registry) []gnmiStatus.DeviceState {
+func statusDevices(t *testing.T, registry *gnmiStatus.Registry) []gnmiStatus.DeviceDisplay {
 	t.Helper()
 	stats := map[string]interface{}{}
 	require.NoError(t, gnmiStatus.NewProvider(registry).JSON(false, stats))
-	devices, ok := stats["devices"].([]gnmiStatus.DeviceState)
+	devices, ok := stats["devices"].([]gnmiStatus.DeviceDisplay)
 	require.True(t, ok, "unexpected devices type %T", stats["devices"])
 	return devices
 }
