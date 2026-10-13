@@ -314,6 +314,7 @@ dd_agent_go_test(
     srcs = [
         "command_test.go",
         "command_windows_test.go",
+        "dependent_services_darwin_test.go",
         "dependent_services_windows_test.go",
     ],
     embed = [":run"],
@@ -324,6 +325,14 @@ dd_agent_go_test(
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
     ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+        ],
         "@rules_go//go/platform:windows": [
             "//pkg/config/mock",
             "//pkg/config/model",
