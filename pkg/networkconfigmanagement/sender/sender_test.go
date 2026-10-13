@@ -49,7 +49,7 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 		},
 	}
 
-	payload := ncmreport.ToNCMPayload(namespace, "test-agent-host", configs, []ncmreport.InventoryEntry{}, mockClock.Now().Unix())
+	payload := ncmreport.ToNCMPayload(namespace, "test-agent-host", configs, []ncmreport.InventoryEntry{}, false, mockClock.Now().Unix())
 
 	// Set up mock expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()

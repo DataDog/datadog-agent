@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -332,6 +331,67 @@ func hashConfigForTest(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// forceEmptyStore wraps a ConfigStore so that GetAllConfigMetadata can be made
+// to report empty on demand, simulating the local store having been emptied
+// out from under the check (e.g. by eviction or rollback)
+type forceEmptyStore struct {
+	ncmstore.ConfigStore
+	forceEmpty bool
+}
+
+func (s *forceEmptyStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {
+	if s.forceEmpty {
+		return nil, nil
+	}
+	return s.ConfigStore.GetAllConfigMetadata()
+}
+
+// TestCheck_Run_InventoryBecomesEmpty_SignalsExplicitly verifies that when the
+// local config store is checked and found empty (as opposed to simply not being
+// checked this cycle), the agent explicitly signals that via InventoryEmpty
+// rather than silently omitting the inventory report.
+func TestCheck_Run_InventoryBecomesEmpty_SignalsExplicitly(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	wrappedStore := &forceEmptyStore{ConfigStore: reqs.store}
+	comp.store = wrappedStore
+
+	device := createTestDevice()
+	err := comp.RegisterDevice(device)
+	assert.NoError(t, err)
+
+	mockSender := reqs.sender
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	// First run: the store gets two new configs, so an inventory report with
+	// entries is sent.
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
+	require.NoError(t, err)
+
+	// Now empty the store + no new configs are retreived (failed, so nothing is written to local DB)
+	wrappedStore.forceEmpty = true
+	reqs.connFactory.conn.OutputMap["show running-config"] = fail("device unreachable")
+	reqs.connFactory.conn.OutputMap["show startup-config"] = fail("device unreachable")
+
+	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
+	assert.ErrorContains(t, err, "failed to retrieve running config: device unreachable", "config retrieval should still fail, but shouldn't block the inventory report")
+
+	expectedEmptyPayload, err := json.Marshal(report.NCMPayload{
+		Namespace:        "default",
+		AgentHostname:    "test-agent-host",
+		Inventories:      []report.InventoryEntry{{DeviceID: device.DeviceID()}},
+		InventoryEmpty:   true,
+		CollectTimestamp: 1754043600,
+	})
+	require.NoError(t, err)
+
+	// Two runs, each emitting one device-metadata event plus one NCM payload.
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 4)
+	mockSender.AssertEventPlatformEvent(t, expectedEmptyPayload, eventplatform.EventTypeNetworkConfigManagement)
+}
+
 // findEventPlatformEventPayload returns the unmarshalled NCMPayload from the mock sender's
 // EventPlatformEvent call matching the given event type. Fails the test if no matching call exists.
 func findEventPlatformEventPayload(t *testing.T, m *mocksender.MockSender, eventType string) report.NCMPayload {
@@ -434,21 +494,15 @@ func TestCheck_Run_MultipleNonBlockingErrors_CountsOnce(t *testing.T) {
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.Anything).Return()
+	mockSender.On("Count", "datadog.ncm.inventory.entries_sent", 1.0, "test-agent-host", mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	err = comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender)
 	assert.Error(t, err)
 
-	mockSender.AssertNumberOfCalls(t, "Count", 1)
-	mockSender.AssertCalled(t, "Count", "datadog.ncm.check_failure", 1.0, "test-agent-host", mock.MatchedBy(func(tags []string) bool {
-		errorTags := 0
-		for _, tag := range tags {
-			if strings.HasPrefix(tag, "error:") {
-				errorTags++
-			}
-		}
-		return assert.Contains(t, tags, "error:config_retrieval_failed") && assert.Equal(t, 1, errorTags)
-	}))
+	mockSender.AssertNumberOfCalls(t, "Count", 2)
+	mockSender.AssertMetricTaggedWith(t, "Count", "datadog.ncm.check_failure", []string{"error:config_retrieval_failed"})
+	mockSender.AssertMetric(t, "Count", "datadog.ncm.inventory.entries_sent", 1, "test-agent-host", []string{"agent_host:test-agent-host"})
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {
