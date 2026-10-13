@@ -18,6 +18,15 @@ import (
 
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	"github.com/google/gopacket/pcapgo"
+)
+
+// Sizes of the pcap file header and of each packet record's header, fixed by
+// the pcap file format. MaxBytes is enforced against them, so the cap counts
+// the true file size rather than packet bytes alone.
+const (
+	pcapFileHeaderSize   uint64 = 24
+	pcapPacketHeaderSize uint64 = 16
 )
 
 // capturer is the concrete implementation of the Capturer interface.
@@ -30,6 +39,8 @@ type capturer struct {
 	// when the handle is activated, before the kernel filter is installed, so
 	// packets read in that window would otherwise bypass the filter.
 	filter *pcap.BPF
+	// writer encodes the pcap file onto cfg.Output, set on Start.
+	writer *pcapgo.Writer
 
 	// Background goroutine lifecycle.
 	stopCh chan struct{}
@@ -119,7 +130,8 @@ func (c *capturer) Start(ctx context.Context) error {
 	}
 	c.handle = handle
 
-	if err := writePCAPHeader(c.cfg.Output, c.cfg.SnapLen, handle.LinkType()); err != nil {
+	c.writer = pcapgo.NewWriter(c.cfg.Output)
+	if err := c.writer.WriteFileHeader(c.cfg.SnapLen, handle.LinkType()); err != nil {
 		c.stopped.Store(true)
 		handle.Close()
 		return fmt.Errorf("capture: writing PCAP header: %w", err)
@@ -274,26 +286,28 @@ func (c *capturer) drainLoop(ctx context.Context) {
 		if failed && ci.CaptureLength < ci.Length {
 			c.headersTruncated.Add(1)
 		}
-		pkt := RawPacket{Timestamp: ci.Timestamp, Data: data[:n], OrigLen: uint32(ci.Length)}
+		// ci.Length keeps the original on-wire length; only the captured
+		// length shrinks to the trimmed headers.
+		ci.CaptureLength = n
 
 		// MaxBytes is checked before the write, not after, so the cap is never
 		// exceeded and the file never ends on a half-written record. Dropping
 		// this packet ends the capture — a later, smaller packet must not be
 		// allowed to slip in under the cap, because that would reorder the
 		// capture relative to the wire and silently misrepresent what happened.
-		recordSize := pcapPacketHeaderSize + uint64(len(pkt.Data))
+		recordSize := pcapPacketHeaderSize + uint64(n)
 		if c.cfg.MaxBytes > 0 && fileBytes+recordSize > c.cfg.MaxBytes {
 			return
 		}
 
-		if err := writePCAPPacket(c.cfg.Output, pkt); err != nil {
+		if err := c.writer.WritePacket(ci, data[:n]); err != nil {
 			c.errCount.Add(1)
 			continue
 		}
 
 		fileBytes += recordSize
 		c.packetsCaptured.Add(1)
-		c.bytesCaptured.Add(uint64(len(pkt.Data)))
+		c.bytesCaptured.Add(uint64(n))
 
 		if c.cfg.MaxPackets > 0 && c.packetsCaptured.Load() >= c.cfg.MaxPackets {
 			return

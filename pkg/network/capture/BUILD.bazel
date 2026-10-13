@@ -5,7 +5,6 @@ go_library(
     srcs = [
         "capture.go",
         "config.go",
-        "pcap_writer.go",
         "trim.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/capture",
@@ -15,11 +14,13 @@ go_library(
             "@com_github_google_gopacket//:gopacket",
             "@com_github_google_gopacket//layers",
             "@com_github_google_gopacket//pcap",
+            "@com_github_google_gopacket//pcapgo",
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_google_gopacket//:gopacket",
             "@com_github_google_gopacket//layers",
             "@com_github_google_gopacket//pcap",
+            "@com_github_google_gopacket//pcapgo",
         ],
         "//conditions:default": [],
     }),
@@ -29,7 +30,7 @@ go_test(
     name = "capture_test",
     srcs = [
         "capture_test.go",
-        "pcap_writer_test.go",
+        "pcap_output_test.go",
         "trim_test.go",
     ],
     embed = [":capture"],
@@ -39,12 +40,14 @@ go_test(
         "@rules_go//go/platform:android": [
             "@com_github_google_gopacket//:gopacket",
             "@com_github_google_gopacket//layers",
+            "@com_github_google_gopacket//pcapgo",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_google_gopacket//:gopacket",
             "@com_github_google_gopacket//layers",
+            "@com_github_google_gopacket//pcapgo",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
