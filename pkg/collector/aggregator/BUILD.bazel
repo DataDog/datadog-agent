@@ -12,7 +12,7 @@ go_library(
         "inter.go",
         "test_aggregator.go",
     ],
-    cdeps = ["//rtloader:rtloader_dynamic"],
+    cdeps = ["//rtloader:rtloader_headers"],
     cgo = True,
     copts = ["-I pkg/collector/aggregator/rtloader/include"],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/aggregator",

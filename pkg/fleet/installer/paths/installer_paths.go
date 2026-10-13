@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build !windows && !darwin
 
 // Package paths defines commonly used paths throughout the installer
 package paths
@@ -34,6 +34,12 @@ const (
 	// DatadogProgramFilesDir is the Datadog Program Files directory (not used on non-Windows platforms).
 	DatadogProgramFilesDir = ""
 )
+
+// ConfigDirIsTrustedForRead permits reads on non-Windows platforms, where this Windows
+// directory-ownership policy does not apply.
+func ConfigDirIsTrustedForRead(_ string) (bool, error) {
+	return true, nil
+}
 
 // SetupInstallerDataDir ensures that permissions are set correctly on the installer data directory.
 // This is a no-op on non-Windows platforms.

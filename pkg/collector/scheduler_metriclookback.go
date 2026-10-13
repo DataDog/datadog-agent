@@ -49,7 +49,7 @@ func (s *CheckScheduler) loadShadowCheck(candidate shadowCandidate, loader check
 		checkSenderManager.DestroySender(shadowCheckID)
 		return nil, err
 	}
-	if !checkSenderManager.RegisterCallbackID(loadedCheck.ID()) {
+	if loader.Name() == "python" && !checkSenderManager.RegisterCallbackID(loadedCheck.ID()) {
 		log.Warnf("Unable to register metric lookback rtloader callback route for shadow check %s loaded as %s", shadowCheckID, loadedCheck.ID())
 	}
 	s.applyInfraTagger(checkSenderManager, candidate.SourceConfig.Name, shadowCheckID)

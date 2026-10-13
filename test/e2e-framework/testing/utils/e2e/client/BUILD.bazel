@@ -63,6 +63,7 @@ dd_agent_go_test(
         "k8s_test.go",
     ],
     embed = [":client"],
+    tags = ["go_link:enormous"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

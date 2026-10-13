@@ -162,7 +162,7 @@ static int __attribute__((always_inline)) otel_nodejs_record_ptr(
     // holds the record pointer directly. Unlike the wrapper, the record is a
     // byte buffer the writer allocates: nothing says it is aligned.
     u64 record = 0;
-    if (otel_v8_read_word(otel_v8_untag(value) + v8->js_object_record_offset, &record)) {
+    if (otel_v8_read_word(otel_v8_untag(value) + nctx->record_slot_offset, &record)) {
         return 0;
     }
     // Cleared when the isolate is torn down.

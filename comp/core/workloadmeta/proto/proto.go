@@ -486,6 +486,11 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		})
 	}
 
+	var created *timestamppb.Timestamp
+	if !containerImageMetadata.Created.IsZero() {
+		created = timestamppb.New(containerImageMetadata.Created)
+	}
+
 	containerImageMetadataProto := &pb.ContainerImageMetadata{
 		EntityId:     protoEntityID,
 		EntityMeta:   toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata),
@@ -497,6 +502,7 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		OsVersion:    containerImageMetadata.OSVersion,
 		Architecture: containerImageMetadata.Architecture,
 		Variant:      containerImageMetadata.Variant,
+		Created:      created,
 		Layers:       protoLayers,
 	}
 
@@ -1399,6 +1405,10 @@ func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.Contai
 		Architecture: protoContainerImageMetadata.Architecture,
 		Variant:      protoContainerImageMetadata.Variant,
 		Layers:       layers,
+	}
+
+	if protoContainerImageMetadata.Created != nil {
+		containerImageMetadata.Created = protoContainerImageMetadata.Created.AsTime()
 	}
 
 	if protoContainerImageMetadata.Sbom != nil {

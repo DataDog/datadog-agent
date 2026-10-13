@@ -100,6 +100,19 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 	}
 	sprocess.GetProcessArgv0(&pc)
 
+	pc.FileEvent.Filesystem = stringInterner.Deduplicate(pc.FileEvent.Filesystem)
+	pc.FileEvent.PkgName = stringInterner.Deduplicate(pc.FileEvent.PkgName)
+	pc.FileEvent.PkgVersion = stringInterner.Deduplicate(pc.FileEvent.PkgVersion)
+	pc.Comm = stringInterner.Deduplicate(pc.Comm)
+	pc.TTYName = stringInterner.Deduplicate(pc.TTYName)
+	pc.Argv0 = stringInterner.Deduplicate(pc.Argv0)
+	pc.Credentials.User = stringInterner.Deduplicate(pc.Credentials.User)
+	pc.Credentials.Group = stringInterner.Deduplicate(pc.Credentials.Group)
+	pc.Credentials.EUser = stringInterner.Deduplicate(pc.Credentials.EUser)
+	pc.Credentials.EGroup = stringInterner.Deduplicate(pc.Credentials.EGroup)
+	pc.Credentials.FSUser = stringInterner.Deduplicate(pc.Credentials.FSUser)
+	pc.Credentials.FSGroup = stringInterner.Deduplicate(pc.Credentials.FSGroup)
+
 	return ProcessInfo{
 		Pid:           pc.Pid,
 		Tid:           pc.Tid,
@@ -466,7 +479,7 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 	for name, dnsNode := range pn.DNSNames {
 		if dnsFilterSubdomains(name, DNSMatchMaxDepth) == toSearch {
 			for _, req := range dnsNode.Requests {
-				if req.Type == DNSType {
+				if req.Question.Type == DNSType {
 					return true
 				}
 			}
@@ -491,14 +504,21 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 		dnsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 
 		// look for the DNS request type
-		for _, req := range dnsNode.Requests {
-			if req.Type == evt.DNS.Question.Type {
+		for i := range dnsNode.Requests {
+			if dnsNode.Requests[i].Question.Type == evt.DNS.Question.Type {
+				// enrich the known question with the answers of this response, if any. This
+				// deliberately still reports "nothing new": see DNSNode.mergeDNSResponse.
+				if evt.DNS.Response != nil {
+					sizeBefore := dnsNode.size()
+					dnsNode.mergeDNSResponse(i, evt.DNS.Response)
+					stats.SizeBytes += dnsNode.size() - sizeBefore
+				}
 				return false
 			}
 		}
 
 		sizeBefore := dnsNode.size()
-		dnsNode.Requests = append(dnsNode.Requests, evt.DNS.Question)
+		dnsNode.Requests = append(dnsNode.Requests, newDNSRequestEntry(&evt.DNS))
 		stats.SizeBytes += dnsNode.size() - sizeBefore
 		return true
 	}
@@ -635,9 +655,14 @@ nextCapability:
 		}
 
 		capable := evt.CapabilitiesUsage.Used&(1<<capability) != 0
+		attemptedHostUserNS := evt.CapabilitiesUsage.AttemptedHostUserNS&(1<<capability) != 0
+		capableHostUserNS := evt.CapabilitiesUsage.UsedHostUserNS&(1<<capability) != 0
 
 		for _, existingCapabilityNode := range pn.Capabilities {
-			if existingCapabilityNode.Capability == capability && existingCapabilityNode.Capable == capable {
+			if existingCapabilityNode.Capability == capability &&
+				existingCapabilityNode.Capable == capable &&
+				existingCapabilityNode.AttemptedHostUserNS == attemptedHostUserNS &&
+				existingCapabilityNode.CapableHostUserNS == capableHostUserNS {
 				existingCapabilityNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 				continue nextCapability
 			}
@@ -648,7 +673,7 @@ nextCapability:
 			break
 		}
 
-		capabilityNode := NewCapabilityNode(capability, capable, evt.ResolveEventTime(), imageTagID, Runtime)
+		capabilityNode := NewCapabilityNode(capability, capable, attemptedHostUserNS, capableHostUserNS, evt.ResolveEventTime(), imageTagID, Runtime)
 		pn.Capabilities = append(pn.Capabilities, capabilityNode)
 		stats.CapabilityNodes++
 		stats.SizeBytes += capabilityNode.size()
@@ -835,7 +860,7 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 
 	if filepathsInProcessCache[key] && profileImageTagID != 0 {
 		// check if the node was supposed to be removed, then update the last seen to now
-		if elem, ok := pn.GetSeenTimes(profileImageTagID); ok && elem.LastSeen.Before(before) {
+		if _, lastSeen, ok := pn.GetSeenTimes(profileImageTagID); ok && lastSeen < timeToNanos(before) {
 			pn.NodeBase.AppendImageTagID(profileImageTagID, time.Now())
 		}
 	}
