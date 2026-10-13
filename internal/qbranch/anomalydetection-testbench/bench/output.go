@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
@@ -120,11 +121,12 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	if tb.config.IncludeDetectorAnomalies {
 		detectorAnomalies = make([]DetectorOutputAnomaly, 0)
 		for _, anomaly := range sv.DetectorOutputAnomalies() {
+			title, _ := observerdef.FormatAnomaly(anomaly)
 			detectorAnomalies = append(detectorAnomalies, DetectorOutputAnomaly{
 				Detector:  anomaly.DetectorName,
 				Timestamp: anomaly.Timestamp,
 				Source:    anomaly.Source.Key(),
-				Title:     anomaly.Title,
+				Title:     title,
 			})
 		}
 		sort.Slice(detectorAnomalies, func(i, j int) bool {
@@ -169,14 +171,10 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 			}
 			oc.Anomalies = make([]ObserverAnomaly, len(corr.Anomalies))
 			for j, a := range corr.Anomalies {
-				sourceID := a.Source.Key()
-				if a.SourceRef != nil {
-					sourceID = a.SourceRef.CompactID()
-				}
 				oc.Anomalies[j] = ObserverAnomaly{
 					Timestamp:      a.Timestamp,
 					Source:         a.Source.String(),
-					SourceSeriesID: sourceID,
+					SourceSeriesID: a.SourceRef.CompactID(),
 					Detector:       a.DetectorName,
 				}
 			}

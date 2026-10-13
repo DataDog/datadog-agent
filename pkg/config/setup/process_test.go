@@ -273,6 +273,12 @@ func TestEnvVarOverride(t *testing.T) {
 			expected: true,
 		},
 		{
+			key:      "process_config.ignore_zombie_processes",
+			env:      "DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES",
+			value:    "true",
+			expected: true,
+		},
+		{
 			key:      "process_config.internal_profiling.enabled",
 			env:      "DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED",
 			value:    "true",

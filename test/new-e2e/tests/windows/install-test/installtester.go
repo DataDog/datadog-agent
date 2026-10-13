@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	utilscommon "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
@@ -405,19 +404,11 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	tt.Run("service status", func(tt *testing.T) {
 		expectedRunningServices := servicetest.ExpectedRunningServices()
 		for _, serviceName := range servicetest.ExpectedInstalledServices() {
-			expectedRunning := false
+			state := "Stopped"
 			if slices.Contains(expectedRunningServices, serviceName) {
-				expectedRunning = true
+				state = "Running"
 			}
-			assert.EventuallyWithT(tt, func(c *assert.CollectT) {
-				status, err := windows.GetServiceStatus(t.host, serviceName)
-				require.NoError(c, err)
-				if expectedRunning {
-					assert.Equal(c, "Running", status, "%s should be running", serviceName)
-				} else {
-					assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName)
-				}
-			}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+			windows.AssertServiceState(tt, t.host, serviceName, state)
 		}
 	})
 

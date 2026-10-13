@@ -6,7 +6,6 @@
 package sbom
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -29,8 +28,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 )
 
 type k8sSuite struct {
@@ -96,32 +93,13 @@ func (suite *k8sSuite) TestZZUpAndRunning() {
 }
 
 func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
-	ctx := context.Background()
-
 	suite.Run("agent pods are ready and not restarting", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-				LabelSelector: fields.AndSelectors(
-					fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
-					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
-				).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Linux nodes")
-
-			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
-
-			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
-
-			for _, pod := range linuxPods.Items {
-				for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-					assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn't ready", containerStatus.Name, pod.Name)
-					assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
-				}
-			}
-		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
+		err := suite.Env().WaitForAgentReady(
+			suite.T().Context(),
+			environments.WithLinuxNodeAgentReady(),
+			environments.WithAgentReadinessTimeout(waitFor),
+		)
+		suite.Require().NoError(err, "Not all agents eventually became ready in time.")
 	})
 }
 

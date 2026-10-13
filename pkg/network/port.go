@@ -52,6 +52,10 @@ func readState(procRoot string, paths []string, status int64) (map[PortMapping]u
 	seen := make(map[uint32]struct{})
 	allports := make(map[PortMapping]uint32)
 	err := kernel.WithAllProcs(procRoot, func(pid int) error {
+		if zombie, _ := kernel.IsZombiePid(procRoot, pid); zombie {
+			return nil
+		}
+
 		ns, err := netns.GetNetNsInoFromPid(procRoot, pid)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {

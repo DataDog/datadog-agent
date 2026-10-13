@@ -1,6 +1,11 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 
 # Refreshes every checked-in CWS generated file: `bazel run //pkg/security:cws_codegen`.
+#
+# easyjson generators link their own package's stubs but the production
+# libraries of other packages. When checked-in easyjson output of several
+# packages no longer compiles, run their easyjson targets individually in
+# dependency order first: events, then rules/monitor and serializers, then probe.
 write_source_files(
     name = "cws_codegen",
     additional_update_targets = [
@@ -25,11 +30,6 @@ write_source_files(
     ] + select({
         # These marshalers are stamped //go:build linux, so they can only be
         # generated from the Linux view of the annotated types.
-        #
-        # Do not pre-stub from serializers_linux_easyjson.mock: generating
-        # against the stubs inlines nested decoders, so the first pass diverges.
-        # It stays a manual hatch for when the package no longer compiles: copy
-        # it over the .go file, then run this target twice to converge.
         "@platforms//os:linux": [
             "//docs/cloud-workload-security:backend_linux_schema",
             "//pkg/security/probe:actions_linux_easyjson",

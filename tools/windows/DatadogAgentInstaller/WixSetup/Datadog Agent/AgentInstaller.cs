@@ -164,6 +164,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"

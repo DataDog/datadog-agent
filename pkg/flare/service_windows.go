@@ -318,14 +318,27 @@ func getDDServices(manager *mgr.Mgr) ([]serviceInfo, error) {
 	return ddServices, nil
 }
 
-// filterDatadogServices returns the services that start with "datadog" (case insensitive)
+// extraDDServiceNames holds Agent services whose name does not start with "datadog", so the
+// prefix match below cannot find them. dd-procmgrd supervises agent processes that used to be
+// SCM services of their own, so a flare without it shows those processes' legacy services
+// permanently Stopped with nothing explaining which supervisor took them over.
+//
+// Keyed by lowercase name: service name comparisons are case insensitive.
+var extraDDServiceNames = map[string]struct{}{
+	"dd-procmgr-service": {},
+}
+
+// filterDatadogServices returns the Agent services among the given service names: those
+// starting with "datadog" plus the known names in extraDDServiceNames. Both comparisons are
+// case insensitive.
 func filterDatadogServices(services []string) []string {
 	ddServices := []string{}
 
 	for _, serviceName := range services {
 		// "The service control manager database preserves the case of the characters, but service name comparisons are always case insensitive."
 		// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew
-		if strings.HasPrefix(strings.ToLower(serviceName), "datadog") {
+		lowered := strings.ToLower(serviceName)
+		if _, ok := extraDDServiceNames[lowered]; ok || strings.HasPrefix(lowered, "datadog") {
 			ddServices = append(ddServices, serviceName)
 		}
 	}

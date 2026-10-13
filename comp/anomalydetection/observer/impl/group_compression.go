@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // CompressedGroup is a compact structural description of a correlated group of anomalies.
@@ -38,7 +40,7 @@ type seriesCompact struct {
 	Namespace string
 	Name      string
 	Host      string
-	Tags      []string
+	Tags      tagset.CompositeTags
 }
 
 // extractCommonTags finds tags shared by all members, returning common tags as a map
@@ -51,18 +53,18 @@ func extractCommonTags(members []seriesCompact) (common map[string]string, resid
 
 	// Parse tags from first member as candidates
 	candidates := make(map[string]string)
-	for _, tag := range members[0].Tags {
+	members[0].Tags.ForEach(func(tag string) {
 		k, v := splitTag(tag)
 		candidates[k] = v
-	}
+	})
 
 	// Intersect with remaining members
 	for _, m := range members[1:] {
 		memberTags := make(map[string]string)
-		for _, tag := range m.Tags {
+		m.Tags.ForEach(func(tag string) {
 			k, v := splitTag(tag)
 			memberTags[k] = v
-		}
+		})
 		for k, v := range candidates {
 			if mv, ok := memberTags[k]; !ok || mv != v {
 				delete(candidates, k)
@@ -75,12 +77,12 @@ func extractCommonTags(members []seriesCompact) (common map[string]string, resid
 	// Compute residuals
 	residuals = make([][]string, len(members))
 	for i, m := range members {
-		for _, tag := range m.Tags {
+		m.Tags.ForEach(func(tag string) {
 			k, _ := splitTag(tag)
 			if _, isCommon := common[k]; !isCommon {
 				residuals[i] = append(residuals[i], tag)
 			}
-		}
+		})
 	}
 
 	return common, residuals
@@ -268,7 +270,7 @@ func CompressGroup(correlatorName, groupID, title string, members []seriesCompac
 	for _, m := range members {
 		stripped := stripAggSuffix(m.Name)
 		memberNameSet[stripped] = struct{}{}
-		memberSources = append(memberSources, seriesKey(m.Namespace, m.Name, m.Host, m.Tags))
+		memberSources = append(memberSources, seriesKeyComposite(m.Namespace, m.Name, m.Host, m.Tags))
 	}
 	memberNames := make([]string, 0, len(memberNameSet))
 	for name := range memberNameSet {

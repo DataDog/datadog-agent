@@ -47,8 +47,8 @@ const (
 
 // serviceOriginTags is a set of tags that can be used in the backend to uniquely identify a service.
 var serviceOriginTags = map[string]struct{}{
-	"kube_job":            {},
-	"kube_replica_set":    {},
+	"kube_deployment":     {},
+	"kube_cronjob":        {},
 	"kube_container_name": {},
 	"kube_namespace":      {},
 	"kube_app_name":       {},

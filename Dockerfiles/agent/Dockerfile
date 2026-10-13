@@ -248,7 +248,7 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN apt-get purge -y adduser \
+RUN apt-get purge -y adduser passwd \
   # Keep license/copyright attribution (/usr/share/doc/*/copyright, /usr/share/common-licenses),
   # drop the rest of the package documentation (changelogs, READMEs, etc.)
   && find /usr/share/doc -mindepth 1 -type f ! -name 'copyright*' -delete \

@@ -137,6 +137,15 @@ func (c *controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 // update translates each RC scan task into a datasecurity check instance and schedules it.
 func (c *controller) update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	changes := integration.ConfigChanges{}
+
+	// RC delivers the full set of active tasks: a path we scheduled but no longer receive was deleted.
+	for path, prev := range c.scheduledByPath {
+		if _, ok := updates[path]; !ok {
+			changes.Unschedule = append(changes.Unschedule, prev)
+			delete(c.scheduledByPath, path)
+		}
+	}
+
 	for path, rawConfig := range updates {
 		var payload scanTaskPayload
 		if err := json.Unmarshal(rawConfig.Config, &payload); err != nil {
@@ -169,7 +178,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
-	if len(changes.Schedule) == 0 {
+	if len(changes.Schedule) == 0 && len(changes.Unschedule) == 0 {
 		return
 	}
 
@@ -211,8 +220,7 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 		})
 	}
 
-	// JSON is valid YAML (parsed by the check's serde_yaml) and emits the scanning_rule (json.RawMessage) as-is.
-	return json.Marshal(inst)
+	return inst.toYAML()
 }
 
 // resolvePostgresConnection builds the scan connection from the local postgres instance

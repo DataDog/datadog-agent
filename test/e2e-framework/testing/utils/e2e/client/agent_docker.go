@@ -11,7 +11,6 @@ import (
 	"github.com/moby/moby/client"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
-
 )
 
 type agentDockerExecutor struct {

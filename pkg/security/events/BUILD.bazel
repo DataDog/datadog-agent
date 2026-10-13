@@ -1,29 +1,43 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/cws_codegen:defs.bzl", "easyjson")
+load("@rules_go//go:def.bzl", "go_library", "go_source")
+load("//bazel/rules/cws_codegen:defs.bzl", "easyjson", "easyjson_stubs")
+
+# gazelle:go_split_generated *_easyjson.go
 
 easyjson(
     name = "event_easyjson",
     src = "event.go",
     output = "event_easyjson.go",
-    package = ":events",
+    package = ":events_easyjson_stubs",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/events",
     visibility = ["//pkg/security:__pkg__"],
 )
 
+easyjson_stubs(
+    name = "events_easyjson_stubs",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/events",
+    sources = ":events_sources",
+    stubs = [":event_easyjson_stub"],
+)
+
 go_library(
     name = "events",
+    srcs = ["event_easyjson.go"],
+    embed = [":events_sources"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/events",
+    visibility = ["//visibility:public"],
+)
+
+go_source(
+    name = "events_sources",
     srcs = [
         "ad_limiter.go",
         "custom.go",
         "event.go",
-        "event_easyjson.go",
         "json.go",
         "rate_limiter.go",
         "std_limiter.go",
         "token_limiter.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/security/events",
-    visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/config",
         "//pkg/security/metrics",

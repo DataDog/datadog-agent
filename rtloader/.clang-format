@@ -74,8 +74,8 @@ IndentWrappedFunctionNames: false
 JavaScriptQuotes: Leave
 JavaScriptWrapImports: true
 KeepEmptyLinesAtTheStartOfBlocks: true
-MacroBlockBegin: ''
-MacroBlockEnd:   ''
+MacroBlockBegin: '^Py_BEGIN_ALLOW_THREADS$'
+MacroBlockEnd:   '^Py_END_ALLOW_THREADS$'
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: All
 ObjCBlockIndentWidth: 4

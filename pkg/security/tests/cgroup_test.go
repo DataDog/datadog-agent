@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"slices"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -195,6 +197,95 @@ ExecStart=/usr/bin/touch ` + testFile2
 			test.validateOpenSchema(t, event)
 		}, "test_cgroup_systemd")
 	})
+}
+
+// TestCGroupKubernetesPodUID validates that kubelet-shaped cgroup paths populate
+// process.container.pod_uid, and that the field is serialized in CWS events.
+func TestCGroupKubernetesPodUID(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup Kubernetes pod UID test in docker")
+	}
+
+	SkipIfNotAvailable(t)
+
+	const podUID = "48d25824-cbe2-4fdc-9928-5bb49e05473d"
+	const systemdPodUID = "48d25824_cbe2_4fdc_9928_5bb49e05473d"
+	const podCGroupName = "kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod" + systemdPodUID + ".slice"
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_kubernetes_pod_uid",
+			Expression: `open.file.path == "{{.Root}}/test-kubernetes-pod-uid" && process.container.pod_uid == "` + podUID + `"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testCGroup, err := newCGroup(podCGroupName, "systemd")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := testCGroup.create(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		testCGroup.remove(t)
+		_ = os.Remove("/sys/fs/cgroup/systemd/kubepods.slice/kubepods-burstable.slice")
+		_ = os.Remove("/sys/fs/cgroup/systemd/kubepods.slice")
+	}()
+
+	if err := testCGroup.enter(); err != nil {
+		t.Fatal(err)
+	}
+	defer testCGroup.leave(t)
+
+	testFile, testFilePtr, err := test.Path("test-kubernetes-pod-uid")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+		if errno != 0 {
+			return error(errno)
+		}
+		return syscall.Close(int(fd))
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_kubernetes_pod_uid")
+		assertFieldEqual(t, event, "open.file.path", testFile)
+		assertFieldEqual(t, event, "process.container.id", "")
+		assertFieldEqual(t, event, "process.container.pod_uid", podUID)
+
+		test.validateOpenSchema(t, event)
+		validateSerializedPodUID(t, test, event, podUID)
+	}, "test_cgroup_kubernetes_pod_uid")
+}
+
+func validateSerializedPodUID(t *testing.T, test *testModule, event *model.Event, podUID string) {
+	t.Helper()
+
+	serializedEvent, err := test.marshalEvent(event)
+	require.NoError(t, err)
+
+	type serializedContainer struct {
+		PodUID string `json:"pod_uid"`
+	}
+	var payload struct {
+		Container *serializedContainer `json:"container"`
+		Process   struct {
+			Container *serializedContainer `json:"container"`
+		} `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(serializedEvent), &payload))
+
+	require.NotNil(t, payload.Container)
+	assert.Equal(t, podUID, payload.Container.PodUID)
+	require.NotNil(t, payload.Process.Container)
+	assert.Equal(t, podUID, payload.Process.Container.PodUID)
 }
 
 // TestCGroupPropagation validates cgroup propagation when a process is born into
