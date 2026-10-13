@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/capture"
@@ -67,6 +68,28 @@ func (p *packetCapture) Register(httpMux *module.Router) error {
 
 func (p *packetCapture) Close() {}
 
+// flushWriter serializes the capture's packet writes, made from its drain
+// goroutine, with flushes made from the handler goroutine:
+// http.ResponseWriter is not safe for concurrent use.
+type flushWriter struct {
+	mu sync.Mutex
+	w  http.ResponseWriter
+}
+
+func (f *flushWriter) Write(p []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.w.Write(p)
+}
+
+func (f *flushWriter) Flush() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if fl, ok := f.w.(http.Flusher); ok {
+		fl.Flush()
+	}
+}
+
 func handleCapture(w http.ResponseWriter, req *http.Request) {
 	var reqBody captureRequest
 	if err := json.NewDecoder(req.Body).Decode(&reqBody); err != nil {
@@ -81,11 +104,12 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	}
 
 	duration := time.Duration(reqBody.DurationSecs) * time.Second
+	out := &flushWriter{w: w}
 
 	cfg := capture.CaptureConfig{
 		Filter:     reqBody.BPFFilter,
 		Interface:  reqBody.Interface,
-		Output:     w,
+		Output:     out,
 		Duration:   duration,
 		MaxPackets: reqBody.MaxPackets,
 		MaxBytes:   reqBody.MaxBytes,
@@ -117,10 +141,9 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 
 	// Send the status and the PCAP global header now. A quiet interface may not
 	// write again for the whole capture, and the caller gives up if it sees no
-	// response headers within its setup timeout.
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
-	}
+	// response headers within its setup timeout. The drain loop is already
+	// writing packets, so the flush must go through out.
+	out.Flush()
 
 	// The capture ends itself on Duration, MaxPackets or MaxBytes; ctx only
 	// covers the caller disconnecting or the drain loop failing to exit.
