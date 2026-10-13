@@ -77,16 +77,6 @@ func (c *CaptureConfig) applyDefaults() {
 	}
 }
 
-// RawPacket holds a single captured packet with metadata.
-type RawPacket struct {
-	// Timestamp is when the packet was captured.
-	Timestamp time.Time
-	// Data is the captured packet bytes (the protocol headers of the original).
-	Data []byte
-	// OrigLen is the original on-wire length of the packet before any truncation.
-	OrigLen uint32
-}
-
 // CaptureStats is a thread-safe snapshot of capture statistics.
 type CaptureStats struct {
 	// PacketsCaptured is the total number of packets written to Output.
