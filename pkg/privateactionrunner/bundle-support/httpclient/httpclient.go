@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/httpclient"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 )
 
 const (
@@ -22,11 +21,10 @@ const (
 type RunnerHttpClient struct{}
 
 type RunnerHttpClientConfig struct {
-	MaxRedirect            int
-	Transport              *RunnerHttpTransportConfig
-	AllowIMDSEndpoints     bool
-	HTTPTimeout            time.Duration
-	HTTPDomainRestrictions []privateconnection.HTTPDomainAllowlist
+	MaxRedirect        int
+	Transport          *RunnerHttpTransportConfig
+	AllowIMDSEndpoints bool
+	HTTPTimeout        time.Duration
 }
 
 type RunnerHttpTransportConfig struct {
@@ -59,28 +57,9 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 		}
 	}
 
-	if !clientConfig.AllowIMDSEndpoints {
-		client = httpclient.WrapClient(client, newIMDSBlockerAuthorizer())
+	if clientConfig.AllowIMDSEndpoints {
+		return client, nil
 	}
-	// The transport guard runs before the initial request and every redirect,
-	// including redirects that copy credential headers or replay the body.
-	if len(clientConfig.HTTPDomainRestrictions) > 0 {
-		client.Transport = &credentialDomainTransport{
-			inner:       client.Transport,
-			credentials: privateconnection.PrivateCredentials{HTTPDomainRestrictions: clientConfig.HTTPDomainRestrictions},
-		}
-	}
-	return client, nil
-}
-
-type credentialDomainTransport struct {
-	inner       http.RoundTripper
-	credentials privateconnection.PrivateCredentials
-}
-
-func (t *credentialDomainTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := t.credentials.ValidateHTTPURL(req.URL); err != nil {
-		return nil, err
-	}
-	return t.inner.RoundTrip(req)
+	authorizer := newIMDSBlockerAuthorizer()
+	return httpclient.WrapClient(client, authorizer), nil
 }

@@ -1,12 +1,10 @@
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "privateconnection",
     srcs = [
         "constants.go",
         "convert.go",
-        "http_domains.go",
         "private_credentials.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection",
@@ -15,15 +13,5 @@ go_library(
         "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/libs/connection",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
-    ],
-)
-
-dd_agent_go_test(
-    name = "privateconnection_test",
-    srcs = ["http_domains_test.go"],
-    embed = [":privateconnection"],
-    deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ],
 )

@@ -332,7 +332,6 @@ func TestRunnerCredentialHTTPDomains(t *testing.T) {
 			credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, ActionContext{BundleID: test.bundle, ActionName: test.action, HTTPRequestURL: test.target}, nil)
 			if test.allowed {
 				require.NoError(t, err)
-				require.Len(t, credentials.HTTPDomainRestrictions, 1)
 				require.Len(t, credentials.Tokens, 1)
 				assert.Equal(t, "secret-value", credentials.Tokens[0].Value)
 			} else {
@@ -355,4 +354,26 @@ func TestRunnerCredentialInvalidDomainPolicies(t *testing.T) {
 			assert.NotContains(t, err.Error(), "secret-value")
 		})
 	}
+}
+
+func TestRunnerCredentialHTTPDomainsRequireEveryCredential(t *testing.T) {
+	config := configmock.New(t)
+	config.Set(par.CredentialsValues, map[string]any{
+		"username": map[string]any{"value": "user-value", "allowed_http_domains": []string{"*.example.com"}},
+		"password": map[string]any{"value": "secret-value", "allowed_http_domains": []string{"api.example.com"}},
+	}, model.SourceFile)
+	resolver, err := NewPrivateCredentialResolver(config)
+	require.NoError(t, err)
+	conn := runnerCredentialConnection("username", "password")
+	action := ActionContext{BundleID: "com.datadoghq.http", ActionName: "request", HTTPRequestURL: "https://api.example.com"}
+	credentials, err := resolver.ResolveConnectionInfoToCredential(context.Background(), conn, action, nil)
+	require.NoError(t, err)
+	require.Len(t, credentials.Tokens, 2)
+
+	// Matching one credential's domain list cannot authorize the other one.
+	action.HTTPRequestURL = "https://other.example.com"
+	credentials, err = resolver.ResolveConnectionInfoToCredential(context.Background(), conn, action, nil)
+	require.ErrorContains(t, err, "request domain is not allowed")
+	assert.Nil(t, credentials)
+	assert.NotContains(t, err.Error(), "secret-value")
 }

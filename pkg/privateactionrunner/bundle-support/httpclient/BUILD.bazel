@@ -13,7 +13,6 @@ go_library(
     deps = [
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/httpclient",
-        "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/util",
     ],
 )
