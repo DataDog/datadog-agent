@@ -49,7 +49,7 @@ instances:
 
     ## @param max_requests_per_second - number - optional - default: 0
     ## Max number of requests per second sent to Cisco Manager API, including authentication requests.
-    ## Requests are rate limited using a token bucket. Set to 0 to disable rate limiting.
+    ## Set to 0 to disable rate limiting.
     #
     # max_requests_per_second: 0
 
