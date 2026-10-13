@@ -14,8 +14,25 @@ import (
 )
 
 func TestUserSessions(t *testing.T) {
-	c, s := newDefaultCheck(t, "", "")
+	// The user sessions count is collected even when the process memory and
+	// inactive sessions collectors are disabled.
+	c, s := newDefaultCheck(t, `
+process_memory:
+  enabled: false
+inactive_sessions:
+  enabled: false
+user_sessions_count:
+  enabled: true`, "")
 	err := c.Run()
 	require.NoError(t, err)
 	s.AssertMetricTaggedWith(t, "Gauge", userSessionsMetricName, []string{})
+}
+
+func TestUserSessionsDisabled(t *testing.T) {
+	c, s := newDefaultCheck(t, `
+user_sessions_count:
+  enabled: false`, "")
+	err := c.Run()
+	require.NoError(t, err)
+	s.AssertMetricMissing(t, "Gauge", userSessionsMetricName)
 }
