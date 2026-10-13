@@ -12,6 +12,7 @@ import (
 	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
@@ -141,7 +142,7 @@ func TestRunDeliversInBackground(t *testing.T) {
 		close(delivered)
 	})
 	r.start()
-	defer r.stop()
+	defer r.stop(context.Background())
 
 	require.NoError(t, r.ReportIssue(testIssue("a", "title")))
 	select {
@@ -149,4 +150,48 @@ func TestRunDeliversInBackground(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		require.FailNow(t, "issue was not delivered")
 	}
+}
+
+func TestStopFlushesPending(t *testing.T) {
+	client := mock_core.NewMockAgentSecureClient(gomock.NewController(t))
+	r := newReporter(client, logmock.New(t))
+
+	// The first attempt fails, so the issue is still pending when stopping,
+	// well before the background retry is due.
+	firstAttempt := make(chan struct{})
+	gomock.InOrder(
+		expectReport(client, "a", errors.New("unavailable")).Do(func(context.Context, *pbcore.ReportHealthIssueRequest, ...grpc.CallOption) {
+			close(firstAttempt)
+		}),
+		expectReport(client, "a", nil),
+	)
+	r.start()
+
+	require.NoError(t, r.ReportIssue(testIssue("a", "title")))
+	select {
+	case <-firstAttempt:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "issue was not sent")
+	}
+	r.stop(context.Background())
+}
+
+func TestStopIsBounded(t *testing.T) {
+	client := mock_core.NewMockAgentSecureClient(gomock.NewController(t))
+	r := newReporter(client, logmock.New(t))
+
+	// An unresponsive core agent: every call blocks until its context is done.
+	client.EXPECT().ReportHealthIssue(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, _ *pbcore.ReportHealthIssueRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}).AnyTimes()
+	r.start()
+	require.NoError(t, r.ReportIssue(testIssue("a", "title")))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	r.stop(ctx)
+	assert.Less(t, time.Since(start), 2*time.Second)
 }

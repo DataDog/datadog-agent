@@ -31,6 +31,10 @@ const (
 	minRetryDelay  = time.Second
 	maxRetryDelay  = 2 * time.Minute
 	resyncInterval = 10 * time.Minute
+	// stopFlushTimeout bounds the final delivery attempt on stop, so that
+	// issues reported right before the process exits (for example a module
+	// failing at startup) are not lost, without holding up shutdown.
+	stopFlushTimeout = 3 * time.Second
 )
 
 // Requires defines the dependencies for the remotereporter component
@@ -47,7 +51,9 @@ type Provides struct {
 }
 
 // NewComponent creates a reporter that sends issues to the core agent over the
-// AgentSecure gRPC API. It is a no-op when the health platform is disabled.
+// AgentSecure gRPC API. It is a no-op when the health platform is disabled or
+// the core agent client cannot be created, so that health reporting never
+// prevents the host process from starting.
 func NewComponent(reqs Requires) (Provides, error) {
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		return Provides{Comp: noopReporter{}}, nil
@@ -56,7 +62,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	agentAddress := net.JoinHostPort(reqs.Config.GetString("cmd_host"), reqs.Config.GetString("cmd_port"))
 	client, conn, err := helper.NewAgentSecureClient(agentAddress, reqs.IPC.GetAuthToken(), reqs.IPC.GetTLSClientConfig(), reqs.Config.GetString("vsock_addr"), reqs.Log)
 	if err != nil {
-		return Provides{}, fmt.Errorf("failed to create core agent client for health issue reporting: %w", err)
+		reqs.Log.Warnf("health issues will not be reported to the core agent: failed to create core agent client: %v", err)
+		return Provides{Comp: noopReporter{}}, nil
 	}
 
 	r := newReporter(client, reqs.Log)
@@ -65,9 +72,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 			r.start()
 			return nil
 		},
-		OnStop: func(context.Context) error {
-			r.stop()
-			return conn.Close()
+		OnStop: func(ctx context.Context) error {
+			r.stop(ctx)
+			if err := conn.Close(); err != nil {
+				return fmt.Errorf("failed to close core agent client: %w", err)
+			}
+			return nil
 		},
 	})
 
@@ -164,12 +174,20 @@ func (r *reporter) start() {
 	go r.run(ctx, resyncInterval)
 }
 
-func (r *reporter) stop() {
+// stop stops the background loop and makes a last, bounded attempt to deliver
+// the pending operations.
+func (r *reporter) stop(ctx context.Context) {
 	if r.cancel == nil {
 		return
 	}
 	r.cancel()
 	<-r.done
+
+	ctx, cancel := context.WithTimeout(ctx, stopFlushTimeout)
+	defer cancel()
+	if err := r.flush(ctx); err != nil {
+		r.log.Debugf("failed to send pending health issues to the core agent before stopping: %v", err)
+	}
 }
 
 func (r *reporter) run(ctx context.Context, resync time.Duration) {
