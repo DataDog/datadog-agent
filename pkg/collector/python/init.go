@@ -20,6 +20,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/spf13/cast"
+
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreaggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
@@ -445,6 +447,17 @@ func Initialize(paths ...string) error {
 	C.initCgoFree(rtloader)
 	C.initLogger(rtloader)
 	C.initDatadogAgentModule(rtloader)
+	// Batching can make producers wait for a drain. Release the GIL globally
+	// in that mode because all checks share the aggregator input channel.
+	// With batching disabled, retain the original low-overhead submission path.
+	releaseSubmissionGIL := false
+	for _, size := range cast.ToStringMapInt(pkgconfigsetup.Datadog().Get("check_sampler_batch_sizes")) {
+		if size > 0 {
+			releaseSubmissionGIL = true
+			break
+		}
+	}
+	C.set_metric_submission_gil_release(rtloader, C.bool(releaseSubmissionGIL))
 	aggCb := coreaggregator.GetCallbacks()
 	C.initAggregatorModule(rtloader, aggCb.Metric, aggCb.ServiceCheck, aggCb.Event, aggCb.HistogramBucket, aggCb.HistogramBucketMulti, aggCb.EventPlatformEvent)
 	C.initUtilModule(rtloader)

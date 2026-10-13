@@ -72,7 +72,11 @@ channel. The sampler acknowledges only after appending the batch to the bounded
 serialization pipeline. A too-early commit returns a retry time to the sender;
 the sampler retains the timestamp across sender reuse. Intermediate commits
 preserve metric baselines; the final commit ends the logical check run.
-Shutdown cancels sender waits. Python callers release the GIL before waiting.
+Shutdown cancels sender waits. When any check has a positive configured batch
+size, Python metric and histogram submissions release the GIL for all checks
+because they share the aggregator input. With batching disabled globally,
+submissions retain the original GIL behavior to avoid per-metric overhead.
+This gate is set at Python initialization, not updated per submission.
 
 ### Aggregator
 For now the package provides only one Aggregator implementation, the

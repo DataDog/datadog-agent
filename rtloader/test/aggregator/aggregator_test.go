@@ -521,3 +521,28 @@ func TestSubmitEventPlatformEvent(t *testing.T) {
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+// Exercise both modes and all metric entry points; non-batched checks also
+// release the GIL when the process-wide gate is enabled.
+func TestSubmissionGILGate(t *testing.T) {
+	defer setSubmissionGILRelease(true)
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprint(enabled), func(t *testing.T) {
+			setSubmissionGILRelease(enabled)
+			for _, call := range []string{
+				`aggregator.submit_metric(None, 'unbatched:id', aggregator.GAUGE, 'name', 1.0, [], 'host')`,
+				`aggregator.submit_histogram_bucket(None, 'unbatched:id', 'name', 1, 0.0, 1.0, 1, 'host', [])`,
+				`aggregator.submit_histogram_bucket_multi(None, 'unbatched:id', 'name', 1, 0.0, 1.0, 1, 'host', [])`,
+			} {
+				metricGILReleased, bucketGILReleased = !enabled, !enabled
+				out, err := run(call)
+				if err != nil || out != "" {
+					t.Fatalf("%s: %v %s", call, err, out)
+				}
+				if metricGILReleased != enabled && bucketGILReleased != enabled {
+					t.Fatalf("%s: GIL release did not match gate %v", call, enabled)
+				}
+			}
+		})
+	}
+}

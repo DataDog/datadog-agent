@@ -109,12 +109,17 @@ func setUp() error {
 	}
 
 	C.initAggregatorTests(rtloader)
+	setSubmissionGILRelease(true)
 
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
 	}
 
 	return nil
+}
+
+func setSubmissionGILRelease(enabled bool) {
+	C.set_metric_submission_gil_release(rtloader, C.bool(enabled))
 }
 
 func run(call string) (string, error) {

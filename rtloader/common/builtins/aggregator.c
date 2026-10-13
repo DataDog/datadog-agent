@@ -14,6 +14,14 @@ static cb_submit_histogram_bucket_t cb_submit_histogram_bucket = NULL;
 static cb_submit_histogram_bucket_multi_t cb_submit_histogram_bucket_multi = NULL;
 static cb_submit_event_platform_event_t cb_submit_event_platform_event = NULL;
 
+// Configured before checks start; all checks share the aggregator input channel.
+static bool release_submission_gil = false;
+
+void _set_metric_submission_gil_release(bool enabled)
+{
+    release_submission_gil = enabled;
+}
+
 // forward declarations
 static PyObject *submit_metric(PyObject *self, PyObject *args);
 static PyObject *submit_service_check(PyObject *self, PyObject *args);
@@ -213,9 +221,11 @@ static PyObject *submit_metric(PyObject *self, PyObject *args)
 
     // Submission may block on the bounded Go channel.
     // All arguments remain alive until this call returns; do not hold up other checks.
-    Py_BEGIN_ALLOW_THREADS
+    PyThreadState *thread_state = release_submission_gil ? PyEval_SaveThread() : NULL;
     cb_submit_metric(check_id, mt, name, value, tags, hostname, flush_first_value);
-    Py_END_ALLOW_THREADS
+    if (thread_state != NULL) {
+        PyEval_RestoreThread(thread_state);
+    }
 
     free_tags(tags);
 
@@ -427,14 +437,16 @@ static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histo
         goto error;
 
     // Buckets use the same bounded submission path as ordinary metrics.
-    Py_BEGIN_ALLOW_THREADS
+    PyThreadState *thread_state = release_submission_gil ? PyEval_SaveThread() : NULL;
     if (cb_multi != NULL) {
         cb_multi(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
     } else {
         // Same values as parsing the bounds with the "f" format
         cb(check_id, name, value, (float)lower_bound, (float)upper_bound, monotonic, hostname, tags, flush_first_value);
     }
-    Py_END_ALLOW_THREADS
+    if (thread_state != NULL) {
+        PyEval_RestoreThread(thread_state);
+    }
 
     free_tags(tags);
 
