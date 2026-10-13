@@ -16,6 +16,7 @@ import (
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
@@ -41,6 +42,7 @@ type WorkflowRunner struct {
 
 func NewWorkflowRunner(
 	configuration *config.Config,
+	coreConfig model.Reader,
 	rcClient rcclient.Client,
 	keysManager taskverifier.KeysManager,
 	verifier taskverifier.TaskVerifier,
@@ -52,7 +54,7 @@ func NewWorkflowRunner(
 	ka kubeactions.Component,
 ) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor, err := NewWorkflowTaskExecutor(configuration, rcClient, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
+	taskExecutor, err := NewWorkflowTaskExecutor(configuration, coreConfig, rcClient, verifier, traceroute, eventPlatform, ipcClient, encryptionStore, ha, ka)
 	if err != nil {
 		return nil, err
 	}
