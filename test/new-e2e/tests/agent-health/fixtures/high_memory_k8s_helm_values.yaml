@@ -1,0 +1,15 @@
+datadog:
+  clusterName: "e2e-high-memory-k8s"
+  env:
+    # Surface health issues within ~30s instead of the 15m default.
+    - name: DD_HEALTH_PLATFORM_FORWARDER_INTERVAL
+      value: "30000000000"
+agents:
+  containers:
+    agent:
+      # The high memory issue compares the container usage to its limit: without a limit there is nothing to report.
+      resources:
+        requests:
+          memory: 1Gi
+        limits:
+          memory: 1Gi
