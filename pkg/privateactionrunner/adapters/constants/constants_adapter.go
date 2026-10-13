@@ -6,6 +6,9 @@
 package constants
 
 const (
+	// PhoneHomePOCEnvVar opts an isolated matching-config Linux deployment into core-owned discovery.
+	PhoneHomePOCEnvVar = "DD_PAR_PHONE_HOME_POC"
+
 	// InternalUseDDURLForOPMSEnvVar is an internal-only env var for tests.
 	// When set to "true", PAR sends OPMS requests to the configured dd_url.
 	// NOT intended for customer use.

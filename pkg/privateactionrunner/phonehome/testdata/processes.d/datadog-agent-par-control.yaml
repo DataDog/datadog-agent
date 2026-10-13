@@ -1,0 +1,13 @@
+# POC ONLY: use in a separate dd-procmgrd, never overlay a running installation.
+description: Phone-home POC Rust control
+command: ${DD_PAR_POC_BIN}/par-control
+args:
+  - --executor-socket
+  - ${DD_PAR_POC_DIR}/executor.sock
+  - --ipc-cert-file
+  - ${DD_PAR_POC_DIR}/ipc_cert.pem
+auto_start: false
+restart: never
+stop_timeout: 180
+stdout: inherit
+stderr: inherit

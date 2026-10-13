@@ -8,11 +8,14 @@ package statusimpl
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/phonehome"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -97,6 +100,37 @@ func TestStatusDisabled(t *testing.T) {
 		assert.Contains(t, output, "Disabled")
 		assert.NotContains(t, output, "URN")
 	})
+}
+
+func TestPhoneHomeStatusTemplates(t *testing.T) {
+	stats := map[string]interface{}{"privateActionRunnerStatus": map[string]interface{}{
+		"Enabled":   true,
+		"PhoneHome": &phonehome.State{State: "waiting", Reason: "missing_enrollment_scope", NextRetry: time.Now().Add(time.Minute).UTC().Format(time.RFC3339)},
+	}}
+	var text, html bytes.Buffer
+	require.NoError(t, status.RenderText(templatesFS, "privateactionrunner.tmpl", &text, stats))
+	require.NoError(t, status.RenderHTML(templatesFS, "privateactionrunnerHTML.tmpl", &html, stats))
+	for _, output := range []string{text.String(), html.String()} {
+		require.Contains(t, output, "waiting (missing_enrollment_scope)")
+		require.Contains(t, output, "Next reconciliation:")
+	}
+}
+
+func TestPhoneHomeRecoveryStatusTemplates(t *testing.T) {
+	stats := map[string]interface{}{"privateActionRunnerStatus": map[string]interface{}{
+		"Enabled":   true,
+		"PhoneHome": &phonehome.State{State: "blocked", Reason: "quota", ScopeChecked: true, ScopeReady: true, EnrollmentOutcome: "quota", RetrySafe: true, NextDiscovery: "2026-10-06T10:01:00Z", NextEnrollmentAttempt: "2026-10-06T10:05:00Z"},
+	}}
+	var text, html bytes.Buffer
+	require.NoError(t, status.RenderText(templatesFS, "privateactionrunner.tmpl", &text, stats))
+	require.NoError(t, status.RenderHTML(templatesFS, "privateactionrunnerHTML.tmpl", &html, stats))
+	for _, output := range []string{text.String(), html.String()} {
+		require.Contains(t, output, "Scope checked: true; scope ready: true")
+		require.Contains(t, output, "Enrollment outcome: quota")
+		require.Contains(t, output, "Safe to retry: true; reconciliation required: false")
+		require.Contains(t, output, "Next discovery: 2026-10-06T10:01:00Z")
+		require.Contains(t, output, "Next enrollment attempt: 2026-10-06T10:05:00Z")
+	}
 }
 
 func TestProviderNameAndSection(t *testing.T) {
