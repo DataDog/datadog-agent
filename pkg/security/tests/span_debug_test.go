@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -176,6 +177,7 @@ func (tm *testModule) spanTesterTimeoutDump(continueFile string, started time.Ti
 	}
 	// Before the direct resolution: it must describe the stream as the timeout found it.
 	fmt.Fprintf(&b, "span-dbg: event stream: %s\n", ebpfProbe.DebugEventStreamState())
+	fmt.Fprintf(&b, "span-dbg: goroutines inside handleEvent:\n%s", handleEventStacks())
 	resolver := ebpfProbe.Resolvers.ProcessResolver
 	for _, pid := range pids {
 		fmt.Fprintf(&b, "span-dbg: resolver state of %d before: %s\n", pid, resolver.DebugOTelProcessContextState(pid))
@@ -183,5 +185,23 @@ func (tm *testModule) spanTesterTimeoutDump(continueFile string, started time.Ti
 		fmt.Fprintf(&b, "span-dbg: resolver state of %d after a direct resolution: %s\n", pid, resolver.DebugOTelProcessContextState(pid))
 	}
 	fmt.Fprintf(&b, "span-dbg: counters after the direct resolution:\n%s", tm.spanCounters())
+	return b.String()
+}
+
+// handleEventStacks returns the stacks of the goroutines currently running the
+// probe's event handler: where a blocked handler waits.
+func handleEventStacks() string {
+	buf := make([]byte, 16<<20)
+	buf = buf[:runtime.Stack(buf, true)]
+	var b strings.Builder
+	for _, stack := range strings.Split(string(buf), "\n\n") {
+		if strings.Contains(stack, "EBPFProbe).handleEvent") {
+			b.WriteString(stack)
+			b.WriteString("\n\n")
+		}
+	}
+	if b.Len() == 0 {
+		return "  <none>\n"
+	}
 	return b.String()
 }
