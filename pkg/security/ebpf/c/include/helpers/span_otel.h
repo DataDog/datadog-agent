@@ -34,6 +34,19 @@ static __always_inline int unregister_otel_tls() {
 #define OTEL_CTX_VMA_NAME "OTEL_CTX"
 #define OTEL_CTX_VMA_NAME_SIZE sizeof(OTEL_CTX_VMA_NAME)
 
+// TEMPORARY span-dbg: a 24-byte format built on the stack from immediates.
+// A string literal lands in .rodata, which kernels before 5.2 can't load, and
+// clang copies even a stack char array out of .rodata; the volatile stores
+// keep it from folding these back into a constant.
+#define span_dbg_printk(w0, w1, w2, ...)                                 \
+    ({                                                                   \
+        u64 ____fmt[3];                                                  \
+        *(volatile u64 *)&____fmt[0] = w0;                               \
+        *(volatile u64 *)&____fmt[1] = w1;                               \
+        *(volatile u64 *)&____fmt[2] = w2;                               \
+        bpf_trace_printk((char *)____fmt, sizeof(____fmt), ##__VA_ARGS__); \
+    })
+
 // The name only shows in /proc/<pid>/maps once the prctl returned, so the event is sent on exit.
 static int __attribute__((always_inline)) is_otel_process_ctx_naming(int option, unsigned long arg2, const char *name) {
     if (!is_span_tracking_enabled()) {
@@ -45,18 +58,18 @@ static int __attribute__((always_inline)) is_otel_process_ctx_naming(int option,
 
     // 1 more than the size to count the NUL terminator
     char vma_name[OTEL_CTX_VMA_NAME_SIZE + 1] = {};
-    long read = bpf_probe_read_str(&vma_name, sizeof(vma_name), name);
-    // TEMPORARY span-dbg: a negative read means the name page wasn't resident.
-    bpf_printk("span-dbg prctl entry tgid=%d tid=%d read_str=%ld", bpf_get_current_pid_tgid() >> 32, (u32)bpf_get_current_pid_tgid(), read);
-    if (read != OTEL_CTX_VMA_NAME_SIZE) {
-        return 0;
+    // TEMPORARY span-dbg: -1 flags a PR_SET_VMA anon-name call that isn't
+    // (or couldn't be read as) OTEL_CTX, for the exit hook to print; the entry
+    // hook has no stack left for a printk of its own.
+    if (bpf_probe_read_str(&vma_name, sizeof(vma_name), name) != OTEL_CTX_VMA_NAME_SIZE) {
+        return -1;
     }
 
     char expected[OTEL_CTX_VMA_NAME_SIZE] = OTEL_CTX_VMA_NAME;
 #pragma unroll
     for (int i = 0; i < OTEL_CTX_VMA_NAME_SIZE - 1; i++) {
         if (vma_name[i] != expected[i]) {
-            return 0;
+            return -1;
         }
     }
 

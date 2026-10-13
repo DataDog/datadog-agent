@@ -168,6 +168,8 @@ enum prctl_flags
 {
     PRCTL_FLAG_SEND_EVENT = 1 << 0,
     PRCTL_FLAG_OTEL_PROCESS_CTX = 1 << 1,
+    // TEMPORARY span-dbg: PR_SET_VMA anon-name call whose name isn't OTEL_CTX or couldn't be read
+    PRCTL_FLAG_SPAN_DBG_NAMING_MISS = 1 << 2,
 };
 
 enum otel_runtime_language
