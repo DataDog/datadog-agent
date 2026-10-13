@@ -1606,6 +1606,33 @@ func TestNStatTracerKeepsExpiredConnectionUnpublished(t *testing.T) {
 	require.Equal(t, removalsBefore+2, expiredRemovals.Get())
 }
 
+func TestNStatTracerDropsSourcesAtTrackingLimit(t *testing.T) {
+	cfg := testNStatConfig()
+	cfg.MaxTrackedConnections = 2
+	tracer := newNStatTracerWithControl(cfg, newFakeNStatControl())
+	now := time.Unix(450, 0)
+	tracer.now = func() time.Time { return now }
+	dropped := nstatTracerTelemetry.droppedSources.WithValues()
+	droppedBefore := dropped.Get()
+
+	for _, sourceRef := range []uint64{1, 2} {
+		tracer.processEvent(nstat.Event{Kind: nstat.EventAdded, SourceRef: sourceRef, Provider: nstat.ProviderTCPKernel})
+	}
+	tracer.processEvent(nstat.Event{Kind: nstat.EventRemoved, SourceRef: 1})
+	now = now.Add(nstatPendingRemovalTTL)
+
+	// The pending removal has expired, but only the run loop reclaims it.
+	tracer.processEvent(nstat.Event{Kind: nstat.EventCounts, SourceRef: 3, Counts: &nstat.Counts{}})
+	require.NotContains(t, tracer.sources, uint64(3))
+	require.Contains(t, tracer.sources, uint64(1))
+	require.Equal(t, droppedBefore+1, dropped.Get())
+
+	tracer.expirePendingRemovals(now)
+	tracer.processEvent(nstat.Event{Kind: nstat.EventCounts, SourceRef: 3, Counts: &nstat.Counts{}})
+	require.Contains(t, tracer.sources, uint64(3))
+	require.Equal(t, droppedBefore+1, dropped.Get())
+}
+
 func TestNStatTracerStartAndStop(t *testing.T) {
 	control := newFakeNStatControl()
 	tracer := newNStatTracerWithControl(testNStatConfig(), control)

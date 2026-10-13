@@ -665,12 +665,12 @@ func (t *nstatTracer) getSource(sourceRef uint64) *nstatSource {
 	if source := t.sources[sourceRef]; source != nil {
 		return source
 	}
+	// Pending removals are expired by the run loop. Expiring them here would
+	// scan every source for each event about an untracked source, which at
+	// the limit includes counts for every dropped source on each query.
 	if len(t.sources) >= int(t.config.MaxTrackedConnections) {
-		t.expirePendingRemovalsLocked(t.now())
-		if len(t.sources) >= int(t.config.MaxTrackedConnections) {
-			nstatTracerTelemetry.droppedSources.Inc()
-			return nil
-		}
+		nstatTracerTelemetry.droppedSources.Inc()
+		return nil
 	}
 	source := &nstatSource{afterEnumeration: t.enumerationComplete, lastSeen: t.now()}
 	t.sources[sourceRef] = source
