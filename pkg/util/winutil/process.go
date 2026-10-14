@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	modkernel                      = windows.NewLazyDLL("kernel32.dll")
-	modversion                     = windows.NewLazyDLL("version.dll")
+	modkernel                      = windows.NewLazySystemDLL("kernel32.dll")
+	modversion                     = windows.NewLazySystemDLL("version.dll")
 	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
 	procQueryFullProcessImageNameW = modkernel.NewProc("QueryFullProcessImageNameW")
 	procGetFileVersionInfoSizeW    = modversion.NewProc("GetFileVersionInfoSizeW")

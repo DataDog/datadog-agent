@@ -7,8 +7,6 @@ package invalidconfig
 
 import (
 	"encoding/json"
-	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -47,110 +45,84 @@ func requireSchema(t *testing.T) {
 }
 
 func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
-	ctx := map[string]string{
-		contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
-		contextKeyErrorCount: "2",
-	}
-	ctx[contextErrorKey(0)] = "at '/agent_ipc/port': got string, want integer"
-	ctx[contextErrorKey(1)] = "at '/tags': got object, want array"
+	ctx := BuildContext(config.NewMock(t), "/etc/datadog-agent/datadog.yaml", schema.Violation{
+		Path: "/agent_ipc/port", ActualType: "string", ExpectedTypes: []string{"integer"},
+	})
 	issue, err := InvalidConfigIssue{}.BuildIssue(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, issue.GetId(), "Id is set by the runner (ReportIssue), not by the template")
 	assert.Equal(t, IssueName, issue.GetIssueName())
 	assert.Equal(t, IssueType, issue.GetIssueType())
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
-	assert.Equal(t, "Found 2 configuration errors in datadog.yaml", issue.GetTitle())
-	assert.Equal(t, "Check the settings listed below in your Agent configuration file or environment variables.", issue.Remediation.Steps[0].Text)
-	assert.Equal(t, float64(2),
+	assert.Equal(t, "Incorrect type for `/agent_ipc/port`", issue.GetTitle())
+	assert.Equal(t, "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables.", issue.Remediation.Steps[0].Text)
+	assert.Equal(t, float64(1),
 		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
-	assert.Contains(t, issue.GetDescription(), "/tags")
-	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
 
 	errorsStruct := issue.GetExtra().GetFields()[contextKeyErrors].GetStructValue()
 	require.NotNil(t, errorsStruct, "extra.errors must be a struct with one entry per violation")
-	assert.Len(t, errorsStruct.GetFields(), 2, "each violation must get its own key")
-	assert.Equal(t, "got string, want integer", errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
-	assert.Equal(t, "got object, want array", errorsStruct.GetFields()["/tags"].GetListValue().GetValues()[0].GetStringValue())
+	assert.Len(t, errorsStruct.GetFields(), 1)
+	assert.Equal(t, issue.Description+" "+issue.Remediation.Steps[1].Text, errorsStruct.GetFields()["/agent_ipc/port"].GetListValue().GetValues()[0].GetStringValue())
 }
 
 func TestBuildIssue_MissingConfigPath(t *testing.T) {
-	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{contextKeyErrorCount: "1"})
+	issue, err := InvalidConfigIssue{}.BuildIssue(nil)
 	require.NoError(t, err)
-	assert.Equal(t, "Found 1 error in the Agent configuration", issue.Title)
-	assert.Equal(t, "Found 1 error in the Agent configuration.", issue.Description)
-	assert.Equal(t, "Check the settings listed below in your Agent configuration file or environment variables.", issue.Remediation.Steps[0].Text)
+	assert.Equal(t, "Invalid Agent configuration", issue.Title)
+	assert.NotContains(t, issue.Description, "unknown path")
+	assert.Equal(t, "Check this setting in your Agent configuration file or environment variables.", issue.Remediation.Steps[0].Text)
 	assert.Equal(t, "(unknown path)", issue.Extra.GetFields()[contextKeyConfigPath].GetStringValue())
 }
 
 func TestBuildIssue_Remediation(t *testing.T) {
-	const fallback = "Fix each violation listed in the description."
-	for _, tc := range []struct{ name, violations, description, want string }{
-		{"integer_default", `[{"path":"/dogstatsd_port","actual_type":"object","expected_types":["integer"],"default_status":"known","default_value":8125}]`,
+	const fallback = "Check the value and format of `/setting`."
+	for _, tc := range []struct{ name, violation, description, want string }{
+		{"integer_default", `{"path":"/dogstatsd_port","actual_type":"object","expected_types":["integer"],"default_status":"known","default_value":8125}`,
 			"`/dogstatsd_port` expects a whole number, but received a YAML mapping.",
 			"Set `/dogstatsd_port` to a whole number. The default value for this setting is `8125`."},
-		{"empty_default", `[{"path":"/api_key","actual_type":"array","expected_types":["string"],"default_status":"known","default_value":""}]`,
+		{"empty_default", `{"path":"/api_key","actual_type":"array","expected_types":["string"],"default_status":"known","default_value":""}`,
 			"`/api_key` expects a string, but received a YAML list.",
 			"Set `/api_key` to a string. The default value for this setting is `\"\"` (an empty string)."},
-		{"no_default", `[{"path":"/agent_ipc","actual_type":"string","expected_types":["object"],"default_status":"none"}]`,
+		{"no_default", `{"path":"/agent_ipc","actual_type":"string","expected_types":["object"],"default_status":"none"}`,
 			"`/agent_ipc` expects a YAML mapping, but received a string.",
 			"Set `/agent_ipc` to a YAML mapping. This setting has no default."},
-		{"unknown_default", `[{"path":"/additional_endpoints/example","actual_type":"null","expected_types":["array"],"default_status":"unknown"}]`,
+		{"unknown_default", `{"path":"/additional_endpoints/example","actual_type":"null","expected_types":["array"],"default_status":"unknown"}`,
 			"`/additional_endpoints/example` expects a YAML list, but received null.",
 			"Set `/additional_endpoints/example` to a YAML list."},
-		{"union", `[{"path":"/setting","actual_type":"boolean","expected_types":["integer","number","string"],"default_status":"unknown"}]`,
+		{"union", `{"path":"/setting","actual_type":"boolean","expected_types":["integer","number","string"],"default_status":"unknown"}`,
 			"`/setting` expects a whole number, a number, or a string, but received true or false.",
 			"Set `/setting` to a whole number, a number, or a string."},
-		{"markdown", "[{\"path\":\"/key`[link](https://example.test)\\n\",\"actual_type\":\"number\",\"expected_types\":[\"string\"],\"default_status\":\"known\",\"default_value\":\"`example`\"}]",
+		{"markdown", "{\"path\":\"/key`[link](https://example.test)\\n\",\"actual_type\":\"number\",\"expected_types\":[\"string\"],\"default_status\":\"known\",\"default_value\":\"`example`\"}",
 			"``/key`[link](https://example.test) `` expects a string, but received a number.",
 			"Set ``/key`[link](https://example.test) `` to a string. The default value for this setting is ``\"`example`\"``."},
-		{"empty_facts", "[]", "", fallback},
+		{"empty_facts", "", "", fallback},
 		{"malformed_facts", "not JSON", "", fallback},
-		{"incomplete_facts", "[{}]", "", fallback},
-		{"unsupported_type", `[{"path":"/setting","actual_type":"string","expected_types":["unsupported"],"default_status":"unknown"}]`, "", fallback},
-		{"missing_default", `[{"path":"/setting","actual_type":"string","expected_types":["integer"],"default_status":"known"}]`, "", fallback},
+		{"incomplete_facts", "{}", "", fallback},
+		{"unsupported_type", `{"path":"/setting","actual_type":"string","expected_types":["unsupported"],"default_status":"unknown"}`, "", fallback},
+		{"missing_default", `{"path":"/setting","actual_type":"string","expected_types":["integer"],"default_status":"known"}`, "", fallback},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			var payload violationPayload
+			_ = json.Unmarshal([]byte(tc.violation), &payload)
+			path := "/setting"
+			if payload.Path != "" {
+				path = payload.Path
+			}
 			issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
-				contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
-				contextKeyErrorCount: "1",
-				contextErrorKey(0):   "at '/setting': configuration does not match schema",
-				contextKeyViolations: tc.violations,
+				contextKeyConfigPath:  "/etc/datadog-agent/datadog.yaml",
+				contextKeySettingPath: path,
+				contextKeyViolation:   tc.violation,
 			})
 			require.NoError(t, err)
 			description := tc.description
 			if description == "" {
-				description = "at '/setting': configuration does not match schema"
+				description = "The value at `/setting` does not match the configuration schema."
 			}
-			assert.Equal(t, "Found 1 configuration error in datadog.yaml", issue.Title)
-			assert.Equal(t, "Found 1 configuration error in /etc/datadog-agent/datadog.yaml or environment variables: "+description, issue.Description)
+			assert.Equal(t, description, issue.Description)
 			assert.Equal(t, tc.want, issue.Remediation.Steps[1].Text)
 		})
 	}
-}
-
-func TestBuildIssue_MultipleCorrections(t *testing.T) {
-	const count = 12
-	violations := make([]violationPayload, count)
-	for i := range violations {
-		violations[i] = violationPayload{Path: fmt.Sprintf("/setting%d", i), ActualType: "string", ExpectedTypes: []string{"integer"}, DefaultStatus: "unknown"}
-	}
-	raw, err := json.Marshal(violations)
-	require.NoError(t, err)
-	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
-		contextKeyErrorCount: strconv.Itoa(count),
-		contextKeyViolations: string(raw),
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "Found 12 errors in the Agent configuration", issue.Title)
-	text := issue.Remediation.Steps[1].Text
-	assert.True(t, strings.HasPrefix(text, "- Set `/setting0` to a whole number."))
-	assert.Equal(t, count, strings.Count(text, "to a whole number."))
-	assert.True(t, strings.HasSuffix(text, "Set `/setting11` to a whole number."), text)
-	assert.Contains(t, text, "Set `/setting10` to a whole number.")
-	assert.Equal(t, count, strings.Count(issue.Description, "expects a whole number, but received a string."))
-	assert.True(t, strings.HasPrefix(issue.Description, "Found 12 errors in the Agent configuration:"))
-	assert.Contains(t, issue.Description, "`/setting11`")
 }
 
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
@@ -159,6 +131,45 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 	reports, err := newChecker(config.NewMock(t), testHostname(t), testSelfIdent(t)).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
+}
+
+func TestCheck_SeparateIssuesRemainStable(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, "agent_ipc: {port: wrong}\ndogstatsd_port: {wrong: type}")
+	c := newChecker(cfg, testHostname(t), testSelfIdent(t))
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 2)
+	ids := map[string]string{}
+	for _, report := range reports {
+		issue, err := InvalidConfigIssue{}.BuildIssue(report.Context)
+		require.NoError(t, err)
+		assert.NotContains(t, issue.Title, "Found")
+		errors := issue.Extra.GetFields()[contextKeyErrors].GetStructValue().GetFields()
+		require.Len(t, errors, 1)
+		for path, messages := range errors {
+			ids[path] = report.IssueID
+			message := messages.GetListValue().GetValues()[0].GetStringValue()
+			assert.Contains(t, message, "expects a whole number")
+			assert.Contains(t, message, "Set ")
+			assert.Contains(t, message, "The default value for this setting is")
+		}
+	}
+	assert.NotEqual(t, ids["/agent_ipc/port"], ids["/dogstatsd_port"])
+	cfg.Set("agent_ipc.port", 5001, model.SourceFile)
+	cfg.Set("dogstatsd_port", []string{"still wrong"}, model.SourceFile)
+	reports, err = c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, ids["/dogstatsd_port"], reports[0].IssueID, "changing the rejected value must not create another issue")
+	cfg.Set("dogstatsd_port", 8125, model.SourceFile)
+	reports, err = c.Run()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+	cfg.Set("agent_ipc.port", "wrong again", model.SourceFile)
+	reports, err = c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, ids["/agent_ipc/port"], reports[0].IssueID)
 }
 
 // Duration strings must remain accepted for both dotted and nested config keys.
@@ -188,7 +199,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	require.Len(t, reports, 1)
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.True(t, strings.HasPrefix(reports[0].IssueID, IssueID+":"), "IssueID %q must be scoped with a host+path suffix", reports[0].IssueID)
-	assert.Contains(t, reports[0].Context[contextErrorKey(0)], "agent_ipc/port")
+	assert.Equal(t, "/agent_ipc/port", reports[0].Context[contextKeySettingPath])
 
 	issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
 	require.NoError(t, err)
@@ -232,7 +243,9 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 				return
 			}
 			require.Len(t, reports, 1)
-			assert.Contains(t, reports[0].Context[contextErrorKey(0)], testCase.want)
+			var violation violationPayload
+			require.NoError(t, json.Unmarshal([]byte(reports[0].Context[contextKeyViolation]), &violation))
+			assert.Equal(t, testCase.want, "got "+violation.ActualType+", want "+strings.Join(violation.ExpectedTypes, " or "))
 			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
 			require.NoError(t, err)
 			encoded, err := json.Marshal(issue)
@@ -277,9 +290,9 @@ func TestCheck_ResolvedSecrets(t *testing.T) {
 				return
 			}
 			require.Len(t, reports, 1)
-			assert.Equal(t, "at '/agent_ipc/port': "+tc.want, reports[0].Context[contextErrorKey(0)])
 			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
 			require.NoError(t, err)
+			assert.Equal(t, "`/agent_ipc/port` expects a whole number, but received a string.", issue.Description)
 			encoded, err := json.Marshal(issue)
 			require.NoError(t, err)
 			assert.NotContains(t, string(encoded), tc.value)
@@ -294,7 +307,9 @@ func TestCheck_ResolvedSecretInMap(t *testing.T) {
 	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
-	assert.Equal(t, "at '/additional_endpoints/https:~1~1example.test': got string, want array", reports[0].Context[contextErrorKey(0)])
+	issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
+	require.NoError(t, err)
+	assert.Equal(t, "`/additional_endpoints/https:~1~1example.test` expects a YAML list, but received a string.", issue.Description)
 }
 
 func TestResolveDefault(t *testing.T) {
@@ -325,7 +340,7 @@ func TestInstanceIssueID_DiffersByConfigPath(t *testing.T) {
 	c1.cfg = fakeConfigFileUsed{Component: cfg1, path: "/etc/datadog-agent/datadog.yaml"}
 	c2.cfg = fakeConfigFileUsed{Component: cfg2, path: "/etc/datadog-agent/datadog-cluster.yaml"}
 
-	assert.NotEqual(t, c1.instanceIssueID(), c2.instanceIssueID())
+	assert.NotEqual(t, c1.instanceIssueID(""), c2.instanceIssueID(""))
 }
 
 // Two checkers with the same config path but different hostnames must not
@@ -340,7 +355,7 @@ func TestInstanceIssueID_DiffersByHostname(t *testing.T) {
 	c1 := newChecker(cfg, hn1, si)
 	c2 := newChecker(cfg, hn2, si)
 
-	assert.NotEqual(t, c1.instanceIssueID(), c2.instanceIssueID())
+	assert.NotEqual(t, c1.instanceIssueID(""), c2.instanceIssueID(""))
 }
 
 // fakeConfigFileUsed overrides ConfigFileUsed so instanceIssueID can be tested
