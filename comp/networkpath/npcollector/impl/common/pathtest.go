@@ -6,7 +6,9 @@
 package common
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"hash"
 	"hash/fnv"
 
@@ -33,6 +35,7 @@ type Pathtest struct {
 	Namespace          string
 	Origin             payload.PathOrigin
 	TestConfigID       string
+	CorrelationKey     string
 	TestConfigName     string
 	TestConfigSource   payload.TestConfigSource
 	DynamicTestProfile payload.DynamicTestProfile
@@ -52,6 +55,26 @@ func (p Pathtest) GetHash() uint64 {
 	writeHashString(h, string(p.Protocol))
 	writeHashString(h, p.SourceContainerID)
 	return h.Sum64()
+}
+
+// MakeCorrelationKey derives the identity shared by a CNM connection and the
+// Network Path event for the test it schedules.
+func (p Pathtest) MakeCorrelationKey(sourceHostname string) string {
+	if sourceHostname == "" {
+		return ""
+	}
+
+	h := sha256.New()
+	writeHashString(h, string(p.Protocol))
+	writeHashString(h, sourceHostname)
+	writeHashString(h, p.Hostname)
+	_ = binary.Write(h, binary.LittleEndian, p.Port)
+	writeHashString(h, string(p.Origin))
+	writeHashString(h, p.Namespace)
+	writeHashString(h, p.SourceContainerID)
+
+	sum := h.Sum(nil)
+	return hex.EncodeToString(sum[:16])
 }
 
 // writeHashString prefixes string fields with their length so adjacent fields

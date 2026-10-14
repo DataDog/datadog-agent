@@ -221,7 +221,17 @@ func (c *ConnectionsCheck) Cleanup() {
 }
 
 func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
-	c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+	sourceHostname := ""
+	if c.hostInfo != nil {
+		sourceHostname = c.hostInfo.HostName
+	}
+
+	// Results come back one per *yielded* connection, and the loop below skips
+	// any whose addresses will not parse. Indexing into conns.Conns instead would
+	// attach well-formed keys to the wrong destinations.
+	scheduled := make([]*model.Connection, 0, len(conns.Conns))
+
+	networkPaths := c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		for _, conn := range conns.Conns {
 			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
 			if err != nil {
@@ -245,6 +255,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 				Source:            src,
 				Dest:              dest,
 				TranslatedDest:    transDest,
+				SourceHostname:    sourceHostname,
 				SourceContainerID: conn.Laddr.GetContainerId(),
 				Domain:            getDNSNameForIP(conns, conn.Raddr.GetIp()),
 				Type:              conn.Type,
@@ -255,11 +266,31 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 				SentBytes:         conn.LastBytesSent,
 				RecvBytes:         conn.LastBytesReceived,
 			}
+			// Before the stop check: yield delivers the connection and only then
+			// reports whether the consumer wants more, so a false return still
+			// means this one was evaluated and has a decision.
+			scheduled = append(scheduled, conn)
 			if !yield(npc) {
 				return
 			}
 		}
 	})
+
+	// Empty means the collector declined to run, which correctly leaves every
+	// connection unstamped. Any other length is a broken contract, and a partial
+	// stamp is indistinguishable from "never evaluated", so drop the whole batch.
+	if len(networkPaths) != 0 && len(networkPaths) != len(scheduled) {
+		log.Errorf("network path decisions misaligned: got %d for %d connections, dropping metadata for this batch",
+			len(networkPaths), len(scheduled))
+		return
+	}
+
+	for i, networkPath := range networkPaths {
+		scheduled[i].NetworkPath = &model.NetworkPath{TestEligible: networkPath.TestEligible}
+		if networkPath.TestEligible {
+			scheduled[i].NetworkPath.CorrelationKey = networkPath.CorrelationKey
+		}
+	}
 }
 
 func getDNSNameForIP(conns *model.Connections, ip string) string {

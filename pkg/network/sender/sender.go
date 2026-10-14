@@ -289,6 +289,21 @@ var networkProtocolToModel = map[network.ConnectionType]model.ConnectionType{
 	network.UDP: model.ConnectionType_udp,
 }
 
+// sortConnections groups connections by remote IP, then PID, so batches() emits
+// similar connections together and the resolver can reuse its work.
+//
+// Must run before Network Path decisions are computed: decisions are paired to
+// connections by position only, so sorting afterwards hands each connection
+// another flow's key, and the length check in collect() cannot catch a reorder.
+func sortConnections(conns *network.Connections) {
+	slices.SortFunc(conns.Conns, func(a, b network.ConnectionStats) int {
+		if a.Dest.Addr != b.Dest.Addr {
+			return a.Dest.Addr.Compare(b.Dest.Addr)
+		}
+		return int(a.Pid) - int(b.Pid)
+	})
+}
+
 func (d *directSender) networkPathConnections(conns *network.Connections) iter.Seq[npmodel.NetworkPathConnection] {
 	return func(yield func(npmodel.NetworkPathConnection) bool) {
 		for _, conn := range conns.Conns {
@@ -305,6 +320,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 			}
 
 			npc := npmodel.NetworkPathConnection{
+				SourceHostname:    d.hostname,
 				Source:            src,
 				Dest:              dest,
 				TranslatedDest:    transDest,
@@ -346,13 +362,26 @@ func (d *directSender) collect() {
 		defer dsc.cleanupProcesses()
 	}
 
-	d.npCollector.ScheduleNetworkPathTests(d.networkPathConnections(conns))
+	sortConnections(conns)
+
+	// One decision per connection, in conns.Conns order: networkPathConnections
+	// yields unconditionally, so index i here is conns.Conns[i]. Nothing may
+	// reorder conns.Conns from here until the payload is encoded.
+	networkPaths := d.npCollector.ScheduleNetworkPathTests(d.networkPathConnections(conns))
+	// Empty means the collector declined to run, which correctly leaves every
+	// connection unstamped. Any other length is a broken contract, and a partial
+	// stamp is indistinguishable from "never evaluated", so drop the whole batch.
+	if len(networkPaths) != 0 && len(networkPaths) != len(conns.Conns) {
+		d.log.Errorf("network path decisions misaligned: got %d for %d connections, dropping metadata for this batch",
+			len(networkPaths), len(conns.Conns))
+		networkPaths = nil
+	}
 
 	groupID := d.groupID.Add(1)
 
 	allBatches := result{payloads: make([]payload, 0, d.batchCount(conns))}
 	messageIndex := 0
-	for body := range d.batches(conns, groupID) {
+	for body := range d.batches(conns, groupID, networkPaths) {
 		extraHeaders := d.staticHeaders.Clone()
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
 		requestID := d.getRequestID(start, messageIndex)
@@ -375,7 +404,7 @@ func (d *directSender) collect() {
 	senderTelemetry.queueBytes.Set(float64(d.resultsQueue.Weight()))
 }
 
-func (d *directSender) batches(conns *network.Connections, groupID int32) iter.Seq[[]byte] {
+func (d *directSender) batches(conns *network.Connections, groupID int32, networkPaths []npmodel.NetworkPath) iter.Seq[[]byte] {
 	messageIndex := 0
 	numBatches := d.batchCount(conns)
 	dnsEncoder := model.NewV2DNSEncoder()
@@ -429,14 +458,6 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 		Listeners:  listeners,
 	}
 
-	// Sort connections by remote IP/PID for more efficient resolution
-	slices.SortFunc(conns.Conns, func(a, b network.ConnectionStats) int {
-		if a.Dest.Addr != b.Dest.Addr {
-			return a.Dest.Addr.Compare(b.Dest.Addr)
-		}
-		return int(a.Pid) - int(b.Pid)
-	})
-
 	builder := model.NewCollectorConnectionsBuilder(io.Discard)
 
 	return func(yield func([]byte) bool) {
@@ -447,6 +468,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 		}()
 		defer d.resolver.removeDeadTagContainers()
 
+		connIndex := 0
 		for connsChunk := range slices.Chunk(conns.Conns, d.maxConnsPerMessage) {
 			// TODO is there some way to get a larger lower bound on the size of a payload
 			// ex: (minConnSize * len(connsChunk)) + len(d.staticEncodedHeader)
@@ -482,8 +504,15 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			_ = tagsEncoder.Encode([]string{"-"})
 
 			for _, nc := range connsChunk {
+				// connsChunk is a window into conns.Conns, so the decision for this
+				// connection is at the running global index, not the chunk index.
+				var networkPath *npmodel.NetworkPath
+				if connIndex < len(networkPaths) {
+					networkPath = &networkPaths[connIndex]
+				}
+				connIndex++
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
-					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
+					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet, networkPath)
 					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
 					d.addRemoteServiceTags(builder, nc, remoteServiceResolver, tagsEncoder)
 					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)

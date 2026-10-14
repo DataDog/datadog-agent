@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -227,12 +228,48 @@ func (s *hostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	}, 5*time.Minute, 10*time.Second)
 
 	if remoteConfigMatch != nil {
-		s.T().Logf("matched RC host traffic dynamic path destination=%s:%d test_run_id=%s",
+		s.T().Logf("matched RC host traffic dynamic path destination=%s:%d test_run_id=%s correlation_key=%s",
 			remoteConfigMatch.Destination.Hostname,
 			remoteConfigMatch.Destination.Port,
 			remoteConfigMatch.TestRunID,
+			remoteConfigMatch.CorrelationKey,
 		)
 	}
+
+	require.NotNil(s.T(), remoteConfigMatch, "no network path event to correlate")
+	s.assertCorrelatedConnection(remoteConfigMatch)
+}
+
+// assertCorrelatedConnection asserts the CNM connection that scheduled this test
+// ships the same correlation key as the Network Path event.
+func (s *hostTrafficDynamicPathSuite) assertCorrelatedConnection(match *aggregator.Netpath) {
+	fakeintake := s.Env().FakeIntake.Client()
+
+	require.NotEmptyf(s.T(), match.CorrelationKey,
+		"network path event for %s:%d carries no correlation key, so no CNM connection can join to it",
+		match.Destination.Hostname, match.Destination.Port)
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		conns, err := fakeintake.GetConnections()
+		require.NoError(c, err)
+
+		var eligible, matched int
+		conns.ForeachConnection(func(conn *agentmodel.Connection, _ *agentmodel.CollectorConnections, _ string) {
+			if conn.NetworkPath == nil || !conn.NetworkPath.TestEligible {
+				return
+			}
+			eligible++
+			if conn.NetworkPath.CorrelationKey == match.CorrelationKey {
+				matched++
+			}
+		})
+
+		require.NotZerof(c, eligible,
+			"no CNM connection was marked test_eligible, so the Agent never stamped the payload")
+		assert.NotZerof(c, matched,
+			"%d eligible connections, none carrying the key %s from the network path event",
+			eligible, match.CorrelationKey)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (s *hostTrafficDynamicPathSuite) deleteHostTrafficRemoteConfig() {

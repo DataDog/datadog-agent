@@ -36,6 +36,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
 	npcollectorimpl "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -140,7 +141,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		d.maxConnsPerMessage = tc.maxSize
 		d.networkID = "nid"
 		conns := &network.Connections{BufferedData: network.BufferedData{Conns: tc.cur}}
-		payloads := slices.Collect(d.batches(conns, 1))
+		payloads := slices.Collect(d.batches(conns, 1, nil))
 		assert.Equal(t, tc.expectedChunks, len(payloads), "len %d", i)
 		total := 0
 		for i, payload := range payloads {
@@ -188,7 +189,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 			util.AddressFromString("1.1.4.1"): {dns.ToHostname("datacat.edu")},
 		},
 	}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 	assert.Len(t, payloads, 4)
 	for i, payload := range payloads {
 		m, err := model.DecodeMessage(payload)
@@ -217,7 +218,10 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 2
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	// The grouping comes from the sort, not from batches(). Call the production
+	// helper rather than sorting the fixture, so deleting the sort still fails.
+	sortConnections(conns)
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	assert.Len(t, payloads, 3)
 	for _, payload := range payloads {
@@ -257,7 +261,7 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	assert.Len(t, payloads, 4)
 	for i, payload := range payloads {
@@ -368,7 +372,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 	assert.Len(t, payloads, 2)
 
 	for i, payload := range payloads {
@@ -436,7 +440,7 @@ func TestNetworkConnectionTags(t *testing.T) {
 	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	assert.Len(t, payloads, 2)
 	for _, p := range payloads {
@@ -493,7 +497,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	assert.Len(t, payloads, 1)
 	m, err := model.DecodeMessage(payloads[0])
@@ -521,7 +525,7 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	d.maxConnsPerMessage = 2
 	d.tagger = fakeTagger
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 	assert.Len(t, payloads, 2)
 
 	// Verify first chunk (connections 0 and 1)
@@ -574,7 +578,7 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 			containerID: resolvConfData,
 		},
 	}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 	require.Len(t, payloads, 1)
 
 	m, err := model.DecodeMessage(payloads[0])
@@ -692,4 +696,72 @@ func TestCollectLoopIgnoresPendingTickAfterCancel(t *testing.T) {
 	}
 
 	require.Zero(t, source.calls.Load(), "collectLoop collected after the context was cancelled")
+}
+
+// Decisions arrive in conns.Conns order but the encoder walks chunks, so
+// indexing by chunk position puts a valid key on the wrong connection.
+//
+// Destinations descend here so a reorder inside batches() also shows up: every
+// other fixture in this file is already ascending, which hid an earlier sort.
+func TestNetworkPathMetadataSurvivesChunking(t *testing.T) {
+	const count = 5
+
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 2
+	d.networkID = "nid"
+
+	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(count)}}
+	slices.Reverse(conns.Conns)
+
+	// Keyed by destination, not position, so the assertion checks identity.
+	// Alternating eligibility means a misaligned read also flips a bool.
+	type want struct {
+		eligible bool
+		key      string
+	}
+	networkPaths := make([]npmodel.NetworkPath, count)
+	wanted := make(map[string]want, count)
+	for i, conn := range conns.Conns {
+		w := want{eligible: i%2 == 0}
+		if w.eligible {
+			w.key = fmt.Sprintf("key-%s", conn.Dest)
+		}
+		networkPaths[i] = npmodel.NetworkPath{TestEligible: w.eligible, CorrelationKey: w.key}
+		wanted[conn.Dest.String()] = w
+	}
+
+	seen := 0
+	for _, body := range slices.Collect(d.batches(conns, 1, networkPaths)) {
+		m, err := model.DecodeMessage(body)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+		for _, conn := range c.Connections {
+			require.NotNilf(t, conn.NetworkPath, "connection to %s lost its metadata", conn.Raddr.Ip)
+			w := wanted[conn.Raddr.Ip]
+			assert.Equalf(t, w.eligible, conn.NetworkPath.TestEligible, "connection to %s", conn.Raddr.Ip)
+			assert.Equalf(t, w.key, conn.NetworkPath.CorrelationKey,
+				"connection to %s carries another flow's key", conn.Raddr.Ip)
+			seen++
+		}
+	}
+	assert.Equal(t, count, seen)
+}
+
+// nil decisions mean the collector never ran, which must stay distinguishable
+// from "evaluated and declined".
+func TestNetworkPathAbsentWhenNotScheduled(t *testing.T) {
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 10
+	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(2)}}
+
+	for _, body := range slices.Collect(d.batches(conns, 1, nil)) {
+		m, err := model.DecodeMessage(body)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+		for _, conn := range c.Connections {
+			assert.Nil(t, conn.NetworkPath)
+		}
+	}
 }

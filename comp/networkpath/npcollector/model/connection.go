@@ -17,6 +17,7 @@ type NetworkPathConnection struct {
 	Source            netip.AddrPort
 	Dest              netip.AddrPort
 	TranslatedDest    netip.AddrPort
+	SourceHostname    string
 	SourceContainerID string
 	Namespace         string
 	Type              model.ConnectionType
@@ -30,4 +31,10 @@ type NetworkPathConnection struct {
 	// snapshot, not lifetime counters.
 	SentBytes uint64
 	RecvBytes uint64
+}
+
+// NetworkPath is the Agent's Network Path decision for one connection
+type NetworkPath struct {
+	TestEligible   bool
+	CorrelationKey string
 }
