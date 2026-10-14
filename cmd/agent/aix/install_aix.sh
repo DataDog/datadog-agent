@@ -147,10 +147,9 @@ if [ -n "$agent_version" ]; then
 fi
 
 agent_build=${DD_AGENT_BUILD:-1}
-case "$agent_build" in
-    ''|*[!0-9]*) fail "DD_AGENT_BUILD must be a positive integer." ;;
-    0) fail "DD_AGENT_BUILD must be a positive integer." ;;
-esac
+if [ -z "$agent_build" ] || [ "$agent_build" = 0 ] || [ -n "$(printf '%s' "$agent_build" | tr -d 0-9)" ]; then
+    fail "DD_AGENT_BUILD must be a positive integer."
+fi
 
 agent_dist_channel=${DD_AGENT_DIST_CHANNEL:-stable}
 case "$agent_dist_channel" in
