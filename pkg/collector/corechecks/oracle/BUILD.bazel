@@ -81,7 +81,9 @@ dd_agent_go_test(
     embed = [":oracle"],
     gotags_sets = [["oracle"]],
     deps = [
+        "//comp/metadata/inventorychecks/mock",
         "//pkg/aggregator/mocksender",
+        "//pkg/collector/check",
         "//pkg/collector/corechecks/oracle/common",
         "//pkg/collector/corechecks/oracle/config",
         "@com_github_benbjohnson_clock//:clock",

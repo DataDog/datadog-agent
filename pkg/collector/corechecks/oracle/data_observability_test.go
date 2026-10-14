@@ -28,7 +28,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	inventorychecksmock "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 )
@@ -40,6 +42,55 @@ func newDataObservabilityTestSender(t *testing.T, c *Check) *mocksender.MockSend
 	sender := mocksender.NewMockSenderWithSenderManager(c.ID(), manager)
 	sender.SetupAcceptAll()
 	return sender
+}
+
+func TestDataObservabilityDatabaseInstanceMetadata(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		hostname         string
+		template         string
+		reportedHostname string
+		excludeHostname  bool
+		want             string
+	}{
+		{name: "production alias", hostname: "orders-production.example.com", template: "$resolved_hostname", want: "orders-production.example.com"},
+		{name: "same alias for testing", hostname: "orders-testing.example.com", template: "$resolved_hostname", want: "orders-testing.example.com"},
+		{name: "custom identifier", hostname: "db-host", template: "$cdb_name-$resolved_hostname", reportedHostname: "Reported-Host", want: "orcl-Reported-Host"},
+		{name: "excluded hostname", hostname: "db-host", template: "$resolved_hostname", excludeHostname: true, want: "db-host"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			invChecks := inventorychecksmock.NewMock().Comp
+			check.InitializeInventoryChecksContext(invChecks)
+			t.Cleanup(check.ReleaseContext)
+
+			c, _ := newDataObservabilityWorkerCheck(t)
+			c.config.TnsAlias = "MY_DATABASE"
+			c.config.DatabaseIdentifier.Template = tt.template
+			c.config.ReportedHostname = tt.reportedHostname
+			c.config.ExcludeHostname = tt.excludeHostname
+			db, dbMock, err := sqlmock.New()
+			require.NoError(t, err)
+			c.db = sqlx.NewDb(db, "sqlmock")
+			t.Cleanup(func() {
+				dbMock.ExpectClose()
+				assert.NoError(t, db.Close())
+				assert.NoError(t, dbMock.ExpectationsWereMet())
+			})
+			dbMock.ExpectQuery(`SELECT /\* DD \*/ host_name, instance_name, version version_full FROM v\$instance`).
+				WillReturnRows(sqlmock.NewRows([]string{"HOST_NAME", "INSTANCE_NAME", "VERSION_FULL"}).AddRow(tt.hostname, "orcl", "12.1.0.2"))
+			dbMock.ExpectQuery(`SELECT /\* DD \*/ lower\(name\) name, cdb FROM v\$database`).
+				WillReturnRows(sqlmock.NewRows([]string{"NAME", "CDB"}).AddRow("orcl", "YES"))
+			dbMock.ExpectQuery(`select decode\(sys_context\('USERENV','CON_ID'\),1,'CDB','PDB'\) TYPE from DUAL`).
+				WillReturnRows(sqlmock.NewRows([]string{"TYPE"}).AddRow("CDB"))
+
+			require.NoError(t, c.init())
+
+			metadata := invChecks.GetInstanceMetadata(string(c.ID()))
+			require.NotNil(t, metadata)
+			assert.Equal(t, tt.want, metadata["database_instance"])
+			assert.Equal(t, c.dbInstanceIdentifier, metadata["database_instance"])
+		})
+	}
 }
 
 func TestDataObservabilityEventPayload(t *testing.T) {
