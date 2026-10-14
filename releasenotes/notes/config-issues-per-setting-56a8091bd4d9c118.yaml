@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Report each Agent and system-probe configuration error as a separate health
+    issue, with its own explanation, fix, and default value when known.
