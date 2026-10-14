@@ -63,6 +63,7 @@ func TestAutodiscoveryRunMetadataMarshalling(t *testing.T) {
 				AddressesScanned: 65536,
 				StartedAtMs:      1699000000000,
 				FinishedAtMs:     1700000000000,
+				NextRunAtMs:      1700000030000,
 			},
 		},
 	}
@@ -80,7 +81,8 @@ func TestAutodiscoveryRunMetadataMarshalling(t *testing.T) {
 			"status": "completed",
 			"addresses_scanned": 65536,
 			"started_at_ms": 1699000000000,
-			"finished_at_ms": 1700000000000
+			"finished_at_ms": 1700000000000,
+			"next_run_at_ms": 1700000030000
 		}]
 	}`, string(out))
 }
@@ -89,7 +91,6 @@ func TestAutodiscoveryRunStatusesUseUnderscores(t *testing.T) {
 	assert.Equal(t, AutodiscoveryRunStatus("in_progress"), AutodiscoveryRunInProgress)
 	assert.Equal(t, AutodiscoveryRunStatus("completed"), AutodiscoveryRunCompleted)
 	assert.Equal(t, AutodiscoveryRunStatus("failed"), AutodiscoveryRunFailed)
-	assert.Equal(t, AutodiscoveryRunStatus("blocked"), AutodiscoveryRunBlocked)
 }
 
 func TestDiscoveredDeviceProbeResultsMarshalling(t *testing.T) {

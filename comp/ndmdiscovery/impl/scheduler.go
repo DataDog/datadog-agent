@@ -274,14 +274,15 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig, interval time
 	}
 
 	req := sweepRequest{
-		Config:  cfg,
-		Options: opts,
-		Plan:    plan,
-		Digest:  rangeDigest(cfg, opts.Fingerprints()),
-		Workers: s.workerShare(),
+		Config:   cfg,
+		Options:  opts,
+		Plan:     plan,
+		Digest:   rangeDigest(cfg, opts.Fingerprints()),
+		Workers:  s.workerShare(),
+		Interval: interval,
 	}
 
-	if wait := s.sweeper.dueIn(req, interval); wait > 0 {
+	if wait := s.sweeper.dueIn(req); wait > 0 {
 		s.log.Debugf("ndmdiscovery: range %s is not due for another %s", cfg.AutodiscoveryID, wait)
 		return wait
 	}

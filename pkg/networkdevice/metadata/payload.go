@@ -62,7 +62,6 @@ const (
 	AutodiscoveryRunInProgress AutodiscoveryRunStatus = "in_progress"
 	AutodiscoveryRunCompleted  AutodiscoveryRunStatus = "completed"
 	AutodiscoveryRunFailed     AutodiscoveryRunStatus = "failed"
-	AutodiscoveryRunBlocked    AutodiscoveryRunStatus = "blocked"
 )
 
 // ProbeResult is what one discovery probe learned about one address.
@@ -94,6 +93,8 @@ type AutodiscoveryRunMetadata struct {
 	Error            string `json:"error,omitempty"`
 	StartedAtMs      int64  `json:"started_at_ms"`
 	FinishedAtMs     int64  `json:"finished_at_ms,omitempty"`
+	// NextRunAtMs is the earliest the range is swept again, and zero while the run is in flight.
+	NextRunAtMs int64 `json:"next_run_at_ms,omitempty"`
 }
 
 // DeviceMetadata contains device metadata
