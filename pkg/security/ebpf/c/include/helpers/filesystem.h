@@ -63,7 +63,7 @@ static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int
     if (return_new_path_id == PATH_ID_AFTER_INVALIDATION) {
         // to return the new path id we read the values that were just modified
         high_id_value = *high_id_ptr;
-        low_id_value = *low_id_ptr;
+        low_id_value = *low_id_ptr % PATH_ID_LOW_MASK;
     }
     return PATH_ID(high_id_value, low_id_value);
 }
