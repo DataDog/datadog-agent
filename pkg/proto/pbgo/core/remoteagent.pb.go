@@ -21,6 +21,63 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Severity of a reported health issue.
+type HealthIssueSeverity int32
+
+const (
+	// Severity was not specified by the remote agent.
+	HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_UNSPECIFIED HealthIssueSeverity = 0
+	// Low severity: degraded but non-disruptive (e.g. a transient retry).
+	HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_LOW HealthIssueSeverity = 1
+	// Medium severity: partial loss of function.
+	HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_MEDIUM HealthIssueSeverity = 2
+	// High severity: the remote agent cannot perform its core duty.
+	HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_HIGH HealthIssueSeverity = 3
+)
+
+// Enum value maps for HealthIssueSeverity.
+var (
+	HealthIssueSeverity_name = map[int32]string{
+		0: "HEALTH_ISSUE_SEVERITY_UNSPECIFIED",
+		1: "HEALTH_ISSUE_SEVERITY_LOW",
+		2: "HEALTH_ISSUE_SEVERITY_MEDIUM",
+		3: "HEALTH_ISSUE_SEVERITY_HIGH",
+	}
+	HealthIssueSeverity_value = map[string]int32{
+		"HEALTH_ISSUE_SEVERITY_UNSPECIFIED": 0,
+		"HEALTH_ISSUE_SEVERITY_LOW":         1,
+		"HEALTH_ISSUE_SEVERITY_MEDIUM":      2,
+		"HEALTH_ISSUE_SEVERITY_HIGH":        3,
+	}
+)
+
+func (x HealthIssueSeverity) Enum() *HealthIssueSeverity {
+	p := new(HealthIssueSeverity)
+	*p = x
+	return p
+}
+
+func (x HealthIssueSeverity) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HealthIssueSeverity) Descriptor() protoreflect.EnumDescriptor {
+	return file_datadog_remoteagent_remoteagent_proto_enumTypes[0].Descriptor()
+}
+
+func (HealthIssueSeverity) Type() protoreflect.EnumType {
+	return &file_datadog_remoteagent_remoteagent_proto_enumTypes[0]
+}
+
+func (x HealthIssueSeverity) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use HealthIssueSeverity.Descriptor instead.
+func (HealthIssueSeverity) EnumDescriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{0}
+}
+
 type RegisterRemoteAgentRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Process ID of the remote agent.
@@ -272,6 +329,7 @@ type Event struct {
 	// Types that are valid to be assigned to Details:
 	//
 	//	*Event_InvalidApiKey
+	//	*Event_HealthIssue
 	Details       isEvent_Details `protobuf_oneof:"details"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -330,6 +388,15 @@ func (x *Event) GetInvalidApiKey() *InvalidApiKeyEvent {
 	return nil
 }
 
+func (x *Event) GetHealthIssue() *HealthIssueEvent {
+	if x != nil {
+		if x, ok := x.Details.(*Event_HealthIssue); ok {
+			return x.HealthIssue
+		}
+	}
+	return nil
+}
+
 type isEvent_Details interface {
 	isEvent_Details()
 }
@@ -339,7 +406,14 @@ type Event_InvalidApiKey struct {
 	InvalidApiKey *InvalidApiKeyEvent `protobuf:"bytes,2,opt,name=invalid_api_key,json=invalidApiKey,proto3,oneof"`
 }
 
+type Event_HealthIssue struct {
+	// Health issue detected by the remote agent.
+	HealthIssue *HealthIssueEvent `protobuf:"bytes,3,opt,name=health_issue,json=healthIssue,proto3,oneof"`
+}
+
 func (*Event_InvalidApiKey) isEvent_Details() {}
+
+func (*Event_HealthIssue) isEvent_Details() {}
 
 // Invalid API key detected when forwarding.
 type InvalidApiKeyEvent struct {
@@ -378,6 +452,61 @@ func (*InvalidApiKeyEvent) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{5}
 }
 
+// HealthIssueEvent indicates a remote agent detected a health issue with one of its components.
+type HealthIssueEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Severity of the health issue.
+	Severity HealthIssueSeverity `protobuf:"varint,1,opt,name=severity,proto3,enum=datadog.remoteagent.v1.HealthIssueSeverity" json:"severity,omitempty"`
+	// Component affected by the health issue (e.g. "exporter", "receiver").
+	Component     string `protobuf:"bytes,2,opt,name=component,proto3" json:"component,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HealthIssueEvent) Reset() {
+	*x = HealthIssueEvent{}
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HealthIssueEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealthIssueEvent) ProtoMessage() {}
+
+func (x *HealthIssueEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HealthIssueEvent.ProtoReflect.Descriptor instead.
+func (*HealthIssueEvent) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *HealthIssueEvent) GetSeverity() HealthIssueSeverity {
+	if x != nil {
+		return x.Severity
+	}
+	return HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_UNSPECIFIED
+}
+
+func (x *HealthIssueEvent) GetComponent() string {
+	if x != nil {
+		return x.Component
+	}
+	return ""
+}
+
 type ReportRemoteAgentEventRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// UUID of the remote agent session reporting the events.
@@ -390,7 +519,7 @@ type ReportRemoteAgentEventRequest struct {
 
 func (x *ReportRemoteAgentEventRequest) Reset() {
 	*x = ReportRemoteAgentEventRequest{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[6]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -402,7 +531,7 @@ func (x *ReportRemoteAgentEventRequest) String() string {
 func (*ReportRemoteAgentEventRequest) ProtoMessage() {}
 
 func (x *ReportRemoteAgentEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[6]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -415,7 +544,7 @@ func (x *ReportRemoteAgentEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportRemoteAgentEventRequest.ProtoReflect.Descriptor instead.
 func (*ReportRemoteAgentEventRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{6}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ReportRemoteAgentEventRequest) GetSessionId() string {
@@ -440,7 +569,7 @@ type ReportRemoteAgentEventResponse struct {
 
 func (x *ReportRemoteAgentEventResponse) Reset() {
 	*x = ReportRemoteAgentEventResponse{}
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[7]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -452,7 +581,7 @@ func (x *ReportRemoteAgentEventResponse) String() string {
 func (*ReportRemoteAgentEventResponse) ProtoMessage() {}
 
 func (x *ReportRemoteAgentEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[7]
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -465,7 +594,7 @@ func (x *ReportRemoteAgentEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportRemoteAgentEventResponse.ProtoReflect.Descriptor instead.
 func (*ReportRemoteAgentEventResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{7}
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{8}
 }
 
 var File_datadog_remoteagent_remoteagent_proto protoreflect.FileDescriptor
@@ -486,17 +615,26 @@ const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\x19RefreshRemoteAgentRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"\x1c\n" +
-	"\x1aRefreshRemoteAgentResponse\"\x82\x01\n" +
+	"\x1aRefreshRemoteAgentResponse\"\xd1\x01\n" +
 	"\x05Event\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12T\n" +
-	"\x0finvalid_api_key\x18\x02 \x01(\v2*.datadog.remoteagent.v1.InvalidApiKeyEventH\x00R\rinvalidApiKeyB\t\n" +
+	"\x0finvalid_api_key\x18\x02 \x01(\v2*.datadog.remoteagent.v1.InvalidApiKeyEventH\x00R\rinvalidApiKey\x12M\n" +
+	"\fhealth_issue\x18\x03 \x01(\v2(.datadog.remoteagent.v1.HealthIssueEventH\x00R\vhealthIssueB\t\n" +
 	"\adetails\"\x14\n" +
-	"\x12InvalidApiKeyEvent\"u\n" +
+	"\x12InvalidApiKeyEvent\"y\n" +
+	"\x10HealthIssueEvent\x12G\n" +
+	"\bseverity\x18\x01 \x01(\x0e2+.datadog.remoteagent.v1.HealthIssueSeverityR\bseverity\x12\x1c\n" +
+	"\tcomponent\x18\x02 \x01(\tR\tcomponent\"u\n" +
 	"\x1dReportRemoteAgentEventRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x125\n" +
 	"\x06events\x18\x02 \x03(\v2\x1d.datadog.remoteagent.v1.EventR\x06events\" \n" +
-	"\x1eReportRemoteAgentEventResponse2\x94\x03\n" +
+	"\x1eReportRemoteAgentEventResponse*\x9d\x01\n" +
+	"\x13HealthIssueSeverity\x12%\n" +
+	"!HEALTH_ISSUE_SEVERITY_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19HEALTH_ISSUE_SEVERITY_LOW\x10\x01\x12 \n" +
+	"\x1cHEALTH_ISSUE_SEVERITY_MEDIUM\x10\x02\x12\x1e\n" +
+	"\x1aHEALTH_ISSUE_SEVERITY_HIGH\x10\x032\x94\x03\n" +
 	"\vRemoteAgent\x12~\n" +
 	"\x13RegisterRemoteAgent\x122.datadog.remoteagent.v1.RegisterRemoteAgentRequest\x1a3.datadog.remoteagent.v1.RegisterRemoteAgentResponse\x12{\n" +
 	"\x12RefreshRemoteAgent\x121.datadog.remoteagent.v1.RefreshRemoteAgentRequest\x1a2.datadog.remoteagent.v1.RefreshRemoteAgentResponse\x12\x87\x01\n" +
@@ -514,31 +652,36 @@ func file_datadog_remoteagent_remoteagent_proto_rawDescGZIP() []byte {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescData
 }
 
-var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_datadog_remoteagent_remoteagent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_datadog_remoteagent_remoteagent_proto_goTypes = []any{
-	(*RegisterRemoteAgentRequest)(nil),     // 0: datadog.remoteagent.v1.RegisterRemoteAgentRequest
-	(*RegisterRemoteAgentResponse)(nil),    // 1: datadog.remoteagent.v1.RegisterRemoteAgentResponse
-	(*RefreshRemoteAgentRequest)(nil),      // 2: datadog.remoteagent.v1.RefreshRemoteAgentRequest
-	(*RefreshRemoteAgentResponse)(nil),     // 3: datadog.remoteagent.v1.RefreshRemoteAgentResponse
-	(*Event)(nil),                          // 4: datadog.remoteagent.v1.Event
-	(*InvalidApiKeyEvent)(nil),             // 5: datadog.remoteagent.v1.InvalidApiKeyEvent
-	(*ReportRemoteAgentEventRequest)(nil),  // 6: datadog.remoteagent.v1.ReportRemoteAgentEventRequest
-	(*ReportRemoteAgentEventResponse)(nil), // 7: datadog.remoteagent.v1.ReportRemoteAgentEventResponse
+	(HealthIssueSeverity)(0),               // 0: datadog.remoteagent.v1.HealthIssueSeverity
+	(*RegisterRemoteAgentRequest)(nil),     // 1: datadog.remoteagent.v1.RegisterRemoteAgentRequest
+	(*RegisterRemoteAgentResponse)(nil),    // 2: datadog.remoteagent.v1.RegisterRemoteAgentResponse
+	(*RefreshRemoteAgentRequest)(nil),      // 3: datadog.remoteagent.v1.RefreshRemoteAgentRequest
+	(*RefreshRemoteAgentResponse)(nil),     // 4: datadog.remoteagent.v1.RefreshRemoteAgentResponse
+	(*Event)(nil),                          // 5: datadog.remoteagent.v1.Event
+	(*InvalidApiKeyEvent)(nil),             // 6: datadog.remoteagent.v1.InvalidApiKeyEvent
+	(*HealthIssueEvent)(nil),               // 7: datadog.remoteagent.v1.HealthIssueEvent
+	(*ReportRemoteAgentEventRequest)(nil),  // 8: datadog.remoteagent.v1.ReportRemoteAgentEventRequest
+	(*ReportRemoteAgentEventResponse)(nil), // 9: datadog.remoteagent.v1.ReportRemoteAgentEventResponse
 }
 var file_datadog_remoteagent_remoteagent_proto_depIdxs = []int32{
-	5, // 0: datadog.remoteagent.v1.Event.invalid_api_key:type_name -> datadog.remoteagent.v1.InvalidApiKeyEvent
-	4, // 1: datadog.remoteagent.v1.ReportRemoteAgentEventRequest.events:type_name -> datadog.remoteagent.v1.Event
-	0, // 2: datadog.remoteagent.v1.RemoteAgent.RegisterRemoteAgent:input_type -> datadog.remoteagent.v1.RegisterRemoteAgentRequest
-	2, // 3: datadog.remoteagent.v1.RemoteAgent.RefreshRemoteAgent:input_type -> datadog.remoteagent.v1.RefreshRemoteAgentRequest
-	6, // 4: datadog.remoteagent.v1.RemoteAgent.ReportRemoteAgentEvent:input_type -> datadog.remoteagent.v1.ReportRemoteAgentEventRequest
-	1, // 5: datadog.remoteagent.v1.RemoteAgent.RegisterRemoteAgent:output_type -> datadog.remoteagent.v1.RegisterRemoteAgentResponse
-	3, // 6: datadog.remoteagent.v1.RemoteAgent.RefreshRemoteAgent:output_type -> datadog.remoteagent.v1.RefreshRemoteAgentResponse
-	7, // 7: datadog.remoteagent.v1.RemoteAgent.ReportRemoteAgentEvent:output_type -> datadog.remoteagent.v1.ReportRemoteAgentEventResponse
-	5, // [5:8] is the sub-list for method output_type
-	2, // [2:5] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	6, // 0: datadog.remoteagent.v1.Event.invalid_api_key:type_name -> datadog.remoteagent.v1.InvalidApiKeyEvent
+	7, // 1: datadog.remoteagent.v1.Event.health_issue:type_name -> datadog.remoteagent.v1.HealthIssueEvent
+	0, // 2: datadog.remoteagent.v1.HealthIssueEvent.severity:type_name -> datadog.remoteagent.v1.HealthIssueSeverity
+	5, // 3: datadog.remoteagent.v1.ReportRemoteAgentEventRequest.events:type_name -> datadog.remoteagent.v1.Event
+	1, // 4: datadog.remoteagent.v1.RemoteAgent.RegisterRemoteAgent:input_type -> datadog.remoteagent.v1.RegisterRemoteAgentRequest
+	3, // 5: datadog.remoteagent.v1.RemoteAgent.RefreshRemoteAgent:input_type -> datadog.remoteagent.v1.RefreshRemoteAgentRequest
+	8, // 6: datadog.remoteagent.v1.RemoteAgent.ReportRemoteAgentEvent:input_type -> datadog.remoteagent.v1.ReportRemoteAgentEventRequest
+	2, // 7: datadog.remoteagent.v1.RemoteAgent.RegisterRemoteAgent:output_type -> datadog.remoteagent.v1.RegisterRemoteAgentResponse
+	4, // 8: datadog.remoteagent.v1.RemoteAgent.RefreshRemoteAgent:output_type -> datadog.remoteagent.v1.RefreshRemoteAgentResponse
+	9, // 9: datadog.remoteagent.v1.RemoteAgent.ReportRemoteAgentEvent:output_type -> datadog.remoteagent.v1.ReportRemoteAgentEventResponse
+	7, // [7:10] is the sub-list for method output_type
+	4, // [4:7] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteagent_remoteagent_proto_init() }
@@ -548,19 +691,21 @@ func file_datadog_remoteagent_remoteagent_proto_init() {
 	}
 	file_datadog_remoteagent_remoteagent_proto_msgTypes[4].OneofWrappers = []any{
 		(*Event_InvalidApiKey)(nil),
+		(*Event_HealthIssue)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_remoteagent_remoteagent_proto_rawDesc), len(file_datadog_remoteagent_remoteagent_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   8,
+			NumEnums:      1,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_datadog_remoteagent_remoteagent_proto_goTypes,
 		DependencyIndexes: file_datadog_remoteagent_remoteagent_proto_depIdxs,
+		EnumInfos:         file_datadog_remoteagent_remoteagent_proto_enumTypes,
 		MessageInfos:      file_datadog_remoteagent_remoteagent_proto_msgTypes,
 	}.Build()
 	File_datadog_remoteagent_remoteagent_proto = out.File
