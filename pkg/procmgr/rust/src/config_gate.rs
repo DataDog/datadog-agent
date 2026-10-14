@@ -3,11 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Optional `condition_config_any` gates for processes.d definitions.
+//! Optional `condition_config_any` and `condition_config_none` gates for processes.d
+//! definitions.
 //!
 //! Mirrors the Windows legacy SCM startup checks in
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
-//! configured key evaluates to true. A default install leaves every gate open.
+//! configured key evaluates to true. A default install leaves those legacy SCM gates
+//! open (their schema defaults keep at least one term true). Gates that copy an
+//! Agent Data Plane check stay closed by default, since `data_plane.enabled` defaults
+//! to false.
+//!
+//! `condition_config_none` is the veto, for keys that have to be false rather than true.
+//! It cannot be expressed as an any-of term, and it is per entry because the same key can
+//! be a reason for one process to run and a reason for another not to.
 //!
 //! # Resolution order
 //!
@@ -19,8 +27,8 @@
 //! 2. Fleet policy (`<fleet_policies_dir>/{datadog,system-probe}.yaml`).
 //! 3. Environment variables, resolved through [`env_bindings`].
 //! 4. The gated YAML file itself.
-//! 5. `infrastructure_mode: end_user_device`, which enables process collection at
-//!    `SourceInfraMode`.
+//! 5. `infrastructure_mode: end_user_device`, which enables process collection and
+//!    software inventory at `SourceInfraMode`.
 //! 6. The Agent's schema default.
 //!
 //! Two keys do not follow that ladder directly. `system_probe_config.enabled` is
@@ -56,7 +64,7 @@ use crate::env::expand_env_vars;
 use env_bindings::{env_bool_for_key, env_configured_for_key, env_string_for_key};
 
 #[cfg(any(test, feature = "test-helpers"))]
-pub use env_bindings::set_test_agent_service_env;
+pub use env_bindings::{gate_env_var_names, set_test_agent_service_env};
 
 /// A YAML file and dotted config keys; any key set to true satisfies the gate.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -98,6 +106,13 @@ enum GatedKey {
     ProcessDiscovery,
     NetworkConfig,
     SystemProbeConfig,
+    WindowsCrashDetection,
+    RuntimeSecurity,
+    SoftwareInventory,
+    SystemProbeExternal,
+    ApmEnabled,
+    ApmErrorTrackingStandalone,
+    DataPlaneEnabled,
 }
 
 struct GatedKeySpec {
@@ -117,6 +132,13 @@ const CONTAINER_COLLECTION_KEY: &str = "process_config.container_collection.enab
 const PROCESS_DISCOVERY_KEY: &str = "process_config.process_discovery.enabled";
 const NETWORK_CONFIG_KEY: &str = "network_config.enabled";
 const SYSTEM_PROBE_CONFIG_KEY: &str = "system_probe_config.enabled";
+const WINDOWS_CRASH_DETECTION_KEY: &str = "windows_crash_detection.enabled";
+const RUNTIME_SECURITY_KEY: &str = "runtime_security_config.enabled";
+const SOFTWARE_INVENTORY_KEY: &str = "software_inventory.enabled";
+const SYSTEM_PROBE_EXTERNAL_KEY: &str = "system_probe_config.external";
+const APM_ENABLED_KEY: &str = "apm_config.enabled";
+const APM_ERROR_TRACKING_STANDALONE_KEY: &str = "apm_config.error_tracking_standalone.enabled";
+const DATA_PLANE_ENABLED_KEY: &str = "data_plane.enabled";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -156,11 +178,89 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         default: false,
         fleet_policy_file: SYSPROBE_POLICY,
     },
+    // The three keys below are named by the system-probe processes.d entry, which
+    // transcribes a five-key Servicedef. On Windows the derived
+    // `system_probe_config.enabled` above already subsumes all three, so they never
+    // change the result of that gate. They are evaluated rather than reported as unknown
+    // keys so the transcription is real: a reviewer can diff the template against the
+    // Servicedef line by line, and a future drift in the derived mirror does not silently
+    // take a module with it.
+    GatedKeySpec {
+        kind: GatedKey::WindowsCrashDetection,
+        key: WINDOWS_CRASH_DETECTION_KEY,
+        default: false,
+        fleet_policy_file: SYSPROBE_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::RuntimeSecurity,
+        key: RUNTIME_SECURITY_KEY,
+        default: false,
+        fleet_policy_file: SYSPROBE_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::SoftwareInventory,
+        key: SOFTWARE_INVENTORY_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // Only ever named by a `condition_config_none`, since it has to be false for
+    // system-probe to run. Nothing folds it into the derived key, which process-agent
+    // reads too: a per-entry veto is the only shape that stops system-probe without
+    // stopping the process-agent that talks to the external one.
+    GatedKeySpec {
+        kind: GatedKey::SystemProbeExternal,
+        key: SYSTEM_PROBE_EXTERNAL_KEY,
+        default: false,
+        fleet_policy_file: SYSPROBE_POLICY,
+    },
+    // Named by the trace-agent processes.d entry. `apm_config.enabled` defaults true, so
+    // an empty datadog.yaml opens the gate the way a default Windows install starts the
+    // SCM service. The standalone key is the other half of Go `utils.IsAPMEnabled`;
+    // unknown keys resolve false, so omitting it would drop Error Tracking standalone.
+    GatedKeySpec {
+        kind: GatedKey::ApmEnabled,
+        key: APM_ENABLED_KEY,
+        default: true,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::ApmErrorTrackingStandalone,
+        key: APM_ERROR_TRACKING_STANDALONE_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::DataPlaneEnabled,
+        key: DATA_PLANE_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
 ];
+
+/// Every key a `condition_config_any` gate can evaluate.
+///
+/// A shipped template that names anything else takes the unknown-key branch in
+/// [`gated_key_enabled`]: the term resolves false and warns on every evaluation, so the
+/// gate reads like a transcription while part of it is dead. Exposed so a template test
+/// can pin that without evaluating the gate.
+#[cfg(all(test, windows))]
+pub(crate) fn gated_key_names() -> Vec<&'static str> {
+    GATED_KEY_SPECS.iter().map(|spec| spec.key).collect()
+}
 
 /// Returns true when `conditions` is empty or any `(path, key)` pair is enabled.
 pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
     evaluate(conditions, HostOs::CURRENT)
+}
+
+/// Returns true when `conditions` is empty or every `(path, key)` pair is disabled.
+///
+/// The veto half of the gate. An any-of cannot express "this key must be false", and
+/// such a key cannot be folded in beside keys that only have to be true: one term
+/// enabling the entry would defeat it. Scoping the veto to the entry is the point, since
+/// the same key may be read by another entry that has to keep running.
+pub fn condition_config_none_met(conditions: &[ConditionConfigFile]) -> bool {
+    evaluate_none(conditions, HostOs::CURRENT)
 }
 
 fn evaluate(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
@@ -176,15 +276,40 @@ fn evaluate(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
         }
         file.keys
             .iter()
-            .any(|key| gated_key_enabled(&path, key, &mut yaml, os))
+            .any(|key| gated_key_enabled(ANY_LABEL, &path, key, &mut yaml, os))
     })
 }
 
-fn gated_key_enabled(path: &str, key: &str, yaml: &mut YamlCache, os: HostOs) -> bool {
+fn evaluate_none(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
+    if conditions.is_empty() {
+        return true;
+    }
+
+    let mut yaml = YamlCache::default();
+    !conditions.iter().any(|file| {
+        let path = expand_env_vars(&file.path);
+        if file.keys.is_empty() {
+            log::warn!("condition_config_none: {path} lists no keys, so it vetoes nothing");
+        }
+        file.keys
+            .iter()
+            .any(|key| gated_key_enabled(NONE_LABEL, &path, key, &mut yaml, os))
+    })
+}
+
+const ANY_LABEL: &str = "condition_config_any";
+const NONE_LABEL: &str = "condition_config_none";
+
+/// An unknown key resolves false, which is restrictive for an any-of (the term can never
+/// open the gate) and permissive for a veto (it can never close it). Neither direction is
+/// safe on its own, so the miss is not the remedy: it warns on every evaluation, and the
+/// `fleet_*_template` tests assert the shipped templates name nothing outside
+/// [`GATED_KEY_SPECS`].
+fn gated_key_enabled(label: &str, path: &str, key: &str, yaml: &mut YamlCache, os: HostOs) -> bool {
     match GATED_KEY_SPECS.iter().find(|spec| spec.key == key) {
         Some(spec) => spec.enabled(path, yaml, os),
         None => {
-            log::warn!("condition_config_any: unknown config key {key} in {path}");
+            log::warn!("{label}: unknown config key {key} in {path}");
             false
         }
     }
@@ -216,7 +341,13 @@ impl GatedKeySpec {
         if let Some(enabled) = yaml.resolve_bool(base_path, self.key, self.fleet_policy_file) {
             return enabled;
         }
-        if self.kind == GatedKey::ProcessCollection && yaml.end_user_device_at_load(base_path) {
+        // `applyInfrastructureModeOverrides` turns both of these on for `end_user_device`
+        // when no source set them.
+        if matches!(
+            self.kind,
+            GatedKey::ProcessCollection | GatedKey::SoftwareInventory
+        ) && yaml.end_user_device_at_load(base_path)
+        {
             return true;
         }
         self.default
@@ -496,12 +627,53 @@ fn read_config_file(path: &str) -> Value {
     }
 }
 
+/// Serializes and sanitizes every test that evaluates a gate.
+///
+/// Gate resolution reads the live process environment, and Cargo runs the lib tests as
+/// threads in one process, so a test asserting that a gate stays closed has to exclude
+/// the tests that set `DD_*` values even though it sets none itself. Bound variables are
+/// cleared both on acquire and on drop, so tests neither inherit nor leak them.
+///
+/// Bind the guard to a named local, not `_`, or it drops immediately and isolates
+/// nothing. Not reentrant: let one guard drop before taking another.
+#[cfg(test)]
+#[must_use]
+pub(crate) fn test_env_guard() -> TestEnvGuard {
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    let guard = TestEnvGuard {
+        _lock: ENV_LOCK.lock().unwrap_or_else(|err| err.into_inner()),
+    };
+    reset_test_env();
+    guard
+}
+
+#[cfg(test)]
+pub(crate) struct TestEnvGuard {
+    _lock: std::sync::MutexGuard<'static, ()>,
+}
+
+#[cfg(test)]
+impl Drop for TestEnvGuard {
+    fn drop(&mut self) {
+        reset_test_env();
+    }
+}
+
+#[cfg(test)]
+fn reset_test_env() {
+    // SAFETY: reached only through TestEnvGuard, which holds ENV_LOCK.
+    unsafe {
+        for name in gate_env_var_names() {
+            std::env::remove_var(name);
+        }
+    }
+    set_test_agent_service_env(None);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, MutexGuard};
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     /// Agent YAML with every process-agent gate key off, including the two that default on.
     const ALL_PROCESS_GATES_OFF: &str = "\
@@ -534,24 +706,21 @@ process_config:
         )
     }
 
-    /// Test fixture: holds the env lock, gives each test a scratch config directory, and
-    /// evaluates gates against a chosen [`HostOs`].
+    /// Test fixture: holds [`test_env_guard`], gives each test a scratch config directory,
+    /// and evaluates gates against a chosen [`HostOs`].
     ///
-    /// Bound env vars are cleared on both construction and drop, so tests never inherit
-    /// or leak `DD_*` values. The lock is not reentrant: a test must let one fixture drop
-    /// before building the next, so build fixtures inside a loop body or use one per test.
+    /// The guard is not reentrant: a test must let one fixture drop before building the
+    /// next, so build fixtures inside a loop body or use one per test.
     struct Gate {
-        _lock: MutexGuard<'static, ()>,
+        _env: TestEnvGuard,
         dir: tempfile::TempDir,
         os: HostOs,
     }
 
     impl Gate {
         fn new() -> Self {
-            let lock = ENV_LOCK.lock().unwrap_or_else(|err| err.into_inner());
-            reset_env();
             Self {
-                _lock: lock,
+                _env: test_env_guard(),
                 dir: tempfile::tempdir().unwrap(),
                 os: HostOs::CURRENT,
             }
@@ -600,7 +769,7 @@ process_config:
         }
 
         fn env(&self, name: &str, value: &str) {
-            // SAFETY: the fixture holds ENV_LOCK for its lifetime.
+            // SAFETY: the fixture holds the env guard for its lifetime.
             unsafe { std::env::set_var(name, value) };
         }
 
@@ -615,6 +784,18 @@ process_config:
 
         fn met(&self, conditions: &[ConditionConfigFile]) -> bool {
             evaluate(conditions, self.os)
+        }
+
+        /// True when nothing in `conditions` vetoes the entry.
+        fn veto_clear(&self, conditions: &[ConditionConfigFile]) -> bool {
+            evaluate_none(conditions, self.os)
+        }
+
+        fn veto_clear_for(&self, path: &str, key: &str) -> bool {
+            self.veto_clear(&[ConditionConfigFile {
+                path: path.to_owned(),
+                keys: vec![key.to_owned()],
+            }])
         }
 
         fn key(&self, path: &str, key: &str) -> bool {
@@ -648,30 +829,6 @@ process_config:
                 },
             ])
         }
-    }
-
-    impl Drop for Gate {
-        fn drop(&mut self) {
-            reset_env();
-        }
-    }
-
-    fn reset_env() {
-        // SAFETY: callers hold ENV_LOCK.
-        unsafe {
-            for name in env_bindings::all_bound_env_var_names() {
-                std::env::remove_var(name);
-            }
-            for name in [
-                "DD_FLEET_POLICIES_DIR",
-                "DD_CONF_DIR",
-                "ECS_FARGATE",
-                "AWS_EXECUTION_ENV",
-            ] {
-                std::env::remove_var(name);
-            }
-        }
-        set_test_agent_service_env(None);
     }
 
     fn process_conditions(agent: &str) -> ConditionConfigFile {
@@ -791,6 +948,68 @@ process_config:
         );
         fx.env("DD_CONF_DIR", &conf_dir);
         fx.assert_key("${DD_CONF_DIR}/datadog.yaml", PROCESS_COLLECTION_KEY, true);
+    }
+
+    #[test]
+    fn empty_veto_is_clear() {
+        assert!(condition_config_none_met(&[]));
+    }
+
+    #[test]
+    fn veto_fires_when_its_key_is_true() {
+        let fx = Gate::new();
+        let sysprobe = fx.sysprobe("system_probe_config:\n  external: true\n");
+        assert!(!fx.veto_clear_for(&sysprobe, SYSTEM_PROBE_EXTERNAL_KEY));
+    }
+
+    /// Both ways of not setting it: written false, and absent so the schema default of
+    /// false applies. An install that never heard of the key must not be vetoed.
+    #[test]
+    fn veto_is_clear_when_its_key_is_false_or_absent() {
+        for body in [
+            "system_probe_config:\n  external: false\n",
+            "# nothing set\n",
+        ] {
+            let fx = Gate::new();
+            let sysprobe = fx.sysprobe(body);
+            assert!(
+                fx.veto_clear_for(&sysprobe, SYSTEM_PROBE_EXTERNAL_KEY),
+                "vetoed on {body:?}"
+            );
+        }
+    }
+
+    /// An unknown key resolves false, so it cannot veto. That is the safe direction: a
+    /// key the daemon does not understand must not be what stops a workload running.
+    #[test]
+    fn unknown_veto_key_leaves_the_veto_clear() {
+        let fx = Gate::new();
+        let sysprobe = fx.sysprobe("not_a_gate:\n  enabled: true\n");
+        assert!(fx.veto_clear_for(&sysprobe, "not_a_gate.enabled"));
+    }
+
+    /// `external` leaves every key it sits beside alone, the derived one included, because
+    /// `load()` never folds it into `system_probe_config.enabled`. Reading it here instead
+    /// of through the veto would close process-agent's gate too, and process-agent has to
+    /// keep running against an externally managed system-probe. That is also why the veto
+    /// has to be per entry rather than per key.
+    #[test]
+    fn external_system_probe_leaves_the_keys_beside_it_open() {
+        let fx = Gate::new();
+        let sysprobe = fx
+            .sysprobe("system_probe_config:\n  external: true\nnetwork_config:\n  enabled: true\n");
+        fx.assert_key(&sysprobe, SYSTEM_PROBE_CONFIG_KEY, true);
+        fx.assert_key(&sysprobe, NETWORK_CONFIG_KEY, true);
+    }
+
+    /// The veto resolves `external` through the same source ladder as every other key, so
+    /// an env-only external system-probe is vetoed with nothing in the file.
+    #[test]
+    fn env_external_system_probe_fires_the_veto() {
+        let fx = Gate::new();
+        let sysprobe = fx.sysprobe("network_config:\n  enabled: true\n");
+        fx.env("DD_SYSTEM_PROBE_EXTERNAL", "true");
+        assert!(!fx.veto_clear_for(&sysprobe, SYSTEM_PROBE_EXTERNAL_KEY));
     }
 
     #[test]
@@ -1667,5 +1886,168 @@ process_config:
             fx.assert_key(&sysprobe, SYSTEM_PROBE_CONFIG_KEY, true);
             assert!(fx.process_and_sysprobe_gate(&agent, &sysprobe));
         }
+    }
+
+    // --------------------------------------------- system-probe catalog entry keys
+
+    /// The three keys the system-probe processes.d entry adds beyond the process-agent
+    /// ones must resolve, not fall through to the unknown-key branch, which returns false
+    /// and warns on every evaluation.
+    #[test]
+    fn system_probe_catalog_keys_resolve() {
+        for (body, key, in_sysprobe) in [
+            (
+                "windows_crash_detection:\n  enabled: true\n",
+                WINDOWS_CRASH_DETECTION_KEY,
+                true,
+            ),
+            (
+                "runtime_security_config:\n  enabled: true\n",
+                RUNTIME_SECURITY_KEY,
+                true,
+            ),
+            (
+                "software_inventory:\n  enabled: true\n",
+                SOFTWARE_INVENTORY_KEY,
+                false,
+            ),
+        ] {
+            let fx = Gate::new();
+            let path = if in_sysprobe {
+                fx.sysprobe(body)
+            } else {
+                fx.agent(body)
+            };
+            fx.assert_key(&path, key, true);
+        }
+    }
+
+    #[test]
+    fn system_probe_catalog_keys_default_off() {
+        let fx = Gate::new();
+        let sysprobe = fx.sysprobe("# empty\n");
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&sysprobe, WINDOWS_CRASH_DETECTION_KEY, false);
+        fx.assert_key(&sysprobe, RUNTIME_SECURITY_KEY, false);
+        fx.assert_key(&agent, SOFTWARE_INVENTORY_KEY, false);
+    }
+
+    /// `software_inventory.enabled` is one of the settings
+    /// `applyInfrastructureModeOverrides` turns on, so the key follows the mode when no
+    /// source sets it, exactly as the derived key already does.
+    #[test]
+    fn end_user_device_enables_the_software_inventory_key() {
+        // One fixture at a time: the env guard is not reentrant, and two live in the same
+        // scope would deadlock rather than fail.
+        for (body, expected) in [
+            ("infrastructure_mode: end_user_device\n", true),
+            (
+                "infrastructure_mode: end_user_device\nsoftware_inventory:\n  enabled: false\n",
+                false,
+            ),
+        ] {
+            let fx = Gate::new();
+            let agent = fx.agent(body);
+            fx.assert_key(&agent, SOFTWARE_INVENTORY_KEY, expected);
+        }
+    }
+
+    #[test]
+    fn fleet_policy_drives_the_system_probe_catalog_keys() {
+        let fx = Gate::new();
+        fx.fleet(
+            SYSPROBE_POLICY,
+            "runtime_security_config:\n  enabled: true\n",
+        );
+        let sysprobe = fx.sysprobe("runtime_security_config:\n  enabled: false\n");
+        fx.assert_key(&sysprobe, RUNTIME_SECURITY_KEY, true);
+    }
+
+    // -------------------------------------------------------- APM / trace-agent keys
+
+    #[test]
+    fn apm_enabled_defaults_on() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, true);
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, false);
+    }
+
+    #[test]
+    fn apm_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  enabled: false\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn apm_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  enabled: true\n");
+        fx.env("DD_APM_ENABLED", "false");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn apm_error_tracking_standalone_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  error_tracking_standalone:\n    enabled: true\n");
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, true);
+    }
+
+    #[test]
+    fn apm_error_tracking_standalone_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  error_tracking_standalone:\n    enabled: false\n");
+        fx.env("DD_APM_ERROR_TRACKING_STANDALONE_ENABLED", "true");
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, true);
+    }
+
+    #[test]
+    fn fleet_policy_drives_apm_enabled() {
+        let fx = Gate::new();
+        fx.fleet(AGENT_POLICY, "apm_config:\n  enabled: false\n");
+        let agent = fx.agent("apm_config:\n  enabled: true\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    // -------------------------------------------------------- Agent Data Plane keys
+
+    #[test]
+    fn data_plane_enabled_defaults_off() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn data_plane_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("data_plane:\n  enabled: true\n");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    #[test]
+    fn data_plane_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("data_plane:\n  enabled: false\n");
+        fx.env("DD_DATA_PLANE_ENABLED", "true");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    #[test]
+    fn fleet_policy_drives_data_plane_enabled() {
+        let fx = Gate::new();
+        fx.fleet(AGENT_POLICY, "data_plane:\n  enabled: true\n");
+        let agent = fx.agent("data_plane:\n  enabled: false\n");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    #[test]
+    fn agent_service_env_drives_data_plane_enabled() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.service_env(&[("DD_DATA_PLANE_ENABLED", "true")]);
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
     }
 }

@@ -47,6 +47,7 @@ func TestLabelSelectorsConfig(t *testing.T) {
 				"admission_controller.mutate_unlabelled":         true,
 				"admission_controller.add_aks_selectors":         true,
 				"apm_config.instrumentation.disabled_namespaces": []string{"foo"},
+				"instrumentation_crd_controller.enabled":         true,
 			},
 			expected: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:            true,

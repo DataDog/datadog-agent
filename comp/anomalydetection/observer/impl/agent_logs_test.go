@@ -24,7 +24,7 @@ type captureHandle struct {
 	logs []observerdef.LogView
 }
 
-func (h *captureHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *captureHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
 func (h *captureHandle) ObserveLog(msg observerdef.LogView) {
 	// Copy tags so the captured view remains valid after the callback returns.
 	tags := make([]string, len(msg.Tags()))
@@ -53,7 +53,7 @@ func newBlockingHandle() *blockingHandle {
 	}
 }
 
-func (h *blockingHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *blockingHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
 func (h *blockingHandle) ObserveLog(_ observerdef.LogView) {
 	h.startOnce.Do(func() { close(h.started) })
 	<-h.release

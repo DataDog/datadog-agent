@@ -17,9 +17,9 @@ package_metadata(
     # We do, however, want to collect the purl for SBOM creation, so we keep the block.
     attributes = [],
     purl = purl_for_generic(
+        download_url = DOWNLOAD_URL,
         package = "security-agent-policies",
         version = VERSION,
-        download_url = DOWNLOAD_URL,
     ),
 )
 

@@ -37,6 +37,7 @@ pub(crate) fn build_sds_result(
                 schema_name: entity.schema.clone(),
                 table_name: entity.table.clone(),
                 scanned_row_count: outcome.scanned_row_count,
+                // TODO(DATASEC-354): report ignored columns alongside scanned columns.
                 scanned_columns: outcome
                     .scanned_columns
                     .into_iter()

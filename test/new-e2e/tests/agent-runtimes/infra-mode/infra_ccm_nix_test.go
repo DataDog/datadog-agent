@@ -108,6 +108,38 @@ func TestCCMModeLinuxConfiguredTagged(t *testing.T) {
 	runCCMModeSuite(t, "ccmmode-configured-tagged", ccmAgentConfig([]string{"cpu"}), &ccmModeConfiguredTaggedSuite{})
 }
 
+// TestHostTags verifies that the infra_mode:cloud_cost_only marker tag is attached to
+// the agent's host-tags payload when running in cloud_cost_only infrastructure mode.
+func (s *ccmModeDefaultTaggedSuite) TestHostTags() {
+	fakeintake := s.Env().FakeIntake.Client()
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		hosts, err := fakeintake.GetHosts()
+		if !assert.NoError(c, err, "failed to fetch hosts from fakeintake") {
+			return
+		}
+		if !assert.NotEmpty(c, hosts, "no hosts have sent host-tags payloads yet") {
+			return
+		}
+
+		for _, host := range hosts {
+			payloads, err := fakeintake.GetHostTags(host)
+			if !assert.NoError(c, err, "failed to fetch host-tags for host %s", host) {
+				continue
+			}
+			if !assert.NotEmpty(c, payloads, "no host-tags payloads for host %s", host) {
+				continue
+			}
+
+			// Latest payload — host_tags are eventually consistent.
+			tags := payloads[len(payloads)-1].HostTags
+
+			assert.Contains(c, tags, infrastructureModeTag,
+				"expected infra_mode marker on host %s; got %v", host, tags)
+		}
+	}, 5*time.Minute, 15*time.Second, "cloud_cost_only host tags did not appear in fakeintake host-tags payload")
+}
+
 // TestDefaultTaggedAllChecksReceiveInfrastructureModeTag verifies the default empty tagged list
 // tags metrics from multiple integrations, including checks outside a typical tagged: [cpu] config.
 func (s *ccmModeDefaultTaggedSuite) TestDefaultTaggedAllChecksReceiveInfrastructureModeTag() {

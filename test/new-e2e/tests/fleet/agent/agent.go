@@ -132,12 +132,24 @@ func (a *Agent) IntegrationShow(name string) (string, error) {
 	return a.runCommand("integration", "show", name)
 }
 
+// A remote agent waits indefinitely for the core agent's config stream rather than failing, so a
+// scenario that keeps the core agent down holds the whole unit set unready until systemd has torn
+// the conflicting -exp units down. That teardown outlasts a ten-second wait on the slower distros.
+const (
+	agentReadyInterval = 1 * time.Second
+	agentReadyTries    = 120
+)
+
 // runCommand runs a command on the remote host.
 func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	var baseCommand string
 	switch a.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
 		baseCommand = "sudo -u dd-agent datadog-agent"
+	case e2eos.MacOSFamily:
+		// Run as root rather than impersonating _dd-agent (as the Linux case does): config and
+		// log files are owned by _dd-agent:daemon, and root can read them regardless.
+		baseCommand = "sudo /usr/local/bin/datadog-agent"
 	case e2eos.WindowsFamily:
 		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\agent.exe"`
 	default:
@@ -147,7 +159,7 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	_, err := backoff.Retry(a.t().Context(), func() (struct{}, error) {
 		_, err := a.host.RemoteHost.Execute(baseCommand + " config --all")
 		return struct{}{}, err
-	}, backoff.WithMaxTries(10), backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)))
+	}, backoff.WithMaxTries(agentReadyTries), backoff.WithBackOff(backoff.NewConstantBackOff(agentReadyInterval)))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for agent to be ready: %w", err)
 	}
@@ -379,8 +391,7 @@ type Status struct {
 				Name       string `json:"Name"`
 			} `json:"Sketches"`
 		} `json:"FlushCount"`
-		HostnameUpdate int `json:"HostnameUpdate"`
-		MetricTags     struct {
+		MetricTags struct {
 			Series struct {
 				Above100 int `json:"Above100"`
 				Above90  int `json:"Above90"`
@@ -950,15 +961,19 @@ type Status struct {
 		} `json:"proxy-info"`
 		Python      string `json:"python"`
 		SystemStats struct {
-			CPUCores  int      `json:"cpuCores"`
-			FbsdV     []string `json:"fbsdV"`
-			MacV      []string `json:"macV"`
-			Machine   string   `json:"machine"`
-			NixV      []string `json:"nixV"`
-			Platform  string   `json:"platform"`
-			Processor string   `json:"processor"`
-			PythonV   string   `json:"pythonV"`
-			WinV      []string `json:"winV"`
+			CPUCores int `json:"cpuCores"`
+			// The four os-version fields are heterogeneous, not string lists: the Agent fills them from
+			// osVersion, a [3]interface{} kept for compatibility with Agent V5 (comp/metadata/host/impl/utils),
+			// and on macOS the middle element is itself an array -- macV reads ["15.x", ["", "", ""], "arm64"].
+			// Typing them []string makes every status read on macOS fail to decode.
+			FbsdV     []any  `json:"fbsdV"`
+			MacV      []any  `json:"macV"`
+			Machine   string `json:"machine"`
+			NixV      []any  `json:"nixV"`
+			Platform  string `json:"platform"`
+			Processor string `json:"processor"`
+			PythonV   string `json:"pythonV"`
+			WinV      []any  `json:"winV"`
 		} `json:"systemStats"`
 	} `json:"metadata"`
 	NtpOffset float64 `json:"ntpOffset"`
@@ -1024,15 +1039,16 @@ type Status struct {
 				} `json:"proxy-info"`
 				Python      string `json:"python"`
 				SystemStats struct {
-					CPUCores  int      `json:"cpuCores"`
-					FbsdV     []string `json:"fbsdV"`
-					MacV      []string `json:"macV"`
-					Machine   string   `json:"machine"`
-					NixV      []string `json:"nixV"`
-					Platform  string   `json:"platform"`
-					Processor string   `json:"processor"`
-					PythonV   string   `json:"pythonV"`
-					WinV      []string `json:"winV"`
+					CPUCores int `json:"cpuCores"`
+					// Heterogeneous, as in the core status struct above.
+					FbsdV     []any  `json:"fbsdV"`
+					MacV      []any  `json:"macV"`
+					Machine   string `json:"machine"`
+					NixV      []any  `json:"nixV"`
+					Platform  string `json:"platform"`
+					Processor string `json:"processor"`
+					PythonV   string `json:"pythonV"`
+					WinV      []any  `json:"winV"`
 				} `json:"systemStats"`
 			} `json:"metadata"`
 			Version string `json:"version"`

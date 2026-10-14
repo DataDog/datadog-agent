@@ -29,13 +29,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/protobuf/proto"
 )
 
-const collectorID = "sbom-collector"
+const (
+	collectorID = "sbom-collector"
+
+	// Runtime property names, aliased from pkg/sbom so that the producer of
+	// the enriched SBOM and this merger agree on them.
+	LastAccessProperty    = sbompkg.LastAccessProperty
+	HasSetSuidBitProperty = sbompkg.HasSetSuidBitProperty
+	RunningAsRootProperty = sbompkg.RunningAsRootProperty
+)
 
 type client struct {
 	cl sbompb.SBOMCollectorClient
@@ -291,5 +300,9 @@ func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
 	return true
 }
 
-func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {
+// HandleResync notifies the events of the first response after a reconnect, as
+// Run does for any other response. The SBOM stream sends each report as it
+// comes, so the first one after a reconnect is one update among the others.
+func (s *streamHandler) HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent) {
+	store.Notify(events)
 }

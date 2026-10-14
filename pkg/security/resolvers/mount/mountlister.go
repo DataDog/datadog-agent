@@ -242,6 +242,7 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 		StatmountMntPoint |
 		StatmountFsType)
 
+	var mounts []*model.Mount
 	for {
 		req := mntIDReq{
 			Size:  uint32(unsafe.Sizeof(mntIDReq{})),
@@ -280,7 +281,7 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 			sm := parseStatmount(buf)
 			mnt := newMountFromStatmount(&sm)
 			mnt.NamespaceInode = uint32(ino)
-			cb(mnt)
+			mounts = append(mounts, mnt)
 			lastMountID = req2.MntID
 		}
 
@@ -294,6 +295,11 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 			// All mounts for this namespace were obtained
 			break
 		}
+	}
+
+	relativizeSnapshotMountPoints(mounts)
+	for _, mnt := range mounts {
+		cb(mnt)
 	}
 
 	return nil

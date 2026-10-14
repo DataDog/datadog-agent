@@ -8,11 +8,11 @@
 package selfident
 
 import (
-	"runtime"
+	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,6 +22,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
@@ -211,61 +212,196 @@ func TestNew_NoopOutsideKubernetes(t *testing.T) {
 
 // ClusterID must bound how long it blocks a caller made before resolution
 // settles — long enough to give a one-shot startup check a real chance at
-// getting the id, but not indefinitely.
+// getting the id, but not indefinitely. When every lookup fails, the retry
+// budget (resolveRetries*resolveRetryDelay) settles the resolver before
+// clusterResolveTimeout, so the budget is what releases the caller.
+//
+// Runs inside a synctest bubble with a stubbed lookup so the wait is virtual
+// and the resolver can't race the assertions: the caller's elapsed time is
+// exactly the retry budget rather than a wall-clock upper bound a loaded CI
+// worker could bust.
 func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
-	clk := clock.NewMock()
-	s := New(nil)
-	s.clock = clk
-	s.resolveRetries = 3
-	s.resolveRetryDelay = 10 * time.Millisecond
+	synctest.Test(t, func(t *testing.T) {
+		stubClusterIDFuncs(t,
+			func() (string, error) { return "", errors.New("cluster agent unreachable") },
+			func() (string, error) { return "", errors.New("unused") },
+		)
 
-	firstCh := make(chan string, 1)
-	go func() { firstCh <- s.ClusterID() }()
-	var first string
-	advanceMockClockUntil(t, clk, func() bool {
-		select {
-		case first = <-firstCh:
-			return true
-		default:
-			return false
-		}
+		s := New(nil)
+		s.resolveRetries = 3
+		s.resolveRetryDelay = 10 * time.Millisecond
+
+		start := time.Now()
+		first := s.ClusterID()
+		elapsed := time.Since(start)
+
+		assert.Empty(t, first, "every lookup failed, so resolution settles on empty")
+		assert.Equal(t, time.Duration(s.resolveRetries)*s.resolveRetryDelay, elapsed,
+			"the caller must be released by the exhausted retry budget, not by clusterResolveTimeout")
+		assert.Less(t, elapsed, s.clusterResolveTimeout,
+			"the retry budget must settle before the caller's bounded wait, or this test would assert the wrong bound")
+
+		// Let the resolver goroutine finish before t.Cleanup restores the stub
+		// globals it reads.
+		synctest.Wait()
 	})
-	assert.Empty(t, first, "no Cluster Agent is configured in this test, so resolution settles on empty")
-
-	// The first call's own bounded wait is independent of the background
-	// resolver goroutine, so it can return before that goroutine has
-	// actually stored the settled result. Keep advancing until the
-	// resolver settles the cache too, rather than assuming the first
-	// call's return already implies it.
-	advanceMockClockUntil(t, clk, func() bool { return s.clusterID.Load() != nil })
-
-	// Cached calls must return without the mock clock advancing at all; a fallback to retrying would block on it forever and hit the guard below.
-	for i := 0; i < 50; i++ {
-		doneCh := make(chan string, 1)
-		go func() { doneCh <- s.ClusterID() }()
-		select {
-		case v := <-doneCh:
-			assert.Empty(t, v)
-		case <-time.After(time.Second):
-			t.Fatal("cached ClusterID() call blocked instead of returning immediately from cache")
-		}
-	}
 }
 
-// advanceMockClockUntil advances clk deterministically instead of sleeping on
-// the wall clock, until cond returns true. The real-time deadline here is
-// purely a deadlock guard, not a timing assertion: correct code never
-// approaches it, since every actual wait is driven by mock time.
-func advanceMockClockUntil(t *testing.T, clk *clock.Mock, cond func() bool) {
+// ClusterID must not block a caller for the duration of a hung lookup: the
+// caller wait is bounded by clusterResolveTimeout regardless of how long
+// lookup() blocks.
+//
+// Runs inside a synctest bubble so the timeout is virtual: fake time advances
+// deterministically once every goroutine is durably blocked, avoiding the real
+// sleeps and wall-clock margins a loaded CI worker could bust. release is
+// created inside the bubble so blocking on it counts as durably blocked and
+// lets the clusterResolveTimeout timer fire.
+func TestClusterID_BlockedLookupDoesNotBlockCallerBeyondTimeout(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		stubClusterIDFuncs(t,
+			func() (string, error) {
+				<-release // block as a hung Cluster Agent/API server call would
+				return "node-agent-id", nil
+			},
+			func() (string, error) { return "", errors.New("unused") },
+		)
+
+		s := New(nil)
+		s.clusterResolveTimeout = 20 * time.Millisecond
+
+		start := time.Now()
+		id := s.ClusterID()
+		elapsed := time.Since(start)
+		assert.Empty(t, id, "a blocked lookup must not surface an id")
+		// Virtual time advances exactly to the bounded wait: the caller returns
+		// the moment clusterResolveTimeout elapses, not when the lookup does.
+		assert.Equal(t, s.clusterResolveTimeout, elapsed, "caller must return once the bounded wait elapses, not wait for the blocked lookup")
+
+		// Unblock the lookup and let the resolver settle: proves a later call
+		// picks up the id the timed-out one missed, and lets the resolver finish
+		// (synctest.Wait) before t.Cleanup restores the stub globals it reads.
+		close(release)
+		synctest.Wait()
+		assert.Equal(t, "node-agent-id", s.ClusterID(), "a later call must pick up the id the timed-out caller missed")
+	})
+}
+
+// TestClusterID_CachesSuccessfulResolution verifies that once resolution
+// succeeds, later calls return the cached id without re-running the lookup.
+func TestClusterID_CachesSuccessfulResolution(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+
+	var calls int
+	stubClusterIDFuncs(t,
+		func() (string, error) { calls++; return "node-agent-id", nil },
+		func() (string, error) { return "", errors.New("unused") },
+	)
+
+	s := New(nil)
+
+	assert.Equal(t, "node-agent-id", s.ClusterID())
+	assert.Equal(t, "node-agent-id", s.ClusterID())
+	assert.Equal(t, 1, calls, "second call must return from cache, not re-run the lookup")
+}
+
+// TestClusterID_FailedResolutionIsNotCachedPermanently verifies that a startup
+// Cluster Agent/API server outage doesn't permanently blank out cluster_id: a
+// later call must retry rather than replay the stale empty result (cf.
+// TestDeploymentID_TransientMissIsNotCachedPermanently).
+func TestClusterID_FailedResolutionIsNotCachedPermanently(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+
+	var calls int
+	stubClusterIDFuncs(t,
+		func() (string, error) {
+			calls++
+			if calls == 1 {
+				return "", errors.New("api server unreachable")
+			}
+			return "node-agent-id", nil
+		},
+		func() (string, error) { return "", errors.New("unused") },
+	)
+
+	s := New(nil)
+	s.resolveRetries = 0
+	s.resolveRetryDelay = time.Millisecond
+
+	assert.Empty(t, s.ClusterID(), "lookup failed, retry budget exhausted")
+	assert.Equal(t, "node-agent-id", s.ClusterID(), "a later call must retry rather than replay the stale empty result")
+}
+
+// stubClusterIDFuncs overrides the node-agent/cluster-agent cluster id
+// lookups for the duration of the test, restoring the real functions on
+// cleanup.
+func stubClusterIDFuncs(t *testing.T, nodeAgent, clusterAgent func() (string, error)) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatal("timed out advancing the mock clock waiting for a condition to become true")
-		}
-		runtime.Gosched()
-		clk.WaitForAllTimers()
-	}
+	origNodeAgent, origClusterAgent := nodeAgentClusterIDFunc, clusterAgentClusterIDFunc
+	nodeAgentClusterIDFunc, clusterAgentClusterIDFunc = nodeAgent, clusterAgent
+	t.Cleanup(func() {
+		nodeAgentClusterIDFunc, clusterAgentClusterIDFunc = origNodeAgent, origClusterAgent
+	})
+}
+
+// TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup verifies that on the
+// Cluster Agent flavor, ClusterID dispatches to the Cluster-Agent-specific
+// lookup rather than the node-agent-only clustername.GetClusterID (broken when
+// the DCA calls it on itself).
+func TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup(t *testing.T) {
+	origFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.ClusterAgent)
+	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
+
+	env.SetFeatures(t, env.Kubernetes)
+	stubClusterIDFuncs(t,
+		func() (string, error) { return "node-agent-id", nil },
+		func() (string, error) { return "cluster-agent-id", nil },
+	)
+
+	s := New(nil)
+	assert.Equal(t, "cluster-agent-id", s.ClusterID())
+}
+
+// TestClusterID_NonClusterAgentFlavorUsesNodeAgentLookup verifies that a
+// non-Cluster-Agent flavor (e.g. the node agent) keeps using
+// clustername.GetClusterID rather than the Cluster-Agent-specific lookup.
+func TestClusterID_NonClusterAgentFlavorUsesNodeAgentLookup(t *testing.T) {
+	origFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.DefaultAgent)
+	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
+
+	env.SetFeatures(t, env.Kubernetes)
+	stubClusterIDFuncs(t,
+		func() (string, error) { return "node-agent-id", nil },
+		func() (string, error) { return "cluster-agent-id", nil },
+	)
+
+	s := New(nil)
+	assert.Equal(t, "node-agent-id", s.ClusterID())
+}
+
+// TestClusterID_ClusterAgentFlavorLookupError verifies that an error from the
+// Cluster-Agent-specific lookup (e.g. apiserver.GetAPIClient failing) is
+// retried and ultimately settles on empty, the same as the node-agent path.
+func TestClusterID_ClusterAgentFlavorLookupError(t *testing.T) {
+	origFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.ClusterAgent)
+	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
+
+	env.SetFeatures(t, env.Kubernetes)
+	stubClusterIDFuncs(t,
+		func() (string, error) { return "node-agent-id", nil },
+		func() (string, error) { return "", errors.New("api server unreachable") },
+	)
+
+	s := New(nil)
+	s.resolveRetries = 1
+	s.resolveRetryDelay = time.Millisecond
+
+	assert.Empty(t, s.ClusterID())
 }

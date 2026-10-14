@@ -1654,3 +1654,53 @@ func TestObservedPodCallback(t *testing.T) {
 		assert.Empty(t, fakeRecorder.Events, "expected no events when not leader")
 	})
 }
+
+func TestPatchContainerResourcesGOMEMLIMIT(t *testing.T) {
+	reco := func(goMemLimit string) datadoghqcommon.DatadogPodAutoscalerContainerResources {
+		return datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			Name:    "app",
+			Runtime: &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: goMemLimit},
+		}
+	}
+
+	// GOMEMLIMIT absent: appended, other vars preserved, no ValueFrom on new entry.
+	t.Run("GOMEMLIMIT absent", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env:  []corev1.EnvVar{{Name: "MY_VAR", Value: "hello"}},
+		}
+		patched := patchContainerResources(reco("256MiB"), cont)
+		assert.True(t, patched)
+		require.Len(t, cont.Env, 2)
+		assert.Equal(t, "MY_VAR", cont.Env[0].Name)
+		assert.Equal(t, "GOMEMLIMIT", cont.Env[1].Name)
+		assert.Equal(t, "256MiB", cont.Env[1].Value)
+		assert.Nil(t, cont.Env[1].ValueFrom)
+	})
+
+	// GOMEMLIMIT present: value updated, ValueFrom cleared (Kubernetes rejects both set),
+	// other vars preserved. No patch when value already matches.
+	t.Run("GOMEMLIMIT present", func(t *testing.T) {
+		cont := &corev1.Container{
+			Name: "app",
+			Env: []corev1.EnvVar{
+				{Name: "MY_VAR", Value: "hello"},
+				{
+					Name:      "GOMEMLIMIT",
+					Value:     "128MiB",
+					ValueFrom: &corev1.EnvVarSource{ConfigMapKeyRef: &corev1.ConfigMapKeySelector{Key: "limit"}},
+				},
+			},
+		}
+		patched := patchContainerResources(reco("256MiB"), cont)
+		assert.True(t, patched)
+		require.Len(t, cont.Env, 2)
+		assert.Equal(t, "MY_VAR", cont.Env[0].Name)
+		assert.Equal(t, "256MiB", cont.Env[1].Value)
+		assert.Nil(t, cont.Env[1].ValueFrom, "ValueFrom must be cleared to avoid Kubernetes rejection")
+
+		// Already up to date: no second patch.
+		patched = patchContainerResources(reco("256MiB"), cont)
+		assert.False(t, patched)
+	})
+}

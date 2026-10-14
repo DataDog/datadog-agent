@@ -33,7 +33,7 @@ func TestBasicFileTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")
@@ -76,7 +76,7 @@ func TestRenameFileEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")
@@ -113,7 +113,7 @@ func TestDeleteFileEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")
@@ -149,7 +149,7 @@ func TestWriteFileEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")
@@ -197,7 +197,7 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTestAndMonitor()
 	// Wait for ETW to be ready (signaled on first event received)
 	if !test.WaitForETWReady(30 * time.Second) {
 		t.Fatal("Timeout waiting for ETW to be ready")

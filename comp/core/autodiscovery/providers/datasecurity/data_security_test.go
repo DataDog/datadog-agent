@@ -7,6 +7,7 @@ package datasecurity
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -188,6 +189,10 @@ func TestControllerUpdate(t *testing.T) {
 		Name:      dataSecurityCheckName,
 		Instances: []integration.Data{integration.Data(wantCheckInstance)},
 	}
+	wantScheduledConfigTask2 := integration.Config{
+		Name:      dataSecurityCheckName,
+		Instances: []integration.Data{integration.Data(strings.Replace(wantCheckInstance, "task-1", "task-2", 1))},
+	}
 	tests := []struct {
 		name          string
 		remoteConfigs []map[string]state.RawConfig // successive RC updates, each keyed by path
@@ -216,6 +221,43 @@ func TestControllerUpdate(t *testing.T) {
 			wantChanges: []integration.ConfigChanges{
 				{Schedule: []integration.Config{wantScheduledConfig}},
 				{Schedule: []integration.Config{wantScheduledConfig}, Unschedule: []integration.Config{wantScheduledConfig}},
+			},
+		},
+		{
+			name: "modified task at the same RC path unschedules the previous check",
+			remoteConfigs: []map[string]state.RawConfig{
+				{"rc-1": rawScanTask("rc-1", scanTaskConfig)},
+				{"rc-1": rawScanTask("rc-1", strings.Replace(scanTaskConfig, "task-1", "task-2", 1))},
+			},
+			wantStatus: map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
+			wantChanges: []integration.ConfigChanges{
+				{Schedule: []integration.Config{wantScheduledConfig}},
+				{Schedule: []integration.Config{wantScheduledConfigTask2}, Unschedule: []integration.Config{wantScheduledConfig}},
+			},
+		},
+		{
+			name: "deleted RC path unschedules its check",
+			remoteConfigs: []map[string]state.RawConfig{
+				{"rc-1": rawScanTask("rc-1", scanTaskConfig), "rc-2": rawScanTask("rc-2", scanTaskConfig)},
+				{"rc-2": rawScanTask("rc-2", scanTaskConfig)},
+			},
+			wantStatus: map[string]state.ApplyStatus{
+				"rc-1": {State: state.ApplyStateAcknowledged},
+				"rc-2": {State: state.ApplyStateAcknowledged},
+			},
+			wantChanges: []integration.ConfigChanges{
+				{Schedule: []integration.Config{wantScheduledConfig, wantScheduledConfig}},
+				// rc-1 is unscheduled as deleted; rc-2 is re-delivered so it is rescheduled.
+				{Schedule: []integration.Config{wantScheduledConfig}, Unschedule: []integration.Config{wantScheduledConfig, wantScheduledConfig}},
+			},
+		},
+		{
+			name:          "empty update after the last task is deleted unschedules its check",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskConfig)}, {}},
+			wantStatus:    map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
+			wantChanges: []integration.ConfigChanges{
+				{Schedule: []integration.Config{wantScheduledConfig}},
+				{Unschedule: []integration.Config{wantScheduledConfig}},
 			},
 		},
 		{
@@ -257,10 +299,10 @@ func TestControllerUpdate(t *testing.T) {
 					updateStatus[path] = status
 				})
 
-				// An update that schedules at least one config emits one ConfigChanges; an
-				// error-only update emits none.
+				// An update that schedules or unschedules at least one config emits one
+				// ConfigChanges; an error-only or unchanged update emits none.
 				want := tt.wantChanges[i]
-				if len(want.Schedule) == 0 {
+				if len(want.Schedule) == 0 && len(want.Unschedule) == 0 {
 					continue
 				}
 				assertConfigChangesEqual(t, want, receiveChanges(t, changes))

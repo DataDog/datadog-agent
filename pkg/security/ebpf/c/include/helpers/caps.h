@@ -1,10 +1,10 @@
 #ifndef _HELPERS_CAPS_H_
 #define _HELPERS_CAPS_H_
 
+// the caller decides whether the monitoring period applies: it rate-limits the periodic ticker,
+// but a flush on exec or exit is the last chance to report an entry before it is deleted
 static __attribute__((always_inline)) void send_capabilities_usage_event(void *ctx, struct capabilities_usage_key_t *key, struct capabilities_usage_entry_t *entry) {
-    u64 now = bpf_ktime_get_ns();
-    int should_send = is_dirty(entry) && period_reached_or_new_entry(entry, now);
-    if (!should_send) {
+    if (!is_dirty(entry)) {
         return;
     }
 
@@ -19,7 +19,7 @@ static __attribute__((always_inline)) void send_capabilities_usage_event(void *c
     }
 
     reset_dirty(entry);
-    set_last_sent_ns(entry, now);
+    set_last_sent_ns(entry, bpf_ktime_get_ns());
 
     struct capabilities_event_t event = {
         .caps_usage = entry->usage,

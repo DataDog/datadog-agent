@@ -8,6 +8,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -132,7 +133,7 @@ func resolveTokenURL(cfg pkgconfigmodel.Reader, targetSite string) string {
 // `additional_endpoints` domain for a dual-shipping DELA(...) instance targeting a different
 // site than the agent's primary `dd_url`/`site`). If empty, falls back to the agent's configured
 // primary site - the original, single-org behavior.
-func GetAPIKey(cfg pkgconfigmodel.Reader, delegatedAuthProof string, targetSite string) (*string, error) {
+func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProof string, targetSite string) (*string, error) {
 	var apiKey *string
 
 	url := resolveTokenURL(cfg, targetSite)
@@ -143,7 +144,7 @@ func GetAPIKey(cfg pkgconfigmodel.Reader, delegatedAuthProof string, targetSite 
 		Transport: transport,
 		Timeout:   httpClientTimeout,
 	}
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer([]byte("")))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {
 		return nil, err
 	}

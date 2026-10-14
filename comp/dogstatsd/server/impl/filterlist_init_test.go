@@ -59,7 +59,10 @@ type depsWithoutFilterList struct {
 func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 	cfg := map[string]interface{}{
 		"dogstatsd_port":    listeners.RandomPortName,
-		"metric_filterlist": []string{"filtered.metric", "filtered.prefix.*"},
+		"metric_filterlist": []string{"filtered.metric"},
+		"metric_filterlist_prefix": []map[string]interface{}{
+			{"prefix": "filtered.prefix."},
+		},
 	}
 
 	deps := fxutil.Test[depsWithoutFilterList](t, fx.Options(
@@ -91,7 +94,7 @@ func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 		assert.False(t, worker.filterList.Test("unfiltered.metric"),
 			"worker %d should not filter 'unfiltered.metric'", i)
 		assert.True(t, worker.filterList.Test("filtered.prefix.anything"),
-			"worker %d should filter the 'filtered.prefix.*' prefix from local config", i)
+			"worker %d should filter the 'filtered.prefix.' metric_filterlist_prefix entry from local config", i)
 		assert.False(t, worker.filterList.Test("filtered.prefix"),
 			"worker %d should not filter a name shorter than the configured prefix", i)
 	}

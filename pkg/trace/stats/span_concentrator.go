@@ -210,6 +210,9 @@ type SpanConcentrator struct {
 	httpEndpointCollapses *atomic.Int64
 	peerTagsCollapses     *atomic.Int64
 	originCollapses       *atomic.Int64
+	// futureClamps counts spans whose bucket was clamped from a future bucket
+	// to the current time bucket (e.g. spans from a client with a badly skewed clock).
+	futureClamps *atomic.Int64
 
 	// bucket duration in nanoseconds
 	bsize int64
@@ -253,6 +256,7 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 		httpEndpointCollapses: atomic.NewInt64(0),
 		peerTagsCollapses:     atomic.NewInt64(0),
 		originCollapses:       atomic.NewInt64(0),
+		futureClamps:          atomic.NewInt64(0),
 		bsize:                 cfg.BucketInterval,
 		oldestTs:              alignTs(now.UnixNano(), cfg.BucketInterval),
 		bufferLen:             defaultBufferLen,
@@ -367,6 +371,15 @@ func (sc *SpanConcentrator) DrainBlockCounts() BlockCounts {
 		counts.OriginCollapses = sc.originCollapses.Swap(0)
 	}
 	return counts
+}
+
+// DrainFutureClamps atomically reads and zeroes the count of spans whose
+// bucket was clamped to the current time bucket (see addSpan).
+func (sc *SpanConcentrator) DrainFutureClamps() int64 {
+	if sc.futureClamps == nil {
+		return 0
+	}
+	return sc.futureClamps.Swap(0)
 }
 
 // NewStatSpanFromPB is a helper version of NewStatSpanWithConfig that builds a StatSpan from a pb.Span.
@@ -561,11 +574,21 @@ var KindsComputed = map[string]struct{}{
 	"producer": {},
 }
 
-func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string, weight float64) {
+func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, tags infraTags, origin string, weight float64, now int64) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	end := s.start + s.duration
 	btime := max(end-end%sc.bsize, sc.oldestTs)
+	if btime > now {
+		// Clamp the bucket to the current time bucket. Spans with a start or duration
+		// far in the future (e.g. from a client with a badly skewed clock) would
+		// otherwise create buckets that are not flushed until the agent's wall clock
+		// reaches them, retaining memory for that entire period.
+		if sc.futureClamps != nil {
+			sc.futureClamps.Add(1)
+		}
+		btime = max(alignTs(now, sc.bsize), sc.oldestTs)
+	}
 
 	b, ok := sc.buckets[btime]
 	if !ok {
@@ -586,7 +609,7 @@ func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, t
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.
 // todo:raphael migrate dd-trace-go API to not depend on containerID/containerTags and add processTags at encoding layer
 func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string) {
-	sc.addSpan(s, aggKey, infraTags{containerID: containerID, containerTags: containerTags}, origin, 1)
+	sc.addSpan(s, aggKey, infraTags{containerID: containerID, containerTags: containerTags}, origin, 1, time.Now().UnixNano())
 }
 
 // Flush deletes and returns complete ClientStatsPayloads.

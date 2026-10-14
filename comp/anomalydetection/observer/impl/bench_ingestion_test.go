@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // buildSyntheticStorage creates a storage pre-populated with numSeries series,
@@ -45,6 +46,7 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 					value:     100.0 + rng.Float64()*10,
 					timestamp: 0,
 				}
+				obs[s].storageKey = testStorageKeyForMetric("ns", obs[s])
 			}
 
 			for i := 0; i < b.N; i++ {
@@ -59,6 +61,59 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// BenchmarkCompositeTagsStorage isolates the two hot storage cases for the
+// CompositeTags contract: existing-series writes must not inspect tags, while
+// new series may hash once to join the bounded composite interner.
+func BenchmarkCompositeTagsStorage(b *testing.B) {
+	for _, tc := range []struct {
+		name string
+		tags tagset.CompositeTags
+	}{
+		{name: "existing_one_segment", tags: tagset.CompositeTagsFromSlice([]string{"env:prod", "service:api"})},
+		{name: "existing_two_segments", tags: tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api"})},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			key := storageKeyForCompositeIdentity("ns", "metric", "", tc.tags)
+			storage := newTimeSeriesStorage()
+			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, 0, tc.tags, key)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i+1), tc.tags, key)
+			}
+		})
+	}
+
+	b.Run("new_series_interner_hit", func(b *testing.B) {
+		tags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api"})
+		anchorKey := storageKeyForCompositeIdentity("ns", "anchor", "", tags)
+		key := storageKeyForCompositeIdentity("ns", "metric", "", tags)
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			storage := newTimeSeriesStorage()
+			storage.AddWithKeyAndHostComposite("ns", "anchor", "", 1, 0, tags, anchorKey)
+			b.StartTimer()
+			storage.AddWithKeyAndHostComposite("ns", "metric", "", 1, int64(i), tags, key)
+		}
+	})
+}
+
+func BenchmarkMetricFilterV1RulesCompositeSegments(b *testing.B) {
+	filter := newV1MetricFilter(b)
+	metric := highLoadMetric("system.cpu.user")
+	first, _ := metric.tags.UnsafeGet()
+	metric.tags = tagset.NewCompositeTags(first[:8], first[8:])
+	contextKey := testContextKeyFor(metric)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if decision := prepareMetricIngest("check", contextKey, metric, filter); decision.metric == nil {
+			b.Fatal("expected metric to be accepted")
+		}
 	}
 }
 
@@ -108,10 +163,11 @@ func BenchmarkMetricFilterV1Rules(b *testing.B) {
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			sample := highLoadMetric(tc.metricName)
+			contextKey := testContextKeyFor(sample)
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				decision := prepareMetricIngest("check", sample, filter)
+				decision := prepareMetricIngest("check", contextKey, sample, filter)
 				if gotRejected := decision.metric == nil; gotRejected != tc.wantRejected {
 					b.Fatalf("rejected=%t, want %t", gotRejected, tc.wantRejected)
 				}
@@ -129,7 +185,8 @@ func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
 		telemetry: newObserverTelemetry(telemetryComp),
 	}
 	sample := highLoadMetric("kubernetes.pod.count")
-	if h.ObserveMetricAndReportDrop(sample) {
+	contextKey := testContextKeyFor(sample)
+	if h.observeMetricAndReportDrop(sample, contextKey) {
 		b.Fatal("expected metric to be rejected by processing rules")
 	}
 
@@ -138,7 +195,7 @@ func BenchmarkHandleObserveMetricV1RulesParallelRejectedMetric(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if h.ObserveMetricAndReportDrop(sample) {
+			if h.observeMetricAndReportDrop(sample, contextKey) {
 				panic("expected metric to be rejected by processing rules")
 			}
 		}
@@ -189,11 +246,11 @@ func highLoadMetric(name string) *metricObs {
 	return &metricObs{
 		name:      name,
 		timestamp: 1000,
-		tags: []string{
+		tags: testCompositeTags([]string{
 			"pod_name:api-123", "container_id:abc", "env:staging", "service:api",
 			"kube_namespace:default", "kube_deployment:api", "image_name:api", "image_tag:v1",
 			"cluster_name:stormeagle", "region:us-east-1", "team:agent", "version:7.84.0",
 			"orchestrator:ecs", "container_name:api", "kube_replica_set:api-123", "short_image:api",
-		},
+		}),
 	}
 }

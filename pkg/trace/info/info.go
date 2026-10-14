@@ -148,7 +148,8 @@ func UpdateReceiverStats(rs *ReceiverStats) {
 	}
 
 	ift.receiverStats = s
-	ift.languages = rs.Languages()
+	// rs' read lock is already held; Languages would re-acquire it.
+	ift.languages = rs.languagesLocked()
 }
 
 // Languages returns all the known languages seen

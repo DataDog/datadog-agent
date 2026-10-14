@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // LogMetricsExtractorConfig holds configuration for the LogMetricsExtractor.
@@ -57,7 +58,7 @@ func (a *LogMetricsExtractor) Name() string { return LogMetricsExtractorName }
 
 func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := log.GetContent()
-	tags := log.Tags()
+	tags := tagset.CompositeTagsFromSlice(log.Tags())
 
 	// Always emit pattern frequency metric for all logs
 	patternSig := logSignature(content, a.config.MaxEvalBytes)
@@ -68,10 +69,11 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 	metricName := patternCountMetricName(patternSig)
 
 	metrics := []observer.MetricOutput{{
-		Name:  metricName,
-		Value: 1,
-		Tags:  tags,
-		Context: &observer.MetricContext{
+		Name:       metricName,
+		Value:      1,
+		Tags:       tags,
+		HasContext: true,
+		Context: observer.MetricContext{
 			Pattern: patternSig,
 			Example: content,
 			Source:  "log_metrics_extractor",
@@ -92,7 +94,7 @@ func isJSONObject(s string) bool {
 }
 
 // extractJSONFieldMetrics extracts numeric field metrics from JSON content.
-func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []string) []observer.MetricOutput {
+func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags tagset.CompositeTags) []observer.MetricOutput {
 	dec := json.NewDecoder(strings.NewReader(content))
 	dec.UseNumber()
 
@@ -121,10 +123,11 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []str
 		}
 
 		out = append(out, observer.MetricOutput{
-			Name:  "log.field." + sanitizeMetricFragment(k),
-			Value: f,
-			Tags:  tags,
-			Context: &observer.MetricContext{
+			Name:       "log.field." + sanitizeMetricFragment(k),
+			Value:      f,
+			Tags:       tags,
+			HasContext: true,
+			Context: observer.MetricContext{
 				Pattern: k,
 				Example: example,
 				Source:  "log_metrics_extractor",

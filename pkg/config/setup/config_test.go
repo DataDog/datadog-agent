@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -25,6 +27,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
+	config := newTestConf(t)
+	config.SetInTest("delegated_auth.org_uuid", "primary-org")
+	config.SetInTest("logs_config.delegated_auth.org_uuid", "logs-org")
+
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+		paramsByKey[params.APIKeyConfigKey] = params
+		return nil
+	}}
+
+	require.NoError(t, configureDelegatedAuth(context.Background(), config, comp))
+	require.Contains(t, paramsByKey, "api_key")
+	require.Contains(t, paramsByKey, "logs_config.api_key")
+	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
+	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
+}
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)
@@ -712,6 +732,9 @@ func TestNetworkPathDefaults(t *testing.T) {
 	config := confFromYAML(t, datadogYaml)
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
+	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.basic_tests_enabled"))
+	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled"))
+	assert.Equal(t, 80, config.GetInt("network_path.connections_monitoring.eudm_basic_candidate_limit"))
 	assert.Equal(t, false, config.GetBool("network_path.remote_config.enabled"))
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
@@ -734,6 +757,7 @@ func TestHealthPlatformDefaults(t *testing.T) {
 	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
 	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
 	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
+	assert.Equal(t, true, config.GetBool("dogstatsd_client_drop_detection.enabled"))
 }
 
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
@@ -745,6 +769,16 @@ infrastructure_mode: none
 
 	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
 	assert.False(t, config.GetBool("integration.enabled"))
+}
+
+func TestInfrastructureModeUnknownValueAppliesNoOverride(t *testing.T) {
+	// A typo must apply no overrides rather than silently picking up those of
+	// the mode the operator meant to set.
+	config := confFromYAML(t, "infrastructure_mode: nonee")
+	applyInfrastructureModeOverrides(config)
+
+	assert.True(t, config.GetBool("integration.enabled"))
+	assert.False(t, config.GetBool("software_inventory.enabled"))
 }
 
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
@@ -1578,7 +1612,13 @@ func TestServerlessConfigInit(t *testing.T) {
 
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
-	assert.False(t, conf.IsKnown("inventories_enabled"))
+
+	// inventory metadata collection is available in serverless-init, gated by
+	// the serverless-only serverless.inventory_enabled ramp key
+	assert.True(t, conf.IsKnown("inventories_enabled"))
+	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
+	assert.True(t, conf.IsKnown("serverless.inventory_enabled"))
+	assert.True(t, conf.IsKnown("serverless.inventory_wrapped_command_enabled"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.
@@ -1586,6 +1626,32 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.Equal(t, int64(10*1024*1024), conf.GetInt64("evp_proxy_config.max_payload_size"))
 	assert.True(t, conf.GetBool("ol_proxy_config.enabled"))
 	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
+}
+
+func TestServerlessInventoryWrappedCommandEnabled(t *testing.T) {
+	const envVar = "DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED"
+	const key = "serverless.inventory_wrapped_command_enabled"
+	for _, tt := range []struct {
+		name string
+		env  string
+		want bool
+	}{
+		{name: "unset"},
+		{name: "disabled", env: "false"},
+		{name: "enabled", env: "true", want: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envVar, tt.env)
+			if tt.env == "" {
+				require.NoError(t, os.Unsetenv(envVar))
+			}
+			conf := newEmptyMockConf(t)
+			initCommonBase(conf)
+
+			assert.True(t, conf.IsKnown(key))
+			assert.Equal(t, tt.want, conf.GetBool(key))
+		})
+	}
 }
 
 func TestDisableCoreAgent(t *testing.T) {
