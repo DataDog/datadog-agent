@@ -20,8 +20,9 @@ const (
 // passing state. build resolves the concrete rule and remediation for a distro, since
 // package managers and service names differ across families.
 type probeCheck struct {
-	name     string // subtest label and probe identifier
-	hostOnly bool   // skip in the containerized agent (the probe needs live host state)
+	name     string   // subtest label and probe identifier
+	hostOnly bool     // skip in the containerized agent (the probe needs live host state)
+	families []family // nil = every family, else only these
 	build    func(d distro) probe
 }
 
@@ -29,7 +30,7 @@ type probeCheck struct {
 // written once and run on every distro and environment where it applies (probesFor).
 // The names double as the OpenSCAP probe coverage: file, textfilecontent54 (sshd,
 // accounts, kernel_module), rpminfo/dpkginfo (package), sysctl, systemdunitproperty
-// (service) and partition.
+// (service), partition, and the SCE engine (ufw, nftables).
 var probeChecks = []probeCheck{
 	{name: "file", build: fileCheck},
 	{name: "sshd", build: sshdCheck},
@@ -37,6 +38,8 @@ var probeChecks = []probeCheck{
 	{name: "accounts", build: accountsCheck},
 	{name: "sysctl", hostOnly: true, build: sysctlCheck},
 	{name: "service", hostOnly: true, build: serviceCheck},
+	{name: "ufw", hostOnly: true, families: []family{debian}, build: ufwCheck},
+	{name: "nftables", hostOnly: true, families: []family{debian}, build: nftablesCheck},
 	{name: "partition", hostOnly: true, build: partitionCheck},
 	{name: "kernel_module", hostOnly: true, build: kernelModuleCheck},
 }
@@ -48,6 +51,9 @@ func probesFor(d distro, onHost bool) []probe {
 	var ps []probe
 	for _, c := range probeChecks {
 		if c.hostOnly && !onHost {
+			continue
+		}
+		if c.families != nil && !slices.Contains(c.families, d.family) {
 			continue
 		}
 		if d.onlyProbes != nil && !slices.Contains(d.onlyProbes, c.name) {
@@ -116,12 +122,33 @@ func serviceCheck(d distro) probe {
 		"sudo systemctl disable --now " + svc, "sudo systemctl enable --now " + svc}
 }
 
+// ufwCheck exercises the SCE engine via check_ufw_active, whose script runs ufw status.
+// ufw lists its chains with iptables, which asks netfilter over netlink and so needs
+// CAP_NET_ADMIN. Host-only: the script sees the agent's network namespace. Only the
+// Ubuntu benchmarks carry the rule. The fix allows SSH before it enables the firewall.
+func ufwCheck(distro) probe {
+	return probe{"ufw", rulePrefix + "check_ufw_active",
+		"sudo ufw --force disable",
+		"sudo ufw allow 22/tcp && sudo ufw --force enable"}
+}
+
+// nftablesCheck exercises the SCE engine via set_nftables_table, whose script lists the
+// nftables tables over netlink, which needs CAP_NET_ADMIN. Host-only: the script sees
+// the agent's network namespace. Only the Ubuntu benchmarks carry the rule. The fix adds
+// an empty inet table, which filters nothing.
+func nftablesCheck(distro) probe {
+	return probe{"nftables", rulePrefix + "set_nftables_table",
+		"sudo nft delete table inet cspm_e2e 2>/dev/null || true",
+		"sudo nft add table inet cspm_e2e"}
+}
+
 // partitionCheck exercises the partition probe via a separate /tmp. Host-only: it reads
-// the live mount table. The fix mounts a tmpfs /tmp, as the benchmark expects.
+// the live mount table. The fix mounts a tmpfs /tmp, as the benchmark expects, and keeps
+// it executable, since OpenSCAP writes the SCE scripts of every later check there.
 func partitionCheck(distro) probe {
 	return probe{"partition", rulePrefix + "partition_for_tmp",
 		"sudo umount /tmp 2>/dev/null || true",
-		"echo 'tmpfs /tmp tmpfs defaults,nosuid,nodev,noexec 0 0' | sudo tee -a /etc/fstab && sudo mount /tmp"}
+		"echo 'tmpfs /tmp tmpfs defaults,nosuid,nodev 0 0' | sudo tee -a /etc/fstab && sudo mount /tmp"}
 }
 
 // kernelModuleCheck exercises the textfilecontent54 probe via the cramfs modprobe
