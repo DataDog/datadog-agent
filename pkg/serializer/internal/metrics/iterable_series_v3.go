@@ -659,17 +659,31 @@ func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata, nu
 	return pb.finishTxn(numPoints)
 }
 
-func histogramPointFlags(haveMin, haveMax, haveSum bool) (f uint64) {
+type histogramPointFlags uint64
+
+func (f histogramPointFlags) haveMin(haveMin bool) histogramPointFlags {
 	if haveMin {
 		f |= pointFlagsHaveMin
 	}
+	return f
+}
+
+func (f histogramPointFlags) haveMax(haveMax bool) histogramPointFlags {
 	if haveMax {
 		f |= pointFlagsHaveMax
 	}
+	return f
+}
+
+func (f histogramPointFlags) haveSum(haveSum bool) histogramPointFlags {
 	if haveSum {
 		f |= pointFlagsHaveSum
 	}
-	return
+	return f
+}
+
+func (f histogramPointFlags) value() uint64 {
+	return uint64(f)
 }
 
 // WriteOtelExplicitHistogram implements metrics.DistributionWriter.
@@ -719,7 +733,7 @@ func (pb *payloadsBuilderV3) WriteOtelExplicitHistogram(
 			pb.txn.Uint64(columnSketchBinCnts, c)
 		}
 
-		pb.txn.Uint64(columnPointFlags, histogramPointFlags(haveMin, haveMax, haveSum))
+		pb.txn.Uint64(columnPointFlags, histogramPointFlags(0).haveMin(haveMin).haveMax(haveMax).haveSum(haveSum).value())
 		pb.txn.Uint64(columnValsUint64, cnt)
 
 		switch valueType {
@@ -847,7 +861,7 @@ func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
 		pb.txn.Sint64(columnValueSint64, int64(posOffs))
 		pb.txn.Sint64(columnValueSint64, int64(negOffs))
 
-		pb.txn.Uint64(columnPointFlags, histogramPointFlags(haveMin, haveMax, haveSum))
+		pb.txn.Uint64(columnPointFlags, histogramPointFlags(0).haveMin(haveMin).haveMax(haveMax).haveSum(haveSum).value())
 		pb.txn.Uint64(columnValsUint64, cnt)
 		pb.txn.Uint64(columnValsUint64, zeroCnt)
 
