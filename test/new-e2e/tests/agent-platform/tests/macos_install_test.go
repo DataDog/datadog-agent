@@ -761,6 +761,13 @@ EOF`, macosAPMSentinelService))
 // TestNPMTracesConnection opens a real connection to fakeintake's remote address and asserts
 // it shows up in fakeintake's connection payloads.
 func (m *macosInstallSuite) TestNPMTracesConnection() {
+	// On LOCAL_VM fakeintake runs on the target host itself, so the connection to it is routed
+	// over lo0, which the darwin network tracer never captures (isEligibleInterface in
+	// pkg/network/filter/packet_source_darwin.go).
+	if goos.Getenv("LOCAL_VM") != "" {
+		m.T().Skip("fakeintake is local to the host on LOCAL_VM; loopback connections are not captured")
+	}
+
 	require.NoError(m.T(), m.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
