@@ -35,8 +35,8 @@ func IsSyncForwarderEnabled() bool {
 // minimal translator: OTel histograms are sent as is (V3 histogram types)
 // instead of being converted to DDSketch. Only delta histograms are sent;
 // cumulative histograms are dropped, so the pipeline needs cumulativetodelta.
-// The V2 sketch payload cannot carry these histograms, so the endpoint has to
-// be listed in serializer_experimental_use_v3_api.sketches.endpoints.
+// The V2 sketch payload cannot carry these histograms, so DDOT refuses to start
+// unless every metrics destination receives sketches over V3.
 //
 // Disabled by default (Alpha). Enable via
 //

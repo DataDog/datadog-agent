@@ -8,5 +8,6 @@ features:
     DDOT translates metrics with the minimal translator: only delta histograms and sums are
     sent (cumulative ones are dropped, so keep the ``cumulativetodelta`` processor in the
     pipeline), and metric remapping is not applied. These histograms need the v3 sketches
-    intake: list the endpoint in ``serializer_experimental_use_v3_api.sketches.endpoints``,
-    otherwise they are dropped.
+    intake: every metrics destination must be listed in
+    ``serializer_experimental_use_v3_api.sketches.endpoints`` and use zstd compression,
+    otherwise DDOT refuses to start.

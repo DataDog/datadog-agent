@@ -10,7 +10,6 @@ package metrics
 import (
 	"testing"
 
-	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -55,44 +54,38 @@ func (s *distributionsSource) Current() metrics.Distribution { return s.values[s
 func (s *distributionsSource) Count() uint64                 { return uint64(len(s.values)) }
 func (s *distributionsSource) WaitForValue() bool            { return true }
 
-func TestSketchSeriesMarshalSplitCompressOtelHistograms(t *testing.T) {
-	mockConfig := mock.New(t)
-	mockConfig.SetInTest("serializer_compressor_kind", compression.ZlibKind)
-	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
-
-	ddsketch := Makeseries(0)
-	source := &distributionsSource{index: -1, values: []metrics.Distribution{
+func otelHistogramsSource() *distributionsSource {
+	return &distributionsSource{index: -1, values: []metrics.Distribution{
 		&testExplicitHistogram{
 			DistributionMetadata: metrics.DistributionMetadata{Name: "otel.explicit"},
 			points:               testExplicitPoints{{ts: 10, cnt: 3, bounds: []float64{1}, counts: []uint64{1, 2}}},
 		},
-		ddsketch,
+		Makeseries(0),
 		&testExponentialHistogram{
 			DistributionMetadata: metrics.DistributionMetadata{Name: "otel.exponential"},
 			points:               testExponentialPoints{{ts: 10, cnt: 1, posCnt: []uint64{1}}},
 		},
 	}}
+}
 
-	v2 := PipelineConfig{Filter: AllowAllFilter{}, V3: false}
-	v3 := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
-	pipelines := PipelineSet{v2: {}, v3: {}}
+func TestSketchSeriesMarshalSplitCompressOtelHistograms(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("serializer_compressor_kind", compression.ZlibKind)
+	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
 
-	err := SketchSeriesList{SketchesSource: source}.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logmock.New(t))
-	require.NoError(t, err)
+	t.Run("v3 writes all flavors", func(t *testing.T) {
+		v3 := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
+		pipelines := PipelineSet{v3: {}}
+		err := SketchSeriesList{SketchesSource: otelHistogramsSource()}.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logmock.New(t))
+		require.NoError(t, err)
+		payloads := pipelines[v3].payloads
+		require.Len(t, payloads, 1)
+		require.Equal(t, len(Makeseries(0).Points)+2, payloads[0].GetPointCount())
+	})
 
-	// V2 skips the OTel histograms and keeps the DDSketch series.
-	v2Payloads := pipelines[v2].payloads
-	require.Len(t, v2Payloads, 1)
-	require.Equal(t, len(ddsketch.Points), v2Payloads[0].GetPointCount())
-	decompressed, err := compressor.Decompress(v2Payloads[0].GetContent())
-	require.NoError(t, err)
-	pl := new(gogen.SketchPayload)
-	require.NoError(t, pl.Unmarshal(decompressed))
-	require.Len(t, pl.Sketches, 1)
-	require.Equal(t, ddsketch.Name, pl.Sketches[0].Metric)
-
-	// V3 writes all three series.
-	v3Payloads := pipelines[v3].payloads
-	require.Len(t, v3Payloads, 1)
-	require.Equal(t, len(ddsketch.Points)+2, v3Payloads[0].GetPointCount())
+	t.Run("v2 rejects OTel histograms", func(t *testing.T) {
+		pipelines := testPipelines()
+		err := SketchSeriesList{SketchesSource: otelHistogramsSource()}.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines, logmock.New(t))
+		require.ErrorIs(t, err, errOtelUnsupported)
+	})
 }

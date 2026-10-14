@@ -263,6 +263,23 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 	return pipelines
 }
 
+// SketchesV2Domains returns the configured domains that sketches are sent to over the v2
+// intake, which cannot carry OpenTelemetry histograms. It uses the same routing as SendSketch;
+// the names are the ones matched against serializer_experimental_use_v3_api.sketches.endpoints.
+func (s *Serializer) SketchesV2Domains() []string {
+	var domains []string
+	for conf, ctx := range s.buildPipelines(metricsKindSketches) {
+		if conf.V3 {
+			continue
+		}
+		for _, dest := range ctx.Destinations {
+			domains = append(domains, dest.Resolver.GetConfigName())
+		}
+	}
+	slices.Sort(domains)
+	return slices.Compact(domains)
+}
+
 func (s *Serializer) genUUID() string {
 	uuid, err := uuid.NewV7()
 	if err != nil {

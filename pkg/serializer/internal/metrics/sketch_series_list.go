@@ -32,22 +32,18 @@ var (
 	expvarsItemTooBig          = expvar.Int{}
 	expvarsPayloadFull         = expvar.Int{}
 	expvarsUnexpectedItemDrops = expvar.Int{}
-	expvarsOtelUnsupported     = expvar.Int{}
 	tlmItemTooBig              = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "sketch_too_big",
 		nil, "Number of payloads dropped because they were too big for the stream compressor")
 	tlmPayloadFull = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "payload_full",
 		nil, "How many times we've hit a 'payload is full' in the stream compressor")
 	tlmUnexpectedItemDrops = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "unexpected_item_drops",
 		nil, "Items dropped in the stream compressor")
-	tlmOtelUnsupported = telemetryimpl.GetCompatComponent().NewCounter("sketch_series", "otel_histogram_unsupported",
-		nil, "OpenTelemetry histograms dropped because the payload format does not support them")
 )
 
 func init() {
 	expvars.Set("ItemTooBig", &expvarsItemTooBig)
 	expvars.Set("PayloadFull", &expvarsPayloadFull)
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
-	expvars.Set("OtelHistogramUnsupported", &expvarsOtelUnsupported)
 }
 
 type sketchWriter interface {
@@ -325,12 +321,6 @@ func (pb *payloadsBuilder) writeSketch(dist metrics.Distribution) error {
 		pb.sketchStream = ps
 		return dist.WriteTo(pb)
 	})
-	if errors.Is(err, errOtelUnsupported) {
-		// Skip the series: failing here would drop every other sketch of the flush.
-		expvarsOtelUnsupported.Add(1)
-		tlmOtelUnsupported.Inc()
-		return nil
-	}
 	if err != nil {
 		return err
 	}
