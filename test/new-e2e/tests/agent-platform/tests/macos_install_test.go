@@ -205,13 +205,44 @@ func (m *macosInstallSuite) SetupSuite() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	removePreInstalledAgent(m.T(), macosTestClient)
 
-	install.MacOS(m.T(), macosTestClient, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
+	if localDMG := goos.Getenv(macosLocalDMGEnvVar); localDMG != "" {
+		macosInstallLocalDMG(m.T(), m.Env().RemoteHost, localDMG)
+	} else {
+		install.MacOS(m.T(), macosTestClient, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
+	}
 	if m.T().Failed() {
 		m.FailNow("agent install failed, aborting SetupSuite")
 	}
 
 	// The agent should start at some point
 	m.macosWaitForHealthyAgent(macosTestClient)
+}
+
+// macosLocalDMGEnvVar names a locally built Agent .dmg to install instead of the released Agent
+// (or the CI pipeline build) that install.MacOS fetches. It must be an absolute path: the test
+// binary does not run from the repository root.
+const macosLocalDMGEnvVar = "E2E_MACOS_LOCAL_DMG"
+
+// macosInstallLocalDMG installs localDMG with the repository's install_mac_os.sh, which takes a
+// local image through DD_DMG_PATH. The script is the embedded copy rather than the published one
+// so that the install logic under test matches the branch the .dmg was built from.
+func macosInstallLocalDMG(t *testing.T, host *components.RemoteHost, localDMG string) {
+	const (
+		remoteDMG    = "/tmp/e2e-local-agent.dmg"
+		remoteScript = "/tmp/e2e-install-mac-os.sh"
+	)
+
+	t.Run("Installing the agent from a local .dmg", func(tt *testing.T) {
+		require.True(tt, filepath.IsAbs(localDMG), "%s must be an absolute path, got %q", macosLocalDMGEnvVar, localDMG)
+		_, err := goos.Stat(localDMG)
+		require.NoError(tt, err, "%s does not name a readable .dmg", macosLocalDMGEnvVar)
+
+		host.CopyFile(localDMG, remoteDMG)
+		host.CopyFileFromFS(agentmacos.Scripts, agentmacos.InstallScriptPath, remoteScript)
+
+		_, err = host.Execute(fmt.Sprintf("DD_API_KEY=aaaaaaaaaa DD_DMG_PATH=%s bash %s", remoteDMG, remoteScript))
+		require.NoError(tt, err, "failed to install the local .dmg %s", localDMG)
+	})
 }
 
 // removePreInstalledAgent mirrors cmd/agent/macos/uninstall_mac_os.sh's cleanup; best-effort,
