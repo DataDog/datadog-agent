@@ -296,48 +296,8 @@ entries:
   function: TestApiSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/configrefresh_api_key_refresh_test.go
-  function: TestLinuxAPIKeyFreshSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/configrefresh_nix_test.go
-  function: TestConfigRefreshLinuxSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/configrefresh_win_test.go
-  function: TestConfigRefreshWindowsSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/configrefresh_win_test.go
-  function: configRefreshWindowsSuite.TestConfigRefresh
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-configuration/gui_nix_test.go
   function: TestGUILinuxSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/gui_win_test.go
-  function: TestGUIWindowsSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/inventory_test.go
-  function: TestInventoryAgentSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/secret_nix_test.go
-  function: TestSecretLinuxRuntimeSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/secret_win_test.go
-  function: TestSecretWindowsRuntimeSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/secret_win_test.go
-  function: secretWindowsRuntimeSuite.testSecretRuntimeHostname
-  status: untriaged
-  reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/agent-configuration/sgc-embedded/sgc_multi_backend_nix_test.go
-  function: TestSGCMultiBackendLinuxSuite
   status: untriaged
   reason: 'TODO(@DataDog/fleet-automation): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-configuration/sgc_aws_nix_test.go
@@ -572,26 +532,10 @@ entries:
   function: TestPackageAgentFapolicyd
   status: debt
   reason: Ansible mode yum-installs python3.14 and pip-installs ansible on RHEL9; also runs the public install script.
-- file: test/new-e2e/tests/ndm/snmp/autodiscovery_test.go
-  function: autoDiscoverySuiteProvisioner
-  status: untriaged
-  reason: 'TODO(@DataDog/network-device-monitoring-core): no Internet dependency found in code; confirm or remove the opt-in'
-- file: test/new-e2e/tests/ndm/snmp/snmp_vm_test.go
-  function: snmpVMProvisioner
-  status: untriaged
-  reason: 'TODO(@DataDog/network-device-monitoring-core): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/netpath/network-path-integration/netpath_int_win_test.go
   function: TestWindowsNetworkPathIntegrationSuite
   status: debt
   reason: Asserts multi-hop traceroutes to public 8.8.8.8 and 1.1.1.1; needs a Windows version of the Linux fake-router setup.
-- file: test/new-e2e/tests/netpath/network-path-integration/remote_config_win_test.go
-  function: TestWindowsRemoteConfigSuite
-  status: debt
-  reason: Traces public api.datadoghq.eu; Remote Config already comes from fakeintake, so target a host in the VPC instead.
-- file: test/new-e2e/tests/privateactionrunner/split_win_test.go
-  function: TestWindowsPARSplitLifecycleSuite
-  status: untriaged
-  reason: 'TODO(@DataDog/action-platform): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/remote-config/tracer_test.go
   function: TestRcTracerSuite
   status: debt
