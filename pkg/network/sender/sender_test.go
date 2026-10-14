@@ -140,7 +140,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		d.maxConnsPerMessage = tc.maxSize
 		d.networkID = "nid"
 		conns := &network.Connections{BufferedData: network.BufferedData{Conns: tc.cur}}
-		payloads := slices.Collect(d.batches(conns, 1))
+		payloads := slices.Collect(d.batches(conns, 1, nil))
 		assert.Equal(t, tc.expectedChunks, len(payloads), "len %d", i)
 		total := 0
 		for i, payload := range payloads {
@@ -188,7 +188,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 			util.AddressFromString("1.1.4.1"): {dns.ToHostname("datacat.edu")},
 		},
 	}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 	assert.Len(t, payloads, 4)
 	for i, payload := range payloads {
 		m, err := model.DecodeMessage(payload)
@@ -217,7 +217,8 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 2
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	sortConnections(conns)
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	assert.Len(t, payloads, 3)
 	for _, payload := range payloads {
@@ -257,7 +258,7 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	assert.Len(t, payloads, 4)
 	for i, payload := range payloads {
@@ -368,7 +369,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 	assert.Len(t, payloads, 2)
 
 	for i, payload := range payloads {
@@ -436,7 +437,7 @@ func TestNetworkConnectionTags(t *testing.T) {
 	d := mockDirectSender(t, nil)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	assert.Len(t, payloads, 2)
 	for _, p := range payloads {
@@ -493,7 +494,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 
 	assert.Len(t, payloads, 1)
 	m, err := model.DecodeMessage(payloads[0])
@@ -521,7 +522,7 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	d.maxConnsPerMessage = 2
 	d.tagger = fakeTagger
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 	assert.Len(t, payloads, 2)
 
 	// Verify first chunk (connections 0 and 1)
@@ -574,7 +575,7 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 			containerID: resolvConfData,
 		},
 	}
-	payloads := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1, nil))
 	require.Len(t, payloads, 1)
 
 	m, err := model.DecodeMessage(payloads[0])
@@ -692,4 +693,63 @@ func TestCollectLoopIgnoresPendingTickAfterCancel(t *testing.T) {
 	}
 
 	require.Zero(t, source.calls.Load(), "collectLoop collected after the context was cancelled")
+}
+
+func TestNetworkPathMetadataSurvivesChunking(t *testing.T) {
+	const count = 5
+
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 2
+	d.networkID = "nid"
+
+	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(count)}}
+	slices.Reverse(conns.Conns)
+
+	type want struct {
+		eligible bool
+		key      string
+	}
+	networkPaths := make([]model.NetworkPath, count)
+	wanted := make(map[string]want, count)
+	for i, conn := range conns.Conns {
+		w := want{eligible: i%2 == 0}
+		if w.eligible {
+			w.key = fmt.Sprintf("key-%s", conn.Dest)
+		}
+		networkPaths[i] = model.NetworkPath{TestEligible: w.eligible, CorrelationKey: w.key}
+		wanted[conn.Dest.String()] = w
+	}
+
+	seen := 0
+	for _, body := range slices.Collect(d.batches(conns, 1, networkPaths)) {
+		m, err := model.DecodeMessage(body)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+		for _, conn := range c.Connections {
+			require.NotNilf(t, conn.NetworkPath, "connection to %s lost its metadata", conn.Raddr.Ip)
+			w := wanted[conn.Raddr.Ip]
+			assert.Equalf(t, w.eligible, conn.NetworkPath.TestEligible, "connection to %s", conn.Raddr.Ip)
+			assert.Equalf(t, w.key, conn.NetworkPath.CorrelationKey,
+				"connection to %s carries another flow's key", conn.Raddr.Ip)
+			seen++
+		}
+	}
+	assert.Equal(t, count, seen)
+}
+
+func TestNetworkPathAbsentWhenNotScheduled(t *testing.T) {
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 10
+	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(2)}}
+
+	for _, body := range slices.Collect(d.batches(conns, 1, nil)) {
+		m, err := model.DecodeMessage(body)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+		for _, conn := range c.Connections {
+			assert.Nil(t, conn.NetworkPath)
+		}
+	}
 }

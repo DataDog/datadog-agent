@@ -296,32 +296,32 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorImpl) ScheduleNetworkPathTests(sourceHostname string, conns iter.Seq[npmodel.NetworkPathConnection]) []model.NetworkPath {
 	if !s.collectorConfigs.connectionsMonitoringEnabled && !s.collectorConfigs.basicModeEnabled() {
-		return
+		return nil
 	}
 
 	// Standard Dynamic Tests take complete precedence when both modes are
 	// configured; basic is a fallback and must not schedule duplicate paths.
 	basicMode := !s.collectorConfigs.connectionsMonitoringEnabled
-	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, basicMode)
+	return s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, sourceHostname, conns, basicMode)
 }
 
 func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
 	if !s.collectorConfigs.netflowMonitoringEnabled {
 		return
 	}
-	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, false)
+	s.scheduleNetworkPathTests(payload.PathOriginNetflow, "", conns, false)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], basicMode bool) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, sourceHostname string, conns iter.Seq[npmodel.NetworkPathConnection], basicMode bool) []model.NetworkPath {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
 		vpcSubnets, err = s.getVPCSubnets()
 		if err != nil {
 			s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
-			return
+			return nil
 		}
 	}
 
@@ -334,13 +334,19 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		s.flushBasicPaths(startTime)
 	}
 	connCount := 0
+	var networkPaths []model.NetworkPath
 	for conn := range conns {
 		connCount++
+		networkPaths = append(networkPaths, model.NetworkPath{})
+		decision := &networkPaths[len(networkPaths)-1]
+
 		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
 		if !evaluation.shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
+		decision.TestEligible = true
+
 		pathtest := s.makePathtest(conn, origin)
 		pathtest.TestConfigID = evaluation.testConfigID
 		pathtest.TestConfigName = evaluation.testConfigName
@@ -348,6 +354,10 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		if evaluation.testConfigID != "" {
 			pathtest.TestConfigSource = payload.TestConfigSourceRemote
 		}
+		pathtest.CorrelationKey = pathtest.MakeCorrelationKey(sourceHostname)
+
+		decision.CorrelationKey = pathtest.CorrelationKey
+
 		// Filtering and basic ranking are separate steps: filtering determines
 		// eligibility and provenance, while basic ranking independently chooses
 		// among admitted paths and never changes the filter outcome.
@@ -355,6 +365,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 			s.basicSelector.add(pathtest, saturatingAdd(conn.SentBytes, conn.RecvBytes), startTime)
 			continue
 		}
+
 		if origin == payload.PathOriginNetworkTraffic {
 			pathtest.DynamicTestProfile = payload.DynamicTestProfileStandard
 		}
@@ -365,6 +376,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
+	return networkPaths
 }
 
 func (s *npCollectorImpl) flushBasicPaths(now time.Time) {
@@ -503,6 +515,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		path.SourceProduct = payload.SourceProductNetflow
 	}
 	path.CollectorType = payload.CollectorTypeAgent
+	path.CorrelationKey = ptest.Pathtest.CorrelationKey
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)
