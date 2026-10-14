@@ -5,7 +5,6 @@ go_library(
     name = "service",
     srcs = [
         "clients.go",
-        "org_status.go",
         "service.go",
         "subscriptions.go",
         "tracer_predicates.go",
@@ -39,7 +38,6 @@ dd_agent_go_test(
     name = "service_test",
     srcs = [
         "clients_test.go",
-        "org_status_test.go",
         "service_test.go",
         "subscriptions_test.go",
         "tracer_predicates_test.go",
@@ -48,7 +46,6 @@ dd_agent_go_test(
     embed = [":service"],
     deps = [
         "//pkg/config/mock",
-        "//pkg/config/model",
         "//pkg/config/remote/api",
         "//pkg/config/remote/data",
         "//pkg/config/remote/uptane",

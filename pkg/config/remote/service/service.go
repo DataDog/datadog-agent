@@ -240,7 +240,6 @@ type RcTelemetryReporter interface {
 
 // orgStatusPoller handles periodic polling of the organization status from the remote config backend
 type orgStatusPoller struct {
-	clock           clock.Clock
 	refreshInterval time.Duration
 	stopChan        chan struct{}
 
@@ -250,21 +249,14 @@ type orgStatusPoller struct {
 		fetchOrgStatus503And504ErrCount uint64
 		// Previous /status response
 		previousOrgStatus *pbgo.OrgStatusResponse
-		status            OrgStatus
-		endpoint          string
-		apiKeyOnly        bool
-		configChanged     bool
-		stopped           bool
 	}
 }
 
-func newOrgStatusPoller(refreshInterval time.Duration, clk clock.Clock) *orgStatusPoller {
+func newOrgStatusPoller(refreshInterval time.Duration) *orgStatusPoller {
 	p := &orgStatusPoller{
-		clock:           clk,
 		refreshInterval: refreshInterval,
 		stopChan:        make(chan struct{}),
 	}
-	p.mu.status = OrgStatus{State: OrgStatusUnchecked, Generation: 1}
 	return p
 }
 
@@ -288,10 +280,6 @@ func (p *orgStatusPoller) start(clock clock.Clock, apiClient api.API, rcType str
 
 // stop stops the org status poller
 func (p *orgStatusPoller) stop() {
-	p.mu.Lock()
-	p.mu.stopped = true
-	p.invalidateStatusLocked()
-	p.mu.Unlock()
 	close(p.stopChan)
 }
 
@@ -304,31 +292,11 @@ func (p *orgStatusPoller) getPreviousStatus() *pbgo.OrgStatusResponse {
 
 // poll fetches and processes the current organization status
 func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
-	p.mu.Lock()
-	started := p.clock.Now().UTC()
-	if p.mu.status.State == OrgStatusObserved && (!started.Before(p.mu.status.ValidUntil) || started.Before(p.mu.status.ObservedAt)) {
-		p.invalidateStatusLocked()
-	}
-	generation := p.mu.status.Generation
-	p.mu.Unlock()
 	response, err := apiClient.FetchOrgStatus(context.Background())
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.mu.stopped || generation != p.mu.status.Generation {
-		return
-	}
-	if err == nil && response == nil {
-		err = errors.New("empty RC org status response")
-	}
-	wasReady := p.mu.status.Ready(started)
-	p.mu.status.LastAttemptAt = started
 	if err != nil {
-		if wasReady {
-			p.mu.status.Generation++
-		}
-		p.mu.status.State = OrgStatusFetchFailed
-
 		// Unauthorized and proxy error are caught by the main loop requesting the latest config
 		if errors.Is(err, api.ErrUnauthorized) || errors.Is(err, api.ErrProxy) {
 			return
@@ -346,14 +314,6 @@ func (p *orgStatusPoller) poll(apiClient api.API, rcType string) {
 		return
 	}
 	p.mu.fetchOrgStatus503And504ErrCount = 0
-	if wasReady && (!response.Enabled || !response.Authorized || !p.mu.status.Ready(p.clock.Now())) {
-		p.mu.status.Generation++
-	}
-	p.mu.status.State = OrgStatusObserved
-	p.mu.status.Enabled, p.mu.status.Authorized = response.Enabled, response.Authorized
-	p.mu.status.ObservedAt = started
-	// Bound stale grants even when the configured polling interval is very long.
-	p.mu.status.ValidUntil = started.Add(2 * min(p.refreshInterval, maxOrgStatusAge/2))
 
 	// Print info log when the new status is different from the previous one, or if it's the first run
 	prev := p.mu.previousOrgStatus
@@ -697,7 +657,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 		subscriptionProductMappings:         options.subscriptionProductMappings,
 		maxConcurrentSubscriptions:          options.maxConcurrentSubscriptions,
 		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
-		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval, clock),
+		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
 	}
 	cas.mu.subscriptions = newSubscriptions(
 		options.subscriptionProductMappings,
@@ -711,8 +671,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	cas.mu.newProducts = make(map[rdata.Product]struct{})
 	cas.mu.uptane = uptaneClient
 
-	cas.orgStatusPoller.configureStatus(authKeys.apiAuth(), baseURL.String())
-	cfg.OnUpdate(cas.apiKeyUpdateCallback(cfg))
+	cfg.OnUpdate(cas.apiKeyUpdateCallback())
 
 	return cas, nil
 }
@@ -722,6 +681,19 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 		// XXX: We may want to tune the context timeout here
 		resp, err := http.FetchOrgData(context.Background())
 		return resp.GetUuid(), err
+	}
+}
+
+// GetOrgStatus returns a copy of the last successfully fetched org/key status,
+// or nil if none has been fetched. Failed polls retain the last status.
+func (s *CoreAgentService) GetOrgStatus() *pbgo.OrgStatusResponse {
+	status := s.orgStatusPoller.getPreviousStatus()
+	if status == nil {
+		return nil
+	}
+	return &pbgo.OrgStatusResponse{
+		Enabled:    status.Enabled,
+		Authorized: status.Authorized,
 	}
 }
 
@@ -743,12 +715,7 @@ func (s *CoreAgentService) Start() {
 // UpdatePARJWT updates the stored JWT for Private Action Runners
 // for authentication to the remote config backend.
 func (s *CoreAgentService) UpdatePARJWT(jwt string) {
-	s.orgStatusPoller.mu.Lock()
-	defer s.orgStatusPoller.mu.Unlock()
 	s.api.UpdatePARJWT(jwt)
-	s.orgStatusPoller.invalidateStatusLocked()
-	s.orgStatusPoller.mu.apiKeyOnly = false
-	s.orgStatusPoller.mu.status.binding = [32]byte{}
 }
 
 func startWithAgentPollLoop(s *CoreAgentService, refreshBypassRequests <-chan chan<- struct{}) {
@@ -1220,12 +1187,8 @@ func makeFileMetaMap(targetFileMetas []*pbgo.TargetFileMeta) (map[string]data.Fi
 	return cachedTargetsMap, nil
 }
 
-func (s *CoreAgentService) apiKeyUpdateCallback(cfg model.Reader) model.NotificationReceiver {
+func (s *CoreAgentService) apiKeyUpdateCallback() model.NotificationReceiver {
 	return func(setting string, _ model.Source, _, newvalue any, _ uint64, _ model.Source) {
-		if setting == "site" || setting == "remote_configuration.rc_dd_url" || setting == "remote_configuration.api_key" || setting == "remote_configuration.key" || setting == "remote_configuration.enabled" {
-			s.orgStatusPoller.configurationChanged()
-			return
-		}
 		if setting != "api_key" {
 			return
 		}
@@ -1239,10 +1202,7 @@ func (s *CoreAgentService) apiKeyUpdateCallback(cfg model.Reader) model.Notifica
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		if cfg.IsConfigured("remote_configuration.api_key") {
-			s.orgStatusPoller.configurationChanged()
-		}
-		s.orgStatusPoller.updateAPIKey(s.api, newKey)
+		s.api.UpdateAPIKey(newKey)
 
 		// Verify that the Org UUID hasn't changed
 		storedOrgUUID, err := s.mu.uptane.StoredOrgUUID()
