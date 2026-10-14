@@ -21,16 +21,18 @@ const (
 )
 
 const (
-	// AgentTmpDir is the agent's dedicated temporary directory. Every runtime path
-	// system-probe writes to lives underneath it so that a single validation of this
-	// one directory covers them all: it is verified to be a real, root-owned
-	// directory with no non-root write access (and repaired if it is not) before any
-	// of its contents are read, written or deleted.
+	// AgentTmpDir is the Agent's dedicated temporary directory. System-probe's
+	// kernel-header and BTF caches live underneath it. Before cache access,
+	// SecureCacheDir verifies that the path consists of real, root-owned
+	// directories and that each directory holding files has no non-root write
+	// access, repairing unsafe real directories within the dedicated subtree when
+	// possible. Cache users must validate their directories before their contents
+	// are read, written or deleted; validating this ancestor alone is insufficient.
 	//
-	// It is deliberately a constant. The path must stay inside the agent's own
-	// subtree for that validation to be applicable, so it is not derived from
-	// configuration. Keep the "datadog-agent" component in sync with
-	// dedicatedDirName in pkg/ebpf/bytecode/runtime/asset.go.
+	// It is deliberately a constant. The path must stay inside the Agent's own
+	// subtree for that validation and repair policy to be applicable, so it is not
+	// derived from configuration. Keep the "datadog-agent" component in sync with
+	// dedicatedDirName in pkg/ebpf/cache.go.
 	AgentTmpDir = "/var/tmp/datadog-agent"
 
 	// KernelHeaderDownloadDir is where system-probe downloads kernel headers for
@@ -42,6 +44,9 @@ const (
 	// primitive. Pinning it under AgentTmpDir is what guarantees the path is
 	// covered by that directory's validation.
 	KernelHeaderDownloadDir = AgentTmpDir + "/system-probe/kernel-headers"
+
+	// BTFCacheDir is the pinned cache root for embedded and downloaded BTF files.
+	BTFCacheDir = AgentTmpDir + "/system-probe/btf"
 )
 
 // Config stores all common flags used by system-probe
@@ -88,10 +93,10 @@ type Config struct {
 	// This directory and every parent up to the filesystem root must be a root-owned directory that is
 	// not writable by other users (a sticky, world-writable parent such as the default /var/tmp is
 	// allowed). If that is not the case system-probe refuses to use the directory and skips runtime
-	// compilation instead of loading objects from an untrusted location; see secureRuntimeDir.
+	// compilation instead of loading objects from an untrusted location; see SecureCacheDir.
 	RuntimeCompilerOutputDir string
 
-	// BTFOutputDir is the directory where extracted BTF files are stored
+	// BTFOutputDir is always BTFCacheDir; the deprecated btf_output_dir setting is ignored.
 	BTFOutputDir string
 
 	// AptConfigDir is the path to the apt config directory
@@ -129,6 +134,7 @@ type Config struct {
 // headerDownloadDirDeprecationOnce keeps the kernel_header_download_dir
 // deprecation warning to a single line per process.
 var headerDownloadDirDeprecationOnce sync.Once
+var btfOutputDirDeprecationOnce sync.Once
 
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
@@ -146,6 +152,12 @@ func NewConfig() *Config {
 		})
 	}
 
+	if key := sysconfig.FullKeyPath(spNS, "btf_output_dir"); cfg.IsConfigured(key) && cfg.GetString(key) != BTFCacheDir {
+		btfOutputDirDeprecationOnce.Do(func() {
+			log.Warnf("%s is deprecated and ignored: BTF files are always cached in %s", key, BTFCacheDir)
+		})
+	}
+
 	c := &Config{
 		BPFDebug:                 cfg.GetBool(sysconfig.FullKeyPath(spNS, "bpf_debug")),
 		BPFDir:                   cfg.GetString(sysconfig.FullKeyPath(spNS, "bpf_dir")),
@@ -156,7 +168,7 @@ func NewConfig() *Config {
 
 		EnableCORE:                  cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_co_re")),
 		BTFPath:                     cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_path")),
-		BTFOutputDir:                cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_output_dir")),
+		BTFOutputDir:                BTFCacheDir,
 		RemoteConfigBTFEnabled:      cfg.GetBool(sysconfig.FullKeyPath(spNS, "remote_config_btf_enabled")),
 		RemoteConfigBTFTimeout:      30 * time.Second,
 		RemoteConfigBTFDownloadHost: "https://install.datadoghq.com",

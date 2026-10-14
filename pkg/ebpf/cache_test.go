@@ -5,7 +5,7 @@
 
 //go:build linux && bpf
 
-package runtime
+package ebpf
 
 import (
 	"os"
@@ -17,22 +17,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// secureRuntimeDir must reject a cache directory that is not owned by root,
+// SecureCacheDir must reject a cache directory that is not owned by root,
 // since only root should be able to write or read the compiled objects stored
 // there.
-func TestSecureRuntimeDirRejectsNonRootOwned(t *testing.T) {
+func TestSecureCacheDirRejectsNonRootOwned(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("test must run as non-root: a root-created dir would legitimately pass")
 	}
 
 	dir := filepath.Join(t.TempDir(), "build")
-	err := secureDir(compilerOutputDirPurpose, dir)
+	err := SecureCacheDir("test cache directory", dir)
 	require.Error(t, err, "a non-root-owned cache directory must be rejected")
 }
 
-// secureRuntimeDir must reject a directory whose path traverses a symlinked
+// SecureCacheDir must reject a directory whose path traverses a symlinked
 // component.
-func TestSecureRuntimeDirRejectsSymlinkComponent(t *testing.T) {
+func TestSecureCacheDirRejectsSymlinkComponent(t *testing.T) {
 	base := t.TempDir()
 
 	realDir := filepath.Join(base, "real")
@@ -41,16 +41,16 @@ func TestSecureRuntimeDirRejectsSymlinkComponent(t *testing.T) {
 	link := filepath.Join(base, "link")
 	require.NoError(t, os.Symlink(realDir, link))
 
-	err := secureDir(compilerOutputDirPurpose, filepath.Join(link, "build"))
+	err := SecureCacheDir("test cache directory", filepath.Join(link, "build"))
 	require.Error(t, err, "a cache directory reached through a symlink must be rejected")
 }
 
-// secureRuntimeDir must repair a non-root-owned component that sits below a
+// SecureCacheDir must repair a non-root-owned component that sits below a
 // root-owned sticky directory (as with a pre-existing datadog-agent directory
 // under /var/tmp) by moving it aside and recreating the path as root, instead of
 // refusing for the lifetime of the process. This requires root to create the
 // non-root-owned component, so it runs only as root (as eBPF CI suites do).
-func TestSecureRuntimeDirReclaimsNonRootComponent(t *testing.T) {
+func TestSecureCacheDirReclaimsNonRootComponent(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root to create a non-root-owned directory")
 	}
@@ -66,7 +66,7 @@ func TestSecureRuntimeDirReclaimsNonRootComponent(t *testing.T) {
 	require.NoError(t, syscall.Chown(preexisting, 1, 1))
 
 	build := filepath.Join(preexisting, "system-probe", "build")
-	require.NoError(t, secureDir(compilerOutputDirPurpose, build), "secureRuntimeDir should repair the non-root component and succeed")
+	require.NoError(t, SecureCacheDir("test cache directory", build), "SecureCacheDir should repair the non-root component and succeed")
 
 	// The repaired component must now be a root-owned directory.
 	info, err := os.Lstat(preexisting)
@@ -123,13 +123,13 @@ func hasReclaimedLeftover(t *testing.T, root string) bool {
 }
 
 // B1: an absent directory is created root-owned and 0700.
-func TestSecureRuntimeDirCreatesRootOwnedWhenAbsent(t *testing.T) {
+func TestSecureCacheDirCreatesRootOwnedWhenAbsent(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root")
 	}
 	_, build := stickyParent(t)
 
-	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
+	require.NoError(t, SecureCacheDir("test cache directory", build))
 	require.Equal(t, uint32(0), dirUID(t, build), "created dir must be root-owned")
 	info, err := os.Lstat(build)
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestSecureRuntimeDirCreatesRootOwnedWhenAbsent(t *testing.T) {
 
 // B2: a normal upgrade over a pre-existing root-owned tree is accepted without
 // any reclaim (the inode is preserved).
-func TestSecureRuntimeDirAcceptsPreexistingRootDir(t *testing.T) {
+func TestSecureCacheDirAcceptsPreexistingRootDir(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root")
 	}
@@ -148,7 +148,7 @@ func TestSecureRuntimeDirAcceptsPreexistingRootDir(t *testing.T) {
 	require.NoError(t, os.Chmod(da, 0755))
 	before := dirIno(t, da)
 
-	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
+	require.NoError(t, SecureCacheDir("test cache directory", build))
 	// A valid root-owned dir must be left untouched: same inode and same mode
 	// (a reclaim would recreate it 0700).
 	require.Equal(t, before, dirIno(t, da))
@@ -160,7 +160,7 @@ func TestSecureRuntimeDirAcceptsPreexistingRootDir(t *testing.T) {
 
 // B4: a non-root-owned deep component (not the top datadog-agent one) is
 // repaired too.
-func TestSecureRuntimeDirRepairsDeepNonRootComponent(t *testing.T) {
+func TestSecureCacheDirRepairsDeepNonRootComponent(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root to create a non-root-owned directory")
 	}
@@ -169,14 +169,14 @@ func TestSecureRuntimeDirRepairsDeepNonRootComponent(t *testing.T) {
 	require.NoError(t, os.MkdirAll(sp, 0755))
 	require.NoError(t, syscall.Chown(sp, 1, 1))
 
-	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
+	require.NoError(t, SecureCacheDir("test cache directory", build))
 	require.Equal(t, uint32(0), dirUID(t, sp), "deep non-root component must be repaired to root")
 	require.False(t, hasReclaimedLeftover(t, sticky))
 }
 
 // B5: a group/other-writable, non-sticky directory below the sticky boundary is
 // repaired (it violates the policy even though it is root-owned).
-func TestSecureRuntimeDirRepairsWritableNonStickyDir(t *testing.T) {
+func TestSecureCacheDirRepairsWritableNonStickyDir(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root")
 	}
@@ -185,7 +185,7 @@ func TestSecureRuntimeDirRepairsWritableNonStickyDir(t *testing.T) {
 	require.NoError(t, os.Mkdir(da, 0700))
 	require.NoError(t, os.Chmod(da, 0777)) // explicit chmod bypasses umask: root-owned, world-writable, no sticky
 
-	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
+	require.NoError(t, SecureCacheDir("test cache directory", build))
 	require.Equal(t, uint32(0), dirUID(t, da))
 	// A reclaim recreates the component 0700; if it were wrongly accepted as-is
 	// it would still be 0777. (Inode numbers are unreliable here: ext4 recycles
@@ -197,7 +197,7 @@ func TestSecureRuntimeDirRepairsWritableNonStickyDir(t *testing.T) {
 
 // B9: running twice is idempotent - the second run finds a valid tree, repairs
 // nothing, and leaves no moved-aside directories behind.
-func TestSecureRuntimeDirIdempotent(t *testing.T) {
+func TestSecureCacheDirIdempotent(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root to create a non-root-owned directory")
 	}
@@ -206,16 +206,16 @@ func TestSecureRuntimeDirIdempotent(t *testing.T) {
 	require.NoError(t, os.Mkdir(da, 0777))
 	require.NoError(t, syscall.Chown(da, 1, 1))
 
-	require.NoError(t, secureDir(compilerOutputDirPurpose, build)) // repairs
+	require.NoError(t, SecureCacheDir("test cache directory", build)) // repairs
 	inoAfterFirst := dirIno(t, da)
-	require.NoError(t, secureDir(compilerOutputDirPurpose, build)) // no-op
+	require.NoError(t, SecureCacheDir("test cache directory", build)) // no-op
 	require.Equal(t, inoAfterFirst, dirIno(t, da), "second run must not reclaim again")
 	require.False(t, hasReclaimedLeftover(t, sticky), "no moved-aside dirs may remain")
 }
 
 // B8: a non-root component with NO sticky ancestor is refused, never repaired.
 // Uses /root as a non-sticky root-only base (t.TempDir lives under sticky /tmp).
-func TestSecureRuntimeDirRefusesNonRootWithoutStickyAncestor(t *testing.T) {
+func TestSecureCacheDirRefusesNonRootWithoutStickyAncestor(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root to create the non-root component")
 	}
@@ -227,7 +227,7 @@ func TestSecureRuntimeDirRefusesNonRootWithoutStickyAncestor(t *testing.T) {
 	require.NoError(t, os.Mkdir(parent, 0755))
 	require.NoError(t, syscall.Chown(parent, 1, 1))
 
-	err = secureDir(compilerOutputDirPurpose, filepath.Join(parent, "build"))
+	err = SecureCacheDir("test cache directory", filepath.Join(parent, "build"))
 	require.Error(t, err, "a non-root component with no sticky ancestor must be refused, not repaired")
 	require.Equal(t, uint32(1), dirUID(t, parent), "the component must be left untouched, not reclaimed")
 }
@@ -237,7 +237,7 @@ func TestSecureRuntimeDirRefusesNonRootWithoutStickyAncestor(t *testing.T) {
 // it would rename the shared parent aside and recursively delete it along with
 // unrelated contents, so this guards that data-loss regression for a custom
 // output_dir nested under a shared directory (e.g. /var/tmp/shared/datadog/build).
-func TestSecureRuntimeDirRefusesSharedNonDedicatedAncestor(t *testing.T) {
+func TestSecureCacheDirRefusesSharedNonDedicatedAncestor(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root to create the non-root component")
 	}
@@ -255,7 +255,7 @@ func TestSecureRuntimeDirRefusesSharedNonDedicatedAncestor(t *testing.T) {
 	bystander := filepath.Join(shared, "unrelated.txt")
 	require.NoError(t, os.WriteFile(bystander, []byte("keep me"), 0644))
 
-	err := secureDir(compilerOutputDirPurpose, filepath.Join(shared, "datadog", "build"))
+	err := SecureCacheDir("test cache directory", filepath.Join(shared, "datadog", "build"))
 	require.Error(t, err, "a non-dedicated shared ancestor must be refused, not reclaimed")
 	require.FileExists(t, bystander, "unrelated contents must be preserved")
 	require.Equal(t, uint32(1), dirUID(t, shared), "the shared dir must be left untouched, not reclaimed")
@@ -266,7 +266,7 @@ func TestSecureRuntimeDirRefusesSharedNonDedicatedAncestor(t *testing.T) {
 // repaired to 0700, even when it carries the sticky bit (which is tolerated on
 // ancestors but not on the leaf, where object files are written under predictable
 // names).
-func TestSecureRuntimeDirRepairsWritableStickyLeaf(t *testing.T) {
+func TestSecureCacheDirRepairsWritableStickyLeaf(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root")
 	}
@@ -275,7 +275,7 @@ func TestSecureRuntimeDirRepairsWritableStickyLeaf(t *testing.T) {
 	// Pre-existing leaf that is root-owned but sticky + world-writable.
 	require.NoError(t, os.Chmod(build, 0777|os.ModeSticky))
 
-	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
+	require.NoError(t, SecureCacheDir("test cache directory", build))
 	require.Equal(t, uint32(0), dirUID(t, build), "leaf must be root-owned")
 	info, err := os.Lstat(build)
 	require.NoError(t, err)
@@ -287,7 +287,7 @@ func TestSecureRuntimeDirRepairsWritableStickyLeaf(t *testing.T) {
 // dedicated subtree must be refused (not reclaimed): tightening or deleting a
 // shared/system directory the agent does not own would be destructive, so it
 // fails closed instead.
-func TestSecureRuntimeDirRefusesWritableLeafOutsideSubtree(t *testing.T) {
+func TestSecureCacheDirRefusesWritableLeafOutsideSubtree(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("test must run as root")
 	}
@@ -299,7 +299,7 @@ func TestSecureRuntimeDirRefusesWritableLeafOutsideSubtree(t *testing.T) {
 	require.NoError(t, os.Mkdir(leaf, 0700))
 	require.NoError(t, os.Chmod(leaf, 0777|os.ModeSticky)) // root-owned, sticky, world-writable
 
-	err := secureDir(compilerOutputDirPurpose, leaf)
+	err := SecureCacheDir("test cache directory", leaf)
 	require.Error(t, err, "a writable leaf outside the dedicated subtree must be refused")
 	info, lerr := os.Lstat(leaf)
 	require.NoError(t, lerr)
@@ -309,7 +309,7 @@ func TestSecureRuntimeDirRefusesWritableLeafOutsideSubtree(t *testing.T) {
 }
 
 // verifyDirComponent is the pure policy behind the ancestor walk in
-// secureRuntimeDir. Exercising it directly covers the accept/reject logic
+// SecureCacheDir. Exercising it directly covers the accept/reject logic
 // regardless of the euid the suite runs under (the filesystem-level test above
 // skips when run as root, which is common for eBPF suites).
 func TestVerifyDirComponent(t *testing.T) {
@@ -341,7 +341,7 @@ func TestVerifyDirComponent(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := verifyDirComponent(compilerOutputDirPurpose, "/some/path", tc.mode, tc.uid, tc.isLeaf)
+			err := verifyDirComponent("test cache directory", "/some/path", tc.mode, tc.uid, tc.isLeaf)
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {

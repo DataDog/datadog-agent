@@ -162,6 +162,7 @@ go_library(
     name = "ebpf",
     srcs = [
         "btf.go",
+        "cache.go",
         "co_re.go",
         "co_re_load.go",
         "co_re_load_testutil.go",
@@ -253,8 +254,11 @@ go_library(
 dd_agent_go_test(
     name = "ebpf_test",
     srcs = [
+        "btf_cache_test.go",
         "btf_test.go",
+        "cache_test.go",
         "co_re_telemetry_test.go",
+        "config_test.go",
         "feature_test.go",
         "ksyms_bpf_test.go",
         "ksyms_test.go",
@@ -270,7 +274,11 @@ dd_agent_go_test(
     embed = [":ebpf"],
     gotags_sets = [["bpf"]],
     deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/telemetry/impl/noops",
@@ -282,7 +290,6 @@ dd_agent_go_test(
             "//pkg/remoteconfig/state",
             "//pkg/security/ebpf/kernel",
             "//pkg/util/kernel",
-            "//pkg/util/log",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
             "@com_github_cilium_ebpf//features",
@@ -290,7 +297,6 @@ dd_agent_go_test(
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_datadog_ebpf_manager//tracefs",
             "@com_github_stretchr_testify//mock",
-            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry/impl/noops",
@@ -302,7 +308,6 @@ dd_agent_go_test(
             "//pkg/remoteconfig/state",
             "//pkg/security/ebpf/kernel",
             "//pkg/util/kernel",
-            "//pkg/util/log",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
             "@com_github_cilium_ebpf//features",
@@ -310,7 +315,6 @@ dd_agent_go_test(
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@com_github_datadog_ebpf_manager//tracefs",
             "@com_github_stretchr_testify//mock",
-            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),
