@@ -8,8 +8,11 @@
 package auditorimpl
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"syscall"
 )
 
 func replaceRegistryFile(sourcePath, targetPath string) error {
@@ -25,5 +28,17 @@ func replaceRegistryFile(sourcePath, targetPath string) error {
 		return err
 	}
 	defer directory.Close()
-	return directory.Sync()
+
+	if err := directory.Sync(); err != nil {
+		// AIX does not support fsync on directory descriptors: the fsync and
+		// fsync_range subroutines only accept regular files, so the call fails
+		// with EINVAL (Go's syscall.Fsync uses fsync_range on AIX) or EBADF.
+		// Treat the directory sync as best-effort on AIX — JFS2's metadata
+		// journal keeps the rename atomic across crashes — and surface the
+		// error on every other platform.
+		if runtime.GOOS != "aix" || (!errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.EBADF)) {
+			return err
+		}
+	}
+	return nil
 }
