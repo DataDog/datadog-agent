@@ -203,9 +203,10 @@ func stableChecks() []stableCheck {
 // ddagent:baseline* config keys, e.g.
 // -c ddagent:baselineFullImagePath=<image> -c ddagent:baselineClusterAgentFullImagePath=<image>.
 //
-// The node Agents of the two installations run on different node pools, whose hardware can
-// differ by up to 20% in CPU time for the same work. So the installations swap their images
-// half way through the measurement, which cancels this bias out (see benchmark.Compare).
+// Each of the two installations, of variants a and b, runs on node pools of its own, whose
+// machines can differ by up to 20% in CPU time for the same work. So the installations swap
+// their images half way through the measurement: each version runs on the node pools of both
+// variants, which cancels this bias out (see benchmark.Compare).
 type benchmarkEKSSuite struct {
 	baseSuite[environments.BenchmarkEKS]
 
@@ -220,29 +221,31 @@ type benchmarkEKSSuite struct {
 
 func TestBenchmarkEKSSuite(t *testing.T) {
 	e2e.Run(t, &benchmarkEKSSuite{}, e2e.WithProvisioner(provbenchmarkeks.Provisioner(
-		provbenchmarkeks.WithRunOptions(scenbenchmarkeks.WithBaseline(scenbenchmarkeks.VariantParams{
+		provbenchmarkeks.WithRunOptions(scenbenchmarkeks.WithVariantA(scenbenchmarkeks.Images{
 			AgentFullImagePath:        os.Getenv(benchmarkBaselineAgentImageEnvVar),
 			ClusterAgentFullImagePath: os.Getenv(benchmarkBaselineClusterAgentImageEnvVar),
 		})),
 	)))
 }
 
-// benchmarkVariant is one of the two Agent installations of the benchmark.
+// benchmarkVariant is one of the two Agent installations of the benchmark. Until the swap,
+// the installation of variant a runs the baseline images, and that of variant b the
+// comparison images.
 type benchmarkVariant struct {
 	name  string
 	agent *components.KubernetesAgent
 }
 
-func (s *benchmarkEKSSuite) baseline() benchmarkVariant {
-	return benchmarkVariant{name: scenbenchmarkeks.Baseline, agent: s.Env().BaselineAgent}
+func (s *benchmarkEKSSuite) variantA() benchmarkVariant {
+	return benchmarkVariant{name: scenbenchmarkeks.VariantA, agent: s.Env().AgentA}
 }
 
-func (s *benchmarkEKSSuite) comparison() benchmarkVariant {
-	return benchmarkVariant{name: scenbenchmarkeks.Comparison, agent: s.Env().ComparisonAgent}
+func (s *benchmarkEKSSuite) variantB() benchmarkVariant {
+	return benchmarkVariant{name: scenbenchmarkeks.VariantB, agent: s.Env().AgentB}
 }
 
 func (s *benchmarkEKSSuite) variants() []benchmarkVariant {
-	return []benchmarkVariant{s.baseline(), s.comparison()}
+	return []benchmarkVariant{s.variantA(), s.variantB()}
 }
 
 // installationStats are the runner stats of the components with checks of an installation,
@@ -305,7 +308,7 @@ func (s *benchmarkEKSSuite) checksRun(variant benchmarkVariant) bool {
 			}
 		}
 		require.NoError(c, errors.Join(errs...))
-	}, benchmarkChecksTimeout, 30*time.Second, "the checks of the %s installation don't run as expected", variant.name)
+	}, benchmarkChecksTimeout, 30*time.Second, "the checks of installation %s don't run as expected", variant.name)
 }
 
 // Test01ChecksMatchBaseline verifies that the checks of the comparison emit about as many
@@ -323,8 +326,8 @@ func (s *benchmarkEKSSuite) Test01ChecksMatchBaseline() {
 		// stableChecks leaves out the checks whose instances come and go with the churning
 		// pods: their number at the time of a snapshot varies between installations.
 		for _, stable := range stableChecks() {
-			baselineSamples := totalMetricSamples(stats[scenbenchmarkeks.Baseline][stable.component], stable.check)
-			comparisonSamples := totalMetricSamples(stats[scenbenchmarkeks.Comparison][stable.component], stable.check)
+			baselineSamples := totalMetricSamples(stats[scenbenchmarkeks.VariantA][stable.component], stable.check)
+			comparisonSamples := totalMetricSamples(stats[scenbenchmarkeks.VariantB][stable.component], stable.check)
 			summary = append(summary, fmt.Sprintf("%s check %s: baseline %d, comparison %d", stable.component, stable.check, baselineSamples, comparisonSamples))
 			if err := benchmark.CompareMetricSamples(baselineSamples, comparisonSamples, checkSamplesTolerance); err != nil {
 				errs = append(errs, fmt.Errorf("%s check %s: %w", stable.component, stable.check, err))
@@ -356,7 +359,7 @@ func (s *benchmarkEKSSuite) Test02DataInDDDev() {
 					require.NoError(c, err)
 					require.NotEmptyf(c, points, "no data for %s", query)
 				}
-			}, benchmarkIngestionTimeout, 30*time.Second, "the data of the %s Agent doesn't reach dddev", variant.name)
+			}, benchmarkIngestionTimeout, 30*time.Second, "the data of installation %s doesn't reach dddev", variant.name)
 		})
 	}
 }
@@ -377,13 +380,13 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	s.Require().GreaterOrEqualf(block, benchmarkRollupSeconds*time.Second, "%s=%s is too short: each phase must hold %d blocks of at least %ds", benchmarkDurationEnvVar, duration, benchmark.MinBlocks, benchmarkRollupSeconds)
 
 	ctx := s.T().Context()
-	baselineImages, err := s.installationImages(ctx, s.baseline())
+	baselineImages, err := s.installationImages(ctx, s.variantA())
 	s.Require().NoError(err)
-	comparisonImages, err := s.installationImages(ctx, s.comparison())
+	comparisonImages, err := s.installationImages(ctx, s.variantB())
 	s.Require().NoError(err)
 
 	first := measurementWindow(s.readyAt, warmup, duration, block)
-	s.T().Logf("Phase 1: measuring the baseline images on the baseline installation and the comparison images on the comparison installation from %s to %s",
+	s.T().Logf("Phase 1: measuring the baseline images on installation a and the comparison images on installation b from %s to %s",
 		first.From.UTC().Format(time.RFC3339), first.To.UTC().Format(time.RFC3339))
 	var snapshots [2]map[string]installationSnapshots
 	var snapshotErrs [2]error
@@ -393,28 +396,28 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	s.Require().NoError(s.waitForWorkload(time.Minute), "the workload stopped during the first phase")
 
 	report := benchmark.Report{ClusterName: s.clusterName}
-	report.Baseline, err = s.reportVariant(ctx, s.baseline(), os.Getenv(benchmarkBaselineCommitEnvVar), first)
+	report.Baseline, err = s.reportVersion(ctx, "baseline", s.variantA(), os.Getenv(benchmarkBaselineCommitEnvVar), first)
 	s.Require().NoError(err)
 	// The commit of the pipeline images, which the comparison runs by default, e.g. in CI.
 	comparisonCommit, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.CommitSHA, "")
 	s.Require().NoError(err)
-	report.Comparison, err = s.reportVariant(ctx, s.comparison(), comparisonCommit, first)
+	report.Comparison, err = s.reportVersion(ctx, "comparison", s.variantB(), comparisonCommit, first)
 	s.Require().NoError(err)
 
 	// The images are those of the specs of the pods, so that the swap also works when an
 	// installation runs the default images, e.g. those of the pipeline in CI.
-	s.T().Logf("Swapping the images: %+v on the baseline installation, %+v on the comparison installation", comparisonImages, baselineImages)
+	s.T().Logf("Swapping the images: %+v on installation a, %+v on installation b", comparisonImages, baselineImages)
 	s.UpdateEnv(provbenchmarkeks.Provisioner(provbenchmarkeks.WithRunOptions(
-		scenbenchmarkeks.WithBaseline(comparisonImages),
-		scenbenchmarkeks.WithComparison(baselineImages),
+		scenbenchmarkeks.WithVariantA(comparisonImages),
+		scenbenchmarkeks.WithVariantB(baselineImages),
 	)))
 	s.Require().True(s.EventuallyWithTf(func(c *assert.CollectT) {
-		images, err := s.installationImages(ctx, s.baseline())
+		images, err := s.installationImages(ctx, s.variantA())
 		require.NoError(c, err)
-		require.Equal(c, comparisonImages, images, "images of the baseline installation")
-		images, err = s.installationImages(ctx, s.comparison())
+		require.Equal(c, comparisonImages, images, "images of installation a")
+		images, err = s.installationImages(ctx, s.variantB())
 		require.NoError(c, err)
-		require.Equal(c, baselineImages, images, "images of the comparison installation")
+		require.Equal(c, baselineImages, images, "images of installation b")
 	}, benchmarkSwapTimeout, 10*time.Second, "the installations didn't swap their images"))
 	s.Require().NoError(s.waitForAgents(benchmarkReadinessTimeout), "the Agents didn't become ready after swapping their images")
 	swappedReadyAt := time.Now()
@@ -423,11 +426,11 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	s.T().Logf("All the Agents are ready with the swapped images at %s", swappedReadyAt.UTC().Format(time.RFC3339))
 	// An image working on a single node pool, or a single installation, must not slip through.
 	for _, variant := range s.variants() {
-		s.Require().Truef(s.checksRun(variant), "the checks of the %s installation don't run as expected with the swapped images", variant.name)
+		s.Require().Truef(s.checksRun(variant), "the checks of installation %s don't run as expected with the swapped images", variant.name)
 	}
 
 	swapped := measurementWindow(swappedReadyAt, warmup, duration, block)
-	s.T().Logf("Phase 2: measuring the baseline images on the comparison installation and the comparison images on the baseline installation from %s to %s",
+	s.T().Logf("Phase 2: measuring the baseline images on installation b and the comparison images on installation a from %s to %s",
 		swapped.From.UTC().Format(time.RFC3339), swapped.To.UTC().Format(time.RFC3339))
 	snapshots[1], snapshotErrs[1] = s.runSnapshots(ctx, swapped)
 	s.Require().NoError(s.compareRestarts(ctx, swappedRestarts), "an Agent restarted during the swapped phase")
@@ -446,21 +449,21 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 			thresholds := metric.thresholds
 			thresholds.Significance = significance
 			result := benchmark.Result{
-				Component:       component.name,
-				Metric:          metric.name,
-				Unit:            metric.unit,
-				Thresholds:      thresholds,
-				BaselineQuery:   s.benchmarkQuery(metric.name, scenbenchmarkeks.Baseline, component.scope),
-				ComparisonQuery: s.benchmarkQuery(metric.name, scenbenchmarkeks.Comparison, component.scope),
-				ExplorerURL:     benchmark.MetricsExplorerURL(dddevAppURL, metric.name, append([]string{s.clusterTag()}, component.scope...), []string{"kube_namespace"}, first.From, swapped.To),
+				Component:   component.name,
+				Metric:      metric.name,
+				Unit:        metric.unit,
+				Thresholds:  thresholds,
+				QueryA:      s.benchmarkQuery(metric.name, scenbenchmarkeks.VariantA, component.scope),
+				QueryB:      s.benchmarkQuery(metric.name, scenbenchmarkeks.VariantB, component.scope),
+				ExplorerURL: benchmark.MetricsExplorerURL(dddevAppURL, metric.name, append([]string{s.clusterTag()}, component.scope...), []string{"kube_namespace"}, first.From, swapped.To),
 			}
 			report.Results = append(report.Results, compareResult(result, report.Phases, func(_ int, window benchmark.Window) ([]benchmark.Point, []benchmark.Point, error) {
-				baselineInstallation, err := s.dddev.query(ctx, result.BaselineQuery, window.From, window.To)
+				installationA, err := s.dddev.query(ctx, result.QueryA, window.From, window.To)
 				if err != nil {
 					return nil, nil, err
 				}
-				comparisonInstallation, err := s.dddev.query(ctx, result.ComparisonQuery, window.From, window.To)
-				return baselineInstallation, comparisonInstallation, err
+				installationB, err := s.dddev.query(ctx, result.QueryB, window.From, window.To)
+				return installationA, installationB, err
 			}))
 		}
 	}
@@ -481,15 +484,15 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 			if snapshotErrs[i] != nil {
 				return nil, nil, snapshotErrs[i]
 			}
-			baselineInstallation, err := benchmark.RunTimePoints(timed.check, snapshots[i][scenbenchmarkeks.Baseline][timed.component])
+			installationA, err := benchmark.RunTimePoints(timed.check, snapshots[i][scenbenchmarkeks.VariantA][timed.component])
 			if err != nil {
-				return nil, nil, fmt.Errorf("%s installation: %w", scenbenchmarkeks.Baseline, err)
+				return nil, nil, fmt.Errorf("installation %s: %w", scenbenchmarkeks.VariantA, err)
 			}
-			comparisonInstallation, err := benchmark.RunTimePoints(timed.check, snapshots[i][scenbenchmarkeks.Comparison][timed.component])
+			installationB, err := benchmark.RunTimePoints(timed.check, snapshots[i][scenbenchmarkeks.VariantB][timed.component])
 			if err != nil {
-				return nil, nil, fmt.Errorf("%s installation: %w", scenbenchmarkeks.Comparison, err)
+				return nil, nil, fmt.Errorf("installation %s: %w", scenbenchmarkeks.VariantB, err)
 			}
-			return baselineInstallation, comparisonInstallation, nil
+			return installationA, installationB, nil
 		}))
 	}
 
@@ -520,35 +523,36 @@ func measurementWindow(readyAt time.Time, warmup, duration, block time.Duration)
 }
 
 // compareResult returns result compared over the phases of windows, from the points of the
-// baseline and comparison installations points returns for each phase.
-func compareResult(result benchmark.Result, windows [2]benchmark.Window, points func(phase int, window benchmark.Window) (baselineInstallation, comparisonInstallation []benchmark.Point, err error)) benchmark.Result {
+// installations of variants a and b points returns for each phase.
+func compareResult(result benchmark.Result, windows [2]benchmark.Window, points func(phase int, window benchmark.Window) (installationA, installationB []benchmark.Point, err error)) benchmark.Result {
 	var phases [2]benchmark.Phase
 	for i, window := range windows {
-		baselineInstallation, comparisonInstallation, err := points(i, window)
+		installationA, installationB, err := points(i, window)
 		if err != nil {
 			result.Fail(fmt.Errorf("phase %d: %w", i+1, err))
 			return result
 		}
+		// Installation a runs the baseline images in the first phase, and the comparison
+		// images in the swapped one.
+		baseline, comparison := installationA, installationB
 		if i == 1 {
-			// In the swapped phase, the baseline installation runs the comparison images.
-			baselineInstallation, comparisonInstallation = comparisonInstallation, baselineInstallation
+			baseline, comparison = comparison, baseline
 		}
-		phases[i] = benchmark.Phase{Window: window, Baseline: baselineInstallation, Comparison: comparisonInstallation}
+		phases[i] = benchmark.Phase{Window: window, Baseline: baseline, Comparison: comparison}
 	}
 	result.Compare(phases[0], phases[1])
 	return result
 }
 
-// reportVariant describes the images of variant for the report, with a link to their
-// profiles over window, of the first phase, in which they run on the installation of the same
-// name.
-func (s *benchmarkEKSSuite) reportVariant(ctx context.Context, variant benchmarkVariant, commit string, window benchmark.Window) (benchmark.Variant, error) {
+// reportVersion describes, as version name, the images the installation of variant runs in
+// the first phase, window, with a link to their profiles over it.
+func (s *benchmarkEKSSuite) reportVersion(ctx context.Context, name string, variant benchmarkVariant, commit string, window benchmark.Window) (benchmark.Version, error) {
 	images, err := s.images(ctx, variant)
 	if err != nil {
-		return benchmark.Variant{}, err
+		return benchmark.Version{}, err
 	}
-	return benchmark.Variant{
-		Name:        variant.name,
+	return benchmark.Version{
+		Name:        name,
 		Commit:      commit,
 		Images:      images,
 		ProfilesURL: benchmark.ProfilesURL(dddevAppURL, strings.Join(s.variantScope(variant.name), " "), window.From, window.To),
@@ -602,7 +606,7 @@ func (s *benchmarkEKSSuite) snapshot(ctx context.Context) (time.Time, map[string
 	for i, variant := range variants {
 		wg.Go(func() {
 			if stats[i], errs[i] = s.runnerStats(ctx, variant); errs[i] != nil {
-				errs[i] = fmt.Errorf("%s installation: %w", variant.name, errs[i])
+				errs[i] = fmt.Errorf("installation %s: %w", variant.name, errs[i])
 			}
 		})
 	}
@@ -620,12 +624,12 @@ func (s *benchmarkEKSSuite) snapshot(ctx context.Context) (time.Time, map[string
 
 // installationImages returns the images the installation of variant runs, as set in the
 // specs of the pods of its components.
-func (s *benchmarkEKSSuite) installationImages(ctx context.Context, variant benchmarkVariant) (scenbenchmarkeks.VariantParams, error) {
+func (s *benchmarkEKSSuite) installationImages(ctx context.Context, variant benchmarkVariant) (scenbenchmarkeks.Images, error) {
 	images := make(map[string]string, len(benchmarkComponents))
 	for _, component := range benchmarkComponents {
 		pods, err := s.pods(ctx, component.workload(variant.agent), "")
 		if err != nil {
-			return scenbenchmarkeks.VariantParams{}, err
+			return scenbenchmarkeks.Images{}, err
 		}
 		var componentImages []string
 		for _, pod := range pods {
@@ -636,7 +640,7 @@ func (s *benchmarkEKSSuite) installationImages(ctx context.Context, variant benc
 			}
 		}
 		if len(componentImages) != 1 {
-			return scenbenchmarkeks.VariantParams{}, fmt.Errorf("the %s of the %s installation runs %d images: %v", component.name, variant.name, len(componentImages), componentImages)
+			return scenbenchmarkeks.Images{}, fmt.Errorf("the %s of installation %s runs %d images: %v", component.name, variant.name, len(componentImages), componentImages)
 		}
 		images[component.name] = componentImages[0]
 	}
@@ -644,9 +648,9 @@ func (s *benchmarkEKSSuite) installationImages(ctx context.Context, variant benc
 	// The cluster checks runner runs the image of the node Agent (see the Helm values of
 	// components/datadog/agent/kubernetes_helm.go): the swap can't set it apart.
 	if images[clusterChecksComponent] != images[nodeAgentComponent] {
-		return scenbenchmarkeks.VariantParams{}, fmt.Errorf("the cluster checks runner of the %s installation runs %s, but its node Agent %s", variant.name, images[clusterChecksComponent], images[nodeAgentComponent])
+		return scenbenchmarkeks.Images{}, fmt.Errorf("the cluster checks runner of installation %s runs %s, but its node Agent %s", variant.name, images[clusterChecksComponent], images[nodeAgentComponent])
 	}
-	return scenbenchmarkeks.VariantParams{
+	return scenbenchmarkeks.Images{
 		AgentFullImagePath:        images[nodeAgentComponent],
 		ClusterAgentFullImagePath: images[clusterAgentComponent],
 	}, nil
@@ -661,13 +665,13 @@ func (s *benchmarkEKSSuite) waitForAgents(timeout time.Duration) error {
 		if err := environments.WaitForKubernetesAgentReady(s.T().Context(), s.Env().KubernetesCluster, variant.agent,
 			environments.WithLinuxNodeAgentReady(),
 			// The node Agent runs on all the node pools of its variant, and only there.
-			environments.WithLinuxNodeAgentNodeSelector(fmt.Sprintf("%s in (%s)", scenbenchmarkeks.VariantLabel, strings.Join(scenbenchmarkeks.NodeAgentVariants(variant.name), ","))),
+			environments.WithLinuxNodeAgentNodeSelector(labels.SelectorFromSet(labels.Set{scenbenchmarkeks.VariantLabel: variant.name}).String()),
 			environments.WithClusterAgentReady(),
 			environments.WithClusterChecksReady(),
 			environments.WithAgentRestartsAllowed(),
 			environments.WithAgentReadinessTimeout(timeout),
 		); err != nil {
-			return fmt.Errorf("%s installation: %w", variant.name, err)
+			return fmt.Errorf("installation %s: %w", variant.name, err)
 		}
 	}
 	return nil
@@ -679,7 +683,7 @@ func (s *benchmarkEKSSuite) waitForAgents(timeout time.Duration) error {
 func (s *benchmarkEKSSuite) waitForWorkload(timeout time.Duration) error {
 	// The churn orchestrator is shared by both installations: its readiness doesn't depend
 	// on the installation it is checked with.
-	return environments.WaitForKubernetesAgentReady(s.T().Context(), s.Env().KubernetesCluster, s.baseline().agent,
+	return environments.WaitForKubernetesAgentReady(s.T().Context(), s.Env().KubernetesCluster, s.Env().AgentA,
 		environments.WithPodsReady("churn orchestrator", churn.Namespace, churn.LabelSelector, 1),
 		environments.WithAgentReadinessTimeout(timeout),
 	)

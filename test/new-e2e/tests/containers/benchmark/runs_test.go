@@ -37,8 +37,8 @@ func testRunTimeSnapshots(window Window, runTime func(block, run int) int64) []S
 }
 
 func TestCompareRunTimes(t *testing.T) {
-	// The comparison makes the check 15% faster, on node pools making it 20% slower on the
-	// comparison installation in the first phase.
+	// The comparison makes the check 15% faster, the node pools of the installation running it
+	// in the first phase making it 20% slower.
 	runTime := func(milliseconds float64, seed int) func(block, run int) int64 {
 		return func(block, run int) int64 {
 			return int64(milliseconds * (1 + 0.05*math.Sin(float64(10*block+run+seed))))

@@ -51,7 +51,7 @@ An environment defines what infrastructure a test needs:
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
 | `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
 | `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
-| `environments.BenchmarkEKS` | EKS cluster + baseline and comparison Agents, no FakeIntake | `aws/kubernetes/benchmarkeks.Provisioner()` | Comparing the resource usage of two Agent versions |
+| `environments.BenchmarkEKS` | EKS cluster + two Agent installations (variants a and b) on node pools of their own, no FakeIntake | `aws/kubernetes/benchmarkeks.Provisioner()` | Comparing the resource usage of two Agent versions |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners

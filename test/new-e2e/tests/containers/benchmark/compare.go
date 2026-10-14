@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// SignificanceLevel is the p-value under which a difference between the variants is
+	// SignificanceLevel is the p-value under which a difference between the versions is
 	// significant.
 	SignificanceLevel = 0.05
 	// MinBlocks is the minimum number of blocks of the window of a phase: the significance
@@ -74,8 +74,8 @@ const (
 )
 
 // Phase holds the points of a metric over a measurement phase, by image rather than by
-// installation: the two installations, each on its own node pool, swap their images between
-// the two phases of a measurement.
+// installation: the two installations, each on node pools of its own, swap their images
+// between the two phases of a measurement.
 type Phase struct {
 	Window Window
 	// Baseline are the points of the installation running the baseline images.

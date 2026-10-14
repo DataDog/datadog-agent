@@ -4,13 +4,13 @@
 // Copyright 2025-present Datadog, Inc.
 
 // Package benchmarkeks provisions an EKS cluster partitioned into node pools so a baseline
-// and a comparison version of the Agent can be compared side by side: each variant has its
-// own node Agent pool, while the Cluster Agents, and the cluster checks runners, of both
-// variants share a node so that they run on the same hardware. What
-// it compares is the resource footprint of the two Agents — CPU, memory, goroutines,
-// uploaded profiles — while both monitor a strictly identical workload; the workload's
-// own performance is not measured. KWOK simulates a large number of nodes/objects and the
-// churn orchestrator continuously creates and deletes workloads.
+// and a comparison version of the Agent can be compared side by side: each of the two Agent
+// installations, of variants a and b, has node pools of its own for its node Agents, its
+// Cluster Agent and its cluster checks runner. What it compares is the resource footprint of
+// the two Agents — CPU, memory, goroutines, uploaded profiles — while both monitor a strictly
+// identical workload; the workload's own performance is not measured. KWOK simulates a large
+// number of nodes/objects and the churn orchestrator continuously creates and deletes
+// workloads.
 package benchmarkeks
 
 import (
@@ -48,13 +48,12 @@ const (
 	// RoleClusterChecks is the role of the node pools dedicated to the cluster checks runner.
 	RoleClusterChecks = "cluster-checks"
 
-	// Baseline is the variant of the reference Agent.
-	Baseline = "baseline"
-	// Comparison is the variant of the Agent compared to the reference.
-	Comparison = "comparison"
-	// Shared is the VariantLabel of the node pools hosting the Cluster Agents, or the
-	// cluster checks runners, of both variants. The node Agent of the baseline monitors them.
-	Shared = "shared"
+	// VariantA and VariantB are the variants of the two Agent installations, each running on
+	// node pools of its own. The variants play symmetric roles: a benchmark compares two
+	// Agent versions by swapping their images between the installations half way through, so
+	// that the difference between the machines of the node pools cancels out.
+	VariantA = "a"
+	VariantB = "b"
 
 	// RoleTag is the host tag the node Agents derive from RoleLabel.
 	RoleTag = "role"
@@ -72,16 +71,21 @@ const nbNode = 3
 // 5-minute default, which an upgrade replacing the images of an installation can exceed.
 const helmTimeoutSeconds = 15 * 60
 
-// defaultInstanceType is the instance type of the node pools of the node Agents, unless
-// ddinfra:aws/defaultInstanceType is set, and sharedInstanceType the one of the node pools
-// shared by both variants, which the override doesn't apply to: each of their nodes must fit
-// the Cluster Agents or cluster checks runners of both variants. The CPU usage of the Agents
-// is compared on them, so they must not be burstable: CPU credits would make the results
-// depend on the history of each node.
-const (
-	defaultInstanceType = "m6i.large"
-	sharedInstanceType  = "m6i.xlarge"
-)
+// defaultInstanceType is the instance type of the node pools, unless
+// ddinfra:aws/defaultInstanceType is set. The CPU usage of the Agents is compared on them,
+// so it must not be burstable: CPU credits would make the results depend on the history of
+// each node.
+const defaultInstanceType = "m6i.large"
+
+// nodePools are the node pools of each variant, by role, with their number of nodes.
+var nodePools = []struct {
+	role   string
+	nbNode int
+}{
+	{role: RoleNodeAgent, nbNode: nbNode},
+	{role: RoleClusterAgent, nbNode: 1},
+	{role: RoleClusterChecks, nbNode: 1},
+}
 
 //go:embed simple_check.py
 var simpleCheckPy string
@@ -131,71 +135,35 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 		return err
 	}
 
-	nodeAgentInstanceType := awsEnv.GetStringWithDefault(awsEnv.InfraConfig, resourcesAws.DDInfraDefaultInstanceTypeParamName, defaultInstanceType)
-	for _, ng := range []struct {
-		role         string
-		variant      string
-		nbNode       int
-		instanceType string
-	}{
-		{
-			role:         RoleNodeAgent,
-			variant:      Baseline,
-			nbNode:       nbNode,
-			instanceType: nodeAgentInstanceType,
-		},
-		{
-			role:         RoleNodeAgent,
-			variant:      Comparison,
-			nbNode:       nbNode,
-			instanceType: nodeAgentInstanceType,
-		},
-		// The Cluster Agents of both variants share a node, and so do their cluster checks
-		// runners. Two instances of the same instance type can differ by about 20% in CPU
-		// usage for the same work, which would otherwise be mistaken for a difference
-		// between the variants of these single-replica components.
-		{
-			role:         RoleClusterAgent,
-			variant:      Shared,
-			nbNode:       1,
-			instanceType: sharedInstanceType,
-		},
-		{
-			role:         RoleClusterChecks,
-			variant:      Shared,
-			nbNode:       1,
-			instanceType: sharedInstanceType,
-		},
-	} {
-		taints := awsEks.NodeGroupTaintArray{taint(RoleLabel, ng.role)}
-		if ng.variant != Shared {
-			taints = append(taints, taint(VariantLabel, ng.variant))
-		}
-		// The dependency on the cluster component makes the node groups wait for the
-		// CNI custom-networking setup (ENIConfig + aws-node patch) before joining: a
-		// dependsOn on a component resource extends to all of its children.
-		if _, err := eks.NewManagedNodeGroup(ctx, "ng-"+ng.role+"-"+ng.variant, &eks.ManagedNodeGroupArgs{
-			Cluster:             cluster.Cluster.Core,
-			InstanceTypes:       pulumi.ToStringArray([]string{ng.instanceType}),
-			ForceUpdateVersion:  pulumi.BoolPtr(true),
-			NodeGroupNamePrefix: awsEnv.CommonNamer().DisplayName(37, pulumi.String("ng"), pulumi.String(ng.role), pulumi.String(ng.variant)),
-			ScalingConfig: awsEks.NodeGroupScalingConfigArgs{
-				DesiredSize: pulumi.Int(ng.nbNode),
-				MaxSize:     pulumi.Int(ng.nbNode),
-				MinSize:     pulumi.Int(ng.nbNode),
-			},
-			NodeRole: cluster.Cluster.InstanceRoles.Index(pulumi.Int(0)),
-			Labels: pulumi.StringMap{
-				RoleLabel:    pulumi.String(ng.role),
-				VariantLabel: pulumi.String(ng.variant),
-			},
-			Taints: taints,
-			RemoteAccess: awsEks.NodeGroupRemoteAccessArgs{
-				Ec2SshKey:              pulumi.StringPtr(awsEnv.DefaultKeyPairName()),
-				SourceSecurityGroupIds: pulumi.ToStringArray(awsEnv.EKSAllowedInboundSecurityGroups()),
-			},
-		}, awsEnv.WithProviders(config.ProviderAWS, config.ProviderEKS), utils.PulumiDependsOn(cluster)); err != nil {
-			return err
+	instanceType := awsEnv.GetStringWithDefault(awsEnv.InfraConfig, resourcesAws.DDInfraDefaultInstanceTypeParamName, defaultInstanceType)
+	for _, variant := range []string{VariantA, VariantB} {
+		for _, pool := range nodePools {
+			// The dependency on the cluster component makes the node groups wait for the
+			// CNI custom-networking setup (ENIConfig + aws-node patch) before joining: a
+			// dependsOn on a component resource extends to all of its children.
+			if _, err := eks.NewManagedNodeGroup(ctx, "ng-"+pool.role+"-"+variant, &eks.ManagedNodeGroupArgs{
+				Cluster:             cluster.Cluster.Core,
+				InstanceTypes:       pulumi.ToStringArray([]string{instanceType}),
+				ForceUpdateVersion:  pulumi.BoolPtr(true),
+				NodeGroupNamePrefix: awsEnv.CommonNamer().DisplayName(37, pulumi.String("ng"), pulumi.String(pool.role), pulumi.String(variant)),
+				ScalingConfig: awsEks.NodeGroupScalingConfigArgs{
+					DesiredSize: pulumi.Int(pool.nbNode),
+					MaxSize:     pulumi.Int(pool.nbNode),
+					MinSize:     pulumi.Int(pool.nbNode),
+				},
+				NodeRole: cluster.Cluster.InstanceRoles.Index(pulumi.Int(0)),
+				Labels: pulumi.StringMap{
+					RoleLabel:    pulumi.String(pool.role),
+					VariantLabel: pulumi.String(variant),
+				},
+				Taints: awsEks.NodeGroupTaintArray{taint(RoleLabel, pool.role), taint(VariantLabel, variant)},
+				RemoteAccess: awsEks.NodeGroupRemoteAccessArgs{
+					Ec2SshKey:              pulumi.StringPtr(awsEnv.DefaultKeyPairName()),
+					SourceSecurityGroupIds: pulumi.ToStringArray(awsEnv.EKSAllowedInboundSecurityGroups()),
+				},
+			}, awsEnv.WithProviders(config.ProviderAWS, config.ProviderEKS), utils.PulumiDependsOn(cluster)); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -240,21 +208,21 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 
 	for _, param := range []struct {
 		variant    string
-		images     VariantParams
+		images     Images
 		deployCRDs bool
 		output     *agent.KubernetesAgentOutput
 	}{
 		{
-			variant:    Baseline,
-			images:     params.baseline,
+			variant:    VariantA,
+			images:     params.a,
 			deployCRDs: true,
-			output:     env.BaselineAgentOutput(),
+			output:     env.AgentAOutput(),
 		},
 		{
-			variant:    Comparison,
-			images:     params.comparison,
+			variant:    VariantB,
+			images:     params.b,
 			deployCRDs: false,
-			output:     env.ComparisonAgentOutput(),
+			output:     env.AgentBOutput(),
 		},
 	} {
 		kubernetesAgent, err := helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent", param.variant), cluster.KubeProvider,
@@ -304,22 +272,8 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 							"maxUnavailable": "100%",
 						},
 					},
-					"affinity": map[string]any{
-						"nodeAffinity": map[string]any{
-							"requiredDuringSchedulingIgnoredDuringExecution": map[string]any{
-								"nodeSelectorTerms": []any{
-									map[string]any{
-										"matchExpressions": []any{
-											map[string]any{
-												"key":      VariantLabel,
-												"operator": "In",
-												"values":   NodeAgentVariants(param.variant),
-											},
-										},
-									},
-								},
-							},
-						},
+					"nodeSelector": map[string]any{
+						VariantLabel: param.variant,
 					},
 					// The node Agent runs as a DaemonSet on every node of its variant
 					// (all role pools), so it tolerates any role taint.
@@ -338,13 +292,14 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 					"volumes":      apmSocketVolumes,
 					"volumeMounts": apmSocketVolumeMounts,
 					"nodeSelector": map[string]any{
-						RoleLabel: RoleClusterAgent,
+						RoleLabel:    RoleClusterAgent,
+						VariantLabel: param.variant,
 					},
-					"tolerations": []any{toleration(RoleLabel, RoleClusterAgent)},
+					"tolerations": []any{toleration(RoleLabel, RoleClusterAgent), toleration(VariantLabel, param.variant)},
 					// The e2e framework defaults throttle the CPU and would OOM-kill the
-					// Cluster Agent on a large simulated cluster. It shares a dedicated node
-					// with the Cluster Agent of the other variant only, so generous limits
-					// starve nothing and keep them out of the results.
+					// Cluster Agent on a large simulated cluster. It has a node of its own, with
+					// only the unmeasured node Agent of its variant, so generous limits starve
+					// nothing measured and keep them out of the results.
 					"resources": map[string]any{
 						"requests": map[string]any{
 							"cpu":    "200m",
@@ -376,9 +331,10 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 					"volumes":      apmSocketVolumes,
 					"volumeMounts": apmSocketVolumeMounts,
 					"nodeSelector": map[string]any{
-						RoleLabel: RoleClusterChecks,
+						RoleLabel:    RoleClusterChecks,
+						VariantLabel: param.variant,
 					},
-					"tolerations": []any{toleration(RoleLabel, RoleClusterChecks)},
+					"tolerations": []any{toleration(RoleLabel, RoleClusterChecks), toleration(VariantLabel, param.variant)},
 					// Same as for the Cluster Agent: the runner hosts the KSM check, whose
 					// memory grows with the number of objects in the cluster. Its CPU limit
 					// is above the node capacity, so it never throttles the bursts of KSM
@@ -396,10 +352,10 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 							"memory": "5Gi",
 						},
 					},
-					// The CPU requests of the runners of both variants take most of their
-					// node, so the default surge of the chart can't schedule the new runner
-					// next to the old one and a Helm upgrade of the stack hangs. Replace the
-					// runner instead.
+					// The CPU requests of the runner and of the node Agent of its node leave
+					// no room for a second runner, so the default surge of the chart can't
+					// schedule the new runner next to the old one and a Helm upgrade of the
+					// stack hangs. Replace the runner instead.
 					"strategy": map[string]any{
 						"rollingUpdate": map[string]any{
 							"maxSurge":       0,
@@ -447,16 +403,6 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 	}
 
 	return nil
-}
-
-// NodeAgentVariants returns the VariantLabel values of the nodes the node Agent of variant
-// runs on: the nodes of its variant and, for the baseline, the shared nodes, whose
-// containers must be monitored by exactly one node Agent.
-func NodeAgentVariants(variant string) []string {
-	if variant == Baseline {
-		return []string{Baseline, Shared}
-	}
-	return []string{variant}
 }
 
 // taint returns the taint key=value of the nodes of a node pool, keeping off the pods that

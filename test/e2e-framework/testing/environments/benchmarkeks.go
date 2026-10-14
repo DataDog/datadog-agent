@@ -12,14 +12,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
-// BenchmarkEKS is the environment of the benchmarkeks scenario: an EKS cluster with a
-// baseline and a comparison installation of the Agent, each in its own namespace and
-// pinned to its own node pools. Use WaitForKubernetesAgentReady to wait for either of them.
+// BenchmarkEKS is the environment of the benchmarkeks scenario: an EKS cluster with two
+// installations of the Agent, of variants a and b, each in its own namespace and pinned to
+// its own node pools. Use WaitForKubernetesAgentReady to wait for either of them.
 type BenchmarkEKS struct {
 	// Components
 	KubernetesCluster *components.KubernetesCluster
-	BaselineAgent     *components.KubernetesAgent
-	ComparisonAgent   *components.KubernetesAgent
+	AgentA            *components.KubernetesAgent
+	AgentB            *components.KubernetesAgent
 }
 
 // Ensure BenchmarkEKS implements the BenchmarkEKSOutputs interface
@@ -33,24 +33,24 @@ func (e *BenchmarkEKS) KubernetesClusterOutput() *kubernetes.ClusterOutput {
 	return &e.KubernetesCluster.ClusterOutput
 }
 
-// BaselineAgentOutput implements outputs.BenchmarkEKSOutputs
-func (e *BenchmarkEKS) BaselineAgentOutput() *agent.KubernetesAgentOutput {
-	if e.BaselineAgent == nil {
-		e.BaselineAgent = &components.KubernetesAgent{}
+// AgentAOutput implements outputs.BenchmarkEKSOutputs
+func (e *BenchmarkEKS) AgentAOutput() *agent.KubernetesAgentOutput {
+	if e.AgentA == nil {
+		e.AgentA = &components.KubernetesAgent{}
 	}
-	return &e.BaselineAgent.KubernetesAgentOutput
+	return &e.AgentA.KubernetesAgentOutput
 }
 
-// ComparisonAgentOutput implements outputs.BenchmarkEKSOutputs
-func (e *BenchmarkEKS) ComparisonAgentOutput() *agent.KubernetesAgentOutput {
-	if e.ComparisonAgent == nil {
-		e.ComparisonAgent = &components.KubernetesAgent{}
+// AgentBOutput implements outputs.BenchmarkEKSOutputs
+func (e *BenchmarkEKS) AgentBOutput() *agent.KubernetesAgentOutput {
+	if e.AgentB == nil {
+		e.AgentB = &components.KubernetesAgent{}
 	}
-	return &e.ComparisonAgent.KubernetesAgentOutput
+	return &e.AgentB.KubernetesAgentOutput
 }
 
 // DisableAgents implements outputs.BenchmarkEKSOutputs
 func (e *BenchmarkEKS) DisableAgents() {
-	e.BaselineAgent = nil
-	e.ComparisonAgent = nil
+	e.AgentA = nil
+	e.AgentB = nil
 }

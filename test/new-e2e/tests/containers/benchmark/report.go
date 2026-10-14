@@ -59,25 +59,25 @@ func (u Unit) format(v float64, signed bool) string {
 	return fmt.Sprintf(verb, v, u)
 }
 
-// Image is a container image of a component of a variant.
+// Image is a container image of a component of a version.
 type Image struct {
 	Component string `json:"component"`
 	Image     string `json:"image"`
 	ImageID   string `json:"image_id,omitempty"`
 }
 
-// Variant describes the images of one of the two variants of the benchmark.
-type Variant struct {
+// Version describes the images of one of the two versions of the Agent the benchmark
+// compares.
+type Version struct {
 	Name string `json:"name"`
 	// Commit is the datadog-agent commit the images were built from, if known.
 	Commit string  `json:"commit,omitempty"`
 	Images []Image `json:"images"`
-	// ProfilesURL lists the profiles of the images over the first phase, during which they
-	// run on the installation of the same name.
+	// ProfilesURL lists the profiles of the images over the first phase.
 	ProfilesURL string `json:"profiles_url,omitempty"`
 }
 
-// Result is the comparison of a metric of a component between the two variants.
+// Result is the comparison of a metric of a component between the two versions.
 type Result struct {
 	Component string `json:"component"`
 	Metric    string `json:"metric"`
@@ -85,11 +85,12 @@ type Result struct {
 	Check      string     `json:"check,omitempty"`
 	Unit       Unit       `json:"unit"`
 	Thresholds Thresholds `json:"thresholds"`
-	// BaselineQuery and ComparisonQuery are the queries of the baseline and comparison
-	// installations, which run the comparison and baseline images in the swapped phase.
-	BaselineQuery   string `json:"baseline_query"`
-	ComparisonQuery string `json:"comparison_query"`
-	ExplorerURL     string `json:"explorer_url,omitempty"`
+	// QueryA and QueryB are the queries of the installations of variants a and b, which
+	// run the baseline and comparison images in the first phase, and the other way around in
+	// the swapped one.
+	QueryA      string `json:"query_a"`
+	QueryB      string `json:"query_b"`
+	ExplorerURL string `json:"explorer_url,omitempty"`
 	Comparison
 	Error string `json:"error,omitempty"`
 }
@@ -134,8 +135,8 @@ type Report struct {
 	ClusterName string `json:"cluster_name"`
 	// Phases are the windows of the first phase and of the swapped one.
 	Phases     [2]Window `json:"phases"`
-	Baseline   Variant   `json:"baseline"`
-	Comparison Variant   `json:"comparison"`
+	Baseline   Version   `json:"baseline"`
+	Comparison Version   `json:"comparison"`
 	Results    []Result  `json:"results"`
 }
 
@@ -176,8 +177,8 @@ func (r *Report) Markdown() string {
 	var b strings.Builder
 	// No heading: the pull request comment gets the one of the CI job posting it.
 	first, swapped := r.Phases[0], r.Phases[1]
-	variants := []Variant{r.Baseline, r.Comparison}
-	fmt.Fprintf(&b, "Resource usage of the comparison Agent against the baseline Agent, on the EKS cluster `%s`, in two phases: from %s to %s (%s) with the baseline images on the baseline installation and the comparison images on the comparison one, then from %s to %s (%s) with the images swapped.\n\n",
+	versions := []Version{r.Baseline, r.Comparison}
+	fmt.Fprintf(&b, "Resource usage of the comparison Agent against the baseline Agent, on the EKS cluster `%s`, in two phases: from %s to %s (%s) with the baseline images on installation a and the comparison images on installation b, each with node pools of its own, then from %s to %s (%s) with the images swapped.\n\n",
 		r.ClusterName,
 		first.From.UTC().Format(timeFormat), first.To.UTC().Format(timeFormat), first.To.Sub(first.From),
 		swapped.From.UTC().Format(timeFormat), swapped.To.UTC().Format(timeFormat), swapped.To.Sub(swapped.From))
@@ -217,34 +218,34 @@ func (r *Report) Markdown() string {
 		metrics = append(metrics, metric)
 		thresholds = append(thresholds, fmt.Sprintf("%s %.0f%% and %s", metric, 100*result.Thresholds.Relative, result.Unit.format(result.Thresholds.Absolute, false)))
 	}
-	fmt.Fprintf(&b, "\nThe installations run on node pools whose hardware may differ, hence the swap. "+
+	fmt.Fprintf(&b, "\nThe machines of the node pools of the installations may differ, hence the swap: each image runs on the node pools of both installations. "+
 		"Each phase is split into blocks of %s, in which the means of the images are compared through their log ratio. "+
 		"The change is exp(e) - 1, e being the average over both phases of the mean log ratio of each phase, in which the difference between the node pools cancels out. "+
 		"Baseline and Comparison are the averages of the means of each image over both phases. "+
 		"A change is an improvement or a regression when it is significant (t-test of e = 0, %s) and at least as large as both thresholds of its metric: %s.\n\n",
 		first.Block, formatSignificance(significance), strings.Join(thresholds, "; "))
 
-	for _, variant := range variants {
-		if variant.Commit != "" {
-			fmt.Fprintf(&b, "- %s commit: [`%.8s`](https://github.com/DataDog/datadog-agent/commit/%s)\n", variant.Name, variant.Commit, variant.Commit)
+	for _, version := range versions {
+		if version.Commit != "" {
+			fmt.Fprintf(&b, "- %s commit: [`%.8s`](https://github.com/DataDog/datadog-agent/commit/%s)\n", version.Name, version.Commit, version.Commit)
 		}
 	}
-	b.WriteString("\n| Variant | Component | Image |\n")
+	b.WriteString("\n| Version | Component | Image |\n")
 	b.WriteString("|---|---|---|\n")
-	for _, variant := range variants {
-		for _, image := range variant.Images {
+	for _, version := range versions {
+		for _, image := range version.Images {
 			reference := "`" + image.Image + "`"
 			if image.ImageID != "" {
 				reference += " (`" + image.ImageID + "`)"
 			}
-			fmt.Fprintf(&b, "| %s | %s | %s |\n", variant.Name, image.Component, reference)
+			fmt.Fprintf(&b, "| %s | %s | %s |\n", version.Name, image.Component, reference)
 		}
 	}
 
 	var profiles []string
-	for _, variant := range variants {
-		if variant.ProfilesURL != "" {
-			profiles = append(profiles, "["+variant.Name+"]("+variant.ProfilesURL+")")
+	for _, version := range versions {
+		if version.ProfilesURL != "" {
+			profiles = append(profiles, "["+version.Name+"]("+version.ProfilesURL+")")
 		}
 	}
 	if len(profiles) > 0 {

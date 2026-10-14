@@ -11,27 +11,27 @@ import (
 )
 
 // BenchmarkEKSOutputs is the interface for the outputs of the benchmarkeks scenario: a
-// Kubernetes cluster with a baseline and a comparison installation of the Agent.
+// Kubernetes cluster with two installations of the Agent, of variants a and b.
 type BenchmarkEKSOutputs interface {
 	KubernetesClusterOutput() *kubernetes.ClusterOutput
-	BaselineAgentOutput() *agent.KubernetesAgentOutput
-	ComparisonAgentOutput() *agent.KubernetesAgentOutput
+	AgentAOutput() *agent.KubernetesAgentOutput
+	AgentBOutput() *agent.KubernetesAgentOutput
 	DisableAgents()
 }
 
 // BenchmarkEKS contains the outputs for a benchmarkeks environment.
 type BenchmarkEKS struct {
 	KubernetesCluster *kubernetes.ClusterOutput
-	BaselineAgent     *agent.KubernetesAgentOutput
-	ComparisonAgent   *agent.KubernetesAgentOutput
+	AgentA            *agent.KubernetesAgentOutput
+	AgentB            *agent.KubernetesAgentOutput
 }
 
 // NewBenchmarkEKS creates a new BenchmarkEKS output struct with all fields initialized.
 func NewBenchmarkEKS() *BenchmarkEKS {
 	return &BenchmarkEKS{
 		KubernetesCluster: &kubernetes.ClusterOutput{},
-		BaselineAgent:     &agent.KubernetesAgentOutput{},
-		ComparisonAgent:   &agent.KubernetesAgentOutput{},
+		AgentA:            &agent.KubernetesAgentOutput{},
+		AgentB:            &agent.KubernetesAgentOutput{},
 	}
 }
 
@@ -40,18 +40,18 @@ func (b *BenchmarkEKS) KubernetesClusterOutput() *kubernetes.ClusterOutput {
 	return b.KubernetesCluster
 }
 
-// BaselineAgentOutput returns the baseline Agent output for exporting (may be nil)
-func (b *BenchmarkEKS) BaselineAgentOutput() *agent.KubernetesAgentOutput {
-	return b.BaselineAgent
+// AgentAOutput returns the output of the Agent of variant a for exporting (may be nil)
+func (b *BenchmarkEKS) AgentAOutput() *agent.KubernetesAgentOutput {
+	return b.AgentA
 }
 
-// ComparisonAgentOutput returns the comparison Agent output for exporting (may be nil)
-func (b *BenchmarkEKS) ComparisonAgentOutput() *agent.KubernetesAgentOutput {
-	return b.ComparisonAgent
+// AgentBOutput returns the output of the Agent of variant b for exporting (may be nil)
+func (b *BenchmarkEKS) AgentBOutput() *agent.KubernetesAgentOutput {
+	return b.AgentB
 }
 
 // DisableAgents marks both Agents as not provisioned (sets them to nil)
 func (b *BenchmarkEKS) DisableAgents() {
-	b.BaselineAgent = nil
-	b.ComparisonAgent = nil
+	b.AgentA = nil
+	b.AgentB = nil
 }

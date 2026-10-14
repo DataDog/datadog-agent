@@ -5,7 +5,7 @@
 
 // Package benchmark holds the cloud-independent logic of the benchmarkeks performance
 // non-regression test: it verifies the checks the Agents run, compares the resource usage
-// of the baseline and comparison variants, and renders the result as a report.
+// of the baseline and comparison versions, and renders the result as a report.
 package benchmark
 
 import (

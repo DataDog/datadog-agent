@@ -57,13 +57,13 @@ func testReport(verdict Verdict) *Report {
 	return &Report{
 		ClusterName: "bench-cluster",
 		Phases:      [2]Window{testWindow, testSwappedWindow},
-		Baseline: Variant{
+		Baseline: Version{
 			Name:        "baseline",
 			Commit:      "0123456789abcdef0123456789abcdef01234567",
 			Images:      []Image{{Component: "Node Agent", Image: "registry/agent:7.84.0", ImageID: "registry/agent@sha256:1234"}},
 			ProfilesURL: "https://dddev.datadoghq.com/profiling/explorer?query=baseline",
 		},
-		Comparison: Variant{
+		Comparison: Version{
 			Name:   "comparison",
 			Images: []Image{{Component: "Node Agent", Image: "registry/agent-qa:1234-abcdef"}},
 		},
@@ -75,7 +75,7 @@ func TestReportMarkdown(t *testing.T) {
 	markdown := testReport(VerdictRegression).Markdown()
 
 	for _, expected := range []string{
-		"on the EKS cluster `bench-cluster`, in two phases: from 2026-10-13 10:00 UTC to 2026-10-13 10:20 UTC (20m0s) with the baseline images on the baseline installation and the comparison images on the comparison one, then from 2026-10-13 11:00 UTC to 2026-10-13 11:20 UTC (20m0s) with the images swapped.",
+		"on the EKS cluster `bench-cluster`, in two phases: from 2026-10-13 10:00 UTC to 2026-10-13 10:20 UTC (20m0s) with the baseline images on installation a and the comparison images on installation b, each with node pools of its own, then from 2026-10-13 11:00 UTC to 2026-10-13 11:20 UTC (20m0s) with the images swapped.",
 		"| Node Agent | [`container.cpu.usage`](https://dddev.datadoghq.com/metric/explorer?exp_metric=container.cpu.usage) | 100.0 millicores | 112.5 millicores | +12.5% (+12.5 millicores) | < 0.001 | **regression** |",
 		`| Cluster Agent | ` + "`container.memory.rss`" + ` | | | | | **error**: baseline: no data \| at all |`,
 		"Each phase is split into blocks of 5m0s, in which",
@@ -154,9 +154,9 @@ func TestURLs(t *testing.T) {
 		"live":         {"false"},
 	}, explorer.Query())
 
-	profiles, err := url.Parse(ProfilesURL("https://dddev.datadoghq.com", "kube_cluster_name:bench kube_namespace:datadog-baseline", testFrom, to))
+	profiles, err := url.Parse(ProfilesURL("https://dddev.datadoghq.com", "kube_cluster_name:bench kube_namespace:datadog-a", testFrom, to))
 	require.NoError(t, err)
 	assert.Equal(t, "/profiling/explorer", profiles.Path)
-	assert.Equal(t, "kube_cluster_name:bench kube_namespace:datadog-baseline", profiles.Query().Get("query"))
+	assert.Equal(t, "kube_cluster_name:bench kube_namespace:datadog-a", profiles.Query().Get("query"))
 	assert.Equal(t, "1791885600000", profiles.Query().Get("from_ts"))
 }

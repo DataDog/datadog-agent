@@ -74,20 +74,20 @@ func TestCheckAgentPodsReady(t *testing.T) {
 
 func TestWaitForKubernetesAgentReady(t *testing.T) {
 	// The installation only runs on the nodes of its variant, in its own namespace.
-	baselineNode := linuxNode("baseline-node")
-	baselineNode.Labels["variant"] = "baseline"
-	comparisonNode := linuxNode("comparison-node")
-	comparisonNode.Labels["variant"] = "comparison"
+	nodeA := linuxNode("node-a")
+	nodeA.Labels["variant"] = "a"
+	nodeB := linuxNode("node-b")
+	nodeB.Labels["variant"] = "b"
 	pod := readyPod("agent-1", "agent", 0)
-	pod.Namespace = "datadog-baseline"
+	pod.Namespace = "datadog-a"
 
 	cluster := &components.KubernetesCluster{
-		KubernetesClient: &client.KubernetesClient{K8sClient: fake.NewSimpleClientset(baselineNode, comparisonNode, pod)},
+		KubernetesClient: &client.KubernetesClient{K8sClient: fake.NewSimpleClientset(nodeA, nodeB, pod)},
 	}
 	agent := &components.KubernetesAgent{
 		KubernetesAgentOutput: agentoutput.KubernetesAgentOutput{
 			LinuxNodeAgent: kubeoutput.KubernetesObjRefOutput{
-				Namespace:      "datadog-baseline",
+				Namespace:      "datadog-a",
 				LabelSelectors: map[string]string{"app": "agent"},
 			},
 		},
@@ -96,7 +96,7 @@ func TestWaitForKubernetesAgentReady(t *testing.T) {
 	t.Run("ready on the selected nodes", func(t *testing.T) {
 		require.NoError(t, WaitForKubernetesAgentReady(context.Background(), cluster, agent,
 			WithLinuxNodeAgentReady(),
-			WithLinuxNodeAgentNodeSelector("variant=baseline"),
+			WithLinuxNodeAgentNodeSelector("variant=a"),
 			WithAgentReadinessTimeout(time.Second),
 		))
 	})

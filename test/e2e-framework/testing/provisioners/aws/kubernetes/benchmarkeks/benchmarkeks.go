@@ -23,8 +23,9 @@ const (
 )
 
 // Provisioner creates a new provisioner of the benchmarkeks environment. The images of the
-// two Agent installations are read from the per-variant ddagent: config keys (e.g. given
-// with -c ddagent:baselineFullImagePath=<image>), overridden by the run options.
+// two Agent installations, of variants a and b, are read from the ddagent:baseline* and
+// ddagent:comparison* config keys respectively (e.g. given with
+// -c ddagent:baselineFullImagePath=<image>), overridden by the run options.
 func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[environments.BenchmarkEKS] {
 	params := getProvisionerParams(opts...)
 

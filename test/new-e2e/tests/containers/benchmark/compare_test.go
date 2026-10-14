@@ -40,8 +40,8 @@ func usage(millicores, seed float64) func(int) float64 {
 }
 
 // testPhases returns the phases of the measurement of images using baseline and comparison
-// millicores, the node pool of the comparison installation making any image use bias times
-// as much CPU as the node pool of the baseline installation.
+// millicores, the node pool of the installation running the comparison images in the first
+// phase making any image use bias times as much CPU as the node pool of the other one.
 func testPhases(baseline, comparison, bias float64) (Phase, Phase) {
 	first := Phase{
 		Window:     testWindow,

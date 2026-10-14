@@ -46,7 +46,7 @@ func WithAwsEnv(env *aws.Environment) ProvisionerOption {
 }
 
 // WithRunOptions adds options to the benchmarkeks scenario. They take precedence over the
-// per-variant ddagent: config keys.
+// ddagent:baseline* and ddagent:comparison* config keys.
 func WithRunOptions(opts ...benchmarkeks.RunOption) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.runOptions = append(params.runOptions, opts...)

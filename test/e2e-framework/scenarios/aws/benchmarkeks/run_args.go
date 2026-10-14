@@ -13,11 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 )
 
-// VariantParams holds the images of the Agent installation of a variant. An empty field
+// Images holds the images of an Agent installation, those of a version. An empty field
 // is not set: the Helm installation then falls back to its default images, which are the
 // images of the pipeline under test when E2E_PIPELINE_ID and E2E_COMMIT_SHA are set (see
 // components/datadog/agent/docker_image.go).
-type VariantParams struct {
+type Images struct {
 	AgentFullImagePath        string
 	ClusterAgentFullImagePath string
 	AgentVersion              string
@@ -25,17 +25,18 @@ type VariantParams struct {
 }
 
 // merge overrides the fields of p with the non-empty fields of o.
-func (p *VariantParams) merge(o VariantParams) {
+func (p *Images) merge(o Images) {
 	p.AgentFullImagePath = cmp.Or(o.AgentFullImagePath, p.AgentFullImagePath)
 	p.ClusterAgentFullImagePath = cmp.Or(o.ClusterAgentFullImagePath, p.ClusterAgentFullImagePath)
 	p.AgentVersion = cmp.Or(o.AgentVersion, p.AgentVersion)
 	p.ClusterAgentVersion = cmp.Or(o.ClusterAgentVersion, p.ClusterAgentVersion)
 }
 
-// RunParams collects the parameters of the benchmarkeks scenario.
+// RunParams collects the parameters of the benchmarkeks scenario: the images of the
+// installations of VariantA and VariantB.
 type RunParams struct {
-	baseline   VariantParams
-	comparison VariantParams
+	a Images
+	b Images
 }
 
 // RunOption is a function that modifies the RunParams.
@@ -50,48 +51,49 @@ func GetRunParams(opts ...RunOption) *RunParams {
 	return params
 }
 
-// ParamsFromEnvironment maps the per-variant config keys of the environment to scenario
+// ParamsFromEnvironment maps the image config keys of the environment to scenario
 // parameters, then applies opts on top of them, so that an explicit option takes precedence
-// over its config key.
+// over its config key. The images of the baseline version go to the installation of
+// VariantA, those of the comparison version to the installation of VariantB.
 //
-// The per-variant image keys live in the ddagent: config namespace and are specific to this
-// scenario, so they are read here rather than through the shared config.Env interface — same
-// pattern as scenarios/aws/integrations/{lustre,dell_powerflex}. The invoke task maps its
-// --baseline-* / --comparison-* flags onto them (see tasks/e2e_framework/aws/benchmarkeks.py),
-// and e2e tests can set them with -c ddagent:<key>=<value>.
+// The image keys live in the ddagent: config namespace and are specific to this scenario, so
+// they are read here rather than through the shared config.Env interface — same pattern as
+// scenarios/aws/integrations/{lustre,dell_powerflex}. The invoke task maps its --baseline-* /
+// --comparison-* flags onto them (see tasks/e2e_framework/aws/benchmarkeks.py), and e2e tests
+// can set them with -c ddagent:<key>=<value>.
 func ParamsFromEnvironment(e aws.Environment, opts ...RunOption) *RunParams {
 	return GetRunParams(append([]RunOption{
-		WithBaseline(variantParamsFromConfig(e, Baseline)),
-		WithComparison(variantParamsFromConfig(e, Comparison)),
+		WithVariantA(imagesFromConfig(e, "baseline")),
+		WithVariantB(imagesFromConfig(e, "comparison")),
 	}, opts...)...)
 }
 
-// variantParamsFromConfig reads the ddagent:<variant>FullImagePath,
-// ddagent:<variant>ClusterAgentFullImagePath, ddagent:<variant>Version and
-// ddagent:<variant>ClusterAgentVersion config keys.
-func variantParamsFromConfig(e aws.Environment, variant string) VariantParams {
-	return VariantParams{
-		AgentFullImagePath:        e.AgentConfig.Get(variant + "FullImagePath"),
-		ClusterAgentFullImagePath: e.AgentConfig.Get(variant + "ClusterAgentFullImagePath"),
-		AgentVersion:              e.AgentConfig.Get(variant + "Version"),
-		ClusterAgentVersion:       e.AgentConfig.Get(variant + "ClusterAgentVersion"),
+// imagesFromConfig reads the ddagent:<version>FullImagePath,
+// ddagent:<version>ClusterAgentFullImagePath, ddagent:<version>Version and
+// ddagent:<version>ClusterAgentVersion config keys.
+func imagesFromConfig(e aws.Environment, version string) Images {
+	return Images{
+		AgentFullImagePath:        e.AgentConfig.Get(version + "FullImagePath"),
+		ClusterAgentFullImagePath: e.AgentConfig.Get(version + "ClusterAgentFullImagePath"),
+		AgentVersion:              e.AgentConfig.Get(version + "Version"),
+		ClusterAgentVersion:       e.AgentConfig.Get(version + "ClusterAgentVersion"),
 	}
 }
 
-// WithBaseline sets the images of the baseline Agent installation. Only the non-empty
-// fields of variant are applied.
-func WithBaseline(variant VariantParams) RunOption {
+// WithVariantA sets the images of the Agent installation of VariantA. Only the non-empty
+// fields of images are applied.
+func WithVariantA(images Images) RunOption {
 	return func(params *RunParams) error {
-		params.baseline.merge(variant)
+		params.a.merge(images)
 		return nil
 	}
 }
 
-// WithComparison sets the images of the comparison Agent installation. Only the
-// non-empty fields of variant are applied.
-func WithComparison(variant VariantParams) RunOption {
+// WithVariantB sets the images of the Agent installation of VariantB. Only the non-empty
+// fields of images are applied.
+func WithVariantB(images Images) RunOption {
 	return func(params *RunParams) error {
-		params.comparison.merge(variant)
+		params.b.merge(images)
 		return nil
 	}
 }
