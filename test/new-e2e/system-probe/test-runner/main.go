@@ -217,7 +217,7 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) ([]string, error) {
 		"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
 	)
 
-	flagEnv, err := kmtTestFlagEnvVars()
+	flagEnv, err := kmtTestEnvVars()
 	if err != nil {
 		return nil, err
 	}
@@ -241,10 +241,10 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) ([]string, error) {
 	return env, nil
 }
 
-// kmtTestFlagEnvVars returns the environment variables communicating the
-// test flags of the KMT platform this runner is executing on, as defined in
+// kmtTestEnvVars returns the environment variables communicating the test
+// env vars of the KMT platform this runner is executing on, as defined in
 // test/new-e2e/system-probe/config/platforms.json, to the test binaries.
-func kmtTestFlagEnvVars() ([]string, error) {
+func kmtTestEnvVars() ([]string, error) {
 	arch, release, err := getArchAndRelease()
 	if err != nil {
 		return nil, fmt.Errorf("cannot get arch: %w", err)
@@ -253,19 +253,19 @@ func kmtTestFlagEnvVars() ([]string, error) {
 		arch = "arm64"
 	}
 
-	flags, err := systemprobeconfig.TestFlagEnvVars(arch, release)
+	envVars, err := systemprobeconfig.TestEnvVars(arch, release)
 	if err != nil {
 		return nil, err
 	}
 
 	var env []string
-	for name, value := range flags {
+	for name, value := range envVars {
 		env = append(env, fmt.Sprintf("%s=%s", name, value))
 	}
 	if len(env) == 0 {
-		fmt.Printf("no KMT platform matches kernel %s on %s, no test flags set\n", release, arch)
+		fmt.Printf("no KMT platform matches kernel %s on %s, no test env vars set\n", release, arch)
 	} else {
-		fmt.Printf("KMT platform test flags for kernel %s on %s: %s\n", release, arch, strings.Join(env, " "))
+		fmt.Printf("KMT platform test env vars for kernel %s on %s: %s\n", release, arch, strings.Join(env, " "))
 	}
 	return env, nil
 }
