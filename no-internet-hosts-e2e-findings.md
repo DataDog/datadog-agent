@@ -226,6 +226,40 @@ remote-config/CWS/diagnose real-backend endpoints, netpath external destinations
 production `yum.datadoghq.com` repo used by fleet-upgrade, and `ghcr.io` for the apm
 tracegen image.
 
+### Fix validation (pipeline #144433353, commit 066da616dac — FAILED, 48 failed / 530 success)
+
+The keys fix was validated by a full pipeline. **The `apttesting` test-keys blocker is
+eliminated** — every previously key-blocked job now either passes or fails on a later,
+distinct dependency:
+
+| Job family | Before | After |
+|---|---|---|
+| `ddot` (9 distros) | 0/9 pass | **8/9 pass** — only centos-7 still fails (EOL `archive.kernel.org/centos-vault` base repos) |
+| `package-signing` (debian, suse) | 0/2 | **2/2 pass** (vendored keys) |
+| `install-script` iot/fips-iot variants (centos-iot, centos-fips-iot, debian-iot, suse-iot) | all failed | **all pass** |
+| `installer: [TestPackageAgentFapolicyd]`, all `installer-windows` jobs | failed / n-a | **pass** |
+| `install-script` (amazonlinux, centos, centos-fips, debian, ubuntu, suse, docker) | failed at key import | still fail, but now at the **integration wheels download**: `agent-integration-wheels.datadoghq.com` / `dd-integrations-core-wheels-build-stable.datadoghq.com` (public production wheels hosts) — a newly-revealed dependency; plus per-distro base mirrors (centos-vault, ubuntu/debian mirrors + docker-ce) |
+| `installer: [TestPackages/*]` + ansible variants, `installer-script`, `fleet-*` (linux + windows) | keys + registry | still fail — **internal OCI registry** `installtesting.datad0g.com.internal.dda-testing.com` (infra work, not test-fixable) |
+
+New findings revealed by this run (the framework-script change made extra jobs auto-run):
+
+- **`new-e2e-agent-configuration` (linux) + `-windows`**: `TestSGC*/TestPullAWSSecret` fails —
+  `secret_backend_type: aws.secrets` needs the **public Secrets Manager endpoint**
+  (`secretsmanager.us-east-1.amazonaws.com`), unreachable without internet: the agent can't
+  decrypt `api_key`, so it never becomes ready. `TestApiSuite` (no fakeintake) also fails
+  (agent never ready — needs investigation). Fix: VPC interface endpoints for Secrets
+  Manager (or a non-AWS secret backend in the test).
+- `new-e2e-ssi-openshift`, `new-e2e-containers-openshift`, `new-e2e-ssi-gke-autopilot`:
+  k8s jobs that auto-ran because `test/e2e-framework/**` changed; they fail during **GCP
+  provisioning** (unrelated to the script content, these jobs rarely run on branch pipelines).
+
+**Open dependencies (not test-fixable with S3 URLs):**
+1. internal OCI registry for testing packages (fleet, installer TestPackages, installer-script) — infra
+2. public integrations-wheels hosts (install-script suites) — needs an internal wheels mirror or pre-baked wheels in AMIs
+3. base-OS mirrors (centos-vault, ubuntu/debian mirrors) + docker-ce repo on e2e AMIs — internal mirrors / pre-baked AMIs
+4. real Datadog endpoints (RC/CWS policy, diagnose, remote-config, fleet-upgrade prod repo) + AWS Secrets Manager endpoint
+5. ghcr.io (apm tracegen image), netpath external destinations
+
 ## Summary
 
 Removing the explicit `WithInternetAccess()` opt-ins from host E2E tests breaks **54 of the
