@@ -300,7 +300,7 @@ func postgresSSLMode(instance map[string]any, host string, enforceSSL bool) (str
 	case sslRequire, sslVerifyCA, sslVerifyFull:
 		return mode, nil
 	}
-	log.Infof("data_security.enforce_ssl: elevating postgres ssl mode %q to %q for host %q", mode, sslRequire, host)
+	log.Infof("data_security.enforce_ssl enabled: elevating postgres ssl mode %q to %q for host %q", mode, sslRequire, host)
 	return sslRequire, nil
 }
 
