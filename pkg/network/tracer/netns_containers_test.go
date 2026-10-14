@@ -8,14 +8,24 @@
 package tracer
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"go4.org/intern"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const testRootNetNS = 4026531840
@@ -34,6 +44,7 @@ func newTestNetNSResolver(pidToNetNS map[int]uint32) *netnsContainerResolver {
 		ignoredContainers: toSet([]string{"vault-agent"}),
 		containers:        make(map[*intern.Value]trackedContainer),
 		byNetNS:           make(map[uint32]map[*intern.Value]struct{}),
+		pending:           make(map[*intern.Value]*workloadmeta.Container),
 	}
 }
 
@@ -233,4 +244,121 @@ func TestNetNSContainerResolverIgnoresHelperContainers(t *testing.T) {
 
 	_, ok = r.resolve(multiNS, ztunnel)
 	assert.False(t, ok, "two application containers stay ambiguous")
+}
+
+func TestNetNSContainerResolverReclassifiesOnSamePIDUpdates(t *testing.T) {
+	const podNS = 7001
+	r := newTestNetNSResolver(map[int]uint32{10: 7000, 20: podNS, 21: podNS})
+	ztunnel := intern.GetByString("ztunnel")
+
+	// containerd reports no container name; the kubelet fills it in later with the same PID
+	unnamedHelper := testContainerEvent(workloadmeta.EventTypeSet, "helper-id", "vault", 21)
+	unnamedHelper.Entity.(*workloadmeta.Container).Name = ""
+	r.process([]workloadmeta.Event{
+		testContainerEvent(workloadmeta.EventTypeSet, "ztunnel", "ztunnel", 10),
+		testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 20),
+		unnamedHelper,
+	})
+	_, ok := r.resolve(podNS, ztunnel)
+	require.False(t, ok, "before the helper is named, the pod has two candidate containers")
+
+	namedHelper := testContainerEvent(workloadmeta.EventTypeSet, "helper-id", "vault", 21)
+	namedHelper.Entity.(*workloadmeta.Container).Name = ""
+	namedHelper.Entity.(*workloadmeta.Container).Labels = map[string]string{kubernetesContainerNameLabel: "vault-agent"}
+	r.process([]workloadmeta.Event{namedHelper})
+	cid, ok := r.resolve(podNS, ztunnel)
+	require.True(t, ok, "a same-PID update that names the helper must reclassify it")
+	assert.Equal(t, intern.GetByString("app"), cid)
+
+	// an owner image change is picked up without a PID change too
+	r.process([]workloadmeta.Event{testContainerEvent(workloadmeta.EventTypeSet, "ztunnel", "not-ztunnel", 10)})
+	_, ok = r.resolve(podNS, ztunnel)
+	assert.False(t, ok, "a container that no longer runs an owner image can't reattribute")
+}
+
+func TestNetNSContainerResolverSkipsPauseContainers(t *testing.T) {
+	const podNS = 7101
+	r := newTestNetNSResolver(map[int]uint32{10: 7100, 20: podNS, 21: podNS})
+	pause := testContainerEvent(workloadmeta.EventTypeSet, "pause-id", "pause", 21)
+	pause.Entity.(*workloadmeta.Container).Labels = map[string]string{"io.kubernetes.pod.name": "router-core-abc"}
+	r.process([]workloadmeta.Event{
+		testContainerEvent(workloadmeta.EventTypeSet, "ztunnel", "ztunnel", 10),
+		testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 20),
+		pause,
+	})
+	cid, ok := r.resolve(podNS, intern.GetByString("ztunnel"))
+	require.True(t, ok, "the pause container holds the namespace but isn't a candidate")
+	assert.Equal(t, intern.GetByString("app"), cid)
+}
+
+func TestNetNSContainerResolverRetriesFailedReads(t *testing.T) {
+	const podNS = 7201
+	readable := map[int]uint32{10: 7200}
+	r := newTestNetNSResolver(readable)
+	r.process([]workloadmeta.Event{
+		testContainerEvent(workloadmeta.EventTypeSet, "ztunnel", "ztunnel", 10),
+		testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 20),
+	})
+	ztunnel := intern.GetByString("ztunnel")
+	_, ok := r.resolve(podNS, ztunnel)
+	require.False(t, ok)
+	require.Contains(t, r.pending, intern.GetByString("app"))
+
+	readable[20] = podNS
+	r.retryPending()
+	cid, ok := r.resolve(podNS, ztunnel)
+	require.True(t, ok, "a namespace read that failed must be retried")
+	assert.Equal(t, intern.GetByString("app"), cid)
+	assert.Empty(t, r.pending)
+
+	// a container that fails again and then stops isn't retried forever
+	delete(readable, 20)
+	r.process([]workloadmeta.Event{testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 22)})
+	require.Contains(t, r.pending, intern.GetByString("app"))
+	r.process([]workloadmeta.Event{testContainerEvent(workloadmeta.EventTypeUnset, "app", "router", 22)})
+	assert.Empty(t, r.pending)
+}
+
+func TestNetNSContainerResolverStart(t *testing.T) {
+	const podNS = 7301
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(config.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	r := newTestNetNSResolver(map[int]uint32{10: 7300, 20: podNS, 30: podNS})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	r.start(ctx, wmeta)
+
+	mapped := func(netns uint32, id string) bool {
+		r.mtx.RLock()
+		defer r.mtx.RUnlock()
+		_, ok := r.byNetNS[netns][intern.GetByString(id)]
+		return ok
+	}
+	app := testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 20).Entity.(*workloadmeta.Container)
+	wmeta.Set(app)
+	require.Eventually(t, func() bool { return mapped(podNS, "app") }, 5*time.Second, 10*time.Millisecond)
+
+	wmeta.Unset(app)
+	require.Eventually(t, func() bool { return !mapped(podNS, "app") }, 5*time.Second, 10*time.Millisecond)
+
+	// after cancel, the subscription is gone and new containers aren't mapped
+	cancel()
+	time.Sleep(100 * time.Millisecond)
+	wmeta.Set(testContainerEvent(workloadmeta.EventTypeSet, "late", "router", 30).Entity.(*workloadmeta.Container))
+	assert.Never(t, func() bool { return mapped(podNS, "late") }, 300*time.Millisecond, 20*time.Millisecond)
+}
+
+func TestEnableNetNSContainerAttributionGuards(t *testing.T) {
+	off := &Tracer{config: &netconfig.Config{}}
+	require.NoError(t, off.EnableNetNSContainerAttribution(context.Background(), nil))
+	assert.Nil(t, off.netnsResolver.Load(), "the feature is off by default")
+
+	// on, but without process event monitoring there's no owner container to start from
+	noProcessCache := &Tracer{config: &netconfig.Config{EnableNetNSContainerAttribution: true}}
+	require.NoError(t, noProcessCache.EnableNetNSContainerAttribution(context.Background(), nil))
+	assert.Nil(t, noProcessCache.netnsResolver.Load())
 }

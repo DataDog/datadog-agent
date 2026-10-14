@@ -10,18 +10,30 @@ package tracer
 import (
 	"context"
 	"sync"
+	"time"
 
 	"go4.org/intern"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	utilcontainers "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const netnsAttributionModuleName = tracerModuleName + "__netns_attribution"
+const (
+	netnsAttributionModuleName = tracerModuleName + "__netns_attribution"
+
+	// kubernetesContainerNameLabel holds the Kubernetes container name; the runtime-reported name is
+	// empty on containerd and k8s_<container>_<pod>_... on docker
+	kubernetesContainerNameLabel = "io.kubernetes.container.name"
+
+	// netnsRetryInterval is how often failed namespace reads are retried, since the next workloadmeta
+	// update for a container can be minutes away
+	netnsRetryInterval = 30 * time.Second
+)
 
 var netnsAttributionTelemetry = struct {
 	reattributed   telemetryComponent.Counter
@@ -29,12 +41,16 @@ var netnsAttributionTelemetry = struct {
 	multiContainer telemetryComponent.Counter
 	readErrors     telemetryComponent.Counter
 	trackedNetNS   telemetryComponent.Gauge
+	owners         telemetryComponent.Gauge
+	pendingReads   telemetryComponent.Gauge
 }{
 	telemetryimpl.GetCompatComponent().NewCounter(netnsAttributionModuleName, "reattributed", nil, "Connections attributed to the container owning their network namespace"),
 	telemetryimpl.GetCompatComponent().NewCounter(netnsAttributionModuleName, "unknown_netns", nil, "Owner-allowlisted connections in a network namespace with no known container"),
 	telemetryimpl.GetCompatComponent().NewCounter(netnsAttributionModuleName, "multi_container_skipped", nil, "Owner-allowlisted connections left unchanged because their network namespace has several containers"),
 	telemetryimpl.GetCompatComponent().NewCounter(netnsAttributionModuleName, "netns_read_errors", nil, "Failures reading a container's network namespace"),
 	telemetryimpl.GetCompatComponent().NewGauge(netnsAttributionModuleName, "tracked_netns", nil, "Number of network namespaces mapped to containers"),
+	telemetryimpl.GetCompatComponent().NewGauge(netnsAttributionModuleName, "owner_containers", nil, "Number of tracked containers running an allowlisted owner image; zero means nothing can be reattributed"),
+	telemetryimpl.GetCompatComponent().NewGauge(netnsAttributionModuleName, "pending_netns_reads", nil, "Running containers whose network namespace couldn't be read yet"),
 }
 
 // netnsContainerResolver maps network namespaces to the containers that live in them, so a socket
@@ -51,6 +67,8 @@ type netnsContainerResolver struct {
 	mtx        sync.RWMutex
 	containers map[*intern.Value]trackedContainer
 	byNetNS    map[uint32]map[*intern.Value]struct{}
+	// pending holds running containers whose namespace read failed, retried every netnsRetryInterval
+	pending map[*intern.Value]*workloadmeta.Container
 }
 
 type trackedContainer struct {
@@ -75,6 +93,7 @@ func newNetNSContainerResolver(ownerImages, ignoredContainers []string) (*netnsC
 		ignoredContainers: toSet(ignoredContainers),
 		containers:        make(map[*intern.Value]trackedContainer),
 		byNetNS:           make(map[uint32]map[*intern.Value]struct{}),
+		pending:           make(map[*intern.Value]*workloadmeta.Container),
 	}
 	return r, nil
 }
@@ -97,6 +116,8 @@ func (r *netnsContainerResolver) start(ctx context.Context, wmeta workloadmeta.C
 		Build()
 	ch := wmeta.Subscribe("CNM NetNS Container Attribution", workloadmeta.NormalPriority, filter)
 	go func() {
+		retry := time.NewTicker(netnsRetryInterval)
+		defer retry.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -108,58 +129,129 @@ func (r *netnsContainerResolver) start(ctx context.Context, wmeta workloadmeta.C
 				}
 				r.process(eventBundle.Events)
 				eventBundle.Acknowledge()
+			case <-retry.C:
+				r.retryPending()
 			}
 		}
 	}()
 }
 
-func (r *netnsContainerResolver) process(events []workloadmeta.Event) {
-	r.mtx.Lock()
-	defer r.mtx.Unlock()
+// retryPending re-applies running containers whose namespace read failed.
+func (r *netnsContainerResolver) retryPending() {
+	r.mtx.RLock()
+	events := make([]workloadmeta.Event, 0, len(r.pending))
+	for _, container := range r.pending {
+		events = append(events, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: container})
+	}
+	r.mtx.RUnlock()
+	if len(events) > 0 {
+		r.process(events)
+	}
+}
 
+// process applies a bundle of container events. Only the subscription goroutine calls it, so the
+// state read in the first pass can't change before the last; resolve only takes the read lock.
+func (r *netnsContainerResolver) process(events []workloadmeta.Event) {
+	type update struct {
+		id        *intern.Value
+		container *workloadmeta.Container
+		running   bool
+		read      bool
+		netns     uint32
+		readErr   bool
+	}
+	updates := make([]update, 0, len(events))
+
+	r.mtx.RLock()
 	for _, event := range events {
 		container, ok := event.Entity.(*workloadmeta.Container)
 		if !ok {
 			continue
 		}
+		u := update{
+			id:        intern.GetByString(container.ID),
+			container: container,
+			running:   event.Type == workloadmeta.EventTypeSet && container.State.Running && container.PID > 0,
+		}
+		if u.running {
+			// most updates (health, readiness, a later source filling in the name) keep the process,
+			// so the namespace is unchanged; only the classification is recomputed
+			if tc, ok := r.containers[u.id]; ok && tc.pid == container.PID {
+				u.netns = tc.netns
+			} else {
+				u.read = true
+			}
+		}
+		updates = append(updates, u)
+	}
+	r.mtx.RUnlock()
 
-		id := intern.GetByString(container.ID)
-		running := event.Type == workloadmeta.EventTypeSet && container.State.Running && container.PID > 0
-
-		// most updates (health, readiness, labels) leave the process alone, so its namespace is unchanged
-		if tc, ok := r.containers[id]; ok && running && tc.pid == container.PID {
+	// read namespaces without holding the lock: each is an open and fstat of /proc/<pid>/ns/net
+	for i := range updates {
+		u := &updates[i]
+		if !u.read {
 			continue
 		}
-
-		r.removeLocked(id)
-		if !running {
-			continue
-		}
-
-		netns, err := r.readNetNS(container.PID)
+		netns, err := r.readNetNS(u.container.PID)
 		if err != nil {
 			netnsAttributionTelemetry.readErrors.Inc()
-			log.Debugf("netns attribution: could not read network namespace of container %s (pid %d): %s", container.ID, container.PID, err)
+			log.Debugf("netns attribution: could not read network namespace of container %s (pid %d): %s", u.container.ID, u.container.PID, err)
+			u.readErr = true
 			continue
 		}
-
-		_, owner := r.ownerImages[container.Image.ShortName]
-		r.containers[id] = trackedContainer{pid: container.PID, netns: netns, owner: owner}
-
-		// containers in the host network namespace are never reattribution targets
-		if netns == r.rootNetNS {
-			continue
-		}
-		if _, ignored := r.ignoredContainers[container.Name]; ignored {
-			continue
-		}
-		if r.byNetNS[netns] == nil {
-			r.byNetNS[netns] = make(map[*intern.Value]struct{})
-		}
-		r.byNetNS[netns][id] = struct{}{}
+		u.netns = netns
 	}
 
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	for _, u := range updates {
+		r.removeLocked(u.id)
+		delete(r.pending, u.id)
+		if !u.running {
+			continue
+		}
+		if u.readErr {
+			r.pending[u.id] = u.container
+			continue
+		}
+		r.addLocked(u.id, u.container, u.netns)
+	}
+
+	owners := 0
+	for _, tc := range r.containers {
+		if tc.owner {
+			owners++
+		}
+	}
 	netnsAttributionTelemetry.trackedNetNS.Set(float64(len(r.byNetNS)))
+	netnsAttributionTelemetry.owners.Set(float64(owners))
+	netnsAttributionTelemetry.pendingReads.Set(float64(len(r.pending)))
+}
+
+func (r *netnsContainerResolver) addLocked(id *intern.Value, container *workloadmeta.Container, netns uint32) {
+	_, owner := r.ownerImages[container.Image.ShortName]
+	r.containers[id] = trackedContainer{pid: container.PID, netns: netns, owner: owner}
+
+	// containers in the host network namespace are never reattribution targets
+	if netns == r.rootNetNS {
+		return
+	}
+	// neither are helpers and pause containers, which share a pod's namespace without carrying its traffic
+	if _, ignored := r.ignoredContainers[kubernetesContainerName(container)]; ignored || utilcontainers.IsPauseContainer(container.Labels) {
+		return
+	}
+	if r.byNetNS[netns] == nil {
+		r.byNetNS[netns] = make(map[*intern.Value]struct{})
+	}
+	r.byNetNS[netns][id] = struct{}{}
+}
+
+// kubernetesContainerName returns the container's Kubernetes name, falling back to the reported name.
+func kubernetesContainerName(container *workloadmeta.Container) string {
+	if name := container.Labels[kubernetesContainerNameLabel]; name != "" {
+		return name
+	}
+	return container.Name
 }
 
 func (r *netnsContainerResolver) removeLocked(id *intern.Value) {
