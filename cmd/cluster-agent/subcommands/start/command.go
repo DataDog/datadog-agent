@@ -106,7 +106,7 @@ import (
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeversion"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeinfo"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -210,7 +210,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
-				fx.Supply(status.NewHeaderInformationProvider(kubeversion.Provider{})),
+				fx.Supply(status.NewHeaderInformationProvider(kubeinfo.Provider{})),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),
@@ -399,7 +399,8 @@ func start(log log.Component,
 	}
 	pkglog.Infof("Got APIClient connection")
 
-	kubeversion.Check(apiCl.Cl.Discovery())
+	// Runs in the background as getting the server version can retry for a while.
+	go kubeinfo.CheckServerVersion(apiCl.Cl.Discovery())
 
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)
@@ -474,6 +475,7 @@ func start(log log.Component,
 	kubeDistro := cloudprovider.DCAGetName(mainCtx)
 
 	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Distribution: %s", clusterID, clusterName, kubeDistro)
+	kubeinfo.SetClusterInfo(clusterName, clusterID, kubeDistro)
 
 	// Setup APM tracing
 	if config.GetBool("cluster_agent.tracing.enabled") {

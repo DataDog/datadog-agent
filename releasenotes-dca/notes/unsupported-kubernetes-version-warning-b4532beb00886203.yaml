@@ -6,6 +6,11 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
+enhancements:
+  - |
+    The ``datadog-cluster-agent status`` output has a new "Kubernetes Information"
+    section with the cluster name, cluster ID, distribution, and Kubernetes server
+    version.
 deprecations:
   - |
     Starting with Datadog Cluster Agent 7.86.0, Kubernetes versions older than v1.23

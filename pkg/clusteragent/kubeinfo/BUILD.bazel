@@ -2,13 +2,13 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
-    name = "kubeversion",
+    name = "kubeinfo",
     srcs = [
-        "kubeversion.go",
+        "kubeinfo.go",
         "status.go",
     ],
-    embedsrcs = ["status_templates/kubeversion.tmpl"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeversion",
+    embedsrcs = ["status_templates/kubeinfo.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeinfo",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/status",
@@ -20,9 +20,12 @@ go_library(
 )
 
 dd_agent_go_test(
-    name = "kubeversion_test",
-    srcs = ["status_test.go"],
-    embed = [":kubeversion"],
+    name = "kubeinfo_test",
+    srcs = [
+        "kubeinfo_test.go",
+        "status_test.go",
+    ],
+    embed = [":kubeinfo"],
     gotags_sets = [[
         "cel",
         "clusterchecks",
@@ -31,8 +34,13 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//pkg/util/cache",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/version",
+        "@io_k8s_client_go//discovery/fake",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
     ],
 )

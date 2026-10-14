@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package kubeversion
+package kubeinfo
 
 import (
 	"embed"
@@ -18,8 +18,7 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// Provider adds the unsupported Kubernetes version warning to the status header.
-// It is hidden when the version is supported or unknown.
+// Provider adds the Kubernetes information to the status header.
 type Provider struct{}
 
 // Index returns the index
@@ -27,29 +26,20 @@ func (Provider) Index() int {
 	return 2
 }
 
-// Name returns the name. An empty name hides the section.
+// Name returns the name
 func (Provider) Name() string {
-	if getUnsupportedVersion() == "" {
-		return ""
-	}
-	return "Kubernetes Version"
+	return "Kubernetes Information"
 }
 
 // JSON populates the status map
 func (Provider) JSON(_ bool, stats map[string]interface{}) error {
-	if info := getStatusInfo(); info != nil {
-		stats["kubernetesVersion"] = info
-	}
+	stats["kubernetesInfo"] = getStatusInfo()
 	return nil
 }
 
 // Text renders the text output
 func (Provider) Text(_ bool, buffer io.Writer) error {
-	info := getStatusInfo()
-	if info == nil {
-		return nil
-	}
-	return status.RenderText(templatesFS, "kubeversion.tmpl", buffer, info)
+	return status.RenderText(templatesFS, "kubeinfo.tmpl", buffer, getStatusInfo())
 }
 
 // HTML renders the html output
@@ -58,14 +48,20 @@ func (Provider) HTML(_ bool, _ io.Writer) error {
 }
 
 func getStatusInfo() map[string]interface{} {
-	detected := getUnsupportedVersion()
-	if detected == "" {
-		return nil
+	i := getInfo()
+
+	versionInfo := map[string]interface{}{
+		"detected":     i.serverVersion,
+		"minSupported": common.MinSupportedKubeVersion,
 	}
+	if i.unsupported {
+		versionInfo["warning"] = warningMessage(i.serverVersion)
+	}
+
 	return map[string]interface{}{
-		"detectedVersion":     detected,
-		"minSupportedVersion": common.MinSupportedKubeVersion,
-		"supported":           false,
-		"warning":             warningMessage(detected),
+		"clusterName":  i.clusterName,
+		"clusterID":    i.clusterID,
+		"distribution": i.distribution,
+		"version":      versionInfo,
 	}
 }
