@@ -10,6 +10,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
@@ -42,6 +43,11 @@ func (p StatusProvider) getStatusInfo(verbose bool) map[string]interface{} {
 
 func (p StatusProvider) populateStatus(verbose bool, stats map[string]interface{}) {
 	stats["logsStats"] = logsProvider(verbose)
+	lastSync, quotas := quota.Default().Status()
+	stats["quotaEnforcement"] = map[string]interface{}{
+		"LastSync": lastSync,
+		"Quotas":   quotas,
+	}
 }
 
 // JSON populates the status map
