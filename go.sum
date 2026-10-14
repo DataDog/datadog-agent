@@ -2582,6 +2582,8 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
+github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d h1:kF4WFXPeCD4hJoSEhx7ofi0IkcP+Lt4niJ7QfnRDPJw=
+github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d/go.mod h1:BSLlxDNQ5Yn6gXzn9tYrUXnuh6HFTPhjLerdykT2tZo=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261007130743-0c7e198c5db5 h1:J+E6oCdGnNZP12ZHg76P5d7/lTDXzlDJe68Kdcp6WWQ=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261007130743-0c7e198c5db5/go.mod h1:YHZoUQvsqL7aWSIBMHE2zVQU2VSEVzEIIR7t8sX1x0w=
 github.com/DataDog/rshell v0.0.30 h1:EKMbkW0TBs+McC5XM6Ixt4gMOfTz1nLm1QDL6vgn3h4=
@@ -4473,8 +4475,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsre
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver v0.159.0/go.mod h1:RdHR15IATaIcK27y6tqCJV0+yqc9X+DzMRmsbCBSJoY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.159.0 h1:/lYX40MOD7kvGFtR/jgV00wCCPqbufLnFTSYdBdoYfY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.159.0/go.mod h1:f9hfGbIkoc2q8zQzwp17jEotFFaIP4i0X/2MVTYXF88=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.159.0 h1:L5NcIxnprFW69ZqBlirDD7JJ9f6xqUdIlD5ydWGdwvs=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.159.0/go.mod h1:BSLlxDNQ5Yn6gXzn9tYrUXnuh6HFTPhjLerdykT2tZo=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.159.0 h1:L5zcKRlbIdfEKFlScBpqMlnTDWEmLRotqlgSNP54q2g=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.159.0/go.mod h1:zlB3fH5uHaj/1IEFYG0fWIC228H17ttlcxE62zIb1uA=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver v0.159.0 h1:AEHCjt171EjLQx5gtTxg2mlHguwoubqJzOlvfl/eknQ=
