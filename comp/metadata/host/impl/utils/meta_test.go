@@ -99,12 +99,18 @@ func TestCanonicalConfiguredMetadata(t *testing.T) {
 // EUDM selects a canonical hostname without discarding OS metadata or aliases.
 func TestEUDMCanonicalHostnamePreservesAliases(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetInTest("infrastructure_mode", "end_user_device")
 	cfg.SetInTest("cloud_provider_metadata", []string{})
 	cfg.SetInTest("ec2_use_dmi", false)
 	cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
 	cfg.SetInTest("host_aliases", []string{"shared-device", "i-other-identity"})
 	const selected = "ip-device-abc123"
+	// Disabling cloud discovery does not clear aliases cached by earlier tests
+	// (for example, the CI runner's EC2 instance ID). EUDM must preserve those too.
+	baselineHost := identityHostname{data: hostnameinterface.Data{Hostname: "ip-device", Provider: "os"}}
+	baseline := getMeta(context.Background(), cfg, baselineHost)
+	require.Contains(t, baseline.HostAliases, "shared-device")
+	require.Contains(t, baseline.HostAliases, "i-other-identity")
+	cfg.SetInTest("infrastructure_mode", "end_user_device")
 	host := identityHostname{data: hostnameinterface.Data{Hostname: selected, Provider: hostnameinterface.EUDMProvider}}
 	encoded, err := json.Marshal(getMeta(context.Background(), cfg, host))
 	require.NoError(t, err)
@@ -115,5 +121,5 @@ func TestEUDMCanonicalHostnamePreservesAliases(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, osHostname, payload["socket-hostname"])
 	assert.NotEmpty(t, payload["socket-fqdn"])
-	assert.ElementsMatch(t, []string{"shared-device", "i-other-identity"}, payload["host_aliases"])
+	assert.ElementsMatch(t, baseline.HostAliases, payload["host_aliases"])
 }
