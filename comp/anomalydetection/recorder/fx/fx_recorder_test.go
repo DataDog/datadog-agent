@@ -9,8 +9,12 @@ package fx
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -31,6 +35,7 @@ func TestTaggedModuleWithoutProvider(t *testing.T) {
 		fx.NopLogger,
 		Module().Option,
 		fx.Provide(func() config.Component { return cfg }),
+		fx.Replace(option.None[recorder.WriterFactory]()),
 		fx.Populate(&component, &provider),
 	)
 	require.NoError(t, app.Err())
@@ -90,4 +95,88 @@ func TestTaggedModuleWithProviderStopsWriters(t *testing.T) {
 	require.NoError(t, app.Stop(context.Background()))
 	require.Equal(t, 1, factory.metric.closes)
 	require.Equal(t, 1, factory.log.closes)
+}
+
+func TestTaggedModuleDisabledDoesNotCreateOutput(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "recordings")
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":    false,
+		"anomaly_detection.recording.output_dir": dir,
+	})
+	var component option.Option[recorder.Component]
+	var provider option.Option[recorder.WriterFactory]
+	app := fx.New(
+		fx.NopLogger,
+		fxutil.FxLifecycleAdapter(),
+		Module().Option,
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Populate(&component, &provider),
+	)
+	require.NoError(t, app.Err())
+	_, hasProvider := provider.Get()
+	_, hasComponent := component.Get()
+	require.True(t, hasProvider)
+	require.False(t, hasComponent)
+	require.NoError(t, app.Start(context.Background()))
+	require.NoError(t, app.Stop(context.Background()))
+	_, err := os.Stat(dir)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+type fxTestMetric struct{}
+
+func (*fxTestMetric) GetName() string   { return "system.cpu" }
+func (*fxTestMetric) GetValue() float64 { return 2.5 }
+func (*fxTestMetric) GetTags() tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice([]string{"env:test"})
+}
+func (*fxTestMetric) GetHost() string         { return "test-host" }
+func (*fxTestMetric) GetTimestampUnix() int64 { return 1234 }
+func (*fxTestMetric) GetSampleRate() float64  { return 1 }
+
+type fxTestLog struct{}
+
+func (*fxTestLog) GetContent() string           { return "hello" }
+func (*fxTestLog) GetStatus() string            { return "info" }
+func (*fxTestLog) Tags() []string               { return []string{"service:test"} }
+func (*fxTestLog) GetHostname() string          { return "test-host" }
+func (*fxTestLog) GetTimestampUnixMilli() int64 { return 1234567 }
+
+type fxTestHandle struct{}
+
+func (*fxTestHandle) ObserveMetric(observer.MetricView, uint64) {}
+func (*fxTestHandle) ObserveLog(observer.LogView)               {}
+
+func TestTaggedModuleFlushesRealWritersOnStop(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "recordings")
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":        true,
+		"anomaly_detection.recording.output_dir":     dir,
+		"anomaly_detection.recording.flush_interval": "1h",
+	})
+	var provided option.Option[recorder.Component]
+	app := fx.New(
+		fx.NopLogger,
+		fxutil.FxLifecycleAdapter(),
+		Module().Option,
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Populate(&provided),
+	)
+	require.NoError(t, app.Err())
+	component, present := provided.Get()
+	require.True(t, present)
+	require.NoError(t, app.Start(context.Background()))
+	handle := component.GetHandle(func(string) observer.Handle { return &fxTestHandle{} })("check")
+	handle.ObserveMetric(&fxTestMetric{}, 17)
+	handle.ObserveLog(&fxTestLog{})
+	files, err := filepath.Glob(filepath.Join(dir, "*.parquet"))
+	require.NoError(t, err)
+	require.Empty(t, files)
+	require.NoError(t, app.Stop(context.Background()))
+	metrics, err := filepath.Glob(filepath.Join(dir, "observer-metrics-*.parquet"))
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	logs, err := filepath.Glob(filepath.Join(dir, "observer-logs-*.parquet"))
+	require.NoError(t, err)
+	require.Len(t, logs, 1)
 }

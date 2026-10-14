@@ -35,8 +35,16 @@ func MockModule() fxutil.Module {
 
 // SetupFakeTagger calls fxutil.Test to create a mock tagger for testing
 func SetupFakeTagger(t testing.TB) taggermock.Mock {
+	return SetupFakeTaggerWithOverrides(t, nil)
+}
+
+// SetupFakeTaggerWithOverrides calls fxutil.Test to create a mock tagger whose
+// config carries the given overrides. Use it for settings the tagger reads at
+// construction, such as `infrastructure_mode`, which a config set afterwards
+// would no longer affect.
+func SetupFakeTaggerWithOverrides(t testing.TB, overrides map[string]interface{}) taggermock.Mock {
 	return fxutil.Test[taggermock.Mock](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		noopTelemetry.Module(),

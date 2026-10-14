@@ -209,7 +209,7 @@ properties:
         visibility: public
         description: |-
           Set to true to inject tracers into GPU workloads.
-      ddTraceVersions:
+      tracer_versions:
         node_type: setting
         type: object
         default:

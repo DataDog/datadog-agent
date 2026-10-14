@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver
 
 package orchestrator
 
@@ -22,6 +22,7 @@ import (
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/metadata/metadatainformer"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -29,6 +30,7 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	taggerutils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -165,6 +167,10 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	extraTags = append(extraTags, checkConfigExtraTags...)
 	extraTags = append(extraTags, taggerExtraTags...)
 
+	// On a Cluster Check Runner the dispatched check configuration can already
+	// carry the mark, so append it only when it is absent.
+	extraTags = taggerutils.AppendUniqueTags(extraTags, o.tagger.GetInfraTags()...)
+
 	o.orchestratorConfig = orchcfg.NewDefaultOrchestratorConfig(extraTags)
 
 	err = o.orchestratorConfig.Load()
@@ -252,22 +258,13 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
 
-	// Only collect pods that are in a terminated state: Succeeded, Failed, or Pending.
-	terminatedPodsTweakListOptions := func(options *metav1.ListOptions) {
-		options.FieldSelector = fields.AndSelectors(
-			fields.OneTermNotEqualSelector("status.phase", "Pending"),
-			fields.OneTermNotEqualSelector("status.phase", "Running"),
-			fields.OneTermNotEqualSelector("status.phase", "Unknown"),
-		).String()
-	}
-
 	of := &collectors.OrchestratorInformerFactory{
 		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
 		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
 		DynamicInformerFactory:       dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicInformerCl, defaultResyncInterval),
+		MetadataInformerFactory:      metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval),
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
 		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
-		TerminatedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(terminatedPodsTweakListOptions)),
 	}
 
 	return of

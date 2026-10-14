@@ -739,6 +739,7 @@ properties:
             - open
             - dns
             - bind
+            - mount
             - connect
             - capabilities
             items:

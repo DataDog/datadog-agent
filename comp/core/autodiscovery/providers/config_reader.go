@@ -101,6 +101,9 @@ type entryResult struct {
 	entryAction *errorAction
 }
 
+// readerMu protects publication of the global reader and its initial cache fill.
+// AD preparation can run concurrently with metadata consumers during startup.
+var readerMu sync.RWMutex
 var reader *configFilesReader
 
 type configFilesReader struct {
@@ -115,6 +118,9 @@ var doOnce sync.Once
 // It reads all configs and caches them in memory for 5 minutes.
 // InitConfigFilesReader should be called at agent startup.
 func InitConfigFilesReader(paths []string) {
+	readerMu.Lock()
+	defer readerMu.Unlock()
+
 	fileCacheExpiration := 5 * time.Minute
 	if pkgconfigsetup.Datadog().GetBool("autoconf_config_files_poll") {
 		// Removing some time (1s) to avoid races with polling interval.
@@ -164,6 +170,9 @@ var WithoutAdvancedAD FilterFunc = func(c integration.Config) bool {
 // InitConfigFilesReader should be called at agent startup before this function
 // to setup the config paths and cache the configs.
 func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, error) {
+	readerMu.RLock()
+	defer readerMu.RUnlock()
+
 	if reader == nil {
 		return nil, nil, errors.New("cannot read config files: reader not initialized")
 	}
@@ -198,9 +207,15 @@ func ReadConfigFiles(keep FilterFunc) ([]integration.Config, map[string]string, 
 
 // ReadConfigFormats returns the config formats read from config files
 func ReadConfigFormats() []ConfigFormatWrapper {
+	readerMu.RLock()
+	defer readerMu.RUnlock()
+
 	if reader == nil {
 		return []ConfigFormatWrapper{}
 	}
+
+	reader.Lock()
+	defer reader.Unlock()
 
 	_, found := reader.cache.Get("configFormats")
 	if !found {
@@ -616,8 +631,10 @@ func containsString(slice []string, str string) bool {
 
 // ResetReader is only for unit tests
 func ResetReader(paths []string) {
+	readerMu.Lock()
 	reader = nil
 	doOnce = sync.Once{}
+	readerMu.Unlock()
 
 	InitConfigFilesReader(paths)
 }

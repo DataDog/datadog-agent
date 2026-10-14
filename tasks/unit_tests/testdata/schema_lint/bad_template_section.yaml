@@ -1,0 +1,24 @@
+properties:
+  private_setting:
+    node_type: setting
+    type: string
+    default: hello
+    tags:
+      - template_section:agent
+  private_section:
+    node_type: section
+    tags:
+      - template_section:agent
+    properties:
+      child:
+        node_type: setting
+        type: string
+        default: hello
+  public_setting:
+    node_type: setting
+    type: string
+    default: hello
+    visibility: public
+    description: A public setting.
+    tags:
+      - template_section:agent

@@ -300,6 +300,36 @@ func TestEnsureErrorWhenIntermediateNotMap(t *testing.T) {
 	require.Contains(t, err.Error(), "processors")
 }
 
+func TestConverterWithoutAgentDisablesHealthMetricsByDefault(t *testing.T) {
+	configData := confMap{
+		"service": confMap{
+			"pipelines": confMap{
+				"profiles": confMap{
+					"receivers":  []any{"profiling"},
+					"processors": []any{},
+					"exporters":  []any{"otlp_http"},
+				},
+			},
+		},
+		"receivers": confMap{
+			"profiling": confMap{"symbol_uploader": confMap{"enabled": false}},
+		},
+		"exporters": confMap{
+			"otlp_http": confMap{
+				"endpoint": "https://otlp.datadoghq.com",
+				"headers":  confMap{"dd-api-key": "test-api-key"},
+			},
+		},
+	}
+	conf := confmap.NewFromStringMap(configData)
+
+	err := newTestConverterWithoutAgent(zap.NewNop(), noContainerID).Convert(t.Context(), conf)
+	require.NoError(t, err)
+
+	_, hasHealthMetricsPipeline := confmaputils.Get[confMap](conf.ToStringMap(), "service::pipelines::metrics/profiler-internal-health")
+	require.False(t, hasHealthMetricsPipeline)
+}
+
 func TestConverterWithoutAgentLogsViaOTelLogger(t *testing.T) {
 	logger, logs := newObserverLogger(zap.WarnLevel)
 
