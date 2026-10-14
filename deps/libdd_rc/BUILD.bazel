@@ -5,6 +5,7 @@ exports_files(
         "aws-lc-fips-sys-hermetic-msvc.patch",
         "aws-lc-sys-nasm-command.patch",
         "aws-lc-fips-sys-macos-linker.patch",
+        "cmake-forward-failed-output.patch",
         "rc-x509-proto-protobuf-include.patch",
         "lib.rs",
         "libdd_rc.BUILD.bazel",

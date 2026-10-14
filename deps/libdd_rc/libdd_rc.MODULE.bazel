@@ -43,6 +43,15 @@ crate.annotation(
     deps = ["@libdd_rc_crates//:valuable-0.1.1"],
 )
 
+# rules_rust consumes non-Cargo build-script stdout, hiding the command stream
+# from a failed nested Ninja build. Retain the normal behavior unless the
+# Windows AWS-LC diagnostic explicitly asks cmake-rs to mirror failed output.
+crate.annotation(
+    crate = "cmake",
+    patch_args = ["-p1"],
+    patches = ["//deps/libdd_rc:cmake-forward-failed-output.patch"],
+)
+
 # aws-lc-sys appends the Bazel-provided optimization flags after the -O0 that
 # its optional jitter-entropy source requires, so optimized clean builds reject
 # that source. aws-lc-sys remains in aws-lc-rs's resolved graph even though
@@ -90,7 +99,7 @@ alias(
         # Perl comes from the MSYS2 toolset already installed in the Windows
         # build image; production should replace this host path with a declared
         # Bazel tool input.
-        "x86_64-pc-windows-msvc": "{\"AWS_LC_FIPS_SYS_NO_ASM\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"PERL_EXECUTABLE\":\"C:/tools/msys64/usr/bin/perl.exe\"}",
+        "x86_64-pc-windows-msvc": "{\"AWS_LC_FIPS_SYS_NO_ASM\":\"1\",\"CMAKE_RS_FORWARD_FAILED_OUTPUT\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"PERL_EXECUTABLE\":\"C:/tools/msys64/usr/bin/perl.exe\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     build_script_tools = ["@go_work_sdk//:files"],
