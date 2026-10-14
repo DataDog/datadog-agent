@@ -87,7 +87,10 @@ alias(
         "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
         # See the aws-lc-sys annotation above. Keep Go hermetic, but avoid a
         # NASM action input only for this temporary debug/no-assembly build.
-        "x86_64-pc-windows-msvc": "{\"AWS_LC_FIPS_SYS_NO_ASM\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\"}",
+        # Perl comes from the MSYS2 toolset already installed in the Windows
+        # build image; production should replace this host path with a declared
+        # Bazel tool input.
+        "x86_64-pc-windows-msvc": "{\"AWS_LC_FIPS_SYS_NO_ASM\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"PERL_EXECUTABLE\":\"C:/tools/msys64/usr/bin/perl.exe\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     build_script_tools = ["@go_work_sdk//:files"],

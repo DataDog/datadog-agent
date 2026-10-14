@@ -96,11 +96,14 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
          let mut cmake_cfg = self.get_cmake_config();
          if is_fips_build() {
              if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
-@@ -483,11 +564,24 @@ impl CmakeBuilder {
+@@ -483,11 +564,27 @@ impl CmakeBuilder {
      fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
 +        // Force CMake to hash object paths before Windows' path limit becomes
 +        // a problem inside Bazel's deeply nested output directories.
 +        cmake_cfg.define("CMAKE_OBJECT_PATH_MAX", "200");
++        if let Ok(perl_executable) = env::var("PERL_EXECUTABLE") {
++            cmake_cfg.define("PERL_EXECUTABLE", perl_executable);
++        }
 +
          if is_fips_build() {
              cmake_cfg.generator("Ninja");
