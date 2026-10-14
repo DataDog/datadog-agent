@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agent
+package dupcheck_test
 
 import (
 	"compress/gzip"
@@ -33,8 +33,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -69,7 +71,7 @@ type dupcheckConfig struct {
 	// configure adjusts the agent configuration before the agent is built.
 	configure func(*config.AgentConfig)
 	// setup adjusts the agent once built.
-	setup func(*Agent)
+	setup func(*agent.Agent)
 }
 
 var dupcheckConfigs = []dupcheckConfig{
@@ -97,13 +99,30 @@ var dupcheckConfigs = []dupcheckConfig{
 				return dupcheckContainerTags, nil
 			}
 		},
-		setup: func(a *Agent) {
+		setup: func(a *agent.Agent) {
 			a.ContainerTagsBuffer = &mockContainerTagsBuffer{enabled: true, returnTags: dupcheckContainerTags}
 		},
 	},
 }
 
 var dupcheckContainerTags = []string{"image_tag:dupcheck-image-tag", "git.commit.sha:dupcheck-git-commit-sha", "kube_namespace:dupcheck-namespace"}
+
+// mockContainerTagsBuffer enriches payloads synchronously with fixed
+// container tags.
+type mockContainerTagsBuffer struct {
+	containertagsbuffer.NoOpTagsBuffer
+	enabled    bool
+	returnTags []string
+}
+
+func (m *mockContainerTagsBuffer) IsEnabled() bool {
+	return m.enabled
+}
+
+func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error, *containertagsbuffer.DebugInfo), _ int64) bool {
+	cb(m.returnTags, nil, nil)
+	return false
+}
 
 // TestNoAgentIntroducedDuplicates pushes a generated corpus of spans through
 // the agent pipeline, with the real trace writers sending to a local intake,
@@ -136,11 +155,9 @@ func TestNoAgentIntroducedDuplicates(t *testing.T) {
 // a runfiles symlink to the source tree: where it isn't (for example under
 // remote execution), the check is skipped.
 func logSpanTypeCoverage(t *testing.T) {
-	fixture, err := filepath.EvalSymlinks(dupcheckFixturePath)
-	if err == nil {
-		fixture, err = filepath.Abs(fixture)
-	}
-	root := filepath.Dir(filepath.Dir(filepath.Dir(fixture)))
+	// The test runs in pkg/trace/testutil/dupcheck.
+	dir, err := filepath.Abs(".")
+	root := filepath.Dir(filepath.Dir(dir))
 	if err == nil {
 		_, err = os.Stat(filepath.Join(root, "agent", "obfuscate.go"))
 	}
@@ -182,7 +199,7 @@ func TestDupcheckDetectsInjectedDuplicates(t *testing.T) {
 			for _, kind := range dupcheckInjectionKinds {
 				t.Run(kind, func(t *testing.T) {
 					injectors := make(map[string]*dupcheckInjector)
-					injected := newDupcheckPipeline(t, c).run(t, inputs, func(stage string) SpanModifierWithV1 {
+					injected := newDupcheckPipeline(t, c).run(t, inputs, func(stage string) agent.SpanModifierWithV1 {
 						injectors[stage] = &dupcheckInjector{kind: kind, injections: make(map[uint64]dupcheckInjection)}
 						return injectors[stage]
 					})
@@ -435,7 +452,7 @@ func (dupcheckNoopConcentrator) AddV1(stats.InputV1) {}
 // dupcheckPipeline is an agent built by NewAgent, with its real trace writers
 // flushing synchronously to a dupcheckIntake and a no-op concentrator.
 type dupcheckPipeline struct {
-	agent   *Agent
+	agnt    *agent.Agent
 	intake  *dupcheckIntake
 	otlp    *api.OTLPReceiver
 	otlpOut chan *api.Payload
@@ -448,6 +465,9 @@ func newDupcheckPipeline(t *testing.T, c dupcheckConfig) *dupcheckPipeline {
 	cfg.Endpoints[0].APIKey = "dupcheck-api-key"
 	cfg.SynchronousFlushing = true
 	cfg.Hostname = "dupcheck-agent-hostname"
+	// Without the query cache, the obfuscator starts no goroutine and needs no
+	// stop, which the agent only exposes through Run.
+	cfg.Obfuscation.Cache.Enabled = false
 	cfg.DefaultEnv = "dupcheck-agent-env"
 	translator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
 	require.NoError(t, err)
@@ -455,7 +475,7 @@ func newDupcheckPipeline(t *testing.T, c dupcheckConfig) *dupcheckPipeline {
 	if c.configure != nil {
 		c.configure(cfg)
 	}
-	a := NewAgent(context.Background(), cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzipcomp.NewComponent())
+	a := agent.NewAgent(context.Background(), cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzipcomp.NewComponent())
 	a.Concentrator = dupcheckNoopConcentrator{}
 	// NewAgent starts the senders of the stats writer. Run its loop so that
 	// Stop can shut them down.
@@ -465,7 +485,7 @@ func newDupcheckPipeline(t *testing.T, c dupcheckConfig) *dupcheckPipeline {
 	}
 	otlpOut := make(chan *api.Payload, 1)
 	p := &dupcheckPipeline{
-		agent:   a,
+		agnt:    a,
 		intake:  intake,
 		otlp:    api.NewOTLPReceiver(otlpOut, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}),
 		otlpOut: otlpOut,
@@ -474,9 +494,6 @@ func newDupcheckPipeline(t *testing.T, c dupcheckConfig) *dupcheckPipeline {
 		a.TraceWriter.Stop()
 		a.TraceWriterV1.Stop()
 		a.StatsWriter.Stop()
-		if a.obfuscator != nil {
-			a.obfuscator.Stop()
-		}
 	})
 	return p
 }
@@ -508,8 +525,8 @@ type dupcheckOutput struct {
 
 // run pushes the inputs through every stage of the pipeline. newModifier, if
 // set, returns the span modifier used by the agent during a stage.
-func (p *dupcheckPipeline) run(t *testing.T, in *dupcheckInputs, newModifier func(stage string) SpanModifierWithV1) *dupcheckOutput {
-	a := p.agent
+func (p *dupcheckPipeline) run(t *testing.T, in *dupcheckInputs, newModifier func(stage string) agent.SpanModifierWithV1) *dupcheckOutput {
+	a := p.agnt
 	setModifier := func(stage string) {
 		if newModifier != nil {
 			m := newModifier(stage)

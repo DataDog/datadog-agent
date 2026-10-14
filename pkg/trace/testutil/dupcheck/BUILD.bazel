@@ -22,13 +22,31 @@ go_library(
 
 dd_agent_go_test(
     name = "dupcheck_test",
-    srcs = ["dupcheck_test.go"],
+    srcs = [
+        "dupcheck_test.go",
+        "pipeline_test.go",
+    ],
+    data = glob(["testdata/**"]),
     embed = [":dupcheck"],
     deps = [
+        "//comp/trace/compression/impl-gzip",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/agent",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/containertags",
+        "//pkg/trace/info",
+        "//pkg/trace/stats",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/testutil",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_golang_google_protobuf//proto",
     ],
 )
