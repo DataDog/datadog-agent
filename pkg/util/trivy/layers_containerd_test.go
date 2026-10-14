@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/containerd/containerd/v2/core/snapshots"
 	"github.com/containerd/errdefs"
@@ -191,6 +192,15 @@ func TestBuildContainerdLayerPaths(t *testing.T) {
 		extra = append(extra, "/snap/path-spurious-upper")
 		_, err := buildContainerdLayerPaths(t.Context(), snap, imgName, diffIDs, manifest, mountsFromTopDownPaths(extra))
 		require.ErrorIs(t, err, errLayerCountMismatch)
+	})
+
+	// A nydus view stacks the tree nydusd merges from every layer on the
+	// view's own directory.
+	t.Run("count_mismatch_nydus_view", func(t *testing.T) {
+		mounts := mountsFromTopDownPaths([]string{"/snap/nydus-rafs", "/snap/nydus-view"})
+		_, err := buildContainerdLayerPaths(t.Context(), snap, imgName, diffIDs, manifest, mounts)
+		require.ErrorIs(t, err, errLayerCountMismatch)
+		require.ErrorIs(t, err, sbom.ErrScanNotSupported)
 	})
 
 	t.Run("empty_diff_ids", func(t *testing.T) {
