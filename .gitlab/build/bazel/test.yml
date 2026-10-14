@@ -165,9 +165,9 @@ bazel:rc-x509-ffi:windows-amd64-noasm-debug:
         bazel build -c dbg --jobs=8 --verbose_failures --remote_download_outputs=all --action_env=PATH "--@rules_rust//cargo/settings:debug_std_streams_output_group=true" --platforms=//bazel/platforms:windows_x86_64_msvc_fips --extra_toolchains=@rust_toolchains//:rw-395021384 --extra_toolchains=@msvc_toolchains//:default_msvc-cl_hostx64_targetx64 @libdd_rc_source//:rc_x509_ffi
       } finally {
         Write-Host "AWS-LC FIPS build-script raw stdout:"
-        Get-ChildItem -Path bazel-out -Recurse -File -Filter "aws-lc-fips-sys_build_script.stdout.log" -ErrorAction SilentlyContinue | Get-Content
+        Get-Content -LiteralPath "bazel-out/x64_windows-dbg/bin/external/rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2/aws-lc-fips-sys_build_script.stdout.log" -ErrorAction Continue
         Write-Host "AWS-LC FIPS build-script raw stderr:"
-        Get-ChildItem -Path bazel-out -Recurse -File -Filter "aws-lc-fips-sys_build_script.stderr.log" -ErrorAction SilentlyContinue | Get-Content
+        Get-Content -LiteralPath "bazel-out/x64_windows-dbg/bin/external/rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2/aws-lc-fips-sys_build_script.stderr.log" -ErrorAction Continue
       }
       exit (Get-Variable LASTEXITCODE -ValueOnly)
 

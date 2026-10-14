@@ -102,7 +102,19 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
          Self {
              manifest_dir,
              out_dir,
-@@ -210,6 +297,16 @@ impl CmakeBuilder {
+@@ -101,5 +188,11 @@ impl CmakeBuilder {
+     fn get_cmake_config(&self) -> cmake::Config {
+         let mut config = cmake::Config::new(&self.manifest_dir);
++        #[cfg(windows)]
++        {
++            // Keep CMake's build tree on AWS-LC's existing 8.3-shortened OUT_DIR.
++            // Otherwise cmake-rs rereads the original long OUT_DIR environment value.
++            config.out_dir(&self.out_dir);
++        }
+         if is_fips_build() && target_vendor() == "apple" {
+             // Bazel's hermetic LLVM driver brings its bundled libc++ into the
+             // Apple linker process. Xcode's linker expects the host libc++ and
+@@ -210,6 +303,16 @@ impl CmakeBuilder {
              }
          }
 
@@ -119,7 +131,7 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
          let mut cmake_cfg = self.get_cmake_config();
          if is_fips_build() {
              if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
-@@ -483,11 +580,26 @@ impl CmakeBuilder {
+@@ -483,11 +586,26 @@ impl CmakeBuilder {
      fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
 +        if let Ok(perl_executable) = env::var("PERL_EXECUTABLE") {
 +            cmake_cfg.define("PERL_EXECUTABLE", perl_executable);
