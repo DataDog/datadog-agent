@@ -107,8 +107,10 @@ alias(
     crate = "aws-lc-fips-sys",
     patch_args = ["-p1"],
     patches = [
-        "//deps/libdd_rc:aws-lc-fips-sys-hermetic-msvc.patch",
+        # The hermetic MSVC patch extends get_cmake_config() as rewritten by
+        # the macOS linker patch, so this order is intentional.
         "//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch",
+        "//deps/libdd_rc:aws-lc-fips-sys-hermetic-msvc.patch",
         "//deps/libdd_rc:aws-lc-sys-nasm-command.patch",
     ],
 )
