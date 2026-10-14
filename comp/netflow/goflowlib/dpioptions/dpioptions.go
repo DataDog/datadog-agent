@@ -41,7 +41,9 @@ var stringFields = map[fieldKey]func(app *dpi.Application, value string){
 	{pen: ciscoPEN, field: ciscoFieldApplicationSet}:               func(app *dpi.Application, v string) { app.ApplicationSet = v },
 	{pen: ciscoPEN, field: ciscoFieldApplicationFamily}:            func(app *dpi.Application, v string) { app.ApplicationFamily = v },
 
-	// Cisco NBAR's NetFlow v9 export of the same fields, with enterpriseBit set instead of a PEN
+	// Cisco NBAR's NetFlow v9 export of the same fields, with enterpriseBit set instead of a PEN.
+	// Since there is no PEN to represent a vendor, we assume these field numbers are Cisco's,
+	// so if another vendor uses the same numbers for different fields, we will misread them.
 	{field: ciscoFieldApplicationCategory | enterpriseBit}:          func(app *dpi.Application, v string) { app.Category = v },
 	{field: ciscoFieldApplicationSubCategory | enterpriseBit}:       func(app *dpi.Application, v string) { app.SubCategory = v },
 	{field: ciscoFieldApplicationGroup | enterpriseBit}:             func(app *dpi.Application, v string) { app.ApplicationGroup = v },
