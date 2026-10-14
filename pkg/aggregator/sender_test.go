@@ -605,25 +605,23 @@ func TestCheckSenderEventAppendsInfraModeEventTags(t *testing.T) {
 			assert.Equal(t, tt.expectedTags, (<-s.eventChan).Tags)
 		})
 	}
-}
 
-func TestCheckSenderEventInfraModeStaysOffMetricsAndServiceChecks(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+	t.Run("does not mark metrics or service checks", func(t *testing.T) {
+		s := initSender(checkID1, "")
+		s.sender.infraModeEventTags = []string{"infra_mode:cloud_cost_only"}
 
-	s := initSender(checkID1, "")
+		s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
+		assert.Contains(t, (<-s.eventChan).Tags, "infra_mode:cloud_cost_only")
 
-	s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
-	assert.Contains(t, (<-s.eventChan).Tags, "infra_mode:cloud_cost_only")
+		s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+		assert.NotContains(t, (<-s.itemChan).(*senderMetricSample).metricSample.Tags, "infra_mode:cloud_cost_only")
 
-	s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
-	assert.NotContains(t, (<-s.itemChan).(*senderMetricSample).metricSample.Tags, "infra_mode:cloud_cost_only")
+		s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
+		assert.NotContains(t, (<-s.itemChan).(*senderHistogramBucket).bucket.Tags, "infra_mode:cloud_cost_only")
 
-	s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
-	assert.NotContains(t, (<-s.itemChan).(*senderHistogramBucket).bucket.Tags, "infra_mode:cloud_cost_only")
-
-	s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"env:prod"}, "message")
-	assert.NotContains(t, (<-s.serviceCheckChan).Tags, "infra_mode:cloud_cost_only")
+		s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"env:prod"}, "message")
+		assert.NotContains(t, (<-s.serviceCheckChan).Tags, "infra_mode:cloud_cost_only")
+	})
 }
 
 func TestCheckSenderInterface(t *testing.T) {
