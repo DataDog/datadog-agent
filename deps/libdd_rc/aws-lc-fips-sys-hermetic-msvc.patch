@@ -79,7 +79,30 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
  pub(crate) struct CmakeBuilder {
      manifest_dir: PathBuf,
      out_dir: PathBuf,
-@@ -210,6 +281,16 @@ impl CmakeBuilder {
+@@ -88,6 +159,22 @@ impl CmakeBuilder {
+         build_prefix: Option<String>,
+         output_lib_type: OutputLibType,
+     ) -> Self {
++        #[cfg(windows)]
++        let manifest_dir = {
++            // CMake canonicalizes 8.3 paths when generating build.ninja, which
++            // restores the overlong rules_rust cargo_runfiles source path.
++            // Stage the source under OUT_DIR to remove the repeated repository
++            // segment while keeping all writes inside Bazel's action tree.
++            let staged = out_dir.join("s");
++            std::fs::create_dir_all(&staged).expect("failed to create staged CMake source");
++            let options = fs_extra::dir::CopyOptions::new()
++                .overwrite(true)
++                .copy_inside(true)
++                .content_only(true);
++            fs_extra::dir::copy(&manifest_dir, &staged, &options)
++                .expect("failed to stage CMake source");
++            staged
++        };
+         Self {
+             manifest_dir,
+             out_dir,
+@@ -210,6 +297,16 @@ impl CmakeBuilder {
              }
          }
 
@@ -96,11 +119,8 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
          let mut cmake_cfg = self.get_cmake_config();
          if is_fips_build() {
              if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
-@@ -483,11 +564,27 @@ impl CmakeBuilder {
+@@ -483,11 +580,24 @@ impl CmakeBuilder {
      fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
-+        // Force CMake to hash object paths before Windows' path limit becomes
-+        // a problem inside Bazel's deeply nested output directories.
-+        cmake_cfg.define("CMAKE_OBJECT_PATH_MAX", "200");
 +        if let Ok(perl_executable) = env::var("PERL_EXECUTABLE") {
 +            cmake_cfg.define("PERL_EXECUTABLE", perl_executable);
 +        }
