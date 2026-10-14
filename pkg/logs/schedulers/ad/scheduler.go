@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -210,13 +209,6 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	case names.Container, names.Kubernetes, names.KubeContainer, names.ProcessLog, names.InstrumentationChecks:
 		// config attached to a container label, a pod annotation, or an instrumentation check
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
-	case names.RemoteConfig:
-		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
-			// config supplied by remote config
-			configs, err = logsConfig.ParseJSON(config.LogsConfig)
-		} else {
-			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
-		}
 	default:
 		// invalid provider
 		err = fmt.Errorf("parsing logs config from %v is not supported yet", config.Provider)
@@ -262,6 +254,11 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 
 		cfg.IntegrationSourceIndex = index
 		cfg.IntegrationSource = config.Source
+		if config.Provider == names.ProcessLog && cfg.Type == logsConfig.FileType {
+			// process_log paths identify already-open files. Reject symlinks introduced
+			// at those paths after discovery.
+			cfg.NoFollow = true
+		}
 
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,

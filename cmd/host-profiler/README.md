@@ -52,6 +52,13 @@ To build the host-profiler binary, use the following invoke task:
 dda inv host-profiler.build
 ```
 
+You can also cross-compile the binary for a different architecture using the following command:
+
+```bash
+GOARCH=amd64 dda inv host-profiler.build
+GOARCH=arm64 dda inv host-profiler.build
+```
+
 **Note**: This must be run on a Linux system or in a Linux build environment, as the binary includes Linux-specific eBPF dependencies.
 
 ## Development

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 
@@ -39,9 +40,9 @@ func InitMetadataAsTags(metadataAsTags map[string]string) (map[string]string, ma
 }
 
 // AddMetadataAsTags converts name and value into tags based on the metadata as tags configuration and patterns
-func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glob map[string]glob.Glob, tags *taglist.TagList) {
+func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glob map[string]glob.Glob, tagList *taglist.TagList) {
+	n := strings.ToLower(name)
 	for pattern, tmplStr := range metadataAsTags {
-		n := strings.ToLower(name)
 		if g, ok := glob[pattern]; ok {
 			if !g.Match(n) {
 				continue
@@ -51,7 +52,12 @@ func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glo
 		}
 		tagTmplList := splitTags(tmplStr)
 		for _, tmpl := range tagTmplList {
-			tags.AddAuto(resolveTag(tmpl, name), value)
+			switch tagName := resolveTag(tmpl, name); tagName {
+			case tags.Env, tags.Service, tags.Version:
+				tagList.AddStandard(tagName, value)
+			default:
+				tagList.AddAuto(tagName, value)
+			}
 		}
 	}
 }

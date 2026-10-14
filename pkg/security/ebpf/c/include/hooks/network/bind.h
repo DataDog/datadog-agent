@@ -7,7 +7,7 @@
 #include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) sys_bind(void *ctx, u64 pid_tgid) {
+static __always_inline int sys_bind(void *ctx, u64 pid_tgid) {
     struct syscall_cache_t syscall = {
         .type = EVENT_BIND,
         .async = pid_tgid ? 1: 0,
@@ -27,20 +27,20 @@ HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, ad
     return sys_bind(ctx, 0);
 }
 
-int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_BIND);
+static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_BIND);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     /* pre-fill the event */
     struct bind_event_t *event = SPAN_FILL_EVENT(struct bind_event_t, EVENT_BIND);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->addr[0] = syscall->bind.addr[0];
@@ -55,6 +55,9 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     } else {
         entry = fill_process_context(&event->process);
     }
+
+    pop_syscall(EVENT_BIND);
+
     fill_cgroup_context(entry, &event->cgroup);
 
     // v1: check if this PID is traced by an activity dump
@@ -66,10 +69,13 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     }
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_BIND);
     return 0;
 }
 
-int __attribute__((always_inline)) sys_bind_ret(void *ctx, int retval) {
+static __always_inline int sys_bind_ret(void *ctx, int retval) {
     return sys_bind_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

@@ -13,9 +13,23 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
+// ResetGlobalConfig rebuilds the global config so its env layer reflects the current environment.
+func ResetGlobalConfig(t testing.TB) {
+	t.Helper()
+	pkgconfigsetup.InitConfigObjects()
+	t.Cleanup(pkgconfigsetup.InitConfigObjects)
+}
+
 // UseDynamicSchema makes the global config auto-rebuild the env layer when any DD_ var changes.
 func UseDynamicSchema(t testing.TB) {
 	t.Helper()
 	pkgconfigsetup.Datadog().SetTestOnlyDynamicSchema(true)
 	t.Cleanup(func() { pkgconfigsetup.Datadog().SetTestOnlyDynamicSchema(false) })
+}
+
+// LastIgnoredEnvVarReport returns the settings named by the most recent ReportIgnoredEnvVars call.
+func LastIgnoredEnvVarReport() []string {
+	ignoredEnvVarsMu.Lock()
+	defer ignoredEnvVarsMu.Unlock()
+	return lastIgnoredEnvVarReport
 }

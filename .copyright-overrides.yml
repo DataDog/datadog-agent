@@ -406,6 +406,7 @@ github.com/tailscale/tailscale: Copyright (c) 2020 Tailscale Inc & AUTHORS.
 
 # Copyright information is in the source headers
 github.com/google/btree: Copyright 2014-2022 Google Inc.
+github.com/google/cel-go/*: Copyright (c) 2018 The Go Authors. All rights reserved
 github.com/google/shlex: Copyright 2012 Google Inc. All Rights Reserved.
 github.com/facebook/time/*: Copyright (c) Facebook, Inc. and its affiliates.
 github.com/grobie/gomemcache/memcache: Copyright 2011 Google Inc.

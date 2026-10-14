@@ -1,6 +1,6 @@
-# Developer Guide
+# Temporary developer pages
 
-This guide will help you to develop and contribute code to the project.
+These temporary pages are being reviewed for removal or incorporation into the [Datadog Agent developer documentation](https://datadoghq.dev/datadog-agent/).
 
 ## Table of Content
 
@@ -25,10 +25,10 @@ This guide will help you to develop and contribute code to the project.
 
 
 [legal]: legal.md
-[testing]: ../public/guidelines/testing/test-categories.md
-[memory]: ../public/how-to/memory-profiling/overview.md
+[testing]: ../../doc/guidelines/testing/test-categories.md
+[memory]: ../../doc/how-to/memory-profiling/overview.md
 [caveats]: caveats.md
-[contributing]: ../public/guidelines/contributing.md
-[agent-omnibus]: ../public/how-to/build/distributions.md
-[tools]: ../public/how-to/debug-agents/index.md
-[logging]: ../public/guidelines/conventions/logging.md
+[contributing]: ../../doc/guidelines/contributing.md
+[agent-omnibus]: ../../doc/how-to/build/distributions.md
+[tools]: ../../doc/how-to/debug-agents/index.md
+[logging]: ../../doc/guidelines/conventions/logging.md

@@ -418,6 +418,9 @@ func extractFromConfigBlob(ctx context.Context, img containerd.Image, manifest o
 	// If we are able to read config, override with values from config if any
 	extractPlatform(&ocispecImage.Platform, outImage)
 
+	if ocispecImage.Created != nil {
+		outImage.Created = *ocispecImage.Created
+	}
 	outImage.Layers = getLayersWithHistory(ocispecImage, manifest)
 	outImage.Labels = getImageLabels(img, ocispecImage)
 	outImage.Annotations = getImageAnnotations(img, manifest)

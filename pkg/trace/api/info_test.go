@@ -446,6 +446,49 @@ func TestInfoHandler(t *testing.T) {
 	assert.Equal(t, expectedContainerHash, rec.Header().Get(containerTagsHashHeader))
 }
 
+func TestComputeContainerTagsHash(t *testing.T) {
+	stableTags := []string{
+		"kube_cluster_name:clusterA",
+		"kube_namespace:namespace1",
+		"kube_container_name:app",
+		"service:svc",
+	}
+	hashOf := func(tags ...string) string {
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(tags, ","))))
+	}
+
+	t.Run("only service origin tags are hashed", func(t *testing.T) {
+		tags := append([]string{"container_id:abc", "pod_name:app-5d8f7c6b9-x2x7z", "image_tag:v1"}, stableTags...)
+		expected := hashOf("kube_cluster_name:clusterA", "kube_container_name:app", "kube_namespace:namespace1", "service:svc")
+		assert.Equal(t, expected, computeContainerTagsHash(tags))
+	})
+
+	// The hash is folded into the tracer's DSM/DBM base hash, so it must not
+	// change on every rolling deploy or job run, but it should still tell
+	// workloads apart.
+	t.Run("stable across rolling deploys", func(t *testing.T) {
+		before := append([]string{"kube_deployment:app", "kube_replica_set:app-5d8f7c6b9"}, stableTags...)
+		after := append([]string{"kube_deployment:app", "kube_replica_set:app-7f4b9d8c5"}, stableTags...)
+		expected := hashOf("kube_cluster_name:clusterA", "kube_container_name:app", "kube_deployment:app", "kube_namespace:namespace1", "service:svc")
+		assert.Equal(t, expected, computeContainerTagsHash(before))
+		assert.Equal(t, expected, computeContainerTagsHash(after))
+	})
+
+	t.Run("stable across job runs", func(t *testing.T) {
+		before := append([]string{"kube_cronjob:report", "kube_job:report-29012340"}, stableTags...)
+		after := append([]string{"kube_cronjob:report", "kube_job:report-29012400"}, stableTags...)
+		expected := hashOf("kube_cluster_name:clusterA", "kube_container_name:app", "kube_cronjob:report", "kube_namespace:namespace1", "service:svc")
+		assert.Equal(t, expected, computeContainerTagsHash(before))
+		assert.Equal(t, expected, computeContainerTagsHash(after))
+	})
+
+	t.Run("different deployments hash differently", func(t *testing.T) {
+		canary := append([]string{"kube_deployment:app-canary", "kube_replica_set:app-canary-5d8f7c6b9"}, stableTags...)
+		stable := append([]string{"kube_deployment:app", "kube_replica_set:app-5d8f7c6b9"}, stableTags...)
+		assert.NotEqual(t, computeContainerTagsHash(canary), computeContainerTagsHash(stable))
+	})
+}
+
 func TestInfoHandler_OPMAbsent(t *testing.T) {
 	conf := config.New()
 	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}

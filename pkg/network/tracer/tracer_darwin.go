@@ -91,6 +91,10 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 	return tr, nil
 }
 
+// PrepareStop does nothing here. Only the Windows tracer has a collection path
+// that shutdown can be left waiting on; see the Windows implementation.
+func (t *Tracer) PrepareStop() {}
+
 // Stop halts all network monitoring.
 func (t *Tracer) Stop() {
 	if t.connTracer != nil {

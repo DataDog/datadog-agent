@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	modkernel32        = windows.NewLazyDLL("kernel32.dll")
+	modkernel32        = windows.NewLazySystemDLL("kernel32.dll")
 	procGetTickCount64 = modkernel32.NewProc("GetTickCount64")
 	bootTime           = time.Now().Add(-time.Duration(getTickCount64()) * time.Millisecond)
 )

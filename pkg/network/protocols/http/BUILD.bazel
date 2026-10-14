@@ -106,6 +106,7 @@ go_library(
 dd_agent_go_test(
     name = "http_test",
     srcs = [
+        "driver_interface_test.go",
         "etw_iis_cache_test.go",
         "etw_interface_test.go",
         "event_pipeline_test.go",

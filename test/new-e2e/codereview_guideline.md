@@ -40,13 +40,13 @@ Use the ECR pull-through cache set up in the `datadog-agent-qa` account (`669783
 - There is no pull-through cache in GCP or Azure. For a test that only ever runs on GCP, the provider's registry or `mirror.gcr.io` is acceptable — do not import that habit into an AWS test. Ask #agent-devx-help before relying on any other public mirror.
 <!-- --8<-- [end:registries] -->
 
-Do not hardcode the registry host; read it from the runner parameter store. See [ECR pull-through cache](../../docs/public/how-to/test/e2e/dependencies.md#ecr-pull-through-cache) for the idiom, the Kind caveat, and how to run such a test locally.
+Do not hardcode the registry host; read it from the runner parameter store. See [ECR pull-through cache](../../doc/how-to/test/e2e/dependencies.md#ecr-pull-through-cache) for the idiom, the Kind caveat, and how to run such a test locally.
 
 #### System package installs (apt, yum, dnf, zypper, ...)
 If your test requires a package unavailable on a bare VM, in order of preference:
 - Avoid it (e.g. you rarely need `jq`: parse JSON in go)
 - Use a containerized environment cached via the previous method. Many tools ship prebuilt container images you can run directly.
-- Prebake it into a custom machine image, as done for the `Ubuntu2204E2E` OS flavor. See [Custom AMIs](../../docs/public/how-to/test/e2e/custom-amis.md), which also lists what the `-e2e` images already ship.
+- Prebake it into a custom machine image, as done for the `Ubuntu2204E2E` OS flavor. See [Custom AMIs](../../doc/how-to/test/e2e/custom-amis.md), which also lists what the `-e2e` images already ship.
 - Store your package installer on an internal package repository. See [Other dependencies](#other-dependencies)
 
 Running package managers on the VM exposes you to rate limiting from upstream mirrors and to _changes_ in their packages - removed, renamed, or incompatible versions. Also see [Pin your dependencies](#pin-your-dependencies).
@@ -55,9 +55,14 @@ Running package managers on the VM exposes you to rate limiting from upstream mi
 These pull from their own public registries and are subject to the same rate limiting and drift risks as system package installs. The same alternatives apply.
 
 #### Other dependencies / Internet accesses
-Avoid web requests to external websites (`ping some-website.com`, `curl some-website.com`). If you must download a tarball, installer, or package and no previous solution applies, vendor that artifact in our purpose-made S3 bucket via `RemoteHost.HostArtifactClient`. See [S3 artifact bucket](../../docs/public/how-to/test/e2e/dependencies.md#s3-artifact-bucket) for the read API, and [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test) for the upload side.
+Avoid web requests to external websites (`ping some-website.com`, `curl some-website.com`). If you must download a tarball, installer, or package and no previous solution applies, vendor that artifact in our purpose-made S3 bucket via `RemoteHost.HostArtifactClient`. See [S3 artifact bucket](../../doc/how-to/test/e2e/dependencies.md#s3-artifact-bucket) for the read API, and [Confluence](https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/5040342019/E2E+-+Use+a+third+party+artifact+in+test) for the upload side.
 
 Remotely-hosted Kubernetes resources (Helm charts, CNI manifests like flannel, remote kustomize bases...) are a common hidden source of Internet access - both the manifest and the images it references are pulled at runtime. Vendor the manifest locally and rewrite its image references to the ECR pull-through cache.
+
+#### Internet access exceptions
+Host provisioners create VMs without Internet access. A test that still needs it opts in with `WithInternetAccess()`, and every such usage must be listed in [`internet-access.yaml`](internet-access.yaml) with a `status` and a `reason`. The file is owned by agent-devx, so adding an entry requires our review; `dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 linter.e2e-internet-access` enforces this in CI and pre-commit. The pre-commit hook does not see deleted files, so an entry left stale by a deletion is only caught in CI.
+
+Try every alternative above before requesting an exception. Package manager installs, image pulls that bypass the ECR pull-through cache, third-party downloads, and downloads of Datadog's own public install scripts and packages (use a mirror in the QA AWS account) are never valid reasons: such entries are recorded as `debt` and must be fixed.
 
 ### Pin your dependencies
 When depending on something external, pin both the version and a sha256sum to avoid hard-to-track behavior changes which can cause unexpected breakages.

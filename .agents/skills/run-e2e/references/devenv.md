@@ -36,7 +36,7 @@ resulting `-v` spec unparseable — so do not copy it here.
 
 `start` accepts only `nonexistent` and `stopped` and refuses new mount options on a `stopped` env, so
 changing the mounts means removing the env first. `remove` accepts only `error` and `stopped`, `stop`
-only `started`. Full semantics in `/docs/public/tutorials/dev/env.md`.
+only `started`. Full semantics in `/doc/tutorials/dev/env.md`.
 
 | State | `up` | `down` |
 |---|---|---|

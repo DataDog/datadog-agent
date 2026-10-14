@@ -21,6 +21,7 @@ import (
 
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
@@ -124,7 +125,7 @@ func TestGetTelemetry(t *testing.T) {
 		withTelemetryProvider(promText),
 	)
 
-	metrics, err := telemetryComp.Gather(false)
+	metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	// convert the metrics to a map for easier comparison
@@ -241,7 +242,7 @@ remote_only_metric 1
 		withTelemetryProvider(promText),
 	)
 
-	metrics, err := telemetryComp.Gather(false)
+	metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	metricsByName := metricsToMap(metrics)
 
@@ -285,7 +286,7 @@ dogstatsd_client__bytes_dropped_writer 2
 		withTelemetryProvider(promText),
 	)
 
-	metrics, err := telemetryComp.Gather(false)
+	metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	metricsByName := make(map[string]*io_prometheus_client.MetricFamily, len(metrics))
 	for _, metric := range metrics {
@@ -322,7 +323,7 @@ transactions__success_bytes{domain="remote-config",endpoint="/v1/transactions"} 
 		withTelemetryProvider(promText),
 	)
 
-	metrics, err := telemetryComp.Gather(false)
+	metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	metricsByName := metricsToMap(metrics)
 
@@ -420,7 +421,7 @@ authoritative_emitter_metric{` + testCase.labels + `} 1
 				withTelemetryProvider(promText),
 			)
 
-			metrics, err := telemetryComp.Gather(false)
+			metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 			require.NoError(t, err)
 			metricFamily := metricsToMap(metrics)["authoritative_emitter_metric"]
 			require.NotNil(t, metricFamily)
@@ -490,7 +491,7 @@ func TestGetTelemetryMixedLabels(t *testing.T) {
 		withTelemetryProvider(promText),
 	)
 
-	metrics, err := telemetryComp.Gather(false)
+	metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	metricsMap := metricsToMap(metrics)
@@ -560,7 +561,7 @@ remote_agent_registry_action_duration_seconds_count 20
 
 		// This should NOT panic - the remote agent metric uses ConstHistogram which is not registered
 		// and the emitter label provides namespace separation
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		// Find all metrics with the name "remote_agent_registry_action_duration_seconds"
@@ -621,7 +622,7 @@ my_shared_histogram_count 300
 		)
 
 		// This should NOT panic - both agents should coexist with their different bucket configs
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		var foundAgent1, foundAgent2 bool
@@ -672,7 +673,7 @@ remote_agent_registry_action_duration_seconds_count{remote_agent_name="fake-agen
 		)
 
 		// This should NOT panic - the emitter label is always injected
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		var foundSneakyHistogram bool
@@ -731,7 +732,7 @@ completely_unique_histogram_count 40
 			withTelemetryProvider(promText),
 		)
 
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		var foundUniqueHistogram bool
@@ -782,7 +783,7 @@ shared_request_duration_count{method="GET",path="/api"} 30
 		)
 
 		// This tests if having identical metrics (except emitter label) causes issues
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		var agentAFound, agentBFound bool
@@ -834,7 +835,7 @@ requests 200
 
 		// THIS WILL FAIL - Prometheus doesn't allow same metric name with different help strings
 		// This is a real limitation/bug that should be documented
-		_, err := telemetryComp.Gather(false)
+		_, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.Error(t, err, "Expected error due to mismatched help strings")
 		require.Contains(t, err.Error(), "has help", "Error should mention help string mismatch")
 	})
@@ -865,7 +866,7 @@ requests 50
 		)
 
 		// THIS WILL ALSO FAIL - Prometheus doesn't allow same metric name with different types
-		_, err := telemetryComp.Gather(false)
+		_, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.Error(t, err, "Expected error due to mismatched metric types")
 	})
 
@@ -900,7 +901,7 @@ http_requests{endpoint="api",status="200"} 50
 		// - http_requests{emitter="agent-labels-1", method="GET", path="/api"}
 		// - http_requests{emitter="agent-labels-2", endpoint="api", status="200"}
 		// These have different label sets which could cause issues with some Prometheus registries
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		var agent1Found, agent2Found bool
@@ -978,7 +979,7 @@ request_duration_count 25
 			withTelemetryProvider(agent2PromText),
 		)
 
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "Different bucket counts between agents should not cause error")
 
 		var found3Buckets, found5Buckets bool
@@ -1024,7 +1025,7 @@ minimal_histogram_count 100
 			withTelemetryProvider(promText),
 		)
 
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "Minimal histogram with 1 bucket should work")
 
 		var found bool
@@ -1060,7 +1061,7 @@ no_bucket_histogram_count 50
 		)
 
 		// This might fail or produce an empty histogram
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		// Document the actual behavior - don't assert success or failure yet
 		t.Logf("Gather error for zero buckets: %v", err)
 		t.Logf("Metrics count: %d", len(metrics))
@@ -1116,7 +1117,7 @@ api_latency_count 100
 			withTelemetryProvider(agent2PromText),
 		)
 
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "Vastly different bucket counts should not cause error")
 
 		var found2, found20 bool
@@ -1179,7 +1180,7 @@ response_time_count 40
 			withTelemetryProvider(agent2PromText),
 		)
 
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "Subset/superset bucket boundaries should not cause error")
 
 		var foundSuperset, foundSubset bool
@@ -1243,7 +1244,7 @@ process_time_count 50
 			withTelemetryProvider(agent2PromText),
 		)
 
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "Different bucket boundaries with same count should not cause error")
 
 		var found1, found2 bool
@@ -1312,7 +1313,7 @@ changing_histogram_count 30
 		)
 
 		// First scrape
-		metrics1, err := telemetryComp.Gather(false)
+		metrics1, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "First scrape should succeed")
 
 		var firstBucketCount int
@@ -1341,7 +1342,7 @@ changing_histogram_count 45
 `
 
 		// Second scrape - bucket count increased
-		metrics2, err := telemetryComp.Gather(false)
+		metrics2, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "Second scrape with more buckets should succeed")
 
 		var secondBucketCount int
@@ -1381,7 +1382,7 @@ shrinking_histogram_count 45
 		)
 
 		// First scrape
-		metrics1, err := telemetryComp.Gather(false)
+		metrics1, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "First scrape should succeed")
 
 		var firstBucketCount int
@@ -1407,7 +1408,7 @@ shrinking_histogram_count 40
 `
 
 		// Second scrape - bucket count decreased
-		metrics2, err := telemetryComp.Gather(false)
+		metrics2, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "Second scrape with fewer buckets should succeed")
 
 		var secondBucketCount int
@@ -1446,7 +1447,7 @@ boundary_histogram_count 50
 		)
 
 		// First scrape
-		metrics1, err := telemetryComp.Gather(false)
+		metrics1, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "First scrape should succeed")
 
 		var firstBoundaries []float64
@@ -1477,7 +1478,7 @@ boundary_histogram_count 55
 `
 
 		// Second scrape - same bucket count but different boundaries
-		metrics2, err := telemetryComp.Gather(false)
+		metrics2, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err, "Second scrape with different boundaries should succeed")
 
 		var secondBoundaries []float64
@@ -1576,7 +1577,7 @@ rapid_histogram_count 100
 		for i, config := range bucketConfigs {
 			remoteAgent.promText = config.promText
 
-			metrics, err := telemetryComp.Gather(false)
+			metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 			require.NoError(t, err, "Scrape %d should succeed", i+1)
 
 			var bucketCount int
@@ -1611,7 +1612,7 @@ func TestMalformedMetricEdgeCases(t *testing.T) {
 		)
 
 		// Should not panic
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 		// No metrics from the empty agent, but gather should succeed
 		_ = metrics
@@ -1632,7 +1633,7 @@ func TestMalformedMetricEdgeCases(t *testing.T) {
 		)
 
 		// Should not panic
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 		_ = metrics
 	})
@@ -1658,7 +1659,7 @@ no_inf_histogram_count 20
 		)
 
 		// Should not panic - the parser should handle this gracefully
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 		_ = metrics
 	})
@@ -1685,7 +1686,7 @@ bad_histogram_count 100
 		)
 
 		// Should not panic - the implementation accepts whatever buckets are passed
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 		_ = metrics
 	})
@@ -1708,7 +1709,7 @@ empty_label_metric{tag=""} 42
 		)
 
 		// Should not panic
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 		_ = metrics
 	})
@@ -1730,7 +1731,7 @@ special_char_metric{path="/api/v1/test",method="GET"} 100
 			withTelemetryProvider(promText),
 		)
 
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		var foundMetric bool
@@ -1776,7 +1777,7 @@ many_buckets_histogram_count 250
 			withTelemetryProvider(promText),
 		)
 
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		var foundHistogram bool
@@ -1812,7 +1813,7 @@ duplicate_metric{instance="b"} 20
 		)
 
 		// Should not panic - this is actually valid (same metric with different label values)
-		metrics, err := telemetryComp.Gather(false)
+		metrics, err := telemetryComp.Gather(telemetry.NoFilter)
 		require.NoError(t, err)
 
 		var metricCount int

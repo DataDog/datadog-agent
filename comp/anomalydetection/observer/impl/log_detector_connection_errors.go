@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // connectionErrorPatterns are the patterns we look for (all lowercase for case-insensitive matching).
@@ -48,10 +49,11 @@ func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.Log
 		if strings.Contains(content, pattern) {
 			return observer.LogMetricsExtractorOutput{
 				Metrics: []observer.MetricOutput{{
-					Name:  "connection.errors",
-					Value: 1.0,
-					Tags:  tags,
-					Context: &observer.MetricContext{
+					Name:       "connection.errors",
+					Value:      1.0,
+					Tags:       tagset.CompositeTagsFromSlice(tags),
+					HasContext: true,
+					Context: observer.MetricContext{
 						Pattern: pattern,
 						Example: truncate(log.GetContent(), 160),
 						Source:  "connection_error_extractor",

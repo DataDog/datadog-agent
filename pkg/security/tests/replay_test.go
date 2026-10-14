@@ -66,7 +66,7 @@ func TestReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer test.Close()
+		defer test.CloseTest()
 
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
 	})
@@ -213,7 +213,7 @@ func TestReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer test.Close()
+		defer test.CloseTest()
 
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from the process snapshot")
 	})
@@ -273,7 +273,7 @@ func TestReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer test.Close()
+		defer test.CloseTest()
 
 		// make sure the cancel happens before the test module is closed
 		defer cancel()
@@ -335,7 +335,7 @@ func TestReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer test.Close()
+		defer test.CloseTest()
 		defer cmd.Cancel()
 
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from replay")
@@ -376,7 +376,7 @@ func TestReplay(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer test.Close()
+		defer test.CloseTest()
 
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the load_module event from snapshot")
 	})

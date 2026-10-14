@@ -376,7 +376,7 @@ func (c *Client) StoredOrgUUID() (string, error) {
 		}
 		err := c.orgStore.storeOrgUUID(rootVersion, orgUUID)
 		if err != nil {
-			return "", fmt.Errorf("could not store orgUUID in the org store: %v", err)
+			return "", fmt.Errorf("could not store orgUUID in the org store: %w", err)
 		}
 	}
 	return orgUUID, nil

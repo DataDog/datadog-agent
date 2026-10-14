@@ -19,7 +19,6 @@ import (
 
 const (
 	manifestSchemaVersion    = "v1"
-	scriptDirectory          = "script"
 	manifestFile             = "metadata.json"
 	maxManifestSize          = 1 << 20
 	environmentKindValue     = "value"
@@ -60,12 +59,14 @@ type EnvironmentVariable struct {
 type Dependency struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
+	// BinDir is relative to this dependency's extracted root. Empty means the root itself.
+	BinDir string `json:"binDir"`
 }
 
 // loadManifest reads and validates the metadata.json manifest for an authored-script
 // package that has already been downloaded and extracted to artifactDirectory.
 func loadManifest(artifactDirectory string) (*Manifest, error) {
-	file, err := openPackageFile(artifactDirectory, filepath.Join(scriptDirectory, manifestFile))
+	file, err := openPackageFile(artifactDirectory, manifestFile)
 	if err != nil {
 		return nil, fmt.Errorf("could not open authored-script manifest: %w", err)
 	}
@@ -112,8 +113,11 @@ func validateManifest(manifest *Manifest) error {
 		return err
 	}
 	for _, dependency := range manifest.Dependencies {
-		if dependency.Name == "" || dependency.Version == "" {
-			return errors.New("authored-script manifest dependencies require a name and version")
+		if err := ValidateDependencyName(dependency.Name); err != nil {
+			return fmt.Errorf("invalid authored-script manifest dependency: %w", err)
+		}
+		if dependency.Version == "" {
+			return fmt.Errorf("authored-script manifest dependency %q requires a version", dependency.Name)
 		}
 	}
 	return nil

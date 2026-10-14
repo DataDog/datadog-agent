@@ -23,7 +23,7 @@ const (
 )
 
 var (
-	wlanAPI            = windows.NewLazyDLL("wlanapi.dll")
+	wlanAPI            = windows.NewLazySystemDLL("wlanapi.dll")
 	wlanOpenHandle     = wlanAPI.NewProc("WlanOpenHandle")
 	wlanCloseHandle    = wlanAPI.NewProc("WlanCloseHandle")
 	wlanEnumInterfaces = wlanAPI.NewProc("WlanEnumInterfaces")
@@ -31,7 +31,7 @@ var (
 	// wlanGetNetworkBssList = wlanAPI.NewProc("WlanGetNetworkBssList")
 	wlanFreeMemory = wlanAPI.NewProc("WlanFreeMemory")
 
-	iphlpapi                   = windows.NewLazyDLL("iphlpapi.dll")
+	iphlpapi                   = windows.NewLazySystemDLL("iphlpapi.dll")
 	getIfEntry2                = iphlpapi.NewProc("GetIfEntry2")
 	convertInterfaceGuidToLuid = iphlpapi.NewProc("ConvertInterfaceGuidToLuid")
 
