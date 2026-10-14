@@ -1631,6 +1631,20 @@ func TestEnrichMetricSampleJMXInfraTag(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
+	t.Run("tag eligible JMX check in end_user_device mode", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "end_user_device", pkgconfigmodel.SourceFile)
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka,env:prod"), enrichConfigWithInfraTags(t, cfg))
+		require.NoError(t, err)
+		assert.Contains(t, s.Tags, "infra_mode:end_user_device")
+	})
+	t.Run("no tag for plain DogStatsD in end_user_device mode", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "end_user_device", pkgconfigmodel.SourceFile)
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("app.custom:1|g|#env:prod"), enrichConfigWithInfraTags(t, cfg))
+		require.NoError(t, err)
+		assert.NotContains(t, s.Tags, "infra_mode:end_user_device")
+	})
 }
 
 // serverlessSourceCustomToRuntime runs on every metric sample in serverless mode;

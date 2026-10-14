@@ -7,6 +7,7 @@ package datasecurity
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -169,8 +170,45 @@ func postgresIntegration() integration.Config {
 // RC client it subscribes through along with the provider.
 func newTestController(t *testing.T, adConfigs []integration.Config) (*mockedRcClient, types.ConfigProvider) {
 	rc := &mockedRcClient{}
-	provider := NewController(getMockedAutodiscovery(t, adConfigs), rc)
+	provider := NewController(getMockedAutodiscovery(t, adConfigs), rc, false)
 	return rc, provider
+}
+
+func TestPostgresSSLMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		instance   map[string]any
+		enforceSSL bool
+		want       string
+		wantErr    bool
+	}{
+		{name: "not enforcing keeps unset", instance: map[string]any{"host": "db"}, want: ""},
+		{name: "not enforcing keeps allow", instance: map[string]any{"host": "db", "ssl": "allow"}, want: "allow"},
+		{name: "unset is elevated", instance: map[string]any{"host": "db"}, enforceSSL: true, want: "require"},
+		{name: "empty is elevated", instance: map[string]any{"host": "db", "ssl": ""}, enforceSSL: true, want: "require"},
+		{name: "disable is elevated", instance: map[string]any{"host": "db", "ssl": "disable"}, enforceSSL: true, want: "require"},
+		{name: "allow is elevated", instance: map[string]any{"host": "db", "ssl": "allow"}, enforceSSL: true, want: "require"},
+		{name: "prefer is elevated", instance: map[string]any{"host": "db", "ssl": "prefer"}, enforceSSL: true, want: "require"},
+		{name: "invalid value is elevated", instance: map[string]any{"host": "db", "ssl": "bogus"}, enforceSSL: true, want: "require"},
+		{name: "non-string value is elevated", instance: map[string]any{"host": "db", "ssl": true}, enforceSSL: true, want: "require"},
+		{name: "require is kept", instance: map[string]any{"host": "db", "ssl": "require"}, enforceSSL: true, want: "require"},
+		{name: "verify-ca is kept", instance: map[string]any{"host": "db", "ssl": "verify-ca"}, enforceSSL: true, want: "verify-ca"},
+		{name: "verify-full is kept", instance: map[string]any{"host": "db", "ssl": "verify-full"}, enforceSSL: true, want: "verify-full"},
+		{name: "not enforcing accepts unix socket", instance: map[string]any{"host": "/var/run/postgresql", "ssl": "allow"}, want: "allow"},
+		{name: "enforcing rejects unix socket", instance: map[string]any{"host": "/var/run/postgresql", "ssl": "require"}, enforceSSL: true, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			host := instanceString(tt.instance, "host")
+			got, err := postgresSSLMode(tt.instance, host, tt.enforceSSL)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // TestControllerDoesNotSubscribeWithoutPostgres asserts the controller does not subscribe to RC
@@ -187,6 +225,10 @@ func TestControllerUpdate(t *testing.T) {
 	wantScheduledConfig := integration.Config{
 		Name:      dataSecurityCheckName,
 		Instances: []integration.Data{integration.Data(wantCheckInstance)},
+	}
+	wantScheduledConfigTask2 := integration.Config{
+		Name:      dataSecurityCheckName,
+		Instances: []integration.Data{integration.Data(strings.Replace(wantCheckInstance, "task-1", "task-2", 1))},
 	}
 	tests := []struct {
 		name          string
@@ -216,6 +258,43 @@ func TestControllerUpdate(t *testing.T) {
 			wantChanges: []integration.ConfigChanges{
 				{Schedule: []integration.Config{wantScheduledConfig}},
 				{Schedule: []integration.Config{wantScheduledConfig}, Unschedule: []integration.Config{wantScheduledConfig}},
+			},
+		},
+		{
+			name: "modified task at the same RC path unschedules the previous check",
+			remoteConfigs: []map[string]state.RawConfig{
+				{"rc-1": rawScanTask("rc-1", scanTaskConfig)},
+				{"rc-1": rawScanTask("rc-1", strings.Replace(scanTaskConfig, "task-1", "task-2", 1))},
+			},
+			wantStatus: map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
+			wantChanges: []integration.ConfigChanges{
+				{Schedule: []integration.Config{wantScheduledConfig}},
+				{Schedule: []integration.Config{wantScheduledConfigTask2}, Unschedule: []integration.Config{wantScheduledConfig}},
+			},
+		},
+		{
+			name: "deleted RC path unschedules its check",
+			remoteConfigs: []map[string]state.RawConfig{
+				{"rc-1": rawScanTask("rc-1", scanTaskConfig), "rc-2": rawScanTask("rc-2", scanTaskConfig)},
+				{"rc-2": rawScanTask("rc-2", scanTaskConfig)},
+			},
+			wantStatus: map[string]state.ApplyStatus{
+				"rc-1": {State: state.ApplyStateAcknowledged},
+				"rc-2": {State: state.ApplyStateAcknowledged},
+			},
+			wantChanges: []integration.ConfigChanges{
+				{Schedule: []integration.Config{wantScheduledConfig, wantScheduledConfig}},
+				// rc-1 is unscheduled as deleted; rc-2 is re-delivered so it is rescheduled.
+				{Schedule: []integration.Config{wantScheduledConfig}, Unschedule: []integration.Config{wantScheduledConfig, wantScheduledConfig}},
+			},
+		},
+		{
+			name:          "empty update after the last task is deleted unschedules its check",
+			remoteConfigs: []map[string]state.RawConfig{{"rc-1": rawScanTask("rc-1", scanTaskConfig)}, {}},
+			wantStatus:    map[string]state.ApplyStatus{"rc-1": {State: state.ApplyStateAcknowledged}},
+			wantChanges: []integration.ConfigChanges{
+				{Schedule: []integration.Config{wantScheduledConfig}},
+				{Unschedule: []integration.Config{wantScheduledConfig}},
 			},
 		},
 		{
@@ -257,10 +336,10 @@ func TestControllerUpdate(t *testing.T) {
 					updateStatus[path] = status
 				})
 
-				// An update that schedules at least one config emits one ConfigChanges; an
-				// error-only update emits none.
+				// An update that schedules or unschedules at least one config emits one
+				// ConfigChanges; an error-only or unchanged update emits none.
 				want := tt.wantChanges[i]
-				if len(want.Schedule) == 0 {
+				if len(want.Schedule) == 0 && len(want.Unschedule) == 0 {
 					continue
 				}
 				assertConfigChangesEqual(t, want, receiveChanges(t, changes))
