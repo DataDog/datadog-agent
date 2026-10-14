@@ -211,10 +211,11 @@ Datadog testing infrastructure):
      using the S3 yumtesting pipeline repo — the pipeline RPMs are signed with the **test**
      `DATADOG_RPM_KEY_CURRENT` (verified: fingerprint `83661EE4…`), so it now uses the S3
      test-keys like its sibling tests.
-2. **`tests/agent-platform/tests/package_signing_test.go`**: the production signing keys
-   (fetched from `keys.datadoghq.com`, which has no S3 equivalent) are now **vendored** under
-   `tests/agent-platform/tests/fixtures/signing-keys/` and written to the host with
-   `RemoteHost.WriteFile` instead of being curl'd at runtime.
+2. **`tests/agent-platform/tests/package_signing_test.go`**: ~~keys vendored~~ **reverted** —
+   the production signing keys stay fetched at runtime from `keys.datadoghq.com` (which has
+   no S3 equivalent), and the suite keeps its explicit `WithInternetAccess()` opt-in. (The
+   vendored-keys approach was tried and validated green — 2/2 jobs — but was reverted to keep
+   the repo free of vendored public keys.)
 3. **`test/e2e-framework/components/datadog/updater/install_script.sh`**:
    `TESTING_KEYS_URL`/`TESTING_APT_URL`/`TESTING_YUM_URL` switched from the public hosts
    (`keys.datadoghq.com`, `apttesting.datad0g.com`, `yumtesting.datad0g.com`) to their
@@ -276,7 +277,9 @@ remaining dependencies (see list at the end) are addressed.
 - `agent-runtimes`: infra-mode (basic/eudm/none), procmgr (+par), ipc-security (windows),
   rtloader multiprocessing, shared library, auth artifact (linux)
 - `agent-platform`: ddot on all distros except CentOS 7 (conditional opt-in), install-script
-  on the iot-agent flavors (conditional opt-in), package-signing (vendored keys, no internet at all)
+  on the iot-agent flavors (conditional opt-in)
+  *(package-signing was validated no-internet with vendored keys, then reverted to keep the
+  internet opt-in — see the follow-up section)*
 - `discovery`, `ndm-snmp`, `netpath` (remote-config windows suite), `privateactionrunner`,
   `data-security` (postgres, removal was a no-op anyway)
 
@@ -291,7 +294,11 @@ install-script full-agent flavors (integration wheels) + docker variant, ddot ce
 persisting-integrations, rpm, macos install, fleet macos config, file-tailing, examples).
 
 All the S3 URL fixes from the previous section are kept (they work with or without
-internet), as are the vendored production signing keys.
+internet). The branch is rebased on main and complies with the ACIX-2067
+`e2e-internet-access` allowlist (`test/new-e2e/internet-access.yaml`): the 39 entries
+matching removed opt-ins were dropped (83 → 44), and every remaining opt-in stays listed.
+`dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 linter.e2e-internet-access`
+passes.
 
 ## Summary
 
