@@ -7,6 +7,7 @@ package util
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -239,5 +240,72 @@ func TestCollectEmptyPayload(t *testing.T) {
 	interval := i.collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	assert.False(t, i.LastCollect.Before(now))
+	i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata")
+}
+
+func TestSendNow(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+	i.LastCollect = time.Now()
+	i.Refresh()
+
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", mock.AnythingOfType("*util.testPayload")).Return(nil).Once()
+
+	now := time.Now()
+	assert.NoError(t, i.SendNow())
+	serializerMock.AssertExpectations(t)
+	assert.False(t, i.LastCollect.Before(now))
+	assert.False(t, i.forceRefresh.Load())
+}
+
+func TestSendNowSerializerError(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+	i.LastCollect = time.Now().Add(-1 * time.Hour)
+
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", mock.Anything).Return(errors.New("boom")).Once()
+
+	// Same bookkeeping as a failed periodic collection: no early retry
+	now := time.Now()
+	assert.ErrorContains(t, i.SendNow(), "boom")
+	assert.False(t, i.LastCollect.Before(now))
+	assert.False(t, i.forceRefresh.Load())
+}
+
+func TestSendNowKeepsRefreshRaisedDuringSend(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", mock.Anything).Run(func(mock.Arguments) { i.Refresh() }).Return(nil).Once()
+
+	assert.NoError(t, i.SendNow())
+	assert.True(t, i.forceRefresh.Load())
+}
+
+func TestSendNowBeforeFirstRunDelay(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+	i.createdAt = time.Now()
+
+	assert.Error(t, i.SendNow())
+	i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata")
+}
+
+func TestSendNowDisabled(t *testing.T) {
+	i := getTestInventoryPayload(t, map[string]any{
+		"inventories_enabled": false,
+	})
+
+	assert.Error(t, i.SendNow())
+	i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata")
+}
+
+func TestSendNowEmptyPayload(t *testing.T) {
+	i := getEmptyInventoryPayload(t, nil)
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+
+	assert.NoError(t, i.SendNow())
 	i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata")
 }

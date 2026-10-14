@@ -8,6 +8,9 @@
 package noopimpl
 
 import (
+	"context"
+	"errors"
+
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 )
 
@@ -21,4 +24,9 @@ func NewNoopComponent() egressdef.Component {
 // Status returns a healthy zero-value status; the health platform is disabled.
 func (n *noopEgress) Status() egressdef.SendStatus {
 	return egressdef.SendStatus{Healthy: true}
+}
+
+// SendNow returns an error; the health platform is disabled.
+func (n *noopEgress) SendNow(_ context.Context) error {
+	return errors.New("health platform is disabled")
 }

@@ -8,6 +8,7 @@ package egressimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -49,8 +50,9 @@ type egress struct {
 	resolvedCh chan *healthplatform.Issue       // transit: store → run()
 	resolved   map[string]*healthplatform.Issue // dedup store for tombstones; owned by run()
 
-	stopCh chan struct{}
-	doneCh chan struct{}
+	triggerCh chan chan error // on-demand send requests, served by run()
+	stopCh    chan struct{}
+	doneCh    chan struct{}
 
 	statusMu        sync.Mutex
 	lastAttemptAt   time.Time
@@ -96,6 +98,7 @@ func NewComponent(reqs Requires) egressdef.Component {
 		forwarder:   reqs.Forwarder,
 		resolvedCh:  make(chan *healthplatform.Issue, resolvedChBuf),
 		resolved:    make(map[string]*healthplatform.Issue),
+		triggerCh:   make(chan chan error),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
@@ -138,6 +141,8 @@ func (e *egress) run() {
 			e.tick()
 		case issue := <-e.resolvedCh:
 			e.resolved[issue.Id] = issue
+		case reply := <-e.triggerCh:
+			reply <- e.send()
 		case <-e.stopCh:
 			return
 		}
@@ -145,13 +150,18 @@ func (e *egress) run() {
 }
 
 func (e *egress) tick() {
+	_ = e.send()
+}
+
+// send builds and forwards a report of the current issues. Having nothing to report is not an error.
+func (e *egress) send() error {
 	count, active := e.store.GetAllIssues()
 	if count == 0 && len(e.resolved) == 0 {
-		e.log.Debug("Health platform egress: no issues to report, skipping tick")
+		e.log.Debug("Health platform egress: no issues to report, skipping send")
 		e.statusMu.Lock()
 		e.lastAttemptAt = time.Now()
 		e.statusMu.Unlock()
-		return
+		return nil
 	}
 
 	// Merge: active entries win over resolved tombstones for the same ID
@@ -179,7 +189,7 @@ func (e *egress) tick() {
 		e.lastErr = err
 		e.sendErrorsTotal++
 		e.statusMu.Unlock()
-		return
+		return err
 	}
 
 	e.log.Info(fmt.Sprintf("Health platform egress: sent report with %d issues", len(merged)))
@@ -193,6 +203,30 @@ func (e *egress) tick() {
 	// Resolved tombstones are consumed after a successful send; active issues
 	// are always re-fetched fresh from the store on the next tick.
 	e.resolved = make(map[string]*healthplatform.Issue)
+	return nil
+}
+
+// SendNow sends a report immediately, without waiting for the next tick.
+func (e *egress) SendNow(ctx context.Context) error {
+	if e.triggerCh == nil {
+		return errors.New("health platform is disabled")
+	}
+
+	reply := make(chan error, 1)
+	select {
+	case e.triggerCh <- reply:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-e.stopCh:
+		return errors.New("health platform egress is stopped")
+	}
+
+	select {
+	case err := <-reply:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Status returns the current health of the egress send pipeline.

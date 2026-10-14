@@ -55,6 +55,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -211,6 +212,38 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 		return i.MinInterval
 	}
 
+	if err := i.send(); err != nil {
+		i.log.Errorf("unable to submit inventories payload, %s", err)
+	}
+	return i.MinInterval
+}
+
+// SendNow builds and submits a new payload immediately, through the same path as the periodic collection, without
+// waiting for the next one. During the first run delay after startup (see collect) it sends nothing and returns an
+// error. A nil error means the payload was handed to the serializer, not that the intake accepted it.
+func (i *InventoryPayload) SendNow() error {
+	if !i.Enabled {
+		return errors.New("inventory payload is disabled")
+	}
+
+	i.m.Lock()
+	defer i.m.Unlock()
+	if i.serializer == nil {
+		return errors.New("serializer is nil")
+	}
+
+	if timeSince(i.createdAt) < i.firstRunDelay {
+		return fmt.Errorf("first payload not sent yet, retry after %s", i.firstRunDelay-timeSince(i.createdAt))
+	}
+
+	if err := i.send(); err != nil {
+		return fmt.Errorf("unable to submit inventories payload: %w", err)
+	}
+	return nil
+}
+
+// send builds and submits a new payload. It must be called with i.m held.
+func (i *InventoryPayload) send() error {
 	i.forceRefresh.Store(false)
 	i.LastCollect = time.Now()
 
@@ -218,12 +251,9 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	// If the payload is nil, we don't want to send it to the backend.
 	if p == nil {
 		i.log.Debugf("inventory payload is nil, skipping submission")
-		return i.MinInterval
+		return nil
 	}
-	if err := i.serializer.SendMetadata(p); err != nil {
-		i.log.Errorf("unable to submit inventories payload, %s", err)
-	}
-	return i.MinInterval
+	return i.serializer.SendMetadata(p)
 }
 
 // Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.

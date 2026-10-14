@@ -19,4 +19,8 @@ type Component interface {
 	GetInstanceMetadata(instanceID string) map[string]interface{}
 	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
 	Refresh()
+	// SendNow builds and submits the payload immediately, without waiting for the next collection. It returns an
+	// error if the payload is disabled, during the first run delay after startup, or if the submission fails. A nil
+	// error means the payload was queued for sending.
+	SendNow() error
 }

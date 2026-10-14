@@ -483,6 +483,7 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 
 				var err error
 				var processed bool
+				partialOnly := true
 				// Call all the listeners component
 				for _, l := range rc.taskListeners {
 					oneProcessed, oneErr := l(types.TaskType(task.Config.TaskType), task)
@@ -490,6 +491,10 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 					processed = oneProcessed || processed
 					if oneErr != nil {
 						pkglog.Errorf("Error while processing agent task %s: %s", configPath, oneErr)
+						var partialErr *types.PartialFailureError
+						if !errors.As(oneErr, &partialErr) {
+							partialOnly = false
+						}
 						if err == nil {
 							err = oneErr
 						} else {
@@ -497,7 +502,13 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 						}
 					}
 				}
-				if processed && err != nil {
+				if processed && err != nil && partialOnly {
+					// Handled, but partially failed
+					applyStateCallback(configPath, state.ApplyStatus{
+						State: state.ApplyStateAcknowledged,
+						Error: err.Error(),
+					})
+				} else if processed && err != nil {
 					// One failure
 					applyStateCallback(configPath, state.ApplyStatus{
 						State: state.ApplyStateError,
