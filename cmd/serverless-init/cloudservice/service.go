@@ -219,10 +219,7 @@ func GetCloudServiceType() CloudService {
 	}
 
 	if isCloudRunService() {
-		if isCloudRunFunction() {
-			return &CloudRun{spanNamespace: cloudRunFunctionTagPrefix}
-		}
-		return &CloudRun{spanNamespace: cloudRunServiceTagPrefix}
+		return &CloudRun{isFunction: isCloudRunFunction()}
 	}
 
 	if isCloudRunJob() {

@@ -17,6 +17,11 @@ const (
 	RuntimeRuby   = "Ruby"
 )
 
+const (
+	workloadTypeCloudRunService  = "cloud_run_service"
+	workloadTypeCloudRunFunction = "cloud_run_function"
+)
+
 // InventoryData holds the per-platform serverless fields that feed the
 // serverless-init inventory metadata payload. Each CloudService implementation
 // derives these from its own environment so the payload builder stays thin and
@@ -56,9 +61,6 @@ type InventoryData struct {
 
 func (l *LocalService) CanCollectInventory() bool       { return true }
 func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{} }
-
-func (c *CloudRun) CanCollectInventory() bool       { return false }
-func (c *CloudRun) GetInventoryData() InventoryData { return InventoryData{} }
 
 func (c *CloudRunJobs) CanCollectInventory() bool       { return false }
 func (c *CloudRunJobs) GetInventoryData() InventoryData { return InventoryData{} }
