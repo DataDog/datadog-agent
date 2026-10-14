@@ -1,9 +1,4 @@
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: workload-sleepers
----
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -34,22 +29,20 @@ spec:
             }
           }
     spec:
+      # Created by the churn component when the environment has image pull credentials
+      imagePullSecrets:
+        - name: registry-credentials
       containers:
-        - name: sleeper-a
-          image: busybox
+        - &sleeper
+          name: sleeper-a
+          image: DOCKERHUB_MIRROR/library/busybox:1.37.0
           command:
             - sleep
             - infinity
-        - name: sleeper-b
-          image: busybox
-          command:
-            - sleep
-            - infinity
-        - name: sleeper-c
-          image: busybox
-          command:
-            - sleep
-            - infinity
+        - <<: *sleeper
+          name: sleeper-b
+        - <<: *sleeper
+          name: sleeper-c
       nodeSelector:
         benchmark.datadoghq.com/role: node-agent
       tolerations:
@@ -60,6 +53,63 @@ spec:
         # Tolerating the variant taint with Exists (rather than a specific value) is
         # what lets this very same DaemonSet land on both the baseline and the
         # comparison node-agent pools — the identical-workload premise of the benchmark.
+        - key: benchmark.datadoghq.com/variant
+          operator: Exists
+          effect: NoSchedule
+      terminationGracePeriodSeconds: 1
+---
+# Steady DaemonSets with many containers: the kubelet check parses cadvisor and
+# kubelet metrics whose volume grows with the number of containers on the node,
+# and the container check collects each of them.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: steady-sleeper-{{i}}
+  namespace: workload-sleepers
+  labels:
+    app: steady-sleeper-{{i}}
+  annotations:
+    churn.datadoghq.com/instances: "5"
+spec:
+  selector:
+    matchLabels:
+      app: steady-sleeper-{{i}}
+  template:
+    metadata:
+      labels:
+        app: steady-sleeper-{{i}}
+    spec:
+      # Created by the churn component when the environment has image pull credentials
+      imagePullSecrets:
+        - name: registry-credentials
+      containers:
+        - &sleeper
+          name: sleeper-a
+          image: DOCKERHUB_MIRROR/library/busybox:1.37.0
+          command:
+            - sleep
+            - infinity
+        - <<: *sleeper
+          name: sleeper-b
+        - <<: *sleeper
+          name: sleeper-c
+        - <<: *sleeper
+          name: sleeper-d
+        - <<: *sleeper
+          name: sleeper-e
+        - <<: *sleeper
+          name: sleeper-f
+        - <<: *sleeper
+          name: sleeper-g
+        - <<: *sleeper
+          name: sleeper-h
+      nodeSelector:
+        benchmark.datadoghq.com/role: node-agent
+      tolerations:
+        - key: benchmark.datadoghq.com/role
+          operator: Equal
+          value: node-agent
+          effect: NoSchedule
         - key: benchmark.datadoghq.com/variant
           operator: Exists
           effect: NoSchedule
