@@ -383,6 +383,40 @@ additional_endpoints:
 	})
 }
 
+func TestPrivateActionRunnerCredentialValuesScrub(t *testing.T) {
+	// Case variants coexist to ensure every original key is updated. Non-string
+	// keys in the second section exercise map[interface{}]interface{} as well.
+	input := `private_action_runner:
+  enabled: true
+  credentials:
+    values:
+      production: {value: sensitive-value}
+      placeholder: {value: 'ENC[credential]'}
+      absent: {value: null}
+    Values: sensitive-value
+  Credentials:
+    VALUES: {Production: {Value: sensitive-value}}
+  CREDENTIALS: visible-value
+Private_Action_Runner:
+  1: visible-value
+  Credentials:
+    2: visible-value
+    Values:
+      3: sensitive-value
+      Production: {Value: sensitive-value}
+      entries: [sensitive-value, 'ENC[credential]', null]
+    VALUES: sensitive-value
+unrelated:
+  values:
+    production: visible-value
+`
+
+	scrubbed, err := ScrubYamlString(input)
+	require.NoError(t, err)
+	expected := strings.ReplaceAll(input, "sensitive-value", `"********"`)
+	assert.YAMLEq(t, expected, scrubbed)
+}
+
 func TestEmptyYaml(t *testing.T) {
 	cleaned, err := ScrubYaml(nil)
 	require.NoError(t, err)

@@ -57,3 +57,13 @@ func MarkedInfraMode(c pkgconfigmodel.Reader) string {
 	}
 	return mode
 }
+
+// MarkedInfraModeTags returns []{"infra_mode:<mode>"} when the Agent is in a
+// marked mode, otherwise nil.
+func MarkedInfraModeTags(c pkgconfigmodel.Reader) []string {
+	mode := MarkedInfraMode(c)
+	if mode == "" {
+		return nil
+	}
+	return []string{InfraModeTagKey + ":" + mode}
+}
