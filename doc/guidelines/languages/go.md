@@ -199,7 +199,24 @@ Tests based on time are a major source of flakes. If you find yourself thinking 
 
 When the code you are testing requires time, the first strategy is to remove that requirement. For example, if you are testing the functionality of a poller, factor the code such that the tests can call the `poll()` method directly, instead of waiting for a Ticker to do so.
 
-Where this is not possible, refactor the code to use a Clock from [`github.com/benbjohnson/clock`](https://pkg.go.dev/github.com/benbjohnson/clock). In production, create a `clock.Clock`, and in tests, inject a `clock.Mock`. When time should pass in your test execution, call `clock.Add(..)` to deterministically advance the clock.
+Where this is not possible, prefer the standard library's [`testing/synctest`](https://pkg.go.dev/testing/synctest) for new code. Run the code under test in a bubble with `synctest.Test(t, func(t *testing.T) { ... })`: inside it, the `time` package uses a fake clock that advances as soon as every goroutine in the bubble is durably blocked, so the code under test keeps calling `time.Now` and `time.NewTicker` directly and needs no clock threaded through its constructor.
+
+```go
+func TestThingFunctionality(t *testing.T) {
+    synctest.Test(t, func(t *testing.T) {
+        thing := NewThing(...)
+        start := time.Now()
+
+        // Returns immediately: the 100ms elapses in virtual time.
+        require.True(t, thing.WaitForSomething(time.Second))
+        assert.Equal(t, 100*time.Millisecond, time.Since(start))
+    })
+}
+```
+
+Keep such a test self-contained, as the package's own documentation advises: start inside the bubble whatever the test coordinates with, and call `synctest.Wait()` before asserting on state that another bubble goroutine sets. Mind that locking a mutex, doing I/O and making syscalls are *not* durably blocking, so code that waits on a real lock or socket needs a fake to be tested this way.
+
+A Clock from [`github.com/benbjohnson/clock`](https://pkg.go.dev/github.com/benbjohnson/clock) remains the right tool when a test has to control time explicitly while goroutines run, for instance to jump to an absolute instant. In production, create a `clock.Clock`, and in tests, inject a `clock.Mock`. When time should pass in your test execution, call `clock.Add(..)` to deterministically advance the clock. It is also what most existing tests use, so match the surrounding file when adding to one.
 
 A common pattern for objects that embed a timer is as follows:
 

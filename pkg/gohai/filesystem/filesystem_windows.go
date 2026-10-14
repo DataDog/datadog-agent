@@ -48,7 +48,7 @@ func convertWindowsString(winput []uint16) string {
 }
 
 func getDiskSize(vol string) (size uint64, freespace uint64) {
-	var mod = windows.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazySystemDLL("kernel32.dll")
 	var getDisk = mod.NewProc("GetDiskFreeSpaceExW")
 	var sz uint64
 	var fr uint64
@@ -68,7 +68,7 @@ func getDiskSize(vol string) (size uint64, freespace uint64) {
 }
 
 func getMountPoints(vol string) []string {
-	var mod = windows.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazySystemDLL("kernel32.dll")
 	var getPaths = mod.NewProc("GetVolumePathNamesForVolumeNameW")
 	var tmp uint32
 	var objlistsize uint32 = 0x0
@@ -101,7 +101,7 @@ func getMountPoints(vol string) []string {
 }
 
 func getFileSystemInfo() ([]MountInfo, error) {
-	var mod = windows.NewLazyDLL("kernel32.dll")
+	var mod = windows.NewLazySystemDLL("kernel32.dll")
 	var findFirst = mod.NewProc("FindFirstVolumeW")
 	var findNext = mod.NewProc("FindNextVolumeW")
 	var findClose = mod.NewProc("FindVolumeClose")

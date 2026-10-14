@@ -6,6 +6,7 @@
 package lsof
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -24,7 +25,7 @@ import (
 func TestOpenFiles(t *testing.T) {
 	pid := os.Getpid()
 
-	files, err := openFiles(pid)
+	files, err := openFiles(context.Background(), pid)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, files)

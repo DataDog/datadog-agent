@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 )
 
 func reset() {
@@ -274,4 +275,24 @@ func TestGetCCRID(t *testing.T) {
 	ccrid, err := GetHostCCRID(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, ccrid, "//compute.googleapis.com/projects/gcp-test-project/zones/my-zone-for-test/instances/my-instance-name")
+}
+
+func TestIsRunningOnFallsBackToDMI(t *testing.T) {
+	defer reset()
+	ctx := context.Background()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("gce_use_dmi", true)
+
+	dmi.SetupMockProductName(t, "")
+	assert.False(t, IsRunningOn(ctx))
+
+	dmi.SetupMockProductName(t, DMIProductName)
+	assert.True(t, IsRunningOn(ctx))
 }

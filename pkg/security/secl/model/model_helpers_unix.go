@@ -25,6 +25,7 @@ const (
 	UnknownFS = "unknown" // UnknownFS unknown filesystem
 
 	ErrPathMustBeAbsolute = "all the path have to be absolute"            // ErrPathMustBeAbsolute tells when a path is not absolute
+	ErrPathMustBeClean    = "paths must be in canonical form"             // ErrPathMustBeClean tells when a path contains a trailing slash, `.` segments or duplicate slashes
 	ErrPathDepthLimit     = "path depths have to be shorter than"         // ErrPathDepthLimit tells when a path is too long
 	ErrPathSegmentLimit   = "each segment of a path must be shorter than" // ErrPathSegmentLimit tells when a patch reached the segment limit
 
@@ -53,11 +54,7 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 			return nil
 		}
 
-		if value != path.Clean(value) {
-			return errAbs
-		}
-
-		if value == "*" {
+		if value == "*" || value == "*/" {
 			return errAbs
 		}
 
@@ -81,6 +78,13 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 			if len(segment) > MaxSegmentLength {
 				return errSegment
 			}
+		}
+
+		if cleaned := path.Clean(value); cleaned != value {
+			if strings.TrimRight(value, "/") == cleaned {
+				return fmt.Errorf("invalid path `%s`, %s, trailing slashes are not allowed: use `%s` to match the directory itself or `%s/*` to match its content", value, ErrPathMustBeClean, cleaned, cleaned)
+			}
+			return fmt.Errorf("invalid path `%s`, %s, `.` segments and duplicate slashes are not allowed: use `%s` instead", value, ErrPathMustBeClean, cleaned)
 		}
 	}
 

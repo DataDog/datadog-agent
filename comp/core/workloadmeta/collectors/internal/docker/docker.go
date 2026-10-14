@@ -235,22 +235,11 @@ func (c *collector) generateEventsFromImageList(ctx context.Context) error {
 		return err
 	}
 
-	events := make([]workloadmeta.CollectorEvent, 0, len(images))
-
-	for _, img := range images {
-		imgMetadata, err := c.getImageMetadata(ctx, img.ID, nil)
-		if err != nil {
-			log.Warnf("%s", err.Error())
-			continue
-		}
-
-		event := workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: imgMetadata,
-		}
-
-		events = append(events, event)
+	events, err := collectInitialImageEvents(ctx, images, func(ctx context.Context, imageID string) (*workloadmeta.ContainerImageMetadata, error) {
+		return c.getImageMetadata(ctx, imageID, nil)
+	})
+	if err != nil {
+		return err
 	}
 
 	if len(events) > 0 {

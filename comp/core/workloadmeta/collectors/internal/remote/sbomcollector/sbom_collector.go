@@ -300,5 +300,9 @@ func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
 	return true
 }
 
-func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {
+// HandleResync notifies the events of the first response after a reconnect, as
+// Run does for any other response. The SBOM stream sends each report as it
+// comes, so the first one after a reconnect is one update among the others.
+func (s *streamHandler) HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent) {
+	store.Notify(events)
 }

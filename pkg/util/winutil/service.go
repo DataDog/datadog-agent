@@ -448,6 +448,24 @@ func IsServiceRunning(serviceName string) (running bool, err error) {
 	return (status.State == windows.SERVICE_RUNNING), nil
 }
 
+// QueryServiceState returns the current SCM state of serviceName.
+//
+// Callers that need to distinguish a missing service from other failures should
+// use errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST).
+func QueryServiceState(serviceName string) (svc.State, error) {
+	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return 0, err
+	}
+	defer closeManagerService(manager, service)
+
+	status, err := service.Query()
+	if err != nil {
+		return 0, fmt.Errorf("could not retrieve status for %s: %w", serviceName, err)
+	}
+	return status.State, nil
+}
+
 // GetServiceUser returns the service user for the given service
 func GetServiceUser(serviceName string) (string, error) {
 	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_CONFIG)
