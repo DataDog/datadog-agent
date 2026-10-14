@@ -30,12 +30,8 @@ func replaceRegistryFile(sourcePath, targetPath string) error {
 	defer directory.Close()
 
 	if err := directory.Sync(); err != nil {
-		// AIX does not support fsync on directory descriptors: the fsync and
-		// fsync_range subroutines only accept regular files, so the call fails
-		// with EINVAL (Go's syscall.Fsync uses fsync_range on AIX) or EBADF.
-		// Treat the directory sync as best-effort on AIX — JFS2's metadata
-		// journal keeps the rename atomic across crashes — and surface the
-		// error on every other platform.
+		// AIX does not support fsync on directory descriptors, still try
+		// (could work for a remote filesystem) but ignore EINVAL and EBADF
 		if runtime.GOOS != "aix" || (!errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.EBADF)) {
 			return err
 		}
