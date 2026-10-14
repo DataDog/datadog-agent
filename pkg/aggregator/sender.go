@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -44,9 +46,13 @@ type checkSender struct {
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
-	infraTagger             *infratags.Tagger // nil = no infra mode tagging
 	service                 string
 	noIndex                 bool
+	infraTagger             *infratags.Tagger // nil = no infra mode tagging
+	// infraModeEventTags is `infra_mode:<mode>` for marked modes, else nil.
+	// Resolved at construction and appended on Event only. Kept separate from
+	// infraTagger so event marking does not use the metrics allowlist.
+	infraModeEventTags []string
 }
 
 // senderItem knows how the aggregator should handle it
@@ -118,6 +124,7 @@ func newCheckSender(
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
+		infraModeEventTags:      configutils.MarkedInfraModeTags(pkgconfigsetup.Datadog()),
 	}
 }
 
@@ -408,6 +415,7 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 // Event submits an event
 func (s *checkSender) Event(e event.Event) {
 	e.Tags = append(e.Tags, s.checkTags...)
+	e.Tags = append(e.Tags, s.infraModeEventTags...)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
