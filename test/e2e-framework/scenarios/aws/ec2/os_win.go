@@ -19,28 +19,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-const windowsTrackSSHActivityScriptPath = "C:/ProgramData/dd-e2e/track-ssh-activity.ps1"
-
-// windowsSSHEventSubscription matches the events sshd writes to its event log, several of them on
-// every connection. They all share the same event ID, so the subscription cannot single out logins.
-// Attributes use doubled single quotes, as the subscription is embedded in a single-quoted string.
-const windowsSSHEventSubscription = "<QueryList><Query Id=''0'' Path=''OpenSSH/Operational''><Select Path=''OpenSSH/Operational''>*[System[EventID=4]]</Select></Query></QueryList>"
-
-// windowsRegisterTrackSSHActivityTask registers a SYSTEM scheduled task running track-ssh-activity.ps1
-// when sshd logs an event, so shortly after an SSH connection opens, and every 5 minutes, which
-// survives reboots. Best effort: a failure prints a warning instead of failing the stack. Statements
-// are joined on one line and only use single quotes, to go through the SSH command line unchanged.
-var windowsRegisterTrackSSHActivityTask = "try { " + strings.Join([]string{
-	"$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File " + windowsTrackSSHActivityScriptPath + "'",
-	"$timeTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5)",
-	// New-ScheduledTaskTrigger does not support event triggers, they have to be built from the CIM class
-	"$eventTrigger = New-CimInstance -CimClass (Get-CimClass -Namespace 'Root/Microsoft/Windows/TaskScheduler' -ClassName 'MSFT_TaskEventTrigger') -ClientOnly",
-	"$eventTrigger.Enabled = $true",
-	"$eventTrigger.Subscription = '" + windowsSSHEventSubscription + "'",
-	"$principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest",
-	"$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -MultipleInstances IgnoreNew -StartWhenAvailable",
-	"Register-ScheduledTask -TaskName 'dd-e2e-track-ssh-activity' -Action $action -Trigger @($timeTrigger, $eventTrigger) -Principal $principal -Settings $settings -Force | Out-Null",
-}, "; ") + " } catch { Write-Warning ('Failed to register the SSH activity tracking task: ' + $_) }"
+const (
+	windowsTrackSSHActivityScriptPath         = "C:/ProgramData/dd-e2e/track-ssh-activity.ps1"
+	windowsRegisterTrackSSHActivityScriptPath = "C:/ProgramData/dd-e2e/register-track-ssh-activity.ps1"
+)
 
 func getWindowsOpenSSHUserData(publicKeyPath string) (string, error) {
 	publicKey, err := os.ReadFile(publicKeyPath)
@@ -82,16 +64,17 @@ func buildAWSPowerShellUserData(scriptContent string, arguments ...windowsPowerS
 	return strings.Join(userDataLines, "\n")
 }
 
-// installWindowsSSHActivityTracking copies track-ssh-activity.ps1 to the host and schedules it, so that
-// the "last-activity" tag is kept up to date while the VM is used over SSH. Unlike on Linux, it is not
-// installed through the user data, which is already close to EC2's 16 KB limit on Windows.
+// installWindowsSSHActivityTracking copies track-ssh-activity.ps1 to the host and schedules it with
+// register-track-ssh-activity.ps1, so that the "last-activity" tag is kept up to date while the VM is
+// used over SSH. Unlike on Linux, it is not installed through the user data, which is already close to
+// EC2's 16 KB limit on Windows.
 func installWindowsSSHActivityTracking(e aws.Environment, host *remote.Host, opts []pulumi.ResourceOption) error {
 	dirCmd, err := host.OS.FileManager().CreateDirectoryForFile(windowsTrackSSHActivityScriptPath, false, opts...)
 	if err != nil {
 		return err
 	}
 
-	copyCmd, err := host.OS.FileManager().CopyInlineFile(
+	copyTrackCmd, err := host.OS.FileManager().CopyInlineFile(
 		pulumi.String(componentsos.WindowsTrackSSHActivityScriptContent),
 		windowsTrackSSHActivityScriptPath,
 		utils.MergeOptions(opts, utils.PulumiDependsOn(dirCmd))...)
@@ -99,9 +82,23 @@ func installWindowsSSHActivityTracking(e aws.Environment, host *remote.Host, opt
 		return err
 	}
 
+	copyRegisterCmd, err := host.OS.FileManager().CopyInlineFile(
+		pulumi.String(componentsos.WindowsRegisterTrackSSHActivityScriptContent),
+		windowsRegisterTrackSSHActivityScriptPath,
+		utils.MergeOptions(opts, utils.PulumiDependsOn(dirCmd))...)
+	if err != nil {
+		return err
+	}
+
 	_, err = host.OS.Runner().Command(
 		e.CommonNamer().ResourceName("track-ssh-activity"),
-		&command.Args{Create: pulumi.String(windowsRegisterTrackSSHActivityTask)},
-		utils.MergeOptions(opts, utils.PulumiDependsOn(copyCmd))...)
+		&command.Args{
+			Create: pulumi.String(fmt.Sprintf("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File %s -ScriptPath %s",
+				windowsRegisterTrackSSHActivityScriptPath, windowsTrackSSHActivityScriptPath)),
+			// The command line does not change with the registration script, so register the task
+			// again when the script content changes
+			Triggers: pulumi.Array{pulumi.String(utils.StrHash(componentsos.WindowsRegisterTrackSSHActivityScriptContent))},
+		},
+		utils.MergeOptions(opts, utils.PulumiDependsOn(copyTrackCmd, copyRegisterCmd))...)
 	return err
 }

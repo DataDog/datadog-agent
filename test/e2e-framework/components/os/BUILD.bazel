@@ -26,6 +26,7 @@ go_library(
     ],
     embedsrcs = [
         "scripts/apt-disable-unattended-upgrades.sh",
+        "scripts/register-track-ssh-activity.ps1",
         "scripts/setup-ssh.ps1",
         "scripts/ssh-allow-sftp-root.sh",
         "scripts/track-ssh-activity.ps1",

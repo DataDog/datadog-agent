@@ -14,3 +14,6 @@ var WindowsSetupSSHScriptContent string
 
 //go:embed scripts/track-ssh-activity.ps1
 var WindowsTrackSSHActivityScriptContent string
+
+//go:embed scripts/register-track-ssh-activity.ps1
+var WindowsRegisterTrackSSHActivityScriptContent string
