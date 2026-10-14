@@ -7,8 +7,10 @@ package collectorimpl
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 
@@ -118,4 +120,18 @@ level:
 			assert.Equal(t, test.want, got)
 		})
 	}
+}
+
+func TestTruncateCheckError(t *testing.T) {
+	short := "short error"
+	assert.Equal(t, short, truncateCheckError(short))
+
+	long := strings.Repeat("another command is already in progress\n", 100000)
+	got := truncateCheckError(long)
+	assert.Less(t, len(got), maxCheckErrorLength+64)
+	assert.Contains(t, got, "... [truncated ")
+
+	// must not split a multi-byte character
+	multi := strings.Repeat("é", maxCheckErrorLength)
+	assert.True(t, utf8.ValidString(truncateCheckError(multi)))
 }

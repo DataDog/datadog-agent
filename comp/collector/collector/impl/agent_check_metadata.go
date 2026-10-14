@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
@@ -31,7 +32,23 @@ import (
 const (
 	defaultInterval   = 10 * time.Minute
 	firstPayloadDelay = 1 * time.Minute
+
+	// maxCheckErrorLength caps the size of a single check error message in the payload, so that a runaway
+	// error message (e.g. one that grows on every run) cannot inflate the whole payload.
+	maxCheckErrorLength = 4096
 )
+
+// truncateCheckError limits msg to maxCheckErrorLength bytes, without splitting a UTF-8 character.
+func truncateCheckError(msg string) string {
+	if len(msg) <= maxCheckErrorLength {
+		return msg
+	}
+	cut := maxCheckErrorLength
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return fmt.Sprintf("%s... [truncated %d bytes]", msg[:cut], len(msg)-cut)
+}
 
 // jmxInstanceData stores metadata about a JMX instance for building consistent check IDs
 type jmxInstanceData struct {
@@ -84,7 +101,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			var status []interface{}
 			if s.LastError != "" {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "", integrationTags,
+					s.CheckName, s.CheckName, s.CheckID, "ERROR", truncateCheckError(s.LastError), "", integrationTags,
 				}
 			} else if len(s.LastWarnings) != 0 {
 				status = []interface{}{
@@ -106,7 +123,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
 		status := []interface{}{
-			check, check, "initialization", "ERROR", string(jsonErrs), []string{},
+			check, check, "initialization", "ERROR", truncateCheckError(string(jsonErrs)), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -114,7 +131,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	configErrors := autodiscoveryimpl.GetConfigErrors()
 	for check, e := range configErrors {
 		status := []interface{}{
-			check, check, "initialization", "ERROR", e, []string{},
+			check, check, "initialization", "ERROR", truncateCheckError(e), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -122,7 +139,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	jmxStartupError := jmxStatus.GetStartupError()
 	if jmxStartupError.LastError != "" {
 		status := []interface{}{
-			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError, []string{},
+			"jmx", "jmx", "initialization", "ERROR", truncateCheckError(jmxStartupError.LastError), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
