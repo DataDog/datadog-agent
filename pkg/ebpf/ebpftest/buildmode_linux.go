@@ -25,10 +25,10 @@ func SupportedBuildModes() []BuildMode {
 	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
 		modes = append(modes, Prebuilt)
 	}
-	// fentry availability is patch-level dependent (the RCU-exit detach deadlock
+	// fentry availability is patch-level dependent (the RCU-exit detach deadlock fix
 	// was AUTOSEL-backported to 6.6/6.7/6.8), so probe the runtime kernel instead
 	// of gating on a kernel-version floor.
-	if supportsFentry() {
+	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" || supportsFentry() {
 		modes = append(modes, Fentry)
 	}
 	if os.Getenv("TEST_EBPFLESS_OVERRIDE") == "true" {
