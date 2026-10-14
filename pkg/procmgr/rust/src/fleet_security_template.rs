@@ -3,24 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Checks on the Windows processes.d entry the fleet installer ships for security-agent.
-//! The template is consumed as the file a human edits and rendered the way the installer
-//! renders it. The gate is evaluated against the Windows schema defaults, which is why
-//! these tests only run on Windows.
+//! Fleet processes.d template checks for Windows security-agent (Windows schema defaults).
 
 use crate::config::ProcessConfig;
 use crate::config_gate::{condition_config_any_met, gated_key_names, test_env_guard};
 use crate::fleet_template_support::{INSTALL_DIR, scm_service_keys, sorted, write_gated_files};
 use std::path::Path;
 
-/// Catalog name of the shipped entry, from `datadog-agent-security.yaml` in `processes.d`.
 const SECURITY_NAME: &str = "datadog-agent-security";
 
 const SECURITY_TEMPLATE: &str = include_str!(
     "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-security-windows.yaml.tmpl"
 );
 
-/// Gate keys all absent, so each one falls through to the Agent's schema default.
 const EMPTY_AGENT_YAML: &str = "api_key: 0000001\n";
 const EMPTY_SYSPROBE_YAML: &str = "# no modules enabled\n";
 
@@ -35,7 +30,6 @@ fn fleet_security_template_declares_legacy_scm_gate() {
         config.condition_path_exists.as_deref(),
         Some(binary.as_str())
     );
-    // SCM ImagePath is bare; under dd-procmgrd the binary needs start plus config paths.
     assert_eq!(
         config.args,
         vec![
@@ -49,8 +43,8 @@ fn fleet_security_template_declares_legacy_scm_gate() {
         ]
     );
     assert!(
-        !config.auto_start,
-        "auto_start stays false until SCM suppression lands with this entry"
+        config.auto_start,
+        "cutover ships auto_start true together with SCM suppression"
     );
 
     let (core_keys, sysprobe_keys) = scm_service_keys("cws");
@@ -77,7 +71,6 @@ fn fleet_security_template_declares_legacy_scm_gate() {
         gate[0].keys
     );
 
-    // on-failure: disabled security-agent exits 0; `always` would respawn forever.
     assert_eq!(config.restart.to_string(), "on-failure");
     assert_eq!(config.restart_sec, Some(2.0));
     assert_eq!(config.start_limit_interval_sec, Some(10));
@@ -86,8 +79,6 @@ fn fleet_security_template_declares_legacy_scm_gate() {
     assert_eq!(config.stderr, "inherit");
 }
 
-/// An unknown key resolves false and warns on every evaluation, which would leave part of
-/// the transcription dead while the template still read like one.
 #[test]
 fn fleet_security_template_names_only_evaluable_keys() {
     let etc = tempfile::tempdir().expect("tempdir");
@@ -103,7 +94,6 @@ fn fleet_security_template_names_only_evaluable_keys() {
     }
 }
 
-/// Default install leaves runtime security off, so the gate stays closed.
 #[test]
 fn fleet_security_template_gate_closed_on_default_install() {
     let _env = test_env_guard();
@@ -114,7 +104,6 @@ fn fleet_security_template_gate_closed_on_default_install() {
     assert!(!condition_config_any_met(&gate));
 }
 
-/// Enabling runtime security in system-probe.yaml opens the gate.
 #[test]
 fn fleet_security_template_gate_opens_when_runtime_security_enabled() {
     let _env = test_env_guard();
