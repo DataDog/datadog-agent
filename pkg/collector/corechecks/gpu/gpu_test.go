@@ -351,6 +351,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		testutil.WithProcessData(nil, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithArchitecture("blackwell"),
+		testutil.WithNvLinkErrorCounters(),
 		testutil.WithDeviceCountFunc(func() int {
 			return int(curDeviceCount.Load())
 		}),
@@ -418,6 +419,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 		testutil.WithProcessData(nil, nvml.SUCCESS),
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithArchitecture("blackwell"),
+		testutil.WithNvLinkErrorCounters(),
 		testutil.WithDeviceOptions(0,
 			testutil.WithMIGEnabled(),
 			testutil.WithMIGChildUUIDs(map[int]string{
