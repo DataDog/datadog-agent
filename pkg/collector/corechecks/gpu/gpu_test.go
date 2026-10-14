@@ -560,9 +560,9 @@ func TestCollectSamplesDoesNotCrashWhenCollectorPanics(t *testing.T) {
 	})
 
 	require.Len(t, results, 1)
-	assert.Equal(t, nvidia.CollectorName("panicking-collector"), results[0].name)
-	require.Error(t, results[0].err)
-	assert.Contains(t, results[0].err.Error(), "collector panicked: boom")
+	assert.Equal(t, nvidia.CollectorName("panicking-collector"), results[0].Name)
+	require.Error(t, results[0].Err)
+	assert.Contains(t, results[0].Err.Error(), "collector panicked: boom")
 }
 
 func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *testing.T) {
