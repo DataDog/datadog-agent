@@ -526,9 +526,11 @@ func (v *gpuBaseSuite[Env]) TestCOATMetricsReported() {
 		statelessCreated := false
 		for _, m := range created {
 			assert.NotContains(c, []string{"unsupported", "disabled"}, m.Tags["status"], "excluded status reported: %v", m.Tags)
+			tagKeys := make([]string, 0, len(m.Tags))
 			for tagKey := range m.Tags {
-				assert.Contains(c, coatCollectorTagKeys, tagKey, "unexpected tag in gpu.collectors__created")
+				tagKeys = append(tagKeys, tagKey)
 			}
+			assert.ElementsMatch(c, coatCollectorTagKeys, tagKeys, "unexpected tag set in gpu.collectors__created")
 			if m.Tags["collector"] == "stateless" && m.Tags["status"] == "success" {
 				statelessCreated = true
 			}
