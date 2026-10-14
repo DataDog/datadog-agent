@@ -1111,7 +1111,6 @@
 /test/new-e2e/tests/orchestrator                                @DataDog/kubernetes-experiences
 /test/new-e2e/tests/orchestrator/ecs_test.go                    @DataDog/ecs-experiences
 /test/new-e2e/tests/otel                                        @DataDog/opentelemetry-agent
-/test/new-e2e/tests/pcap                                        @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/privateactionrunner                         @DataDog/action-platform
 /test/new-e2e/tests/process                                     @DataDog/container-experiences
 /test/new-e2e/tests/process/ecs_test.go                         @DataDog/ecs-experiences @DataDog/container-experiences
