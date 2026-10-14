@@ -181,9 +181,9 @@ func (f MetricTagSetterFunc) SetMetricTags(tags []string) { f(tags) }
 
 // InventorySubmitter enqueues a serverless inventory metadata payload for the
 // current MicroVM instance. The server owns the instance id (from the /run
-// body or the stored value at /resume) and hands it to the callback, mirroring
-// the tag-setter trio; the callback consumes it. Calls are serialized with the
-// instance ID store/load, so a resume cannot replay a stale captured identity.
+// body or the stored value at /resume) and hands it to the callback. Calls are
+// serialized with the instance ID store/load, so a resume cannot replay a
+// stale captured identity.
 type InventorySubmitter interface {
 	SubmitInventory(microVMID string)
 }

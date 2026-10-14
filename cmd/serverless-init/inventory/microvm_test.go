@@ -53,8 +53,8 @@ func TestSetResourceIDGatedOff(t *testing.T) {
 	assert.Empty(t, ia.fields, "resource_id must not be set when the ramp gate is off")
 }
 
-// Defensive narrowing ignores empty IDs; UpdateInstanceAndSubmit must reject them
-// before any injection or readiness change.
+// TestSetResourceIDIgnoresEmptyID pins that an empty ID must not displace the
+// resource_id derived from the environment.
 func TestSetResourceIDIgnoresEmptyID(t *testing.T) {
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)

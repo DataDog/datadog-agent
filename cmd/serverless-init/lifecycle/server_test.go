@@ -2092,8 +2092,7 @@ func TestInventoryLifecycleCallbacksSerialized(t *testing.T) {
 				srv.SetInventorySubmitter(InventorySubmitterFunc(func(id string) {
 					assert.EqualValues(t, 1, active.Inc(), "inventory callbacks must not overlap")
 					defer active.Dec()
-					// This assertion proves lock ownership without assuming the
-					// competing handler was scheduled before a negative assertion.
+					// TryLock proves the callback runs while inventoryMu is held.
 					locked := srv.inventoryMu.TryLock()
 					if locked {
 						srv.inventoryMu.Unlock()
