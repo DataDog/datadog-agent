@@ -12,6 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -416,6 +419,30 @@ func BenchmarkMaskSequences(b *testing.B) {
 		}
 	})
 
+}
+
+func TestQuotaDrop(t *testing.T) {
+	out := make(chan *message.Message, 10)
+	p := New(nil, make(chan *message.Message), out, nil, PassthroughEncoder, &diagnostic.NoopMessageReceiver{},
+		nil, metrics.NewNoopPipelineMonitor("0"), "0")
+	e := quota.NewEnforcer()
+	p.SetQuotaEnforcer(e)
+
+	nginx := sources.NewLogSource("", &config.LogsConfig{Source: "nginx", Tags: []string{"team:payments"}})
+	redis := sources.NewLogSource("", &config.LogsConfig{Source: "redis"})
+
+	p.processMessage(newMessage([]byte("a"), nginx, ""))
+	assert.Len(t, out, 1)
+
+	res := e.Update("mock", map[string][]byte{"q": []byte(`{"schema_version":1,"quota_id":"q","version":1,"action":"drop",
+		"match":{"all":[{"field":"tag","op":"eq","value":"team:payments"}]},"max_ttl_seconds":60}`)})
+	assert.NoError(t, res["q"])
+
+	p.processMessage(newMessage([]byte("b"), nginx, ""))
+	p.processMessage(newMessage([]byte("c"), redis, ""))
+	assert.Len(t, out, 2)
+	<-out
+	assert.Equal(t, "redis", (<-out).Origin.Source())
 }
 
 func TestExcludeTruncated(t *testing.T) {

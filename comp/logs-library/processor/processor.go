@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -48,6 +49,7 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
+	quotaEnforcer             *quota.Enforcer
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -84,6 +86,12 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	}
 
 	return p
+}
+
+// SetQuotaEnforcer makes the processor drop messages matching active quota rules.
+// Must be called before Start.
+func (p *Processor) SetQuotaEnforcer(e *quota.Enforcer) {
+	p.quotaEnforcer = e
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
@@ -184,6 +192,12 @@ func (p *Processor) processMessage(msg *message.Message) {
 			metrics.TlmTruncatedCount.Inc(msg.Origin.Service(), msg.Origin.Source())
 		} else {
 			metrics.TlmTruncatedCount.Inc("", "")
+		}
+	}
+
+	if p.quotaEnforcer != nil {
+		if _, drop := p.quotaEnforcer.Check(msg); drop {
+			return
 		}
 	}
 
