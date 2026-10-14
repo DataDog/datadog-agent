@@ -66,13 +66,19 @@ static PyMethodDef methods[] = {
     { "set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags." },
     { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
     { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
-    { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL string." },
-    { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
-    { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
-    { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
-    { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
-    { "report_issue", (PyCFunction)report_issue, METH_VARARGS|METH_KEYWORDS, "Report a health platform issue." },
-    { "resolve_issue", (PyCFunction)resolve_issue, METH_VARARGS|METH_KEYWORDS, "Resolve a health platform issue by issue id." },
+    { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS | METH_KEYWORDS,
+      "Obfuscate & normalize a SQL string." },
+    { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS | METH_KEYWORDS,
+      "Obfuscate & normalize a SQL Execution Plan." },
+    { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS,
+      "Get agent process startup time, in seconds since the epoch." },
+    { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS | METH_KEYWORDS,
+      "Obfuscate & normalize a MongoDB command string." },
+    { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS | METH_KEYWORDS,
+      "Emit agent telemetry." },
+    { "report_issue", (PyCFunction)report_issue, METH_VARARGS | METH_KEYWORDS, "Report a health platform issue." },
+    { "resolve_issue", (PyCFunction)resolve_issue, METH_VARARGS | METH_KEYWORDS,
+      "Resolve a health platform issue by issue id." },
     { NULL, NULL } // guards
 };
 
@@ -153,16 +159,18 @@ void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t cb)
     cb_obfuscate_sql_exec_plan = cb;
 }
 
-void _set_get_process_start_time_cb(cb_get_process_start_time_t cb) {
+void _set_get_process_start_time_cb(cb_get_process_start_time_t cb)
+{
     cb_get_process_start_time = cb;
 }
 
-void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb) {
+void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb)
+{
     cb_obfuscate_mongodb_string = cb;
-
 }
 
-void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
+void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb)
+{
     cb_emit_agent_telemetry = cb;
 }
 
@@ -175,7 +183,6 @@ void _set_resolve_issue_cb(cb_resolve_issue_t cb)
 {
     cb_resolve_issue = cb;
 }
-
 
 /*! \fn PyObject *get_version(PyObject *self, PyObject *args)
     \brief This function implements the `datadog-agent.get_version` method, collecting
@@ -555,7 +562,7 @@ static PyObject *write_persistent_cache(PyObject *self, PyObject *args)
     }
 
     Py_BEGIN_ALLOW_THREADS
-    cb_write_persistent_cache(key, value);
+        cb_write_persistent_cache(key, value);
     Py_END_ALLOW_THREADS
 
     Py_RETURN_NONE;
@@ -588,7 +595,7 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args)
 
     char *v = NULL;
     Py_BEGIN_ALLOW_THREADS
-    v = cb_read_persistent_cache(key);
+        v = cb_read_persistent_cache(key);
     Py_END_ALLOW_THREADS
 
     if (v == NULL) {
@@ -782,7 +789,6 @@ done:
         return NULL;
     }
     Py_RETURN_NONE;
-
 }
 
 /*! \fn PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
@@ -808,7 +814,7 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
 
     char *rawQuery = NULL;
     char *optionsObj = NULL;
-    static char *kwlist[] = {"query", "options", NULL};
+    static char *kwlist[] = { "query", "options", NULL };
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &rawQuery, &optionsObj)) {
         PyGILState_Release(gstate);
         return NULL;
@@ -845,7 +851,7 @@ static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObjec
 
     char *rawPlan = NULL;
     PyObject *normalizeObj = NULL;
-    static char *kwlist[] = {"", "normalize", NULL};
+    static char *kwlist[] = { "", "normalize", NULL };
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|O", kwlist, &rawPlan, &normalizeObj)) {
         PyGILState_Release(gstate);
         return NULL;
@@ -1007,8 +1013,8 @@ static PyObject *report_issue(PyObject *self, PyObject *args, PyObject *kwargs)
 
     if (err != NULL) {
         PyErr_SetString(PyExc_RuntimeError, err);
-    }   
-    
+    }
+
     cgo_free(err);
     PyGILState_Release(gstate);
     // we need to return NULL to raise the exception set by PyErr_SetString
@@ -1042,7 +1048,7 @@ static PyObject *resolve_issue(PyObject *self, PyObject *args, PyObject *kwargs)
     if (err != NULL) {
         PyErr_SetString(PyExc_RuntimeError, err);
     }
-    
+
     cgo_free(err);
     PyGILState_Release(gstate);
     // we need to return NULL to raise the exception set by PyErr_SetString

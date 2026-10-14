@@ -67,11 +67,12 @@ type Resolver struct {
 	config     *config.Config
 	manager    *manager.Manager
 
-	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
-	tcRequests        chan TcClassifierRequest
-	errorCounters     map[string]*atomic.Int64
-	ctx               context.Context
-	wg                sync.WaitGroup
+	networkNamespaces   *simplelru.LRU[uint32, *NetworkNamespace]
+	tcRequests          chan TcClassifierRequest
+	netnsHandleRequests chan networkNamespaceHandleRequest
+	errorCounters       map[string]*atomic.Int64
+	ctx                 context.Context
+	wg                  sync.WaitGroup
 }
 
 // NewResolver returns a new instance of Resolver
@@ -83,6 +84,8 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		tcResolver: tcResolver,
 		tcRequests: make(chan TcClassifierRequest, 16),
 		ctx:        context.Background(),
+
+		netnsHandleRequests: make(chan networkNamespaceHandleRequest, 1024),
 
 		errorCounters: newErrorCounters(),
 	}
