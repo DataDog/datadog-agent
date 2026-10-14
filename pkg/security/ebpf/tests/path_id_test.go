@@ -38,4 +38,12 @@ func TestPathID(t *testing.T) {
 			t.Errorf("unexpected error: %v, %d", err, code)
 		}
 	})
+
+	t.Run("path-id-pair", func(t *testing.T) {
+		var ctx baloum.StdContext
+		code, err := newVM(t).RunProgram(&ctx, "test/path_id_pair")
+		if err != nil || code != 1 {
+			t.Errorf("unexpected error: %v, %d", err, code)
+		}
+	})
 }
