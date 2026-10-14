@@ -128,14 +128,17 @@ func (r *reporter) ReportIssue(issue *healthplatformpayload.Issue) error {
 	}
 
 	issue = proto.Clone(issue).(*healthplatformpayload.Issue)
+	id := issue.GetId()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, isPending := r.pending[issue.GetId()]; !isPending {
-		if synced := r.synced[issue.GetId()]; synced != nil && proto.Equal(synced, issue) {
+	if op, isPending := r.pending[id]; isPending {
+		if op.issue != nil && proto.Equal(op.issue, issue) {
 			return nil
 		}
+	} else if synced := r.synced[id]; synced != nil && proto.Equal(synced, issue) {
+		return nil
 	}
-	r.pending[issue.GetId()] = &pendingOp{issue: issue}
+	r.pending[id] = &pendingOp{issue: issue}
 	r.wake()
 	return nil
 }
@@ -177,9 +180,6 @@ func (r *reporter) start() {
 // stop stops the background loop and makes a last, bounded attempt to deliver
 // the pending operations.
 func (r *reporter) stop(ctx context.Context) {
-	if r.cancel == nil {
-		return
-	}
 	r.cancel()
 	<-r.done
 

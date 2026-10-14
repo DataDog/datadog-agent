@@ -117,6 +117,79 @@ func TestLatestStateWins(t *testing.T) {
 	require.NoError(t, r.flush(context.Background()))
 }
 
+func TestChangesWhileReportInFlight(t *testing.T) {
+	tests := []struct {
+		name string
+		// change is applied while the report of testIssue("a", "title") is in flight.
+		change func(t *testing.T, r *reporter)
+		// expectNext sets the calls expected on the next flush.
+		expectNext func(client *mock_core.MockAgentSecureClient) *gomock.Call
+	}{
+		{
+			name:   "resolve",
+			change: func(_ *testing.T, r *reporter) { r.ResolveIssue("a") },
+			expectNext: func(client *mock_core.MockAgentSecureClient) *gomock.Call {
+				return expectResolve(client, "a", nil)
+			},
+		},
+		{
+			name: "changed report",
+			change: func(t *testing.T, r *reporter) {
+				require.NoError(t, r.ReportIssue(testIssue("a", "new title")))
+			},
+			expectNext: func(client *mock_core.MockAgentSecureClient) *gomock.Call {
+				return client.EXPECT().ReportHealthIssue(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, req *pbcore.ReportHealthIssueRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
+						if req.GetIssue().GetTitle() != "new title" {
+							return nil, errors.New("unexpected title " + req.GetIssue().GetTitle())
+						}
+						return &emptypb.Empty{}, nil
+					})
+			},
+		},
+		{
+			name: "identical report",
+			change: func(t *testing.T, r *reporter) {
+				require.NoError(t, r.ReportIssue(testIssue("a", "title")))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := mock_core.NewMockAgentSecureClient(gomock.NewController(t))
+			r := newReporter(client, logmock.New(t))
+			ctx := context.Background()
+
+			inFlight := make(chan struct{})
+			release := make(chan struct{})
+			first := expectReport(client, "a", nil).Do(func(context.Context, *pbcore.ReportHealthIssueRequest, ...grpc.CallOption) {
+				close(inFlight)
+				<-release
+			})
+			if tt.expectNext != nil {
+				tt.expectNext(client).After(first)
+			}
+
+			require.NoError(t, r.ReportIssue(testIssue("a", "title")))
+			flushed := make(chan error, 1)
+			go func() { flushed <- r.flush(ctx) }()
+			select {
+			case <-inFlight:
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "issue was not sent")
+			}
+			tt.change(t, r)
+			close(release)
+			require.NoError(t, <-flushed)
+
+			require.NoError(t, r.flush(ctx))
+			// Nothing is left to send.
+			require.NoError(t, r.flush(ctx))
+		})
+	}
+}
+
 func TestRequeueActive(t *testing.T) {
 	client := mock_core.NewMockAgentSecureClient(gomock.NewController(t))
 	r := newReporter(client, logmock.New(t))
@@ -149,6 +222,28 @@ func TestRunDeliversInBackground(t *testing.T) {
 	case <-delivered:
 	case <-time.After(5 * time.Second):
 		require.FailNow(t, "issue was not delivered")
+	}
+}
+
+func TestRunRetriesFailedDelivery(t *testing.T) {
+	client := mock_core.NewMockAgentSecureClient(gomock.NewController(t))
+	r := newReporter(client, logmock.New(t))
+
+	delivered := make(chan struct{})
+	gomock.InOrder(
+		expectReport(client, "a", errors.New("unavailable")),
+		expectReport(client, "a", nil).Do(func(context.Context, *pbcore.ReportHealthIssueRequest, ...grpc.CallOption) {
+			close(delivered)
+		}),
+	)
+	r.start()
+	defer r.stop(context.Background())
+
+	require.NoError(t, r.ReportIssue(testIssue("a", "title")))
+	select {
+	case <-delivered:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "issue was not retried")
 	}
 }
 
