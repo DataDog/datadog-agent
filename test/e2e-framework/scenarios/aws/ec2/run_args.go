@@ -73,9 +73,6 @@ func ParamsFromEnvironment(e aws.Environment) *Params {
 		if e.InfraOSDescriptor() != "" {
 			p.instanceOptions = append(p.instanceOptions, WithOS(osDesc))
 		}
-		if e.InfraOSImageIDUseLatest() {
-			p.instanceOptions = append(p.instanceOptions, WithLatestAMI())
-		}
 	}
 
 	// Agent installation toggle
