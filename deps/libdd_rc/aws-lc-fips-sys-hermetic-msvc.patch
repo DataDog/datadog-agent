@@ -119,7 +119,7 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
          let mut cmake_cfg = self.get_cmake_config();
          if is_fips_build() {
              if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
-@@ -483,11 +580,24 @@ impl CmakeBuilder {
+@@ -483,11 +580,26 @@ impl CmakeBuilder {
      fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
 +        if let Ok(perl_executable) = env::var("PERL_EXECUTABLE") {
 +            cmake_cfg.define("PERL_EXECUTABLE", perl_executable);
@@ -127,6 +127,8 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 +
          if is_fips_build() {
              cmake_cfg.generator("Ninja");
++            // Expose the underlying command when Ninja fails in Windows CI.
++            cmake_cfg.build_arg("-v");
 -            let env_map = self
 -                .collect_vcvarsall_bat()
 -                .map_err(|x| panic!("{}", x))
