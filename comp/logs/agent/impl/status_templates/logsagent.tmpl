@@ -108,3 +108,26 @@
   {{- end }}
 {{- end }}
 {{- end }}
+{{- with .quotaEnforcement }}
+{{- if or .LastSync .Quotas }}
+
+  =================
+  Quota Enforcement
+  =================
+    Last update: {{ .LastSync }}
+  {{- range .Quotas }}
+
+    - {{ .Source }}/{{ .Path }}
+      State: {{ .State }}
+      {{- if .Error }}
+      Error: {{ .Error }}
+      {{- end }}
+      {{- if .QuotaID }}
+      Quota: {{ .QuotaID }} v{{ .Version }}{{ if .Name }} ({{ .Name }}){{ end }}
+      Match: {{ .Match }}
+      Issued: {{ .IssuedAt }}  Received: {{ .ReceivedAt }}  Expires: {{ .ExpiresAt }}
+      Dropped: {{ .DroppedEvents }} events, {{ .DroppedBytes }} bytes{{ if .LastDrop }} (last {{ .LastDrop }}){{ end }}
+      {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}
