@@ -48,8 +48,10 @@ const (
 	SystemProbeErrorUnreachable = "system_probe_unreachable"
 	// SystemProbeErrorModuleNotLoaded means system-probe answered, but the GPU monitoring module is not loaded.
 	SystemProbeErrorModuleNotLoaded = "module_not_loaded"
-	// SystemProbeErrorSourceDisabled means the GPU monitoring module is loaded, but the data source is not running in it.
+	// SystemProbeErrorSourceDisabled means the GPU monitoring module is loaded, but the data source is disabled in its configuration.
 	SystemProbeErrorSourceDisabled = "source_disabled"
+	// SystemProbeErrorSourceUnavailable means the data source is enabled in system-probe, but it is not working.
+	SystemProbeErrorSourceUnavailable = "source_unavailable"
 	// SystemProbeErrorTimeout means requests to system-probe timed out.
 	SystemProbeErrorTimeout = "timeout"
 	// SystemProbeErrorOther is any other error.
@@ -158,6 +160,7 @@ func systemProbeDataSteps(errorClasses map[string]struct{}) []*healthplatform.Re
 	_, unreachable := errorClasses[SystemProbeErrorUnreachable]
 	_, moduleNotLoaded := errorClasses[SystemProbeErrorModuleNotLoaded]
 	_, sourceDisabled := errorClasses[SystemProbeErrorSourceDisabled]
+	_, sourceUnavailable := errorClasses[SystemProbeErrorSourceUnavailable]
 	_, timeout := errorClasses[SystemProbeErrorTimeout]
 	_, other := errorClasses[SystemProbeErrorOther]
 
@@ -185,10 +188,10 @@ func systemProbeDataSteps(errorClasses map[string]struct{}) []*healthplatform.Re
 		)
 	}
 	if sourceDisabled {
-		texts = append(texts,
-			"Verify that the config_key of each affected source has the same value for the Agent and system-probe, including DD_ environment variables set on only one of the containers",
-			"Check the system-probe logs for GPU monitoring startup errors, such as an unsupported kernel, eBPF compilation disabled, or NVML or /dev/kmsg unavailable",
-		)
+		texts = append(texts, "Verify that the config_key of each affected source has the same value for the Agent and system-probe, including DD_ environment variables set on only one of the containers")
+	}
+	if sourceUnavailable {
+		texts = append(texts, "Check the system-probe logs for GPU monitoring errors, such as NVML or /dev/kmsg being unavailable")
 	}
 	if timeout {
 		texts = append(texts, "If system-probe is responding slowly, increase gpu.sp_process_metrics_request_timeout in datadog.yaml")

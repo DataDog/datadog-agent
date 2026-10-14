@@ -22,9 +22,10 @@ import (
 // the NVIDIA DRA driver writes into the host's /var/run/cdi. That is a real
 // directory on disk rather than a kernel filesystem, so a containerized Agent
 // only sees it through a mount: the standard deployment mounts the host's
-// /var/run at /host/var/run, so that prefix is tried first; the bare path
-// covers a host-installed Agent and deployments that bind /var/run/cdi
-// directly. It is a variable so tests can point it at fixtures.
+// /var/run at /host/var/run (Dockerfiles/manifests/agent.yaml), so that prefix
+// is tried first and works with no extra wiring; the bare path covers a
+// host-installed Agent and deployments that bind /var/run/cdi directly. It is
+// a variable so tests can point it at fixtures.
 var CDISpecDirs = []string{"/host/var/run/cdi", "/var/run/cdi"}
 
 const nvidiaDRAClaimSpecPrefix = "k8s.gpu.nvidia.com-claim_"
@@ -38,6 +39,11 @@ func NvidiaDRAClaimSpecFileName(claimUID string) string {
 // CheckNvidiaDRACDISpecs returns nil if at least one of CDISpecDirs contains a
 // readable NVIDIA DRA claim spec, and otherwise an error describing, for each
 // directory, why it has none.
+//
+// It detects a missing or unreadable CDI spec directory, not missing specs for
+// specific claims: a claim's spec is removed when the claim is released, which
+// can happen before its container stops being listed as running, so checking
+// the specs of the unresolved claims would report every claim teardown.
 func CheckNvidiaDRACDISpecs() error {
 	var errs []error
 	for _, dir := range CDISpecDirs {

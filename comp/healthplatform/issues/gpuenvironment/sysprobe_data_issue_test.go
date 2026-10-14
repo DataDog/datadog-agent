@@ -47,12 +47,21 @@ func TestBuildSystemProbeDataIssue(t *testing.T) {
 		{
 			name: "source disabled in system-probe",
 			failures: []SystemProbeSourceFailure{
-				{Source: SystemProbeSourceDriverEvents, ErrorClass: SystemProbeErrorSourceDisabled, Error: "status_code: 503"},
+				{Source: SystemProbeSourceDriverEvents, ErrorClass: SystemProbeErrorSourceDisabled, Error: "status_code: 501"},
 			},
 			expectedTitle:           "GPU monitoring is not receiving data from system-probe for: driver_events",
-			expectedSteps:           5,
+			expectedSteps:           4,
 			expectedDeploymentSteps: 2,
 			expectedDesc:            []string{"XID"},
+		},
+		{
+			name: "source unavailable in system-probe",
+			failures: []SystemProbeSourceFailure{
+				{Source: SystemProbeSourceDriverEvents, ErrorClass: SystemProbeErrorSourceUnavailable, Error: "status_code: 503"},
+			},
+			expectedTitle: "GPU monitoring is not receiving data from system-probe for: driver_events",
+			expectedSteps: 2,
+			expectedDesc:  []string{"XID"},
 		},
 		{
 			name: "unreachable and source disabled",
@@ -61,7 +70,7 @@ func TestBuildSystemProbeDataIssue(t *testing.T) {
 				{Source: SystemProbeSourceDriverEvents, ErrorClass: SystemProbeErrorSourceDisabled},
 			},
 			expectedTitle:           "GPU monitoring is not receiving data from system-probe for: driver_events, ebpf",
-			expectedSteps:           8,
+			expectedSteps:           7,
 			expectedDeploymentSteps: 4,
 			expectedDesc:            []string{"XID", "gpu.process.*"},
 		},

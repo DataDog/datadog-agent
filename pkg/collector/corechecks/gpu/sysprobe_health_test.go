@@ -70,7 +70,8 @@ func TestClassifySysprobeError(t *testing.T) {
 		expected string
 	}{
 		{"module not loaded", fmt.Errorf("refresh: %w", &sysprobeclient.StatusCodeError{StatusCode: http.StatusNotFound}), gpuenvironment.SystemProbeErrorModuleNotLoaded},
-		{"source disabled", &sysprobeclient.StatusCodeError{StatusCode: http.StatusServiceUnavailable}, gpuenvironment.SystemProbeErrorSourceDisabled},
+		{"source disabled", &sysprobeclient.StatusCodeError{StatusCode: http.StatusNotImplemented}, gpuenvironment.SystemProbeErrorSourceDisabled},
+		{"source unavailable", &sysprobeclient.StatusCodeError{StatusCode: http.StatusServiceUnavailable}, gpuenvironment.SystemProbeErrorSourceUnavailable},
 		{"server error", &sysprobeclient.StatusCodeError{StatusCode: http.StatusInternalServerError}, gpuenvironment.SystemProbeErrorOther},
 		{"deadline exceeded", fmt.Errorf("get: %w", context.DeadlineExceeded), gpuenvironment.SystemProbeErrorTimeout},
 		{"socket missing", &net.OpError{Op: "dial", Net: "unix", Err: syscall.ENOENT}, gpuenvironment.SystemProbeErrorUnreachable},
@@ -207,9 +208,9 @@ func TestRunRecordsSysprobeDataSources(t *testing.T) {
 		case "/debug/stats":
 			_, _ = w.Write([]byte(`{}`))
 		case "/gpu/driver-events":
-			_, _ = w.Write([]byte(`[]`))
+			http.Error(w, "GPU driver event subscriber failed to start", http.StatusServiceUnavailable)
 		case "/gpu/prm-metrics":
-			http.Error(w, "GPU PRM endpoint is disabled", http.StatusServiceUnavailable)
+			http.Error(w, "GPU PRM endpoint is disabled", http.StatusNotImplemented)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -246,13 +247,10 @@ func TestRunRecordsSysprobeDataSources(t *testing.T) {
 		errorClasses[failure.Source] = failure.ErrorClass
 	}
 	assert.Equal(t, map[string]string{
-		gpuenvironment.SystemProbeSourceEBPF: gpuenvironment.SystemProbeErrorModuleNotLoaded,
-		gpuenvironment.SystemProbeSourcePRM:  gpuenvironment.SystemProbeErrorSourceDisabled,
+		gpuenvironment.SystemProbeSourceEBPF:         gpuenvironment.SystemProbeErrorModuleNotLoaded,
+		gpuenvironment.SystemProbeSourcePRM:          gpuenvironment.SystemProbeErrorSourceDisabled,
+		gpuenvironment.SystemProbeSourceDriverEvents: gpuenvironment.SystemProbeErrorSourceUnavailable,
 	}, errorClasses)
-
-	driverEvents, ok := check.sysprobeData.sources[gpuenvironment.SystemProbeSourceDriverEvents]
-	require.True(t, ok, "driver events refresh was not recorded")
-	assert.NoError(t, driverEvents.lastErr)
 }
 
 func TestHealthIssueSyncWithNilReporter(t *testing.T) {

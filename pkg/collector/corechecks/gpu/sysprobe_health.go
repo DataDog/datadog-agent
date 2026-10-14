@@ -87,8 +87,10 @@ func classifySysprobeError(err error) string {
 		switch statusErr.StatusCode {
 		case http.StatusNotFound:
 			return gpuenvironment.SystemProbeErrorModuleNotLoaded
-		case http.StatusServiceUnavailable:
+		case http.StatusNotImplemented:
 			return gpuenvironment.SystemProbeErrorSourceDisabled
+		case http.StatusServiceUnavailable:
+			return gpuenvironment.SystemProbeErrorSourceUnavailable
 		}
 	}
 
