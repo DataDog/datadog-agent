@@ -702,6 +702,21 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.MountID = binary.NativeEndian.Uint32(data[0:4])
 
+	// [do not merge] umount flakiness debug
+	if len(data) >= 56 {
+		e.DbgEntryMountID = binary.NativeEndian.Uint32(data[4:8])
+		e.DbgEntryReadRet = int32(binary.NativeEndian.Uint32(data[8:12]))
+		e.DbgExitReadRet = int32(binary.NativeEndian.Uint32(data[12:16]))
+		e.DbgVfs = binary.NativeEndian.Uint64(data[16:24])
+		e.DbgEntryTs = binary.NativeEndian.Uint64(data[24:32])
+		e.DbgExitTs = binary.NativeEndian.Uint64(data[32:40])
+		e.DbgProgType = binary.NativeEndian.Uint32(data[40:44])
+		e.DbgTid = binary.NativeEndian.Uint32(data[44:48])
+		e.DbgExitMntFlags = binary.NativeEndian.Uint32(data[48:52])
+		e.DbgExitMountIDReread = binary.NativeEndian.Uint32(data[52:56])
+		return n + 56, nil
+	}
+
 	return 8, nil
 }
 
@@ -766,6 +781,7 @@ func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.MountID = binary.NativeEndian.Uint32(data[0:4])
+	e.DbgTid = binary.NativeEndian.Uint32(data[4:8]) // [do not merge] umount flakiness debug
 	e.MountIDUnique = binary.NativeEndian.Uint64(data[8:16])
 
 	return 16, nil

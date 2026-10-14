@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -82,6 +83,7 @@ func TestMount(t *testing.T) {
 			}
 
 			mntID.Store(event.Mount.MountID)
+			t.Logf("UMOUNTDBG test mount event: mount_id=%d mountpoint=%s fstype=%s ts=%d", event.Mount.MountID, event.Mount.MountPointStr, event.Mount.GetFSType(), event.TimestampRaw) // [do not merge]
 			if !ebpfLessEnabled {
 				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
@@ -136,6 +138,9 @@ func TestMount(t *testing.T) {
 				return false
 			}
 
+			// [do not merge] umount flakiness debug
+			t.Logf("UMOUNTDBG test umount event: expected_mount_id=%d %s", mntID.Load(), umountDbgString(event))
+
 			return ebpfLessEnabled || assert.Equal(t, mntID.Load(), event.Umount.MountID, "wrong mount id")
 		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
@@ -151,6 +156,102 @@ func TestMount(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_rule_pending")
 		}, "test_rule_pending")
 	})
+}
+
+// [do not merge] umount flakiness debug
+func umountDbgString(event *model.Event) string {
+	u := &event.Umount
+	return fmt.Sprintf("pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d exit_reread_mount_id=%d exit_mnt_flags=%#x vfs=%#x exit-entry=%dns prog_type=%d",
+		event.PIDContext.Pid, u.DbgTid, event.TimestampRaw, u.Retval, u.MountID, u.DbgEntryMountID, u.DbgEntryReadRet, u.DbgExitReadRet,
+		u.DbgExitMountIDReread, u.DbgExitMntFlags, u.DbgVfs, int64(u.DbgExitTs)-int64(u.DbgEntryTs), u.DbgProgType)
+}
+
+// [do not merge] TestMountUmountStress loops the TestMount mount/umount sequence to raise the
+// hit rate of the flaky "umount event carries mount_id 0" failure, and logs every anomaly.
+func TestMountUmountStress(t *testing.T) {
+	SkipIfNotAvailable(t)
+	if ebpfLessEnabled {
+		t.Skip("eBPF only")
+	}
+
+	testDrive, err := newTestDrive(t, "xfs", []string{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testDrive.Close()
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	mntPath := testDrive.Path("test-mount")
+	os.MkdirAll(mntPath, 0755)
+	defer os.RemoveAll(mntPath)
+
+	dstMntBasename := "test-dest-mount"
+	dstMntPath := testDrive.Path(dstMntBasename)
+	os.MkdirAll(dstMntPath, 0755)
+	defer os.RemoveAll(dstMntPath)
+
+	const iterations = 300
+	var mountTimeouts, umountTimeouts, mismatches, ok int
+	for i := 0; i < iterations; i++ {
+		var mntIDAtomic atomic.Uint32
+		err := test.GetProbeEvent(func() error {
+			return syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, "")
+		}, func(event *model.Event) bool {
+			if event.ProcessContext.Pid != testSuitePid || event.Mount.MountPointStr != "/"+dstMntBasename {
+				return false
+			}
+			mntIDAtomic.Store(event.Mount.MountID)
+			return true
+		}, 3*time.Second, model.FileMountEventType)
+		if err != nil {
+			mountTimeouts++
+			t.Logf("UMOUNTDBG iter=%d mount event not received: %v", i, err)
+		}
+		mntID := mntIDAtomic.Load()
+
+		var (
+			lock     sync.Mutex
+			received []string
+			matched  bool
+		)
+		err = test.GetProbeEvent(func() error {
+			return syscall.Unmount(dstMntPath, syscall.MNT_DETACH)
+		}, func(event *model.Event) bool {
+			if event.ProcessContext.Pid != testSuitePid {
+				return false
+			}
+			lock.Lock()
+			defer lock.Unlock()
+			received = append(received, umountDbgString(event))
+			if mntID != 0 && event.Umount.MountID == mntID {
+				matched = true
+				return true
+			}
+			return false
+		}, 3*time.Second, model.FileUmountEventType)
+		lock.Lock()
+		switch {
+		case matched:
+			ok++
+		case len(received) > 0:
+			mismatches++
+			t.Logf("UMOUNTDBG iter=%d MISMATCH expected_mount_id=%d received=%v", i, mntID, received)
+		default:
+			umountTimeouts++
+			t.Logf("UMOUNTDBG iter=%d umount event not received (expected_mount_id=%d): %v", i, mntID, err)
+		}
+		lock.Unlock()
+	}
+
+	t.Logf("UMOUNTDBG summary: iterations=%d ok=%d mismatches=%d umount_timeouts=%d mount_timeouts=%d", iterations, ok, mismatches, umountTimeouts, mountTimeouts)
+	if ok != iterations {
+		t.Errorf("UMOUNTDBG summary: iterations=%d ok=%d mismatches=%d umount_timeouts=%d mount_timeouts=%d", iterations, ok, mismatches, umountTimeouts, mountTimeouts)
+	}
 }
 
 // withForceReload() at the newTestModule call is load-bearing: this test and

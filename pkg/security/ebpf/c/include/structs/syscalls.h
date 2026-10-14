@@ -132,6 +132,10 @@ struct syscall_cache_t {
 
         struct {
             struct vfsmount *vfs;
+            // [do not merge] umount flakiness debug
+            u64 dbg_entry_ts;
+            u32 dbg_entry_mount_id;
+            s32 dbg_entry_read_ret;
         } umount;
 
         struct {

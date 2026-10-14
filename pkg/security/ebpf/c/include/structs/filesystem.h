@@ -7,7 +7,7 @@
 struct mount_released_event_t {
     struct kevent_t event;
     u32 mount_id;
-    u32 __pad;
+    u32 dbg_tid; // [do not merge] umount flakiness debug
     u64 mount_id_unique;
 };
 

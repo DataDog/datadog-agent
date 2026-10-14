@@ -525,6 +525,17 @@ struct umount_event_t {
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
     u32 mount_id;
+    // [do not merge] umount flakiness debug
+    u32 dbg_entry_mount_id;
+    s32 dbg_entry_read_ret;
+    s32 dbg_exit_read_ret;
+    u64 dbg_vfs;
+    u64 dbg_entry_ts;
+    u64 dbg_exit_ts;
+    u32 dbg_prog_type;
+    u32 dbg_tid;
+    u32 dbg_exit_mnt_flags;
+    u32 dbg_exit_mount_id_reread;
 };
 
 struct unlink_event_t {

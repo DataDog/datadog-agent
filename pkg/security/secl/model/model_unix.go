@@ -577,6 +577,7 @@ type InvalidateDentryEvent struct {
 type MountReleasedEvent struct {
 	MountID       uint32
 	MountIDUnique uint64
+	DbgTid        uint32 // [do not merge] umount flakiness debug
 }
 
 // LinkEvent represents a link event
@@ -758,6 +759,18 @@ type UnlinkEvent struct {
 type UmountEvent struct {
 	SyscallEvent
 	MountID uint32
+
+	// [do not merge] umount flakiness debug
+	DbgEntryMountID      uint32
+	DbgEntryReadRet      int32
+	DbgExitReadRet       int32
+	DbgVfs               uint64
+	DbgEntryTs           uint64
+	DbgExitTs            uint64
+	DbgProgType          uint32
+	DbgTid               uint32
+	DbgExitMntFlags      uint32
+	DbgExitMountIDReread uint32
 }
 
 // UtimesEvent represents a utime event

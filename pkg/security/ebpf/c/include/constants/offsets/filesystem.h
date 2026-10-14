@@ -123,6 +123,11 @@ static int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount 
     return mount_id;
 }
 
+// [do not merge] umount flakiness debug: same read as get_vfsmount_mount_id but keeps the helper return value
+static __always_inline s32 dbg_read_vfsmount_mount_id(struct vfsmount *mnt, u32 *mount_id) {
+    return bpf_probe_read(mount_id, sizeof(*mount_id), (char *)mnt + get_mount_offset_of_mount_id() - MNT_OFFSETOF_MNT);
+}
+
 static struct vfsmount* __attribute__((always_inline)) get_path_vfsmount(struct path *path) {
     u64 offset;
     LOAD_CONSTANT("path_mnt_offset", offset);

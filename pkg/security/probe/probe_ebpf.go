@@ -1712,6 +1712,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			return false
 		}
 
+		// [do not merge] umount flakiness debug
+		seclog.Warnf("UMOUNTDBG umount pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d exit_reread_mount_id=%d exit_mnt_flags=%#x vfs=%#x entry_ts=%d exit_ts=%d exit-entry=%dns prog_type=%d",
+			event.PIDContext.Pid, event.Umount.DbgTid, event.TimestampRaw, event.Umount.Retval, event.Umount.MountID,
+			event.Umount.DbgEntryMountID, event.Umount.DbgEntryReadRet, event.Umount.DbgExitReadRet, event.Umount.DbgExitMountIDReread,
+			event.Umount.DbgExitMntFlags, event.Umount.DbgVfs, event.Umount.DbgEntryTs, event.Umount.DbgExitTs,
+			int64(event.Umount.DbgExitTs)-int64(event.Umount.DbgEntryTs), event.Umount.DbgProgType)
+
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
 		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
@@ -2242,6 +2249,10 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		if !p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data) {
 			return false
 		}
+
+		// [do not merge] umount flakiness debug
+		seclog.Warnf("UMOUNTDBG mount_released tid=%d ts=%d mount_id=%d mount_id_unique=%d",
+			event.MountReleased.DbgTid, event.TimestampRaw, event.MountReleased.MountID, event.MountReleased.MountIDUnique)
 
 		// Delete new mount point from cache
 		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID, event.MountReleased.MountIDUnique); err != nil {

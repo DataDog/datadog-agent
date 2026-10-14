@@ -927,6 +927,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 }
 func deepCopyMountReleasedEvent(fieldToCopy MountReleasedEvent) MountReleasedEvent {
 	copied := MountReleasedEvent{}
+	copied.DbgTid = fieldToCopy.DbgTid
 	copied.MountID = fieldToCopy.MountID
 	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	return copied
@@ -1210,6 +1211,16 @@ func deepCopyTracerMemfdSealEvent(fieldToCopy TracerMemfdSealEvent) TracerMemfdS
 }
 func deepCopyUmountEvent(fieldToCopy UmountEvent) UmountEvent {
 	copied := UmountEvent{}
+	copied.DbgEntryMountID = fieldToCopy.DbgEntryMountID
+	copied.DbgEntryReadRet = fieldToCopy.DbgEntryReadRet
+	copied.DbgEntryTs = fieldToCopy.DbgEntryTs
+	copied.DbgExitMntFlags = fieldToCopy.DbgExitMntFlags
+	copied.DbgExitMountIDReread = fieldToCopy.DbgExitMountIDReread
+	copied.DbgExitReadRet = fieldToCopy.DbgExitReadRet
+	copied.DbgExitTs = fieldToCopy.DbgExitTs
+	copied.DbgProgType = fieldToCopy.DbgProgType
+	copied.DbgTid = fieldToCopy.DbgTid
+	copied.DbgVfs = fieldToCopy.DbgVfs
 	copied.MountID = fieldToCopy.MountID
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
