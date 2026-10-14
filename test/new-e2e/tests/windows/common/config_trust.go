@@ -154,7 +154,6 @@ func (r *ConfigTrustReceiver) requests() ([]ConfigTrustRequest, error) {
 }
 
 // RequireTelemetry proves the real installer submitted the synthetic key to this receiver.
-// For MSI controls, event also checks that the expected rollback event was received.
 func (r *ConfigTrustReceiver) RequireTelemetry(t *testing.T, event string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {

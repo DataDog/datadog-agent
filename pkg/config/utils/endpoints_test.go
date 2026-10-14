@@ -628,21 +628,31 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	}
 }
 
-// TestIsDatadogURL only covers the logic IsDatadogURL adds on top of ddURLRegexp (host
-// extraction, lowercasing, trailing-dot trimming, empty-host and parse-error handling). The
-// regexp's site/domain matching is already covered by TestAddAgentVersionToDomain.
 func TestIsDatadogURL(t *testing.T) {
 	tests := []struct {
 		url      string
 		expected bool
 	}{
-		{"https://app.datadoghq.com", true},     // baseline match
-		{"https://APP.DATADOGHQ.COM", true},     // host is lowercased
-		{"https://app.datadoghq.com.", true},    // trailing dot is trimmed
-		{"https://app.datadoghq.com:443", true}, // Hostname() strips the port
-		{"", false},                             // empty host
-		{"/just/a/path", false},                 // no host
-		{"http://\x7f", false},                  // url.Parse error
+		{"https://app.datadoghq.com", true},               // baseline match
+		{"https://APP.DATADOGHQ.COM", true},               // host is lowercased
+		{"https://app.datadoghq.com.", true},              // trailing dot is trimmed
+		{"https://app.datadoghq.com:443", true},           // Hostname() strips the port
+		{"https://agent.datadoghq.com", true},             // metrics-agent edge
+		{"https://7-55-1-app.agent.datadoghq.com", true},  // versioned agent host
+		{"https://metrics.agent.us5.datadoghq.com", true}, // documented intake / PrivateLink name
+		{"https://us.agent.datadoghq.com/", true},         // arbitrary *.agent.<site> label
+		{"https://api.datadoghq.eu", true},                // API edge
+		{"https://user.datadoghq.com", true},              // org custom subdomain
+		{"https://app.mrf.ap1.datadoghq.com", true},       // MRF
+		{"https://agent.ddog-gov.com", true},              // gov
+		{"https://app.datad0g.com", true},                 // staging
+		{"https://notdatadoghq.com", false},               // not at a label boundary
+		{"https://datadoghq.com.evil.example", false},     // Datadog domain not at the end
+		{"https://my-proxy.example.test", false},          // third-party
+		{"https://api.mycompany.internal", false},         // third-party
+		{"", false},             // empty host
+		{"/just/a/path", false}, // no host
+		{"http://\x7f", false},  // url.Parse error
 	}
 
 	for _, tc := range tests {

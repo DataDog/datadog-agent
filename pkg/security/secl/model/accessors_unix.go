@@ -7083,6 +7083,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "mount.flags":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Mount.Mount.MountFlags)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "mount.fs_type":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -38969,6 +38980,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"mmap.protection",
 		"mmap.retval",
 		"mount.detached",
+		"mount.flags",
 		"mount.fs_type",
 		"mount.mountpoint.path",
 		"mount.retval",
@@ -41960,6 +41972,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "mmap", reflect.Int, "int", false, nil
 	case "mount.detached":
 		return "mount", reflect.Bool, "bool", false, nil
+	case "mount.flags":
+		return "mount", reflect.Int, "int", false, nil
 	case "mount.fs_type":
 		return "mount", reflect.String, "string", false, nil
 	case "mount.mountpoint.path":
@@ -47021,6 +47035,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setInt64FieldValue("mmap.retval", &ev.MMap.SyscallEvent.Retval, value)
 	case "mount.detached":
 		return ev.setBoolFieldValue("mount.detached", &ev.Mount.Mount.Detached, value)
+	case "mount.flags":
+		return ev.setUint32FieldValue("mount.flags", &ev.Mount.Mount.MountFlags, value)
 	case "mount.fs_type":
 		return ev.setStringFieldValue("mount.fs_type", &ev.Mount.Mount.FSType, value)
 	case "mount.mountpoint.path":

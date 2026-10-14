@@ -672,7 +672,7 @@ func startAgent(
 		ac.AddConfigProvider(actionsController, false, 0)
 
 		if configUtils.IsDataSecurityEnabled(cfg) {
-			dataSecurityController := datasecurity.NewController(ac, rcclient)
+			dataSecurityController := datasecurity.NewController(ac, rcclient, cfg.GetBool("data_security.enforce_ssl"))
 			ac.AddConfigProvider(dataSecurityController, false, 0)
 		}
 	}

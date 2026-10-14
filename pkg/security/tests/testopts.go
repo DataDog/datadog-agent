@@ -18,65 +18,43 @@ import (
 )
 
 type testOpts struct {
-	disableFilters                             bool
-	disableApprovers                           bool
-	disableEnvVarsResolution                   bool
-	enableActivityDump                         bool
-	activityDumpRateLimiter                    int
-	activityDumpTagRules                       bool
-	activityDumpDuration                       time.Duration
-	activityDumpCleanupPeriod                  time.Duration
-	activityDumpTracedCgroupsCount             int
-	activityDumpCgroupDifferentiateArgs        bool
-	activityDumpTracedEventTypes               []string
-	activityDumpLocalStorageDirectory          string
-	activityDumpLocalStorageCompression        bool
-	activityDumpLocalStorageFormats            []string
-	activityDumpSyscallMonitorPeriod           time.Duration
-	enableSecurityProfile                      bool
-	disableSecurityProfileV2                   bool
-	securityProfileMaxImageTags                int
-	securityProfileDir                         string
-	securityProfileWatchDir                    bool
-	securityProfileNodeEvictionTimeout         time.Duration
-	enableAnomalyDetection                     bool
-	anomalyDetectionEventTypes                 []string
-	anomalyDetectionDefaultMinimumStablePeriod time.Duration
-	anomalyDetectionMinimumStablePeriodExec    time.Duration
-	anomalyDetectionMinimumStablePeriodDNS     time.Duration
-	anomalyDetectionWarmupPeriod               time.Duration
-	disableDiscarders                          bool
-	disableERPCDentryResolution                bool
-	disableMapDentryResolution                 bool
-	envsWithValue                              []string
-	disableRuntimeSecurity                     bool
-	enableSBOM                                 bool
-	enableHostSBOM                             bool
-	preStartCallback                           func(test *testModule)
-	tagger                                     tags.Tagger
-	ruleMatchHandler                           func(*testModule, *model.Event, *rules.Rule)
-	enableFIM                                  bool // only valid on windows
-	networkIngressEnabled                      bool
-	networkRawPacketEnabled                    bool
-	disableOnDemandRateLimiter                 bool
-	ebpfLessEnabled                            bool
-	dontWaitEBPFLessClient                     bool
-	enforcementExcludeBinary                   string
-	enforcementDisarmerContainerEnabled        bool
-	enforcementDisarmerContainerMaxAllowed     int
-	enforcementDisarmerContainerPeriod         time.Duration
-	enforcementDisarmerExecutableEnabled       bool
-	enforcementDisarmerExecutableMaxAllowed    int
-	enforcementDisarmerExecutablePeriod        time.Duration
-	eventServerRetention                       time.Duration
-	discardRuntime                             bool
-	enableSelfTests                            bool
-	networkFlowMonitorEnabled                  bool
-	dnsPort                                    uint16
-	traceSystemdCgroups                        bool
-	capabilitiesMonitoringEnabled              bool
-	capabilitiesMonitoringPeriod               time.Duration
-	captureAllSyscallErrorsEnabled             bool
+	disableFilters                          bool
+	disableApprovers                        bool
+	disableEnvVarsResolution                bool
+	enableSecurityProfile                   bool
+	securityProfileNodeEvictionTimeout      time.Duration
+	enableAnomalyDetection                  bool
+	disableDiscarders                       bool
+	disableERPCDentryResolution             bool
+	disableMapDentryResolution              bool
+	envsWithValue                           []string
+	disableRuntimeSecurity                  bool
+	enableSBOM                              bool
+	enableHostSBOM                          bool
+	preStartCallback                        func(test *testModule)
+	tagger                                  tags.Tagger
+	ruleMatchHandler                        func(*testModule, *model.Event, *rules.Rule)
+	enableFIM                               bool // only valid on windows
+	networkIngressEnabled                   bool
+	networkRawPacketEnabled                 bool
+	disableOnDemandRateLimiter              bool
+	ebpfLessEnabled                         bool
+	dontWaitEBPFLessClient                  bool
+	enforcementExcludeBinary                string
+	enforcementDisarmerContainerEnabled     bool
+	enforcementDisarmerContainerMaxAllowed  int
+	enforcementDisarmerContainerPeriod      time.Duration
+	enforcementDisarmerExecutableEnabled    bool
+	enforcementDisarmerExecutableMaxAllowed int
+	enforcementDisarmerExecutablePeriod     time.Duration
+	eventServerRetention                    time.Duration
+	discardRuntime                          bool
+	enableSelfTests                         bool
+	networkFlowMonitorEnabled               bool
+	dnsPort                                 uint16
+	capabilitiesMonitoringEnabled           bool
+	capabilitiesMonitoringPeriod            time.Duration
+	captureAllSyscallErrorsEnabled          bool
 }
 
 type dynamicTestOpts struct {

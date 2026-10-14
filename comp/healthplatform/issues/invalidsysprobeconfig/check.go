@@ -34,15 +34,11 @@ func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Compone
 	return &checker{cfg: cfg, hostname: hostname, selfIdent: selfIdent}
 }
 
-// instanceIssueID scopes IssueID to this agent's discriminator (the owning
-// DaemonSet's uid when resolvable, else the hostname) and config file, so the
-// recommendations service (which keys on orgID + issueID, ignoring hostname)
-// collapses cluster-distributed template violations into one case instead of
-// one per host, while still keeping distinct config files distinct.
-func (c *checker) instanceIssueID() string {
+// Scope each problem to its host or DaemonSet, config file, and setting.
+func (c *checker) instanceIssueID(settingPath string) string {
 	h := fnv.New64a()
 	discriminator := issues.IssueDiscriminator(c.selfIdent, c.hostname.GetSafe(context.Background()))
-	fmt.Fprintf(h, "%s\x00%s", discriminator, c.cfg.ConfigFileUsed())
+	fmt.Fprintf(h, "%s\x00%s\x00%s", discriminator, c.cfg.ConfigFileUsed(), settingPath)
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }
 
@@ -67,14 +63,16 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if len(violations) == 0 {
 		return nil, nil
 	}
-	return []runnerdef.IssueReport{
-		{
-			IssueID:   c.instanceIssueID(),
+	reports := make([]runnerdef.IssueReport, 0, len(violations))
+	for _, violation := range violations {
+		reports = append(reports, runnerdef.IssueReport{
+			IssueID:   c.instanceIssueID(violation.Path),
 			IssueName: IssueName,
 			Source:    "system-probe",
-			Context:   invalidconfig.BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violations),
-		},
-	}, nil
+			Context:   invalidconfig.BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violation),
+		})
+	}
+	return reports, nil
 }
 
 // customerConfig returns only the values the customer set in the system-probe config

@@ -72,7 +72,6 @@ dd_agent_go_test(
         "containerd",
     ]],
     include_default = False,
-    target_compatible_with = ["@platforms//os:linux"],  # keep
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",

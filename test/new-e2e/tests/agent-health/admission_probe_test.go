@@ -21,11 +21,14 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 //go:embed fixtures/admission_probe_helm_values.yaml
@@ -181,15 +184,19 @@ func (suite *admissionProbeSuite) deployDisruptorPod(ctx context.Context, nodeNa
 	require.NoError(suite.T(), err, "Failed to get agent DaemonSet")
 	agentImage := ds.Spec.Template.Spec.Containers[0].Image
 
+	// Pass registry credentials so the disruptor pod can pull the image if it is not cached on the node.
+	imagePullSecrets := suite.createImagePullSecret(ctx)
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      disruptorPodName,
 			Namespace: disruptorNamespace,
 		},
 		Spec: corev1.PodSpec{
-			NodeName:    nodeName,
-			HostPID:     hostPID,
-			HostNetwork: true,
+			NodeName:         nodeName,
+			HostPID:          hostPID,
+			HostNetwork:      true,
+			ImagePullSecrets: imagePullSecrets,
 			Containers: []corev1.Container{
 				{
 					Name:    "disruptor",
@@ -240,6 +247,47 @@ func (suite *admissionProbeSuite) cleanupDisruptorPod(ctx context.Context) {
 		[]string{"sh", "-c", "IPTABLES=$(which iptables 2>/dev/null || echo 'nsenter -t 1 -m -- iptables'); $IPTABLES -D OUTPUT -p tcp --dport 8000 -j DROP 2>/dev/null; true"},
 	)
 	_ = client.CoreV1().Pods(disruptorNamespace).Delete(ctx, disruptorPodName, metav1.DeleteOptions{})
+	_ = client.CoreV1().Secrets(disruptorNamespace).Delete(ctx, utils.DefaultImagePullSecretName, metav1.DeleteOptions{})
+}
+
+// createImagePullSecret creates an image pull secret in disruptorNamespace from the
+// image pull registry credentials of the runner profile, like utils.NewImagePullSecret
+// does for the apps deployed by the provisioners.
+// It returns nil when no registry credentials are configured.
+func (suite *admissionProbeSuite) createImagePullSecret(ctx context.Context) []corev1.LocalObjectReference {
+	store := runner.GetProfile().ParamStore()
+	registry, err := store.GetWithDefault(parameters.ImagePullRegistry, "")
+	require.NoError(suite.T(), err, "Failed to read image pull registry")
+	password, err := store.GetWithDefault(parameters.ImagePullPassword, "")
+	require.NoError(suite.T(), err, "Failed to read image pull password")
+	if registry == "" || password == "" {
+		return nil
+	}
+	username, err := store.GetWithDefault(parameters.ImagePullUsername, "")
+	require.NoError(suite.T(), err, "Failed to read image pull username")
+
+	dockerConfigJSON, err := utils.DockerConfigJSON(registry, username, password)
+	require.NoError(suite.T(), err, "Failed to build image pull secret")
+
+	client := suite.Env().KubernetesCluster.Client()
+	name := utils.DefaultImagePullSecretName
+
+	// Delete any leftover secret from a previous run
+	_ = client.CoreV1().Secrets(disruptorNamespace).Delete(ctx, name, metav1.DeleteOptions{})
+
+	_, err = client.CoreV1().Secrets(disruptorNamespace).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: disruptorNamespace,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		StringData: map[string]string{
+			corev1.DockerConfigJsonKey: dockerConfigJSON,
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(suite.T(), err, "Failed to create image pull secret in namespace %s", disruptorNamespace)
+
+	return []corev1.LocalObjectReference{{Name: name}}
 }
 
 // blockWebhookFromAPIServer applies an iptables OUTPUT rule in the node's network namespace

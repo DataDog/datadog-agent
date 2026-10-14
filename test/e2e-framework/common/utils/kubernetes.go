@@ -39,6 +39,40 @@ func KubeConfigYAMLToJSON(kubeConfig pulumi.StringOutput) pulumi.StringInput {
 	}).(pulumi.StringInput)
 }
 
+// DockerConfigJSON builds the content of a kubernetes.io/dockerconfigjson secret from
+// comma-separated lists of registries, usernames and passwords (as provided by the
+// imagePullRegistry, imagePullUsername and imagePullPassword parameters).
+// Passwords prefixed with "b64=" are base64-decoded.
+func DockerConfigJSON(registry, username, password string) (string, error) {
+	registries := strings.Split(registry, ",")
+	usernames := strings.Split(username, ",")
+	passwords := strings.Split(password, ",")
+	if len(registries) != len(usernames) || len(registries) != len(passwords) {
+		return "", fmt.Errorf("the number of registries, usernames, and passwords must be the same")
+	}
+
+	authMap := make(map[string]map[string]string)
+	for i := range registries {
+		pwd := passwords[i]
+		if strings.HasPrefix(pwd, "b64=") {
+			decoded, err := base64.StdEncoding.DecodeString(pwd[4:])
+			if err != nil {
+				return "", fmt.Errorf("failed to base64 decode password for registry %s: %w", registries[i], err)
+			}
+			pwd = string(decoded)
+		}
+		authMap[registries[i]] = map[string]string{
+			"username": usernames[i],
+			"password": pwd,
+			"auth":     base64.StdEncoding.EncodeToString([]byte(usernames[i] + ":" + pwd)),
+		}
+	}
+	dockerConfigJSON, err := json.Marshal(map[string]map[string]map[string]string{
+		"auths": authMap,
+	})
+	return string(dockerConfigJSON), err
+}
+
 // NewImagePullSecret creates an image pull secret based on environment
 func NewImagePullSecret(e config.Env, namespace string, opts ...pulumi.ResourceOption) (*corev1.Secret, error) {
 	return NewImagePullSecretWithName(e, namespace, DefaultImagePullSecretName, opts...)
@@ -46,35 +80,11 @@ func NewImagePullSecret(e config.Env, namespace string, opts ...pulumi.ResourceO
 
 // NewImagePullSecretWithName creates a named image pull secret based on environment.
 func NewImagePullSecretWithName(e config.Env, namespace, name string, opts ...pulumi.ResourceOption) (*corev1.Secret, error) {
-	registries := strings.Split(e.ImagePullRegistry(), ",")
-	usernames := strings.Split(e.ImagePullUsername(), ",")
+	registry := e.ImagePullRegistry()
+	username := e.ImagePullUsername()
 
 	dockerConfigJSON := e.ImagePullPassword().ApplyT(func(password string) (string, error) {
-		passwords := strings.Split(password, ",")
-		if len(registries) != len(usernames) || len(registries) != len(passwords) {
-			return "", fmt.Errorf("the number of registries, usernames, and passwords must be the same")
-		}
-
-		authMap := make(map[string]map[string]string)
-		for i := range registries {
-			pwd := passwords[i]
-			if strings.HasPrefix(pwd, "b64=") {
-				decoded, err := base64.StdEncoding.DecodeString(pwd[4:])
-				if err != nil {
-					return "", fmt.Errorf("failed to base64 decode password for registry %s: %w", registries[i], err)
-				}
-				pwd = string(decoded)
-			}
-			authMap[registries[i]] = map[string]string{
-				"username": usernames[i],
-				"password": pwd,
-				"auth":     base64.StdEncoding.EncodeToString([]byte(usernames[i] + ":" + pwd)),
-			}
-		}
-		dockerConfigJSON, err := json.Marshal(map[string]map[string]map[string]string{
-			"auths": authMap,
-		})
-		return string(dockerConfigJSON), err
+		return DockerConfigJSON(registry, username, password)
 	}).(pulumi.StringOutput)
 
 	// Pulumi resource name must be unique per namespace to avoid duplicate URNs.

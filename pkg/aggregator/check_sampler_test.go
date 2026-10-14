@@ -610,6 +610,45 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
 }
 
+func testCheckHistogramBucketNegativeInfinityBucket(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	bucket1 := &metrics.HistogramBucket{
+		Name:       "my.histogram",
+		Value:      4.0,
+		LowerBound: math.Inf(-1),
+		UpperBound: -1.0,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12345.0,
+	}
+	checkSampler.addBucket(bucket1, tagmatcher)
+
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	require.Len(t, flushed, 1)
+
+	expSketch := &quantile.Sketch{}
+	expSketch.InsertMany(quantile.Default(), []float64{-1.0, -1.0, -1.0, -1.0})
+
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch},
+		},
+	}, flushed[0], .03)
+}
+
+func TestCheckHistogramBucketNegativeInfinityBucket(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketNegativeInfinityBucket)
+}
+
 func testCheckDistribution(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)

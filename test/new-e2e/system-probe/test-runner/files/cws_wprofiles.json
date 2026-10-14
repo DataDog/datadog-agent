@@ -1,0 +1,12 @@
+{
+	"filters": {
+		"pkg/security": {
+			"exclude": false,
+			"run-only": [
+				"TestWorkloadProfile"			]
+		}
+	},
+	"additional_env_vars": [
+		"DEDICATED_WORKLOAD_PROFILE_NODE=1"
+	]
+}

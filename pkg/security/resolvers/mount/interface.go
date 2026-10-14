@@ -27,4 +27,5 @@ type ResolverInterface interface {
 	SetPidMntNs(pid uint32, ns uint32)
 	ToJSON() ([]byte, error)
 	Iterate(cb func(*model.Mount))
+	IterateNamespace(nsInode uint32, cb func(*model.Mount))
 }

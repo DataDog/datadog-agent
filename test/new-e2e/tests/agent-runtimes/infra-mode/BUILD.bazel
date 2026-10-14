@@ -8,6 +8,8 @@ dd_agent_go_test(
         "infra_basic_nix_test.go",
         "infra_basic_win_test.go",
         "infra_ccm_nix_test.go",
+        "infra_check_events_common_test.go",
+        "infra_check_events_nix_test.go",
         "infra_eudm_common_test.go",
         "infra_eudm_win_test.go",
         "infra_none_common_test.go",
@@ -15,10 +17,12 @@ dd_agent_go_test(
         "infra_utils_test.go",
     ],
     data = [
+        "fixtures/custom_infra_mode_events.py",
         "fixtures/custom_mycheck.py",
     ],
     embed = [":infra-mode"],
     embedsrcs = [
+        "fixtures/custom_infra_mode_events.py",
         "fixtures/custom_mycheck.py",
     ],
     tags = ["manual"],

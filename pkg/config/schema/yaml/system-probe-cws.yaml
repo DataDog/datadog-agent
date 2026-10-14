@@ -564,11 +564,11 @@ properties:
       enrichment_interval:
         node_type: setting
         type: string
-        default: 1m
+        default: 30m
       forward_interval:
         node_type: setting
         type: string
-        default: 20s
+        default: 1m
       generate_policies:
         node_type: setting
         type: boolean
@@ -739,6 +739,7 @@ properties:
             - open
             - dns
             - bind
+            - mount
             - connect
             - capabilities
             items:

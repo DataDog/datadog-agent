@@ -8,7 +8,10 @@
 package runner
 
 import (
+	"net/http"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -16,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -28,8 +32,11 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
@@ -185,6 +192,98 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			assert.Equal(t, tc.expectedQueueSize, s.forwarderRetryMaxQueueBytes)
 		})
 	}
+}
+
+// TestSubmitterBlocksHealthyDomainOnSlowDomain is a regression test for CXP-3920.
+// consumePayloads blocks on the aggregated response for one payload before
+// moving to the next, so a slow/unreachable domain delays delivery to an
+// otherwise healthy one. Passes today; revisit once that's fixed.
+//
+// Runs under synctest so synctest.Wait replaces timeout guessing.
+func TestSubmitterBlocksHealthyDomainOnSlowDomain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+
+		var calls atomic.Int32
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(func() {
+			releaseOnce()
+			s.Stop()
+		})
+		healthyBody := encodeOKCollectorResponse(t)
+
+		submitFn := func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
+			calls.Add(1)
+
+			responses := make(chan forwarder.Response, 1)
+			// Domain 1 (main endpoint): answers immediately.
+			responses <- forwarder.Response{
+				Domain:     "https://healthy.example.com",
+				StatusCode: http.StatusAccepted,
+				Body:       healthyBody,
+			}
+			// Domain 2 (additional endpoint): unreachable until release is closed.
+			go func() {
+				<-release
+				close(responses)
+			}()
+			return responses, nil
+		}
+		s.submitFuncs[checks.ProcessCheckName] = submitFn
+
+		require.NoError(t, s.Start())
+
+		submitProcessPayload := func() {
+			s.Submit(time.Now(), checks.ProcessCheckName, &types.Payload{
+				CheckName: checks.ProcessCheckName,
+				Message:   []model.MessageBody{&model.CollectorProc{HostName: testHostName}},
+			})
+		}
+
+		// Payload 1 goes out right away.
+		submitProcessPayload()
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load(), "first payload was never submitted")
+
+		// Payload 2 should not have to wait on payload 1's slow domain.
+		submitProcessPayload()
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load(),
+			"second payload was submitted before the slow domain answered for the first payload")
+		// Today it does wait: consumePayloads is still blocked on payload 1.
+
+		// Let the slow domain answer, which should unblock payload 2.
+		releaseOnce()
+		synctest.Wait()
+		require.EqualValues(t, 2, calls.Load(), "second payload was never submitted after the slow domain's response channel closed")
+	})
+}
+
+// encodeOKCollectorResponse builds a decodable collector response body.
+func encodeOKCollectorResponse(t *testing.T) []byte {
+	t.Helper()
+	out, err := model.EncodeMessage(model.Message{
+		Header: model.MessageHeader{
+			Version:   model.MessageV3,
+			Encoding:  model.MessageEncodingProtobuf,
+			Type:      model.MessageType(model.TypeResCollector),
+			Timestamp: time.Now().Unix(),
+		},
+		Body: &model.ResCollector{
+			Header: &model.ResCollector_Header{
+				Type: model.TypeResCollector,
+			},
+			Status: &model.CollectorStatus{
+				ActiveClients: 0,
+				Interval:      2,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return out
 }
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {

@@ -25,13 +25,13 @@ The `version` field is a literal `platforms.json` key — hence `"22-04-e2e"`, n
 The descriptor exists but the table entry does not — check `platforms.json` for a typo'd or missing key.
 ///
 
-/// details | Bypassing the pin with `ec2.WithLatestAMI()`
+/// details | Bypassing the pin with `ddinfra:osImageIDUseLatest`
     type: info
     open: false
 
-`ec2.WithLatestAMI()` bypasses `platforms.json` entirely and resolves the latest published image through SSM. It is deliberately rare in tests — it gives up reproducibility and it never gets you a prebaked image. Not every flavor can resolve a latest image; those log a warning and fall back to the pinned ID.
+Setting the `ddinfra:osImageIDUseLatest` Pulumi config bypasses `platforms.json` and resolves the latest published image (through SSM or an AMI search) when the OS descriptor has no version. There is deliberately no `VMOption` for it: it gives up reproducibility and it never gets you a prebaked image, so tests should not use it. Not every flavor can resolve a latest image; those log a warning and fall back to the pinned ID.
 
-For manual QA the same switch is `dda inv aws.create-vm --latest-ami` (which sets `ddinfra:osImageIDUseLatest`). That is the right way to check whether a new upstream image breaks something, before bumping the pin.
+It is meant for manual QA through `dda inv aws.create-vm --latest-ami` (which sets `ddinfra:osImageIDUseLatest`). That is the right way to check whether a new upstream image breaks something, before bumping the pin.
 ///
 
 ## The `-e2e` AMIs

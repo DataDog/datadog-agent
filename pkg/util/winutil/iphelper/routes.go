@@ -18,7 +18,7 @@ import (
 
 //revive:disable:var-naming Name is intended to match the Windows API name
 var (
-	modiphelper = windows.NewLazyDLL("Iphlpapi.dll")
+	modiphelper = windows.NewLazySystemDLL("Iphlpapi.dll")
 
 	procGetExtendedTcpTable = modiphelper.NewProc("GetExtendedTcpTable")
 	procGetIpForwardTable   = modiphelper.NewProc("GetIpForwardTable")

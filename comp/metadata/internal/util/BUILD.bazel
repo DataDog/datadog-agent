@@ -41,5 +41,6 @@ dd_agent_go_test(
         "//pkg/serializer/mocks",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

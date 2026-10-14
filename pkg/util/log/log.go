@@ -18,10 +18,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -55,7 +53,7 @@ var (
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
 	inner LoggerInterface
-	level *slog.LevelVar
+	rules *types.RulesSync
 	l     sync.RWMutex
 }
 
@@ -63,22 +61,21 @@ type DatadogLogger struct {
 *	Setup and initialization of the logger
  */
 
-// SetupLogger setup agent wide logger
+// SetupLogger setup agent wide logger with a simple log level (e.g.
+// "debug"), in particular it doesn't accept per package rules.
 func SetupLogger(i LoggerInterface, level string) {
 	logLevel, err := ValidateLogLevel(level)
 	if err != nil {
 		logLevel = InfoLvl
 	}
 
-	levelVar := &slog.LevelVar{}
-	levelVar.Set(types.ToSlogLevel(logLevel))
-
-	SetupLoggerWithLevelVar(i, levelVar)
+	SetupLoggerWithLevelRules(i, types.NewRulesSyncFromLevel(logLevel))
 }
 
-// SetupLoggerWithLevelVar setup agent wide logger with support for dynamic log level changes
-func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
-	setupCommonLogger(i, level)
+// SetupLoggerWithLevelRules setup agent wide logger with support for dynamic
+// log level changes.
+func SetupLoggerWithLevelRules(i LoggerInterface, levelRules *types.RulesSync) {
+	setupCommonLogger(i, levelRules)
 
 	// Flush the log entries logged before initialization now that the logger is initialized
 	bufferMutex.Lock()
@@ -89,10 +86,10 @@ func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
 	logsBuffer = []func(){}
 }
 
-func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) {
+func setupCommonLogger(i LoggerInterface, levelRules *types.RulesSync) {
 	l := &DatadogLogger{
 		inner: i,
-		level: level,
+		rules: levelRules,
 	}
 
 	// We're not going to call DatadogLogger directly, but using the
@@ -144,10 +141,15 @@ func (sw *DatadogLogger) scrub(s string) string {
 // ChangeLogLevel changes the current log level, valid levels are trace, debug,
 // info, warn, error, critical and off.
 func ChangeLogLevel(level LogLevel) error {
-	return logger.changeLogLevel(level)
+	return logger.changeLogLevelRules(types.NewLevelRules(level))
 }
 
-func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
+// ChangeLogLevelRules changes the current log level rules.
+func ChangeLogLevelRules(levelRules *types.LevelRules) error {
+	return logger.changeLogLevelRules(levelRules)
+}
+
+func (sw *loggerPointer) changeLogLevelRules(levelRules *types.LevelRules) error {
 	l := sw.Load()
 	if l == nil {
 		return errors.New("cannot change loglevel: logger not initialized")
@@ -160,7 +162,7 @@ func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	l.level.Set(types.ToSlogLevel(level))
+	l.rules.Store(levelRules)
 
 	return nil
 }
@@ -182,7 +184,30 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 		return InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
 
-	return types.FromSlogLevel(l.level.Level()), nil
+	return l.rules.Load().DefaultLevel(), nil
+}
+
+// GetLogLevelSpec returns the specification string of the current log level
+// rules, e.g. "error,some/pkg/...=debug", or the plain level name when a
+// single level is configured.
+func GetLogLevelSpec() (string, error) {
+	return logger.getLogLevelSpec()
+}
+
+func (sw *loggerPointer) getLogLevelSpec() (string, error) {
+	l := sw.Load()
+	if l == nil {
+		return "", errors.New("cannot get loglevel: logger not initialized")
+	}
+
+	l.l.RLock()
+	defer l.l.RUnlock()
+
+	if l.inner == nil {
+		return "", errors.New("cannot get loglevel: logger not initialized")
+	}
+
+	return l.rules.Load().Spec(), nil
 }
 
 // ShouldLog returns whether a given log level should be logged by the default logger.
@@ -202,23 +227,13 @@ func ShouldLog(lvl LogLevel) bool {
 
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level LogLevel) bool {
-	return level >= types.FromSlogLevel(sw.level.Level())
+	return level >= sw.rules.Load().MinLevel()
 }
 
-// ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.
-// If the log level is "warning", it is converted to "warn" to handle a common gotcha when used with agent5.
-// If the log level is not recognized, an error is returned.
+// ValidateLogLevel validates the given log level and returns the
+// corresponding LogLevel.
 func ValidateLogLevel(logLevel string) (LogLevel, error) {
-	seelogLogLevel := strings.ToLower(logLevel)
-	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
-		seelogLogLevel = "warn"
-	}
-
-	lvl, found := logLevelFromString(seelogLogLevel)
-	if !found {
-		return Off, fmt.Errorf("unknown log level: %s", seelogLogLevel)
-	}
-	return lvl, nil
+	return types.ValidateLogLevel(logLevel)
 }
 
 /*

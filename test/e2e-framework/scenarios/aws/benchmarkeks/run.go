@@ -13,6 +13,7 @@ package benchmarkeks
 
 import (
 	_ "embed"
+	"maps"
 
 	awsEks "github.com/pulumi/pulumi-aws/sdk/v7/go/aws/eks"
 	"github.com/pulumi/pulumi-eks/sdk/v4/go/eks"
@@ -32,6 +33,23 @@ const nbNode = 3
 
 //go:embed simple_check.py
 var simpleCheckPy string
+
+// internalProfilingEnv makes the Agents upload their profiles. The chart only passes
+// datadog.env[Dict] to the node Agent, so it is also set on the Cluster Agent and the
+// cluster checks runner. It goes in envDict because Helm replaces lists from a later
+// values file, which would drop the env entries of the e2e framework defaults.
+var internalProfilingEnv = map[string]string{
+	"DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE":           "10000",
+	"DD_INTERNAL_PROFILING_ENABLE_BLOCK_PROFILING":       "true",
+	"DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES": "true",
+	"DD_INTERNAL_PROFILING_ENABLE_MUTEX_PROFILING":       "true",
+	"DD_INTERNAL_PROFILING_ENABLED":                      "true",
+	"DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION":       "100",
+}
+
+// apmSocketDir is the host directory of the trace Agent socket of the node Agent
+// (datadog.apm.hostSocketPath and datadog.apm.socketPath chart defaults).
+const apmSocketDir = "/var/run/datadog"
 
 // Run is the entry point for the benchmarkeks scenario when run via Pulumi.
 func Run(ctx *pulumi.Context) error {
@@ -137,6 +155,29 @@ func Run(ctx *pulumi.Context) error {
 
 	var agentDeps []pulumi.Resource
 
+	// The profiler uploads to a trace Agent on localhost:8126 by default, which only the
+	// node Agent pod runs. The Cluster Agent and the cluster checks runner upload instead
+	// to the trace Agent of the node Agent of their node, through its socket mounted from
+	// the host.
+	clusterProfilingEnv := maps.Clone(internalProfilingEnv)
+	clusterProfilingEnv["DD_INTERNAL_PROFILING_UNIX_SOCKET"] = apmSocketDir + "/apm.socket"
+	apmSocketVolumes := []map[string]any{
+		{
+			"name": "apmsocket",
+			"hostPath": map[string]any{
+				"path": apmSocketDir,
+				"type": "DirectoryOrCreate",
+			},
+		},
+	}
+	apmSocketVolumeMounts := []map[string]any{
+		{
+			"name":      "apmsocket",
+			"mountPath": apmSocketDir,
+			"readOnly":  true,
+		},
+	}
+
 	// The per-variant image keys live in the ddagent: config namespace and are specific
 	// to this scenario, so they are read here rather than through the shared config.Env
 	// interface — same pattern as scenarios/aws/integrations/{lustre,dell_powerflex}.
@@ -191,32 +232,7 @@ func Run(ctx *pulumi.Context) error {
 					"podLabelsAsTags": map[string]any{
 						"app": "app",
 					},
-					"env": []map[string]string{
-						{
-							"name":  "DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE",
-							"value": "10000",
-						},
-						{
-							"name":  "DD_INTERNAL_PROFILING_ENABLE_BLOCK_PROFILING",
-							"value": "true",
-						},
-						{
-							"name":  "DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES",
-							"value": "true",
-						},
-						{
-							"name":  "DD_INTERNAL_PROFILING_ENABLE_MUTEX_PROFILING",
-							"value": "true",
-						},
-						{
-							"name":  "DD_INTERNAL_PROFILING_ENABLED",
-							"value": "true",
-						},
-						{
-							"name":  "DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION",
-							"value": "100",
-						},
-					},
+					"envDict": internalProfilingEnv,
 					"checksd": map[string]string{
 						"simple_check.py": simpleCheckPy,
 					},
@@ -237,7 +253,10 @@ func Run(ctx *pulumi.Context) error {
 					}, param.variant),
 				},
 				"clusterAgent": map[string]any{
-					"replicas": 1,
+					"replicas":     1,
+					"envDict":      clusterProfilingEnv,
+					"volumes":      apmSocketVolumes,
+					"volumeMounts": apmSocketVolumeMounts,
 					"nodeSelector": map[string]any{
 						"benchmark.datadoghq.com/role":    "cluster-agent",
 						"benchmark.datadoghq.com/variant": param.variant,
@@ -277,7 +296,10 @@ func Run(ctx *pulumi.Context) error {
 					},
 				},
 				"clusterChecksRunner": map[string]any{
-					"replicas": 1,
+					"replicas":     1,
+					"envDict":      clusterProfilingEnv,
+					"volumes":      apmSocketVolumes,
+					"volumeMounts": apmSocketVolumeMounts,
 					"nodeSelector": map[string]any{
 						"benchmark.datadoghq.com/role":    "cluster-checks",
 						"benchmark.datadoghq.com/variant": param.variant,
@@ -289,18 +311,27 @@ func Run(ctx *pulumi.Context) error {
 						"effect":   "NoSchedule",
 					}, param.variant),
 					// Same as for the Cluster Agent: the runner hosts the KSM check, whose
-					// memory grows with the number of objects in the cluster. Its CPU is
-					// not limited, as KSM check runs are bursts that a limit would throttle
-					// and stretch on a large cluster. The null value removes the limit set
-					// by the e2e framework defaults.
+					// memory grows with the number of objects in the cluster. Its CPU limit
+					// is above the node capacity, so it never throttles the bursts of KSM
+					// check runs. The limit of the e2e framework defaults can't be removed
+					// with a null instead: it reaches the manifest, read as a zero limit.
 					"resources": map[string]any{
 						"requests": map[string]any{
 							"cpu":    "1",
 							"memory": "512Mi",
 						},
 						"limits": map[string]any{
-							"cpu":    nil,
+							"cpu":    "64",
 							"memory": "2Gi",
+						},
+					},
+					// The CPU request takes half of the dedicated node, so the default
+					// surge of the chart can't schedule the new runner next to the old one
+					// and a Helm upgrade of the stack hangs. Replace the runner instead.
+					"strategy": map[string]any{
+						"rollingUpdate": map[string]any{
+							"maxSurge":       0,
+							"maxUnavailable": 1,
 						},
 					},
 				},

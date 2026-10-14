@@ -135,14 +135,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-  terminated_pods_improved:
-    node_type: section
-    type: object
-    properties:
-      enabled:
-        node_type: setting
-        type: boolean
-        default: true
   terminated_resources:
     node_type: section
     type: object

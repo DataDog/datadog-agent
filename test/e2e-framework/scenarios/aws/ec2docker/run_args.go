@@ -71,9 +71,6 @@ func ParamsFromEnvironment(e aws.Environment) *Params {
 		if e.InfraOSDescriptor() != "" {
 			p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
 		}
-		if e.InfraOSImageIDUseLatest() {
-			p.vmOptions = append(p.vmOptions, ec2.WithLatestAMI())
-		}
 	}
 
 	// Agent installation and image selection

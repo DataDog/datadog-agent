@@ -2367,48 +2367,88 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 	t.Fatal("container tag info not found")
 }
 
-func TestDynamoGraphDeploymentTagPropagatesToPodAndContainer(t *testing.T) {
-	const containerID = "dynamo-worker-container"
+func TestDynamoInferenceTagsPropagateToPodAndContainer(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		componentType string
+		subType       string
+		wantComponent string
+	}{
+		{name: "deployment only"},
+		{name: "frontend", componentType: "frontend", wantComponent: "frontend"},
+		{name: "decode", componentType: "decode", wantComponent: "decode"},
+		{name: "prefill", componentType: "prefill", wantComponent: "prefill"},
+		{name: "worker", componentType: "worker", wantComponent: "worker"},
+		{name: "planner", componentType: "planner", wantComponent: "planner"},
+		{name: "decode subtype", componentType: "worker", subType: "decode", wantComponent: "decode"},
+		{name: "prefill subtype", componentType: "worker", subType: "prefill", wantComponent: "prefill"},
+		{name: "subtype only", subType: "decode", wantComponent: "decode"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const containerID = "dynamo-worker-container"
 
-	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-	store.Set(&workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
-		},
-	})
-
-	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
-	tagInfos := collector.handleKubePod(workloadmeta.Event{
-		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.KubernetesPod{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubernetesPod,
-				ID:   "dynamo-worker-pod",
-			},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name:      "dynamo-worker",
-				Namespace: "inference",
-				Labels: map[string]string{
-					kubernetes.DynamoGraphDeploymentNameLabelKey: "my-model",
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
 				},
-			},
-			Containers: []workloadmeta.OrchestratorContainer{
-				{ID: containerID, Name: "worker"},
-			},
-		},
-		IsComplete: true,
-	})
+			})
 
-	require.Len(t, tagInfos, 2)
-	for _, tagInfo := range tagInfos {
-		assert.Contains(t, tagInfo.LowCardTags, "dynamo_graph_deployment:my-model")
-		assert.NotContains(t, tagInfo.HighCardTags, "dynamo_graph_deployment:my-model")
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+			labels := map[string]string{kubernetes.DynamoGraphDeploymentNameLabelKey: "my-model"}
+			if tt.componentType != "" {
+				labels[kubernetes.DynamoComponentTypeLabelKey] = tt.componentType
+			}
+			if tt.subType != "" {
+				labels[kubernetes.DynamoSubComponentTypeLabelKey] = tt.subType
+			}
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesPod,
+						ID:   "dynamo-worker-pod",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "dynamo-worker",
+						Namespace: "inference",
+						Labels:    labels,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{
+						{ID: containerID, Name: "worker"},
+					},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			for _, tagInfo := range tagInfos {
+				assert.Contains(t, tagInfo.LowCardTags, "dynamo_graph_deployment:my-model")
+				assert.NotContains(t, tagInfo.HighCardTags, "dynamo_graph_deployment:my-model")
+				assert.Contains(t, tagInfo.LowCardTags, "inference_workload:my-model")
+				assert.NotContains(t, tagInfo.HighCardTags, "inference_workload:my-model")
+				var components []string
+				for _, tag := range tagInfo.LowCardTags {
+					if strings.HasPrefix(tag, "inference_workload_component:") {
+						components = append(components, tag)
+					}
+				}
+				if tt.wantComponent == "" {
+					assert.Empty(t, components)
+				} else {
+					assert.Equal(t, []string{"inference_workload_component:" + tt.wantComponent}, components)
+				}
+				for _, tag := range tagInfo.HighCardTags {
+					assert.False(t, strings.HasPrefix(tag, "inference_workload_component:"))
+				}
+			}
+		})
 	}
 }
 

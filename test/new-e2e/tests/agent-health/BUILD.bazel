@@ -21,6 +21,7 @@ dd_agent_go_test(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-health",
     tags = ["manual"],
     deps = [
+        "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",
         "//test/e2e-framework/scenarios/aws/ec2",
@@ -29,6 +30,8 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host",
         "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
         "//test/fakeintake/aggregator",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",

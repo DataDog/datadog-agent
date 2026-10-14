@@ -204,6 +204,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(pkgclusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
+					status.NewInformationProvider(workload.Provider{}),
 				),
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))

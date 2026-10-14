@@ -207,11 +207,10 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
-		// dd-procmgr supervises process-agent, system-probe, and trace-agent, so those
-		// legacy services are already Stopped. Stopping dd-procmgr-service is what stops
-		// those workloads, including the system-probe shutdown that unloads the kernel drivers.
+		// dd-procmgr supervises process-agent, system-probe, trace-agent, and security-agent,
+		// so those legacy services are already Stopped. Stopping dd-procmgr-service is what
+		// stops those workloads, including the system-probe shutdown that unloads the drivers.
 		"dd-procmgr-service",
-		"datadog-security-agent",
 		// stop core agent last since it will trigger stop of other services
 		"datadogagent",
 	}
@@ -1067,6 +1066,7 @@ func (s *baseStartStopSuite) legacySCMServices() []string {
 		"datadog-process-agent",
 		"datadog-system-probe",
 		"datadog-trace-agent",
+		"datadog-security-agent",
 	}
 }
 
