@@ -1,7 +1,7 @@
 diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 --- a/builder/cmake_builder.rs
 +++ b/builder/cmake_builder.rs
-@@ -75,6 +75,47 @@ const fn cmake_nasm_small_flags(value: bool) -> &'static str {
+@@ -75,6 +75,77 @@ const fn cmake_nasm_small_flags(value: bool) -> &'static str {
      }
  }
 
@@ -23,7 +23,7 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 +
 +fn prepare_bazel_flags_for_cmake(flags: &str) -> String {
 +    let execroot = bazel_execroot();
-+    flags
++    let mut prepared = flags
 +        .split_whitespace()
 +        .map(|flag| {
 +            // Bazel invokes link.exe directly, where the linker expands its
@@ -42,14 +42,44 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 +                flag.to_owned()
 +            }
 +        })
-+        .collect::<Vec<_>>()
-+        .join(" ")
++        .collect::<Vec<_>>();
++
++    // Bazel names the CRT libraries explicitly, while CMake additionally
++    // links standard Windows libraries such as kernel32.lib by name. The
++    // hermetic toolchain intentionally has no ambient LIB setting, so expose
++    // only the declared SDK/MSVC library directories to those subprocesses.
++    let mut library_paths = Vec::new();
++    for flag in &prepared {
++        let normalized = flag.replace('\\', "/");
++        let lowercase = normalized.to_ascii_lowercase();
++        if let Some(prefix) = lowercase.strip_suffix("/ucrt/x64/ucrt.lib") {
++            let root = &normalized[..prefix.len()];
++            library_paths.push(format!("{root}/ucrt/x64"));
++            library_paths.push(format!("{root}/um/x64"));
++        } else if lowercase.ends_with("/msvcrt.lib") {
++            if let Some((parent, _)) = normalized.rsplit_once('/') {
++                library_paths.push(parent.to_owned());
++            }
++        }
++    }
++    for library_path in library_paths {
++        let library_path = library_path.replace('/', "\\");
++        let flag = format!("/LIBPATH:{library_path}");
++        if !prepared
++            .iter()
++            .any(|existing| existing.eq_ignore_ascii_case(&flag))
++        {
++            prepared.push(flag);
++        }
++    }
++
++    prepared.join(" ")
 +}
 +
  pub(crate) struct CmakeBuilder {
      manifest_dir: PathBuf,
      out_dir: PathBuf,
-@@ -210,6 +251,16 @@ impl CmakeBuilder {
+@@ -210,6 +281,16 @@ impl CmakeBuilder {
              }
          }
 
@@ -66,7 +96,7 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
          let mut cmake_cfg = self.get_cmake_config();
          if is_fips_build() {
              if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
-@@ -483,11 +534,24 @@ impl CmakeBuilder {
+@@ -483,11 +564,24 @@ impl CmakeBuilder {
      fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
 +        // Force CMake to hash object paths before Windows' path limit becomes
 +        // a problem inside Bazel's deeply nested output directories.
