@@ -300,6 +300,28 @@ matching removed opt-ins were dropped (83 → 44), and every remaining opt-in st
 `dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 linter.e2e-internet-access`
 passes.
 
+### Final validation (pipeline #144620210, commit 3c0f19b1618)
+
+The complete final state of the branch was validated end-to-end:
+
+- **Every job affected by this branch passes**, including: package-signing
+  (debian + suse, keys from the `public-signing-keys` S3 bucket, **no internet**),
+  ddot on every distro (RHEL/centos via the conditional opt-in, the rest without internet),
+  every install-script job (iot flavors without internet, the rest via the conditional
+  opt-in), agent-configuration / agent-subcommands / fleet / installer / installer-script /
+  remote-config / apm VM / netpath integration (internet restored where still needed), and
+  all suites kept no-internet (configrefresh, gui, inventory, secrets, sgc multi-backend,
+  runtimes infra/procmgr/ipc/rtloader/shared-lib, discovery, ndm-snmp, netpath RC,
+  privateactionrunner windows).
+- The `e2e-internet-access` allowlist linter job passes (43 entries, in sync).
+- **Remaining pipeline failures are all pre-existing**: cws (×5, `allow_failure`, the
+  signal "attributes" backend issue failing on every branch with internet), `new-e2e-alp`
+  (`allow_failure`, failing on many branches today), `new-e2e-ssi-openshift`,
+  `new-e2e-ssi-gke-autopilot`, `new-e2e-containers-openshift` (GCP k8s provisioning flakes,
+  `allow_failure`, failing on other branches), and `new-e2e-privateactionrunner`
+  (a timing flake of the PAR key-update that is also failing on the 7.84.3 release-update
+  branch today; it passed on this branch's two previous pipelines with identical code).
+
 ## Summary
 
 Removing the explicit `WithInternetAccess()` opt-ins from host E2E tests breaks **54 of the
