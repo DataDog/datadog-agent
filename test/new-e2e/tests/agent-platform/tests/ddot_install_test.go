@@ -83,6 +83,11 @@ func TestDDOTInstallScript(t *testing.T) {
 			}
 
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
+			// CentOS 7 is EOL: its base repos only exist on the public centos-vault
+			// mirrors, which are unreachable without internet access.
+			if osDesc.Flavor == e2eos.CentOS {
+				vmOpts = append(vmOpts, ec2.WithInternetAccess())
+			}
 
 			e2e.Run(tt,
 				&ddotInstallSuite{osVersion: version, osDesc: osDesc},

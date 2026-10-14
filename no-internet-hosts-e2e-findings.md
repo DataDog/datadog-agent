@@ -260,6 +260,39 @@ New findings revealed by this run (the framework-script change made extra jobs a
 4. real Datadog endpoints (RC/CWS policy, diagnose, remote-config, fleet-upgrade prod repo) + AWS Secrets Manager endpoint
 5. ghcr.io (apm tracegen image), netpath external destinations
 
+## Branch state after triage: no-internet where proven, opt-in elsewhere
+
+Following the triage above, the branch was adjusted so that **internet access is only
+removed where it is proven to work without it** (validated on pipeline #144433353), and
+**every suite that still needs internet (or has no run data) keeps its explicit
+`WithInternetAccess()` opt-in** — restoring main's behavior for those suites while the
+remaining dependencies (see list at the end) are addressed.
+
+**Now running without internet (opt-in removed, verified green):**
+- `agent-configuration`: configrefresh (linux/windows/api-key-refresh), gui (windows),
+  inventory, secrets (linux/windows), sgc multi-backend (embedded)
+- `agent-subcommands`: check, config, configcheck, dogstatsd-adpguard/replay, health,
+  hostname-ec2, run, status (linux+windows), flare (windows)
+- `agent-runtimes`: infra-mode (basic/eudm/none), procmgr (+par), ipc-security (windows),
+  rtloader multiprocessing, shared library, auth artifact (linux)
+- `agent-platform`: ddot on all distros except CentOS 7 (conditional opt-in), install-script
+  on the iot-agent flavors (conditional opt-in), package-signing (vendored keys, no internet at all)
+- `discovery`, `ndm-snmp`, `netpath` (remote-config windows suite), `privateactionrunner`,
+  `data-security` (postgres, removal was a no-op anyway)
+
+**Kept with explicit `WithInternetAccess()` (still failing without internet, or not run
+in the triage pipelines):** agent-configuration (api, gui linux, sgc aws secrets-manager
+suites), agent-subcommands (diagnose/flare linux, diagnose/secret windows), cws (ec2,
+windows — remote-config policy download), cspm host benchmarks, netpath integration
+(windows), remote-config tracer, apm VM (ghcr.io), agent-runtimes auth artifact (windows,
+unclear), all fleet suites (testing OCI registry), installer package suites (registry),
+install-script full-agent flavors (integration wheels) + docker variant, ddot centos-7
+(vault repos), and the suites not exercised by a branch pipeline (upgrade, step-by-step,
+persisting-integrations, rpm, macos install, fleet macos config, file-tailing, examples).
+
+All the S3 URL fixes from the previous section are kept (they work with or without
+internet), as are the vendored production signing keys.
+
 ## Summary
 
 Removing the explicit `WithInternetAccess()` opt-ins from host E2E tests breaks **54 of the

@@ -41,6 +41,7 @@ func TestRcTracerSuite(t *testing.T) {
 					scenec2.WithAgentOptions(
 						agentparams.WithAgentConfig(rcEnabledConfig),
 					),
+					scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 				),
 			),
 		),
