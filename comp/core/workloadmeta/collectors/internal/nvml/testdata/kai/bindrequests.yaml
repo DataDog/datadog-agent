@@ -1,0 +1,158 @@
+apiVersion: v1
+items:
+- apiVersion: scheduling.run.ai/v1alpha2
+  kind: BindRequest
+  metadata:
+    creationTimestamp: '2026-10-14T14:49:10Z'
+    generation: 1
+    labels:
+      selected-node: ip-172-31-10-249
+    name: frac-a
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-a
+      uid: efc71a63-bdb9-4f0b-b95a-7309efddf661
+    resourceVersion: '18163'
+    uid: 720e537e-0b7f-4dc5-bec7-66d6d3973c4b
+  spec:
+    podName: frac-a
+    receivedGPU:
+      count: 1
+      portion: '0.50'
+    receivedResourceType: Fraction
+    selectedFractionalGpuGroups:
+    - computeSharingMode: time-slicing
+      id: c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8
+    selectedGPUGroups:
+    - c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8
+    selectedNode: ip-172-31-10-249
+  status:
+    phase: Succeeded
+- apiVersion: scheduling.run.ai/v1alpha2
+  kind: BindRequest
+  metadata:
+    creationTimestamp: '2026-10-14T14:49:11Z'
+    generation: 1
+    labels:
+      selected-node: ip-172-31-10-249
+    name: frac-b
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-b
+      uid: f37a9009-010c-4c5b-8f9f-76df01891491
+    resourceVersion: '18176'
+    uid: 163c0646-72d1-42b3-9fba-cf74d5cdbc11
+  spec:
+    podName: frac-b
+    receivedGPU:
+      count: 1
+      portion: '0.50'
+    receivedResourceType: Fraction
+    selectedFractionalGpuGroups:
+    - computeSharingMode: time-slicing
+      id: c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8
+    selectedGPUGroups:
+    - c3ced09c-c7e0-4b95-9ba7-59fc43afa1e8
+    selectedNode: ip-172-31-10-249
+  status:
+    phase: Succeeded
+- apiVersion: scheduling.run.ai/v1alpha2
+  kind: BindRequest
+  metadata:
+    creationTimestamp: '2026-10-14T14:49:11Z'
+    generation: 1
+    labels:
+      selected-node: ip-172-31-10-249
+    name: frac-c
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-c
+      uid: 4eddcbec-8852-40ec-aad6-a9a98454ac83
+    resourceVersion: '18219'
+    uid: 9e5a7765-8019-4d64-b688-976e6ff4282b
+  spec:
+    podName: frac-c
+    receivedGPU:
+      count: 1
+      portion: '0.70'
+    receivedResourceType: Fraction
+    selectedFractionalGpuGroups:
+    - computeSharingMode: time-slicing
+      id: 0350dd42-d924-4f06-b897-3be2da6998e1
+    selectedGPUGroups:
+    - 0350dd42-d924-4f06-b897-3be2da6998e1
+    selectedNode: ip-172-31-10-249
+  status:
+    phase: Succeeded
+- apiVersion: scheduling.run.ai/v1alpha2
+  kind: BindRequest
+  metadata:
+    creationTimestamp: '2026-10-14T15:02:27Z'
+    generation: 1
+    labels:
+      selected-node: ip-172-31-10-249
+    name: frac-cuda
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-cuda
+      uid: 8dc5dc63-8264-449a-9264-8954b267391d
+    resourceVersion: '20326'
+    uid: a75c9a37-8a31-417b-8b48-91c763c31553
+  spec:
+    podName: frac-cuda
+    receivedGPU:
+      count: 1
+      portion: '0.50'
+    receivedResourceType: Fraction
+    selectedFractionalGpuGroups:
+    - computeSharingMode: time-slicing
+      id: 4c5ff560-a6ca-4f10-820c-e183cad56ea2
+    selectedGPUGroups:
+    - 4c5ff560-a6ca-4f10-820c-e183cad56ea2
+    selectedNode: ip-172-31-10-249
+  status:
+    phase: Succeeded
+- apiVersion: scheduling.run.ai/v1alpha2
+  kind: BindRequest
+  metadata:
+    creationTimestamp: '2026-10-14T14:49:11Z'
+    generation: 1
+    labels:
+      selected-node: ip-172-31-10-249
+    name: frac-multi
+    namespace: kai-test
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: frac-multi
+      uid: 0d8f15f1-5dd6-45ee-90e2-17d3e0c2e310
+    resourceVersion: '18249'
+    uid: ec6b23e5-6eb9-4a56-bd69-26389a61e008
+  spec:
+    podName: frac-multi
+    receivedGPU:
+      count: 2
+      portion: '0.50'
+    receivedResourceType: Fraction
+    selectedFractionalGpuGroups:
+    - computeSharingMode: time-slicing
+      id: 4c5ff560-a6ca-4f10-820c-e183cad56ea2
+    - computeSharingMode: time-slicing
+      id: 0247250f-e9cb-4445-8a61-23ffd7e6fd53
+    selectedGPUGroups:
+    - 4c5ff560-a6ca-4f10-820c-e183cad56ea2
+    - 0247250f-e9cb-4445-8a61-23ffd7e6fd53
+    selectedNode: ip-172-31-10-249
+  status:
+    phase: Succeeded
+kind: List
+metadata:
+  resourceVersion: ''
