@@ -8,6 +8,7 @@ package selftests
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -54,36 +55,38 @@ func (a *asyncSelfTest) IsSuccess() bool {
 }
 
 func TestRunStartedFromResultCallback(t *testing.T) {
-	tester := &SelfTester{
-		waitingForEvent: atomic.NewBool(false),
-		eventChan:       make(chan selfTestEvent, 1),
-		selfTestRunning: make(chan time.Duration, 10),
-		done:            make(chan bool),
-		errorTimestamp:  make(map[eval.RuleID]time.Time),
-	}
-	tester.selfTests = []SelfTest{&asyncSelfTest{tester: tester, ruleID: "async", delay: 50 * time.Millisecond}}
-	t.Cleanup(func() { _ = tester.Close() })
+	synctest.Test(t, func(t *testing.T) {
+		tester := &SelfTester{
+			waitingForEvent: atomic.NewBool(false),
+			eventChan:       make(chan selfTestEvent, 1),
+			selfTestRunning: make(chan time.Duration, 10),
+			done:            make(chan bool),
+			errorTimestamp:  make(map[eval.RuleID]time.Time),
+		}
+		tester.selfTests = []SelfTest{&asyncSelfTest{tester: tester, ruleID: "async", delay: 50 * time.Millisecond}}
+		t.Cleanup(func() { _ = tester.Close() })
 
-	const timeout = 5 * time.Second
-	results := make(chan []eval.RuleID, 2)
-	runs := 0
-	go tester.WaitForResult(func(_ []eval.RuleID, fails []eval.RuleID) {
-		results <- fails
-		runs++
-		// the CWS consumer starts the next run from this callback
-		if runs == 1 {
-			assert.NoError(t, tester.RunSelfTest(context.Background(), timeout))
+		const timeout = 5 * time.Second
+		results := make(chan []eval.RuleID, 2)
+		runs := 0
+		go tester.WaitForResult(func(_ []eval.RuleID, fails []eval.RuleID) {
+			results <- fails
+			runs++
+			// the CWS consumer starts the next run from this callback
+			if runs == 1 {
+				assert.NoError(t, tester.RunSelfTest(context.Background(), timeout))
+			}
+		})
+
+		require.NoError(t, tester.RunSelfTest(context.Background(), timeout))
+
+		for run := 1; run <= 2; run++ {
+			select {
+			case fails := <-results:
+				assert.Empty(t, fails, "run %d", run)
+			case <-time.After(2 * timeout):
+				t.Fatalf("run %d didn't report", run)
+			}
 		}
 	})
-
-	require.NoError(t, tester.RunSelfTest(context.Background(), timeout))
-
-	for run := 1; run <= 2; run++ {
-		select {
-		case fails := <-results:
-			assert.Empty(t, fails, "run %d", run)
-		case <-time.After(2 * timeout):
-			t.Fatalf("run %d didn't report", run)
-		}
-	}
 }
