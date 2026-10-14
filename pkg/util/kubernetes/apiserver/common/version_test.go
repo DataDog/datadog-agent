@@ -72,3 +72,32 @@ func TestKubeServerVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestIsKubeVersionSupported(t *testing.T) {
+	tests := []struct {
+		name          string
+		version       *version.Info
+		wantSupported bool
+		wantOk        bool
+	}{
+		{name: "nil", version: nil},
+		{name: "empty", version: &version.Info{}},
+		{name: "garbage", version: &version.Info{GitVersion: "foo", Major: "x", Minor: "y"}},
+		{name: "old", version: &version.Info{GitVersion: "v1.21.14"}, wantOk: true},
+		{name: "just below", version: &version.Info{GitVersion: "v1.22.17"}, wantOk: true},
+		{name: "eks below", version: &version.Info{GitVersion: "v1.22.17-eks-a1b2c3"}, wantOk: true},
+		{name: "minimum", version: &version.Info{GitVersion: "v1.23.0"}, wantSupported: true, wantOk: true},
+		{name: "eks minimum", version: &version.Info{GitVersion: "v1.23.17-eks-a1b2c3"}, wantSupported: true, wantOk: true},
+		{name: "gke minimum pre-release", version: &version.Info{GitVersion: "v1.23.0-gke.100"}, wantSupported: true, wantOk: true},
+		{name: "k3s build metadata", version: &version.Info{GitVersion: "v1.30.1+k3s1"}, wantSupported: true, wantOk: true},
+		{name: "major minor fallback below", version: &version.Info{Major: "1", Minor: "22+"}, wantOk: true},
+		{name: "major minor fallback minimum", version: &version.Info{Major: "1", Minor: "23+"}, wantSupported: true, wantOk: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			supported, ok := IsKubeVersionSupported(tt.version)
+			assert.Equal(t, tt.wantOk, ok)
+			assert.Equal(t, tt.wantSupported, supported)
+		})
+	}
+}
