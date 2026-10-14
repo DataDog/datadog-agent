@@ -24,6 +24,9 @@ type Config struct {
 	NVLinkFECLightErrorThreshold int
 	// LegacySMActive indicates whether the legacy sm_active metric should be emitted.
 	LegacySMActive bool
+	// PreferSMCyclesSMActive indicates whether the sm_active metric derived from the GPM SM cycle counters should
+	// have priority over the other sm_active sources.
+	PreferSMCyclesSMActive bool
 	// StaticMetricsReportingInterval is the reporting interval for static GPU metrics.
 	StaticMetricsReportingInterval time.Duration
 	// Enabled indicates whether the GPU monitoring probe is enabled.
@@ -165,6 +168,7 @@ func New() *Config {
 		DisabledCollectors:             agentCfg.GetStringSlice("gpu.disabled_collectors"),
 		NVLinkFECLightErrorThreshold:   agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
 		LegacySMActive:                 agentCfg.GetBool("gpu.legacy_sm_active"),
+		PreferSMCyclesSMActive:         agentCfg.GetBool("gpu.prefer_sm_cycles_sm_active"),
 		StaticMetricsReportingInterval: agentCfg.GetDuration("gpu.static_metrics_reporting_interval"),
 		ScanProcessesInterval:          time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),

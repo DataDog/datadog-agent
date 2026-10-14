@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    gpum: Add the ``gpu.prefer_sm_cycles_sm_active`` option to report ``gpu.sm_active`` from the GPM
+    SM cycle counters (the same value as ``gpu.sm_utilization``) on physical NVIDIA GPUs.

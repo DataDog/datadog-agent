@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -200,13 +202,15 @@ func RemoveDuplicateSamples(allSamples map[CollectorName][]Sample) []Sample {
 	var result []Sample
 
 	// For each sample key, pick all matching samples from the collector with the highest-priority sample.
+	// Ties between collectors are resolved in favor of the collector whose name sorts first, so that the
+	// selected source doesn't change between runs.
 	for _, collectorSamples := range keyToCollectorSamples {
-		maxPriority := Low
+		var winningPriority MetricPriority
 		var winningSamples []Sample
-		for _, prioritySamples := range collectorSamples {
-			for priority, samples := range prioritySamples {
-				if priority >= maxPriority {
-					maxPriority = priority
+		for _, collectorID := range slices.Sorted(maps.Keys(collectorSamples)) {
+			for priority, samples := range collectorSamples[collectorID] {
+				if winningSamples == nil || priority > winningPriority {
+					winningPriority = priority
 					winningSamples = samples
 				}
 			}

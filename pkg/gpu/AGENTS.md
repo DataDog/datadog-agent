@@ -239,7 +239,7 @@ The GPU monitoring system emits two active time metrics:
 - **`process.sm_active`**: Per-process percentage of time the GPU had active kernels
 - **`sm_active`**: Device-wide percentage of time any GPU kernels were active
 
-Both are emitted with **Low priority** to serve as fallbacks when NVML or GPM-based metrics are unavailable.
+Both are emitted with **Low priority** to serve as fallbacks when the NVML sampling metrics are unavailable.
 
 ### How They Are Generated
 
@@ -247,6 +247,14 @@ Active time is derived from kernel execution intervals captured within each coll
 
 - **Per-process**: Merge intervals for a single process, then compute the percentage of the window that was active.
 - **Device-wide**: Merge intervals across all processes on the device, then compute the percentage of the window that was active.
+
+### Other `sm_active` Sources
+
+- `sampling` collector (Medium): derived from NVML per-process utilization samples.
+- `gpm` collector with `gpu.legacy_sm_active` (High): `GPM_METRIC_SM_UTIL`.
+- `gpm` collector, physical devices without `gpu.legacy_sm_active` (Low, High with `gpu.prefer_sm_cycles_sm_active`):
+  derived from the SM cycle counters, same value as `GPM_METRIC_SM_UTIL`. Ties at Low go to the collector whose name
+  sorts first, so `ebpf` wins over `gpm`.
 
 ## GPU Spec Guidance
 

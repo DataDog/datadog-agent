@@ -27,6 +27,15 @@ properties:
       Set to true to restore the legacy mapping of GPM SM utilization to
       gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
       reported as both gpu.sm_active and gpu.sm_utilization.
+  prefer_sm_cycles_sm_active:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Set to true to report gpu.sm_active from the GPM SM cycle counters on physical GPUs (the same
+      value as gpu.sm_utilization) in preference to the other sources. Ignored if gpu.legacy_sm_active
+      is enabled.
   nccl:
     node_type: section
     type: object
