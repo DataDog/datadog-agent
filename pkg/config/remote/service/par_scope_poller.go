@@ -19,38 +19,32 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/benbjohnson/clock"
 )
 
-// WithPARScopeDiscovery attaches the opt-in worker only to the core RC component,
-// not every user of the remote-config library (including PAR's own RC client).
-func WithPARScopeDiscovery() func(*options) {
-	return func(o *options) { o.parScopeDiscovery = true }
-}
+// WithPARScopeDiscovery attaches the opt-in worker to core's RC service only.
+func WithPARScopeDiscovery() func(*options) { return func(o *options) { o.parScopeDiscovery = true } }
 
-// This is deliberately RC-side. Demand never authorizes a request and cannot
-// reset the independent AAA deadline. It is not a second enrollment controller.
 type parScopePoller struct {
 	cfg                       model.Reader
 	clock                     clock.Clock
-	status                    func() OrgStatus
+	status                    func() *pbgo.OrgStatusResponse
 	demand                    *atomic.Bool
 	client                    *http.Client
 	key, endpoint, rcEndpoint string
-	binding                   [32]byte
 	jitter                    func(time.Duration) time.Duration
 	mu                        sync.Mutex
 	observation               PARScopeObservation
 	next                      time.Time
 	backoff                   time.Duration
-	epoch                     uint64
 	cancelRequest             context.CancelFunc
 	cancel                    context.CancelFunc
 	done                      chan struct{}
 }
 
-func newPARScopePoller(cfg model.Reader, clk clock.Clock, status func() OrgStatus, demand *atomic.Bool) *parScopePoller {
+func newPARScopePoller(cfg model.Reader, clk clock.Clock, status func() *pbgo.OrgStatusResponse, demand *atomic.Bool) *parScopePoller {
 	if os.Getenv("DD_PAR_PHONE_HOME_POC") != "true" || !cfg.GetBool("private_action_runner.enabled") {
 		return nil
 	}
@@ -59,7 +53,7 @@ func newPARScopePoller(cfg model.Reader, clk clock.Clock, status func() OrgStatu
 		return nil
 	}
 	p := &parScopePoller{cfg: cfg, clock: clk, status: status, demand: demand, key: key, endpoint: endpoint, rcEndpoint: rcEndpoint,
-		binding: orgStatusBinding(key, endpoint+"\x00"+rcEndpoint), jitter: func(d time.Duration) time.Duration { return time.Duration(rand.Int64N(int64(d) + 1)) },
+		jitter: func(d time.Duration) time.Duration { return time.Duration(rand.Int64N(int64(d) + 1)) },
 		client: &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	p.next = clk.Now().Add(p.jitter(time.Minute))
 	p.observation = PARScopeObservation{Reason: "par_scope_unchecked", NextCheck: p.next}
@@ -81,6 +75,8 @@ func parDiscoveryConfig(cfg model.Reader) (key, endpoint, rcEndpoint string, com
 	} else {
 		compatible = rcEndpoint == "https://config."+site
 	}
+	rcKey := cfg.GetString("remote_configuration.api_key")
+	compatible = compatible && key != "" && (rcKey == "" || rcKey == key) && cfg.GetString("remote_configuration.key") == ""
 	return
 }
 
@@ -90,16 +86,16 @@ func parLoopbackURL(raw string) bool {
 		(u.Scheme == "http" || u.Scheme == "https") && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1" || u.Hostname() == "::1")
 }
 
-func (p *parScopePoller) gate(now time.Time) (OrgStatus, bool) {
+func (p *parScopePoller) gate() bool {
 	if !p.demand.Load() || os.Getenv("DD_PAR_PHONE_HOME_POC") != "true" || !p.cfg.GetBool("private_action_runner.enabled") || !configutils.IsRemoteConfigEnabled(p.cfg) {
-		return OrgStatus{}, false
+		return false
 	}
 	key, endpoint, rcEndpoint, compatible := parDiscoveryConfig(p.cfg)
-	if !compatible || orgStatusBinding(key, endpoint+"\x00"+rcEndpoint) != p.binding {
-		return OrgStatus{}, false
+	if !compatible || key != p.key || endpoint != p.endpoint || rcEndpoint != p.rcEndpoint {
+		return false
 	}
 	rc := p.status()
-	return rc, rc.Ready(now) && rc.Matches(p.key, p.rcEndpoint)
+	return rc != nil && rc.Enabled && rc.Authorized
 }
 
 func (p *parScopePoller) start() {
@@ -131,25 +127,20 @@ func (p *parScopePoller) stop() {
 	}
 }
 
-func (p *parScopePoller) demandChanged() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.epoch++
+func (p *parScopePoller) clearLocked() {
 	p.observation = PARScopeObservation{Reason: "par_scope_unchecked", NextCheck: p.next}
 	if p.cancelRequest != nil {
 		p.cancelRequest()
 	}
 }
 
-func (p *parScopePoller) allowed(epoch, generation uint64) bool {
-	rc, ready := p.gate(p.clock.Now())
+func (p *parScopePoller) demandChanged() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return ready && p.epoch == epoch && rc.Generation == generation
+	p.clearLocked()
 }
 
-// Dispatch is checked again at RoundTrip, not only before the async request is
-// built. The normal Agent transport still owns proxy/TLS behavior.
+// Check again at HTTP dispatch; the Agent transport still handles proxy/TLS.
 type parGatedTransport struct {
 	base    http.RoundTripper
 	allowed func() bool
@@ -164,41 +155,37 @@ func (t parGatedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func (p *parScopePoller) step(ctx context.Context) {
 	now := p.clock.Now()
-	rc, ready := p.gate(now)
+	ready := p.gate()
 	p.mu.Lock()
 	if !ready || ctx.Err() != nil {
-		p.observation = PARScopeObservation{Reason: "par_scope_waiting_for_rc_or_demand", NextCheck: p.next}
+		p.clearLocked()
 		p.mu.Unlock()
 		return
-	}
-	if p.observation.RCGeneration != rc.Generation || !now.Before(p.observation.ValidUntil) {
-		p.observation.Reason = "par_scope_unchecked"
 	}
 	if now.Before(p.next) || p.cancelRequest != nil {
 		p.mu.Unlock()
 		return
 	}
-	epoch := p.epoch
 	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	p.cancelRequest = cancel
-	// Reserve a cadence before dispatch; a canceled or superseded response cannot
-	// turn a closed/open RC transition into an immediate retry burst.
+	// Reserve a cadence so pause/reopen cannot trigger a request burst.
 	p.next = now.Add(max(pollInterval, p.backoff))
 	p.observation.NextCheck = p.next
 	p.mu.Unlock()
-
-	allowed := func() bool { return p.allowed(epoch, rc.Generation) }
-	watchDone := make(chan struct{})
+	stopWatch, watchDone := make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(watchDone)
 		ticker := p.clock.Ticker(time.Second)
 		defer ticker.Stop()
 		for {
 			select {
+			case <-stopWatch:
+				return
 			case <-requestCtx.Done():
 				return
 			case <-ticker.C:
-				if !allowed() {
+				if !p.gate() {
 					cancel()
 					return
 				}
@@ -206,43 +193,38 @@ func (p *parScopePoller) step(ctx context.Context) {
 		}
 	}()
 	client := *p.client
-	client.Transport = parGatedTransport{base: p.client.Transport, allowed: allowed}
+	client.Transport = parGatedTransport{base: p.client.Transport, allowed: p.gate}
 	result := validate(requestCtx, &client, p.endpoint, p.key, p.clock.Now())
-	canceled := requestCtx.Err() != nil
-	valid := allowed() && ctx.Err() == nil && !canceled
-	cancel()
+	close(stopWatch)
 	<-watchDone
+	ready = p.gate()
 	finished := p.clock.Now()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.cancelRequest = nil
-	// A server's timing hint remains a lower bound even if its grant is obsolete.
-	if result.transient && !canceled {
+	valid := ready && ctx.Err() == nil && requestCtx.Err() == nil
+	if result.transient && requestCtx.Err() == nil {
 		p.backoff = min(slowRetry, max(pollInterval, 2*p.backoff))
 		result.delay = p.backoff
 	} else if valid {
 		p.backoff = 0
 	}
+	// Retain timing hints even when the response cannot supply a grant.
 	if result.delay > 0 {
 		delay := result.delay
 		extra := p.jitter(delay / 5)
-		// Do not overflow an already saturated, untrusted Retry-After duration.
+		// Avoid overflow for saturated Retry-After.
 		if extra <= time.Duration(1<<63-1)-delay {
 			delay += extra
 		}
-		p.next = maxTime(p.next, finished.Add(delay))
+		if next := finished.Add(delay); next.After(p.next) {
+			p.next = next
+		}
 	}
-	if valid && p.epoch == epoch {
-		p.observation = PARScopeObservation{Reason: result.reason, CheckedAt: now, ValidUntil: now.Add(2 * pollInterval), RCGeneration: rc.Generation, binding: orgStatusBinding(p.key, p.endpoint)}
+	if valid {
+		p.observation = PARScopeObservation{Reason: result.reason, CheckedAt: now}
 	} else {
 		p.observation = PARScopeObservation{Reason: "par_scope_unchecked"}
 	}
 	p.observation.NextCheck = p.next
-}
-
-func maxTime(a, b time.Time) time.Time {
-	if a.After(b) {
-		return a
-	}
-	return b
 }

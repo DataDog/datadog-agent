@@ -13,26 +13,15 @@ import (
 	"time"
 )
 
-// MockDiscoveryClock gives cross-package integration tests controlled scheduling
-// of the real RC/AAA HTTP clients. It injects no status or scope observations.
-// Call before starting any worker; drive the returned functions serially.
+// MockDiscoveryClock controls scheduling of real RC/AAA clients in integration
+// tests. It injects no observations. Call before starting any worker.
 func MockDiscoveryClock(s *CoreAgentService, clk clock.Clock) (func(), func(context.Context)) {
 	s.clock = clk
-	s.orgStatusPoller.clock = clk
+	if s.parScopePoller == nil {
+		return func() { s.orgStatusPoller.poll(s.api, s.rcType) }, func(context.Context) {}
+	}
 	s.parScopePoller.clock = clk
 	s.parScopePoller.jitter = func(time.Duration) time.Duration { return 0 }
 	s.parScopePoller.next = clk.Now()
 	return func() { s.orgStatusPoller.poll(s.api, s.rcType) }, s.parScopePoller.step
-}
-
-// MockOrgStatus binds an INJECTED observation for consumer tests, not production.
-func MockOrgStatus(key, endpoint string, value OrgStatus) OrgStatus {
-	value.binding = orgStatusBinding(key, endpoint)
-	return value
-}
-
-// MockPARScope binds an INJECTED grant; it is not evidence of an AAA request.
-func MockPARScope(key, endpoint string, value PARScopeObservation) PARScopeObservation {
-	value.binding = orgStatusBinding(key, endpoint)
-	return value
 }

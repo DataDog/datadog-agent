@@ -1,206 +1,136 @@
-# RC-first PAR phone-home POC — three-PR stack
+# PAR phone-home — RC-first opt-in POC
 
-This opt-in experiment runs two owners inside core: **RC owns discovery; PAR
-owns launch and enrollment reconciliation**. Shipping defaults are unchanged.
-It is not fleet rollout, an rc-edge extension, or a revocation policy.
-
-## Review slices and reuse
-
-1. `jules.macret/par-rc-status` (base `main`): immutable RC org/key status from
-   the existing poller; no extra requests. Remote Config review boundary.
-2. `jules.macret/par-rc-gated-phone-home` (base PR 1): modern
-   `comp/privateactionrunner/phonehome/{def,impl,fx}` plus a typed status reader,
-   demand and RC-gated supervisor calls. Production PAR scope is intentionally
-   unknown: this slice alone cannot fresh-enroll. Action Platform / Agent Runtimes
-   / Remote Config review boundaries.
-3. `jules.macret/par-rc-aaa-discovery` (base PR 2): RC-side AAA producer plus
-   HTTP-to-reader-to-controller integration tests. Remote Config owns the HTTP
-   client, parser, schedule and lifecycle. Coordinate load contracts with AAA;
-   no backend change is included.
-
-The original POC remains at `c2ed73ae401` on `jules.macret/par-phone-home-poc`,
-draft #57623. PR 2 reuses its enrollment/OPMS journal, protected identity storage,
-component retention, status and safety tests. PR 3 moves its `discovery.go` and
-HTTP parser tests to `pkg/config/remote/service/par_discovery*.go`, adapting the
-schedule to the RC-owned lifecycle. PAR has **no discovery HTTP client/fallback**.
-The old RC-independent startup policy is superseded, including enrolled restarts.
-
-## Gate, ownership and lifecycle
-
-- Existing `/api/v0.1/status` requests supply independent `enabled`/`authorized`
-  facts. Freshness is two configured status intervals, capped at five minutes,
-  measured from request start. Ordinary RC cadence/delivery/diagnostics are unchanged.
-- Every AAA request and every POC-controlled Start requires a fresh matching RC
-  observation with **both booleans true**. Unknown, unavailable, locally disabled,
-  fetch failure, stale, false and credential/site mismatch close the gate. Nothing
-  enables RC implicitly. Its ordinary poll detects later grants without restart.
-- RC's opt-in worker is attached by the core RC component, not every RC library
-  consumer. Demand is necessary, not sufficient: HTTP dispatch checks readiness
-  again. The Agent transport keeps proxy/TLS support; redirects are refused.
-- AAA `GET /api/v2/validate` uses only the effective enrollment API key. It requires
-  `valid: true` and `private_action_runner_enroll`, not `remote_config_read` or just
-  HTTP 200. Bounded categories distinguish missing scope, invalid credentials,
-  malformed/oversized/trailing data, HTTP failure and throttling; no raw errors or
-  response bodies are exposed by this discovery path.
-- RC and AAA have separate timestamps, private key/endpoint bindings and an RC
-  continuity generation. Failed/stale RC checks or credential changes invalidate
-  older grants. An in-flight AAA request is canceled on demand release/shutdown,
-  or within the one-second prerequisite watch on readiness loss. Late results
-  cannot restore a grant after close/reopen. Reads also check current readiness,
-  generation and freshness, even between worker ticks. AAA grants expire after
-  two minutes, measured from request start.
-- AAA startup jitter is 0–60 seconds. Normal/missing-scope polling is 60–72 seconds;
-  transient failures use 1/2/4/8/15-minute bases plus 0–20% jitter. Auth/other HTTP
-  failures wait 15 minutes plus jitter. GET 429 honors delta/date Retry-After,
-  minimum/fallback one minute, plus nonnegative jitter. Saturated hints cannot
-  overflow when jitter is added. In-memory deadlines survive gate/demand toggles,
-  not a whole core restart; reopening cannot force a request or reset backoff.
-- Core PAR reads observations, serializes launch authority and checks RC again
-  immediately before Start. Go still owns POST, keys and identity persistence.
-  Stop discovery demand only after confirmed persisted enrollment, not a PID.
-  Ordinary RC polling continues. Core startup does not wait for any prerequisite;
-  both owners cancel background work during shutdown.
-- Reusable identities and storage-only recovery bypass a new AAA scope check,
-  **not RC's gate**. Healthy running PARs and credential holders are not killed
-  merely because readiness is lost. A new recovery helper waits for RC.
-
-## Supported isolated deployment
-
-`DD_PAR_PHONE_HOME_POC=true` must be set in core and executor. Use a locally enabled,
-non-FIPS, non-containerized Linux node Agent in split mode, with matching main
-config, resolved secrets, environment, hostname, user, local filesystem and an
-absolute identity path. Extra PAR config, OPMS extra headers and live key/site
-rotation remain unsupported. Both sources must match the enrollment key/site;
-RC overrides cannot silently send that key to a different discovery endpoint.
-Internal endpoint override is allowed only for paired loopback RC/OPMS endpoints.
-The reader freezes startup key/endpoints, including loopback endpoints: changes
-cannot bypass RC's gate for reusable identities. POC opt-in is rechecked at dispatch.
-
-Set an explicit absolute `DD_PM_SOCKET_PATH`. Register
-`datadog-agent-par-control` and `datadog-agent-action-executor` with
-`auto_start: false` and `restart: never`; executor registration explicitly includes
-`env: {DD_PAR_PHONE_HOME_POC: "true"}`. Core refuses conflicting policies and only
-uses Describe/Start/Stop: no shell, Create, or policy rewriting. Shipping package,
-Docker, Helm and Operator templates remain unchanged. `testdata/processes.d`
-contains examples, not a complete real-process harness.
-
-## Enrollment recovery and safety limits
-
-Durable enrollment deadlines are independent of AAA: verified quota/auth/scope
-no-creation rejections retry with 5/10/20/30-minute bases plus 0–20% jitter,
-subject to any later Retry-After. Successful AAA checks and RC reopening cannot
-shorten them. POST auth/scope failures save a revalidation floor; the cached grant
-from before rejection cannot authorize replay. RC owns the next AAA request.
-
-Protected 0600 `<identity>.pending-<attempt-ID>` files save the key/name before
-POST, then the returned URN before active publication. A separate 0700 journal
-contains exclusive synced POST claims, bounded outcomes and deadlines, never
-credentials. Atomic identity publication and durable outcome acknowledgement
-precede success. A visible identity file by itself is not acknowledgement.
-
-Storage-only recovery reuses the same key/URN/attempt, with 1/2/4/8/15-minute bases
-plus jitter and no second POST. If credentials **or the recovery outcome** cannot
-be safely saved, the Go helper remains alive, retries local storage each minute,
-and serves an unavailable—not falsely disabled—bootstrap snapshot. It is not
-an action executor. Do not kill it to claim zero RSS. Go resolution/POST keep
-45/30-second limits and Rust retains its 120-second bootstrap budget.
-
-Unknown/bare OPMS 403 gates, unstructured auth, enrollment 429, 5xx, unreadable
-success and possibly submitted transport loss remain **safety-only blocking**.
-Retry-After is timing, not proof of non-creation. No verified gate/429 discriminator,
-lookup or idempotency API has been invented. A crash before durable returned URN
-needs reconciliation; the original key/name survives. Manual recovery requires
-stopped processes, actual backend/public-key verification, restoring the same
-identity with `PersistIdentity`, then `ArchivePhoneHomeAttempt` preserving evidence.
-There is no reconciliation CLI; no power-cut guarantee or old-evidence cleanup.
-
-## Validation and eleven-scenario checklist
-
-All counts below are **fake supervisor RPCs**, never OS process counts. RC and AAA
-counts come from real clients against loopback endpoints; enrollment uses the real
-Go path against a fake backend. `TestHTTPStack*` logs status/reason, both GET counts,
-Start/POST/registration counts and both retry timestamps for each scenario.
-Injected-reader tests in PR 2 are identified separately, not HTTP discovery proof.
-
-1. **Off/closed RC — implemented/tested.** Fresh and reusable identities with
-   false/unknown/error/stale/absent/local-off/endpoint mismatch: 0 AAA, 0 Start,
-   0 POST; RC GETs 0 or 1 depending on the fixture. Different RC key: RC=2,
-   AAA/Start/POST=0. A previously obtained grant cannot reopen the gate: RC=2,
-   AAA remains 1 (zero new requests), Start/POST=0. Saved identity is preserved.
-2. **RC then scope grant — implemented/tested.** Final RC=6, AAA=2, Start=1,
-   POST=1, registration=1; `enrolled/identity_confirmed_not_action_readiness`.
-   No Start while scope is missing; AAA demand releases after persistence and
-   RC continues. Discovery/enrollment retry fields are empty after completion.
-3. **Quota/auth/scope rejection — verified cases recover.** Each loopback case
-   ends RC=9, AAA=5, Start=2, POST=2, registration=1. Multiple positive AAA checks
-   cannot shorten the saved five-minute first cooldown across restart/RC loss.
-   Bare OPMS gates remain **safe-blocked-only**, not automatic recovery coverage.
-4. **429 — GET recovery, POST safety-only.** Delta/date/absent/malformed GET hints
-   each end RC=7, AAA=3, Start=1, POST=1, registration=1 after a following 503.
-   No request precedes the saved deadline. Huge-hint overflow is separately tested.
-   POST 429 remains `throttled_unverified`, RC=5, AAA=4, Start/POST=1, registration=0
-   across restarts. OPMS unit tests cover POST hint parsing; no replay contract.
-5. **Transient failures — bounded recovery/safety.** RC outage closes the gate;
-   AAA tests reach the 15-minute backoff cap and preserve deadlines on reopen.
-   Actual refused enrollment TCP connection proves `not_submitted`; restoration
-   ends RC=2, AAA=2, Start=2, POST/registration=1. Possibly committed failures block.
-6. **Auth/gate race — implemented/tested at layered boundaries.** Real HTTP
-   POST auth/scope cases use new AAA observations after durable cooldown (case 3).
-   RC-side dispatch recheck yields 0 AAA when RC closes before RoundTrip. Canceled
-   or deliberately late transport results cannot grant after close/reopen,
-   expiry, key generation change, demand release, disablement or shutdown.
-   PAR dispatch recheck is injected-reader coverage, not real-process evidence.
-7. **Bad input/unknown denial — blocked safely.** `invalid_request` and
-   `forbidden_unknown`: RC=5, AAA=4, Start/POST=1, registration=0 across restarts.
-   Unknown denial requires reconciliation, not a missing-scope label. Automatic
-   unchanged-input recovery is intentionally absent; live config rotation unsupported.
-8. **Commit/lost response — safe-blocked plus manual path tested.** RC=5, AAA=4,
-   Start/POST/registration=1; `response_ambiguous`, reconciliation required.
-   Pending identity bytes remain stable through restart. Test checks the original
-   public key against the recorded registration and manually restores/archives
-   before restart: still one POST. This does not simulate a new recovery endpoint.
-9. **Persistence failure — storage recovery tested.** RC=6, AAA=2, Start=2,
-   POST/registration=1; new helper waits while RC is closed, then recovers without
-   a scope grant. Original component tests cover IPC/outcome-write failures and
-   retained credential holders; injected controller tests preserve holders on RC
-   loss. Actual holder RSS and the pre-durable-URN crash window remain unmeasured.
-10. **Already enrolled — implemented/tested.** RC=6, AAA=0, Start=1, POST=0;
-    same saved identity. Closed RC prevents restart; reopen starts once; later
-    RC loss does not Stop the healthy process. This is not revocation enforcement.
-11. **Concurrency/cancellation — layered tests pass.** Overlapping full-stack
-    ticks end RC=1, AAA=1, Start/POST/registration=1. Journal tests reject stale
-    writers; controller restart preserves cooldown. RC worker and component
-    lifecycle tests cancel in-flight/waiting work. Post-submission ambiguity is
-    covered by transport/lost-response safety tests, not real process-kill tests.
-
-### Reproduce without live credentials (macOS or Linux)
-
-From this stack's top worktree, run the controlled-clock loopback scenario suite;
-no host-service changes or real enrollment are involved:
-
-```sh
-dda inv test --targets=./pkg/privateactionrunner/phonehome,./pkg/config/remote/service --bazel-args='--jobs=4 --test_output=all --test_timeout=120'
-```
-
-Full selected validation:
-
-```sh
-dda inv test --targets=./pkg/config/remote/service,./comp/remote-config/rcservice/impl,./pkg/privateactionrunner/phonehome,./pkg/privateactionrunner/enrollment,./pkg/privateactionrunner/opms,./comp/privateactionrunner/impl,./comp/privateactionrunner/phonehome/impl,./comp/privateactionrunner/status/statusimpl,./cmd/agent/subcommands/run --bazel-args='--jobs=4 --test_output=errors --test_timeout=120'
-dda inv test --targets=./pkg/config/remote/service,./comp/remote-config/rcservice/impl,./pkg/privateactionrunner/phonehome,./pkg/privateactionrunner/enrollment,./pkg/privateactionrunner/opms,./comp/privateactionrunner/impl,./comp/privateactionrunner/phonehome/impl --race --bazel-args='--jobs=4 --test_output=errors --test_timeout=120'
-```
-
-Validated on macOS arm64: PR 1 six affected test targets plus two race targets;
-PR 2 ten targets plus four race targets; PR 3 eleven targets plus eight race
-targets. Logs: `/tmp/par-stack-pr{1,2,3}-*.log`; scenario evidence:
-`/tmp/par-stack-pr3-scenario-evidence.log`. Earlier failed fixture/build attempts
-are retained, not counted as passes. Linux execution, real process count, RSS,
-wall-clock request cadence and grant-to-enrollment latency are **not measured**.
-
-Production follow-ups: packaging/permissions, config parity and rotation,
-backend recovery contracts, pending-evidence cleanup and crash durability,
-revocation, AAA capacity, other platforms/flavors, rollout and real Linux QA.
 Draft stack: [#58014](https://github.com/DataDog/datadog-agent/pull/58014) →
 [#58015](https://github.com/DataDog/datadog-agent/pull/58015) →
 [#58016](https://github.com/DataDog/datadog-agent/pull/58016).
-Release notes and real Linux QA remain before merge-readiness. Local test results
-do not establish the outcome of remote CI.
+The original POC #57623 is preserved. Shipping defaults are unchanged.
+
+## Simple RC contract
+
+PR 1 returns a copy of the last successfully fetched `OrgStatusResponse`, or `nil`
+before the first success. **Failed polls retain that response; it does not expire.**
+Consumers read `Enabled && Authorized` directly. There are no RC freshness states,
+generations, credential-binding hashes or synthetic fetch-failure observations.
+A prior positive can remain usable during an RC outage. A successful negative,
+missing observation or absent/local-off RC blocks new AAA requests and PAR starts.
+This intentionally replaces the earlier POC's expiring RC-observation design.
+
+PR 2 adds the core PAR component. It reads status and owns supervisor launch and
+enrollment reconciliation, with no HTTP discovery client or fallback. Its scope
+producer is intentionally unchecked: production fresh enrollment waits for PR 3.
+
+PR 3 adds the opt-in AAA worker to core's RC service, not PAR's RC client. It uses
+the same RC booleans and publishes only the AAA reason, check time and next-check
+time. Go PAR still owns POST, keys and persistence. Both background lifecycles
+cancel on shutdown and do not delay core startup waiting for permission.
+
+## Requests, starts and retries
+
+- Every AAA HTTP dispatch and PAR Start checks the RC booleans again. Discovery
+  also needs explicit demand from the opted-in, unenrolled controller.
+- AAA calls `GET /api/v2/validate` with the enrollment API key only. HTTP 200 is
+  insufficient: require `valid: true` plus `private_action_runner_enroll`.
+  `remote_config_read` is not PAR enrollment permission. The normal Agent transport
+  handles proxy/TLS; redirects are refused and failures expose bounded reasons,
+  not raw bodies or transport errors. JSON is bounded and fully parsed.
+- AAA grants expire after two minutes, independently of RC. An observed closed
+  gate invalidates the cached AAA grant. Demand release/shutdown cancels requests;
+  the in-flight watch also cancels when it observes false RC or unsupported config.
+  Canceled responses cannot publish a grant, even after reopening. There is no
+  promise to detect a false/true transition occurring entirely between reads.
+- Startup jitter: 0–60s. Normal/missing-scope cadence: 60–72s. Transient failure
+  bases: 1/2/4/8/15m, plus 0–20% jitter. Auth/other HTTP failures: 15m plus jitter.
+  GET 429 respects Retry-After delta/date, minimum/fallback one minute. Huge hints
+  cannot overflow when jitter is added. Deadlines survive pause/reopen and demand
+  changes, not a complete core restart. Reads cannot force a request.
+- Enrollment cooldown is separate and durable: verified quota/auth/scope rejection
+  bases 5/10/20/30m plus jitter, subject to any later Retry-After. Successful RC/AAA
+  checks cannot shorten it. A POST auth/scope failure requires an AAA check newer
+  than the rejected attempt; rereading the old grant is not revalidation.
+- Release AAA demand after durable enrollment acknowledgement, not a PID. Ordinary
+  RC polling continues. Reusable identities and storage-only recovery need RC but
+  no new AAA scope check. Running healthy PARs and credential holders are not
+  stopped merely because RC becomes false. This is not a revocation policy.
+
+## Deployment boundary
+
+Explicit `DD_PAR_PHONE_HOME_POC=true` in core and executor, locally enabled PAR,
+non-containerized/non-FIPS Linux node Agent, split mode. Share main config,
+resolved secrets, environment, hostname, user/filesystem and an absolute identity
+path. Extra PAR config, OPMS headers and live key/site rotation are unsupported.
+Different RC API keys, legacy RC credentials and mismatched sites are rejected;
+startup key/endpoints are fixed for each component lifetime. Paired loopback
+endpoints are allowed only in explicit internal mock mode.
+
+Set absolute `DD_PM_SOCKET_PATH`. Register `datadog-agent-par-control` and
+`datadog-agent-action-executor` with `auto_start: false`, `restart: never`; executor
+registration includes `env: {DD_PAR_PHONE_HOME_POC: "true"}`. Core only uses
+Describe/Start/Stop, not Create, shell launch or policy rewriting. Examples in
+`testdata/processes.d` do not change package/Docker/Helm/Operator defaults.
+
+## Enrollment safety is unchanged
+
+The original journal, exclusive POST claim, protected pending identity and helper
+retention remain. A 0600 pending file holds key/name before POST and the returned
+URN before active publication. A separate 0700 journal holds bounded outcomes and
+deadlines, not credentials. A visible identity alone is not acknowledgement.
+
+Storage-only recovery reuses the same key/URN/attempt, with 1/2/4/8/15m bases plus
+jitter and no second POST. If credentials or the outcome cannot be saved, retain
+the Go helper, retry local storage every minute and serve an unavailable bootstrap
+snapshot, never falsely disabled. Do not discard the only key to reduce RSS.
+Existing Go resolution/POST and Rust bootstrap limits remain 45/30/120s.
+
+Bare OPMS gates, unstructured auth, POST 429, 5xx, unreadable success and possibly
+submitted transport loss remain **safety-only blocking**. Retry-After does not prove
+non-creation. Manual lost-response recovery needs stopped processes, actual backend/
+public-key verification, same-key identity restoration and journal archival. No
+lookup/idempotency endpoint is invented. The pre-durable-URN crash window remains.
+
+## Acceptance coverage
+
+`TestHTTPStack*` uses real RC/AAA/enrollment clients against loopback servers and a
+fake supervisor. It logs RC GETs, AAA GETs, Start/POST/registration counts, reasons
+and separate retry times. Injected-reader and component tests cover additional
+boundaries; none establish real OS process counts or RSS.
+
+1. **Off/closed RC:** nil, either false flag, absent/local-off service, config
+   mismatch and opt-out produce zero new AAA/Start/POST, including saved identities.
+   An initial failed poll leaves nil; a failure after success retains the last
+   response and allows work. Cached RC age alone no longer blocks startup.
+2. **RC then scope grant:** no AAA until both RC booleans; no fresh Start without
+   PAR scope. One persisted registration releases demand; ordinary RC polls continue.
+3. **Quota/auth/scope:** verified rejections recover after durable cooldown, despite
+   repeated positive scope checks and controller restart. Bare gates stay blocked.
+4. **429:** GET delta/date/missing/malformed hints retain deadlines across toggles;
+   overflow is tested. POST hint parsing is tested separately; unverified rejection
+   remains blocked, not automatic recovery.
+5. **Transient failure:** AAA backoff is bounded; proven refused enrollment TCP
+   submission recovers. Ambiguous POST failures do not replay. RC fetch errors
+   retain the last successful booleans, as specified by PR 1.
+6. **Auth/gate race:** newer AAA revalidation after auth/scope rejection; request
+   and Start dispatch checks; canceled late responses cannot grant. No RC generations.
+7. **Bad input/unknown denial:** distinct blocked categories, no repeated unchanged
+   launch. Config rotation is unsupported; deliberate reconciliation remains needed.
+8. **Commit/lost response:** one registration, stable pending key across restart;
+   manual public-key verification, restoration and archival tested. No fake recovery API.
+9. **Persistence failure:** same-key storage recovery without a second POST; new
+   helpers wait for RC, running holders survive RC loss. IPC/outcome failures are
+   component-tested; actual crash/power-cut durability remains unmeasured.
+10. **Already enrolled:** same identity, no AAA/registration; stopped PAR requires
+    RC booleans. Later RC loss does not Stop a healthy process.
+11. **Concurrency/cancellation:** overlapping ticks cannot duplicate registration;
+    late journal writes are rejected; cooldown survives restart; shutdown cancels
+    waiting/in-flight work. Post-submission loss remains ambiguous.
+
+```sh
+dda inv test --targets=./pkg/config/remote/service,./pkg/privateactionrunner/phonehome,./comp/privateactionrunner/phonehome/impl --bazel-args='--jobs=4 --test_output=errors --test_timeout=120'
+dda inv test --targets=./pkg/config/remote/service,./pkg/privateactionrunner/phonehome,./comp/privateactionrunner/phonehome/impl --race --bazel-args='--jobs=4 --test_output=errors --test_timeout=120'
+```
+
+These fixtures also provide a Linux-local reproduction without live credentials
+or service changes. This session validates on macOS; real Linux process/RSS,
+wall-clock cadence and grant latency remain unmeasured. Production follow-ups:
+packaging, config rotation, backend recovery contracts, crash durability, cleanup,
+revocation, AAA capacity and other platforms. Release notes remain pending by request;
+local tests do not establish remote CI success.

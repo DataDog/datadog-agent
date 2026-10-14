@@ -82,7 +82,6 @@ func newScopeFixture(t *testing.T) *scopeFixture {
 	require.NotNil(t, s.parScopePoller)
 	f.s = s
 	s.clock = f.clock
-	s.orgStatusPoller.clock = f.clock
 	s.parScopePoller.clock = f.clock
 	s.parScopePoller.jitter = func(time.Duration) time.Duration { return 0 }
 	s.parScopePoller.next = f.clock.Now()
@@ -110,7 +109,7 @@ func TestPARDiscoveryRequiresBothRealRCBooleans(t *testing.T) {
 				f.step()
 				if enabled && authorized {
 					require.EqualValues(t, 1, f.aaaGETs.Load())
-					require.True(t, f.s.GetPARScope().Granted(f.clock.Now(), f.s.GetOrgStatus().Generation))
+					require.True(t, f.s.GetPARScope().Granted(f.clock.Now()))
 				} else {
 					require.Zero(t, f.aaaGETs.Load())
 					f.rc(true, true)
@@ -176,25 +175,18 @@ func TestPARDiscoveryCadenceAndBackoffSurviveGatePause(t *testing.T) {
 	f.mu.Unlock()
 	f.advance(time.Hour)
 	f.step()
-	require.True(t, f.s.GetPARScope().Granted(f.clock.Now(), f.s.GetOrgStatus().Generation))
+	require.True(t, f.s.GetPARScope().Granted(f.clock.Now()))
 	require.Zero(t, f.s.parScopePoller.backoff)
 }
 
-func TestPARDiscoveryRejectsStaleFailureMismatchAndLocalDisable(t *testing.T) {
-	for _, scenario := range []string{"stale", "failure", "key", "endpoint", "local-off", "poc-off", "par-off"} {
+func TestPARDiscoveryRejectsConfigMismatchAndLocalDisable(t *testing.T) {
+	for _, scenario := range []string{"key", "endpoint", "local-off", "poc-off", "par-off"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := newScopeFixture(t)
 			f.s.SetPARDiscoveryDemand(true)
 			f.rc(true, true)
 			f.step()
 			switch scenario {
-			case "stale":
-				f.clock.Add(3 * time.Minute)
-			case "failure":
-				f.mu.Lock()
-				f.rcCode = 503
-				f.mu.Unlock()
-				f.rc(true, true)
 			case "key":
 				f.cfg.SetInTest("api_key", "different")
 			case "endpoint":
@@ -206,7 +198,7 @@ func TestPARDiscoveryRejectsStaleFailureMismatchAndLocalDisable(t *testing.T) {
 			case "par-off":
 				f.cfg.SetInTest("private_action_runner.enabled", false)
 			}
-			require.False(t, f.s.GetPARScope().Granted(f.clock.Now(), f.s.GetOrgStatus().Generation))
+			require.False(t, f.s.GetPARScope().Granted(f.clock.Now()))
 			f.clock.Add(time.Hour)
 			f.step()
 			require.EqualValues(t, 1, f.aaaGETs.Load())
@@ -219,7 +211,7 @@ type scopeTransport func(*http.Request) (*http.Response, error)
 func (f scopeTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestPARDiscoveryFencesLateResponseAndCancels(t *testing.T) {
-	for _, change := range []string{"closed", "stale", "credential", "release", "disable", "shutdown"} {
+	for _, change := range []string{"closed", "credential", "release", "disable", "shutdown"} {
 		t.Run(change, func(t *testing.T) {
 			f := newScopeFixture(t)
 			f.s.SetPARDiscoveryDemand(true)
@@ -239,11 +231,8 @@ func TestPARDiscoveryFencesLateResponseAndCancels(t *testing.T) {
 			switch change {
 			case "closed":
 				f.rc(false, true)
-			case "stale":
-				f.clock.Add(3 * time.Minute)
 			case "credential":
-				f.s.orgStatusPoller.updateAPIKey(f.s.api, "other")
-				f.s.orgStatusPoller.updateAPIKey(f.s.api, "scope-test-key")
+				f.cfg.SetInTest("remote_configuration.api_key", "other")
 			case "release":
 				f.s.SetPARDiscoveryDemand(false)
 			case "disable":
@@ -263,7 +252,7 @@ func TestPARDiscoveryFencesLateResponseAndCancels(t *testing.T) {
 			f.rc(true, true)
 			close(release)
 			<-done
-			require.False(t, f.s.GetPARScope().Granted(f.clock.Now(), f.s.GetOrgStatus().Generation), "even a transport that ignores cancellation cannot publish a late grant")
+			require.False(t, f.s.GetPARScope().Granted(f.clock.Now()), "even a transport that ignores cancellation cannot publish a late grant")
 		})
 	}
 }
@@ -273,7 +262,7 @@ func TestPARDiscoveryRechecksAtHTTPDispatch(t *testing.T) {
 	f.s.SetPARDiscoveryDemand(true)
 	f.rc(true, true)
 	var reads atomic.Int32
-	f.s.parScopePoller.status = func() OrgStatus {
+	f.s.parScopePoller.status = func() *pbgo.OrgStatusResponse {
 		if reads.Add(1) == 2 {
 			f.rc(false, true)
 		}
@@ -281,7 +270,7 @@ func TestPARDiscoveryRechecksAtHTTPDispatch(t *testing.T) {
 	}
 	f.step()
 	require.Zero(t, f.aaaGETs.Load())
-	require.False(t, f.s.GetPARScope().Granted(f.clock.Now(), f.s.GetOrgStatus().Generation))
+	require.False(t, f.s.GetPARScope().Granted(f.clock.Now()))
 }
 
 func TestPARDiscoveryLifecycleAndScopeInvalidation(t *testing.T) {
@@ -290,14 +279,15 @@ func TestPARDiscoveryLifecycleAndScopeInvalidation(t *testing.T) {
 	f.rc(true, true)
 	f.step()
 	previous := f.s.GetPARScope()
-	require.True(t, previous.Granted(f.clock.Now(), f.s.GetOrgStatus().Generation))
+	require.True(t, previous.Granted(f.clock.Now()))
 	f.rc(false, true)
+	require.False(t, f.s.GetPARScope().Granted(f.clock.Now()))
 	f.rc(true, true)
-	require.False(t, f.s.GetPARScope().Granted(f.clock.Now(), f.s.GetOrgStatus().Generation))
+	require.False(t, f.s.GetPARScope().Granted(f.clock.Now()))
 	f.s.parScopePoller.start()
 	f.s.parScopePoller.stop()
 	f.s.SetPARDiscoveryDemand(true)
-	require.False(t, f.s.GetPARScope().Granted(f.clock.Now(), f.s.GetOrgStatus().Generation))
+	require.False(t, f.s.GetPARScope().Granted(f.clock.Now()))
 	require.EqualValues(t, 1, f.aaaGETs.Load())
 }
 

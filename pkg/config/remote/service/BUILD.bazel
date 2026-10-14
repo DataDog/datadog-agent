@@ -9,6 +9,7 @@ go_library(
         "par_scope.go",
         "par_scope_poller.go",
         "service.go",
+        "status_mock.go",
         "subscriptions.go",
         "tracer_predicates.go",
         "util.go",
@@ -53,6 +54,7 @@ dd_agent_go_test(
     embed = [":service"],
     deps = [
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/config/remote/api",
         "//pkg/config/remote/data",
         "//pkg/config/remote/uptane",

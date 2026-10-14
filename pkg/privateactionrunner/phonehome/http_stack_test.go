@@ -97,6 +97,9 @@ func newHTTPStackWithRCKey(t *testing.T, rcKey string) *httpStack {
 	for k, v := range map[string]any{"dd_url": server.URL, "remote_configuration.rc_dd_url": server.URL, "remote_configuration.enabled": true, "remote_configuration.no_tls": true, "run_path": t.TempDir()} {
 		cfg.SetInTest(k, v)
 	}
+	if rcKey != "test-key" {
+		cfg.SetInTest("remote_configuration.api_key", rcKey)
+	}
 	service, err := remote.NewService(cfg, "test", server.URL, "host", func() []string { return nil }, nil, "test", remote.WithAPIKey(rcKey), remote.WithPARScopeDiscovery(), remote.WithOrgStatusRefreshInterval(time.Minute, "test"))
 	require.NoError(t, err)
 	h.service = service
@@ -127,7 +130,7 @@ func (h *httpStack) evidence(t *testing.T) {
 
 func TestHTTPStackClosedRCGate(t *testing.T) {
 	for _, existing := range []bool{false, true} {
-		for _, condition := range []string{"false_false", "false_true", "true_false", "unknown", "failed", "stale", "absent", "local_off", "endpoint", "off", "poc_off"} {
+		for _, condition := range []string{"false_false", "false_true", "true_false", "unknown", "failed", "absent", "local_off", "endpoint", "off", "poc_off"} {
 			t.Run(fmt.Sprintf("%t_%s", existing, condition), func(t *testing.T) {
 				h := newHTTPStack(t)
 				h.grant()
@@ -146,9 +149,6 @@ func TestHTTPStackClosedRCGate(t *testing.T) {
 					h.rcCode = 503
 					h.mu.Unlock()
 					h.rc(true, true)
-				case "stale":
-					h.rc(true, true)
-					h.clock.Add(3 * time.Minute)
 				case "absent":
 					h.c.source = NewSource(h.c.cfg, nil)
 				case "local_off":
@@ -172,6 +172,21 @@ func TestHTTPStackClosedRCGate(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestHTTPStackUsesLastSuccessfulRCResponse(t *testing.T) {
+	h := newHTTPStack(t)
+	h.grant()
+	h.rc(true, true)
+	h.mu.Lock()
+	h.rcCode = 503
+	h.mu.Unlock()
+	h.cycle(time.Hour)
+	require.EqualValues(t, 1, h.aaaGETs.Load())
+	require.Equal(t, 1, h.pm.starts)
+	require.Equal(t, 1, h.posts)
+	require.Zero(t, h.tick(time.Second))
+	h.evidence(t)
 }
 
 func TestHTTPStackDifferentRCCredentialAndCachedGrant(t *testing.T) {
