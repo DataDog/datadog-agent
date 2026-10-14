@@ -1,7 +1,7 @@
 diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 --- a/builder/cmake_builder.rs
 +++ b/builder/cmake_builder.rs
-@@ -75,6 +75,77 @@ const fn cmake_nasm_small_flags(value: bool) -> &'static str {
+@@ -75,6 +75,91 @@ const fn cmake_nasm_small_flags(value: bool) -> &'static str {
      }
  }
 
@@ -76,20 +76,39 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 +    prepared.join(" ")
 +}
 +
++fn cmake_out_dir(out_dir: &Path) -> PathBuf {
++    #[cfg(windows)]
++    {
++        return out_dir
++            .parent()
++            .expect("Bazel OUT_DIR must have a parent")
++            .join("o");
++    }
++    #[cfg(not(windows))]
++    {
++        out_dir.to_owned()
++    }
++}
++
  pub(crate) struct CmakeBuilder {
      manifest_dir: PathBuf,
      out_dir: PathBuf,
-@@ -88,6 +159,22 @@ impl CmakeBuilder {
+@@ -88,6 +173,27 @@ impl CmakeBuilder {
          build_prefix: Option<String>,
          output_lib_type: OutputLibType,
      ) -> Self {
 +        #[cfg(windows)]
 +        let manifest_dir = {
 +            // CMake canonicalizes 8.3 paths when generating build.ninja, which
-+            // restores the overlong rules_rust cargo_runfiles source path.
-+            // Stage the source under OUT_DIR to remove the repeated repository
-+            // segment while keeping all writes inside Bazel's action tree.
-+            let staged = out_dir.join("s");
++            // restores long physical paths. Put CMake's disposable source and
++            // build trees in a short sibling inside this Bazel package, then
++            // copy the final artifacts back to the declared OUT_DIR.
++            let cmake_out_dir = cmake_out_dir(&out_dir);
++            if cmake_out_dir.exists() {
++                std::fs::remove_dir_all(&cmake_out_dir)
++                    .expect("failed to clear staged CMake output");
++            }
++            let staged = cmake_out_dir.join("s");
 +            std::fs::create_dir_all(&staged).expect("failed to create staged CMake source");
 +            let options = fs_extra::dir::CopyOptions::new()
 +                .overwrite(true)
@@ -102,19 +121,17 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
          Self {
              manifest_dir,
              out_dir,
-@@ -101,5 +188,11 @@ impl CmakeBuilder {
+@@ -101,5 +207,9 @@ impl CmakeBuilder {
      fn get_cmake_config(&self) -> cmake::Config {
          let mut config = cmake::Config::new(&self.manifest_dir);
 +        #[cfg(windows)]
 +        {
-+            // Keep CMake's build tree on AWS-LC's existing 8.3-shortened OUT_DIR.
-+            // Otherwise cmake-rs rereads the original long OUT_DIR environment value.
-+            config.out_dir(&self.out_dir);
++            config.out_dir(cmake_out_dir(&self.out_dir));
 +        }
          if is_fips_build() && target_vendor() == "apple" {
              // Bazel's hermetic LLVM driver brings its bundled libc++ into the
              // Apple linker process. Xcode's linker expects the host libc++ and
-@@ -210,6 +303,40 @@ impl CmakeBuilder {
+@@ -210,6 +320,40 @@ impl CmakeBuilder {
              }
          }
 
@@ -155,7 +172,7 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
          let mut cmake_cfg = self.get_cmake_config();
          if is_fips_build() {
              if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
-@@ -483,11 +610,26 @@ impl CmakeBuilder {
+@@ -483,11 +627,26 @@ impl CmakeBuilder {
      fn configure_windows(&self, cmake_cfg: &mut cmake::Config) {
 +        if let Ok(perl_executable) = env::var("PERL_EXECUTABLE") {
 +            cmake_cfg.define("PERL_EXECUTABLE", perl_executable);
@@ -188,3 +205,33 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 +                }
              }
          }
+@@ -742,8 +901,27 @@ impl CmakeBuilder {
+     }
+
+     fn build_library(&self) -> PathBuf {
+-        self.prepare_cmake_build()
++        let output = self
++            .prepare_cmake_build()
+             .configure_arg("--no-warn-unused-cli")
+-            .build()
++            .build();
++        #[cfg(windows)]
++        {
++            let source = cmake_out_dir(&self.out_dir).join("build").join("artifacts");
++            let target = self.artifact_output_dir();
++            std::fs::create_dir_all(&target).expect("failed to create final artifact directory");
++            for entry in std::fs::read_dir(source).expect("failed to read CMake artifacts") {
++                let entry = entry.expect("failed to read CMake artifact entry");
++                if entry
++                    .file_type()
++                    .expect("failed to inspect CMake artifact")
++                    .is_file()
++                {
++                    std::fs::copy(entry.path(), target.join(entry.file_name()))
++                        .expect("failed to copy CMake artifact into OUT_DIR");
++                }
++            }
++        }
++        output
+     }
+ }
