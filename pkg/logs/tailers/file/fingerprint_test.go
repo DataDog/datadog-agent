@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -1579,7 +1580,7 @@ func TestLineFingerprintByteFallbackUsesNodeIOMode(t *testing.T) {
 		recoveryOpener := opener.NewMockFileOpener()
 		recoveryOpener.AddMockFile(opener.NewMockFile(path, [][]byte{content[:types.DefaultBytesCount]}))
 		recoveryFingerprinter := NewFingerprinterWithUnreliableMount(types.FingerprintConfig{}, recoveryOpener, enabled)
-		recovered, err := recoveryFingerprinter.ComputeFingerprintFromConfig(path, fingerprint.Config, recoveryOpener)
+		recovered, err := recoveryFingerprinter.ComputeFingerprintFromConfig(path, fingerprint.Config)
 		require.NoError(t, err)
 		require.True(t, fingerprint.Equals(recovered))
 		require.Equal(t, []bool{enabled && runtime.GOOS == "linux"}, recoveryOpener.OpenCalls)

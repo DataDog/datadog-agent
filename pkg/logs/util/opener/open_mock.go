@@ -10,17 +10,15 @@ package opener
 import (
 	"fmt"
 	"io"
-	"sync"
 
 	"github.com/spf13/afero"
 )
 
 // MockFileOpener is a mock implementation of the opener.Opener interface
 type MockFileOpener struct {
-	state      *mockFileOpenerState
-	noFollow   bool
-	OpenCalls  []bool // true for direct reads, false for buffered opens
-	OpenErrors []error
+	MockedFiles map[string]*MockFile
+	OpenCalls   []bool // true for direct reads, false for buffered opens
+	OpenErrors  []error
 }
 
 // NewMockFileOpener creates a new MockFileOpener
@@ -73,10 +71,7 @@ func (m *MockFileOpener) openLogFile(path string, direct bool) (afero.File, erro
 			return nil, err
 		}
 	}
-	m.state.Lock()
-	defer m.state.Unlock()
-	m.state.opens = append(m.state.opens, LogFileOpen{Path: path, NoFollow: m.noFollow})
-	file, ok := m.state.files[path]
+	file, ok := m.MockedFiles[path]
 	if !ok {
 		return nil, fmt.Errorf("file not found: [ %s ]", path)
 	}
