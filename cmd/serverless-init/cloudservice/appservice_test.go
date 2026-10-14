@@ -6,6 +6,7 @@
 package cloudservice
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
-func TestGetLinuxAppServiceTags(t *testing.T) {
+func TestAppServiceGetLinuxTags(t *testing.T) {
 	service := &AppService{}
 
 	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
@@ -45,7 +46,7 @@ func TestGetLinuxAppServiceTags(t *testing.T) {
 	}, tags)
 }
 
-func TestGetWindowsAppServiceTags(t *testing.T) {
+func TestAppServiceGetWindowsTags(t *testing.T) {
 	service := &AppService{}
 
 	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
@@ -73,6 +74,179 @@ func TestGetWindowsAppServiceTags(t *testing.T) {
 		"aas.site.type":                 "app",
 		"aas.subscription.id":           "",
 	}, tags)
+}
+
+func TestAppServiceGetInventoryData(t *testing.T) {
+	service := &AppService{}
+
+	t.Setenv("WEBSITE_SITE_NAME", "Test_Site_Name")
+	t.Setenv("REGION_NAME", "eastus")
+	t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+	t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
+	t.Setenv("WEBSITE_STACK", "NODE")
+	t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "~18")
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
+	require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, InventoryData{
+		WorkloadType:        workloadTypeAzureAppService,
+		ResourceID:          "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.web/sites/test_site_name",
+		ResourceName:        "Test_Site_Name",
+		Region:              "eastus",
+		AzureSubscriptionID: "Test_Subscription_ID",
+		AzureResourceGroup:  "Test_Resource_Group",
+		RuntimeCandidates:   []string{"", "Node.js"},
+	}, inv)
+	assert.True(t, service.CanCollectInventory())
+	assert.Empty(t, inv.ParentResourceID)
+
+	tags := service.GetTags()
+	assert.Equal(t, "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.web/sites/Test_Site_Name", tags["aas.resource.id"])
+	assert.Equal(t, "Test_Site_Name", tags["app_name"])
+	assert.Equal(t, "Test_Site_Name", tags["aas.site.name"])
+	assert.Equal(t, "Test_Subscription_ID", tags["aas.subscription.id"])
+	assert.Equal(t, "Test_Resource_Group", tags["aas.resource.group"])
+	assert.Equal(t, map[string]string{
+		"name":            "Test_Site_Name",
+		"origin":          "appservice",
+		"region":          "eastus",
+		"resource_group":  "Test_Resource_Group",
+		"subscription_id": "Test_Subscription_ID",
+	}, service.GetEnhancedMetricTags(tags).Base)
+}
+
+func TestAppServiceGetInventoryDataFunctionApp(t *testing.T) {
+	for _, worker := range []string{"node", ""} {
+		t.Run("worker="+worker, func(t *testing.T) {
+			service := &AppService{}
+
+			t.Setenv("WEBSITE_SITE_NAME", "Test_Site_Name")
+			t.Setenv("REGION_NAME", "eastus")
+			t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
+			t.Setenv("WEBSITE_STACK", "NODE")
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", worker)
+
+			inv := service.GetInventoryData()
+
+			assert.True(t, service.CanCollectInventory())
+			assert.Equal(t, InventoryData{
+				WorkloadType:        workloadTypeAzureFunction,
+				ResourceID:          "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.web/sites/Test_Site_Name",
+				ResourceName:        "Test_Site_Name",
+				Region:              "eastus",
+				AzureSubscriptionID: "Test_Subscription_ID",
+				AzureResourceGroup:  "Test_Resource_Group",
+				RuntimeCandidates:   []string{worker, "Node.js"},
+			}, inv)
+			tags := service.GetTags()
+			assert.Equal(t, inv.ResourceID, tags["aas.resource.id"])
+			assert.Equal(t, "functionapp", tags["aas.site.kind"])
+			assert.Equal(t, worker, tags["aas.environment.runtime"])
+		})
+	}
+}
+
+func TestAppServiceMissingIdentity(t *testing.T) {
+	for _, missing := range []string{"none", "WEBSITE_OWNER_NAME", "WEBSITE_RESOURCE_GROUP", WebsiteName} {
+		t.Run(missing, func(t *testing.T) {
+			t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
+			t.Setenv(WebsiteName, "Test_Site_Name")
+			t.Setenv(RegionName, "")
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
+			require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
+			if missing != "none" {
+				t.Setenv(missing, "")
+			}
+
+			service := &AppService{}
+			inv := service.GetInventoryData()
+			assert.Empty(t, inv.ParentResourceID)
+			if missing == "none" {
+				assert.NotEmpty(t, inv.ResourceID)
+				assert.True(t, service.CanCollectInventory())
+			} else {
+				assert.Empty(t, inv.ResourceID)
+				assert.False(t, service.CanCollectInventory())
+				assert.Empty(t, service.GetTags()["aas.resource.id"])
+			}
+		})
+	}
+}
+
+func TestAppServiceInventoryRuntimeCandidates(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		stack  string
+		worker string
+		want   string
+	}{
+		{name: "node", stack: "NODE", want: "Node.js"},
+		{name: "python", stack: "PYTHON", want: "Python"},
+		{name: "java", stack: "JAVA", want: "Java"},
+		{name: "tomcat", stack: "TOMCAT", want: "Java"},
+		{name: "dotnet", stack: "DOTNETCORE", want: ".NET"},
+		{name: "php", stack: "PHP", want: "PHP"},
+		{name: "ruby", stack: "RUBY", want: "Ruby"},
+		{name: "docker", stack: "DOCKER"},
+		{name: "sitecontainers", stack: "SITECONTAINERS"},
+		{name: "missing stack"},
+		{name: "unknown stack", stack: "unknown"},
+		{name: "custom stack is not runtime evidence", stack: "CUSTOM"},
+		{name: "worker precedes hosting stack", stack: "SITECONTAINERS", worker: "node"},
+		{name: "worker precedes language stack", stack: "DOTNETCORE", worker: "python", want: ".NET"},
+		{name: "isolated worker preserved", worker: "dotnet-isolated"},
+		{name: "custom worker preserved", worker: " MyWorker "},
+		{name: "blank worker", stack: "PYTHON", worker: " \t", want: "Python"},
+		{name: "unknown worker", stack: "PYTHON", worker: " UnKnOwN ", want: "Python"},
+		{name: "container worker", stack: "DOCKER", worker: " CONTAINER "},
+		{name: "null worker", stack: "SITECONTAINERS", worker: " NuLl "},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(WebsiteStack, tt.stack)
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", tt.worker)
+			if tt.worker == "" {
+				require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
+			}
+			// Hosting version metadata must never become an application runtime.
+			t.Setenv("DOCKER_SERVER_VERSION", "24.0.0")
+			t.Setenv("FUNCTIONS_EXTENSION_VERSION", "~4")
+			t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "")
+			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+			service := &AppService{}
+			originalTags := service.GetTags()
+
+			expected := []string{tt.worker, tt.want}
+			assert.Equal(t, expected, service.GetInventoryData().RuntimeCandidates, "candidates retain raw values and precedence")
+			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "InventoryOnly")
+			assert.Equal(t, expected, service.GetInventoryData().RuntimeCandidates, "override belongs to the inventory builder")
+			assert.Equal(t, originalTags, service.GetTags(), "inventory derivation and override must not change tracing tags")
+			if tt.worker != "" {
+				assert.Equal(t, tt.worker, service.GetTags()["aas.environment.runtime"], "tracing retains unmodified worker metadata")
+			}
+		})
+	}
+}
+
+func TestAppServiceGetInventoryDataWithoutAzureIDs(t *testing.T) {
+	service := &AppService{}
+
+	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
+	t.Setenv("REGION_NAME", "eastus")
+	os.Unsetenv("WEBSITE_OWNER_NAME")
+	os.Unsetenv("WEBSITE_RESOURCE_GROUP")
+	os.Unsetenv("FUNCTIONS_WORKER_RUNTIME")
+
+	inv := service.GetInventoryData()
+
+	assert.Equal(t, workloadTypeAzureAppService, inv.WorkloadType)
+	assert.Empty(t, inv.ResourceID)
+	assert.False(t, service.CanCollectInventory())
+	assert.Equal(t, "test_site_name", inv.ResourceName)
+	assert.Equal(t, "eastus", inv.Region)
 }
 
 func TestAppServiceShutdownEmitsMetrics(t *testing.T) {
