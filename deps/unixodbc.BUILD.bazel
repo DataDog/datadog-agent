@@ -39,7 +39,7 @@ _UNIXODBC_PUBLIC_HEADERS = [
     "include/autotest.h",
     "include/uodbc_stats.h",
     "include/uodbc_extras.h",
-    "include/unixodbc_conf.h",
+    "unixodbc.h",
 ]
 
 _LIBLTDL_PUBLIC_HEADERS = [
@@ -177,7 +177,7 @@ cc_library(
         "include/sqlspi.h",
         "include/sqltypes.h",
         "include/sqlucode.h",
-        "include/unixodbc_conf.h",
+        "unixodbc.h",
     ],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES + ["DriverManager"],
@@ -246,6 +246,12 @@ pkg_files(
     prefix = "embedded/include",
 )
 
+pkg_files(
+    name = "unixodbc_conf_hdr_files",
+    srcs = [":unixodbc_conf_h"],
+    prefix = "embedded/include/unixODBC",
+)
+
 # We do need this "fake" ltdl.h to use dlopen
 # and other kernel functions directly without
 # requiring libltdl.
@@ -269,6 +275,7 @@ dd_cc_packaged(
     input = ":odbc",
     installed_files = [
         ":unixodbc_hdr_files",
+        ":unixodbc_conf_hdr_files",
         ":libltdl_hdr_files",
         ":odbccr_pkg_packaged",
     ],
@@ -288,6 +295,7 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":libltdl_hdr_files",
+        ":unixodbc_conf_hdr_files",
         ":unixodbc_hdr_files",
     ],
 )

@@ -334,6 +334,7 @@ func TestAggregator(t *testing.T) {
     "namespace": "my-ns"
   },
   "direction": "ingress",
+  "dpi": {},
   "dscp": 0,
   "dscp_name": "CS0",
   "egress": {
@@ -543,7 +544,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	listenerErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 
-	flowState, err := goflowlib.StartFlowRoutine(common.TypeNetFlow5, "127.0.0.1", port, 1, "default", nil, false, aggregator.GetFlowInChan(), logger, listenerErr, listenerFlowCount)
+	flowState, err := goflowlib.StartFlowRoutine(common.TypeNetFlow5, "127.0.0.1", port, 1, "default", nil, false, nil, aggregator.GetFlowInChan(), logger, listenerErr, listenerFlowCount)
 	assert.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending

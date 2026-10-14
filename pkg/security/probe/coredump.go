@@ -22,14 +22,16 @@ type CoreDump struct {
 	resolvers  *resolvers.EBPFResolvers
 	definition *rules.CoreDumpDefinition
 	event      events.EventMarshaler
+	ruleID     string
 }
 
 // NewCoreDump returns a new core dump
-func NewCoreDump(def *rules.CoreDumpDefinition, resolvers *resolvers.EBPFResolvers, event events.EventMarshaler) *CoreDump {
+func NewCoreDump(def *rules.CoreDumpDefinition, resolvers *resolvers.EBPFResolvers, event events.EventMarshaler, ruleID string) *CoreDump {
 	return &CoreDump{
 		resolvers:  resolvers,
 		definition: def,
 		event:      event,
+		ruleID:     ruleID,
 	}
 }
 
@@ -41,12 +43,14 @@ func (cd *CoreDump) ToJSON() ([]byte, error) {
 	}
 
 	content := struct {
+		RuleID  string          `json:"rule_id"`
 		Event   json.RawMessage `json:"event"`
 		Process json.RawMessage `json:"process"`
 		Mount   json.RawMessage `json:"mount"`
 		Dentry  json.RawMessage `json:"dentry"`
 	}{
-		Event: data,
+		RuleID: cd.ruleID,
+		Event:  data,
 	}
 
 	if cd.definition.Process {

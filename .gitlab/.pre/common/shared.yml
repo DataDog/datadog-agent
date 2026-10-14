@@ -5,6 +5,8 @@
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
+    CI_IDENTITIES_GITLAB_ID_TOKEN: # All the jobs should inerhit ci identities, set it there to avoid jobs that use .dd_octo_sts to miss it
+      aud: ci-identities
 
 # GitHub token setup scripts - use with !reference in before_script
 # Example: - !reference [.setup_github_token_comment_pr]

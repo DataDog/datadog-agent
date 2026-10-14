@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -205,6 +207,70 @@ func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
 	})
 }
 
+func TestBaseMountNamespaceFromEvent(t *testing.T) {
+	newProc := func(path, basename string, inode uint64, containerID string, mntns uint32) *model.ProcessCacheEntry {
+		e := model.NewProcessCacheEntry()
+		e.Process.FileEvent.PathnameStr = path
+		e.Process.FileEvent.BasenameStr = basename
+		e.Process.FileEvent.Inode = inode
+		e.Process.FileEvent.MountID = 1 // non-zero so the file is not treated as fileless
+		e.Process.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
+		e.Process.MntNS = mntns
+		return e
+	}
+
+	eventFor := func(leaf *model.ProcessCacheEntry) *model.Event {
+		ev := &model.Event{}
+		ev.BaseEvent.ProcessContext = &leaf.ProcessContext
+		return ev
+	}
+
+	t.Run("nil process context yields zero", func(t *testing.T) {
+		nsID, authoritative := baseMountNamespaceFromEvent(&model.Event{})
+		assert.Equal(t, uint32(0), nsID)
+		assert.False(t, authoritative)
+	})
+
+	t.Run("falls back to the event process namespace when there is no valid root", func(t *testing.T) {
+		p := newProc("/app/server", "server", 20, "c1", 4242)
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(p))
+		assert.Equal(t, uint32(4242), nsID)
+		// the branch is truncated, so the namespace is a guess and must stay revisable
+		assert.False(t, authoritative)
+	})
+
+	t.Run("skips the container runtime and anchors on the workload root", func(t *testing.T) {
+		shell := newProc("/bin/bash", "bash", 5, "", 1)
+		runc := newProc("/usr/bin/runc", "runc", 10, "c1", 50)
+		runc.Ancestor = shell
+		app := newProc("/app/server", "server", 20, "c1", 100)
+		app.Ancestor = runc
+		// a sampled descendant that has setns'd into another namespace
+		child := newProc("/app/child", "child", 30, "c1", 999)
+		child.Ancestor = app
+
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(child))
+		assert.Equal(t, uint32(100), nsID)
+		assert.True(t, authoritative)
+	})
+
+	t.Run("does not cross the workload boundary into host processes", func(t *testing.T) {
+		systemd := newProc("/usr/lib/systemd/systemd", "systemd", 1, "", 1)
+		containerd := newProc("/usr/bin/containerd", "containerd", 5, "", 2)
+		containerd.Ancestor = systemd
+		shim := newProc("/usr/bin/containerd-shim", "containerd-shim", 10, "", 3)
+		shim.Ancestor = containerd
+		app := newProc("/app/server", "server", 20, "c1", 100)
+		app.Ancestor = shim
+
+		// the host containerd passes isValidRootNode, but it is outside the
+		// workload and its host namespace must not be pinned as the base.
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(app))
+		assert.Equal(t, uint32(100), nsID)
+		assert.True(t, authoritative)
+	})
+}
+
 func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
 	const startMono = int64(time.Hour)
 	newManager := func(delay time.Duration) *ManagerV2 {
@@ -225,5 +291,110 @@ func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
 		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono)))
 		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds()-1)))
 		assert.False(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds())))
+	})
+}
+
+func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
+	cookieMap, _ := lru.New[uint64, sampleCookieEntry](128)
+	m := &ManagerV2{
+		sampleCookieMap:       cookieMap,
+		sampleRefreshReceived: atomic.NewUint64(0),
+		sampleRefreshHits:     atomic.NewUint64(0),
+		sampleRefreshMisses:   atomic.NewUint64(0),
+	}
+	return m, cookieMap
+}
+
+func TestManagerV2_HandleSampleRefresh(t *testing.T) {
+	t.Run("unknown_cookie", func(t *testing.T) {
+		m, _ := newTestManagerV2()
+		m.HandleSampleRefresh(42)
+		assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
+	})
+
+	t.Run("valid_cookie_updates_process_and_event_node", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+		eventNodeBase := activity_tree.NewNodeBase()
+
+		initialTime := time.Now().Add(-time.Hour)
+		processNode.AppendImageTagID(imageTagID, initialTime)
+		eventNodeBase.AppendImageTagID(imageTagID, initialTime)
+
+		cookieMap.Add(uint64(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: &eventNodeBase,
+			imageTag:      "v1",
+		})
+
+		m.HandleSampleRefresh(1)
+
+		_, procLastSeen, ok := processNode.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.Greater(t, procLastSeen, initialTime.UnixNano())
+
+		_, evtLastSeen, ok := eventNodeBase.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.Greater(t, evtLastSeen, initialTime.UnixNano())
+	})
+
+	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		initialTime := time.Now().Add(-time.Hour)
+		processNode.AppendImageTagID(imageTagID, initialTime)
+
+		cookieMap.Add(uint64(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: nil,
+			imageTag:      "v1",
+		})
+
+		m.HandleSampleRefresh(1)
+
+		_, procLastSeen, ok := processNode.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.Greater(t, procLastSeen, initialTime.UnixNano())
+	})
+
+	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+
+		cookieMap.Add(uint64(2), sampleCookieEntry{
+			profile:     prof,
+			processNode: nil,
+			imageTag:    "v1",
+		})
+
+		m.HandleSampleRefresh(2)
+		assert.False(t, cookieMap.Contains(uint64(2)))
+	})
+
+	t.Run("empty_seen_map_removes_cookie", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		cookieMap.Add(uint64(3), sampleCookieEntry{
+			profile:     prof,
+			processNode: processNode,
+			imageTag:    "v1",
+		})
+
+		m.HandleSampleRefresh(3)
+		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
 }

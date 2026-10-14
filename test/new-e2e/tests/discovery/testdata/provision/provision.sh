@@ -66,14 +66,8 @@ WantedBy=multi-user.target
 EOM
 }
 
-apt-get update
-apt-get install -y \
-        ca-certificates \
-        curl \
-        gnupg \
-        python3 \
-        python3-pip \
-
+# System packages (python3, pip, curl and the Ruby toolchain) are baked into
+# the Ubuntu e2e AMI by ami-builder's provision-e2e-apt.sh.
 
 # Install Python deps
 pip install ddtrace==4.7.1
@@ -93,14 +87,6 @@ npm install json-server@1.0.0-beta.15 || npm install json-server@1.0.0-beta.15
 npm install /home/ubuntu/e2e-test/node/instrumented
 
 # Install Ruby
-## Packages
-apt-get install -y \
-        ruby \
-        ruby-dev \
-        sqlite3 \
-        pkg-config \
-        libyaml-dev \
-
 gem install rails -v 7.1.5.1
 
 ## Create new Rails project

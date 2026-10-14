@@ -105,8 +105,12 @@ def _extract_arch(ctx, cpu, style):
     return _arch_names[style].get(target_cpu) or target_cpu
 
 def _inject_flavor(name, flavor):
-    """Forms a canonical name from the base product name and the flavor"""
-    if not flavor or flavor == "base":
+    """Forms a canonical name from the base product name and the flavor.
+
+    Only fips is a variant of an existing product. Other flavors are
+    standalone products and keep their own name.
+    """
+    if flavor != "fips":
         return name
     if not "-" in name:
         return "%s-%s" % (name, flavor)
