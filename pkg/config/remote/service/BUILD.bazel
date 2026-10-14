@@ -7,7 +7,6 @@ go_library(
         "clients.go",
         "par_scope.go",
         "service.go",
-        "status_mock.go",
         "subscriptions.go",
         "tracer_predicates.go",
         "util.go",
