@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -42,10 +43,58 @@ func makeAnomaly(detector string, ts int64, score *float64) observer.Anomaly {
 		Timestamp:    ts,
 		Score:        score,
 		Source:       src,
+		SourceRef:    scorerHandle(1),
 	}
 }
 
 func scorePtr(v float64) *float64 { return &v }
+
+func scorerHandle(ref observer.SeriesRef) *observer.QueryHandle {
+	return &observer.QueryHandle{Ref: ref, Aggregate: observer.AggregateAverage}
+}
+
+func BenchmarkAnomalyScorerHandleIdentity(b *testing.B) {
+	for _, numSeries := range []int{1, 100, 1000} {
+		numSeries := numSeries
+		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
+			b.ReportAllocs()
+			cfg := DefaultAnomalyScorerConfig()
+			cfg.WindowSecs = 1
+			cfg.CorrelationEvents = false
+			scorer := NewAnomalyScorer(cfg)
+
+			handles := make([]*observer.QueryHandle, numSeries)
+			sources := make([]observer.SeriesDescriptor, numSeries)
+			for series := 0; series < numSeries; series++ {
+				handles[series] = scorerHandle(observer.SeriesRef(100 + series))
+				sources[series] = observer.SeriesDescriptor{
+					Namespace: "bench",
+					Name:      fmt.Sprintf("metric_%d", series),
+					Tags:      testCompositeTags([]string{fmt.Sprintf("series:%d", series)}),
+					Aggregate: observer.AggregateAverage,
+				}
+			}
+			score := scorePtr(20.0)
+
+			b.ResetTimer()
+			baseSecond := int64(1000)
+			for i := 0; i < b.N; i++ {
+				second := baseSecond + int64(i)
+				for series := 0; series < numSeries; series++ {
+					scorer.ProcessAnomaly(observer.Anomaly{
+						Type:         observer.AnomalyTypeMetric,
+						Source:       sources[series],
+						SourceRef:    handles[series],
+						DetectorName: "holt_residual",
+						Timestamp:    second,
+						Score:        score,
+					})
+				}
+				scorer.Advance(second)
+			}
+		})
+	}
+}
 
 func TestReadAnomalyScorerConfigMaxReportedItems(t *testing.T) {
 	const prefix = "anomaly_detection.anomaly_scorer."
@@ -350,10 +399,10 @@ func TestDeduplication(t *testing.T) {
 	// Only the High one (weight=2.0) should survive in the window.
 	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 	a1 := observer.Anomaly{
-		DetectorName: "holt_residual", Timestamp: 1000, Score: scorePtr(8), Source: src,
+		DetectorName: "holt_residual", Timestamp: 1000, Score: scorePtr(8), Source: src, SourceRef: scorerHandle(1),
 	}
 	a2 := observer.Anomaly{
-		DetectorName: "tukey_biweight", Timestamp: 1000, Score: scorePtr(25), Source: src,
+		DetectorName: "tukey_biweight", Timestamp: 1000, Score: scorePtr(25), Source: src, SourceRef: scorerHandle(1),
 	}
 	s.ProcessAnomaly(a1)
 	s.ProcessAnomaly(a2)
@@ -369,6 +418,79 @@ func TestDeduplication(t *testing.T) {
 	}
 }
 
+func TestScorerIdentitySeparatesRefsAndAggregates(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	s := NewAnomalyScorer(cfg)
+
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, SourceRef: scorerHandle(1)})
+	s.ProcessAnomaly(observer.Anomaly{
+		DetectorName: "bocpd", Timestamp: 1000,
+		SourceRef: &observer.QueryHandle{Ref: 1, Aggregate: observer.AggregateSum},
+	})
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, SourceRef: scorerHandle(2)})
+	s.Advance(1000)
+
+	state := s.ScoreState()
+	assert.Equal(t, 3, state.Buckets[0].Count, "expected ref and aggregate to distinguish series")
+}
+
+func TestScorerIdentityIgnoresDescriptorChanges(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	s := NewAnomalyScorer(cfg)
+	handle := scorerHandle(42)
+
+	s.ProcessAnomaly(observer.Anomaly{
+		DetectorName: "bocpd", Timestamp: 1000,
+		Source:    observer.SeriesDescriptor{Namespace: "one", Name: "metric"},
+		SourceRef: handle,
+	})
+	s.ProcessAnomaly(observer.Anomaly{
+		DetectorName: "bocpd", Timestamp: 1000,
+		Source:    observer.SeriesDescriptor{Namespace: "two", Name: "changed"},
+		SourceRef: handle,
+	})
+	s.Advance(1000)
+
+	state := s.ScoreState()
+	assert.Equal(t, 1, state.Buckets[0].Count, "same handle should identify the same series despite descriptor changes")
+}
+
+func TestScorerAcceptsZeroRef(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	s := NewAnomalyScorer(cfg)
+
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, SourceRef: scorerHandle(0)})
+	s.Advance(1000)
+
+	state := s.ScoreState()
+	assert.Equal(t, 1, state.Buckets[0].Count, "zero should be a valid series ref")
+}
+
+func TestScorerDiscardsNilSourceRef(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.CorrelationEvents = true
+	s := NewAnomalyScorer(cfg)
+
+	scorer := s.(*anomalyScorer)
+	scorer.mu.Lock()
+	scorer.openEpisode = &observer.ActiveCorrelation{Pattern: "episode", FirstSeen: 1000, LastUpdated: 1000}
+	scorer.mu.Unlock()
+
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000})
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, SourceRef: scorerHandle(1)})
+	scorer.mu.Lock()
+	pendingCount := len(scorer.pending[1000])
+	episodeCount := len(scorer.openEpisode.Anomalies)
+	scorer.mu.Unlock()
+	assert.Equal(t, 1, pendingCount, "nil source ref should not be queued")
+	assert.Equal(t, 1, episodeCount, "nil source ref should not be added to the open episode")
+
+	s.Advance(1000)
+
+	state := s.ScoreState()
+	assert.Equal(t, 1, state.Buckets[0].Count, "nil source ref should be discarded")
+}
+
 // TestWindowDedup verifies that the same series firing at different seconds
 // within the window still counts as a single entry.
 func TestWindowDedup(t *testing.T) {
@@ -379,10 +501,10 @@ func TestWindowDedup(t *testing.T) {
 	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 	// Series fires at t=1000 (Medium, level 2) and again at t=1005 (Low, level 1).
 	// The window should keep max level = 2 and count = 1 at t=1005.
-	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src})
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src, SourceRef: scorerHandle(1)})
 	s.Advance(1000)
 
-	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1005, Source: src})
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1005, Source: src, SourceRef: scorerHandle(1)})
 	s.Advance(1005)
 
 	// Advance(1005) appends buckets for t=1001..1005; the last one is t=1005.
@@ -409,7 +531,7 @@ func TestWindowExpiry(t *testing.T) {
 	// Series fires once at t=1000; last seen = 1000.
 	// WindowSecs at t=1014: windowStart = 1014-15+1 = 1000 → series still alive (lastSeen >= windowStart).
 	// WindowSecs at t=1015: windowStart = 1015-15+1 = 1001 → series expired (lastSeen=1000 < 1001).
-	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src})
+	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src, SourceRef: scorerHandle(1)})
 	s.Advance(1014)
 
 	st14 := s.ScoreState()
@@ -447,13 +569,13 @@ func TestWindowLevelExpiry(t *testing.T) {
 
 	// High anomaly at t=1000
 	s.ProcessAnomaly(observer.Anomaly{
-		DetectorName: "holt_residual", Timestamp: 1000, Score: scorePtr(20), Source: src,
+		DetectorName: "holt_residual", Timestamp: 1000, Score: scorePtr(20), Source: src, SourceRef: scorerHandle(1),
 	})
 	s.Advance(1000)
 
 	// Low anomaly at t=1010 (same series, lower severity)
 	s.ProcessAnomaly(observer.Anomaly{
-		DetectorName: "holt_residual", Timestamp: 1010, Score: scorePtr(7), Source: src,
+		DetectorName: "holt_residual", Timestamp: 1010, Score: scorePtr(7), Source: src, SourceRef: scorerHandle(1),
 	})
 	s.Advance(1010)
 
@@ -486,11 +608,13 @@ func TestDeduplicationDifferentSeries(t *testing.T) {
 		DetectorName: "bocpd",
 		Timestamp:    1000,
 		Source:       observer.SeriesDescriptor{Namespace: "ns", Name: "m1"},
+		SourceRef:    scorerHandle(1),
 	}
 	a2 := observer.Anomaly{
 		DetectorName: "bocpd",
 		Timestamp:    1000,
 		Source:       observer.SeriesDescriptor{Namespace: "ns", Name: "m2"},
+		SourceRef:    scorerHandle(2),
 	}
 	s.ProcessAnomaly(a1)
 	s.ProcessAnomaly(a2)
@@ -542,6 +666,7 @@ func TestLateAnomalyClamp(t *testing.T) {
 		Timestamp:    1000,
 		Score:        scorePtr(20),
 		Source:       src,
+		SourceRef:    scorerHandle(1),
 	})
 
 	// Advance to t=1011 — the anomaly is clamped to lastAdvancedSec+1=1011
@@ -581,6 +706,7 @@ func TestLateAnomalyNoLeakInPending(t *testing.T) {
 		Timestamp:    1000,
 		Score:        scorePtr(20),
 		Source:       src,
+		SourceRef:    scorerHandle(1),
 	})
 
 	// Access internal state directly via type assertion to inspect unexported fields.
@@ -612,6 +738,7 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 		Timestamp:    1000,
 		Score:        scorePtr(20),
 		Source:       src,
+		SourceRef:    scorerHandle(1),
 	})
 
 	s.Advance(1005)

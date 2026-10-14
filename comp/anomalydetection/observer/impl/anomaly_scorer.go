@@ -142,17 +142,6 @@ func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfi
 	return levelWeights[len(levelWeights)-1]
 }
 
-// seriesID returns a stable string key for deduplication.
-// Prefers SourceRef.CompactID() when available (set by the metrics pipeline);
-// falls back to Source.Key() otherwise. SeriesDescriptor.Key() always returns
-// a non-empty string, so the result is never "".
-func seriesID(a observerdef.Anomaly) string {
-	if a.SourceRef != nil {
-		return a.SourceRef.CompactID()
-	}
-	return a.Source.Key()
-}
-
 // windowEntry tracks the last second at which each anomaly level (0–4) was
 // observed for a series within the active window. Index = level, value = last
 // second observed (0 = never seen or already evicted). Storing per-level
@@ -529,7 +518,7 @@ type anomalyScorer struct {
 	// windowMap tracks the highest anomaly level seen per series within the
 	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
 	// Entries are evicted once lastSeenSec falls outside the window.
-	windowMap map[string]windowEntry
+	windowMap map[observerdef.QueryHandle]windowEntry
 	// topAnomalies retains bounded five-minute attribution only when
 	// correlation events are enabled.
 	topAnomalies *topAnomalyBuffer
@@ -574,6 +563,8 @@ type anomalyScorer struct {
 type StandaloneAnomalyScorer interface {
 	SubscribeSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error)
 	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error)
+	// ProcessAnomaly requires a non-nil SourceRef. Synthetic handles are valid,
+	// but reset the scorer before switching to an unrelated ref namespace.
 	ProcessAnomaly(a observerdef.Anomaly)
 	Advance(dataTime int64)
 	PendingEvents() []observerdef.CorrelatorEvent
@@ -609,7 +600,7 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	scorer := &anomalyScorer{
 		config:    cfg,
 		pending:   make(map[int64][]observerdef.Anomaly),
-		windowMap: make(map[string]windowEntry),
+		windowMap: make(map[observerdef.QueryHandle]windowEntry),
 	}
 	if cfg.CorrelationEvents {
 		scorer.topAnomalies = newTopAnomalyBuffer(cfg.MaxReportedItems)
@@ -732,7 +723,14 @@ func (s *anomalyScorer) Name() string { return "anomaly_scorer" }
 // If the anomaly's timestamp is in the past (already advanced past), it is
 // clamped to lastAdvancedSec+1 so it participates in the next Advance call.
 // Also appends to the open scorer episode if one is active.
+// Inputs require a non-nil SourceRef. Synthetic handles are valid, but reset
+// the scorer before switching to an unrelated ref namespace. Inputs without a
+// reference are discarded before any state is mutated.
 func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
+	if a.SourceRef == nil {
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sec := a.Timestamp
@@ -844,7 +842,7 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
 	s.pending = make(map[int64][]observerdef.Anomaly)
-	s.windowMap = make(map[string]windowEntry)
+	s.windowMap = make(map[observerdef.QueryHandle]windowEntry)
 	if s.topAnomalies != nil {
 		s.topAnomalies.reset()
 	}
@@ -958,7 +956,7 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 
 	// Step 1: merge new anomalies into the window.
 	for _, a := range anomalies {
-		sid := seriesID(a)
+		sid := *a.SourceRef
 		level := anomalyLevel(a, s.config.AnomalyScorerConfig)
 		entry := s.windowMap[sid]
 		if sec > entry[level] {

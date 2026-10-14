@@ -242,8 +242,9 @@ type Anomaly struct {
 	// Source is the fully resolved series identity (namespace, name, tags, aggregate).
 	Source SeriesDescriptor
 	// SourceRef is the storage handle for this anomaly's series, enabling
-	// direct compact ID lookups without string-key reconstruction. Nil for
-	// standalone scorer inputs without storage. Detector outputs must set it.
+	// direct compact ID lookups without string-key reconstruction. Detector
+	// outputs and standalone scorer inputs must set it; inputs without a
+	// reference are discarded before scoring.
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
