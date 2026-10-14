@@ -406,7 +406,7 @@ func (t *Tracer) EnableNetNSContainerAttribution(ctx context.Context, wmeta work
 		log.Warn("not enabling network namespace container attribution, because it depends on process event monitoring which is disabled")
 		return nil
 	}
-	r, err := newNetNSContainerResolver(t.config.NetNSContainerAttributionOwnerImages)
+	r, err := newNetNSContainerResolver(t.config.NetNSContainerAttributionOwnerImages, t.config.NetNSContainerAttributionIgnoredContainers)
 	if err != nil {
 		return fmt.Errorf("could not create network namespace container resolver: %w", err)
 	}
