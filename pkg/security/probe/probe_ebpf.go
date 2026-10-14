@@ -31,6 +31,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
@@ -3608,6 +3609,13 @@ func (p *EBPFProbe) initManagerOptions() error {
 
 // NewEBPFProbe instantiates a new runtime security agent probe
 func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*EBPFProbe, error) {
+	// kernels < 5.11 account BPF memory against RLIMIT_MEMLOCK; the kernel
+	// feature checks below fail with EPERM unless the limit is raised, and
+	// CWS would then report those features as unsupported
+	if err := rlimit.RemoveMemlock(); err != nil {
+		seclog.Warnf("failed to remove the memlock limit: %v", err)
+	}
+
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
