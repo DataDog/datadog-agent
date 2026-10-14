@@ -145,7 +145,8 @@ func TestWorkloadAutoscalingStatusReceivingUpdates(t *testing.T) {
 	assert.NotContains(t, out, "Last error:")
 	assert.Contains(t, out, "Configs in last update: 2")
 	assert.Contains(t, out, "Updates received: 1")
-	assert.NotContains(t, out, "no update received yet")
+	// Scoped: the untouched values product still legitimately shows this line
+	assert.NotContains(t, productBlock(t, out, data.ProductContainerAutoscalingSettings), "No update received yet")
 }
 
 // TestConfigRetrieverRecordsRemoteConfigUpdate covers the subscription wiring,
