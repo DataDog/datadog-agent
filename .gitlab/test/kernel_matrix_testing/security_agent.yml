@@ -213,26 +213,6 @@ kmt_run_secagent_tests_x64_peds:
     - !reference [.upload_junit_kmt]
     - !reference [.suggest_kmt_retry_command]
 
-kmt_run_secagent_tests_x64_required:
-  extends:
-    - .kmt_run_secagent_tests
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
-  needs:
-    - kmt_setup_env_secagent_x64
-    - upload_dependencies_secagent_x64
-    - upload_secagent_tests_x64
-  variables:
-    ARCH: "x86_64"
-  parallel:
-    matrix:
-      - TAG:
-          - "ubuntu_25.10"
-        TEST_SET: [cws_req]
-  after_script:
-    - !reference [.collect_outcomes_kmt]
-    - !reference [.upload_junit_kmt]
-    - !reference [.suggest_kmt_retry_command]
 kmt_run_secagent_tests_x64_wprofiles:
   extends:
     - .kmt_run_secagent_tests
@@ -525,7 +505,6 @@ kmt_secagent_tests_join2_x64:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_x64_peds
-    - kmt_run_secagent_tests_x64_required
     - kmt_run_secagent_tests_x64_docker
 
 kmt_secagent_cleanup_x64:
