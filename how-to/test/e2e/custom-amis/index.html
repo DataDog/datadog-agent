@@ -4299,9 +4299,9 @@ These images are pinned by ID in this repo (<code>test/e2e-framework/resources/a
 <p>The descriptor exists but the table entry does not — check <code>platforms.json</code> for a typo'd or missing key.</p>
 </div>
 <details class="info">
-<summary>Bypassing the pin with <code>ec2.WithLatestAMI()</code></summary>
-<p><code>ec2.WithLatestAMI()</code> bypasses <code>platforms.json</code> entirely and resolves the latest published image through SSM. It is deliberately rare in tests — it gives up reproducibility and it never gets you a prebaked image. Not every flavor can resolve a latest image; those log a warning and fall back to the pinned ID.</p>
-<p>For manual QA the same switch is <code>dda inv aws.create-vm --latest-ami</code> (which sets <code>ddinfra:osImageIDUseLatest</code>). That is the right way to check whether a new upstream image breaks something, before bumping the pin.</p>
+<summary>Bypassing the pin with <code>ddinfra:osImageIDUseLatest</code></summary>
+<p>Setting the <code>ddinfra:osImageIDUseLatest</code> Pulumi config bypasses <code>platforms.json</code> and resolves the latest published image (through SSM or an AMI search) when the OS descriptor has no version. There is deliberately no <code>VMOption</code> for it: it gives up reproducibility and it never gets you a prebaked image, so tests should not use it. Not every flavor can resolve a latest image; those log a warning and fall back to the pinned ID.</p>
+<p>It is meant for manual QA through <code>dda inv aws.create-vm --latest-ami</code> (which sets <code>ddinfra:osImageIDUseLatest</code>). That is the right way to check whether a new upstream image breaks something, before bumping the pin.</p>
 </details>
 <h2 id="the-e2e-amis">The <code>-e2e</code> AMIs<a class="headerlink" href="#the-e2e-amis" title="Permanent link">&para;</a></h2>
 <p>Some OS types have an <code>-e2e</code> variant defined in <code>platforms.json</code>, distinct from the plain image:</p>
