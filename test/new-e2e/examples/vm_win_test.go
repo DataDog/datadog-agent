@@ -21,7 +21,7 @@ type vmWindowsSuite struct {
 
 // TestVMWindowsSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestVMWindowsSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()))))}
 
 	e2e.Run(t, &vmWindowsSuite{}, suiteParams...)
 }
