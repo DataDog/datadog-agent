@@ -8,8 +8,6 @@ package dupcheck_test
 import (
 	"compress/gzip"
 	"context"
-	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -62,8 +60,6 @@ const (
 )
 
 var dupcheckStages = []string{stageV04, stageV1, stageOTLPConversion, stageOTLPProcessing}
-
-const dupcheckFixturePath = "./testdata/obfuscation_test_spans.jsonl"
 
 // dupcheckConfig is one agent configuration of the dupcheck matrix.
 type dupcheckConfig struct {
@@ -131,7 +127,7 @@ func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, er
 // with -test.v (and --test_output=all under Bazel) to see the report, and add
 // -dupcheck.verbose to list every occurrence group.
 func TestNoAgentIntroducedDuplicates(t *testing.T) {
-	inputs := newDupcheckInputs(t, newDupcheckCorpus(t, *dupcheckSeed))
+	inputs := newDupcheckInputs(t, dupcheck.NewCorpus(*dupcheckSeed))
 	report := dupcheck.NewReport(*dupcheckSeed)
 	for _, c := range dupcheckConfigs {
 		t.Run(c.name, func(t *testing.T) {
@@ -151,9 +147,8 @@ func TestNoAgentIntroducedDuplicates(t *testing.T) {
 
 // logSpanTypeCoverage prints the span types that pkg/trace switches on and
 // that are missing from dupcheck.CorpusSpanTypes. It never fails. The
-// pkg/trace sources are found from the testdata fixture, which under Bazel is
-// a runfiles symlink to the source tree: where it isn't (for example under
-// remote execution), the check is skipped.
+// pkg/trace sources are found from the working directory, so the check is
+// skipped where they aren't available, as under Bazel.
 func logSpanTypeCoverage(t *testing.T) {
 	// The test runs in pkg/trace/testutil/dupcheck.
 	dir, err := filepath.Abs(".")
@@ -188,7 +183,7 @@ var (
 // be reported, every span type sent must have such an injection for each
 // kind and processing stage, and nothing else new may be reported.
 func TestDupcheckDetectsInjectedDuplicates(t *testing.T) {
-	corpus := newDupcheckCorpus(t, *dupcheckSeed)
+	corpus := dupcheck.NewCorpus(*dupcheckSeed)
 	addGeneratedTraces(corpus)
 	addOverwriteTargets(corpus)
 	inputs := newDupcheckInputs(t, corpus)
@@ -275,37 +270,8 @@ func pairKey(spanID uint64, a, b dupcheck.Location) string {
 	return fmt.Sprintf("%d %s %s", spanID, a, b)
 }
 
-// newDupcheckCorpus returns the generated corpus for seed, plus the spans of
-// the obfuscation fixtures.
-func newDupcheckCorpus(t *testing.T, seed int64) *dupcheck.Corpus {
-	corpus := dupcheck.NewCorpus(seed)
-	f, err := os.Open(dupcheckFixturePath)
-	require.NoError(t, err)
-	defer f.Close()
-	d := json.NewDecoder(f)
-	for {
-		var fixture struct {
-			Name  string  `json:"name"`
-			Input pb.Span `json:"input"`
-		}
-		err := d.Decode(&fixture)
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-		corpus.AddTrace(dupcheck.SpanSpec{
-			Service:    "dupcheck-fixture-service",
-			Name:       "dupcheck.fixture." + fixture.Name,
-			Resource:   fixture.Input.Resource,
-			Type:       fixture.Input.Type,
-			Attributes: fixture.Input.Meta,
-		})
-	}
-	return corpus
-}
-
 // addOverwriteTargets adds a random attribute to the spans that have none,
-// such as the fixture and generated spans, so that every span can get an
+// such as the generated spans, so that every span can get an
 // overwritten duplicate.
 func addOverwriteTargets(corpus *dupcheck.Corpus) {
 	for i := range corpus.Traces {

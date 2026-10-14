@@ -26,7 +26,6 @@ dd_agent_go_test(
         "dupcheck_test.go",
         "pipeline_test.go",
     ],
-    data = glob(["testdata/**"]),
     embed = [":dupcheck"],
     deps = [
         "//comp/trace/compression/impl-gzip",
