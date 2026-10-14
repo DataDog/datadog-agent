@@ -83,9 +83,10 @@ func TestDDOTInstallScript(t *testing.T) {
 			}
 
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
-			// CentOS 7 is EOL: its base repos only exist on the public centos-vault
-			// mirrors, which are unreachable without internet access.
-			if osDesc.Flavor == e2eos.CentOS {
+			// CentOS 7 is EOL (base repos only on the public centos-vault mirrors) and
+			// RHEL needs the public RHUI mirrors; both are unreachable without
+			// internet access.
+			if osDesc.Flavor == e2eos.CentOS || osDesc.Flavor == e2eos.RedHat {
 				vmOpts = append(vmOpts, ec2.WithInternetAccess())
 			}
 

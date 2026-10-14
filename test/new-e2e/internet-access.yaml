@@ -80,10 +80,6 @@ entries:
   function: TestMacosInstallScript
   status: debt
   reason: Fetches the macOS install script from install.datadoghq.com or the dd-agent-macostesting bucket; should use a QA-account mirror.
-- file: test/new-e2e/tests/agent-platform/tests/package_signing_test.go
-  function: TestPackageSigningComponent
-  status: debt
-  reason: Downloads the Datadog signing keys from keys.datadoghq.com; should bundle them or use a QA-account mirror.
 - file: test/new-e2e/tests/agent-platform/tests/persisting_integrations_test.go
   function: TestPersistingIntegrations
   status: debt

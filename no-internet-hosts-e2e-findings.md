@@ -211,11 +211,11 @@ Datadog testing infrastructure):
      using the S3 yumtesting pipeline repo — the pipeline RPMs are signed with the **test**
      `DATADOG_RPM_KEY_CURRENT` (verified: fingerprint `83661EE4…`), so it now uses the S3
      test-keys like its sibling tests.
-2. **`tests/agent-platform/tests/package_signing_test.go`**: ~~keys vendored~~ **reverted** —
-   the production signing keys stay fetched at runtime from `keys.datadoghq.com` (which has
-   no S3 equivalent), and the suite keeps its explicit `WithInternetAccess()` opt-in. (The
-   vendored-keys approach was tried and validated green — 2/2 jobs — but was reverted to keep
-   the repo free of vendored public keys.)
+2. **`tests/agent-platform/tests/package_signing_test.go`**: the production signing keys
+   are now fetched from the S3 bucket `s3.amazonaws.com/public-signing-keys` (same files as
+   `keys.datadoghq.com`, verified identical) so the suite no longer needs internet access.
+   (An earlier attempt vendored the keys in-repo and was validated green, but was reverted to
+   keep the repo free of vendored public keys; the S3 bucket achieves the same without them.)
 3. **`test/e2e-framework/components/datadog/updater/install_script.sh`**:
    `TESTING_KEYS_URL`/`TESTING_APT_URL`/`TESTING_YUM_URL` switched from the public hosts
    (`keys.datadoghq.com`, `apttesting.datad0g.com`, `yumtesting.datad0g.com`) to their
@@ -276,10 +276,10 @@ remaining dependencies (see list at the end) are addressed.
   hostname-ec2, run, status (linux+windows), flare (windows)
 - `agent-runtimes`: infra-mode (basic/eudm/none), procmgr (+par), ipc-security (windows),
   rtloader multiprocessing, shared library, auth artifact (linux)
-- `agent-platform`: ddot on all distros except CentOS 7 (conditional opt-in), install-script
-  on the iot-agent flavors (conditional opt-in)
-  *(package-signing was validated no-internet with vendored keys, then reverted to keep the
-  internet opt-in — see the follow-up section)*
+- `agent-platform`: ddot on all distros except CentOS 7 / RHEL (conditional opt-in — the
+  public centos-vault and RHUI mirrors are unreachable without internet), install-script on
+  the iot-agent flavors (conditional opt-in), package-signing (keys from the public-signing-keys
+  S3 bucket — no internet at all)
 - `discovery`, `ndm-snmp`, `netpath` (remote-config windows suite), `privateactionrunner`,
   `data-security` (postgres, removal was a no-op anyway)
 
