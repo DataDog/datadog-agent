@@ -72,7 +72,7 @@ func (n *networkDeviceConfigImpl) RegisterDevice(device *ncmconfig.DeviceInstanc
 }
 
 // ReportConfig runs the NCM check - it fetches the running and startup config
-// and sends them to the DD backend, along with an inventory report of the configs 
+// and sends them to the DD backend, along with an inventory report of the configs
 // currently held in the local store for this device.
 func (n *networkDeviceConfigImpl) ReportConfig(ctx context.Context, deviceID string, baseSender sender.Sender) error {
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))

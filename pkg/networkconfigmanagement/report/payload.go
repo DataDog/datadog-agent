@@ -16,7 +16,7 @@ type NCMPayload struct {
 	Namespace        string                `json:"namespace"`
 	Configs          []NetworkDeviceConfig `json:"configs,omitempty"`
 	Inventories      []InventoryEntry      `json:"inventories,omitempty"`
-	InventoryEmpty bool `json:"inventory_empty,omitempty"`
+	InventoryEmpty   bool                  `json:"inventory_empty,omitempty"`
 	CollectTimestamp int64                 `json:"collect_timestamp"`
 	AgentHostname    string                `json:"agent_hostname"`
 }
