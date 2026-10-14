@@ -65,16 +65,9 @@ func (a *AppService) CanCollectInventory() bool {
 	return a.GetInventoryData().ResourceID != ""
 }
 
-// GetInventoryData derives the inventory metadata fields for Azure App Service,
-// reusing traceutil.GetAppServicesTags as the single source of truth for the
-// ARM ID, subscription id, and resource group. Plain web apps lowercase the
-// entire ARM ID for inventory only; function apps retain the helper's casing.
-// Runtime is inventory-specific: hosting-stack labels are not evidence of an
-// application runtime.
-//
-// Function apps (FUNCTIONS_WORKER_RUNTIME set) report azure_function; plain web
-// apps report azure_app_service. App Service has no revision-style parent or
-// deployment id, so those fields stay empty.
+// GetInventoryData derives the inventory metadata from
+// traceutil.GetAppServicesTags. Web apps lowercase the ARM ID for inventory
+// only; function apps keep its casing.
 func (a *AppService) GetInventoryData() InventoryData {
 	aasTags := traceutil.GetAppServicesTags()
 
@@ -101,7 +94,7 @@ func (a *AppService) GetInventoryData() InventoryData {
 }
 
 func appServiceStackRuntime() string {
-	// Do not infer a language from DOCKER, SITECONTAINERS, or the Agent's OS.
+	// DOCKER, SITECONTAINERS, and other non-language stacks do not identify a runtime.
 	switch os.Getenv(WebsiteStack) {
 	case "NODE":
 		return RuntimeNodeJS
