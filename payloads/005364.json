@@ -1,0 +1,259 @@
+{
+  "hostname": "maxime-chambre-azure",
+  "timestamp": 1788515805104753981,
+  "signing_metadata": {
+    "signing_keys": [
+      {
+        "fingerprint": "************************************620E",
+        "expiration_date": "2032-09-05",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************94DE",
+        "expiration_date": "2022-06-28",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************EEAF",
+        "expiration_date": "2022-06-28",
+        "key_type": "debsig",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************2C7D",
+        "expiration_date": "2028-04-18",
+        "key_type": "debsig",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************2C7D",
+        "expiration_date": "2028-04-18",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************620E",
+        "expiration_date": "2032-09-05",
+        "key_type": "debsig",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************89B7",
+        "expiration_date": "2024-09-07",
+        "key_type": "debsig",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************2314",
+        "expiration_date": "2033-05-13",
+        "key_type": "debsig",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************1092",
+        "expiration_date": "9999-12-31",
+        "key_type": "trusted",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************C93C",
+        "expiration_date": "9999-12-31",
+        "key_type": "trusted",
+        "repositories": null
+      },
+      {
+        "fingerprint": "nokey",
+        "expiration_date": "9999-12-31",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy main restricted",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy-updates main restricted",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy universe",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy-updates universe",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy multiverse",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy-updates multiverse",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy-backports main restricted universe multiverse",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy-security main restricted",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy-security universe",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          },
+          {
+            "name": "http://azure.archive.ubuntu.com/ubuntu/ jammy-security multiverse",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************2314",
+        "expiration_date": "2033-05-13",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************291E",
+        "expiration_date": "2022-07-10",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************EEAF",
+        "expiration_date": "2022-06-28",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************F6E0",
+        "expiration_date": "2022-06-28",
+        "key_type": "debsig",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************3C42",
+        "expiration_date": "2024-09-07",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************89B7",
+        "expiration_date": "2024-09-07",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************F6E0",
+        "expiration_date": "2022-06-28",
+        "key_type": "signed-by",
+        "repositories": [
+          {
+            "name": "https://s3.amazonaws.com/apt.datad0g.com/ nightly 7",
+            "enabled": true,
+            "gpgcheck": false,
+            "repo_gpgcheck": true
+          }
+        ]
+      },
+      {
+        "fingerprint": "************************************3C42",
+        "expiration_date": "2024-09-07",
+        "key_type": "debsig",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************94DE",
+        "expiration_date": "2022-06-28",
+        "key_type": "debsig",
+        "repositories": null
+      },
+      {
+        "fingerprint": "************************************291E",
+        "expiration_date": "2022-07-10",
+        "key_type": "debsig",
+        "repositories": null
+      }
+    ]
+  },
+  "uuid": "be79e314-51d2-407a-a439-5cad1798b7ea"
+}

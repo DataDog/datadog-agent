@@ -1,0 +1,269 @@
+{
+  "apiKey": "****************************3d93",
+  "agentVersion": "7.84.0-devel+git.738.1fe2bb4",
+  "uuid": "be79e314-51d2-407a-a439-5cad1798b7ea",
+  "internalHostname": "maxime-chambre-azure",
+  "os": "linux",
+  "agent-flavor": "agent",
+  "python": "unused",
+  "systemStats": {
+    "cpuCores": 1,
+    "machine": "amd64",
+    "platform": "linux",
+    "pythonV": "unused",
+    "processor": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    "macV": [
+      "",
+      "",
+      ""
+    ],
+    "nixV": [
+      "ubuntu",
+      "22.04",
+      ""
+    ],
+    "fbsdV": [
+      "",
+      "",
+      ""
+    ],
+    "winV": [
+      "",
+      "",
+      ""
+    ]
+  },
+  "meta": {
+    "socket-hostname": "az-vm",
+    "timezones": [
+      "UTC"
+    ],
+    "socket-fqdn": "az-vm.internal.cloudapp.net.",
+    "ec2-hostname": "",
+    "hostname": "maxime-chambre-azure",
+    "host_aliases": [
+      "be79e314-51d2-407a-a439-5cad1798b7ea"
+    ],
+    "instance-id": "",
+    "hostname-resolution-version": 1,
+    "ccrid": "/subscriptions/9972cab2-9e99-419b-a683-86bfa77b3df1/resourcegroups/dd-agent-sandbox/providers/microsoft.compute/virtualmachines/maxime-chambre-maxime-chambre-4-az-az-vm"
+  },
+  "host-tags": {
+    "system": []
+  },
+  "network": null,
+  "logs": {
+    "transport": "",
+    "auto_multi_line_detection_enabled": true
+  },
+  "install-method": {
+    "tool": "install_script",
+    "tool_version": "install_script_agent7",
+    "installer_version": "install_script-1.46.0"
+  },
+  "proxy-info": {
+    "no-proxy-nonexact-match": false,
+    "proxy-behavior-changed": false,
+    "no-proxy-nonexact-match-explicitly-set": false
+  },
+  "otlp": {
+    "enabled": false
+  },
+  "fips_mode": false,
+  "fips_proxy_enabled": false,
+  "resources": {
+    "meta": {
+      "host": "maxime-chambre-azure"
+    },
+    "processes": {
+      "snaps": [
+        [
+          1788515747,
+          [
+            [
+              "root",
+              0,
+              0.7929556093371543,
+              2252509184,
+              132968448,
+              "datadog-agent",
+              1
+            ],
+            [
+              "root",
+              0,
+              0.37716870171502936,
+              454909952,
+              63246336,
+              "python3",
+              2
+            ],
+            [
+              "azureuser,root",
+              0,
+              0.2935325619137043,
+              86499328,
+              49221632,
+              "sshd",
+              5
+            ],
+            [
+              "root",
+              0,
+              0.24980922948252093,
+              2122510336,
+              41889792,
+              "snapd",
+              1
+            ],
+            [
+              "root",
+              0,
+              0.17108280466369186,
+              85938176,
+              28688384,
+              "agent-data-plane",
+              1
+            ],
+            [
+              "root",
+              0,
+              0.1688844248207832,
+              296292352,
+              28319744,
+              "multipathd",
+              1
+            ],
+            [
+              "azureuser,root",
+              0,
+              0.14181992631030765,
+              189485056,
+              23781376,
+              "systemd",
+              2
+            ],
+            [
+              "root",
+              0,
+              0.13415002330282633,
+              112775168,
+              22495232,
+              "unattended-upgr",
+              1
+            ],
+            [
+              "root",
+              0,
+              0.12594273855596733,
+              303136768,
+              21118976,
+              "packagekitd",
+              1
+            ],
+            [
+              "root",
+              0,
+              0.11964071633962917,
+              33865728,
+              20062208,
+              "networkd-dispat",
+              1
+            ],
+            [
+              "systemd-resolve",
+              0,
+              0.08385597778561595,
+              26431488,
+              14061568,
+              "systemd-resolved",
+              1
+            ],
+            [
+              "root",
+              0,
+              0.07557541371066,
+              49156096,
+              12673024,
+              "systemd-journald",
+              1
+            ],
+            [
+              "azureuser",
+              0,
+              0.06683074722442331,
+              18771968,
+              11206656,
+              "bash",
+              2
+            ],
+            [
+              "systemd-network",
+              0,
+              0.05280996911520585,
+              16785408,
+              8855552,
+              "systemd-networkd",
+              1
+            ],
+            [
+              "azureuser",
+              0,
+              0.04914600271035808,
+              24354816,
+              8241152,
+              "sudo",
+              2
+            ],
+            [
+              "root",
+              0,
+              0.04853534164288345,
+              15884288,
+              8138752,
+              "systemd-logind",
+              1
+            ],
+            [
+              "root",
+              0,
+              0.047069755080944346,
+              240140288,
+              7892992,
+              "polkitd",
+              1
+            ],
+            [
+              "azureuser",
+              0,
+              0.0407433064219072,
+              107528192,
+              6832128,
+              "(sd-pam)",
+              1
+            ],
+            [
+              "root",
+              0,
+              0.039009028990279256,
+              11771904,
+              6541312,
+              "systemd-udevd",
+              1
+            ],
+            [
+              "syslog",
+              0,
+              0.0381052506104168,
+              227741696,
+              6389760,
+              "rsyslogd",
+              1
+            ]
+          ]
+        ]
+      ]
+    }
+  },
+  "gohai": "{\"cpu\":{\"cache_size\":\"49152 KB\",\"cpu_cores\":\"2\",\"cpu_logical_processors\":\"4\",\"family\":\"6\",\"mhz\":\"3392.165\",\"model\":\"106\",\"model_name\":\"Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz\",\"stepping\":\"6\",\"vendor_id\":\"GenuineIntel\"},\"filesystem\":[{\"kb_size\":\"106831\",\"mounted_on\":\"/boot/efi\",\"name\":\"/dev/sda15\"},{\"kb_size\":\"1637568\",\"mounted_on\":\"/run/user/1000\",\"name\":\"tmpfs\"},{\"kb_size\":\"203056560\",\"mounted_on\":\"/\",\"name\":\"/dev/root\"},{\"kb_size\":\"8187848\",\"mounted_on\":\"/dev/shm\",\"name\":\"tmpfs\"},{\"kb_size\":\"3275140\",\"mounted_on\":\"/run\",\"name\":\"tmpfs\"},{\"kb_size\":\"5120\",\"mounted_on\":\"/run/lock\",\"name\":\"tmpfs\"},{\"kb_size\":\"131072\",\"mounted_on\":\"/sys/firmware/efi/efivars\",\"name\":\"efivarfs\"}],\"memory\":{\"swap_total\":\"0kB\",\"total\":\"16768712704\"},\"network\":{\"interfaces\":[{\"ipv4\":[\"10.255.64.29\"],\"ipv4-network\":\"10.255.64.0/21\",\"ipv6\":[\"fe80::222:48ff:fec0:9571\"],\"ipv6-network\":\"fe80::/64\",\"macaddress\":\"00:22:48:c0:95:71\",\"name\":\"eth0\"},{\"ipv4\":[],\"ipv6\":[],\"name\":\"enP27154s1\"}],\"ipaddress\":\"10.255.64.29\",\"ipaddressv6\":\"fe80::222:48ff:fec0:9571\",\"macaddress\":\"00:22:48:c0:95:71\"},\"platform\":{\"GOOARCH\":\"amd64\",\"GOOS\":\"linux\",\"goV\":\"1.26.7\",\"hardware_platform\":\"x86_64\",\"hostname\":\"az-vm\",\"kernel_name\":\"Linux\",\"kernel_release\":\"6.8.0-1064-azure\",\"kernel_version\":\"#72~22.04.1-Ubuntu SMP Wed Jul 22 23:39:45 UTC 2026\",\"machine\":\"x86_64\",\"os\":\"GNU/Linux\",\"processor\":\"x86_64\"}}"
+}

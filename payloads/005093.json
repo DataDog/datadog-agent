@@ -1,0 +1,150 @@
+{
+  "apiKey": "****************************3d93",
+  "agentVersion": "7.84.0-devel+git.738.1fe2bb4",
+  "uuid": "be79e314-51d2-407a-a439-5cad1798b7ea",
+  "internalHostname": "maxime-chambre-azure",
+  "meta": {
+    "socket-hostname": "az-vm",
+    "timezones": [
+      "UTC"
+    ],
+    "socket-fqdn": "az-vm.internal.cloudapp.net.",
+    "ec2-hostname": "",
+    "hostname": "maxime-chambre-azure",
+    "host_aliases": [
+      "be79e314-51d2-407a-a439-5cad1798b7ea"
+    ],
+    "instance-id": "",
+    "hostname-resolution-version": 1,
+    "ccrid": "/subscriptions/9972cab2-9e99-419b-a683-86bfa77b3df1/resourcegroups/dd-agent-sandbox/providers/microsoft.compute/virtualmachines/maxime-chambre-maxime-chambre-4-az-az-vm"
+  },
+  "agent_checks": [
+    [
+      "container_lifecycle",
+      "container_lifecycle",
+      "container_lifecycle",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "cloud_hostinfo",
+      "cloud_hostinfo",
+      "cloud_hostinfo",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "cpu",
+      "cpu",
+      "cpu",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "container_image",
+      "container_image",
+      "container_image",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "memory",
+      "memory",
+      "memory",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "io",
+      "io",
+      "io",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "disk",
+      "disk",
+      "disk:67cc0574430a16ba",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "ntp",
+      "ntp",
+      "ntp:3c427a42a70bbf8",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "load",
+      "load",
+      "load",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "uptime",
+      "uptime",
+      "uptime",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "network",
+      "network",
+      "network",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "discovery",
+      "discovery",
+      "discovery",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "file_handle",
+      "file_handle",
+      "file_handle",
+      "OK",
+      "",
+      "",
+      []
+    ],
+    [
+      "telemetry",
+      "telemetry",
+      "telemetry",
+      "OK",
+      "",
+      "",
+      []
+    ]
+  ],
+  "external_host_tags": []
+}
