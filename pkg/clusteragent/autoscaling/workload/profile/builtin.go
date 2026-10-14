@@ -199,7 +199,7 @@ var (
 		{
 			TypeMeta: podAutoscalerClusterProfileMeta,
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   "datadog-vertical-only",
+				Name:   "datadog-vertical-balanced",
 				Labels: map[string]string{builtinLabelKey: builtinLabelValue},
 			},
 			Spec: datadoghq.DatadogPodAutoscalerProfileSpec{
@@ -224,6 +224,7 @@ var (
 							},
 						},
 					},
+					Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{},
 					Fallback: &datadoghq.DatadogFallbackPolicy{
 						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
 							Enabled: false,
