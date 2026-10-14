@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 )
 
+// runtimeUnknown is the value reported when no candidate identifies the
+// application runtime.
+const runtimeUnknown = ""
+
 var pythonExecutable = regexp.MustCompile(`^python([0-9]+(\.[0-9]+)*)?$`)
 
 // resolveRuntime reports the application runtime, never the Agent or container
@@ -26,18 +30,18 @@ func resolveRuntime(metadata []string, wrappedCommand []string) string {
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
 		switch strings.ToLower(candidate) {
-		case "", "unknown", "container", "null":
+		case runtimeUnknown, "unknown", "container", "null":
 			continue
 		default:
 			return candidate
 		}
 	}
-	return ""
+	return runtimeUnknown
 }
 
 func commandRuntime(wrappedCommand []string) string {
 	if len(wrappedCommand) == 0 {
-		return ""
+		return runtimeUnknown
 	}
 
 	// Only recognize obvious executables and explicit launcher patterns. Do not
@@ -74,5 +78,5 @@ func executableRuntime(executable string) string {
 	if pythonExecutable.MatchString(executable) {
 		return cloudservice.RuntimePython
 	}
-	return ""
+	return runtimeUnknown
 }
