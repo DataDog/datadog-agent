@@ -60,6 +60,16 @@ class TestCompareReports(unittest.TestCase):
         self.assertEqual(changes[0]["new_partners"], ["span.attr[service.env]"])
         self.assertEqual(changes[0]["removed_partners"], [])
 
+    def test_partner_count_change(self):
+        # One finding can repeat several partners: a partner count can grow
+        # while the issue count and the partner names stay the same.
+        base = issue("span.attr[env]", 10, {"span.attr[a]": 10, "span.attr[b]": 1})
+        head = issue("span.attr[env]", 10, {"span.attr[a]": 10, "span.attr[b]": 10})
+        changes = compare_reports(report(base), report(head))
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0]["kind"], "changed")
+        self.assertEqual(changes[0]["changed_partners"], [("span.attr[b]", 1, 10)])
+
 
 class TestRenderDiff(unittest.TestCase):
     def test_no_change_is_empty(self):
@@ -82,6 +92,29 @@ class TestRenderDiff(unittest.TestCase):
         self.assertIn("| Gone | `chunk.tags[_dd.p.dm] repeats span.attr[_dd.p.dm]` | 5 → 0 |  |", body)
         self.assertIn("Trace payload duplicates: ...", body)
         self.assertNotIn("changes `pkg/trace/testutil/dupcheck`", body)
+
+    def test_partner_count_change(self):
+        base = issue(
+            "span.attr[env]",
+            10,
+            {"span.attr[a]": 10, "span.attr[b]": 1},
+            title="span.attr[env] repeats another location",
+        )
+        head = issue("span.attr[env]", 10, {"span.attr[a]": 10, "span.attr[b]": 1_500}, title=base["title"])
+        body = render_diff(report(base), report(head), BASELINE, checker_changed=False)
+        self.assertIn(
+            "| Changed | `span.attr[env] repeats another location` | 10 | partner counts: `span.attr[b]` 1 → 1,500 |",
+            body,
+        )
+
+    def test_partner_counts_are_capped(self):
+        partners = {f"span.attr[p{i}]": i + 1 for i in range(5)}
+        base = issue("span.attr[env]", 10, partners, title="span.attr[env] repeats another location")
+        head = issue("span.attr[env]", 20, {k: v * 2 for k, v in partners.items()}, title=base["title"])
+        body = render_diff(report(base), report(head), BASELINE, checker_changed=False)
+        self.assertIn(
+            "partner counts: `span.attr[p4]` 5 → 10, `span.attr[p3]` 4 → 8, `span.attr[p2]` 3 → 6, +2 more |", body
+        )
 
     def test_checker_changed(self):
         body = render_diff(report(ENV), report(ENV, DM), BASELINE, checker_changed=True)

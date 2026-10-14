@@ -13,6 +13,9 @@ from __future__ import annotations
 
 DUPCHECK_DIR = "pkg/trace/testutil/dupcheck"
 
+# _MAX_PARTNER_COUNTS is the number of partner count changes listed per issue.
+_MAX_PARTNER_COUNTS = 3
+
 FRESH_REPORT_COMMAND = (
     f'dda inv test --targets=./{DUPCHECK_DIR} '
     '--test-args="-test.run=TestNoAgentIntroducedDuplicates -dupcheck.report -test.v" '
@@ -30,8 +33,8 @@ def compare_reports(base: dict, head: dict) -> list[dict]:
     """
     Return the issues that differ between the base and head reports, in head
     report order followed by the issues gone from head. Each change has a kind
-    (new, changed or gone), the base and head issues (None when absent), and
-    the partners added and removed.
+    (new, changed or gone), the base and head issues (None when absent), the
+    partners added and removed, and the partners kept whose count changed.
     """
     base_issues = {i["subject"]: i for i in base["issues"]}
     head_issues = {i["subject"]: i for i in head["issues"]}
@@ -42,7 +45,7 @@ def compare_reports(base: dict, head: dict) -> list[dict]:
             changes.append(_change("new", None, h))
             continue
         change = _change("changed", b, h)
-        if b["count"] != h["count"] or change["new_partners"] or change["removed_partners"]:
+        if b["count"] != h["count"] or b["partners"] != h["partners"]:
             changes.append(change)
     for subject, b in base_issues.items():
         if subject not in head_issues:
@@ -59,6 +62,13 @@ def _change(kind: str, base: dict | None, head: dict | None) -> dict:
         "head": head,
         "new_partners": sorted(head_partners - base_partners) if base else [],
         "removed_partners": sorted(base_partners - head_partners) if head else [],
+        # A finding can repeat several partners, so the count of a partner can
+        # change while the count of the issue and its partner names don't.
+        "changed_partners": [
+            (p, base["partners"][p], head["partners"][p])
+            for p in sorted(base_partners & head_partners)
+            if base["partners"][p] != head["partners"][p]
+        ],
     }
 
 
@@ -123,6 +133,14 @@ def _change_row(c: dict) -> str:
         details.append("new partners: " + ", ".join(f"`{_escape(p)}`" for p in c["new_partners"]))
     if c["removed_partners"]:
         details.append("removed partners: " + ", ".join(f"`{_escape(p)}`" for p in c["removed_partners"]))
+    if c["changed_partners"]:
+        # The largest changes first, at most _MAX_PARTNER_COUNTS of them, as an
+        # issue can have dozens of partners.
+        changed = sorted(c["changed_partners"], key=lambda x: (-abs(x[2] - x[1]), x[0]))
+        items = [f"`{_escape(p)}` {b:,} → {h:,}" for p, b, h in changed[:_MAX_PARTNER_COUNTS]]
+        if len(changed) > _MAX_PARTNER_COUNTS:
+            items.append(f"+{len(changed) - _MAX_PARTNER_COUNTS:,} more")
+        details.append("partner counts: " + ", ".join(items))
     return f"| {c['kind'].capitalize()} | {title} | {occurrences} | {'<br>'.join(details)} |"
 
 
