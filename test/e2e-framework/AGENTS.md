@@ -27,7 +27,7 @@ test/e2e-framework/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
 │   │   └── fakeintake/   # Fakeintake deployment component
-│   ├── os/               # OS descriptors (Ubuntu2204, WindowsServer2025E2E, etc.)
+│   ├── os/               # OS descriptors (Ubuntu2204, WindowsServer2025, etc.)
 │   ├── kubernetes/       # K8s components (KinD, OpenShift, Helm addons)
 │   ├── docker/           # Docker compose components
 │   └── remote/           # Remote host SSH management
@@ -76,12 +76,11 @@ awshost.Provisioner(
 )
 ```
 
-Prefer prebaked images: they are Packer-built AMIs with Docker, the AWS CLI, `jq`,
-`ansible` and friends prebaked, so a test never installs them at runtime. Ubuntu
-22.04/24.04 and Debian plain descriptors are prebaked; on flavors that still have an
-`-e2e` variant (Windows Server), use it (`WindowsServer2025E2E`, not `WindowsServer2025`).
-They are already the defaults (`UbuntuDefault = Ubuntu2204`), so passing no OS at all
-is also correct.
+Every `platforms.json` image is a Packer-built AMI with Docker, the AWS CLI, `jq`,
+`ansible` and friends prebaked, so a test never installs them at runtime. Keys and
+descriptors carry no `-e2e` suffix: that distinction only exists in ami-builder, whose
+`platforms_key` maps its `-e2e` builds to our keys. Passing no OS at all is also
+correct (`UbuntuDefault = Ubuntu2204`, `WindowsServerDefault = WindowsServer2025`).
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.

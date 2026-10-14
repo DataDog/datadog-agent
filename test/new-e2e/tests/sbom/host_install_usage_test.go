@@ -92,7 +92,7 @@ type hostInstallUsageSuite struct {
 func TestSBOMHostInstallUsageSuite(t *testing.T) {
 	e2e.Run(t, &hostInstallUsageSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithRunOptions(
-			scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2204E2E)),
+			scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2204)),
 			scenec2.WithFakeIntakeOptions(fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scenec2.WithPreAgentInstallHook(startCron),
 			scenec2.WithAgentOptions(

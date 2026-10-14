@@ -46,7 +46,7 @@ Do not hardcode the registry host; read it from the runner parameter store. See 
 If your test requires a package unavailable on a bare VM, in order of preference:
 - Avoid it (e.g. you rarely need `jq`: parse JSON in go)
 - Use a containerized environment cached via the previous method. Many tools ship prebuilt container images you can run directly.
-- Prebake it into a custom machine image, as done for the `Ubuntu2204` OS flavor. See [Custom AMIs](../../doc/how-to/test/e2e/custom-amis.md), which also lists what the `-e2e` images already ship.
+- Prebake it into the machine image: every `platforms.json` image is prebaked (built from ami-builder's `-e2e` entries, mapped to our suffix-less keys through `platforms_key`). See [Custom AMIs](../../doc/how-to/test/e2e/custom-amis.md) and [what the images already ship](../../doc/how-to/test/e2e/dependencies.md#prebake-into-the-machine-image).
 - Store your package installer on an internal package repository. See [Other dependencies](#other-dependencies)
 
 Running package managers on the VM exposes you to rate limiting from upstream mirrors and to _changes_ in their packages - removed, renamed, or incompatible versions. Also see [Pin your dependencies](#pin-your-dependencies).
