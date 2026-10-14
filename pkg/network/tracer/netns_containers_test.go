@@ -194,6 +194,11 @@ func TestNetNSContainerResolverConcurrentAccess(t *testing.T) {
 		r.resolve(4002, ztunnel)
 	}
 	<-done
+
+	// the writer's last event unset the app, so its namespace is gone
+	_, ok := r.resolve(4002, ztunnel)
+	assert.False(t, ok)
+	assert.NotContains(t, r.byNetNS, uint32(4002))
 }
 
 func TestNetNSContainerResolverIgnoresUnchangedUpdates(t *testing.T) {
