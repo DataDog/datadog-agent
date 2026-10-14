@@ -165,7 +165,7 @@ func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t
 	s := CheckScheduler{
 		configToChecks: make(map[string][]checkid.ID),
 		senderManager:  normalSenderManager,
-		infraTagger:    infratags.NewTagger(cfg),
+		infraTagger:    infratags.NewMetricTagger(cfg),
 	}
 	s.addLoader(loader)
 	s.SetMetricLookbackShadowSenderManager(shadowSenderManager)
@@ -231,7 +231,7 @@ func TestGetChecksFromConfigsRegistersPythonShadowCallbackRouteAndCleansUp(t *te
 	s := CheckScheduler{
 		configToChecks:      make(map[string][]checkid.ID),
 		senderManager:       normalSenderManager,
-		infraTagger:         infratags.NewTagger(cfg),
+		infraTagger:         infratags.NewMetricTagger(cfg),
 		shadowSenderManager: shadowSenderManager,
 	}
 	s.addLoader(loader)
@@ -568,7 +568,7 @@ type recordingSchedulerSender struct {
 	manager *recordingSchedulerSenderManager
 }
 
-func (s *recordingSchedulerSender) SetInfraTagger(*infratags.Tagger) {
+func (s *recordingSchedulerSender) SetInfraTagger(*infratags.MetricTagger) {
 	s.manager.infraTaggedIDs = append(s.manager.infraTaggedIDs, s.id)
 }
 
