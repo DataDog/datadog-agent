@@ -31,6 +31,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
+        "//test/fakeintake/version",
         "//test/new-e2e/tests/agent-platform/common",
         "//test/new-e2e/tests/agent-platform/common/file-manager",
         "//test/new-e2e/tests/agent-platform/common/helper",
