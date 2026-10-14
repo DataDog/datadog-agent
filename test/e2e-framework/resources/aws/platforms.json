@@ -92,10 +92,8 @@
             "18-04-gpu-driver-510": "ami-0cfe6ff12b2f5e333",
             "20-04": "ami-044deb00fc648b5c0",
             "22-04": "ami-07a6d5995efa667f5",
-            "22-04-e2e": "ami-07a6d5995efa667f5",
             "22-04-gpu": "ami-07bfc17326c424764",
             "24-04": "ami-03147be37edda85a6",
-            "24-04-e2e": "ami-03147be37edda85a6",
             "24-04-e2e-kind": "ami-00fb0108a23f0e93b"
         }
     },

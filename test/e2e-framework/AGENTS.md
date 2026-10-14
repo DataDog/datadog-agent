@@ -27,7 +27,7 @@ test/e2e-framework/
 │   ├── datadog/          # Pulumi components: agent, agentparams, fakeintake
 │   │   ├── agentparams/  # Agent configuration options (WithAgentConfig, etc.)
 │   │   └── fakeintake/   # Fakeintake deployment component
-│   ├── os/               # OS descriptors (Ubuntu2204E2E, WindowsServer2025, etc.)
+│   ├── os/               # OS descriptors (Ubuntu2204, WindowsServer2025E2E, etc.)
 │   ├── kubernetes/       # K8s components (KinD, OpenShift, Helm addons)
 │   ├── docker/           # Docker compose components
 │   └── remote/           # Remote host SSH management
@@ -67,7 +67,7 @@ as the AWS example below does.
 // Host on AWS EC2
 awshost.Provisioner(
     awshost.WithRunOptions(
-        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204E2E)),
+        ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.Ubuntu2204)),
         ec2.WithAgentOptions(
             agentparams.WithAgentConfig(config),
             agentparams.WithIntegration("check.d", checkConfig),
@@ -76,10 +76,12 @@ awshost.Provisioner(
 )
 ```
 
-Prefer the `-e2e` descriptors (`Ubuntu2204E2E`, not `Ubuntu2204`): they resolve to
-Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked,
-so a test never installs them at runtime. They are already the Linux defaults
-(`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
+Prefer prebaked images: they are Packer-built AMIs with Docker, the AWS CLI, `jq`,
+`ansible` and friends prebaked, so a test never installs them at runtime. Ubuntu
+22.04/24.04 and Debian plain descriptors are prebaked; on flavors that still have an
+`-e2e` variant (Windows Server), use it (`WindowsServer2025E2E`, not `WindowsServer2025`).
+They are already the defaults (`UbuntuDefault = Ubuntu2204`), so passing no OS at all
+is also correct.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.
