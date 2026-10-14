@@ -60,9 +60,7 @@ const (
 	regionFallback                = "unknown"
 )
 
-// resolveRegion derives the Azure region from the environment's DNS suffix,
-// falling back to regionFallback when the suffix has an unexpected format.
-// GetTags and GetInventoryData share it as the single source of truth.
+// GetTags and GetInventoryData must derive region identically.
 func (c *ContainerApp) resolveRegion() string {
 	appDNSSuffix := os.Getenv(ContainerAppDNSSuffix)
 	appDNSSuffixTokens := strings.Split(appDNSSuffix, ".")
@@ -73,8 +71,7 @@ func (c *ContainerApp) resolveRegion() string {
 	return regionFallback
 }
 
-// containerAppCCRID builds the app-level Canonical Cloud Resource ID. It is the
-// stable parent that revision-level CCRIDs nest under.
+// containerAppCCRID builds the app-level Canonical Cloud Resource ID.
 func containerAppCCRID(subscriptionID, resourceGroup, appName string) string {
 	if subscriptionID == "" || resourceGroup == "" || appName == "" {
 		return ""
@@ -82,7 +79,6 @@ func containerAppCCRID(subscriptionID, resourceGroup, appName string) string {
 	return fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", subscriptionID, resourceGroup, strings.ToLower(appName))
 }
 
-// containerAppRevisionCCRID extends an app CCRID with the revision segment.
 func containerAppRevisionCCRID(appCCRID, revision string) string {
 	if appCCRID == "" || revision == "" {
 		return ""
@@ -218,7 +214,6 @@ func (c *ContainerApp) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Conf
 
 // Init initializes ContainerApp specific code
 func (c *ContainerApp) Init(_ *TracingContext) error {
-	// Container Apps require subscription and resource group environment variables.
 	if _, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); !exists {
 		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
