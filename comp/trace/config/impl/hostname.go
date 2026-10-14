@@ -84,7 +84,9 @@ func acquireHostname(c *config.AgentConfig) error {
 
 // acquireHostnameFallback attempts to acquire a hostname for this configuration. It
 // tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
-// set, otherwise falling back to os.Hostname.
+// set, otherwise falling back to os.Hostname when it is usable. On macOS and
+// Windows in EUDM mode, it requires the core agent hostname to preserve the
+// device-name-and-serial identity.
 func acquireHostnameFallback(c *config.AgentConfig) error {
 	var out bytes.Buffer
 	cmd := exec.Command(c.DDAgentBin, "hostname")
@@ -94,10 +96,12 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	c.Hostname = strings.TrimSpace(out.String())
 	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
 		if emptyDisallowed {
-			log.Infof("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
+			log.Infof("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Checking whether OS hostname fallback is allowed.")
 		}
 		// There was either an error retrieving the hostname from the core agent, or
-		// it was empty and its disallowed by the disable_empty_hostname feature flag.
+		// it was empty and is disallowed by the disable_empty_hostname feature flag.
+		// EUDM on macOS and Windows requires the core agent's device-name-and-serial
+		// hostname; falling back to os.Hostname would report a different identity.
 		if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "end_user_device" && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
 			return fmt.Errorf("cannot resolve EUDM hostname from core-agent at %q; refusing to use a different OS hostname (lookup error: %v)", c.DDAgentBin, err)
 		}
