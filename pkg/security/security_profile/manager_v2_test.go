@@ -28,11 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-<<<<<<< HEAD
-=======
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
->>>>>>> 88ca3faf270 (test(cws): Add workload profile v2 manager unit tests)
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -303,11 +300,6 @@ func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
 		assert.False(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds())))
 	})
 }
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> 88ca3faf270 (test(cws): Add workload profile v2 manager unit tests)
 
 func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
 	cookieMap, _ := lru.New[uint64, sampleCookieEntry](128)
@@ -413,8 +405,6 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
 }
-<<<<<<< HEAD
-=======
 
 const (
 	testContainerID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
@@ -469,6 +459,7 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
 				SecurityProfileEnabled:                          true,
+				SecurityProfileV2Enabled:                        true,
 				AnomalyDetectionEnabled:                         true,
 				SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
 				SecurityProfileV2MaxDumpSize:                    func() int { return maxSize },
@@ -607,7 +598,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			assert.Equal(t, testSelector, *p.GetWorkloadSelector(), "the profile should be shared by all the tags of the image")
 			node := findTestEventNode(p, eventType, "known")
 			require.NotNil(t, node, "the %s node should be in the profile", eventType)
-			_, ok := node.GetSeenTimes(p.ActivityTree.GetImageTagID("v1"))
+			_, _, ok := node.GetSeenTimes(p.ActivityTree.GetImageTagID("v1"))
 			assert.True(t, ok, "the node should be tagged with v1")
 
 			// the same activity under another tag of the image only adds the tag to the existing entry
@@ -617,7 +608,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			assert.ElementsMatch(t, []string{"v1", "v2"}, p.GetVersions())
 			node = findTestEventNode(p, eventType, "known")
 			require.NotNil(t, node)
-			_, ok = node.GetSeenTimes(p.ActivityTree.GetImageTagID("v2"))
+			_, _, ok = node.GetSeenTimes(p.ActivityTree.GetImageTagID("v2"))
 			assert.True(t, ok, "the existing node should be tagged with v2")
 
 			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
@@ -668,7 +659,9 @@ func TestManagerV2_onEventTagsResolved(t *testing.T) {
 
 				m.onEventTagsResolved(newTestEventV2(eventType, "v1", "known"))
 				assert.Empty(t, *anomalies)
-				assert.NotNil(t, findTestEventNode(m.profiles[testSelector], eventType, "known"), "the activity should still be learned")
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				assert.NotNil(t, findTestEventNode(p, eventType, "known"), "the activity should still be learned")
 			})
 		})
 	}
@@ -765,5 +758,3 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		assert.Contains(t, m.profiles, testSelector)
 	})
 }
->>>>>>> 6a3da75f450 (test(cws): Add workload profile v2 manager unit tests)
->>>>>>> 88ca3faf270 (test(cws): Add workload profile v2 manager unit tests)
