@@ -243,3 +243,33 @@ func TestBuildContainerdLayerPaths(t *testing.T) {
 		}
 	})
 }
+
+func TestIsNydusImage(t *testing.T) {
+	layer := ocispec.Descriptor{MediaType: ocispec.MediaTypeImageLayerGzip, Digest: d("layer")}
+	blob := ocispec.Descriptor{
+		MediaType:   "application/vnd.oci.image.layer.nydus.blob.v1",
+		Digest:      d("blob"),
+		Annotations: map[string]string{"containerd.io/snapshot/nydus-blob": "true"},
+	}
+	bootstrap := ocispec.Descriptor{
+		MediaType:   ocispec.MediaTypeImageLayerGzip,
+		Digest:      d("bootstrap"),
+		Annotations: map[string]string{"containerd.io/snapshot/nydus-bootstrap": "true"},
+	}
+
+	tests := []struct {
+		name   string
+		layers []ocispec.Descriptor
+		want   bool
+	}{
+		{name: "oci", layers: []ocispec.Descriptor{layer, layer}},
+		{name: "nydus", layers: []ocispec.Descriptor{blob, blob, bootstrap}, want: true},
+		{name: "nydus with one blob", layers: []ocispec.Descriptor{blob, bootstrap}, want: true},
+		{name: "no layers"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, isNydusImage(ocispec.Manifest{Layers: tt.layers}))
+		})
+	}
+}
