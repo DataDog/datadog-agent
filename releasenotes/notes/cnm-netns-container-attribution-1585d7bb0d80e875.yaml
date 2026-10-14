@@ -13,3 +13,7 @@ features:
     pod's network namespace, such as Istio ambient's ``ztunnel``, is attributed to the container
     that owns that namespace instead of the proxy. The allowlist is set with
     ``network_config.netns_container_attribution_owner_images`` and defaults to ``ztunnel``.
+    Helper containers that share a pod's network namespace but don't carry its traffic are
+    ignored when choosing the target, set with
+    ``network_config.netns_container_attribution_ignored_containers`` (default ``vault-agent``
+    and ``vault-agent-init``).
