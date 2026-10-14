@@ -3,7 +3,7 @@
 Many E2E tests rely on extra dependencies being installed - instead of installing them at runtime (via an `apt install` or similar), we prefer to "bake" them into the underlying AMI that is used for provisioning the test VMs, as installing at runtime is a big source of flakiness (see [here](dependencies.md))
 These images are pinned by ID in this repo (`test/e2e-framework/resources/aws/platforms.json`) and always associated with a specific OS Descriptior in the E2E framework (see below.)
 
-The images themselves are built in [ami-builder](https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e). This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
+The images themselves are built in <!-- markdown-link-check-disable -->[ami-builder](https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e)<!-- markdown-link-check-disable -->. This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
 
 ## How an AMI is chosen
 
@@ -38,7 +38,7 @@ It is meant for manual QA through `dda inv aws.create-vm --latest-ami` (which se
 
 Every image in `platforms.json` is an E2E image, so its keys carry no `-e2e` suffix: `ubuntu/x86_64/22-04` or `windows-server/x86_64/2025` *is* the prebaked image, with common test dependencies and config already installed. See [Prebake into the machine image](dependencies.md#prebake-into-the-machine-image) for what that covers.
 
-ami-builder is where the distinction lives. Its [`config.yaml`](https://github.com/ddoghq/ami-builder/blob/master/ami/images/e2e/config.yaml) builds a bare image (`"22-04"`) and a prebaked one (`"22-04-e2e"`) from the same upstream base, and maps the prebaked build to the `platforms.json` key it refreshes through `platforms_key`:
+ami-builder is where the distinction lives. Its <!-- markdown-link-check-disable -->[`config.yaml`](https://github.com/ddoghq/ami-builder/blob/master/ami/images/e2e/config.yaml)<!-- markdown-link-check-disable --> builds a bare image (`"22-04"`) and a prebaked one (`"22-04-e2e"`) from the same upstream base, and maps the prebaked build to the `platforms.json` key it refreshes through `platforms_key`:
 
 ```yaml
 ubuntu:
