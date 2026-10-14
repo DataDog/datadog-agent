@@ -114,7 +114,7 @@
         "bullseye"
       ],
       "test_env_vars": {
-        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "debian_12": {
@@ -239,7 +239,7 @@
         "jammy"
       ],
       "test_env_vars": {
-        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "ubuntu_23.10": {
