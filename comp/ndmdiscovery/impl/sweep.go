@@ -123,7 +123,9 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 			}
 			// The cursor is kept to resume at this chunk, marked failed so
 			// that the resume opens a new run.
+			ended := s.now()
 			state.Failed = true
+			state.EndedAtMs = ended
 			s.saveCursor(id, state)
 			stopProgress()
 			s.reportRun(r, metadata.AutodiscoveryRunMetadata{
@@ -133,7 +135,7 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 				AddressesScanned: state.Scanned,
 				Error:            err.Error(),
 				StartedAtMs:      state.StartedAtMs,
-				FinishedAtMs:     s.now(),
+				FinishedAtMs:     ended,
 			})
 			return err
 		}
@@ -168,20 +170,20 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 	})
 
 	// Kept rather than cleared, so a restart knows when this range is next due.
-	state.CompletedAtMs = finished
+	state.EndedAtMs = finished
 	s.saveCursor(id, state)
 	return nil
 }
 
 // dueIn is how long is left before the range is next due, and zero when it is
-// due now. A range with no completed cycle on record is always due.
+// due now. A range with no finished cycle on record is always due.
 func (s *sweeper) dueIn(r sweepRequest, interval time.Duration) time.Duration {
 	saved, ok := s.cursors.Load(r.Config.AutodiscoveryID)
-	if !ok || saved.CompletedAtMs == 0 || saved.ConfigDigest != r.Digest {
+	if !ok || saved.EndedAtMs == 0 || saved.ConfigDigest != r.Digest {
 		return 0
 	}
 
-	elapsed := time.Duration(s.now()-saved.CompletedAtMs) * time.Millisecond
+	elapsed := time.Duration(s.now()-saved.EndedAtMs) * time.Millisecond
 	if elapsed < 0 || elapsed >= interval {
 		return 0
 	}

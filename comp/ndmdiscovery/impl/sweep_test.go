@@ -168,7 +168,7 @@ func testSweepRequestWithOptions(t *testing.T, cidr string, ignored []string, op
 	}
 }
 
-func TestSweepDueInCountsFromTheLastCompletion(t *testing.T) {
+func TestSweepDueInCountsFromTheLastCycleEnd(t *testing.T) {
 	cursors := newMemCursorStore()
 	s := newTestSweeper(t, answerAll(), &recordingReporter{}, cursors, 10)
 	req := testSweepRequest(t, "10.0.0.0/26", nil)
@@ -179,11 +179,12 @@ func TestSweepDueInCountsFromTheLastCompletion(t *testing.T) {
 		want  time.Duration
 	}{
 		"no cursor":        {},
-		"never completed":  {state: cursorState{ConfigDigest: req.Digest}},
-		"another layout":   {state: cursorState{ConfigDigest: "other", CompletedAtMs: now - 10_000}},
-		"a whole interval": {state: cursorState{ConfigDigest: req.Digest, CompletedAtMs: now - 60_000}},
-		"a clock jump":     {state: cursorState{ConfigDigest: req.Digest, CompletedAtMs: now + 10_000}},
-		"mid-interval":     {state: cursorState{ConfigDigest: req.Digest, CompletedAtMs: now - 10_000}, want: 20 * time.Second},
+		"never ended":      {state: cursorState{ConfigDigest: req.Digest}},
+		"another layout":   {state: cursorState{ConfigDigest: "other", EndedAtMs: now - 10_000}},
+		"a whole interval": {state: cursorState{ConfigDigest: req.Digest, EndedAtMs: now - 60_000}},
+		"a clock jump":     {state: cursorState{ConfigDigest: req.Digest, EndedAtMs: now + 10_000}},
+		"mid-interval":     {state: cursorState{ConfigDigest: req.Digest, EndedAtMs: now - 10_000}, want: 20 * time.Second},
+		"a failed cycle":   {state: cursorState{ConfigDigest: req.Digest, Failed: true, EndedAtMs: now - 10_000}, want: 20 * time.Second},
 	}
 
 	for name, tc := range tests {
@@ -222,7 +223,7 @@ func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 	assert.Len(t, reporter.devices, 1, "a silent address is absent from the run, not reported unreachable")
 	saved, ok := cursors.Load("ad-1")
 	require.True(t, ok, "a completed cycle keeps its cursor")
-	assert.Equal(t, int64(1700000000000), saved.CompletedAtMs, "the completion time is what makes the range next due")
+	assert.Equal(t, int64(1700000000000), saved.EndedAtMs, "the end of the cycle is what makes the range next due")
 }
 
 func TestSweepReportsPerChunkNotAtTheEnd(t *testing.T) {
@@ -390,6 +391,7 @@ func TestSweepFailedChunkKeepsCursor(t *testing.T) {
 	require.True(t, ok, "a failed cycle keeps its cursor so the next tick resumes")
 	assert.Equal(t, 2, saved.NextChunk)
 	assert.Equal(t, "run-fixed", saved.RunID)
+	assert.Equal(t, int64(1700000000000), saved.EndedAtMs, "a failed cycle is next due an interval later, like a completed one")
 }
 
 func TestSweepCancellationDoesNotReportFailure(t *testing.T) {
@@ -413,6 +415,7 @@ func TestSweepCancellationDoesNotReportFailure(t *testing.T) {
 	require.True(t, ok, "the cursor is kept, even though it holds no completed chunk yet")
 	assert.Equal(t, 0, saved.NextChunk, "the interrupted chunk is not counted as done")
 	assert.False(t, saved.Failed, "a stopping agent does not end the run")
+	assert.Zero(t, saved.EndedAtMs, "a paused run resumes as soon as the agent is back")
 }
 
 func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
@@ -505,7 +508,7 @@ func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 
 	saved, ok = cursors.Load("ad-1")
 	require.True(t, ok)
-	assert.NotZero(t, saved.CompletedAtMs, "the completed cycle records when it finished")
+	assert.NotZero(t, saved.EndedAtMs, "the completed cycle records when it finished")
 	assert.False(t, saved.Failed)
 }
 
@@ -554,7 +557,7 @@ func TestSweepContinuesWhenAChunkReportFails(t *testing.T) {
 	assert.Equal(t, 3, reporter.batches, "the three chunks after it are reported normally")
 	saved, ok := cursors.Load("ad-1")
 	require.True(t, ok)
-	assert.NotZero(t, saved.CompletedAtMs, "the cursor advanced past the failed report and the cycle completed")
+	assert.NotZero(t, saved.EndedAtMs, "the cursor advanced past the failed report and the cycle completed")
 }
 
 func countRunStatus(runs []metadata.AutodiscoveryRunMetadata, status metadata.AutodiscoveryRunStatus) int {
