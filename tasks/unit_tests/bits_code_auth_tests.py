@@ -36,20 +36,21 @@ class BitsCodeAuthTests(unittest.TestCase):
             popen.assert_not_called()
             prompt.assert_not_called()
 
-    def test_gitlab_factory_rejects_before_feature_flags_or_credentials(self):
+    def test_gitlab_factory_skips_feature_flags_and_credentials(self):
         with (
             patch("tasks.libs.ciproviders.gitlab_api.is_enabled") as feature_flag,
             patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_token") as token_helper,
             patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_oauth_token") as oauth_helper,
-            patch("tasks.libs.ciproviders.gitlab_api.gitlab.Gitlab") as client,
             patch("subprocess.Popen") as popen,
             patch("builtins.input") as prompt,
         ):
             for token in (None, "explicit-test-token"):
                 with self.subTest(token=token):
-                    with self.assertRaisesRegex(RuntimeError, "Authenticated GitLab API access"):
-                        get_gitlab_api(token=token)
-            for dependency in (feature_flag, token_helper, oauth_helper, client, popen, prompt):
+                    client = get_gitlab_api(token=token)
+                    self.assertIsNone(client.private_token)
+                    self.assertIsNone(client.oauth_token)
+                    self.assertIsNone(client.job_token)
+            for dependency in (feature_flag, token_helper, oauth_helper, popen, prompt):
                 dependency.assert_not_called()
 
     def test_private_github_fails_before_client_or_token_generation(self):

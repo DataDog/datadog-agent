@@ -27,10 +27,10 @@ command reporting `Ran 0 tests` has not validated the code.
 
 ## Bits Code sessions
 
-Set `DD_BITS_CODE=1` for local tasks in Bits Code. Shared auth helpers fail promptly
-instead of invoking workstation credential bootstrap; authenticated service
-operations must use the host coding agent's existing tools. Public GitHub reads
-can explicitly use `public_repo=True`. See
+Set `DD_BITS_CODE=1` for tasks in Bits Code. GitLab clients use `GITLAB_HOST` and
+mounted public CA trust without fetching tokens; the Bits proxy controls access.
+Other shared auth helpers fail promptly instead of invoking workstation credential
+bootstrap. Public GitHub reads can explicitly use `public_repo=True`. See
 [`bits-code-tasks.md`](../doc/how-to/bits-code-tasks.md) for supported scope and
 unsupported cloud/E2E workflows. Do not set CI variables to simulate authentication.
 
