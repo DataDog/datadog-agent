@@ -1,13 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
 
-_SHIPPED_OS = select({
-    "@platforms//os:linux": [],
-    "@platforms//os:windows": [],
-    "@platforms//os:macos": [],
-    "//conditions:default": ["@platforms//:incompatible"],
-})
-
 # rust_prost_library propagates CcInfo from proto_library, which transitively
 # includes abseil-cpp. The Rust linker needs the C++ runtime explicitly on Linux and macOS,
 # which link different C++ standard libraries (libstdc++ vs. libc++).
@@ -27,7 +20,6 @@ rust_library(
     edition = "2024",
     link_deps = [":cpp_stdlib"],
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _SHIPPED_OS,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/datadog/procmgr:procmgr_rust_proto",
@@ -49,6 +41,5 @@ rust_test(
     crate = ":dd-procmgr-client",
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _SHIPPED_OS,
     deps = ["@crates//:tempfile"],
 )
