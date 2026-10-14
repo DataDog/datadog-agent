@@ -62,7 +62,10 @@ const (
 	// measurement before they are queried.
 	benchmarkIngestionMargin = 3 * time.Minute
 	// benchmarkBlock is the duration of the blocks whose means the significance test
-	// compares. It is shortened for a measurement too short to hold benchmark.MinBlocks.
+	// compares. It is shortened for a measurement too short to hold benchmark.MinBlocks. The
+	// run times of the checks are read at the end of each block, so a block must hold at
+	// most as many runs of a check as the 32 run times the Agent keeps: 20 for a check every
+	// 15 s.
 	benchmarkBlock = 5 * time.Minute
 	// benchmarkRollupSeconds is the interval of the points of the queried timeseries.
 	benchmarkRollupSeconds = 60
@@ -91,11 +94,24 @@ var (
 	cpuThresholds     = benchmark.Thresholds{Relative: 0.05, Absolute: 5e6}      // nanocores: 5 millicores
 	memoryThresholds  = benchmark.Thresholds{Relative: 0.05, Absolute: 10 << 20} // bytes: 10 MiB
 	runTimeThresholds = benchmark.Thresholds{Relative: 0.10, Absolute: 5}        // milliseconds
+	// runTimeRelativeThresholds override the relative threshold of runTimeThresholds for the
+	// checks whose run time varies the most from an Agent pod to another, which no number of
+	// blocks of a phase averages out: up to 12% in a phase for kubelet in A/A runs.
+	runTimeRelativeThresholds = map[string]float64{
+		"kubelet": 0.20,
+	}
+	// untimedChecks are the stable checks whose run times aren't compared: container and
+	// containerd share a 2-s cache of the container stats, filled by whichever runs first, an
+	// order set anew at each start of the Agent, so that their run times differed by up to 97%
+	// in a phase between the two installations in A/B runs whose profiles showed no change. A
+	// change of their cost still shows, diluted, in the CPU usage of the node Agents, and their
+	// metric samples are still compared.
+	untimedChecks = []string{"container", "containerd"}
 )
 
 // benchmarkComponents are the Agent workloads whose resource usage is compared, and whose
 // checks the functional tests verify. The run times of their checks with a stable set of
-// instances are compared too (see timedChecks).
+// instances are compared too, but for untimedChecks (see stableChecks).
 var benchmarkComponents = []struct {
 	name     string
 	workload func(*components.KubernetesAgent) kubeComp.KubernetesObjRefOutput
@@ -158,22 +174,22 @@ var benchmarkMetrics = []struct {
 	{name: "container.memory.rss", unit: benchmark.UnitBytes, thresholds: memoryThresholds},
 }
 
-// timedCheck is a check whose run time is compared.
-type timedCheck struct {
+// stableCheck is a check of an Agent workload whose instances don't come and go with the
+// churning pods.
+type stableCheck struct {
 	component string
 	check     string
 }
 
-// timedChecks returns the checks of benchmarkComponents whose run times are compared:
-// those whose instances don't come and go with the churning pods. A check is a small part
-// of the CPU usage of its container, so a large change of its cost can barely show in the
-// container metrics.
-func timedChecks() []timedCheck {
-	var checks []timedCheck
+// stableChecks returns the stable checks of benchmarkComponents, whose metric samples and,
+// but for untimedChecks, run times are compared. A check is a small part of the CPU usage of
+// its container, so a large change of its cost can barely show in the container metrics.
+func stableChecks() []stableCheck {
+	var checks []stableCheck
 	for _, component := range benchmarkComponents {
 		for _, check := range component.checks {
 			if !check.AnyInstance {
-				checks = append(checks, timedCheck{component: component.name, check: check.Name})
+				checks = append(checks, stableCheck{component: component.name, check: check.Name})
 			}
 		}
 	}
@@ -304,14 +320,14 @@ func (s *benchmarkEKSSuite) Test01ChecksMatchBaseline() {
 
 		summary = nil
 		var errs []error
-		// timedChecks leaves out the checks whose instances come and go with the churning
+		// stableChecks leaves out the checks whose instances come and go with the churning
 		// pods: their number at the time of a snapshot varies between installations.
-		for _, timed := range timedChecks() {
-			baselineSamples := totalMetricSamples(stats[scenbenchmarkeks.Baseline][timed.component], timed.check)
-			comparisonSamples := totalMetricSamples(stats[scenbenchmarkeks.Comparison][timed.component], timed.check)
-			summary = append(summary, fmt.Sprintf("%s check %s: baseline %d, comparison %d", timed.component, timed.check, baselineSamples, comparisonSamples))
+		for _, stable := range stableChecks() {
+			baselineSamples := totalMetricSamples(stats[scenbenchmarkeks.Baseline][stable.component], stable.check)
+			comparisonSamples := totalMetricSamples(stats[scenbenchmarkeks.Comparison][stable.component], stable.check)
+			summary = append(summary, fmt.Sprintf("%s check %s: baseline %d, comparison %d", stable.component, stable.check, baselineSamples, comparisonSamples))
 			if err := benchmark.CompareMetricSamples(baselineSamples, comparisonSamples, checkSamplesTolerance); err != nil {
-				errs = append(errs, fmt.Errorf("%s check %s: %w", timed.component, timed.check, err))
+				errs = append(errs, fmt.Errorf("%s check %s: %w", stable.component, stable.check, err))
 			}
 		}
 		require.NoError(c, errors.Join(errs...))
@@ -371,7 +387,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 		first.From.UTC().Format(time.RFC3339), first.To.UTC().Format(time.RFC3339))
 	var snapshots [2]map[string]installationSnapshots
 	var snapshotErrs [2]error
-	snapshots[0], snapshotErrs[0] = s.runSnapshots(ctx, benchmark.RunTimeWindow(first))
+	snapshots[0], snapshotErrs[0] = s.runSnapshots(ctx, first)
 	// A restart during the measurement skews it, and hints at a crash or an OOM kill.
 	s.Require().NoError(s.compareRestarts(ctx, s.readyRestarts), "an Agent restarted during the first phase")
 	s.Require().NoError(s.waitForWorkload(time.Minute), "the workload stopped during the first phase")
@@ -413,17 +429,18 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	swapped := measurementWindow(swappedReadyAt, warmup, duration, block)
 	s.T().Logf("Phase 2: measuring the baseline images on the comparison installation and the comparison images on the baseline installation from %s to %s",
 		swapped.From.UTC().Format(time.RFC3339), swapped.To.UTC().Format(time.RFC3339))
-	snapshots[1], snapshotErrs[1] = s.runSnapshots(ctx, benchmark.RunTimeWindow(swapped))
+	snapshots[1], snapshotErrs[1] = s.runSnapshots(ctx, swapped)
 	s.Require().NoError(s.compareRestarts(ctx, swappedRestarts), "an Agent restarted during the swapped phase")
 	s.Require().NoError(s.waitForWorkload(time.Minute), "the workload stopped during the swapped phase")
 	s.sleepUntil(swapped.To.Add(benchmarkIngestionMargin))
 
 	report.Phases = [2]benchmark.Window{first, swapped}
-	runTimeWindows := [2]benchmark.Window{benchmark.RunTimeWindow(first), benchmark.RunTimeWindow(swapped)}
-	checks := timedChecks()
+	timedChecks := slices.DeleteFunc(stableChecks(), func(stable stableCheck) bool {
+		return slices.Contains(untimedChecks, stable.check)
+	})
 	// Bonferroni correction: the probability of a false verdict among all the compared metrics
 	// stays below benchmark.SignificanceLevel.
-	significance := benchmark.SignificanceLevel / float64(len(benchmarkComponents)*len(benchmarkMetrics)+len(checks))
+	significance := benchmark.SignificanceLevel / float64(len(benchmarkComponents)*len(benchmarkMetrics)+len(timedChecks))
 	for _, component := range benchmarkComponents {
 		for _, metric := range benchmarkMetrics {
 			thresholds := metric.thresholds
@@ -447,8 +464,11 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 			}))
 		}
 	}
-	for _, timed := range checks {
+	for _, timed := range timedChecks {
 		thresholds := runTimeThresholds
+		if relative, found := runTimeRelativeThresholds[timed.check]; found {
+			thresholds.Relative = relative
+		}
 		thresholds.Significance = significance
 		result := benchmark.Result{
 			Component:  timed.component,
@@ -457,7 +477,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 			Unit:       benchmark.UnitMilliseconds,
 			Thresholds: thresholds,
 		}
-		report.Results = append(report.Results, compareResult(result, runTimeWindows, func(i int, _ benchmark.Window) ([]benchmark.Point, []benchmark.Point, error) {
+		report.Results = append(report.Results, compareResult(result, report.Phases, func(i int, _ benchmark.Window) ([]benchmark.Point, []benchmark.Point, error) {
 			if snapshotErrs[i] != nil {
 				return nil, nil, snapshotErrs[i]
 			}
@@ -481,8 +501,8 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	s.T().Logf("Report written to %s (%s only when a metric changed or couldn't be compared):\n%s", reportDir, benchmark.MarkdownReportFile, report.Markdown())
 
 	for _, result := range report.Results {
-		s.Emptyf(result.Error, "%s %s couldn't be compared", result.Component, result.Metric)
-		s.NotEqualf(benchmark.VerdictRegression, result.Verdict, "%s %s regressed by %+.1f%% (p=%.3g)", result.Component, result.Metric, 100*result.RelativeChange, result.PValue)
+		s.Emptyf(result.Error, "%s %s couldn't be compared", result.Component, result.Name())
+		s.NotEqualf(benchmark.VerdictRegression, result.Verdict, "%s %s regressed by %+.1f%% (p=%.3g)", result.Component, result.Name(), 100*result.RelativeChange, result.PValue)
 	}
 }
 
@@ -536,11 +556,11 @@ func (s *benchmarkEKSSuite) reportVariant(ctx context.Context, variant benchmark
 }
 
 // runSnapshots takes snapshots of the runner stats of the components with checks of both
-// installations at the start of window and at the end of each of its blocks, those of the
-// run times (see benchmark.RunTimeWindow), so that the run times of the checks make a point
-// per block (see benchmark.RunTimePoints), and returns them by installation. It returns at
-// the end of window: an error ends the snapshots, not the wait. Getting the status of the
-// Agents costs those of both installations a little CPU alike.
+// installations at the start of window and at the end of each of its blocks, so that the run
+// times of the checks make a point per block (see benchmark.RunTimePoints), and returns them
+// by installation. It returns at the end of window: an error ends the snapshots, not the
+// wait. Getting the status of the Agents costs those of both installations a little CPU
+// alike.
 func (s *benchmarkEKSSuite) runSnapshots(ctx context.Context, window benchmark.Window) (map[string]installationSnapshots, error) {
 	snapshots := make(map[string]installationSnapshots, 2)
 	var err error

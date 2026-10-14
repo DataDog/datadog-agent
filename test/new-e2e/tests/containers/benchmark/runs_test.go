@@ -16,7 +16,7 @@ import (
 )
 
 // testRunTimeSnapshots returns the snapshots of a pod taken at the boundaries of the blocks
-// of window, whose kubelet check runs 10 times per block, each lasting runTime(block, run)
+// of window, whose kubelet check runs every 15 s, each run lasting runTime(block, run)
 // milliseconds.
 func testRunTimeSnapshots(window Window, runTime func(block, run int) int64) []Snapshot {
 	ring := make([]int64, 32)
@@ -29,17 +29,14 @@ func testRunTimeSnapshots(window Window, runTime func(block, run int) int64) []S
 		if !at.Before(window.To) {
 			return snapshots
 		}
-		for run := range 10 {
+		for run := range int(window.Block / (15 * time.Second)) {
 			ring[totalRuns%32] = runTime(block, run)
 			totalRuns++
 		}
 	}
 }
 
-func TestRunTimeWindow(t *testing.T) {
-	first, swapped := RunTimeWindow(testWindow), RunTimeWindow(testSwappedWindow)
-	assert.Equal(t, Window{From: testWindow.From, To: testWindow.To, Block: 150 * time.Second}, first)
-
+func TestCompareRunTimes(t *testing.T) {
 	// The comparison makes the check 15% faster, on node pools making it 20% slower on the
 	// comparison installation in the first phase.
 	runTime := func(milliseconds float64, seed int) func(block, run int) int64 {
@@ -53,16 +50,16 @@ func TestRunTimeWindow(t *testing.T) {
 		return points
 	}
 	c, err := Compare(
-		Phase{Window: first, Baseline: points(first, runTime(40, 0)), Comparison: points(first, runTime(1.2*34, 1))},
-		Phase{Window: swapped, Baseline: points(swapped, runTime(1.2*40, 2)), Comparison: points(swapped, runTime(34, 3))},
+		Phase{Window: testWindow, Baseline: points(testWindow, runTime(40, 0)), Comparison: points(testWindow, runTime(1.2*34, 1))},
+		Phase{Window: testSwappedWindow, Baseline: points(testSwappedWindow, runTime(1.2*40, 2)), Comparison: points(testSwappedWindow, runTime(34, 3))},
 		Thresholds{Relative: 0.1, Absolute: 5},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, VerdictImprovement, c.Verdict)
 	assert.InDelta(t, -0.15, c.RelativeChange, 0.02)
-	// A point per block of the run times, twice as many as the blocks of the container metrics
-	assert.Equal(t, 8, c.Phases[0].Blocks)
-	assert.Equal(t, 8, c.Phases[1].Blocks)
+	// A point per block
+	assert.Equal(t, 4, c.Phases[0].Blocks)
+	assert.Equal(t, 4, c.Phases[1].Blocks)
 }
 
 // staleRunTime fills the entries of the ring buffer of older runs, which must never be read.

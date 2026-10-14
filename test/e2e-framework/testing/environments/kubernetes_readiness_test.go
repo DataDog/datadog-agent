@@ -7,6 +7,7 @@ package environments
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -21,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func TestCheckAgentPodsReady(t *testing.T) {
@@ -113,6 +115,81 @@ func TestWaitForKubernetesAgentReady(t *testing.T) {
 
 	t.Run("nil agent", func(t *testing.T) {
 		require.Error(t, WaitForKubernetesAgentReady(context.Background(), cluster, nil, WithLinuxNodeAgentReady()))
+	})
+}
+
+func TestWaitForAgentReadyKeepsProblemsAtDeadline(t *testing.T) {
+	// cutShortAfterFirstCheck makes the second check, at 10 s (the default poll interval),
+	// outlast the 15-s timeout, and fail like the rate limiter of the client does.
+	cutShortAfterFirstCheck := func(env *Kubernetes) {
+		start := time.Now()
+		env.KubernetesCluster.KubernetesClient.K8sClient.(*fake.Clientset).PrependReactor("list", "pods", func(k8stesting.Action) (bool, runtime.Object, error) {
+			if time.Since(start) < 10*time.Second {
+				return false, nil, nil
+			}
+			time.Sleep(10 * time.Second)
+			return true, nil, errors.New("client rate limiter Wait returned an error: context deadline exceeded")
+		})
+	}
+
+	t.Run("problems of the previous check", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			env := newReadinessTestEnvironment(linuxNode("node-1"), unreadyPod("agent-1", "agent", 0))
+			cutShortAfterFirstCheck(env)
+
+			err := env.WaitForAgentReady(context.Background(), WithLinuxNodeAgentReady(), WithAgentReadinessTimeout(15*time.Second))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "container agent in pod agent-1 is not ready")
+			assert.NotContains(t, err.Error(), "rate limiter")
+		})
+	})
+
+	t.Run("problems of the last check", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			generator := readyPod("generator-1", "generator", 0)
+			generator.Namespace = "workload"
+			env := newReadinessTestEnvironment(linuxNode("node-1"), readyPod("agent-1", "agent", 0), generator)
+			start := time.Now()
+			// At 10 s, the Agent pod is no longer ready, and the list of the pods of the workload,
+			// listed first, outlasts the 15-s timeout.
+			env.KubernetesCluster.KubernetesClient.K8sClient.(*fake.Clientset).PrependReactor("list", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				switch {
+				case time.Since(start) < 10*time.Second:
+					return false, nil, nil
+				case action.GetNamespace() == "workload":
+					time.Sleep(10 * time.Second)
+					return true, nil, errors.New("client rate limiter Wait returned an error: context deadline exceeded")
+				default:
+					return true, &corev1.PodList{Items: []corev1.Pod{*unreadyPod("agent-1", "agent", 0)}}, nil
+				}
+			})
+
+			err := env.WaitForAgentReady(context.Background(),
+				WithLinuxNodeAgentReady(),
+				WithPodsReady("workload generator", "workload", "app=generator", 1),
+				WithAgentReadinessStableFor(time.Minute),
+				WithAgentReadinessTimeout(15*time.Second),
+			)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "container agent in pod agent-1 is not ready")
+			assert.NotContains(t, err.Error(), "rate limiter")
+		})
+	})
+
+	t.Run("ready at the previous check", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			env := newReadinessTestEnvironment(linuxNode("node-1"), readyPod("agent-1", "agent", 0))
+			cutShortAfterFirstCheck(env)
+
+			err := env.WaitForAgentReady(context.Background(),
+				WithLinuxNodeAgentReady(),
+				WithAgentReadinessStableFor(time.Minute),
+				WithAgentReadinessTimeout(15*time.Second),
+			)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "pods did not remain ready for 1m0s")
+			assert.NotContains(t, err.Error(), "rate limiter")
+		})
 	})
 }
 

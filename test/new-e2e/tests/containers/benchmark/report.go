@@ -105,11 +105,20 @@ func (r *Result) Compare(first, swapped Phase) {
 	r.Comparison = c
 }
 
-// metricName returns the name of the metric in Markdown: in code for a metric of Datadog,
-// in plain text for the run time of a check.
+// Name returns the name of the compared metric, prefixed with the check for the run time of
+// a check.
+func (r Result) Name() string {
+	if r.Check != "" {
+		return r.Check + " " + r.Metric
+	}
+	return r.Metric
+}
+
+// metricName returns the Name of the metric in Markdown: in code for a metric of Datadog,
+// in plain text after the check in code for the run time of a check.
 func (r Result) metricName() string {
 	if r.Check != "" {
-		return r.Metric
+		return "`" + r.Check + "` " + r.Metric
 	}
 	return "`" + r.Metric + "`"
 }
@@ -177,9 +186,6 @@ func (r *Report) Markdown() string {
 	b.WriteString("|---|---|--:|--:|--:|--:|---|\n")
 	for _, result := range r.Results {
 		metric := result.metricName()
-		if result.Check != "" {
-			metric = "`" + result.Check + "` " + metric
-		}
 		if result.ExplorerURL != "" {
 			metric = "[" + metric + "](" + result.ExplorerURL + ")"
 		}
@@ -203,22 +209,20 @@ func (r *Report) Markdown() string {
 	significance := SignificanceLevel
 	for _, result := range r.Results {
 		significance = result.Thresholds.significance()
-		if slices.Contains(metrics, result.Metric) {
+		// The thresholds of the run times differ by check.
+		metric := result.metricName()
+		if slices.Contains(metrics, metric) {
 			continue
 		}
-		metrics = append(metrics, result.Metric)
-		thresholds = append(thresholds, fmt.Sprintf("%s %.0f%% and %s", result.metricName(), 100*result.Thresholds.Relative, result.Unit.format(result.Thresholds.Absolute, false)))
-	}
-	var runTimeBlocks string
-	if slices.ContainsFunc(r.Results, func(result Result) bool { return result.Check != "" }) {
-		runTimeBlocks = fmt.Sprintf(" (%s for the check run times, measured run by run, hence much less autocorrelated)", RunTimeWindow(first).Block)
+		metrics = append(metrics, metric)
+		thresholds = append(thresholds, fmt.Sprintf("%s %.0f%% and %s", metric, 100*result.Thresholds.Relative, result.Unit.format(result.Thresholds.Absolute, false)))
 	}
 	fmt.Fprintf(&b, "\nThe installations run on node pools whose hardware may differ, hence the swap. "+
-		"Each phase is split into blocks of %s%s, in which the means of the images are compared through their log ratio. "+
+		"Each phase is split into blocks of %s, in which the means of the images are compared through their log ratio. "+
 		"The change is exp(e) - 1, e being the average over both phases of the mean log ratio of each phase, in which the difference between the node pools cancels out. "+
 		"Baseline and Comparison are the averages of the means of each image over both phases. "+
 		"A change is an improvement or a regression when it is significant (t-test of e = 0, %s) and at least as large as both thresholds of its metric: %s.\n\n",
-		first.Block, runTimeBlocks, formatSignificance(significance), strings.Join(thresholds, "; "))
+		first.Block, formatSignificance(significance), strings.Join(thresholds, "; "))
 
 	for _, variant := range variants {
 		if variant.Commit != "" {

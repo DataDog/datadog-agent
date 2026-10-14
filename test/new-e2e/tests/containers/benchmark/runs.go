@@ -12,21 +12,6 @@ import (
 	"time"
 )
 
-// runTimeBlockDivisor is the number of blocks of the run times of the checks per block of the
-// container metrics. The run times are measured run by run, so they are much less
-// autocorrelated than the 60-s rollups of the container metrics: shorter blocks keep their
-// means about independent, while making more of them for a more sensitive test. A block of
-// 2m30s, by default, still holds about 10 runs of a check running every 15 s, well below the
-// 32 run times the Agent keeps (see runTimes).
-const runTimeBlockDivisor = 2
-
-// RunTimeWindow returns window split into the blocks of the run times of the checks,
-// runTimeBlockDivisor times shorter than those of the container metrics.
-func RunTimeWindow(window Window) Window {
-	window.Block /= runTimeBlockDivisor
-	return window
-}
-
 // Snapshot holds the runner stats of the pods of an Agent workload at a time, by pod name.
 type Snapshot struct {
 	Time  time.Time

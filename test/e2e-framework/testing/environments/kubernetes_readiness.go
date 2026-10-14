@@ -7,6 +7,7 @@ package environments
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -228,9 +229,10 @@ func waitForAgentReady(ctx context.Context, cluster *components.KubernetesCluste
 
 	var stableSince time.Time
 	var lastErr error
-	for {
+	for checked := false; ; checked = true {
 		err := checkAgentPodsReady(waitCtx, cluster, params.targets)
 		if err == nil {
+			lastErr = nil
 			if params.stableFor <= 0 {
 				return nil
 			}
@@ -241,7 +243,7 @@ func waitForAgentReady(ctx context.Context, cluster *components.KubernetesCluste
 				return nil
 			}
 		} else {
-			lastErr = err
+			lastErr = latestReadinessError(lastErr, err, checked && waitCtx.Err() != nil)
 			stableSince = time.Time{}
 		}
 
@@ -259,16 +261,43 @@ func waitForAgentReady(ctx context.Context, cluster *components.KubernetesCluste
 	}
 }
 
+// readinessError is the result of a readiness check that failed.
+type readinessError struct {
+	// problems are those of the pods.
+	problems []string
+	// requestErrors are the errors of the requests to the API server.
+	requestErrors []string
+}
+
+func (e *readinessError) Error() string {
+	return strings.Join(append(append([]string{}, e.problems...), e.requestErrors...), "; ")
+}
+
+// latestReadinessError returns the error to report for the latest failed check, err, given
+// that of the previous check, previous. The errors of the requests of a check cut short by
+// the deadline, e.g. those of the rate limiter of the client, say nothing about the pods:
+// then only the problems of the pods it found replace the result of the previous check.
+func latestReadinessError(previous, err error, cutShort bool) error {
+	if !cutShort {
+		return err
+	}
+	var readiness *readinessError
+	if errors.As(err, &readiness) && len(readiness.problems) > 0 {
+		return &readinessError{problems: readiness.problems}
+	}
+	return previous
+}
+
 func checkAgentPodsReady(ctx context.Context, cluster *components.KubernetesCluster, targets []podReadinessTarget) error {
 	client := cluster.Client()
-	var problems []string
+	var problems, requestErrors []string
 
 	for _, target := range targets {
 		expectedCount := target.minimumCount
 		if target.nodeSelector != "" {
 			nodes, err := client.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: target.nodeSelector})
 			if err != nil {
-				problems = append(problems, fmt.Sprintf("%s: list nodes: %v", target.name, err))
+				requestErrors = append(requestErrors, fmt.Sprintf("%s: list nodes: %v", target.name, err))
 				continue
 			}
 			expectedCount = len(nodes.Items)
@@ -276,7 +305,7 @@ func checkAgentPodsReady(ctx context.Context, cluster *components.KubernetesClus
 
 		pods, err := client.CoreV1().Pods(target.namespace).List(ctx, metav1.ListOptions{LabelSelector: target.labelSelector})
 		if err != nil {
-			problems = append(problems, fmt.Sprintf("%s: list pods: %v", target.name, err))
+			requestErrors = append(requestErrors, fmt.Sprintf("%s: list pods: %v", target.name, err))
 			continue
 		}
 		if target.nodeSelector != "" && len(pods.Items) != expectedCount {
@@ -303,8 +332,8 @@ func checkAgentPodsReady(ctx context.Context, cluster *components.KubernetesClus
 		}
 	}
 
-	if len(problems) > 0 {
-		return fmt.Errorf("%s", strings.Join(problems, "; "))
+	if len(problems) > 0 || len(requestErrors) > 0 {
+		return &readinessError{problems: problems, requestErrors: requestErrors}
 	}
 	return nil
 }
