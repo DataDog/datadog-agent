@@ -636,12 +636,12 @@ type RuntimeSecurityConfig struct {
 
 	// description: SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
 	// visibility: private
-	// default_value: 1m
+	// default_value: 30m
 	SBOMResolverEnrichmentInterval time.Duration
 
 	// description: SBOMResolverForwardInterval defines the interval for forwarding SBOMs
 	// visibility: private
-	// default_value: 20s
+	// default_value: 1m
 	SBOMResolverForwardInterval time.Duration
 
 	// description: SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
@@ -1142,6 +1142,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
+
+	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.FileMountEventType) {
+		for _, et := range []model.EventType{model.FileMoveMountEventType, model.PivotRootEventType} {
+			if !slices.Contains(rsConfig.SecurityProfileV2EventTypes, et) {
+				rsConfig.SecurityProfileV2EventTypes = append(rsConfig.SecurityProfileV2EventTypes, et)
+			}
+		}
+	}
 
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err

@@ -131,6 +131,7 @@ func NewComponent(deps Requires) Provides {
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
+	// Without Capabilities the payload is always ready for submission.
 	if deps.Capabilities != nil {
 		ia.SetReady(!deps.Capabilities.DeferUntilReady)
 		ia.skipFullAgentMetadataRefresh = deps.Capabilities.SkipFullAgentMetadataRefresh

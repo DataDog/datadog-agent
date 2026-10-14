@@ -323,58 +323,32 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 		})
 
 	for _, testCase := range []struct {
-		name                          string
-		terminatedPodsEnabled         bool
-		terminatedPodsImprovedEnabled bool
-		unassignedPod                 bool
-		expected                      collectors.K8sCollector
+		name                  string
+		terminatedPodsEnabled bool
+		unassignedPod         bool
+		expected              collectors.K8sCollector
 	}{
 		{
-			name:                          "Terminated pods collector enabled",
-			terminatedPodsEnabled:         true,
-			terminatedPodsImprovedEnabled: false,
-			unassignedPod:                 true,
-			expected:                      k8s.NewTerminatedPodCollector(nil, nil, nil),
+			name:                  "Terminated pods collector disabled",
+			terminatedPodsEnabled: false,
+			unassignedPod:         true,
+			expected:              nil,
 		},
 		{
-			name:                          "Terminated pods improved collector disabled by parent flag",
-			terminatedPodsEnabled:         false,
-			terminatedPodsImprovedEnabled: true,
-			unassignedPod:                 true,
-			expected:                      nil,
+			name:                  "Terminated pods collector enabled",
+			terminatedPodsEnabled: true,
+			unassignedPod:         true,
+			expected:              k8s.NewTerminatedPodCollector(nil, nil, nil),
 		},
 		{
-			name:                          "Terminated pods improved collector takes precedence",
-			terminatedPodsEnabled:         true,
-			terminatedPodsImprovedEnabled: true,
-			unassignedPod:                 true,
-			expected:                      k8s.NewImprovedTerminatedPodCollector(nil, nil, nil),
-		},
-		{
-			name:                          "Terminated pods collector disabled",
-			terminatedPodsEnabled:         false,
-			terminatedPodsImprovedEnabled: false,
-			unassignedPod:                 true,
-			expected:                      nil,
-		},
-		{
-			name:                          "Terminated pods collector enabled without unassigned pod collector",
-			terminatedPodsEnabled:         true,
-			terminatedPodsImprovedEnabled: false,
-			unassignedPod:                 false,
-			expected:                      nil,
-		},
-		{
-			name:                          "Terminated pods improved collector enabled without unassigned pod collector",
-			terminatedPodsEnabled:         true,
-			terminatedPodsImprovedEnabled: true,
-			unassignedPod:                 false,
-			expected:                      nil,
+			name:                  "Terminated pods collector enabled without unassigned pod collector",
+			terminatedPodsEnabled: true,
+			unassignedPod:         false,
+			expected:              nil,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg.SetInTest("orchestrator_explorer.terminated_pods.enabled", testCase.terminatedPodsEnabled)
-			cfg.SetInTest("orchestrator_explorer.terminated_pods_improved.enabled", testCase.terminatedPodsImprovedEnabled)
 
 			cb := CollectorBundle{
 				collectors:         []collectors.K8sCollector{},
