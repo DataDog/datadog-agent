@@ -18,6 +18,11 @@ lint_licenses:
   script:
     - dda inv -- -e lint-licenses
 
+lint_rust_licenses:
+  extends: .lint
+  script:
+    - dda inv -- -e lint-rust-licenses
+
 check_modules_replace:
   extends: .lint
   needs: ["go_deps"]
