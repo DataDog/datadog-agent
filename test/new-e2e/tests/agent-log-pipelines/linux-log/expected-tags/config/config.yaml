@@ -1,5 +1,0 @@
-logs:
-  - type: file
-    path: '/var/log/e2e_test_logs/expected-tags.log'
-    service: expected-tags
-    source: custom_log
