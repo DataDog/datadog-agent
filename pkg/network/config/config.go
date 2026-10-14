@@ -215,6 +215,10 @@ type Config struct {
 	// whose sockets may be reattributed.
 	NetNSContainerAttributionOwnerImages []string
 
+	// NetNSContainerAttributionIgnoredContainers lists container names of helpers (for example
+	// vault-agent) that don't count toward a pod's containers when choosing the reattribution target.
+	NetNSContainerAttributionIgnoredContainers []string
+
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
@@ -336,8 +340,9 @@ func New() *Config {
 
 		EnableRootNetNs: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_root_netns")),
 
-		EnableNetNSContainerAttribution:      cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_netns_container_attribution")),
-		NetNSContainerAttributionOwnerImages: cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "netns_container_attribution_owner_images")),
+		EnableNetNSContainerAttribution:            cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_netns_container_attribution")),
+		NetNSContainerAttributionOwnerImages:       cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "netns_container_attribution_owner_images")),
+		NetNSContainerAttributionIgnoredContainers: cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "netns_container_attribution_ignored_containers")),
 
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
 

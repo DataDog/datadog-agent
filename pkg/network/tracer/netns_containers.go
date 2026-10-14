@@ -44,6 +44,9 @@ type netnsContainerResolver struct {
 	readNetNS   func(pid int) (uint32, error)
 	rootNetNS   uint32
 	ownerImages map[string]struct{}
+	// ignoredContainers are helper containers (for example vault-agent) that share a pod's network
+	// namespace but don't make or receive its traffic, so they don't count toward the pod's containers
+	ignoredContainers map[string]struct{}
 
 	mtx        sync.RWMutex
 	containers map[*intern.Value]trackedContainer
@@ -51,11 +54,12 @@ type netnsContainerResolver struct {
 }
 
 type trackedContainer struct {
+	pid   int
 	netns uint32
 	owner bool
 }
 
-func newNetNSContainerResolver(ownerImages []string) (*netnsContainerResolver, error) {
+func newNetNSContainerResolver(ownerImages, ignoredContainers []string) (*netnsContainerResolver, error) {
 	procRoot := kernel.HostProc()
 	rootNetNS, err := netnsutil.GetNetNsInoFromPid(procRoot, 1)
 	if err != nil {
@@ -66,18 +70,27 @@ func newNetNSContainerResolver(ownerImages []string) (*netnsContainerResolver, e
 		readNetNS: func(pid int) (uint32, error) {
 			return netnsutil.GetNetNsInoFromPid(procRoot, pid)
 		},
-		rootNetNS:   rootNetNS,
-		ownerImages: make(map[string]struct{}, len(ownerImages)),
-		containers:  make(map[*intern.Value]trackedContainer),
-		byNetNS:     make(map[uint32]map[*intern.Value]struct{}),
-	}
-	for _, image := range ownerImages {
-		r.ownerImages[image] = struct{}{}
+		rootNetNS:         rootNetNS,
+		ownerImages:       toSet(ownerImages),
+		ignoredContainers: toSet(ignoredContainers),
+		containers:        make(map[*intern.Value]trackedContainer),
+		byNetNS:           make(map[uint32]map[*intern.Value]struct{}),
 	}
 	return r, nil
 }
 
+func toSet(values []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, v := range values {
+		set[v] = struct{}{}
+	}
+	return set
+}
+
 func (r *netnsContainerResolver) start(ctx context.Context, wmeta workloadmeta.Component) {
+	// No source filter: system-probe's workloadmeta is remote, so every event arrives with source
+	// remote_workloadmeta, carrying the core agent's entity merged across all sources on one ordered
+	// stream. Filtering on SourceRuntime would match nothing.
 	filter := workloadmeta.NewFilterBuilder().
 		AddKind(workloadmeta.KindContainer).
 		SetEventType(workloadmeta.EventTypeAll).
@@ -111,9 +124,15 @@ func (r *netnsContainerResolver) process(events []workloadmeta.Event) {
 		}
 
 		id := intern.GetByString(container.ID)
-		r.removeLocked(id)
+		running := event.Type == workloadmeta.EventTypeSet && container.State.Running && container.PID > 0
 
-		if event.Type != workloadmeta.EventTypeSet || !container.State.Running || container.PID <= 0 {
+		// most updates (health, readiness, labels) leave the process alone, so its namespace is unchanged
+		if tc, ok := r.containers[id]; ok && running && tc.pid == container.PID {
+			continue
+		}
+
+		r.removeLocked(id)
+		if !running {
 			continue
 		}
 
@@ -125,10 +144,13 @@ func (r *netnsContainerResolver) process(events []workloadmeta.Event) {
 		}
 
 		_, owner := r.ownerImages[container.Image.ShortName]
-		r.containers[id] = trackedContainer{netns: netns, owner: owner}
+		r.containers[id] = trackedContainer{pid: container.PID, netns: netns, owner: owner}
 
 		// containers in the host network namespace are never reattribution targets
 		if netns == r.rootNetNS {
+			continue
+		}
+		if _, ignored := r.ignoredContainers[container.Name]; ignored {
 			continue
 		}
 		if r.byNetNS[netns] == nil {
