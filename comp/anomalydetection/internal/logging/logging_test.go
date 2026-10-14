@@ -6,6 +6,7 @@
 package logging
 
 import (
+	"bufio"
 	"bytes"
 	"testing"
 
@@ -14,20 +15,23 @@ import (
 )
 
 func TestGlobalLoggerPrefixesFormattedAndUnformattedMessages(t *testing.T) {
-	t.Cleanup(func() { pkglog.SetLogObserver(nil) })
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
 
-	var messages []string
-	pkglog.SetLogObserver(func(_ pkglog.LogLevel, message string) {
-		messages = append(messages, message)
+	l, err := pkglog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, pkglog.InfoLvl)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		pkglog.SetupLogger(pkglog.Default(), pkglog.InfoStr)
+		l.Close()
 	})
+	pkglog.SetupLogger(l, pkglog.InfoStr)
 
 	Infof("configured %d detectors", 2)
 	Warn("logssource", "unavailable")
+	w.Flush()
 
-	require.Equal(t, []string{
-		"[anomalydetection] configured 2 detectors",
-		"[anomalydetection] logssource unavailable",
-	}, messages)
+	require.Contains(t, b.String(), "[anomalydetection] configured 2 detectors")
+	require.Contains(t, b.String(), "[anomalydetection] logssource unavailable")
 }
 
 func TestGlobalLoggerPreservesCallerAttribution(t *testing.T) {
