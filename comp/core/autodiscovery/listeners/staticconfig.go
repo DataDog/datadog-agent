@@ -70,6 +70,7 @@ func (l *StaticConfigListener) createServices() {
 		{"discovery.enabled", "_discovery"},
 		{"system_probe_config.enable_oom_kill", "_oom_kill"},
 		{"system_probe_config.enable_tcp_queue_length", "_tcp_queue_length"},
+		{"jvm_memory.enabled", "_jvm_memory"},
 	} {
 		if enabled := pkgconfigsetup.SystemProbe().GetBool(entry.configKey); enabled {
 			l.newService <- &StaticConfigService{adIdentifier: entry.adIdentifier}

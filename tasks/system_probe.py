@@ -948,6 +948,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
     "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
     "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:jvm-memory",
+    "//pkg/collector/corechecks/ebpf/c/runtime:jvm-memory-debug",
     "//pkg/gpu/ebpf/c/runtime:gpu",
     "//pkg/gpu/ebpf/c/runtime:gpu-debug",
     "//pkg/dyninst/ebpf:dyninst_event",
@@ -1660,6 +1662,8 @@ def _test_docker_image_list():
 
     # Add images used in docker run commands
     images.add("alpine:3.20.3")
+    # glibc JDK with the HotSpot USDT probes, see pkg/collector/corechecks/ebpf/probe/jvmmemory/probe_test.go
+    images.add("eclipse-temurin:21.0.12.1_1-jdk-noble")
 
     return images
 

@@ -1596,6 +1596,7 @@ process_config:
             "traceroute:\n  enabled: true\n",
             "privileged_logs:\n  enabled: true\n",
             "noisy_neighbor:\n  enabled: true\n",
+            "jvm_memory:\n  enabled: true\n",
             "windows_crash_detection:\n  enabled: true\n",
             "gpu_monitoring:\n  enabled: true\n",
             "dynamic_instrumentation:\n  enabled: true\n",

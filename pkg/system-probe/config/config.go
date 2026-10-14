@@ -46,6 +46,7 @@ const (
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 	InjectorModule               types.ModuleName = "injector"
 	NoisyNeighborModule          types.ModuleName = "noisy_neighbor"
+	JVMMemoryModule              types.ModuleName = "jvm_memory"
 	LogonDurationModule          types.ModuleName = "logon_duration"
 )
 
@@ -201,6 +202,9 @@ func load() (*types.Config, error) {
 	}
 	if cfg.GetBool(NSkey("noisy_neighbor", "enabled")) {
 		c.EnabledModules[NoisyNeighborModule] = struct{}{}
+	}
+	if cfg.GetBool(NSkey("jvm_memory", "enabled")) {
+		c.EnabledModules[JVMMemoryModule] = struct{}{}
 	}
 	// Read from the core config (datadog.yaml), not the system-probe config, so that
 	// enabling logon_duration in the core agent (e.g. via infrastructure_mode:

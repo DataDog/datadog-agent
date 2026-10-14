@@ -38,27 +38,34 @@ func TestStaticConfigListenerSysProbeChecks(t *testing.T) {
 		{
 			name:      "nothing enabled",
 			overrides: map[string]interface{}{},
-			absent:    []string{"_oom_kill", "_tcp_queue_length"},
+			absent:    []string{"_oom_kill", "_tcp_queue_length", "_jvm_memory"},
 		},
 		{
 			name:      "oom_kill enabled",
 			overrides: map[string]interface{}{"system_probe_config.enable_oom_kill": true},
 			expected:  []string{"_oom_kill"},
-			absent:    []string{"_tcp_queue_length"},
+			absent:    []string{"_tcp_queue_length", "_jvm_memory"},
 		},
 		{
 			name:      "tcp_queue_length enabled",
 			overrides: map[string]interface{}{"system_probe_config.enable_tcp_queue_length": true},
 			expected:  []string{"_tcp_queue_length"},
-			absent:    []string{"_oom_kill"},
+			absent:    []string{"_oom_kill", "_jvm_memory"},
 		},
 		{
-			name: "both enabled",
+			name:      "jvm_memory enabled",
+			overrides: map[string]interface{}{"jvm_memory.enabled": true},
+			expected:  []string{"_jvm_memory"},
+			absent:    []string{"_oom_kill", "_tcp_queue_length"},
+		},
+		{
+			name: "all enabled",
 			overrides: map[string]interface{}{
 				"system_probe_config.enable_oom_kill":         true,
 				"system_probe_config.enable_tcp_queue_length": true,
+				"jvm_memory.enabled":                          true,
 			},
-			expected: []string{"_oom_kill", "_tcp_queue_length"},
+			expected: []string{"_oom_kill", "_tcp_queue_length", "_jvm_memory"},
 		},
 	}
 
