@@ -12,9 +12,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	agentmacos "github.com/DataDog/datadog-agent/cmd/agent/macos"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
@@ -747,11 +746,9 @@ func (m *macosInstallSuite) TestAgentRestart() {
 func (m *macosInstallSuite) TestZZUninstallAgent() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 
-	_, thisFile, _, _ := runtime.Caller(0)
-	localScriptPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..", "cmd", "agent", "macos", "uninstall_mac_os.sh")
 	const remoteScriptPath = "/tmp/uninstall_mac_os.sh"
 
-	m.Env().RemoteHost.CopyFile(localScriptPath, remoteScriptPath)
+	m.Env().RemoteHost.CopyFileFromFS(agentmacos.Scripts, agentmacos.UninstallScriptPath, remoteScriptPath)
 	macosTestClient.MustExecuteOn(m.T(), "chmod +x "+remoteScriptPath)
 	macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
 

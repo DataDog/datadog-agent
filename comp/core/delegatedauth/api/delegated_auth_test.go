@@ -6,6 +6,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -13,6 +14,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetAPIKeyHonorsCanceledContext(t *testing.T) {
+	config := mock.New(t)
+	config.SetInTest("dd_url", "http://127.0.0.1:1")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := GetAPIKey(ctx, config, "proof", "")
+
+	require.ErrorIs(t, err, context.Canceled)
+}
 
 func TestParseResponse(t *testing.T) {
 	tests := []struct {

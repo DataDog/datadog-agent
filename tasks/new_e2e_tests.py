@@ -568,7 +568,7 @@ def run(
             use_bazel_built_binaries = False
 
     if use_bazel_built_binaries:
-        ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
+        bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"
 

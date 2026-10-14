@@ -543,6 +543,8 @@ const (
 	ExitReason
 	// ExecveReason means that the event was sent because an execve syscall was detected on a pid with a dirty cache entry
 	ExecveReason
+	// SampleReason means the event carries a workload-profiles-v2 sample first-hit
+	SampleReason
 )
 
 func (r SyscallDriftEventReason) String() string {
@@ -553,6 +555,8 @@ func (r SyscallDriftEventReason) String() string {
 		return "Execve"
 	case ExitReason:
 		return "Exit"
+	case SampleReason:
+		return "Sample"
 	}
 	return "Unknown"
 }

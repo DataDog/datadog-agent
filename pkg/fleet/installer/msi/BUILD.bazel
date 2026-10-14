@@ -32,6 +32,7 @@ dd_agent_go_test(
     srcs = [
         "msiexec_test.go",
         "msilog_test.go",
+        "product_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":msi"],

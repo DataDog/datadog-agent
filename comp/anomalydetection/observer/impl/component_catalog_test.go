@@ -30,6 +30,34 @@ func TestDefaultCatalog_EnabledDetectors(t *testing.T) {
 	require.Equal(t, []string{"bocpd"}, detectorNames(detectors))
 }
 
+// Every catalog detector can be enabled through anomaly_detection.detectors.*.
+// Check all of them, including those disabled by default, so a new detector
+// cannot silently use FormatAnomaly's generic fallback when it starts emitting.
+func TestDefaultCatalog_EmittingDetectorsHaveAnomalyFormatter(t *testing.T) {
+	for _, entry := range defaultCatalog().Entries() {
+		if entry.kind != componentDetector {
+			continue
+		}
+		t.Run(entry.name, func(t *testing.T) {
+			detector, ok := entry.factory(entry.defaultConfig).(interface{ Name() string })
+			require.True(t, ok, "catalog detector must expose its runtime name")
+			require.Equal(t, entry.name, detector.Name())
+
+			anomaly := observerdef.Anomaly{
+				Source:       observerdef.SeriesDescriptor{Name: "metric", Aggregate: observerdef.AggregateAverage},
+				DetectorName: detector.Name(),
+				DebugInfo: &observerdef.AnomalyDebugInfo{
+					BOCPDTrigger: observerdef.BOCPDTriggerChangePointProbability,
+				},
+			}
+			title, description := observerdef.FormatAnomaly(anomaly)
+			require.NotEqual(t, "Anomaly detected: "+detector.Name()+": metric:avg", title,
+				"configurable detector is missing an anomaly formatter")
+			require.NotEmpty(t, description, "configurable detector is missing an anomaly description")
+		})
+	}
+}
+
 func TestTestbenchCatalogAndSettingsIncludePassthrough(t *testing.T) {
 	found := false
 	for _, entry := range TestbenchCatalogEntries() {

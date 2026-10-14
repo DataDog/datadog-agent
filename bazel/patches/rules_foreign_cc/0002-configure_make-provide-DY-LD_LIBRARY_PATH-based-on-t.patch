@@ -5,27 +5,27 @@ Subject: [PATCH 2/2] configure_make: provide (DY)LD_LIBRARY_PATH based on the
  dependencies
 
 ---
- foreign_cc/private/configure_script.bzl          |  3 ++-
- .../private/framework/toolchains/commands.bzl    | 15 +++++++++++++++
- .../framework/toolchains/linux_commands.bzl      | 16 ++++++++++++++++
- .../framework/toolchains/macos_commands.bzl      | 14 ++++++++++++++
- .../framework/toolchains/windows_commands.bzl    |  8 ++++++++
- foreign_cc/private/make_script.bzl               |  7 +++++++
+ foreign_cc/private/configure_script.bzl                  |  3 ++-
+ .../private/framework/toolchains/commands.bzl             | 15 +++++++++++++++
+ .../private/framework/toolchains/linux_commands.bzl       | 16 ++++++++++++++++
+ .../private/framework/toolchains/macos_commands.bzl       | 14 ++++++++++++++
+ .../private/framework/toolchains/windows_commands.bzl     |  8 ++++++++
+ foreign_cc/private/make_script.bzl                        |  7 +++++++
  6 files changed, 62 insertions(+), 1 deletion(-)
 
 diff --git a/foreign_cc/private/configure_script.bzl b/foreign_cc/private/configure_script.bzl
-index bbb5056..9e14e3d 100644
+index 693a75c..d0e21ea 100644
 --- a/foreign_cc/private/configure_script.bzl
 +++ b/foreign_cc/private/configure_script.bzl
 @@ -1,6 +1,6 @@
  # buildifier: disable=module-docstring
  load(":make_env_vars.bzl", "get_ldflags_make_vars", "get_make_env_vars")
 -load(":make_script.bzl", "pkgconfig_script")
-+load(":make_script.bzl", "pkgconfig_script", "ldpath_script")
++load(":make_script.bzl", "ldpath_script", "pkgconfig_script")
+ load(":regen_stubs.bzl", "REGEN_STUBS")
  
  # buildifier: disable=function-docstring
- def create_configure_script(
-@@ -33,6 +33,7 @@ def create_configure_script(
+@@ -36,6 +36,7 @@ def create_configure_script(
      ext_build_dirs = inputs.ext_build_dirs
  
      script = pkgconfig_script(ext_build_dirs)
@@ -67,7 +67,7 @@ index e4f1073..b5f8f70 100644
          arguments = [
              _argument_info(
 diff --git a/foreign_cc/private/framework/toolchains/linux_commands.bzl b/foreign_cc/private/framework/toolchains/linux_commands.bzl
-index 69bd3c9..80a692b 100644
+index 28b1069..1b857c2 100644
 --- a/foreign_cc/private/framework/toolchains/linux_commands.bzl
 +++ b/foreign_cc/private/framework/toolchains/linux_commands.bzl
 @@ -17,6 +17,9 @@ def echo(text):
@@ -80,7 +80,7 @@ index 69bd3c9..80a692b 100644
  def local_var(name, value):
      return "local {name}={value}".format(name = name, value = value)
  
-@@ -173,6 +176,17 @@ fi
+@@ -193,6 +196,17 @@ fi
  def script_prelude():
      return "set -euo pipefail"
  
@@ -98,7 +98,7 @@ index 69bd3c9..80a692b 100644
  def increment_pkg_config_path(_source):
      text = """\
  local children=$(find "$1" -mindepth 1 -name '*.pc')
-@@ -266,8 +280,10 @@ commands = struct(
+@@ -286,8 +300,10 @@ commands = struct(
      echo = echo,
      enable_tracing = enable_tracing,
      env = env,
@@ -110,7 +110,7 @@ index 69bd3c9..80a692b 100644
      local_var = local_var,
      mkdirs = mkdirs,
 diff --git a/foreign_cc/private/framework/toolchains/macos_commands.bzl b/foreign_cc/private/framework/toolchains/macos_commands.bzl
-index a749ae2..e52d7b5 100644
+index d5dce1c..4f4ca6a 100644
 --- a/foreign_cc/private/framework/toolchains/macos_commands.bzl
 +++ b/foreign_cc/private/framework/toolchains/macos_commands.bzl
 @@ -17,6 +17,9 @@ def echo(text):
@@ -123,7 +123,7 @@ index a749ae2..e52d7b5 100644
  def local_var(name, value):
      return "local {name}={value}".format(name = name, value = value)
  
-@@ -182,6 +185,15 @@ fi
+@@ -203,6 +206,15 @@ fi
  def script_prelude():
      return "set -euo pipefail"
  
@@ -139,7 +139,7 @@ index a749ae2..e52d7b5 100644
  def increment_pkg_config_path(_source):
      text = """\
  local children=$(find "$1/" -mindepth 1 -name '*.pc')
-@@ -279,8 +291,10 @@ commands = struct(
+@@ -300,8 +312,10 @@ commands = struct(
      echo = echo,
      enable_tracing = enable_tracing,
      env = env,
@@ -151,7 +151,7 @@ index a749ae2..e52d7b5 100644
      local_var = local_var,
      mkdirs = mkdirs,
 diff --git a/foreign_cc/private/framework/toolchains/windows_commands.bzl b/foreign_cc/private/framework/toolchains/windows_commands.bzl
-index 1fa741f..60ca440 100644
+index cf73a54..2fbacb2 100644
 --- a/foreign_cc/private/framework/toolchains/windows_commands.bzl
 +++ b/foreign_cc/private/framework/toolchains/windows_commands.bzl
 @@ -14,6 +14,9 @@ def pwd():
@@ -164,7 +164,7 @@ index 1fa741f..60ca440 100644
  def export_var(name, value):
      return "{name}={value}; export {name}".format(name = name, value = value)
  
-@@ -205,6 +208,9 @@ export MSYS2_ARG_CONV_EXCL="*"
+@@ -236,6 +239,9 @@ export MSYS2_ARG_CONV_EXCL="*"
  export SYSTEMDRIVE="C:"
  """
  
@@ -174,7 +174,7 @@ index 1fa741f..60ca440 100644
  def increment_pkg_config_path(_source):
      text = """\
  local children=$($REAL_FIND "$1" -mindepth 1 -name '*.pc')
-@@ -301,8 +307,10 @@ commands = struct(
+@@ -332,8 +338,10 @@ commands = struct(
      echo = echo,
      enable_tracing = enable_tracing,
      env = env,
@@ -186,10 +186,10 @@ index 1fa741f..60ca440 100644
      local_var = local_var,
      mkdirs = mkdirs,
 diff --git a/foreign_cc/private/make_script.bzl b/foreign_cc/private/make_script.bzl
-index 0dd6126..e951e3b 100644
+index a163450..1afb4d0 100644
 --- a/foreign_cc/private/make_script.bzl
 +++ b/foreign_cc/private/make_script.bzl
-@@ -49,6 +49,13 @@ def create_make_script(
+@@ -50,6 +50,13 @@ def create_make_script(
      script.append("##disable_tracing##")
      return script
  
@@ -205,4 +205,3 @@ index 0dd6126..e951e3b 100644
  
 -- 
 2.43.0
-

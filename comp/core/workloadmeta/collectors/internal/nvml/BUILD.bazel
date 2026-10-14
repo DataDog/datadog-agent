@@ -26,7 +26,7 @@ go_library(
             "//pkg/util/kubernetes/kubelet",
             "//pkg/util/log",
             "@com_github_nvidia_go_nvml//pkg/nvml",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:darwin": [
@@ -57,7 +57,7 @@ go_library(
             "//pkg/util/kubernetes/kubelet",
             "//pkg/util/log",
             "@com_github_nvidia_go_nvml//pkg/nvml",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:netbsd": [

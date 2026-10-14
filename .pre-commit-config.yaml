@@ -171,6 +171,14 @@ repos:
       language: system
       pass_filenames: false
       files: (^test/new-e2e/tests/.*/scenario\.go$|^test/new-e2e/run/scenarios_import_gen\.go$)
+    - id: e2e-internet-access
+      name: e2e-internet-access
+      description: Check that E2E WithInternetAccess() usages are listed in test/new-e2e/internet-access.yaml
+      entry: bash -c 'args=(); for f in "$@"; do args+=(--path "$f"); done; dda inv --dep tree-sitter==0.26.0 --dep tree-sitter-go==0.25.0 linter.e2e-internet-access "${args[@]}"' --
+      language: system
+      files: ^test/(new-e2e|e2e-framework)/.*\.go$|^test/new-e2e/internet-access\.yaml$
+      pass_filenames: true
+      require_serial: true
     - id: rst-releasenotes
       name: rst-releasenotes
       description: Check release notes for RST formatting issues (Markdown syntax detected)
