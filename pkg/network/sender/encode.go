@@ -143,8 +143,7 @@ func (d *directSender) encodeContainerForPID(connsChunk []network.ConnectionStat
 			cidCount++
 		}
 	}
-	// cidCount will be an upper bound, only hit if:
-	// every connection with a ContainerID has a unique PID
+	// cidCount is an upper bound on the number of PIDs written
 	writtenPids := make(map[uint32]struct{}, cidCount)
 	for _, conn := range connsChunk {
 		// the PID's own container, not the one a reattributed socket was moved to

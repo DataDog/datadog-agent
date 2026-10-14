@@ -4131,8 +4131,8 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	// a pod with two application containers: which one owns the traffic is ambiguous
 	multiNSHandle, multiNSIno := newPodNS()
 
-	ownNSIno, err := netns.GetNetNsInoFromPid(kernel.ProcFSRoot(), os.Getpid())
-	require.NoError(t, err)
+	// the proxy runs in its own pod namespace, as ztunnel does, so its own sockets aren't in the root namespace
+	proxyNSHandle, proxyNSIno := newPodNS()
 
 	const (
 		proxyPID  = 1001 // stand-in PIDs, mapped to namespaces below rather than read from procfs
@@ -4146,7 +4146,7 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	r.readNetNS = func(pid int) (uint32, error) {
 		switch pid {
 		case proxyPID:
-			return ownNSIno, nil
+			return proxyNSIno, nil
 		case appPID, helperPID:
 			return podNSIno, nil
 		case webPID, workerPID:
@@ -4207,12 +4207,20 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	t.Cleanup(multiServer.Shutdown)
 	t.Cleanup(func() { multiConn.Close() })
 
-	// control connection in the process's own namespace
-	ownServer := tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
-	require.NoError(t, ownServer.Run())
-	t.Cleanup(ownServer.Shutdown)
-	ownConn, err := ownServer.Dial()
+	// control connection in the proxy's own namespace
+	var ownServer *tracertestutil.TCPServer
+	var ownConn net.Conn
+	err = netns.WithNS(proxyNSHandle, func() error {
+		ownServer = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+		if err := ownServer.Run(); err != nil {
+			return err
+		}
+		var dialErr error
+		ownConn, dialErr = ownServer.Dial()
+		return dialErr
+	})
 	require.NoError(t, err)
+	t.Cleanup(ownServer.Shutdown)
 	t.Cleanup(func() { ownConn.Close() })
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -4238,6 +4246,7 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 
 		own, ok := findConnection(ownConn.LocalAddr(), ownConn.RemoteAddr(), conns)
 		require.True(collect, ok, "connection in the proxy's own namespace not found")
+		assert.Equal(collect, proxyNSIno, own.NetNS)
 		assert.Equal(collect, proxyCID, own.ContainerID.Source, "socket in the proxy's own namespace keeps its container")
 		assert.Nil(collect, own.NetNSOriginalContainerID)
 		assert.NotEmpty(collect, own.Tags)

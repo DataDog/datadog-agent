@@ -381,15 +381,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	}
 
 	// Build remote service resolver for intra-host connection enrichment.
-	for _, c := range conns.Conns {
-		// USM supports TCP only; skip UDP connections.
-		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
-			key := listenKey{IP: c.Source.Addr, Port: int32(c.SPort)}
-			if _, exists := listeners[key]; !exists {
-				listeners[key] = int32(c.Pid)
-			}
-		}
-	}
+	addConnectionListeners(listeners, conns.Conns)
 	remoteServiceResolver := &serviceResolver{
 		GetServiceContext: func(pid int32) []string {
 			if dsc := directSenderConsumerInstance.Load(); dsc != nil {
@@ -580,5 +572,23 @@ func (d *directSender) logCheckDuration(start time.Time) {
 		d.log.Infof("Finished connections check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", d.runCount, elapsed)
 	case d.runCount%20 == 0:
 		d.log.Infof("Finish connections check #%d in %s", d.runCount, elapsed)
+	}
+}
+
+// addConnectionListeners records the PID listening on each intra-host TCP address, without
+// overwriting entries already present.
+func addConnectionListeners(listeners map[listenKey]int32, conns []network.ConnectionStats) {
+	for _, c := range conns {
+		// a reattributed socket's PID is the proxy's, so it must not name the service listening on the pod's address
+		if c.NetNSOriginalContainerID != nil {
+			continue
+		}
+		// USM supports TCP only; skip UDP connections.
+		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
+			key := listenKey{IP: c.Source.Addr, Port: int32(c.SPort)}
+			if _, exists := listeners[key]; !exists {
+				listeners[key] = int32(c.Pid)
+			}
+		}
 	}
 }

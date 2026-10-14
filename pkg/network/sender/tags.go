@@ -112,6 +112,8 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 			if !reattributed {
 				serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
 			}
+			// process_name is kept for reattributed connections: it names the socket's owning process
+			// (for example ztunnel), not a service, and lets users find proxied traffic
 			if processName := dsc.processNameExtractor.GetProcessName(int32(nc.Pid)); processName != "" {
 				tagsStr = append(tagsStr, "process_name:"+processName)
 			}
