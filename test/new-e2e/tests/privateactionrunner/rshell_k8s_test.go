@@ -425,7 +425,7 @@ func (s *parK8sSuite) waitForPARReady() {
 		)
 		s.Require().NoError(err, stderr)
 		s.waitForPARProcessStates(parControlProcess, []string{"Running"}, 2*time.Minute)
-		s.waitForPARProcessStates(parExecutorProcess, []string{"Created", "Exited"}, 2*time.Minute)
+		s.waitForPARProcessStates(parExecutorProcess, []string{"Created", "Skipped", "Exited"}, 2*time.Minute)
 	}
 
 	// Confirm PAR is actively polling fakeintake by waiting for a dequeue call.

@@ -366,6 +366,9 @@ profiles:
     metrics:
       - name: runtime.procmgr_daemon_reachable
       - name: runtime.procmgr_daemon_ready
+      - name: runtime.procmgr_daemon_service_state
+        preserve_tags:
+          - state
       - name: runtime.procmgr_process_running
         preserve_tags:
           - process
@@ -383,6 +386,10 @@ profiles:
         preserve_tags:
           - service
           - mode
+      - name: runtime.agent_service_running
+        preserve_tags:
+          - service
+          - supervisor
   schedule:
     start_after: 30
     iterations: 0
