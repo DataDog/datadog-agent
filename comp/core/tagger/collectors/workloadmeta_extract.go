@@ -1109,6 +1109,13 @@ func (c *WorkloadMetaCollector) handleKubeCapabilities(ev workloadmeta.Event) []
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
+	// Older Dynamo deployments use a worker subtype for decode and prefill roles.
+	component := pod.Labels[kubernetes.DynamoSubComponentTypeLabelKey]
+	if component == "" {
+		component = pod.Labels[kubernetes.DynamoComponentTypeLabelKey]
+	}
+	tagList.AddLow(tags.InferenceWorkloadComponent, component)
+
 	for name, value := range pod.Labels {
 		switch name {
 		case kubernetes.EnvTagLabelKey:
@@ -1131,6 +1138,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 			tagList.AddLow(tags.KubeAppManagedBy, value)
 		case kubernetes.DynamoGraphDeploymentNameLabelKey:
 			tagList.AddLow(tags.DynamoGraphDeployment, value)
+			tagList.AddLow(tags.InferenceWorkload, value)
 		}
 
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
