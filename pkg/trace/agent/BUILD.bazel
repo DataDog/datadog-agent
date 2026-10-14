@@ -46,6 +46,7 @@ dd_agent_go_test(
         "fuzz_test.go",
         "normalizer_test.go",
         "obfuscate_test.go",
+        "payload_duplicates_test.go",
         "truncator_test.go",
     ],
     data = glob(["testdata/**"]),
@@ -53,6 +54,7 @@ dd_agent_go_test(
     deps = [
         "//comp/trace/compression/impl-gzip",
         "//pkg/obfuscate",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/api",
@@ -67,6 +69,7 @@ dd_agent_go_test(
         "//pkg/trace/stats",
         "//pkg/trace/telemetry",
         "//pkg/trace/testutil",
+        "//pkg/trace/testutil/dupcheck",
         "//pkg/trace/timing",
         "//pkg/trace/traceutil",
         "//pkg/trace/traceutil/normalize",
@@ -79,6 +82,8 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_atomic//:atomic",
     ] + select({

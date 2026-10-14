@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "dupcheck",
+    srcs = [
+        "corpus.go",
+        "dupcheck.go",
+        "print.go",
+        "spantypes.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/testutil/dupcheck",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/semantics",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)
+
+dd_agent_go_test(
+    name = "dupcheck_test",
+    srcs = ["dupcheck_test.go"],
+    embed = [":dupcheck"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)
