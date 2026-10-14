@@ -71,7 +71,34 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
+      # TestKindEBPFChecksSuite runs in new-e2e-containers-ebpf-checks
+      - EXTRA_PARAMS: --skip "Test(Kind|KindEBPFChecks|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
+
+# The eBPF checks (system-probe based) suite has its own job, so that changes to
+# those checks only run this suite, on top of everything that runs the other
+# container jobs.
+new-e2e-containers-ebpf-checks:
+  extends:
+    - .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - changes:
+        paths:
+          - cmd/agent/dist/conf.d/jvm_memory.d/**/*
+          - cmd/agent/dist/conf.d/oom_kill.d/**/*
+          - cmd/system-probe/modules/*jvm*
+          - cmd/system-probe/modules/oom_kill_probe*
+          - pkg/collector/corechecks/ebpf/**/*
+          - pkg/ebpf/c/usdt*.h
+          - pkg/ebpf/usdt/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --run TestKindEBPFChecksSuite
 
 new-e2e-containers-k8s-latest:
   extends:
