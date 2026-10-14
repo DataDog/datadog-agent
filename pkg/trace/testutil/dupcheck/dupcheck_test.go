@@ -8,8 +8,6 @@ package dupcheck
 import (
 	"fmt"
 	"maps"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -382,7 +380,7 @@ Trace payload duplicates: 7 issues, 18 occurrences (seed 42)
    created by: v04,
                otlp-processing (created, overwrote existing value, changed both values)
    occurrences: 5 on 2 span types
-   example: service=svc-a name=op.a
+   example: config=default service=svc-a name=op.a
             value="-4"
 
 2. span.attr[env] repeats another location
@@ -390,25 +388,25 @@ Trace payload duplicates: 7 issues, 18 occurrences (seed 42)
    partners: deployment.environment.name (2), dupcheck.random.* (2),
              deployment.environment (1, synonym), +1 more
    occurrences: 4 on 2 span types
-   example: service=svc-01 name=op.env
+   example: config=default service=svc-01 name=op.env
             value="production-production-production-production-production-production-..."
 
 3. span.attr[otel.library.name] repeats span.attr[otel.scope.name]
    created by: otlp-conversion
    occurrences: 3 on 2 span types
-   example: service=svc-17 name=server.request
+   example: config=default service=svc-17 name=server.request
             value="io.opentelemetry.http"
 
 4. span.attr[custom.key] repeats span.resource
    created by: v1 (created, overwrote existing value)
    occurrences: 2 on 1 span type
-   example: service=svc-v1 name=op.v1
+   example: config=default service=svc-v1 name=op.v1
             value="GET /users/{id}"
 
 5. span.events[*].attributes[k] repeats span.resource
    created by: otlp-processing
    occurrences: 2 on 1 span type
-   example: service=svc-ev name=op.ev
+   example: config=default service=svc-ev name=op.ev
             value="dupcheck.resource.x"
 
 6. chunk.tags[_dd.apm_mode] repeats payload.tags[_dd.apm_mode]
@@ -420,11 +418,44 @@ Trace payload duplicates: 7 issues, 18 occurrences (seed 42)
 7. span.attr[db.name] repeats span.attr[db.namespace] (semantic synonyms)
    created by: otlp-processing
    occurrences: 1 on 1 span type
-   example: service=svc-db name=op.db
+   example: config=default service=svc-db name=op.db
             value="users-db"
 
 Run with -dupcheck.verbose to list every occurrence group.`, rec.lines[0])
 	assert.False(t, t.Failed())
+}
+
+func TestReportSummary(t *testing.T) {
+	env := MetaLocation("env")
+	r := NewReport(5)
+	r.Add("v04",
+		reportFinding(RuleDup, ChangeCreated, "prod-env", "sql", 1, "svc", "op", env, MetaLocation("deployment.environment")),
+		reportFinding(RuleDup, ChangeOverwritten, "prod-env", "sql", 2, "svc", "op", env, MetaLocation("deployment.environment.name")),
+	)
+	r.Add("v1", reportFinding(RuleDup, ChangeCreated, "GET /users", "web", 3, "svc", "op", AttributeLocation("custom"), LocationResource))
+
+	s := r.Summary()
+	assert.Equal(t, int64(5), s.Seed)
+	assert.Equal(t, 3, s.Occurrences)
+	assert.Equal(t, []SummaryIssue{
+		{
+			Subject:   "span.attr[env]",
+			Title:     "span.attr[env] repeats another location",
+			Count:     2,
+			CreatedBy: []string{"v04 (created, overwrote existing value)"},
+			Partners:  map[string]int{"span.attr[deployment.environment]": 1, "span.attr[deployment.environment.name]": 1},
+		},
+		{
+			Subject:   "span.attr[custom]",
+			Title:     "span.attr[custom] repeats span.resource",
+			Count:     1,
+			CreatedBy: []string{"v1"},
+			Partners:  map[string]int{"span.resource": 1},
+		},
+	}, s.Issues)
+	assert.Equal(t, r.render(false), s.Text)
+	assert.Empty(t, NewReport(1).Summary().Issues)
+	assert.NotNil(t, NewReport(1).Summary().Issues, "no issue must encode as an empty list")
 }
 
 func TestReportPrintVerbose(t *testing.T) {
@@ -456,9 +487,9 @@ func TestReportPrintWithoutFindings(t *testing.T) {
 
 func TestReportExampleIsDeterministic(t *testing.T) {
 	findings := []Finding{
-		{Rule: RuleDup, Change: ChangeCreated, Value: "value-2", Locations: []Location{"span.meta[a]", LocationResource}, Context: "config=b span_id=1", SpanID: 1, Service: "svc-b"},
-		{Rule: RuleDup, Change: ChangeCreated, Value: "value-1", Locations: []Location{"span.meta[a]", LocationResource}, Context: "config=a span_id=3", SpanID: 3, Service: "svc-a"},
-		{Rule: RuleDup, Change: ChangeCreated, Value: "value-0", Locations: []Location{"span.meta[a]", LocationResource}, Context: "config=a span_id=3", SpanID: 3, Service: "svc-a"},
+		{Rule: RuleDup, Change: ChangeCreated, Value: "value-2", Locations: []Location{"span.meta[a]", LocationResource}, Context: "config=b service=svc-b name= span_id=1", SpanID: 1, Service: "svc-b"},
+		{Rule: RuleDup, Change: ChangeCreated, Value: "value-1", Locations: []Location{"span.meta[a]", LocationResource}, Context: "config=a service=svc-a name= span_id=3", SpanID: 3, Service: "svc-a"},
+		{Rule: RuleDup, Change: ChangeCreated, Value: "value-0", Locations: []Location{"span.meta[a]", LocationResource}, Context: "config=a service=svc-a name= span_id=3", SpanID: 3, Service: "svc-a"},
 	}
 	printReport := func(fs ...Finding) []string {
 		r := NewReport(1)
@@ -469,8 +500,8 @@ func TestReportExampleIsDeterministic(t *testing.T) {
 	}
 	want := printReport(findings...)
 	require.Len(t, want, 2)
-	assert.Contains(t, want[0], "example: service=svc-a name=\n            value=\"value-0\"")
-	assert.Contains(t, want[1], `e.g. config=a span_id=3 value="value-0"`)
+	assert.Contains(t, want[0], "example: config=a service=svc-a name=\n            value=\"value-0\"")
+	assert.Contains(t, want[1], `e.g. config=a service=svc-a name= span_id=3 value="value-0"`)
 	assert.Equal(t, want, printReport(findings[2], findings[0], findings[1]))
 	assert.Equal(t, want, printReport(findings[1], findings[2], findings[0]))
 }
@@ -558,9 +589,11 @@ func TestNewCorpusValueShapes(t *testing.T) {
 				case shapeTopLevel:
 					assert.Contains(t, topLevel, v, "key %q must copy a top-level field", k)
 				case shapeUnique:
-					assert.NotContains(t, topLevel, v, "key %q must not copy a top-level field", k)
+					for _, tv := range topLevel {
+						assert.False(t, sameTemplate(v, tv), "key %q must not share the template of top-level field %q", k, tv)
+					}
 					for other, ov := range s.Attributes {
-						assert.False(t, other != k && ov == v, "key %q must not share its value with attribute %q", k, other)
+						assert.False(t, other != k && sameTemplate(v, ov), "key %q must not share its template with attribute %q", k, other)
 					}
 				case shapeOtherAttribute:
 					assert.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(s.Attributes)), func(other string) bool {
@@ -590,35 +623,11 @@ func TestNewCorpusValueShapes(t *testing.T) {
 	}
 }
 
-func TestSpanTypeCaseLabels(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte(`package a
-
-const typeConst = "const-type"
-
-func f(s span, v value, typ string) {
-	switch s.Type {
-	case "sql", "cassandra":
-	case typeConst:
-	}
-	switch s.Type() {
-	case "web":
-	default:
-	}
-	switch v.Type {
-	case valueString:
-	}
-	switch typ {
-	case "variable-type":
-	}
-}
-`), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "a_test.go"), []byte("package a\n\nfunc g(s span) {\n\tswitch s.Type {\n\tcase \"test-type\":\n\t}\n}\n"), 0o644))
-
-	labels, err := SpanTypeCaseLabels(dir)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"cassandra", "sql", "web"}, labels)
-	assert.Equal(t, []string{"web-new"}, MissingCorpusSpanTypes([]string{"sql", "web-new", "web"}))
+func TestSameTemplate(t *testing.T) {
+	assert.True(t, sameTemplate("SELECT * FROM users WHERE id = 12", "SELECT * FROM users WHERE id = 345"))
+	assert.True(t, sameTemplate("404", "404"))
+	assert.False(t, sameTemplate("SELECT * FROM users WHERE id = 12", "DELETE FROM sessions WHERE expires < 12"))
+	assert.False(t, sameTemplate("200", "404"), "values made only of digits are compared as is")
 }
 
 func TestCorpusRendering(t *testing.T) {
@@ -681,13 +690,13 @@ Trace payload duplicates: 2 issues, 5 occurrences (seed 1)
 1. span.attr[otel.library.name] repeats span.attr[otel.scope.name]
    created by: otlp-conversion
    occurrences: 3 on 2 span types
-   example: service=svc name=op
+   example: config=default service=svc name=op
             value="io.opentelemetry.http"
 
 2. span.attr[db.statement] repeats span.resource
    created by: v04 (changed both values), v1 (changed both values)
    occurrences: 2 on 1 span type
-   example: service=svc name=op
+   example: config=default service=svc name=op
             value="SELECT ?"
 
 Run with -dupcheck.verbose to list every occurrence group.`, rec.lines[0])

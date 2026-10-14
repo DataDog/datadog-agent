@@ -671,6 +671,10 @@ func CheckOTLPConversion(in ptrace.ResourceSpans, out *pb.TracerPayload) []Findi
 	inMeta := make(map[uint64]map[string]string)
 	for i := 0; i < in.ScopeSpans().Len(); i++ {
 		ss := in.ScopeSpans().At(i)
+		// The conversion writes every scope attribute to the meta with
+		// AsString, numeric ones included, but stringAttributes drops numeric
+		// values: a numeric scope attribute would be reported as created by
+		// the agent. The corpus sets no scope attribute that is numeric.
 		scopeAttrs := stringAttributes(ss.Scope().Attributes())
 		for j := 0; j < ss.Spans().Len(); j++ {
 			s := ss.Spans().At(j)
@@ -723,6 +727,9 @@ func stringAttributes(attrs pcommon.Map) map[string]string {
 // the env, which the agent may take from any of the traces of the payload, so
 // that the printed examples are reproducible.
 func payloadBase(hostname string) Finding {
+	if hostname == "" {
+		return Finding{Context: "payload"}
+	}
 	return Finding{Context: "payload hostname=" + hostname}
 }
 

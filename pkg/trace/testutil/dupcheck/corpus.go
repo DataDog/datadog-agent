@@ -25,7 +25,9 @@ import (
 // CorpusSpanTypes are the span types of the generated corpus: every type the
 // agent branches on in the switch statements of pkg/trace (such as
 // obfuscation and OTLP span type mapping), the types used by pkg/trace/testutil,
-// the empty type and a type unknown to the agent.
+// the empty type and a type unknown to the agent. The list is maintained by
+// hand: nothing checks it against pkg/trace, so update it when the agent
+// starts branching on a new span type.
 var CorpusSpanTypes = []string{
 	"sql", "cassandra", "redis", "valkey", "memcached", "mongodb", "elasticsearch", "opensearch",
 	"web", "http", "db", "cache", "custom",
@@ -35,7 +37,9 @@ var CorpusSpanTypes = []string{
 
 // CorpusAgentKeys are attribute keys referenced as constants in pkg/trace
 // (obfuscation, normalization, sampling, payload attributes and OTLP
-// conversion). The corpus also uses every key of the semantics registry.
+// conversion). The corpus also uses every key of the semantics registry. Like
+// CorpusSpanTypes, the list is maintained by hand and nothing checks it
+// against pkg/trace.
 var CorpusAgentKeys = []string{
 	// obfuscation
 	"sql.query", "db.statement", "db.query.text", "sql.tables", "db.type", "http.url",
@@ -234,6 +238,9 @@ func (c *Corpus) span(typ string, keys []string, shapes map[string]valueShape) S
 		shapes:     make(map[string]valueShape, len(keys)),
 	}
 	topLevel := slices.DeleteFunc([]string{s.Service, s.Name, s.Resource, s.Type}, func(v string) bool { return v == "" })
+	// partners holds the random attribute sharing the value of each key of
+	// shape shapeOtherAttribute.
+	partners := make(map[string]string)
 	for _, k := range keys {
 		s.shapes[k] = shapes[k]
 		switch shapes[k] {
@@ -245,18 +252,29 @@ func (c *Corpus) span(typ string, keys []string, shapes map[string]valueShape) S
 			// The other attribute is a random one, so that the duplicates
 			// sent by the SDK don't chain known keys together.
 			v := c.value(k, typ)
+			partners[k] = RandomKeyPrefix + c.token()
 			s.Attributes[k] = v
-			s.Attributes[RandomKeyPrefix+c.token()] = v
+			s.Attributes[partners[k]] = v
 		}
 	}
 	for range 2 {
 		s.Attributes[RandomKeyPrefix+c.token()] = c.token()
 	}
 	// A unique value may still repeat a top-level field (db.type of a redis
-	// span) or the value given to another key: draw another one.
+	// span) or the value given to another key, or come from the same template
+	// and become equal to it once obfuscated: draw another one. So may the
+	// value shared by a key and its partner.
 	for _, k := range slices.Sorted(maps.Keys(s.shapes)) {
-		if s.shapes[k] == shapeUnique && s.valueTaken(k, s.Attributes[k]) {
-			s.Attributes[k] = c.uniqueValue(s, k)
+		switch s.shapes[k] {
+		case shapeUnique:
+			if s.valueTaken(s.Attributes[k], k) {
+				s.Attributes[k] = c.uniqueValue(s, k)
+			}
+		case shapeOtherAttribute:
+			if p := partners[k]; s.valueTaken(s.Attributes[k], k, p) {
+				v := c.uniqueValue(s, k, p)
+				s.Attributes[k], s.Attributes[p] = v, v
+			}
 		}
 	}
 	randomValues := make([]string, 0, len(s.Attributes))
@@ -294,30 +312,51 @@ func (c *Corpus) span(typ string, keys []string, shapes map[string]valueShape) S
 	return s
 }
 
-// valueTaken reports whether v is the value of a top-level field of s or of
-// one of its attributes other than k.
-func (s SpanSpec) valueTaken(k, v string) bool {
-	if v == s.Service || v == s.Name || v == s.Resource || v == s.Type {
+// valueTaken reports whether v has the same template as a top-level field of
+// s or as one of its attributes, the attributes in except excluded.
+func (s SpanSpec) valueTaken(v string, except ...string) bool {
+	if sameTemplate(v, s.Service) || sameTemplate(v, s.Name) || sameTemplate(v, s.Resource) || sameTemplate(v, s.Type) {
 		return true
 	}
 	for other, ov := range s.Attributes {
-		if other != k && ov == v {
+		if !slices.Contains(except, other) && sameTemplate(v, ov) {
 			return true
 		}
 	}
 	return false
 }
 
-// uniqueValue returns a value for key k of span s that no other field of s
-// has: a value shaped for the key if one is free, a random token otherwise.
-func (c *Corpus) uniqueValue(s SpanSpec, k string) string {
-	for range 3 {
-		if v := c.value(k, s.Type); !s.valueTaken(k, v) {
+// sameTemplate reports whether a and b are equal once their digits are
+// removed, such as two queries from the same corpusSQL template: obfuscation
+// may make them equal, and the agent would then seem to have copied one into
+// the other. Values made only of digits, such as status codes, are compared
+// as is.
+func sameTemplate(a, b string) bool {
+	if a == b {
+		return true
+	}
+	dropDigits := func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return -1
+		}
+		return r
+	}
+	ta, tb := strings.Map(dropDigits, a), strings.Map(dropDigits, b)
+	return ta != "" && ta == tb
+}
+
+// uniqueValue returns a value for key k of span s that has the template of no
+// other field of s, the attributes in except excluded: a value shaped for the
+// key if one is free, a random token otherwise.
+func (c *Corpus) uniqueValue(s SpanSpec, k string, except ...string) string {
+	except = append(except, k)
+	for range 5 {
+		if v := c.value(k, s.Type); !s.valueTaken(v, except...) {
 			return v
 		}
 	}
 	for {
-		if v := c.token(); !s.valueTaken(k, v) {
+		if v := c.token(); !s.valueTaken(v, except...) {
 			return v
 		}
 	}

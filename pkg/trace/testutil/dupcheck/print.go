@@ -281,13 +281,58 @@ func (r *Report) Print(t testing.TB, verbose bool) {
 	}
 }
 
-// render returns the issue report, ending with a hint to use the verbose
-// mode when hint is set.
-func (r *Report) render(hint bool) string {
+// Summary is the machine-readable form of a report, used to compare the
+// reports of two commits.
+type Summary struct {
+	Seed        int64          `json:"seed"`
+	Occurrences int            `json:"occurrences"`
+	Issues      []SummaryIssue `json:"issues"`
+	// Text is the report as printed by Print, without the verbose part.
+	Text string `json:"text"`
+}
+
+// SummaryIssue is an issue of a Summary. Subject identifies the issue: its
+// title changes when the issue gets a second partner.
+type SummaryIssue struct {
+	Subject   string         `json:"subject"`
+	Title     string         `json:"title"`
+	Count     int            `json:"count"`
+	CreatedBy []string       `json:"created_by"`
+	Partners  map[string]int `json:"partners"`
+}
+
+// Summary returns the summary of the report, its issues in report order.
+func (r *Report) Summary() Summary {
+	s := Summary{Seed: r.seed, Occurrences: r.occurrences, Issues: []SummaryIssue{}, Text: r.render(false)}
+	for _, is := range r.sortedIssues() {
+		partners := make(map[string]int, len(is.partners))
+		for _, p := range is.partners {
+			partners[p.location] = p.count
+		}
+		s.Issues = append(s.Issues, SummaryIssue{
+			Subject:   is.subject,
+			Title:     is.title(),
+			Count:     is.count,
+			CreatedBy: is.createdBy(r.stages),
+			Partners:  partners,
+		})
+	}
+	return s
+}
+
+// sortedIssues returns the merged issues, most frequent first.
+func (r *Report) sortedIssues() []*reportIssue {
 	issues := r.mergedIssues()
 	slices.SortFunc(issues, func(a, b *reportIssue) int {
 		return cmp.Or(cmp.Compare(b.count, a.count), cmp.Compare(a.title(), b.title()))
 	})
+	return issues
+}
+
+// render returns the issue report, ending with a hint to use the verbose
+// mode when hint is set.
+func (r *Report) render(hint bool) string {
+	issues := r.sortedIssues()
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Trace payload duplicates: %s, %s (seed %d)\n",
 		plural(len(issues), "issue"), plural(r.occurrences, "occurrence"), r.seed)
@@ -330,10 +375,8 @@ func (is *reportIssue) render(sb *strings.Builder, label string, stageOrder []st
 	}
 	sb.WriteString(occurrences + "\n")
 	e := is.example
-	where := e.Context
-	if e.SpanID != 0 {
-		where = "service=" + e.Service + " name=" + e.Name
-	}
+	// The span ID is left out of span examples: it says nothing to the reader.
+	where := strings.TrimSuffix(e.Context, " span_id="+strconv.FormatUint(e.SpanID, 10))
 	sb.WriteString(indent + "example: " + where + "\n")
 	sb.WriteString(indent + "         value=" + strconv.Quote(truncate(e.Value)) + "\n")
 }

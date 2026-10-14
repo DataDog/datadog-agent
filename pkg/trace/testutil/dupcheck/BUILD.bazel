@@ -7,7 +7,6 @@ go_library(
         "corpus.go",
         "dupcheck.go",
         "print.go",
-        "spantypes.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/testutil/dupcheck",
     visibility = ["//visibility:public"],
