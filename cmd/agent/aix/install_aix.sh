@@ -15,14 +15,10 @@ default_repo_url="https://dd-agent-aix.s3.amazonaws.com"
 # Colors are enabled only when outputting to a terminal (not when piped/redirected)
 if [ -t 1 ]; then
     RED='\033[31m'
-    GREEN='\033[32m'
-    YELLOW='\033[33m'
     BLUE='\033[34m'
     NC='\033[0m'
 else
     RED=''
-    GREEN=''
-    YELLOW=''
     BLUE=''
     NC=''
 fi
@@ -252,13 +248,3 @@ if ! $sudo_cmd mv -f "$staging_dir/install_info" "$install_info"; then
     fail "could not move install_info into place."
 fi
 $sudo_cmd rmdir "$staging_dir"
-
-if [ -n "${DD_INSTALL_ONLY:-}" ]; then
-    printf '%b\nDatadog Agent %s was installed but not started because DD_INSTALL_ONLY is set.\nStart it with:\n\n    startsrc -g datadog-agent\n%b' "$GREEN" "$current_fileset" "$NC"
-elif [ -z "${DD_API_KEY:-}" ] && ! $sudo_cmd test -f /etc/datadog-agent/datadog.yaml; then
-    printf '%b\nDatadog Agent %s was installed but not started because no configuration exists.\nCreate /etc/datadog-agent/datadog.yaml with your API key, then run:\n\n    startsrc -g datadog-agent\n%b' "$YELLOW" "$current_fileset" "$NC"
-elif lssrc -s datadog-agent 2>/dev/null | grep -q active; then
-    printf '%b\nDatadog Agent %s was installed successfully.\n\nCheck its status with:\n\n    lssrc -g datadog-agent\n\nStop or start all Agent services with:\n\n    stopsrc -g datadog-agent\n    startsrc -g datadog-agent\n%b' "$GREEN" "$current_fileset" "$NC"
-else
-    printf '%b\nDatadog Agent %s was installed, but the Agent service is not active.\nCheck its status and logs with:\n\n    lssrc -g datadog-agent\n    datadog-agent status\n%b' "$YELLOW" "$current_fileset" "$NC"
-fi
