@@ -160,11 +160,12 @@ func testSweepRequestWithOptions(t *testing.T, cidr string, ignored []string, op
 	require.NoError(t, err)
 
 	return sweepRequest{
-		Config:  cfg,
-		Options: opts,
-		Plan:    plan,
-		Digest:  rangeDigest(cfg, opts.Fingerprints()),
-		Workers: 2,
+		Config:   cfg,
+		Options:  opts,
+		Plan:     plan,
+		Digest:   rangeDigest(cfg, opts.Fingerprints()),
+		Workers:  2,
+		Interval: 30 * time.Second,
 	}
 }
 
@@ -194,7 +195,7 @@ func TestSweepDueInCountsFromTheLastCycleEnd(t *testing.T) {
 				require.NoError(t, cursors.Save("ad-1", tc.state))
 			}
 
-			assert.Equal(t, tc.want, s.dueIn(req, 30*time.Second))
+			assert.Equal(t, tc.want, s.dueIn(req))
 		})
 	}
 }
@@ -216,6 +217,7 @@ func TestSweepCompletesAndReportsRunLifecycle(t *testing.T) {
 	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
 	assert.Equal(t, int64(64), final.AddressesScanned)
 	assert.Equal(t, int64(1700000000000), final.FinishedAtMs)
+	assert.Equal(t, int64(1700000030000), final.NextRunAtMs, "the backend learns when the range is next due")
 	assert.Empty(t, final.Error)
 
 	// answerAll answers on the first target of each chunk only, so one /26 is
@@ -386,6 +388,7 @@ func TestSweepFailedChunkKeepsCursor(t *testing.T) {
 	assert.Equal(t, metadata.AutodiscoveryRunFailed, final.Status)
 	assert.Contains(t, final.Error, "the scan exploded")
 	assert.Equal(t, int64(128), final.AddressesScanned)
+	assert.Equal(t, int64(1700000030000), final.NextRunAtMs, "a failed cycle reports the same next due time as a completed one")
 
 	saved, ok := cursors.Load("ad-1")
 	require.True(t, ok, "a failed cycle keeps its cursor so the next tick resumes")

@@ -41,6 +41,8 @@ type sweepRequest struct {
 	Digest  string
 	// Workers is this range's share of the global worker budget.
 	Workers int64
+	// Interval is how long after this cycle ends the range is next due.
+	Interval time.Duration
 }
 
 // sweeper runs one cycle over one range, chunk by chunk, persisting a cursor
@@ -136,6 +138,7 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 				Error:            err.Error(),
 				StartedAtMs:      state.StartedAtMs,
 				FinishedAtMs:     ended,
+				NextRunAtMs:      s.nextRunAt(r, ended),
 			})
 			return err
 		}
@@ -167,6 +170,7 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 		AddressesScanned: state.Scanned,
 		StartedAtMs:      state.StartedAtMs,
 		FinishedAtMs:     finished,
+		NextRunAtMs:      s.nextRunAt(r, finished),
 	})
 
 	// Kept rather than cleared, so a restart knows when this range is next due.
@@ -177,17 +181,26 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 // dueIn is how long is left before the range is next due, and zero when it is
 // due now. A range with no finished cycle on record is always due.
-func (s *sweeper) dueIn(r sweepRequest, interval time.Duration) time.Duration {
+func (s *sweeper) dueIn(r sweepRequest) time.Duration {
 	saved, ok := s.cursors.Load(r.Config.AutodiscoveryID)
 	if !ok || saved.EndedAtMs == 0 || saved.ConfigDigest != r.Digest {
 		return 0
 	}
 
 	elapsed := time.Duration(s.now()-saved.EndedAtMs) * time.Millisecond
-	if elapsed < 0 || elapsed >= interval {
+	if elapsed < 0 || elapsed >= r.Interval {
 		return 0
 	}
-	return interval - elapsed
+	return r.Interval - elapsed
+}
+
+// nextRunAt is the earliest the range is swept again, counting from the end of
+// the cycle that just ran.
+func (s *sweeper) nextRunAt(r sweepRequest, endedAtMs int64) int64 {
+	if r.Interval <= 0 {
+		return 0
+	}
+	return endedAtMs + r.Interval.Milliseconds()
 }
 
 // startState resumes the persisted cycle when the range and its credentials
