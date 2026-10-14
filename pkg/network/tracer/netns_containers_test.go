@@ -29,10 +29,11 @@ func newTestNetNSResolver(pidToNetNS map[int]uint32) *netnsContainerResolver {
 			}
 			return 0, errors.New("no such pid")
 		},
-		rootNetNS:   testRootNetNS,
-		ownerImages: map[string]struct{}{"ztunnel": {}},
-		containers:  make(map[*intern.Value]trackedContainer),
-		byNetNS:     make(map[uint32]map[*intern.Value]struct{}),
+		rootNetNS:         testRootNetNS,
+		ownerImages:       toSet([]string{"ztunnel"}),
+		ignoredContainers: toSet([]string{"vault-agent"}),
+		containers:        make(map[*intern.Value]trackedContainer),
+		byNetNS:           make(map[uint32]map[*intern.Value]struct{}),
 	}
 }
 
@@ -40,10 +41,11 @@ func testContainerEvent(eventType workloadmeta.EventType, id, image string, pid 
 	return workloadmeta.Event{
 		Type: eventType,
 		Entity: &workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
-			Image:    workloadmeta.ContainerImage{ShortName: image},
-			PID:      pid,
-			State:    workloadmeta.ContainerState{Running: true},
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: id},
+			EntityMeta: workloadmeta.EntityMeta{Name: id},
+			Image:      workloadmeta.ContainerImage{ShortName: image},
+			PID:        pid,
+			State:      workloadmeta.ContainerState{Running: true},
 		},
 	}
 }
@@ -181,4 +183,54 @@ func TestNetNSContainerResolverConcurrentAccess(t *testing.T) {
 		r.resolve(4002, ztunnel)
 	}
 	<-done
+}
+
+func TestNetNSContainerResolverIgnoresUnchangedUpdates(t *testing.T) {
+	reads := 0
+	r := newTestNetNSResolver(nil)
+	r.readNetNS = func(pid int) (uint32, error) {
+		reads++
+		return uint32(5000 + pid), nil
+	}
+
+	app := testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 20)
+	r.process([]workloadmeta.Event{app})
+	require.Equal(t, 1, reads)
+
+	// a readiness flip arrives as another Set event for the same running container
+	unhealthy := testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 20)
+	unhealthy.Entity.(*workloadmeta.Container).State.Health = workloadmeta.ContainerHealthUnhealthy
+	r.process([]workloadmeta.Event{unhealthy})
+	assert.Equal(t, 1, reads, "an update that keeps the PID must not re-read the namespace")
+	assert.Contains(t, r.byNetNS, uint32(5020), "an unhealthy running container stays mapped")
+
+	// a restart gives the container a new process
+	r.process([]workloadmeta.Event{testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 21)})
+	assert.Equal(t, 2, reads)
+	assert.NotContains(t, r.byNetNS, uint32(5020))
+	assert.Contains(t, r.byNetNS, uint32(5021))
+}
+
+func TestNetNSContainerResolverIgnoresHelperContainers(t *testing.T) {
+	const (
+		ztunnelNS = 6001
+		helperNS  = 6002
+		multiNS   = 6003
+	)
+	r := newTestNetNSResolver(map[int]uint32{10: ztunnelNS, 20: helperNS, 21: helperNS, 30: multiNS, 31: multiNS})
+	r.process([]workloadmeta.Event{
+		testContainerEvent(workloadmeta.EventTypeSet, "ztunnel", "ztunnel", 10),
+		testContainerEvent(workloadmeta.EventTypeSet, "app", "router", 20),
+		testContainerEvent(workloadmeta.EventTypeSet, "vault-agent", "vault", 21),
+		testContainerEvent(workloadmeta.EventTypeSet, "web", "web", 30),
+		testContainerEvent(workloadmeta.EventTypeSet, "worker", "worker", 31),
+	})
+	ztunnel := intern.GetByString("ztunnel")
+
+	cid, ok := r.resolve(helperNS, ztunnel)
+	require.True(t, ok, "a pod whose only other container is a helper counts as single-container")
+	assert.Equal(t, intern.GetByString("app"), cid)
+
+	_, ok = r.resolve(multiNS, ztunnel)
+	assert.False(t, ok, "two application containers stay ambiguous")
 }

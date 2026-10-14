@@ -4117,36 +4117,50 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	tr := setupTracer(t, cfg)
 	require.NotNil(t, tr.processCache)
 
-	podNS := netlinktestutil.AddNS(t)
-	testutil.RunCommands(t, []string{"ip -n " + podNS + " link set lo up"}, false)
-
-	podNSHandle, err := vnetns.GetFromName(podNS)
-	require.NoError(t, err)
-	t.Cleanup(func() { podNSHandle.Close() })
-	podNSIno, err := netns.GetInoForNs(podNSHandle)
-	require.NoError(t, err)
+	newPodNS := func() (vnetns.NsHandle, uint32) {
+		name := netlinktestutil.AddNS(t)
+		testutil.RunCommands(t, []string{"ip -n " + name + " link set lo up"}, false)
+		handle, err := vnetns.GetFromName(name)
+		require.NoError(t, err)
+		t.Cleanup(func() { handle.Close() })
+		ino, err := netns.GetInoForNs(handle)
+		require.NoError(t, err)
+		return handle, ino
+	}
+	podNSHandle, podNSIno := newPodNS()
+	// a pod with two application containers: which one owns the traffic is ambiguous
+	multiNSHandle, multiNSIno := newPodNS()
 
 	ownNSIno, err := netns.GetNetNsInoFromPid(kernel.ProcFSRoot(), os.Getpid())
 	require.NoError(t, err)
 
 	const (
-		proxyPID = 1001 // stand-in PIDs, mapped to namespaces below rather than read from procfs
-		appPID   = 1002
+		proxyPID  = 1001 // stand-in PIDs, mapped to namespaces below rather than read from procfs
+		appPID    = 1002
+		helperPID = 1003
+		webPID    = 1004
+		workerPID = 1005
 	)
-	r, err := newNetNSContainerResolver([]string{"ztunnel"})
+	r, err := newNetNSContainerResolver([]string{"ztunnel"}, []string{"vault-agent"})
 	require.NoError(t, err)
 	r.readNetNS = func(pid int) (uint32, error) {
 		switch pid {
 		case proxyPID:
 			return ownNSIno, nil
-		case appPID:
+		case appPID, helperPID:
 			return podNSIno, nil
+		case webPID, workerPID:
+			return multiNSIno, nil
 		}
 		return 0, errors.New("unknown pid")
 	}
 	r.process([]workloadmeta.Event{
 		testContainerEvent(workloadmeta.EventTypeSet, "proxy-container", "ztunnel", proxyPID),
 		testContainerEvent(workloadmeta.EventTypeSet, "app-container", "router", appPID),
+		// a helper sharing the pod's namespace doesn't make the pod ambiguous
+		testContainerEvent(workloadmeta.EventTypeSet, "vault-agent", "vault", helperPID),
+		testContainerEvent(workloadmeta.EventTypeSet, "web-container", "web", webPID),
+		testContainerEvent(workloadmeta.EventTypeSet, "worker-container", "worker", workerPID),
 	})
 	tr.netnsResolver.Store(r)
 
@@ -4177,6 +4191,22 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 	t.Cleanup(podServer.Shutdown)
 	t.Cleanup(func() { podConn.Close() })
 
+	// connection inside the multi-container pod's namespace
+	var multiServer *tracertestutil.TCPServer
+	var multiConn net.Conn
+	err = netns.WithNS(multiNSHandle, func() error {
+		multiServer = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+		if err := multiServer.Run(); err != nil {
+			return err
+		}
+		var dialErr error
+		multiConn, dialErr = multiServer.Dial()
+		return dialErr
+	})
+	require.NoError(t, err)
+	t.Cleanup(multiServer.Shutdown)
+	t.Cleanup(func() { multiConn.Close() })
+
 	// control connection in the process's own namespace
 	ownServer := tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
 	require.NoError(t, ownServer.Run())
@@ -4194,10 +4224,22 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 		assert.Equal(collect, podNSIno, pod.NetNS)
 		assert.Equal(collect, appCID, pod.ContainerID.Source, "socket in the pod namespace must be attributed to the pod")
 		assert.Empty(collect, pod.Tags, "the proxy's process tags must not move onto the pod")
+		assert.Equal(collect, proxyCID, pod.NetNSOriginalContainerID)
+
+		// the accepted side is how a proxy delivers into the pod
+		accepted, ok := findConnection(podConn.RemoteAddr(), podConn.LocalAddr(), conns)
+		require.True(collect, ok, "accepted connection in the pod namespace not found")
+		assert.Equal(collect, appCID, accepted.ContainerID.Source, "accepted socket in the pod namespace must be attributed to the pod")
+
+		multi, ok := findConnection(multiConn.LocalAddr(), multiConn.RemoteAddr(), conns)
+		require.True(collect, ok, "connection in the multi-container namespace not found")
+		assert.Equal(collect, proxyCID, multi.ContainerID.Source, "a multi-container pod is ambiguous, so the socket keeps the proxy's container")
+		assert.Nil(collect, multi.NetNSOriginalContainerID)
 
 		own, ok := findConnection(ownConn.LocalAddr(), ownConn.RemoteAddr(), conns)
 		require.True(collect, ok, "connection in the proxy's own namespace not found")
 		assert.Equal(collect, proxyCID, own.ContainerID.Source, "socket in the proxy's own namespace keeps its container")
+		assert.Nil(collect, own.NetNSOriginalContainerID)
 		assert.NotEmpty(collect, own.Tags)
 	}, 3*time.Second, 100*time.Millisecond)
 }
