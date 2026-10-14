@@ -186,6 +186,7 @@
 /.gitlab/.pre/deps_build/                                                 @DataDog/ebpf-platform @DataDog/agent-build @DataDog/windows-products
 /.gitlab/windows/test/e2e_install_packages/windows.yml                    @DataDog/windows-products
 /.gitlab/windows/test/e2e/windows_templates.yml                           @DataDog/agent-devx @DataDog/windows-products
+/.gitlab/windows/test/e2e/windows_alp.yml                                 @DataDog/agent-log-pipelines @DataDog/agent-devx
 /.gitlab/windows/test/e2e/windows_agent.yml                               @DataDog/agent-configuration @DataDog/fleet-automation @DataDog/fleet-remediation @DataDog/agent-runtimes @DataDog/windows-products @DataDog/agent-devx
 /.gitlab/windows/test/e2e/windows_products.yml                            @DataDog/windows-products @DataDog/agent-devx
 /.gitlab/windows/test/e2e/windows_observability.yml                       @DataDog/cloud-network-monitoring @DataDog/network-path @DataDog/agent-log-pipelines @DataDog/agent-data-plane @DataDog/agent-security @DataDog/container-experiences @DataDog/universal-service-monitoring @DataDog/windows-products @DataDog/agent-devx
@@ -358,6 +359,7 @@
 /cmd/agent/dist/config.py                             @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/dist/utils/                                @DataDog/agent-integrations @DataDog/agent-runtimes
 /cmd/agent/install*.sh                              @DataDog/fleet-automation
+/cmd/agent/aix/                                     @DataDog/fleet-automation @DataDog/agent-runtimes
 /cmd/agent/macos/                                   @DataDog/windows-products
 /cmd/agent/selinux/                                 @DataDog/ebpf-platform @DataDog/agent-build
 /cmd/ai_prompt_logger/                              @DataDog/windows-products
@@ -1123,6 +1125,7 @@
 /test/new-e2e/tests/gpu                                         @DataDog/accelerator-telemetry
 /test/new-e2e/tests/usm                                         @DataDog/universal-service-monitoring
 /test/new-e2e/examples/ecs_test.go                              @DataDog/ecs-experiences
+/test/new-e2e/internet-access.yaml                              @DataDog/agent-devx
 /test/otel/                                                     @DataDog/opentelemetry-agent
 /test/static/                                                   @DataDog/agent-build
 # Also change the run-time check for approver at: tasks/static_quality_gates/decisions.py:EXCEPTION_APPROVERS
