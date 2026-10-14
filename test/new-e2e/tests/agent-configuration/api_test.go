@@ -42,7 +42,7 @@ type apiSuite struct {
 
 func TestApiSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &apiSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithoutFakeIntake()))))
+	e2e.Run(t, &apiSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithoutFakeIntake(), ec2.WithEC2InstanceOptions(ec2.WithInternetAccess())))))
 }
 
 type agentEndpointInfo struct {
