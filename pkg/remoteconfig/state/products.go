@@ -49,6 +49,7 @@ var validProducts = map[string]struct{}{
 	ProductNetworkPath:                  {},
 	ProductDataSecurityDBScanTasks:      {},
 	ProductNDMConfig:                    {},
+	ProductLogsQuota:                    {},
 }
 
 const (
@@ -68,6 +69,8 @@ const (
 	ProductAgentFailover = "AGENT_FAILOVER"
 	// ProductAgentTask is to receive agent task instruction, like a flare
 	ProductAgentTask = "AGENT_TASK"
+	// ProductLogsQuota is to receive log quota enforcement rules for the logs agent
+	ProductLogsQuota = "LOGS_QUOTA"
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
 	// ProductAPMSemanticCoreDD is the employee-signed product that pushes
