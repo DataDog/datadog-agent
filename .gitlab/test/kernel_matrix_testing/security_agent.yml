@@ -70,9 +70,7 @@ kmt_setup_env_secagent_x64:
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     # build connector
-    - pushd $CI_PROJECT_DIR/test/new-e2e
-    - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
-    - popd
+    - bazel run //test/new-e2e/system-probe/connector:install_linux_$ARCH -- --destdir=$CI_PROJECT_DIR
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   after_script:
@@ -261,6 +259,26 @@ kmt_run_secagent_tests_x64_wprofiles:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
     - !reference [.suggest_kmt_retry_command]
+kmt_run_secagent_tests_x64_v2:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - kmt_setup_env_secagent_x64
+    - upload_dependencies_secagent_x64
+    - upload_secagent_tests_x64
+  variables:
+    ARCH: "x86_64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_22.04"
+        TEST_SET: [cws_v2]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 kmt_run_secagent_tests_x64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
@@ -420,6 +438,27 @@ kmt_run_secagent_tests_arm64_wprofiles:
     - !reference [.upload_junit_kmt]
     - !reference [.suggest_kmt_retry_command]
 
+kmt_run_secagent_tests_arm64_v2:
+  extends:
+    - .kmt_run_secagent_tests
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
+  needs:
+    - kmt_setup_env_secagent_arm64
+    - upload_dependencies_secagent_arm64
+    - upload_secagent_tests_arm64
+  variables:
+    ARCH: "arm64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_22.04"
+        TEST_SET: [cws_v2]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
+
 kmt_run_secagent_tests_arm64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
@@ -499,6 +538,7 @@ kmt_secagent_tests_join1_arm64:
     - kmt_run_secagent_tests_arm64
     - kmt_run_secagent_tests_arm64_peds
     - kmt_run_secagent_tests_arm64_wprofiles
+    - kmt_run_secagent_tests_arm64_v2
 
 kmt_secagent_tests_join2_arm64:
   extends:
@@ -527,7 +567,7 @@ kmt_secagent_tests_join1_x64:
     - kmt_run_secagent_tests_x64
     - kmt_run_secagent_tests_x64_wprofiles
     - kmt_run_secagent_tests_x64_ebpfless
-    - kmt_run_secagent_tests_x64_docker
+    - kmt_run_secagent_tests_x64_v2
 
 kmt_secagent_tests_join2_x64:
   extends:
@@ -535,6 +575,7 @@ kmt_secagent_tests_join2_x64:
   needs:
     - kmt_run_secagent_tests_x64_peds
     - kmt_run_secagent_tests_x64_required
+    - kmt_run_secagent_tests_x64_docker
 
 kmt_secagent_cleanup_x64:
   when: always

@@ -577,6 +577,53 @@ func TestCheckSenderInfraTagger_EmptyTaggedList(t *testing.T) {
 	assert.Contains(t, bucket.bucket.Tags, "infra_mode:cloud_cost_only")
 }
 
+func TestCheckSenderEventAppendsInfraModeEventTags(t *testing.T) {
+	tests := []struct {
+		name               string
+		infraModeEventTags []string
+		expectedTags       []string
+	}{
+		{
+			name:               "appends injected mark tags",
+			infraModeEventTags: []string{"infra_mode:cloud_cost_only"},
+			expectedTags:       []string{"env:prod", "infra_mode:cloud_cost_only"},
+		},
+		{
+			name:               "nil mark tags leaves event tags unchanged",
+			infraModeEventTags: nil,
+			expectedTags:       []string{"env:prod"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := initSender(checkID1, "")
+			s.sender.infraModeEventTags = tt.infraModeEventTags
+
+			s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
+
+			assert.Equal(t, tt.expectedTags, (<-s.eventChan).Tags)
+		})
+	}
+
+	t.Run("does not mark metrics or service checks", func(t *testing.T) {
+		s := initSender(checkID1, "")
+		s.sender.infraModeEventTags = []string{"infra_mode:cloud_cost_only"}
+
+		s.sender.Event(event.Event{Title: "Something happened", Tags: []string{"env:prod"}})
+		assert.Contains(t, (<-s.eventChan).Tags, "infra_mode:cloud_cost_only")
+
+		s.sender.Gauge("my.metric", 1.0, "my-hostname", []string{"env:prod"})
+		assert.NotContains(t, (<-s.itemChan).(*senderMetricSample).metricSample.Tags, "infra_mode:cloud_cost_only")
+
+		s.sender.OpenmetricsBucket("my.bucket", 42, 1.0, 2.0, true, "my-hostname", []string{"env:prod"}, false)
+		assert.NotContains(t, (<-s.itemChan).(*senderHistogramBucket).bucket.Tags, "infra_mode:cloud_cost_only")
+
+		s.sender.ServiceCheck("my_service.can_connect", servicecheck.ServiceCheckOK, "my-hostname", []string{"env:prod"}, "message")
+		assert.NotContains(t, (<-s.serviceCheckChan).Tags, "infra_mode:cloud_cost_only")
+	})
+}
+
 func TestCheckSenderInterface(t *testing.T) {
 	// this test not using anything global
 	// -

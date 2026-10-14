@@ -23,10 +23,11 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go/v2 v2.66.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
-	github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4
+	github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b
 	github.com/DataDog/rshell v0.0.30
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.1
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.100.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.0
 	github.com/cenkalti/backoff/v7 v7.0.1
@@ -130,7 +131,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.89.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.338.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.102.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
@@ -162,7 +162,7 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
-	github.com/containerd/containerd v1.7.30 // indirect
+	github.com/containerd/containerd v1.7.36 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -389,7 +389,7 @@ require (
 	k8s.io/kubectl v0.35.5 // indirect
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3 // indirect
 	lukechampine.com/frand v1.5.1 // indirect
-	oras.land/oras-go/v2 v2.6.1 // indirect
+	oras.land/oras-go/v2 v2.6.2 // indirect
 	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
