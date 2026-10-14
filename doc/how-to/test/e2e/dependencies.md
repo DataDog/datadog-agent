@@ -129,8 +129,7 @@ The better alternative is to:
 - Use a Docker image containing that tool that you can then pull the [ECR pull-through cache](#ecr-pull-through-cache).
 - "Bake" the dependency into the VM machine image (AMI).
 
-We already provide `-e2e` AMI variants for most OSes for this purpose, that contain some common dependencies: docker itself, `jq`, `python3` etc.
-These `-e2e` variants are already the default for tests running on AWS.
+Every AMI pinned in `platforms.json` is already prebaked for this purpose (built from ami-builder's `-e2e` entries) and contains some common dependencies: docker itself, `jq`, `python3` etc.
 
 See [Custom AMIs](custom-amis.md) for more details on how to do this.
 

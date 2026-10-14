@@ -13,8 +13,8 @@ var (
 	Ubuntu2204    = NewDescriptor(Ubuntu, "22-04")
 	Ubuntu2004    = NewDescriptor(Ubuntu, "20-04")
 
-	UbuntuKindDefault = Ubuntu2404KindE2E
-	Ubuntu2404KindE2E = NewDescriptor(Ubuntu, "24-04-e2e-kind")
+	UbuntuKindDefault = Ubuntu2404Kind
+	Ubuntu2404Kind    = NewDescriptor(Ubuntu, "24-04-kind")
 
 	DebianDefault = Debian12
 	Debian11      = NewDescriptor(Debian, "11")
