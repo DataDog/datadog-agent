@@ -73,7 +73,8 @@ func (f *fakeCredentialResolver) ResolveConnectionInfoToCredential(_ context.Con
 
 func TestCredentialResolverSkipsScriptRootsThatCannotOpen(t *testing.T) {
 	missingRoot := filepath.Join(t.TempDir(), "missing")
-	credentialResolver := resolver.NewPrivateCredentialResolver([]string{missingRoot})
+	credentialResolver, err := resolver.NewPrivateCredentialResolver(nil, []string{missingRoot})
+	require.NoError(t, err)
 
 	secretPath := filepath.Join(t.TempDir(), "credentials.json")
 	require.NoError(t, os.WriteFile(secretPath, []byte(`{"auth_type":"Token Auth","credentials":[{"tokenName":"apiKey","tokenValue":"secret"}]}`), 0o600))
