@@ -7,21 +7,21 @@ The images themselves are built in [ami-builder](https://github.com/ddoghq/ami-b
 
 ## How an AMI is chosen
 
-1. `ec2.WithOS(e2eos.Ubuntu2204E2E)` resolves to a `Descriptor{Ubuntu, "22-04-e2e", x86_64}` — a `(flavor, version, architecture)` triple.
+1. `ec2.WithOS(e2eos.Ubuntu2204)` resolves to a `Descriptor{Ubuntu, "22-04", x86_64}` — a `(flavor, version, architecture)` triple.
 1. No `WithOS` at all? The descriptor comes from a flavor default instead (`LinuxDescriptorsDefault`, `WindowsDescriptorsDefault`, or `MacOSDescriptorsDefault`).
 1. Either way, `aws.GetAMI(descriptor)` looks that triple up as `platforms.json[flavor][arch][version]` and returns the pinned AMI ID.
 
 | Piece | File |
 |---|---|
-| Descriptors (`Ubuntu2204E2E`, `WindowsServer2025`, …) | `test/e2e-framework/components/os/{linux,windows,macos}_descriptors.go` |
+| Descriptors (`Ubuntu2204`, `WindowsServer2025E2E`, …) | `test/e2e-framework/components/os/{linux,windows,macos}_descriptors.go` |
 | Flavor defaults (`UbuntuDefault`, `WindowsServerDefault`, …) | same files |
 | The AMI table | `test/e2e-framework/resources/aws/platforms.json` |
 | The lookup | `test/e2e-framework/resources/aws/platforms.go` (`GetAMI`) |
 | Resolution and fallbacks | `test/e2e-framework/scenarios/aws/ec2/os_resolver.go` |
 
-The `version` field is a literal `platforms.json` key — hence `"22-04-e2e"`, not `"22.04"`.
+The `version` field is a literal `platforms.json` key — hence `"22-04"`, not `"22.04"`.
 
-/// tip | Seeing `version '22-04-e2e' not found in platforms.json`?
+/// tip | Seeing `version '22-04' not found in platforms.json`?
 The descriptor exists but the table entry does not — check `platforms.json` for a typo'd or missing key.
 ///
 
@@ -51,12 +51,12 @@ Both derive from the same upstream base image, but the `-e2e` one contains extra
 
 /// tip | Some flavors have been fully consolidated
 
-Debian 11/12 and Ubuntu 22.04/24.04 (x86_64) no longer have a real distinction: their plain and `-e2e` keys in `platforms.json` point at the *same* AMI ID, because the plain image is prebaked too. The `-e2e` descriptors are kept around only for code that still references them explicitly. Don't assume a version lacks prebaked dependencies just because it also has an `-e2e` sibling (or lacks one) — check the actual AMI IDs in `platforms.json` for the flavor/arch/version you care about.
+Debian 11/12 and Ubuntu 22.04/24.04 (x86_64) no longer have an `-e2e` variant: the plain key in `platforms.json` *is* the prebaked image. Don't assume a version lacks prebaked dependencies just because it has no `-e2e` sibling — check the actual AMI IDs in `platforms.json` for the flavor/arch/version you care about.
 ///
 
 /// danger | Prefer using the `-e2e` variant in new tests, where the two still differ.
 
-Unless overriden, this should be the default on both Linux and Windows — `UbuntuDefault` is `Ubuntu2204E2E` — so a test that passes no OS at all gets the prebaked image. On flavors where the plain and `-e2e` images still differ (e.g. Windows Server), a test that explicitly asks for the plain descriptor opts *out* of the prebaked image, usually by accident.
+Unless overriden, this should be the default on both Linux and Windows — `UbuntuDefault` is the prebaked `Ubuntu2204` and `WindowsServerDefault` is `WindowsServer2025E2E` — so a test that passes no OS at all gets the prebaked image. On flavors where the plain and `-e2e` images still differ (e.g. Windows Server), a test that explicitly asks for the plain descriptor opts *out* of the prebaked image, usually by accident.
 
 If you need an extra dependency in your test, **prefer adding it to the existing `-e2e` variant (or, where consolidated, the plain image) over creating your own fully-custom AMI** if at all possible. Feel free to ask #agent-devx-help for help.
 ///
@@ -84,7 +84,7 @@ To add a new custom AMI, you also need to tell the e2e framework about it: this 
 1. Update `platforms.json`, adding your new key in the appropriate spot.
 
 1. Use that descriptor in your test: `ec2.WithOS(e2eos.yourNewDescriptor)`
-1. `components/os/<family>_descriptors.go` — create a matching descriptor (`Ubuntu2204E2E` style naming).
+1. `components/os/<family>_descriptors.go` — create a matching descriptor (`WindowsServer2025E2E` style naming).
 
 ## Pinning one test to a specific AMI
 
