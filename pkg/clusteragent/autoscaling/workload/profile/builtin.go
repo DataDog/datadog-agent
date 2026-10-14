@@ -224,7 +224,18 @@ var (
 							},
 						},
 					},
-					Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{},
+					Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
+						{
+							Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+							PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
+								Name: corev1.ResourceCPU,
+								Value: datadoghqcommon.DatadogPodAutoscalerObjectiveValue{
+									Type:        datadoghqcommon.DatadogPodAutoscalerUtilizationObjectiveValueType,
+									Utilization: pointer.Ptr[int32](70),
+								},
+							},
+						},
+					},
 					Fallback: &datadoghq.DatadogFallbackPolicy{
 						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
 							Enabled: false,
