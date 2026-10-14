@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "quota_id": "bad",
+  "version": 1,
+  "action": "drop",
+  "match": {
+    "all": [
+      { "field": "team", "op": "eq", "value": "payments" }
+    ]
+  },
+  "max_ttl_seconds": 600
+}
