@@ -13,7 +13,6 @@ import (
 
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	remote "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 )
@@ -67,8 +66,8 @@ func (r *rcSource) Read(now time.Time) Prerequisites {
 		p.ScopeReason = "par_scope_unchecked"
 	}
 	rc := r.service.GetOrgStatus()
-	if rc.State != remote.OrgStatusObserved {
-		p.RCReason = "rc_" + string(rc.State)
+	if rc == nil {
+		p.RCReason = "rc_unchecked"
 		return p
 	}
 	key := r.cfg.GetString("api_key")
@@ -76,25 +75,23 @@ func (r *rcSource) Read(now time.Time) Prerequisites {
 	parURL := enrollmentEndpoint(r.cfg)
 	expectedRC := "https://config." + enrollmentSite(r.cfg)
 	mockPair := os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
-	if key != r.key || rcURL != r.rcURL || parURL != r.parURL || !rc.Matches(key, rcURL) || (rcURL != expectedRC && !mockPair) || (os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && !mockPair) {
+	rcKey := r.cfg.GetString("remote_configuration.api_key")
+	if key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" || (rcURL != expectedRC && !mockPair) || (os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" && !mockPair) {
 		p.RCReason = "rc_credential_or_endpoint_mismatch"
 		return p
 	}
-	if !rc.Ready(now) {
-		switch {
-		case !rc.Enabled:
-			p.RCReason = "rc_org_disabled"
-		case !rc.Authorized:
-			p.RCReason = "rc_key_unauthorized"
-		default:
-			p.RCReason = "rc_stale"
-		}
+	if !rc.Enabled {
+		p.RCReason = "rc_org_disabled"
+		return p
+	}
+	if !rc.Authorized {
+		p.RCReason = "rc_key_unauthorized"
 		return p
 	}
 	p.RCReady, p.RCReason = true, "rc_ready"
-	p.ScopeReady = scope.Granted(now, rc.Generation) && scope.Matches(key, parURL)
+	p.ScopeReady = scope.Granted(now)
 	if scope.Reason == "scope_present" && !p.ScopeReady {
-		p.ScopeReason = "par_scope_stale_or_mismatched"
+		p.ScopeReason = "par_scope_expired"
 	}
 	return p
 }

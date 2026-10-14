@@ -193,7 +193,7 @@ func (f *fixture) identity(t *testing.T) {
 
 func TestClosedRCGateNeverStartsEvenWithIdentityOrScope(t *testing.T) {
 	for _, existing := range []bool{false, true} {
-		for _, reason := range []string{"rc_org_disabled", "rc_key_unauthorized", "rc_both_false", "rc_unchecked", "rc_fetch_failed", "rc_stale", "rc_credential_or_endpoint_mismatch", "rc_locally_disabled", "rc_service_unavailable"} {
+		for _, reason := range []string{"rc_org_disabled", "rc_key_unauthorized", "rc_both_false", "rc_unchecked", "rc_credential_or_endpoint_mismatch", "rc_locally_disabled", "rc_service_unavailable"} {
 			t.Run(fmt.Sprintf("%t_%s", existing, reason), func(t *testing.T) {
 				f := newFixture(t)
 				if existing {
@@ -263,7 +263,7 @@ func TestDispatchRechecksRCAndUnstartedReservationRecovers(t *testing.T) {
 				reads++
 				if reads == 2 {
 					f.source.state.RCReady = false
-					f.source.state.RCReason = "rc_fetch_failed"
+					f.source.state.RCReason = "rc_org_disabled"
 				}
 			}
 			f.tick(0)
