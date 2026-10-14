@@ -1121,3 +1121,32 @@ func TestNetworkConnectionNetNSReattributed(t *testing.T) {
 		}
 	}
 }
+
+func TestNetNSReattributedRequiresSystemProbeFlag(t *testing.T) {
+	conn := makeConnection(7)
+	reported := map[*model.Connection]string{conn: "proxy-container"}
+
+	off := configmock.NewSystemProbe(t)
+	off.SetInTest("network_config.enable_netns_container_attribution", false)
+	assert.Nil(t, (&ConnectionsCheck{sysprobeYamlConfig: off}).netnsReattributed(reported),
+		"with the feature off, a laddr/PID mismatch is a stale PID map, not a reattribution")
+
+	on := configmock.NewSystemProbe(t)
+	on.SetInTest("network_config.enable_netns_container_attribution", true)
+	assert.Equal(t, reported, (&ConnectionsCheck{sysprobeYamlConfig: on}).netnsReattributed(reported))
+
+	assert.Nil(t, (&ConnectionsCheck{}).netnsReattributed(reported))
+}
+
+func TestAddConnectionListenersSkipsNetNSReattributed(t *testing.T) {
+	// the proxy's inbound socket on the pod's address, attributed to the pod
+	proxied := &model.Connection{Pid: 7, Type: model.ConnectionType_tcp, IntraHost: true, Laddr: &model.Addr{Ip: "10.0.0.5", Port: 8080, ContainerId: "app-container"}, Raddr: &model.Addr{Ip: "10.0.0.9", Port: 41000}}
+	// a normal listener
+	direct := &model.Connection{Pid: 8, Type: model.ConnectionType_tcp, IntraHost: true, Laddr: &model.Addr{Ip: "10.0.0.6", Port: 9090}, Raddr: &model.Addr{Ip: "10.0.0.9", Port: 41001}}
+
+	listeners := make(map[remoteservice.ListenKey]int32)
+	addConnectionListeners(listeners, []*model.Connection{proxied, direct}, map[*model.Connection]string{proxied: "proxy-container"})
+
+	assert.NotContains(t, listeners, remoteservice.ListenKey{IP: "10.0.0.5", Port: 8080}, "the proxy's PID must not name the pod's listener")
+	assert.Equal(t, int32(8), listeners[remoteservice.ListenKey{IP: "10.0.0.6", Port: 9090}])
+}

@@ -728,3 +728,20 @@ func TestNetworkConnectionNetNSReattributed(t *testing.T) {
 		}
 	}
 }
+
+func TestAddConnectionListenersSkipsNetNSReattributed(t *testing.T) {
+	// the proxy's inbound socket on the pod's address, attributed to the pod
+	proxied := makeConnection(7)
+	proxied.Type, proxied.IntraHost, proxied.SPort = network.TCP, true, 8080
+	proxied.ContainerID.Source = intern.GetByString("app-container")
+	proxied.NetNSOriginalContainerID = intern.GetByString("proxy-container")
+	// a normal listener
+	direct := makeConnection(8)
+	direct.Type, direct.IntraHost, direct.SPort = network.TCP, true, 9090
+
+	listeners := make(map[listenKey]int32)
+	addConnectionListeners(listeners, []network.ConnectionStats{proxied, direct})
+
+	assert.NotContains(t, listeners, listenKey{IP: proxied.Source.Addr, Port: 8080}, "the proxy's PID must not name the pod's listener")
+	assert.Equal(t, int32(8), listeners[listenKey{IP: direct.Source.Addr, Port: 9090}])
+}
