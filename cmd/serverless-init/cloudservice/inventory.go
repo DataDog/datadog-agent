@@ -5,6 +5,12 @@
 
 package cloudservice
 
+import (
+	"os"
+
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
+)
+
 // Application-runtime names shared by every inventory derivation path. Platform
 // metadata mapping and wrapped-command detection must select from the same
 // vocabulary, and these exact strings are what downstream consumers join on.
@@ -16,6 +22,8 @@ const (
 	RuntimePHP    = "PHP"
 	RuntimeRuby   = "Ruby"
 )
+
+const workloadTypeAWSMicroVM = "aws_lambda_microvm"
 
 // InventoryData holds the per-platform serverless fields that feed the
 // serverless-init inventory metadata payload. Each CloudService implementation
@@ -69,5 +77,30 @@ func (c *ContainerApp) GetInventoryData() InventoryData { return InventoryData{}
 func (a *AppService) CanCollectInventory() bool       { return false }
 func (a *AppService) GetInventoryData() InventoryData { return InventoryData{} }
 
-func (m *MicroVM) CanCollectInventory() bool       { return false }
-func (m *MicroVM) GetInventoryData() InventoryData { return InventoryData{} }
+// MicroVM identity is supplied by lifecycle hooks after component construction.
+func (m *MicroVM) CanCollectInventory() bool { return true }
+
+// GetInventoryData returns the inventory metadata fields for AWS MicroVM,
+// derived from the image ARN env var. The image is the stable parent every
+// instance runs from, so it is the ParentResourceID.
+//
+// The per-instance MicroVM id is not known at derivation time (the platform
+// only delivers it in the /run lifecycle hook body), so ResourceID starts as
+// the image ARN and narrows to the instance id before publication. Inventory
+// readiness remains closed until that identity arrives; image-only payloads
+// must not be submitted during construction or initial snapshot validation.
+func (m *MicroVM) GetInventoryData() InventoryData {
+	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
+	if arn == "" {
+		return InventoryData{WorkloadType: workloadTypeAWSMicroVM}
+	}
+	region, accountID, imageName := parseMicroVMARN(arn)
+	return InventoryData{
+		WorkloadType:     workloadTypeAWSMicroVM,
+		ResourceID:       arn,
+		ParentResourceID: arn,
+		ResourceName:     imageName,
+		Region:           region,
+		AWSAccountID:     accountID,
+	}
+}

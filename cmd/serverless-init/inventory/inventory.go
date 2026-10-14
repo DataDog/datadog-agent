@@ -13,6 +13,7 @@ package inventory
 import (
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -21,6 +22,7 @@ import (
 	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -38,6 +40,71 @@ const serverlessInitFlavor = "serverless-init"
 func NewCapabilities() *inventoryagent.Capabilities {
 	id := uuid.New().String()
 	return inventoryagent.NewServerlessCapabilities(func() string { return id })
+}
+
+// InstanceUUID re-identifies the payload uuid when the process outlives the
+// instance it was constructed for.
+//
+// This type is MicroVM-specific: MicroVM restores many instances from one
+// snapshot captured after construction, so every restored instance would
+// otherwise report the uuid baked into it. Platforms that run one process per
+// deployed instance use NewCapabilities.
+type InstanceUUID struct {
+	mu         sync.Mutex
+	uuid       string
+	instanceID string
+}
+
+// NewInstanceUUID builds an InstanceUUID.
+func NewInstanceUUID() *InstanceUUID {
+	return &InstanceUUID{uuid: uuid.New().String()}
+}
+
+// SetInstance rotates the uuid when id names an instance other than the current
+// one. Same-instance resumes retain the uuid. This relies on the platform
+// assumption that snapshot reuse for another instance supplies a new identity;
+// it does not detect arbitrary clones. No-op on a nil receiver.
+//
+// Safe to call concurrently with Resolve.
+func (u *InstanceUUID) SetInstance(id string) {
+	if u == nil || id == "" {
+		return
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if id == u.instanceID {
+		return
+	}
+	u.instanceID = id
+	u.uuid = uuid.New().String()
+}
+
+// Resolve returns the current payload uuid.
+func (u *InstanceUUID) Resolve() string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.uuid
+}
+
+// NewInstanceCapabilities keeps inventory closed during image construction and
+// re-resolves the uuid per payload once a lifecycle hook publishes an instance.
+func NewInstanceCapabilities(u *InstanceUUID) *inventoryagent.Capabilities {
+	return inventoryagent.NewServerlessCapabilities(u.Resolve)
+}
+
+// UpdateInstanceAndSubmit updates one MicroVM identity and all matching metadata
+// before reopening readiness and immediately submitting. No metadata or UUID
+// lock is held while calling SetReady or Submit.
+func UpdateInstanceAndSubmit(ia inventoryagent.Component, u *InstanceUUID, id string, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
+	if id == "" || !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
+	ia.SetReady(false)
+	u.SetInstance(id)
+	Inject(ia, cs, modeConf, conf, tags)
+	SetResourceID(ia, conf, id)
+	ia.SetReady(true)
+	Submit(ia, conf)
 }
 
 // UpdateAndSubmit updates all serverless metadata and submits the startup
@@ -73,6 +140,21 @@ func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 	// The enqueued payload reports startup; switch to periodic for the
 	// metadata runner's later submissions.
 	ia.Set("report_reason", reportReasonPeriodic)
+}
+
+// SetResourceID narrows the resource_id serverless field to the deployed
+// instance, for platforms that only learn their instance identifier after the
+// initial Inject (e.g. delivered by a lifecycle hook rather than the
+// environment).
+func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
+	if !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
+	if id == "" {
+		log.Debug("serverless-init inventory: no instance id to narrow resource_id with; keeping the id derived from the environment")
+		return
+	}
+	ia.Set("resource_id", id)
 }
 
 // buildFields flattens the per-platform inventory data and process-level
