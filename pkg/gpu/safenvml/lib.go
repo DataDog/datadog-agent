@@ -109,6 +109,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetUtilizationRates"),
 		toNativeName("IsMigDeviceHandle"),
 		toNativeName("GetVirtualizationMode"),
+		toNativeName("GetGridLicensableFeatures_v4"),
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
 		toNativeName("GetMemoryErrorCounter"),

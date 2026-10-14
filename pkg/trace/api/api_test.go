@@ -233,6 +233,73 @@ func TestServerShutdown(t *testing.T) {
 	wg.Wait()
 }
 
+// TestStopWithBlockedHandler reproduces a shutdown where a handler is still
+// blocked handing its payload to the out channel when the graceful shutdown
+// times out. Stop must not return until that handler has exited, so that the
+// caller can close the out channels without a "send on closed channel" panic.
+func TestStopWithBlockedHandler(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		features string
+	}{
+		{name: "v1"},
+		{name: "v0", features: "disable-convert-traces"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := newTestReceiverConfigNoPort()
+			if tc.features != "" {
+				conf.Features[tc.features] = struct{}{}
+			}
+			ln := testutil.TCPListener(t)
+			tcpAddr := ln.Addr().(*net.TCPAddr)
+			conf.ReceiverHost = tcpAddr.IP.String()
+			conf.ReceiverPort = tcpAddr.Port
+			// With the default of a single connection slot, Accept would block
+			// on the slot held by the request below and stall server.Shutdown.
+			conf.MaxConnections = 10
+
+			// Unbuffered and never read, so the handler blocks on its send.
+			out := make(chan *Payload)
+			outV1 := make(chan *PayloadV1)
+			r := NewHTTPReceiver(conf, sampler.NewDynamicConfig(), out, outV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			r.shutdownTimeout = 100 * time.Millisecond
+			r.SetTCPListener(ln)
+			r.Start()
+
+			bts, err := testutil.GetTestTraces(1, 1, true).MarshalMsg(nil)
+			require.NoError(t, err)
+			req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/v0.4/traces", r.Addr()), bytes.NewReader(bts))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/msgpack")
+			// The response is only flushed once the handler returns, so send
+			// in the background.
+			go func() {
+				if resp, err := http.DefaultClient.Do(req); err == nil {
+					resp.Body.Close()
+				}
+			}()
+			// The handler creates its tag stats right after decoding the
+			// payload. From there it does no more network reads before
+			// blocking on the out channel, which nothing reads, so closing
+			// the connection in Stop can no longer make it fail early.
+			require.Eventually(t, func() bool {
+				r.Stats.RLock()
+				defer r.Stats.RUnlock()
+				return len(r.Stats.Stats) > 0
+			}, 5*time.Second, 10*time.Millisecond)
+
+			err = r.Stop()
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
+			assert.EqualValues(t, 1, r.droppedOnShutdown.Load())
+
+			// What the agent does after Stop returns; this used to race with
+			// the blocked handler and panic.
+			close(out)
+			close(outV1)
+		})
+	}
+}
+
 func TestReceiverRequestBodyLength(t *testing.T) {
 	assert := assert.New(t)
 
