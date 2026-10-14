@@ -25,14 +25,14 @@ func SupportedBuildModes() []BuildMode {
 	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
 		modes = append(modes, Prebuilt)
 	}
-	// Fentry is gated by the "network-tracer-fentry-supported" test flag of the
-	// KMT platform the tests are running on (see
+	// Fentry is gated by the "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED"
+	// environment variable of the KMT platform the tests are running on (see
 	// test/new-e2e/system-probe/config/platforms.json). The KMT test-runner
-	// exports the flag as this environment variable. It is unset when running
-	// the tests outside of KMT, in which case the runtime kernel probe decides
+	// exports it to the test binaries. It is unset when running the tests
+	// outside of KMT, in which case the runtime kernel probe decides
 	// (fentry availability is patch-level dependent: the RCU-exit detach
 	// deadlock fix was AUTOSEL-backported to 6.6/6.7/6.8).
-	if os.Getenv("DD_KMT_TEST_FLAG_NETWORK_TRACER_FENTRY_SUPPORTED") == "true" ||
+	if os.Getenv("DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED") == "true" ||
 		os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||
 		supportsFentry() {
 		modes = append(modes, Fentry)

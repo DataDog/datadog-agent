@@ -8,8 +8,8 @@
       "os_version": "37",
       "image": "Fedora-Cloud-Base-37.x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "fedora_38": {
@@ -19,8 +19,8 @@
       "os_version": "38",
       "image": "Fedora-Cloud-Base-38.x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "amazon_4.14": {
@@ -30,8 +30,8 @@
       "os_version": "2",
       "image": "amzn2-x86_64-4.14.qcow2.xz",
       "image_version": "20251015_301103a6",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "amazon_5.10": {
@@ -41,8 +41,8 @@
       "os_version": "2",
       "image": "amzn2-x86_64-5.10.qcow2.xz",
       "image_version": "20251015_301103a6",
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "amazon_5.4": {
@@ -52,8 +52,8 @@
       "os_version": "2",
       "image": "amzn2-x86_64-5.4.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "amazon_2023": {
@@ -63,8 +63,8 @@
       "os_version": "2023",
       "image": "amzn2023-amd64-2023.qcow2.xz",
       "image_version": "20251015_301103a6",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "centos_7.9": {
@@ -74,8 +74,8 @@
       "os_version": "7.9.2009",
       "image": "centos-7.9-x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "centos_8": {
@@ -85,8 +85,8 @@
       "os_version": "8",
       "image": "centos-8-x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "debian_10": {
@@ -99,8 +99,8 @@
       "alt_version_names": [
         "buster"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "debian_11": {
@@ -113,8 +113,8 @@
       "alt_version_names": [
         "bullseye"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "debian_12": {
@@ -127,8 +127,8 @@
       "alt_version_names": [
         "bookworm"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "oracle_7.9": {
@@ -138,8 +138,8 @@
       "os_version": "7.9",
       "image": "oracle-7.9-x86_64.qcow.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "oracle_8.9": {
@@ -149,8 +149,8 @@
       "os_version": "8.9",
       "image": "oracle-8.9-x86_64.qcow.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "oracle_9.3": {
@@ -160,8 +160,8 @@
       "os_version": "9.3",
       "image": "oracle-9.3-x86_64.qcow.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "rocky_8.5": {
@@ -171,8 +171,8 @@
       "os_version": "8.5",
       "image": "rocky-8.5-x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "rocky_9.3": {
@@ -182,8 +182,8 @@
       "os_version": "9.3",
       "image": "rocky-9.3-x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_16.04": {
@@ -196,8 +196,8 @@
       "alt_version_names": [
         "xenial"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_18.04": {
@@ -210,8 +210,8 @@
       "alt_version_names": [
         "bionic"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_20.04": {
@@ -224,8 +224,8 @@
       "alt_version_names": [
         "focal"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_22.04": {
@@ -238,8 +238,8 @@
       "alt_version_names": [
         "jammy"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_23.10": {
@@ -252,8 +252,8 @@
       "alt_version_names": [
         "mantic"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_24.04": {
@@ -266,8 +266,8 @@
       "alt_version_names": [
         "noble"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "opensuse_15.3": {
@@ -277,8 +277,8 @@
       "os_version": "15.3",
       "image": "opensuse-15.3-x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "opensuse_15.5": {
@@ -288,8 +288,8 @@
       "os_version": "15.5",
       "image": "opensuse-15.5-x86_64.qcow2.xz",
       "image_version": "20251015_301103a6",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "suse_12.5": {
@@ -299,8 +299,8 @@
       "os_version": "12.5",
       "image": "suse-12.5-x86_64.qcow2.xz",
       "image_version": "20251120_7497a561",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "debian_9": {
@@ -313,8 +313,8 @@
       "alt_version_names": [
         "stretch"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "fedora_40": {
@@ -324,8 +324,8 @@
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.x86_64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_24.10": {
@@ -338,8 +338,8 @@
       "alt_version_names": [
         "oracular"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "rocky_9.4": {
@@ -349,8 +349,8 @@
       "os_version": "9.4",
       "image": "rocky-9.4-x86_64.qcow2.xz",
       "image_version": "20260421_d736dd42",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "rocky_8.4": {
@@ -360,8 +360,8 @@
       "os_version": "8.4",
       "image": "rocky-8.4-x86_64.qcow2.xz",
       "image_version": "20250320_7cf8bbf7",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_25.04": {
@@ -374,8 +374,8 @@
       "alt_version_names": [
         "plucky"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "ubuntu_25.10": {
@@ -388,8 +388,8 @@
       "alt_version_names": [
         "questing"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "ubuntu_26.04": {
@@ -402,8 +402,8 @@
       "alt_version_names": [
         "resolute"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "amazon_6.12": {
@@ -413,8 +413,8 @@
       "os_id": "amzn",
       "kernel": "6.12.90-120.164.amzn2023",
       "os_version": "2023",
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     }
   },
@@ -426,8 +426,8 @@
       "os_version": "37",
       "image": "Fedora-Cloud-Base-37.arm64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "fedora_38": {
@@ -437,8 +437,8 @@
       "os_version": "38",
       "image": "Fedora-Cloud-Base-38.arm64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "amazon_4.14": {
@@ -448,8 +448,8 @@
       "os_version": "2",
       "image": "amzn2-arm64-4.14.qcow2.xz",
       "image_version": "20251015_301103a6",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "amazon_5.4": {
@@ -459,8 +459,8 @@
       "os_version": "2",
       "image": "amzn2-arm64-5.4.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "centos_7.9": {
@@ -470,8 +470,8 @@
       "os_version": "7.9.2009",
       "image": "centos-7.9-arm64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "centos_8": {
@@ -481,8 +481,8 @@
       "os_version": "8",
       "image": "centos-8-arm64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "debian_10": {
@@ -495,8 +495,8 @@
       "alt_version_names": [
         "buster"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "debian_11": {
@@ -509,8 +509,8 @@
       "alt_version_names": [
         "bullseye"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "debian_12": {
@@ -523,8 +523,8 @@
       "alt_version_names": [
         "bookworm"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "oracle_8.9": {
@@ -534,8 +534,8 @@
       "os_version": "8.9",
       "image": "oracle-8.9-arm64.qcow.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "oracle_9.3": {
@@ -545,8 +545,8 @@
       "os_version": "9.3",
       "image": "oracle-9.3-arm64.qcow.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "rocky_8.5": {
@@ -556,8 +556,8 @@
       "os_version": "8.5",
       "image": "rocky-8.5-arm64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "rocky_9.3": {
@@ -567,8 +567,8 @@
       "os_version": "9.3",
       "image": "rocky-9.3-arm64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "amazon_5.10": {
@@ -578,8 +578,8 @@
       "os_version": "2",
       "image": "amzn2-arm64-5.10.qcow2.xz",
       "image_version": "20251015_301103a6",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "amazon_2023": {
@@ -589,8 +589,8 @@
       "os_version": "2023",
       "image": "amzn2023-arm64-2023.qcow2.xz",
       "image_version": "20251015_301103a6",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_18.04": {
@@ -603,8 +603,8 @@
       "alt_version_names": [
         "bionic"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_20.04": {
@@ -617,8 +617,8 @@
       "alt_version_names": [
         "focal"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_22.04": {
@@ -631,8 +631,8 @@
       "alt_version_names": [
         "jammy"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_23.10": {
@@ -645,8 +645,8 @@
       "alt_version_names": [
         "mantic"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_24.04": {
@@ -659,8 +659,8 @@
       "alt_version_names": [
         "noble"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "opensuse_15.3": {
@@ -670,8 +670,8 @@
       "os_version": "15.3",
       "image": "opensuse-15.3-arm64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "opensuse_15.5": {
@@ -681,8 +681,8 @@
       "os_version": "15.5",
       "image": "opensuse-15.5-arm64.qcow2.xz",
       "image_version": "20251015_301103a6",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "suse_12.5": {
@@ -692,8 +692,8 @@
       "os_version": "12.5",
       "image": "suse-12.5-arm64.qcow2.xz",
       "image_version": "20251120_7497a561",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "fedora_40": {
@@ -703,8 +703,8 @@
       "os_version": "40",
       "image": "Fedora-Cloud-Base-40.arm64.qcow2.xz",
       "image_version": "20241003_a9a46356",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_24.10": {
@@ -717,8 +717,8 @@
       "alt_version_names": [
         "oracular"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "rocky_9.4": {
@@ -728,8 +728,8 @@
       "os_version": "9.4",
       "image": "rocky-9.4-arm64.qcow2.xz",
       "image_version": "20260421_d736dd42",
-      "test_flags": {
-        "network-tracer-fentry-supported": false
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": false
       }
     },
     "ubuntu_25.04": {
@@ -742,8 +742,8 @@
       "alt_version_names": [
         "plucky"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "ubuntu_25.10": {
@@ -756,8 +756,8 @@
       "alt_version_names": [
         "questing"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "ubuntu_26.04": {
@@ -770,8 +770,8 @@
       "alt_version_names": [
         "resolute"
       ],
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     },
     "amazon_6.12": {
@@ -781,8 +781,8 @@
       "os_id": "amzn",
       "kernel": "6.12.90-120.164.amzn2023",
       "os_version": "2023",
-      "test_flags": {
-        "network-tracer-fentry-supported": true
+      "test_env_vars": {
+        "DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": true
       }
     }
   }

@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestTestFlagEnvVars(t *testing.T) {
+func TestTestEnvVars(t *testing.T) {
 	tests := []struct {
 		name          string
 		arch          string
@@ -21,28 +21,28 @@ func TestTestFlagEnvVars(t *testing.T) {
 			name:          "fentry supported on amazon 5.10 x86_64",
 			arch:          "x86_64",
 			kernelRelease: "5.10.244-240.970.amzn2",
-			expected:      map[string]string{"DD_KMT_TEST_FLAG_NETWORK_TRACER_FENTRY_SUPPORTED": "true"},
+			expected:      map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "true"},
 		},
 		{
 			name:          "fentry not supported on amazon 5.10 arm64",
 			arch:          "arm64",
 			kernelRelease: "5.10.244-240.970.amzn2",
-			expected:      map[string]string{"DD_KMT_TEST_FLAG_NETWORK_TRACER_FENTRY_SUPPORTED": "false"},
+			expected:      map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "false"},
 		},
 		{
 			name:          "fentry not supported on fedora 37",
 			arch:          "x86_64",
 			kernelRelease: "6.0.7-301.fc37",
-			expected:      map[string]string{"DD_KMT_TEST_FLAG_NETWORK_TRACER_FENTRY_SUPPORTED": "false"},
+			expected:      map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "false"},
 		},
 		{
 			name:          "fentry supported on ubuntu 25.10",
 			arch:          "arm64",
 			kernelRelease: "6.17.0-5-generic",
-			expected:      map[string]string{"DD_KMT_TEST_FLAG_NETWORK_TRACER_FENTRY_SUPPORTED": "true"},
+			expected:      map[string]string{"DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED": "true"},
 		},
 		{
-			name:          "no flag for unknown (custom) kernels",
+			name:          "no env vars for unknown (custom) kernels",
 			arch:          "x86_64",
 			kernelRelease: "6.99.0-custom",
 			expected:      map[string]string{},
@@ -51,20 +51,20 @@ func TestTestFlagEnvVars(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			flags, err := TestFlagEnvVars(tc.arch, tc.kernelRelease)
+			envVars, err := TestEnvVars(tc.arch, tc.kernelRelease)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if !maps.Equal(flags, tc.expected) {
-				t.Errorf("expected %v, got %v", tc.expected, flags)
+			if !maps.Equal(envVars, tc.expected) {
+				t.Errorf("expected %v, got %v", tc.expected, envVars)
 			}
 		})
 	}
 }
 
-// TestAllPlatformsDefineFentryFlag ensures new platforms are not silently
+// TestAllPlatformsDefineFentryEnvVar ensures new platforms are not silently
 // added to platforms.json without deciding whether fentry is supported.
-func TestAllPlatformsDefineFentryFlag(t *testing.T) {
+func TestAllPlatformsDefineFentryEnvVar(t *testing.T) {
 	plats, err := parsePlatforms()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -72,8 +72,8 @@ func TestAllPlatformsDefineFentryFlag(t *testing.T) {
 
 	for arch, byArch := range map[string]map[string]platform{"x86_64": plats.X8664, "arm64": plats.Arm64} {
 		for tag, plat := range byArch {
-			if _, ok := plat.TestFlags["network-tracer-fentry-supported"]; !ok {
-				t.Errorf("%s/%s does not define the network-tracer-fentry-supported test flag", arch, tag)
+			if _, ok := plat.TestEnvVars["DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED"]; !ok {
+				t.Errorf("%s/%s does not define the DD_KMT_NETWORK_TRACER_FENTRY_SUPPORTED test env var", arch, tag)
 			}
 		}
 	}
