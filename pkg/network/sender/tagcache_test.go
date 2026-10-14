@@ -112,7 +112,7 @@ func TestTagCacheMatchesReference(t *testing.T) {
 					want := collectPayloads(d.batchesReference(refConns, 1))
 
 					newConns := &network.Connections{BufferedData: network.BufferedData{Conns: slices.Clone(fixtureConns)}}
-					got := collectPayloads(d.batches(newConns, 1))
+					got := collectPayloads(d.batches(newConns, 1, nil))
 
 					requireSamePayloads(t, want, got)
 					requireTagPrefixes(t, got, "process_context:", "process_name:")
@@ -184,7 +184,7 @@ func TestTagCacheResetsBetweenChunks(t *testing.T) {
 
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: sameEntityConns(3, pid, cid)}}
 	var payloads [][]byte
-	for p := range d.batches(conns, 1) {
+	for p := range d.batches(conns, 1, nil) {
 		payloads = append(payloads, bytes.Clone(p))
 		if len(payloads) == 1 {
 			// Change every cached input between the first and second chunk.
@@ -222,7 +222,7 @@ func TestTagCacheDoesNotLeakAcrossCollects(t *testing.T) {
 		tg.SetTags(processEntity, "test", nil, nil, []string{"process:" + gen}, nil)
 
 		conns := &network.Connections{BufferedData: network.BufferedData{Conns: sameEntityConns(4, pid, cid)}}
-		chunks := decodeChunks(t, collectPayloads(d.batches(conns, 1)))
+		chunks := decodeChunks(t, collectPayloads(d.batches(conns, 1, nil)))
 		require.Len(t, chunks, 1)
 		for _, conn := range chunks[0].Connections {
 			assert.Equal(t, []string{"container:" + gen}, chunks[0].GetTags(int(conn.LocalContainerTagsIndex)))
@@ -248,7 +248,7 @@ func TestTagCacheKeysOnConnectionTags(t *testing.T) {
 		conns[2].SPort: {"env:prod", "process:p", "version:2"},
 	}
 
-	chunks := decodeChunks(t, collectPayloads(d.batches(&network.Connections{BufferedData: network.BufferedData{Conns: conns}}, 1)))
+	chunks := decodeChunks(t, collectPayloads(d.batches(&network.Connections{BufferedData: network.BufferedData{Conns: conns}}, 1, nil)))
 	require.Len(t, chunks, 1)
 	require.Len(t, chunks[0].Connections, 3)
 	for _, conn := range chunks[0].Connections {
@@ -277,7 +277,7 @@ func TestTagCacheKeysOnReattribution(t *testing.T) {
 		conns[3].SPort: {"env:prod"},
 	}
 
-	chunks := decodeChunks(t, collectPayloads(d.batches(&network.Connections{BufferedData: network.BufferedData{Conns: conns}}, 1)))
+	chunks := decodeChunks(t, collectPayloads(d.batches(&network.Connections{BufferedData: network.BufferedData{Conns: conns}}, 1, nil)))
 	require.Len(t, chunks, 1)
 	require.Len(t, chunks[0].Connections, 4)
 	for _, conn := range chunks[0].Connections {

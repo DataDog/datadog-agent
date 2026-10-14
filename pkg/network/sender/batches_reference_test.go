@@ -131,7 +131,7 @@ func (d *directSender) batchesReference(conns *network.Connections, groupID int3
 			for i := range connsChunk {
 				nc := &connsChunk[i]
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
-					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
+					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet, nil)
 					d.addContainerTagsReference(builder, nc.ContainerID.Source, tagsEncoder)
 					d.addRemoteServiceTags(builder, nc, remoteServiceResolver, tagsEncoder)
 					d.addTagsReference(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)

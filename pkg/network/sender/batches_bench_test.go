@@ -186,7 +186,7 @@ func BenchmarkBatches(b *testing.B) {
 				conns := *src
 				conns.Conns = work
 				b.StartTimer()
-				for payload := range d.batches(&conns, 1) {
+				for payload := range d.batches(&conns, 1, nil) {
 					_ = payload
 				}
 			}

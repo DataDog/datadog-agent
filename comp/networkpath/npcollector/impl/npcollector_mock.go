@@ -10,12 +10,15 @@ package npcollectorimpl
 import (
 	"iter"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 )
 
 type npCollectorMock struct{}
 
-func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorMock) ScheduleNetworkPathTests(_sourceHostname string, _conns iter.Seq[npmodel.NetworkPathConnection]) []model.NetworkPath {
+	return nil
 }
 
 func (s *npCollectorMock) ScheduleNetflowPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {}
