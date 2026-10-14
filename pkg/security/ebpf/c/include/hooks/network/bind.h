@@ -36,11 +36,12 @@ static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CA
         return 0;
     }
 
-    // Bail out on failed binds before the approvers, otherwise a dropped event would still
-    // pollute bind_samples and suppress later successful binds to the same endpoint.
+    // Handled errors (EACCES, EPERM, or any error when capture_all_errors is enabled) are kept for
+    // rule evaluation, but bind_approvers only samples successful binds.
     if (IS_UNHANDLED_ERROR(retval)) {
         goto pop_and_exit;
     }
+    syscall->retval = retval;
 
     // approve on behalf of the io_uring submitter, so that activity dump tracing and sampling apply to it
     approve_syscall_with_tgid(get_bind_tgid(syscall), syscall, bind_approvers);

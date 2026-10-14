@@ -819,7 +819,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) bind_approvers(struct s
     u64 family = syscall->bind.family;
     enum SYSCALL_STATE state = flag_approver(filter, syscall->type, family);
 
-    if (state == DISCARDED) {
+    // Only sample successful binds: profiles drop failed ones, so a failure would take the
+    // bind_samples entry and suppress a later successful bind to the same endpoint.
+    if (state == DISCARDED && syscall->retval == 0) {
         struct bind_connect_sample_key_t bind_key;
         __builtin_memset(&bind_key, 0, sizeof(bind_key));
         bind_key.pid = get_bind_tgid(syscall);
