@@ -5,11 +5,9 @@
 
 //go:build !windows
 
-// Package inventory adapts serverless-init's cloud-platform knowledge into the
-// shared inventoryagent component. All serverless- and platform-specific
-// derivation lives here (and in the CloudService structs it delegates to); the
-// shared component stays generic, learning about serverless only through its
-// neutral Capabilities and the fields injected via its public Set API.
+// Package inventory builds the serverless-init inventory payload, flattening
+// CloudService platform facts and process-level context into the
+// inventoryagent component's metadata fields.
 package inventory
 
 import (
@@ -29,16 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// reportReasonStartup marks the primary synchronous on-start submission. It is
-// telemetry-only downstream (a bounded metric dimension) and not persisted.
 const reportReasonStartup = "startup"
 const reportReasonPeriodic = "periodic"
 
-// serverlessInitFlavor is the payload flavor emitted by serverless-init. It is
-// injected only into the payload (via Set below), not the process-global flavor
-// (flavor.SetFlavor): the aggregator captures that once for the
-// datadog.<flavor>.running/.up heartbeat metric and service check, so renaming
-// it process-wide would break agent-host identification and existing monitors.
+// serverlessInitFlavor is the flavor reported in the inventory payload only;
+// it is not the process-global flavor (flavor.SetFlavor).
 const serverlessInitFlavor = "serverless-init"
 
 // NewCapabilities builds initially-not-ready inventoryagent Capabilities for
@@ -72,8 +65,7 @@ func NewInstanceUUID() *InstanceUUID {
 // assumption that snapshot reuse for another instance supplies a new identity;
 // it does not detect arbitrary clones. No-op on a nil receiver.
 //
-// Safe to call concurrently with Resolve. Publication must keep readiness closed
-// until this update and all matching metadata updates have finished.
+// Safe to call concurrently with Resolve.
 func (u *InstanceUUID) SetInstance(id string) {
 	if u == nil || id == "" {
 		return
@@ -101,10 +93,8 @@ func NewInstanceCapabilities(u *InstanceUUID) *inventoryagent.Capabilities {
 }
 
 // UpdateInstanceAndSubmit updates one MicroVM identity and all matching metadata
-// before reopening readiness and immediately submitting. The lifecycle server must
-// serialize the instance ID store/load together with this entire call; the gate
-// serializes readers, not competing writers. No metadata or UUID lock is held
-// while calling SetReady or Submit.
+// before reopening readiness and immediately submitting. No metadata or UUID
+// lock is held while calling SetReady or Submit.
 func UpdateInstanceAndSubmit(ia inventoryagent.Component, u *InstanceUUID, id string, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if id == "" || !conf.GetBool("serverless.inventory_enabled") {
 		return
@@ -117,9 +107,8 @@ func UpdateInstanceAndSubmit(ia inventoryagent.Component, u *InstanceUUID, id st
 	Submit(ia, conf)
 }
 
-// UpdateAndSubmit updates all serverless metadata before opening readiness and
-// synchronously enqueuing the startup payload. The caller must be the sole
-// writer; readiness does not serialize concurrent writers.
+// UpdateAndSubmit updates all serverless metadata and submits the startup
+// payload.
 func UpdateAndSubmit(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
@@ -130,14 +119,8 @@ func UpdateAndSubmit(ia inventoryagent.Component, cs cloudservice.CloudService, 
 	Submit(ia, conf)
 }
 
-// Inject layers the serverless-specific fields and the serverless-init flavor
-// onto the shared inventoryagent component via its public Set API. The
-// component's initData() has already populated the core fields at construction.
-// The caller must keep readiness closed throughout injection.
-//
-// UpdateAndSubmit, Inject, Submit, and SetResourceID are no-ops while the
-// serverless.inventory_enabled ramp gate is off, so a gated-off run emits no
-// serverless payload at all rather than one carrying only core fields.
+// Inject sets the serverless-specific fields on the inventoryagent component.
+// Readiness must be closed while injecting.
 func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
@@ -148,13 +131,14 @@ func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf 
 	ia.Set("flavor", serverlessInitFlavor)
 }
 
-// Submit enqueues an inventory payload now, synchronously, so a short-lived
-// container delivers it before exiting rather than racing the runner goroutine.
+// Submit enqueues an inventory payload synchronously.
 func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
 	}
 	ia.Submit()
+	// The enqueued payload reports startup; switch to periodic for the
+	// metadata runner's later submissions.
 	ia.Set("report_reason", reportReasonPeriodic)
 }
 
@@ -162,10 +146,6 @@ func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 // instance, for platforms that only learn their instance identifier after the
 // initial Inject (e.g. delivered by a lifecycle hook rather than the
 // environment).
-//
-// An empty id is ignored so it cannot displace the identifier the platform's
-// GetInventoryData already derived. UpdateInstanceAndSubmit rejects empty identities
-// before injection; image-only metadata must never open readiness.
 func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
 	if !conf.GetBool("serverless.inventory_enabled") {
 		return
@@ -178,16 +158,9 @@ func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id stri
 }
 
 // buildFields flattens the per-platform inventory data and process-level
-// serverless context into the (unprefixed) agent_metadata keys.
-//
-// The three Unified Service Tagging fields come from the already-computed tag
-// map, so inventory reports the same env/service/version this container tags its
-// metrics, logs, and traces with: the map is lowercased and lets DD_TAGS /
-// DD_EXTRA_TAGS override the DD_ENV / DD_SERVICE / DD_VERSION values. Reading
-// them from the config instead would diverge on both counts, and service and
-// version are not even config keys (DD_SERVICE / DD_VERSION are read by the
-// agent outside the Config struct), so conf.GetString would return empty and log
-// an unknown-key warning. site is not a tag, so it comes from the config.
+// serverless context into the (unprefixed) agent_metadata keys. env, service,
+// and version come from the tag map so they match the values this container
+// tags its telemetry with; site is not a tag, so it comes from the config.
 func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) map[string]interface{} {
 	inv := cs.GetInventoryData()
 	var wrappedCommand []string
@@ -221,12 +194,8 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 		"dd_service": tags["service"],
 	}
 
-	// wrapped_command is the customer workload command wrapped by serverless-init
-	// in init mode (os.Args[1:]). Collection is opt-in because redaction is
-	// best effort and does not cover all sensitive command-line arguments.
-	// Pass nil when disabled or absent to clear any previously cached command
-	// before it can be included in another payload. Set leaves never-set nil
-	// values absent, but serializes a cleared value as null.
+	// wrapped_command is opt-in because redaction is best effort; it is set to
+	// nil when disabled to clear any value cached by the component.
 	fields["wrapped_command"] = nil
 	if conf.GetBool("serverless.inventory_wrapped_command_enabled") && len(wrappedCommand) > 0 {
 		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(wrappedCommand, " "))
@@ -242,9 +211,6 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 	return fields
 }
 
-// deploymentModel maps the run mode to the downstream deployment_model value.
-// Like workload_type, these strings are an allowlist enforced by the dd-go
-// event-platform-resource-writer decoder; a value outside it is rejected there.
 func deploymentModel(modeConf mode.Conf) string {
 	if modeConf.SidecarMode {
 		return "sidecar"

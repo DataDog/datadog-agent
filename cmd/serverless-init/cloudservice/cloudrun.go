@@ -72,8 +72,8 @@ const (
 	cloudRunServiceTagPrefix = "gcr."
 )
 
-// cloudRunInventoryIDPrefix qualifies the inventory resource and parent ids of
-// every Cloud Run variant with the API host serving them.
+// cloudRunInventoryIDPrefix is the API host that qualifies Cloud Run inventory
+// resource and parent ids.
 const cloudRunInventoryIDPrefix = "//run.googleapis.com/"
 
 const (
@@ -94,8 +94,8 @@ type GCPConfig struct {
 }
 
 // CloudRun has helper functions for getting Google Cloud Run data. isFunction
-// distinguishes a Cloud Run function (gen2) from a plain Cloud Run service and
-// is fixed at construction; everything variant-specific derives from it.
+// distinguishes a Gen2 Cloud Run function from a Cloud Run service and is
+// fixed at construction.
 type CloudRun struct {
 	isFunction bool
 
@@ -104,9 +104,7 @@ type CloudRun struct {
 }
 
 // resolveMetadata fetches the GCP metadata-service values once and caches them.
-// GetTags and GetInventoryData both trigger it, so exactly one lookup round
-// happens regardless of call order and neither method depends on the other
-// having run first. The cached map is read-only; callers that mutate clone it.
+// The returned map is shared and must not be mutated.
 func (c *CloudRun) resolveMetadata() map[string]string {
 	c.metadataOnce.Do(func() {
 		c.metadata = metadataHelperFunc(GetDefaultConfig(), c.cloudRunType())
@@ -114,7 +112,6 @@ func (c *CloudRun) resolveMetadata() map[string]string {
 	return c.metadata
 }
 
-// cloudRunType maps the variant to the metadata enum.
 func (c *CloudRun) cloudRunType() CloudRunType {
 	if c.isFunction {
 		return CloudRunFunction
@@ -122,7 +119,6 @@ func (c *CloudRun) cloudRunType() CloudRunType {
 	return CloudRunService
 }
 
-// tagPrefix returns the tag/span namespace prefix for this variant.
 func (c *CloudRun) tagPrefix() string {
 	if c.isFunction {
 		return cloudRunFunctionTagPrefix
@@ -203,7 +199,6 @@ func cloudRunServiceCCRID(project, region, service string) string {
 	return fmt.Sprintf("projects/%s/locations/%s/services/%s", project, region, service)
 }
 
-// cloudRunFunctionCCRID extends the service CCRID with the function segment for telemetry tags.
 func cloudRunFunctionCCRID(project, region, service, functionTarget string) string {
 	parent := cloudRunServiceCCRID(project, region, service)
 	if parent == "" || functionTarget == "" {
@@ -250,8 +245,6 @@ func cloudRunRevisionCCRID(project, region, service, revision string) string {
 	return fmt.Sprintf("projects/%s/locations/%s/revisions/%s", project, region, revision)
 }
 
-// cloudRunInventoryID qualifies a Cloud Run CCRID with the API host that the
-// inventory resource and parent ids are keyed on.
 func cloudRunInventoryID(ccrid string) string {
 	if ccrid == "" {
 		return ""

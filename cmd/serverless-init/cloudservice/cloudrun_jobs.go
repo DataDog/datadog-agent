@@ -64,9 +64,7 @@ type CloudRunJobs struct {
 }
 
 // resolveMetadata fetches the GCP metadata-service values once and caches them.
-// GetTags and GetInventoryData both trigger it, so exactly one lookup round
-// happens regardless of call order. The cached map is read-only; callers that
-// mutate clone it.
+// The returned map is shared and must not be mutated.
 func (c *CloudRunJobs) resolveMetadata() map[string]string {
 	c.metadataOnce.Do(func() {
 		c.metadata = metadataHelperFunc(GetDefaultConfig(), CloudRunJob)

@@ -119,8 +119,8 @@ func TestCloudRunJobsGetInventoryData(t *testing.T) {
 	}, inv)
 }
 
-// TestCloudRunJobsGetInventoryDataMissingExecution pins that the resource_id
-// is unavailable rather than falling back to a job or dangling path segment.
+// TestCloudRunJobsGetInventoryDataMissingExecution pins that a missing
+// CLOUD_RUN_EXECUTION must not degrade the resource_id to the job id.
 func TestCloudRunJobsGetInventoryDataMissingExecution(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
