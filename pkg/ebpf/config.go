@@ -39,8 +39,11 @@ const (
 	// This is NOT configurable. system-probe runs as root and both reuses and
 	// recursively deletes the contents of this directory, so an unprivileged user
 	// who can create or redirect any component of the path gains a root-write
-	// primitive. Pinning it under AgentTmpDir is what guarantees the path is
-	// covered by that directory's validation.
+	// primitive. This path, and every component of it, is verified to be a real,
+	// root-owned directory that no other user can write to before it is read from,
+	// deleted in or written to; pinning it inside the agent's own subtree is what
+	// keeps that verification able to repair a stale non-root-owned component
+	// instead of having to refuse outright.
 	KernelHeaderDownloadDir = AgentTmpDir + "/system-probe/kernel-headers"
 )
 

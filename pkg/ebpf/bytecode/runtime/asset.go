@@ -108,18 +108,6 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 
 	var kernelHeaders []string
 	if opts.UseKernelHeaders {
-		// Validate the agent's dedicated temporary directory *before* the header
-		// search runs. GetKernelHeaders reuses, and recursively deletes the contents
-		// of, subdirectories of ebpf.KernelHeaderDownloadDir, which lives under
-		// ebpf.AgentTmpDir.
-		if err := secureDir(agentTmpDirPurpose, ebpf.AgentTmpDir); err != nil {
-			if logRuntimeDirOnce(err.Error()) {
-				log.Warnf("skipping runtime compilation: %v", err)
-			}
-			a.tm.compilationResult = headerFetchErr
-			return nil, err
-		}
-
 		headerOpts := headers.HeaderOptions{
 			DownloadEnabled: config.EnableKernelHeaderDownload,
 			Dirs:            config.KernelHeadersDirs,
@@ -128,7 +116,16 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 			YumReposDir:     config.YumReposDir,
 			ZypperReposDir:  config.ZypperReposDir,
 		}
-		kernelHeaders = headers.GetKernelHeaders(headerOpts)
+		// Called only if the header search reaches the downloaded-header path, and
+		// before that directory is read from, deleted in, or written to. Configured,
+		// /lib/modules and kheaders.tar.xz sources return without it, so supplying
+		// headers by those means does not require this directory to be securable.
+		// secureDir verifies every component of the path it is given, so passing the
+		// leaf checks "system-probe" and "kernel-headers" rather than assuming they
+		// are safe because the directory above them is.
+		kernelHeaders = headers.GetKernelHeaders(headerOpts, func(dir string) error {
+			return secureDir(kernelHeaderDownloadDirPurpose, dir)
+		})
 		if len(kernelHeaders) == 0 {
 			a.tm.compilationResult = headerFetchErr
 			return nil, errors.New("unable to find kernel headers")
@@ -230,8 +227,8 @@ const dedicatedDirName = "datadog-agent"
 // Purposes passed to secureDir, used in its refusal messages so an operator can
 // tell which directory was rejected.
 const (
-	compilerOutputDirPurpose = "compiler output directory"
-	agentTmpDirPurpose       = "agent temporary directory"
+	compilerOutputDirPurpose       = "compiler output directory"
+	kernelHeaderDownloadDirPurpose = "kernel header download directory"
 )
 
 // secureDir ensures the given directory exists, is
