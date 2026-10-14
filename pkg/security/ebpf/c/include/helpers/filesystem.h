@@ -23,17 +23,27 @@ static __attribute__((always_inline)) void bump_high_path_id(u32 mount_id) {
 #define PATH_ID_LOW_MASK 0xFFFF
 #define PATH_ID(high, low) ((u32)((high << 16) | (low & PATH_ID_LOW_MASK)))
 
-// get the path id for a given inode, mount id and nlink
+// path ids of a given inode, as they were before and after the invalidation
+struct path_id_pair_t {
+    u32 before;
+    u32 after;
+};
+
+// get the path ids for a given inode, mount id and nlink
 // the path id is a 32 bit integer composed of a 16 bit high id and a 16 bit low id
 // the high id is the mount id and the low id is the inode id
 // the low id is incremented when the nlink is greater than 1 or when the invalidate type is PATH_ID_INVALIDATE_TYPE_LOCAL, meaning rename or unlink of a regular file
 // the high id is incremented when the invalidate type is PATH_ID_INVALIDATE_TYPE_GLOBAL, meaning rename or unlink of a directory
-static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int nlink, enum PATH_ID_INVALIDATE_TYPE invalidate_type, enum PATH_ID_RETURN_TYPE return_new_path_id) {
+//
+// returns both the path id as it was before the invalidation and the one after it. When the invalidate type is
+// PATH_ID_INVALIDATE_TYPE_NONE, both ids are identical.
+static __attribute__((always_inline)) struct path_id_pair_t get_path_id_pair(u64 ino, u32 mount_id, int nlink, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
+    struct path_id_pair_t pair = {};
     u32 key = mount_id % PATH_ID_HIGH_MAP_SIZE;
 
     u32 *high_id_ptr = bpf_map_lookup_elem(&path_id_high, &key);
     if (!high_id_ptr) {
-        return 0;
+        return pair;
     }
 
     u32 high_id_value = *high_id_ptr;
@@ -42,7 +52,7 @@ static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int
     u32 *low_id_ptr = bpf_map_lookup_elem(&path_id_low, &key);
     if (!low_id_ptr) {
         // will never happen
-        return PATH_ID(0, 0);
+        return pair;
     }
 
     if (nlink > 1) {
@@ -60,16 +70,19 @@ static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int
         __sync_fetch_and_add(high_id_ptr, 1);
     }
 
-    if (return_new_path_id == PATH_ID_AFTER_INVALIDATION) {
-        // to return the new path id we read the values that were just modified
-        high_id_value = *high_id_ptr;
-        low_id_value = *low_id_ptr % PATH_ID_LOW_MASK;
-    }
-    return PATH_ID(high_id_value, low_id_value);
+    pair.before = PATH_ID(high_id_value, low_id_value);
+    // read back the values that were just modified to get the path id after the invalidation
+    pair.after = PATH_ID(*high_id_ptr, *low_id_ptr % PATH_ID_LOW_MASK);
+    return pair;
+}
+
+// get the path id as it was before the invalidation, see get_path_id_pair
+static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int nlink, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
+    return get_path_id_pair(ino, mount_id, nlink, invalidate_type).before;
 }
 
 static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int nlink, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
-    path_key->path_id = get_path_id(path_key->ino, path_key->mount_id, nlink, invalidate_type, PATH_ID_BEFORE_INVALIDATION);
+    path_key->path_id = get_path_id(path_key->ino, path_key->mount_id, nlink, invalidate_type);
 }
 
 static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry, struct file_t *file) {
@@ -162,7 +175,8 @@ static __attribute__((always_inline)) void fill_file(struct dentry *dentry, stru
         .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) \
     }
 
-static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, enum PATH_ID_INVALIDATE_TYPE invalidate_type, enum PATH_ID_RETURN_TYPE path_id_return_type) {
+// fill the inode and nlink of the file, without computing its path id
+static __attribute__((always_inline)) void fill_file_inode(struct dentry *dentry, struct file_t *file) {
     if (!file->path_key.ino) {
         file->path_key.ino = get_dentry_ino(dentry);
     }
@@ -176,8 +190,12 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
         set_overlayfs_inode(dentry, file);
         set_overlayfs_nlink(dentry, file);
     }
+}
 
-    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, file->metadata.nlink, invalidate_type, path_id_return_type);
+static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
+    fill_file_inode(dentry, file);
+
+    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, file->metadata.nlink, invalidate_type);
 }
 
 #endif

@@ -377,11 +377,6 @@ enum PATH_ID_INVALIDATE_TYPE {
     PATH_ID_INVALIDATE_TYPE_GLOBAL = 2, // the global path id is invalidated, meaning impacting the volume
 };
 
-enum PATH_ID_RETURN_TYPE {
-    PATH_ID_BEFORE_INVALIDATION = 0, // usual behavior, we return the original path id before the bump 
-    PATH_ID_AFTER_INVALIDATION = 1 // we return the new path id after it was bumped
-};
-
 #define TAIL_CALL_FNC_NAME(name, ...) tail_call_##name(__VA_ARGS__)
 #define TAIL_CALL_FNC(name, ...) TAIL_CALL_TARGET("\"" #name "\"") \
 	int TAIL_CALL_FNC_NAME(name, __VA_ARGS__)

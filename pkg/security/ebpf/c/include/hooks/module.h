@@ -39,7 +39,7 @@ static __always_inline int trace_kernel_file(ctx_t *ctx, struct file *f, enum TA
 
     syscall->init_module.dentry = get_file_dentry(f);
     syscall->init_module.file.path_key.mount_id = get_file_mount_id(f);
-    set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, PATH_ID_INVALIDATE_TYPE_NONE, PATH_ID_BEFORE_INVALIDATION);
+    set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     syscall->resolver.key = syscall->init_module.file.path_key;
     syscall->resolver.dentry = syscall->init_module.dentry;

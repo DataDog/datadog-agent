@@ -100,7 +100,7 @@ static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
     syscall->open.dentry = dentry;
     syscall->open.file.path_key = path_key;
 
-    set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE, PATH_ID_BEFORE_INVALIDATION);
+    set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     approve_syscall(syscall, open_approvers);
 

@@ -56,7 +56,7 @@ static __always_inline int handle_selinux_event(void *ctx, struct file *file, co
     // otherwise let's keep the value = error state.
 
     fill_file(syscall.selinux.dentry, &syscall.selinux.file);
-    set_file_inode(syscall.selinux.dentry, &syscall.selinux.file, PATH_ID_INVALIDATE_TYPE_NONE, PATH_ID_BEFORE_INVALIDATION);
+    set_file_inode(syscall.selinux.dentry, &syscall.selinux.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     syscall.resolver.key = syscall.selinux.file.path_key;
     syscall.resolver.dentry = syscall.selinux.dentry;

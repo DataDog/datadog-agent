@@ -73,7 +73,7 @@ static __always_inline int sys_chdir_ret(void *ctx, int retval, enum TAIL_CALL_P
         goto pop_and_exit;
     }
 
-    set_file_inode(syscall->chdir.dentry, &syscall->chdir.file, PATH_ID_INVALIDATE_TYPE_NONE, PATH_ID_BEFORE_INVALIDATION);
+    set_file_inode(syscall->chdir.dentry, &syscall->chdir.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     syscall->retval = retval;
 
