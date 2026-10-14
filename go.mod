@@ -1230,7 +1230,7 @@ exclude go.opentelemetry.io/proto/otlp v1.1.0
 // Exclude ambiguous tencentcloud import required by vault
 exclude github.com/tencentcloud/tencentcloud-sdk-go v1.0.162
 
-replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20260820150906-f29987a05e30
+replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20261014133721-da0f9a209e68
 
 // Remove once
 // https://github.com/kubernetes/kube-state-metrics/pull/2928
