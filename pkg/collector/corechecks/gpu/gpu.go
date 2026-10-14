@@ -43,7 +43,7 @@ import (
 const (
 	gpuMetricsNs = "gpu."
 
-	// draCDISpecsMissingThreshold is how long unresolved DRA claims without CDI specs must persist before being reported.
+	// draCDISpecsMissingThreshold is how long running DRA claims without readable CDI specs must persist before being reported.
 	draCDISpecsMissingThreshold = 5 * time.Minute
 )
 
@@ -77,7 +77,7 @@ type Check struct {
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
 	driverEventsEnabled bool                             // driverEventsEnabled is true when driver events are requested from system-probe
 	sysprobeData        *sysprobeDataTracker             // sysprobeData tracks failures of the system-probe data sources; only touched from the Run goroutine
-	draCDIMissingSince  time.Time                        // draCDIMissingSince is when unresolved DRA claims without CDI specs were first seen; only touched from the Run goroutine
+	draCDIMissingSince  time.Time                        // draCDIMissingSince is when running DRA claims without readable CDI specs were first seen; only touched from the Run goroutine
 }
 
 type checkTelemetry struct {
@@ -528,7 +528,7 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 		return nil
 	}
 	gpuToContainers := make(map[string][]*workloadmeta.Container, len(allPhysicalDevices))
-	unresolvedDRAContainers := 0
+	draContainers := 0
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		if containers.IsDatadogAgentContainer(c.wmeta, container) {
@@ -536,8 +536,8 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 			continue
 		}
 
-		if containers.HasUnresolvedDRAGPUClaim(container) {
-			unresolvedDRAContainers++
+		if containers.HasRunningNvidiaDRAGPUClaim(container) {
+			draContainers++
 		}
 
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
@@ -553,24 +553,32 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 		}
 	}
 
-	c.syncDRACDIHealthIssue(unresolvedDRAContainers, now)
+	c.syncDRACDIHealthIssue(draContainers, now)
 
 	return gpuToContainers
 }
 
-// syncDRACDIHealthIssue reports an issue when unresolvedDRAContainers running
-// containers hold NVIDIA DRA GPU claims that could not be resolved and no CDI
-// spec directory contains readable NVIDIA DRA claim specs, for at least
-// draCDISpecsMissingThreshold. The threshold avoids reporting the window in
-// which the last claim spec has been removed but its container is still listed
-// as running.
-func (c *Check) syncDRACDIHealthIssue(unresolvedDRAContainers int, now time.Time) {
+// syncDRACDIHealthIssue reports an issue when draContainers running containers
+// hold NVIDIA DRA GPU claims and no CDI spec directory contains readable NVIDIA
+// DRA claim specs, for at least draCDISpecsMissingThreshold.
+//
+// Both conditions are needed. The CDI spec directory alone is not a signal: on
+// nodes that do not use DRA it is empty or not mounted at all. A running claim
+// means that the NVIDIA DRA driver has written its spec, so finding none means
+// that the Agent cannot see the directory the driver writes to. Claims that the
+// NVML collector already mapped to devices count too: it keeps that mapping
+// while the claim exists, so losing the specs only affects the containers
+// started afterwards, and the issue should be reported before they start.
+//
+// The threshold avoids reporting the window in which the last claim spec has
+// been removed but its container is still listed as running.
+func (c *Check) syncDRACDIHealthIssue(draContainers int, now time.Time) {
 	if c.issueReporter == nil {
 		return
 	}
 
 	var specsErr error
-	if unresolvedDRAContainers > 0 {
+	if draContainers > 0 {
 		specsErr = containers.CheckNvidiaDRACDISpecs()
 	}
 	if specsErr == nil {
@@ -589,7 +597,7 @@ func (c *Check) syncDRACDIHealthIssue(unresolvedDRAContainers int, now time.Time
 	issue, err := gpuenvironment.NewDRACDIIssue().BuildIssue(map[string]string{
 		gpuenvironment.DRACDIContextKeySearchedPaths:  strings.Join(containers.CDISpecDirs, ","),
 		gpuenvironment.DRACDIContextKeyError:          specsErr.Error(),
-		gpuenvironment.DRACDIContextKeyContainerCount: strconv.Itoa(unresolvedDRAContainers),
+		gpuenvironment.DRACDIContextKeyContainerCount: strconv.Itoa(draContainers),
 	})
 	if err != nil {
 		log.Warnf("failed to build GPU DRA CDI health issue: %v", err)

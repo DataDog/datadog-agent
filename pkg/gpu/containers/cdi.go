@@ -43,7 +43,7 @@ func NvidiaDRAClaimSpecFileName(claimUID string) string {
 // It detects a missing or unreadable CDI spec directory, not missing specs for
 // specific claims: a claim's spec is removed when the claim is released, which
 // can happen before its container stops being listed as running, so checking
-// the specs of the unresolved claims would report every claim teardown.
+// the specs of the individual claims would report every claim teardown.
 func CheckNvidiaDRACDISpecs() error {
 	var errs []error
 	for _, dir := range CDISpecDirs {
@@ -82,12 +82,12 @@ func checkDirHasNvidiaDRASpecs(dir string) error {
 	return fmt.Errorf("no NVIDIA DRA claim specs (%s*) in %s", nvidiaDRAClaimSpecPrefix, dir)
 }
 
-// HasUnresolvedDRAGPUClaim returns true if the container is running and holds
-// an NVIDIA DRA GPU claim with CDI devices that has not been resolved to any
-// GPU device. Stopped containers are excluded: their claims are released and
-// their CDI specs removed while they can still be listed.
-func HasUnresolvedDRAGPUClaim(container *workloadmeta.Container) bool {
-	if !container.State.Running || len(container.GPUDeviceIDs) > 0 {
+// HasRunningNvidiaDRAGPUClaim returns true if the container is running and
+// holds an NVIDIA DRA GPU claim with CDI devices. Stopped containers are
+// excluded: their claims are released and their CDI specs removed while they
+// can still be listed.
+func HasRunningNvidiaDRAGPUClaim(container *workloadmeta.Container) bool {
+	if !container.State.Running {
 		return false
 	}
 	for _, resource := range container.ResolvedAllocatedResources {

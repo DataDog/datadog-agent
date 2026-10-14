@@ -119,7 +119,7 @@ func TestSyncDRACDIHealthIssue(t *testing.T) {
 	check.SetIssueReporter(healthStore)
 	start := time.Now()
 
-	// No unresolved claims: a directory without specs is not an issue.
+	// No DRA claims: a directory without specs is not an issue.
 	check.syncDRACDIHealthIssue(0, start.Add(draCDISpecsMissingThreshold))
 	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
 
@@ -136,7 +136,7 @@ func TestSyncDRACDIHealthIssue(t *testing.T) {
 	assert.Contains(t, issue.Title, specDir)
 	assert.Equal(t, "2", issue.GetExtra().GetFields()[gpuenvironment.DRACDIContextKeyContainerCount].GetStringValue())
 
-	// NVIDIA DRA claim specs appearing resolve the issue, even with unresolved claims.
+	// NVIDIA DRA claim specs appearing resolve the issue.
 	require.NoError(t, os.WriteFile(filepath.Join(specDir, containers.NvidiaDRAClaimSpecFileName("other")), []byte("{}"), 0o644))
 	check.syncDRACDIHealthIssue(2, start.Add(2*draCDISpecsMissingThreshold))
 	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
@@ -194,7 +194,7 @@ func TestGetGPUToContainersMapSyncsDRACDIHealthIssue(t *testing.T) {
 	assert.Equal(t, "1", issue.GetExtra().GetFields()[gpuenvironment.DRACDIContextKeyContainerCount].GetStringValue())
 
 	// Without the device list the containers are not inspected, so the issue
-	// must not be resolved even though no unresolved claims remain.
+	// must not be resolved even though no DRA claims remain.
 	wmetaMock.Unset(workloadContainer)
 	check.deviceCache = failingDeviceCache{DeviceCache: check.deviceCache}
 	check.getGPUToContainersMap(start.Add(2 * draCDISpecsMissingThreshold))

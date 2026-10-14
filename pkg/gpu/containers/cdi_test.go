@@ -61,7 +61,7 @@ func TestCheckNvidiaDRACDISpecs(t *testing.T) {
 	})
 }
 
-func TestHasUnresolvedDRAGPUClaim(t *testing.T) {
+func TestHasRunningNvidiaDRAGPUClaim(t *testing.T) {
 	draResource := workloadmeta.ContainerAllocatedResource{
 		Name:       string(gpuutil.GpuNvidiaDRA),
 		CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid-gpu-0"},
@@ -74,7 +74,7 @@ func TestHasUnresolvedDRAGPUClaim(t *testing.T) {
 		expected  bool
 	}{
 		{
-			name: "unresolved DRA claim",
+			name: "DRA claim not resolved to devices",
 			container: &workloadmeta.Container{
 				State:                      running,
 				ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{draResource},
@@ -86,12 +86,13 @@ func TestHasUnresolvedDRAGPUClaim(t *testing.T) {
 			container: &workloadmeta.Container{ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{draResource}},
 		},
 		{
-			name: "resolved DRA claim",
+			name: "DRA claim resolved to devices",
 			container: &workloadmeta.Container{
 				State:                      running,
 				ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{draResource},
 				GPUDeviceIDs:               []string{"GPU-0"},
 			},
+			expected: true,
 		},
 		{
 			name: "DRA claim without CDI devices",
@@ -111,7 +112,7 @@ func TestHasUnresolvedDRAGPUClaim(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, HasUnresolvedDRAGPUClaim(tt.container))
+			assert.Equal(t, tt.expected, HasRunningNvidiaDRAGPUClaim(tt.container))
 		})
 	}
 }

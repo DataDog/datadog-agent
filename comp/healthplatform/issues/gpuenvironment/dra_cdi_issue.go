@@ -26,12 +26,12 @@ const (
 	DRACDIContextKeySearchedPaths = "searched_paths"
 	// DRACDIContextKeyError is the context key holding why no CDI spec could be found in the searched directories.
 	DRACDIContextKeyError = "error"
-	// DRACDIContextKeyContainerCount is the context key holding the number of containers with unresolved DRA GPU claims.
+	// DRACDIContextKeyContainerCount is the context key holding the number of running containers with NVIDIA DRA GPU claims.
 	DRACDIContextKeyContainerCount = "container_count"
 
 	draCDIIssueName = DRACDIIssueName
 	draCDIIssueType = DRACDIIssueType
-	draCDIImpactMsg = "GPU metrics of containers using NVIDIA DRA claims may be missing pod and container tags, or be attributed by device index instead of the allocated device"
+	draCDIImpactMsg = "GPU metrics of containers using NVIDIA DRA claims that the Agent has not already mapped to their devices may be missing pod and container tags, or be attributed by device index instead of the allocated device"
 )
 
 // DRACDIIssue provides the issue template for missing or unreadable DRA CDI specs.
