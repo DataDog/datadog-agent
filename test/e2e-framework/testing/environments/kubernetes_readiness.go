@@ -14,6 +14,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 const agentNamespace = "datadog"
@@ -24,17 +26,22 @@ type podReadinessTarget struct {
 	labelSelector string
 	nodeSelector  string
 	minimumCount  int
+	// restartsAllowed accepts pods whose containers restarted, as long as they are ready.
+	restartsAllowed bool
 }
 
 // KubernetesAgentReadinessOption configures WaitForAgentReady.
 type KubernetesAgentReadinessOption func(*kubernetesAgentReadinessParams)
 
 type kubernetesAgentReadinessParams struct {
-	timeout       time.Duration
-	pollInterval  time.Duration
-	stableFor     time.Duration
-	targets       []podReadinessTarget
-	configuration []string
+	timeout           time.Duration
+	pollInterval      time.Duration
+	stableFor         time.Duration
+	linuxNodeSelector string
+	// agentRestartsAllowed is the restartsAllowed of the targets of the Agent workloads.
+	agentRestartsAllowed bool
+	targets              []podReadinessTarget
+	configuration        []string
 }
 
 // WithAgentReadinessTimeout sets the maximum time WaitForAgentReady waits.
@@ -56,6 +63,25 @@ func WithAgentReadinessStableFor(duration time.Duration) KubernetesAgentReadines
 func WithLinuxNodeAgentReady() KubernetesAgentReadinessOption {
 	return func(params *kubernetesAgentReadinessParams) {
 		params.configuration = append(params.configuration, "linux node agent")
+	}
+}
+
+// WithLinuxNodeAgentNodeSelector replaces the label selector of the nodes WithLinuxNodeAgentReady
+// expects one Linux Node Agent pod per (non-Fargate Linux nodes by default), for an Agent
+// installation pinned to a subset of the nodes.
+func WithLinuxNodeAgentNodeSelector(nodeSelector string) KubernetesAgentReadinessOption {
+	return func(params *kubernetesAgentReadinessParams) {
+		params.linuxNodeSelector = nodeSelector
+	}
+}
+
+// WithAgentRestartsAllowed accepts Agent pods whose containers restarted, as long as they are
+// ready, e.g. Node Agents restarting once while their node finishes starting. It doesn't apply
+// to the auxiliary workloads of WithPodsReady and WithPodsReadyForNodes, which must still
+// never restart.
+func WithAgentRestartsAllowed() KubernetesAgentReadinessOption {
+	return func(params *kubernetesAgentReadinessParams) {
+		params.agentRestartsAllowed = true
 	}
 }
 
@@ -93,60 +119,95 @@ func WithPodsReadyForNodes(name, namespace, labelSelector, nodeSelector string) 
 	}
 }
 
+// WithPodsReady waits for at least minimumCount ready pods matching labelSelector in namespace.
+// It is intended for auxiliary workloads, e.g. a Deployment generating the workload the Agent
+// monitors, that should be ready alongside the Agent.
+func WithPodsReady(name, namespace, labelSelector string, minimumCount int) KubernetesAgentReadinessOption {
+	return func(params *kubernetesAgentReadinessParams) {
+		params.targets = append(params.targets, podReadinessTarget{
+			name:          name,
+			namespace:     namespace,
+			labelSelector: labelSelector,
+			minimumCount:  minimumCount,
+		})
+	}
+}
+
 // WaitForAgentReady waits for the selected Agent workloads to have their expected pod count,
-// with every init and regular container ready and never restarted. At least one workload option
-// such as WithLinuxNodeAgentReady or WithClusterAgentReady must be provided.
+// with every init and regular container ready and never restarted, unless WithAgentRestartsAllowed
+// is given. At least one workload option such as WithLinuxNodeAgentReady or WithClusterAgentReady
+// must be provided.
 func (e *Kubernetes) WaitForAgentReady(ctx context.Context, options ...KubernetesAgentReadinessOption) error {
+	return waitForAgentReady(ctx, e.KubernetesCluster, e.Agent, agentNamespace, options...)
+}
+
+// WaitForKubernetesAgentReady is like Kubernetes.WaitForAgentReady, for an Agent installation
+// that isn't the Agent of a Kubernetes environment, e.g. one of several installations of the
+// same cluster. Its workloads are looked up in the namespace of the installation.
+func WaitForKubernetesAgentReady(ctx context.Context, cluster *components.KubernetesCluster, agent *components.KubernetesAgent, options ...KubernetesAgentReadinessOption) error {
+	if agent == nil {
+		return fmt.Errorf("Agent component is not initialized")
+	}
+	return waitForAgentReady(ctx, cluster, agent, agent.LinuxNodeAgent.Namespace, options...)
+}
+
+// waitForAgentReady waits for the selected workloads of agent, installed in namespace of
+// cluster, to be ready.
+func waitForAgentReady(ctx context.Context, cluster *components.KubernetesCluster, agent *components.KubernetesAgent, namespace string, options ...KubernetesAgentReadinessOption) error {
 	params := kubernetesAgentReadinessParams{
 		timeout:      10 * time.Minute,
 		pollInterval: 10 * time.Second,
+		linuxNodeSelector: fields.AndSelectors(
+			fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
+			fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
+		).String(),
 	}
 	for _, option := range options {
 		option(&params)
 	}
 
-	if e.KubernetesCluster == nil || e.KubernetesCluster.KubernetesClient == nil {
+	if cluster == nil || cluster.KubernetesClient == nil {
 		return fmt.Errorf("Kubernetes client is not initialized")
 	}
-	if e.Agent == nil {
+	if agent == nil {
 		return fmt.Errorf("Agent component is not initialized")
 	}
 
-	linuxNodeSelector := fields.AndSelectors(
-		fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
-		fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
-	).String()
 	windowsNodeSelector := fields.OneTermEqualSelector("kubernetes.io/os", "windows").String()
 
 	for _, component := range params.configuration {
 		switch component {
 		case "linux node agent":
 			params.targets = append(params.targets, podReadinessTarget{
-				name:          component,
-				namespace:     agentNamespace,
-				labelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-				nodeSelector:  linuxNodeSelector,
+				name:            component,
+				namespace:       namespace,
+				labelSelector:   fields.OneTermEqualSelector("app", agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+				nodeSelector:    params.linuxNodeSelector,
+				restartsAllowed: params.agentRestartsAllowed,
 			})
 		case "windows node agent":
 			params.targets = append(params.targets, podReadinessTarget{
-				name:          component,
-				namespace:     agentNamespace,
-				labelSelector: fields.OneTermEqualSelector("app", e.Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
-				nodeSelector:  windowsNodeSelector,
+				name:            component,
+				namespace:       namespace,
+				labelSelector:   fields.OneTermEqualSelector("app", agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
+				nodeSelector:    windowsNodeSelector,
+				restartsAllowed: params.agentRestartsAllowed,
 			})
 		case "cluster agent":
 			params.targets = append(params.targets, podReadinessTarget{
-				name:          component,
-				namespace:     agentNamespace,
-				labelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
-				minimumCount:  1,
+				name:            component,
+				namespace:       namespace,
+				labelSelector:   fields.OneTermEqualSelector("app", agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
+				minimumCount:    1,
+				restartsAllowed: params.agentRestartsAllowed,
 			})
 		case "cluster checks runner":
 			params.targets = append(params.targets, podReadinessTarget{
-				name:          component,
-				namespace:     agentNamespace,
-				labelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
-				minimumCount:  1,
+				name:            component,
+				namespace:       namespace,
+				labelSelector:   fields.OneTermEqualSelector("app", agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
+				minimumCount:    1,
+				restartsAllowed: params.agentRestartsAllowed,
 			})
 		}
 	}
@@ -168,7 +229,7 @@ func (e *Kubernetes) WaitForAgentReady(ctx context.Context, options ...Kubernete
 	var stableSince time.Time
 	var lastErr error
 	for {
-		err := e.checkAgentPodsReady(waitCtx, params.targets)
+		err := checkAgentPodsReady(waitCtx, cluster, params.targets)
 		if err == nil {
 			if params.stableFor <= 0 {
 				return nil
@@ -198,8 +259,8 @@ func (e *Kubernetes) WaitForAgentReady(ctx context.Context, options ...Kubernete
 	}
 }
 
-func (e *Kubernetes) checkAgentPodsReady(ctx context.Context, targets []podReadinessTarget) error {
-	client := e.KubernetesCluster.Client()
+func checkAgentPodsReady(ctx context.Context, cluster *components.KubernetesCluster, targets []podReadinessTarget) error {
+	client := cluster.Client()
 	var problems []string
 
 	for _, target := range targets {
@@ -235,7 +296,7 @@ func (e *Kubernetes) checkAgentPodsReady(ctx context.Context, targets []podReadi
 				if !status.Ready {
 					problems = append(problems, fmt.Sprintf("%s: container %s in pod %s is not ready", target.name, status.Name, pod.Name))
 				}
-				if status.RestartCount != 0 {
+				if status.RestartCount != 0 && !target.restartsAllowed {
 					problems = append(problems, fmt.Sprintf("%s: container %s in pod %s restarted %d time(s)", target.name, status.Name, pod.Name, status.RestartCount))
 				}
 			}

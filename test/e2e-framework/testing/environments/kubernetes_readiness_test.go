@@ -8,6 +8,8 @@ package environments
 import (
 	"context"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	agentoutput "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	kubeoutput "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
@@ -34,12 +36,12 @@ func TestCheckAgentPodsReady(t *testing.T) {
 			linuxNode("node-1"),
 			readyPod("agent-1", "agent", 0),
 		)
-		require.NoError(t, env.checkAgentPodsReady(context.Background(), []podReadinessTarget{linuxTarget}))
+		require.NoError(t, checkAgentPodsReady(context.Background(), env.KubernetesCluster, []podReadinessTarget{linuxTarget}))
 	})
 
 	t.Run("missing pod", func(t *testing.T) {
 		env := newReadinessTestEnvironment(linuxNode("node-1"))
-		err := env.checkAgentPodsReady(context.Background(), []podReadinessTarget{linuxTarget})
+		err := checkAgentPodsReady(context.Background(), env.KubernetesCluster, []podReadinessTarget{linuxTarget})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "got 0 pod(s), want 1")
 	})
@@ -49,7 +51,7 @@ func TestCheckAgentPodsReady(t *testing.T) {
 			linuxNode("node-1"),
 			unreadyPod("agent-1", "agent", 2),
 		)
-		err := env.checkAgentPodsReady(context.Background(), []podReadinessTarget{linuxTarget})
+		err := checkAgentPodsReady(context.Background(), env.KubernetesCluster, []podReadinessTarget{linuxTarget})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "container agent in pod agent-1 is not ready")
 		assert.Contains(t, err.Error(), "restarted 2 time(s)")
@@ -57,7 +59,7 @@ func TestCheckAgentPodsReady(t *testing.T) {
 
 	t.Run("minimum replica count", func(t *testing.T) {
 		env := newReadinessTestEnvironment()
-		err := env.checkAgentPodsReady(context.Background(), []podReadinessTarget{{
+		err := checkAgentPodsReady(context.Background(), env.KubernetesCluster, []podReadinessTarget{{
 			name:          "cluster agent",
 			namespace:     agentNamespace,
 			labelSelector: "app=cluster-agent",
@@ -65,6 +67,127 @@ func TestCheckAgentPodsReady(t *testing.T) {
 		}})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "want at least 1")
+	})
+}
+
+func TestWaitForKubernetesAgentReady(t *testing.T) {
+	// The installation only runs on the nodes of its variant, in its own namespace.
+	baselineNode := linuxNode("baseline-node")
+	baselineNode.Labels["variant"] = "baseline"
+	comparisonNode := linuxNode("comparison-node")
+	comparisonNode.Labels["variant"] = "comparison"
+	pod := readyPod("agent-1", "agent", 0)
+	pod.Namespace = "datadog-baseline"
+
+	cluster := &components.KubernetesCluster{
+		KubernetesClient: &client.KubernetesClient{K8sClient: fake.NewSimpleClientset(baselineNode, comparisonNode, pod)},
+	}
+	agent := &components.KubernetesAgent{
+		KubernetesAgentOutput: agentoutput.KubernetesAgentOutput{
+			LinuxNodeAgent: kubeoutput.KubernetesObjRefOutput{
+				Namespace:      "datadog-baseline",
+				LabelSelectors: map[string]string{"app": "agent"},
+			},
+		},
+	}
+
+	t.Run("ready on the selected nodes", func(t *testing.T) {
+		require.NoError(t, WaitForKubernetesAgentReady(context.Background(), cluster, agent,
+			WithLinuxNodeAgentReady(),
+			WithLinuxNodeAgentNodeSelector("variant=baseline"),
+			WithAgentReadinessTimeout(time.Second),
+		))
+	})
+
+	t.Run("missing pod on a node without selector", func(t *testing.T) {
+		// The wait times out on the virtual clock of the bubble.
+		synctest.Test(t, func(t *testing.T) {
+			err := WaitForKubernetesAgentReady(context.Background(), cluster, agent,
+				WithLinuxNodeAgentReady(),
+				WithAgentReadinessTimeout(time.Second),
+			)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "got 1 pod(s), want 2")
+		})
+	})
+
+	t.Run("nil agent", func(t *testing.T) {
+		require.Error(t, WaitForKubernetesAgentReady(context.Background(), cluster, nil, WithLinuxNodeAgentReady()))
+	})
+}
+
+func TestWithPodsReady(t *testing.T) {
+	inNamespace := func(pod *corev1.Pod) *corev1.Pod {
+		pod.Namespace = "workload"
+		return pod
+	}
+	option := WithPodsReady("workload generator", "workload", "app=generator", 1)
+
+	t.Run("ready", func(t *testing.T) {
+		env := newReadinessTestEnvironment(inNamespace(readyPod("generator-1", "generator", 0)))
+		require.NoError(t, env.WaitForAgentReady(context.Background(), option, WithAgentReadinessTimeout(time.Second)))
+	})
+
+	t.Run("missing pod", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			// A ready pod of the same app in another namespace doesn't count.
+			env := newReadinessTestEnvironment(readyPod("generator-1", "generator", 0))
+			err := env.WaitForAgentReady(context.Background(), option, WithAgentReadinessTimeout(time.Second))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "workload generator: got 0 pod(s), want at least 1")
+		})
+	})
+
+	t.Run("restarted", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			env := newReadinessTestEnvironment(inNamespace(readyPod("generator-1", "generator", 1)))
+			err := env.WaitForAgentReady(context.Background(), option, WithAgentReadinessTimeout(time.Second))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "container generator in pod generator-1 restarted 1 time(s)")
+		})
+	})
+}
+
+func TestWithAgentRestartsAllowed(t *testing.T) {
+	generator := readyPod("generator-1", "generator", 1)
+	generator.Namespace = "workload"
+
+	t.Run("restarted Agent ready", func(t *testing.T) {
+		env := newReadinessTestEnvironment(linuxNode("node-1"), readyPod("agent-1", "agent", 2))
+		require.NoError(t, env.WaitForAgentReady(context.Background(),
+			WithLinuxNodeAgentReady(),
+			WithAgentRestartsAllowed(),
+			WithAgentReadinessTimeout(time.Second),
+		))
+	})
+
+	t.Run("restarted Agent not ready", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			env := newReadinessTestEnvironment(linuxNode("node-1"), unreadyPod("agent-1", "agent", 2))
+			err := env.WaitForAgentReady(context.Background(),
+				WithLinuxNodeAgentReady(),
+				WithAgentRestartsAllowed(),
+				WithAgentReadinessTimeout(time.Second),
+			)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "container agent in pod agent-1 is not ready")
+			assert.NotContains(t, err.Error(), "restarted")
+		})
+	})
+
+	t.Run("restarted auxiliary workload", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			env := newReadinessTestEnvironment(linuxNode("node-1"), readyPod("agent-1", "agent", 2), generator)
+			err := env.WaitForAgentReady(context.Background(),
+				WithLinuxNodeAgentReady(),
+				WithPodsReady("workload generator", "workload", "app=generator", 1),
+				WithAgentRestartsAllowed(),
+				WithAgentReadinessTimeout(time.Second),
+			)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "container generator in pod generator-1 restarted 1 time(s)")
+			assert.NotContains(t, err.Error(), "agent-1")
+		})
 	})
 }
 

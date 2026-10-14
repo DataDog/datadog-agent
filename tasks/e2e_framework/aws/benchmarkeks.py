@@ -126,6 +126,12 @@ def create_benchmarkeks(
         cluster_agent_full_image_path=cluster_agent_full_image_path,
         agent_flavor=agent_flavor,
         helm_config=helm_config,
+        extra_image_paths=[
+            baseline_full_image_path,
+            baseline_cluster_agent_full_image_path,
+            comparison_full_image_path,
+            comparison_cluster_agent_full_image_path,
+        ],
     )
 
     if interactive:
