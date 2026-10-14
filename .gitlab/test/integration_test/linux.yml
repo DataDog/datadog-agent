@@ -24,28 +24,3 @@ trace_agent_integration_tests:
   retry: 2
   script:
     - dda inv -- -e integration-tests --race --only="Trace Agent"
-
-# Prints to the job log a report of the values the trace-agent writes to more
-# than one location of the trace payloads it sends (see
-# pkg/trace/testutil/dupcheck). The test is report-only: it passes whatever it
-# finds and writes no artifacts.
-trace_agent_dupcheck_report:
-  extends: .bazel:runner:linux-amd64
-  stage: integration_test
-  rules:
-    - !reference [.except_light_pipeline]
-    # Always on main, so there is a reference report for the current code.
-    - !reference [.on_main]
-    # Otherwise only when the code that builds trace payloads changes.
-    - changes:
-        paths:
-          - pkg/trace/**/*
-          - pkg/obfuscate/**/*
-          - pkg/proto/datadog/trace/**/*
-          - pkg/proto/pbgo/trace/**/*
-          - .gitlab/test/integration_test/linux.yml
-        compare_to: $COMPARE_TO_BRANCH
-      when: on_success
-  allow_failure: true
-  script:
-    - dda inv -- -e test --targets=./pkg/trace/agent --test-args="-test.run=TestNoAgentIntroducedDuplicates -test.v" --bazel-args="--test_output=all"
