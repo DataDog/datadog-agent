@@ -23,7 +23,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.58.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.48.0
 	golang.org/x/text v0.41.0
 	sigs.k8s.io/yaml v1.6.0
 )

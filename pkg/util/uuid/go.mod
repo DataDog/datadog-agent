@@ -5,15 +5,15 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.84.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.84.3
-	github.com/shirou/gopsutil/v4 v4.26.7
-	golang.org/x/sys v0.47.0
+	github.com/shirou/gopsutil/v4 v4.26.9
+	golang.org/x/sys v0.48.0
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.84.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.84.3 // indirect
-	github.com/ebitengine/purego v0.10.2 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
