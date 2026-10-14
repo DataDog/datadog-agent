@@ -217,16 +217,17 @@ func (u *darwinUnmatchedTuples) record(tuple network.ConnectionTuple, flags darw
 	return true, true
 }
 
-// take removes and returns the unexpired entry for tuple, if any.
-func (u *darwinUnmatchedTuples) take(tuple network.ConnectionTuple, now time.Time) (darwinUnmatchedFlags, bool) {
+// take removes the unexpired entry for tuple, if any, and returns its flags and
+// how long ago its first packet was seen.
+func (u *darwinUnmatchedTuples) take(tuple network.ConnectionTuple, now time.Time) (darwinUnmatchedFlags, time.Duration, bool) {
 	u.expire(now)
 	key := canonicalDarwinTupleKey(tuple)
 	entry := u.entries[key]
 	if entry == nil {
-		return darwinUnmatchedFlags{}, false
+		return darwinUnmatchedFlags{}, 0, false
 	}
 	delete(u.entries, key)
-	return entry.flags, true
+	return entry.flags, now.Sub(entry.firstSeen), true
 }
 
 func (u *darwinUnmatchedTuples) expire(now time.Time) {

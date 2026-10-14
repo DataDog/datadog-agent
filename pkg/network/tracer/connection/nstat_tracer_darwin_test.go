@@ -507,7 +507,9 @@ func TestNStatTracerClassifiesResetFromNStatAndPacketEvidence(t *testing.T) {
 
 func TestNStatTracerCountsLatePacketMatches(t *testing.T) {
 	late := nstatTracerTelemetry.latePacketMatches
+	delays := nstatTracerTelemetry.lateMatchDelay
 	tracked := nstatTracerTelemetry.unmatchedTuples.WithValues("tracked")
+	published := nstatTracerTelemetry.tcpPublished.WithValues("true")
 	tuple := testDarwinIndexedConnection(0, "192.0.2.10", 50000, "198.51.100.20", 443).ConnectionTuple
 
 	for _, tc := range []struct {
@@ -518,13 +520,14 @@ func TestNStatTracerCountsLatePacketMatches(t *testing.T) {
 		missed            string
 		expectLateCounted bool
 	}{
-		{name: "syn", afterEnumeration: true, packets: []*layers.TCP{{Seq: 1, SYN: true}}, missed: "syn", expectLateCounted: true},
+		{name: "syn", afterEnumeration: true, describeAfter: 300 * time.Millisecond, packets: []*layers.TCP{{Seq: 1, SYN: true}}, missed: "syn", expectLateCounted: true},
 		{name: "rst_wins", afterEnumeration: true, packets: []*layers.TCP{{Seq: 1, SYN: true}, {Seq: 2, ACK: true, RST: true}}, missed: "rst", expectLateCounted: true},
 		{name: "expired", afterEnumeration: true, describeAfter: nstatUnmatchedTTL, packets: []*layers.TCP{{Seq: 1, SYN: true}}, missed: "syn"},
 		{name: "enumerated_source", packets: []*layers.TCP{{Seq: 1, SYN: true}}, missed: "syn"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+			tracer.packetCoverage = func(uint32) bool { return true }
 			now := time.Unix(500, 0)
 			tracer.now = func() time.Time { return now }
 			tracer.enumerationComplete = tc.afterEnumeration
@@ -537,6 +540,8 @@ func TestNStatTracerCountsLatePacketMatches(t *testing.T) {
 			require.Equal(t, trackedBefore+1, tracked.Get())
 
 			lateBefore := late.WithValues(tc.missed).Get()
+			delayBefore := delays.WithValues(tc.missed).Get()
+			publishedBefore := published.Get()
 			now = now.Add(tc.describeAfter)
 			tracer.processEvent(nstat.Event{
 				Kind:      nstat.EventDescription,
@@ -546,15 +551,58 @@ func TestNStatTracerCountsLatePacketMatches(t *testing.T) {
 			})
 			require.NotNil(t, tracer.sources[61].conn)
 
+			expectedPublished := publishedBefore
+			if tc.afterEnumeration {
+				expectedPublished++
+			}
+			require.Equal(t, expectedPublished, published.Get())
+
 			expected := lateBefore
+			expectedDelay := delayBefore
 			if tc.expectLateCounted {
 				expected++
+				expectedDelay.Count++
+				expectedDelay.Sum += tc.describeAfter.Seconds()
 			}
 			require.Equal(t, expected, late.WithValues(tc.missed).Get())
-			_, pending := tracer.unmatched.take(tuple, now)
+			delayAfter := delays.WithValues(tc.missed).Get()
+			require.Equal(t, expectedDelay.Count, delayAfter.Count)
+			require.InDelta(t, expectedDelay.Sum, delayAfter.Sum, 1e-9)
+			_, _, pending := tracer.unmatched.take(tuple, now)
 			require.False(t, pending, "creating the connection consumes the entry")
 		})
 	}
+}
+
+func TestNStatTracerCountsPublishedTCPByCapture(t *testing.T) {
+	captured := nstatTracerTelemetry.tcpPublished.WithValues("true")
+	uncaptured := nstatTracerTelemetry.tcpPublished.WithValues("false")
+	tracer := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	tracer.packetCoverage = func(index uint32) bool { return index == 14 }
+	tracer.enumerationComplete = true
+
+	capturedBefore, uncapturedBefore := captured.Get(), uncaptured.Get()
+	onCaptured := testNStatTCPFlow(6262, tcpStateSynSent)
+	onUncaptured := testNStatTCPFlow(6363, tcpStateSynSent)
+	onUncaptured.InterfaceIndex = 15
+	onUncaptured.Local.Port = 50001
+	for sourceRef, flow := range map[uint64]*nstat.Flow{62: onCaptured, 63: onUncaptured} {
+		tracer.processEvent(nstat.Event{
+			Kind:      nstat.EventDescription,
+			SourceRef: sourceRef,
+			Provider:  nstat.ProviderTCPKernel,
+			Flow:      flow,
+		})
+	}
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: 64,
+		Provider:  nstat.ProviderUDPKernel,
+		Flow:      testNStatUDPFlow(6464),
+	})
+
+	require.Equal(t, capturedBefore+1, captured.Get())
+	require.Equal(t, uncapturedBefore+1, uncaptured.Get())
 }
 
 func TestNStatTracerClosesFailedAttemptWithoutOverwritingFailure(t *testing.T) {

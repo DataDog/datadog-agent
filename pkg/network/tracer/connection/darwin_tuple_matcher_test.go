@@ -102,11 +102,12 @@ func TestDarwinUnmatchedTuplesTracksBothOrientations(t *testing.T) {
 	require.False(t, inserted, "both orientations share one entry")
 	require.True(t, ok)
 
-	flags, ok := tuples.take(tuple, now.Add(time.Second))
+	flags, delay, ok := tuples.take(tuple, now.Add(time.Second))
 	require.True(t, ok)
 	require.Equal(t, darwinUnmatchedFlags{syn: true, rst: true}, flags)
 	require.Equal(t, "rst", flags.label())
-	_, ok = tuples.take(tuple, now.Add(time.Second))
+	require.Equal(t, time.Second, delay, "delay is measured from the first packet")
+	_, _, ok = tuples.take(tuple, now.Add(time.Second))
 	require.False(t, ok, "take removes the entry")
 }
 
@@ -122,7 +123,7 @@ func TestDarwinUnmatchedTuplesExpiresAndBounds(t *testing.T) {
 	require.False(t, ok, "a new tuple is skipped while the set is full")
 
 	later := now.Add(2 * time.Second)
-	_, ok = tuples.take(first, later)
+	_, _, ok = tuples.take(first, later)
 	require.False(t, ok, "expired entries are not matched")
 	inserted, ok := tuples.record(second, darwinUnmatchedFlags{}, later)
 	require.True(t, inserted)

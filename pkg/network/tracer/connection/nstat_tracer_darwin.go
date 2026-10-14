@@ -116,6 +116,8 @@ var nstatTracerTelemetry = struct {
 	filteredSources    telemetry.Counter
 	unmatchedTuples    telemetry.Counter
 	latePacketMatches  telemetry.Counter
+	lateMatchDelay     telemetry.Histogram
+	tcpPublished       telemetry.Counter
 	connStatusUnknown  telemetry.Counter
 	connProbeMissed    telemetry.Counter
 	activeSources      telemetry.Gauge
@@ -137,6 +139,8 @@ var nstatTracerTelemetry = struct {
 	filteredSources:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "filtered_sources", []string{"reason"}, "Resolved NStat sources not published"),
 	unmatchedTuples:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "unmatched_tuples", []string{"result"}, "Unmatched TCP packets: new tuples tracked, or skipped because the tracking set was full"),
 	latePacketMatches:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "late_packet_matches", []string{"missed"}, "NStat connections created after packets for their tuple went unmatched"),
+	lateMatchDelay:     telemetryimpl.GetCompatComponent().NewHistogram("network_tracer__nstat", "late_packet_match_delay_seconds", []string{"missed"}, "Time from the first unmatched packet to the NStat connection for late packet matches", []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2}),
+	tcpPublished:       telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "tcp_published", []string{"captured"}, "TCP connections published after enumeration, by whether packet capture covers their interface"),
 	connStatusUnknown:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "conn_status_unknown", nil, "TCP sources whose descriptor length matches no known connstatus layout"),
 	connProbeMissed:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "conn_probe_missed", nil, "TCP connects still in SYN_SENT after the probe window without conn_probe_failed"),
 	activeSources:      telemetryimpl.GetCompatComponent().NewGauge("network_tracer__nstat", "active_sources", nil, "NStat sources currently tracked"),
@@ -996,11 +1000,13 @@ func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *netw
 		LastUpdateEpoch: uint64(t.now().UnixNano()),
 		InterfaceIndex:  flow.InterfaceIndex,
 	}
+	captured := false
 	if nstat.IsTCPProvider(source.provider) {
 		conn.Type = network.TCP
 		// Tags are aggregation keys, so completeness is decided once here and
 		// never changed for the lifetime of the connection.
-		if t.packetCoverage == nil || !t.packetCoverage(flow.InterfaceIndex) {
+		captured = t.packetCoverage != nil && t.packetCoverage(flow.InterfaceIndex)
+		if !captured {
 			conn.AddTag(network.ConnTagTCPErrorsIncomplete)
 		}
 	}
@@ -1017,8 +1023,13 @@ func (t *nstatTracer) newConnection(sourceRef uint64, source *nstatSource) *netw
 	if conn.Type == network.TCP {
 		// Sources enumerated at startup are pre-existing connections whose
 		// packets naturally precede their descriptions; only count new ones.
-		if missed, ok := t.unmatched.take(conn.ConnectionTuple, t.now()); ok && source.afterEnumeration {
-			nstatTracerTelemetry.latePacketMatches.Inc(missed.label())
+		missed, delay, ok := t.unmatched.take(conn.ConnectionTuple, t.now())
+		if source.afterEnumeration {
+			nstatTracerTelemetry.tcpPublished.Inc(strconv.FormatBool(captured))
+			if ok {
+				nstatTracerTelemetry.latePacketMatches.Inc(missed.label())
+				nstatTracerTelemetry.lateMatchDelay.Observe(delay.Seconds(), missed.label())
+			}
 		}
 	}
 	return conn
