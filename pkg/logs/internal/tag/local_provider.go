@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 
 	"github.com/benbjohnson/clock"
 )
@@ -40,7 +39,9 @@ func newLocalProviderWithClock(t []string, clock clock.Clock) Provider {
 	}
 
 	if config.IsExpectedTagsSet(pkgconfigsetup.Datadog()) {
-		p.expectedTags = append(p.tags, configUtils.WithoutInfraModeTags(hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System)...)
+		// Expected tags ride onto log events: omit infra_mode (paid product
+		// data must not inherit the Agent infrastructure mark).
+		p.expectedTags = append(p.tags, hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog(), false).System...)
 
 		// expected tags deadline is based on the agent start time, which may have been earlier
 		// than the current time.

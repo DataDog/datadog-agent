@@ -101,7 +101,7 @@ func TestHostTagProviderStripsInfraModeTag(t *testing.T) {
 			}
 			assert.Contains(t, tagList, "tag1:value1")
 
-			hostMetaTags := hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog()).System
+			hostMetaTags := hostMetadataUtils.Get(context.TODO(), false, pkgconfigsetup.Datadog(), true).System
 			assert.Contains(t, hostMetaTags, "infra_mode:"+mode)
 		})
 	}

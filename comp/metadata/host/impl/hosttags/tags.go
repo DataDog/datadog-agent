@@ -122,16 +122,22 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 	return target
 }
 
-// Get the host tags, optionally looking in the cache
+// Get the host tags, optionally looking in the cache.
+//
+// includeInfraMode controls whether System includes infra_mode:* tags. The
+// cache always stores the full tag set; when includeInfraMode is false the
+// returned System slice is a copy with infra_mode:* removed. Callers that copy
+// host tags onto metrics or logs must pass false. Other tags (including EUDM
+// hardware tags) are unchanged.
+//
 // There are two levels of caching:
 // - First one controlled by `cached` boolean, used for performances (cache all tags)
 // - Second one per provider, to avoid missing host tags for 30 minutes when a component fails (for instance, Cluster Agent).
 // This second layer is always on.
-func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
+func Get(ctx context.Context, cached bool, conf model.Reader, includeInfraMode bool) *Tags {
 	if cached {
 		if x, found := cache.Cache.Get(tagsCacheKey); found {
-			tags := x.(*Tags)
-			return tags
+			return applyInfraModeFilter(x.(*Tags), includeInfraMode)
 		}
 	}
 
@@ -225,5 +231,17 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	}
 
 	cache.Cache.Set(tagsCacheKey, t, cache.NoExpiration)
-	return t
+	return applyInfraModeFilter(t, includeInfraMode)
+}
+
+// applyInfraModeFilter returns tags unchanged when includeInfraMode is true.
+// Otherwise it returns a shallow copy whose System list omits infra_mode:*.
+func applyInfraModeFilter(tags *Tags, includeInfraMode bool) *Tags {
+	if includeInfraMode {
+		return tags
+	}
+	return &Tags{
+		System:              configUtils.WithoutInfraModeTags(tags.System),
+		GoogleCloudPlatform: tags.GoogleCloudPlatform,
+	}
 }
