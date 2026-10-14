@@ -4113,6 +4113,8 @@ options ndots:1`
 func (s *TracerSuite) TestNetNSContainerAttribution() {
 	t := s.T()
 	cfg := testConfig()
+	// eBPF-less mode captures packets in the root namespace, so it doesn't see traffic inside another one
+	skipOnEbpflessNotSupported(t, cfg)
 	cfg.EnableProcessEventMonitoring = true
 	tr := setupTracer(t, cfg)
 	require.NotNil(t, tr.processCache)
