@@ -553,9 +553,6 @@ func setup(
 		serverlessInitInventory.UpdateAndSubmit(inventoryAgent, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
 	}
 
-	// The lifecycle server serializes /run's ID store and /resume's ID load with
-	// this publication. UUID, generic fields, and instance resource ID are all
-	// updated while closed; missing identity cannot open the image-build gate.
 	inventorySubmitter := lifecycle.InventorySubmitterFunc(func(microVMID string) {
 		serverlessInitInventory.UpdateInstanceAndSubmit(inventoryAgent, instanceUUID, microVMID, cloudService, modeConf, pkgconfigsetup.Datadog(), tagConfig.Tags)
 	})
