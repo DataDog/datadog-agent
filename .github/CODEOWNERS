@@ -388,6 +388,7 @@
 /cmd/system-probe/modules/language_detection*       @DataDog/container-experiences @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation*  @DataDog/debugger-go
 /cmd/system-probe/modules/noisy_neighbor*           @DataDog/container-experiences
+/cmd/system-probe/modules/gpu*                      @DataDog/accelerator-telemetry
 /cmd/system-probe/windows/                          @DataDog/windows-products
 /cmd/system-probe/windows_resources/                @DataDog/windows-products
 /cmd/system-probe/main_windows*.go                  @DataDog/windows-products
