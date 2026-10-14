@@ -1218,9 +1218,12 @@ func deepCopyUmountEvent(fieldToCopy UmountEvent) UmountEvent {
 	copied.DbgExitMountIDReread = fieldToCopy.DbgExitMountIDReread
 	copied.DbgExitReadRet = fieldToCopy.DbgExitReadRet
 	copied.DbgExitTs = fieldToCopy.DbgExitTs
+	copied.DbgOwnerAfter = fieldToCopy.DbgOwnerAfter
 	copied.DbgProgType = fieldToCopy.DbgProgType
 	copied.DbgTid = fieldToCopy.DbgTid
+	copied.DbgTypeAfter = fieldToCopy.DbgTypeAfter
 	copied.DbgVfs = fieldToCopy.DbgVfs
+	copied.DbgVfsAfter = fieldToCopy.DbgVfsAfter
 	copied.MountID = fieldToCopy.MountID
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied

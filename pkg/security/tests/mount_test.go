@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -23,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
 	"github.com/moby/sys/mountinfo"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -69,6 +71,8 @@ func TestMount(t *testing.T) {
 	dstMntPath := testDrive.Path(dstMntBasename)
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
+
+	dumpSyscallsCache(t, test, "TestMount start") // [do not merge]
 
 	var mntID atomic.Uint32
 	t.Run("mount", func(t *testing.T) {
@@ -146,6 +150,9 @@ func TestMount(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+		if t.Failed() {
+			dumpSyscallsCache(t, test, "TestMount/umount failed") // [do not merge]
+		}
 	})
 
 	t.Run("release-mount", func(t *testing.T) {
@@ -161,9 +168,60 @@ func TestMount(t *testing.T) {
 // [do not merge] umount flakiness debug
 func umountDbgString(event *model.Event) string {
 	u := &event.Umount
-	return fmt.Sprintf("pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d exit_reread_mount_id=%d exit_mnt_flags=%#x vfs=%#x exit-entry=%dns prog_type=%d",
+	return fmt.Sprintf("pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d exit_reread_mount_id=%d exit_mnt_flags=%#x vfs=%#x exit-entry=%dns prog_type=%d owner_after=%#x type_after=%d vfs_after=%#x",
 		event.PIDContext.Pid, u.DbgTid, event.TimestampRaw, u.Retval, u.MountID, u.DbgEntryMountID, u.DbgEntryReadRet, u.DbgExitReadRet,
-		u.DbgExitMountIDReread, u.DbgExitMntFlags, u.DbgVfs, int64(u.DbgExitTs)-int64(u.DbgEntryTs), u.DbgProgType)
+		u.DbgExitMountIDReread, u.DbgExitMntFlags, u.DbgVfs, int64(u.DbgExitTs)-int64(u.DbgEntryTs), u.DbgProgType,
+		u.DbgOwnerAfter, u.DbgTypeAfter, u.DbgVfsAfter)
+}
+
+// [do not merge] dumpSyscallsCache logs the occupancy of the per-thread syscall cache map:
+// total entries, entries per cached event type, and entries whose thread no longer exists
+// (leaked: their exit hook never popped them).
+func dumpSyscallsCache(t *testing.T, test *testModule, where string) {
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return
+	}
+	m, _, err := p.Manager.Get().GetMap("syscalls")
+	if err != nil {
+		t.Logf("UMOUNTDBG syscalls-cache %s: failed to get map: %v", where, err)
+		return
+	}
+	info, _ := m.Info()
+	if m.Type() != ebpf.LRUHash && m.Type() != ebpf.Hash {
+		t.Logf("UMOUNTDBG syscalls-cache %s: map type=%s (task storage), not iterable by pid_tgid", where, m.Type())
+		return
+	}
+	var (
+		key   uint64
+		value []byte
+		total int
+		dead  int
+	)
+	byType := map[uint64]int{}
+	deadByType := map[uint64]int{}
+	it := m.Iterate()
+	for it.Next(&key, &value) {
+		total++
+		var typ uint64
+		if len(value) >= 16 {
+			typ = binary.NativeEndian.Uint64(value[8:16])
+		}
+		byType[typ]++
+		tgid, tid := key>>32, key&0xffffffff
+		if _, err := os.Stat(fmt.Sprintf("/proc/%d/task/%d", tgid, tid)); err != nil {
+			dead++
+			deadByType[typ]++
+		}
+	}
+	if err := it.Err(); err != nil {
+		t.Logf("UMOUNTDBG syscalls-cache %s: iterate error: %v", where, err)
+	}
+	name := ""
+	if info != nil {
+		name = info.Name
+	}
+	t.Logf("UMOUNTDBG syscalls-cache %s: map=%s type=%s max_entries=%d total=%d dead_threads=%d by_type=%v dead_by_type=%v", where, name, m.Type(), m.MaxEntries(), total, dead, byType, deadByType)
 }
 
 // [do not merge] TestMountUmountStress loops the TestMount mount/umount sequence to raise the
@@ -195,7 +253,11 @@ func TestMountUmountStress(t *testing.T) {
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
 
-	const iterations = 300
+	dumpSyscallsCache(t, test, "stress start")
+	defer dumpSyscallsCache(t, test, "stress end")
+
+	const iterations = 1000
+	dumped := 0
 	var mountTimeouts, umountTimeouts, mismatches, ok int
 	for i := 0; i < iterations; i++ {
 		var mntIDAtomic atomic.Uint32
@@ -241,9 +303,17 @@ func TestMountUmountStress(t *testing.T) {
 		case len(received) > 0:
 			mismatches++
 			t.Logf("UMOUNTDBG iter=%d MISMATCH expected_mount_id=%d received=%v", i, mntID, received)
+			if dumped < 5 {
+				dumped++
+				dumpSyscallsCache(t, test, fmt.Sprintf("stress iter %d mismatch", i))
+			}
 		default:
 			umountTimeouts++
 			t.Logf("UMOUNTDBG iter=%d umount event not received (expected_mount_id=%d): %v", i, mntID, err)
+			if dumped < 5 {
+				dumped++
+				dumpSyscallsCache(t, test, fmt.Sprintf("stress iter %d timeout", i))
+			}
 		}
 		lock.Unlock()
 	}

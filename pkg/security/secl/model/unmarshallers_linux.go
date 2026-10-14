@@ -714,6 +714,12 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 		e.DbgTid = binary.NativeEndian.Uint32(data[44:48])
 		e.DbgExitMntFlags = binary.NativeEndian.Uint32(data[48:52])
 		e.DbgExitMountIDReread = binary.NativeEndian.Uint32(data[52:56])
+		if len(data) >= 80 {
+			e.DbgOwnerAfter = binary.NativeEndian.Uint64(data[56:64])
+			e.DbgTypeAfter = binary.NativeEndian.Uint64(data[64:72])
+			e.DbgVfsAfter = binary.NativeEndian.Uint64(data[72:80])
+			return n + 80, nil
+		}
 		return n + 56, nil
 	}
 

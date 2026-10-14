@@ -1,9 +1,7 @@
 {
 	"filters": {
-		"pkg/security": {
-			"run-only": [
-				"^(TestMount|TestMountUmountStress)$"
-			]
+		"*": {
+			"exclude": false
 		}
 	}
 }

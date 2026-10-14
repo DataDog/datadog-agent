@@ -771,6 +771,9 @@ type UmountEvent struct {
 	DbgTid               uint32
 	DbgExitMntFlags      uint32
 	DbgExitMountIDReread uint32
+	DbgOwnerAfter        uint64
+	DbgTypeAfter         uint64
+	DbgVfsAfter          uint64
 }
 
 // UtimesEvent represents a utime event

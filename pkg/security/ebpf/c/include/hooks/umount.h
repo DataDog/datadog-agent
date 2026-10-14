@@ -19,6 +19,7 @@ int hook_security_sb_umount(ctx_t *ctx) {
     // [do not merge] umount flakiness debug: snapshot the mount id while the mount is
     // guaranteed alive, to compare with what the exit hook reads.
     syscall.umount.dbg_entry_ts = bpf_ktime_get_ns();
+    syscall.umount.dbg_owner = bpf_get_current_pid_tgid();
     syscall.umount.dbg_entry_read_ret = dbg_read_vfsmount_mount_id(syscall.umount.vfs, &syscall.umount.dbg_entry_mount_id);
 
     cache_syscall_update_cgroup(ctx, &syscall);
@@ -47,6 +48,11 @@ static __always_inline int sys_umount_ret_impl(void *ctx, int retval, enum TAIL_
     s32 dbg_exit_read_ret = dbg_read_vfsmount_mount_id(dbg_vfs, &dbg_reread);
     u32 dbg_mnt_flags = 0;
     bpf_probe_read(&dbg_mnt_flags, sizeof(dbg_mnt_flags), (char *)dbg_vfs + 16); // offsetof(struct vfsmount, mnt_flags)
+    // re-read the cache entry after the mount id reads: if another task claimed the
+    // element in between, owner/type/vfs no longer match what was read above.
+    u64 dbg_owner_after = syscall->umount.dbg_owner;
+    u64 dbg_type_after = syscall->type;
+    u64 dbg_vfs_after = (u64)syscall->umount.vfs;
 
     pop_syscall(EVENT_UMOUNT);
 
@@ -66,6 +72,9 @@ static __always_inline int sys_umount_ret_impl(void *ctx, int retval, enum TAIL_
     event->dbg_tid = (u32)bpf_get_current_pid_tgid();
     event->dbg_exit_mnt_flags = dbg_mnt_flags;
     event->dbg_exit_mount_id_reread = dbg_reread;
+    event->dbg_owner_after = dbg_owner_after;
+    event->dbg_type_after = dbg_type_after;
+    event->dbg_vfs_after = dbg_vfs_after;
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);

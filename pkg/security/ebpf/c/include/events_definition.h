@@ -536,6 +536,9 @@ struct umount_event_t {
     u32 dbg_tid;
     u32 dbg_exit_mnt_flags;
     u32 dbg_exit_mount_id_reread;
+    u64 dbg_owner_after;
+    u64 dbg_type_after;
+    u64 dbg_vfs_after;
 };
 
 struct unlink_event_t {

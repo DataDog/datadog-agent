@@ -136,6 +136,7 @@ struct syscall_cache_t {
             u64 dbg_entry_ts;
             u32 dbg_entry_mount_id;
             s32 dbg_entry_read_ret;
+            u64 dbg_owner;
         } umount;
 
         struct {

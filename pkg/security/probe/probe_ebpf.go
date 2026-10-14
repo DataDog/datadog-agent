@@ -1713,11 +1713,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		// [do not merge] umount flakiness debug
-		seclog.Warnf("UMOUNTDBG umount pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d exit_reread_mount_id=%d exit_mnt_flags=%#x vfs=%#x entry_ts=%d exit_ts=%d exit-entry=%dns prog_type=%d",
+		seclog.Warnf("UMOUNTDBG umount pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d exit_reread_mount_id=%d exit_mnt_flags=%#x vfs=%#x entry_ts=%d exit_ts=%d exit-entry=%dns prog_type=%d owner_after=%#x type_after=%d vfs_after=%#x",
 			event.PIDContext.Pid, event.Umount.DbgTid, event.TimestampRaw, event.Umount.Retval, event.Umount.MountID,
 			event.Umount.DbgEntryMountID, event.Umount.DbgEntryReadRet, event.Umount.DbgExitReadRet, event.Umount.DbgExitMountIDReread,
 			event.Umount.DbgExitMntFlags, event.Umount.DbgVfs, event.Umount.DbgEntryTs, event.Umount.DbgExitTs,
-			int64(event.Umount.DbgExitTs)-int64(event.Umount.DbgEntryTs), event.Umount.DbgProgType)
+			int64(event.Umount.DbgExitTs)-int64(event.Umount.DbgEntryTs), event.Umount.DbgProgType,
+			event.Umount.DbgOwnerAfter, event.Umount.DbgTypeAfter, event.Umount.DbgVfsAfter)
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
 		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
