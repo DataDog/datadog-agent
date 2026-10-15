@@ -126,22 +126,27 @@ func xccdfRequests(benchmark *Benchmark) (string, []xccdfRequest, error) {
 	return file, reqs, nil
 }
 
-// evaluate evaluates reqs. When an oscap-io process stalls or dies after
-// answering a request, evaluate skips the request that process was on and
-// starts another process on the rest. A failure before the first answer
-// ends the evaluation.
+// evaluate evaluates reqs. When an oscap-io process ends early, evaluate
+// starts another one on the requests left. It skips the request a process
+// stalled on, or died on before its first answer, and gives up when the
+// first two processes end without an answer.
 func (o *oscapIO) evaluate(ctx context.Context, reqs []xccdfRequest) ([]xccdfResult, error) {
 	var results []xccdfResult
-	progressed := false
-	for len(reqs) > 0 {
+	answered := false
+	for attempt := 1; len(reqs) > 0; attempt++ {
 		res, n, err := o.run(ctx, reqs)
 		results = append(results, res...)
-		progressed = progressed || n > 0
-		if err == nil || ctx.Err() != nil || n >= len(reqs) || !progressed {
+		answered = answered || n > 0
+		if err == nil || ctx.Err() != nil || n >= len(reqs) || (!answered && attempt > 1) {
 			return results, err
 		}
-		log.Warnf("oscap-io %s: skipping rule %s: %v", o.name, reqs[n].id, err)
-		reqs = reqs[n+1:]
+		if n == 0 || errors.Is(err, errStalled) {
+			log.Warnf("oscap-io %s: skipping rule %s: %v", o.name, reqs[n].id, err)
+			n++
+		} else {
+			log.Warnf("oscap-io %s: restarting at rule %s: %v", o.name, reqs[n].id, err)
+		}
+		reqs = reqs[n:]
 	}
 	return results, nil
 }

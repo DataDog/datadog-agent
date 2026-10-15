@@ -59,12 +59,19 @@ func fakeOSCAPIO() {
 			fmt.Printf("%s %d\n", id, xccdfPass)
 		case "crash":
 			os.Exit(1)
+		case "abort":
+			fmt.Printf("%s %d\n", id, xccdfPass)
+			os.Exit(1)
 		case "hang":
 			// A select {} would end the process as a deadlock.
 			time.Sleep(time.Hour)
 		default:
 			fmt.Printf("%s %d\n", id, codes[suffix])
 		}
+	}
+	if err := s.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 
@@ -103,7 +110,7 @@ func TestOSCAPIOEvaluate(t *testing.T) {
 		interval time.Duration
 		timeout  time.Duration
 		want     []string
-		wantErr  error
+		wantErr  bool
 	}{
 		{
 			name:    "codes",
@@ -152,15 +159,27 @@ func TestOSCAPIOEvaluate(t *testing.T) {
 			name:    "hang first",
 			ids:     []string{"a_hang", "b_pass"},
 			timeout: hangTimeout,
-			wantErr: errStalled,
+			want:    []string{"b_pass passed"},
+		},
+		{
+			name:    "abort after each answer",
+			ids:     []string{"a_abort", "b_abort", "c_fail"},
+			timeout: time.Minute,
+			want:    []string{"a_abort passed", "b_abort passed", "c_fail failed"},
+		},
+		{
+			name:    "no answer",
+			ids:     []string{"a_crash", "b_crash", "c_pass"},
+			timeout: time.Minute,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := evaluateFake(t.Context(), tt.ids, tt.interval, tt.timeout)
-			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("evaluate(%q) error = %v, want %v", tt.ids, err, tt.wantErr)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("evaluate(%q) error = %v, want error %t", tt.ids, err, tt.wantErr)
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("evaluate(%q) = %q, want %q", tt.ids, got, tt.want)
