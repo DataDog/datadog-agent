@@ -1360,7 +1360,6 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 			time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout),
 			filepathsInProcessCache,
 			selector.Image,
-			selector.Tag,
 		)
 		if evicted > 0 {
 			seclog.Debugf("evicted %d unused nodes from loaded profile [%s]", evicted, selector.String())
@@ -1566,7 +1565,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 			profile.Unlock()
 			continue
 		}
-		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image, selector.Tag)
+		evicted := profile.ActivityTree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, selector.Image)
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
