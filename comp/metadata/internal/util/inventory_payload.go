@@ -97,8 +97,11 @@ type PayloadGetter func() marshaler.JSONMarshaler
 // instance_config) must pre-scrub those strings with scrubber.ScrubYamlString before storing them,
 // because ScrubJSON operates on JSON key names and cannot reach inside opaque string values.
 type InventoryPayload struct {
-	m        sync.Mutex
-	notReady bool // guarded by m; the zero value is ready
+	m sync.Mutex
+	// submissionGate, when set, is consulted before every submission: a
+	// non-nil return withholds the payload. Called under the payload lock: it
+	// must not call back in.
+	submissionGate func() error
 
 	conf          config.Component
 	log           log.Component
@@ -187,14 +190,25 @@ func (i *InventoryPayload) MetadataProvider() runnerdef.Provider {
 	return runnerdef.NewProvider(nil)
 }
 
+// SetSubmissionGate installs a gate consulted before every submission: a
+// non-nil return withholds the payload. Called under the payload lock: it must
+// not call back in.
+func (i *InventoryPayload) SetSubmissionGate(gate func() error) {
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.submissionGate = gate
+}
+
 // collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next
 // interval to be called.
 func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	i.m.Lock()
 	defer i.m.Unlock()
-	if i.notReady {
-		i.log.Debugf("inventory metadata is not ready, skipping submission")
-		return i.MinInterval
+	if i.submissionGate != nil {
+		if err := i.submissionGate(); err != nil {
+			i.log.Debugf("inventory payload not submitted: %v", err)
+			return i.MinInterval
+		}
 	}
 	if i.serializer == nil {
 		i.log.Tracef("serializer is nil, skipping submission")
@@ -231,19 +245,11 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	return i.MinInterval
 }
 
-// SetReady controls payload generation without changing whether inventory is enabled.
-// SetReady(false) waits for any in-flight generation and enqueue to finish.
-func (i *InventoryPayload) SetReady(ready bool) {
-	i.m.Lock()
-	defer i.m.Unlock()
-	i.notReady = !ready
-}
-
 // Submit synchronously builds a payload and enqueues it for submission now,
 // ignoring the first-run delay and the min/max interval gating that collect()
 // applies. SendMetadata only enqueues a transaction (the HTTP POST is async and
 // drained at shutdown), so this does not wait for delivery. Nothing is built or
-// enqueued while not ready.
+// enqueued while disabled or while the submission gate withholds the payload.
 func (i *InventoryPayload) Submit() {
 	i.m.Lock()
 	defer i.m.Unlock()
@@ -251,9 +257,11 @@ func (i *InventoryPayload) Submit() {
 		i.log.Debugf("inventory metadata is disabled, skipping submission")
 		return
 	}
-	if i.notReady {
-		i.log.Debugf("inventory metadata is not ready, skipping submission")
-		return
+	if i.submissionGate != nil {
+		if err := i.submissionGate(); err != nil {
+			i.log.Debugf("inventory payload not submitted: %v", err)
+			return
+		}
 	}
 	if i.serializer == nil {
 		i.log.Tracef("serializer is nil, skipping submission")
@@ -300,9 +308,6 @@ func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 
 	i.m.Lock()
 	defer i.m.Unlock()
-	if i.notReady {
-		return nil, errors.New("inventory metadata is not ready")
-	}
 
 	return json.MarshalIndent(i.getPayload(), "", "  ")
 }

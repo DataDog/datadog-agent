@@ -10,10 +10,8 @@ update every minute (see `inventories_min_interval`).
 
 # Content
 
-The `Set` method from the component allow the rest of the codebase to add any information to the payload. `SetBatch` applies a
-complete field set atomically without changing readiness: a closed payload records the update but submits nothing.
-`SetReady` opens or closes generation and submission; the embedding driver component owns the publication protocol
-(close, update all fields, open, submit).
+The `Set` method from the component allow the rest of the codebase to add any information to the payload. `SetBatch` applies
+a complete field set and the payload uuid atomically under one lock.
 
 ## Embedding capabilities
 

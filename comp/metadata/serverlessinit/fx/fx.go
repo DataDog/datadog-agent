@@ -11,6 +11,7 @@ package fx
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx-none"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -26,9 +27,9 @@ import (
 // Module defines the fx options for this component. It also carries the
 // inventoryagent adapters that only the serverless-init graph needs — the
 // serializer through the demultiplexer, the noop IPC client, and the absent
-// system-probe configuration — plus the serverless capabilities, whose
-// payload-uuid resolver reads the shared PayloadUUID holder that the
-// component rotates when the platform identity changes.
+// system-probe configuration — plus the serverless capabilities: the payload
+// is withheld when the environment is not eligible, and every submission is
+// gated on payload validity.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(serverlessinitimpl.NewComponent),
@@ -36,9 +37,8 @@ func Module() fxutil.Module {
 		ipcfx.Module(),
 		fx.Provide(func(c ipc.Component) ipc.HTTPClient { return c.GetClient() }),
 		fx.Provide(func() option.Option[sysprobeconfig.Component] { return option.None[sysprobeconfig.Component]() }),
-		fx.Provide(serverlessinit.NewPayloadUUID),
-		fx.Provide(func(u *serverlessinit.PayloadUUID) *iadef.Capabilities {
-			return iadef.NewServerlessCapabilities(u.Get)
+		fx.Provide(func(conf config.Component, p serverlessinit.InventoryProvider) *iadef.Capabilities {
+			return iadef.NewServerlessCapabilities(!serverlessinit.InventoryEligible(conf, p), serverlessinit.ValidatePayload)
 		}),
 	)
 }
