@@ -40,7 +40,7 @@ type domainForwarder struct {
 	domain                  string
 	isMRF                   bool
 	isLocal                 bool
-	concurrency             concurrencyPolicy
+	concurrency             concurrencyDomain
 	highPrio                chan transaction.Transaction // use to receive new transactions
 	lowPrio                 chan transaction.Transaction // use to retry transactions
 	requeuedTransaction     chan transaction.Transaction
@@ -64,7 +64,7 @@ func newDomainForwarder(
 	mrf bool,
 	isLocal bool,
 	retryQueue *retry.TransactionRetryQueue,
-	concurrency concurrencyPolicy,
+	concurrency concurrencyDomain,
 	connectionResetInterval time.Duration,
 	pointCountTelemetry *retry.PointCountTelemetry,
 	transport http.RoundTripper) *domainForwarder {
@@ -82,7 +82,7 @@ func newDomainForwarder(
 		internalState:           Stopped,
 		blockedList:             newBlockedEndpoints(config, log),
 		pointCountTelemetry:     pointCountTelemetry,
-		Client:                  NewSharedConnection(log, isLocal, concurrency.maxConns(), config, transport),
+		Client:                  NewSharedConnection(log, isLocal, concurrency, config, transport),
 	}
 }
 
@@ -228,6 +228,7 @@ func (f *domainForwarder) Start() error {
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
+	f.concurrency.start()
 	go f.handleFailedTransactions()
 	if f.connectionResetInterval != 0 {
 		go f.scheduleConnectionResets()
@@ -309,6 +310,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 		f.stopConnectionReset <- true
 	}
 	f.stopRetry <- true
+	f.concurrency.stop()
 	for _, w := range f.workers {
 		w.Stop(purgeHighPrio)
 	}
