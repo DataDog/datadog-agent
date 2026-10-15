@@ -71,6 +71,9 @@ func TestEKSIstioAmbientSuite(t *testing.T) {
 	)
 }
 
+// TestKindCiliumIstioAmbientSuite isn't run in CI: on kind, eBPF reports the VM's PIDs while the
+// agent's /proc is the kind node's PID namespace, so system-probe often can't map a long-lived
+// process such as ztunnel to its container and the checks flake.
 func TestKindCiliumIstioAmbientSuite(t *testing.T) {
 	t.Parallel()
 	// Istio ambient needs Cilium to leave the CNI config to istio-cni too, and to keep socket
