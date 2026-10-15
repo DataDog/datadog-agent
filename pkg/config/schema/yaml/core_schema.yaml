@@ -5488,7 +5488,7 @@ properties:
           only:
             node_type: setting
             type: boolean
-            default: false
+            default: true
             comment: With an active recorder, record observations without
               feeding them into anomaly detection analysis.
           flush_interval:

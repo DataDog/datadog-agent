@@ -89,9 +89,9 @@ func TestRecordingOnly(t *testing.T) {
 		yaml string
 		want bool
 	}{
-		{name: "default", yaml: "", want: false},
-		{name: "enabled", yaml: "anomaly_detection:\n  recording:\n    only: true\n", want: true},
-		{name: "disabled", yaml: "anomaly_detection:\n  recording:\n    only: false\n", want: false},
+		{name: "default recording-only", yaml: "", want: true},
+		{name: "explicit true", yaml: "anomaly_detection:\n  recording:\n    only: true\n", want: true},
+		{name: "explicit false", yaml: "anomaly_detection:\n  recording:\n    only: false\n", want: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := compconfig.NewMockFromYAML(t, tt.yaml)

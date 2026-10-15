@@ -49,10 +49,12 @@ func TestRecordingOnlyHandleRouting(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
 		only         bool
+		omitOnly     bool
 		recorder     bool
 		consumer     bool
 		wantAnalysis bool
 	}{
+		{name: "recording only is the default when only is unset", omitOnly: true, recorder: true},
 		{name: "recording only", only: true, recorder: true},
 		{name: "recording only overrides analysis consumer", only: true, recorder: true, consumer: true},
 		{name: "recording with analysis consumer", recorder: true, consumer: true, wantAnalysis: true},
@@ -61,19 +63,22 @@ func TestRecordingOnlyHandleRouting(t *testing.T) {
 		{name: "only alone does not activate observer", only: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			onlySetting := fmt.Sprintf("    only: %t\n", tt.only)
+			if tt.omitOnly {
+				onlySetting = ""
+			}
 			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
 anomaly_detection:
   recording:
     enabled: %t
-    only: %t
-    output_dir: ""
+%s    output_dir: ""
   reporting:
     events:
       enabled: %t
   logs:
     internal:
       enabled: false
-`, tt.recorder, tt.only, tt.consumer))
+`, tt.recorder, onlySetting, tt.consumer))
 			recorder := &recordingOnlyTestRecorder{}
 			recorderOption := option.None[recorderdef.Component]()
 			if tt.recorder {
