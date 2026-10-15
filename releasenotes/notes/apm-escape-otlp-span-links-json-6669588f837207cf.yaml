@@ -1,6 +1,10 @@
 ---
 fixes:
   - |
-    APM : Fix invalid JSON in the ``_dd.span_links`` tag of spans received over OTLP when a
-    span link's tracestate, attribute keys, or attribute values contain quotes, backslashes,
-    control characters, or array and map values. These characters are now properly escaped.
+    APM : Spans received over OTLP now carry their span links in the native span
+    links field instead of a JSON-encoded ``_dd.span_links`` tag. This fixes span
+    links being dropped by the backend when the tag was invalid JSON (unescaped
+    characters in the tracestate or attributes, or truncation of large values), and
+    now preserves the link's W3C trace flags. Array and map attribute values are
+    flattened into ``key.0``, ``key.1``, ... and ``key.subkey`` entries, matching
+    Datadog tracers. The link's dropped attributes count is no longer reported.

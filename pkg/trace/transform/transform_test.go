@@ -6,7 +6,6 @@
 package transform
 
 import (
-	"encoding/json"
 	"math"
 	"strings"
 	"testing"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
@@ -1760,82 +1760,65 @@ func TestMarshalEventsReadOnly(t *testing.T) {
 	assert.Equal(t, uint32(1), events.At(2).DroppedAttributesCount())
 }
 
-// TestMarshalLinksEscaping: MarshalLinks must emit valid JSON whatever the tracestate and
-// attribute contents. Span link attributes are string-valued, so the output must also decode
-// into string attributes that round-trip the original tracestate, keys and values.
-func TestMarshalLinksEscaping(t *testing.T) {
-	const prefix = `{"trace_id":"0102030405060708090a0b0c0d0e0f10","span_id":"0102030405060708"`
-	type decodedLink struct {
-		TraceID                string            `json:"trace_id"`
-		SpanID                 string            `json:"span_id"`
-		Tracestate             string            `json:"tracestate"`
-		Attributes             map[string]string `json:"attributes"`
-		DroppedAttributesCount uint32            `json:"dropped_attributes_count"`
+func TestOTelSpanLinksToDD(t *testing.T) {
+	traceID := pcommon.TraceID([16]byte{0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef})
+	spanID := pcommon.SpanID([8]byte{0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89})
+	newLink := func(links ptrace.SpanLinkSlice) ptrace.SpanLink {
+		l := links.AppendEmpty()
+		l.SetTraceID(traceID)
+		l.SetSpanID(spanID)
+		return l
+	}
+	baseLink := func() *pb.SpanLink {
+		return &pb.SpanLink{TraceID: 0x0123456789abcdef, TraceIDHigh: 0xfedcba9876543210, SpanID: 0xabcdef0123456789}
 	}
 
 	for _, tt := range []struct {
-		name       string
-		tracestate string
-		attrs      func(m pcommon.Map)
-		want       string
-		// wantAttrs is what a string-valued decoder reads back from want.
-		wantAttrs map[string]string
+		name string
+		in   func(links ptrace.SpanLinkSlice)
+		want func() []*pb.SpanLink
 	}{
 		{
-			name:       "tracestate with quotes and backslashes",
-			tracestate: `dd=s:1;o:"rum",other=a\b`,
-			want:       prefix + `,"tracestate":"dd=s:1;o:\"rum\",other=a\\b"}`,
+			name: "ids only",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links) },
+			want: func() []*pb.SpanLink { return []*pb.SpanLink{baseLink()} },
 		},
 		{
-			name: "string values with special characters",
-			attrs: func(m pcommon.Map) {
-				m.PutStr("quote", `say "hi"`)
-				m.PutStr("backslash", `C:\path\to`)
-				m.PutStr("control", "line1\nline2\ttab\x00")
-				m.PutStr("html", `<a href="x">&</a>`)
-				m.PutStr("unicode", "héllo ✓")
+			name: "tracestate with special characters",
+			in: func(links ptrace.SpanLinkSlice) {
+				newLink(links).TraceState().FromRaw(`dd=s:1;o:"rum",other=a\b`)
 			},
-			want: prefix + `,"attributes":{"quote":"say \"hi\"","backslash":"C:\\path\\to",` +
-				`"control":"line1\nline2\ttab\u0000","html":"\u003ca href=\"x\"\u003e\u0026\u003c/a\u003e",` +
-				`"unicode":"héllo ✓"}}`,
-			wantAttrs: map[string]string{
-				"quote":     `say "hi"`,
-				"backslash": `C:\path\to`,
-				"control":   "line1\nline2\ttab\x00",
-				"html":      `<a href="x">&</a>`,
-				"unicode":   "héllo ✓",
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Tracestate = `dd=s:1;o:"rum",other=a\b`
+				return []*pb.SpanLink{l}
 			},
 		},
 		{
-			name: "keys with special characters",
-			attrs: func(m pcommon.Map) {
-				m.PutStr(`we"ird\key`, "v1")
-				m.PutStr("new\nline", "v2")
-			},
-			want:      prefix + `,"attributes":{"we\"ird\\key":"v1","new\nline":"v2"}}`,
-			wantAttrs: map[string]string{`we"ird\key`: "v1", "new\nline": "v2"},
-		},
-		{
-			name: "slice and map values",
-			attrs: func(m pcommon.Map) {
-				s := m.PutEmptySlice("slice")
-				s.AppendEmpty().SetStr("a")
-				s.AppendEmpty().SetStr(`b"c`)
-				s.AppendEmpty().SetInt(1)
-				nested := m.PutEmptyMap("map")
-				nested.PutStr("inner", "v")
-				nested.PutEmptySlice("list").AppendEmpty().SetBool(true)
-			},
-			want: prefix + `,"attributes":{"slice":"[\"a\",\"b\\\"c\",1]",` +
-				`"map":"{\"inner\":\"v\",\"list\":[true]}"}}`,
-			wantAttrs: map[string]string{
-				"slice": `["a","b\"c",1]`,
-				"map":   `{"inner":"v","list":[true]}`,
+			name: "sampled flag",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links).SetFlags(0x01) },
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Flags = 0x01 | 1<<31
+				return []*pb.SpanLink{l}
 			},
 		},
 		{
-			name: "non-string scalar values",
-			attrs: func(m pcommon.Map) {
+			// Bit 8 (has_is_remote) and bit 9 (is_remote) are OTLP-specific and dropped, but they
+			// show the sender set the flags, so a zero trace flags byte means "not sampled".
+			name: "unsampled flag with is_remote bits",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links).SetFlags(0x300) },
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Flags = 1 << 31
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "scalar attributes are stringified",
+			in: func(links ptrace.SpanLinkSlice) {
+				m := newLink(links).Attributes()
+				m.PutStr("str", `say "hi" \ there`)
 				m.PutInt("int", 42)
 				m.PutDouble("double", 2.5)
 				m.PutDouble("nan", math.NaN())
@@ -1843,42 +1826,57 @@ func TestMarshalLinksEscaping(t *testing.T) {
 				m.PutEmptyBytes("bytes").FromRaw([]byte{0xde, 0xad})
 				m.PutEmpty("empty")
 			},
-			want: prefix + `,"attributes":{"int":"42","double":"2.5","nan":"NaN","bool":"true",` +
-				`"bytes":"3q0=","empty":""}}`,
-			wantAttrs: map[string]string{
-				"int": "42", "double": "2.5", "nan": "NaN", "bool": "true", "bytes": "3q0=", "empty": "",
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{
+					"str": `say "hi" \ there`, "int": "42", "double": "2.5", "nan": "NaN", "bool": "true", "bytes": "3q0=", "empty": "",
+				}
+				return []*pb.SpanLink{l}
 			},
 		},
 		{
-			name: "invalid UTF-8",
-			attrs: func(m pcommon.Map) {
-				m.PutStr("k\xff", "v\xfe")
+			name: "slices and maps are flattened",
+			in: func(links ptrace.SpanLinkSlice) {
+				m := newLink(links).Attributes()
+				s := m.PutEmptySlice("slice")
+				s.AppendEmpty().SetStr("a")
+				s.AppendEmpty().SetInt(1)
+				s.AppendEmpty().SetEmptySlice().AppendEmpty().SetBool(false)
+				nested := m.PutEmptyMap("map")
+				nested.PutStr("inner", "v")
+				nested.PutEmptySlice("list").AppendEmpty().SetBool(true)
+				m.PutEmptySlice("empty_slice")
+				m.PutEmptyMap("empty_map")
 			},
-			want:      prefix + `,"attributes":{"k\ufffd":"v\ufffd"}}`,
-			wantAttrs: map[string]string{"k\uFFFD": "v\uFFFD"},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{
+					"slice.0": "a", "slice.1": "1", "slice.2.0": "false", "map.inner": "v", "map.list.0": "true",
+				}
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "multiple links",
+			in: func(links ptrace.SpanLinkSlice) {
+				newLink(links).Attributes().PutStr("k1", "v1")
+				l := links.AppendEmpty()
+				l.SetTraceID(pcommon.TraceID([16]byte{15: 1}))
+				l.SetSpanID(pcommon.SpanID([8]byte{7: 2}))
+				l.TraceState().FromRaw("dd=asdf256")
+				l.SetDroppedAttributesCount(3)
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{"k1": "v1"}
+				return []*pb.SpanLink{l, {TraceID: 1, SpanID: 2, Tracestate: "dd=asdf256"}}
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			links := ptrace.NewSpanLinkSlice()
-			l := links.AppendEmpty()
-			l.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
-			l.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
-			l.TraceState().FromRaw(tt.tracestate)
-			if tt.attrs != nil {
-				tt.attrs(l.Attributes())
-			}
-
-			got := MarshalLinks(links)
-			assert.Equal(t, "["+tt.want+"]", got)
-			require.True(t, json.Valid([]byte(got)), "MarshalLinks output is not valid JSON: %s", got)
-
-			var decoded []decodedLink
-			require.NoError(t, json.Unmarshal([]byte(got), &decoded))
-			require.Len(t, decoded, 1)
-			assert.Equal(t, "0102030405060708090a0b0c0d0e0f10", decoded[0].TraceID)
-			assert.Equal(t, "0102030405060708", decoded[0].SpanID)
-			assert.Equal(t, tt.tracestate, decoded[0].Tracestate)
-			assert.Equal(t, tt.wantAttrs, decoded[0].Attributes)
+			tt.in(links)
+			assert.Equal(t, tt.want(), OTelSpanLinksToDD(links))
 		})
 	}
 }
