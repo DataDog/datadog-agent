@@ -554,6 +554,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		ProcRoot:                       procRoot,
 		Rules:                          rules,
 		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
+		ExternalExcludes:               c.ExcludedNativeTLSProcesses,
 		EbpfConfig:                     &c.Config,
 		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,

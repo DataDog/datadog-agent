@@ -184,6 +184,7 @@ func NewSSLCertsProgram(mgr *manager.Manager, cfg *config.Config) (*SSLCertsProg
 		ProcRoot:                       procRoot,
 		Rules:                          rules,
 		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
+		ExternalExcludes:               cfg.ExcludedCertProcesses,
 		EbpfConfig:                     &cfg.Config,
 		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,

@@ -53,6 +53,8 @@ var (
 	ErrSelfExcluded = errors.New("self-excluded")
 	// ErrInternalDDogProcessRejected is returned when the PID is an internal datadog process.
 	ErrInternalDDogProcessRejected = errors.New("internal datadog process rejected")
+	// ErrExternalProcessRejected is returned when the PID is a configured external process to reject.
+	ErrExternalProcessRejected = errors.New("configured external process rejected")
 	// ErrNoMatchingRule is returned when no rule matches the shared library path.
 	ErrNoMatchingRule = errors.New("no matching rule")
 	// regex that defines internal DataDog processes
@@ -222,6 +224,9 @@ type AttacherConfig struct {
 
 	// ExcludeTargets defines the targets that should be excluded from the attacher
 	ExcludeTargets ExcludeMode
+
+	// ExternalExcludes defines the process names that should be excluded from the attacher
+	ExternalExcludes []string
 
 	// EbpfConfig is the configuration for the eBPF program
 	EbpfConfig *ebpf.Config
@@ -404,6 +409,8 @@ type UprobeAttacher struct {
 	attachLimiter *log.Limit
 
 	telemetry *uprobeAttacherTelemetry
+
+	excludeProcessMap map[string]struct{}
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -440,6 +447,12 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		scansPerPid:            make(map[uint32]int),
 		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 		telemetry:              newUprobeAttacherTelemetry(deps.Telemetry, name),
+	}
+	if len(config.ExternalExcludes) > 0 {
+		ua.excludeProcessMap = make(map[string]struct{})
+		for _, exclude := range config.ExternalExcludes {
+			ua.excludeProcessMap[exclude] = struct{}{}
+		}
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -714,17 +727,24 @@ func resolveExecutable(procInfo *ProcInfo) (string, error) {
 	return "", utils.NewUnknownAttachmentError(err)
 }
 
-func (ua *UprobeAttacher) rejectInternalProcess(procInfo *ProcInfo) error {
-	if (ua.config.ExcludeTargets & ExcludeInternal) == 0 {
-		return nil
+func (ua *UprobeAttacher) rejectProcess(procInfo *ProcInfo) error {
+	if ua.config.ExcludeTargets&ExcludeInternal != 0 {
+		binPath, err := resolveExecutable(procInfo)
+		if err != nil {
+			return err
+		}
+		if internalProcessRegex.MatchString(binPath) {
+			return ErrInternalDDogProcessRejected
+		}
 	}
-
-	binPath, err := resolveExecutable(procInfo)
-	if err != nil {
-		return err
-	}
-	if internalProcessRegex.MatchString(binPath) {
-		return ErrInternalDDogProcessRejected
+	if len(ua.excludeProcessMap) > 0 {
+		comm, err := procInfo.Comm()
+		if err != nil {
+			return err
+		}
+		if _, reject := ua.excludeProcessMap[comm]; reject {
+			return ErrExternalProcessRejected
+		}
 	}
 	return nil
 }
@@ -749,7 +769,7 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
 	}
 
 	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
-	if err := ua.rejectInternalProcess(procInfo); err != nil {
+	if err := ua.rejectProcess(procInfo); err != nil {
 		return err
 	}
 
@@ -803,7 +823,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (e
 	}
 
 	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
-	if err := ua.rejectInternalProcess(procInfo); err != nil {
+	if err := ua.rejectProcess(procInfo); err != nil {
 		return err
 	}
 

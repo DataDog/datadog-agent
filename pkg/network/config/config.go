@@ -219,6 +219,9 @@ type Config struct {
 	// EnableCertCollection enables the collection of TLS certificates via userspace probing
 	EnableCertCollection bool
 
+	// ExcludedCertProcesses specifies process which should be excluded from TLS certificate probing
+	ExcludedCertProcesses []string
+
 	// CertCollectionMapCleanerInterval is the interval between eBPF map cleaning for TLS cert collection
 	CertCollectionMapCleanerInterval time.Duration
 
@@ -312,6 +315,7 @@ func New() *Config {
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 
 		EnableCertCollection:             cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cert_collection")),
+		ExcludedCertProcesses:            cfg.GetStringSlice(sysconfig.FullKeyPath(netNS, "excluded_cert_processes")),
 		CertCollectionMapCleanerInterval: cfg.GetDuration(sysconfig.FullKeyPath(netNS, "cert_collection_map_cleaner_interval")),
 
 		DirectSend: cfg.GetBool(sysconfig.FullKeyPath(netNS, "direct_send")),
