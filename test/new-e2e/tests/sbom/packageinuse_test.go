@@ -585,6 +585,33 @@ func (s *packageInUseSuite) TestHostPackageInUse() {
 		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported sed in use after the listing")
 	})
 
+	// A read of a time zone leaves tzdata unused, as tzdata holds data alone,
+	// which no read puts in use, whatever process reads it. The same cat reads
+	// crictl, the positive control: the host SBOM that carries the read of
+	// crictl carries the read of the time zone too. cat starts two seconds into
+	// its unit (see hostExec).
+	s.Run("data", func() {
+		readAt := s.hostEpoch(shell)
+
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+
+			s.hostExec(c, shell, "sleep 2 && cat /usr/share/zoneinfo/UTC /usr/bin/crictl >/dev/null")
+
+			comps := newestHostSBOM(c, s.Fakeintake, time.Time{})
+			criTools := findComponent(comps, "cri-tools")
+			require.NotNilf(c, criTools, "no cri-tools in the host SBOM")
+			criToolsTS, _ := lastSeenRunning(criTools)
+			require.GreaterOrEqualf(c, criToolsTS, readAt, "cri-tools not reported in use since the read of /usr/bin/crictl yet")
+			tzdata := findComponent(comps, "tzdata")
+			require.NotNilf(c, tzdata, "no tzdata in the host SBOM")
+			tzdataTS, _ := lastSeenRunning(tzdata)
+			s.T().Logf("PKG-IN-USE[host] data: tzdata LastSeenRunning=%d, cri-tools LastSeenRunning=%d, read at %d", tzdataTS, criToolsTS, readAt)
+			assert.Lessf(c, tzdataTS, readAt, "the read of /usr/share/zoneinfo/UTC put tzdata in use")
+		}, 5*time.Minute, 15*time.Second, "the host SBOM never reported cri-tools in use after the read of /usr/bin/crictl")
+	})
+
 	s.Run("in-use", func() {
 		startedAt := s.hostEpoch(shell)
 

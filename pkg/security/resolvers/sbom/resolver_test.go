@@ -962,6 +962,111 @@ func createFile(t *testing.T, path string) string {
 	return path
 }
 
+// TestHoldsCode checks which files of a package can hold code that a process
+// runs: executables, shared libraries, kernel modules and interpreter modules.
+func TestHoldsCode(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		perm uint16
+		want bool
+	}{
+		{"/usr/share/zoneinfo/Europe/Paris", 0644, false},
+		{"/usr/share/ca-certificates/mozilla/ISRG_Root_X1.crt", 0644, false},
+		{"/usr/lib/os-release", 0644, false},
+		{"/usr/lib/modprobe.d/blacklist_linux_6.8.0-111-generic.conf", 0644, false},
+		{"/usr/share/crypto-policies/DEFAULT/openssl.txt", 0644, false},
+		{"/usr/bin/tcpdump", 0755, true},
+		{"/usr/lib/x86_64-linux-gnu/libc.so.6", 0644, true},
+		{"/usr/lib/x86_64-linux-gnu/libpcap.so", 0644, true},
+		{"/usr/lib/python3/dist-packages/requests/api.py", 0644, true},
+		{"/usr/lib/python3/dist-packages/requests/__pycache__/api.cpython-312.pyc", 0644, true},
+		{"/usr/lib/modules/6.8.0-139-generic/kernel/fs/xfs/xfs.ko.zst", 0644, true},
+		{"/usr/share/java/commons-io.jar", 0644, true},
+		{"/usr/lib64/libssl.so.1.0.2k", 0644, true},
+		{"/usr/lib/python3/dist-packages/_cffi_backend.cpython-312-x86_64-linux-gnu.so", 0644, true},
+		{"/usr/lib/erlang/lib/ssl-11.1/ebin/ssl.beam", 0644, true},
+		{"/usr/lib/mono/4.5/mscorlib.dll", 0644, true},
+		{"/usr/lib/modules/5.14.0-503.el9.x86_64/kernel/fs/xfs/xfs.ko.gz", 0644, true},
+		{"/etc/profile.d/which2.sh", 0644, false},
+		{"/etc/init.d/ssh", 0755, false},
+		{"/etc/ld.so.cache", 0644, false},
+		{"/usr/share/man/man8/ld.so.8.gz", 0644, false},
+		{"/usr/lib64/.libgcrypt.so.20.hmac", 0644, false},
+		{"/usr/lib/debug/usr/lib64/libc.so.6-2.39-22.el10.x86_64.debug", 0644, false},
+		{"/usr/lib/python3/dist-packages/requests-2.31.0.dist-info/METADATA", 0644, false},
+		{"/usr/lib/python3/dist-packages/requests-2.31.0.dist-info/RECORD", 0644, false},
+	} {
+		file := &model.FileEvent{}
+		file.SetPathnameStr(tc.path)
+		file.Mode = syscall.S_IFREG | tc.perm
+		if got := holdsCode(file); got != tc.want {
+			t.Errorf("holdsCode(%s, %o) = %v, want %v", tc.path, tc.perm, got, tc.want)
+		}
+	}
+}
+
+// TestResolveOpenCountsCodeFiles checks that the open of a package file records
+// usage when the file can hold code, on the host as in a container, and that a
+// run records usage whatever the file.
+func TestResolveOpenCountsCodeFiles(t *testing.T) {
+	report := []sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "tzdata", Version: "2026c"}, InstalledFiles: []string{"/usr/share/zoneinfo/UTC"}},
+		{Package: sbomtypes.Package{Name: "libc6", Version: "2.39"}, InstalledFiles: []string{"/usr/lib/x86_64-linux-gnu/libc.so.6"}},
+	}
+	for _, tc := range []struct {
+		name      string
+		container bool
+		run       bool
+		path      string
+		records   bool
+	}{
+		{name: "open of a host data file", path: "/usr/share/zoneinfo/UTC"},
+		{name: "open of a host shared library", path: "/usr/lib/x86_64-linux-gnu/libc.so.6", records: true},
+		{name: "open of a container data file", container: true, path: "/usr/share/zoneinfo/UTC"},
+		{name: "open of a container shared library", container: true, path: "/usr/lib/x86_64-linux-gnu/libc.so.6", records: true},
+		{name: "run of a host data file", run: true, path: "/usr/share/zoneinfo/UTC", records: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.hostSBOM.setReport(report)
+			sbom := r.hostSBOM
+
+			pc, _ := hostAccess()
+			if tc.container {
+				sbom = NewSBOM("container-id", nil, "image:tag")
+				sbom.setReport(report)
+				sbom.state.Store(computedState)
+				t.Cleanup(sbom.stop)
+				sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+				if err != nil {
+					t.Fatalf("NewLRU: %v", err)
+				}
+				sboms.Add(sbom.ContainerID, sbom)
+				r.sboms = sboms
+				pc.ContainerContext.ContainerID = sbom.ContainerID
+			}
+
+			file := &model.FileEvent{}
+			file.SetPathnameStr(tc.path)
+			file.Mode = syscall.S_IFREG | 0644
+			if tc.run {
+				r.ResolvePackage(pc, file)
+			} else {
+				r.ResolveOpen(pc, file)
+				r.recordSettled(time.Now().Add(settleDelay))
+			}
+
+			pkg := sbom.data.files.queryFile(tc.path)
+			if pkg == nil {
+				t.Fatalf("no package owns %s", tc.path)
+			}
+			if got := !pkg.LastAccess.IsZero(); got != tc.records {
+				t.Errorf("usage of %s recorded = %v, want %v", pkg.Name, got, tc.records)
+			}
+		})
+	}
+}
+
 // removeFile deletes the file at path, as rpm deletes an executable it removes.
 func removeFile(t *testing.T, path string) {
 	t.Helper()
