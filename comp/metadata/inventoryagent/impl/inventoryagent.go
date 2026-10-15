@@ -90,7 +90,9 @@ type inventoryagent struct {
 	client       ipc.HTTPClient
 	// See iainterface.Capabilities for the meaning of these fields.
 	skipFullAgentMetadataRefresh bool
-	payloadUUID                  func() string
+	validatePayload              func(fields map[string]interface{}) error
+	// uuidOverride is the payload uuid supplied through SetBatch; guarded by m.
+	uuidOverride string
 }
 
 // Requires defines the dependencies for the inventoryagent component
@@ -131,13 +133,16 @@ func NewComponent(deps Requires) Provides {
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
-	// Without Capabilities the payload is always ready for submission.
+	// Without Capabilities the payload always submits.
 	if deps.Capabilities != nil {
-		// Present Capabilities construct the payload closed until the first
-		// SetBatch opens it.
-		ia.SetReady(false)
+		if deps.Capabilities.Disabled {
+			ia.Enabled = false
+		}
 		ia.skipFullAgentMetadataRefresh = deps.Capabilities.SkipFullAgentMetadataRefresh
-		ia.payloadUUID = deps.Capabilities.PayloadUUID
+		ia.validatePayload = deps.Capabilities.ValidatePayload
+		if ia.validatePayload != nil {
+			ia.InventoryPayload.SetSubmissionGate(ia.gateSubmission)
+		}
 	}
 
 	if ia.Enabled {
@@ -500,10 +505,11 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 	}
 }
 
-// SetBatch applies a complete field set atomically: readers never observe a
-// partial batch. Readiness is unchanged; a closed payload records the update
-// but submits nothing. The given values are stored without being copied.
-func (ia *inventoryagent) SetBatch(fields map[string]interface{}) {
+// SetBatch applies a complete field set and the payload uuid atomically, under
+// one lock: no reader observes the previous uuid or a partial batch once it
+// returns. An empty uuid keeps the host machine GUID. The given values are
+// stored without being copied.
+func (ia *inventoryagent) SetBatch(fields map[string]interface{}, uuid string) {
 	if !ia.Enabled {
 		return
 	}
@@ -511,7 +517,8 @@ func (ia *inventoryagent) SetBatch(fields map[string]interface{}) {
 	ia.log.Debugf("setting inventory agent metadata batch of %d values", len(fields))
 
 	ia.m.Lock()
-	changed := false
+	changed := uuid != ia.uuidOverride
+	ia.uuidOverride = uuid
 	for name, value := range fields {
 		if !reflect.DeepEqual(ia.data[name], value) {
 			ia.data[name] = value
@@ -523,6 +530,14 @@ func (ia *inventoryagent) SetBatch(fields map[string]interface{}) {
 	if changed {
 		ia.Refresh()
 	}
+}
+
+// gateSubmission reports why the current payload may not be submitted; every
+// submission path consults it before building and sending.
+func (ia *inventoryagent) gateSubmission() error {
+	ia.m.Lock()
+	defer ia.m.Unlock()
+	return ia.validatePayload(ia.data)
 }
 
 func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
@@ -590,12 +605,11 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	}
 }
 
-// getUUID resolves the uuid override when one is supplied, otherwise the host machine GUID.
+// getUUID resolves the uuid supplied through SetBatch, otherwise the host
+// machine GUID.
 func (ia *inventoryagent) getUUID() string {
-	if ia.payloadUUID != nil {
-		if id := ia.payloadUUID(); id != "" {
-			return id
-		}
+	if ia.uuidOverride != "" {
+		return ia.uuidOverride
 	}
 	return uuid.GetUUID()
 }

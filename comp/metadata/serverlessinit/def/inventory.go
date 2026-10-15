@@ -8,9 +8,6 @@ package serverlessinit
 import (
 	"errors"
 	"strings"
-	"sync/atomic"
-
-	"github.com/google/uuid"
 
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -74,36 +71,6 @@ type InventoryProvider interface {
 	// GetInventoryData returns the per-platform serverless fields for the
 	// inventory metadata payload.
 	GetInventoryData() InventoryData
-}
-
-// PayloadUUID is the uuid reported by every inventory payload of this
-// process. The fx wiring shares one instance between the inventoryagent
-// capabilities — which resolve it per payload — and the component, which
-// rotates it when the platform identity changes. Serverless containers do
-// not share a host GUID, so the uuid starts fresh per process.
-type PayloadUUID struct {
-	current atomic.Pointer[string]
-}
-
-// NewPayloadUUID returns a holder carrying a fresh process uuid.
-func NewPayloadUUID() *PayloadUUID {
-	u := &PayloadUUID{}
-	id := uuid.New().String()
-	u.current.Store(&id)
-	return u
-}
-
-// Rotate replaces the reported uuid.
-func (u *PayloadUUID) Rotate(id string) {
-	u.current.Store(&id)
-}
-
-// Get returns the current uuid.
-func (u *PayloadUUID) Get() string {
-	if p := u.current.Load(); p != nil {
-		return *p
-	}
-	return ""
 }
 
 // InventoryEligible reports whether the serverless inventory payload may be

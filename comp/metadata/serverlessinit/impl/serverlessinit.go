@@ -29,8 +29,11 @@ type serverlessinitComp struct {
 	params         serverlessinit.Params
 	conf           config.Component
 	log            log.Component
-	uuid           *serverlessinit.PayloadUUID
 	eligible       bool
+	// uuid is the payload uuid for the current identity, rotated when the
+	// identity changes; a same-identity resume keeps it. Serverless containers
+	// do not share a host GUID, so it starts fresh per publish.
+	uuid           string
 	lastResourceID string
 }
 
@@ -50,9 +53,6 @@ type Requires struct {
 	Provider serverlessinit.InventoryProvider
 	// Runner runs the periodic submissions of the inventoryagent payload.
 	Runner runnerdef.Component
-	// UUID is the process uuid reported by every payload, shared with the
-	// inventoryagent capabilities through the fx wiring.
-	UUID *serverlessinit.PayloadUUID
 }
 
 // Provides defines the output of the serverlessinit component
@@ -71,7 +71,6 @@ func NewComponent(deps Requires) Provides {
 		params:         deps.Params,
 		conf:           deps.Config,
 		log:            deps.Log,
-		uuid:           deps.UUID,
 		eligible:       serverlessinit.InventoryEligible(deps.Config, deps.Provider),
 	}
 
@@ -86,11 +85,12 @@ func NewComponent(deps Requires) Provides {
 }
 
 // applyFields installs the full field set for the provider's current identity,
-// rotating the payload uuid when the identity changed — a same-identity
-// resume keeps it. It reports whether the built field set satisfied every
-// payload rule: an insufficient set is neither applied nor opened, so nothing
-// is submitted. The close → rotate → batch → open ordering keeps a concurrent
-// serialization from mixing a rotated uuid with the previous field set.
+// rotating the payload uuid when the identity changed — a same-identity resume
+// keeps it. It reports whether the built field set passed validation: an
+// invalid set is not applied, and the submission gate withholds any payload
+// without a resource id. Field set and uuid land in one atomic batch, so a
+// concurrent serialization never mixes a rotated uuid with the previous
+// field set.
 func (c *serverlessinitComp) applyFields() bool {
 	if !c.eligible {
 		return false
@@ -102,13 +102,11 @@ func (c *serverlessinitComp) applyFields() bool {
 		return false
 	}
 
-	c.inventoryAgent.SetReady(false)
 	if data.ResourceID != c.lastResourceID {
-		c.uuid.Rotate(uuid.New().String())
+		c.uuid = uuid.New().String()
 		c.lastResourceID = data.ResourceID
 	}
-	c.inventoryAgent.SetBatch(fields)
-	c.inventoryAgent.SetReady(true)
+	c.inventoryAgent.SetBatch(fields, c.uuid)
 	return true
 }
 
