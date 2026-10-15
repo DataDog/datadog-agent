@@ -59,6 +59,8 @@ exporters:
         max_size: 0
         min_size: 8192
         partition:
+          cache_size: 10000
+          idle_timeout: 90000000000
           metadata_keys:
         sizer: {}
       block_on_overflow: false
