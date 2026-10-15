@@ -604,3 +604,32 @@ func TestApplyPostDispatchProcessUpdates(t *testing.T) {
 		})
 	}
 }
+
+// TestProcfsScript checks that the replay takes the script of a process read
+// from procfs, and leaves the processes of exec events, which name their
+// script, as they are.
+func TestProcfsScript(t *testing.T) {
+	args := &model.ArgsEntry{Values: []string{"/usr/bin/python3", "/opt/app/daemon.py"}}
+	tests := []struct {
+		name   string
+		source uint64
+		args   *model.ArgsEntry
+		want   string
+	}{
+		{"snapshot", model.ProcessCacheEntryFromSnapshot, args, "/opt/app/daemon.py"},
+		{"procfs", model.ProcessCacheEntryFromProcFS, args, "/opt/app/daemon.py"},
+		{"exec event", model.ProcessCacheEntryFromEvent, args, ""},
+		{"kernel map", model.ProcessCacheEntryFromKernelMap, args, ""},
+		{"no arguments", model.ProcessCacheEntryFromSnapshot, nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := &model.ProcessCacheEntry{}
+			entry.Comm = "daemon.py"
+			entry.FileEvent.SetPathnameStr("/usr/bin/python3.12")
+			entry.Source = tt.source
+			entry.ArgsEntry = tt.args
+			assert.Equal(t, tt.want, procfsScript(entry))
+		})
+	}
+}
