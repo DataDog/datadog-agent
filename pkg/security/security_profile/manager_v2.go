@@ -158,6 +158,7 @@ type ManagerV2 struct {
 	localStorage              *storage.Directory
 	remoteStorage             *storage.ActivityDumpRemoteStorageForwarder
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
+	persistLock               sync.Mutex
 
 	profilePendingEvents     map[containerutils.CGroupID]*pendingProfile
 	profilePendingEventsLock sync.Mutex
@@ -420,6 +421,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			m.persistAllProfilesLocal()
 			return
 		case <-sendTickerChan:
 			m.persistAllProfiles()
@@ -575,18 +577,46 @@ func (m *ManagerV2) profileHasActiveInstances(prof *profile.Profile) bool {
 	return len(prof.Instances) > 0
 }
 
-// persistAllProfiles encodes and persists all profiles to configured storage backends
-func (m *ManagerV2) persistAllProfiles() {
+func (m *ManagerV2) snapshotProfiles() []*profile.Profile {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
+	profiles := make([]*profile.Profile, 0, len(m.profiles))
 	for _, p := range m.profiles {
-		m.persistProfile(p)
+		profiles = append(profiles, p)
+	}
+	return profiles
+}
+
+// persistAllProfiles encodes and persists all profiles to configured storage backends
+func (m *ManagerV2) persistAllProfiles() {
+	profiles := m.snapshotProfiles()
+
+	m.persistLock.Lock()
+	defer m.persistLock.Unlock()
+
+	for _, p := range profiles {
+		_ = m.persistProfile(p)
+	}
+}
+
+func (m *ManagerV2) persistAllProfilesLocal() {
+	profiles := m.snapshotProfiles()
+
+	m.persistLock.Lock()
+	defer m.persistLock.Unlock()
+
+	for _, p := range profiles {
+		_ = m.persistProfileWithOptions(p, true, false)
 	}
 }
 
 // persistProfile encodes and persists a single profile to all configured storage backends
-func (m *ManagerV2) persistProfile(p *profile.Profile) {
+func (m *ManagerV2) persistProfile(p *profile.Profile) error {
+	return m.persistProfileWithOptions(p, false, true)
+}
+
+func (m *ManagerV2) persistProfileWithOptions(p *profile.Profile, localOnly bool, markSent bool) error {
 	enabled := p.IsEnabled()
 
 	// Group sibling files into patterns before encoding, even in
@@ -598,9 +628,14 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	}
 	p.Unlock()
 
+	var errs error
+	persistedAny := false
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
 		for _, request := range requests {
+			if localOnly && request.Type != config.LocalStorage {
+				continue
+			}
 			// Avoid sending a disabled profile to the backend
 			if !enabled && request.Type != config.LocalStorage {
 				continue
@@ -612,23 +647,29 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 				data, err = p.Encode(format)
 				if err != nil {
 					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
+					errs = errors.Join(errs, err)
 					break
 				}
 				encoded[format] = data
 			}
 
-			m.persistProfileToStorage(p, request, data)
+			if err := m.persistProfileToStorage(p, request, data); err != nil {
+				errs = errors.Join(errs, err)
+			} else {
+				persistedAny = true
+			}
 		}
 	}
 
-	if enabled {
+	if markSent && enabled && persistedAny {
 		p.SetHasAlreadyBeenSent()
 	}
+	return errs
 }
 
 // persistProfileToStorage persists profile data to a specific storage backend
 // should we send profiles that have not changed ? Just setting a proper time interval should be enough ?
-func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.StorageRequest, data *bytes.Buffer) {
+func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.StorageRequest, data *bytes.Buffer) error {
 	var storageBackend storage.ActivityDumpStorage
 	switch request.Type {
 	case config.LocalStorage:
@@ -636,16 +677,18 @@ func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.S
 	case config.RemoteStorage:
 		storageBackend = m.remoteStorage
 	default:
-		seclog.Errorf("couldn't persist [%s]: unknown storage type: %s", p.GetSelectorStr(), request.Type)
-		return
+		err := fmt.Errorf("couldn't persist [%s]: unknown storage type: %s", p.GetSelectorStr(), request.Type)
+		seclog.Errorf("%v", err)
+		return err
 	}
 
 	if err := storageBackend.Persist(request, p, data); err != nil {
 		seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
-		return
+		return err
 	}
 
 	m.sendPersistenceMetrics(request, data.Len())
+	return nil
 }
 
 // sendPersistenceMetrics accumulates persistence metrics after successful profile persistence.
@@ -1247,18 +1290,21 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 		return
 	}
 
+	prof.Lock()
 	prof.InstancesLock.Lock()
-	defer prof.InstancesLock.Unlock()
-
-	// Check if already tracked
 	workloadID := workload.GetWorkloadID()
 	for _, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
+			prof.InstancesLock.Unlock()
+			prof.Unlock()
 			return
 		}
 	}
-
 	prof.Instances = append(prof.Instances, workload)
+	prof.Metadata.ContainerID = workload.GCroupCacheEntry.GetContainerID()
+	prof.Metadata.CGroupContext = workload.GCroupCacheEntry.GetCGroupContext()
+	prof.InstancesLock.Unlock()
+	prof.Unlock()
 
 	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
 }
@@ -1374,25 +1420,38 @@ func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uin
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
 // Returns (removed, remainingInstances) - whether the workload was found and removed, and the remaining instance count
 func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgroupModel.CacheEntry) (bool, int) {
-	prof.InstancesLock.Lock()
-	defer prof.InstancesLock.Unlock()
-
 	var workloadID containerutils.WorkloadID
 	if !cgce.IsContainerContextNull() {
 		workloadID = cgce.GetContainerID()
 	} else if cgce.IsCGroupContextResolved() {
 		workloadID = cgce.GetCGroupID()
 	} else {
-		return false, len(prof.Instances)
+		prof.InstancesLock.Lock()
+		remaining := len(prof.Instances)
+		prof.InstancesLock.Unlock()
+		return false, remaining
 	}
 
+	prof.Lock()
+	prof.InstancesLock.Lock()
+	removed := false
 	for i, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
 			prof.Instances = slices.Delete(prof.Instances, i, i+1)
-			return true, len(prof.Instances)
+			removed = true
+			if n := len(prof.Instances); n > 0 {
+				activeEntry := prof.Instances[n-1].GCroupCacheEntry
+				prof.Metadata.ContainerID = activeEntry.GetContainerID()
+				prof.Metadata.CGroupContext = activeEntry.GetCGroupContext()
+			}
+			break
 		}
 	}
-	return false, len(prof.Instances)
+	remaining := len(prof.Instances)
+	prof.InstancesLock.Unlock()
+	prof.Unlock()
+
+	return removed, remaining
 }
 
 // getOrCreateProfile retrieves an existing profile or creates a new one for the given selector.
@@ -1815,17 +1874,6 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 	return result
 }
 
-// ============================================================================
-// NO-OP METHODS - ProfileManager Interface Compatibility
-// ============================================================================
-//
-// The following methods are no-ops in ManagerV2. They exist solely to satisfy
-// the ProfileManager interface, allowing V1 and V2 managers to be used
-// interchangeably through the same interface.
-//
-// These methods will be removed once V2 is fully validated and V1 is deprecated.
-// ============================================================================
-
 // HandleSampleRefresh handles a sample refresh event from the kernel.
 // It updates the LastSeen timestamp of the process node associated with the given cookie.
 func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
@@ -1928,6 +1976,117 @@ func (m *ManagerV2) purgeOrphanedCookies() int {
 	return removed
 }
 
+// ListActivityDumps returns the in-memory profiles formatted as activity dump messages.
+func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &api.ActivityDumpListMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	timeout := m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout
+	var dumps []*api.ActivityDumpMessage
+	for _, p := range m.profiles {
+		dumps = append(dumps, p.ToSecurityActivityDumpMessage(timeout, m.configuredStorageRequests))
+	}
+	return &api.ActivityDumpListMessage{
+		Dumps: dumps,
+	}, nil
+}
+
+func profileMatchesStopParams(p *profile.Profile, params *api.ActivityDumpStopParams) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	if name := params.GetName(); name != "" && p.Metadata.Name == name {
+		return true
+	}
+
+	p.InstancesLock.Lock()
+	defer p.InstancesLock.Unlock()
+
+	hasActiveInstances := len(p.Instances) > 0
+	if cid := containerutils.ContainerID(params.GetContainerID()); cid != "" {
+		for _, inst := range p.Instances {
+			if inst.GCroupCacheEntry.GetContainerID() == cid {
+				return true
+			}
+		}
+		if !hasActiveInstances && p.Metadata.ContainerID == cid {
+			return true
+		}
+	}
+	if cgid := containerutils.CGroupID(params.GetCGroupID()); cgid != "" {
+		for _, inst := range p.Instances {
+			if inst.GCroupCacheEntry.GetCGroupID() == cgid {
+				return true
+			}
+		}
+		if !hasActiveInstances && p.Metadata.CGroupContext.CGroupID == cgid {
+			return true
+		}
+	}
+	return false
+}
+
+// StopActivityDump flushes the matching profile to configured storage backends on demand without ending the profile's learning window.
+func (m *ManagerV2) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &api.ActivityDumpStopMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+
+	if params.GetName() == "" && params.GetContainerID() == "" && params.GetCGroupID() == "" {
+		err := errors.New("you must specify one selector between name, containerID and cgroupID")
+		return &api.ActivityDumpStopMessage{Error: err.Error()}, err
+	}
+
+	m.profilesLock.Lock()
+	var matched *profile.Profile
+	for _, p := range m.profiles {
+		if profileMatchesStopParams(p, params) {
+			matched = p
+			break
+		}
+	}
+	m.profilesLock.Unlock()
+
+	if matched != nil {
+		m.persistLock.Lock()
+		err := m.persistProfileWithOptions(matched, false, false)
+		m.persistLock.Unlock()
+		if err != nil {
+			return &api.ActivityDumpStopMessage{Error: err.Error()}, err
+		}
+		return &api.ActivityDumpStopMessage{}, nil
+	}
+
+	var err error
+	if params.GetName() != "" {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following name: %s", params.GetName())
+	} else if params.GetContainerID() != "" {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following containerID: %s", params.GetContainerID())
+	} else {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following cgroup ID: %s", params.GetCGroupID())
+	}
+	return &api.ActivityDumpStopMessage{Error: err.Error()}, err
+}
+
+// ============================================================================
+// NO-OP METHODS - ProfileManager Interface Compatibility
+// ============================================================================
+//
+// The following methods are no-ops in ManagerV2. They exist solely to satisfy
+// the ProfileManager interface, allowing V1 and V2 managers to be used
+// interchangeably through the same interface.
+//
+// These methods will be removed once V2 is fully validated and V1 is deprecated.
+// ============================================================================
+
 // LookupEventInProfiles lookups event in profiles.
 // NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds
 // profiles from activity dump samples. The profile lookup/filtering logic from V1 is not
@@ -1947,18 +2106,6 @@ func (m *ManagerV2) HandleCGroupTracingEvent(_ *model.CgroupTracingEvent) {}
 // SyncTracedCgroups recovers lost CGroup tracing events by going through the kernel space map of cgroups.
 // NO-OP in V2: V2 doesn't manage kernel-space traced cgroups maps.
 func (m *ManagerV2) SyncTracedCgroups() {}
-
-// ListActivityDumps lists the activity dumps.
-// NO-OP in V2: V2 doesn't expose individual activity dumps through this API.
-func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	return nil, nil
-}
-
-// StopActivityDump stops an active activity dump.
-// NO-OP in V2: V2 doesn't manage activity dumps the traditional way.
-func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	return nil, nil
-}
 
 // DumpActivity dumps the activity.
 // NO-OP in V2: V2 doesn't support on-demand activity dumping through this API.
