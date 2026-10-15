@@ -140,6 +140,14 @@ entries:
   function: TestAuthArtifactIPCSecurityWindowsSuite
   status: untriaged
   reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
+- file: test/new-e2e/tests/agent-runtimes/infra-mode/infra_basic_common_test.go
+  function: basicSuite.TestAdditionalCheckWorks
+  status: debt
+  reason: Configures http_check against public http://example.com; should target a local endpoint instead.
+- file: test/new-e2e/tests/agent-runtimes/infra-mode/infra_basic_common_test.go
+  function: basicSuite.getSuiteOptions
+  status: untriaged
+  reason: 'TODO(@DataDog/agent-runtimes): no Internet dependency found in code; confirm or remove the opt-in'
 - file: test/new-e2e/tests/agent-runtimes/infra-mode/infra_eudm_common_test.go
   function: eudmSuite.getSuiteOptions
   status: untriaged
