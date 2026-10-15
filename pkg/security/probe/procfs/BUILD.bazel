@@ -37,6 +37,7 @@ dd_agent_go_test(
     srcs = [
         "proc_mem_test.go",
         "snapshot_bound_sockets_test.go",
+        "snapshot_mmapped_files_test.go",
     ],
     embed = [":procfs"],
     deps = select({
