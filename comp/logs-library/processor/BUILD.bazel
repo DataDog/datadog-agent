@@ -11,6 +11,7 @@ go_library(
         "processor.go",
         "proto.go",
         "raw.go",
+        "sync_processor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/processor",
     visibility = ["//visibility:public"],
@@ -31,6 +32,7 @@ dd_agent_go_test(
     srcs = [
         "encoder_test.go",
         "processor_test.go",
+        "sync_processor_test.go",
     ],
     embed = [":processor"],
     deps = [
@@ -40,5 +42,6 @@ dd_agent_go_test(
         "//pkg/logs/sources",
         "@com_github_datadog_agent_payload_v5//pb",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

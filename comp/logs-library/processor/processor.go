@@ -241,6 +241,12 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
+	return applyProcessingRules(msg, p.processingRules)
+}
+
+// applyProcessingRules applies processingRules and the rules of the message source to msg, in place,
+// and returns false when a rule filters the message out.
+func applyProcessingRules(msg *message.Message, processingRules []*config.ProcessingRule) bool {
 	var content = msg.GetContent()
 
 	// Use the internal scrubbing implementation of the Agent
@@ -250,7 +256,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	if msg.Origin != nil && msg.Origin.LogSource != nil {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
-	rules := append(p.processingRules, extraRules...)
+	rules := append(processingRules, extraRules...)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
@@ -295,14 +301,18 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 // GetHostname returns the hostname to applied the given log message
 func (p *Processor) GetHostname(msg *message.Message) string {
+	return hostnameFor(msg, p.hostname)
+}
+
+func hostnameFor(msg *message.Message, hostname hostnameinterface.Component) string {
 	if msg.Hostname != "" {
 		return msg.Hostname
 	}
 
-	if p.hostname == nil {
+	if hostname == nil {
 		return "unknown"
 	}
-	hname, err := p.hostname.Get(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		// this scenario is not likely to happen since
 		// the agent cannot start without a hostname
