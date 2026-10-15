@@ -30,8 +30,12 @@ func (m *mockInventoryAgent) Set(name string, value interface{}) {
 func (m *mockInventoryAgent) Get() map[string]interface{} {
 	return m.data
 }
-func (m *mockInventoryAgent) SetReady(bool) {}
-func (m *mockInventoryAgent) Submit()       {}
+func (m *mockInventoryAgent) SetBatch(fields map[string]interface{}) {
+	for name, value := range fields {
+		m.data[name] = value
+	}
+}
+func (m *mockInventoryAgent) Submit() {}
 
 // Mock simple pour le lifecycle
 type mockLifecycle struct {
