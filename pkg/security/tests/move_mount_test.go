@@ -114,6 +114,10 @@ type MountEnvironment struct {
 	mountDir       string
 	submountDirSrc string
 	submountDirDst string
+
+	// [do not merge] TestMoveMountRecursivePropagation flakiness debug: mount id -> path of every
+	// mount the environment created, so stray setup events can be told apart from the moved tree.
+	dbgSetupMountIDs map[uint32]string
 }
 
 func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error) {
@@ -128,6 +132,11 @@ func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error
 		return nil, err
 	}
 	unix.Close(fd)
+
+	r.dbgSetupMountIDs = map[uint32]string{}
+	if id, err := getMountID(mountDir); err == nil {
+		r.dbgSetupMountIDs[id] = mountDir
+	}
 
 	if private {
 		// Make this mount private, so that the second mount doesn't propagate to all namespaces
@@ -172,6 +181,7 @@ func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error
 	}
 
 	mountIDsToPath[id] = "/"
+	r.dbgSetupMountIDs[id] = r.submountDirSrc
 
 	mountSubDir := func(subdir string) error {
 		fullpath := r.submountDirSrc + "/" + subdir
@@ -194,6 +204,7 @@ func newTestEnvironment(private bool, mountDir string) (*MountEnvironment, error
 		}
 
 		mountIDsToPath[id] = "/" + subdir
+		r.dbgSetupMountIDs[id] = fullpath
 		return nil
 	}
 
@@ -288,69 +299,210 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 	defer test.CloseTest()
 
 	t.Run("moved-recursive-with-propagation", func(t *testing.T) {
-		// allMounts is written from the probe event handler goroutine and read
-		// from the test goroutine after GetProbeEvent returns. GetProbeEvent
-		// does not wait for in-flight callbacks on timeout, so we need our own
-		// synchronization to avoid a data race.
-		var allMountsMu sync.Mutex
-		allMounts := map[uint32]uint32{}
+		dbgMoveMountRecursiveOnce(t, test, "test", true)
+	})
+}
 
-		te, err := newTestEnvironment(false, t.TempDir())
-		if err != nil {
-			t.Fatal(err)
+// [do not merge] moveMountDbgResult is what one run of the moved-recursive-with-propagation
+// sequence saw.
+type moveMountDbgResult struct {
+	failed        bool // the original assertion would have failed
+	accepted      int  // move_mount tmpfs events the callback accepted
+	straySetup    int  // accepted events whose mount id is one of the environment's setup mounts
+	strayBefore   int  // accepted events timestamped before the MoveMount call
+	drained       int  // events consumed by the drain
+	drainedMove   int  // move_mount events consumed by the drain
+	drainDuration time.Duration
+}
+
+func dbgMonotonicNs() uint64 {
+	var ts unix.Timespec
+	_ = unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts)
+	return uint64(ts.Nano())
+}
+
+// dbgDrainProbeEvents is DrainProbeEvents (same 250ms quiet period / 1s cap) that also reports
+// what it consumed.
+func dbgDrainProbeEvents(test *testModule) (total, moveMounts int, took time.Duration) {
+	const (
+		drainQuietPeriod = 250 * time.Millisecond
+		drainMaxWait     = time.Second
+	)
+	var mu sync.Mutex
+	seen := make(chan struct{}, 1)
+	test.RegisterProbeEventHandler(func(e *model.Event) {
+		mu.Lock()
+		total++
+		if e.GetEventType() == model.FileMoveMountEventType {
+			moveMounts++
 		}
-		defer te.UnmountAll()
-
-		fd, err := unix.OpenTree(0, te.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer unix.Close(fd)
-
-		test.DrainProbeEvents()
-
-		err = test.GetProbeEvent(func() error {
-			err = unix.MoveMount(fd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
-
-			if err != nil {
-				t.Fatal("Err moving mount:", err)
-			}
-			if err == nil {
-				for i := 0; i != len(te.tounmount); i++ {
-					te.tounmount[i] = strings.Replace(te.tounmount[i], te.submountDirSrc, te.submountDirDst, 1)
-				}
-			}
-			return nil
-		}, func(event *model.Event) bool {
-			if event.GetType() != "move_mount" || event.Mount.FSType != "tmpfs" {
-				return false
-			}
-			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
-			allMountsMu.Lock()
-			allMounts[event.Mount.MountID]++
-			allMountsMu.Unlock()
-			return false
-		}, 5*time.Second, model.FileMoveMountEventType)
-
-		allMountsMu.Lock()
-		assert.GreaterOrEqual(t, len(allMounts), 3, "Not all mount events were obtained")
-		mountIDs := make([]uint32, 0, len(allMounts))
-		for id := range allMounts {
-			mountIDs = append(mountIDs, id)
-		}
-		allMountsMu.Unlock()
-
-		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-		for _, i := range mountIDs {
-			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
-
-			if len(path) == 0 || !strings.Contains(path, "tmp1") && !strings.Contains(path, "tmp2") {
-				// Some paths aren't being fully resolved due to missing mounts in the chain
-				// Need to figure out what are these mount points and why they aren't to be found anywhere
-				continue
-			}
-
-			assert.True(t, strings.Contains(path, te.submountDirDst), fmt.Sprintf("Path %s wasn't moved. Destination=%s", path, te.submountDirDst))
+		mu.Unlock()
+		select {
+		case seen <- struct{}{}:
+		default:
 		}
 	})
+	defer test.RegisterProbeEventHandler(nil)
+
+	begin := time.Now()
+	deadline := time.After(drainMaxWait)
+loop:
+	for {
+		select {
+		case <-seen:
+		case <-time.After(drainQuietPeriod):
+			break loop
+		case <-deadline:
+			break loop
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	return total, moveMounts, time.Since(begin)
+}
+
+// dbgMoveMountRecursiveOnce runs the moved-recursive-with-propagation sequence. With assertions,
+// it behaves like the original subtest; without, it only reports whether it would have failed.
+func dbgMoveMountRecursiveOnce(t *testing.T, test *testModule, label string, assertions bool) moveMountDbgResult {
+	var res moveMountDbgResult
+
+	// allMounts is written from the probe event handler goroutine and read
+	// from the test goroutine after GetProbeEvent returns. GetProbeEvent
+	// does not wait for in-flight callbacks on timeout, so we need our own
+	// synchronization to avoid a data race.
+	var allMountsMu sync.Mutex
+	allMounts := map[uint32]uint32{}
+	var accepted []string
+
+	te, err := newTestEnvironment(false, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer te.UnmountAll()
+
+	fd, err := unix.OpenTree(0, te.submountDirSrc, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+
+	res.drained, res.drainedMove, res.drainDuration = dbgDrainProbeEvents(test)
+
+	var moveStart, moveEnd uint64
+	err = test.GetProbeEvent(func() error {
+		moveStart = dbgMonotonicNs()
+		err = unix.MoveMount(fd, "", unix.AT_FDCWD, te.submountDirDst, unix.MOVE_MOUNT_F_EMPTY_PATH)
+		moveEnd = dbgMonotonicNs()
+
+		if err != nil {
+			t.Fatal("Err moving mount:", err)
+		}
+		if err == nil {
+			for i := 0; i != len(te.tounmount); i++ {
+				te.tounmount[i] = strings.Replace(te.tounmount[i], te.submountDirSrc, te.submountDirDst, 1)
+			}
+		}
+		return nil
+	}, func(event *model.Event) bool {
+		if event.GetType() != "move_mount" || event.Mount.FSType != "tmpfs" {
+			return false
+		}
+		if assertions {
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
+		}
+		setupPath, isSetup := te.dbgSetupMountIDs[event.Mount.MountID]
+		before := event.TimestampRaw < moveStart
+		allMountsMu.Lock()
+		allMounts[event.Mount.MountID]++
+		res.accepted++
+		if isSetup {
+			res.straySetup++
+		}
+		if before {
+			res.strayBefore++
+		}
+		accepted = append(accepted, fmt.Sprintf("{mount_id=%d pid=%d ts=%d ts-move_start=%dns before_move=%v setup_mount=%v setup_path=%q mountpoint=%q}",
+			event.Mount.MountID, event.ProcessContext.Pid, event.TimestampRaw, int64(event.TimestampRaw)-int64(moveStart), before, isSetup, setupPath, event.Mount.MountPointStr))
+		allMountsMu.Unlock()
+		return false
+	}, 5*time.Second, model.FileMoveMountEventType)
+
+	allMountsMu.Lock()
+	if assertions {
+		assert.GreaterOrEqual(t, len(allMounts), 3, "Not all mount events were obtained")
+	}
+	if len(allMounts) < 3 {
+		res.failed = true
+	}
+	mountIDs := make([]uint32, 0, len(allMounts))
+	for id := range allMounts {
+		mountIDs = append(mountIDs, id)
+	}
+	allMountsMu.Unlock()
+
+	var failing []string
+	p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	for _, i := range mountIDs {
+		path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
+
+		if len(path) == 0 || !strings.Contains(path, "tmp1") && !strings.Contains(path, "tmp2") {
+			// Some paths aren't being fully resolved due to missing mounts in the chain
+			// Need to figure out what are these mount points and why they aren't to be found anywhere
+			continue
+		}
+
+		if !strings.Contains(path, te.submountDirDst) {
+			res.failed = true
+			_, isSetup := te.dbgSetupMountIDs[i]
+			failing = append(failing, fmt.Sprintf("{mount_id=%d path=%q setup_mount=%v}", i, path, isSetup))
+		}
+		if assertions {
+			assert.True(t, strings.Contains(path, te.submountDirDst), fmt.Sprintf("Path %s wasn't moved. Destination=%s", path, te.submountDirDst))
+		}
+	}
+
+	if res.failed || assertions {
+		t.Logf("MOVEMOUNTDBG %s: failed=%v accepted=%d stray_setup=%d stray_before_move=%d drained=%d drained_move_mount=%d drain_took=%s move_start=%d move_took=%dns setup_ids=%v failing=%v accepted_events=%v",
+			label, res.failed, res.accepted, res.straySetup, res.strayBefore, res.drained, res.drainedMove, res.drainDuration,
+			moveStart, moveEnd-moveStart, te.dbgSetupMountIDs, failing, accepted)
+	}
+	return res
+}
+
+// [do not merge] TestMoveMountRecursivePropagationStress loops the sequence to measure how often it
+// would fail and whether every failure is explained by stray setup events.
+func TestMoveMountRecursivePropagationStress(t *testing.T) {
+	SkipIfNotAvailable(t)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test in Docker environment")
+	}
+	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
+		t.Skip("move_mount syscall is not supported on this platform")
+	}
+
+	test, err := newTestModule(t, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	const iterations = 300
+	var failed, failedExplained, withStraySetup, withStrayBefore int
+	for i := 0; i < iterations; i++ {
+		res := dbgMoveMountRecursiveOnce(t, test, fmt.Sprintf("stress iter=%d", i), false)
+		if res.straySetup > 0 {
+			withStraySetup++
+		}
+		if res.strayBefore > 0 {
+			withStrayBefore++
+		}
+		if res.failed {
+			failed++
+			if res.straySetup > 0 {
+				failedExplained++
+			}
+		}
+	}
+	t.Logf("MOVEMOUNTDBG stress summary: iterations=%d failed=%d failed_with_stray_setup=%d iterations_with_stray_setup=%d iterations_with_stray_before_move=%d",
+		iterations, failed, failedExplained, withStraySetup, withStrayBefore)
 }

@@ -230,6 +230,7 @@ func dumpSyscallsCache(t *testing.T, test *testModule, where string) {
 // the variant that reproduces names the trigger.
 func TestMountUmountStress(t *testing.T) {
 	SkipIfNotAvailable(t)
+	t.Skip("[do not merge] umount investigation concluded (reproduced in iteration 4); skipped while debugging TestMoveMountRecursivePropagation")
 	if ebpfLessEnabled {
 		t.Skip("eBPF only")
 	}
