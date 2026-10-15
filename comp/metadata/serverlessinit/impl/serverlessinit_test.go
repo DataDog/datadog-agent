@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -78,6 +79,7 @@ func newTestComponent(t *testing.T, inventoryEnabled bool, provider *fakeProvide
 	uuid := serverlessinit.NewPayloadUUID()
 	comp := NewComponent(Requires{
 		Lc:             lc,
+		Log:            logmock.New(t),
 		Config:         conf,
 		Params:         params,
 		InventoryAgent: ia,
