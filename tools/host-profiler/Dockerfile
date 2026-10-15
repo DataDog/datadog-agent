@@ -1,4 +1,5 @@
 FROM debian:trixie-slim AS dda
+ARG GIT_VERSION=2.51.0
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
@@ -10,6 +11,12 @@ RUN ARCH=$(dpkg --print-architecture) && \
     curl -fsSL --retry 4 "https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${DDA_ARCH}-unknown-linux-gnu.tar.gz" \
     | tar -xzf - -C /usr/local/bin && \
     chmod +x /usr/local/bin/dda
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential curl gettext libcurl4-openssl-dev libexpat1-dev libssl-dev zlib1g-dev \
+    && curl -fsSL "https://www.kernel.org/pub/software/scm/git/git-${GIT_VERSION}.tar.xz" | tar -xJ \
+    && cd "git-${GIT_VERSION}" \
+    && make prefix=/usr/local NO_TCLTK=1 NO_GETTEXT=1 -j"$(nproc)" \
+    && make prefix=/usr/local NO_TCLTK=1 NO_GETTEXT=1 DESTDIR=/out install
 
 FROM golang:1.26.9-trixie
 
@@ -27,6 +34,7 @@ RUN cross_debian_arch=$(uname -m | sed -e 's/aarch64/amd64/'  -e 's/x86_64/arm64
 
 COPY --from=dda /usr/local/bin/dda /usr/local/bin/dda
 ENV DDA_INTERACTIVE=false
+COPY --from=dda /out/usr/local /usr/local
 
 ARG UID
 ARG GID

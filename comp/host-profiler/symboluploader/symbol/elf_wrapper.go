@@ -8,7 +8,6 @@
 package symbol
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -61,58 +60,31 @@ type SectionInfo struct {
 }
 
 func (e *elfWrapper) Close() error {
-	if e.reader != nil {
-		e.reader.Close()
-	}
 	return e.elfFile.Close()
 }
 
-func newElfWrapperFromVDSO(m *process.RawMapping, pr process.Process) (ef *elfWrapper, err error) {
-	// vdso is not backed by a file
-	data := make([]byte, m.Length)
-	_, err = pr.GetRemoteMemory().ReadAt(data, int64(m.Vaddr))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read vdso memory for PID %d: %w", pr.PID(), err)
-	}
-	r := bytes.NewReader(data)
-	elfFile, err := pfelf.NewFile(r, 0, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create elf file from vdso memory for PID %d: %w", pr.PID(), err)
-	}
-	return &elfWrapper{elfFile: elfFile, data: data, helper: &ProcessFileHelper{pid: pr.PID()}}, nil
-}
-
 func newElfWrapperFromMapping(m *process.RawMapping, pr process.Process) (ef *elfWrapper, err error) {
-	if m.IsVDSO() {
-		return newElfWrapperFromVDSO(m, pr)
-	}
-
-	elfFile, err := pr.OpenELF(m.Path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open ELF file %s for PID %d: %w", m.Path, pr.PID(), err)
-	}
-	defer func() {
-		if err != nil {
-			elfFile.Close()
-		}
-	}()
-
-	r, err := pr.OpenMappingFile(m)
+	f, err := pr.OpenMappingFile(m)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
-	defer func() {
-		if err != nil {
-			r.Close()
-		}
-	}()
 
-	f, ok := r.(*os.File)
+	elfFile, err := pfelf.NewFileFromFS(f)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create elf file from mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
+	}
+
+	osFile, ok := f.(*os.File)
 	if !ok {
+		elfFile.Close()
 		return nil, fmt.Errorf("failed to cast mapping file %s to *os.File for PID %d", m.Path, pr.PID())
 	}
 
-	return newElfWrapper(elfFile, m.Path, f, &ProcessFileHelper{pid: pr.PID()}, nil)
+	ef, err = newElfWrapper(elfFile, m.Path, osFile, &ProcessFileHelper{pid: pr.PID()}, nil)
+	if err != nil {
+		_ = elfFile.Close()
+	}
+	return ef, err
 }
 
 func newElfWrapperFromFile(filePath string, helper FileHelper) (ef *elfWrapper, err error) {
@@ -121,29 +93,21 @@ func newElfWrapperFromFile(filePath string, helper FileHelper) (ef *elfWrapper, 
 		return nil, err
 	}
 
-	elfFile, err := pfelf.Open(procFilePath)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if err != nil {
-			elfFile.Close()
-		}
-	}()
-
 	f, err := os.Open(procFilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	defer func() {
-		if err != nil {
-			f.Close()
-		}
-	}()
+	elfFile, err := pfelf.NewFileFromFS(f)
+	if err != nil {
+		return nil, err
+	}
 
-	return newElfWrapper(elfFile, filePath, f, helper, nil)
+	ef, err = newElfWrapper(elfFile, filePath, f, helper, nil)
+	if err != nil {
+		_ = elfFile.Close()
+	}
+	return ef, err
 }
 
 func newElfWrapper(elfFile *pfelf.File, filePath string, reader *os.File, helper FileHelper, data []byte) (*elfWrapper, error) {
