@@ -243,18 +243,6 @@ func setOverride(key string, val interface{}) {
 	}
 }
 
-// configureInventory must run before Fx constructs the inventoryagent component and
-// snapshots its enabled state. Never re-enable a user-disabled inventory pipeline.
-func configureInventory(cloudService cloudservice.CloudService) {
-	if serverlessinit.InventoryEligible(pkgconfigsetup.Datadog(), cloudService) {
-		return
-	}
-	if !cloudService.CanCollectInventory() {
-		log.Info("serverless-init inventory disabled: cloud service cannot collect inventory")
-	}
-	setOverride("inventories_enabled", false)
-}
-
 // wrappedCommand returns the in-container wrapped application argv. Sidecar
 // argv is not the workload, so sidecar mode supplies no command.
 func wrappedCommand() []string {
@@ -334,10 +322,6 @@ func main() {
 		EnhancedMetric:      serverlessTag.MapToArray(tagConfig.EnhancedMetricTags),
 		EnhancedUsageMetric: serverlessTag.MapToArray(tagConfig.EnhancedUsageMetricTags),
 	}
-
-	// Gate before Fx construction, including provider registration: the
-	// serverlessinit component stays inert otherwise.
-	configureInventory(cloudService)
 
 	err := fxutil.OneShot(
 		run,
