@@ -763,11 +763,6 @@ properties:
         type: boolean
         default: false
         comment: Subscribes to LOGS_QUOTA and drops logs matching active quota rules.
-      mock_rc_dir:
-        node_type: setting
-        type: string
-        default: ""
-        comment: Prototype only. Directory of *.json files fed to the enforcer as if they were LOGS_QUOTA configs.
       rc_product:
         node_type: setting
         type: string

@@ -8,8 +8,6 @@ package agentimpl
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -23,11 +21,8 @@ import (
 
 const (
 	quotaEnabledKey   = "logs_config.quota_enforcement.enabled"
-	quotaMockDirKey   = "logs_config.quota_enforcement.mock_rc_dir"
 	quotaRCProductKey = "logs_config.quota_enforcement.rc_product"
 	quotaSourceRC     = "rc"
-	quotaSourceMock   = "mock"
-	quotaMockInterval = 2 * time.Second
 	hostTagsRefresh   = 10 * time.Minute
 )
 
@@ -82,7 +77,7 @@ func (m *quotaManager) start(context.Context) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	m.done = make(chan struct{})
-	go m.run(ctx, m.config.GetString(quotaMockDirKey))
+	go m.run(ctx)
 	return nil
 }
 
@@ -94,22 +89,12 @@ func (m *quotaManager) stop(context.Context) error {
 	return nil
 }
 
-func (m *quotaManager) run(ctx context.Context, mockDir string) {
+func (m *quotaManager) run(ctx context.Context) {
 	defer close(m.done)
 
 	m.refreshHostTags(ctx, false)
 	hostTicker := time.NewTicker(hostTagsRefresh)
 	defer hostTicker.Stop()
-
-	var mockTick <-chan time.Time
-	var last map[string][]byte
-	if mockDir != "" {
-		m.log.Infof("Logs quota enforcement: reading mock LOGS_QUOTA configs from %s", mockDir)
-		t := time.NewTicker(quotaMockInterval)
-		defer t.Stop()
-		mockTick = t.C
-		last = m.pollMockDir(mockDir, nil)
-	}
 
 	for {
 		select {
@@ -117,8 +102,6 @@ func (m *quotaManager) run(ctx context.Context, mockDir string) {
 			return
 		case <-hostTicker.C:
 			m.refreshHostTags(ctx, true)
-		case <-mockTick:
-			last = m.pollMockDir(mockDir, last)
 		}
 	}
 }
@@ -126,46 +109,4 @@ func (m *quotaManager) run(ctx context.Context, mockDir string) {
 func (m *quotaManager) refreshHostTags(ctx context.Context, cached bool) {
 	tags := hosttags.Get(ctx, cached, m.config).System
 	m.enforcer.SetHostTagsProvider(func() []string { return tags })
-}
-
-// pollMockDir feeds each *.json file in dir to the enforcer as a LOGS_QUOTA config.
-func (m *quotaManager) pollMockDir(dir string, last map[string][]byte) map[string][]byte {
-	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
-	if err != nil {
-		m.log.Warnf("Logs quota mock: %v", err)
-		return last
-	}
-	configs := make(map[string][]byte, len(files))
-	for _, f := range files {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			m.log.Warnf("Logs quota mock: %v", err)
-			continue
-		}
-		configs[filepath.Base(f)] = b
-	}
-	if last != nil && sameConfigs(last, configs) {
-		return last
-	}
-
-	for path, err := range m.enforcer.Update(quotaSourceMock, configs) {
-		if err != nil {
-			m.log.Warnf("Logs quota mock: rejected %s: %v", path, err)
-		} else {
-			m.log.Infof("Logs quota mock: acknowledged %s", path)
-		}
-	}
-	return configs
-}
-
-func sameConfigs(a, b map[string][]byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if w, ok := b[k]; !ok || string(v) != string(w) {
-			return false
-		}
-	}
-	return true
 }
