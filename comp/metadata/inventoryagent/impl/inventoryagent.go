@@ -131,8 +131,11 @@ func NewComponent(deps Requires) Provides {
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
+	// Without Capabilities the payload is always ready for submission.
 	if deps.Capabilities != nil {
-		ia.SetReady(!deps.Capabilities.DeferUntilReady)
+		// Present Capabilities construct the payload closed until the first
+		// SetBatch opens it.
+		ia.SetReady(false)
 		ia.skipFullAgentMetadataRefresh = deps.Capabilities.SkipFullAgentMetadataRefresh
 		ia.payloadUUID = deps.Capabilities.PayloadUUID
 	}
@@ -495,6 +498,33 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 		ia.data[name] = value
 		ia.Refresh()
 	}
+}
+
+// SetBatch applies a complete field set atomically: readers never observe a
+// partial batch. It also opens the payload, so a component constructed closed
+// publishes exactly when its owner applies a full field set. The given values
+// are stored without being copied.
+func (ia *inventoryagent) SetBatch(fields map[string]interface{}) {
+	if !ia.Enabled {
+		return
+	}
+
+	ia.log.Debugf("setting inventory agent metadata batch of %d values", len(fields))
+
+	ia.m.Lock()
+	changed := false
+	for name, value := range fields {
+		if !reflect.DeepEqual(ia.data[name], value) {
+			ia.data[name] = value
+			changed = true
+		}
+	}
+	ia.m.Unlock()
+
+	if changed {
+		ia.Refresh()
+	}
+	ia.InventoryPayload.SetReady(true)
 }
 
 func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
