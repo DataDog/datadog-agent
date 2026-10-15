@@ -1056,6 +1056,9 @@
 /test/e2e-framework/scenarios/aws/ecs/                          @DataDog/ecs-experiences
 /test/e2e-framework/scenarios/aws/integrations/                 @DataDog/agent-integrations
 /tasks/e2e_framework/aws/integrations/                          @DataDog/agent-integrations
+/test/e2e-framework/scenarios/aws/gensim-eks/                   @DataDog/agent-anomaly-detection
+/tasks/e2e_framework/aws/gensim_eks.py                          @DataDog/agent-anomaly-detection
+/tasks/unit_tests/gensim_eks_tests.py                           @DataDog/agent-anomaly-detection
 /test/e2e-framework/resources/aws/ecs/                          @DataDog/ecs-experiences
 /test/e2e-framework/components/ecs/                             @DataDog/ecs-experiences
 /test/e2e-framework/components/datadog/agent/ecs.go             @DataDog/ecs-experiences

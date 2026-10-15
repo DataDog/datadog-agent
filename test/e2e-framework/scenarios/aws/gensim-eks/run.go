@@ -32,8 +32,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	e2econfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -112,10 +114,39 @@ func Run(ctx *pulumi.Context) error {
 	if mode == "" {
 		mode = "record-parquet"
 	}
+	flushInterval := cfg.Get("flushInterval")
+	if flushInterval == "" {
+		flushInterval = "1m"
+	}
+	retention := cfg.Get("retention")
+	if retention == "" {
+		retention = "90m"
+	}
+	recordingOnly := cfg.Get("recordingOnly")
+	if recordingOnly == "" {
+		recordingOnly = "false"
+	}
+	clusterName := cfg.Get("clusterName")
+	if clusterName == "" {
+		clusterName = "gensim"
+	}
+	runID := cfg.Get("runId")
 
 	// If no episodes are specified, stop here — cluster-only mode.
 	if episodes == "" {
 		return nil
+	}
+
+	valuesCfg := agentValuesConfig{
+		AgentImage:    agentImage,
+		Mode:          mode,
+		FlushInterval: flushInterval,
+		Retention:     retention,
+		RecordingOnly: recordingOnly,
+		ClusterName:   clusterName,
+	}
+	if _, err := renderAgentValuesWithConfig(valuesCfg); err != nil {
+		return err
 	}
 
 	// ── Kubernetes provider ───────────────────────────────────────────────────
@@ -164,6 +195,7 @@ func Run(ctx *pulumi.Context) error {
 	if imageRegistry != "" && episodeDataDir != "" {
 		var buildVM *remote.Host
 		var installDep command.Command
+		seenEpisodes := make(map[string]bool)
 
 		pairs := strings.Split(episodes, ",")
 		for _, p := range pairs {
@@ -172,6 +204,10 @@ func Run(ctx *pulumi.Context) error {
 				continue
 			}
 			episode := strings.SplitN(p, ":", 2)[0]
+			if seenEpisodes[episode] {
+				continue
+			}
+			seenEpisodes[episode] = true
 			episodePath, findErr := findEpisodeDir(episodeDataDir, episode)
 			if findErr != nil {
 				return findErr
@@ -194,7 +230,7 @@ func Run(ctx *pulumi.Context) error {
 	// ── Orchestrator Job ─────────────────────────────────────────────────────
 	if err := deployOrchestratorJob(
 		ctx, &awsEnv, kubeProvider, sa, ddSecret,
-		episodes, agentImage, gensimSha, namespace, s3Bucket, imageRegistry, episodeDataDir, mode,
+		episodes, gensimSha, namespace, s3Bucket, imageRegistry, episodeDataDir, runID, valuesCfg,
 	); err != nil {
 		return err
 	}
@@ -269,6 +305,108 @@ func deployPersistentResources(
 	return sa, ddSecret, nil
 }
 
+// episodeConfigSpec describes the grouped ConfigMap/volume specification for one episode directory.
+type episodeConfigSpec struct {
+	Episode       string
+	Sanitized     string
+	ConfigMapName string
+	VolumeName    string
+	MountPath     string
+	Scenarios     []string
+	Data          map[string]string
+	BinaryData    map[string]string
+}
+
+// groupEpisodeConfigs parses episode:scenario pairs and groups scenarios from the same
+// episode directory into a single ConfigMap/Volume specification to avoid duplicate
+// Pulumi and Kubernetes resource names.
+func groupEpisodeConfigs(episodeDataDir, episodes string) ([]episodeConfigSpec, error) {
+	pairs := strings.Split(episodes, ",")
+	type epGroup struct {
+		episode       string
+		scenarios     []string
+		seenScenarios map[string]bool
+	}
+	var ordered []*epGroup
+	byEpisode := make(map[string]*epGroup)
+
+	for _, p := range pairs {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		parts := strings.SplitN(p, ":", 2)
+		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+			return nil, fmt.Errorf("invalid episode:scenario pair %q (expected episode:scenario)", p)
+		}
+		epName := strings.TrimSpace(parts[0])
+		scenName := strings.TrimSpace(parts[1])
+		grp, ok := byEpisode[epName]
+		if !ok {
+			grp = &epGroup{
+				episode:       epName,
+				seenScenarios: make(map[string]bool),
+			}
+			byEpisode[epName] = grp
+			ordered = append(ordered, grp)
+		}
+		if !grp.seenScenarios[scenName] {
+			grp.seenScenarios[scenName] = true
+			grp.scenarios = append(grp.scenarios, scenName)
+		}
+	}
+	if len(ordered) == 0 {
+		return nil, fmt.Errorf("no valid episode:scenario pairs in %q", episodes)
+	}
+
+	specs := make([]episodeConfigSpec, 0, len(ordered))
+	for _, grp := range ordered {
+		epDir, findErr := findEpisodeDir(episodeDataDir, grp.episode)
+		if findErr != nil {
+			return nil, findErr
+		}
+		playScriptContent, err := os.ReadFile(filepath.Join(epDir, "play-episode.sh"))
+		if err != nil {
+			return nil, fmt.Errorf("reading play-episode.sh for episode %q: %w", grp.episode, err)
+		}
+		data := map[string]string{
+			"play-episode.sh": string(playScriptContent),
+		}
+		for _, scen := range grp.scenarios {
+			scenarioContent, err := os.ReadFile(filepath.Join(epDir, "episodes", scen+".yaml"))
+			if err != nil {
+				return nil, fmt.Errorf("reading scenario %q for episode %q: %w", scen, grp.episode, err)
+			}
+			data[scen+".yaml"] = string(scenarioContent)
+		}
+
+		chartDir := filepath.Join(epDir, "chart")
+		chartTarball, err := createTarGz(chartDir)
+		if err != nil {
+			return nil, fmt.Errorf("creating chart tarball for episode %q: %w", grp.episode, err)
+		}
+		if len(chartTarball) > 500*1024 {
+			fmt.Printf("WARNING: chart tarball for episode %q is %d bytes (>500KB); ConfigMap limit is 1MiB total\n", grp.episode, len(chartTarball))
+		}
+		chartTarballB64 := base64.StdEncoding.EncodeToString(chartTarball)
+
+		sanitized := strings.ToLower(strings.ReplaceAll(grp.episode, "_", "-"))
+		specs = append(specs, episodeConfigSpec{
+			Episode:       grp.episode,
+			Sanitized:     sanitized,
+			ConfigMapName: "gensim-ep-" + sanitized,
+			VolumeName:    "ep-" + sanitized,
+			MountPath:     "/episodes/" + grp.episode,
+			Scenarios:     grp.scenarios,
+			Data:          data,
+			BinaryData: map[string]string{
+				"chart.tar.gz": chartTarballB64,
+			},
+		})
+	}
+	return specs, nil
+}
+
 // deployOrchestratorJob creates per-episode ConfigMaps and the orchestrator Job
 // that drives episode execution inside the cluster.
 func deployOrchestratorJob(
@@ -278,33 +416,19 @@ func deployOrchestratorJob(
 	sa *corev1.ServiceAccount,
 	ddSecret *corev1.Secret,
 	episodes string,
-	agentImage string,
 	gensimSha string,
 	namespace string,
 	s3Bucket string,
 	imageRegistry string,
 	episodeDataDir string,
-	mode string,
+	runID string,
+	valuesCfg agentValuesConfig,
 ) error {
 	kubeOpts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider)}
 
-	// Parse episode:scenario pairs.
-	pairs := strings.Split(episodes, ",")
-	type epPair struct {
-		episode  string
-		scenario string
-	}
-	var parsed []epPair
-	for _, p := range pairs {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		parts := strings.SplitN(p, ":", 2)
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid episode:scenario pair %q (expected episode:scenario)", p)
-		}
-		parsed = append(parsed, epPair{episode: parts[0], scenario: parts[1]})
+	groupedSpecs, err := groupEpisodeConfigs(episodeDataDir, episodes)
+	if err != nil {
+		return err
 	}
 
 	// ── Per-episode ConfigMaps ──────────────────────────────────────────────
@@ -312,49 +436,24 @@ func deployOrchestratorJob(
 	var episodeVolumeMounts corev1.VolumeMountArray
 	var episodeConfigMaps []pulumi.Resource
 
-	for _, ep := range parsed {
-		epDir, findErr := findEpisodeDir(episodeDataDir, ep.episode)
-		if findErr != nil {
-			return findErr
+	for _, spec := range groupedSpecs {
+		dataMap := pulumi.StringMap{}
+		for k, v := range spec.Data {
+			dataMap[k] = pulumi.String(v)
 		}
-		playScriptContent, err := os.ReadFile(filepath.Join(epDir, "play-episode.sh"))
-		if err != nil {
-			return fmt.Errorf("reading play-episode.sh for episode %q: %w", ep.episode, err)
-		}
-		scenarioContent, err := os.ReadFile(filepath.Join(epDir, "episodes", ep.scenario+".yaml"))
-		if err != nil {
-			return fmt.Errorf("reading scenario %q for episode %q: %w", ep.scenario, ep.episode, err)
+		binMap := pulumi.StringMap{}
+		for k, v := range spec.BinaryData {
+			binMap[k] = pulumi.String(v)
 		}
 
-		// Create chart tarball from the episode's chart/ directory.
-		chartDir := filepath.Join(epDir, "chart")
-		chartTarball, err := createTarGz(chartDir)
-		if err != nil {
-			return fmt.Errorf("creating chart tarball for episode %q: %w", ep.episode, err)
-		}
-		if len(chartTarball) > 500*1024 {
-			fmt.Printf("WARNING: chart tarball for episode %q is %d bytes (>500KB); ConfigMap limit is 1MiB total\n", ep.episode, len(chartTarball))
-		}
-		chartTarballB64 := base64.StdEncoding.EncodeToString(chartTarball)
-
-		// Kubernetes names must be lowercase RFC 1123: [a-z0-9-.]
-		sanitized := strings.ToLower(strings.ReplaceAll(ep.episode, "_", "-"))
-		cmName := "gensim-ep-" + sanitized
-		volName := "ep-" + sanitized
-
-		cm, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("ep-cm-"+sanitized),
+		cm, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("ep-cm-"+spec.Sanitized),
 			&corev1.ConfigMapArgs{
 				Metadata: metav1.ObjectMetaArgs{
-					Name:      pulumi.String(cmName),
+					Name:      pulumi.String(spec.ConfigMapName),
 					Namespace: pulumi.String(namespace),
 				},
-				Data: pulumi.StringMap{
-					"play-episode.sh":     pulumi.String(string(playScriptContent)),
-					ep.scenario + ".yaml": pulumi.String(string(scenarioContent)),
-				},
-				BinaryData: pulumi.StringMap{
-					"chart.tar.gz": pulumi.String(chartTarballB64),
-				},
+				Data:       dataMap,
+				BinaryData: binMap,
 			}, kubeOpts...)
 		if err != nil {
 			return err
@@ -362,21 +461,26 @@ func deployOrchestratorJob(
 		episodeConfigMaps = append(episodeConfigMaps, cm)
 
 		episodeVolumes = append(episodeVolumes, corev1.VolumeArgs{
-			Name: pulumi.String(volName),
+			Name: pulumi.String(spec.VolumeName),
 			ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
-				Name: pulumi.String(cmName),
+				Name: pulumi.String(spec.ConfigMapName),
 			},
 		})
 		episodeVolumeMounts = append(episodeVolumeMounts, corev1.VolumeMountArgs{
-			Name:      pulumi.String(volName),
-			MountPath: pulumi.String("/episodes/" + ep.episode),
+			Name:      pulumi.String(spec.VolumeName),
+			MountPath: pulumi.String(spec.MountPath),
 		})
 	}
 
 	// ── Agent values ConfigMap ───────────────────────────────────────────────
-	renderedValues, err := renderAgentValues(agentImage, mode)
+	renderedValues, err := renderAgentValuesWithConfig(valuesCfg)
 	if err != nil {
 		return err
+	}
+	flushDur, _ := time.ParseDuration(valuesCfg.FlushInterval)
+	flushSecs := int(flushDur.Seconds())
+	if flushSecs <= 0 {
+		flushSecs = 60
 	}
 	agentValuesCM, err := corev1.NewConfigMap(ctx, awsEnv.Namer.ResourceName("agent-values-cm"),
 		&corev1.ConfigMapArgs{
@@ -464,12 +568,19 @@ func deployOrchestratorJob(
 									},
 									corev1.EnvVarArgs{Name: pulumi.String("DD_SITE"), Value: pulumi.StringPtr(awsEnv.Site())},
 									corev1.EnvVarArgs{Name: pulumi.String("EPISODES"), Value: pulumi.StringPtr(episodes)},
-									corev1.EnvVarArgs{Name: pulumi.String("AGENT_IMAGE"), Value: pulumi.StringPtr(agentImage)},
+									corev1.EnvVarArgs{Name: pulumi.String("AGENT_IMAGE"), Value: pulumi.StringPtr(valuesCfg.AgentImage)},
 									corev1.EnvVarArgs{Name: pulumi.String("GENSIM_SHA"), Value: pulumi.StringPtr(gensimSha)},
 									corev1.EnvVarArgs{Name: pulumi.String("S3_BUCKET"), Value: pulumi.StringPtr(s3Bucket)},
 									corev1.EnvVarArgs{Name: pulumi.String("KUBE_NAMESPACE"), Value: pulumi.StringPtr(namespace)},
 									corev1.EnvVarArgs{Name: pulumi.String("IMAGE_REGISTRY"), Value: pulumi.StringPtr(imageRegistry)},
-									corev1.EnvVarArgs{Name: pulumi.String("GENSIM_MODE"), Value: pulumi.StringPtr(mode)},
+									corev1.EnvVarArgs{Name: pulumi.String("GENSIM_MODE"), Value: pulumi.StringPtr(valuesCfg.Mode)},
+									corev1.EnvVarArgs{Name: pulumi.String("RUN_ID"), Value: pulumi.StringPtr(runID)},
+									corev1.EnvVarArgs{Name: pulumi.String("CLUSTER_NAME"), Value: pulumi.StringPtr(valuesCfg.ClusterName)},
+									corev1.EnvVarArgs{Name: pulumi.String("RECORDING_OUTPUT_DIR"), Value: pulumi.StringPtr("/tmp/observer-metrics")},
+									corev1.EnvVarArgs{Name: pulumi.String("RECORDING_FLUSH_INTERVAL"), Value: pulumi.StringPtr(valuesCfg.FlushInterval)},
+									corev1.EnvVarArgs{Name: pulumi.String("RECORDING_FLUSH_SECONDS"), Value: pulumi.StringPtr(strconv.Itoa(flushSecs))},
+									corev1.EnvVarArgs{Name: pulumi.String("RECORDING_RETENTION"), Value: pulumi.StringPtr(valuesCfg.Retention)},
+									corev1.EnvVarArgs{Name: pulumi.String("RECORDING_ONLY"), Value: pulumi.StringPtr(valuesCfg.RecordingOnly)},
 								},
 								VolumeMounts: episodeVolumeMounts,
 							},
@@ -490,15 +601,99 @@ var orchestratorScript string
 //go:embed agent-values.yaml.tmpl
 var agentValuesTmpl string
 
+type agentValuesConfig struct {
+	AgentImage    string
+	Mode          string
+	FlushInterval string
+	Retention     string
+	RecordingOnly string
+	ClusterName   string
+}
+
 // renderAgentValues renders the agent Helm values template with the given image and mode.
-// mode is one of "record-parquet" or "live-anomaly-detection".
+// mode is one of "record-parquet", "live-anomaly-detection", or "live-and-record".
 func renderAgentValues(agentImage, mode string) (string, error) {
+	return renderAgentValuesWithConfig(agentValuesConfig{
+		AgentImage:    agentImage,
+		Mode:          mode,
+		FlushInterval: "1m",
+		Retention:     "90m",
+		RecordingOnly: "false",
+		ClusterName:   "gensim",
+	})
+}
+
+func isStandardNonRecorderRepo(repo string) bool {
+	switch strings.TrimSuffix(repo, "/") {
+	case "datadog/agent", "docker.io/datadog/agent", "gcr.io/datadoghq/agent", "public.ecr.aws/datadog/agent":
+		return true
+	default:
+		return false
+	}
+}
+
+func renderAgentValuesWithConfig(cfg agentValuesConfig) (string, error) {
+	switch cfg.Mode {
+	case "record-parquet", "live-anomaly-detection", "live-and-record":
+	default:
+		return "", fmt.Errorf("unsupported mode %q: expected record-parquet, live-anomaly-detection, or live-and-record", cfg.Mode)
+	}
+
+	agentImage := strings.TrimSpace(cfg.AgentImage)
 	idx := strings.LastIndex(agentImage, ":")
-	if idx < 0 {
-		return "", fmt.Errorf("invalid image reference %q: expected format repo:tag (e.g. docker.io/datadog/agent-dev:latest)", agentImage)
+	if idx <= 0 || idx == len(agentImage)-1 {
+		return "", fmt.Errorf("invalid image reference %q: expected format repo:tag (e.g. docker.io/datadog/agent-dev:my-branch-recorder-full)", cfg.AgentImage)
 	}
 	repo := agentImage[:idx]
 	tag := agentImage[idx+1:]
+	if strings.Contains(tag, "/") {
+		return "", fmt.Errorf("invalid image reference %q: missing tag after repository", cfg.AgentImage)
+	}
+	if cfg.Mode == "record-parquet" || cfg.Mode == "live-and-record" {
+		if tag == "latest" {
+			return "", fmt.Errorf("image tag %q is not allowed for %s: supply a pinned recorder-enabled Agent image tag", tag, cfg.Mode)
+		}
+		if isStandardNonRecorderRepo(repo) {
+			return "", fmt.Errorf("image repository %q does not include the anomaly_detection_recorder build tag: use a recorder-enabled agent-dev image", repo)
+		}
+	}
+
+	flushInterval := strings.TrimSpace(cfg.FlushInterval)
+	if flushInterval == "" {
+		flushInterval = "1m"
+	}
+	flushDur, err := time.ParseDuration(flushInterval)
+	if err != nil || flushDur <= 0 {
+		return "", fmt.Errorf("invalid flushInterval %q: must be a positive duration such as 1m or 60s", cfg.FlushInterval)
+	}
+
+	retention := strings.TrimSpace(cfg.Retention)
+	if retention == "" {
+		retention = "90m"
+	}
+	retentionDur, err := time.ParseDuration(retention)
+	if err != nil || retentionDur <= 0 {
+		return "", fmt.Errorf("invalid retention %q: must be a positive duration such as 90m or 2h", cfg.Retention)
+	}
+	if retentionDur <= flushDur {
+		return "", fmt.Errorf("retention (%s) must exceed flushInterval (%s)", retention, flushInterval)
+	}
+
+	recordingOnly := strings.TrimSpace(cfg.RecordingOnly)
+	if recordingOnly == "" {
+		recordingOnly = "false"
+	}
+	if recordingOnly != "true" && recordingOnly != "false" {
+		return "", fmt.Errorf("invalid recordingOnly %q: expected true or false", cfg.RecordingOnly)
+	}
+	if recordingOnly == "true" && cfg.Mode != "record-parquet" {
+		return "", fmt.Errorf("recordingOnly=true is only supported with mode=record-parquet, got mode=%s", cfg.Mode)
+	}
+
+	clusterName := strings.TrimSpace(cfg.ClusterName)
+	if clusterName == "" {
+		clusterName = "gensim"
+	}
 
 	tmpl, err := template.New("agent-values").Parse(agentValuesTmpl)
 	if err != nil {
@@ -506,7 +701,23 @@ func renderAgentValues(agentImage, mode string) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	err = tmpl.Execute(&buf, struct{ ImageRepo, ImageTag, Mode string }{repo, tag, mode})
+	err = tmpl.Execute(&buf, struct {
+		ImageRepo     string
+		ImageTag      string
+		Mode          string
+		FlushInterval string
+		Retention     string
+		RecordingOnly string
+		ClusterName   string
+	}{
+		ImageRepo:     repo,
+		ImageTag:      tag,
+		Mode:          cfg.Mode,
+		FlushInterval: flushInterval,
+		Retention:     retention,
+		RecordingOnly: recordingOnly,
+		ClusterName:   clusterName,
+	})
 	if err != nil {
 		return "", fmt.Errorf("rendering agent-values template: %w", err)
 	}

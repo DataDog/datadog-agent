@@ -1,6 +1,8 @@
 import glob
 import json
 import os
+import re
+import shlex
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
@@ -18,6 +20,16 @@ from tasks.e2e_framework.destroy import destroy
 scenario_name = "aws/gensim-eks"
 
 _DEFAULT_STACK_NAME = "gensim-eks"
+_DEFAULT_S3_BUCKET = "qbranch-gensim-recordings"
+_VALIDATOR_SCRIPT = (
+    Path(__file__).parent.parent.parent.parent
+    / "test"
+    / "e2e-framework"
+    / "scenarios"
+    / "aws"
+    / "gensim-eks"
+    / "validate-recording.sh"
+)
 
 
 def _get_api_key(cfg):
@@ -32,11 +44,74 @@ def _get_app_key(cfg):
     return get_app_key(cfg)
 
 
+def _get_local_config(config_path: str | None):
+    from tasks.e2e_framework import config
+
+    return config.get_local_config(config_path)
+
+
 # Observer modes for the gensim agent:
 #   record-parquet          - Record observer data to parquet files for offline testbench replay
 #   live-anomaly-detection  - Run live edge anomaly detection, send events to Datadog
 #   live-and-record         - Both simultaneously (for A/B comparison of testbench vs live)
 _VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
+_NON_RECORDER_REPOS = {
+    "datadog/agent",
+    "docker.io/datadog/agent",
+    "gcr.io/datadoghq/agent",
+    "public.ecr.aws/datadog/agent",
+}
+
+
+def _parse_duration_seconds(raw: str, flag_name: str) -> int:
+    match = re.fullmatch(r"([1-9][0-9]*)([smh])", raw.strip())
+    if not match:
+        raise Exit(f"{flag_name} must be a positive duration such as 30s, 1m, or 90m (got '{raw}')")
+    amount = int(match.group(1))
+    unit = match.group(2)
+    return amount * {"s": 1, "m": 60, "h": 3600}[unit]
+
+
+def _validate_submit_settings(
+    image: str,
+    mode: str,
+    flush_interval: str,
+    retention: str,
+    recording_only: bool,
+    cluster_name: str,
+    namespace: str,
+) -> None:
+    if not image or ":" not in image:
+        raise Exit("--image is required in repo:tag format (e.g. docker.io/datadog/agent-dev:my-branch-recorder-full)")
+    repo, tag = image.rsplit(":", 1)
+    if not repo.strip() or not tag.strip() or "/" in tag:
+        raise Exit(f"Invalid --image '{image}': expected repo:tag")
+    if mode not in _VALID_MODES:
+        raise Exit(f"--mode must be one of {_VALID_MODES}, got '{mode}'")
+    if mode in ("record-parquet", "live-and-record"):
+        if tag.strip() == "latest":
+            raise Exit(f"--image tag 'latest' is not allowed for mode={mode}; use a pinned recorder-enabled tag")
+        if repo.strip().rstrip("/") in _NON_RECORDER_REPOS:
+            raise Exit(
+                f"--image repository '{repo}' does not include the anomaly_detection_recorder build tag; "
+                "use a recorder-enabled agent-dev image (e.g. from CI job dev_branch-recorder-full)."
+            )
+    flush_secs = _parse_duration_seconds(flush_interval, "--flush-interval")
+    retention_secs = _parse_duration_seconds(retention, "--retention")
+    if retention_secs <= flush_secs:
+        raise Exit(f"--retention ({retention}) must exceed --flush-interval ({flush_interval})")
+    if recording_only and mode != "record-parquet":
+        raise Exit(f"--recording-only is only supported with --mode=record-parquet (got '{mode}')")
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}", cluster_name):
+        raise Exit(f"Invalid --cluster-name '{cluster_name}'")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", namespace):
+        raise Exit(f"Invalid --namespace '{namespace}'")
+
+
+def _generate_run_id(gensim_sha: str) -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    suffix = os.urandom(3).hex()
+    return f"eval-{timestamp}-{gensim_sha[:7]}-{suffix}"
 
 
 @task(
@@ -49,6 +124,11 @@ _VALID_MODES = ("record-parquet", "live-anomaly-detection", "live-and-record")
         "stack_name": doc.stack_name,
         "instance_type": "EC2 instance type for EKS worker nodes (default: t3.xlarge)",
         "mode": f"Observer mode: {' or '.join(_VALID_MODES)} (default: record-parquet)",
+        "flush_interval": "Recorder Parquet flush interval (default: 1m)",
+        "retention": "Recorder Parquet retention duration (default: 90m)",
+        "recording_only": "Set DD_ANOMALY_DETECTION_RECORDING_ONLY=true (only valid with record-parquet)",
+        "cluster_name": "Datadog clusterName configured on the Agent (default: gensim)",
+        "run_id": "Optional explicit run ID (default: generated with UTC timestamp, SHA, and random suffix)",
         "config_path": doc.config_path,
         "debug": "Enable Pulumi debug logging",
         "skip_build": "Skip episode image building (use cached ECR images from a previous run)",
@@ -64,6 +144,11 @@ def submit_gensim_eks(
     stack_name: str = _DEFAULT_STACK_NAME,
     instance_type: str = "t3.xlarge",
     mode: str = "record-parquet",
+    flush_interval: str = "1m",
+    retention: str = "90m",
+    recording_only: bool = False,
+    cluster_name: str = "gensim",
+    run_id: str = "",
     debug: bool = False,
     config_path: str | None = None,
     skip_build: bool = False,
@@ -84,18 +169,23 @@ def submit_gensim_eks(
         inv aws.eks.gensim.submit --image=... --episode-manifest=./gensim-eval-scenarios.json
         inv aws.eks.gensim.submit --image=... --episodes=... --mode=live-anomaly-detection
     """
-    from pydantic_core._pydantic_core import ValidationError
-
-    from tasks.e2e_framework import config
-
     if not image:
         raise Exit("--image is required (e.g. docker.io/datadog/agent-dev:my-tag)")
     if episodes and episode_manifest:
         raise Exit("--episodes and --episode-manifest are mutually exclusive.")
     if not episodes and not episode_manifest:
         raise Exit("One of --episodes or --episode-manifest is required.")
-    if mode not in _VALID_MODES:
-        raise Exit(f"--mode must be one of {_VALID_MODES}, got '{mode}'")
+    _validate_submit_settings(
+        image=image,
+        mode=mode,
+        flush_interval=flush_interval,
+        retention=retention,
+        recording_only=recording_only,
+        cluster_name=cluster_name,
+        namespace=namespace,
+    )
+    if run_id and not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}", run_id):
+        raise Exit(f"Invalid --run-id '{run_id}'")
 
     # ── 1. Parse and validate episode:scenario pairs ──────────────────────
     episode_pairs = []
@@ -207,8 +297,8 @@ def submit_gensim_eks(
 
     # ── 5-6. Check cluster accessibility and guard against busy cluster ──
     try:
-        local_config = config.get_local_config(config_path)
-    except ValidationError as e:
+        local_config = _get_local_config(config_path)
+    except Exception as e:
         raise Exit(f"Error in config: {e}") from e
 
     try:
@@ -268,6 +358,9 @@ def submit_gensim_eks(
                 break
 
     # ── 8. Deploy via Pulumi ──────────────────────────────────────────────
+    if not run_id:
+        run_id = _generate_run_id(gensim_sha)
+
     extra_flags = {
         # Cluster shape
         "ddinfra:aws/defaultInstanceType": instance_type,
@@ -285,6 +378,11 @@ def submit_gensim_eks(
         "gensim:imageRegistry": ecr_registry,
         "gensim:episodeDataDir": str(gensim_repo_path),
         "gensim:mode": mode,
+        "gensim:flushInterval": flush_interval,
+        "gensim:retention": retention,
+        "gensim:recordingOnly": "true" if recording_only else "false",
+        "gensim:clusterName": cluster_name,
+        "gensim:runId": run_id,
         # Datadog keys -- must be explicit since install_agent=False
         "ddagent:apiKey": _get_api_key(local_config),
         "ddagent:appKey": _get_app_key(local_config),
@@ -314,7 +412,6 @@ def submit_gensim_eks(
     _show_connection_message(ctx, full_stack_name, config_path)
 
     # ── 10-11. Print monitoring instructions ──────────────────────────────
-    run_id = f"eval-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{gensim_sha[:7]}"
     kube = f"KUBECONFIG={full_stack_name}-kubeconfig.yaml {aws_wrapper}"
 
     tool.info("\n" + "=" * 70)
@@ -322,10 +419,18 @@ def submit_gensim_eks(
     tool.info(f"  Image:    {image}")
     tool.info(f"  Episodes: {episodes}")
     tool.info(f"  SHA:      {gensim_sha}")
+    tool.info(f"  Mode:     {mode} (flush={flush_interval}, retention={retention}, recording_only={recording_only})")
     tool.info("\nMonitor orchestrator:")
     tool.info(f"  {kube}kubectl logs -f job/gensim-orchestrator -n {namespace}")
     tool.info("\nCheck run status:")
-    tool.info("  inv aws.eks.gensim.status")
+    tool.info(f"  dda inv aws.eks.gensim.status --stack-name={stack_name} --namespace={namespace}")
+    if s3_bucket and mode in ("record-parquet", "live-and-record"):
+        first_ep, first_sc, _ = episode_pairs[0]
+        tool.info("\nFetch and validate locally after upload (uploaded artifacts are unvalidated until fetched):")
+        tool.info(
+            f"  dda inv aws.eks.gensim.fetch --run-id={run_id} --episode={first_ep} --scenario={first_sc} "
+            f"--s3-bucket={s3_bucket} --output-dir=/tmp/eks-scenarios/{first_sc}"
+        )
     tool.info("\nPod status:")
     tool.info(f"  {kube}kubectl get pods -n {namespace}")
     tool.info("=" * 70)
@@ -383,12 +488,16 @@ def status_gensim_eks(
     run_id = status_data.get("runId", "unknown")
     agent_image = status_data.get("image", "unknown")
     gensim_sha = status_data.get("gensimSha", "unknown")
+    overall_status = status_data.get("overallStatus", "")
 
     tool.info(f"Run: {run_id}")
     tool.info(f"Image: {agent_image}")
     tool.info(f"Gensim SHA: {gensim_sha}")
+    if overall_status:
+        tool.info(f"Overall Status: {overall_status}")
     tool.info("")
 
+    has_pending_validation = False
     for ep in status_data.get("episodes", []):
         ep_name = ep.get("episode", "?")
         scen_name = ep.get("scenario", "?")
@@ -396,6 +505,13 @@ def status_gensim_eks(
         phase = ep.get("phase", "")
         duration_secs = ep.get("durationSeconds", 0)
         parquet_count = ep.get("parquetFiles", 0)
+        ep_outcome = ep.get("episodeOutcome", "")
+        col_status = ep.get("collectionStatus", "")
+        up_status = ep.get("uploadStatus", "")
+        val_status = ep.get("validationStatus", "")
+        artifact_key = ep.get("artifactKey", "")
+        rec_pods = ep.get("recorderPods", 0)
+        err_msg = ep.get("error", "")
 
         tag = f"[{state}]"
         line = f"  {tag:<12} {ep_name} / {scen_name}"
@@ -404,7 +520,175 @@ def status_gensim_eks(
             line += f"  ({mins}m, {parquet_count} parquet)"
         elif phase:
             line += f"  ({phase})"
+
+        details = []
+        if ep_outcome:
+            details.append(f"monitor={ep_outcome}")
+        if col_status:
+            details.append(f"collection={col_status}")
+        if up_status:
+            details.append(f"upload={up_status}")
+        if val_status:
+            details.append(f"validation={val_status}")
+            if val_status == "pending" and up_status == "succeeded":
+                has_pending_validation = True
+        if rec_pods:
+            details.append(f"pods={rec_pods}")
+        if details:
+            line += f"  [{' '.join(details)}]"
         tool.info(line)
+        if artifact_key:
+            tool.info(f"               artifact: {artifact_key}")
+        if err_msg:
+            tool.warn(f"               error: {err_msg}")
+
+    if has_pending_validation:
+        tool.info(
+            "\nNote: uploaded artifacts have validation=pending. Run `dda inv aws.eks.gensim.fetch` "
+            "to download and validate before testbench replay."
+        )
+
+
+@task(
+    help={
+        "output_dir": "Fresh local absolute directory for the fetched recording (must not already exist)",
+        "artifact_key": "Explicit S3 object key to download (e.g. gensim-results-<run_id>-<episode>-<scenario>.zip)",
+        "run_id": "Run ID used to construct or look up the artifact key",
+        "episode": "Episode directory name (or episode:scenario pair)",
+        "scenario": "Scenario name within the episode directory",
+        "s3_bucket": f"S3 bucket containing recordings (default: {_DEFAULT_S3_BUCKET})",
+        "flush_interval": "Optional flush interval override (e.g. 60 or 1m); defaults to manifest setting",
+        "stack_name": doc.stack_name,
+        "namespace": "Kubernetes namespace (default: default)",
+        "config_path": doc.config_path,
+    }
+)
+def fetch_gensim_eks(
+    ctx: Context,
+    output_dir: str = "",
+    artifact_key: str = "",
+    run_id: str = "",
+    episode: str = "",
+    scenario: str = "",
+    s3_bucket: str = _DEFAULT_S3_BUCKET,
+    flush_interval: str = "",
+    stack_name: str = _DEFAULT_STACK_NAME,
+    namespace: str = "default",
+    config_path: str | None = None,
+) -> None:
+    """
+    Download a recorded EKS gensim artifact from S3 into a fresh local directory and validate it.
+
+    An uploaded artifact on S3 is not yet a validated benchmark recording. This task downloads
+    the archive, verifies safe extraction and manifest SHA-256 checksums, checks multi-pod Agent
+    snapshots, runs the shared PyArrow Time-window trim and validation, and writes `episode.json`,
+    `validation.json`, `recording-manifest.json`, and `parquet/`.
+    """
+    if not output_dir:
+        raise Exit("--output-dir is required and must be a fresh absolute path")
+    output_path = Path(output_dir)
+    if not output_path.is_absolute() or str(output_path) == "/":
+        raise Exit(f"--output-dir must be a non-root absolute path, got '{output_dir}'")
+    if output_path.exists():
+        raise Exit(f"Output directory already exists: {output_dir} (refusing to overwrite)")
+
+    if episode and ":" in episode and not scenario:
+        episode, scenario = episode.split(":", 1)
+
+    flush_secs_arg = ""
+    if flush_interval:
+        if re.fullmatch(r"[1-9][0-9]*", flush_interval.strip()):
+            flush_secs_arg = flush_interval.strip()
+        else:
+            flush_secs_arg = str(_parse_duration_seconds(flush_interval, "--flush-interval"))
+
+    if not artifact_key:
+        if not episode or not scenario:
+            raise Exit("Supply either --artifact-key or both --episode and --scenario")
+        if run_id:
+            artifact_key = f"gensim-results-{run_id}-{episode}-{scenario}.zip"
+        else:
+            kubeconfig_path = _find_kubeconfig(stack_name)
+            if os.path.exists(kubeconfig_path):
+                cm_res = ctx.run(
+                    f"KUBECONFIG={shlex.quote(kubeconfig_path)} kubectl get configmap "
+                    f"gensim-run-status -n {shlex.quote(namespace)} -o jsonpath='{{.data.status}}'",
+                    warn=True,
+                    hide=True,
+                )
+                if cm_res and cm_res.ok and cm_res.stdout.strip():
+                    try:
+                        status_data = json.loads(cm_res.stdout.strip())
+                        run_id = status_data.get("runId", "")
+                        for ep_entry in status_data.get("episodes", []):
+                            if ep_entry.get("episode") == episode and ep_entry.get("scenario") == scenario:
+                                if ep_entry.get("collectionStatus") == "failed":
+                                    raise Exit(
+                                        f"Episode {episode}/{scenario} failed collection on cluster: "
+                                        f"{ep_entry.get('error', 'collection failed')}"
+                                    )
+                                if ep_entry.get("uploadStatus") == "failed":
+                                    raise Exit(
+                                        f"Episode {episode}/{scenario} failed S3 upload on cluster: "
+                                        f"{ep_entry.get('error', 'upload failed')}"
+                                    )
+                                artifact_key = ep_entry.get("artifactKey", "")
+                                break
+                    except json.JSONDecodeError:
+                        pass
+            if not artifact_key:
+                raise Exit(
+                    f"Could not resolve artifact key for {episode}:{scenario}. "
+                    "Pass --artifact-key or --run-id explicitly."
+                )
+
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_./-]{0,255}\.zip", artifact_key) or ".." in artifact_key:
+        raise Exit(f"Invalid --artifact-key '{artifact_key}'")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", s3_bucket):
+        raise Exit(f"Invalid --s3-bucket '{s3_bucket}'")
+    if not _VALIDATOR_SCRIPT.exists():
+        raise Exit(f"Validator script not found: {_VALIDATOR_SCRIPT}")
+
+    try:
+        local_config = _get_local_config(config_path)
+        aws_wrapper = get_aws_wrapper(local_config.get_aws().get_account())
+    except Exception:
+        aws_wrapper = "aws-vault exec sso-agent-sandbox-account-admin-8h -- "
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.mkdir(mode=0o755, exist_ok=False)
+    (output_path / "parquet").mkdir(mode=0o755, exist_ok=False)
+
+    archive_dest = output_path / "artifact.zip"
+    s3_uri = f"s3://{s3_bucket}/{artifact_key}"
+    tool.info(f"Downloading {s3_uri} to {archive_dest}...")
+    dl_res = ctx.run(
+        f"{aws_wrapper}aws s3 cp {shlex.quote(s3_uri)} {shlex.quote(str(archive_dest))}",
+        warn=True,
+    )
+    if not dl_res or not dl_res.ok or not archive_dest.exists():
+        raise Exit(f"Failed to download {s3_uri}")
+
+    cmd_parts = ["bash", shlex.quote(str(_VALIDATOR_SCRIPT)), shlex.quote(str(output_path))]
+    if flush_secs_arg:
+        cmd_parts.append(shlex.quote(flush_secs_arg))
+    cmd_parts.extend(["--backend", "eks"])
+    if run_id:
+        cmd_parts.extend(["--run-id", shlex.quote(run_id)])
+    if episode:
+        cmd_parts.extend(["--scenario-dir", shlex.quote(episode)])
+    if scenario:
+        cmd_parts.extend(["--episode", shlex.quote(scenario)])
+    if namespace:
+        cmd_parts.extend(["--namespace", shlex.quote(namespace)])
+
+    val_res = ctx.run(" ".join(cmd_parts), warn=True)
+    if not val_res or not val_res.ok:
+        raise Exit(
+            f"Recording validation failed for {artifact_key}. "
+            f"Partial output retained at {output_path} for diagnosis; do not replay."
+        )
+    tool.info(f"Recording validated and ready at: {output_path}")
 
 
 @task(

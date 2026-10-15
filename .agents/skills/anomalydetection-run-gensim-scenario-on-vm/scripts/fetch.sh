@@ -25,7 +25,20 @@ if [[ "$snapshots" == present ]]; then
     scp -P "$SSH_PORT" "$VM:~/gensim/$scenario/results/$episode-agent-after.json" "$OUT/agent-after.json"
 fi
 
-wait_seconds="$(python3 "$SKILL_ROOT/scripts/recording.py" wait "$OUT/episode.json" "$flush")"
+wait_seconds="$(python3 - "$OUT/episode.json" "$flush" <<'PY'
+import datetime as dt
+import json
+import math
+import sys
+
+with open(sys.argv[1]) as source:
+    episode = json.load(source)
+end = dt.datetime.fromisoformat(episode["end_time"].replace("Z", "+00:00"))
+if end.tzinfo is None or end > dt.datetime.now(dt.timezone.utc):
+    raise SystemExit("episode end_time must be in the past and timezone-aware")
+print(max(0, math.ceil(end.timestamp() + int(sys.argv[2]) - dt.datetime.now(dt.timezone.utc).timestamp())))
+PY
+)"
 sleep "$wait_seconds"
 remote <<'EOF' > "$OUT/agent-fetch.json"
 kubectl --context kind-gadget-dev --namespace default get pods -l app.kubernetes.io/component=agent -o json
@@ -36,4 +49,12 @@ pod="$(kubectl --context kind-gadget-dev --namespace default get pod -l app.kube
 kubectl --context kind-gadget-dev --namespace default exec "$pod" -c agent -- tar cf - -C /tmp/observer-metrics .
 EOF
 
-python3 "$SKILL_ROOT/scripts/recording.py" validate "$OUT" "$flush"
+VALIDATOR="$SKILL_ROOT/../../../test/e2e-framework/scenarios/aws/gensim-eks/validate-recording.sh"
+[[ -f "$VALIDATOR" ]] || fail "Validator helper not found: $VALIDATOR"
+
+bash "$VALIDATOR" "$OUT" "$flush" \
+    --backend vm \
+    --scenario-dir "$scenario" \
+    --episode "$episode" \
+    --cluster-name kind-gadget-dev \
+    --namespace default
