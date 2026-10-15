@@ -1,6 +1,6 @@
 ---
 name: Deps Tidy Push
-description: Commit any tidy changes and push signed commits
+description: Publish at most one generated dependency update per input revision
 inputs:
   token:
     description: octo-sts token from deps-tidy-setup
@@ -11,24 +11,34 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Create commit
+    - name: Validate changes and prepare signed publication
       id: commit
       shell: bash
-      run: |
-        if git diff --quiet; then
-          echo "No changes to commit"
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-        else
-          git config --global user.name "Login will be determined by the Github API based on the creator of the token"
-          git config --global user.email ""
-          git commit -am "${{ inputs.commit-message }}"
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-        fi
+      env:
+        SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+        HEAD_REF: ${{ github.head_ref }}
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        REPOSITORY: ${{ github.repository }}
+        PUBLICATION_FILE: ${{ runner.temp }}/deps-tidy-publication.json
+      run: python3 "$GITHUB_ACTION_PATH/prepare.py"
     - name: Push signed commits
       if: steps.commit.outputs.has_changes == 'true'
-      uses: chouetz/push-signed-commits@9b123e8898e6176af65b9427b434e07aebe7f72f
-      with:
-        github-token: ${{ inputs.token }}
-        local_branch_name: ${{ github.head_ref }}
-        remote_name: "origin"
-        remote_branch_name: ${{ github.head_ref }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        PUBLICATION_FILE: ${{ runner.temp }}/deps-tidy-publication.json
+      # GitHub signs the commit. expectedHeadOid rejects concurrent branch updates
+      # atomically, rather than applying generated files to a newer revision.
+      run: gh api graphql --input "$PUBLICATION_FILE" --jq '.data.createCommitOnBranch.commit.oid'
+    - name: Verify published tree
+      if: steps.commit.outputs.has_changes == 'true'
+      shell: bash
+      env:
+        EXPECTED_TREE: ${{ steps.commit.outputs.expected_tree }}
+        HEAD_REF: ${{ github.head_ref }}
+      run: |
+        git fetch origin "refs/heads/$HEAD_REF"
+        if [ "$(git rev-parse 'FETCH_HEAD^{tree}')" != "$EXPECTED_TREE" ]; then
+          echo "::error::Published dependency update differs from the generated tree (or the branch advanced)."
+          exit 1
+        fi
