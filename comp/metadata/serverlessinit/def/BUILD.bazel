@@ -19,8 +19,5 @@ dd_agent_go_test(
     name = "def_test",
     srcs = ["inventory_test.go"],
     embed = [":def"],
-    deps = [
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = ["@com_github_stretchr_testify//assert"],
 )
