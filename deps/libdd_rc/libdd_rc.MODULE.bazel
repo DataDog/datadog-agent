@@ -64,7 +64,10 @@ crate.annotation(
         # build exercise the MSVC/FFI boundary while the official NASM archive
         # is onboarded into the CI dependency mirror. AWS-LC rejects NO_ASM in
         # optimized builds, so this cannot become the shipping configuration.
-        "x86_64-pc-windows-msvc": "{\"AWS_LC_SYS_NO_ASM\":\"1\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\"}",
+        # rules_rust defaults Cargo build scripts to NUM_JOBS=1. cmake-rs
+        # forwards that as `cmake --build --parallel 1`, which makes this
+        # temporary source build too slow for the Windows CI timeout.
+        "x86_64-pc-windows-msvc": "{\"AWS_LC_SYS_NO_ASM\":\"1\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"NUM_JOBS\":\"8\"}",
     },
     build_script_tools_select = {
         # Keep NASM out of non-Windows action inputs. crate-universe promotes
@@ -99,7 +102,7 @@ alias(
         # Perl comes from the MSYS2 toolset already installed in the Windows
         # build image; production should replace this host path with a declared
         # Bazel tool input.
-        "x86_64-pc-windows-msvc": "{\"AWS_LC_FIPS_SYS_NO_ASM\":\"1\",\"CMAKE_RS_FORWARD_FAILED_OUTPUT\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"PERL_EXECUTABLE\":\"C:/tools/msys64/usr/bin/perl.exe\"}",
+        "x86_64-pc-windows-msvc": "{\"AWS_LC_FIPS_SYS_NO_ASM\":\"1\",\"CMAKE_RS_FORWARD_FAILED_OUTPUT\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"NUM_JOBS\":\"8\",\"PERL_EXECUTABLE\":\"C:/tools/msys64/usr/bin/perl.exe\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     build_script_tools = ["@go_work_sdk//:files"],
