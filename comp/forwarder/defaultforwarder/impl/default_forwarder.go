@@ -366,7 +366,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			f.domainResolvers[domain] = resolver
 			domainConcurrency := concurrency
 			if resolver.IsLocal() {
-				domainConcurrency = concurrency.forLocal()
+				domainConcurrency = localConcurrencyPolicyFromConfig(config, log)
 			}
 			fwd := newDomainForwarder(
 				config,

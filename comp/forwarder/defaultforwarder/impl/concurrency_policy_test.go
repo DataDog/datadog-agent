@@ -24,11 +24,17 @@ func TestConcurrencyPolicyFromConfig(t *testing.T) {
 	assert.Equal(t, 3, p.maxConns())
 	assert.Equal(t, int64(5), p.requests)
 	assert.NotSame(t, p.newRequestSemaphore(), p.newRequestSemaphore())
+}
 
-	local := p.forLocal()
-	assert.Equal(t, 1, local.numWorkers())
-	assert.Equal(t, 1, local.maxConns())
-	assert.Equal(t, int64(5), local.(staticConcurrencyPolicy).requests)
+func TestLocalConcurrencyPolicyFromConfig(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("forwarder_num_workers", 3)
+	mockConfig.SetInTest("forwarder_max_concurrent_requests", 5)
+
+	p := localConcurrencyPolicyFromConfig(mockConfig, logmock.New(t))
+	assert.Equal(t, 1, p.numWorkers())
+	assert.Equal(t, 1, p.maxConns())
+	assert.Equal(t, int64(5), p.requests)
 }
 
 func TestConcurrencyPolicyFromConfigInvalidRequests(t *testing.T) {

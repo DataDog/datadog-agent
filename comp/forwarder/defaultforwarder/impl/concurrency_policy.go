@@ -28,8 +28,6 @@ type concurrencyPolicy interface {
 	// newRequestSemaphore returns the semaphore limiting in-flight requests
 	// of a single worker.
 	newRequestSemaphore() weightedSemaphore
-	// forLocal returns the policy to use for the local cluster-agent domain.
-	forLocal() concurrencyPolicy
 }
 
 type staticConcurrencyPolicy struct {
@@ -41,17 +39,30 @@ type staticConcurrencyPolicy struct {
 func concurrencyPolicyFromConfig(config config.Component, log log.Component) staticConcurrencyPolicy {
 	workers := config.GetInt("forwarder_num_workers")
 
+	return staticConcurrencyPolicy{
+		workers:     workers,
+		connections: workers,
+		requests:    maxConcurrentRequestsFromConfig(config, log),
+	}
+}
+
+// localConcurrencyPolicyFromConfig returns the policy to use for the local
+// cluster-agent domain, which is served by a single worker and connection.
+func localConcurrencyPolicyFromConfig(config config.Component, log log.Component) staticConcurrencyPolicy {
+	return staticConcurrencyPolicy{
+		workers:     1,
+		connections: 1,
+		requests:    maxConcurrentRequestsFromConfig(config, log),
+	}
+}
+
+func maxConcurrentRequestsFromConfig(config config.Component, log log.Component) int64 {
 	requests := config.GetInt64("forwarder_max_concurrent_requests")
 	if requests <= 0 {
 		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", requests)
 		requests = 1
 	}
-
-	return staticConcurrencyPolicy{
-		workers:     workers,
-		connections: workers,
-		requests:    requests,
-	}
+	return requests
 }
 
 func (p staticConcurrencyPolicy) numWorkers() int {
@@ -64,10 +75,4 @@ func (p staticConcurrencyPolicy) maxConns() int {
 
 func (p staticConcurrencyPolicy) newRequestSemaphore() weightedSemaphore {
 	return semaphore.NewWeighted(p.requests)
-}
-
-func (p staticConcurrencyPolicy) forLocal() concurrencyPolicy {
-	p.workers = 1
-	p.connections = 1
-	return p
 }
