@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -38,6 +40,10 @@ const (
 	installerUnit   = "datadog-agent-installer.service"
 	procmgrUnit     = "datadog-agent-procmgr.service"
 	procmgrUnitXP   = "datadog-agent-procmgr-exp.service"
+
+	rshellPrivilegedSocketUnit  = "datadog-agent-rshell-privileged.socket"
+	rshellPrivilegedServiceUnit = "datadog-agent-rshell-privileged.service"
+	rshellPrivilegedFlag        = "/run/datadog-agent-rshell/enabled"
 
 	ddotProcess = "datadog-agent-ddot.yaml"
 )
@@ -146,6 +152,68 @@ func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 	for _, unit := range loadedUnits {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
+}
+
+// TestPrivilegedRshellGate verifies that the rshell privileged helper units are
+// always installed, and that the socket is gated on the Agent configuration
+// each time the Agent restarts rather than at install time: the PAR unit's
+// ExecStartPre creates the flag file the socket is conditioned on only when
+// private_action_runner.restricted_shell.privileged.enabled is true.
+func (s *packageAgentSuite) TestPrivilegedRshellGate() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.waitForCoreUnitsActive()
+
+	state := s.host.State()
+	state.AssertUnitsLoaded(rshellPrivilegedSocketUnit, rshellPrivilegedServiceUnit)
+	if !s.privilegedRshellExpected() {
+		s.T().Skip("the privileged rshell helper requires Landlock ABI 3 (kernel 6.2+); backported kernels are not detected here")
+	}
+	state.AssertUnitsEnabled(rshellPrivilegedSocketUnit)
+	s.assertRshellPrivilegedFlag(false)
+
+	const configPath = "/etc/datadog-agent/datadog.yaml"
+	const backupPath = "/tmp/datadog.yaml.rshell-gate-backup"
+	s.host.Run(fmt.Sprintf("sudo cp -p %s %s", configPath, backupPath))
+	defer s.host.Run(fmt.Sprintf("sudo mv %s %s", backupPath, configPath))
+	s.Require().NotContains(s.host.Run("sudo cat "+configPath), "private_action_runner:", "the test appends this section")
+
+	// Opting in only needs a config change and an Agent restart.
+	s.host.Run(fmt.Sprintf(`printf 'private_action_runner:\n  restricted_shell:\n    privileged:\n      enabled: true\n' | sudo tee -a %s > /dev/null`, configPath))
+	s.host.Run("sudo systemctl restart " + agentUnit)
+	s.assertRshellPrivilegedFlag(true)
+
+	// Opting out takes effect on the next restart as well.
+	s.host.Run(fmt.Sprintf("sudo cp -p %s %s", backupPath, configPath))
+	s.host.Run("sudo systemctl restart " + agentUnit)
+	s.assertRshellPrivilegedFlag(false)
+}
+
+// privilegedRshellExpected reports whether the installer must enable the
+// privileged rshell helper on this host, using the kernel version as a
+// conservative proxy for Landlock ABI >= 3.
+func (s *packageAgentSuite) privilegedRshellExpected() bool {
+	if exists, err := s.host.FileExists("/opt/datadog-agent/embedded/bin/rshell"); err != nil || !exists {
+		return false
+	}
+	release := strings.TrimSpace(s.host.Run("uname -r"))
+	parts := strings.SplitN(release, ".", 3)
+	if len(parts) < 2 {
+		return false
+	}
+	major, errMajor := strconv.Atoi(parts[0])
+	minor, errMinor := strconv.Atoi(parts[1])
+	if errMajor != nil || errMinor != nil {
+		return false
+	}
+	return major > 6 || (major == 6 && minor >= 2)
+}
+
+func (s *packageAgentSuite) assertRshellPrivilegedFlag(present bool) {
+	s.Assert().Eventually(func() bool {
+		exists, err := s.host.FileExists(rshellPrivilegedFlag)
+		return err == nil && exists == present
+	}, time.Minute, time.Second, "expected %s present=%t", rshellPrivilegedFlag, present)
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {

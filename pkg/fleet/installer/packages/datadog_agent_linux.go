@@ -812,16 +812,24 @@ func enablePrivilegedRshellSocket(ctx HookContext, socket string) {
 	}
 }
 
-// startPrivilegedRshellSocket starts the helper socket on supported hosts.
-// It is best-effort: the socket binds to the PAR unit, so starting it fails
-// when that unit is masked, and the feature is optional.
-func startPrivilegedRshellSocket(ctx HookContext, socket string) {
+// startExperimentUnits starts the main experiment unit, together with the
+// experiment helper socket on supported hosts. Both are started by a single
+// systemctl call: starting the main unit stops the stable units, including
+// the installer running this hook, so nothing may run after it. If the call
+// fails before that (e.g. the PAR experiment unit, which the socket binds to,
+// is masked), retry without the optional socket.
+func startExperimentUnits(ctx HookContext, mainUnit string) error {
 	if !privilegedRshellSupported(ctx.PackagePath) {
-		return
+		return systemd.StartUnit(ctx, mainUnit)
 	}
-	if err := systemd.StartUnit(ctx, socket); err != nil {
-		log.Warnf("failed to start %s: %v", socket, err)
+	err := systemd.StartUnit(ctx, mainUnit, privilegedRshellSocketExp)
+	if err == nil || ctx.Err() != nil {
+		// A canceled context means the main unit started and is stopping us:
+		// don't retry.
+		return err
 	}
+	log.Warnf("failed to start %s with %s, retrying without the socket: %v", mainUnit, privilegedRshellSocketExp, err)
+	return systemd.StartUnit(ctx, mainUnit)
 }
 
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
@@ -917,7 +925,8 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	default:
 		return errors.New("unsupported service manager")
 	}
-	startPrivilegedRshellSocket(ctx, privilegedRshellSocketStable)
+	// The helper socket is not started here: when enabled, it is WantedBy the
+	// PAR unit, which the main unit pulls in.
 	return nil
 }
 
@@ -991,17 +1000,9 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		if err := systemd.StartUnit(ctx, s.SystemdMainUnitExp); err != nil {
-			return err
-		}
-		startPrivilegedRshellSocket(ctx, privilegedRshellSocketExp)
-		return nil
+		return startExperimentUnits(ctx, s.SystemdMainUnitExp)
 	case service.ProcmgrType:
-		if err := systemd.StartUnit(ctx, s.ProcmgrMainUnitExp); err != nil {
-			return err
-		}
-		startPrivilegedRshellSocket(ctx, privilegedRshellSocketExp)
-		return nil
+		return startExperimentUnits(ctx, s.ProcmgrMainUnitExp)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
