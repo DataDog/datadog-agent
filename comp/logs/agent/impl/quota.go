@@ -7,6 +7,7 @@ package agentimpl
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"time"
@@ -16,12 +17,14 @@ import (
 	hosttags "github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 const (
 	quotaEnabledKey   = "logs_config.quota_enforcement.enabled"
 	quotaMockDirKey   = "logs_config.quota_enforcement.mock_rc_dir"
+	quotaRCProductKey = "logs_config.quota_enforcement.rc_product"
 	quotaSourceRC     = "rc"
 	quotaSourceMock   = "mock"
 	quotaMockInterval = 2 * time.Second
@@ -32,24 +35,38 @@ type quotaManager struct {
 	log      log.Component
 	config   model.Reader
 	enforcer *quota.Enforcer
+	product  string
 	cancel   context.CancelFunc
 	done     chan struct{}
 }
 
 func newQuotaManager(logger log.Component, cfg model.Reader) *quotaManager {
-	return &quotaManager{log: logger, config: cfg, enforcer: quota.Default()}
+	return &quotaManager{log: logger, config: cfg, enforcer: quota.Default(), product: cfg.GetString(quotaRCProductKey)}
 }
 
 func (m *quotaManager) rcListener() rctypes.ListenerProvider {
+	m.log.Infof("Logs quota enforcement: subscribing to Remote Config product %s", m.product)
 	return rctypes.ListenerProvider{
-		ListenerProvider: rctypes.RCListener{state.ProductLogsQuota: m.onRCUpdate},
+		ListenerProvider: rctypes.RCListener{data.Product(m.product): m.onRCUpdate},
 	}
 }
 
 func (m *quotaManager) onRCUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	configs := make(map[string][]byte, len(updates))
 	for path, u := range updates {
-		configs[path] = u.Config
+		if m.product != state.ProductDebug {
+			configs[path] = u.Config
+			continue
+		}
+		// DEBUG is shared by every staging PoC; only take configs wrapped for us.
+		var wrapper struct {
+			LogsQuota json.RawMessage `json:"logs_quota"`
+		}
+		if json.Unmarshal(u.Config, &wrapper) != nil || len(wrapper.LogsQuota) == 0 {
+			m.log.Debugf("Ignoring DEBUG config %s: no logs_quota key", path)
+			continue
+		}
+		configs[path] = wrapper.LogsQuota
 	}
 	for path, err := range m.enforcer.Update(quotaSourceRC, configs) {
 		if err != nil {
