@@ -6,6 +6,8 @@
 package serverlessinit
 
 import (
+	"errors"
+	"strings"
 	"sync/atomic"
 
 	"github.com/google/uuid"
@@ -112,10 +114,11 @@ func InventoryEligible(conf configmodel.Reader, provider InventoryProvider) bool
 	return conf.GetBool("serverless.inventory_enabled") && provider.CanCollectInventory()
 }
 
-// PayloadValid reports whether a built serverless inventory field set is
-// sufficient to submit. The backend rejects a payload without a resource id,
-// the first component of the downstream composite key.
-func PayloadValid(fields map[string]interface{}) bool {
+// PayloadInvalid reports why a built field set cannot be submitted, nil when it can.
+func PayloadInvalid(fields map[string]interface{}) error {
 	id, ok := fields["resource_id"].(string)
-	return ok && id != ""
+	if !ok || strings.TrimSpace(id) == "" {
+		return errors.New("resource id is missing or empty")
+	}
+	return nil
 }

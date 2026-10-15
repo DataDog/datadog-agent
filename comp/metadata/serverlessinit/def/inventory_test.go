@@ -11,25 +11,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPayloadValid(t *testing.T) {
-	assert.True(t, PayloadValid(map[string]interface{}{
+func TestPayloadInvalid(t *testing.T) {
+	assert.NoError(t, PayloadInvalid(map[string]interface{}{
 		"resource_id": "/subscriptions/sub/resourcegroups/rg/providers/microsoft.web/sites/site",
 	}))
 
 	// Unrelated optional fields do not affect validity.
-	assert.True(t, PayloadValid(map[string]interface{}{
+	assert.NoError(t, PayloadInvalid(map[string]interface{}{
 		"resource_id": "test-resource",
 		"runtime":     nil,
 		"region":      nil,
 	}))
 
 	for name, resourceID := range map[string]interface{}{
-		"absent":      nil,
-		"nil cleared": nil,
-		"empty":       "",
+		"absent":       nil,
+		"nil cleared":  nil,
+		"empty":        "",
+		"blank":        "  ",
+		"not a string": 123,
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.False(t, PayloadValid(map[string]interface{}{"resource_id": resourceID}))
+			err := PayloadInvalid(map[string]interface{}{"resource_id": resourceID})
+			assert.EqualError(t, err, "resource id is missing or empty")
 		})
 	}
 }
