@@ -1,0 +1,284 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package foldspace
+
+import (
+	"errors"
+	"fmt"
+	"net"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	defaultMaxInflight     = 16
+	defaultPipelineDepth   = 8
+	defaultStateRequest    = 5 * 1024 * 1024
+	defaultShutdownTimeout = 15 * time.Second
+	// grpc-go and Netty servers both reject pings more frequent than every five
+	// minutes by default, answering with GOAWAY too_many_pings.
+	defaultKeepaliveTime    = 5 * time.Minute
+	defaultKeepaliveTimeout = 20 * time.Second
+	// The intake acks only after a durable write, and failing a stream that is
+	// merely slow costs a resend of its whole window plus a backoff step, so
+	// this sits well above http_timeout's default.
+	defaultAckTimeout = 30 * time.Second
+	// Mirrors the library's own stream lifetime, since a zero value there means
+	// rotate on every open rather than use the default.
+	defaultStreamLifetime = 15 * time.Minute
+)
+
+// SenderSpec is one foldspace sender derived from a logs endpoint.
+type SenderSpec struct {
+	ID       SenderID
+	Address  string
+	Class    SenderClass
+	APIKey   func() string
+	UseTLS   bool
+	IsMRF    bool
+	Endpoint config.Endpoint
+}
+
+// DestinationConfig is the driver-facing view of logs_config.foldspace plus
+// the HTTP endpoint list.
+type DestinationConfig struct {
+	Senders           []SenderSpec
+	Core              Config
+	PipelineDepth     int
+	ConnectTimeout    time.Duration
+	SendTimeout       time.Duration
+	ShutdownTimeout   time.Duration
+	StateRequestBytes int
+	DualShip          bool
+	// KeepaliveTime is how long a connection may go without reading anything
+	// before it pings the intake, and KeepaliveTimeout how long it then waits for
+	// the ping ack before closing the connection. They detect a dead peer or path;
+	// an intake whose transport still answers pings is not detected by them.
+	KeepaliveTime    time.Duration
+	KeepaliveTimeout time.Duration
+	// AckTimeout is how long a stream may hold unacked batches with no ack
+	// arriving before it is failed, catching an intake that still answers
+	// pings but has stopped acknowledging.
+	AckTimeout time.Duration
+	// BatchWait bounds how long a partial batch is held. The core seals on record
+	// count and content size; without a time bound a partial batch waits for
+	// enough further records to seal it, however long that takes.
+	BatchWait time.Duration
+	// StreamMethod is the full gRPC method path every stream opens, in the form
+	// /<package>.<Service>/<Method>.
+	StreamMethod string
+}
+
+// ErrWindowing is returned when max_inflight_payloads is below S × pipeline_depth.
+type ErrWindowing struct {
+	Senders       int
+	PipelineDepth int
+	MaxInflight   int
+}
+
+func (e ErrWindowing) Error() string {
+	return fmt.Sprintf("logs_config.foldspace.max_inflight_payloads (%d) must be >= sender count (%d) × pipeline_depth (%d)",
+		e.MaxInflight, e.Senders, e.PipelineDepth)
+}
+
+// BuildDestinationConfig maps Endpoints onto foldspace senders.
+//
+// Input is Endpoints.Endpoints in order: main first, then additional_endpoints
+// (and OPW dual-ship extras, which that builder already prepends). MRF entries
+// become ordinary senders with IsMRF set; the driver's route bitset, not this
+// builder, decides whether a given record reaches them. foldspace.dd_url
+// overrides only the main host.
+func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoints) (*DestinationConfig, error) {
+	if endpoints == nil || len(endpoints.Endpoints) == 0 {
+		return nil, errors.New("foldspace requires at least one HTTP endpoint")
+	}
+
+	pipelineDepth := cfg.GetInt("logs_config.foldspace.pipeline_depth")
+	if pipelineDepth <= 0 {
+		pipelineDepth = defaultPipelineDepth
+	}
+	maxInflight := cfg.GetInt("logs_config.foldspace.max_inflight_payloads")
+	if maxInflight <= 0 {
+		maxInflight = defaultMaxInflight
+	}
+	stateBytes := cfg.GetInt("logs_config.foldspace.state_request_bytes")
+	if stateBytes <= 0 {
+		stateBytes = defaultStateRequest
+	}
+	shutdown := cfg.GetDuration("logs_config.foldspace.shutdown_timeout")
+	if shutdown <= 0 {
+		shutdown = defaultShutdownTimeout
+	}
+	// http_timeout bounds a whole HTTP request, so it bounds both halves of one
+	// here: dialing the stream and writing a batch to it.
+	httpTimeout := time.Duration(cfg.GetInt("logs_config.http_timeout")) * time.Second
+	if httpTimeout <= 0 {
+		httpTimeout = 10 * time.Second
+	}
+	keepaliveTime := cfg.GetDuration("logs_config.foldspace.keepalive_time")
+	if keepaliveTime <= 0 {
+		keepaliveTime = defaultKeepaliveTime
+	}
+	keepaliveTimeout := cfg.GetDuration("logs_config.foldspace.keepalive_timeout")
+	if keepaliveTimeout <= 0 {
+		keepaliveTimeout = defaultKeepaliveTimeout
+	}
+	ackTimeout := cfg.GetDuration("logs_config.foldspace.ack_timeout")
+	if ackTimeout <= 0 {
+		ackTimeout = defaultAckTimeout
+	}
+
+	streamMethod, err := parseStreamMethod(cfg.GetString("logs_config.foldspace.grpc_method"))
+	if err != nil {
+		return nil, fmt.Errorf("logs_config.foldspace.grpc_method: %w", err)
+	}
+
+	mainOverride := strings.TrimSpace(cfg.GetString("logs_config.foldspace.dd_url"))
+
+	var senders []SenderSpec
+	for i, ep := range endpoints.Endpoints {
+		host := ep.Host
+		port := ep.Port
+		if i == 0 && mainOverride != "" {
+			h, p, err := parseHostPort(mainOverride, port)
+			if err != nil {
+				return nil, fmt.Errorf("logs_config.foldspace.dd_url: %w", err)
+			}
+			host, port = h, p
+		}
+		class := Reliable
+		if !ep.IsReliable() {
+			class = Unreliable
+		}
+		endpoint := ep
+		senders = append(senders, SenderSpec{
+			ID:       SenderID(len(senders)),
+			Address:  net.JoinHostPort(host, strconv.Itoa(port)),
+			Class:    class,
+			APIKey:   func() string { return endpoint.GetAPIKey() },
+			UseTLS:   endpoint.UseSSL(),
+			IsMRF:    ep.IsMRF,
+			Endpoint: endpoint,
+		})
+	}
+	if len(senders) == 0 {
+		return nil, errors.New("foldspace requires at least one endpoint")
+	}
+	if len(senders)*pipelineDepth > maxInflight {
+		return nil, ErrWindowing{Senders: len(senders), PipelineDepth: pipelineDepth, MaxInflight: maxInflight}
+	}
+
+	coreEndpoints := make([]Endpoint, len(senders))
+	for i, s := range senders {
+		coreEndpoints[i] = Endpoint{Address: s.Address, Class: s.Class}
+	}
+
+	compression := Identity
+	zstdLevel := 0
+	if endpoints.Main.UseCompression {
+		if strings.EqualFold(endpoints.Main.CompressionKind, "zstd") {
+			compression = Zstd
+			zstdLevel = endpoints.Main.CompressionLevel
+		} else {
+			// gzip is not a library encoding; extras inherit identity and the
+			// agent still compresses nothing extra on this path.
+			compression = Identity
+		}
+	}
+
+	batchCapacity := endpoints.BatchMaxSize
+	if batchCapacity <= 0 {
+		batchCapacity = 100
+	}
+	maxPayload := endpoints.BatchMaxContentSize
+	if maxPayload <= 0 {
+		maxPayload = 1024 * 1024
+	}
+	batchWait := endpoints.BatchWait
+	if batchWait <= 0 {
+		batchWait = 5 * time.Second
+	}
+
+	// Stream rotation is not connection recycling. A rotation ends an interning
+	// epoch, so its cost is re-sending every live string and its bound is what the
+	// intake enforces; connection_reset_interval answers none of that, and its
+	// zero value means "never" where a zero lifetime here means "rotate on every
+	// open". Keep the library's default unless an explicit positive duration is
+	// configured, for example to scale epochs in an accelerated replay.
+	streamLifetime := defaultStreamLifetime
+	const lifetimeKey = "logs_config.foldspace.stream_lifetime"
+	if cfg.IsConfigured(lifetimeKey) {
+		streamLifetime, err = time.ParseDuration(strings.TrimSpace(cfg.GetString(lifetimeKey)))
+		if err != nil || streamLifetime <= 0 {
+			return nil, errors.New(lifetimeKey + " must be a positive duration with units (e.g. 15m or 90s)")
+		}
+	}
+	log.Infof("foldspace stream lifetime: %s (%d ns)", streamLifetime, streamLifetime.Nanoseconds())
+
+	return &DestinationConfig{
+		Senders: senders,
+		Core: Config{
+			Endpoints:              coreEndpoints,
+			MaxInflightPayloads:    maxInflight,
+			BatchCapacity:          batchCapacity,
+			MaxPayloadBytes:        maxPayload,
+			Compression:            compression,
+			ZstdLevel:              zstdLevel,
+			ReconnectBackoffBase:   time.Duration(cfg.GetFloat64("logs_config.sender_backoff_base") * float64(time.Second)),
+			ReconnectBackoffFactor: uint32(cfg.GetInt("logs_config.sender_backoff_factor")),
+			ReconnectBackoffCap:    time.Duration(cfg.GetFloat64("logs_config.sender_backoff_max") * float64(time.Second)),
+			DrainTimeout:           5 * time.Second,
+			StreamLifetime:         streamLifetime,
+			FirstBatchID:           0,
+		},
+		PipelineDepth:     pipelineDepth,
+		ConnectTimeout:    httpTimeout,
+		SendTimeout:       httpTimeout,
+		ShutdownTimeout:   shutdown,
+		StateRequestBytes: stateBytes,
+		DualShip:          cfg.GetBool("logs_config.foldspace.dual_ship"),
+		KeepaliveTime:     keepaliveTime,
+		KeepaliveTimeout:  keepaliveTimeout,
+		AckTimeout:        ackTimeout,
+		BatchWait:         batchWait,
+		StreamMethod:      streamMethod,
+	}, nil
+}
+
+// parseStreamMethod validates a full gRPC method path. Empty selects the
+// agent's own StatefulIntake/StatefulStream.
+func parseStreamMethod(raw string) (string, error) {
+	method := strings.TrimSpace(raw)
+	if method == "" {
+		return statefulStreamFullMethod, nil
+	}
+	service, name, ok := strings.Cut(strings.TrimPrefix(method, "/"), "/")
+	if !strings.HasPrefix(method, "/") || !ok || service == "" || name == "" || strings.Contains(name, "/") {
+		return "", fmt.Errorf("%q is not a gRPC method path of the form /<package>.<Service>/<Method>", method)
+	}
+	return method, nil
+}
+
+func parseHostPort(raw string, defaultPort int) (string, int, error) {
+	raw = strings.TrimPrefix(strings.TrimPrefix(raw, "https://"), "http://")
+	if !strings.Contains(raw, ":") {
+		return raw, defaultPort, nil
+	}
+	host, portStr, err := net.SplitHostPort(raw)
+	if err != nil {
+		return "", 0, err
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, err
+	}
+	return host, port, nil
+}
