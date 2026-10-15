@@ -18,6 +18,7 @@ import (
 	awsarn "github.com/aws/aws-sdk-go-v2/aws/arn"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
+	smithy "github.com/aws/smithy-go"
 
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -26,8 +27,15 @@ import (
 
 const (
 	identityTimeout = 5 * time.Second
-	// failureCacheTTL bounds how often a failing resolution is retried against the EKS API.
+	// failureCacheTTL bounds how often a permanent failure (AccessDenied, ResourceNotFound,
+	// malformed ARN) is retried against the EKS API. These do not resolve on their own, so a
+	// node Agent must not turn them into one API call per request.
 	failureCacheTTL = 5 * time.Minute
+	// transientFailureCacheTTL is a short TTL for failures that can clear on their own
+	// (throttling, timeouts, credential refresh). Caching these as hard as permanent ones
+	// would strip the identity tag from the whole fleet for the full failureCacheTTL after a
+	// single blip, so they are retried much sooner.
+	transientFailureCacheTTL = 30 * time.Second
 )
 
 var (
@@ -49,14 +57,18 @@ type ClusterIdentity struct {
 }
 
 // Tags returns the identity as low-cardinality tags. It returns nil for an incomplete identity.
+//
+// Only eks_cluster_arn is emitted. The ARN already encodes the partition, Region and owning
+// account, so emitting separate aws_account/region tags would both duplicate that payload on
+// every span and collide with the node-derived aws_account/region host tags: on a cross-account
+// node group the node's account and the cluster's account differ, leaving two values under one
+// key on the same entity. Consumers that need the account or Region parse them out of the ARN.
 func (c *ClusterIdentity) Tags() []string {
-	if c == nil || c.ClusterARN == "" || c.AccountID == "" || c.Region == "" {
+	if c == nil || !isValidClusterARN(c.ClusterARN) {
 		return nil
 	}
 	return []string{
 		taggertags.EksClusterARN + ":" + c.ClusterARN,
-		taggertags.AwsAccount + ":" + c.AccountID,
-		taggertags.Region + ":" + c.Region,
 	}
 }
 
@@ -93,7 +105,9 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	if cached, found := cache.Cache.Get(cacheKey); found {
 		switch v := cached.(type) {
 		case *ClusterIdentity:
-			return v, nil
+			// Return a copy so a caller cannot mutate the value shared by the process-global cache.
+			out := *v
+			return &out, nil
 		case error:
 			return nil, v
 		}
@@ -105,7 +119,7 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	cfg, err := loadAWSConfig(resolveCtx)
 	if err != nil {
 		err = fmt.Errorf("load AWS configuration: %w", err)
-		cache.Cache.Set(cacheKey, err, failureCacheTTL)
+		cache.Cache.Set(cacheKey, err, failureTTL(err))
 		return nil, err
 	}
 
@@ -113,11 +127,60 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	if err != nil {
 		// Negative cache: node Agents query the Cluster Agent repeatedly at startup, and a
 		// missing eks:DescribeCluster permission must not turn into one API call per request.
-		cache.Cache.Set(cacheKey, err, failureCacheTTL)
+		// Transient failures use a short TTL so a blip does not strip the tag for 5 minutes.
+		cache.Cache.Set(cacheKey, err, failureTTL(err))
 		return nil, err
 	}
 	cache.Cache.Set(cacheKey, identity, cache.NoExpiration)
 	return identity, nil
+}
+
+// failureTTL classifies a resolution error so that failures which can clear on their own are
+// retried soon, while failures that are stable for the cluster's configuration are cached longer.
+// A context deadline/cancellation, an AWS throttling error, or any error carrying a 5xx HTTP
+// status is treated as transient; everything else (AccessDenied, ResourceNotFound, malformed
+// identity, invalid name) is treated as permanent.
+func failureTTL(err error) time.Duration {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return transientFailureCacheTTL
+	}
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		if apiErr.ErrorFault() == smithy.FaultServer {
+			return transientFailureCacheTTL
+		}
+		switch apiErr.ErrorCode() {
+		case "ThrottlingException", "Throttling", "ThrottlingError", "RequestLimitExceeded",
+			"TooManyRequestsException", "ServiceUnavailable", "ServiceUnavailableException",
+			"InternalServerErrorException", "InternalFailure":
+			return transientFailureCacheTTL
+		}
+	}
+	var respErr interface{ HTTPStatusCode() int }
+	if errors.As(err, &respErr) && respErr.HTTPStatusCode() >= 500 {
+		return transientFailureCacheTTL
+	}
+	return failureCacheTTL
+}
+
+// isValidClusterARN reports whether arn is a well-formed EKS cluster ARN. It is used on both
+// sides of the Cluster Agent boundary: the resolver validates DescribeCluster output, and the
+// node Agent re-validates the ARN it receives over HTTP before turning it into a tag, so a
+// version-skewed or misbehaving Cluster Agent cannot inject arbitrary tag values.
+func isValidClusterARN(clusterARN string) bool {
+	if clusterARN == "" {
+		return false
+	}
+	parsed, err := awsarn.Parse(clusterARN)
+	if err != nil {
+		return false
+	}
+	if parsed.Service != "eks" || parsed.Region == "" || !accountIDPattern.MatchString(parsed.AccountID) {
+		return false
+	}
+	const clusterPrefix = "cluster/"
+	return strings.HasPrefix(parsed.Resource, clusterPrefix) &&
+		clusterNamePattern.MatchString(strings.TrimPrefix(parsed.Resource, clusterPrefix))
 }
 
 func resolveClusterIdentity(ctx context.Context, clusterName, requestRegion string, client describeClusterAPI) (*ClusterIdentity, error) {

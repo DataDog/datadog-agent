@@ -73,10 +73,14 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 			providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
 		}
 		providers["kubernetes_cluster_agent_tags"] = &providerDef{10, clusterinfo.GetClusterAgentStaticTags}
-		// Authoritative EKS identity (cluster ARN, account, Region) resolved once by the
-		// Cluster Agent. Returns an error on non-EKS clusters, which the retry loop treats
-		// as "no tags" after the retry budget.
-		providers["kubernetes_cluster_agent_eks_identity"] = &providerDef{3, clusterinfo.GetClusterAgentEKSIdentityTags}
+		// Authoritative EKS identity (cluster ARN) resolved once by the Cluster Agent. It is
+		// only reachable through the DCA, so register it only when the DCA is enabled;
+		// otherwise it is a provider that can never succeed. A single attempt is enough: on
+		// non-EKS clusters the DCA answers "not found" permanently, so extra retries only add
+		// startup latency and log noise for the majority of Kubernetes installs.
+		if conf.GetBool("cluster_agent.enabled") {
+			providers["kubernetes_cluster_agent_eks_identity"] = &providerDef{1, clusterinfo.GetClusterAgentEKSIdentityTags}
+		}
 	}
 
 	if env.IsFeaturePresent(env.Docker) {
