@@ -415,6 +415,8 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			m.resolvePendingEvents()
+			m.persistAllProfiles()
 			return
 		case <-sendTickerChan:
 			m.persistAllProfiles()
@@ -589,10 +591,14 @@ func (m *ManagerV2) persistAllProfiles() {
 
 // persistProfile encodes and persists a single profile to all configured storage backends
 func (m *ManagerV2) persistProfile(p *profile.Profile) {
+	_ = m.persistProfileWithRequests(p, m.configuredStorageRequests, true)
+}
+
+func (m *ManagerV2) persistProfileWithRequests(p *profile.Profile, storageRequests map[config.StorageFormat][]config.StorageRequest, markSent bool) error {
 	enabled := p.IsEnabled()
 
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
-	for format, requests := range m.configuredStorageRequests {
+	for format, requests := range storageRequests {
 		for _, request := range requests {
 			// Avoid sending a disabled profile to the backend
 			if !enabled && request.Type != config.LocalStorage {
@@ -605,23 +611,26 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 				data, err = p.Encode(format)
 				if err != nil {
 					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
-					break
+					return err
 				}
 				encoded[format] = data
 			}
 
-			m.persistProfileToStorage(p, request, data)
+			if err := m.persistProfileToStorage(p, request, data); err != nil {
+				return err
+			}
 		}
 	}
 
-	if enabled {
+	if markSent && enabled {
 		p.SetHasAlreadyBeenSent()
 	}
+	return nil
 }
 
 // persistProfileToStorage persists profile data to a specific storage backend
 // should we send profiles that have not changed ? Just setting a proper time interval should be enough ?
-func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.StorageRequest, data *bytes.Buffer) {
+func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.StorageRequest, data *bytes.Buffer) error {
 	var storageBackend storage.ActivityDumpStorage
 	switch request.Type {
 	case config.LocalStorage:
@@ -629,16 +638,18 @@ func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.S
 	case config.RemoteStorage:
 		storageBackend = m.remoteStorage
 	default:
-		seclog.Errorf("couldn't persist [%s]: unknown storage type: %s", p.GetSelectorStr(), request.Type)
-		return
+		err := fmt.Errorf("couldn't persist [%s]: unknown storage type: %s", p.GetSelectorStr(), request.Type)
+		seclog.Errorf("%v", err)
+		return err
 	}
 
 	if err := storageBackend.Persist(request, p, data); err != nil {
 		seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
-		return
+		return err
 	}
 
 	m.sendPersistenceMetrics(request, data.Len())
+	return nil
 }
 
 // sendPersistenceMetrics accumulates persistence metrics after successful profile persistence.
@@ -1245,6 +1256,13 @@ func (m *ManagerV2) unlinkExitedWorkload(selector cgroupModel.WorkloadSelector, 
 func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
 	if workload == nil {
 		return
+	}
+
+	if cid := workload.GCroupCacheEntry.GetContainerID(); len(cid) > 0 {
+		prof.Metadata.ContainerID = cid
+	}
+	if workload.GCroupCacheEntry.IsCGroupContextResolved() {
+		prof.Metadata.CGroupContext = workload.GCroupCacheEntry.GetCGroupContext()
 	}
 
 	prof.InstancesLock.Lock()
@@ -1918,16 +1936,99 @@ func (m *ManagerV2) HandleCGroupTracingEvent(_ *model.CgroupTracingEvent) {}
 // NO-OP in V2: V2 doesn't manage kernel-space traced cgroups maps.
 func (m *ManagerV2) SyncTracedCgroups() {}
 
-// ListActivityDumps lists the activity dumps.
-// NO-OP in V2: V2 doesn't expose individual activity dumps through this API.
 func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	return nil, nil
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &api.ActivityDumpListMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+
+	m.resolvePendingEvents()
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	timeout := m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout
+	var dumps []*api.ActivityDumpMessage
+	for _, p := range m.profiles {
+		dumps = append(dumps, p.ToSecurityActivityDumpMessage(timeout, m.configuredStorageRequests))
+	}
+	return &api.ActivityDumpListMessage{
+		Dumps: dumps,
+	}, nil
 }
 
-// StopActivityDump stops an active activity dump.
-// NO-OP in V2: V2 doesn't manage activity dumps the traditional way.
-func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	return nil, nil
+func profileMatchesStopParams(p *profile.Profile, params *api.ActivityDumpStopParams) bool {
+	if name := params.GetName(); name != "" && p.Metadata.Name == name {
+		return true
+	}
+	if cid := containerutils.ContainerID(params.GetContainerID()); cid != "" {
+		if p.Metadata.ContainerID == cid {
+			return true
+		}
+		p.InstancesLock.Lock()
+		for _, inst := range p.Instances {
+			if inst.GCroupCacheEntry.GetContainerID() == cid {
+				p.InstancesLock.Unlock()
+				return true
+			}
+		}
+		p.InstancesLock.Unlock()
+	}
+	if cgid := containerutils.CGroupID(params.GetCGroupID()); cgid != "" {
+		if p.Metadata.CGroupContext.CGroupID == cgid {
+			return true
+		}
+		p.InstancesLock.Lock()
+		for _, inst := range p.Instances {
+			if inst.GCroupCacheEntry.GetCGroupID() == cgid {
+				p.InstancesLock.Unlock()
+				return true
+			}
+		}
+		p.InstancesLock.Unlock()
+	}
+	return false
+}
+
+func (m *ManagerV2) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &api.ActivityDumpStopMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+
+	if params.GetName() == "" && params.GetContainerID() == "" && params.GetCGroupID() == "" {
+		err := errors.New("you must specify one selector between name, containerID and cgroupID")
+		return &api.ActivityDumpStopMessage{Error: err.Error()}, err
+	}
+
+	m.resolvePendingEvents()
+
+	m.profilesLock.Lock()
+	var matched *profile.Profile
+	for _, p := range m.profiles {
+		if profileMatchesStopParams(p, params) {
+			matched = p
+			break
+		}
+	}
+	m.profilesLock.Unlock()
+
+	if matched != nil {
+		m.persistProfile(matched)
+		return &api.ActivityDumpStopMessage{}, nil
+	}
+
+	var err error
+	if params.GetName() != "" {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following name: %s", params.GetName())
+	} else if params.GetContainerID() != "" {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following containerID: %s", params.GetContainerID())
+	} else {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following cgroup ID: %s", params.GetCGroupID())
+	}
+	return &api.ActivityDumpStopMessage{Error: err.Error()}, err
 }
 
 // DumpActivity dumps the activity.
@@ -1936,8 +2037,40 @@ func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMe
 	return nil, nil
 }
 
-// GenerateTranscoding generates a transcoding request for the given activity dump.
-// NO-OP in V2: V2 doesn't support transcoding through this API.
-func (m *ManagerV2) GenerateTranscoding(_ *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	return nil, nil
+func (m *ManagerV2) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &api.TranscodingRequestMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+
+	p := profile.New(
+		profile.WithPathsReducer(m.pathsReducer),
+		profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
+		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
+		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
+	)
+
+	if err := p.Decode(params.GetActivityDumpFile()); err != nil {
+		err := fmt.Errorf("couldn't parse input file %s: %w", params.GetActivityDumpFile(), err)
+		return &api.TranscodingRequestMessage{Error: err.Error()}, err
+	}
+
+	storageRequests, err := config.ParseStorageRequests(params.GetStorage())
+	if err != nil {
+		err := fmt.Errorf("couldn't parse transcoding request for [%s]: %w", p.GetSelectorStr(), err)
+		return &api.TranscodingRequestMessage{Error: err.Error()}, err
+	}
+
+	if err := m.persistProfileWithRequests(p, perFormatStorageRequests(storageRequests), false); err != nil {
+		err := fmt.Errorf("couldn't persist dump [%s]: %w", p.GetSelectorStr(), err)
+		return &api.TranscodingRequestMessage{Error: err.Error()}, err
+	}
+
+	message := &api.TranscodingRequestMessage{}
+	for _, request := range storageRequests {
+		message.Storage = append(message.Storage, request.ToStorageRequestMessage(p.Metadata.Name))
+	}
+
+	return message, nil
 }
