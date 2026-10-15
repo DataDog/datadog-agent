@@ -102,8 +102,6 @@ func HasFeature(features, flag Features) bool { return defaultforwarderdef.HasFe
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
-	// NumberOfWorkers is informational, the forwarder uses the concurrency policy.
-	NumberOfWorkers                int
 	RetryQueuePayloadsTotalMaxSize int
 	DisableAPIKeyChecking          bool
 	EnabledFeatures                Features
@@ -208,7 +206,6 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 	concurrency := concurrencyPolicyFromConfig(config, log)
 
 	option := &Options{
-		NumberOfWorkers:                concurrency.numWorkers(),
 		DisableAPIKeyChecking:          false,
 		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
