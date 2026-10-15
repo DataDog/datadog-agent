@@ -171,6 +171,25 @@ properties:
             description: |-
               Where key is read from: a pod `label`, a pod `annotation`, or an `env`
               (environment variable of the process using the GPU).
+  kai_scheduler:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Support for workloads scheduled by KAI Scheduler, which lets several pods
+      share one GPU. A pod asking for a fraction of a GPU does not request
+      `nvidia.com/gpu`, so the GPU it uses cannot be identified from the pod's
+      own resource requests; the assignment is read from the reservation pod KAI
+      creates for the shared GPU.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to report which GPU each KAI Scheduler fractional workload
+          is using.
   nvlink:
     node_type: section
     type: object
