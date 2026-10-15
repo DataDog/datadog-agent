@@ -1217,10 +1217,6 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		if p.profileManager.HasActiveActivityDump(event) {
 			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 		}
-	} else {
-		if event.Error == nil {
-			p.profileManager.ProcessEvent(event)
-		}
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
@@ -1276,6 +1272,8 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
+	} else if event.Error == nil {
+		p.profileManager.ProcessEvent(event)
 	}
 
 	p.monitors.ProcessEvent(event, p.probe.scrubber)

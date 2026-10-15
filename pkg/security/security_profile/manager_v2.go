@@ -387,6 +387,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	nodeEvictionTickerChan := m.setupNodeEvictionTicker()
 	profileCleanupTickerChan := m.setupProfileCleanupTicker()
 	stalePurgeTickerChan := m.setupStalePurgeTicker()
+	pendingEventsResolutionTickerChan := m.setupPendingEventsResolutionTicker()
 
 	// Register listener for cgroup deletions to track active cgroups
 	if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted); err != nil {
@@ -423,6 +424,8 @@ func (m *ManagerV2) Start(ctx context.Context) {
 			m.cleanupPendingProfiles()
 		case <-stalePurgeTickerChan:
 			m.purgeStalePendingEvents(time.Now())
+		case <-pendingEventsResolutionTickerChan:
+			m.resolvePendingEvents()
 		}
 	}
 }
@@ -463,6 +466,14 @@ func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
 
 	// Purge stale pending events every 10 seconds
 	return time.NewTicker(10 * time.Second).C
+}
+
+func (m *ManagerV2) setupPendingEventsResolutionTicker() <-chan time.Time {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return make(chan time.Time)
+	}
+
+	return time.NewTicker(1 * time.Second).C
 }
 
 // onCGroupCreated excludes host/systemd cgroups from the v2 syscall sampler and un-excludes
@@ -736,29 +747,16 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
-	// Track cgroups with resolved tags (for cgroups_resolved gauge)
-	m.resolvedCgroupsLock.Lock()
-	m.resolvedCgroups[cgroupID] = struct{}{}
-	m.resolvedCgroupsLock.Unlock()
+	if m.resolvers == nil || m.resolvers.CGroupResolver == nil || m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(cgroupID) != nil {
+		m.resolvedCgroupsLock.Lock()
+		m.resolvedCgroups[cgroupID] = struct{}{}
+		m.resolvedCgroupsLock.Unlock()
+	}
 
 	// Dequeue and process pending events if any exist for this cgroup
 	m.profilePendingEventsLock.Lock()
 	if pendingEvents := m.profilePendingEvents[cgroupID]; pendingEvents != nil {
-		// Track tag resolution latency (time from first event to successful resolution)
-		latency := time.Since(pendingEvents.firstSeen)
-		if err := m.statsdClient.Distribution(metrics.MetricSecurityProfileV2TagResolutionLatency, latency.Seconds(), []string{}, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionLatency, err)
-		}
-
-		for e := pendingEvents.events.Front(); e != nil; e = e.Next() {
-			queuedEvent := e.Value.(*model.Event)
-			// Copy resolved tags to queued event since it was queued before tags were available
-			queuedEvent.ProcessContext.Process.ContainerContext.Tags = event.ProcessContext.Process.ContainerContext.Tags
-			m.onEventTagsResolved(queuedEvent)
-		}
-		m.queueSize.Sub(uint64(pendingEvents.events.Len()))
-		m.pendingProfiles.Dec()
-		delete(m.profilePendingEvents, cgroupID)
+		m.drainPendingEventsLocked(cgroupID, pendingEvents, event.ProcessContext.Process.ContainerContext.Tags)
 	}
 	m.profilePendingEventsLock.Unlock()
 
@@ -766,9 +764,64 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 	m.onEventTagsResolved(event)
 }
 
+func (m *ManagerV2) drainPendingEventsLocked(cgroupID containerutils.CGroupID, pendingEvents *pendingProfile, workloadTags []string) {
+	latency := time.Since(pendingEvents.firstSeen)
+	if err := m.statsdClient.Distribution(metrics.MetricSecurityProfileV2TagResolutionLatency, latency.Seconds(), []string{}, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionLatency, err)
+	}
+
+	for e := pendingEvents.events.Front(); e != nil; e = e.Next() {
+		queuedEvent := e.Value.(*model.Event)
+		queuedEvent.ProcessContext.Process.ContainerContext.Tags = workloadTags
+		m.onEventTagsResolved(queuedEvent)
+	}
+	m.queueSize.Sub(uint64(pendingEvents.events.Len()))
+	m.pendingProfiles.Dec()
+	delete(m.profilePendingEvents, cgroupID)
+}
+
+func (m *ManagerV2) resolvePendingEvents() {
+	if m.resolvers == nil || m.resolvers.TagsResolver == nil {
+		return
+	}
+
+	m.profilePendingEventsLock.Lock()
+	defer m.profilePendingEventsLock.Unlock()
+
+	for cgroupID, pendingEvents := range m.profilePendingEvents {
+		front := pendingEvents.events.Front()
+		if front == nil {
+			delete(m.profilePendingEvents, cgroupID)
+			m.pendingProfiles.Dec()
+			continue
+		}
+
+		firstEvent := front.Value.(*model.Event)
+		workloadID := getWorkloadIDFromEvent(firstEvent)
+		if workloadID == nil {
+			continue
+		}
+
+		workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+		if err != nil || len(workloadTags) == 0 || utils.GetTagValue("image_tag", workloadTags) == "" {
+			continue
+		}
+
+		if m.resolvers.CGroupResolver == nil || m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(cgroupID) != nil {
+			m.resolvedCgroupsLock.Lock()
+			m.resolvedCgroups[cgroupID] = struct{}{}
+			m.resolvedCgroupsLock.Unlock()
+		}
+
+		m.drainPendingEventsLocked(cgroupID, pendingEvents, workloadTags)
+	}
+}
+
 // queueEventForTagResolution queues an event while waiting for tag resolution
 func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventTypeMetrics) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+
+	event.ResolveEventTime()
 
 	m.profilePendingEventsLock.Lock()
 	defer m.profilePendingEventsLock.Unlock()
@@ -787,7 +840,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	// Check if event is too old (>10s since first event for this cgroup)
 	// If so, drop this event and clear the queue - stale events won't be processed
-	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
 		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
 			// Decrement queue size BEFORE clearing the list
@@ -838,6 +890,12 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 
 	if workloadID != nil {
 		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+	}
+	if event.SecurityProfileContext.Name == "" {
+		event.SecurityProfileContext.Name = profile.Metadata.Name
+		if profileContext, ok := profile.GetVersionContext(imageTag); ok {
+			event.SecurityProfileContext.Tags = profileContext.Tags
+		}
 	}
 
 	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
@@ -1065,9 +1123,13 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	workloadID := getWorkloadIDFromEvent(event)
 
 	// Link this workload to the profile (tracks in profile.Instances)
-	workload := m.getOrCreateWorkload(event, selector, workloadID)
+	workload, exited := m.getOrCreateWorkload(event, selector, workloadID)
 	m.linkWorkloadToProfile(secprof, workload)
-	m.seedMountsForWorkload(secprof, workload, event)
+	if exited && workload != nil {
+		defer m.unlinkExitedWorkload(selector, secprof, workload.GCroupCacheEntry)
+	} else {
+		m.seedMountsForWorkload(secprof, workload, event)
+	}
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
@@ -1141,24 +1203,41 @@ func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 }
 
 // getOrCreateWorkload creates a workload object from an event for tracking in profile Instances
-func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) *tags.Workload {
+func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) (*tags.Workload, bool) {
 	var cacheEntry *cgroupModel.CacheEntry
 
-	switch id := workloadID.(type) {
-	case containerutils.ContainerID:
-		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryContainerID(id)
-	case containerutils.CGroupID:
-		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(id)
+	if m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		switch id := workloadID.(type) {
+		case containerutils.ContainerID:
+			cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryContainerID(id)
+		case containerutils.CGroupID:
+			cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(id)
+		}
 	}
 
-	if cacheEntry == nil {
-		return nil
+	exited := cacheEntry == nil
+	if exited {
+		cacheEntry = cgroupModel.NewCacheEntry(
+			event.ProcessContext.Process.ContainerContext,
+			event.ProcessContext.Process.CGroup,
+			0,
+		)
 	}
 
 	return &tags.Workload{
 		GCroupCacheEntry: cacheEntry,
 		Selector:         selector,
 		Tags:             event.ProcessContext.Process.ContainerContext.Tags,
+	}, exited
+}
+
+func (m *ManagerV2) unlinkExitedWorkload(selector cgroupModel.WorkloadSelector, prof *profile.Profile, cgce *cgroupModel.CacheEntry) {
+	if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed && remainingInstances == 0 {
+		m.pendingProfileRemovalsLock.Lock()
+		if _, alreadyPending := m.pendingProfileRemovals[selector]; !alreadyPending {
+			m.pendingProfileRemovals[selector] = time.Now()
+		}
+		m.pendingProfileRemovalsLock.Unlock()
 	}
 }
 
@@ -1205,7 +1284,7 @@ func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 // pre-existing mounts from its base mount namespace. Later changes come from
 // live mount events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
-	if workload == nil {
+	if workload == nil || m.resolvers == nil || m.resolvers.MountResolver == nil {
 		return
 	}
 
@@ -1256,7 +1335,7 @@ func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgrou
 	defer prof.InstancesLock.Unlock()
 
 	var workloadID containerutils.WorkloadID
-	if cgce.IsContainerContextNull() {
+	if !cgce.IsContainerContextNull() {
 		workloadID = cgce.GetContainerID()
 	} else if cgce.IsCGroupContextResolved() {
 		workloadID = cgce.GetCGroupID()
