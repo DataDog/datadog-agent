@@ -62,8 +62,8 @@ const (
 	// re-arming when no image SBOM will ever be produced (for example when
 	// container image SBOM collection is disabled and the image stays pending).
 	maxForwardWait = 30 * time.Minute
-	// hostRescanInterval is the period of the scans of the host packages, the
-	// default period of the host scans of the core agent.
+	// hostRescanInterval is the longest time between two scans of the host
+	// packages, the default period of the host scans of the core agent.
 	hostRescanInterval = time.Hour
 	// settleDelay is how long the open of a host file waits before it counts
 	// as usage. rpm opens each executable it removes or replaces, to clear its
@@ -72,7 +72,21 @@ const (
 	settleDelay = 3 * time.Second
 	// maxOpened bounds the opens of host files waiting for settleDelay.
 	maxOpened = 4096
+	// hostCheckInterval is the period of the checks of the host package
+	// databases, which scan the host packages again once the databases changed.
+	hostCheckInterval = time.Minute
+	// maxHostMisses bounds the runs of host files the host index lacked that
+	// wait for the scan indexing them, and hostMissTTL how long one waits.
+	maxHostMisses = 1024
+	hostMissTTL   = 10 * time.Minute
 )
+
+// hostMiss is the run of a host file the host index lacked: the usage it
+// records, and the inode of the file that ran, zero when unknown.
+type hostMiss struct {
+	usage sbomtypes.Package
+	inode uint64
+}
 
 // pendingFileEvent holds the minimal information needed to re-process a file
 // access once the SBOM for its container becomes available. Accesses are indexed
@@ -317,10 +331,16 @@ type Resolver struct {
 	// hostRootOverlay is set when the host root is an overlayfs.
 	hostRootOverlay bool
 	hostSBOM        *SBOM
-	// hostScanLock serializes the scans of the host packages, the hourly ones
-	// and those a package database write triggers. A scan reads the databases
-	// before it swaps the index, so the scan that read them last swaps last.
-	hostScanLock sync.Mutex
+	// hostScanLock serializes the scans of the host packages. A scan reads the
+	// databases before it swaps the index, so the scan that read them last
+	// swaps last. It guards hostFingerprint, the fingerprint of the databases
+	// the last scan read, and hostScanned, the time of that scan.
+	hostScanLock    sync.Mutex
+	hostFingerprint string
+	hostScanned     time.Time
+	// hostMisses holds the runs of the host files the host index lacked, by
+	// path, for the scan indexing them. The lock of hostSBOM guards it.
+	hostMisses *simplelru.LRU[string, hostMiss]
 	// walkProcesses calls its argument on every process the probe knows of.
 	walkProcesses func(func(*model.ProcessCacheEntry))
 	// openedLock guards opened, the opens of host files waiting for
@@ -349,6 +369,7 @@ type Resolver struct {
 
 type sbomCollector interface {
 	ScanInstalledPackages(ctx context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error)
+	Fingerprint(root string) string
 }
 
 // NewSBOMResolver returns a new instance of Resolver
@@ -361,6 +382,11 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 
 	// one entry per workload waiting for its scan, so the same bound as the sboms cache
 	pendingFileEvents, err := simplelru.NewLRU[containerutils.ContainerID, map[string]pendingFileEvent](maxSBOMEntries, nil)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
+	}
+
+	hostMisses, err := simplelru.NewLRU[string, hostMiss](maxHostMisses, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
@@ -394,6 +420,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		failedSBOMGenerations: atomic.NewUint64(0),
 		wmeta:                 wmeta,
 		pendingFileEvents:     pendingFileEvents,
+		hostMisses:            hostMisses,
 
 		enrichedSBOMForwarded:      atomic.NewUint64(0),
 		enrichedSBOMForwardDropped: atomic.NewUint64(0),
@@ -420,10 +447,10 @@ func (r *Resolver) Start(ctx context.Context) error {
 			return err
 		}
 
-		rescan := time.NewTicker(hostRescanInterval)
+		check := time.NewTicker(hostCheckInterval)
 		go func() {
-			defer rescan.Stop()
-			r.rescanHost(ctx, rescan.C)
+			defer check.Stop()
+			r.rescanHost(ctx, check.C)
 		}()
 
 		settle := time.NewTicker(settleDelay / 2)
@@ -517,16 +544,20 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 	r.triggerScan(sbom)
 }
 
-// rescanHost scans the host packages again on every tick until ctx is done, so
-// the host index follows the packages installed after it was built. With CWS
-// on, a write to the package databases rescans the host at once as well. Usage
-// enrichment alone relies on these rescans.
+// rescanHost checks the host package databases on every tick until ctx is
+// done, and scans the host packages again when they changed, so the host index
+// follows the packages installed after it was built. With CWS on, a write to
+// the package databases rescans the host at once as well. Usage enrichment
+// alone relies on these checks.
 func (r *Resolver) rescanHost(ctx context.Context, tick <-chan time.Time) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-tick:
+		case now := <-tick:
+			if !r.hostChanged(now) {
+				continue
+			}
 			if err := r.scanHost(); err != nil {
 				seclog.Warnf("Failed to rescan the host packages: %v", err)
 			}
@@ -534,12 +565,24 @@ func (r *Resolver) rescanHost(ctx context.Context, tick <-chan time.Time) {
 	}
 }
 
+// hostChanged reports whether the host packages may have changed at now since
+// the last scan: the fingerprint of their databases changed, or the scan is
+// hostRescanInterval old.
+func (r *Resolver) hostChanged(now time.Time) bool {
+	r.hostScanLock.Lock()
+	defer r.hostScanLock.Unlock()
+
+	return now.Sub(r.hostScanned) >= hostRescanInterval ||
+		r.sbomCollector.Fingerprint(utils.ProcRootPath(1)) != r.hostFingerprint
+}
+
 // scanHost indexes the packages installed on the host into the host SBOM, and
 // forwards the result when the packages changed. A package keeps the usage the
 // previous index recorded on its build, and on the builds of its name the scan
 // no longer finds, so a daemon seen running before the scan still counts, and
 // so does a daemon its upgrade restarted, whose start was recorded on the
-// build the upgrade replaced. The host resolves against the previous index
+// build the upgrade replaced. The runs of the files of a new package made
+// before the scan count as well. The host resolves against the previous index
 // until the scan is over.
 func (r *Resolver) scanHost() error {
 	r.hostScanLock.Lock()
@@ -549,6 +592,10 @@ func (r *Resolver) scanHost() error {
 	// container are read through the root of one of its processes.
 	hostRoot := utils.ProcRootPath(1)
 
+	// The databases are fingerprinted before the scan reads them, so that a
+	// write while it reads them makes the next check scan again. A scan that
+	// fails waits for the next write, or for hostRescanInterval.
+	r.hostFingerprint, r.hostScanned = r.sbomCollector.Fingerprint(hostRoot), time.Now()
 	report, err := r.generateSBOM(hostRoot)
 	if err != nil {
 		return err
@@ -574,6 +621,7 @@ func (r *Resolver) scanHost() error {
 	markRunningKernel(r.hostSBOM.data, kernelFiles)
 	r.hostSBOM.state.Store(computedState)
 	if changed {
+		r.creditHostMisses()
 		r.triggerForwarding(r.hostSBOM)
 	}
 	r.hostSBOM.Unlock()
@@ -711,6 +759,67 @@ func markRunningKernel(d *Data, files []string) {
 			pkg.AccessedByRoot = true
 		}
 	}
+}
+
+// addHostMiss keeps the run of file by the process of pc, a host file the host
+// index lacks, for the scan indexing it. Must be called with hostSBOM.Lock()
+// already held.
+func (r *Resolver) addHostMiss(pc *model.ProcessContext, file *model.FileEvent) {
+	if !r.onHostRoot(pc.Pid) {
+		return
+	}
+	// An overlayfs file carries the inode of its layer, which can differ from
+	// the inode stat reports.
+	inode := file.Inode
+	if file.IsInLowerLayer() || file.IsInUpperLayer() {
+		inode = 0
+	}
+	run := sbomtypes.Package{
+		LastAccess:     time.Now(),
+		SuidBit:        fs.FileMode(file.Mode)&04000 != 0,
+		AccessedByRoot: pc.UID == 0,
+	}
+	if miss, ok := r.hostMisses.Peek(file.PathnameStr); ok && miss.inode == inode {
+		run = combineUsage(miss.usage, run)
+	}
+	r.hostMisses.Add(file.PathnameStr, hostMiss{usage: run, inode: inode})
+}
+
+// creditHostMisses records the runs of host files the host index lacked, made
+// in the last hostMissTTL, on the packages of the new index that own the files,
+// and forgets them. A run counts if the file that ran is still at its path.
+// Must be called with hostSBOM.Lock() already held.
+func (r *Resolver) creditHostMisses() {
+	data := r.hostSBOM.data
+	data.mu.Lock()
+	defer data.mu.Unlock()
+
+	now := time.Now()
+	for _, path := range r.hostMisses.Keys() {
+		miss, _ := r.hostMisses.Peek(path)
+		if now.Sub(miss.usage.LastAccess) > hostMissTTL {
+			r.hostMisses.Remove(path)
+			continue
+		}
+		pkg := data.files.queryFile(path)
+		if pkg == nil {
+			continue
+		}
+		if r.isFileAt(path, miss.inode) {
+			*pkg = combineUsage(*pkg, miss.usage)
+		}
+		r.hostMisses.Remove(path)
+	}
+}
+
+// isFileAt reports whether the host file of inode is at path. An unknown inode
+// counts as the file at path.
+func (r *Resolver) isFileAt(path string, inode uint64) bool {
+	if inode == 0 {
+		return true
+	}
+	var stat syscall.Stat_t
+	return syscall.Lstat(r.hostRoot+path, &stat) == nil && stat.Ino == inode
 }
 
 // SetProcessWalker sets walk, which calls its argument on every process the
@@ -1302,6 +1411,13 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 			newSuidBit != oldSuidBit || newAccessedByRoot != oldAccessedByRoot {
 			sbom.invalidated = true
 		}
+	}
+
+	// The executable of a host process the host index lacks may belong to a
+	// package installed since the last scan. Its run waits for the scan
+	// indexing it.
+	if pkg == nil && sbom.ContainerID == "" && file.PathnameStr == pc.Process.FileEvent.PathnameStr {
+		r.addHostMiss(pc, file)
 	}
 
 	if sbom.invalidated {
