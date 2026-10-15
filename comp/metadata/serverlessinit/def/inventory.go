@@ -6,8 +6,6 @@
 package serverlessinit
 
 import (
-	"errors"
-	"fmt"
 	"sync/atomic"
 
 	"github.com/google/uuid"
@@ -114,40 +112,10 @@ func InventoryEligible(conf configmodel.Reader, provider InventoryProvider) bool
 	return conf.GetBool("serverless.inventory_enabled") && provider.CanCollectInventory()
 }
 
-// A payload rule checks a built agent_metadata field set and reports the
-// first rule it violates.
-type payloadRule func(fields map[string]interface{}) error
-
-// payloadRules are the sufficiency rules a built field set must satisfy. The
-// backend rejects a payload that violates any of them, so the component never
-// opens the payload — and thus never submits it — until every rule passes.
-var payloadRules = []payloadRule{
-	requiredField("resource_id"),
-}
-
-// requiredField builds a rule that the field must be present and non-empty.
-func requiredField(name string) payloadRule {
-	return func(fields map[string]interface{}) error {
-		switch value := fields[name].(type) {
-		case nil:
-			return fmt.Errorf("missing required field %q", name)
-		case string:
-			if value == "" {
-				return fmt.Errorf("required field %q is empty", name)
-			}
-		}
-		return nil
-	}
-}
-
-// InsufficientPayload joins every rule the built field set violates; a nil
-// return means the payload may be submitted.
-func InsufficientPayload(fields map[string]interface{}) error {
-	var violations []error
-	for _, rule := range payloadRules {
-		if err := rule(fields); err != nil {
-			violations = append(violations, err)
-		}
-	}
-	return errors.Join(violations...)
+// PayloadValid reports whether a built serverless inventory field set is
+// sufficient to submit. The backend rejects a payload without a resource id,
+// the first component of the downstream composite key.
+func PayloadValid(fields map[string]interface{}) bool {
+	id, ok := fields["resource_id"].(string)
+	return ok && id != ""
 }

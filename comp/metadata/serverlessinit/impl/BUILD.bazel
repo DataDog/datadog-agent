@@ -220,7 +220,6 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = select({
         "@rules_go//go/platform:aix": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -230,7 +229,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:android": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -240,7 +238,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:darwin": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -250,7 +247,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:dragonfly": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -260,7 +256,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:freebsd": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -270,7 +265,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:illumos": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -280,7 +274,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:ios": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -290,7 +283,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:js": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -300,7 +292,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -310,7 +301,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:netbsd": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -320,7 +310,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:openbsd": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -330,7 +319,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:osx": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -340,7 +328,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:plan9": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -350,7 +337,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:qnx": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",
@@ -360,7 +346,6 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:solaris": [
-            "//comp/core/log/def",
             "//comp/core/log/mock",
             "//comp/def",
             "//comp/metadata/serverlessinit/def",

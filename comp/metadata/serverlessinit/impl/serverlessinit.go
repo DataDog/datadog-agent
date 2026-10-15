@@ -97,8 +97,8 @@ func (c *serverlessinitComp) applyFields() bool {
 	}
 	data := c.provider.GetInventoryData()
 	fields := buildFields(data, c.params, c.conf)
-	if err := serverlessinit.InsufficientPayload(fields); err != nil {
-		c.log.Debugf("serverless inventory payload not submitted: %v", err)
+	if !serverlessinit.PayloadValid(fields) {
+		c.log.Debugf("serverless inventory payload not submitted: missing resource id")
 		return false
 	}
 
