@@ -13,7 +13,7 @@ def cpython_frozen_modules(modules, tool):
     """
     for name, src in modules:
         run_binary(
-            name = "native_frozen_" + name,
+            name = "frozen_" + name,
             srcs = [src],
             outs = ["Python/frozen_modules/{}.h".format(name)],
             args = [
@@ -36,22 +36,22 @@ def cpython_shared_modules(modules, copts, ext_suffix, dest_dir, target_compatib
         target_compatible_with: platforms the modules are built for.
 
     Returns:
-        The labels of the native_module_<name>_pkg targets.
+        The labels of the module_<name>_pkg targets.
     """
     for name, module in modules.items():
         cc_library(
-            name = "native_module_{}_lib".format(name),
+            name = "module_{}_lib".format(name),
             srcs = module["srcs"],
             copts = copts,
             linkopts = module.get("linkopts", []),
             local_defines = ["NDEBUG"] + module.get("defines", []),
             tags = ["manual"],
             target_compatible_with = target_compatible_with,
-            deps = [":native_internal_headers"] + module.get("deps", []),
+            deps = [":internal_headers"] + module.get("deps", []),
         )
 
         cc_shared_library(
-            name = "native_module_" + name,
+            name = "module_" + name,
             dynamic_deps = module.get("dynamic_deps", []),
             shared_lib_name = name + ext_suffix,
             target_compatible_with = target_compatible_with,
@@ -62,14 +62,14 @@ def cpython_shared_modules(modules, copts, ext_suffix, dest_dir, target_compatib
                 ],
                 "//conditions:default": [],
             }),
-            deps = [":native_module_{}_lib".format(name)],
+            deps = [":module_{}_lib".format(name)],
         )
 
         dd_cc_packaged(
-            name = "native_module_{}_pkg".format(name),
+            name = "module_{}_pkg".format(name),
             dest_dir = dest_dir,
-            input = ":native_module_" + name,
+            input = ":module_" + name,
             mode = "0755",
         )
 
-    return [":native_module_{}_pkg".format(name) for name in modules]
+    return [":module_{}_pkg".format(name) for name in modules]
