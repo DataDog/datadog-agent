@@ -2,7 +2,6 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.e2e_framework import doc, tool
-from tasks.e2e_framework.aws import doc as aws_doc
 from tasks.e2e_framework.aws.common import show_eks_connection_message
 from tasks.e2e_framework.aws.deploy import deploy
 from tasks.e2e_framework.destroy import destroy
@@ -17,7 +16,7 @@ scenario_name = "aws/benchmarkeks"
         "install_argorollout": doc.install_argorollout,
         "agent_version": doc.container_agent_version,
         "stack_name": doc.stack_name,
-        "instance_type": aws_doc.instance_type,
+        "instance_type": "The instance type of the node pools (default is m6i.large, not burstable)",
         "full_image_path": doc.full_image_path,
         "cluster_agent_full_image_path": doc.cluster_agent_full_image_path,
         "baseline_version": "The container version of the baseline Agent",
@@ -67,12 +66,13 @@ def create_benchmarkeks(
     """
     Create a new EKS environment for benchmarking. It lasts around 20 minutes.
 
-    This scenario deploys two independent Datadog Agent installations (baseline and comparison)
-    in separate namespaces, pinned to dedicated node pools. What it compares is the resource
-    footprint of the two Agent versions -- CPU, memory, goroutines, uploaded profiles -- while
-    both monitor a strictly identical workload; the workload's own performance is not measured.
-    Configure the two variants independently with the variant-specific version or full image
-    path parameters.
+    This scenario deploys two independent Datadog Agent installations, of variants a and b,
+    in separate namespaces, each pinned to node pools of its own. What it compares is the
+    resource footprint of two Agent versions -- CPU, memory, goroutines, uploaded profiles --
+    while both monitor a strictly identical workload; the workload's own performance is not
+    measured. The baseline version goes to variant a, the comparison version to variant b:
+    configure them independently with the --baseline-* and --comparison-* version or full
+    image path parameters.
 
     Example usage:
     - Compare two Agent versions:
@@ -83,21 +83,21 @@ def create_benchmarkeks(
         --baseline-full-image-path=datadog/agent:7.55.0 \\
         --comparison-full-image-path=datadog/agent:7.56.0-rc.1
 
-    A variant-specific full image path takes precedence over its version. If neither is
-    provided for a variant, it falls back to the default full_image_path / agent_version
-    parameters, so both variants would then be identical.
+    The full image path of a version takes precedence over its version number. If neither is
+    provided for a version, it falls back to the default full_image_path / agent_version
+    parameters, so both installations would then be identical.
     """
 
     extra_flags = {
         "ddagent:localChartPath": local_chart_path,
         "ddtestworkload:deployArgoRollout": install_argorollout,
         "ddinfra:kubernetesVersion": kube_version,
-        # Benchmarkeks-specific parameters for the baseline variant
+        # Benchmarkeks-specific parameters for the baseline version, deployed on variant a
         "ddagent:baselineVersion": baseline_version,
         "ddagent:baselineFullImagePath": baseline_full_image_path,
         "ddagent:baselineClusterAgentVersion": baseline_cluster_agent_version,
         "ddagent:baselineClusterAgentFullImagePath": baseline_cluster_agent_full_image_path,
-        # Benchmarkeks-specific parameters for the comparison variant
+        # Benchmarkeks-specific parameters for the comparison version, deployed on variant b
         "ddagent:comparisonVersion": comparison_version,
         "ddagent:comparisonFullImagePath": comparison_full_image_path,
         "ddagent:comparisonClusterAgentVersion": comparison_cluster_agent_version,
@@ -126,6 +126,12 @@ def create_benchmarkeks(
         cluster_agent_full_image_path=cluster_agent_full_image_path,
         agent_flavor=agent_flavor,
         helm_config=helm_config,
+        extra_image_paths=[
+            baseline_full_image_path,
+            baseline_cluster_agent_full_image_path,
+            comparison_full_image_path,
+            comparison_cluster_agent_full_image_path,
+        ],
     )
 
     if interactive:
