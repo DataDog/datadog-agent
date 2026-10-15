@@ -15,6 +15,8 @@
 package attributes
 
 import (
+	"strings"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	semconv143 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
@@ -50,6 +52,23 @@ var (
 	cloudPlatformAzureContainerAppsLegacy = "azure_container_apps"
 )
 
+func isAzureCloudPlatform(platform, suffix string) bool {
+	platform = strings.ToLower(platform)
+	if !strings.HasPrefix(platform, "azure") || !strings.HasSuffix(platform, suffix) {
+		return false
+	}
+	separator := platform[len("azure") : len(platform)-len(suffix)]
+	if separator == "" {
+		return false
+	}
+	for _, char := range separator {
+		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') {
+			return false
+		}
+	}
+	return true
+}
+
 // azureFunctionsResource is an Azure Functions app identity. It has no
 // instance: the platform value that matches existing Functions billing is not
 // emitted by OTel detectors yet, so the identity stays at the app level.
@@ -61,13 +80,26 @@ type azureFunctionsResource struct {
 
 func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsResource, bool) {
 	platform, ok := attrs.Get(string(conventions.CloudPlatformKey))
-	if !ok || (platform.Str() != cloudPlatformAzureFunctions && platform.Str() != cloudPlatformAzureFunctionsLegacy) {
+	if !ok || !isAzureCloudPlatform(platform.Str(), "functions") {
 		return azureFunctionsResource{}, false
 	}
 
 	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
 	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
 	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
+	if resourceID, ok := attrs.Get(string(semconv143.CloudResourceIDKey)); ok && resourceID.Str() != "" {
+		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil {
+			if !nameOK || name.Str() == "" {
+				name, nameOK = pcommon.NewValueStr(parsed.ResourceName), true
+			}
+			if !subscriptionIDOK || subscriptionID.Str() == "" {
+				subscriptionID, subscriptionIDOK = pcommon.NewValueStr(parsed.SubscriptionID), true
+			}
+			if !resourceGroupOK || resourceGroup.Str() == "" {
+				resourceGroup, resourceGroupOK = pcommon.NewValueStr(parsed.ResourceGroup), true
+			}
+		}
+	}
 	if !nameOK || name.Str() == "" ||
 		!subscriptionIDOK || subscriptionID.Str() == "" ||
 		!resourceGroupOK || resourceGroup.Str() == "" {
@@ -92,7 +124,7 @@ type azureAppServiceResource struct {
 
 func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceResource, bool) {
 	platform, ok := attrs.Get(string(conventions.CloudPlatformKey))
-	if !ok || (platform.Str() != cloudPlatformAzureAppService && platform.Str() != cloudPlatformAzureAppServiceLegacy) {
+	if !ok || !isAzureCloudPlatform(platform.Str(), "app_service") {
 		return azureAppServiceResource{}, false
 	}
 
@@ -137,7 +169,7 @@ type azureContainerAppsResource struct {
 
 func azureContainerAppsResourceFromAttributes(attrs pcommon.Map) (azureContainerAppsResource, bool) {
 	platform, ok := attrs.Get(string(conventions.CloudPlatformKey))
-	if !ok || (platform.Str() != cloudPlatformAzureContainerApps && platform.Str() != cloudPlatformAzureContainerAppsLegacy) {
+	if !ok || !isAzureCloudPlatform(platform.Str(), "container_apps") {
 		return azureContainerAppsResource{}, false
 	}
 
@@ -180,61 +212,12 @@ func azureContainerAppsResourceFromAttributes(attrs pcommon.Map) (azureContainer
 	}, true
 }
 
-// IsGCPServerless reports whether the resource declares a Cloud Run or Cloud
-// Functions platform, including incomplete identities and out-of-scope jobs.
-// Such resources must not fall back to the Collector's host identity.
-func IsGCPServerless(attrs pcommon.Map) bool {
-	platform, _ := attrs.Get(string(conventions.CloudPlatformKey))
-	return platform.Str() == conventions.CloudPlatformGCPCloudFunctions.Value.AsString() ||
-		platform.Str() == conventions.CloudPlatformGCPCloudRun.Value.AsString()
-}
-
-func gcpServerlessSourceFromAttributes(attrs pcommon.Map) (source.Source, bool) {
-	platform, _ := attrs.Get(string(conventions.CloudPlatformKey))
-	var kind source.Kind
-	switch platform.Str() {
-	case conventions.CloudPlatformGCPCloudFunctions.Value.AsString():
-		// Functions take precedence over their underlying Cloud Run service.
-		kind = source.GCPCloudFunctionsKind
-	case conventions.CloudPlatformGCPCloudRun.Value.AsString():
-		kind = source.GCPCloudRunKind
-	default:
-		return source.Source{}, false
+func stringAttribute(attrs pcommon.Map, key string) string {
+	value, ok := attrs.Get(key)
+	if !ok || value.Type() != pcommon.ValueTypeStr {
+		return ""
 	}
-
-	// A job must not inherit service running-metric attribution, even when its
-	// job attributes are empty or a revision was added manually. Worker pools have the
-	// same resource shape as services and cannot be distinguished here.
-	for _, key := range []string{"gcp.cloud_run.job.execution", "gcp.cloud_run.job.task_index"} {
-		if _, ok := attrs.Get(key); ok {
-			return source.Source{}, false
-		}
-	}
-
-	dims := make(map[string]string, 5)
-	for otelKey, ddKey := range map[string]string{
-		string(conventions.CloudAccountIDKey): "project_id",
-		string(conventions.CloudRegionKey):    "location",
-		string(conventions.FaaSNameKey):       "service_name",
-		string(conventions.FaaSInstanceKey):   "instance",
-	} {
-		value, ok := attrs.Get(otelKey)
-		if !ok || value.Type() != pcommon.ValueTypeStr || value.Str() == "" {
-			return source.Source{}, false
-		}
-		dims[ddKey] = value.Str()
-	}
-	if revision, ok := attrs.Get(string(conventions.FaaSVersionKey)); ok && revision.Str() != "" {
-		dims["revision_name"] = revision.Str()
-	}
-	return source.Source{
-		Kind:       kind,
-		Identifier: dims["instance"], //nolint:staticcheck // Populate the legacy field during the SourceIdentifier migration.
-		SourceIdentifier: source.SourceIdentifier{
-			Primary:    dims["instance"],
-			Dimensions: dims,
-		},
-	}, true
+	return value.Str()
 }
 
 func getClusterName(attrs pcommon.Map) (string, bool) {
@@ -369,8 +352,20 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		}, true
 	}
 
+	if lambda, ok := awsLambdaSourceFromAttributes(attrs); ok {
+		return lambda, true
+	}
+
+	if job, ok := gcpCloudRunJobsSourceFromAttributes(attrs); ok {
+		return job, true
+	}
+
 	if IsGCPServerless(attrs) {
 		return gcpServerlessSourceFromAttributes(attrs)
+	}
+
+	if autopilot, ok := gkeAutopilotSourceFromAttributes(attrs); ok {
+		return autopilot, true
 	}
 
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
@@ -404,7 +399,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		}, true
 	}
 
-	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && launchType.Str() == conventions.AWSECSLaunchtypeFargate.Value.AsString() {
+	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && strings.EqualFold(launchType.Str(), conventions.AWSECSLaunchtypeFargate.Value.AsString()) {
 		if taskARN, ok := attrs.Get(string(conventions.AWSECSTaskARNKey)); ok {
 			return source.Source{
 				Kind:             source.AWSECSFargateKind,
