@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/eks"
+	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 )
 
 func TestGetClusterAgentEKSIdentityTags(t *testing.T) {
 	original := getEKSClusterIdentity
 	t.Cleanup(func() { getEKSClusterIdentity = original })
-	getEKSClusterIdentity = func(context.Context) (*eks.ClusterIdentity, error) {
-		return &eks.ClusterIdentity{
+	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+		return &identity.ClusterIdentity{
 			ClusterName: "orders",
 			ClusterARN:  "arn:aws:eks:us-west-2:123456789012:cluster/orders",
 			AccountID:   "123456789012",
@@ -32,14 +32,16 @@ func TestGetClusterAgentEKSIdentityTags(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{
 		"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
+		"eks_cluster_account:123456789012",
+		"eks_cluster_region:us-west-2",
 	}, tags)
 }
 
 func TestGetClusterAgentEKSIdentityTagsRejectsIncompleteIdentity(t *testing.T) {
 	original := getEKSClusterIdentity
 	t.Cleanup(func() { getEKSClusterIdentity = original })
-	getEKSClusterIdentity = func(context.Context) (*eks.ClusterIdentity, error) {
-		return &eks.ClusterIdentity{ClusterARN: "arn:aws:eks:us-west-2:123456789012:cluster/orders"}, nil
+	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+		return &identity.ClusterIdentity{ClusterARN: "arn:aws:eks:us-west-2:123456789012:cluster/orders"}, nil
 	}
 
 	tags, err := GetClusterAgentEKSIdentityTags(t.Context())
@@ -51,7 +53,7 @@ func TestGetClusterAgentEKSIdentityTagsReturnsClientError(t *testing.T) {
 	original := getEKSClusterIdentity
 	t.Cleanup(func() { getEKSClusterIdentity = original })
 	expected := errors.New("Cluster Agent unavailable")
-	getEKSClusterIdentity = func(context.Context) (*eks.ClusterIdentity, error) {
+	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
 		return nil, expected
 	}
 

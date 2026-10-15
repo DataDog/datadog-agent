@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "identity",
+    srcs = ["identity.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/eks/identity",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/tags",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+    ],
+)
+
+dd_agent_go_test(
+    name = "identity_test",
+    srcs = ["identity_test.go"],
+    embed = [":identity"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ],
+)

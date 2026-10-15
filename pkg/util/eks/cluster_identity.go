@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package eks resolves authoritative Amazon EKS cluster identity.
+// Package eks resolves authoritative Amazon EKS cluster identity through eks:DescribeCluster.
+// The identity data type and its tag projection live in the SDK-free sub-package
+// pkg/util/eks/identity so that node-Agent packages which only need the type do not link the
+// EKS service client; this package carries the AWS SDK and is reached only from the Cluster Agent.
 package eks
 
 import (
@@ -20,9 +23,9 @@ import (
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
 	smithy "github.com/aws/smithy-go"
 
-	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 )
 
 const (
@@ -48,29 +51,9 @@ var (
 	accountIDPattern   = regexp.MustCompile(`^[0-9]{12}$`)
 )
 
-// ClusterIdentity is the authoritative identity returned by EKS DescribeCluster.
-type ClusterIdentity struct {
-	ClusterName string `json:"cluster_name"`
-	ClusterARN  string `json:"cluster_arn"`
-	AccountID   string `json:"aws_account_id"`
-	Region      string `json:"region"`
-}
-
-// Tags returns the identity as low-cardinality tags. It returns nil for an incomplete identity.
-//
-// Only eks_cluster_arn is emitted. The ARN already encodes the partition, Region and owning
-// account, so emitting separate aws_account/region tags would both duplicate that payload on
-// every span and collide with the node-derived aws_account/region host tags: on a cross-account
-// node group the node's account and the cluster's account differ, leaving two values under one
-// key on the same entity. Consumers that need the account or Region parse them out of the ARN.
-func (c *ClusterIdentity) Tags() []string {
-	if c == nil || !isValidClusterARN(c.ClusterARN) {
-		return nil
-	}
-	return []string{
-		taggertags.EksClusterARN + ":" + c.ClusterARN,
-	}
-}
+// ClusterIdentity is the authoritative identity returned by EKS DescribeCluster. It is defined in
+// the SDK-free identity sub-package and re-exported here for the resolver's callers.
+type ClusterIdentity = identity.ClusterIdentity
 
 type describeClusterAPI interface {
 	DescribeCluster(context.Context, *awseks.DescribeClusterInput, ...func(*awseks.Options)) (*awseks.DescribeClusterOutput, error)
@@ -123,7 +106,7 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 		return nil, err
 	}
 
-	identity, err := resolveClusterIdentity(resolveCtx, clusterName, cfg.Region, newDescribeClusterAPI(cfg))
+	id, err := resolveClusterIdentity(resolveCtx, clusterName, cfg.Region, newDescribeClusterAPI(cfg))
 	if err != nil {
 		// Negative cache: node Agents query the Cluster Agent repeatedly at startup, and a
 		// missing eks:DescribeCluster permission must not turn into one API call per request.
@@ -131,8 +114,8 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 		cache.Cache.Set(cacheKey, err, failureTTL(err))
 		return nil, err
 	}
-	cache.Cache.Set(cacheKey, identity, cache.NoExpiration)
-	return identity, nil
+	cache.Cache.Set(cacheKey, id, cache.NoExpiration)
+	return id, nil
 }
 
 // failureTTL classifies a resolution error so that failures which can clear on their own are
@@ -161,26 +144,6 @@ func failureTTL(err error) time.Duration {
 		return transientFailureCacheTTL
 	}
 	return failureCacheTTL
-}
-
-// isValidClusterARN reports whether arn is a well-formed EKS cluster ARN. It is used on both
-// sides of the Cluster Agent boundary: the resolver validates DescribeCluster output, and the
-// node Agent re-validates the ARN it receives over HTTP before turning it into a tag, so a
-// version-skewed or misbehaving Cluster Agent cannot inject arbitrary tag values.
-func isValidClusterARN(clusterARN string) bool {
-	if clusterARN == "" {
-		return false
-	}
-	parsed, err := awsarn.Parse(clusterARN)
-	if err != nil {
-		return false
-	}
-	if parsed.Service != "eks" || parsed.Region == "" || !accountIDPattern.MatchString(parsed.AccountID) {
-		return false
-	}
-	const clusterPrefix = "cluster/"
-	return strings.HasPrefix(parsed.Resource, clusterPrefix) &&
-		clusterNamePattern.MatchString(strings.TrimPrefix(parsed.Resource, clusterPrefix))
 }
 
 func resolveClusterIdentity(ctx context.Context, clusterName, requestRegion string, client describeClusterAPI) (*ClusterIdentity, error) {
