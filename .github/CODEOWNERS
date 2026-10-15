@@ -834,6 +834,7 @@
 /pkg/util/ktime                                                       @DataDog/agent-security
 /pkg/util/kubelet/                                                    @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/kubernetes/                                                 @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
+/pkg/util/kubernetes/autoscalers/                                     @DataDog/container-integrations @DataDog/kubernetes-experiences
 /pkg/util/metricname/                                                 @DataDog/agent-metric-pipelines
 /pkg/util/podman/                                                     @DataDog/container-integrations
 /pkg/util/port/                                                       @DataDog/agent-runtimes
