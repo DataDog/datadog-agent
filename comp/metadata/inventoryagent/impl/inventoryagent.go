@@ -501,9 +501,8 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 }
 
 // SetBatch applies a complete field set atomically: readers never observe a
-// partial batch. It also opens the payload, so a component constructed closed
-// publishes exactly when its owner applies a full field set. The given values
-// are stored without being copied.
+// partial batch. Readiness is unchanged; a closed payload records the update
+// but submits nothing. The given values are stored without being copied.
 func (ia *inventoryagent) SetBatch(fields map[string]interface{}) {
 	if !ia.Enabled {
 		return
@@ -524,7 +523,6 @@ func (ia *inventoryagent) SetBatch(fields map[string]interface{}) {
 	if changed {
 		ia.Refresh()
 	}
-	ia.InventoryPayload.SetReady(true)
 }
 
 func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {

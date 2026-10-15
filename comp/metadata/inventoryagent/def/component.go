@@ -14,9 +14,16 @@ type Component interface {
 	// up to the caller to make sure the given value will not be modified later.
 	Set(name string, value interface{})
 	// SetBatch applies a complete field set under one lock, so no reader
-	// observes a partial batch, and opens the payload for generation if it was
-	// constructed closed. A nil value clears the cached field.
+	// observes a partial batch. It does not change readiness: a closed payload
+	// records the update but submits nothing. A nil value clears the cached
+	// field.
 	SetBatch(fields map[string]interface{})
+	// SetReady opens or closes payload generation and every submission path.
+	// Closing waits for in-flight generation and submission to finish. Callers
+	// must serialize publication (close, update all fields, open, submit); an
+	// embedding driver component owns that protocol, not the embedding binary's
+	// wiring code.
+	SetReady(ready bool)
 	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 	Get() map[string]interface{}
 	// Submit synchronously builds a payload and enqueues it for submission now,
