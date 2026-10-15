@@ -95,6 +95,7 @@ func TestSocketCaptureTrigger_ErrorStatus(t *testing.T) {
 func TestSocketCaptureTrigger_SocketPathNotConfigured(t *testing.T) {
 	systemProbeConfig := configmock.NewSystemProbe(t)
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", "")
+	systemProbeConfig.SetInTest("packet_capture.socket", "")
 
 	trigger := &socketCaptureTrigger{}
 	_, err := trigger.Capture(context.Background(), RunCaptureInputs{
@@ -103,4 +104,15 @@ func TestSocketCaptureTrigger_SocketPathNotConfigured(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not configured")
+}
+
+func TestCaptureSocketPath(t *testing.T) {
+	systemProbeConfig := configmock.NewSystemProbe(t)
+	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", "/var/run/sysprobe/sysprobe.sock")
+
+	systemProbeConfig.SetInTest("packet_capture.socket", "")
+	assert.Equal(t, "/var/run/sysprobe/sysprobe.sock", captureSocketPath())
+
+	systemProbeConfig.SetInTest("packet_capture.socket", "/var/run/sysprobe-capture/capture.sock")
+	assert.Equal(t, "/var/run/sysprobe-capture/capture.sock", captureSocketPath())
 }
