@@ -232,6 +232,7 @@ func defaultCatalog() *componentCatalog {
 					d := NewScanMWDetector()
 					d.MinPoints = c.MinPoints
 					d.MaxPoints = c.MaxPoints
+					d.MinRelativeChange = c.MinRelativeChange
 					return d
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
@@ -251,6 +252,9 @@ func defaultCatalog() *componentCatalog {
 					if k := prefix + "max_points"; reader.IsConfigured(k) {
 						d.MaxPoints = reader.GetInt(k)
 					}
+					if k := prefix + "min_relative_change"; reader.IsConfigured(k) {
+						d.MinRelativeChange = reader.GetFloat64(k)
+					}
 					return d
 				},
 			},
@@ -263,6 +267,7 @@ func defaultCatalog() *componentCatalog {
 					d := NewScanWelchDetector()
 					d.MinPoints = c.MinPoints
 					d.MaxPoints = c.MaxPoints
+					d.MinRelativeChange = c.MinRelativeChange
 					return d
 				},
 				defaultEnabled: false,
@@ -274,6 +279,9 @@ func defaultCatalog() *componentCatalog {
 					}
 					if k := prefix + "max_points"; reader.IsConfigured(k) {
 						d.MaxPoints = reader.GetInt(k)
+					}
+					if k := prefix + "min_relative_change"; reader.IsConfigured(k) {
+						d.MinRelativeChange = reader.GetFloat64(k)
 					}
 					return d
 				},

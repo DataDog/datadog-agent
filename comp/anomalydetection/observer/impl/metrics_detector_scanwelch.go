@@ -59,6 +59,12 @@ type ScanWelchDetector struct {
 	// MinDeviationMAD is the minimum |post_median - pre_median| / MAD.
 	MinDeviationMAD float64
 
+	// MinRelativeChange is the minimum |post_median - pre_median| / |pre_median|
+	// required to emit an anomaly. A statistically valid split below this
+	// threshold still advances segmentStartTime without emitting an anomaly.
+	// Set to 0 to disable. Default: 0.10.
+	MinRelativeChange float64 `json:"min_relative_change"`
+
 	// Aggregations to run detection on. Default: [Average, Count]
 	Aggregations []observer.Aggregate
 
@@ -84,6 +90,7 @@ func NewScanWelchDetector() *ScanWelchDetector {
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
 		MinDeviationMAD:       3.0,
+		MinRelativeChange:     defaultScanMinRelativeChange,
 		Aggregations: []observer.Aggregate{
 			observer.AggregateAverage,
 			observer.AggregateCount,
@@ -197,9 +204,11 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 
 			anomaly, changeIdx, found := d.scanWelch(d.scanBuf, seriesMeta, agg)
 			if found {
-				anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
-				allAnomalies = append(allAnomalies, anomaly)
 				state.segmentStartTime = d.scanBuf[changeIdx].Timestamp - 1
+				if anomaly.DebugInfo != nil && meetsMinRelativeChange(anomaly.DebugInfo.BaselineMedian, anomaly.DebugInfo.CurrentValue, d.MinRelativeChange) {
+					anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
+					allAnomalies = append(allAnomalies, anomaly)
+				}
 			}
 
 			if activated {
@@ -393,6 +402,9 @@ func (d *ScanWelchDetector) ensureDefaults() {
 	}
 	if d.MinDeviationMAD <= 0 {
 		d.MinDeviationMAD = 3.0
+	}
+	if d.MinRelativeChange < 0 || math.IsNaN(d.MinRelativeChange) || math.IsInf(d.MinRelativeChange, 0) {
+		d.MinRelativeChange = defaultScanMinRelativeChange
 	}
 	if d.series == nil {
 		d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)

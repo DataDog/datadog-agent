@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -212,4 +213,215 @@ func TestScanMW_PreloadedReplayFiresAsDataTimeAdvances(t *testing.T) {
 	}
 
 	assert.True(t, fired, "preloaded replay should detect the step change as dataTime advances")
+}
+
+func TestScanMW_MinRelativeChangeThresholdsAndBaselines(t *testing.T) {
+	const oneGiB = float64(1 << 30)
+
+	cases := []struct {
+		name              string
+		minRelativeChange *float64
+		preVal            float64
+		postVal           float64
+		wantFire          bool
+	}{
+		{
+			name:     "default 10pct suppresses 5pct increase",
+			preVal:   100,
+			postVal:  105,
+			wantFire: false,
+		},
+		{
+			name:     "default 10pct allows exact 10pct increase",
+			preVal:   100,
+			postVal:  110,
+			wantFire: true,
+		},
+		{
+			name:     "default 10pct allows 15pct increase",
+			preVal:   100,
+			postVal:  115,
+			wantFire: true,
+		},
+		{
+			name:     "default 10pct suppresses 5pct decrease",
+			preVal:   100,
+			postVal:  95,
+			wantFire: false,
+		},
+		{
+			name:     "default 10pct allows exact 10pct decrease",
+			preVal:   100,
+			postVal:  90,
+			wantFire: true,
+		},
+		{
+			name:     "default 10pct allows 15pct decrease",
+			preVal:   100,
+			postVal:  85,
+			wantFire: true,
+		},
+		{
+			name:     "GiB baseline suppresses 5pct increase",
+			preVal:   oneGiB,
+			postVal:  oneGiB * 1.05,
+			wantFire: false,
+		},
+		{
+			name:     "GiB baseline allows 10pct increase",
+			preVal:   oneGiB,
+			postVal:  oneGiB * 1.10,
+			wantFire: true,
+		},
+		{
+			name:     "negative baseline suppresses 5pct change",
+			preVal:   -100,
+			postVal:  -105,
+			wantFire: false,
+		},
+		{
+			name:     "negative baseline allows 10pct change",
+			preVal:   -100,
+			postVal:  -110,
+			wantFire: true,
+		},
+		{
+			name:     "zero baseline allows nonzero post median",
+			preVal:   0,
+			postVal:  5,
+			wantFire: true,
+		},
+		{
+			name:              "explicit zero disables relative change gate",
+			minRelativeChange: func() *float64 { v := 0.0; return &v }(),
+			preVal:            100,
+			postVal:           105,
+			wantFire:          true,
+		},
+		{
+			name:              "custom 25pct threshold suppresses 20pct increase",
+			minRelativeChange: func() *float64 { v := 0.25; return &v }(),
+			preVal:            100,
+			postVal:           120,
+			wantFire:          false,
+		},
+		{
+			name:              "custom 25pct threshold allows 25pct increase",
+			minRelativeChange: func() *float64 { v := 0.25; return &v }(),
+			preVal:            100,
+			postVal:           125,
+			wantFire:          true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := testScanMWDetector()
+			if tc.minRelativeChange != nil {
+				d.MinRelativeChange = *tc.minRelativeChange
+			}
+			storage := newTimeSeriesStorage()
+			for i := 0; i < 20; i++ {
+				storage.Add("ns", "metric", tc.preVal, int64(i+1), nil)
+			}
+			for i := 20; i < 40; i++ {
+				storage.Add("ns", "metric", tc.postVal, int64(i+1), nil)
+			}
+			result := d.Detect(storage, 40)
+			if tc.wantFire {
+				require.NotEmpty(t, result.Anomalies)
+			} else {
+				assert.Empty(t, result.Anomalies)
+			}
+		})
+	}
+}
+
+func TestScanMW_SuppressedSmallStepsRestartSegment(t *testing.T) {
+	d := testScanMWDetector()
+	storage := newTimeSeriesStorage()
+
+	// Step 1: 100 -> 106 (+6%, statistically significant, below 10%).
+	for i := 0; i < 20; i++ {
+		storage.Add("ns", "metric", 100, int64(i+1), nil)
+	}
+	for i := 20; i < 40; i++ {
+		storage.Add("ns", "metric", 106, int64(i+1), nil)
+	}
+	r1 := d.Detect(storage, 40)
+	assert.Empty(t, r1.Anomalies, "6% change should be suppressed")
+	require.Len(t, d.series, 1)
+	for _, st := range d.series {
+		assert.Equal(t, int64(20), st.segmentStartTime, "suppressed change should advance segmentStartTime")
+	}
+
+	// Step 2: 106 -> 112 (+5.66% vs 106, even though +12% vs initial 100).
+	for i := 40; i < 60; i++ {
+		storage.Add("ns", "metric", 112, int64(i+1), nil)
+	}
+	r2 := d.Detect(storage, 60)
+	assert.Empty(t, r2.Anomalies, "second small step should compare against 106 and stay suppressed")
+	for _, st := range d.series {
+		assert.Equal(t, int64(40), st.segmentStartTime, "second suppressed change should advance segmentStartTime again")
+	}
+
+	// Step 3: 112 -> 130 (+16.07% vs 112) should trigger.
+	for i := 60; i < 80; i++ {
+		storage.Add("ns", "metric", 130, int64(i+1), nil)
+	}
+	r3 := d.Detect(storage, 80)
+	require.Len(t, r3.Anomalies, 1, "subsequent >=10% step from latest segment should fire")
+	require.NotNil(t, r3.Anomalies[0].DebugInfo)
+	assert.InDelta(t, 112.0, r3.Anomalies[0].DebugInfo.BaselineMedian, 1e-9)
+	assert.InDelta(t, 130.0, r3.Anomalies[0].DebugInfo.CurrentValue, 1e-9)
+}
+
+func TestScanMW_CountAggregationMinRelativeChange(t *testing.T) {
+	d := NewScanMWDetector()
+	d.Aggregations = []observer.Aggregate{observer.AggregateCount}
+
+	// 20 samples/bucket -> 21 samples/bucket (+5%) is suppressed.
+	sSmall := newTimeSeriesStorage()
+	for ts := int64(1); ts <= 20; ts++ {
+		for j := 0; j < 20; j++ {
+			sSmall.Add("ns", "metric", 1, ts, nil)
+		}
+	}
+	for ts := int64(21); ts <= 40; ts++ {
+		for j := 0; j < 21; j++ {
+			sSmall.Add("ns", "metric", 1, ts, nil)
+		}
+	}
+	assert.Empty(t, d.Detect(sSmall, 40).Anomalies, "5% count change should be suppressed")
+
+	// 20 samples/bucket -> 22 samples/bucket (+10%) fires.
+	d.Reset()
+	sLarge := newTimeSeriesStorage()
+	for ts := int64(1); ts <= 20; ts++ {
+		for j := 0; j < 20; j++ {
+			sLarge.Add("ns", "metric", 1, ts, nil)
+		}
+	}
+	for ts := int64(21); ts <= 40; ts++ {
+		for j := 0; j < 22; j++ {
+			sLarge.Add("ns", "metric", 1, ts, nil)
+		}
+	}
+	res := d.Detect(sLarge, 40)
+	require.Len(t, res.Anomalies, 1, "10% count change should fire")
+	assert.Equal(t, observer.AggregateCount, res.Anomalies[0].Source.Aggregate)
+}
+
+func TestScanMW_EnsureDefaultsNormalizesInvalidMinRelativeChange(t *testing.T) {
+	for _, invalid := range []float64{-0.1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		d := NewScanMWDetector()
+		d.MinRelativeChange = invalid
+		d.ensureDefaults()
+		assert.InDelta(t, defaultScanMinRelativeChange, d.MinRelativeChange, 1e-12)
+	}
+
+	dZero := NewScanMWDetector()
+	dZero.MinRelativeChange = 0
+	dZero.ensureDefaults()
+	assert.Zero(t, dZero.MinRelativeChange, "explicit 0 must remain 0 to disable the gate")
 }

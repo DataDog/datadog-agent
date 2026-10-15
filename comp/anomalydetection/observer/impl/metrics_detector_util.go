@@ -13,6 +13,7 @@ import (
 )
 
 const scanMaxPoints = 120
+const defaultScanMinRelativeChange = 0.10
 
 // scanDetectorWorkspace is bounded detector-local scratch space for scan
 // statistics. Detectors are single-writer, so a workspace can be reused across
@@ -387,4 +388,22 @@ func normalCDFUpper(z float64) float64 {
 	t5 := t4 * t
 	phi := math.Exp(-z*z/2) / math.Sqrt(2*math.Pi)
 	return phi * (b1*t + b2*t2 + b3*t3 + b4*t4 + b5*t5)
+}
+
+// meetsMinRelativeChange reports whether the change from preMedian to postMedian
+// satisfies minRelChange. Non-positive minRelChange disables the check.
+// When preMedian == 0 and minRelChange > 0, any nonzero postMedian passes.
+func meetsMinRelativeChange(preMedian, postMedian, minRelChange float64) bool {
+	if minRelChange <= 0 {
+		return true
+	}
+	if math.IsNaN(preMedian) || math.IsNaN(postMedian) || math.IsInf(preMedian, 0) || math.IsInf(postMedian, 0) {
+		return false
+	}
+	absDiff := math.Abs(postMedian - preMedian)
+	absBase := math.Abs(preMedian)
+	if absBase == 0 {
+		return absDiff > 0
+	}
+	return absDiff >= minRelChange*absBase
 }

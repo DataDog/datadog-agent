@@ -5279,6 +5279,16 @@ properties:
                 node_type: setting
                 type: integer
                 default: 120
+              min_relative_change:
+                node_type: setting
+                type: number
+                default: 0.1
+                description: >-
+                  Minimum relative change between pre-change and post-change medians
+                  (|post_median - pre_median| / |pre_median|) required to emit a ScanMW
+                  anomaly for both upward and downward shifts (0.10 = 10%). Set to 0 to
+                  disable. Statistically valid splits below this threshold still advance
+                  the active scan segment without emitting an anomaly.
           scanwelch:
             node_type: section
             type: object
@@ -5295,6 +5305,16 @@ properties:
                 node_type: setting
                 type: integer
                 default: 120
+              min_relative_change:
+                node_type: setting
+                type: number
+                default: 0.1
+                description: >-
+                  Minimum relative change between pre-change and post-change medians
+                  (|post_median - pre_median| / |pre_median|) required to emit a ScanWelch
+                  anomaly for both upward and downward shifts (0.10 = 10%). Set to 0 to
+                  disable. Statistically valid splits below this threshold still advance
+                  the active scan segment without emitting an anomaly.
           time_cluster:
             node_type: section
             type: object

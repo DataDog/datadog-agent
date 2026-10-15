@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that
@@ -116,8 +118,8 @@ func TestApplyTestbenchDefaults(t *testing.T) {
 func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 	settings, err := ParseSettingsFromJSON(map[string]json.RawMessage{
 		"bocpd":          json.RawMessage(`{"warmup_points": 42}`),
-		"scanmw":         json.RawMessage(`{"min_points": 42, "max_points": 84}`),
-		"scanwelch":      json.RawMessage(`{"min_points": 42, "max_points": 84}`),
+		"scanmw":         json.RawMessage(`{"min_points": 42, "max_points": 84, "min_relative_change": 0.25}`),
+		"scanwelch":      json.RawMessage(`{"min_points": 42, "max_points": 84, "min_relative_change": 0}`),
 		"anomaly_scorer": json.RawMessage(`{"enabled":false}`),
 		"time_cluster":   json.RawMessage(`{"enabled":true}`),
 	})
@@ -128,11 +130,80 @@ func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 	scanMW := settings.configs["scanmw"].(*ScanMWDetector)
 	require.Equal(t, 42, scanMW.MinPoints)
 	require.Equal(t, 84, scanMW.MaxPoints)
+	require.InDelta(t, 0.25, scanMW.MinRelativeChange, 1e-12)
 	scanWelch := settings.configs["scanwelch"].(*ScanWelchDetector)
 	require.Equal(t, 42, scanWelch.MinPoints)
 	require.Equal(t, 84, scanWelch.MaxPoints)
+	require.Zero(t, scanWelch.MinRelativeChange)
 	require.False(t, settings.Enabled["anomaly_scorer"])
 	require.True(t, settings.Enabled["time_cluster"])
+
+	_, _, _, _, components := defaultCatalog().Instantiate(settings)
+	require.InDelta(t, 0.25, components["scanmw"].instance.(*ScanMWDetector).MinRelativeChange, 1e-12)
+	require.Zero(t, components["scanwelch"].instance.(*ScanWelchDetector).MinRelativeChange)
+}
+
+type catalogMapConfigReader struct {
+	floats map[string]float64
+	ints   map[string]int
+}
+
+func (r catalogMapConfigReader) GetBool(string) bool              { return false }
+func (r catalogMapConfigReader) GetInt(key string) int            { return r.ints[key] }
+func (r catalogMapConfigReader) GetFloat64(key string) float64    { return r.floats[key] }
+func (r catalogMapConfigReader) GetString(string) string          { return "" }
+func (r catalogMapConfigReader) GetDuration(string) time.Duration { return 0 }
+func (r catalogMapConfigReader) IsConfigured(key string) bool {
+	if _, ok := r.ints[key]; ok {
+		return true
+	}
+	_, ok := r.floats[key]
+	return ok
+}
+
+func TestScanDetectorsCatalogConfigPropagation(t *testing.T) {
+	cat := defaultCatalog()
+	_, _, _, _, defaultComponents := cat.Instantiate(ComponentSettings{})
+	require.InDelta(t, defaultScanMinRelativeChange, defaultComponents["scanmw"].instance.(*ScanMWDetector).MinRelativeChange, 1e-12)
+	require.InDelta(t, defaultScanMinRelativeChange, defaultComponents["scanwelch"].instance.(*ScanWelchDetector).MinRelativeChange, 1e-12)
+
+	var scanMWEntry, scanWelchEntry componentEntry
+	for _, entry := range cat.Entries() {
+		switch entry.name {
+		case "scanmw":
+			scanMWEntry = entry
+		case "scanwelch":
+			scanWelchEntry = entry
+		}
+	}
+
+	reader := catalogMapConfigReader{
+		floats: map[string]float64{
+			"anomaly_detection.detectors.scanmw.min_relative_change":    0.18,
+			"anomaly_detection.detectors.scanwelch.min_relative_change": 0,
+		},
+	}
+	settings := ComponentSettings{
+		configs: map[string]any{
+			"scanmw":    scanMWEntry.readConfig(reader, "anomaly_detection.detectors.scanmw."),
+			"scanwelch": scanWelchEntry.readConfig(reader, "anomaly_detection.detectors.scanwelch."),
+		},
+	}
+	_, _, _, _, configuredComponents := cat.Instantiate(settings)
+	require.InDelta(t, 0.18, configuredComponents["scanmw"].instance.(*ScanMWDetector).MinRelativeChange, 1e-12)
+	require.Zero(t, configuredComponents["scanwelch"].instance.(*ScanWelchDetector).MinRelativeChange)
+
+	cfg := configmock.NewFromYAML(t, ""+
+		"anomaly_detection:\n"+
+		"  detectors:\n"+
+		"    scanmw:\n"+
+		"      min_relative_change: 0.22\n"+
+		"    scanwelch:\n"+
+		"      min_relative_change: 0\n")
+	agentSettings := settingsFromAgentConfig(cat, cfg)
+	_, _, _, _, agentComponents := cat.Instantiate(agentSettings)
+	require.InDelta(t, 0.22, agentComponents["scanmw"].instance.(*ScanMWDetector).MinRelativeChange, 1e-12)
+	require.Zero(t, agentComponents["scanwelch"].instance.(*ScanWelchDetector).MinRelativeChange)
 }
 
 // bareDetectorForValidator is a minimal observerdef.Detector that
