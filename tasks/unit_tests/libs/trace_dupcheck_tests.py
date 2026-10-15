@@ -73,7 +73,7 @@ class TestCompareReports(unittest.TestCase):
 
 class TestRenderDiff(unittest.TestCase):
     def test_no_change_is_empty(self):
-        self.assertEqual(render_diff(report(ENV), report(ENV), BASELINE, checker_changed=False), "")
+        self.assertEqual(render_diff(report(ENV), report(ENV), BASELINE, changed_inputs=[]), "")
 
     def test_changes(self):
         sql = issue("span.attr[sql.query]", 3, {"span.resource": 3}, created_by=("v04", "v1"))
@@ -81,7 +81,7 @@ class TestRenderDiff(unittest.TestCase):
             report(ENV, DM),
             report(issue("span.attr[env]", 12, ENV["partners"]), sql),
             BASELINE,
-            checker_changed=False,
+            changed_inputs=[],
         )
         self.assertIn("[01234567](https://github.com/DataDog/datadog-agent/commit/" + BASELINE + ")", body)
         self.assertIn("**2 issues, 15 occurrences**", body)
@@ -91,7 +91,7 @@ class TestRenderDiff(unittest.TestCase):
         )
         self.assertIn("| Gone | `chunk.tags[_dd.p.dm] repeats span.attr[_dd.p.dm]` | 5 → 0 |  |", body)
         self.assertIn("Trace payload duplicates: ...", body)
-        self.assertNotIn("changes `pkg/trace/testutil/dupcheck`", body)
+        self.assertNotIn("[!NOTE]", body)
 
     def test_partner_count_change(self):
         base = issue(
@@ -101,7 +101,7 @@ class TestRenderDiff(unittest.TestCase):
             title="span.attr[env] repeats another location",
         )
         head = issue("span.attr[env]", 10, {"span.attr[a]": 10, "span.attr[b]": 1_500}, title=base["title"])
-        body = render_diff(report(base), report(head), BASELINE, checker_changed=False)
+        body = render_diff(report(base), report(head), BASELINE, changed_inputs=[])
         self.assertIn(
             "| Changed | `span.attr[env] repeats another location` | 10 | partner counts: `span.attr[b]` 1 → 1,500 |",
             body,
@@ -111,15 +111,27 @@ class TestRenderDiff(unittest.TestCase):
         partners = {f"span.attr[p{i}]": i + 1 for i in range(5)}
         base = issue("span.attr[env]", 10, partners, title="span.attr[env] repeats another location")
         head = issue("span.attr[env]", 20, {k: v * 2 for k, v in partners.items()}, title=base["title"])
-        body = render_diff(report(base), report(head), BASELINE, checker_changed=False)
+        body = render_diff(report(base), report(head), BASELINE, changed_inputs=[])
         self.assertIn(
             "partner counts: `span.attr[p4]` 5 → 10, `span.attr[p3]` 4 → 8, `span.attr[p2]` 3 → 6, +2 more |", body
         )
 
-    def test_checker_changed(self):
-        body = render_diff(report(ENV), report(ENV, DM), BASELINE, checker_changed=True)
+    def test_partner_lists_are_capped(self):
+        base = issue("span.attr[env]", 10, {"span.attr[a]": 10}, title="span.attr[env] repeats another location")
+        head_partners = {f"span.attr[p{i}]": i + 1 for i in range(5)}
+        head = issue("span.attr[env]", 10, head_partners, title=base["title"])
+        body = render_diff(report(base), report(head), BASELINE, changed_inputs=[])
+        self.assertIn(
+            "new partners: `span.attr[p4]`, `span.attr[p3]`, `span.attr[p2]`, +2 more<br>"
+            "removed partners: `span.attr[a]` |",
+            body,
+        )
+
+    def test_changed_inputs(self):
+        inputs = ["pkg/trace/testutil/dupcheck", "pkg/trace/semantics/mappings.json"]
+        body = render_diff(report(ENV), report(ENV, DM), BASELINE, changed_inputs=inputs)
         self.assertIn("**2 issues (+1), 15 occurrences (+5)**", body)
-        self.assertIn("changes `pkg/trace/testutil/dupcheck`", body)
+        self.assertIn("changes `pkg/trace/testutil/dupcheck`, `pkg/trace/semantics/mappings.json`, which", body)
 
 
 class TestRenderWithoutBaseline(unittest.TestCase):

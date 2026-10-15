@@ -8,6 +8,7 @@ package dupcheck
 import (
 	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"maps"
 	"math/rand"
 	"slices"
@@ -115,41 +116,60 @@ type Corpus struct {
 }
 
 const (
-	keysPerSpan   = 8
+	// spansPerPass is the number of spans of a pass. It is fixed, and keys are
+	// placed into spans by a hash, so that adding a key, to the semantics
+	// registry for example, only changes the spans it is placed into instead
+	// of the whole corpus.
+	spansPerPass  = 12
 	spansPerTrace = 4
 	// shapePasses is the number of passes per span type, one per value shape.
 	shapePasses = int(numShapes)
 )
 
-// keyShape returns the value shape of the key of index key in pass: over the
-// passes of a span type, every key gets every shape.
-func keyShape(pass, key int) valueShape {
-	return valueShape((pass + key) % int(numShapes))
+// keyShape returns the value shape of key k in pass: over the passes of a
+// span type, every key gets every shape.
+func keyShape(pass int, k string) valueShape {
+	return valueShape((uint64(pass) + corpusHash(k)) % uint64(numShapes))
+}
+
+// corpusHash returns a hash of parts, from which the corpus derives what must
+// not depend on the other keys.
+func corpusHash(parts ...any) uint64 {
+	h := fnv.New64a()
+	for _, p := range parts {
+		fmt.Fprintf(h, "%v\x00", p)
+	}
+	return h.Sum64()
 }
 
 // NewCorpus generates the corpus for seed. For every span type, it makes one
 // pass per value shape: in each pass, every key gets a shape deterministically
 // (absent, a unique value, the value of a top-level field, or the value of
 // another, random, attribute) so that over the passes every key gets every
-// shape. The keys that are set are shuffled and spread over spans, the seed
-// choosing their placement and the fields they copy.
+// shape. The keys that are set are spread over the spans of the pass, the seed
+// choosing their placement and the fields they copy. Each span draws from its
+// own random source, so that it only depends on the keys placed into it.
 func NewCorpus(seed int64) *Corpus {
-	c := &Corpus{Seed: seed, rng: rand.New(rand.NewSource(seed)), nextID: 1}
-	allKeys := corpusKeys()
+	return newCorpus(seed, corpusKeys())
+}
+
+func newCorpus(seed int64, allKeys []string) *Corpus {
+	c := &Corpus{Seed: seed, nextID: 1}
 	for _, typ := range CorpusSpanTypes {
 		for pass := range shapePasses {
 			shapes := make(map[string]valueShape, len(allKeys))
-			var keys []string
-			for i, k := range allKeys {
-				if shape := keyShape(pass, i); shape != shapeAbsent {
+			spanKeys := make([][]string, spansPerPass)
+			for _, k := range allKeys {
+				if shape := keyShape(pass, k); shape != shapeAbsent {
 					shapes[k] = shape
-					keys = append(keys, k)
+					i := corpusHash(seed, typ, pass, k) % spansPerPass
+					spanKeys[i] = append(spanKeys[i], k)
 				}
 			}
-			c.rng.Shuffle(len(keys), func(i, j int) { keys[i], keys[j] = keys[j], keys[i] })
-			var spans []SpanSpec
-			for start := 0; start < len(keys); start += keysPerSpan {
-				spans = append(spans, c.span(typ, keys[start:min(start+keysPerSpan, len(keys))], shapes))
+			spans := make([]SpanSpec, spansPerPass)
+			for i, keys := range spanKeys {
+				c.rng = rand.New(rand.NewSource(int64(corpusHash(seed, typ, pass, i))))
+				spans[i] = c.span(typ, keys, shapes)
 			}
 			for start := 0; start < len(spans); start += spansPerTrace {
 				c.AddTrace(spans[start:min(start+spansPerTrace, len(spans))]...)

@@ -17,7 +17,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
-from tasks.libs.trace_dupcheck import DUPCHECK_DIR, render_diff, render_without_baseline
+from tasks.libs.trace_dupcheck import CORPUS_INPUTS, DUPCHECK_DIR, render_diff, render_without_baseline
 from tasks.schema.generate import schema_codegen
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -172,16 +172,18 @@ def dupcheck_diff(ctx, report_file="", baseline_ref=""):
                 base = _dupcheck_report(os.path.join(tmpdir, "base.json"))
             finally:
                 ctx.run(f"git checkout -q {current}")
-        checker_changed = not ctx.run(
-            f"git diff --quiet {baseline_ref} {head_sha} -- {DUPCHECK_DIR}", warn=True, hide=True
-        ).ok
+        changed_inputs = [
+            path
+            for path in CORPUS_INPUTS
+            if not ctx.run(f"git diff --quiet {baseline_ref} {head_sha} -- {path}", warn=True, hide=True).ok
+        ]
         if base is None:
             print(color_message(f"No dupcheck report for the merge base {baseline_ref}", "orange"))
             # Without a baseline, only a PR changing the checker gets its report: other PRs whose merge base
             # predates the checker, or has a broken one, would get a comment unrelated to their change.
-            body = render_without_baseline(head, baseline_ref) if checker_changed else ""
+            body = render_without_baseline(head, baseline_ref) if DUPCHECK_DIR in changed_inputs else ""
         else:
-            body = render_diff(base, head, baseline_ref, checker_changed)
+            body = render_diff(base, head, baseline_ref, changed_inputs)
 
     print(body or f"No trace payload duplicates change to report against the merge base {baseline_ref}")
     if report_file:

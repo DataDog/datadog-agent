@@ -13,8 +13,13 @@ from __future__ import annotations
 
 DUPCHECK_DIR = "pkg/trace/testutil/dupcheck"
 
-# _MAX_PARTNER_COUNTS is the number of partner count changes listed per issue.
-_MAX_PARTNER_COUNTS = 3
+# CORPUS_INPUTS are the paths besides pkg/trace code that the report depends on:
+# the checker, and the semantics registry whose keys are corpus keys.
+CORPUS_INPUTS = (DUPCHECK_DIR, "pkg/trace/semantics/mappings.json")
+
+# _MAX_PARTNERS is the number of partners listed per issue and kind of change,
+# as an issue can have dozens of partners. The others are counted.
+_MAX_PARTNERS = 3
 
 FRESH_REPORT_COMMAND = (
     f'dda inv test --targets=./{DUPCHECK_DIR} '
@@ -72,10 +77,11 @@ def _change(kind: str, base: dict | None, head: dict | None) -> dict:
     }
 
 
-def render_diff(base: dict, head: dict, baseline_ref: str, checker_changed: bool) -> str:
+def render_diff(base: dict, head: dict, baseline_ref: str, changed_inputs: list[str]) -> str:
     """
     Return the Markdown comparison of the base and head reports, or an empty
-    string when they have the same issues.
+    string when they have the same issues. changed_inputs are the
+    CORPUS_INPUTS that the PR changes.
     """
     changes = compare_reports(base, head)
     if not changes:
@@ -90,10 +96,12 @@ def render_diff(base: dict, head: dict, baseline_ref: str, checker_changed: bool
     ]
     for c in changes:
         lines.append(_change_row(c))
-    if checker_changed:
+    if changed_inputs:
+        paths = ", ".join(f"`{p}`" for p in changed_inputs)
         lines += [
             "",
-            f"> [!NOTE]\n> This PR changes `{DUPCHECK_DIR}`, so part of the difference may come from the checker itself.",
+            f"> [!NOTE]\n> This PR changes {paths}, which the report depends on, so part of the difference may come "
+            "from the checker or its corpus rather than from the agent.",
         ]
     lines += ["", *_full_report(head)]
     return "\n".join(lines) + "\n"
@@ -129,19 +137,27 @@ def _change_row(c: dict) -> str:
     else:
         b, h = c["base"]["count"], c["head"]["count"]
         occurrences = f"{h:,}" if b == h else f"{b:,} → {h:,} ({h - b:+,})"
+    # Partners are listed by decreasing count, or count change.
     if c["new_partners"]:
-        details.append("new partners: " + ", ".join(f"`{_escape(p)}`" for p in c["new_partners"]))
+        partners = c["head"]["partners"]
+        new = sorted(c["new_partners"], key=lambda p: (-partners[p], p))
+        details.append("new partners: " + _capped([f"`{_escape(p)}`" for p in new]))
     if c["removed_partners"]:
-        details.append("removed partners: " + ", ".join(f"`{_escape(p)}`" for p in c["removed_partners"]))
+        partners = c["base"]["partners"]
+        removed = sorted(c["removed_partners"], key=lambda p: (-partners[p], p))
+        details.append("removed partners: " + _capped([f"`{_escape(p)}`" for p in removed]))
     if c["changed_partners"]:
-        # The largest changes first, at most _MAX_PARTNER_COUNTS of them, as an
-        # issue can have dozens of partners.
         changed = sorted(c["changed_partners"], key=lambda x: (-abs(x[2] - x[1]), x[0]))
-        items = [f"`{_escape(p)}` {b:,} → {h:,}" for p, b, h in changed[:_MAX_PARTNER_COUNTS]]
-        if len(changed) > _MAX_PARTNER_COUNTS:
-            items.append(f"+{len(changed) - _MAX_PARTNER_COUNTS:,} more")
-        details.append("partner counts: " + ", ".join(items))
+        details.append("partner counts: " + _capped([f"`{_escape(p)}` {b:,} → {h:,}" for p, b, h in changed]))
     return f"| {c['kind'].capitalize()} | {title} | {occurrences} | {'<br>'.join(details)} |"
+
+
+def _capped(items: list[str]) -> str:
+    """Join the first _MAX_PARTNERS items, followed by the count of the others."""
+    shown = items[:_MAX_PARTNERS]
+    if len(items) > _MAX_PARTNERS:
+        shown.append(f"+{len(items) - _MAX_PARTNERS:,} more")
+    return ", ".join(shown)
 
 
 def _full_report(head: dict) -> list[str]:

@@ -614,13 +614,34 @@ func TestNewCorpusValueShapes(t *testing.T) {
 			assert.Equal(t, map[valueShape]int{shapeUnique: 1, shapeTopLevel: 1, shapeOtherAttribute: 1}, got, "type %q key %q", typ, k)
 		}
 	}
-	for key := range len(corpusKeys()) {
+	for _, k := range corpusKeys() {
 		var all []valueShape
 		for pass := range shapePasses {
-			all = append(all, keyShape(pass, key))
+			all = append(all, keyShape(pass, k))
 		}
 		assert.ElementsMatch(t, []valueShape{shapeAbsent, shapeUnique, shapeTopLevel, shapeOtherAttribute}, all)
 	}
+}
+
+func TestNewCorpusIsStableWhenAKeyIsAdded(t *testing.T) {
+	const newKey = "dupcheck.added_key"
+	keys := corpusKeys()
+	before, after := newCorpus(7, keys), newCorpus(7, append(slices.Clone(keys), newKey))
+	require.Len(t, after.Traces, len(before.Traces))
+	changed := 0
+	for i := range before.Traces {
+		require.Len(t, after.Traces[i].Spans, len(before.Traces[i].Spans))
+		for j, b := range before.Traces[i].Spans {
+			a := after.Traces[i].Spans[j]
+			if _, ok := a.Attributes[newKey]; ok {
+				changed++
+				continue
+			}
+			assert.Equal(t, b, a, "a span without the new key must not change")
+		}
+	}
+	// The key is set in every pass but one of every span type.
+	assert.Equal(t, len(CorpusSpanTypes)*(shapePasses-1), changed)
 }
 
 func TestSameTemplate(t *testing.T) {
