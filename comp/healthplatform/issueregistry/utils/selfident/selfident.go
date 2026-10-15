@@ -125,8 +125,8 @@ func (s *SelfIdent) IssueDiscriminator() string {
 }
 
 // ClusterID returns the best-effort Kubernetes cluster id, used for payload
-// enrichment and to scope cluster-wide issue ids (see
-// issues.ClusterDiscriminator). A caller blocks up to
+// enrichment and as the Cluster Agent's resource_id (see
+// issues.ResourceIdentity). A caller blocks up to
 // clusterResolveTimeout while resolution is in flight: long enough to give a
 // one-shot startup check (e.g. invalidconfig) a chance at the id, but bounded
 // so it can't block forever when a lookup hangs. A successful result is cached

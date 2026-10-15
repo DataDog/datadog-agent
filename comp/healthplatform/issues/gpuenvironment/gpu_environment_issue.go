@@ -20,8 +20,8 @@ const (
 	// IssueName lowercased with spaces replaced by underscores.
 	IssueType = "gpu_environment_issue"
 	// IssueID is the issue ID prefix for GPU environment issues.
-	// External reporters append the reason and the cluster discriminator:
-	// IssueID + ":nvml-unavailable:" + cluster id.
+	// External reporters append the reason and their resource_id:
+	// IssueID + ":nvml-unavailable:" + resource_id.
 	IssueID = "gpu-environment-issue"
 	// Source is the reporting component identifier used in health-platform issues.
 	Source = "gpu"

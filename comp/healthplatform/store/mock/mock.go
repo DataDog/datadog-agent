@@ -199,9 +199,9 @@ func (m *Mock) IssueDiscriminator(hostID string) string {
 	return hostID
 }
 
-// ClusterDiscriminator returns the resourceID configured via
-// WithResourceIdentity, defaulting to "test-host".
-func (m *Mock) ClusterDiscriminator() string {
+// ResourceID returns the resourceID configured via WithResourceIdentity,
+// defaulting to "test-host".
+func (m *Mock) ResourceID() string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.resourceID

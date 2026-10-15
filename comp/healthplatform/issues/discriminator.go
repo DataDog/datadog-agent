@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // IssueDiscriminator returns the identifier issue ids should be scoped by.
@@ -44,20 +45,26 @@ func IssueDiscriminator(selfIdent *selfident.SelfIdent, hostID string) string {
 	return ""
 }
 
-// ClusterDiscriminator returns the identifier for issues tied to the cluster
-// rather than to a single template: the Kubernetes cluster id when resolvable,
-// so every agent in a cluster hitting the same problem reports one issue id,
-// falling back to hostID (or the OS hostname) like IssueDiscriminator so that
-// agents outside Kubernetes don't all collapse onto a static id.
+// ResourceIdentity returns the resource_type/resource_id describing the entity
+// an agent of the given flavor represents: ("cluster", cluster id) for the
+// Cluster Agent, ("deployment", DaemonSet UID) for a node agent under a
+// DaemonSet, or ("host", hostname) otherwise. It is what outbound reports carry
+// in HostInfo, and what issues scoped to the reporting resource append to their
+// id, so that both always agree.
 //
-// ClusterID is best-effort and may come back empty on a transient lookup
-// failure, so callers resolving an issue later should reuse the id they
-// reported rather than recompute it.
-func ClusterDiscriminator(selfIdent *selfident.SelfIdent, hostID string) string {
-	if selfIdent != nil {
-		if clusterID := selfIdent.ClusterID(); clusterID != "" {
-			return clusterID
-		}
+// selfIdent may be nil, in which case the host identity is returned.
+func ResourceIdentity(agentFlavor string, selfIdent *selfident.SelfIdent, hostname string) (resourceType string, resourceID string) {
+	if selfIdent == nil {
+		return "host", hostname
 	}
-	return IssueDiscriminator(nil, hostID)
+	if agentFlavor == flavor.ClusterAgent {
+		if clusterID := selfIdent.ClusterID(); clusterID != "" {
+			return "cluster", clusterID
+		}
+		return "host", hostname
+	}
+	if deploymentID := selfIdent.DeploymentID(); deploymentID != "" {
+		return "deployment", deploymentID
+	}
+	return "host", hostname
 }

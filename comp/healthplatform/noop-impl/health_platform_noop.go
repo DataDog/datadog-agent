@@ -69,7 +69,7 @@ func (n *noopHealthPlatform) IssueDiscriminator(hostID string) string {
 	return hostID
 }
 
-func (n *noopHealthPlatform) ClusterDiscriminator() string {
+func (n *noopHealthPlatform) ResourceID() string {
 	return ""
 }
 

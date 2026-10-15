@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func init() {
@@ -37,7 +38,7 @@ const (
 	IssueType = "read-only_filesystem_error"
 
 	// IssueID is the issue ID prefix used when reporting this issue.
-	// Check appends the cluster discriminator: IssueID + ":" + cluster id.
+	// Check appends the reporting agent's resource_id: IssueID + ":" + resource_id.
 	IssueID = "rofs-permissions"
 )
 
@@ -85,12 +86,16 @@ func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHe
 	}
 }
 
-// instanceIssueID scopes IssueID to this agent's cluster, falling back to the
-// host, so that hosts in different clusters don't all report the same id.
+// instanceIssueID scopes IssueID to the resource_id the outbound report
+// carries, so agents on different resources don't all report the same id.
+// The hostname is resolved the same way egress resolves it.
 func (r *rofsPermissionsModule) instanceIssueID() string {
-	var hostID string
+	var hostname string
 	if r.hostname != nil {
-		hostID = r.hostname.GetSafe(context.Background())
+		if h, err := r.hostname.Get(context.Background()); err == nil {
+			hostname = h
+		}
 	}
-	return IssueID + ":" + issues.ClusterDiscriminator(r.selfIdent, hostID)
+	_, resourceID := issues.ResourceIdentity(flavor.GetFlavor(), r.selfIdent, hostname)
+	return IssueID + ":" + resourceID
 }

@@ -71,8 +71,8 @@ func (n *NoopHealthPlatform) IssueDiscriminator(hostID string) string {
 	return hostID
 }
 
-// ClusterDiscriminator returns an empty string when the health platform is disabled.
-func (n *NoopHealthPlatform) ClusterDiscriminator() string {
+// ResourceID returns an empty string when the health platform is disabled.
+func (n *NoopHealthPlatform) ResourceID() string {
 	return ""
 }
 

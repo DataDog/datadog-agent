@@ -70,7 +70,7 @@ type Check struct {
 	strictIntervals     *nvidia.StrictIntervalProcessor  // strictIntervals timestamps metrics that must be emitted on a fixed cadence
 	parallelCollectors  bool                             // parallelCollectors controls whether NVML collectors are collected concurrently
 	issueReporter       healthplatformstore.Component    // issueReporter reports GPU health issues to the health platform
-	nvmlIssueID         string                           // nvmlIssueID is the ID of the NVML issue being reported, kept stable across runs since the cluster id is best-effort; only touched from the Run goroutine
+	nvmlIssueID         string                           // nvmlIssueID is the ID of the NVML issue being reported, kept stable across runs since the resource_id is resolved best-effort; only touched from the Run goroutine
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
@@ -493,10 +493,10 @@ func (c *Check) resolveNvmlIssues(keep string) {
 	}
 }
 
-// gpuHealthIssueID scopes the issue to this agent's cluster, falling back to
-// the host, so that hosts in different clusters don't share the same id.
+// gpuHealthIssueID scopes the issue to the resource_id the outbound report
+// carries, so agents on different resources don't share the same id.
 func (c *Check) gpuHealthIssueID(reason string) string {
-	return gpuenvironment.IssueID + ":" + reason + ":" + c.issueReporter.ClusterDiscriminator()
+	return gpuenvironment.IssueID + ":" + reason + ":" + c.issueReporter.ResourceID()
 }
 
 func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
