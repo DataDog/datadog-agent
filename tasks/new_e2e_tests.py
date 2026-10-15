@@ -49,7 +49,14 @@ from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.schema.generate import schema_codegen
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
-from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
+from tasks.tools.e2e_stacks import (
+    CI_STACK_PREFIX,
+    destroy_remote_stack_api,
+    destroy_remote_stack_local,
+    init_job_consumers,
+    read_recorded_stacks,
+    stacks_cleanup_reason,
+)
 
 DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
 
@@ -932,6 +939,41 @@ def cleanup_remote_stacks(ctx, stack_regex):
         print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
         print(f"Failed to destroy stack {stack}")
+
+
+@task
+def cleanup_orphaned_stacks(ctx):
+    """
+    Request the cleanup of the stacks recorded by the current e2e CI job when no other job will clean them up.
+    Meant to run in the job after_script, see `stacks_cleanup_reason` for the cases handled.
+    """
+    if not running_in_ci():
+        raise Exit("This task is meant to run in an e2e CI job after_script", code=1)
+
+    stacks = read_recorded_stacks(os.environ["E2E_OUTPUT_DIR"])
+    if not stacks:
+        print("No stack recorded by the job, nothing to clean up")
+        return
+
+    init_only = os.getenv("E2E_INIT_ONLY") == "true"
+    consumers = None
+    if init_only:
+        jobs = get_gitlab_repo().pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True).jobs.list(all=True)
+        consumers = init_job_consumers(os.environ["CI_JOB_NAME"], jobs)
+        if not consumers:
+            print(color_message(f"No job consuming the stacks of {os.environ['CI_JOB_NAME']} found", Color.ORANGE))
+
+    reason = stacks_cleanup_reason(os.environ["CI_JOB_STATUS"], init_only, consumers)
+    if reason is None:
+        print(f"Keeping stacks {', '.join(stacks)}, they are cleaned up by the tests or the pipeline cleanup job")
+        return
+
+    print(f"Requesting the cleanup of stacks {', '.join(stacks)}, {reason}")
+    for stack in stacks:
+        exit_code, stdout, stderr, _ = destroy_remote_stack_api(CI_STACK_PREFIX + stack, ctx)
+        print(f"Stack {stack}: {stdout} {stderr}")
+        if exit_code != 0:
+            print(color_message(f"Failed to request the cleanup of stack {stack}", Color.RED))
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
