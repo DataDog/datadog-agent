@@ -69,16 +69,7 @@ message KueueWorkload {
   KubeMetadataEventType type = 9;
 }
 
-message RayService {
- string namespace = 1;
- string name = 2;
- bool is_llm = 3;
- repeated string cluster_names = 4;
- KubeMetadataEventType type = 5;
-}
-
 message KubeMetadataStreamResponse {
-  repeated RayService ray_services = 7;
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
   repeated NamespaceMetadata namespace_metadata = 3;

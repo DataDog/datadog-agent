@@ -12,7 +12,6 @@ go_library(
         "metadata.go",
         "node.go",
         "pod.go",
-        "ray.go",
         "reflector_store.go",
         "stub.go",
         "test_helpers.go",

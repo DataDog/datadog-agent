@@ -93,7 +93,6 @@ type kueueWorkloadEntry struct {
 }
 
 type metadataSnapshot struct {
-	rayServices          map[string]*pb.RayService
 	namespaces           map[string]namespaceEntry
 	kueueQueues          map[string]kueueQueueEntry
 	kueueResourceFlavors map[string]kueueResourceFlavorEntry
@@ -130,7 +129,6 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 
 func newMetadataSnapshot() metadataSnapshot {
 	return metadataSnapshot{
-		rayServices:          make(map[string]*pb.RayService),
 		namespaces:           make(map[string]namespaceEntry),
 		kueueQueues:          make(map[string]kueueQueueEntry),
 		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
@@ -273,15 +271,7 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
 		case *workloadmeta.KubernetesMetadata:
-			if entity.GVR != nil && entity.GVR.Group == "ray.io" && entity.GVR.Resource == "rayservices" {
-				key := entity.ID
-				if event.Type == workloadmeta.EventTypeUnset {
-					delete(srv.metadata.rayServices, key)
-				} else if entity.RayService != nil {
-					srv.metadata.rayServices[key] = &pb.RayService{Namespace: entity.Namespace, Name: entity.Name, IsLlm: entity.RayService.IsLLM, ClusterNames: slices.Clone(entity.RayService.ClusterNames)}
-				}
-				changed = true
-			} else if srv.metadata.processNamespaceEvent(event.Type, entity) {
+			if srv.metadata.processNamespaceEvent(event.Type, entity) {
 				changed = true
 			}
 		case *workloadmeta.KubernetesKueueQueue:
@@ -516,7 +506,6 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshotWithVersion() (metadat
 
 func (s metadataSnapshot) clone() metadataSnapshot {
 	snapshot := newMetadataSnapshot()
-	maps.Copy(snapshot.rayServices, s.rayServices)
 	maps.Copy(snapshot.namespaces, s.namespaces)
 	maps.Copy(snapshot.kueueQueues, s.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, s.kueueResourceFlavors)
@@ -539,7 +528,7 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 		workloadmeta.KindKubernetesMetadata,
 		func(entity workloadmeta.Entity) bool {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
-			return workloadmeta.IsNamespaceMetadata(metadata) || (metadata.GVR != nil && metadata.GVR.Group == "ray.io" && metadata.GVR.Resource == "rayservices")
+			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
 	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
 }
@@ -578,7 +567,6 @@ func fullStateResponse(podServices map[string]podServiceEntry, metadata metadata
 }
 
 type metadataDiff struct {
-	rayServices          []*pb.RayService
 	namespaces           []*pb.NamespaceMetadata
 	kueueQueues          []*pb.KueueQueue
 	kueueResourceFlavors []*pb.KueueResourceFlavor
@@ -587,7 +575,6 @@ type metadataDiff struct {
 
 func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 	return metadataDiff{
-		rayServices:          computeRayServicesDiff(old.rayServices, current.rayServices),
 		namespaces:           computeNamespacesDiff(old.namespaces, current.namespaces),
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
@@ -596,12 +583,11 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 }
 
 func (d metadataDiff) isEmpty() bool {
-	return len(d.rayServices)+len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads) == 0
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads) == 0
 }
 
 func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
 	return &pb.KubeMetadataStreamResponse{
-		RayServices:          d.rayServices,
 		IsFullState:          isFullState,
 		NamespaceMetadata:    d.namespaces,
 		KueueQueues:          d.kueueQueues,
@@ -827,20 +813,4 @@ func protoKueueQueueType(queueType workloadmeta.KueueQueueType) pb.KueueQueueTyp
 	default:
 		return pb.KueueQueueType_LOCAL_QUEUE
 	}
-}
-
-func computeRayServicesDiff(old, current map[string]*pb.RayService) []*pb.RayService {
-	var diff []*pb.RayService
-	for key, cur := range current {
-		prev, exists := old[key]
-		if !exists || prev.IsLlm != cur.IsLlm || !slices.Equal(prev.ClusterNames, cur.ClusterNames) {
-			diff = append(diff, &pb.RayService{Namespace: cur.Namespace, Name: cur.Name, IsLlm: cur.IsLlm, ClusterNames: cur.ClusterNames, Type: pb.KubeMetadataEventType_SET})
-		}
-	}
-	for key, prev := range old {
-		if _, exists := current[key]; !exists {
-			diff = append(diff, &pb.RayService{Namespace: prev.Namespace, Name: prev.Name, Type: pb.KubeMetadataEventType_UNSET})
-		}
-	}
-	return diff
 }

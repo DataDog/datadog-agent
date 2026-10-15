@@ -115,8 +115,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 	containersList := make([]workloadmeta.OrchestratorContainer, 0, len(pod.Spec.Containers))
 	for _, container := range pod.Spec.Containers {
 		c := workloadmeta.OrchestratorContainer{
-			Name:  container.Name,
-			IsLLM: kubernetes.IsRayLLMContainer(container.Image, container.Command, container.Args),
+			Name: container.Name,
 		}
 		if cpuReq, found := container.Resources.Requests[corev1.ResourceCPU]; found {
 			c.Resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)

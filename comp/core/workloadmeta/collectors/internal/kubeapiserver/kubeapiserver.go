@@ -242,9 +242,6 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
 	} else {
 		for _, gvr := range gvrs {
-			if shouldHavePodStore(c.config) && gvr.Group == "ray.io" && gvr.Resource == "rayservices" {
-				continue
-			}
 			reflector, store := newMetadataStore(wlmetaStore, c.config, metadataclient, gvr)
 			// The csidrivers RBAC may be missing with older Helm charts or
 			// Operators. It must not block readiness: without data, the
@@ -284,19 +281,6 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		go reflector.Run(ctx.Done())
 	}
 
-	// RayService collection is optional. Missing CRDs or RBAC must not block readiness.
-	if shouldHavePodStore(c.config) {
-		if resources, err := getGVRsForRequestedResources(client.Discovery(), []string{"ray.io/rayservices"}); err == nil {
-			for _, gvr := range resources {
-				reflector, _, err := newRayServiceStore(wlmetaStore, c.config, apiserverClient.DynamicInformerCl, gvr)
-				if err != nil {
-					log.Warnf("cannot collect RayService inference metadata: %v", err)
-					continue
-				}
-				go reflector.Run(ctx.Done())
-			}
-		}
-	}
 	if shouldHaveKueueMetadata(c.config) {
 		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kueueQueueGVRStrings())
 		if err != nil {
