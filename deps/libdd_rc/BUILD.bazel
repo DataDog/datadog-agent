@@ -4,6 +4,7 @@ exports_files(
         "Cargo.toml",
         "aws-lc-fips-sys-hermetic-msvc.patch",
         "aws-lc-sys-nasm-command.patch",
+        "aws-lc-sys-unused-fips-backend.patch",
         "aws-lc-fips-sys-macos-linker.patch",
         "cmake-forward-failed-output.patch",
         "rc-x509-proto-protobuf-include.patch",

@@ -52,36 +52,17 @@ crate.annotation(
     patches = ["//deps/libdd_rc:cmake-forward-failed-output.patch"],
 )
 
-# aws-lc-sys appends the Bazel-provided optimization flags after the -O0 that
-# its optional jitter-entropy source requires, so optimized clean builds reject
-# that source. aws-lc-sys remains in aws-lc-rs's resolved graph even though
-# libdd-rc selects the separate aws-lc-fips-sys backend, which is unaffected by
-# this setting.
+# rc-crypto's FIPS feature reaches aws-lc-rs through both rcgen/aws_lc_rs and
+# x509-parser/verify-aws. Those upstream feature declarations retain the
+# non-FIPS aws-lc-sys dependency edge even though aws-lc-rs imports only
+# aws-lc-fips-sys when its `fips` feature is enabled. Avoid building the unused
+# native backend; the placeholder preserves the resolved Rust dependency until
+# the feature graph is fixed upstream.
 crate.annotation(
-    build_script_env = {"AWS_LC_SYS_NO_JITTER_ENTROPY": "1"},
-    build_script_env_select = {
-        # Temporary diagnostic path: disabling assembly lets the debug Windows
-        # build exercise the MSVC/FFI boundary while the official NASM archive
-        # is onboarded into the CI dependency mirror. AWS-LC rejects NO_ASM in
-        # optimized builds, so this cannot become the shipping configuration.
-        # rules_rust defaults Cargo build scripts to NUM_JOBS=1. cmake-rs
-        # forwards that as `cmake --build --parallel 1`, which makes this
-        # temporary source build too slow for the Windows CI timeout.
-        "x86_64-pc-windows-msvc": "{\"AWS_LC_SYS_NO_ASM\":\"1\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"NUM_JOBS\":\"8\"}",
-    },
-    build_script_tools_select = {
-        # Keep NASM out of non-Windows action inputs. crate-universe promotes
-        # the sole tools-select branch to a common dependency, so explicit
-        # empty branches are required here.
-        "aarch64-apple-darwin": [],
-        "aarch64-unknown-linux-gnu": [],
-        "x86_64-apple-darwin": [],
-        "x86_64-pc-windows-msvc": ["@libclang_windows//:clang/native/libclang.dll"],
-        "x86_64-unknown-linux-gnu": [],
-    },
     crate = "aws-lc-sys",
+    gen_build_script = "off",
     patch_args = ["-p1"],
-    patches = ["//deps/libdd_rc:aws-lc-sys-nasm-command.patch"],
+    patches = ["//deps/libdd_rc:aws-lc-sys-unused-fips-backend.patch"],
 )
 
 # TODO: update as needed
@@ -97,8 +78,8 @@ alias(
         "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
-        # See the aws-lc-sys annotation above. Keep Go hermetic, but avoid a
-        # NASM action input only for this temporary debug/no-assembly build.
+        # Keep Go hermetic, but avoid a NASM action input only for this
+        # temporary debug/no-assembly build.
         # Perl comes from the MSYS2 toolset already installed in the Windows
         # build image; production should replace this host path with a declared
         # Bazel tool input.
