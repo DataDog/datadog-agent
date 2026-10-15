@@ -24,10 +24,15 @@ import (
 const hangTimeout = 10 * time.Second
 
 // TestMain runs the test binary as a fake oscap-io when the evaluator tests
-// start it with GO_WANT_HELPER_OSCAP_IO set.
+// start it with GO_WANT_HELPER_OSCAP_IO set to 1, and as a child of the fake
+// that outlives the hang cases when it is set to sleep.
 func TestMain(m *testing.M) {
-	if os.Getenv("GO_WANT_HELPER_OSCAP_IO") == "1" {
+	switch os.Getenv("GO_WANT_HELPER_OSCAP_IO") {
+	case "1":
 		fakeOSCAPIO()
+		os.Exit(0)
+	case "sleep":
+		time.Sleep(3 * hangTimeout)
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
@@ -64,6 +69,16 @@ func fakeOSCAPIO() {
 			os.Exit(1)
 		case "hang":
 			// A select {} would end the process as a deadlock.
+			time.Sleep(time.Hour)
+		case "orphan":
+			// The child holds stdout open once the watchdog kills the fake.
+			child := exec.Command(os.Args[0])
+			child.Env = append(os.Environ(), "GO_WANT_HELPER_OSCAP_IO=sleep")
+			child.Stdout = os.Stdout
+			if err := child.Start(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
 			time.Sleep(time.Hour)
 		default:
 			fmt.Printf("%s %d\n", id, codes[suffix])
@@ -198,6 +213,22 @@ func TestOSCAPIOEvaluateDeadline(t *testing.T) {
 		t.Errorf("evaluate(%q) error = %v, want %v", ids, err, context.DeadlineExceeded)
 	}
 	if want := []string{"a_pass passed"}; !slices.Equal(got, want) {
+		t.Errorf("evaluate(%q) = %q, want %q", ids, got, want)
+	}
+}
+
+// TestOSCAPIOEvaluateOrphan checks that a run ends when the watchdog kills
+// oscap-io while a child of oscap-io still holds its stdout.
+func TestOSCAPIOEvaluateOrphan(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 2*hangTimeout)
+	defer cancel()
+	ids := []string{"a_pass", "b_orphan", "c_fail"}
+	got, err := evaluateFake(ctx, ids, 0, hangTimeout)
+	if err != nil {
+		t.Errorf("evaluate(%q) error = %v, want nil", ids, err)
+	}
+	if want := []string{"a_pass passed", "c_fail failed"}; !slices.Equal(got, want) {
 		t.Errorf("evaluate(%q) = %q, want %q", ids, got, want)
 	}
 }

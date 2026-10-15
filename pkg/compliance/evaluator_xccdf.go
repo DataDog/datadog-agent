@@ -176,6 +176,10 @@ func (o *oscapIO) run(ctx context.Context, reqs []xccdfRequest) ([]xccdfResult, 
 	if err := cmd.Start(); err != nil {
 		return nil, 0, err
 	}
+	// Cancelling also closes stdout, so the read ends even while a child of
+	// oscap-io holds the pipe open.
+	stop := context.AfterFunc(ctx, func() { stdout.Close() })
+	defer stop()
 
 	// The watchdog kills oscap-io once it has gone o.timeout without a result.
 	watchdog := time.AfterFunc(o.timeout, func() { cancel(errStalled) })
