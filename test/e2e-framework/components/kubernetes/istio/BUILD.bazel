@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "istio",
-    srcs = ["istio.go"],
+    srcs = [
+        "ambient.go",
+        "istio.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/istio",
     visibility = ["//visibility:public"],
     deps = [
@@ -16,6 +19,7 @@ go_library(
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/helm/v3:helm",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/yaml",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )
