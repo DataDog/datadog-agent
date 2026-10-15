@@ -1,11 +1,43 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@rules_go//go:def.bzl", "go_test")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_go//go:def.bzl", "go_binary", "go_test")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//bazel/rules:platform_transition.bzl", "platform_transition_wrapper")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+
+platform_transition_wrapper(
+    name = "rc_x509_ffi_windows_dll_msvc",
+    actual = "@libdd_rc_source//:rc_x509_ffi_windows_dll",
+    platform = "//bazel/platforms:windows_x86_64_msvc_fips",
+)
+
+cc_library(
+    name = "rc_x509_ffi_windows_dll_cc",
+    target_compatible_with = [
+        "//bazel/platforms:rust_abi_gnu",
+        "@platforms//os:windows",
+    ],
+    deps = [
+        ":rc_x509_ffi_windows_dll_msvc",
+        "@libdd_rc_source//:rc_x509_ffi_headers",
+    ],
+)
+
+go_binary(
+    name = "windows_msvc_lifecycle",
+    srcs = ["windows_msvc_lifecycle.go"],
+    cdeps = [":rc_x509_ffi_windows_dll_cc"],
+    cgo = True,
+    tags = ["manual"],
+    target_compatible_with = [
+        "//bazel/platforms:rust_abi_gnu",
+        "@platforms//os:windows",
+    ],
+)
 
 copy_file(
     name = "client_lifecycle_test_src",
