@@ -305,10 +305,15 @@ func (s *istioAmbientSuite) TestZtunnelSocketsInMultiAppPodsStayOnZtunnel() {
 			if !ztunnel[conn.pidContainer] {
 				continue
 			}
-			if ztunnel[conn.container] {
+			name := containerName(conn.container, pod, ztunnel)
+			switch {
+			case ztunnel[conn.container]:
 				kept++
-			} else {
-				moved[containerName(conn.container, pod, ztunnel)]++
+			case strings.HasPrefix(name, "unknown:"):
+				// ztunnel delivers inbound traffic from inside the server pod with the client's IP as
+				// source, so that socket carries this pod's address but belongs to the server
+			default:
+				moved[name]++
 			}
 		}
 		assert.Emptyf(c, moved, "ztunnel connections from client-two-apps were reattributed (pod containers %v)", pod.containers)
