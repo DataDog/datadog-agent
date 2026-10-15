@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:aix": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -20,6 +21,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:android": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -33,6 +35,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:darwin": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -46,6 +49,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:dragonfly": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -59,6 +63,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:freebsd": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -72,6 +77,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:illumos": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -85,6 +91,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:ios": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -98,6 +105,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:js": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -111,6 +119,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -124,6 +133,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:netbsd": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -137,6 +147,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:openbsd": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -150,6 +161,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:osx": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -163,6 +175,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:plan9": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -176,6 +189,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:qnx": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",
@@ -189,6 +203,7 @@ go_library(
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:solaris": [
+            "//comp/core/config",
             "//comp/core/ipc/def",
             "//comp/core/ipc/fx-none",
             "//comp/core/sysprobeconfig/def",

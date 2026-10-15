@@ -129,7 +129,7 @@ func TestCapabilitiesFullAgentMetadataRefresh(t *testing.T) {
 	}{
 		{name: "absent capabilities", wantFetches: 1},
 		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}, wantFetches: 1},
-		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil)},
+		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(false, nil)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
@@ -242,77 +242,68 @@ func TestSetBatch(t *testing.T) {
 		"stale":  nil,
 		"test":   1234,
 		"flavor": "batch-flavor",
-	})
+	}, "batch-uuid")
 
 	assert.Equal(t, 1234, ia.data["test"])
 	assert.Equal(t, "batch-flavor", ia.data["flavor"])
 	assert.Nil(t, ia.data["stale"], "a nil batch value must clear the cached field")
+	assert.Equal(t, "batch-uuid", ia.uuidOverride)
 	assert.True(t, ia.RefreshTriggered())
+
+	payload := ia.getPayload().(*Payload)
+	assert.Equal(t, "batch-uuid", payload.UUID, "the batch uuid rides the same atomic write as the fields")
+
+	ia.SetBatch(map[string]interface{}{"test": 1234}, "")
+	payload = ia.getPayload().(*Payload)
+	assert.Equal(t, uuid.GetUUID(), payload.UUID, "an empty batch uuid falls back to the host machine GUID")
 }
 
-func TestSetBatchReadiness(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		capabilities *iainterface.Capabilities
-		deferred     bool
-	}{
-		{name: "absent capabilities"},
-		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}, deferred: true},
-		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil), deferred: true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			serializerMock := serializermock.NewMetricSerializer(t)
-			options := []fx.Option{fx.Decorate(func(serializer.MetricSerializer) serializer.MetricSerializer {
-				return serializerMock
-			})}
-			if tt.capabilities != nil {
-				options = append(options, fx.Supply(tt.capabilities))
-			}
-			p := getProvides(t, map[string]any{"inventories_first_run_delay": 0}, nil, options...)
-			ia := p.Comp.(*inventoryagent)
-			require.NotNil(t, p.Provider.Callback, "a deferred provider must remain registered")
-			if !tt.deferred {
-				serializerMock.On("SendMetadata", mock.Anything).Return(nil).Twice()
-			}
-
-			// Exercise the published callback immediately after construction, before injection.
-			assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
-			p.Comp.Set("resource_id", "complete-resource")
-			p.Comp.Submit()
-			if tt.deferred {
-				// A closed payload records updates but submits nothing.
-				p.Comp.SetBatch(map[string]interface{}{"resource_id": "complete-resource"})
-				data, err := ia.GetAsJSON()
-				assert.EqualError(t, err, "inventory metadata is not ready")
-				assert.Nil(t, data)
-				assert.True(t, ia.LastCollect.IsZero())
-				serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
-
-				serializerMock.On("SendMetadata", mock.MatchedBy(func(payload *Payload) bool {
-					return payload.Metadata["resource_id"] == "complete-resource"
-				})).Return(nil).Once()
-				p.Comp.SetReady(true)
-				p.Comp.Submit()
-			}
-			data, err := ia.GetAsJSON()
-			require.NoError(t, err)
-			assert.Contains(t, string(data), `"resource_id": "complete-resource"`)
-			assert.False(t, ia.LastCollect.IsZero())
-			assert.False(t, ia.RefreshTriggered())
-			serializerMock.AssertExpectations(t)
-		})
+func TestCapabilitiesSubmissionGate(t *testing.T) {
+	validate := func(fields map[string]interface{}) error {
+		if id, _ := fields["resource_id"].(string); id == "" {
+			return errors.New("missing resource id")
+		}
+		return nil
 	}
+	serializerMock := serializermock.NewMetricSerializer(t)
+	p := getProvides(t, map[string]any{"inventories_first_run_delay": 0}, nil,
+		fx.Decorate(func(serializer.MetricSerializer) serializer.MetricSerializer {
+			return serializerMock
+		}),
+		fx.Supply(iainterface.NewServerlessCapabilities(false, validate)))
+	ia := p.Comp.(*inventoryagent)
+	require.NotNil(t, p.Provider.Callback, "a gated provider must remain registered")
+
+	// No serverless field is applied yet: both submission paths are withheld
+	// without building a payload or consuming a pending refresh.
+	ia.Refresh()
+	assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
+	p.Comp.Submit()
+	assert.True(t, ia.LastCollect.IsZero())
+	assert.True(t, ia.RefreshTriggered())
+	serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
+
+	serializerMock.On("SendMetadata", mock.MatchedBy(func(payload *Payload) bool {
+		return payload.Metadata["resource_id"] == "complete-resource"
+	})).Return(nil).Twice()
+	p.Comp.SetBatch(map[string]interface{}{"resource_id": "complete-resource"}, "complete-uuid")
+	p.Comp.Submit()
+	assert.False(t, ia.LastCollect.IsZero())
+	assert.False(t, ia.RefreshTriggered())
+	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
+
+	// The runner callback also submits the now-valid payload on a forced refresh.
+	ia.Refresh()
+	assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
+	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
+	serializerMock.AssertExpectations(t)
 }
 
 func TestSetBatchDoesNotEnableInventory(t *testing.T) {
 	p := getProvides(t, map[string]any{"inventories_enabled": false}, nil,
-		fx.Supply(iainterface.NewServerlessCapabilities(func() string {
-			t.Fatal("disabled inventory must not resolve identity")
-			return ""
-		})))
+		fx.Supply(iainterface.NewServerlessCapabilities(false, nil)))
 	ia := p.Comp.(*inventoryagent)
-	p.Comp.SetBatch(map[string]interface{}{"resource_id": "test-resource"})
-	p.Comp.SetReady(true)
+	p.Comp.SetBatch(map[string]interface{}{"resource_id": "test-resource"}, "test-uuid")
 	p.Comp.Submit()
 	assert.False(t, ia.Enabled)
 	assert.Empty(t, ia.data)
@@ -323,59 +314,20 @@ func TestSetBatchDoesNotEnableInventory(t *testing.T) {
 	assert.EqualError(t, err, "inventory metadata is disabled")
 }
 
-func TestCapabilitiesPayloadUUID(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		withResolver bool
-		resolvedUUID string
-	}{
-		{name: "nil resolver"},
-		{name: "empty override", withResolver: true},
-		{name: "override", withResolver: true, resolvedUUID: "process-uuid"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			originalGetUUID := uuid.GetUUID
-			t.Cleanup(func() { uuid.GetUUID = originalGetUUID })
-			hostUUIDCalls := 0
-			uuid.GetUUID = func() string {
-				hostUUIDCalls++
-				return "host-uuid"
-			}
-			resolvedUUID := tt.resolvedUUID
-			resolverCalls := 0
-			var resolver func() string
-			if tt.withResolver {
-				resolver = func() string {
-					resolverCalls++
-					return resolvedUUID
-				}
-			}
-			p := getProvides(t, nil, nil, fx.Supply(iainterface.NewServerlessCapabilities(resolver)))
-			ia := p.Comp.(*inventoryagent)
-			first := ia.getPayload().(*Payload)
-			if resolvedUUID == "" {
-				assert.Equal(t, "host-uuid", first.UUID)
-				assert.Equal(t, 1, hostUUIDCalls)
-			} else {
-				assert.Equal(t, resolvedUUID, first.UUID)
-				assert.Zero(t, hostUUIDCalls)
-			}
-			resolvedUUID = "next-instance-uuid"
-			second := ia.getPayload().(*Payload)
-			if tt.withResolver {
-				assert.Equal(t, resolvedUUID, second.UUID)
-				assert.Equal(t, 2, resolverCalls)
-				if tt.resolvedUUID == "" {
-					assert.Equal(t, 1, hostUUIDCalls)
-				} else {
-					assert.Zero(t, hostUUIDCalls)
-				}
-			} else {
-				assert.Equal(t, "host-uuid", second.UUID)
-				assert.Equal(t, 2, hostUUIDCalls)
-			}
-		})
-	}
+func TestCapabilitiesDisabled(t *testing.T) {
+	p := getProvides(t, nil, nil,
+		fx.Supply(iainterface.NewServerlessCapabilities(true, nil)))
+	ia := p.Comp.(*inventoryagent)
+
+	assert.False(t, ia.Enabled, "the Disabled capability must withhold the payload")
+	assert.Nil(t, p.Provider.Callback)
+	assert.Nil(t, ia.MetadataProvider().Callback)
+	p.Comp.SetBatch(map[string]interface{}{"resource_id": "test-resource"}, "test-uuid")
+	p.Comp.Submit()
+	assert.Empty(t, ia.data)
+	assert.True(t, ia.LastCollect.IsZero())
+	_, err := ia.GetAsJSON()
+	assert.EqualError(t, err, "inventory metadata is disabled")
 }
 
 func TestInitDataErrorInstallInfo(t *testing.T) {

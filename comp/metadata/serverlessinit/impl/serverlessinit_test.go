@@ -22,10 +22,11 @@ import (
 )
 
 // fakeInventoryAgent records the calls this component makes on the
-// inventoryagent payload, in order.
+// inventoryagent payload, in order, including the uuid of every batch.
 type fakeInventoryAgent struct {
 	fields  map[string]interface{}
 	batches []map[string]interface{}
+	uuids   []string
 	calls   []string
 }
 
@@ -38,16 +39,13 @@ func (f *fakeInventoryAgent) Set(name string, value interface{}) {
 	f.fields[name] = value
 }
 
-func (f *fakeInventoryAgent) SetBatch(fields map[string]interface{}) {
+func (f *fakeInventoryAgent) SetBatch(fields map[string]interface{}, uuid string) {
 	f.calls = append(f.calls, "SetBatch")
 	f.batches = append(f.batches, fields)
+	f.uuids = append(f.uuids, uuid)
 	for name, value := range fields {
 		f.fields[name] = value
 	}
-}
-
-func (f *fakeInventoryAgent) SetReady(bool) {
-	f.calls = append(f.calls, "SetReady")
 }
 
 func (f *fakeInventoryAgent) Get() map[string]interface{} { return f.fields }
@@ -69,14 +67,13 @@ type hookRecorder struct {
 
 func (h *hookRecorder) Append(hook compdef.Hook) { h.hooks = append(h.hooks, hook) }
 
-func newTestComponent(t *testing.T, inventoryEnabled bool, provider *fakeProvider, params serverlessinit.Params) (serverlessinit.Component, *fakeInventoryAgent, *hookRecorder, *serverlessinit.PayloadUUID) {
+func newTestComponent(t *testing.T, inventoryEnabled bool, provider *fakeProvider, params serverlessinit.Params) (serverlessinit.Component, *fakeInventoryAgent, *hookRecorder) {
 	conf := configmock.New(t)
 	if inventoryEnabled {
 		conf.Set("serverless.inventory_enabled", true, model.SourceAgentRuntime)
 	}
 	ia := newFakeInventoryAgent()
 	lc := &hookRecorder{}
-	uuid := serverlessinit.NewPayloadUUID()
 	comp := NewComponent(Requires{
 		Lc:             lc,
 		Log:            logmock.New(t),
@@ -84,9 +81,8 @@ func newTestComponent(t *testing.T, inventoryEnabled bool, provider *fakeProvide
 		Params:         params,
 		InventoryAgent: ia,
 		Provider:       provider,
-		UUID:           uuid,
 	}).Comp
-	return comp, ia, lc, uuid
+	return comp, ia, lc
 }
 
 func TestNewComponentConstructionIdentity(t *testing.T) {
@@ -100,13 +96,11 @@ func TestNewComponentConstructionIdentity(t *testing.T) {
 		},
 	}
 
-	_, ia, lc, _ := newTestComponent(t, true, provider, serverlessinit.Params{
+	_, ia, lc := newTestComponent(t, true, provider, serverlessinit.Params{
 		Tags: map[string]string{"env": "test-env", "service": "test-service"},
 	})
 
-	// Publication protocol: the field set is applied while closed and opened
-	// only once complete.
-	assert.Equal(t, []string{"SetReady", "SetBatch", "SetReady"}, ia.calls)
+	assert.Equal(t, []string{"SetBatch"}, ia.calls, "the startup publication applies one atomic batch")
 	require.Len(t, ia.batches, 1)
 	batch := ia.batches[0]
 	assert.Equal(t, "test-resource", batch["resource_id"])
@@ -115,34 +109,38 @@ func TestNewComponentConstructionIdentity(t *testing.T) {
 	assert.Equal(t, reportReasonStartup, batch["report_reason"])
 	assert.Equal(t, "in-container", batch["deployment_model"])
 	assert.Equal(t, "test-env", batch["dd_env"])
-	assert.NotContains(t, ia.calls, "Submit", "the startup submission waits for the lifecycle hook")
+	require.Len(t, ia.uuids, 1)
+	assert.NotEmpty(t, ia.uuids[0], "the first publish generates a fresh payload uuid")
+
 	require.Len(t, lc.hooks, 1)
 	require.NoError(t, lc.hooks[0].OnStart(context.Background()))
-	assert.Equal(t, []string{"SetReady", "SetBatch", "SetReady", "Submit", "Set:report_reason"}, ia.calls)
+	assert.Equal(t, []string{"SetBatch", "Submit", "Set:report_reason"}, ia.calls)
 	assert.Equal(t, reportReasonPeriodic, ia.fields["report_reason"], "runner submissions after the startup payload report periodic")
 }
 
 func TestNewComponentPayloadUUIDRotation(t *testing.T) {
 	provider := &fakeProvider{eligible: true, data: serverlessinit.InventoryData{ResourceID: "instance-a"}}
-	comp, ia, _, uuid := newTestComponent(t, true, provider, serverlessinit.Params{})
-	first := uuid.Get()
+	comp, ia, _ := newTestComponent(t, true, provider, serverlessinit.Params{})
+
+	first := ia.uuids[0]
 	require.NotEmpty(t, first)
 
 	// A same-identity resume preserves the uuid; a new identity rotates it.
 	comp.InventoryIdentityArrived()
-	assert.Equal(t, first, uuid.Get(), "same identity must not rotate the uuid")
-	require.Len(t, ia.batches, 2)
+	require.Len(t, ia.uuids, 2)
+	assert.Equal(t, first, ia.uuids[1], "same identity must not rotate the uuid")
 
 	provider.data = serverlessinit.InventoryData{ResourceID: "instance-b"}
 	comp.InventoryIdentityArrived()
-	assert.NotEqual(t, first, uuid.Get(), "a changed identity must rotate the uuid")
+	require.Len(t, ia.uuids, 3)
+	assert.NotEqual(t, first, ia.uuids[2], "a changed identity must rotate the uuid")
 }
 
 func TestNewComponentIdentityEvent(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 	provider := &fakeProvider{eligible: true}
 
-	comp, ia, lc, _ := newTestComponent(t, true, provider, serverlessinit.Params{
+	comp, ia, lc := newTestComponent(t, true, provider, serverlessinit.Params{
 		Sidecar: true,
 		Tags:    map[string]string{"service": "test-service"},
 	})
@@ -156,7 +154,7 @@ func TestNewComponentIdentityEvent(t *testing.T) {
 	}
 	comp.InventoryIdentityArrived()
 
-	assert.Equal(t, []string{"SetReady", "SetBatch", "SetReady", "Submit", "Set:report_reason"}, ia.calls)
+	assert.Equal(t, []string{"SetBatch", "Submit", "Set:report_reason"}, ia.calls)
 	require.Len(t, ia.batches, 1)
 	assert.Equal(t, "late-resource", ia.batches[0]["resource_id"])
 	assert.Equal(t, "sidecar", ia.batches[0]["deployment_model"])
@@ -166,7 +164,7 @@ func TestNewComponentIdentityEvent(t *testing.T) {
 func TestNewComponentIdentityEventWithoutIdentity(t *testing.T) {
 	provider := &fakeProvider{eligible: true}
 
-	comp, ia, _, _ := newTestComponent(t, true, provider, serverlessinit.Params{})
+	comp, ia, _ := newTestComponent(t, true, provider, serverlessinit.Params{})
 
 	comp.InventoryIdentityArrived()
 	assert.Empty(t, ia.calls, "an identity event that carries no resource id must not publish")
@@ -189,7 +187,7 @@ func TestNewComponentGatedOff(t *testing.T) {
 				provider.data = serverlessinit.InventoryData{ResourceID: "test-resource"}
 			}
 
-			comp, ia, lc, _ := newTestComponent(t, tt.inventoryEnabled, provider, serverlessinit.Params{})
+			comp, ia, lc := newTestComponent(t, tt.inventoryEnabled, provider, serverlessinit.Params{})
 
 			assert.Empty(t, ia.calls)
 			assert.Empty(t, lc.hooks)
