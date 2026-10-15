@@ -1259,7 +1259,7 @@ func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgrou
 	defer prof.InstancesLock.Unlock()
 
 	var workloadID containerutils.WorkloadID
-	if cgce.IsContainerContextNull() {
+	if !cgce.IsContainerContextNull() {
 		workloadID = cgce.GetContainerID()
 	} else if cgce.IsCGroupContextResolved() {
 		workloadID = cgce.GetCGroupID()
