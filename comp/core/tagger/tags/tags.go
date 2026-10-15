@@ -37,6 +37,15 @@ const (
 	OrchClusterID = "orch_cluster_id"
 	// KubeDistribution is the tag for the managed Kubernetes cloud provider: eks, gke, aks
 	KubeDistribution = "kube_distribution"
+	// EksClusterARN is the tag for the EKS cluster ARN (Amazon Resource Name)
+	EksClusterARN = "eks_cluster_arn"
+	// EksClusterAccount is the tag for the AWS account that owns the EKS cluster. It is
+	// distinct from aws_account (which, on a Kubernetes host, is the node's account) so a
+	// cross-account node group does not produce two values under one key.
+	EksClusterAccount = "eks_cluster_account"
+	// EksClusterRegion is the tag for the AWS Region of the EKS cluster. It is distinct from
+	// region (the node's Region on a Kubernetes host) for the same reason.
+	EksClusterRegion = "eks_cluster_region"
 
 	// ImageName is the tag for the image name
 	ImageName = "image_name"
