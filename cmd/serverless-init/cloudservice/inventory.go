@@ -14,7 +14,7 @@ const (
 	workloadTypeAzureFunction   = "azure_function"
 )
 
-func (l *LocalService) CanCollectInventory() bool { return true }
+func (l *LocalService) CanCollectInventory() bool { return false }
 func (l *LocalService) GetInventoryData() serverlessinit.InventoryData {
 	return serverlessinit.InventoryData{}
 }

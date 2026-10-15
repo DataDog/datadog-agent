@@ -101,8 +101,8 @@ type CloudService interface {
 	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
 
 	// GetInventoryData returns the per-platform serverless fields for the
-	// inventory metadata payload. Each implementation resolves its own facts, so
-	// it does not depend on GetTags having run first.
+	// inventory metadata payload. Implementations must not deadlock with the
+	// rest of the CloudService interface.
 	GetInventoryData() serverlessinit.InventoryData
 
 	// CanCollectInventory reports whether the platform permits inventory collection.
