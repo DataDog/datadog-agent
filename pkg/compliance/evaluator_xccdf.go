@@ -7,439 +7,285 @@ package compliance
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
-	"github.com/DataDog/datadog-agent/pkg/compliance/scap"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+// Result codes printed by oscap-io, from xccdf_test_result_type_t in OpenSCAP.
+const (
+	xccdfPass = iota + 1
+	xccdfFail
+	xccdfError
+	xccdfUnknown
+	xccdfNotApplicable
+	xccdfNotChecked
+	xccdfNotSelected
+	xccdfInformational
+	xccdfFixed
 )
 
 const (
-	enableSysChar = false
+	// xccdfTimeout is the longest wait for the next result from oscap-io.
+	xccdfTimeout = 60 * time.Second
+
+	// xccdfWaitDelay bounds the wait for the oscap-io output once the
+	// process has exited.
+	xccdfWaitDelay = 5 * time.Second
 )
 
-const (
-	//revive:disable
-	XCCDF_RESULT_PASS = iota + 1
-	XCCDF_RESULT_FAIL
-	XCCDF_RESULT_ERROR
-	XCCDF_RESULT_UNKNOWN
-	XCCDF_RESULT_NOT_APPLICABLE
-	XCCDF_RESULT_NOT_CHECKED
-	XCCDF_RESULT_NOT_SELECTED
-	//revive:enable
-)
+// errStalled reports an oscap-io process killed for going without a
+// result past its timeout.
+var errStalled = errors.New("stalled")
 
-type oscapIORule struct {
-	Profile string
-	Rule    string
+// An xccdfRequest asks oscap-io to evaluate the XCCDF rule id of a profile
+// on behalf of a benchmark rule.
+type xccdfRequest struct {
+	profile string
+	id      string
+	rule    *Rule
 }
 
-type oscapIOResult struct {
-	Rule   string
-	Result int
-	Data   map[string]interface{}
+// An xccdfResult is the result code oscap-io printed for a rule.
+type xccdfResult struct {
+	rule *Rule
+	code int
 }
 
-var (
-	oscapIOsMu sync.Mutex
-	oscapIOs   = map[string]*oscapIO{}
-)
-
+// An oscapIO evaluates XCCDF requests with oscap-io processes.
 type oscapIO struct {
-	cmd      *atomic.Pointer[exec.Cmd]
-	File     string
-	RuleCh   chan *oscapIORule
-	ResultCh chan *oscapIOResult
-	ErrorCh  chan error
-	DoneCh   chan bool
+	name     string                                       // benchmark, for logs
+	newCmd   func(ctx context.Context) (*exec.Cmd, error) // makes an oscap-io command
+	interval time.Duration                                // between requests, zero for all at once
+	timeout  time.Duration                                // longest wait for a result
 }
 
-func newOSCAPIO(file string) *oscapIO {
-	return &oscapIO{
-		cmd:      atomic.NewPointer[exec.Cmd](nil),
-		File:     file,
-		RuleCh:   make(chan *oscapIORule),
-		ResultCh: make(chan *oscapIOResult),
-		ErrorCh:  make(chan error),
-		DoneCh:   make(chan bool),
-	}
-}
-
-func (p *oscapIO) Run(ctx context.Context) error {
-	defer p.Stop()
-
-	var oscapProbeRoot string
-
-	if env.IsContainerized() {
-		hostRoot := os.Getenv("HOST_ROOT")
-		if hostRoot == "" {
-			hostRoot = "/host"
-		}
-
-		oscapProbeRoot = hostRoot
-	}
-
-	args := []string{}
-	if enableSysChar {
-		args = append(args, "-syschar")
-	}
-	args = append(args, p.File)
-
-	// Build command: /proc/self/exe compliance oscap-exec [args...]
-	execArgs := append([]string{"compliance", "oscap-exec"}, args...)
-	cmd := exec.CommandContext(ctx, "/proc/self/exe", execArgs...)
-	cmd.Dir = filepath.Dir(p.File)
-	cmd.Env = os.Environ()
-	if oscapProbeRoot != "" {
-		cmd.Env = append(cmd.Env, "OSCAP_PROBE_ROOT="+oscapProbeRoot)
-	}
-
-	stdin, err := cmd.StdinPipe()
+// EvaluateXCCDFRules evaluates the XCCDF rules of benchmark with oscap-io,
+// probing the filesystem at root, or the running system when root is empty.
+// It sends one rule every interval, or all of them at once when interval is
+// zero. A rule oscap-io stalls or dies on is logged and skipped, and the
+// evaluation goes on with the rules after it. EvaluateXCCDFRules returns the
+// events of the evaluated rules, and the error that ended the evaluation
+// early, if any.
+func EvaluateXCCDFRules(ctx context.Context, hostname, root string, benchmark *Benchmark, interval time.Duration) ([]*CheckEvent, error) {
+	file, reqs, err := xccdfRequests(benchmark)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer stdin.Close()
-
-	stdout, err := cmd.StdoutPipe()
+	o := &oscapIO{
+		name: benchmark.FrameworkID,
+		newCmd: func(ctx context.Context) (*exec.Cmd, error) {
+			return oscapIOCommand(ctx, file, root)
+		},
+		interval: interval,
+		timeout:  xccdfTimeout,
+	}
+	results, err := o.evaluate(ctx, reqs)
+	events := newXCCDFEvents(hostname, benchmark, results)
 	if err != nil {
-		return err
+		return events, fmt.Errorf("oscap-io %s: %w", benchmark.FrameworkID, err)
 	}
-	defer stdout.Close()
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-	defer stderr.Close()
-
-	log.Debugf("Executing %s in %s\n", cmd.String(), cmd.Dir)
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	p.cmd.Store(cmd)
-
-	r := bufio.NewReader(stdout)
-	go func() {
-		for {
-			s, err := r.ReadString('\n')
-			if err != nil {
-				// the error is final: either EOF once oscap-io exits, or os.ErrClosed once Wait closed the pipe
-				return
-			}
-			s = strings.TrimRight(s, "\n")
-
-			if s == "" {
-				continue
-			}
-
-			log.Debugf("<- %s", s)
-			line := strings.Split(s, " ")
-			if len(line) != 2 {
-				if !p.sendError(fmt.Errorf("invalid output: '%v'", line)) {
-					return
-				}
-				continue
-			}
-			result, err := strconv.Atoi(line[1])
-			if err != nil {
-				if !p.sendError(fmt.Errorf("strconv.Atoi '%s': %v", line[1], err)) {
-					return
-				}
-				continue
-			}
-
-			data := make(map[string]interface{}, 0)
-
-			if enableSysChar {
-				doc, err := scap.ReadDocument(r)
-				if err != nil {
-					if !p.sendError(fmt.Errorf("scap.ReadDocument: %v", err)) {
-						return
-					}
-					continue
-				}
-
-				syschar, err := scap.SysChar(doc)
-				if err != nil {
-					if !p.sendError(fmt.Errorf("scap.SysChar: %v", err)) {
-						return
-					}
-					continue
-				}
-
-				data["system_characteristics"] = syschar
-			}
-
-			if !p.sendResult(&oscapIOResult{Rule: line[0], Result: result, Data: data}) {
-				return
-			}
-		}
-	}()
-
-	scannerErr := bufio.NewScanner(stderr)
-	go func() {
-		for scannerErr.Scan() {
-			log.Warnf("error: %v", scannerErr.Text())
-		}
-	}()
-
-	// Stop oscap-io process after 60 minutes of inactivity.
-	timeout := 60 * time.Minute
-
-	go func() {
-		t := time.NewTimer(timeout)
-		for {
-			select {
-			case <-p.DoneCh:
-				// The oscap-io process has been terminated.
-				return
-			case <-t.C:
-				log.Warnf("oscap-io has been inactive for %s; exiting", timeout)
-				err := p.Kill()
-				if err != nil {
-					log.Warnf("failed to kill process: %v", err)
-				}
-				return
-			case rule := <-p.RuleCh:
-				if rule == nil {
-					return
-				}
-				log.Debugf("-> %s %s\n", rule.Profile, rule.Rule)
-				_, err := io.WriteString(stdin, rule.Profile+" "+rule.Rule+"\n")
-				if err != nil {
-					log.Warnf("error writing string '%s %s': %v", rule.Profile, rule.Rule, err)
-					return
-				}
-				t.Reset(timeout)
-			}
-		}
-	}()
-
-	if err := cmd.Wait(); err != nil {
-		log.Debugf("process exited: %v", err)
-		return err
-	}
-
-	return nil
+	return events, nil
 }
 
-func (p *oscapIO) Stop() {
-	oscapIOsMu.Lock()
-	defer oscapIOsMu.Unlock()
-	delete(oscapIOs, p.File)
-	close(p.DoneCh)
-}
-
-// sendResult and sendError give up once the oscap-io process exited: nothing receives from its channels after that
-func (p *oscapIO) sendResult(result *oscapIOResult) bool {
-	select {
-	case p.ResultCh <- result:
-		return true
-	case <-p.DoneCh:
-		return false
-	}
-}
-
-func (p *oscapIO) sendError(err error) bool {
-	select {
-	case p.ErrorCh <- err:
-		return true
-	case <-p.DoneCh:
-		return false
-	}
-}
-
-func (p *oscapIO) Kill() error {
-	// p.cmd is Stored asynchronously by Run only after the oscap-io process has started
-	// successfully. Kill may be called before that happens (for example from
-	// FinishXCCDFBenchmark on context cancellation), in which case cmd is
-	// still nil and there is no process to kill.
-	cmd := p.cmd.Load()
-	if cmd == nil || cmd.Process == nil {
-		return nil
-	}
-	if err := cmd.Process.Kill(); err != nil {
-		return err
-	}
-	// Wait for the oscap-io process to terminate.
-	// Otherwise, the call to p.Stop() at the end of p.Run() might
-	// override oscapIOs[p.File] from a newly created process.
-	c := time.After(60 * time.Second)
-	select {
-	case <-p.DoneCh:
-		// The oscap-io process has been terminated.
-		return nil
-	case <-c:
-		// This shouldn't be necessary, but better have
-		// a timeout to prevent the program from hanging.
-		log.Warnf("timed out waiting for oscap-io process to terminate")
-	}
-	return nil
-}
-
-// EvaluateXCCDFRule evaluates the given rule using OpenSCAP tool.
-func EvaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd.ClientInterface, benchmark *Benchmark, rule *Rule) []*CheckEvent {
-	if !rule.IsXCCDF() {
-		log.Errorf("given rule is not an XCCDF rule %s", rule.ID)
-		return nil
-	}
-	return evaluateXCCDFRule(ctx, hostname, statsdClient, benchmark, rule, rule.InputSpecs[0].XCCDF)
-}
-
-func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd.ClientInterface, benchmark *Benchmark, rule *Rule, spec *InputSpecXCCDF) []*CheckEvent {
-	oscapIOsMu.Lock()
-	file := filepath.Join(benchmark.dirname, spec.Name)
-	p := oscapIOs[file]
-	if p == nil {
-		p = newOSCAPIO(file)
-		oscapIOs[file] = p
-		go func() {
-			err := p.Run(ctx)
-			if err != nil {
-				log.Debugf("Run: %v", err)
-			}
-		}()
-	}
-	oscapIOsMu.Unlock()
-
-	var reqs []*oscapIORule
-	if len(spec.Rules) > 0 {
-		for _, rule := range spec.Rules {
-			reqs = append(reqs, &oscapIORule{Profile: spec.Profile, Rule: rule})
-		}
-	} else if (spec.Rule) != "" {
-		reqs = append(reqs, &oscapIORule{Profile: spec.Profile, Rule: spec.Rule})
-	}
-
-	start := time.Now()
-	for _, req := range reqs {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-p.DoneCh:
-			// The oscap-io process has been terminated.
-			for _, req := range reqs {
-				log.Warnf("dropping rule '%s %s'", req.Profile, req.Rule)
-			}
-			close(p.RuleCh)
-			return nil
-		case p.RuleCh <- req:
-		}
-	}
-
-	var events []*CheckEvent
-	c := time.After(60 * time.Second)
-	for i := 0; i < len(reqs); i++ {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-p.DoneCh:
-			// The oscap-io process has been terminated.
-			return nil
-		case <-c:
-			log.Warnf("timed out waiting for expected results for rule %s", reqs[i].Rule)
-			// If no result has been received, it's likely for the oscap-io process to be stuck, so we kill it.
-			err := p.Kill()
-			if err != nil {
-				log.Warnf("failed to kill process: %v", err)
-			}
-			return nil
-		case err := <-p.ErrorCh:
-			log.Warnf("error: %v", err)
-			events = append(events, NewCheckError(XCCDFEvaluator, err, hostname, "host", rule, benchmark))
-		case ruleResult := <-p.ResultCh:
-			if ruleResult == nil {
-				return nil
-			}
-			var event *CheckEvent
-			switch ruleResult.Result {
-			case XCCDF_RESULT_PASS:
-				event = NewCheckEvent(XCCDFEvaluator, CheckPassed, ruleResult.Data, hostname, "host", rule, benchmark)
-			case XCCDF_RESULT_FAIL:
-				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, ruleResult.Data, hostname, "host", rule, benchmark)
-			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
-				errReason := errors.New("XCCDF_RESULT_ERROR")
-				event = NewCheckError(XCCDFEvaluator, errReason, hostname, "host", rule, benchmark)
-			case XCCDF_RESULT_NOT_APPLICABLE:
-				skipReason := errors.New("XCCDF_RESULT_NOT_APPLICABLE")
-				event = NewCheckSkipped(XCCDFEvaluator, skipReason, hostname, "host", rule, benchmark)
-			case XCCDF_RESULT_NOT_CHECKED, XCCDF_RESULT_NOT_SELECTED:
-			}
-			if event != nil {
-				events = append(events, event)
-			}
-		}
-	}
-
-	if statsdClient != nil {
-		tags := []string{
-			"rule_id:" + rule.ID,
-			"rule_input_type:xccdf",
-			"agent_version:" + version.AgentVersion,
-		}
-		if err := statsdClient.Count(metrics.MetricInputsHits, int64(len(reqs)), tags, 1.0); err != nil {
-			log.Errorf("failed to send input metric: %v", err)
-		}
-		if err := statsdClient.Timing(metrics.MetricInputsDuration, time.Since(start), tags, 1.0); err != nil {
-			log.Errorf("failed to send input metric: %v", err)
-		}
-	}
-
-	return events
-}
-
-// FinishXCCDFBenchmark finishes an XCCDF benchmark by terminating the oscap-io processes.
-func FinishXCCDFBenchmark(_ context.Context, benchmark *Benchmark) {
-	oscapIOsMu.Lock()
-	if len(oscapIOs) == 0 {
-		// No oscap-io process is running.
-		oscapIOsMu.Unlock()
-		return
-	}
-	oscapIOsMu.Unlock()
-
+// xccdfRequests returns the datastream of the XCCDF rules of benchmark and
+// their requests, in benchmark order.
+func xccdfRequests(benchmark *Benchmark) (string, []xccdfRequest, error) {
+	var file string
+	var reqs []xccdfRequest
 	for _, rule := range benchmark.Rules {
 		if !rule.IsXCCDF() {
 			continue
 		}
-		if len(benchmark.Rules[0].InputSpecs) == 0 {
+		spec := rule.InputSpecs[0].XCCDF
+		f := filepath.Join(benchmark.dirname, spec.Name)
+		if file == "" {
+			file = f
+		}
+		if f != file {
+			return "", nil, fmt.Errorf("xccdf benchmark %s uses two datastreams: %s and %s", benchmark.FrameworkID, file, f)
+		}
+		ids := spec.Rules
+		if len(ids) == 0 && spec.Rule != "" {
+			ids = []string{spec.Rule}
+		}
+		for _, id := range ids {
+			reqs = append(reqs, xccdfRequest{profile: spec.Profile, id: id, rule: rule})
+		}
+	}
+	return file, reqs, nil
+}
+
+// evaluate evaluates reqs. When an oscap-io process stalls or dies after
+// answering a request, evaluate skips the request that process was on and
+// starts another process on the rest. A failure before the first answer
+// ends the evaluation.
+func (o *oscapIO) evaluate(ctx context.Context, reqs []xccdfRequest) ([]xccdfResult, error) {
+	var results []xccdfResult
+	progressed := false
+	for len(reqs) > 0 {
+		res, n, err := o.run(ctx, reqs)
+		results = append(results, res...)
+		progressed = progressed || n > 0
+		if err == nil || ctx.Err() != nil || n >= len(reqs) || !progressed {
+			return results, err
+		}
+		log.Warnf("oscap-io %s: skipping rule %s: %v", o.name, reqs[n].id, err)
+		reqs = reqs[n+1:]
+	}
+	return results, nil
+}
+
+// run evaluates reqs with one oscap-io process. It returns the results, the
+// index of the request after the last one answered, and the reason the
+// process ended before answering every request, if any.
+func (o *oscapIO) run(ctx context.Context, reqs []xccdfRequest) ([]xccdfResult, int, error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	cmd, err := o.newCmd(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	cmd.Stderr = stderrLog{}
+	cmd.WaitDelay = xccdfWaitDelay
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, 0, err
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, 0, err
+	}
+	log.Debugf("oscap-io %s: evaluating %d rules with %s", o.name, len(reqs), cmd)
+	if err := cmd.Start(); err != nil {
+		return nil, 0, err
+	}
+
+	// The watchdog kills oscap-io once it has gone o.timeout without a result.
+	watchdog := time.AfterFunc(o.timeout, func() { cancel(errStalled) })
+	defer watchdog.Stop()
+
+	done := make(chan struct{})
+	written := make(chan struct{})
+	go func() {
+		defer close(written)
+		o.write(stdin, reqs, done)
+	}()
+
+	// oscap-io answers in request order and prints nothing for a request
+	// it fails to evaluate, so a result matches the first pending request
+	// with its id, and the requests before that one got no result.
+	var results []xccdfResult
+	var silent []string
+	next := 0
+	s := bufio.NewScanner(stdout)
+	for s.Scan() {
+		id, code, ok := parseXCCDFResult(s.Text())
+		i := slices.IndexFunc(reqs[next:], func(r xccdfRequest) bool { return r.id == id })
+		if !ok || i < 0 {
+			log.Warnf("oscap-io %s: unexpected output %q", o.name, s.Text())
 			continue
 		}
-		file := filepath.Join(benchmark.dirname, rule.InputSpecs[0].XCCDF.Name)
-		oscapIOsMu.Lock()
-		p := oscapIOs[file]
-		if p == nil {
-			oscapIOsMu.Unlock()
-			continue
+		watchdog.Reset(o.timeout)
+		for _, r := range reqs[next : next+i] {
+			silent = append(silent, r.id)
 		}
-		oscapIOsMu.Unlock()
-		err := p.Kill()
-		if err != nil {
-			log.Warnf("failed to kill process: %v", err)
+		next += i
+		results = append(results, xccdfResult{rule: reqs[next].rule, code: code})
+		next++
+	}
+	if err := s.Err(); err != nil {
+		cancel(err)
+	}
+	close(done)
+	err = cmd.Wait()
+	<-written
+	if cause := context.Cause(ctx); cause != nil {
+		err = cause
+	}
+	if err == nil {
+		for _, r := range reqs[next:] {
+			silent = append(silent, r.id)
 		}
-		oscapIOsMu.Lock()
-		if len(oscapIOs) == 0 {
-			// If no oscap-io process is running, we don't have to loop through every rules.
-			oscapIOsMu.Unlock()
+	}
+	if len(silent) > 0 {
+		log.Warnf("oscap-io %s: no result for %d rules: %s", o.name, len(silent), strings.Join(silent, " "))
+	}
+	return results, next, err
+}
+
+// write sends reqs to oscap-io on w, one every o.interval, then closes w.
+// It returns early when done is closed or a write fails. A write or close
+// fails once oscap-io has exited, which run reports.
+func (o *oscapIO) write(w io.WriteCloser, reqs []xccdfRequest, done <-chan struct{}) {
+	defer w.Close()
+	var tick <-chan time.Time
+	if o.interval > 0 {
+		t := time.NewTicker(o.interval)
+		defer t.Stop()
+		tick = t.C
+	}
+	for i, r := range reqs {
+		if i > 0 && tick != nil {
+			select {
+			case <-tick:
+			case <-done:
+				return
+			}
+		}
+		if _, err := fmt.Fprintf(w, "%s %s\n", r.profile, r.id); err != nil {
 			return
 		}
-		oscapIOsMu.Unlock()
 	}
+}
+
+// parseXCCDFResult parses an oscap-io result line, "id code".
+func parseXCCDFResult(line string) (string, int, bool) {
+	id, s, ok := strings.Cut(line, " ")
+	if !ok {
+		return "", 0, false
+	}
+	code, err := strconv.Atoi(s)
+	if err != nil || code < xccdfPass || code > xccdfFixed {
+		return "", 0, false
+	}
+	return id, code, true
+}
+
+// newXCCDFEvents returns the events of the results on the host hostname.
+func newXCCDFEvents(hostname string, benchmark *Benchmark, results []xccdfResult) []*CheckEvent {
+	var events []*CheckEvent
+	for _, r := range results {
+		switch r.code {
+		case xccdfPass:
+			events = append(events, NewCheckEvent(XCCDFEvaluator, CheckPassed, map[string]any{}, hostname, "host", r.rule, benchmark))
+		case xccdfFail:
+			events = append(events, NewCheckEvent(XCCDFEvaluator, CheckFailed, map[string]any{}, hostname, "host", r.rule, benchmark))
+		case xccdfError, xccdfUnknown:
+			events = append(events, NewCheckError(XCCDFEvaluator, errors.New("XCCDF_RESULT_ERROR"), hostname, "host", r.rule, benchmark))
+		case xccdfNotApplicable:
+			events = append(events, NewCheckSkipped(XCCDFEvaluator, errors.New("XCCDF_RESULT_NOT_APPLICABLE"), hostname, "host", r.rule, benchmark))
+		case xccdfNotChecked, xccdfNotSelected, xccdfInformational, xccdfFixed:
+		}
+	}
+	return events
+}
+
+// stderrLog logs what oscap-io writes to its standard error.
+type stderrLog struct{}
+
+func (stderrLog) Write(p []byte) (int, error) {
+	log.Warnf("oscap-io: %s", bytes.TrimSpace(p))
+	return len(p), nil
 }

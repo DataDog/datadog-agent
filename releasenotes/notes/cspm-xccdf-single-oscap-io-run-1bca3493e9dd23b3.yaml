@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CSPM host benchmarks evaluate each benchmark with a single ``oscap-io``
+    run. A rule that OpenSCAP cannot evaluate is passed over at once, where it
+    used to stall the benchmark for 60 seconds and restart ``oscap-io``. A
+    benchmark whose SCAP datastream fails to load ends in seconds, where it
+    used to wait 60 seconds per rule.
