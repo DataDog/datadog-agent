@@ -223,6 +223,7 @@ func parsePodContainers(
 
 		containerSpec := findContainerSpec(container.Name, containerSpecs)
 		if containerSpec != nil {
+			podContainer.IsLLM = kubernetes.IsRayLLMContainer(containerSpec.Image, containerSpec.Command, containerSpec.Args)
 			env = extractEnvFromSpec(containerSpec.Env)
 			resources = extractResources(containerSpec, &container)
 			resizePolicy = extractResizePolicy(containerSpec)

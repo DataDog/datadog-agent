@@ -327,3 +327,10 @@ func TestExtractResources_InPlaceResize(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePodContainersRecordsLLMCommandSignal(t *testing.T) {
+	parent := &workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "ray-pod"}
+	containers, _ := parsePodContainers(&kubelet.Pod{}, []kubelet.ContainerSpec{{Name: "ray-worker", Image: "custom/ray:latest", Command: []string{"python", "-m"}, Args: []string{"vllm.entrypoints.openai.api_server"}}}, []kubelet.ContainerStatus{{Name: "ray-worker", ID: "containerd://ray-container", Image: "custom/ray:latest"}}, parent)
+	require.Len(t, containers, 1)
+	assert.True(t, containers[0].IsLLM)
+}
