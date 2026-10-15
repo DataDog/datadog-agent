@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    The installer can run lifecycle hooks shipped inside an OCI package's
+    ``hooks/`` directory, allowing installation logic to be updated with the
+    package. Packages without this directory retain their existing installer
+    recipes.

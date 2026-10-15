@@ -76,7 +76,7 @@ type testHooks struct {
 	noop bool
 }
 
-func (h *testHooks) PreInstall(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool) error {
+func (h *testHooks) PreInstall(ctx context.Context, pkg string, pkgType packages.PackageType, upgrade bool, _ string) error {
 	if h.noop {
 		return nil
 	}
@@ -504,10 +504,11 @@ func TestNoOutsideImport(t *testing.T) {
 	datadogAgentPrefix := "github.com/DataDog/datadog-agent/"
 	allowedPaths := []string{
 		"pkg/fleet/installer",
-		"pkg/version",      // TODO: cleanup & remove
-		"pkg/util/log",     // TODO: cleanup & remove
-		"pkg/util/winutil", // Needed for Windows
-		"pkg/config/setup", // Needed for extensions
+		"pkg/version",       // TODO: cleanup & remove
+		"pkg/util/log",      // TODO: cleanup & remove
+		"pkg/util/winutil",  // Needed for Windows
+		"pkg/util/scrubber", // Sanitize hook stderr before telemetry; already used transitively by log
+		"pkg/config/setup",  // Needed for extensions
 		"pkg/template",
 		"pkg/fips", // Needed to detect FIPS-compiled binaries at runtime
 	}

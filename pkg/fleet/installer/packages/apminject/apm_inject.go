@@ -5,7 +5,13 @@
 
 //go:build !windows
 
-// Package apminject implements the apm injector installer
+// Package apminject implements the legacy Agent-owned injector installation recipe.
+//
+// This implementation is deprecated in favor of auto_inject's package-owned OCI
+// hooks. It will be retired gradually after supported hookless packages and the
+// legacy APM commands, helper scripts and systemd units no longer depend on it.
+// Retain security and compatibility fixes during that transition; new injector
+// lifecycle behavior belongs in the package-owned hooks.
 package apminject
 
 import (
