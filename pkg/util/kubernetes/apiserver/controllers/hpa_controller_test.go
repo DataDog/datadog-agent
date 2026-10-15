@@ -13,6 +13,7 @@ import (
 	"maps"
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -516,115 +517,119 @@ func TestAutoscalerController(t *testing.T) {
 
 // TestAutoscalerControllerLegacyHPAVersions is an integration test of the
 // AutoscalerController on clusters that don't serve autoscaling/v2, where the
-// HPAs are watched with the dynamic informer.
+// HPAs are watched with the dynamic informer. It runs in a synctest bubble:
+// synctest.Wait returns once every goroutine is blocked but doesn't advance
+// the fake clock, so waitForSync blocks on the processed keys instead, letting
+// the cache sync polling and the work queue's rate limiting delay elapse.
 func TestAutoscalerControllerLegacyHPAVersions(t *testing.T) {
 	for _, version := range []string{"v2beta2", "v2beta1"} {
 		t.Run(version, func(t *testing.T) {
-			mockConfig := configmock.New(t)
-			mockConfig.SetInTest("kube_resources_namespace", "nsfoo")
+			synctest.Test(t, func(t *testing.T) {
+				mockConfig := configmock.New(t)
+				mockConfig.SetInTest("kube_resources_namespace", "nsfoo")
 
-			ctx := context.Background()
-			timeoutDuration := 5 * time.Second
-			retryPeriod := 100 * time.Millisecond
+				ctx := t.Context()
 
-			hpaGVR := schema.GroupVersionResource{Group: autoscalingGroup, Version: version, Resource: hpaResource}
-			client := fake.NewSimpleClientset()
-			client.Resources = []*metav1.APIResourceList{{
-				GroupVersion: hpaGVR.GroupVersion().String(),
-				APIResources: []metav1.APIResource{{Name: hpaResource, Group: autoscalingGroup, Version: version}},
-			}}
-			dynamicClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
-				map[schema.GroupVersionResource]string{hpaGVR: "HorizontalPodAutoscalerList"},
-				newFakeLegacyHorizontalPodAutoscaler(version, "hpa_1", "nsfoo", "1", "foo", map[string]string{"foo": "bar"}),
-			)
-			dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 0)
+				hpaGVR := schema.GroupVersionResource{Group: autoscalingGroup, Version: version, Resource: hpaResource}
+				client := fake.NewSimpleClientset()
+				client.Resources = []*metav1.APIResourceList{{
+					GroupVersion: hpaGVR.GroupVersion().String(),
+					APIResources: []metav1.APIResource{{Name: hpaResource, Group: autoscalingGroup, Version: version}},
+				}}
+				dynamicClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+					map[schema.GroupVersionResource]string{hpaGVR: "HorizontalPodAutoscalerList"},
+					newFakeLegacyHorizontalPodAutoscaler(version, "hpa_1", "nsfoo", "1", "foo", map[string]string{"foo": "bar"}),
+				)
+				dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 0)
 
-			eventBroadcaster := record.NewBroadcaster()
-			eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: client.CoreV1().Events("")})
-			defer eventBroadcaster.Shutdown()
+				eventBroadcaster := record.NewBroadcaster()
+				eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: client.CoreV1().Events("")})
+				defer eventBroadcaster.Shutdown()
 
-			hctrl, err := newAutoscalersController(
-				client,
-				eventBroadcaster.NewRecorder(kscheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
-				alwaysLeader,
-				datadogclientmock.New(t).Comp,
-			)
-			require.NoError(t, err)
-			require.NoError(t, hctrl.enableHPA(client, informers.NewSharedInformerFactory(client, 0), dynamicInformerFactory))
-			hctrl.autoscalers = make(chan interface{}, 1)
+				hctrl, err := newAutoscalersController(
+					client,
+					eventBroadcaster.NewRecorder(kscheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
+					alwaysLeader,
+					datadogclientmock.New(t).Comp,
+				)
+				require.NoError(t, err)
+				// The worker only returns once the queue is shut down, which
+				// runHPA does after it returns.
+				defer hctrl.hpaQueue.ShutDown()
+				require.NoError(t, hctrl.enableHPA(client, informers.NewSharedInformerFactory(client, 0), dynamicInformerFactory))
+				hctrl.autoscalers = make(chan interface{}, 1)
 
-			stop := make(chan struct{})
-			defer close(stop)
-			dynamicInformerFactory.Start(stop)
-			go hctrl.runHPA(stop)
+				stop := make(chan struct{})
+				defer close(stop)
+				dynamicInformerFactory.Start(stop)
+				go hctrl.runHPA(stop)
 
-			waitForSync := func() {
-				select {
-				case key := <-hctrl.autoscalers:
-					t.Logf("hctrl process key:%s", key)
-				case <-time.After(timeoutDuration):
-					require.FailNow(t, "Timeout waiting for HPAs to update")
+				waitForSync := func() {
+					select {
+					case key := <-hctrl.autoscalers:
+						t.Logf("hctrl process key:%s", key)
+					case <-time.After(5 * time.Second):
+						require.FailNow(t, "Timeout waiting for HPAs to update")
+					}
 				}
-			}
-			assertLocalStore := func(labels map[string]string) {
-				assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				assertLocalStore := func(labels map[string]string) {
+					synctest.Wait()
 					hctrl.toStore.m.Lock()
 					defer hctrl.toStore.m.Unlock()
-					if assert.Len(c, hctrl.toStore.data, 1) {
+					if assert.Len(t, hctrl.toStore.data, 1) {
 						for _, em := range hctrl.toStore.data {
-							assert.Equal(c, "foo", em.MetricName)
-							assert.Equal(c, labels, em.Labels)
-							assert.Equal(c, custommetrics.ObjectReference{Type: "horizontal", Name: "hpa_1", Namespace: "nsfoo", UID: "1"}, em.Ref)
+							assert.Equal(t, "foo", em.MetricName)
+							assert.Equal(t, labels, em.Labels)
+							assert.Equal(t, custommetrics.ObjectReference{Type: "horizontal", Name: "hpa_1", Namespace: "nsfoo", UID: "1"}, em.Ref)
 						}
 					}
-				}, timeoutDuration, retryPeriod)
-			}
-
-			waitForSync()
-			assertLocalStore(map[string]string{"foo": "bar"})
-
-			// The event is recorded on the autoscaling/v2beta* HPA
-			assert.EventuallyWithT(t, func(c *assert.CollectT) {
-				events, err := client.CoreV1().Events("nsfoo").List(ctx, metav1.ListOptions{})
-				if assert.NoError(c, err) && assert.Len(c, events.Items, 1) {
-					assert.Equal(c, hpaGVR.GroupVersion().String(), events.Items[0].InvolvedObject.APIVersion)
-					assert.Equal(c, "HorizontalPodAutoscaler", events.Items[0].InvolvedObject.Kind)
-					assert.Equal(c, "hpa_1", events.Items[0].InvolvedObject.Name)
-					assert.Equal(c, autoscalerNowHandleMsgEvent, events.Items[0].Reason)
 				}
-			}, timeoutDuration, retryPeriod)
 
-			// The GC goes through the dynamic informer lister
-			stale := custommetrics.ExternalMetricValue{
-				MetricName: "bar",
-				Ref:        custommetrics.ObjectReference{Type: "horizontal", Name: "hpa_1", Namespace: "nsfoo", UID: "1"},
-			}
-			hctrl.toStore.m.Lock()
-			require.NoError(t, hctrl.store.SetExternalMetricValues(maps.Clone(hctrl.toStore.data)))
-			hctrl.toStore.m.Unlock()
-			require.NoError(t, hctrl.store.SetExternalMetricValues(map[string]custommetrics.ExternalMetricValue{custommetrics.ExternalMetricValueKeyFunc(stale): stale}))
-			hctrl.gc()
-			storedMetrics, err := hctrl.store.ListAllExternalMetricValues()
-			require.NoError(t, err)
-			require.Len(t, storedMetrics.External, 1)
-			assert.Equal(t, "foo", storedMetrics.External[0].MetricName)
+				waitForSync()
+				assertLocalStore(map[string]string{"foo": "bar"})
 
-			// Update the metric labels
-			_, err = dynamicClient.Resource(hpaGVR).Namespace("nsfoo").Update(ctx,
-				newFakeLegacyHorizontalPodAutoscaler(version, "hpa_1", "nsfoo", "1", "foo", map[string]string{"dcos_version": "2.1.9"}),
-				metav1.UpdateOptions{},
-			)
-			require.NoError(t, err)
-			waitForSync()
-			assertLocalStore(map[string]string{"dcos_version": "2.1.9"})
+				// The event is recorded on the autoscaling/v2beta* HPA
+				synctest.Wait()
+				events, err := client.CoreV1().Events("nsfoo").List(ctx, metav1.ListOptions{})
+				require.NoError(t, err)
+				if assert.Len(t, events.Items, 1) {
+					assert.Equal(t, hpaGVR.GroupVersion().String(), events.Items[0].InvolvedObject.APIVersion)
+					assert.Equal(t, "HorizontalPodAutoscaler", events.Items[0].InvolvedObject.Kind)
+					assert.Equal(t, "hpa_1", events.Items[0].InvolvedObject.Name)
+					assert.Equal(t, autoscalerNowHandleMsgEvent, events.Items[0].Reason)
+				}
 
-			// Delete the HPA
-			require.NoError(t, dynamicClient.Resource(hpaGVR).Namespace("nsfoo").Delete(ctx, "hpa_1", metav1.DeleteOptions{}))
-			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				// The GC goes through the dynamic informer lister
+				stale := custommetrics.ExternalMetricValue{
+					MetricName: "bar",
+					Ref:        custommetrics.ObjectReference{Type: "horizontal", Name: "hpa_1", Namespace: "nsfoo", UID: "1"},
+				}
+				hctrl.toStore.m.Lock()
+				require.NoError(t, hctrl.store.SetExternalMetricValues(maps.Clone(hctrl.toStore.data)))
+				hctrl.toStore.m.Unlock()
+				require.NoError(t, hctrl.store.SetExternalMetricValues(map[string]custommetrics.ExternalMetricValue{custommetrics.ExternalMetricValueKeyFunc(stale): stale}))
+				hctrl.gc()
+				storedMetrics, err := hctrl.store.ListAllExternalMetricValues()
+				require.NoError(t, err)
+				require.Len(t, storedMetrics.External, 1)
+				assert.Equal(t, "foo", storedMetrics.External[0].MetricName)
+
+				// Update the metric labels
+				_, err = dynamicClient.Resource(hpaGVR).Namespace("nsfoo").Update(ctx,
+					newFakeLegacyHorizontalPodAutoscaler(version, "hpa_1", "nsfoo", "1", "foo", map[string]string{"dcos_version": "2.1.9"}),
+					metav1.UpdateOptions{},
+				)
+				require.NoError(t, err)
+				waitForSync()
+				assertLocalStore(map[string]string{"dcos_version": "2.1.9"})
+
+				// Delete the HPA
+				require.NoError(t, dynamicClient.Resource(hpaGVR).Namespace("nsfoo").Delete(ctx, "hpa_1", metav1.DeleteOptions{}))
+				synctest.Wait()
 				hctrl.toStore.m.Lock()
 				defer hctrl.toStore.m.Unlock()
-				assert.Empty(c, hctrl.toStore.data)
-			}, timeoutDuration, retryPeriod)
+				assert.Empty(t, hctrl.toStore.data)
+			})
 		})
 	}
 }
