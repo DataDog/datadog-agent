@@ -495,7 +495,9 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		}
 
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
-		if err != nil {
+		// A container that is no longer running can legitimately fail to match, e.g. its MIG
+		// instance is torn down before the container leaves workloadmeta. Don't count that as a miss.
+		if err != nil && container.State.Running {
 			c.telemetry.metrics.missingContainerGpuMapping.Inc(container.Name)
 		}
 

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The GPU check no longer increments ``datadog.agent.gpu.missing_container_gpu_mapping``
+    for containers that are no longer running, such as during MIG instance teardown.
