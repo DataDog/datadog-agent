@@ -21,6 +21,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/config",
@@ -32,6 +33,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/config",
@@ -43,6 +45,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/core/config",
@@ -54,6 +57,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/core/config",
@@ -65,6 +69,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/core/config",
@@ -76,6 +81,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/config",
@@ -87,6 +93,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:js": [
             "//comp/core/config",
@@ -98,6 +105,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
@@ -109,6 +117,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/config",
@@ -120,6 +129,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/core/config",
@@ -131,6 +141,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:osx": [
             "//comp/core/config",
@@ -142,6 +153,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:plan9": [
             "//comp/core/config",
@@ -153,6 +165,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:qnx": [
             "//comp/core/config",
@@ -164,6 +177,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/core/config",
@@ -175,6 +189,7 @@ go_library(
             "//pkg/serverless/tags",
             "//pkg/util/scrubber",
             "//pkg/version",
+            "@com_github_google_uuid//:uuid",
         ],
         "//conditions:default": [],
     }),

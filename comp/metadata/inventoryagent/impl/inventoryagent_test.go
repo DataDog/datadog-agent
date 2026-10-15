@@ -280,17 +280,18 @@ func TestSetBatchReadiness(t *testing.T) {
 			p.Comp.Set("resource_id", "complete-resource")
 			p.Comp.Submit()
 			if tt.deferred {
+				// A closed payload records updates but submits nothing.
+				p.Comp.SetBatch(map[string]interface{}{"resource_id": "complete-resource"})
 				data, err := ia.GetAsJSON()
 				assert.EqualError(t, err, "inventory metadata is not ready")
 				assert.Nil(t, data)
 				assert.True(t, ia.LastCollect.IsZero())
-				assert.True(t, ia.RefreshTriggered())
 				serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
 
 				serializerMock.On("SendMetadata", mock.MatchedBy(func(payload *Payload) bool {
 					return payload.Metadata["resource_id"] == "complete-resource"
 				})).Return(nil).Once()
-				p.Comp.SetBatch(map[string]interface{}{"resource_id": "complete-resource"})
+				p.Comp.SetReady(true)
 				p.Comp.Submit()
 			}
 			data, err := ia.GetAsJSON()
@@ -311,6 +312,7 @@ func TestSetBatchDoesNotEnableInventory(t *testing.T) {
 		})))
 	ia := p.Comp.(*inventoryagent)
 	p.Comp.SetBatch(map[string]interface{}{"resource_id": "test-resource"})
+	p.Comp.SetReady(true)
 	p.Comp.Submit()
 	assert.False(t, ia.Enabled)
 	assert.Empty(t, ia.data)
