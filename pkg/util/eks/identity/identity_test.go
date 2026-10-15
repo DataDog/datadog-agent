@@ -44,4 +44,9 @@ func TestIsValidClusterARN(t *testing.T) {
 	assert.False(t, IsValidClusterARN("arn:aws:ec2:us-west-2:123456789012:cluster/orders"))   // wrong service
 	assert.False(t, IsValidClusterARN("arn:aws:eks:us-west-2:12345:cluster/orders"))          // bad account
 	assert.False(t, IsValidClusterARN("arn:aws:eks:us-west-2:123456789012:nodegroup/orders")) // wrong resource
+	// Region/partition charset must be constrained so a value with a comma or space cannot be
+	// emitted verbatim as a tag value (which would corrupt comma-joined static tags).
+	assert.False(t, IsValidClusterARN("arn::eks:us-west-2 oops,tag:123456789012:cluster/orders")) // bad region + empty partition
+	assert.False(t, IsValidClusterARN("arn:aws:eks:us-west-2,x:123456789012:cluster/orders"))     // comma in region
+	assert.False(t, IsValidClusterARN("arn:AWS:eks:us-west-2:123456789012:cluster/orders"))       // upper-case partition
 }
