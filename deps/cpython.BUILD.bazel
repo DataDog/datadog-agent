@@ -1,7 +1,7 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//deps/cpython:macros.bzl", "cpython_frozen_modules", "cpython_shared_modules")
-load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MACOS_SHARED_MODULES", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "sysconfig_vars")
+load("@@//deps/cpython:srcs.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MACOS_SHARED_MODULES", "MODULE_SRCS", "OBJECT_SRCS", "PARSER_SRCS", "PLATFORMS", "PYTHON_SRCS", "SHARED_MODULES", "sysconfig_vars")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -17,6 +17,41 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 DEFAULT_PYTHON = "@python_{}//:python3".format(DEFAULT_PYTHON_VERSION.replace(".", "_"))
+
+LINUX_SO = "libpython{}.so.1.0".format(PYTHON_MAJOR_MINOR)
+
+MACOS = "@platforms//os:macos"
+
+UNIX_ONLY = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+COPTS = [
+    "-fno-strict-overflow",
+    "-Wsign-compare",
+    "-fwrapv",
+    "-O2",
+    "-std=c11",
+    "-Wextra",
+    "-Wno-unused-parameter",
+    "-Wno-missing-field-initializers",
+    "-Wstrict-prototypes",
+    "-Werror=implicit-function-declaration",
+    "-fvisibility=hidden",
+]
+
+CORE_DEFINES = [
+    "NDEBUG",
+    "Py_BUILD_CORE",
+]
+
+EXT_SUFFIX = select({
+    condition: platform["ext_suffix"]
+    for condition, platform in PLATFORMS.items()
+})
+
+UNIX_SHARED_MODULES = SHARED_MODULES | MACOS_SHARED_MODULES
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -164,33 +199,19 @@ cc_library(
     deps = [":_python_dll"],
 )
 
-LINUX_SO = "libpython{}.so.1.0".format(PYTHON_MAJOR_MINOR)
-
-alias(
-    name = "python_unix",
-    actual = ":native_install",
-    visibility = ["//visibility:public"],
-)
-
 cc_import(
-    name = "native_libpython_import",
+    name = "libpython_import",
     shared_library = ":python_pkg",
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
+    target_compatible_with = UNIX_ONLY,
 )
 
 cc_library(
     name = "python_unix_shared",
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
+    target_compatible_with = UNIX_ONLY,
     visibility = ["//visibility:public"],
     deps = [
-        ":native_headers",
-        ":native_libpython_import",
+        ":headers",
+        ":libpython_import",
     ],
 )
 
@@ -231,17 +252,6 @@ dd_collect_dependencies(
     visibility = ["//visibility:private"],
 )
 
-alias(
-    name = "python_lib_dir_group_unix",
-    actual = ":native_unix_stdlib",
-)
-
-alias(
-    name = "python3_bin",
-    actual = ":native_unix_python3_bin",
-    visibility = ["//visibility:public"],
-)
-
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
@@ -265,17 +275,6 @@ BIN_SYMLINKS = {
     for link, target in BIN_SYMLINKS.items()
 ]
 
-alias(
-    name = "headers_unix",
-    actual = ":native_unix_include",
-)
-
-alias(
-    name = "python_stable_lib_linux",
-    actual = ":native_unix_libpython3",
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
 pkg_files(
     name = "install_headers_unix",
     srcs = [":headers_unix"],
@@ -297,7 +296,7 @@ pkg_filegroup(
 dd_cc_packaged(
     name = "python_pkg",
     dest_dir = "embedded/lib",
-    input = ":native_libpython",
+    input = ":libpython",
     installed_executables = {
         ":python3_bin": "embedded/bin",
         ":python_lib_dir_group_unix": "embedded/lib",
@@ -334,45 +333,19 @@ pkg_install(
     }),
 )
 
-NATIVE_MACOS = "@platforms//os:macos"
-
-NATIVE_UNIX = select({
-    "@platforms//os:windows": ["@platforms//:incompatible"],
-    "//conditions:default": [],
-})
-
-NATIVE_COPTS = [
-    "-fno-strict-overflow",
-    "-Wsign-compare",
-    "-fwrapv",
-    "-O2",
-    "-std=c11",
-    "-Wextra",
-    "-Wno-unused-parameter",
-    "-Wno-missing-field-initializers",
-    "-Wstrict-prototypes",
-    "-Werror=implicit-function-declaration",
-    "-fvisibility=hidden",
-]
-
-NATIVE_CORE_DEFINES = [
-    "NDEBUG",
-    "Py_BUILD_CORE",
-]
-
 copy_file(
-    name = "native_pyconfig_h",
+    name = "pyconfig_h",
     src = select({
         condition: platform["pyconfig"]
-        for condition, platform in NATIVE_PLATFORMS.items()
+        for condition, platform in PLATFORMS.items()
     }),
     out = "pyconfig.h",
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
 )
 
 cc_library(
-    name = "native_headers",
-    hdrs = glob(["Include/**/*.h"]) + [":native_pyconfig_h"],
+    name = "headers",
+    hdrs = glob(["Include/**/*.h"]) + [":pyconfig_h"],
     includes = [
         ".",
         "Include",
@@ -381,7 +354,7 @@ cc_library(
 )
 
 cc_library(
-    name = "native_internal_headers",
+    name = "internal_headers",
     includes = [
         "Include/internal",
         "Include/internal/mimalloc",
@@ -398,11 +371,11 @@ cc_library(
         "Parser/**/*.h",
         "Python/**/*.h",
     ]),
-    deps = [":native_headers"],
+    deps = [":headers"],
 )
 
 expand_template(
-    name = "native_config_c",
+    name = "config_c",
     out = "Modules/config.c",
     substitutions = {
         "/* -- ADDMODULE MARKER 1 -- */": "\n".join([
@@ -418,29 +391,29 @@ expand_template(
 )
 
 cc_library(
-    name = "native_builtin_modules",
+    name = "builtin_modules",
     srcs = [src for srcs in BUILTIN_MODULES.values() for src in srcs],
-    copts = NATIVE_COPTS,
+    copts = COPTS,
     local_defines = [
         "NDEBUG",
         "Py_BUILD_CORE_BUILTIN",
     ],
-    deps = [":native_internal_headers"],
+    deps = [":internal_headers"],
     alwayslink = True,
 )
 
 cc_library(
-    name = "native_core",
+    name = "core",
     srcs = PARSER_SRCS + OBJECT_SRCS + PYTHON_SRCS + MODULE_SRCS + select({
-        NATIVE_MACOS: [":native_config_c"],
+        MACOS: [":config_c"],
         "//conditions:default": [
             "Python/asm_trampoline.S",
-            ":native_config_c",
+            ":config_c",
         ],
     }),
-    copts = NATIVE_COPTS,
+    copts = COPTS,
     linkopts = select({
-        NATIVE_MACOS: [
+        MACOS: [
             "-ldl",
             "-framework",
             "CoreFoundation",
@@ -453,25 +426,25 @@ cc_library(
             "-lrt",
         ],
     }),
-    local_defines = NATIVE_CORE_DEFINES,
+    local_defines = CORE_DEFINES,
     deps = [
-        ":native_builtin_modules",
-        ":native_core_with_defines",
-        ":native_internal_headers",
+        ":builtin_modules",
+        ":core_with_defines",
+        ":internal_headers",
     ],
     alwayslink = True,
 )
 
 cc_library(
-    name = "native_core_with_defines",
+    name = "core_with_defines",
     srcs = [
         "Modules/getbuildinfo.c",
         "Python/dynload_shlib.c",
         "Python/getplatform.c",
         "Python/sysmodule.c",
     ],
-    copts = NATIVE_COPTS,
-    local_defines = NATIVE_CORE_DEFINES + [
+    copts = COPTS,
+    local_defines = CORE_DEFINES + [
         "ABIFLAGS=\\\"\\\"",
         "GITBRANCH=\\\"\\\"",
         "GITTAG=\\\"\\\"",
@@ -485,42 +458,42 @@ cc_library(
                 platform["multiarch"],
             ),
         ]
-        for condition, platform in NATIVE_PLATFORMS.items()
+        for condition, platform in PLATFORMS.items()
     }),
-    target_compatible_with = NATIVE_UNIX,
-    deps = [":native_internal_headers"],
+    target_compatible_with = UNIX_ONLY,
+    deps = [":internal_headers"],
     alwayslink = True,
 )
 
 cc_library(
-    name = "native_getpath_noop",
+    name = "getpath_noop",
     srcs = ["Modules/getpath_noop.c"],
-    copts = NATIVE_COPTS,
-    local_defines = NATIVE_CORE_DEFINES,
-    deps = [":native_internal_headers"],
+    copts = COPTS,
+    local_defines = CORE_DEFINES,
+    deps = [":internal_headers"],
 )
 
 cc_binary(
-    name = "native_freeze_module",
+    name = "freeze_module",
     srcs = ["Programs/_freeze_module.c"],
-    copts = NATIVE_COPTS,
-    local_defines = NATIVE_CORE_DEFINES,
+    copts = COPTS,
+    local_defines = CORE_DEFINES,
     deps = [
-        ":native_core",
-        ":native_getpath_noop",
+        ":core",
+        ":getpath_noop",
     ],
 )
 
 cpython_frozen_modules(
     modules = FROZEN_MODULES + [("getpath", "Modules/getpath.py")],
-    tool = ":native_freeze_module",
+    tool = ":freeze_module",
 )
 
 cc_library(
-    name = "native_getpath",
+    name = "getpath",
     srcs = ["Modules/getpath.c"],
-    copts = NATIVE_COPTS,
-    local_defines = NATIVE_CORE_DEFINES + [
+    copts = COPTS,
+    local_defines = CORE_DEFINES + [
         "PREFIX=\\\"$(INSTALL_DIR)/embedded\\\"",
         "EXEC_PREFIX=\\\"$(INSTALL_DIR)/embedded\\\"",
         "PYTHONPATH=\\\"\\\"",
@@ -529,38 +502,38 @@ cc_library(
         "PLATLIBDIR=\\\"lib\\\"",
         "PYTHONFRAMEWORK=\\\"\\\"",
     ],
-    textual_hdrs = [":native_frozen_getpath"],
+    textual_hdrs = [":frozen_getpath"],
     toolchains = ["@@//:install_dir"],
-    deps = [":native_internal_headers"],
+    deps = [":internal_headers"],
     alwayslink = True,
 )
 
 cc_library(
-    name = "native_frozen",
+    name = "frozen",
     srcs = ["Python/frozen.c"],
-    copts = NATIVE_COPTS,
-    local_defines = NATIVE_CORE_DEFINES,
-    textual_hdrs = [":native_frozen_" + name for name, _ in FROZEN_MODULES],
-    deps = [":native_internal_headers"],
+    copts = COPTS,
+    local_defines = CORE_DEFINES,
+    textual_hdrs = [":frozen_" + name for name, _ in FROZEN_MODULES],
+    deps = [":internal_headers"],
     alwayslink = True,
 )
 
 cc_shared_library(
-    name = "native_libpython",
+    name = "libpython",
     shared_lib_name = select({
         condition: platform["libpython"]
-        for condition, platform in NATIVE_PLATFORMS.items()
+        for condition, platform in PLATFORMS.items()
     }),
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
     user_link_flags = select({
-        NATIVE_MACOS: ["-Wl,-install_name,@rpath/libpython{}.dylib".format(PYTHON_MAJOR_MINOR)],
+        MACOS: ["-Wl,-install_name,@rpath/libpython{}.dylib".format(PYTHON_MAJOR_MINOR)],
         "//conditions:default": ["-Wl,-soname," + LINUX_SO],
     }),
     deps = [
-        ":native_core",
-        ":native_frozen",
-        ":native_getpath",
-        ":native_runtime_deps",
+        ":core",
+        ":frozen",
+        ":getpath",
+        ":libpython_runtime_deps",
     ],
 )
 
@@ -569,36 +542,36 @@ cc_shared_library(
 # linked against it keep working across 3.x versions. --no-as-needed keeps that
 # dependency.
 write_file(
-    name = "native_empty_c",
-    out = "native_empty.c",
+    name = "empty_c",
+    out = "empty.c",
     content = [],
 )
 
 cc_library(
-    name = "native_libpython3_lib",
-    srcs = [":native_empty_c"],
+    name = "libpython3_lib",
+    srcs = [":empty_c"],
     target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_shared_library(
-    name = "native_libpython3",
-    dynamic_deps = [":native_libpython"],
+    name = "libpython3",
+    dynamic_deps = [":libpython"],
     shared_lib_name = "libpython3.so",
     target_compatible_with = ["@platforms//os:linux"],
     user_link_flags = [
         "-Wl,--no-as-needed",
         "-Wl,-soname,libpython3.so",
     ],
-    deps = [":native_libpython3_lib"],
+    deps = [":libpython3_lib"],
 )
 
 cc_binary(
-    name = "native_python",
+    name = "python",
     srcs = ["Programs/python.c"],
-    copts = NATIVE_COPTS,
-    dynamic_deps = [":native_libpython"],
+    copts = COPTS,
+    dynamic_deps = [":libpython"],
     linkopts = select({
-        NATIVE_MACOS: [
+        MACOS: [
             "-Wl,-rpath,@loader_path/../lib",
             "-Wl,-stack_size,1000000",
             "-framework",
@@ -609,21 +582,16 @@ cc_binary(
             "-Wl,-rpath,$$ORIGIN/../lib",
         ],
     }),
-    local_defines = NATIVE_CORE_DEFINES,
-    deps = [":native_headers"],
+    local_defines = CORE_DEFINES,
+    deps = [":headers"],
 )
 
-NATIVE_EXT_SUFFIX = select({
-    condition: platform["ext_suffix"]
-    for condition, platform in NATIVE_PLATFORMS.items()
-})
-
 cc_library(
-    name = "native_libmpdec",
+    name = "libmpdec",
     srcs = LIBMPDEC_SRCS,
-    copts = NATIVE_COPTS,
+    copts = COPTS,
     defines = select({
-        NATIVE_MACOS: ["UNIVERSAL=1"],
+        MACOS: ["UNIVERSAL=1"],
         "//conditions:default": [
             "CONFIG_64=1",
             "ANSI=1",
@@ -632,29 +600,29 @@ cc_library(
     }),
     includes = ["Modules/_decimal/libmpdec"],
     local_defines = ["NDEBUG"],
-    deps = [":native_internal_headers"],
+    deps = [":internal_headers"],
 )
 
 cc_library(
-    name = "native_expat_headers",
+    name = "expat_headers",
     includes = ["Modules/expat"],
     textual_hdrs = glob(
         ["Modules/expat/*.c"],
         exclude = LIBEXPAT_SRCS,
     ),
-    deps = [":native_internal_headers"],
+    deps = [":internal_headers"],
 )
 
 cc_library(
-    name = "native_expat",
+    name = "expat",
     srcs = LIBEXPAT_SRCS,
-    copts = NATIVE_COPTS,
+    copts = COPTS,
     local_defines = ["NDEBUG"],
-    deps = [":native_expat_headers"],
+    deps = [":expat_headers"],
 )
 
 cc_library(
-    name = "native_hacl_headers",
+    name = "hacl_headers",
     defines = [
         "_BSD_SOURCE",
         "_DEFAULT_SOURCE",
@@ -664,84 +632,82 @@ cc_library(
         "Modules/_hacl/internal",
     ],
     textual_hdrs = glob(["Modules/_hacl/**/*.h"]),
-    deps = [":native_internal_headers"],
+    deps = [":internal_headers"],
 )
 
 cc_library(
-    name = "native_hacl_sha2",
+    name = "hacl_sha2",
     srcs = ["Modules/_hacl/Hacl_Hash_SHA2.c"],
-    copts = NATIVE_COPTS,
+    copts = COPTS,
     local_defines = ["NDEBUG"],
-    deps = [":native_hacl_headers"],
+    deps = [":hacl_headers"],
 )
 
 cc_library(
-    name = "native_multiprocessing_headers",
+    name = "multiprocessing_headers",
     includes = ["Modules/_multiprocessing"],
-    deps = [":native_internal_headers"],
+    deps = [":internal_headers"],
 )
 
-NATIVE_UNIX_SHARED_MODULES = SHARED_MODULES | MACOS_SHARED_MODULES
-
-NATIVE_COMMON_MODULE_TARGETS = cpython_shared_modules(
-    copts = NATIVE_COPTS,
-    ext_suffix = NATIVE_EXT_SUFFIX,
+COMMON_MODULE_TARGETS = cpython_shared_modules(
+    copts = COPTS,
+    ext_suffix = EXT_SUFFIX,
     modules = SHARED_MODULES,
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
 )
 
-NATIVE_MACOS_MODULE_TARGETS = cpython_shared_modules(
-    copts = NATIVE_COPTS,
-    ext_suffix = NATIVE_EXT_SUFFIX,
+MACOS_MODULE_TARGETS = cpython_shared_modules(
+    copts = COPTS,
+    ext_suffix = EXT_SUFFIX,
     modules = MACOS_SHARED_MODULES,
-    target_compatible_with = [NATIVE_MACOS],
+    target_compatible_with = [MACOS],
 )
 
-NATIVE_SHARED_MODULE_TARGETS = NATIVE_COMMON_MODULE_TARGETS + select({
-    NATIVE_MACOS: NATIVE_MACOS_MODULE_TARGETS,
+SHARED_MODULE_TARGETS = COMMON_MODULE_TARGETS + select({
+    MACOS: MACOS_MODULE_TARGETS,
     "//conditions:default": [],
 })
 
 # Lets dd_collect_dependencies walk from python_pkg to the extension modules and
 # their dynamic_deps. It does not follow filegroup srcs, so the modules are listed here.
 cc_library(
-    name = "native_runtime_deps",
-    data = NATIVE_SHARED_MODULE_TARGETS + [
+    name = "libpython_runtime_deps",
+    data = SHARED_MODULE_TARGETS + [
         "@openssl//:libcrypto_shared_pkg",
         "@openssl//:libssl_shared_pkg",
     ],
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
 )
 
 filegroup(
-    name = "native_shared_modules",
-    srcs = NATIVE_SHARED_MODULE_TARGETS,
+    name = "shared_modules",
+    srcs = SHARED_MODULE_TARGETS,
 )
 
 write_file(
-    name = "native_sysconfig_vars",
-    out = "native_sysconfig_vars.json",
+    name = "sysconfig_vars",
+    out = "sysconfig_vars.json",
     content = select({
         condition: [json.encode(sysconfig_vars(platform))]
-        for condition, platform in NATIVE_PLATFORMS.items()
+        for condition, platform in PLATFORMS.items()
     }),
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
 )
 
 run_binary(
-    name = "native_sysconfigdata",
+    name = "sysconfigdata",
     srcs = [
-        ":native_pyconfig_h",
-        ":native_sysconfig_vars",
+        ":pyconfig_h",
+        ":sysconfig_vars",
         "@@//deps/cpython:gen_sysconfigdata.py",
     ],
-    outs = ["native_sysconfigdata.py"],
+    outs = ["sysconfigdata.py"],
     args = [
         "$(execpath @@//deps/cpython:gen_sysconfigdata.py)",
         "--pyconfig",
-        "$(execpath :native_pyconfig_h)",
+        "$(execpath :pyconfig_h)",
         "--vars",
-        "$(execpath :native_sysconfig_vars)",
+        "$(execpath :sysconfig_vars)",
         "--prefix",
         "$(INSTALL_DIR)/embedded",
         "--out",
@@ -752,40 +718,41 @@ run_binary(
 )
 
 copy_file(
-    name = "native_unix_python3_bin",
-    src = ":native_python",
+    name = "python3_bin",
+    src = ":python",
     out = "unix/bin/python{}".format(PYTHON_MAJOR_MINOR),
     is_executable = True,
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
+    visibility = ["//visibility:public"],
 )
 
 copy_file(
-    name = "native_unix_libpython_linux",
-    src = ":native_libpython",
+    name = "unix_libpython_linux",
+    src = ":libpython",
     out = "unix/lib/" + LINUX_SO,
     target_compatible_with = ["@platforms//os:linux"],
 )
 
 copy_file(
-    name = "native_unix_libpython_macos",
-    src = ":native_libpython",
+    name = "unix_libpython_macos",
+    src = ":libpython",
     out = "unix/lib/libpython{}.dylib".format(PYTHON_MAJOR_MINOR),
-    target_compatible_with = [NATIVE_MACOS],
+    target_compatible_with = [MACOS],
 )
 
 copy_file(
-    name = "native_unix_libpython3",
-    src = ":native_libpython3",
+    name = "python_stable_lib_linux",
+    src = ":libpython3",
     out = "unix/lib/libpython3.so",
     target_compatible_with = ["@platforms//os:linux"],
 )
 
 copy_to_directory(
-    name = "native_unix_stdlib",
+    name = "python_lib_dir_group_unix",
     srcs = [
         "LICENSE",
-        ":native_shared_modules",
-        ":native_sysconfigdata",
+        ":shared_modules",
+        ":sysconfigdata",
     ] + glob(
         ["Lib/**"],
         exclude = [
@@ -801,52 +768,53 @@ copy_to_directory(
         condition: {
             "LICENSE": "LICENSE.txt",
             "Lib/": "",
-            "native_sysconfigdata.py": "_sysconfigdata__{}_{}.py".format(
+            "sysconfigdata.py": "_sysconfigdata__{}_{}.py".format(
                 platform["machdep"],
                 platform["multiarch"],
             ),
         } | {
             name + platform["ext_suffix"]: "lib-dynload/" + name + platform["ext_suffix"]
-            for name in NATIVE_UNIX_SHARED_MODULES
+            for name in UNIX_SHARED_MODULES
         }
-        for condition, platform in NATIVE_PLATFORMS.items()
+        for condition, platform in PLATFORMS.items()
     }),
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
 )
 
 copy_to_directory(
-    name = "native_unix_include",
-    srcs = [":native_pyconfig_h"] + glob(["Include/**/*.h"]),
+    name = "headers_unix",
+    srcs = [":pyconfig_h"] + glob(["Include/**/*.h"]),
     out = "unix/include",
     replace_prefixes = {
         "Include/": "python{}/".format(PYTHON_MAJOR_MINOR),
         "pyconfig.h": "python{}/pyconfig.h".format(PYTHON_MAJOR_MINOR),
     },
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
 )
 
 filegroup(
-    name = "native_install",
+    name = "python_unix",
     srcs = [
-        ":native_unix_include",
-        ":native_unix_python3_bin",
-        ":native_unix_stdlib",
+        ":headers_unix",
+        ":python3_bin",
+        ":python_lib_dir_group_unix",
     ] + select({
         "@platforms//os:linux": [
-            ":native_unix_libpython3",
-            ":native_unix_libpython_linux",
+            ":python_stable_lib_linux",
+            ":unix_libpython_linux",
         ],
-        NATIVE_MACOS: [":native_unix_libpython_macos"],
+        MACOS: [":unix_libpython_macos"],
         "//conditions:default": [],
     }),
-    target_compatible_with = NATIVE_UNIX,
+    target_compatible_with = UNIX_ONLY,
+    visibility = ["//visibility:public"],
 )
 
 write_file(
-    name = "native_test_modules",
-    out = "native_test_modules.txt",
+    name = "test_modules",
+    out = "test_modules.txt",
     content = SHARED_MODULES.keys() + BUILTIN_MODULES.keys() + select({
-        NATIVE_MACOS: MACOS_SHARED_MODULES.keys(),
+        MACOS: MACOS_SHARED_MODULES.keys(),
         "//conditions:default": [],
     }),
 )
@@ -854,19 +822,19 @@ write_file(
 # Bash only sets the dynamic loader search path before exec'ing the interpreter
 # under test. The test only runs on Unix platforms, where Bash is available.
 sh_test(
-    name = "native_python_test",
-    srcs = ["@@//deps/cpython:native_python_test.sh"],
+    name = "python_test",
+    srcs = ["@@//deps/cpython:python_test.sh"],
     args = [
-        "$(rootpath :native_unix_python3_bin)",
-        "$(rootpath @@//deps/cpython:native_python_test.py)",
-        "$(rootpath :native_test_modules)",
+        "$(rootpath :python3_bin)",
+        "$(rootpath @@//deps/cpython:python_test.py)",
+        "$(rootpath :test_modules)",
         "$(rootpaths :runtime_deps)",
     ],
     data = [
-        ":native_install",
-        ":native_test_modules",
-        ":native_unix_python3_bin",
+        ":python3_bin",
+        ":python_unix",
         ":runtime_deps",
-        "@@//deps/cpython:native_python_test.py",
+        ":test_modules",
+        "@@//deps/cpython:python_test.py",
     ],
 )

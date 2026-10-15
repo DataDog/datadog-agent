@@ -1,4 +1,4 @@
-"""Source lists for the native CPython build.
+"""Source lists for the CPython build.
 
 They mirror upstream's Makefile.pre.in (PARSER_OBJS, OBJECT_OBJS, PYTHON_OBJS,
 MODULE_OBJS), Modules/Setup.bootstrap.in (built-in modules),
@@ -251,7 +251,7 @@ SHARED_MODULES = {
     "cmath": {"srcs": ["Modules/cmathmodule.c"], "linkopts": ["-lm"]},
     "_statistics": {"srcs": ["Modules/_statisticsmodule.c"], "linkopts": ["-lm"]},
     "_datetime": {"srcs": ["Modules/_datetimemodule.c"], "linkopts": ["-lm"]},
-    "_decimal": {"srcs": ["Modules/_decimal/_decimal.c"], "deps": [":native_libmpdec"], "linkopts": ["-lm"]},
+    "_decimal": {"srcs": ["Modules/_decimal/_decimal.c"], "deps": [":libmpdec"], "linkopts": ["-lm"]},
     "binascii": {
         "srcs": ["Modules/binascii.c"],
         "defines": ["USE_ZLIB_CRC32"],
@@ -261,13 +261,13 @@ SHARED_MODULES = {
     "_bz2": {"srcs": ["Modules/_bz2module.c"], "deps": ["@bzip2//:libbz2"], "dynamic_deps": ["@bzip2//:bz2_pkg"]},
     "_lzma": {"srcs": ["Modules/_lzmamodule.c"], "deps": ["@xz//:liblzma"], "dynamic_deps": ["@xz//:lzma_pkg"]},
     "zlib": {"srcs": ["Modules/zlibmodule.c"], "deps": ["@zlib"], "dynamic_deps": ["@zlib//:z_pkg"]},
-    "_md5": {"srcs": ["Modules/md5module.c", "Modules/_hacl/Hacl_Hash_MD5.c"], "deps": [":native_hacl_headers"]},
-    "_sha1": {"srcs": ["Modules/sha1module.c", "Modules/_hacl/Hacl_Hash_SHA1.c"], "deps": [":native_hacl_headers"]},
-    "_sha2": {"srcs": ["Modules/sha2module.c"], "deps": [":native_hacl_sha2"]},
-    "_sha3": {"srcs": ["Modules/sha3module.c", "Modules/_hacl/Hacl_Hash_SHA3.c"], "deps": [":native_hacl_headers"]},
+    "_md5": {"srcs": ["Modules/md5module.c", "Modules/_hacl/Hacl_Hash_MD5.c"], "deps": [":hacl_headers"]},
+    "_sha1": {"srcs": ["Modules/sha1module.c", "Modules/_hacl/Hacl_Hash_SHA1.c"], "deps": [":hacl_headers"]},
+    "_sha2": {"srcs": ["Modules/sha2module.c"], "deps": [":hacl_sha2"]},
+    "_sha3": {"srcs": ["Modules/sha3module.c", "Modules/_hacl/Hacl_Hash_SHA3.c"], "deps": [":hacl_headers"]},
     "_blake2": {"srcs": ["Modules/_blake2/blake2module.c", "Modules/_blake2/blake2b_impl.c", "Modules/_blake2/blake2s_impl.c"]},
-    "pyexpat": {"srcs": ["Modules/pyexpat.c"], "deps": [":native_expat"]},
-    "_elementtree": {"srcs": ["Modules/_elementtree.c"], "deps": [":native_expat_headers"]},
+    "pyexpat": {"srcs": ["Modules/pyexpat.c"], "deps": [":expat"]},
+    "_elementtree": {"srcs": ["Modules/_elementtree.c"], "deps": [":expat_headers"]},
     "_codecs_cn": {"srcs": ["Modules/cjkcodecs/_codecs_cn.c"]},
     "_codecs_hk": {"srcs": ["Modules/cjkcodecs/_codecs_hk.c"]},
     "_codecs_iso2022": {"srcs": ["Modules/cjkcodecs/_codecs_iso2022.c"]},
@@ -287,7 +287,7 @@ SHARED_MODULES = {
     "termios": {"srcs": ["Modules/termios.c"]},
     "_posixshmem": {
         "srcs": ["Modules/_multiprocessing/posixshmem.c"],
-        "deps": [":native_multiprocessing_headers"],
+        "deps": [":multiprocessing_headers"],
         "linkopts": select({
             "@platforms//os:macos": [],
             "//conditions:default": ["-lrt"],
@@ -295,7 +295,7 @@ SHARED_MODULES = {
     },
     "_multiprocessing": {
         "srcs": ["Modules/_multiprocessing/multiprocessing.c", "Modules/_multiprocessing/semaphore.c"],
-        "deps": [":native_multiprocessing_headers"],
+        "deps": [":multiprocessing_headers"],
     },
     "_ctypes": {
         "srcs": [
@@ -388,7 +388,7 @@ MACOS_SHARED_MODULES = {
 
 # Per platform values, keyed by the config_setting matching the platform: the
 # pyconfig.h to use and the values derived from the platform triplet.
-NATIVE_PLATFORMS = {
+PLATFORMS = {
     "@@//:linux_arm64": {
         "ext_suffix": ".cpython-{version_flat}-aarch64-linux-gnu.so".format(version_flat = PYTHON_MAJOR_MINOR_FLAT),
         "gnu_type": "aarch64-unknown-linux-gnu",
@@ -447,7 +447,7 @@ def sysconfig_vars(platform):
     """Returns the sysconfig build_time_vars for a target platform.
 
     Args:
-        platform: a NATIVE_PLATFORMS entry.
+        platform: a PLATFORMS entry.
 
     Returns:
         A dict of sysconfig variable names to values, with @PREFIX@ standing
