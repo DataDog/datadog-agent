@@ -70,6 +70,12 @@ type Report interface {
 	ID() string
 }
 
+// OSFallbackTimeout is the time a scan with application analyzers holds in
+// reserve past its Timeout. When the application scan runs out of time, the
+// reserve goes to a scan of the OS packages alone, so the target still gets
+// its OS packages.
+const OSFallbackTimeout = 2 * time.Minute
+
 // ScanOptionsFromConfigForContainers loads the scanning options from the configuration
 func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
 	return ScanOptions{
@@ -87,6 +93,7 @@ func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
 // ScanOptionsFromConfigForHosts loads the scanning options from the configuration
 func ScanOptionsFromConfigForHosts(cfg config.Component) ScanOptions {
 	return ScanOptions{
+		Timeout:        time.Duration(cfg.GetInt("sbom.host.scan_timeout")) * time.Second,
 		Analyzers:      cfg.GetStringSlice("sbom.host.analyzers"),
 		AdditionalDirs: cfg.GetStringSlice("sbom.host.additional_directories"),
 	}

@@ -75,17 +75,52 @@ func getDefaultArtifactOption(scanOptions sbom.ScanOptions) artifact.Option {
 	}
 
 	var artifactOption artifact.Option
-	if len(scanOptions.Analyzers) == 1 && scanOptions.Analyzers[0] == OSAnalyzers {
+	if scanOptions.OSOnly() {
 		artifactOption = ddtrivy.TrivyOptionsOS(parallel)
 	} else {
 		artifactOption = ddtrivy.TrivyOptionsAll(parallel)
+		// Only application scans take the additional directories. OnlyDirs
+		// would keep an OS-only scan away from the package databases it reads.
+		artifactOption.WalkerOption.OnlyDirs = append(artifactOption.WalkerOption.OnlyDirs, scanOptions.AdditionalDirs...)
 	}
 
-	artifactOption.WalkerOption.OnlyDirs = append(artifactOption.WalkerOption.OnlyDirs, scanOptions.AdditionalDirs...)
 	// agent specific config, needed so that we don't download the Java DB at runtime
 	artifactOption.OfflineJar = true
+	// The scan context is the only deadline. The walk and analyzer timeouts
+	// ddtrivy sets would fail an application scan before the deadline
+	// scanWithOSFallback gives it.
+	artifactOption.AnalyzerTimeout = 0
+	artifactOption.PostAnalyzerTimeout = 0
 
 	return artifactOption
+}
+
+// scanWithOSFallback runs scan with the artifact options for scanOptions. A
+// scan with application analyzers leaves the last sbom.OSFallbackTimeout
+// before the context's deadline in reserve. When it runs out of its own time,
+// scanWithOSFallback runs scan again with the OS analyzers alone in the
+// reserve, so target still gets its OS packages. With less than the reserve
+// left, as in a flare, the application scan fails at once and the OS scan
+// runs.
+func scanWithOSFallback(ctx context.Context, target string, scanOptions sbom.ScanOptions, scan func(context.Context, artifact.Option) (*types.Report, error)) (*types.Report, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok || scanOptions.OSOnly() {
+		return scan(ctx, getDefaultArtifactOption(scanOptions))
+	}
+
+	appCtx, cancel := context.WithDeadline(ctx, deadline.Add(-sbom.OSFallbackTimeout))
+	report, err := scan(appCtx, getDefaultArtifactOption(scanOptions))
+	// Key on the deadline: a scan cut short can fail with an error that
+	// wraps no deadline error.
+	appTimedOut := appCtx.Err() == context.DeadlineExceeded
+	cancel()
+	if err == nil || !appTimedOut || ctx.Err() != nil {
+		return report, err
+	}
+
+	log.Warnf("SBOM scan of %s with analyzers %v ran out of time, scanning OS packages only: %v", target, scanOptions.Analyzers, err)
+	scanOptions.Analyzers = []string{OSAnalyzers}
+	return scan(ctx, getDefaultArtifactOption(scanOptions))
 }
 
 // DefaultDisabledCollectors returns default disabled collectors
@@ -181,13 +216,13 @@ func GetGlobalCollector(cfg config.Component) (*Collector, error) {
 
 // ScanFSTrivyReport scans the specified directory and logs detailed scan steps.
 func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*types.Report, error) {
-	artifactOption := getDefaultArtifactOption(scanOptions)
-
 	artifactType := ftypes.TypeContainerImage
 	if removeLayers {
 		artifactType = ftypes.TypeFilesystem
 	}
-	report, err := ddtrivy.ScanRootFS(ctx, artifactOption, trivycache.NewMemoryCache(), path, artifactType)
+	report, err := scanWithOSFallback(ctx, path, scanOptions, func(ctx context.Context, artifactOption artifact.Option) (*types.Report, error) {
+		return ddtrivy.ScanRootFS(ctx, artifactOption, trivycache.NewMemoryCache(), path, artifactType)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to scan rootfs, err: %w", err)
 	}

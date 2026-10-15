@@ -21,7 +21,9 @@ import (
 	"github.com/DataDog/ddtrivy"
 
 	trivycache "github.com/aquasecurity/trivy/pkg/cache"
+	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
+	"github.com/aquasecurity/trivy/pkg/types"
 )
 
 // errLayerCountMismatch means the overlayfs mount (or the docker / crio
@@ -81,8 +83,9 @@ func (c *fakeContainer) Layers() []ftypes.LayerPath {
 func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (*Report, error) {
 	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 
-	artifactOptions := getDefaultArtifactOption(scanOptions)
-	trivyReport, err := ddtrivy.ScanOverlays(ctx, artifactOptions, trivycache.NewMemoryCache(), ctr)
+	trivyReport, err := scanWithOSFallback(ctx, imgMeta.ID, scanOptions, func(ctx context.Context, artifactOption artifact.Option) (*types.Report, error) {
+		return ddtrivy.ScanOverlays(ctx, artifactOption, trivycache.NewMemoryCache(), ctr)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to scan overlayfs image, err: %w", err)
 	}

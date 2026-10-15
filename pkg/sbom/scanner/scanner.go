@@ -358,9 +358,15 @@ func waitAfterScanIfNecessary(ctx context.Context, collector collectors.Collecto
 }
 
 func timeout(collector collectors.Collector) time.Duration {
-	scanTimeout := collector.Options().Timeout
+	opts := collector.Options()
+	scanTimeout := opts.Timeout
 	if scanTimeout == 0 {
 		scanTimeout = defaultScanTimeout
+	}
+	// The reserve past Timeout is for the OS-only fallback of a scan with
+	// application analyzers that runs out of time.
+	if !opts.OSOnly() {
+		scanTimeout += sbom.OSFallbackTimeout
 	}
 	return scanTimeout
 }

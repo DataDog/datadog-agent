@@ -2552,8 +2552,8 @@ github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d h1:W6b
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d/go.mod h1:PaK5t+qpa/zU7wdM4SDjRhSlBNb6crYrXsEz2aHRqIY=
 github.com/DataDog/dd-trace-go/v2 v2.10.1 h1:wX/jJcs3Zh6ybwgdMwzRi5IlZ2NIJ6OgASXQA71Buig=
 github.com/DataDog/dd-trace-go/v2 v2.10.1/go.mod h1:fHlAl/gA8UuEoPxIoh5xoWvpsH7WT0DBW79vgjgtAjU=
-github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7 h1:N9Ufc+tRU6BaVpxw0D60bvhqwsJ90r5ygXNIbx/kucg=
-github.com/DataDog/ddtrivy v0.0.0-20260519164847-bf6bcaf2f9b7/go.mod h1:cy6fMTy/g9yD4GxWUXTTDzKKJE9ZbONxcwiQfpPrv/M=
+github.com/DataDog/ddtrivy v0.0.0-20261013150039-4d7b7519006f h1:83SRAm0geIC5nHYzLFAznJLJVCKn+ExNquEQ5EeNiIw=
+github.com/DataDog/ddtrivy v0.0.0-20261013150039-4d7b7519006f/go.mod h1:cy6fMTy/g9yD4GxWUXTTDzKKJE9ZbONxcwiQfpPrv/M=
 github.com/DataDog/ebpf-manager v0.8.7 h1:qCORDJ3Q+zXudUDPnd8mHDzYaBAIHlKxD7loyBFs/g4=
 github.com/DataDog/ebpf-manager v0.8.7/go.mod h1:cvd2jNW3M29BSZGk25t8e3ffuaazbMj1fHsANObRkVw=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
@@ -2588,8 +2588,8 @@ github.com/DataDog/rshell v0.0.30 h1:EKMbkW0TBs+McC5XM6Ixt4gMOfTz1nLm1QDL6vgn3h4
 github.com/DataDog/rshell v0.0.30/go.mod h1:a3/ZRNrMB/MQFuTIJf/xCtnBdnQZY9w3goeU1yEWKyU=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
-github.com/DataDog/trivy v0.0.0-20261013145804-e858964f2e62 h1:5Tef8C8m6a4bNrfvI4Ed8vaHhrkKfXh4SWdV5kk6z7c=
-github.com/DataDog/trivy v0.0.0-20261013145804-e858964f2e62/go.mod h1:2cDQBIACLxt3NpCZ0Sthx4kLp9QmaiZC/5+fPP5Bz7Q=
+github.com/DataDog/trivy v0.0.0-20261013195110-a9f4a418c1e0 h1:ikNtyj8+piXYpj38my7LF8fqUF6S2y5Z/BCdxYpdDn4=
+github.com/DataDog/trivy v0.0.0-20261013195110-a9f4a418c1e0/go.mod h1:2cDQBIACLxt3NpCZ0Sthx4kLp9QmaiZC/5+fPP5Bz7Q=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101 h1:aatle7zFb175XJ6iJvyr9a7Ipr1Dvpw4oy4MqL9v4GA=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101/go.mod h1:GRki58GuFuDh0GFVg280DZt3oCYxZG02ldDPtQ5FBoo=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1 h1:9hiwoIk8FOsXDkdcdgNJ48iYaPfn+/7bXEwAnnfKjTc=
