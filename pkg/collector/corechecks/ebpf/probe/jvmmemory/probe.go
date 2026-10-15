@@ -140,6 +140,11 @@ func newProbe(cfg *ddebpf.Config, opts probeOptions) (*Probe, error) {
 		// probe sites of the libjvm.so files. Their specs are kept to create
 		// the clones reading the USDT arguments.
 		mgrOpts.KeepUnmappedProgramSpecs = true
+		// The clones are loaded after Start(): keep the kernel BTF for their
+		// CO-RE relocations, as kernels without native BTF have no
+		// /sys/kernel/btf/vmlinux to fall back on. On the other kernels, it
+		// also saves reloading the kernel and module BTF for every clone.
+		mgrOpts.KeepKernelBTF = true
 		mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, manager.ConstantEditor{
 			Name:  pidNamespaceInoConstant,
 			Value: pidNamespaceIno,

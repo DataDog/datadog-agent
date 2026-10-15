@@ -117,10 +117,20 @@ static __always_inline int usdt_arg(struct pt_regs *ctx, __u64 arg_num, long *re
             break;
         }
         // read exactly the size of the argument, into the low-order bytes of
-        // val (little-endian), so that a read never crosses past its end
+        // val (little-endian), so that a read never crosses past its end; val
+        // is zeroed first, as the verifier requires the whole buffer to be
+        // initialized when the size is not constant
         addr = val + arg->val_off;
         val = 0;
-        err = bpf_probe_read_user(&val, size, (void *)addr);
+        // size is spilled to the stack around the helper call above, and the
+        // verifier of kernels which do not track spilled scalars (e.g. 4.14
+        // to 4.19) restores it unbounded: bound it again, in [1, 8], before the
+        // read. barrier_var keeps clang from folding the mask away, as it
+        // knows size from the switch.
+        __u32 read_size = size - 1;
+        barrier_var(read_size);
+        read_size = (read_size & 7) + 1;
+        err = bpf_probe_read_user(&val, read_size, (void *)addr);
         if (err) {
             return err;
         }
