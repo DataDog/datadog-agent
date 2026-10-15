@@ -598,6 +598,21 @@ func isContainerRuntimePrefix(basename string) bool {
 	return strings.HasPrefix(basename, "runc") || strings.HasPrefix(basename, "containerd-shim")
 }
 
+func IsContainerRuntime(entry *model.ProcessContext) bool {
+	if entry == nil {
+		return false
+	}
+	if isContainerRuntimePrefix(entry.FileEvent.BasenameStr) {
+		return true
+	}
+	if entry.FileEvent.IsFileless() {
+		if ancestor := GetNextAncestorBinaryOrArgv0(entry); ancestor != nil && isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr) {
+			return true
+		}
+	}
+	return false
+}
+
 // FindRootProcess returns the process this entry would be rooted on in the tree
 // (walking ancestors with GetNextAncestorBinaryOrArgv0 and skipping container
 // runtime processes via isValidRootNode), or nil if there is none.
@@ -633,19 +648,11 @@ func FindRootProcess(entry *model.ProcessContext) *model.ProcessContext {
 // isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
 func isValidRootNode(entry *model.ProcessContext) bool {
 	// an ancestor is required
-	ancestor := GetNextAncestorBinaryOrArgv0(entry)
-	if ancestor == nil {
+	if GetNextAncestorBinaryOrArgv0(entry) == nil {
 		return false
 	}
 
-	if entry.FileEvent.IsFileless() {
-		// a fileless node is a valid root node only if not having runc as parent
-		// ex: runc -> exec(fileless) -> init.sh; exec(fileless) is not a valid root node
-		return !(isContainerRuntimePrefix(ancestor.FileEvent.BasenameStr) || isContainerRuntimePrefix(entry.FileEvent.BasenameStr))
-	}
-
-	// container runtime prefixes are not valid root nodes
-	return !isContainerRuntimePrefix(entry.FileEvent.BasenameStr)
+	return !IsContainerRuntime(entry)
 }
 
 // GetNextAncestorBinaryOrArgv0 returns the first ancestor with a different binary, or a different argv0 in the case of busybox processes

@@ -276,6 +276,16 @@ func TestBaseMountNamespaceFromEvent(t *testing.T) {
 		assert.Equal(t, uint32(100), nsID)
 		assert.True(t, authoritative)
 	})
+
+	t.Run("ignores container runtime processes before workload root starts", func(t *testing.T) {
+		shell := newProc("/bin/bash", "bash", 5, "", 1)
+		runc := newProc("/usr/bin/runc", "runc", 10, "c1", 50)
+		runc.Ancestor = shell
+
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(runc))
+		assert.Equal(t, uint32(0), nsID)
+		assert.False(t, authoritative)
+	})
 }
 
 func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
