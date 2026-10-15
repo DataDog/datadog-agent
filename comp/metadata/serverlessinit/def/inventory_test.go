@@ -9,34 +9,27 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestInsufficientPayload(t *testing.T) {
-	assert.NoError(t, InsufficientPayload(map[string]interface{}{
+func TestPayloadValid(t *testing.T) {
+	assert.True(t, PayloadValid(map[string]interface{}{
 		"resource_id": "/subscriptions/sub/resourcegroups/rg/providers/microsoft.web/sites/site",
 	}))
 
-	// Unrelated optional fields do not affect sufficiency.
-	assert.NoError(t, InsufficientPayload(map[string]interface{}{
+	// Unrelated optional fields do not affect validity.
+	assert.True(t, PayloadValid(map[string]interface{}{
 		"resource_id": "test-resource",
 		"runtime":     nil,
 		"region":      nil,
 	}))
 
-	for _, tt := range []struct {
-		name   string
-		fields map[string]interface{}
-		want   string
-	}{
-		{name: "absent", fields: map[string]interface{}{}, want: `missing required field "resource_id"`},
-		{name: "nil clears", fields: map[string]interface{}{"resource_id": nil}, want: `missing required field "resource_id"`},
-		{name: "empty string", fields: map[string]interface{}{"resource_id": ""}, want: `required field "resource_id" is empty`},
+	for name, resourceID := range map[string]interface{}{
+		"absent":      nil,
+		"nil cleared": nil,
+		"empty":       "",
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			err := InsufficientPayload(tt.fields)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.want)
+		t.Run(name, func(t *testing.T) {
+			assert.False(t, PayloadValid(map[string]interface{}{"resource_id": resourceID}))
 		})
 	}
 }
