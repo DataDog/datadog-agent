@@ -4,6 +4,7 @@
 -- dd_session is local to CDB$ROOT, so granting it with container=all raises ORA-65030.
 grant create session to c##datadog container=all;
 grant set container to c##datadog container=all;
+grant select on dba_tab_cols to c##datadog container=all;
 grant select on v_$session to c##datadog container=all;
 grant select on v_$database to c##datadog container=all;
 grant select on v_$containers to c##datadog container=all;

@@ -6,7 +6,7 @@
 #![allow(clippy::result_large_err)]
 
 use crate::command::{Command, CreateResult, ReloadResult, StartResult, StopResult};
-use crate::config::{self, ConfigLoader, ProcessDefinition};
+use crate::config::{self, ConfigLoader, InvalidConfigEntry, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
 use crate::platform;
@@ -17,13 +17,35 @@ use crate::uuid_gen::UuidGenerator;
 use anyhow::Result;
 use log::{debug, info, warn};
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc, oneshot};
 use tonic::Status;
 
+/// Catalog stub for a `processes.d` file that did not produce a `ProcessConfig`.
+#[derive(Debug, Clone)]
+pub(crate) struct InvalidProcess {
+    pub uuid: String,
+    pub name: String,
+    pub path: PathBuf,
+    pub error: String,
+}
+
+impl InvalidProcess {
+    fn from_entry(entry: InvalidConfigEntry, uuid: String) -> Self {
+        Self {
+            uuid,
+            name: entry.name,
+            path: entry.path,
+            error: entry.error,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ProcessManager {
     processes: Arc<RwLock<Vec<ManagedProcess>>>,
+    invalid: Arc<RwLock<Vec<InvalidProcess>>>,
     /// Indices into the `processes` Vec in dependency-resolved startup order.
     /// Recomputed on config reload so that indices stay in sync with the Vec.
     startup_order: Arc<RwLock<Vec<usize>>>,
@@ -33,14 +55,21 @@ pub struct ProcessManager {
 
 impl ProcessManager {
     pub fn new(config_loader: Arc<dyn ConfigLoader>, uuid_gen: Arc<dyn UuidGenerator>) -> Self {
-        let configs = config_loader.load();
-        let processes: Vec<ManagedProcess> = configs
+        let catalog = config_loader.load();
+        let processes: Vec<ManagedProcess> = catalog
+            .processes
             .into_iter()
             .map(|pd| ManagedProcess::new_config(pd.name, uuid_gen.generate(), pd.config))
+            .collect();
+        let invalid: Vec<InvalidProcess> = catalog
+            .invalid
+            .into_iter()
+            .map(|entry| InvalidProcess::from_entry(entry, uuid_gen.generate()))
             .collect();
         let startup_result = recompute_startup_order(&processes);
         Self {
             processes: Arc::new(RwLock::new(processes)),
+            invalid: Arc::new(RwLock::new(invalid)),
             startup_order: Arc::new(RwLock::new(startup_result.order)),
             config_loader,
             uuid_gen,
@@ -112,6 +141,12 @@ impl ProcessManager {
 
     pub(crate) async fn processes(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
         self.processes.read().await
+    }
+
+    pub(crate) async fn invalid_configs(
+        &self,
+    ) -> tokio::sync::RwLockReadGuard<'_, Vec<InvalidProcess>> {
+        self.invalid.read().await
     }
 
     pub(crate) fn config_source(&self) -> &str {
@@ -204,7 +239,8 @@ impl ProcessManager {
         let uuid;
         {
             let mut procs = self.processes.write().await;
-            if procs.iter().any(|p| p.name() == name) {
+            let invalid = self.invalid.read().await;
+            if procs.iter().any(|p| p.name() == name) || invalid.iter().any(|p| p.name == name) {
                 return Err(Status::already_exists(format!(
                     "process '{name}' already exists"
                 )));
@@ -231,8 +267,20 @@ impl ProcessManager {
         name_or_uuid: &str,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<StartResult, Status> {
+        {
+            let procs = self.processes.read().await;
+            let invalid = self.invalid.read().await;
+            if let Some(inv) = find_invalid(&invalid, &procs, name_or_uuid)? {
+                return Err(Status::failed_precondition(format!(
+                    "process '{}' has invalid config, cannot start: {}",
+                    inv.name, inv.error
+                )));
+            }
+        }
         let mut procs = self.processes.write().await;
-        let idx = resolve_index(&procs, name_or_uuid)?;
+        let invalid = self.invalid.read().await;
+        let idx = resolve_index(&procs, &invalid, name_or_uuid)?;
+        drop(invalid);
         let proc = &mut procs[idx];
 
         if proc.is_running() {
@@ -258,7 +306,15 @@ impl ProcessManager {
     pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
         let (uuid, wait) = {
             let mut procs = self.processes.write().await;
-            let idx = resolve_index(&procs, name_or_uuid)?;
+            let invalid = self.invalid.read().await;
+            if let Some(inv) = find_invalid(&invalid, &procs, name_or_uuid)? {
+                return Err(Status::failed_precondition(format!(
+                    "process '{}' has invalid config, cannot stop",
+                    inv.name
+                )));
+            }
+            let idx = resolve_index(&procs, &invalid, name_or_uuid)?;
+            drop(invalid);
             let proc = &mut procs[idx];
 
             if !proc.is_running() {
@@ -279,7 +335,9 @@ impl ProcessManager {
         // the list while the event loop is parked on this command, but only
         // the uuid says so at the point of use.
         let mut procs = self.processes.write().await;
-        let idx = resolve_index(&procs, &uuid)?;
+        let invalid = self.invalid.read().await;
+        let idx = resolve_index(&procs, &invalid, &uuid)?;
+        drop(invalid);
         let proc = &mut procs[idx];
         proc.finish_stop();
         let state = proc.state();
@@ -290,18 +348,34 @@ impl ProcessManager {
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
-        let new_configs = self.config_loader.load();
-        let new_names: std::collections::HashSet<&str> =
-            new_configs.iter().map(|c| c.name.as_str()).collect();
+        let catalog = self.config_loader.load();
+        let valid_order: Vec<String> = catalog.processes.iter().map(|pd| pd.name.clone()).collect();
+        let invalid_order: Vec<String> = catalog.invalid.iter().map(|e| e.name.clone()).collect();
+        let mut valid: std::collections::HashMap<String, config::ProcessConfig> = catalog
+            .processes
+            .into_iter()
+            .map(|pd| (pd.name, pd.config))
+            .collect();
+        let mut incoming_invalid: std::collections::HashMap<String, InvalidConfigEntry> = catalog
+            .invalid
+            .into_iter()
+            .map(|entry| (entry.name.clone(), entry))
+            .collect();
+        let catalog_names: std::collections::HashSet<String> = valid
+            .keys()
+            .cloned()
+            .chain(incoming_invalid.keys().cloned())
+            .collect();
 
         let mut removed = Vec::new();
         let mut stopped_procs = Vec::new();
+        let mut valid_to_invalid = Vec::new();
         {
             let mut procs = self.processes.write().await;
             let mut i = 0;
             while i < procs.len() {
                 if procs[i].origin() == ProcessOrigin::Config
-                    && !new_names.contains(procs[i].name())
+                    && !catalog_names.contains(procs[i].name())
                 {
                     let mut proc = procs.remove(i);
                     info!("[{}] config removed, stopping", proc.name());
@@ -316,42 +390,171 @@ impl ProcessManager {
             }
         }
 
+        // A previously valid file that no longer parses: stop the child, then
+        // keep the name as InvalidConfig instead of treating it as removed. A
+        // live child holds on to its `ManagedProcess` until the stop below
+        // finishes, so reads taken meanwhile report `Stopping` with its real pid
+        // rather than a pid-0 InvalidConfig row for a workload still up.
+        let mut stopping_to_invalid: Vec<(String, InvalidConfigEntry)> = Vec::new();
+        {
+            let mut procs = self.processes.write().await;
+            let mut invalid = self.invalid.write().await;
+            let mut i = 0;
+            while i < procs.len() {
+                if procs[i].origin() != ProcessOrigin::Config
+                    || !incoming_invalid.contains_key(procs[i].name())
+                {
+                    i += 1;
+                    continue;
+                }
+                let name = procs[i].name().to_owned();
+                let entry = incoming_invalid
+                    .get(&name)
+                    .cloned()
+                    .expect("name was present");
+                info!("[{name}] config is no longer valid, stopping");
+                if procs[i].is_running() {
+                    procs[i].request_stop();
+                    stopping_to_invalid.push((name.clone(), entry));
+                    valid_to_invalid.push(name);
+                    i += 1;
+                    continue;
+                }
+                // Nothing to wait for, so the name can change hands right here.
+                let proc = procs.remove(i);
+                invalid.retain(|e| e.name != name);
+                invalid.push(InvalidProcess::from_entry(entry, proc.uuid().to_owned()));
+                valid_to_invalid.push(name);
+            }
+        }
+
         for proc in &mut stopped_procs {
             proc.wait_for_stop().await;
         }
 
+        // The stub takes over the name once the child is down, keeping the uuid
+        // so clients holding it can still describe the row. The lock goes back
+        // between each one for the same reason as in `handle_stop`: reads must
+        // not queue behind the wait.
+        for (name, entry) in stopping_to_invalid {
+            let wait = {
+                let mut procs = self.processes.write().await;
+                procs
+                    .iter_mut()
+                    .find(|p| p.name() == name)
+                    .and_then(|proc| proc.take_stop_wait())
+            };
+            if let Some(wait) = wait {
+                wait.run().await;
+            }
+
+            let mut procs = self.processes.write().await;
+            let mut invalid = self.invalid.write().await;
+            let Some(idx) = procs.iter().position(|p| p.name() == name) else {
+                continue;
+            };
+            let mut proc = procs.remove(idx);
+            proc.finish_stop();
+            invalid.retain(|e| e.name != name);
+            invalid.push(InvalidProcess::from_entry(entry, proc.uuid().to_owned()));
+        }
+
         let mut added = Vec::new();
-        let mut modified = Vec::new();
+        let mut modified = valid_to_invalid;
         let mut modified_running: Vec<String> = Vec::new();
         let mut unchanged = Vec::new();
+        // Invalid→valid rows report as `modified` but still need the deferred
+        // start pass used for newly added configs (ordering / cycle rules).
+        let mut recovered_from_invalid: Vec<String> = Vec::new();
+
         {
             let mut procs = self.processes.write().await;
-            for np in new_configs {
-                if let Some(existing) = procs.iter_mut().find(|p| p.name() == np.name) {
-                    if *existing.config() != np.config {
-                        info!("[{}] config changed, updating", np.name);
+            let mut invalid = self.invalid.write().await;
+            let mut i = 0;
+            while i < invalid.len() {
+                let name = invalid[i].name.clone();
+                if let Some(config) = valid.remove(&name) {
+                    let uuid = invalid.remove(i).uuid;
+                    if procs.iter().any(|p| p.name() == name) {
+                        warn!(
+                            "[{name}] valid config not loaded as a new process: a process with this name already exists"
+                        );
+                        valid.insert(name, config);
+                        continue;
+                    }
+                    info!("[{name}] config is valid again, loading");
+                    // Started further down via start pass, once order is known.
+                    let proc = ManagedProcess::new_config(name.clone(), uuid, config);
+                    procs.push(proc);
+                    modified.push(name.clone());
+                    recovered_from_invalid.push(name);
+                } else if let Some(entry) = incoming_invalid.remove(&name) {
+                    if modified.iter().any(|n| n == &name) {
+                        i += 1;
+                        continue;
+                    }
+                    if invalid[i].error != entry.error || invalid[i].path != entry.path {
+                        invalid[i].error = entry.error;
+                        invalid[i].path = entry.path;
+                        modified.push(name);
+                    } else {
+                        unchanged.push(name);
+                    }
+                    i += 1;
+                } else {
+                    invalid.remove(i);
+                    removed.push(name);
+                }
+            }
+        }
+
+        {
+            let mut procs = self.processes.write().await;
+            for name in &valid_order {
+                let Some(config) = valid.remove(name) else {
+                    continue;
+                };
+                if let Some(existing) = procs.iter_mut().find(|p| p.name() == name) {
+                    if *existing.config() != config {
+                        info!("[{name}] config changed, updating");
                         if existing.is_running() {
                             existing.request_stop();
-                            modified_running.push(np.name.clone());
+                            modified_running.push(name.clone());
                         }
-                        existing.set_config(np.config);
-                        modified.push(np.name);
+                        existing.set_config(config);
+                        modified.push(name.clone());
                     } else {
-                        unchanged.push(np.name);
+                        unchanged.push(name.clone());
                     }
                 } else {
-                    info!("[{}] new config found, adding", np.name);
+                    info!("[{name}] new config found, adding");
                     // Started further down, once the order is resolved: a
                     // dependency cycle this reload introduces must keep its
                     // members from starting, exactly as it does at boot.
-                    let proc = ManagedProcess::new_config(
-                        np.name.clone(),
-                        self.uuid_gen.generate(),
-                        np.config,
-                    );
-                    added.push(np.name);
+                    let proc =
+                        ManagedProcess::new_config(name.clone(), self.uuid_gen.generate(), config);
+                    added.push(name.clone());
                     procs.push(proc);
                 }
+            }
+        }
+
+        {
+            let procs = self.processes.read().await;
+            let mut invalid = self.invalid.write().await;
+            for name in &invalid_order {
+                let Some(entry) = incoming_invalid.remove(name) else {
+                    continue;
+                };
+                if procs.iter().any(|p| p.name() == name) {
+                    warn!(
+                        "[{name}] invalid config ignored: a process with this name already exists"
+                    );
+                    continue;
+                }
+                info!("[{name}] invalid config, not starting");
+                invalid.push(InvalidProcess::from_entry(entry, self.uuid_gen.generate()));
+                added.push(name.clone());
             }
         }
 
@@ -405,13 +608,15 @@ impl ProcessManager {
                 .map(String::as_str)
                 .collect();
             let added_names: HashSet<&str> = added.iter().map(String::as_str).collect();
+            let recovered_names: HashSet<&str> =
+                recovered_from_invalid.iter().map(String::as_str).collect();
             let held_names: HashSet<&str> = held_by_decision.iter().map(String::as_str).collect();
             let pending_restart_names: HashSet<&str> =
                 pending_restart.iter().map(String::as_str).collect();
             let order = self.startup_order.read().await;
             let mut procs = self.processes.write().await;
             let mut decided = run_start_pass(&mut procs, &order, exit_tx, |p| {
-                added_names.contains(p.name())
+                added_names.contains(p.name()) || recovered_names.contains(p.name())
             });
             for &idx in order.iter() {
                 let proc = &mut procs[idx];
@@ -522,28 +727,77 @@ pub fn looks_like_uuid_prefix(s: &str) -> bool {
     s.len() >= 8 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
 }
 
-fn resolve_by_uuid_prefix(procs: &[ManagedProcess], prefix: &str) -> Option<Result<usize, Status>> {
-    let mut matches: Vec<usize> = procs
+fn ambiguous_uuid_prefix(prefix: &str, matches: usize) -> Status {
+    Status::invalid_argument(format!(
+        "UUID prefix '{prefix}' is ambiguous ({matches} matches)"
+    ))
+}
+
+/// Indices into the valid and invalid halves for a unique UUID prefix match.
+type UuidCatalogIndices = (Option<usize>, Option<usize>);
+type UuidCatalogPrefixResolve = Option<Result<UuidCatalogIndices, Status>>;
+
+fn resolve_uuid_prefix_across_catalog(
+    procs: &[ManagedProcess],
+    invalid: &[InvalidProcess],
+    prefix: &str,
+) -> UuidCatalogPrefixResolve {
+    let proc_matches: Vec<usize> = procs
         .iter()
         .enumerate()
         .filter(|(_, p)| p.uuid().starts_with(prefix))
         .map(|(i, _)| i)
         .collect();
-    match matches.len() {
+    let inv_matches: Vec<usize> = invalid
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.uuid.starts_with(prefix))
+        .map(|(i, _)| i)
+        .collect();
+    let total = proc_matches.len() + inv_matches.len();
+    match total {
         0 => None,
-        1 => Some(Ok(matches.remove(0))),
-        _ => Some(Err(Status::invalid_argument(format!(
-            "UUID prefix '{prefix}' is ambiguous ({} matches)",
-            matches.len()
-        )))),
+        1 => Some(Ok((
+            proc_matches.first().copied(),
+            inv_matches.first().copied(),
+        ))),
+        _ => Some(Err(ambiguous_uuid_prefix(prefix, total))),
     }
 }
 
-fn resolve_index(procs: &[ManagedProcess], name_or_uuid: &str) -> Result<usize, Status> {
-    if looks_like_uuid_prefix(name_or_uuid)
-        && let Some(result) = resolve_by_uuid_prefix(procs, name_or_uuid)
-    {
-        return result;
+pub(crate) fn find_invalid<'a>(
+    invalid: &'a [InvalidProcess],
+    procs: &[ManagedProcess],
+    name_or_uuid: &str,
+) -> Result<Option<&'a InvalidProcess>, Status> {
+    if looks_like_uuid_prefix(name_or_uuid) {
+        match resolve_uuid_prefix_across_catalog(procs, invalid, name_or_uuid) {
+            Some(Ok((_, Some(i)))) => return Ok(Some(&invalid[i])),
+            Some(Ok((_, None))) => return Ok(None),
+            Some(Err(status)) => return Err(status),
+            None => {}
+        }
+    }
+    Ok(invalid.iter().find(|p| p.name == name_or_uuid))
+}
+
+fn resolve_index(
+    procs: &[ManagedProcess],
+    invalid: &[InvalidProcess],
+    name_or_uuid: &str,
+) -> Result<usize, Status> {
+    if looks_like_uuid_prefix(name_or_uuid) {
+        match resolve_uuid_prefix_across_catalog(procs, invalid, name_or_uuid) {
+            Some(Ok((Some(i), None))) => return Ok(i),
+            Some(Ok((None, Some(_)))) => {
+                return Err(Status::not_found(format!(
+                    "process '{name_or_uuid}' not found"
+                )));
+            }
+            Some(Err(status)) => return Err(status),
+            None => {}
+            Some(Ok(_)) => return Err(ambiguous_uuid_prefix(name_or_uuid, 2)),
+        }
     }
     procs
         .iter()
@@ -663,7 +917,9 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{MutableConfigLoader, ProcessConfig, StaticConfigLoader};
+    use crate::config::{
+        InvalidConfigEntry, LoadedCatalog, MutableConfigLoader, ProcessConfig, StaticConfigLoader,
+    };
     use crate::process::ExitEvent;
     use crate::test_helpers;
     use crate::uuid_gen::{SequentialUuidGenerator, V4UuidGenerator};
@@ -709,15 +965,56 @@ mod tests {
             mk("svc-b", "aabbccdd-2222-0000-0000-000000000000"),
         ];
 
-        let err = resolve_index(&procs, "aabbccdd").unwrap_err();
+        let err = resolve_index(&procs, &[], "aabbccdd").unwrap_err();
         assert_eq!(err.code(), tonic::Code::InvalidArgument);
         assert!(
             err.message().contains("ambiguous"),
             "error should mention ambiguity: {}",
             err.message()
         );
-        assert_eq!(resolve_index(&procs, "aabbccdd-1").unwrap(), 0);
-        assert_eq!(resolve_index(&procs, "aabbccdd-2").unwrap(), 1);
+        assert_eq!(resolve_index(&procs, &[], "aabbccdd-1").unwrap(), 0);
+        assert_eq!(resolve_index(&procs, &[], "aabbccdd-2").unwrap(), 1);
+    }
+
+    #[test]
+    fn test_uuid_prefix_ambiguous_across_valid_and_invalid() {
+        let proc = ManagedProcess::new_config(
+            "svc-a".to_string(),
+            "aabbccdd-1111-0000-0000-000000000000".to_string(),
+            test_helpers::make_config("true", vec![]),
+        );
+        let inv = InvalidProcess {
+            uuid: "aabbccdd-2222-0000-0000-000000000000".to_string(),
+            name: "svc-b".to_string(),
+            path: PathBuf::from("/tmp/svc-b.yaml"),
+            error: "parse failed".to_string(),
+        };
+        let procs = vec![proc];
+        let invalid = vec![inv];
+
+        let err = find_invalid(&invalid, &procs, "aabbccdd").unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        assert!(
+            err.message().contains("ambiguous"),
+            "shared prefix across catalog sides must be ambiguous: {}",
+            err.message()
+        );
+        assert!(
+            err.message().contains("2 matches"),
+            "error should count both sides: {}",
+            err.message()
+        );
+
+        let err = resolve_index(&procs, &invalid, "aabbccdd").unwrap_err();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+
+        assert_eq!(
+            find_invalid(&invalid, &procs, "aabbccdd-2")
+                .unwrap()
+                .map(|e| e.name.as_str()),
+            Some("svc-b")
+        );
+        assert_eq!(resolve_index(&procs, &invalid, "aabbccdd-1").unwrap(), 0);
     }
 
     /// A child that ignores the graceful stop, so the stop runs for the whole
@@ -941,6 +1238,280 @@ mod tests {
         let result = mgr.handle_reload_config(&exit_tx).await?;
         assert!(result.unchanged.contains(&"svc-a".to_string()));
         assert!(result.modified.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_invalid_config_is_catalogued_not_spawned() {
+        let catalog = LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "broken".to_string(),
+                path: PathBuf::from("/tmp/broken.yaml"),
+                error: "parsing /tmp/broken.yaml: missing field `command`".to_string(),
+            }],
+        };
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::with_catalog(catalog)),
+            uuid_gen(),
+        );
+        assert!(mgr.processes().await.is_empty());
+        let invalid = mgr.invalid_configs().await;
+        assert_eq!(invalid.len(), 1);
+        assert_eq!(invalid[0].name, "broken");
+        assert!(!invalid[0].error.is_empty());
+        assert!(!invalid[0].uuid.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_start_and_stop_reject_invalid_config() {
+        let catalog = LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "broken".to_string(),
+                path: PathBuf::from("/tmp/broken.yaml"),
+                error: "bad yaml".to_string(),
+            }],
+        };
+        let mgr = ProcessManager::new(
+            Arc::new(StaticConfigLoader::with_catalog(catalog)),
+            uuid_gen(),
+        );
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let start_err = mgr.handle_start("broken", &exit_tx).await.unwrap_err();
+        assert_eq!(start_err.code(), tonic::Code::FailedPrecondition);
+        assert!(start_err.message().contains("invalid config"));
+        let stop_err = mgr.handle_stop("broken").await.unwrap_err();
+        assert_eq!(stop_err.code(), tonic::Code::FailedPrecondition);
+    }
+
+    #[tokio::test]
+    async fn test_reload_created_to_invalid_drops_managed_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let uuid = mgr.processes().await[0].uuid().to_owned();
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc-a".to_string(),
+                path: PathBuf::from("/tmp/svc-a.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(result.modified, vec!["svc-a".to_string()]);
+        assert!(mgr.processes().await.is_empty());
+        let invalid = mgr.invalid_configs().await;
+        assert_eq!(invalid[0].name, "svc-a");
+        assert_eq!(
+            invalid[0].uuid, uuid,
+            "a uuid a client already holds must keep resolving across the transition"
+        );
+        Ok(())
+    }
+
+    /// The stub must not take over the name while the child is still shutting
+    /// down: consumers read InvalidConfig as "nothing is running under it", so
+    /// publishing it early reports a live workload as gone.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_reload_to_invalid_publishes_only_once_the_child_is_down() -> anyhow::Result<()> {
+        use std::time::{Duration, Instant};
+
+        let dir = tempfile::tempdir()?;
+        let ready = dir.path().join("ready");
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![ignores_stop_def(
+            "svc", 60, &ready,
+        )]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_start("svc", &exit_tx).await?;
+        let (pid, uuid) = {
+            let procs = mgr.processes().await;
+            (
+                procs[0].pid().expect("spawned pid"),
+                procs[0].uuid().to_owned(),
+            )
+        };
+        test_helpers::wait_for_file(&ready, Duration::from_secs(10)).await;
+
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc".to_string(),
+                path: PathBuf::from("/tmp/svc.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        let reloading = tokio::spawn({
+            let mgr = mgr.clone();
+            let exit_tx = exit_tx.clone();
+            async move { mgr.handle_reload_config(&exit_tx).await }
+        });
+
+        // The child ignores its graceful stop, so the reload sits in the stop
+        // wait long enough to read the state it publishes meanwhile.
+        let started = Instant::now();
+        loop {
+            let procs = tokio::time::timeout(Duration::from_secs(5), mgr.processes())
+                .await
+                .map_err(|_| anyhow::anyhow!("a read queued behind an in-flight reload"))?;
+            if procs[0].state() == ProcessState::Stopping {
+                assert_eq!(procs[0].uuid(), uuid);
+                assert!(
+                    mgr.invalid_configs().await.is_empty(),
+                    "InvalidConfig must wait for the child it replaces"
+                );
+                break;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "a read taken mid-reload should report Stopping, got {}",
+                procs[0].state()
+            );
+            drop(procs);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        reloading.abort();
+        test_helpers::cleanup_process(pid);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_invalid_to_valid_loads_process() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc-a".to_string(),
+                path: PathBuf::from("/tmp/svc-a.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        assert_eq!(mgr.invalid_configs().await.len(), 1);
+        config_loader.set(vec![ProcessDefinition {
+            name: "svc-a".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }]);
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(result.modified, vec!["svc-a".to_string()]);
+        assert!(mgr.invalid_configs().await.is_empty());
+        assert_eq!(mgr.processes().await[0].name(), "svc-a");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_invalid_config_does_not_collide_with_runtime() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let mut config = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        config.auto_start = false;
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_create("svc".to_string(), config, &exit_tx)
+            .await?;
+        mgr.handle_start("svc", &exit_tx).await?;
+
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![],
+            invalid: vec![InvalidConfigEntry {
+                name: "svc".to_string(),
+                path: PathBuf::from("/tmp/svc.yaml"),
+                error: "parse failed".to_string(),
+            }],
+        });
+        mgr.handle_reload_config(&exit_tx).await?;
+        assert!(
+            mgr.invalid_configs().await.is_empty(),
+            "invalid yaml must not hide a runtime process of the same name"
+        );
+        assert_eq!(mgr.processes().await.len(), 1);
+        mgr.handle_stop("svc").await?;
+
+        config_loader.set(vec![ProcessDefinition {
+            name: "svc".to_string(),
+            config: ProcessConfig {
+                auto_start: false,
+                command: "/bin/true".to_string(),
+                ..Default::default()
+            },
+        }]);
+        mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(
+            mgr.processes().await.len(),
+            1,
+            "recovered yaml must not spawn a second process with the runtime name"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_adds_catalog_entries_in_load_order() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        config_loader.set_catalog(LoadedCatalog {
+            processes: vec![
+                ProcessDefinition {
+                    name: "alpha".to_string(),
+                    config: ProcessConfig {
+                        auto_start: false,
+                        command: "/bin/true".to_string(),
+                        ..Default::default()
+                    },
+                },
+                ProcessDefinition {
+                    name: "bravo".to_string(),
+                    config: ProcessConfig {
+                        auto_start: false,
+                        command: "/bin/true".to_string(),
+                        ..Default::default()
+                    },
+                },
+            ],
+            invalid: vec![
+                InvalidConfigEntry {
+                    name: "charlie".to_string(),
+                    path: PathBuf::from("/tmp/charlie.yaml"),
+                    error: "parse failed".to_string(),
+                },
+                InvalidConfigEntry {
+                    name: "delta".to_string(),
+                    path: PathBuf::from("/tmp/delta.yaml"),
+                    error: "parse failed".to_string(),
+                },
+            ],
+        });
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(1);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert_eq!(
+            result.added,
+            vec![
+                "alpha".to_string(),
+                "bravo".to_string(),
+                "charlie".to_string(),
+                "delta".to_string()
+            ]
+        );
+        let procs = mgr.processes().await;
+        let proc_names: Vec<String> = procs.iter().map(|p| p.name().to_owned()).collect();
+        assert_eq!(proc_names, vec!["alpha", "bravo"]);
+        let invalid = mgr.invalid_configs().await;
+        let invalid_names: Vec<String> = invalid.iter().map(|p| p.name.clone()).collect();
+        assert_eq!(invalid_names, vec!["charlie", "delta"]);
         Ok(())
     }
 

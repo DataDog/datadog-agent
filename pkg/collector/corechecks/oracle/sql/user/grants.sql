@@ -6,7 +6,6 @@ set serveroutput on size 100000
 begin
   if :connection_type = :connection_type_cdb then
     execute immediate 'GRANT CREATE SESSION TO &&user CONTAINER=ALL';
-    execute immediate 'GRANT SET CONTAINER TO &&user CONTAINER=ALL';
   else
     execute immediate 'GRANT CREATE SESSION TO &&user';
   end if;
@@ -58,6 +57,7 @@ declare
     'cdb_tables',
     'cdb_object_tables',
     'cdb_tab_cols',
+    'dba_tab_cols',
     'cdb_tab_comments',
     'cdb_col_comments',
     'cdb_indexes',
@@ -82,6 +82,7 @@ declare
 begin
    if :connection_type = :connection_type_cdb then
       container_clause := ' container=all';
+      execute immediate 'grant set container to &&user container=all';
    end if;
    for i in 1..array.count loop
       if :hostingType = :hostingTypeSelfManaged then

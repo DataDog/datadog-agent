@@ -452,7 +452,7 @@ func TestDefaultValueColumnIsVersionGated(t *testing.T) {
 	c.dbVersion = "23.26.2.0.0"
 	assert.Equal(t, "c.data_default_vc", c.defaultValueColumn())
 
-	for _, v := range []string{"19.21.0.0.0", "21.3.0.0.0", "12.2.0.1.0"} {
+	for _, v := range []string{"19.21.0.0.0", "21.3.0.0.0", "12.2.0.1.0", "12.1.0.2.0"} {
 		c.dbVersion = v
 		assert.Equal(t, "c.data_default", c.defaultValueColumn(), "version %s", v)
 	}
@@ -1007,11 +1007,13 @@ func TestTableDetailsIndexesGroupByOwnerAndName(t *testing.T) {
 	c, _, dbMock, cleanup := newSchemaCheck(t)
 	defer cleanup()
 	dbMock.MatchExpectationsInOrder(false)
-	dbMock.ExpectQuery(`(?s)SELECT i.con_id, i.table_owner, i.table_name, i.owner,.*ORDER BY i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, ic.column_position`).
-		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
-			AddRow(3, "APP", "T", "A", "IDX", "UNIQUE", "NORMAL", "C1", nil).
-			AddRow(3, "APP", "T", "A", "IDX", "UNIQUE", "NORMAL", "C2", nil).
-			AddRow(3, "APP", "T", "B", "IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC1$", "LOWER(C3)"))
+	dbMock.ExpectQuery(`(?s)SELECT con_id, table_owner, table_name, index_owner,.*ic\.con_id = :rel0con AND ic\.table_owner = :rel0owner AND ic\.table_name IN \(:rel0name0,.*UNION ALL.*WHERE i.join_index = 'YES'.*ORDER BY con_id, table_owner, table_name, index_owner, index_name, column_position`).
+		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
+			AddRow(3, "APP", "T", "A", "IDX", "UNIQUE", "NORMAL", "C1").
+			AddRow(3, "APP", "T", "A", "IDX", "UNIQUE", "NORMAL", "C2").
+			AddRow(3, "APP", "T", "B", "IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC1$"))
+	dbMock.ExpectQuery("FROM cdb_tab_cols").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+		AddRow(3, "APP", "T", "SYS_NC1$", "LOWER(C3)"))
 	key := tableKey{conID: 3, owner: "APP", table: "T"}
 	details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, nil)
 	require.Contains(t, details, key)
@@ -1049,10 +1051,10 @@ func TestTableDetailsIndexesGroupByName(t *testing.T) {
 
 	dbMock.MatchExpectationsInOrder(false)
 	dbMock.ExpectQuery(`(?s)cdb_indexes.*i\.table_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDERS")...).WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
-			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "STATUS", nil).
-			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "CREATED_AT", nil).
-			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_STATUS_IDX", "NONUNIQUE", "NORMAL", "STATUS", nil))
+		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "STATUS").
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "CREATED_AT").
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_STATUS_IDX", "NONUNIQUE", "NORMAL", "STATUS"))
 
 	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
 	details := c.tableDetails(context.Background(), allowed, nil)
@@ -1121,10 +1123,13 @@ func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
 
 	dbMock.MatchExpectationsInOrder(false)
 	dbMock.ExpectQuery("cdb_indexes").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
-			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00004$", `UPPER("STATUS")`).
-			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "CUSTOMER_ID", nil).
-			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00005$", `UPPER("STATUS")`))
+		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00004$").
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "CUSTOMER_ID").
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00005$"))
+	dbMock.ExpectQuery("FROM cdb_tab_cols").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+		AddRow(3, "APP", "ORDERS", "SYS_NC00004$", `UPPER("STATUS")`).
+		AddRow(3, "APP", "ORDERS", "SYS_NC00005$", `UPPER("STATUS")`))
 
 	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
 	details := c.tableDetails(context.Background(), allowed, nil)
@@ -1209,14 +1214,14 @@ func TestTableDetailsResolvesForeignKeyToSelectedTableOutsidePage(t *testing.T) 
 	defer closeDB()
 
 	dbMock.MatchExpectationsInOrder(false)
-	dbMock.ExpectQuery(`(?s)cdb_constraints c.*c\.table_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDER_ITEMS")...).WillReturnRows(
+	dbMock.ExpectQuery(`(?s)cdb_constraints c.*cc\.con_id = :rel0con AND cc\.owner = :rel0owner AND cc\.table_name IN \(:rel0name0,.*ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position, cc.column_name`).WithArgs(schemaRelationArgs(3, "APP", "ORDER_ITEMS")...).WillReturnRows(
 		sqlmock.NewRows([]string{
 			"CON_ID", "OWNER", "TABLE_NAME", "CONSTRAINT_NAME", "CONSTRAINT_TYPE",
 			"R_OWNER", "R_CONSTRAINT_NAME", "COLUMN_NAME", "SEARCH_CONDITION",
 		}).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "ORDER_ID", nil).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "LINE_NO", nil))
-	dbMock.ExpectQuery(`(?s)cdb_constraints c.*c\.constraint_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDERS_PK")...).WillReturnRows(
+	dbMock.ExpectQuery(`(?s)cdb_constraints c.*cc\.con_id = :rel0con AND cc\.owner = :rel0owner AND cc\.constraint_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDERS_PK")...).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME", "COLUMN_NAME"}).
 			AddRow(3, "APP", "ORDERS_PK", "ORDERS", "ORDER_ID").
 			AddRow(3, "APP", "ORDERS_PK", "ORDERS", "LINE_NO"))
@@ -1232,6 +1237,7 @@ func TestTableDetailsResolvesForeignKeyToSelectedTableOutsidePage(t *testing.T) 
 	assert.Equal(t, "ORDERS", fk.ReferencedTable)
 	assert.Equal(t, []string{"ORDER_ID", "LINE_NO"}, fk.ReferencedColumns)
 	assert.Empty(t, fk.ReferencedConstraint)
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestTableDetailsUnresolvedForeignKeyFallsBackToConstraintName(t *testing.T) {

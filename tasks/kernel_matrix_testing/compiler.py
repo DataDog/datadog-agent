@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
+import shutil
 import sys
 import tempfile
 from contextlib import chdir
@@ -17,7 +19,7 @@ from invoke.runners import Result
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
 from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
-from tasks.libs.common.utils import get_repo_root
+from tasks.libs.common.utils import get_repo_root, join_command
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 
 if TYPE_CHECKING:
@@ -28,6 +30,62 @@ CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
 MARKER_IMAGE_PREPARED = "/tmp/kmt-image-prepared"
 
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
+
+
+def _host_wants_remote_cache(ctx: Context) -> bool:
+    """True when tools/bazel on the host would enable the remote cache (token availability aside).
+
+    Reuses bazel/tools/remote-cache-select.sh so KMT honors the same rc opt-out and reachability
+    checks, and does not open a browser Vault login when the cache would not be used.
+    """
+    select_sh = get_repo_root() / "bazel" / "tools" / "remote-cache-select.sh"
+    # Dummy token so the selector skips its token/vault check and only applies opt-outs and reachability.
+    res = cast(
+        'Result',
+        ctx.run(
+            f"{join_command(['.', str(select_sh)])}; _remote_cache_config",
+            hide=True,
+            warn=True,
+            env={"BUILDBARN_ID_TOKEN": "probe"},
+        ),
+    )
+    return res is not None and "--config=cache" in res.stdout
+
+
+def get_buildbarn_token(ctx: Context) -> str | None:
+    """Mint a Buildbarn OIDC token on the host, or return None when unavailable.
+
+    The compiler container cannot complete the browser-based Vault login, so the token is minted
+    here right before each build: it expires after about an hour, and Bazel caches it for 55m.
+    """
+    if os.environ.get("DD_BAZEL_REMOTE_CACHE") == "off":
+        return None
+    # Match tools/bazel on the host: the container does not see the host ~/.bazelrc opt-out.
+    if not _host_wants_remote_cache(ctx):
+        return None
+    if token := os.environ.get("BUILDBARN_ID_TOKEN"):
+        return token
+    if not shutil.which("vault"):
+        warn("[!] vault CLI not found, the compiler container will build without the Bazel remote cache")
+        return None
+
+    addr = os.environ.get("VAULT_ADDR", "https://vault.us1.ddbuild.io")
+    read_cmd = join_command(["vault", "read", f"-address={addr}", "-field=token", "identity/oidc/token/buildbarn"])
+    res = cast('Result', ctx.run(read_cmd, hide=True, warn=True))
+    if not res.ok and sys.stdin.isatty():
+        info("[*] Logging in to Vault to enable the Bazel remote cache in the compiler container")
+        ctx.run(join_command(["vault", "login", f"-address={addr}", "-method=oidc", "-no-print"]), warn=True)
+        res = cast('Result', ctx.run(read_cmd, hide=True, warn=True))
+    if res.ok and (token := res.stdout.strip()):
+        return token
+
+    errors = res.stderr.strip().splitlines()
+    reason = errors[-1].strip() if errors else "empty token"
+    warn(
+        f"[!] Could not mint a Buildbarn token ({reason}), the compiler container will build without the "
+        f"Bazel remote cache. Run `vault login -address={addr} -method=oidc` on the host to enable it."
+    )
+    return None
 
 
 def get_build_image_suffix_and_version() -> tuple[str, str]:
@@ -88,42 +146,63 @@ class CompilerImage:
         return self._check_container_exists(allow_stopped=True)
 
     @cached_property
-    def compiler_user(self):
-        # Get the user name from the uid in the container
-        result = self.exec(f"getent passwd {self.host_uid}", user="root")
-        if result is not None and result.ok:
-            return result.stdout.rstrip().split(":")[0]
-
-        raise ValueError(f"Failed to get compiler user for uid {self.host_uid}")
+    def is_rootless(self) -> bool:
+        res = self.ctx.run("docker info --format '{{json .SecurityOptions}}'", hide=True, warn=True)
+        return res is not None and res.ok and "name=rootless" in res.stdout
 
     @cached_property
-    def host_uid(self):
+    def _compiler_passwd(self) -> list[str]:
+        # Get the user entry from the uid in the container, the user might be named differently
+        result = self.exec(f"getent passwd {self.compiler_uid}", user="root")
+        if result is not None and result.ok:
+            return result.stdout.rstrip().split(":")
+
+        raise ValueError(f"Failed to get compiler user for uid {self.compiler_uid}")
+
+    @property
+    def compiler_user(self) -> str:
+        return self._compiler_passwd[0]
+
+    @property
+    def compiler_home(self) -> str:
+        return self._compiler_passwd[5]
+
+    # Rootless engines map container root to the host user and the host uid to an unprivileged
+    # subordinate one, so only root can write to the bind mounts there.
+    @cached_property
+    def compiler_uid(self) -> str:
+        if self.is_rootless:
+            return "0"
         return cast('Result', self.ctx.run("id -u")).stdout.rstrip()
 
     @cached_property
-    def host_gid(self):
+    def compiler_gid(self) -> str:
+        if self.is_rootless:
+            return "0"
         return cast('Result', self.ctx.run("id -g")).stdout.rstrip()
 
     def ensure_compiler_user_created(self):
         # If the compiler user already exists, we don't need to do anything. Note that this might
         # happen even if we have just booted the container, if the UID of the host user is
         # the same as the UID for an already existing user in the container
-        uid_exists = self.exec(f"getent passwd {self.host_uid}", user="root", allow_fail=True)
+        uid_exists = self.exec(f"getent passwd {self.compiler_uid}", user="root", allow_fail=True)
         if uid_exists is not None and uid_exists.ok:
             info(f"[*] Compiler user {self.compiler_user} already created")
             return
 
         compiler_username = "compiler"
 
-        if self.host_uid == "0":
+        if self.compiler_uid == "0":
             # If we're starting the compiler as root, we won't be able to create the compiler user
             # and we will get weird failures later on, as the user 'compiler' won't exist in the container
             raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
 
         # Now create the compiler user with same UID and GID as the current user
-        self.exec(f"getent group {self.host_gid} || groupadd -f -g {self.host_gid} {compiler_username}", user="root")
         self.exec(
-            f"getent passwd {self.host_uid} || useradd -m -u {self.host_uid} -g {self.host_gid} {compiler_username}",
+            f"getent group {self.compiler_gid} || groupadd -f -g {self.compiler_gid} {compiler_username}", user="root"
+        )
+        self.exec(
+            f"getent passwd {self.compiler_uid} || useradd -m -u {self.compiler_uid} -g {self.compiler_gid} {compiler_username}",
             user="root",
         )
 
@@ -188,6 +267,7 @@ class CompilerImage:
         run_dir: PathOrStr | None = None,
         allow_fail=False,
         force_color=True,
+        buildbarn_token=False,
     ) -> Result:
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
@@ -203,13 +283,20 @@ class CompilerImage:
         if not force_color:
             color_env = ""
 
+        # Only the variable names go on the command line, the values come from the docker CLI env.
+        token = get_buildbarn_token(self.ctx) if buildbarn_token else None
+        bazel_env = "-e BUILDBARN_ID_TOKEN" if token else ""
+        if buildbarn_token and "DD_BAZEL_REMOTE_CACHE" in os.environ:
+            bazel_env += " -e DD_BAZEL_REMOTE_CACHE"
+
         # Set FORCE_COLOR=1 so that termcolor works in the container
         return cast(
             Result,
             self.ctx.run(
-                f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
+                f"docker exec -u {user} -i {color_env} {bazel_env} {self.name} bash -l -c \"{cmd}\"",
                 hide=not self.ctx.config.run["echo"],
                 warn=allow_fail,
+                env={"BUILDBARN_ID_TOKEN": token} if token else {},
             ),
         )
 
@@ -250,8 +337,9 @@ class CompilerImage:
             mounts.append(f"--mount {shlex.quote(f'type=bind,source={repo_cache},target={repo_cache}')}")
             info(f"[*] Mounting host Bazel repository_cache at {repo_cache}")
 
+        # --init reaps orphans such as crashed Bazel servers; a zombie one blocks every later bazel client.
         res = self.ctx.run(
-            f"docker run {platform} -d --restart always --name {self.name} "
+            f"docker run {platform} -d --init --restart always --name {self.name} "
             f"{' '.join(mounts)} "
             f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
@@ -265,16 +353,16 @@ class CompilerImage:
 
         if repo_cache is not None:
             # Host default/home-rc cache paths differ from the container user's; force the mounted path.
-            bazelrc = f"/home/{self.compiler_user}/.bazelrc"
+            bazelrc = f"{self.compiler_home}/.bazelrc"
             with tempfile.NamedTemporaryFile(mode='w') as rc:
                 rc.write(f"common --repository_cache={shlex.quote(str(repo_cache))}\n")
                 rc.flush()
                 self.ctx.run(f"docker cp {rc.name} {self.name}:{bazelrc}")
-            self.exec(f"chown {self.host_uid}:{self.host_gid} {bazelrc}", user="root")
+            self.exec(f"chown {self.compiler_uid}:{self.compiler_gid} {bazelrc}", user="root")
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
-                f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}",
+                f"chown {self.compiler_uid}:{self.compiler_gid} {CONTAINER_AGENT_PATH} && chown -R {self.compiler_uid}:{self.compiler_gid} {CONTAINER_AGENT_PATH}",
                 user="root",
             )
 
@@ -308,9 +396,11 @@ class CompilerImage:
         # Uncompress the package in the root directory, so that we have access to the headers
         # We cannot install because the architecture will not match
         # Extract into a .tar file and then use tar to extract the contents to avoid issues
-        # with dpkg-deb not respecting symlinks.
+        # with dpkg-deb not respecting symlinks. -P is needed because the headers are extracted through
+        # symlinks pointing outside their parent (arch/x86 -> ../../linux-headers-<ver>/arch/x86),
+        # which tar refuses to follow by default.
         self.exec(f"dpkg-deb --fsys-tarfile {headers_package_filename} > {headers_package_filename}.tar", user="root")
-        self.exec(f"tar --skip-old-files -xf {headers_package_filename}.tar -C /", user="root")
+        self.exec(f"tar -P --skip-old-files -xf {headers_package_filename}.tar -C /", user="root")
         self.exec(
             f"mv /usr/src/{headers_package}/include/generated/*.h /usr/src/{headers_package}/arch/{cross_arch.kernel_arch}/include/generated/",
             user="root",
@@ -321,26 +411,27 @@ class CompilerImage:
             f"usermod -aG sudo {self.compiler_user} && echo '{self.compiler_user} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers",
             user="root",
         )
-        self.exec(
-            f"cp /root/.bashrc /home/{self.compiler_user}/.bashrc && chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bashrc",
-            user="root",
-        )
+        if self.compiler_home != "/root":
+            self.exec(
+                f"cp /root/.bashrc {self.compiler_home}/.bashrc && chown {self.compiler_uid}:{self.compiler_gid} {self.compiler_home}/.bashrc",
+                user="root",
+            )
         self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user=self.compiler_user)
-        self.exec(f"install -d -m 0777 -o {self.host_uid} -g {self.host_gid} /go", user="root")
+        self.exec(f"install -d -m 0777 -o {self.compiler_uid} -g {self.compiler_gid} /go", user="root")
         self.exec(
-            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-gcc >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-g++ >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-gcc >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-g++ >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
 

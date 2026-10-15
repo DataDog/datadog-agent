@@ -26,7 +26,7 @@ type schemaCacheQuery struct {
 }
 
 type schemaCacheRecorder struct {
-	conn    *sqlx.Conn
+	*sqlx.Conn
 	prefix  string
 	queries map[string]*schemaCacheQuery
 }
@@ -38,7 +38,7 @@ func (r *schemaCacheRecorder) QueryxContext(ctx context.Context, query string, a
 		r.queries[query] = record
 	}
 	marker := fmt.Sprintf("%s%d */ ", r.prefix, record.index)
-	rows, err := r.conn.QueryxContext(ctx, marker+query, args...)
+	rows, err := r.Conn.QueryxContext(ctx, marker+query, args...)
 	if err == nil {
 		record.executions++
 		values, marshalErr := json.Marshal(args)
@@ -74,6 +74,14 @@ func schemaCacheStats(ctx context.Context, t *testing.T, observer *sqlx.DB, pref
 }
 
 func TestSchemaCollectionReusesCachedSQLAgainstDatabase(t *testing.T) {
+	testSchemaCollectionReusesCachedSQLAgainstDatabase(t, false)
+}
+
+func TestSchemaLegacyCollectionReusesCachedSQLAgainstDatabase(t *testing.T) {
+	testSchemaCollectionReusesCachedSQLAgainstDatabase(t, true)
+}
+
+func testSchemaCollectionReusesCachedSQLAgainstDatabase(t *testing.T, legacy bool) {
 	setupSchemaFixtures(t)
 	sysCheck, _ := newSysCheck(t, "", "")
 	observer, err := sysCheck.Connect()
@@ -108,6 +116,10 @@ func TestSchemaCollectionReusesCachedSQLAgainstDatabase(t *testing.T) {
 `, "")
 	defer c.Teardown()
 	require.NoError(t, c.init())
+	if legacy {
+		c.dbVersion = "12.1.0.2.0"
+	}
+	c.db.SetMaxOpenConns(1)
 	conn, err := c.db.Connx(ctx)
 	require.NoError(t, err)
 	defer conn.Close()
@@ -116,7 +128,7 @@ func TestSchemaCollectionReusesCachedSQLAgainstDatabase(t *testing.T) {
 	var sid int
 	require.NoError(t, conn.QueryRowContext(ctx, "SELECT SYS_CONTEXT('USERENV', 'SID') FROM dual").Scan(&sid))
 	recorder := &schemaCacheRecorder{
-		conn: conn, prefix: fmt.Sprintf("/* dd_schema_cache_%d_", time.Now().UnixNano()),
+		Conn: conn, prefix: fmt.Sprintf("/* dd_schema_cache_%d_", time.Now().UnixNano()),
 		queries: make(map[string]*schemaCacheQuery),
 	}
 	c.schemaQueryer = recorder
@@ -169,7 +181,11 @@ func TestSchemaCollectionReusesCachedSQLAgainstDatabase(t *testing.T) {
 		}
 	}
 	require.Positive(t, reused, "no cursor reuse observed; check shared-pool pressure and invalidations")
-	for _, fragment := range []string{"WITH ranked_columns", "FROM cdb_indexes", "FROM cdb_col_comments", "FROM cdb_views WHERE"} {
+	fragments := []string{"WITH ranked_columns", "FROM cdb_indexes", "FROM cdb_col_comments", "FROM cdb_views WHERE"}
+	if legacy {
+		fragments = append(fragments, "FROM dba_tab_cols")
+	}
+	for _, fragment := range fragments {
 		shared := false
 		for query, record := range recorder.queries {
 			if strings.Contains(query, fragment) && len(record.values) > 1 {

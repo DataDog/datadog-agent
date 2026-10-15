@@ -223,19 +223,26 @@ FROM cdb_col_comments WHERE comments IS NOT NULL AND /*RELATIONS*/`
 const columnDefaultsQuery = `SELECT c.con_id, c.owner, c.table_name, c.column_name, /*DEFAULT_COL*/ AS data_default
 FROM cdb_tab_cols c WHERE /*RELATIONS*/`
 
-// Oracle represents function-based index expressions as hidden SYS_NC%$ virtual columns.
-// CDB_IND_COLUMNS exposes only the generated name, while CDB_TAB_COLS exposes the expression.
-// CDB_IND_EXPRESSIONS cannot be used because its CDB_ variant omits COLUMN_EXPRESSION.
-const indexesQuery = `SELECT i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, i.uniqueness, i.index_type,
-	ic.column_name, /*EXPRESSION_COL*/ AS column_expression
+// UNION ALL combines two queries: ordinary indexes are filtered by both the
+// indexed table and the column's table. Join indexes are filtered only by the
+// indexed table, because their columns can belong to tables outside this batch.
+const indexesQuery = `SELECT con_id, table_owner, table_name, index_owner, index_name, uniqueness, index_type, column_name
+FROM (
+SELECT i.con_id, i.table_owner, i.table_name, i.owner AS index_owner, i.index_name, i.uniqueness, i.index_type,
+	ic.column_name, ic.column_position
 FROM cdb_indexes i
 JOIN cdb_ind_columns ic
 	ON ic.con_id = i.con_id AND ic.index_owner = i.owner AND ic.index_name = i.index_name
-LEFT JOIN cdb_tab_cols tc
-	ON tc.con_id = ic.con_id AND tc.owner = ic.table_owner AND tc.table_name = ic.table_name
-	AND tc.column_name = ic.column_name AND ic.column_name LIKE 'SYS\_NC%' ESCAPE '\'
-WHERE /*RELATIONS*/
-ORDER BY i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, ic.column_position`
+WHERE NVL(i.join_index, 'NO') <> 'YES' AND /*RELATIONS*/ AND /*INDEX_COLUMNS*/
+UNION ALL
+SELECT i.con_id, i.table_owner, i.table_name, i.owner AS index_owner, i.index_name, i.uniqueness, i.index_type,
+	ic.column_name, ic.column_position
+FROM cdb_indexes i
+JOIN cdb_ind_columns ic
+	ON ic.con_id = i.con_id AND ic.index_owner = i.owner AND ic.index_name = i.index_name
+WHERE i.join_index = 'YES' AND /*RELATIONS*/
+)
+ORDER BY con_id, table_owner, table_name, index_owner, index_name, column_position`
 
 // generated = 'USER NAME' excludes Oracle's system-generated NOT NULL checks, which would
 // duplicate column nullability metadata.
@@ -247,7 +254,7 @@ JOIN cdb_cons_columns cc
 	ON cc.con_id = c.con_id AND cc.owner = c.owner AND cc.constraint_name = c.constraint_name
 WHERE (c.constraint_type IN ('P', 'U', 'R') OR (c.constraint_type = 'C' AND c.generated = 'USER NAME'))
 	AND /*RELATIONS*/
-ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position`
+ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position, cc.column_name`
 
 const referencedConstraintsQuery = `SELECT c.con_id, c.owner, c.constraint_name, c.table_name, cc.column_name
 FROM cdb_constraints c
@@ -954,9 +961,6 @@ func tableProperties(r schemaRowDB) []string {
 	return props
 }
 
-// DATA_DEFAULT_VC exists from 23ai. Earlier versions require the LONG DATA_DEFAULT column,
-// which cannot be passed to a SQL function and is therefore truncated in Go.
-
 type ownerKey struct {
 	conID int64
 	owner string
@@ -1031,7 +1035,7 @@ type columnKey struct {
 	column string
 }
 
-func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnNames) []schemaSQL {
+func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnNames, joined ...relationColumnNames) []schemaSQL {
 	keys := make([]tableKey, 0, len(allowed))
 	for key := range allowed {
 		keys = append(keys, key)
@@ -1052,7 +1056,8 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 		if end > len(keys) {
 			end = len(keys)
 		}
-		var groups []string
+		aliases := append([]relationColumnNames{columns}, joined...)
+		groups := make([][]string, len(aliases))
 		var filter schemaSQL
 		ownerGroups := 1
 		for i := start + 1; i < end; i++ {
@@ -1061,6 +1066,10 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 			}
 		}
 		bindSlots := min(schemaRelationPageSize, maxSchemaRelationsPerQuery/ownerGroups)
+		var commonContainer string
+		if ownerGroups > 1 && keys[start].conID == keys[end-1].conID {
+			commonContainer = filter.bind("pagecon", keys[start].conID)
+		}
 		for i := start; i < end; {
 			j := i + 1
 			for j < end && keys[j].conID == keys[i].conID && keys[j].owner == keys[i].owner {
@@ -1070,14 +1079,31 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 			for _, key := range keys[i:j] {
 				names = append(names, key.table)
 			}
-			prefix := "rel" + strconv.Itoa(len(groups))
-			groups = append(groups, fmt.Sprintf("(%s = %s AND %s = %s AND %s IN (%s))",
-				columns.conID, filter.bind(prefix+"con", keys[i].conID),
-				columns.owner, filter.bind(prefix+"owner", keys[i].owner),
-				columns.relation, filter.stringList(prefix+"name", names, bindSlots)))
+			prefix := "rel" + strconv.Itoa(len(groups[0]))
+			container := commonContainer
+			if container == "" {
+				container = filter.bind(prefix+"con", keys[i].conID)
+			}
+			owner := filter.bind(prefix+"owner", keys[i].owner)
+			relations := filter.stringList(prefix+"name", names, bindSlots)
+			for index, alias := range aliases {
+				group := fmt.Sprintf("%s = %s AND %s IN (%s)", alias.owner, owner, alias.relation, relations)
+				if commonContainer == "" {
+					group = alias.conID + " = " + container + " AND " + group
+				}
+				groups[index] = append(groups[index], "("+group+")")
+			}
 			i = j
 		}
-		filter.text = "(" + strings.Join(groups, " OR ") + ")"
+		predicates := make([]string, len(aliases))
+		for index, alias := range aliases {
+			predicate := "(" + strings.Join(groups[index], " OR ") + ")"
+			if commonContainer != "" {
+				predicate = "(" + alias.conID + " = " + commonContainer + " AND " + predicate + ")"
+			}
+			predicates[index] = predicate
+		}
+		filter.text = strings.Join(predicates, " AND ")
 		filters = append(filters, filter)
 	}
 	return filters
@@ -1116,6 +1142,10 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 			}
 		}
 		bindSlots := min(schemaColumnBindSlots, maxSchemaRelationsPerQuery/tableGroups)
+		var commonContainer string
+		if tableGroups > 1 && keys[start].conID == keys[end-1].conID {
+			commonContainer = filter.bind("pagecon", keys[start].conID)
+		}
 		for i := start; i < end; {
 			j := i + 1
 			for j < end && keys[j].tableKey == keys[i].tableKey {
@@ -1126,15 +1156,39 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 				names = append(names, key.column)
 			}
 			prefix := "col" + strconv.Itoa(len(groups))
-			groups = append(groups, fmt.Sprintf("(%s = %s AND %s = %s AND %s = %s AND %s IN (%s))",
-				columns.conID, filter.bind(prefix+"con", keys[i].conID),
+			container := commonContainer
+			if container == "" {
+				container = filter.bind(prefix+"con", keys[i].conID)
+			}
+			group := fmt.Sprintf("%s = %s AND %s = %s AND %s IN (%s)",
 				columns.owner, filter.bind(prefix+"owner", keys[i].owner),
 				columns.relation, filter.bind(prefix+"table", keys[i].table),
-				columnName, filter.stringList(prefix+"name", names, bindSlots)))
+				columnName, filter.stringList(prefix+"name", names, bindSlots))
+			if commonContainer == "" {
+				group = columns.conID + " = " + container + " AND " + group
+			}
+			groups = append(groups, "("+group+")")
 			i = j
 		}
 		filter.text = "(" + strings.Join(groups, " OR ") + ")"
+		if commonContainer != "" {
+			filter.text = "(" + columns.conID + " = " + commonContainer + " AND " + filter.text + ")"
+		}
 		filters = append(filters, filter)
+	}
+	return filters
+}
+
+func schemaIndexQueries(allowed map[tableKey]struct{}) []schemaSQL {
+	filters := relationFilterChunks(allowed,
+		relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"})
+	columnFilters := relationFilterChunks(allowed,
+		relationColumnNames{conID: "ic.con_id", owner: "ic.table_owner", relation: "ic.table_name"})
+	for i := range filters {
+		filters[i].text = strings.NewReplacer(
+			"/*RELATIONS*/", filters[i].text,
+			"/*INDEX_COLUMNS*/", columnFilters[i].text,
+		).Replace(indexesQuery)
 	}
 	return filters
 }
@@ -1198,15 +1252,6 @@ func (c *Check) conditionColumn() string {
 	return "c.search_condition"
 }
 
-// Function-based index expressions use the same 23ai _VC cutover under the tc alias.
-func (c *Check) indexExpressionColumn() string {
-	major, _, _ := strings.Cut(c.dbVersion, ".")
-	if n, err := strconv.Atoi(major); err == nil && n >= 23 {
-		return "tc.data_default_vc"
-	}
-	return "tc.data_default"
-}
-
 // Cap fallback LONG values at 4000 characters without splitting multi-byte characters.
 func truncateLongValue(s string) string {
 	r := []rune(s)
@@ -1217,9 +1262,16 @@ func truncateLongValue(s string) string {
 }
 
 func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []schemaSQL, scan func(*sqlx.Rows) error) {
-	for _, filter := range filters {
-		query := strings.Replace(template, "/*RELATIONS*/", filter.text, 1)
-		if err := c.queryMetadata(ctx, query, scan, filter.args...); err != nil {
+	queries := make([]schemaSQL, len(filters))
+	for i, filter := range filters {
+		queries[i] = schemaSQL{text: strings.Replace(template, "/*RELATIONS*/", filter.text, 1), args: filter.args}
+	}
+	c.queryDetailQueries(ctx, name, queries, scan)
+}
+
+func (c *Check) queryDetailQueries(ctx context.Context, name string, queries []schemaSQL, scan func(*sqlx.Rows) error) {
+	for _, query := range queries {
+		if err := c.queryMetadata(ctx, query.text, scan, query.args...); err != nil {
 			if strings.Contains(err.Error(), oracleErrorTableOrViewDoesNotExist) || strings.Contains(err.Error(), oracleErrorInvalidIdentifier) {
 				log.Debugf("%s table detail %q unavailable: %s", c.logPrompt, name, err)
 				return
@@ -1403,29 +1455,29 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	defaultsQueryResolved := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", c.defaultValueColumn(), 1)
 	defaultFilters := columnFilterChunks(allowedColumns,
 		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
-	c.queryDetailFilters(ctx, "column defaults", defaultsQueryResolved, defaultFilters, func(rows *sqlx.Rows) error {
-		var conID int64
-		var owner, table, column string
-		var value sql.NullString
-		if err := rows.Scan(&conID, &owner, &table, &column, &value); err != nil {
-			return err
-		}
-		if value.Valid {
-			d := at(conID, owner, table)
-			if d.ColumnDefaults == nil {
-				d.ColumnDefaults = make(map[string]string)
+	if c.defaultValueColumn() == "c.data_default_vc" {
+		c.queryDetailFilters(ctx, "column defaults", defaultsQueryResolved, defaultFilters, func(rows *sqlx.Rows) error {
+			var conID int64
+			var owner, table, column string
+			var value sql.NullString
+			if err := rows.Scan(&conID, &owner, &table, &column, &value); err != nil {
+				return err
 			}
-			d.ColumnDefaults[column] = truncateLongValue(value.String)
-		}
-		return nil
-	})
+			if value.Valid {
+				d := at(conID, owner, table)
+				if d.ColumnDefaults == nil {
+					d.ColumnDefaults = make(map[string]string)
+				}
+				d.ColumnDefaults[column] = truncateLongValue(value.String)
+			}
+			return nil
+		})
+	}
 
-	indexesQueryResolved := strings.Replace(indexesQuery, "/*EXPRESSION_COL*/", c.indexExpressionColumn(), 1)
-	c.queryDetails(ctx, "indexes", indexesQueryResolved, allowed, relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"}, func(rows *sqlx.Rows) error {
+	c.queryDetailQueries(ctx, "indexes", schemaIndexQueries(allowed), func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, indexOwner, name, uniqueness, indexType, column string
-		var expression sql.NullString
-		if err := rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column, &expression); err != nil {
+		if err := rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column); err != nil {
 			return err
 		}
 		d := at(conID, owner, table)
@@ -1436,18 +1488,18 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 			idx = &indexInfo{owner: indexOwner, Name: name, Unique: uniqueness == "UNIQUE", Type: indexType}
 			d.Indexes = append(d.Indexes, idx)
 		}
-		if expression.Valid {
-			idx.Columns = append(idx.Columns, indexKeyPart{Expression: truncateLongValue(expression.String)})
-		} else {
-			idx.Columns = append(idx.Columns, indexKeyPart{Column: column})
-		}
+		idx.Columns = append(idx.Columns, indexKeyPart{Column: column})
 		return nil
 	})
+	c.enrichSchemaColumnValues(ctx, details, allowedColumns)
 
 	// Foreign keys identify referenced constraints, so resolve their tables after scanning all rows.
 	primaryKeys := make(map[constraintKey]*constraintInfo)
 	constraintsQueryResolved := strings.Replace(constraintsQuery, "/*CONDITION_COL*/", c.conditionColumn(), 1)
-	c.queryDetails(ctx, "constraints", constraintsQueryResolved, allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, func(rows *sqlx.Rows) error {
+	constraintFilters := relationFilterChunks(allowed,
+		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"},
+		relationColumnNames{conID: "cc.con_id", owner: "cc.owner", relation: "cc.table_name"})
+	c.queryDetailFilters(ctx, "constraints", constraintsQueryResolved, constraintFilters, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, name, ctype, rOwner, rName, column string
 		var condition sql.NullString
@@ -1508,7 +1560,8 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 		referencedKeys[tableKey{conID: key.conID, owner: key.owner, table: key.name}] = struct{}{}
 	}
 	filters := relationFilterChunks(referencedKeys,
-		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.constraint_name"})
+		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.constraint_name"},
+		relationColumnNames{conID: "cc.con_id", owner: "cc.owner", relation: "cc.constraint_name"})
 	c.queryDetailFilters(ctx, "referenced constraints", referencedConstraintsQuery, filters, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, table, column string
