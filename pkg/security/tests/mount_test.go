@@ -226,11 +226,24 @@ func dumpSyscallsCache(t *testing.T, test *testModule, where string) {
 
 // [do not merge] TestMountUmountStress loops the TestMount mount/umount sequence to raise the
 // hit rate of the flaky "umount event carries mount_id 0" failure, and logs every anomaly.
+// Each variant adds one ingredient of TestMount that a plain mount/umount loop lacks, so
+// the variant that reproduces names the trigger.
 func TestMountUmountStress(t *testing.T) {
 	SkipIfNotAvailable(t)
 	if ebpfLessEnabled {
 		t.Skip("eBPF only")
 	}
+
+	dstMntBasename := "test-dest-mount"
+
+	// same rules as TestMount
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule",
+		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/%s/test-mount"`, dstMntBasename),
+	}, {
+		ID:         "test_rule_pending",
+		Expression: fmt.Sprintf(`chown.file.path == "{{.Root}}/%s/test-release"`, dstMntBasename),
+	}}
 
 	testDrive, err := newTestDrive(t, "xfs", []string{}, "")
 	if err != nil {
@@ -238,7 +251,7 @@ func TestMountUmountStress(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +261,6 @@ func TestMountUmountStress(t *testing.T) {
 	os.MkdirAll(mntPath, 0755)
 	defer os.RemoveAll(mntPath)
 
-	dstMntBasename := "test-dest-mount"
 	dstMntPath := testDrive.Path(dstMntBasename)
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
@@ -256,71 +268,117 @@ func TestMountUmountStress(t *testing.T) {
 	dumpSyscallsCache(t, test, "stress start")
 	defer dumpSyscallsCache(t, test, "stress end")
 
-	const iterations = 1000
-	dumped := 0
-	var mountTimeouts, umountTimeouts, mismatches, ok int
-	for i := 0; i < iterations; i++ {
-		var mntIDAtomic atomic.Uint32
-		err := test.GetProbeEvent(func() error {
-			return syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, "")
-		}, func(event *model.Event) bool {
-			if event.ProcessContext.Pid != testSuitePid || event.Mount.MountPointStr != "/"+dstMntBasename {
-				return false
-			}
-			mntIDAtomic.Store(event.Mount.MountID)
-			return true
-		}, 3*time.Second, model.FileMountEventType)
-		if err != nil {
-			mountTimeouts++
-			t.Logf("UMOUNTDBG iter=%d mount event not received: %v", i, err)
-		}
-		mntID := mntIDAtomic.Load()
-
-		var (
-			lock     sync.Mutex
-			received []string
-			matched  bool
-		)
-		err = test.GetProbeEvent(func() error {
-			return syscall.Unmount(dstMntPath, syscall.MNT_DETACH)
-		}, func(event *model.Event) bool {
-			if event.ProcessContext.Pid != testSuitePid {
-				return false
-			}
-			lock.Lock()
-			defer lock.Unlock()
-			received = append(received, umountDbgString(event))
-			if mntID != 0 && event.Umount.MountID == mntID {
-				matched = true
-				return true
-			}
-			return false
-		}, 3*time.Second, model.FileUmountEventType)
-		lock.Lock()
-		switch {
-		case matched:
-			ok++
-		case len(received) > 0:
-			mismatches++
-			t.Logf("UMOUNTDBG iter=%d MISMATCH expected_mount_id=%d received=%v", i, mntID, received)
-			if dumped < 5 {
-				dumped++
-				dumpSyscallsCache(t, test, fmt.Sprintf("stress iter %d mismatch", i))
-			}
-		default:
-			umountTimeouts++
-			t.Logf("UMOUNTDBG iter=%d umount event not received (expected_mount_id=%d): %v", i, mntID, err)
-			if dumped < 5 {
-				dumped++
-				dumpSyscallsCache(t, test, fmt.Sprintf("stress iter %d timeout", i))
-			}
-		}
-		lock.Unlock()
+	type variant struct {
+		name        string
+		chmodBefore bool // TestMount/mount_resolver: chmod through the bind mount, rule match
+		holdOpen    bool // releaseFile: a file on the bind mount stays open across the umount
+		chownAfter  bool // TestMount/release-mount: fchown the open file once detached, pending rule
+	}
+	variants := []variant{
+		{name: "plain"},
+		{name: "hold-open", holdOpen: true},
+		{name: "chmod-before", chmodBefore: true},
+		{name: "full", chmodBefore: true, holdOpen: true, chownAfter: true},
 	}
 
-	t.Logf("UMOUNTDBG summary: iterations=%d ok=%d mismatches=%d umount_timeouts=%d mount_timeouts=%d", iterations, ok, mismatches, umountTimeouts, mountTimeouts)
-	if ok != iterations {
-		t.Errorf("UMOUNTDBG summary: iterations=%d ok=%d mismatches=%d umount_timeouts=%d mount_timeouts=%d", iterations, ok, mismatches, umountTimeouts, mountTimeouts)
+	const iterations = 1000
+	for _, v := range variants {
+		t.Run(v.name, func(t *testing.T) {
+			dumped := 0
+			var mountTimeouts, umountTimeouts, mismatches, ok int
+			for i := 0; i < iterations; i++ {
+				var mntIDAtomic atomic.Uint32
+				err := test.GetProbeEvent(func() error {
+					return syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, "")
+				}, func(event *model.Event) bool {
+					if event.ProcessContext.Pid != testSuitePid || event.Mount.MountPointStr != "/"+dstMntBasename {
+						return false
+					}
+					mntIDAtomic.Store(event.Mount.MountID)
+					return true
+				}, 3*time.Second, model.FileMountEventType)
+				if err != nil {
+					mountTimeouts++
+					t.Logf("UMOUNTDBG variant=%s iter=%d mount event not received: %v", v.name, i, err)
+				}
+				mntID := mntIDAtomic.Load()
+
+				if v.chmodBefore {
+					file := testDrive.Path(dstMntBasename, "test-mount")
+					if f, err := os.Create(file); err == nil {
+						f.Close()
+						test.WaitSignalFromRule(t, func() error {
+							return os.Chmod(file, 0707)
+						}, func(_ *model.Event, _ *rules.Rule) {}, "test_rule")
+						os.Remove(file)
+					}
+				}
+
+				var releaseFile *os.File
+				if v.holdOpen {
+					releaseFile, err = os.Create(path.Join(dstMntPath, "test-release"))
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				var (
+					lock     sync.Mutex
+					received []string
+					matched  bool
+				)
+				err = test.GetProbeEvent(func() error {
+					return syscall.Unmount(dstMntPath, syscall.MNT_DETACH)
+				}, func(event *model.Event) bool {
+					if event.ProcessContext.Pid != testSuitePid {
+						return false
+					}
+					lock.Lock()
+					defer lock.Unlock()
+					received = append(received, umountDbgString(event))
+					if mntID != 0 && event.Umount.MountID == mntID {
+						matched = true
+						return true
+					}
+					return false
+				}, 3*time.Second, model.FileUmountEventType)
+				lock.Lock()
+				switch {
+				case matched:
+					ok++
+				case len(received) > 0:
+					mismatches++
+					t.Logf("UMOUNTDBG variant=%s iter=%d MISMATCH expected_mount_id=%d received=%v", v.name, i, mntID, received)
+					if dumped < 5 {
+						dumped++
+						dumpSyscallsCache(t, test, fmt.Sprintf("variant %s iter %d mismatch", v.name, i))
+					}
+				default:
+					umountTimeouts++
+					t.Logf("UMOUNTDBG variant=%s iter=%d umount event not received (expected_mount_id=%d): %v", v.name, i, mntID, err)
+					if dumped < 5 {
+						dumped++
+						dumpSyscallsCache(t, test, fmt.Sprintf("variant %s iter %d timeout", v.name, i))
+					}
+				}
+				lock.Unlock()
+
+				if releaseFile != nil {
+					if v.chownAfter {
+						test.WaitSignalFromRule(t, func() error {
+							return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
+						}, func(_ *model.Event, _ *rules.Rule) {}, "test_rule_pending")
+					}
+					releaseFile.Close()
+					os.Remove(path.Join(mntPath, "test-release"))
+				}
+			}
+
+			t.Logf("UMOUNTDBG summary: variant=%s iterations=%d ok=%d mismatches=%d umount_timeouts=%d mount_timeouts=%d", v.name, iterations, ok, mismatches, umountTimeouts, mountTimeouts)
+			if ok != iterations {
+				t.Errorf("UMOUNTDBG summary: variant=%s iterations=%d ok=%d mismatches=%d umount_timeouts=%d mount_timeouts=%d", v.name, iterations, ok, mismatches, umountTimeouts, mountTimeouts)
+			}
+		})
 	}
 }
 
