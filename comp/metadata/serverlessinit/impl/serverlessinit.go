@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	iadef "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -27,6 +28,7 @@ type serverlessinitComp struct {
 	provider       serverlessinit.InventoryProvider
 	params         serverlessinit.Params
 	conf           config.Component
+	log            log.Component
 	uuid           *serverlessinit.PayloadUUID
 	eligible       bool
 	lastResourceID string
@@ -35,6 +37,7 @@ type serverlessinitComp struct {
 // Requires defines the dependencies for the serverlessinit component
 type Requires struct {
 	Lc     compdef.Lifecycle
+	Log    log.Component
 	Config config.Component
 	// Params carry the process-level context the embedding binary resolves
 	// before Fx starts.
@@ -67,6 +70,7 @@ func NewComponent(deps Requires) Provides {
 		provider:       deps.Provider,
 		params:         deps.Params,
 		conf:           deps.Config,
+		log:            deps.Log,
 		uuid:           deps.UUID,
 		eligible:       serverlessinit.InventoryEligible(deps.Config, deps.Provider),
 	}
@@ -83,13 +87,18 @@ func NewComponent(deps Requires) Provides {
 
 // applyFields installs the full field set for the provider's current identity,
 // rotating the payload uuid when the identity changed — a same-identity
-// resume keeps it. It reports whether the identity was present: without a
-// resource id no field is applied and the payload stays closed, so nothing is
-// submitted. The close → rotate → batch → open ordering keeps a concurrent
+// resume keeps it. It reports whether the built field set satisfied every
+// payload rule: an insufficient set is neither applied nor opened, so nothing
+// is submitted. The close → rotate → batch → open ordering keeps a concurrent
 // serialization from mixing a rotated uuid with the previous field set.
 func (c *serverlessinitComp) applyFields() bool {
+	if !c.eligible {
+		return false
+	}
 	data := c.provider.GetInventoryData()
-	if !c.eligible || data.ResourceID == "" {
+	fields := buildFields(data, c.params, c.conf)
+	if err := serverlessinit.InsufficientPayload(fields); err != nil {
+		c.log.Debugf("serverless inventory payload not submitted: %v", err)
 		return false
 	}
 
@@ -98,7 +107,7 @@ func (c *serverlessinitComp) applyFields() bool {
 		c.uuid.Rotate(uuid.New().String())
 		c.lastResourceID = data.ResourceID
 	}
-	c.inventoryAgent.SetBatch(buildFields(data, c.params, c.conf))
+	c.inventoryAgent.SetBatch(fields)
 	c.inventoryAgent.SetReady(true)
 	return true
 }
