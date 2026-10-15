@@ -137,6 +137,8 @@ func TestGetClusterIdentityCachesSuccess(t *testing.T) {
 
 	assert.Equal(t, first, second)
 	assert.Equal(t, 1, client.calls, "second lookup must be served from cache")
+	// Each call must return a distinct pointer so a caller cannot mutate the cached value.
+	assert.NotSame(t, first, second, "callers must not alias the process-global cached value")
 }
 
 func TestGetClusterIdentityCachesFailure(t *testing.T) {
@@ -174,14 +176,14 @@ func TestGetClusterIdentityCachesConfigLoadFailure(t *testing.T) {
 func TestFailureTTLClassifiesTransientVsPermanent(t *testing.T) {
 	// Permanent: self-consistency and access failures do not clear on their own.
 	assert.Equal(t, failureCacheTTL, failureTTL(ErrInvalidClusterIdentity))
-	assert.Equal(t, failureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "AccessDeniedException", Message: "no"}))
-	assert.Equal(t, failureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "ResourceNotFoundException", Message: "no"}))
+	assert.Equal(t, failureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "AccessDeniedException", Fault: smithy.FaultClient}))
+	assert.Equal(t, failureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "ResourceNotFoundException", Fault: smithy.FaultClient}))
 
-	// Transient: context deadline, throttling, and server-fault errors are retried soon.
+	// Transient: context deadline/cancellation and the SDK's retryable error codes.
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(context.DeadlineExceeded))
 	assert.Equal(t, transientFailureCacheTTL, failureTTL(fmt.Errorf("wrap: %w", context.Canceled)))
-	assert.Equal(t, transientFailureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "ThrottlingException", Message: "slow down", Fault: smithy.FaultClient}))
-	assert.Equal(t, transientFailureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "InternalServerErrorException", Message: "boom", Fault: smithy.FaultServer}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "ThrottlingException", Fault: smithy.FaultClient}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "RequestLimitExceeded", Fault: smithy.FaultClient}))
 }
 
 func TestGetClusterIdentityRejectsOverlongName(t *testing.T) {

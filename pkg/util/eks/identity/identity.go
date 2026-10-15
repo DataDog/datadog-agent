@@ -21,6 +21,13 @@ import (
 var (
 	clusterNamePattern = regexp.MustCompile(`^[0-9A-Za-z][A-Za-z0-9_-]{0,99}$`)
 	accountIDPattern   = regexp.MustCompile(`^[0-9]{12}$`)
+	// partitionPattern and regionPattern constrain the ARN fields that become tag values.
+	// awsarn.Parse only splits on colons and does no charset validation, so without these a
+	// Region or partition containing a comma or space would be emitted verbatim as a tag value
+	// (and would corrupt consumers that comma-join static tags). They match the e2e contract
+	// ^arn:aws[a-z-]*:eks:[a-z0-9-]+:[0-9]{12}:cluster/...$.
+	partitionPattern = regexp.MustCompile(`^aws[a-z0-9-]*$`)
+	regionPattern    = regexp.MustCompile(`^[a-z0-9-]+$`)
 )
 
 // ClusterIdentity is the authoritative identity returned by EKS DescribeCluster.
@@ -67,7 +74,8 @@ func IsValidClusterARN(clusterARN string) bool {
 	if err != nil {
 		return false
 	}
-	if parsed.Service != "eks" || parsed.Region == "" || !accountIDPattern.MatchString(parsed.AccountID) {
+	if parsed.Service != "eks" || !partitionPattern.MatchString(parsed.Partition) ||
+		!regionPattern.MatchString(parsed.Region) || !accountIDPattern.MatchString(parsed.AccountID) {
 		return false
 	}
 	const clusterPrefix = "cluster/"
