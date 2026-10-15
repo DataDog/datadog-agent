@@ -1,7 +1,10 @@
 """toolchains for rpath-patching"""
 
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 load(":install_name_tool.bzl", "macos_rpath_rewriter", "macos_tree_rpath_rewriter")
 load(":patchelf.bzl", "patchelf_rpath_rewriter", "patchelf_tree_rpath_rewriter")
 load(":toolchain.bzl", "noop_toolchain", "rpath_rewriter_toolchain")
@@ -17,11 +20,13 @@ toolchain_type(
 patchelf_rpath_rewriter(
     name = "patchelf_rpath_rewriter",
     patchelf = "@patchelf//:patchelf",
+    readelf = "//bazel/tools:readelf",
 )
 
 patchelf_tree_rpath_rewriter(
     name = "patchelf_tree_rpath_rewriter",
     patchelf = "@patchelf//:patchelf",
+    readelf = "//bazel/tools:readelf",
 )
 
 rpath_rewriter_toolchain(
@@ -114,4 +119,90 @@ sh_test(
         "@llvm_toolchain_llvm//:install-name-tool",
     ],
     target_compatible_with = ["@platforms//os:macos"],
+)
+
+cc_binary(
+    name = "libplain.so",
+    srcs = ["foo.c"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_binary(
+    name = "libwith_rpath.so",
+    srcs = ["foo.c"],
+    linkopts = ["-Wl,-rpath,/nonexistent"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_binary(
+    name = "libdlopen.so",
+    srcs = ["dlopen_lib.c"],
+    linkopts = ["-ldl"],
+    linkshared = True,
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+run_binary(
+    name = "libneeds_dep",
+    srcs = [":libplain.so"],
+    outs = ["libneeds_dep.so"],
+    args = [
+        "--add-needed",
+        "libnotglibc.so",
+        "$(execpath :libplain.so)",
+        "--output",
+        "$@",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    tool = "@patchelf",
+)
+
+rewrite_rpath(
+    name = "linux_rewritten_files",
+    inputs = [
+        ":libdlopen.so",
+        ":libneeds_dep",
+        ":libplain.so",
+        ":libwith_rpath.so",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    use_relative_rpaths = False,
+)
+
+copy_to_directory(
+    name = "linux_libs_dir",
+    srcs = [
+        ":libdlopen.so",
+        ":libneeds_dep",
+        ":libplain.so",
+        ":libwith_rpath.so",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+rewrite_rpath(
+    name = "linux_rewritten_tree",
+    inputs = [":linux_libs_dir"],
+    target_compatible_with = ["@platforms//os:linux"],
+    use_relative_rpaths = False,
+)
+
+# A shell test is enough to inspect the rewritten files with readelf. It only
+# runs on Linux, where Bash is available.
+sh_test(
+    name = "linux_rewrite_test",
+    srcs = ["linux_rewrite_test.sh"],
+    args = [
+        "$(rootpath //bazel/tools:readelf)",
+        "$(rootpaths :linux_rewritten_files)",
+        "$(rootpaths :linux_rewritten_tree)",
+    ],
+    data = [
+        ":linux_rewritten_files",
+        ":linux_rewritten_tree",
+        "//bazel/tools:readelf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
