@@ -290,6 +290,12 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			c.Password = pulumi.ToSecret(randomPassword.Result).(pulumi.StringOutput)
 		}
 
+		if vmArgs.osInfo.Family() == os.WindowsFamily && e.TrackSSHActivity() {
+			if err := installWindowsSSHActivityTracking(e, c, opts); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 }
@@ -347,7 +353,7 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 	} else if vmArgs.osInfo.Flavor == os.Suse {
 		defaultUserData = os.ZypperDisableUnattendedUpgradesScriptContent
 	}
-	userDataParts := make([]string, 0, 3)
+	userDataParts := make([]string, 0, 4)
 	if vmArgs.userData != "" {
 		userDataParts = append(userDataParts, vmArgs.userData)
 	}
@@ -356,6 +362,9 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 	}
 	if vmArgs.osInfo.Family() == os.LinuxFamily {
 		userDataParts = append(userDataParts, os.SSHAllowSFTPRootScriptContent)
+		if e.TrackSSHActivity() {
+			userDataParts = append(userDataParts, os.TrackSSHActivityScriptContent)
+		}
 	}
 	vmArgs.userData = strings.Join(userDataParts, "\n")
 
