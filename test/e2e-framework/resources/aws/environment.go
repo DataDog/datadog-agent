@@ -186,6 +186,11 @@ func (e *Environment) DatadogPublicRegistry() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultDatadogPublicRegistry, e.envDefault.ddInfra.defaultDatadogPublicRegistry)
 }
 
+// IsAWS reports that this environment provisions resources on AWS.
+func (e *Environment) IsAWS() bool {
+	return true
+}
+
 // ecrRepositoryName returns the ECR repository name of an image, that is everything
 // after the registry host. Repository names can contain slashes, as pull-through cache
 // repositories do ("ecr-public/datadog/agent"), so only the host is stripped.

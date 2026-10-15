@@ -30,6 +30,7 @@ type ZypperPackageManager struct {
 }
 
 func (m *ZypperPackageManager) RuntimeInstall(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+	warnIfAWS(m.runner.Environment(), packageRef)
 	return m.install(packageRef, transform, checkBinary, opts...)
 }
 

@@ -39,6 +39,23 @@ func assertInstalledCommand(runner command.Runner, n namer.Namer, checkBinary st
 	return runner.Command(cmdName, &command.Args{Create: pulumi.String(cmdStr)}, pulumiOpts...)
 }
 
+// isAWS reports whether env provisions resources on AWS.
+func isAWS(env any) bool {
+	awsEnv, ok := env.(interface{ IsAWS() bool })
+	return ok && awsEnv.IsAWS()
+}
+
+// warnIfAWS logs a Pulumi warning when runtime-installing packageRef on AWS, where pre-baked AMIs are available.
+func warnIfAWS(env config.Env, packageRef string) {
+	if !isAWS(env) {
+		return
+	}
+	env.Ctx().Log.Warn(fmt.Sprintf(
+		"Runtime-installing %q on AWS is strongly discouraged, use a pre-baked -e2e AMI instead, see https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/",
+		packageRef,
+	), nil)
+}
+
 func AllowUnsignedPackages(allow bool) PackageManagerOption {
 	return func(pm *PackageManagerParams) error {
 		pm.AllowUnsignedPackages = allow
