@@ -223,12 +223,12 @@ func (f *domainForwarder) Start() error {
 	// reset internal state to purge transactions from past starts
 	f.init()
 
+	f.concurrency.start()
 	for i := 0; i < f.concurrency.numWorkers(); i++ {
 		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, f.concurrency)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
-	f.concurrency.start()
 	go f.handleFailedTransactions()
 	if f.connectionResetInterval != 0 {
 		go f.scheduleConnectionResets()
@@ -310,10 +310,10 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 		f.stopConnectionReset <- true
 	}
 	f.stopRetry <- true
-	f.concurrency.stop()
 	for _, w := range f.workers {
 		w.Stop(purgeHighPrio)
 	}
+	f.concurrency.stop()
 	f.workers = []*Worker{}
 	close(f.highPrio)
 	close(f.lowPrio)
