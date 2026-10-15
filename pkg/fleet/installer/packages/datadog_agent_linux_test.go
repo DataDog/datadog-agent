@@ -153,31 +153,3 @@ func TestSyncPrivilegedRshellFlag(t *testing.T) {
 func TestRunDatadogAgentPackageCommandRejectsUnknownCommand(t *testing.T) {
 	require.ErrorContains(t, runDatadogAgentPackageCommand(context.Background(), "nope"), "unknown datadog-agent package command")
 }
-
-func TestExperimentStartUnits(t *testing.T) {
-	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
-		t.Skip("privileged rshell is supported only on amd64 and arm64")
-	}
-
-	packagePath := t.TempDir()
-	binaryPath := filepath.Join(packagePath, privilegedRshellBinaryRelPath)
-	require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
-	require.NoError(t, os.WriteFile(binaryPath, []byte("rshell"), 0755))
-
-	originalGetLandlockABIVersion := getLandlockABIVersion
-	t.Cleanup(func() { getLandlockABIVersion = originalGetLandlockABIVersion })
-
-	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI, nil }
-	ctx := HookContext{Context: context.Background(), PackagePath: packagePath}
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service", privilegedRshellSocketExp},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-		"the socket must be started on supported hosts regardless of the Agent configuration",
-	)
-
-	getLandlockABIVersion = func() (int, error) { return 0, errors.New("landlock unavailable") }
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service"},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
-}

@@ -12,7 +12,7 @@ EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 ExecStartPre=+/bin/rm -f /run/datadog-agent-rshell/enabled-exp
-ExecStartPre=-+/opt/datadog-packages/datadog-agent/experiment/embedded/bin/installer package-command datadog-agent sync-rshell-privileged-flag-exp
+ExecStartPre=-+/opt/datadog-packages/datadog-agent/experiment/embedded/bin/installer package-command --no-telemetry datadog-agent sync-rshell-privileged-flag-exp
 ExecStart=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/privateactionrunner run --cfgpath=/etc/datadog-agent-exp/datadog.yaml
 StartLimitInterval=10
 StartLimitBurst=5

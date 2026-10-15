@@ -48,11 +48,20 @@ const (
 var agentConfigDir = paths.AgentConfigDir
 
 type cmdOption func(*cmdConfig)
-type cmdConfig struct{ quiet bool }
+type cmdConfig struct {
+	quiet       bool
+	noTelemetry bool
+}
 
 // withQuiet suppresses stdout logging for the command (e.g. when outputting structured JSON).
 func withQuiet() cmdOption {
 	return func(c *cmdConfig) { c.quiet = true }
+}
+
+// withoutTelemetry skips telemetry so the command never waits on a network
+// flush (e.g. when it runs in a systemd ExecStartPre).
+func withoutTelemetry() cmdOption {
+	return func(c *cmdConfig) { c.noTelemetry = true }
 }
 
 type cmd struct {
@@ -87,7 +96,10 @@ func newCmd(operation string, opts ...cmdOption) *cmd {
 	if !env.IsFromDaemon && !cfg.quiet {
 		setupStdoutLogger(env)
 	}
-	t := newTelemetry(env)
+	var t *telemetry.Telemetry
+	if !cfg.noTelemetry {
+		t = newTelemetry(env)
+	}
 	span, ctx := telemetry.StartSpanFromEnv(context.Background(), operation)
 	ctx, stop := context.WithCancel(ctx)
 	handleSignals(ctx, stop)
@@ -626,6 +638,7 @@ func getStateCommand() *cobra.Command {
 
 // packageCommand runs a package-specific command
 func packageCommand() *cobra.Command {
+	var noTelemetry bool
 	cmd := &cobra.Command{
 		Hidden:  true,
 		GroupID: "installer",
@@ -633,7 +646,11 @@ func packageCommand() *cobra.Command {
 		Short:   "Run a package-specific command",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newCmd("package_command")
+			var opts []cmdOption
+			if noTelemetry {
+				opts = append(opts, withoutTelemetry())
+			}
+			i := newCmd("package_command", opts...)
 			defer i.stop(err)
 
 			packageName := args[0]
@@ -644,6 +661,7 @@ func packageCommand() *cobra.Command {
 			return packages.RunPackageCommand(i.ctx, packageName, command)
 		},
 	}
+	cmd.Flags().BoolVar(&noTelemetry, "no-telemetry", false, "do not send telemetry")
 
 	return cmd
 }

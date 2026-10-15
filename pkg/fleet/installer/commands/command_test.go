@@ -265,3 +265,9 @@ func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
 	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
 		"setup command should have human-readable-errors annotation")
 }
+
+func TestPackageCommandNoTelemetryFlag(t *testing.T) {
+	// The flag is used by systemd ExecStartPre lines, which must not wait on
+	// a telemetry flush.
+	assert.NotNil(t, packageCommand().Flags().Lookup("no-telemetry"))
+}

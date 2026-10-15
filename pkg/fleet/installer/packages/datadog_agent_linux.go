@@ -799,15 +799,29 @@ func syncPrivilegedRshellFlag(configDir, packagePath, flagPath string) error {
 	return nil
 }
 
-// experimentStartUnits returns the experiment units to start. The privileged
-// helper socket is started whenever the host supports it; it only listens
-// when SyncPrivilegedRshellFlag found the feature enabled.
-func experimentStartUnits(ctx HookContext, mainUnit string) []string {
-	units := []string{mainUnit}
-	if privilegedRshellSupported(ctx.PackagePath) {
-		units = append(units, privilegedRshellSocketExp)
+// enablePrivilegedRshellSocket enables the helper socket on supported hosts.
+// It only listens when syncPrivilegedRshellFlag found the feature enabled.
+// It is best-effort: the feature is optional, so a failure (e.g. a masked PAR
+// unit) must not fail the install.
+func enablePrivilegedRshellSocket(ctx HookContext, socket string) {
+	if !privilegedRshellSupported(ctx.PackagePath) {
+		return
 	}
-	return units
+	if err := systemd.EnableUnit(ctx, socket); err != nil {
+		log.Warnf("failed to enable %s: %v", socket, err)
+	}
+}
+
+// startPrivilegedRshellSocket starts the helper socket on supported hosts.
+// It is best-effort: the socket binds to the PAR unit, so starting it fails
+// when that unit is masked, and the feature is optional.
+func startPrivilegedRshellSocket(ctx HookContext, socket string) {
+	if !privilegedRshellSupported(ctx.PackagePath) {
+		return
+	}
+	if err := systemd.StartUnit(ctx, socket); err != nil {
+		log.Warnf("failed to start %s: %v", socket, err)
+	}
 }
 
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
@@ -838,17 +852,13 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 		if err := systemd.EnableUnit(ctx, s.SystemdMainUnitStable); err != nil {
 			return err
 		}
-		if privilegedRshellSupported(ctx.PackagePath) {
-			return systemd.EnableUnit(ctx, privilegedRshellSocketStable)
-		}
+		enablePrivilegedRshellSocket(ctx, privilegedRshellSocketStable)
 		return nil
 	case service.ProcmgrType:
 		if err := systemd.EnableUnit(ctx, s.ProcmgrMainUnitStable); err != nil {
 			return err
 		}
-		if privilegedRshellSupported(ctx.PackagePath) {
-			return systemd.EnableUnit(ctx, privilegedRshellSocketStable)
-		}
+		enablePrivilegedRshellSocket(ctx, privilegedRshellSocketStable)
 		return nil
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
@@ -907,9 +917,7 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	default:
 		return errors.New("unsupported service manager")
 	}
-	if privilegedRshellSupported(ctx.PackagePath) {
-		return systemd.StartUnit(ctx, privilegedRshellSocketStable)
-	}
+	startPrivilegedRshellSocket(ctx, privilegedRshellSocketStable)
 	return nil
 }
 
@@ -983,11 +991,17 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		units := experimentStartUnits(ctx, s.SystemdMainUnitExp)
-		return systemd.StartUnit(ctx, units[0], units[1:]...)
+		if err := systemd.StartUnit(ctx, s.SystemdMainUnitExp); err != nil {
+			return err
+		}
+		startPrivilegedRshellSocket(ctx, privilegedRshellSocketExp)
+		return nil
 	case service.ProcmgrType:
-		units := experimentStartUnits(ctx, s.ProcmgrMainUnitExp)
-		return systemd.StartUnit(ctx, units[0], units[1:]...)
+		if err := systemd.StartUnit(ctx, s.ProcmgrMainUnitExp); err != nil {
+			return err
+		}
+		startPrivilegedRshellSocket(ctx, privilegedRshellSocketExp)
+		return nil
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
