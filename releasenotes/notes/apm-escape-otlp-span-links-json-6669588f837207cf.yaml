@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    APM : Fix invalid JSON in the ``_dd.span_links`` tag of spans received over OTLP when a
+    span link's tracestate, attribute keys, or attribute values contain quotes, backslashes,
+    control characters, or array and map values. These characters are now properly escaped.

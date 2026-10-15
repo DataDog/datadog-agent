@@ -514,9 +514,8 @@ func MarshalLinks(links ptrace.SpanLinkSlice) string {
 		str.WriteString(hex.EncodeToString(s[:]))
 		str.WriteString(`"`)
 		if ts := l.TraceState().AsRaw(); len(ts) > 0 {
-			str.WriteString(`,"tracestate":"`)
-			str.WriteString(ts)
-			str.WriteString(`"`)
+			str.WriteString(`,"tracestate":`)
+			writeJSONString(&str, ts)
 		}
 		if l.Attributes().Len() > 0 {
 			str.WriteString(`,"attributes":{`)
@@ -526,11 +525,13 @@ func MarshalLinks(links ptrace.SpanLinkSlice) string {
 					str.WriteString(",")
 				}
 				b = true
-				str.WriteString(`"`)
-				str.WriteString(k)
-				str.WriteString(`":"`)
-				str.WriteString(v.AsString())
-				str.WriteString(`"`)
+				writeJSONString(&str, k)
+				str.WriteString(":")
+				// Span link attributes are string-valued in the Datadog span link model
+				// (pb.SpanLink.Attributes is a map[string]string), so non-string values are
+				// stringified rather than emitted as typed JSON like MarshalEvents does. For
+				// maps and slices AsString returns their JSON form, which is escaped here.
+				writeJSONString(&str, v.AsString())
 				return true
 			})
 			str.WriteString("}")
@@ -543,6 +544,13 @@ func MarshalLinks(links ptrace.SpanLinkSlice) string {
 	}
 	str.WriteString("]")
 	return str.String()
+}
+
+// writeJSONString writes s to str as a quoted and escaped JSON string.
+func writeJSONString(str *strings.Builder, s string) {
+	// json.Marshal cannot fail on a Go string: invalid UTF-8 is coerced to U+FFFD.
+	b, _ := json.Marshal(s)
+	str.Write(b)
 }
 
 // SetMetaOTLP sets the k/v OTLP attribute pair as a tag on span s.
