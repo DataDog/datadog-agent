@@ -1,5 +1,30 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+pkg_files(
+    name = "static_files",
+    srcs = select({
+        # fontawesome-webfont.svg is the last @font-face fallback in
+        # font-awesome.min.css, only reachable by browsers that support neither
+        # woff2, woff nor ttf (pre-2011 mobile browsers). None can run on the
+        # Windows versions the MSI supports, so it is not shipped on Windows.
+        # On other platforms we keep it, as we do not control the browser that
+        # renders the GUI there.
+        "@platforms//os:windows": glob(
+            ["views/private/**"],
+            exclude = ["views/private/fonts/fontawesome-webfont.svg"],
+        ),
+        "//conditions:default": glob(["views/private/**"]),
+    }),
+    prefix = "bin/agent/dist/views",
+    strip_prefix = strip_prefix.from_pkg("views/private"),
+)
+
+pkg_filegroup(
+    name = "static_files_pkg",
+    srcs = [":static_files"],
+)
 
 go_library(
     name = "impl",
@@ -15,6 +40,7 @@ go_library(
         "platform_windows.go",
         "render.go",
     ],
+    data = [":static_files_pkg"],
     embedsrcs = [
         "views/templates/index.tmpl",
         "views/templates/runningChecks.tmpl",
@@ -50,7 +76,7 @@ go_library(
         "//pkg/util/system",
         "//pkg/version",
         "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:darwin": [
             "//pkg/system-probe/api/client",

@@ -292,6 +292,12 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 	if ev.ProcessContext.UserSession.SSHSessionID != 0 {
 		// Access the EBPFProbe to get the UserSessionsResolver
 		if ebpfProbe, ok := p.PlatformProbe.(*probe.EBPFProbe); ok {
+			// without the auth log tailer nothing will ever resolve the session, don't make the
+			// event wait for it
+			if !ebpfProbe.Resolvers.UserSessionsResolver.SSHSessionsResolvable() {
+				return nil
+			}
+
 			// Create the user session context serializer
 			userSessionCtx := &serializers.SSHSessionContextSerializer{
 				SSHSessionID:  strconv.FormatUint(uint64(ev.ProcessContext.UserSession.SSHSessionID), 16),
@@ -319,14 +325,25 @@ func (a *SBOMAPIServer) collectSBOMS() {
 		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
 			select {
 			case a.sboms <- sbom:
-				seclog.Debugf("SBOM for %s sent to APIServer channel", sbom.RequestID)
+				sbomResolver.CountEnrichedSBOMForwarded()
+				seclog.Debugf("SBOM for %s sent to APIServer channel", sbomWorkload(sbom))
 			default:
+				sbomResolver.CountEnrichedSBOMForwardDropped()
 				seclog.Warnf("dropping SBOM event")
 			}
 		}); err != nil {
 			seclog.Errorf("failed to register SBOM listener: %s", err)
 		}
 	}
+}
+
+// sbomWorkload names the workload of an SBOM report in logs. The report of the
+// host has an empty container ID.
+func sbomWorkload(report *sbompkg.ScanResult) string {
+	if report.RequestID == "" {
+		return "the host"
+	}
+	return report.RequestID
 }
 
 // GetSBOMStream handles SBOM stream requests
@@ -338,7 +355,7 @@ func (a *SBOMAPIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.
 		case <-a.stopChan:
 			return nil
 		case sbom := <-a.sboms:
-			seclog.Debugf("received SBOM for %s, forwarding to core agent", sbom.RequestID)
+			seclog.Debugf("received SBOM for %s, forwarding to core agent", sbomWorkload(sbom))
 
 			bom := sbom.Report.ToCycloneDX()
 
@@ -347,9 +364,15 @@ func (a *SBOMAPIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.
 				return fmt.Errorf("failed to marshal SBOM: %w", err)
 			}
 
+			// The report of the host is the one with an empty container ID.
+			kind := string(workloadmeta.KindContainer)
+			if sbom.RequestID == "" {
+				kind = sbompkg.HostKind
+			}
+
 			msg := &sbompb.SBOMMessage{
 				Data: data,
-				Kind: string(workloadmeta.KindContainer),
+				Kind: kind,
 				ID:   sbom.RequestID,
 			}
 
@@ -357,7 +380,7 @@ func (a *SBOMAPIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.
 				return fmt.Errorf("failed to send SBOM: %s", err)
 			}
 
-			log.Debugf("Forwarding SBOM for %s to core agent", sbom.RequestID)
+			log.Debugf("Forwarding SBOM for %s to core agent", sbomWorkload(sbom))
 		}
 	}
 }

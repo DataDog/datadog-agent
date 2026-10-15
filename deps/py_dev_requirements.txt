@@ -1,4 +1,5 @@
 invoke==2.2.1
 jinja2==3.1.6
 patch-ng==1.19.1
+pefile==2024.8.26
 pyyaml==6.0.3

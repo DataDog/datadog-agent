@@ -8,7 +8,8 @@ package common
 
 // OpenFileRequest represents a request to open a file and transfer its file descriptor
 type OpenFileRequest struct {
-	Path string `json:"path"`
+	Path     string `json:"path"`
+	NoFollow bool   `json:"no_follow,omitempty"`
 }
 
 // OpenFileResponse represents the response from the file descriptor transfer

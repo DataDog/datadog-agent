@@ -194,6 +194,28 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]byte(`$1 "********"`),
 	)
 	snmpMultilineReplacer.LastUpdated = parseVersion("7.34.0") // https://github.com/DataDog/datadog-agent/pull/10305
+
+	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
+	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
+		walk(&data, func(key string, _ any) (bool, any) {
+			switch key {
+			// ADD rule info that can be shown
+			case "id", "license":
+				return false, nil
+			}
+			return true, defaultReplacement
+		})
+		return data
+	})
+	scanningRulesYaml.LastUpdated = parseVersion("7.85.0") // https://github.com/DataDog/datadog-agent/pull/56761
+
+	// Single-line YAML text, e.g. integration.Config.Dump in the scheduling trace log.
+	scanningRulesPatternReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(\bpattern\s*:)\s+.+`),
+		Hints:       []string{"scanning_rules"},
+		Repl:        []byte(`$1 "********"`),
+		LastUpdated: parseVersion("7.85.0"), // https://github.com/DataDog/datadog-agent/pull/56761
+	}
 	certReplacer := Replacer{
 		/*
 		   Try to match as accurately as possible. RFC 7468's ABNF
@@ -272,6 +294,17 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		LastUpdated: parseVersion("7.78.5"),
 	}
 
+	privateActionRunnerYaml := Replacer{
+		YAMLKeyRegex: regexp.MustCompile(`^private_action_runner$`),
+		ProcessValue: func(data any) any {
+			wrapped := data
+			scrubber.ScrubDataObj(&wrapped)
+			scrubPrivateActionRunnerCredentialValues(wrapped)
+			return wrapped
+		},
+		LastUpdated: parseVersion("7.85.0"),
+	}
+
 	// HTTP header-style API keys with "key" suffix
 	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
@@ -348,10 +381,13 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, secretReplacer)
 	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
+	scrubber.AddReplacer(SingleLine, scanningRulesYaml)
+	scrubber.AddReplacer(SingleLine, scanningRulesPatternReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
 	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
+	scrubber.AddReplacer(SingleLine, privateActionRunnerYaml)
 
 	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
@@ -555,6 +591,32 @@ func scrubAllLeafValues(data interface{}) interface{} {
 	}
 }
 
+func scrubPrivateActionRunnerCredentialValues(data interface{}) {
+	updateMapValuesCaseInsensitive(data, "credentials", func(credentials interface{}) interface{} {
+		updateMapValuesCaseInsensitive(credentials, "values", scrubAllLeafValues)
+		return credentials
+	})
+}
+
+// Update every matching key in place, preserving its spelling. Multiple case
+// variants may coexist in the original config, and all must be scrubbed.
+func updateMapValuesCaseInsensitive(data interface{}, key string, update func(interface{}) interface{}) {
+	switch target := data.(type) {
+	case map[string]interface{}:
+		for k, value := range target {
+			if strings.EqualFold(k, key) {
+				target[k] = update(value)
+			}
+		}
+	case map[interface{}]interface{}:
+		for k, value := range target {
+			if name, ok := k.(string); ok && strings.EqualFold(name, key) {
+				target[k] = update(value)
+			}
+		}
+	}
+}
+
 // HideKeyExceptLastChars replaces all characters in the key with "*", except
 // for the last N characters, where N scales logarithmically with key length:
 //   - ≤ 4 chars: fully replaced with defaultReplacement
@@ -581,13 +643,7 @@ func visibleKeyChars(keyLen int) int {
 	}
 	// bits.Len(n) == floor(log2(n)) + 1 for n > 0
 	n := bits.Len(uint(keyLen)) - 2
-	if n < 1 {
-		return 1
-	}
-	if n > 4 {
-		return 4
-	}
-	return n
+	return min(max(n, 1), 4)
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies

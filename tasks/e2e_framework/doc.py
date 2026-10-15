@@ -10,7 +10,6 @@ install_workload: str = f"Install test workload (default {tool.get_default_workl
 pipeline_id: str = (
     "The pipeline id of the custom Agent build for example '16497585' (may be taken form the gitlab url)'"
 )
-job_name: str = "Name of the job within the agent pipeline for example 'deploy_deb_testing-a7_x64'"
 agent_version: str = "The version of the Agent for example '7.42.0~rc.1-1' or '6.39.0 (default `latest`)'"
 container_agent_version: str = "The container version of the Agent for example '7.45.0-rc.3' (default `latest`)'"
 stack_name: str = "An optional name for the stack. This parameter is useful when you need to create several environments. Note: 'invoke destroy' may not work properly"
@@ -28,6 +27,7 @@ config_path: str = "Specify a custom config path to use"
 with_azure: str = "Also configure the Azure provider (default False). Adds Azure CLI prereq and an SSH key prompt."
 with_gcp: str = "Also configure the GCP provider (default False). Adds gcloud CLI prereq and SSH/pull-secret prompts."
 account: str = "AWS/GKE account to provision against. Default 'agent-sandbox'."
+team: str = "GitHub team (kebab-case, e.g. agent-platform) used to tag cloud resources for cost attribution. Passing it skips the interactive team prompt and makes the setup fully non-interactive — AI agents and CI should always pass it."
 force: str = "Delete the existing config file and all auto-generated SSH keys (locally and from AWS), then start fresh."
 use_loadBalancer: str = "Use a loadBalancer to instantiate the fakeintake (default False)"
 clean_known_hosts: str = "Clean the host from ssh known_hosts file after destroying the VM (default True)"

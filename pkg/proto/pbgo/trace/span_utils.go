@@ -62,8 +62,13 @@ func (s *Span) ShallowCopy() *Span {
 // Returns the upper and lower 64 bits separately, the lowerBits will always be set even on error.
 func (s *Span) Get128BitTraceID() (upperBits uint64, lowerBits uint64, err error) {
 	lowerBits = s.TraceID
-	// If it's an otel span the whole trace ID is in otel.trace
+	// If it's an otel span the whole trace ID is in otel.trace_id, hex encoded as
+	// 32 characters. Only the first half holds the upper 64 bits; parsing all 32
+	// as a uint64 would always overflow.
 	if tid, ok := s.Meta["otel.trace_id"]; ok {
+		if len(tid) == 32 {
+			tid = tid[:16]
+		}
 		upperBits, err = strconv.ParseUint(tid, 16, 64)
 		if err != nil {
 			return 0, lowerBits, err

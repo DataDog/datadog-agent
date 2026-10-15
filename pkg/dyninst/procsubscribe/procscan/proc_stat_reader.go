@@ -13,12 +13,37 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// readBootTime reads the time the system booted, which is what the start times
+// in /proc/<pid>/stat are relative to.
+func readBootTime(procfsRoot string) (time.Time, error) {
+	path := filepath.Join(procfsRoot, "stat")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("read %s: %w", path, err)
+	}
+	for line := range bytes.Lines(content) {
+		rest, ok := bytes.CutPrefix(line, []byte("btime "))
+		if !ok {
+			continue
+		}
+		secs, err := strconv.ParseInt(string(bytes.TrimSpace(rest)), 10, 64)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("parse btime in %s: %w", path, err)
+		}
+		return time.Unix(secs, 0), nil
+	}
+	return time.Time{}, fmt.Errorf("no btime in %s", path)
+}
 
 // startTimeReader reads the start time of a process from the stat file.
 //

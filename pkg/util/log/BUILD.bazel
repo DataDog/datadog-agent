@@ -30,6 +30,7 @@ go_library(
 dd_agent_go_test(
     name = "log_test",
     srcs = [
+        "caller_position_test.go",
         "klog_redirect_test.go",
         "log_bench_test.go",
         "log_limit_test.go",
@@ -40,6 +41,7 @@ dd_agent_go_test(
     ],
     embed = [":log"],
     deps = [
+        "//pkg/util/log/types",
         "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

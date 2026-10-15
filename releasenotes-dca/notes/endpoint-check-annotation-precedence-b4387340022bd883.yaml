@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Ensure Kubernetes endpoint check annotations take precedence over
+    ``DatadogInstrumentation`` configurations that target the same Service and
+    integration. This prevents duplicate endpoint checks and restores the
+    CR-backed check when the overriding annotation is removed.

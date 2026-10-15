@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
-	"github.com/pulumi/pulumi-gcp/sdk/v9/go/gcp"
+	"github.com/pulumi/pulumi-gcp/sdk/v10/go/gcp"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pulumiConfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 )
@@ -164,6 +164,11 @@ func (e *Environment) InternalRegistry() string {
 
 func (e *Environment) InternalDockerhubMirror() string {
 	return "registry-1.docker.io"
+}
+
+// DatadogPublicRegistry returns gcr.io/datadoghq: the registry a GCP customer pulls the Agent from.
+func (e *Environment) DatadogPublicRegistry() string {
+	return "gcr.io/datadoghq"
 }
 
 func (e *Environment) InternalRegistryImageTagExists(_, _ string) (bool, error) {

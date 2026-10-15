@@ -31,6 +31,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 )
@@ -111,11 +112,21 @@ var pkgInUseDistros = []pkgInUseDistro{
 //   - the core-agent enrichment collector (DD_SBOM_ENRICHMENT_USAGE_ENABLED) that
 //     merges those runtime properties onto the Trivy container-image SBOM.
 //
-// The enrichment/forward intervals are shortened so a package's in-use timestamp
-// surfaces within the test window instead of the 1m default.
+// The enrichment and forward intervals are shortened so a package's in-use
+// timestamp surfaces within the test window instead of the 30m and 1m
+// defaults, and the host is scanned every minute, since a usage report of the
+// host rides the next host scan, hourly by default.
 func packageInUseHelmValues() string {
 	return `datadog:
   criSocketPath: /run/containerd/containerd.sock
+  confd:
+    sbom.yaml: |-
+      ad_identifiers:
+        - _sbom
+      init_config:
+      instances:
+        - periodic_refresh_seconds: 60
+          host_periodic_refresh_seconds: 60
   kubelet:
     tlsVerify: false
   useHostPID: true
@@ -135,6 +146,9 @@ agents:
       env:
         - name: DD_SBOM_ENRICHMENT_USAGE_ENABLED
           value: "true"
+        # Must live on the agent container: streaming wipes the security-agent's own env.
+        - name: DD_RUNTIME_SECURITY_CONFIG_ENABLED
+          value: "true"
     systemProbe:
       env:
         # The UsageConsumer that registers the SBOMCollector gRPC stream the core
@@ -148,15 +162,8 @@ agents:
           value: "true"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_INTERVAL
           value: "10s"
-        - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_TICKER
-          value: "10s"
-        # forward_interval x maxRetryForwarding(10) is the window the resolver
-        # waits for the image's Trivy SBOM to be available before giving up
-        # forwarding for good. Keep it wide enough to outlast the initial
-        # overlayfs Trivy scans (a 5s interval gave up after ~50s, before the
-        # container SBOMs were ready).
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_FORWARD_INTERVAL
-          value: "30s"
+          value: "20s"
   volumeMounts:
     - name: trivycache
       mountPath: /root/.cache/trivy
@@ -211,36 +218,30 @@ func (s *packageInUseSuite) SetupSuite() {
 // pods - including the security-agent and system-probe containers enabled here -
 // to be ready before the package-in-use assertions run.
 func (s *packageInUseSuite) Test00UpAndRunning() {
-	ctx := context.Background()
-	s.EventuallyWithTf(func(c *assert.CollectT) {
-		nodes, err := s.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
-		})
-		require.NoErrorf(c, err, "Failed to list Linux nodes")
-
-		pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-		})
-		require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
-
-		assert.Len(c, pods.Items, len(nodes.Items))
-		for _, pod := range pods.Items {
-			for _, cs := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-				assert.Truef(c, cs.Ready, "Container %s of pod %s isn't ready", cs.Name, pod.Name)
-				assert.Zerof(c, cs.RestartCount, "Container %s of pod %s has restarted", cs.Name, pod.Name)
-			}
-		}
-	}, 10*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
+	err := s.Env().WaitForAgentReady(
+		s.T().Context(),
+		environments.WithLinuxNodeAgentReady(),
+		environments.WithAgentReadinessTimeout(10*time.Minute),
+	)
+	s.Require().NoError(err, "Not all agents eventually became ready in time.")
 }
 
 // TestPackageInUse drives the full not-in-use -> in-use -> stale -> security ->
-// refresh cycle for each workload (rpm, dpkg, apk) as a nested subtest.
+// refresh cycle for each workload (rpm, dpkg, apk) as a nested subtest, then
+// checks the scope and the shape of the SBOMs the enrichment merges into.
 func (s *packageInUseSuite) TestPackageInUse() {
 	for _, d := range pkgInUseDistros {
 		s.Run(d.name, func() {
 			s.runPackageInUse(d)
 		})
 	}
+
+	s.Run("out-of-scope-components", func() {
+		s.runOutOfScopeComponents()
+	})
+	s.Run("component-list-preserved", func() {
+		s.runComponentListPreserved()
+	})
 }
 
 func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
@@ -370,6 +371,242 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 	})
 }
 
+// hostShellNamespace and hostShellContainer name the namespace and the
+// container of the pod startHostShell runs, in the namespace of the Agent.
+const (
+	hostShellNamespace = "datadog"
+	hostShellContainer = "shell"
+)
+
+// TestHostPackageInUse checks the runtime usage enrichment of the host SBOM: a
+// package the host itself runs carries the properties the image SBOMs carry.
+// Each subtest runs its own host processes.
+func (s *packageInUseSuite) TestHostPackageInUse() {
+	shell := s.startHostShell()
+
+	s.Run("in-use", func() {
+		startedAt := s.hostEpoch(shell)
+
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+
+			s.hostExec(c, shell, "gzip --version >/dev/null")
+
+			comps := s.newestHostSBOM(c)
+			gzip := findComponent(comps, "gzip")
+			require.NotNilf(c, gzip, "no gzip in the host SBOM")
+			ts, present := lastSeenRunning(gzip)
+			s.T().Logf("PKG-IN-USE[host] gzip LastSeenRunning=%d present=%v startedAt=%d", ts, present, startedAt)
+			require.Truef(c, present, "gzip carries no %s yet", propLastSeenRunning)
+			assert.GreaterOrEqualf(c, ts, startedAt, "gzip LastSeenRunning %d predates the run at %d", ts, startedAt)
+			assert.Equalf(c, []string{"true"}, propertyValues(gzip.GetProperties(), propRunningAsRoot), "gzip %s, the host runs it as root", propRunningAsRoot)
+			assert.Equalf(c, []string{"false"}, propertyValues(gzip.GetProperties(), propHasSetSuidBit), "gzip %s, the gzip package ships no setuid binary", propHasSetSuidBit)
+			if osComp := findOSComponent(comps); osComp != nil {
+				assertNoRuntimeProperties(c, "host", osComp)
+			}
+			// 10m: run on its own, the subtest also waits out the Agent start and
+			// its first host scans.
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported gzip in use")
+	})
+
+	s.Run("setuid", func() {
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+
+			s.hostExec(c, shell, "su --version >/dev/null")
+
+			utilLinux := findComponent(s.newestHostSBOM(c), "util-linux")
+			require.NotNilf(c, utilLinux, "no util-linux in the host SBOM")
+			suid := propertyValues(utilLinux.GetProperties(), propHasSetSuidBit)
+			s.T().Logf("PKG-IN-USE[host] util-linux HasSetSuidBit=%v", suid)
+			assert.Equalf(c, []string{"true"}, suid, "util-linux %s, the host ran its setuid su", propHasSetSuidBit)
+		}, 5*time.Minute, 15*time.Second, "the host SBOM never reported the setuid su of util-linux")
+	})
+}
+
+// startHostShell runs a privileged pod in the PID namespace of the node, on the
+// Agent image and with the image pull secrets of the Agent, and returns its
+// name. Kubernetes checks the credentials of a pod even for an image the node
+// holds (KEP-2535). The pod goes away with the test.
+func (s *packageInUseSuite) startHostShell() string {
+	ctx := s.T().Context()
+	client := s.Env().KubernetesCluster.Client()
+
+	agents, err := client.CoreV1().Pods(hostShellNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
+	s.Require().NoError(err, "failed to list the Agent pods")
+	s.Require().NotEmpty(agents.Items, "no Agent pod to take the image from")
+	agent := agents.Items[0]
+
+	privileged := true
+	pod, err := client.CoreV1().Pods(hostShellNamespace).Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{GenerateName: "sbom-host-shell-"},
+		Spec: corev1.PodSpec{
+			NodeName:         agent.Spec.NodeName,
+			HostPID:          true,
+			ImagePullSecrets: agent.Spec.ImagePullSecrets,
+			Containers: []corev1.Container{{
+				Name:            hostShellContainer,
+				Image:           agent.Spec.Containers[0].Image,
+				Command:         []string{"sleep", "infinity"},
+				SecurityContext: &corev1.SecurityContext{Privileged: &privileged},
+			}},
+			RestartPolicy: corev1.RestartPolicyNever,
+			Tolerations:   []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
+		},
+	}, metav1.CreateOptions{})
+	s.Require().NoError(err, "failed to create the host shell pod")
+	s.T().Cleanup(func() {
+		_ = client.CoreV1().Pods(hostShellNamespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{})
+	})
+
+	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		p, err := client.CoreV1().Pods(hostShellNamespace).Get(ctx, pod.Name, metav1.GetOptions{})
+		require.NoError(c, err)
+		assert.Equal(c, corev1.PodRunning, p.Status.Phase)
+	}, 2*time.Minute, 5*time.Second, "host shell pod %s never ran", pod.Name)
+
+	return pod.Name
+}
+
+// hostExec runs script on the node from shell, as a transient systemd unit
+// started in the mount namespace of init. The unit runs as root in a cgroup of
+// the host, so its processes are host processes.
+func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) {
+	cmd := []string{"nsenter", "-t", "1", "-m", "--", "systemd-run", "--wait", "--pipe", "--quiet", "--collect", "/bin/sh", "-c", script}
+	_, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, cmd)
+	require.NoErrorf(t, err, "host exec %q failed: %s", script, stderr)
+}
+
+// hostEpoch returns the wall clock of the node (Unix seconds), the clock that
+// stamps LastSeenRunning.
+func (s *packageInUseSuite) hostEpoch(shell string) int64 {
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, []string{"date", "+%s"})
+	s.Require().NoErrorf(err, "date failed: %s", stderr)
+	n, err := strconv.ParseInt(strings.TrimSpace(stdout), 10, 64)
+	s.Require().NoError(err, "date printed %q", stdout)
+	return n
+}
+
+// newestHostSBOM returns the components of the newest full host SBOM in the
+// fake intake.
+func (s *packageInUseSuite) newestHostSBOM(c *myCollectT) []*cyclonedx_v1_4.Component {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var newest time.Time
+	var components []*cyclonedx_v1_4.Component
+	for _, id := range ids {
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			if p.GetCollectedTime().Before(newest) {
+				continue
+			}
+			newest = p.GetCollectedTime()
+			components = p.GetCyclonedx().Components
+		}
+	}
+	require.NotEmptyf(c, components, "no host SBOM with a body in fake intake yet")
+	return components
+}
+
+// runOutOfScopeComponents asserts the runtime properties reach the OS packages
+// alone. The resolver reads the dpkg, rpm and apk databases, so the image's
+// operating-system component and the application packages stay out of its scope,
+// and the absence of a property marks them so.
+//
+// Every image SBOM holds one operating-system component, so every enriched image
+// exercises this. The phase stands alone, which suits the leaf-test retry loop in
+// tasks/new_e2e_tests.py: it reads whatever enriched payloads the fake intake
+// holds, and the Agent's own containers and the control plane keep it supplied.
+func (s *packageInUseSuite) runOutOfScopeComponents() {
+	s.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		images := s.enrichedImages(c)
+		require.NotEmptyf(c, images, "no runtime-enriched container SBOM in fake intake")
+
+		for _, img := range images {
+			apps := applicationComponents(img.components)
+			s.T().Logf("PKG-IN-USE[scope] id=%q components=%d application=%d", img.id, len(img.components), len(apps))
+
+			if osComp := findOSComponent(img.components); osComp != nil {
+				assertNoRuntimeProperties(c, img.id, osComp)
+			}
+			for _, comp := range apps {
+				assertNoRuntimeProperties(c, img.id, comp)
+			}
+		}
+		// 15m: run on its own, the phase waits out the first enrichment, which
+		// lands ~10-15m in, once the overlayfs Trivy SBOMs reach workloadmeta.
+	}, 15*time.Minute, 15*time.Second, "runtime properties kept landing on components the resolver cannot observe")
+}
+
+func assertNoRuntimeProperties(c *myCollectT, id string, comp *cyclonedx_v1_4.Component) {
+	for _, name := range []string{propLastSeenRunning, propHasSetSuidBit, propRunningAsRoot} {
+		assert.Emptyf(c, propertyValues(comp.GetProperties(), name),
+			"%s %q carries %s in %s, but the resolver cannot observe it", comp.GetType(), comp.GetName(), name, id)
+	}
+}
+
+// enrichedImage holds the components of one image's newest enriched payload.
+type enrichedImage struct {
+	id         string
+	components []*cyclonedx_v1_4.Component
+}
+
+// enrichedImages returns, for every container image in the fake intake, the
+// components of its newest payload carrying a LastSeenRunning property. That
+// property marks the payloads the enrichment merge has been through, which are
+// the ones worth asserting on.
+func (s *packageInUseSuite) enrichedImages(c *myCollectT) []enrichedImage {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var images []enrichedImage
+	for _, id := range ids {
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+
+		var newest time.Time
+		var components []*cyclonedx_v1_4.Component
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			if p.GetCollectedTime().Before(newest) {
+				continue
+			}
+			comps := p.GetCyclonedx().Components
+			if !lo.SomeBy(comps, func(comp *cyclonedx_v1_4.Component) bool {
+				_, enriched := lastSeenRunning(comp)
+				return enriched
+			}) {
+				continue
+			}
+			newest = p.GetCollectedTime()
+			components = comps
+		}
+
+		if len(components) > 0 {
+			images = append(images, enrichedImage{id: id, components: components})
+		}
+	}
+	return images
+}
+
 // packageUsage returns, across every successful container-image SBOM payload for
 // the given repo retained by fakeintake, the highest LastSeenRunning timestamp
 // reported for the named package's component (newest access wins), whether that
@@ -449,6 +686,129 @@ func (s *packageInUseSuite) packageProperty(repo, pkg, name string) string {
 		}
 	}
 	return value
+}
+
+// imagePayloads summarises, for one container image, what the fake intake holds:
+// the newest enriched payload, and the largest component count seen on a payload
+// the enrichment had yet to touch.
+type imagePayloads struct {
+	id           string
+	rootRef      string // bom-ref of the image itself, the root of the dependency graph
+	components   []*cyclonedx_v1_4.Component
+	dependencies []*cyclonedx_v1_4.Dependency
+	rawCount     int
+}
+
+// danglingRefs returns the dependency refs of the payload that resolve to no
+// component. The image itself roots the dependency graph and rides in the BOM
+// metadata, so its ref resolves too, as do those of nested components.
+func danglingRefs(img imagePayloads) []string {
+	refs := make(map[string]struct{}, len(img.components)+1)
+	if img.rootRef != "" {
+		refs[img.rootRef] = struct{}{}
+	}
+	collectBomRefs(refs, img.components)
+
+	var dangling []string
+	for _, dep := range img.dependencies {
+		if _, ok := refs[dep.GetRef()]; !ok {
+			dangling = append(dangling, dep.GetRef())
+		}
+	}
+	return dangling
+}
+
+func collectBomRefs(refs map[string]struct{}, comps []*cyclonedx_v1_4.Component) {
+	for _, comp := range comps {
+		refs[comp.GetBomRef()] = struct{}{}
+		collectBomRefs(refs, comp.GetComponents())
+	}
+}
+
+// runComponentListPreserved asserts the enrichment merge annotates the image SBOM
+// and leaves its shape alone. The merge rebuilds the component list every round,
+// so a component dropped there vanishes from the payload the backend sees while
+// the dependency graph, carried over as it stands, goes on referencing it.
+//
+// The phase stands alone, which suits the leaf-test retry loop in
+// tasks/new_e2e_tests.py: it reads whatever enriched payloads the fake intake
+// holds, and the Agent's own containers and the control plane keep it supplied
+// with the richest ones on the node.
+func (s *packageInUseSuite) runComponentListPreserved() {
+	s.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{CollectT: collect, errors: []error{}}
+		collect = nil //nolint:ineffassign
+
+		images := s.imagePayloads(c)
+		require.NotEmptyf(c, images, "no runtime-enriched container SBOM in fake intake")
+
+		for _, img := range images {
+			// Components sharing a name and version are what a merge keyed on those
+			// two collapses, so log how many groups this image holds: that says how
+			// much bite the assertions below have here.
+			groups := map[string]int{}
+			for _, comp := range img.components {
+				groups[comp.GetName()+"@"+comp.GetVersion()]++
+			}
+			repeated := lo.CountBy(lo.Values(groups), func(n int) bool { return n > 1 })
+			dangling := danglingRefs(img)
+			s.T().Logf("PKG-IN-USE[shape] id=%q components=%d raw=%d dependencies=%d repeated_name_version=%d dangling_refs=%d",
+				img.id, len(img.components), img.rawCount, len(img.dependencies), repeated, len(dangling))
+
+			assert.GreaterOrEqualf(c, len(img.components), img.rawCount,
+				"enriched %s has %d components, fewer than the %d of its un-enriched payload", img.id, len(img.components), img.rawCount)
+			assert.Emptyf(c, dangling,
+				"dependency refs of %s resolve to no component, the merge dropped them: %v", img.id, dangling)
+		}
+		// 15m: run on its own, the phase waits out the first enrichment, which
+		// lands ~10-15m in, once the overlayfs Trivy SBOMs reach workloadmeta.
+	}, 15*time.Minute, 15*time.Second, "the enrichment merge kept reshaping the component list")
+}
+
+// imagePayloads walks every container image payload in the fake intake and returns
+// one entry per image whose SBOM has been enriched. A LastSeenRunning property on
+// any component marks a payload the merge has been through, which leaves the raw
+// Trivy ones as the baseline to compare against.
+func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
+	ids, err := s.Fakeintake.GetSBOMIDs()
+	require.NoErrorf(c, err, "Failed to query fake intake")
+
+	var images []imagePayloads
+	for _, id := range ids {
+		payloads, err := s.Fakeintake.FilterSBOMs(id)
+		if err != nil {
+			continue
+		}
+
+		img := imagePayloads{id: id}
+		var newest time.Time
+		for _, p := range payloads {
+			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
+				continue
+			}
+			comps := p.GetCyclonedx().Components
+			enriched := lo.SomeBy(comps, func(comp *cyclonedx_v1_4.Component) bool {
+				_, ok := lastSeenRunning(comp)
+				return ok
+			})
+			if !enriched {
+				img.rawCount = max(img.rawCount, len(comps))
+				continue
+			}
+			if p.GetCollectedTime().Before(newest) {
+				continue
+			}
+			newest = p.GetCollectedTime()
+			img.components = comps
+			img.dependencies = p.GetCyclonedx().Dependencies
+			img.rootRef = p.GetCyclonedx().GetMetadata().GetComponent().GetBomRef()
+		}
+
+		if len(img.components) > 0 {
+			images = append(images, img)
+		}
+	}
+	return images
 }
 
 // startInUseService launches, inside the workload pod, a detached loop that

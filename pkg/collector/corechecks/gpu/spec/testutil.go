@@ -32,6 +32,9 @@ var nvmlFieldNameToFieldID = map[string]uint32{
 	"FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL":            nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL,
 	"FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL":            nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL,
 	"FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL":              nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL,
+	"FI_DEV_NVLINK_ERROR_DL_REPLAY":                       nvml.FI_DEV_NVLINK_ERROR_DL_REPLAY,
+	"FI_DEV_NVLINK_ERROR_DL_RECOVERY":                     nvml.FI_DEV_NVLINK_ERROR_DL_RECOVERY,
+	"FI_DEV_NVLINK_ERROR_DL_CRC":                          nvml.FI_DEV_NVLINK_ERROR_DL_CRC,
 	"FI_DEV_NVLINK_COUNT_XMIT_PACKETS":                    nvml.FI_DEV_NVLINK_COUNT_XMIT_PACKETS,
 	"FI_DEV_NVLINK_COUNT_RCV_PACKETS":                     nvml.FI_DEV_NVLINK_COUNT_RCV_PACKETS,
 	"FI_DEV_NVLINK_COUNT_XMIT_DISCARDS":                   nvml.FI_DEV_NVLINK_COUNT_XMIT_DISCARDS,
@@ -118,9 +121,9 @@ func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpecs *Archit
 	}
 
 	if config.DeviceMode == DeviceModeMIG {
-		opts = append(opts, testutil.WithMIGChildUUIDs(map[int]map[int]string{0: {0: testutil.MIGUUIDs[0]}}))
-	} else {
-		opts = append(opts, testutil.WithMIGDisabled())
+		opts = append(opts, testutil.WithDeviceOptions(0,
+			testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]}),
+		))
 	}
 
 	return opts

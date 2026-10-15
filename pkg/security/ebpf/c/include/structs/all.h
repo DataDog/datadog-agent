@@ -13,6 +13,7 @@
 #include "open.h"
 #include "process.h"
 #include "selinux.h"
+#include "span_context.h"
 #include "syscalls.h"
 #include "tracepoints.h"
 #include "user_sessions.h"

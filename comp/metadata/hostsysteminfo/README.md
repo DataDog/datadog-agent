@@ -23,6 +23,7 @@ Collection includes:
 - Serial number
 - System SKU/Identifier
 - Chassis type (Desktop, Laptop, Virtual Machine, Other)
+- Computer name (macOS only)
 
 ## Configuration
 
@@ -43,6 +44,7 @@ The payload is a JSON dict with the following fields:
   - `model_name` - **string**: The model name of the current device.
   - `chassis_type` - **string**: The chassis type of the current device. One of: "Desktop", "Laptop", "Virtual Machine", or "Other".
   - `identifier` - **string**: the system SKU number or other unique identifier.
+  - `computer_name` - **string**: the user-assigned device name (macOS only, e.g. from System Settings > Sharing). Empty on other platforms.
 
 ## Virtual Machine Detection
 
@@ -65,7 +67,8 @@ Here is an example of a host system info payload for a physical laptop:
         "serial_number": "DEF456",
         "model_name": "ThinkPad T14s Gen 5",
         "chassis_type": "Laptop",
-        "identifier": "LENOVO_MT_21LS_BU_Think_FM_ThinkPad T14s Gen 5"
+        "identifier": "LENOVO_MT_21LS_BU_Think_FM_ThinkPad T14s Gen 5",
+        "computer_name": ""
     },
     "uuid": "1234-5678-abcd-efgh"
 }
@@ -83,8 +86,28 @@ Here is an example for a virtual machine:
         "serial_number": "XYZ789",
         "model_name": "Virtual Machine",
         "chassis_type": "Virtual Machine",
-        "identifier": "None"
+        "identifier": "None",
+        "computer_name": ""
     },
     "uuid": "abcd-1234-efgh-5678"
+}
+```
+
+Here is an example for a macOS laptop:
+
+```json
+{
+    "hostname": "MacBook-Pro",
+    "timestamp": 1767998956607294100,
+    "host_system_info_metadata": {
+        "manufacturer": "Apple Inc.",
+        "model_number": "A2779LL/A",
+        "serial_number": "FVFXC1ABCD",
+        "model_name": "MacBook Pro",
+        "chassis_type": "Laptop",
+        "identifier": "MacBookPro18,1",
+        "computer_name": "Jane's MacBook Pro"
+    },
+    "uuid": "1234-abcd-5678-efgh"
 }
 ```

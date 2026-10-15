@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build linux && nvml
+
 package nvidia
 
 import (
@@ -26,11 +28,11 @@ type rateKey struct {
 }
 
 func buildRateKey(metric *Metric, gpuUUID string) rateKey {
-	sortedTags := slices.Clone(metric.Tags)
+	sortedTags := slices.Clone(metric.tags)
 	slices.Sort(sortedTags)
 
-	sortedWorkloads := make([]string, 0, len(metric.AssociatedWorkloads))
-	for _, workload := range metric.AssociatedWorkloads {
+	sortedWorkloads := make([]string, 0, len(metric.associatedWorkloads))
+	for _, workload := range metric.associatedWorkloads {
 		sortedWorkloads = append(sortedWorkloads, string(workload.Kind)+":"+workload.ID)
 	}
 	slices.Sort(sortedWorkloads)
@@ -59,8 +61,13 @@ func NewRateCalculator() *RateCalculator {
 	}
 }
 
-// processMetric processes a single metric and returns true if the metric should be included in the output, false if it should be dropped.
-func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time, gpuUUID string) bool {
+// processSample processes a sample and reports whether it should be included in the output.
+func (r *RateCalculator) processSample(sample Sample, timestamp time.Time, gpuUUID string) bool {
+	metric, ok := sample.(*Metric)
+	if !ok {
+		return true // non-metric samples are always included, ignored by this calculator
+	}
+
 	if metric.RateCalculationMode == NoRateCalculation {
 		return true
 	}
@@ -99,15 +106,15 @@ func (r *RateCalculator) processMetric(metric *Metric, timestamp time.Time, gpuU
 	return true
 }
 
-// ProcessMetrics processes a list of metrics and calculates the rate for each
-// metric if appropriate. Metrics that require rate calculation and don't have a
+// ProcessSamples calculates rates for metric samples. Non-metric samples pass
+// through unchanged. Metrics that require rate calculation and don't have a
 // previous value are dropped.
-func (r *RateCalculator) ProcessMetrics(metrics []*Metric, timestamp time.Time, gpuUUID string) []*Metric {
-	filteredMetrics := make([]*Metric, 0, len(metrics))
-	for _, metric := range metrics {
-		if r.processMetric(metric, timestamp, gpuUUID) {
-			filteredMetrics = append(filteredMetrics, metric)
+func (r *RateCalculator) ProcessSamples(samples []Sample, timestamp time.Time, gpuUUID string) []Sample {
+	filteredSamples := make([]Sample, 0, len(samples))
+	for _, sample := range samples {
+		if r.processSample(sample, timestamp, gpuUUID) {
+			filteredSamples = append(filteredSamples, sample)
 		}
 	}
-	return filteredMetrics
+	return filteredSamples
 }

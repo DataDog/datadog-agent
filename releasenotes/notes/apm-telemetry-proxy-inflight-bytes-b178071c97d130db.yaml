@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM : Fix the telemetry proxy's in-flight memory accounting. Payload
+    memory is now reserved before the payload is processed and is always
+    released when a payload is dropped, so the proxy no longer loses capacity
+    over time. Processing a payload is also faster and allocates less.

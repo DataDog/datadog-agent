@@ -5,6 +5,7 @@ go_library(
     name = "kfilters",
     srcs = [
         "approvers.go",
+        "bind.go",
         "bpf.go",
         "capabilities.go",
         "capabilities_linux.go",
@@ -23,6 +24,7 @@ go_library(
         "socket.go",
         "splice.go",
         "sysctl.go",
+        "unshare.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/kfilters",
     visibility = ["//visibility:public"],

@@ -12,8 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 )
 
 const (
@@ -38,15 +37,6 @@ func onlyRshellPrefixedCommands(commands []string) []string {
 		}
 	}
 	return prefixedCommands
-}
-
-// selectBackendPathsFromEnv returns the legacy input path list for the current environment.
-// Falls back to the default non-containerized paths.
-func selectBackendPathsFromEnv(m map[string][]string) []string {
-	if env.IsContainerized() {
-		return m[setup.RShellPathAllowMapContainerizedKey]
-	}
-	return m[setup.RShellPathAllowMapDefaultKey]
 }
 
 func intersectAllowedCommands(backendAllowed []string, operatorAllowed []string) []string {
@@ -160,7 +150,7 @@ func narrowerPathWithSameAccess(a, b string) (pathToKeep string, ok bool) {
 
 func isUnsuffixedRootPath(pathSpec string) bool {
 	pathPart, accessSuffix := splitPathAccessSuffix(pathSpec)
-	return pathPart == setup.RShellPathAllowAll && accessSuffix == ""
+	return pathPart == par.RShellPathAllowAll && accessSuffix == ""
 }
 
 func isAbsolutePathSpecPath(pathPart string) bool {

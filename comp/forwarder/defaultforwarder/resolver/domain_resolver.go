@@ -73,7 +73,7 @@ type domainResolver struct {
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
 // of the resolver.
 func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
-	config.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
+	config.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		found := false
 
 		apiKeys, _ := resolver.GetAPIKeysInfo()
@@ -128,9 +128,11 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 // into our list before deduping.
 func updateAdditionalEndpoints(resolver DomainResolver, setting string, config config.Component, log log.Component) {
 	additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
-	endpoints, ok := additionalEndpoints[resolver.GetBaseDomain()]
+	// additional_endpoints is keyed by the configured URL; GetBaseDomain may have been rewritten
+	// with the agent version (see AddAgentVersionToDomain).
+	endpoints, ok := additionalEndpoints[resolver.GetConfigName()]
 	if !ok {
-		log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetBaseDomain())
+		log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetConfigName())
 		return
 	}
 

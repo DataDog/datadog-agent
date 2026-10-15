@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,12 +20,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 )
 
+func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T) {
+	units := unitSetPrivilegedRshell(stableDataOCI, expDataOCI, true)
+
+	for _, service := range []string{
+		"datadog-agent-rshell-privileged.service",
+		"datadog-agent-rshell-privileged-exp.service",
+	} {
+		assert.Contains(t, string(units[service]), "--policy=/etc/datadog-agent-rshell/policy.json")
+	}
+
+	stableSocket := string(units["datadog-agent-rshell-privileged.socket"])
+	experimentSocket := string(units["datadog-agent-rshell-privileged-exp.socket"])
+	assert.Contains(t, stableSocket, "WantedBy=sockets.target datadog-agent-action.service")
+	assert.Contains(t, experimentSocket, "WantedBy=sockets.target datadog-agent-action-exp.service")
+	assert.Equal(t, 1, strings.Count(stableSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
+	assert.Equal(t, 1, strings.Count(experimentSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
+	assert.NotContains(t, experimentSocket, "rshell-privileged-exp.sock")
+}
+
 //go:embed gen
 var genFS embed.FS
 
 // TestGenerationIsUpToDate tests that the generated templates are up to date.
 //
-// You can update the templates by running `go generate` in the templates directory.
+// Regenerate the templates with:
+// bazelisk run //pkg/fleet/installer/packages/embedded:tmpl -- "$PWD/pkg/fleet/installer/packages/embedded/tmpl/gen"
 func TestGenerationIsUpToDate(t *testing.T) {
 	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
 		t.Skip("TestGenerationIsUpToDate is known to fail on the macOS Gitlab runners.")
@@ -45,6 +66,12 @@ func TestGenerationIsUpToDate(t *testing.T) {
 // variable referenced in a gen/pm/processes.d/*.yaml process definition
 // is defined in every gen/pm/*/datadog-agent-procmgr.service context that
 // starts the process manager responsible for running that process.
+func TestParControlUsesActiveConfigDirForFleetPolicies(t *testing.T) {
+	process, err := fs.ReadFile(genFS, "gen/pm/processes.d/datadog-agent-par-control.yaml")
+	assert.NoError(t, err)
+	assert.Contains(t, string(process), "DD_FLEET_POLICIES_DIR: ${DD_CONF_DIR}/managed/datadog-agent/stable")
+}
+
 func TestProcessesEnvVarsDefinedInProcmgrService(t *testing.T) {
 	processesDir, err := fs.Sub(genFS, "gen/pm/processes.d")
 	assert.NoError(t, err)

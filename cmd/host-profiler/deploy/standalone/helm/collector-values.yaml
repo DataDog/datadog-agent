@@ -6,6 +6,10 @@ fullnameOverride: host-profiler-collector
 # and provide a cluster-wide view.
 mode: daemonset
 
+# The host-profiler is only supported on Linux nodes
+nodeSelector:
+  kubernetes.io/os: linux
+
 # Host Profiler preview image. Update the tag when using a newer preview build.
 image:
   repository: registry.datadoghq.com/ddot-ebpf
@@ -50,10 +54,12 @@ securityContext:
   privileged: false
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
-  # AppArmor is optional. The default is unconfined so this example works on
-  # clusters that do not support or manage AppArmor profiles.
+  # Keep AppArmor unconfined so it does not block cross-process access.
   appArmorProfile:
     type: Unconfined
+  # Use spc_t, or an equivalent type, here and in the init container.
+  seLinuxOptions:
+    type: spc_t
   capabilities:
     add:
       - BPF
@@ -84,6 +90,8 @@ initContainers:
       readOnlyRootFilesystem: true
       appArmorProfile:
         type: Unconfined
+      seLinuxOptions:
+        type: spc_t
       capabilities:
         drop:
           - ALL

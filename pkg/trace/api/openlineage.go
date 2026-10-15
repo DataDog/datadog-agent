@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	openlineageURLTemplate = "https://data-obs-intake.%s/api/v1/lineage"
-	openlineageURLDefault  = "https://data-obs-intake.datadoghq.com/api/v1/lineage"
+	openlineageURLTemplate = config.OpenLineageEndpointPrefix + "%s" + config.OpenLineageEndpointPath
+	openlineageURLDefault  = config.OpenLineageEndpointPrefix + "datadoghq.com" + config.OpenLineageEndpointPath
 )
 
 // openLineageEndpoint returns the openlineage intake url and the corresponding API key.
@@ -113,28 +113,23 @@ func (r *HTTPReceiver) openLineageProxyHandler() http.Handler {
 func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	log.Debug("[openlineage] Creating reverse proxy")
 	cidProvider := NewContainerIDProviderFromConfig(conf)
-	director := func(req *http.Request) {
-		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
-		if _, ok := req.Header["User-Agent"]; !ok {
-			// explicitly disable User-Agent so it's not set to the default value
-			// that net/http gives it: Go-http-client/1.1
-			// See https://codereview.appspot.com/7532043
-			req.Header.Set("User-Agent", "")
-		}
-		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+	rewrite := func(req *httputil.ProxyRequest) {
+		req.SetXForwarded()
+		req.Out.Header.Set("Via", "trace-agent "+conf.AgentVersion)
+		containerID := cidProvider.GetContainerID(req.In.Context(), req.In.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			ctagsHeader := normalizeHTTPHeader(ctags)
-			req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+			req.Out.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
 			log.Debugf("Setting header X-Datadog-Container-Tags=%s for openlineage proxy", ctagsHeader)
 		}
-		req.Header.Set("X-Datadog-Additional-Tags", tags)
+		req.Out.Header.Set("X-Datadog-Additional-Tags", tags)
 		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for openlineage proxy", tags)
 		_ = statsd.Count("datadog.trace_agent.openlineage", 1, nil, 1)
 
 	}
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director:  director,
+		Rewrite:   rewrite,
 		ErrorLog:  stdlog.New(logger, "openlineage.Proxy: ", 0),
 		Transport: &openLineageTransport{rt: conf.NewHTTPTransport(), urls: urls, keys: keys, maxRequestBytes: conf.MaxRequestBytes},
 	}

@@ -10,10 +10,6 @@ using Xunit;
 
 namespace CustomActions.Tests.Service
 {
-    /// <summary>
-    /// Unit tests for the dd-procmgr-service start type handling in ConfigureServiceUsers, which must
-    /// disable the service when the Agent user password is unavailable, and only then.
-    /// </summary>
     public class ProcmgrStartTypeTests
     {
         private const string DomainUserName = "TESTDOMAIN\\ddagentuser";
@@ -50,17 +46,16 @@ namespace CustomActions.Tests.Service
         }
 
         [Fact]
-        public void ConfigureServiceUsers_DisablesProcmgr_ForDomainAccountWithoutPassword()
+        public void ConfigureServiceUsers_EnablesProcmgr_ForDomainAccountWithoutPassword()
         {
             GivenServiceAccount(false);
             GivenAgentUserPassword(null);
 
             Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
 
-            VerifyProcmgrStartType(ServiceStartMode.Disabled);
-            // the empty password stored by InstallServices is left alone
+            VerifyProcmgrStartType(ServiceStartMode.Manual);
             Test.ServiceController.Verify(
-                c => c.SetCredentials(ProcmgrServiceName, DomainUserName, null), Times.Once);
+                c => c.SetCredentials(ProcmgrServiceName, "LocalSystem", ""), Times.Once);
         }
 
         [Fact]
@@ -72,18 +67,21 @@ namespace CustomActions.Tests.Service
             Test.Create().ConfigureServiceUsers(DomainUserName, DomainUserSid);
 
             VerifyProcmgrStartType(ServiceStartMode.Manual);
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(ProcmgrServiceName, "LocalSystem", ""), Times.Once);
         }
 
         [Fact]
         public void ConfigureServiceUsers_EnablesProcmgr_ForServiceAccount()
         {
-            // gMSA: no password is needed or expected
             GivenServiceAccount(true);
             GivenAgentUserPassword(null);
 
             Test.Create().ConfigureServiceUsers("TESTDOMAIN\\ddagentuser$", DomainUserSid);
 
             VerifyProcmgrStartType(ServiceStartMode.Manual);
+            Test.ServiceController.Verify(
+                c => c.SetCredentials(ProcmgrServiceName, "LocalSystem", ""), Times.Once);
         }
 
         [Fact]
@@ -114,10 +112,6 @@ namespace CustomActions.Tests.Service
                 .Should().NotThrow();
         }
 
-        /// <summary>
-        /// Other failures must propagate so the install fails. A failed upgrade leaves the customer on a
-        /// working version, which beats proceeding and locking out the account.
-        /// </summary>
         [Fact]
         public void ConfigureServiceUsers_PropagatesOtherStartTypeFailures()
         {

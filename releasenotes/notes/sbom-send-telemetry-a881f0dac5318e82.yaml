@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    Added the ``datadog.agent.sbom_entities_sent`` agent telemetry counter, reporting the
+    number of SBOM entities sent by the agent, by ``type``, ``status``, ``heartbeat`` and
+    ``enriched``, the latter telling apart the SBOMs carrying runtime usage properties.
+  - |
+    Added the ``datadog.runtime_security.sbom_resolver.enriched_sbom_forwarded`` and
+    ``datadog.runtime_security.sbom_resolver.enriched_sbom_forward_dropped`` metrics,
+    reporting the number of runtime enriched SBOMs that the runtime security SBOM
+    resolver forwarded to the core agent, and the number it had to drop because the
+    consumer could not keep up.

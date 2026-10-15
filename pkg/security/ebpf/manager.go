@@ -9,32 +9,15 @@
 package ebpf
 
 import (
-	manager "github.com/DataDog/ebpf-manager"
+	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
-// NewDefaultOptions returns a new instance of the default runtime security manager options
-func NewDefaultOptions(kretprobeMaxActive int) manager.Options {
-	return manager.Options{
-		// DefaultKProbeMaxActive is the maximum number of active kretprobe at a given time
-		DefaultKProbeMaxActive: kretprobeMaxActive,
-
-		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
-
-		RemoveRlimit: true,
-	}
-}
-
-// NewRuntimeSecurityManager returns a new instance of the runtime security module manager
-func NewRuntimeSecurityManager(supportsRingBuffers bool) *manager.Manager {
-	manager := &manager.Manager{
-		Maps: probes.AllMaps(),
-	}
-	if supportsRingBuffers {
-		manager.RingBuffers = probes.AllRingBuffers()
-	} else {
-		manager.PerfMaps = probes.AllPerfMaps()
-	}
-	return manager
+// ManagerInterface is a wrapper type for ebpf-manager and pkg/ebpf/manager.Manager types
+type ManagerInterface interface {
+	Get() *manager.Manager
+	InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error
+	Stop(cleanupType manager.MapCleanupType) error
+	Start() error
 }

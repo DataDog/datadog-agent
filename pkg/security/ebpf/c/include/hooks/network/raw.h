@@ -5,7 +5,7 @@
 #include "helpers/network/raw.h"
 #include "perf_ring.h"
 
-__attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, struct packet_t *pkt, u32 event_type, u32 action) {
+static __always_inline int send_raw_packet_event(struct __sk_buff *skb, struct packet_t *pkt, u32 event_type, u32 action) {
     struct raw_packet_event_t *evt = get_raw_packet_event();
     if (evt == NULL || skb == NULL || evt->len == 0) {
         // should never happen
@@ -15,12 +15,13 @@ __attribute__((always_inline)) int send_raw_packet_event(struct __sk_buff *skb, 
     // process context
     fill_network_process_context_from_pkt(&evt->process, pkt);
 
+    // reset and fill span context unconditionally
+    reset_span_context(&evt->span, &evt->go_labels);
+
     u64 sched_cls_has_current_pid_tgid_helper = 0;
     LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
     if (sched_cls_has_current_pid_tgid_helper) {
-        // reset and fill span context
-        reset_span_context(&evt->span);
-        fill_span_context(&evt->span);
+        fill_span_context(&evt->span, &evt->go_labels);
     }
 
     fill_network_device_context_from_pkt(&evt->device, skb, pkt);

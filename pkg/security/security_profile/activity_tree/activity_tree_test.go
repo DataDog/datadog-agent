@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -204,7 +205,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -236,7 +237,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -279,7 +280,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted := &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -311,7 +312,7 @@ func TestActivityTree_Patterns(t *testing.T) {
 		wanted = &ActivityTree{
 			ProcessNodes: []*ProcessNode{
 				{
-					Process: model.Process{
+					Process: ProcessInfo{
 						FileEvent: model.FileEvent{
 							PathnameStr: "/tmp/123456789/script.sh",
 						},
@@ -341,7 +342,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
@@ -377,7 +378,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		oldTime := time.Now().Add(-2 * time.Hour)
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
@@ -403,9 +404,9 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
 		// Verify that the LastSeen timestamp was updated to protect the node
-		imageTagTimes, exists := processNode.GetSeenTimes(testTagID)
+		_, lastSeen, exists := processNode.GetSeenTimes(testTagID)
 		assert.True(t, exists, "Expected image tag to still exist")
-		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+		assert.Greater(t, lastSeen, evictionTime.UnixNano(), "Expected LastSeen to be updated to current time")
 	})
 
 	t.Run("mixed_scenario_some_protected_some_evicted", func(t *testing.T) {
@@ -422,7 +423,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		protectedNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/protected",
 				},
@@ -433,7 +434,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		expiredNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/expired",
 				},
@@ -461,9 +462,9 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, "/usr/bin/protected", tree.ProcessNodes[0].Process.FileEvent.PathnameStr, "Expected protected node to remain")
 
 		// Verify that the protected node's timestamp was updated
-		imageTagTimes, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
+		_, lastSeen, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
 		assert.True(t, exists, "Expected image tag to still exist")
-		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+		assert.Greater(t, lastSeen, evictionTime.UnixNano(), "Expected LastSeen to be updated to current time")
 	})
 
 	t.Run("node_with_multiple_image_tags_partial_protection", func(t *testing.T) {
@@ -485,7 +486,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		processNode := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/multi-tag",
 				},
@@ -515,21 +516,21 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		// Verify that only the profile's image tag was refreshed
 		node := tree.ProcessNodes[0]
-		veryOldTagTimes, _ := node.GetSeenTimes(veryOldTagID)
-		oldTagTimes, _ := node.GetSeenTimes(oldTagID)
-		recentTagTimes, _ := node.GetSeenTimes(recentTagID)
-		testTagTimes, _ := node.GetSeenTimes(testTagID)
+		_, _, veryOldExists := node.GetSeenTimes(veryOldTagID)
+		_, _, oldExists := node.GetSeenTimes(oldTagID)
+		_, recentLastSeen, recentExists := node.GetSeenTimes(recentTagID)
+		_, testLastSeen, testExists := node.GetSeenTimes(testTagID)
 
 		// The very-old-tag and old-tag should have been evicted since they weren't refreshed
-		assert.Zero(t, veryOldTagTimes, "Expected very-old-tag to be evicted")
-		assert.Zero(t, oldTagTimes, "Expected old-tag to be evicted")
-		assert.NotZero(t, recentTagTimes, "Expected recent-tag to still exist")
-		assert.NotZero(t, testTagTimes, "Expected test-tag to still exist")
+		assert.False(t, veryOldExists, "Expected very-old-tag to be evicted")
+		assert.False(t, oldExists, "Expected old-tag to be evicted")
+		assert.True(t, recentExists, "Expected recent-tag to still exist")
+		assert.True(t, testExists, "Expected test-tag to still exist")
 
 		// The test-tag should have been refreshed to current time (it's the profile tag)
-		assert.True(t, testTagTimes.LastSeen.After(evictionTime), "Expected test-tag LastSeen to be updated")
+		assert.Greater(t, testLastSeen, evictionTime.UnixNano(), "Expected test-tag LastSeen to be updated")
 		// Recent tag should remain unchanged since it wasn't expired
-		assert.True(t, recentTagTimes.LastSeen.Equal(recentTime), "Expected recent-tag LastSeen to remain unchanged")
+		assert.Equal(t, recentTime.UnixNano(), recentLastSeen, "Expected recent-tag LastSeen to remain unchanged")
 	})
 
 	t.Run("empty_process_cache_allows_normal_eviction", func(t *testing.T) {
@@ -544,7 +545,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node1 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node1",
 				},
@@ -555,7 +556,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 
 		node2 := &ProcessNode{
 			NodeBase: NewNodeBase(),
-			Process: model.Process{
+			Process: ProcessInfo{
 				FileEvent: model.FileEvent{
 					PathnameStr: "/usr/bin/node2",
 				},
@@ -578,4 +579,133 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")
 		assert.Empty(t, tree.ProcessNodes, "Expected all process nodes to be removed from tree")
 	})
+}
+
+// The kernel delivers a syscall mask that only grows and is never reset between sends, so re-delivering
+// an unchanged mask must report no new syscalls.
+func TestInsertSyscalls_AccumulatingMask(t *testing.T) {
+	newSyscallsEvent := func(syscalls ...int) *model.Event {
+		evt := &model.Event{
+			BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}},
+		}
+		for _, s := range syscalls {
+			evt.Syscalls.Syscalls = append(evt.Syscalls.Syscalls, model.Syscall(s))
+		}
+		return evt
+	}
+
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	stats := NewActivityTreeNodeStats()
+	syscallMask := make(map[int]int)
+	const tagID = uint64(1)
+
+	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
+		"the first delivery introduces new syscalls")
+	assert.Len(t, pn.Syscalls, 2)
+
+	assert.False(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
+		"re-delivering the same mask must not report new syscalls")
+	assert.Len(t, pn.Syscalls, 2, "re-delivery must not duplicate nodes")
+
+	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2, 3), tagID, syscallMask, stats, false),
+		"a grown mask reports the newly discovered syscall")
+	assert.Len(t, pn.Syscalls, 3, "only the genuinely new syscall is added")
+	assert.Equal(t, map[int]int{1: 1, 2: 2, 3: 3}, syscallMask)
+}
+
+func TestSyscallsByImageTagID(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+	v1 := tree.GetOrInsertImageTag("v1")
+	v2 := tree.GetOrInsertImageTag("v2")
+	now := time.Now()
+
+	// A syscall shared by both processes of v1, one exclusive to each tag, and a node carrying
+	// both tags at once.
+	parent := &ProcessNode{NodeBase: NewNodeBase()}
+	parent.Syscalls = map[int]*SyscallNode{
+		1:  NewSyscallNode(1, now, v1, Runtime),
+		60: NewSyscallNode(60, now, v2, Runtime),
+	}
+	child := &ProcessNode{NodeBase: NewNodeBase()}
+	child.Syscalls = map[int]*SyscallNode{
+		1: NewSyscallNode(1, now, v1, Runtime),
+		2: NewSyscallNode(2, now, v1, Runtime),
+	}
+	shared := NewSyscallNode(257, now, v1, Runtime)
+	shared.AppendImageTagID(v2, now)
+	child.Syscalls[shared.Syscall] = shared
+
+	parent.Children = []*ProcessNode{child}
+	tree.ProcessNodes = []*ProcessNode{parent}
+
+	rollup := tree.SyscallsByImageTagID()
+
+	assert.Equal(t, []uint32{1, 2, 257}, rollup[v1], "v1 unions both processes and dedups syscall 1")
+	assert.Equal(t, []uint32{60, 257}, rollup[v2], "v2 only sees its own syscalls plus the shared node")
+}
+
+// A node that only belongs to an evicted image tag must drop out of that tag's rollup.
+func TestSyscallsByImageTagID_AfterImageTagEviction(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+
+	v1 := tree.GetOrInsertImageTag("v1")
+	now := time.Now()
+
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	pn.AppendImageTagID(v1, now)
+	pn.Syscalls = map[int]*SyscallNode{42: NewSyscallNode(42, now, v1, Runtime)}
+	tree.ProcessNodes = []*ProcessNode{pn}
+
+	require.Equal(t, []uint32{42}, tree.SyscallsByImageTagID()[v1])
+
+	tree.EvictImageTag("v1")
+
+	assert.Empty(t, tree.SyscallsByImageTagID()[v1], "an evicted image tag keeps no syscalls")
+}
+
+func TestProcessInfoMatches(t *testing.T) {
+	node := ProcessNode{
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+			Argv0:     "curl",
+			Argv:      []string{"-s", "https://example.com"},
+		},
+	}
+
+	same := ProcessInfo{
+		FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+		Argv0:     "curl",
+		Argv:      []string{"-s", "https://example.com"},
+	}
+	assert.True(t, node.MatchesProcessInfo(&same, false, false))
+	assert.True(t, node.MatchesProcessInfo(&same, true, false))
+	assert.True(t, node.Process.Matches(&same, true, false))
+
+	differentPath := same
+	differentPath.FileEvent.PathnameStr = "/usr/bin/wget"
+	assert.False(t, node.MatchesProcessInfo(&differentPath, false, false))
+
+	differentArgs := same
+	differentArgs.Argv = []string{"-v", "https://example.com"}
+	assert.True(t, node.MatchesProcessInfo(&differentArgs, false, false))
+	assert.False(t, node.MatchesProcessInfo(&differentArgs, true, false))
+
+	busybox := ProcessNode{
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"},
+			Argv0:     "sh",
+		},
+	}
+	busyboxSame := ProcessInfo{FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"}, Argv0: "sh"}
+	busyboxOther := ProcessInfo{FileEvent: model.FileEvent{PathnameStr: "/bin/busybox"}, Argv0: "ls"}
+	assert.True(t, busybox.MatchesProcessInfo(&busyboxSame, false, false))
+	assert.False(t, busybox.MatchesProcessInfo(&busyboxOther, false, false))
+
+	entry := &model.Process{
+		FileEvent: model.FileEvent{PathnameStr: "/usr/bin/curl"},
+		Argv0:     "curl",
+		Argv:      []string{"-s", "https://example.com"},
+	}
+	assert.True(t, node.Matches(entry, true, false))
 }

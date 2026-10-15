@@ -5,6 +5,7 @@ Common utilities for building Cluster Agent variants
 import os
 import shutil
 
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version
 from tasks.schema.generate import compress as schema_compress
@@ -31,30 +32,36 @@ def build_common(
     skip_assets,
     go_mod="readonly",
     cover=False,
+    enable_bazel=False,
 ):
     """
     Build Cluster Agent
     """
 
-    # We rely on the go libs embedded in the debian stretch image to build dynamically
-    ldflags, gcflags, env = get_build_flags(ctx, static=False)
-
     schema_compress(ctx)
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/cluster-agent{bin_suffix}",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
-        gcflags=gcflags,
-        ldflags=ldflags,
-        build_tags=build_tags,
-        bin_path=os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}")),
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        coverage=cover,
-    )
+    agent_bin = os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}"))
+
+    if enable_bazel:
+        build_binary_with_bazel(f"//cmd/cluster-agent{bin_suffix}", bin_path=agent_bin)
+    else:
+        # We rely on the go libs embedded in the debian stretch image to build dynamically
+        ldflags, gcflags, env = get_build_flags(ctx, static=False)
+
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/cluster-agent{bin_suffix}",
+            mod=go_mod,
+            race=race,
+            rebuild=rebuild,
+            gcflags=gcflags,
+            ldflags=ldflags,
+            build_tags=build_tags,
+            bin_path=agent_bin,
+            env=env,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
+            coverage=cover,
+        )
 
     # Render the configuration file template. The cluster-agent and the
     # cloudfoundry variant only ship on linux, so we always target linux

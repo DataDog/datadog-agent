@@ -1,5 +1,5 @@
 {
   "error_patterns": [
-    "missing properties: 'profile_definition'"
+    "missing property 'profile_definition'"
   ]
 }

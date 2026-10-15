@@ -47,6 +47,11 @@ var longToShortGPUName = map[ResourceGPU]string{
 var gpuTypeRegex = regexp.MustCompile(`^(?:nvidia|tesla)_(?:geforce_)?(rtx_pro_|rtx_)?([a-z\d]+)`)
 var gpuNameSeparatorRegex = regexp.MustCompile(`[^a-z\d]+`)
 
+var gpuTypeVariants = map[string]string{
+	"a10g": "a10",
+	"l40s": "l40",
+}
+
 // ExtractSimpleGPUName returns a simplified GPU name.
 // If the resource is not recognized, the second return value is false.
 func ExtractSimpleGPUName(gpuName ResourceGPU) (string, bool) {
@@ -93,7 +98,11 @@ func ExtractGPUType(deviceName string) string {
 	}
 
 	// Combine optional RTX prefix with the model token (e.g., rtx_3090).
-	return matches[1] + matches[2]
+	gpuType := matches[1] + matches[2]
+	if normalizedType, found := gpuTypeVariants[gpuType]; found {
+		return normalizedType
+	}
+	return gpuType
 }
 
 // NormalizeGPUDeviceName normalizes a GPU device name by converting it to lowercase and replacing spaces with underscores.

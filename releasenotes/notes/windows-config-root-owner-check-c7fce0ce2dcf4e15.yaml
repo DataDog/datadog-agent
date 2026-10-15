@@ -1,0 +1,12 @@
+---
+upgrade:
+  - |
+    Windows: the Agent now fails to install if the configuration directory (``C:\ProgramData\Datadog`` by
+    default) already exists and is not owned by the ``Administrators`` group, by ``SYSTEM``, or by
+    ``ContainerAdministrator``. Installations and upgrades performed by an administrator, or in a
+    container running as ``ContainerAdministrator``, are unaffected. To check a host, run
+    ``(Get-Acl C:\ProgramData\Datadog).Owner``.
+
+    A deployment that writes the configuration as a non-administrator before running the installer now
+    fails. Create the configuration as the same user that runs the installer, or run
+    ``takeown.exe /A /F "C:\ProgramData\Datadog"`` after verifying the contents of the directory.

@@ -17,11 +17,12 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/bpf"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -446,6 +447,11 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.
 	e.Resolved = false
 }
 
+// ResolveSpanContext resolves the span context of the event.
+func (fh *EBPFLessFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
+	return &ev.SpanContext
+}
+
 // ResolveSyscallCtxArgsStr1 resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsStr1(_ *model.Event, e *model.SyscallContext) string {
 	return e.StrArg1
@@ -608,6 +614,16 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttempted(_ *model.Event, _ 
 
 // ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
 func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities that were checked against the initial/host user namespace
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities that were obtained from the initial/host user namespace
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsedHostUserNS(_ *model.Event, _ *model.CapabilitiesEvent) int {
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }
 

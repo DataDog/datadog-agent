@@ -22,15 +22,17 @@ type AggregatorFormatDriver struct {
 	flowAggIn           chan *common.Flow
 	listenerFlowCount   *atomic.Int64
 	enableBiflowParsing bool
+	enableDPI           bool
 }
 
 // NewAggregatorFormatDriver returns a new AggregatorFormatDriver
-func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string, listenerFlowCount *atomic.Int64, enableBiflowParsing bool) *AggregatorFormatDriver {
+func NewAggregatorFormatDriver(flowAgg chan *common.Flow, namespace string, listenerFlowCount *atomic.Int64, enableBiflowParsing bool, enableDPI bool) *AggregatorFormatDriver {
 	return &AggregatorFormatDriver{
 		namespace:           namespace,
 		flowAggIn:           flowAgg,
 		listenerFlowCount:   listenerFlowCount,
 		enableBiflowParsing: enableBiflowParsing,
+		enableDPI:           enableDPI,
 	}
 }
 
@@ -51,7 +53,7 @@ func (d *AggregatorFormatDriver) Format(data interface{}) ([]byte, []byte, error
 		d.listenerFlowCount.Add(1)
 		d.flowAggIn <- ConvertFlow(flow, d.namespace)
 	case *common.FlowMessageWithAdditionalFields:
-		fwd, rev := ConvertFlowWithAdditionalFields(flow, d.namespace, d.enableBiflowParsing)
+		fwd, rev := ConvertFlowWithAdditionalFields(flow, d.namespace, d.enableBiflowParsing, d.enableDPI)
 		d.listenerFlowCount.Add(1)
 		d.flowAggIn <- fwd
 		if rev != nil {

@@ -4,6 +4,7 @@ go_library(
     name = "model",
     srcs = [
         "model.go",
+        "nvml_release.go",
         "prm.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model",

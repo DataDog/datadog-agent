@@ -28,6 +28,7 @@ dd_agent_go_test(
     name = "runner_test",
     srcs = [
         "configmap_test.go",
+        "local_profile_test.go",
         "profile_test.go",
     ],
     embed = [":runner"],

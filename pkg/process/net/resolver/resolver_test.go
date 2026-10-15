@@ -448,6 +448,12 @@ func TestLocalResolverPeriodicUpdates(t *testing.T) {
 	resolver.Run()
 	mockedClock.Add(11 * time.Second)
 
+	assert.Eventually(func() bool {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+		return len(resolver.addrToCtrID) == 4
+	}, 2*time.Second, 5*time.Millisecond)
+
 	connections := &model.Connections{
 		Conns: []*model.Connection{
 			// connection 0
@@ -537,6 +543,12 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil).MaxTimes(1)
 	resolver.Run()
 	mockedClock.Add(11 * time.Second)
+
+	assert.Eventually(func() bool {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+		return len(resolver.addrToCtrID) == 4
+	}, 2*time.Second, 5*time.Millisecond)
 
 	func() {
 		resolver.mux.Lock()
@@ -628,17 +640,6 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	}
 
 	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil)
-	mockedClock.Add(10 * time.Second)
-
-	// still should have 4 entries in the addr cache,
-	// missing entries should be just marked as not
-	// in use
-	func() {
-		resolver.mux.Lock()
-		defer resolver.mux.Unlock()
-
-		assert.Len(resolver.addrToCtrID, 4)
-	}()
 
 	missingAddrs := []model.ContainerAddr{
 		{
@@ -652,6 +653,32 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 			Protocol: model.ConnectionType_tcp,
 		},
 	}
+
+	mockedClock.Add(10 * time.Second)
+
+	assert.Eventually(func() bool {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+
+		for addr, cid := range resolver.addrToCtrID {
+			for _, missing := range missingAddrs {
+				if missing == addr && cid.inUse {
+					return false
+				}
+			}
+		}
+		return len(resolver.addrToCtrID) == 4
+	}, 2*time.Second, 5*time.Millisecond)
+
+	// still should have 4 entries in the addr cache,
+	// missing entries should be just marked as not
+	// in use
+	func() {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+
+		assert.Len(resolver.addrToCtrID, 4)
+	}()
 
 	// verify the missing address entries were marked
 	// as not in use
@@ -742,6 +769,12 @@ func TestLocalResolverCacheLimits(t *testing.T) {
 	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, pidToCid, nil).MaxTimes(1)
 	resolver.Run()
 	mockedClock.Add(11 * time.Second)
+
+	assert.Eventually(func() bool {
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
+		return len(resolver.addrToCtrID) == 1 && len(resolver.ctrForPid) == 1
+	}, 2*time.Second, 5*time.Millisecond)
 
 	func() {
 		resolver.mux.Lock()

@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Register the amazon_vpc_cni, ravendb, and sglang metric origins for Agent-side serialization.

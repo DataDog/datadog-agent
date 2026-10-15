@@ -27,9 +27,6 @@ const (
 	// softwareTypeMSStore represents Microsoft Store applications
 	//nolint:unused // Not implemented yet
 	softwareTypeMSStore = "msstore"
-	// softwareTypeMSU represents Microsoft Update standalone packages
-	//nolint:unused // Not implemented yet
-	softwareTypeMSU = "msu"
 )
 
 // Common properties for all sources

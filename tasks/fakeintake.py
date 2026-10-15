@@ -3,6 +3,7 @@ Build or use the fake intake client CLI
 """
 
 import os
+import re
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -71,6 +72,66 @@ def _parse_version(raw: str) -> int:
     return int(version[1:])
 
 
+# Release branches (7.x.x) and PRs targeting them: the pinned fakeintake tag is
+# published from main only, so their VERSION must never exceed main's.
+_RELEASE_BRANCH = re.compile(r"^\d+\.\d+\.x$")
+
+
+def _is_release_branch(name: str | None) -> bool:
+    return bool(name and _RELEASE_BRANCH.match(name))
+
+
+def _version_on_ref(ctx, ref: str) -> int | None:
+    """Parse the VERSION file content on `ref`; None if unreadable or absent."""
+    result = ctx.run(f"git show {ref}:{VERSION_FILE}", hide=True, warn=True)
+    return _parse_version(result.stdout) if result.ok else None
+
+
+def _check_version_not_bumped_off_main(ctx, branch: str):
+    """
+    Fail if the pinned tag on a release branch (or a PR targeting one) exceeds main's.
+
+    publish_fakeintake_pinned publishes the pinned tag from main only, so a value
+    greater than main's references an image that will never exist and breaks e2e
+    on that branch (its pin is resolved directly by the e2e framework). Values
+    already published from main are safe, e.g. a backport carrying main's current
+    value alongside a fakeintake fix.
+    """
+    main_version = _version_on_ref(ctx, "origin/main")
+    if main_version is None:
+        # CI does full clones (GIT_DEPTH: 0), but local runs may not have origin/main.
+        ctx.run("git fetch origin main", hide=True, warn=True)
+        main_version = _version_on_ref(ctx, "origin/main")
+    if main_version is None:
+        raise Exit(
+            code=1,
+            message=color_message(
+                f"Cannot read {VERSION_FILE} on origin/main to verify the pin on {branch}, failing closed", "red"
+            ),
+        )
+
+    with open(VERSION_FILE) as f:
+        version = _parse_version(f.read())
+
+    if version > main_version:
+        raise Exit(
+            code=1,
+            message=color_message(
+                f"{VERSION_FILE} is 'v{version}' on {branch} but main has only published up to 'v{main_version}': "
+                f"the pinned tag is published from main only, so 'v{version}' will never exist and e2e on "
+                f"{branch} would fail to pull it. Never bump fakeintake outside main — revert the VERSION change.",
+                "red",
+            ),
+        )
+
+    print(
+        color_message(
+            f"OK: 'v{version}' on {branch} references a tag published from main (main is at 'v{main_version}')",
+            "green",
+        )
+    )
+
+
 @task
 def check_version_bump(ctx):
     """
@@ -82,8 +143,18 @@ def check_version_bump(ctx):
     branch so the newly published image gets a unique, immutable tag (see
     test/fakeintake/AGENTS.md). Client/CLI/docs changes don't touch the image, so they
     don't require a bump.
+
+    On release branches and PRs targeting them, the pin must instead never exceed
+    main's: publish_fakeintake_pinned publishes from main only, so a greater value
+    references an image that will never exist and would break e2e on that branch
+    (see _check_version_not_bumped_off_main).
     """
     base_branch = os.environ.get("COMPARE_TO_BRANCH") or get_ancestor_base_branch()
+
+    commit_branch = os.environ.get("CI_COMMIT_BRANCH", "")
+    if _is_release_branch(commit_branch) or _is_release_branch(base_branch):
+        _check_version_not_bumped_off_main(ctx, commit_branch or base_branch)
+        return
 
     # Resolve the merge-base as a concrete commit. get_common_ancestor fetches the
     # base ref when it is missing (CI does shallow clones with S3 caching), which a

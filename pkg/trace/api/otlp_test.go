@@ -474,7 +474,14 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+				// V2 goes through transform.OtelSpanToDDSpan, which normalizes the
+				// name (dashes become underscores); V1 uses the legacy convertSpan
+				// path, which does not.
+				if enableReceiveResourceSpansV2 {
+					require.Equal("aws_api.server.request", out.Chunks[0].Spans[0].Name)
+				} else {
+					require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+				}
 			},
 		},
 		{
@@ -1241,6 +1248,45 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 	})
 }
 
+// TestOTLPReceiveDoesNotHoistSDKOtlpExport guards the design invariant that the
+// OTLP receiver never hoists "_dd.sdk.otlp_export" to TracerPayload.Tags. The
+// OTLP receiver builds one payload from many resources, so hoisting one span's
+// value would stamp it onto every chunk and mis-tag payloads mixing export
+// modes. OTLP-origin spans carry the value in span meta only.
+func TestOTLPReceiveDoesNotHoistSDKOtlpExport(t *testing.T) {
+	cfg := NewTestConfig(t)
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		{
+			LibName:    "libname",
+			LibVersion: "1.2",
+			// The value arrives the way an OTLP payload really carries it: as a
+			// resource attribute and on the spans themselves.
+			Attributes: map[string]interface{}{"_dd.sdk.otlp_export": "true"},
+			Spans: []*testutil.OTLPSpan{
+				{Name: "first", Attributes: map[string]interface{}{"_dd.sdk.otlp_export": "true"}},
+				{Name: "second", Attributes: map[string]interface{}{"_dd.sdk.otlp_export": "true"}},
+			},
+		},
+	}).Traces().ResourceSpans().At(0)
+	rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out")
+	case p := <-out:
+		tp := p.TracerPayload
+		_, ok := tp.Tags["_dd.sdk.otlp_export"]
+		require.False(t, ok, "OTLP receiver must not populate TracerPayload.Tags[_dd.sdk.otlp_export], got %#v", tp.Tags)
+		// The value is still reachable per-span, which is the OTLP carrier.
+		require.NotEmpty(t, tp.Chunks)
+		require.NotEmpty(t, tp.Chunks[0].Spans)
+		require.Equal(t, "true", tp.Chunks[0].Spans[0].Meta["_dd.sdk.otlp_export"])
+	}
+}
+
 func TestOTLPSetAttributes(t *testing.T) {
 	t.Run("SetMetaOTLP", func(t *testing.T) {
 		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
@@ -1393,7 +1439,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			},
 		}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 		assert.Equal(t, src.Kind, source.HostnameKind)
-		assert.Equal(t, src.Identifier, tt.out)
+		assert.Equal(t, src.Identifier, tt.out) //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		timeout := time.After(500 * time.Millisecond)
 		select {
 		case <-timeout:
@@ -2503,11 +2549,11 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				},
 			}),
 			operationNameV1: "res_op",
-			operationNameV2: "span-op",
+			operationNameV2: "span_op",
 			resourceNameV1:  "res-res",
 			resourceNameV2:  "span-res",
 			out: &pb.Span{
-				Name:     "span-op",
+				Name:     "span_op",
 				Resource: "span-res",
 				Service:  "span-service",
 				TraceID:  2594128270069917171,

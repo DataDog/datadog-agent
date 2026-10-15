@@ -16,10 +16,10 @@ import (
 func (c *Client) IsProductEnabled(hostname, product string) (bool, error) {
 	fleetAPI := datadogV2.NewFleetAutomationApi(c.api)
 
-	opts := datadogV2.NewListFleetAgentsOptionalParameters().
+	opts := datadogV2.NewListFleetAgentsV2OptionalParameters().
 		WithFilter("hostname:" + hostname)
 
-	resp, r, err := fleetAPI.ListFleetAgents(c.ctx, *opts)
+	resp, r, err := fleetAPI.ListFleetAgentsV2(c.ctx, *opts)
 	if r != nil {
 		_ = r.Body.Close()
 	}
@@ -27,11 +27,11 @@ func (c *Client) IsProductEnabled(hostname, product string) (bool, error) {
 		return false, fmt.Errorf("fleet automation API request failed: %w", err)
 	}
 
-	for _, agent := range resp.Data.Attributes.GetAgents() {
-		if agent.GetHostname() != hostname {
+	for _, agent := range resp.Data {
+		if agent.Attributes.GetHostname() != hostname {
 			continue
 		}
-		for _, p := range agent.GetEnabledProducts() {
+		for _, p := range agent.Attributes.GetEnabledProducts() {
 			if p == product {
 				return true, nil
 			}

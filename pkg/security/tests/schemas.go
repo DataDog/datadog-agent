@@ -33,12 +33,6 @@ func getUpstreamEventSchema() string {
 var upstreamEventSchema = getUpstreamEventSchema()
 
 //nolint:unused
-func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
-	t.Helper()
-	return validateStringSchema(t, ad, "file:///activity_dump_proto.schema.json")
-}
-
-//nolint:unused
 func validateMessageSchema(t *testing.T, msg string) bool {
 	t.Helper()
 	if !validateStringSchema(t, msg, "file:///message.schema.json") {
@@ -180,6 +174,16 @@ func (tm *testModule) validateSetrlimitSchema(t *testing.T, event *model.Event) 
 
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///setrlimit.schema.json")
+}
+
+//nolint:unused
+func (tm *testModule) validateUnshareSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///unshare.schema.json")
 }
 
 //nolint:unused

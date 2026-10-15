@@ -90,7 +90,7 @@ Prefixed `github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/`.
 | Scenario | Path | Notable options |
 |---|---|---|
 | EC2 host | `aws/ec2` | `WithEC2InstanceOptions`, `WithAgentOptions`, `WithAgentClientOptions`, `WithFakeIntakeOptions`, `WithoutAgent`, `WithoutFakeIntake`, `WithUpdater`, `WithDocker` |
-| EC2 instance | `aws/ec2` | `WithOS`, `WithOSArch`, `WithAMI`, `WithLatestAMI`, `WithInstanceType`, `WithUserData`, `WithIMDSv1Disable`, `WithVolumeThroughput` |
+| EC2 instance | `aws/ec2` | `WithOS`, `WithOSArch`, `WithAMI`, `WithInstanceType`, `WithUserData`, `WithIMDSv1Disable`, `WithVolumeThroughput` |
 | Docker on EC2 | `aws/ec2docker` | `WithEC2VMOptions`, `WithAgentOptions`, `WithTestingWorkload`, `WithPreAgentInstallHook` |
 | kind on EC2 | `aws/kindvm` | `WithVMOptions`, `WithAgentOptions`, `WithFakeintakeOptions`, `WithDeployDogstatsd`, `WithDeployTestWorkload`, `WithWorkloadApp`, `WithKindWorkerNodes`, `WithDeployOperator` |
 | EKS | `aws/eks` | `WithEKSOptions(WithLinuxNodeGroup, WithLinuxARMNodeGroup, WithBottlerocketNodeGroup, WithWindowsNodeGroup, WithGPUNodeGroup, WithoutFargate)` |
@@ -110,13 +110,12 @@ Container equivalents: `components/datadog/dockeragentparams` and `components/da
 
 Import `e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"`; the lists live in `linux_descriptors.go` and `windows_descriptors.go`.
 
-Prefer `Ubuntu2204E2E` (also `UbuntuDefault`) — a prebaked image with the test tooling already installed, which avoids installing packages on the VM. Also available: `Ubuntu2404`, `Ubuntu2204`, `Debian12`, `AmazonLinux2023`, `AmazonLinux2`, `RedHat9`, `Suse15`, `Fedora40`, `CentOS7`, `AlmaLinux9`, `WindowsServer2025` (`WindowsServerDefault`), `WindowsServer2022/2019/2016`, and `WindowsClient*`.
+Prefer `Ubuntu2204E2E` (also `UbuntuDefault`) — a prebaked image with the test tooling already installed, which avoids installing packages on the VM. Also available: `Ubuntu2404`, `Ubuntu2204`, `Debian11E2E`, `Debian12`, `AmazonLinux2023`, `AmazonLinux2`, `RedHat9`, `Suse15`, `CentOS7`, `AlmaLinux9`, `WindowsServer2025` (`WindowsServerDefault`), `WindowsServer2022/2019/2016`, and `WindowsClient*`.
 
 ```go
 ec2.WithOS(e2eos.Ubuntu2204)
 ec2.WithOSArch(e2eos.AmazonLinux2023, e2eos.ARM64Arch)
 ec2.WithAMI("ami-0123456789abcdef0", e2eos.Ubuntu2204, e2eos.AMD64Arch)
-ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.AlmaLinux9), ec2.WithLatestAMI()) // AlmaLinux resolves its AMI by search
 ```
 
 Region and cloud account are not chosen in test code — they come from the runner profile and Pulumi config. The only test-side knob is `WithExtraConfigParams(runner.ConfigMap{...})`, or `--configparams k=v` on the command line.

@@ -50,7 +50,7 @@ func (s *localStore) init(initialRoot meta.EmbeddedRoot) error {
 		root := initialRoot.Root()
 		err := s.writeRoot(tx, json.RawMessage(root))
 		if err != nil {
-			return fmt.Errorf("failed to set embedded root in roots bucket: %v", err)
+			return fmt.Errorf("failed to set embedded root in roots bucket: %w", err)
 		}
 
 		data, err := tx.get(s.metasBucket, metaRoot)

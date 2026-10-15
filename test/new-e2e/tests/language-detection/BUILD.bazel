@@ -23,6 +23,7 @@ dd_agent_go_test(
         "etc/process_config.yaml",
         "etc/process_config_no_check.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/scenarios/aws/ec2",

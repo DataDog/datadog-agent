@@ -17,12 +17,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -85,7 +84,7 @@ func newTestCudaEventConsumer(t testing.TB, ctx *systemContext, cfg *config.Conf
 }
 
 func TestConsumerCanStartAndStop(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
@@ -100,7 +99,7 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 }
 
 func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	cfg := config.New()
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
@@ -122,7 +121,7 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	}
 
 	// Configure the visible devices for our process
-	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1)
+	ctx.visibleDevicesCache[int(pid)] = nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1)
 
 	stream, err := handlers.getStream(&headerStreamSpecific)
 	require.NoError(t, err)
@@ -183,7 +182,7 @@ func BenchmarkConsumer(b *testing.B) {
 			name = "fatbinParsingEnabled"
 		}
 		b.Run(name, func(b *testing.B) {
-			ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+			nvmlMock := nvmltestutil.SetupMockNVML(b)
 			ctx, err := getSystemContext(
 				withProcRoot(kernel.ProcFSRoot()),
 				withWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
@@ -196,7 +195,7 @@ func BenchmarkConsumer(b *testing.B) {
 			handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(b), cfg)
 
 			pid := testutil.DataSampleInfos[testutil.DataSamplePytorchBatchedKernels].ActivePID
-			ctx.visibleDevicesCache[pid] = nvmltestutil.GetDDNVMLMocksWithIndexes(b, 0, 1)
+			ctx.visibleDevicesCache[pid] = nvmltestutil.PhysicalDevices(b, nvmlMock, 0, 1)
 
 			if ctx.cudaKernelCache != nil {
 				cuda.AddKernelCacheProcMap(ctx.cudaKernelCache, pid, nil)
@@ -215,7 +214,7 @@ func BenchmarkConsumer(b *testing.B) {
 }
 
 func TestConsumerProcessExitChannel(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 
 	// Create fake procfs
@@ -269,7 +268,7 @@ func TestConsumerProcessExitChannel(t *testing.T) {
 }
 
 func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 
 	// Create fake procfs with a process that we will remove later
@@ -325,7 +324,7 @@ func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 }
 
 func TestHandleStreamEventHandlesGetStreamError(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
 	cfg.StreamConfig.MaxActiveStreams = 0 // This will ensure that no streams are created and we will get an error when trying to get the stream
@@ -352,7 +351,7 @@ func TestHandleStreamEventHandlesGetStreamError(t *testing.T) {
 }
 
 func TestConsumerHandlesUnknownEventTypes(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmltestutil.SetupMockNVML(t)
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
