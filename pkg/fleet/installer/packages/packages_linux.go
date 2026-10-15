@@ -22,5 +22,7 @@ var (
 	AsyncPreRemoveHooks = map[string]repository.PreRemoveHook{}
 
 	// packageCommands is a map of package names to their command handlers
-	packageCommands = map[string]PackageCommandHandler{}
+	packageCommands = map[string]PackageCommandHandler{
+		"datadog-agent": runDatadogAgentPackageCommand,
+	}
 )

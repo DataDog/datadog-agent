@@ -1,9 +1,16 @@
 [Unit]
+# Default dependencies would order the socket before sockets.target, which is
+# itself ordered before the PAR service this socket is ordered after: a boot
+# ordering cycle that makes systemd drop sockets.target.
+DefaultDependencies=no
+Before=shutdown.target
+Conflicts=shutdown.target
 Description=Datadog rshell privileged helper socket
 After=datadog-agent.service datadog-agent-action.service
 BindsTo=datadog-agent.service datadog-agent-action.service
 Conflicts=datadog-agent-rshell-privileged-exp.socket
 ConditionPathExists=/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshell
+ConditionPathExists=/run/datadog-agent-rshell/enabled
 
 [Socket]
 ListenStream=/run/datadog/rshell-privileged.sock
@@ -15,4 +22,4 @@ DirectoryMode=0750
 RemoveOnStop=yes
 
 [Install]
-WantedBy=sockets.target datadog-agent-action.service
+WantedBy=datadog-agent-action.service

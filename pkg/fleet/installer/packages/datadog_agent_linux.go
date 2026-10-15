@@ -13,9 +13,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
@@ -65,6 +67,14 @@ const (
 	privilegedRshellMinLandlockABI = 3
 	privilegedRshellSocketStable   = "datadog-agent-rshell-privileged.socket"
 	privilegedRshellSocketExp      = "datadog-agent-rshell-privileged-exp.socket"
+	privilegedRshellEnabledEnv     = "DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_PRIVILEGED_ENABLED"
+	// The rshell socket and service units are conditioned on these flag files
+	// (see datadog-agent-rshell-privileged.socket.tmpl).
+	privilegedRshellFlagStable = "/run/datadog-agent-rshell/enabled"
+	privilegedRshellFlagExp    = "/run/datadog-agent-rshell/enabled-exp"
+
+	syncPrivilegedRshellFlagCommand    = "sync-rshell-privileged-flag"
+	syncPrivilegedRshellFlagExpCommand = "sync-rshell-privileged-flag-exp"
 )
 
 var (
@@ -695,11 +705,103 @@ func privilegedRshellSupported(packagePath string) bool {
 	return err == nil && version >= privilegedRshellMinLandlockABI
 }
 
+type privilegedRshellConfig struct {
+	PrivateActionRunner struct {
+		RestrictedShell struct {
+			Privileged struct {
+				Enabled bool `yaml:"enabled"`
+			} `yaml:"privileged"`
+		} `yaml:"restricted_shell"`
+	} `yaml:"private_action_runner"`
+}
+
+// privilegedRshellEnabled reports whether the Agent configuration in configDir
+// explicitly opts in to the privileged helper. It intentionally fails closed:
+// the helper socket must not listen when the configuration is absent or invalid.
+func privilegedRshellEnabled(configDir string) bool {
+	if value, ok := os.LookupEnv(privilegedRshellEnabledEnv); ok {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Warnf("invalid %s value %q: %v", privilegedRshellEnabledEnv, value, err)
+			return false
+		}
+		return enabled
+	}
+
+	configFiles := []string{
+		filepath.Join(configDir, "datadog.yaml"),
+		filepath.Join(configDir, "managed", agentPackage, "stable", "datadog.yaml"),
+	}
+	var config privilegedRshellConfig
+	for _, configFile := range configFiles {
+		contents, err := os.ReadFile(configFile)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			log.Warnf("failed to read Agent config %s while checking privileged rshell opt-in: %v", configFile, err)
+			return false
+		}
+		if err := yaml.Unmarshal(contents, &config); err != nil {
+			log.Warnf("failed to parse Agent config %s while checking privileged rshell opt-in: %v", configFile, err)
+			return false
+		}
+	}
+	return config.PrivateActionRunner.RestrictedShell.Privileged.Enabled
+}
+
+// runDatadogAgentPackageCommand handles `installer package-command datadog-agent <command>`.
+func runDatadogAgentPackageCommand(_ context.Context, command string) error {
+	switch command {
+	case syncPrivilegedRshellFlagCommand:
+		return syncPrivilegedRshellFlagFromExecutable("/etc/datadog-agent", privilegedRshellFlagStable)
+	case syncPrivilegedRshellFlagExpCommand:
+		return syncPrivilegedRshellFlagFromExecutable("/etc/datadog-agent-exp", privilegedRshellFlagExp)
+	default:
+		return fmt.Errorf("unknown datadog-agent package command: %s", command)
+	}
+}
+
+// syncPrivilegedRshellFlagFromExecutable syncs the flag for the package the
+// running installer binary belongs to (<package>/embedded/bin/installer).
+func syncPrivilegedRshellFlagFromExecutable(configDir, flagPath string) error {
+	executable, err := os.Executable()
+	if err != nil {
+		removeErr := os.Remove(flagPath)
+		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove privileged rshell flag: %w", removeErr)
+		}
+		return fmt.Errorf("failed to resolve installer executable: %w", err)
+	}
+	packagePath := filepath.Dir(filepath.Dir(filepath.Dir(executable)))
+	return syncPrivilegedRshellFlag(configDir, packagePath, flagPath)
+}
+
+// syncPrivilegedRshellFlag creates flagPath when the Agent configuration in
+// configDir opts in to the privileged rshell helper and the host supports it,
+// and removes it otherwise. The helper socket and service units are
+// conditioned on this file, so the socket only listens when the feature is
+// enabled. It runs as root from an ExecStartPre of the PAR unit, which makes
+// the opt-in take effect on the next Agent restart.
+func syncPrivilegedRshellFlag(configDir, packagePath, flagPath string) error {
+	if !privilegedRshellEnabled(configDir) || !privilegedRshellSupported(packagePath) {
+		if err := os.Remove(flagPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove privileged rshell flag: %w", err)
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(flagPath), 0755); err != nil {
+		return fmt.Errorf("failed to create privileged rshell flag directory: %w", err)
+	}
+	if err := os.WriteFile(flagPath, nil, 0644); err != nil {
+		return fmt.Errorf("failed to write privileged rshell flag: %w", err)
+	}
+	return nil
+}
+
 // experimentStartUnits returns the experiment units to start. The privileged
-// helper socket is started whenever the host supports it, independently of the
-// Agent configuration: the PAR only connects to it when
-// private_action_runner.restricted_shell.privileged.enabled is true, so users
-// can opt in with a config change and an Agent restart.
+// helper socket is started whenever the host supports it; it only listens
+// when SyncPrivilegedRshellFlag found the feature enabled.
 func experimentStartUnits(ctx HookContext, mainUnit string) []string {
 	units := []string{mainUnit}
 	if privilegedRshellSupported(ctx.PackagePath) {

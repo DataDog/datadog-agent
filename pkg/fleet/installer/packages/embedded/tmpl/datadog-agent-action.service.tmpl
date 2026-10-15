@@ -20,6 +20,13 @@ Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 {{- end}}
+{{- if .Stable}}
+ExecStartPre=+/bin/rm -f /run/datadog-agent-rshell/enabled
+ExecStartPre=-+{{.InstallDir}}/embedded/bin/installer package-command datadog-agent sync-rshell-privileged-flag
+{{- else}}
+ExecStartPre=+/bin/rm -f /run/datadog-agent-rshell/enabled-exp
+ExecStartPre=-+{{.InstallDir}}/embedded/bin/installer package-command datadog-agent sync-rshell-privileged-flag-exp
+{{- end}}
 ExecStart={{.InstallDir}}/embedded/bin/privateactionrunner run --cfgpath={{.EtcDir}}/datadog.yaml
 StartLimitInterval=10
 StartLimitBurst=5
