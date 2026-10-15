@@ -148,6 +148,18 @@ entries:
   function: TestAgentWindowsSuite
   status: justified
   reason: 'No fakeintake: tests check Remote Config policy delivery and signals sent to the real Datadog backend.'
+- file: test/new-e2e/tests/discovery/linux_test.go
+  function: TestLinuxTestSuite
+  status: debt
+  reason: provision.sh installs apt packages, pip ddtrace, nvm from GitHub, npm json-server and gem rails at runtime.
+- file: test/new-e2e/tests/discovery/linux_test.go
+  function: linuxTestSuite.testProcessCheckWithServiceDiscovery
+  status: debt
+  reason: 'Re-applies the suite opt-in on UpdateEnv; the suite needs it only for provision.sh apt/pip/npm/gem installs.'
+- file: test/new-e2e/tests/discovery/linux_test.go
+  function: linuxTestSuite.testProcessCheckWithServiceDiscoveryPrivilegedLogs
+  status: debt
+  reason: 'Re-applies the suite opt-in on UpdateEnv; the suite needs it only for provision.sh apt/pip/npm/gem installs.'
 - file: test/new-e2e/tests/fleet/config_macos_test.go
   function: TestFleetConfigMacOS
   status: debt
