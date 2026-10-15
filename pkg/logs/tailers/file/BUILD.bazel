@@ -19,6 +19,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/tagger/types",
+        "//comp/logs-library/characterization",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//comp/logs/auditor/def",

@@ -93,6 +93,7 @@ func TestDefaults(t *testing.T) {
 
 	assert.True(t, config.GetBool("logs_config.tag_multi_line_logs"))
 	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
+	assert.False(t, config.GetBool("logs_config.experimental_characterization.allowed"))
 
 	assert.True(t, config.GetBool("process_manager.enabled"))
 }

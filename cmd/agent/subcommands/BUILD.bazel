@@ -26,6 +26,7 @@ go_library(
         "//cmd/agent/subcommands/integrations",
         "//cmd/agent/subcommands/jmx",
         "//cmd/agent/subcommands/launchgui",
+        "//cmd/agent/subcommands/loadflare",
         "//cmd/agent/subcommands/otel",
         "//cmd/agent/subcommands/processchecks",
         "//cmd/agent/subcommands/remotecommand",

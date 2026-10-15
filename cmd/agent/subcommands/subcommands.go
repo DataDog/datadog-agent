@@ -27,6 +27,7 @@ import (
 	cmdintegrations "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations"
 	cmdjmx "github.com/DataDog/datadog-agent/cmd/agent/subcommands/jmx"
 	cmdlaunchgui "github.com/DataDog/datadog-agent/cmd/agent/subcommands/launchgui"
+	cmdloadflare "github.com/DataDog/datadog-agent/cmd/agent/subcommands/loadflare"
 	cmdotel "github.com/DataDog/datadog-agent/cmd/agent/subcommands/otel"
 	cmdprocesschecks "github.com/DataDog/datadog-agent/cmd/agent/subcommands/processchecks"
 	cmdremotecommand "github.com/DataDog/datadog-agent/cmd/agent/subcommands/remotecommand"
@@ -64,6 +65,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmdhostname.Commands,
 		cmdimport.Commands,
 		cmdlaunchgui.Commands,
+		cmdloadflare.Commands,
 		cmdotel.Commands,
 		cmdanalyzelogs.Commands,
 		cmdremoteconfig.Commands,

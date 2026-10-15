@@ -94,6 +94,19 @@ func TestAppendTagMetadataBytes(t *testing.T) {
 	assert.Equal(t, len("foo:bar,baz"), AppendTagMetadataBytes(0, []string{"foo:bar", "baz"}))
 }
 
+func TestTagMetadataStats(t *testing.T) {
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		SourceCategory: "database",
+		Tags:           []string{"env:test", "team:logs"},
+	})
+	origin := NewOrigin(source)
+	origin.SetTags([]string{"dynamic:true"})
+
+	count, bytes := origin.TagMetadataStats([]string{"parser:tag"})
+	assert.Equal(t, 5, count)
+	assert.Equal(t, len("dynamic:true,env:test,team:logs,parser:tag,sourcecategory:database"), bytes)
+}
+
 func TestDefaultSourceValueIsSourceFromConfig(t *testing.T) {
 	var cfg *config.LogsConfig
 	var source *sources.LogSource
