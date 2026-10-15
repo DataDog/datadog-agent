@@ -27,6 +27,7 @@ import (
 
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -79,9 +80,9 @@ interface GigabitEthernet0/1
 	})
 	t.Run("no_command", func(t *testing.T) {
 		_, err := conn.RetrieveRunningConfig(context.Background())
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, types.ErrCommandNotSupported)
 		_, err = conn.RetrieveStartupConfig(context.Background())
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, types.ErrCommandNotSupported)
 	})
 
 	conn.SetProfile(&profile.NCMProfile{
