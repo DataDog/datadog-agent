@@ -317,7 +317,7 @@ func TestInstallStableJobsLoadsTheStableSetIncludingTheInstaller(t *testing.T) {
 	launchdJobDir = dir
 	t.Cleanup(func() { launchdJobDir = original })
 
-	require.NoError(t, installStableJobs(testHookContext(t), testLayout(t)))
+	require.NoError(t, installStableJobs(testHookContext(t)))
 
 	for _, label := range stableJobs {
 		path := filepath.Join(dir, label+".plist")
@@ -387,55 +387,13 @@ func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 		return client
 	}
 
-	err := installStableJobs(testHookContext(t), testLayout(t))
+	err := installStableJobs(testHookContext(t))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), failing)
 	for _, label := range stableJobs[1:] {
 		assert.Contains(t, *calls, []string{"kickstart", "system/" + label}, "%s was not started", label)
 	}
-}
-
-func TestInstallStableJobsSkipsProcmgrWhenDisabled(t *testing.T) {
-	calls := stubLaunchd(t)
-	dir := t.TempDir()
-	original := launchdJobDir
-	launchdJobDir = dir
-	t.Cleanup(func() { launchdJobDir = original })
-
-	layout := testLayout(t)
-	require.NoError(t, os.MkdirAll(filepath.Join(layout.installRoot, "etc"), 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(layout.installRoot, "etc", "datadog.yaml"),
-		[]byte("process_manager:\n  enabled: false\n"), 0644))
-
-	require.NoError(t, installStableJobs(testHookContext(t), layout))
-
-	assert.NoFileExists(t, filepath.Join(dir, procmgrJob+".plist"),
-		"dd-procmgrd must not be loaded when process_manager.enabled is false")
-	for _, label := range agentJobs {
-		assert.FileExists(t, filepath.Join(dir, label+".plist"), "%s must still be loaded", label)
-	}
-	assert.FileExists(t, filepath.Join(dir, installerJob+".plist"))
-
-	for _, args := range *calls {
-		if len(args) >= 2 && args[0] == "bootstrap" {
-			assert.NotEqual(t, procmgrJob+".plist", filepath.Base(args[len(args)-1]),
-				"dd-procmgrd must not be bootstrapped when process_manager.enabled is false")
-		}
-	}
-}
-
-func TestInstallStableJobsLoadsProcmgrByDefault(t *testing.T) {
-	stubLaunchd(t)
-	dir := t.TempDir()
-	original := launchdJobDir
-	launchdJobDir = dir
-	t.Cleanup(func() { launchdJobDir = original })
-
-	require.NoError(t, installStableJobs(testHookContext(t), testLayout(t)))
-
-	assert.FileExists(t, filepath.Join(dir, procmgrJob+".plist"),
-		"dd-procmgrd must be loaded by default (process_manager.enabled defaults to true)")
 }
 
 func TestInstallWrappedPackageRunsTheSinglePkgPayload(t *testing.T) {
