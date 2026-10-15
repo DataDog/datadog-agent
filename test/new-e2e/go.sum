@@ -31,8 +31,8 @@ github.com/DataDog/datadog-go/v5 v5.9.1 h1:jOxw/TaxGWok8RIxbpqn2p3RzSnQr/m3Q6Tga
 github.com/DataDog/datadog-go/v5 v5.9.1/go.mod h1:2SBt8zJu6r7sRQHZFMQ8oCukWTKj0ymwulmNgQzJ1JM=
 github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b h1:h7DnP0VdoS4L2uYCiuJv2HQJbgkkGIhZhWZuLEHW5VY=
 github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b/go.mod h1:QVHJwTn0Kf7BGjFULw5mJkQjjCSOF7eWFmwHBiX9sKk=
-github.com/DataDog/dd-trace-go/v2 v2.10.1 h1:wX/jJcs3Zh6ybwgdMwzRi5IlZ2NIJ6OgASXQA71Buig=
-github.com/DataDog/dd-trace-go/v2 v2.10.1/go.mod h1:fHlAl/gA8UuEoPxIoh5xoWvpsH7WT0DBW79vgjgtAjU=
+github.com/DataDog/dd-trace-go/v2 v2.11.1 h1:AlBLIbMrv1NL0uGbPwtdxX5+81DEDrr2Nh6bHs/VYXI=
+github.com/DataDog/dd-trace-go/v2 v2.11.1/go.mod h1:U2XxPE/PYvjhMbY7/2UGgG4M0b5SdLnf1n/ulEYFMNo=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-libddwaf/v5 v5.0.0 h1:uPQfIVPH9T8jLSplAdfETAHwL3iRLabP6JxRTH8NL7Y=
@@ -615,8 +615,8 @@ github.com/pulumi/pulumi/sdk/v3 v3.268.0 h1:j9XuukM7q4Y3cqAxVXr9LCx82Nn7OxqsNrB8
 github.com/pulumi/pulumi/sdk/v3 v3.268.0/go.mod h1:dRCRPrTZKXAp5XwcX+rKzrSBvDqmoCcrPVB1zwzIpao=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
-github.com/puzpuzpuz/xsync/v3 v3.5.1 h1:GJYJZwO6IdxN/IKbneznS6yPkVC+c3zyY/j19c++5Fg=
-github.com/puzpuzpuz/xsync/v3 v3.5.1/go.mod h1:VjzYrABPabuM4KyBh1Ftq6u8nhwY5tBPKP9jpmh0nnA=
+github.com/puzpuzpuz/xsync/v4 v4.5.0 h1:vOSWu6b57/emh+L/Cw0BeQfvxa/cogFywXHeGUxQxAg=
+github.com/puzpuzpuz/xsync/v4 v4.5.0/go.mod h1:VJDmTCJMBt8igNxnkQd86r+8KUeN1quSfNKu5bLYFQo=
 github.com/redis/go-redis/extra/rediscmd/v9 v9.0.5 h1:EaDatTxkdHG+U3Bk4EUr+DZ7fOGwTfezUiUJMaIcaho=
 github.com/redis/go-redis/extra/rediscmd/v9 v9.0.5/go.mod h1:fyalQWdtzDBECAQFBJuQe5bzQ02jGd5Qcbgb97Flm7U=
 github.com/redis/go-redis/extra/redisotel/v9 v9.0.5 h1:EfpWLLCyXw8PSM2/XNJLjI3Pb27yVE+gIAfeqp8LUCc=
