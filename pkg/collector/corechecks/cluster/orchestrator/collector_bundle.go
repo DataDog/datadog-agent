@@ -349,7 +349,7 @@ func (cb *CollectorBundle) initialize() {
 		collector.Init(cb.runCfg)
 		informer := collector.Informer()
 
-		// special case of improved terminated pod collector that is not using an informer
+		// collectors without an informer have nothing to sync
 		// TODO: improve the initialization logic to avoid leaking collector implementation details to the bundle.
 		if informer == nil {
 			continue

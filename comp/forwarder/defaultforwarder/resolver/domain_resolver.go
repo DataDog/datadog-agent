@@ -296,6 +296,8 @@ func (r *domainResolver) reloadAdditionalEndpoints(setting string, config config
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// additional_endpoints is keyed by the configured URL; GetBaseDomain may have been rewritten
+	// with the agent version (see AddAgentVersionToDomain).
 	endpoints, found := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)[r.configName]
 	if !found && setting != "additional_endpoints" {
 		return nil, nil, false, false

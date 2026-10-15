@@ -307,7 +307,6 @@ ryu,https://github.com/dtolnay/ryu,Apache-2.0 OR BSL-1.0,David Tolnay <dtolnay@g
 saluki-antithesis,https://github.com/DataDog/saluki,Apache-2.0,The saluki-antithesis Authors
 saluki-api,https://github.com/DataDog/saluki,Apache-2.0,The saluki-api Authors
 saluki-common,https://github.com/DataDog/saluki,Apache-2.0,The saluki-common Authors
-saluki-context,https://github.com/DataDog/saluki,Apache-2.0,The saluki-context Authors
 saluki-core,https://github.com/DataDog/saluki,Apache-2.0,The saluki-core Authors
 saluki-error,https://github.com/DataDog/saluki,Apache-2.0,The saluki-error Authors
 saluki-io,https://github.com/DataDog/saluki,Apache-2.0,The saluki-io Authors
@@ -400,6 +399,7 @@ tower-service,https://github.com/tower-rs/tower,MIT,Tower Maintainers <team@towe
 tracing,https://github.com/tokio-rs/tracing,MIT,"Eliza Weisman <eliza@buoyant.io>, Tokio Contributors <team@tokio.rs>"
 tracing-attributes,https://github.com/tokio-rs/tracing,MIT,"Tokio Contributors <team@tokio.rs>, Eliza Weisman <eliza@buoyant.io>, David Barsky <dbarsky@amazon.com>"
 tracing-core,https://github.com/tokio-rs/tracing,MIT,Tokio Contributors <team@tokio.rs>
+tracing-subscriber,https://github.com/tokio-rs/tracing,MIT,"Eliza Weisman <eliza@buoyant.io>, David Barsky <me@davidbarsky.com>, Tokio Contributors <team@tokio.rs>"
 triomphe,https://github.com/Manishearth/triomphe,MIT OR Apache-2.0,"Manish Goregaokar <manishsmail@gmail.com>, The Servo Project Developers"
 try-lock,https://github.com/seanmonstar/try-lock,MIT,Sean McArthur <sean@seanmonstar.com>
 typed-path,https://github.com/chipsenkbeil/typed-path,MIT OR Apache-2.0,Chip Senkbeil <chip@senkbeil.org>
