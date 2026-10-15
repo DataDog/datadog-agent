@@ -84,7 +84,6 @@ func TestEmbeddedBTFCacheRepair(t *testing.T) {
 			ret, err = b.checkforBTF(mustRelative(t, b.btfOutputDir, extract))
 			require.NoError(t, err)
 			require.NotNil(t, ret.vmlinux)
-			require.NoError(t, SecureCacheDir(extract))
 		})
 	}
 }

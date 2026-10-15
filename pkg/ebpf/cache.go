@@ -20,33 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// cacheDirLogState suppresses repeated repair warnings across cache users.
-var cacheDirLogState struct {
-	sync.Mutex
-	seen map[string]struct{}
-}
-
-// logCacheDirOnce reports whether the given reason has not yet been logged,
-// recording it so subsequent identical reasons are suppressed.
-func logCacheDirOnce(reason string) bool {
-	cacheDirLogState.Lock()
-	defer cacheDirLogState.Unlock()
-	if _, ok := cacheDirLogState.seen[reason]; ok {
-		return false
-	}
-	if cacheDirLogState.seen == nil {
-		cacheDirLogState.seen = make(map[string]struct{})
-	}
-	cacheDirLogState.seen[reason] = struct{}{}
-	return true
-}
+// reclaimedCacheDirs tracks paths whose repair warning has been logged.
+var reclaimedCacheDirs sync.Map
 
 // logCacheDirReclaimed warns (once per reclaimed path) that a stale
 // cache-directory component was moved aside and recreated. A recurring reclaim
 // points at something else recreating the directory as non-root, so it is worth
 // surfacing rather than doing it silently.
 func logCacheDirReclaimed(p string) {
-	if logCacheDirOnce("reclaimed:" + p) {
+	if _, logged := reclaimedCacheDirs.LoadOrStore(p, struct{}{}); !logged {
 		log.Warnf("recreated cache directory component %s: it had unsafe ownership or permissions", p)
 	}
 }
