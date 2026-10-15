@@ -199,6 +199,11 @@ func Analyze(path string) (Report, error) {
 
 			// Stack usage: a memory access based on r10 at a negative offset.
 			// The frame must cover the lowest byte touched, so usage is -off.
+			// This counts only accesses directly based on r10; a stack buffer
+			// reached through a derived pointer (r1 = r10; r1 += -N; then a
+			// helper writes through r1) is not counted, so such a frame can be
+			// under-reported. Dyninst's deep frames all access r10 directly, so
+			// this holds today; see the package test for the guard around it.
 			const (
 				classLDX = 0x01
 				classST  = 0x02
@@ -216,12 +221,30 @@ func Analyze(path string) (Report, error) {
 				}
 			}
 
-			// Calls to other subprograms carry a relocation to a FUNC symbol.
+			// Calls to other subprograms take three forms. A relocation to a
+			// FUNC symbol names the callee directly. A relocation to a SECTION
+			// symbol (clang emits these for some calls into .text) carries the
+			// callee's byte offset in the immediate. A call with no relocation
+			// is a bpf-to-bpf pseudo-call (src=1) whose immediate is the
+			// callee's instruction offset, relative to the next instruction.
 			const opCall = 0x85
+			const pseudoCall = 1
 			if op == opCall {
 				if sym, ok := rels[relKey{sec, uint64(off)}]; ok {
-					if safeelf.ST_TYPE(sym.Info) == safeelf.STT_FUNC && sym.Name != owner {
-						edges[owner][sym.Name] = true
+					switch safeelf.ST_TYPE(sym.Info) {
+					case safeelf.STT_FUNC:
+						if sym.Name != owner {
+							edges[owner][sym.Name] = true
+						}
+					case safeelf.STT_SECTION:
+						if target := at(sym.Section, uint64(uint32(imm))); target != "" && target != owner {
+							edges[owner][target] = true
+						}
+					}
+				} else if src == pseudoCall {
+					target := at(sec, uint64(int64(off)+insnSize+int64(imm)*insnSize))
+					if target != "" && target != owner {
+						edges[owner][target] = true
 					}
 				}
 				continue
