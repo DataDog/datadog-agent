@@ -37,7 +37,7 @@ chain for every pod.
 
 `frac-a` and `frac-b` share GPU index 2. `frac-cuda` shares GPU index 3 with
 `frac-multi`, which also holds half of GPU index 1. `frac-cuda` is the only pod
-that executes CUDA (the DataDog `apps-cuda-basic` image in a loop); the others
+that executes CUDA (the Datadog `apps-cuda-basic` image in a loop); the others
 just sleep, so they generate no GPU activity at all.
 
 ### Reservation pods
