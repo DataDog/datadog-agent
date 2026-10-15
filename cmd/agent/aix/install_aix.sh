@@ -1,0 +1,250 @@
+#!/bin/ksh
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2016-present Datadog, Inc.
+
+# Datadog Agent 7 install script for AIX.
+# Published as https://install.datadoghq.com/scripts/install_aix.sh.
+set -e
+
+install_script_version=1.0.0
+default_repo_url="https://dd-agent-aix.s3.amazonaws.com"
+
+# Terminal color detection
+# Colors are enabled only when outputting to a terminal (not when piped/redirected)
+if [ -t 1 ]; then
+    RED='\033[31m'
+    BLUE='\033[34m'
+    NC='\033[0m'
+else
+    RED=''
+    BLUE=''
+    NC=''
+fi
+
+help() {
+    cat <<'EOF'
+Datadog Agent 7 for AIX
+
+Installs the AIX/ppc64 BFF package and configures it from DD_* environment
+variables on first install.
+
+Package selection variables:
+  DD_AGENT_VERSION         Exact Agent version, without the package build
+                           number (for example, 7.84.0).
+  DD_AGENT_DIST_CHANNEL    Package channel: stable (default), beta, nightly,
+                           or dev.
+  DD_REPO_URL              Package base URL. Defaults to
+                           https://dd-agent-aix.s3.amazonaws.com
+  DD_AGENT_BUILD           installp package build number. Defaults to 1.
+  DD_BFF_PATH              Use a local BFF instead of downloading one.
+  DD_INSECURE              If non-empty, skip TLS certificate validation.
+
+When no version is specified, the script downloads:
+  datadog-agent-7-latest.aix.ppc64.bff
+
+Agent configuration variables:
+  DD_API_KEY, DD_SITE, DD_HOSTNAME, DD_ENV, DD_TAGS,
+  DD_INFRASTRUCTURE_MODE, DD_PROXY_HTTP, DD_PROXY_HTTPS,
+  DD_PROXY_NO_PROXY, and DD_INSTALL_ONLY.
+
+The package preserves an existing /etc/datadog-agent/datadog.yaml. On a fresh
+install, DD_API_KEY is required to create the configuration and start the Agent.
+Without it, the package is installed but the Agent is not started.
+EOF
+}
+
+fail() {
+    printf '%bERROR: %s%b\n' "$RED" "$1" "$NC" >&2
+    exit 1
+}
+
+case "${1:-}" in
+    -h|--help|help)
+        help
+        exit 0
+        ;;
+esac
+if [ -n "${HELP:-}" ]; then
+    help
+    exit 0
+fi
+
+if [ "$(uname -s)" != "AIX" ]; then
+    fail "this install script only supports AIX."
+fi
+
+arch=$(uname -p)
+case "$arch" in
+    powerpc|powerpc64|ppc64)
+        package_arch=ppc64
+        ;;
+    *)
+        fail "unsupported AIX architecture '$arch'; only ppc64 is supported."
+        ;;
+esac
+
+if [ "$(id -u)" = "0" ]; then
+    sudo_cmd=
+else
+    if ! command -v sudo >/dev/null 2>&1; then
+        fail "run this script as root, or install sudo."
+    fi
+    # installp lifecycle scripts consume DD_* variables to render datadog.yaml.
+    # -E is therefore required when elevating from a non-root shell.
+    sudo_cmd="sudo -E"
+fi
+
+downloader=
+if [ -z "${DD_BFF_PATH:-}" ]; then
+    if command -v curl >/dev/null 2>&1; then
+        downloader=curl
+    elif command -v wget >/dev/null 2>&1; then
+        downloader=wget
+    else
+        fail "curl or wget is required to download the Agent package."
+    fi
+fi
+
+download_file() {
+    source_url=$1
+    destination=$2
+
+    insecure_flags=
+    if [ -n "${DD_INSECURE:-}" ]; then
+        if [ "$downloader" = curl ]; then
+            insecure_flags="--insecure"
+        else
+            insecure_flags="--no-check-certificate"
+        fi
+    fi
+
+    if [ "$downloader" = curl ]; then
+        curl --fail --location --retry 2 $insecure_flags --output "$destination" "$source_url"
+    else
+        wget $insecure_flags --output-document="$destination" "$source_url"
+    fi
+}
+
+agent_version=
+if [ -n "${DD_AGENT_VERSION:-}" ]; then
+    agent_version=$DD_AGENT_VERSION
+fi
+
+if [ -n "$agent_version" ]; then
+    case "$agent_version" in
+        7.*) ;;
+        *) fail "DD_AGENT_VERSION must select Agent 7 (for example, 7.84.0)." ;;
+    esac
+    case "$agent_version" in
+        *[!A-Za-z0-9._~-]*) fail "DD_AGENT_VERSION contains unsupported characters." ;;
+    esac
+fi
+
+agent_build=${DD_AGENT_BUILD:-1}
+if [ -z "$agent_build" ] || [ "$agent_build" = 0 ] || [ -n "$(printf '%s' "$agent_build" | tr -d 0-9)" ]; then
+    fail "DD_AGENT_BUILD must be a positive integer."
+fi
+
+agent_dist_channel=${DD_AGENT_DIST_CHANNEL:-stable}
+case "$agent_dist_channel" in
+    stable|beta|nightly|dev) ;;
+    *) fail "DD_AGENT_DIST_CHANNEL must be stable, beta, nightly, or dev." ;;
+esac
+
+repo_url=${DD_REPO_URL:-$default_repo_url}
+repo_url=${repo_url%/}
+
+if [ -n "$agent_version" ]; then
+    bff_name="datadog-agent-${agent_version}-${agent_build}.aix.${package_arch}.bff"
+else
+    bff_name="datadog-agent-7-latest.aix.${package_arch}.bff"
+fi
+
+bff_url="$repo_url/$agent_dist_channel/$bff_name"
+
+# mkdir is atomic. Refusing to proceed when the PID-based path already exists
+# avoids following an attacker-controlled symlink on systems without mktemp.
+temp_dir="/tmp/datadog-agent-install.$$"
+if ! (umask 077 && mkdir "$temp_dir"); then
+    fail "could not create secure temporary directory $temp_dir."
+fi
+trap 'rm -rf "$temp_dir"' EXIT
+trap 'exit 1' HUP INT TERM
+
+bff_file="$temp_dir/$bff_name"
+installp_log="$temp_dir/installp.log"
+
+if [ -n "${DD_BFF_PATH:-}" ]; then
+    if [ ! -f "$DD_BFF_PATH" ]; then
+        fail "DD_BFF_PATH is set but does not name a file: $DD_BFF_PATH"
+    fi
+    printf '%b\n* Using local BFF: %s%b\n' "$BLUE" "$DD_BFF_PATH" "$NC"
+    cp "$DD_BFF_PATH" "$bff_file"
+else
+    printf '%b\n* Downloading %s%b\n' "$BLUE" "$bff_name" "$NC"
+    if ! download_file "$bff_url" "$bff_file"; then
+        fail "could not download $bff_url"
+    fi
+fi
+chmod 600 "$bff_file"
+
+current_fileset=$($sudo_cmd /usr/sbin/installp -ld "$bff_file" 2>&1 | awk 'tolower($0) ~ /datadog-agent/ { print $2; exit }')
+if [ -z "$current_fileset" ]; then
+    fail "the BFF does not contain the datadog-agent fileset."
+fi
+
+installed_fileset=$(/usr/bin/lslpp -l datadog-agent 2>/dev/null | awk '$1 == "datadog-agent" { print $2; exit }' || true)
+# installp(1) defines -F and -g as mutually exclusive alternatives: -F forces
+# an update or reinstall when the fileset is already installed, -g installs
+# regardless of whether the fileset is already installed (fresh install).
+if [ -n "$installed_fileset" ]; then
+    install_flags=-acFXYd
+    if [ "$installed_fileset" = "$current_fileset" ]; then
+        printf '%b\n* Reinstalling Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
+    else
+        printf '%b\n* Updating Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
+    fi
+else
+    install_flags=-acgXYd
+    printf '%b\n* Installing Datadog Agent fileset %s%b\n' "$BLUE" "$current_fileset" "$NC"
+fi
+
+if ! $sudo_cmd /usr/sbin/installp "$install_flags" "$bff_file" -e "$installp_log" datadog-agent; then
+    printf '%bThe Datadog Agent package installation failed.%b\n' "$RED" "$NC" >&2
+    if [ -s "$installp_log" ]; then
+        printf 'installp log (%s):\n' "$installp_log" >&2
+        cat "$installp_log" >&2
+    fi
+    exit 1
+fi
+
+install_info=/etc/datadog-agent/install_info
+staged_install_info="$temp_dir/install_info"
+{
+    printf '%s\n' '---'
+    printf '%s\n' 'install_method:'
+    printf '%s\n' '  tool: install_script_aix'
+    printf '%s\n' '  tool_version: install_script_aix'
+    printf '  installer_version: install_script_aix-%s\n' "$install_script_version"
+} > "$staged_install_info"
+
+# Never write directly to $install_info: the dd-agent user can write in
+# /etc/datadog-agent and could replace the file with a symlink that root's
+# tee would follow. Stage the metadata in a fresh root-owned directory on
+# the destination filesystem instead, then move it into place with mv: a
+# rename within a filesystem replaces a symlinked destination without
+# following it.
+staging_dir="/etc/datadog-agent/.install_info.staging.$$"
+if ! $sudo_cmd mkdir "$staging_dir"; then
+    fail "could not create staging directory for install_info."
+fi
+$sudo_cmd cp "$staged_install_info" "$staging_dir/install_info"
+$sudo_cmd chown dd-agent:dd-agent "$staging_dir/install_info"
+$sudo_cmd chmod 640 "$staging_dir/install_info"
+if ! $sudo_cmd mv -f "$staging_dir/install_info" "$install_info"; then
+    $sudo_cmd rm -rf "$staging_dir"
+    fail "could not move install_info into place."
+fi
+$sudo_cmd rmdir "$staging_dir"

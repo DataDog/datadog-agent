@@ -12,7 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
 	github.com/benbjohnson/clock v1.3.5
-	github.com/cenkalti/backoff/v7 v7.0.0
+	github.com/cenkalti/backoff/v7 v7.0.1
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/prometheus/client_golang v1.24.1
@@ -43,9 +43,9 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 )

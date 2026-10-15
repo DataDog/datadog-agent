@@ -223,6 +223,20 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			return err
 		}
 
+		if isMacOSPoolMember && poolAcquired.Found {
+			// The imported Instance's own IgnoreChanges(["tags", ...]) only protects its
+			// tags attribute; the pool identity tags live in separate aws:ec2/tag:Tag
+			// resources declared by RegisterPoolMember on the run that first registered
+			// this member. Re-declaring them here (same name, so same URNs) keeps Pulumi
+			// from seeing them as no longer part of the program and deleting them.
+			// Use the runner's own options (Parent/DependsOn), not opts: by this point opts
+			// also carries this Instance's pulumi.Import/IgnoreChanges, which don't apply to
+			// these separate Tag resources.
+			if err := ec2.TagPoolMember(e, name, instance.ID().ToStringOutput(), username, c.OS.Runner().PulumiOptions()...); err != nil {
+				return err
+			}
+		}
+
 		if isMacOSPoolMember && !poolAcquired.Found {
 			// Freshly created local instance: bake its current disk state into a golden
 			// AMI now that InitHost's setup has completed. The runner's options carry a
@@ -274,6 +288,12 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			// Retrieve it with `dda inv aws.get-vm-password` / `dda inv aws.rdp-vm`, or via
 			// RemoteHost.Password in-process.
 			c.Password = pulumi.ToSecret(randomPassword.Result).(pulumi.StringOutput)
+		}
+
+		if vmArgs.osInfo.Family() == os.WindowsFamily && e.TrackSSHActivity() {
+			if err := installWindowsSSHActivityTracking(e, c, opts); err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -333,7 +353,7 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 	} else if vmArgs.osInfo.Flavor == os.Suse {
 		defaultUserData = os.ZypperDisableUnattendedUpgradesScriptContent
 	}
-	userDataParts := make([]string, 0, 3)
+	userDataParts := make([]string, 0, 4)
 	if vmArgs.userData != "" {
 		userDataParts = append(userDataParts, vmArgs.userData)
 	}
@@ -342,6 +362,9 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 	}
 	if vmArgs.osInfo.Family() == os.LinuxFamily {
 		userDataParts = append(userDataParts, os.SSHAllowSFTPRootScriptContent)
+		if e.TrackSSHActivity() {
+			userDataParts = append(userDataParts, os.TrackSSHActivityScriptContent)
+		}
 	}
 	vmArgs.userData = strings.Join(userDataParts, "\n")
 

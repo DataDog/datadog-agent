@@ -17,6 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+	metafake "k8s.io/client-go/metadata/fake"
+	"k8s.io/client-go/metadata/metadatainformer"
 	"k8s.io/client-go/tools/cache"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -29,6 +31,8 @@ import (
 type CollectorTestConfig struct {
 	// Resources to create in the fake client
 	Resources []runtime.Object
+	// Metadata-only resources (PartialObjectMetadata) to create in the fake metadata client
+	MetadataResources []runtime.Object
 	// Expected metadata message type
 	ExpectedMetadataType interface{}
 	// Expected number of resources
@@ -50,12 +54,19 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 	// Create fake client
 	client := fake.NewClientset(config.Resources...)
 
-	// Create fake informer factory
+	// Create fake metadata client
+	metadataScheme := runtime.NewScheme()
+	assert.NoError(t, metav1.AddMetaToScheme(metadataScheme))
+	metadataClient := metafake.NewSimpleMetadataClient(metadataScheme, config.MetadataResources...)
+
+	// Create fake informer factories
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(client, 300*time.Second)
+	metadataInformerFactory := metadatainformer.NewSharedInformerFactory(metadataClient, 300*time.Second)
 
 	// Create OrchestratorInformerFactory with fake informers
 	orchestratorInformerFactory := &collectors.OrchestratorInformerFactory{
-		InformerFactory: informerFactory,
+		InformerFactory:         informerFactory,
+		MetadataInformerFactory: metadataInformerFactory,
 	}
 
 	apiClient := &apiserver.APIClient{Cl: client}
@@ -81,10 +92,11 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 	// Initialize the collector
 	collector.Init(runCfg)
 
-	// Start the informer factory
+	// Start the informer factories
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	informerFactory.Start(stopCh)
+	metadataInformerFactory.Start(stopCh)
 
 	// Wait for the informer to sync
 	if k8sCollector, ok := collector.(collectors.K8sCollector); ok {

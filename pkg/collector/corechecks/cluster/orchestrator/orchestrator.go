@@ -22,6 +22,7 @@ import (
 	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/metadata/metadatainformer"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -257,22 +258,13 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
 
-	// Only collect pods that are in a terminated state: Succeeded, Failed, or Pending.
-	terminatedPodsTweakListOptions := func(options *metav1.ListOptions) {
-		options.FieldSelector = fields.AndSelectors(
-			fields.OneTermNotEqualSelector("status.phase", "Pending"),
-			fields.OneTermNotEqualSelector("status.phase", "Running"),
-			fields.OneTermNotEqualSelector("status.phase", "Unknown"),
-		).String()
-	}
-
 	of := &collectors.OrchestratorInformerFactory{
 		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
 		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
 		DynamicInformerFactory:       dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicInformerCl, defaultResyncInterval),
+		MetadataInformerFactory:      metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval),
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
 		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
-		TerminatedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(terminatedPodsTweakListOptions)),
 	}
 
 	return of
