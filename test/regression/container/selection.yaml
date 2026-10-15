@@ -11,6 +11,8 @@
 #
 # A codeowners key is a team slug. A labels key is an exact PR label.
 # Every experiment must match one or more buckets.
+# On main, no PR context is available, so only the always bucket is selected.
+# The quality_gate_ prefix is reserved for experiments below quality_gates/.
 # The separate test/regression/ebpf lane is not part of this manifest.
 
 always:

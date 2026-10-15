@@ -12,9 +12,11 @@ The CLI finds each directory under `container/` that contains an `experiment.yam
 
 The manifest maps trigger buckets to experiment path globs. It combines all matching buckets.
 
-* The `always` bucket runs on every pull request. This selection does not control the nightly schedule.
-* The `codeowners` bucket maps a team slug to experiments. The experiments run when the team owns a changed file.
-* The `labels` bucket maps an exact label to experiments. The experiments run when the pull request has that label.
+* The `always` bucket runs on every pull request and every `main` commit. This selection does not control the nightly schedule.
+* The `codeowners` bucket maps a team slug to experiments. On pull requests, the experiments run when the team owns a changed file.
+* The `labels` bucket maps an exact label to experiments. On pull requests, the experiments run when the pull request has that label.
+
+On `main`, only the `always` bucket is selected because label and CODEOWNERS selection require pull request context.
 
 Each experiment must match one or more buckets. The resolve lint job rejects an experiment that matches no bucket.
 
