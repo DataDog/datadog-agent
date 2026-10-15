@@ -25,7 +25,7 @@ def cpython_frozen_modules(modules, tool):
             tool = tool,
         )
 
-def cpython_shared_modules(name, modules, copts, ext_suffix, dest_dir):
+def cpython_shared_modules(name, modules, copts, ext_suffix, dest_dir, target_compatible_with):
     """Creates the module_<name> extension module targets and their module_<name>_pkg packaging.
 
     The name target groups the native_module_<name>_pkg targets.
@@ -36,6 +36,7 @@ def cpython_shared_modules(name, modules, copts, ext_suffix, dest_dir):
         copts: compiler options for the module sources.
         ext_suffix: the extension module file suffix.
         dest_dir: the directory the modules are installed in.
+        target_compatible_with: platforms the modules are built for.
     """
     for module_name, module in modules.items():
         cc_library(
@@ -45,6 +46,7 @@ def cpython_shared_modules(name, modules, copts, ext_suffix, dest_dir):
             linkopts = module.get("linkopts", []),
             local_defines = ["NDEBUG"] + module.get("defines", []),
             tags = ["manual"],
+            target_compatible_with = target_compatible_with,
             deps = [":native_internal_headers"] + module.get("deps", []),
         )
 
@@ -52,6 +54,14 @@ def cpython_shared_modules(name, modules, copts, ext_suffix, dest_dir):
             name = "native_module_" + module_name,
             dynamic_deps = module.get("dynamic_deps", []),
             shared_lib_name = module_name + ext_suffix,
+            target_compatible_with = target_compatible_with,
+            user_link_flags = select({
+                "@platforms//os:macos": [
+                    "-undefined",
+                    "dynamic_lookup",
+                ],
+                "//conditions:default": [],
+            }),
             deps = [":native_module_{}_lib".format(module_name)],
         )
 
@@ -67,4 +77,5 @@ def cpython_shared_modules(name, modules, copts, ext_suffix, dest_dir):
         name = name,
         srcs = pkgs,
         data = pkgs,
+        target_compatible_with = target_compatible_with,
     )
