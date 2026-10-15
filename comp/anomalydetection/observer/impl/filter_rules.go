@@ -159,11 +159,28 @@ type metricsProcessingRule struct {
 
 // metricsFilterRules evaluates the ordered rule list against incoming metrics.
 type metricsFilterRules struct {
-	rules []metricsCompiledRule
+	typeFilter metricTypeFilter
+	rules      []metricsCompiledRule
 
 	// muted tracks metrics that are muted by baseline analysis, these metrics are totally dropped from the storage/engine.
 	// It is used by the baseline analysis to reduce false positives.
 	muted atomic.Pointer[map[uint64]struct{}]
+}
+
+// isMetricTypeAllowed reports whether mt is permitted by the metric type allowlist.
+func (f *metricsFilterRules) isMetricTypeAllowed(mt metrics.MetricType) bool {
+	if f == nil {
+		return true
+	}
+	return f.typeFilter.isTypeAllowed(mt)
+}
+
+// setAllowedMetricTypes updates the active metric-type bitmask filter.
+func (f *metricsFilterRules) setAllowedMetricTypes(typeFilter metricTypeFilter) {
+	if f == nil {
+		return
+	}
+	f.typeFilter = typeFilter
 }
 
 type metricsCompiledRule struct {
@@ -236,6 +253,19 @@ func newDefaultMetricsFilterRules() (*metricsFilterRules, error) {
 }
 
 func loadMetricFilter(cfg config.Component) (*metricsFilterRules, error) {
+	var typeFilter metricTypeFilter
+	if cfg != nil && cfg.IsConfigured(metricAllowedTypesConfigKey) {
+		var rawTypes []string
+		if err := structure.UnmarshalKey(cfg, metricAllowedTypesConfigKey, &rawTypes); err != nil {
+			return nil, fmt.Errorf("%s: decode failed: %w", metricAllowedTypesConfigKey, err)
+		}
+		var err error
+		typeFilter, err = ParseAllowedMetricTypes(rawTypes)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", metricAllowedTypesConfigKey, err)
+		}
+	}
+
 	var rules []metricsProcessingRule
 	if cfg != nil && cfg.IsConfigured(metricProcessingRulesConfigKey) {
 		if err := structure.UnmarshalKey(cfg, metricProcessingRulesConfigKey, &rules); err != nil {
@@ -247,8 +277,9 @@ func loadMetricFilter(cfg config.Component) (*metricsFilterRules, error) {
 
 	filter, err := newMetricsFilterRules(rules)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", metricProcessingRulesConfigKey, err)
 	}
+	filter.typeFilter = typeFilter
 	return filter, nil
 }
 

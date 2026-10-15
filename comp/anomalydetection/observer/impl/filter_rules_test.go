@@ -1153,3 +1153,115 @@ func TestParseAllowedMetricTypes(t *testing.T) {
 		}
 	})
 }
+
+func TestAllowedMetricTypesFiltersLiveReplayAndLogDerivedMetrics(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  metrics:
+    allowed_types:
+      - Gauge
+      - Unknown
+    processing_rules:
+      - type: include_at_match
+        name: allow_all_names
+`)
+	filter, err := loadMetricFilter(cfg)
+	require.NoError(t, err)
+
+	telComp := telemetryimpl.NewMock(t)
+	storage := newTimeSeriesStorage()
+	connErrExtractor := &ConnectionErrorExtractor{}
+	eng := newEngine(engineConfig{
+		storage:      storage,
+		metricFilter: filter,
+		extractors: []observerdef.LogMetricsExtractor{
+			NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()),
+			NewLogPatternExtractor(DefaultLogPatternExtractorConfig()),
+			connErrExtractor,
+		},
+	})
+
+	obs := &observerImpl{
+		engine:               eng,
+		obsCh:                make(chan observation, 32),
+		telemetry:            newObserverTelemetry(telComp),
+		ingestMetricsEnabled: true,
+		metricFilter:         filter,
+	}
+	obs.handleFunc = obs.innerHandle
+
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+
+	h := obs.GetHandle("dogstatsd")
+	// Disallowed Count metric must be rejected before rule evaluation or tag access.
+	h.ObserveMetric(&precheckOnlyMetricView{
+		name:       "requests.count",
+		host:       "host-a",
+		metricType: metrics.CountType,
+	}, 0)
+
+	// Allowed Gauge and Unknown metrics should be ingested.
+	testObserveMetric(h, &metricObs{
+		name:       "cpu.gauge",
+		value:      42,
+		metricType: metrics.GaugeType,
+		host:       "host-a",
+		timestamp:  1000,
+	})
+	testObserveMetric(h, &metricObs{
+		name:       "legacy.unknown",
+		value:      7,
+		metricType: observerdef.UnknownType,
+		host:       "host-a",
+		timestamp:  1000,
+	})
+	obs.Flush()
+
+	// Replay path: Count is rejected, Gauge is accepted.
+	obs.IngestMetricSync("parquet", &metricObs{
+		name:       "replay.count",
+		value:      10,
+		metricType: metrics.CountType,
+		host:       "host-a",
+		timestamp:  1000,
+	}, 111)
+	obs.IngestMetricSync("parquet", &metricObs{
+		name:       "replay.gauge",
+		value:      20,
+		metricType: metrics.GaugeType,
+		host:       "host-a",
+		timestamp:  1000,
+	}, 222)
+
+	// Log ingestion: JSON numeric field produces GaugeType (allowed), while
+	// pattern and connection error extractors produce CountType (filtered out).
+	eng.IngestLog("logs", &logObs{
+		content:     `{"latency_ms": 12.5, "msg": "connection refused"}`,
+		status:      "error",
+		hostname:    "host-a",
+		timestampMs: 1_000_000,
+	})
+
+	dogstatsdSeries := storage.ListSeriesMetadata("dogstatsd")
+	require.Len(t, dogstatsdSeries, 2)
+
+	parquetSeries := storage.ListSeriesMetadata("parquet")
+	require.Len(t, parquetSeries, 1)
+	assert.Equal(t, "replay.gauge", parquetSeries[0].Name)
+
+	// Gauge metric from JSON log field is stored, while Count metrics from log pattern
+	// and connection error extractors are filtered out.
+	assert.NotEmpty(t, storage.ListSeriesMetadata(LogMetricsExtractorName))
+	assert.Empty(t, storage.ListSeriesMetadata(LogPatternExtractorName))
+	assert.Empty(t, storage.ListSeriesMetadata(connErrExtractor.Name()))
+
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}
