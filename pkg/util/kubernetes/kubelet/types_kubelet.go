@@ -73,6 +73,8 @@ type PodSecurityContextSpec struct {
 
 // ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
 type ContainerSpec struct {
+	Command         []string                      `json:"command,omitempty"`
+	Args            []string                      `json:"args,omitempty"`
 	Name            string                        `json:"name"`
 	Image           string                        `json:"image,omitempty"`
 	Ports           []ContainerPortSpec           `json:"ports,omitempty"`

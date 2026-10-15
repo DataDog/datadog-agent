@@ -979,3 +979,31 @@ func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+func TestRayServiceMetadataStreamLifecycle(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	service := &workloadmeta.KubernetesMetadata{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesMetadata, ID: "ray.io/rayservices/ray/qwen"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "qwen", Namespace: "ray"},
+		GVR:        &schema.GroupVersionResource{Group: "ray.io", Version: "v1", Resource: "rayservices"},
+		RayService: &workloadmeta.RayServiceMetadata{IsLLM: true, ClusterNames: []string{"qwen-ldcdx"}},
+	}
+
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: service}})
+	snapshot := srv.buildMetadataSnapshot()
+	full := fullStateResponse(nil, snapshot)
+	require.Len(t, full.RayServices, 1)
+	assert.True(t, full.RayServices[0].IsLlm)
+	assert.Equal(t, []string{"qwen-ldcdx"}, full.RayServices[0].ClusterNames)
+	// An unchanged event must not create a new stream version.
+	_, version := srv.buildMetadataSnapshotWithVersion()
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: service}})
+	_, sameVersion := srv.buildMetadataSnapshotWithVersion()
+	assert.Equal(t, version, sameVersion)
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: service}})
+	updates, _, ok := srv.metadataUpdatesSince(version)
+	require.True(t, ok)
+	require.Len(t, updates, 1)
+	require.Len(t, updates[0].RayServices, 1)
+	assert.Equal(t, pb.KubeMetadataEventType_UNSET, updates[0].RayServices[0].Type)
+}

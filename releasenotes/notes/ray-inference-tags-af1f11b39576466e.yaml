@@ -2,8 +2,11 @@
 enhancements:
   - |
     Add the ``inference_workload`` and ``inference_workload_component`` tags to
-    Ray Kubernetes pods and containers that use the official
-    ``rayproject/ray-llm`` image in a ``ray-head`` or ``ray-worker`` container
-    and have ``ray.io/serve=true``. Use the
-    ``ray.io/cluster`` label for the workload name. Use the worker group for
-    worker components, with the node type as a fallback. Head pods use ``head``.
+    Ray LLM Kubernetes pods and containers, following the Dynamo tagging pattern.
+    The Cluster Agent identifies LLM RayServices from their Serve configuration
+    or container templates and sends the result to node Agents through Kubernetes
+    metadata streaming. The workload tag uses the RayService name. Without parent
+    metadata, LLM image and serving-command signals provide a fallback, with the
+    generated RayCluster suffix removed. Worker components use the worker group;
+    head pods use ``head``. Custom-image detection requires RayService read access
+    and metadata streaming between updated Cluster and node Agents.

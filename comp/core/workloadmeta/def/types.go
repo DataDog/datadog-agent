@@ -570,6 +570,8 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
+	// IsLLM records an LLM image or serving command from the pod spec.
+	IsLLM        bool `proto:"ignore"`
 	ID           string
 	Name         string
 	Image        ContainerImage
@@ -1207,8 +1209,16 @@ type KubernetesContainerStateTerminated struct {
 // KubeMetadataEntityID is a unique ID for Kube Metadata Entity
 type KubeMetadataEntityID string
 
-// KubernetesMetadata is an Entity representing kubernetes resource metadata
+// RayServiceMetadata contains only the detection result and cluster join keys.
+// Serve configurations can contain credentials and are not retained.
+type RayServiceMetadata struct {
+	IsLLM        bool
+	ClusterNames []string
+}
+
+// KubernetesMetadata is an Entity representing kubernetes resource metadata.
 type KubernetesMetadata struct {
+	RayService *RayServiceMetadata `proto:"ignore"`
 	EntityID
 	EntityMeta
 	GVR *schema.GroupVersionResource

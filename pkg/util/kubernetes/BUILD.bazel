@@ -8,6 +8,7 @@ go_library(
         "const.go",
         "doc.go",
         "helpers.go",
+        "ray.go",
         "resource.go",
         "tags.go",
         "time.go",
@@ -16,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/pointer",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_apimachinery//pkg/api/resource",
     ],
 )
@@ -24,6 +26,7 @@ dd_agent_go_test(
     name = "kubernetes_test",
     srcs = [
         "helpers_test.go",
+        "ray_test.go",
         "resource_test.go",
         "tags_test.go",
     ],

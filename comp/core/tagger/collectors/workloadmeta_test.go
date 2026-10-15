@@ -2554,10 +2554,10 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 		wantWorkload  string
 		wantComponent string
 	}{
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "head", group: "headgroup", wantWorkload: "ray-aggregated-4spzc", wantComponent: "head"},
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "aggregated", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "worker", group: "aggregated", wantWorkload: "ray-aggregated-4spzc", wantComponent: "aggregated"},
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "decode", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "decode", wantWorkload: "ray-disaggregated-hc686", wantComponent: "decode"},
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "prefill", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "prefill", wantWorkload: "ray-disaggregated-hc686", wantComponent: "prefill"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "head", group: "headgroup", wantWorkload: "ray-aggregated", wantComponent: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "aggregated", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "worker", group: "aggregated", wantWorkload: "ray-aggregated", wantComponent: "aggregated"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "decode", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "decode", wantWorkload: "ray-disaggregated", wantComponent: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "prefill", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "prefill", wantWorkload: "ray-disaggregated", wantComponent: "prefill"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "custom group", cluster: "serve", serve: "true", nodeType: "worker", group: "gpu-workers", wantWorkload: "serve", wantComponent: "gpu-workers"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no group", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no node type", cluster: "serve", serve: "true", group: "decode", wantWorkload: "serve"},
@@ -2567,8 +2567,8 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "unrelated pod"},
 		{name: "generic Ray Serve", image: "rayproject/ray:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", group: "decode"},
 		{name: "Ray ML", image: "rayproject/ray-ml:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
-		{name: "custom registry", image: "example.com/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
-		{name: "custom namespace", image: "docker.io/example/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "custom registry", image: "example.com/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom namespace", image: "docker.io/example/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
 		{name: "similar image", image: "rayproject/ray-llm-custom:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
 		{name: "missing image", cluster: "serve", serve: "true", nodeType: "worker"},
 		{name: "explicit Docker Hub", image: "docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
@@ -2644,7 +2644,7 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 
 func TestRayLLMContainerIdentification(t *testing.T) {
 	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{}))
-	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{
+	assert.True(t, isRayLLMPod(&workloadmeta.KubernetesPod{
 		Containers: []workloadmeta.OrchestratorContainer{
 			{Name: "ray-worker", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
 			{Name: "sidecar", Image: workloadmeta.ContainerImage{Name: "rayproject/ray-llm"}},
@@ -5987,5 +5987,47 @@ func TestHandleProcess(t *testing.T) {
 				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
 			}
 		})
+	}
+}
+
+func TestRayServiceConfigTagsPrivateImageAndRemovesTags(t *testing.T) {
+	const containerID = "custom-ray-worker"
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }), fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}})
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+	pod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "private-pod"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "nlq-metrics-qwen3-ldcdx-a10-worker-86w6v", Namespace: "ray-llm", Labels: map[string]string{kubernetes.RayClusterLabelKey: "nlq-metrics-qwen3-ldcdx", kubernetes.RayServeLabelKey: "true", kubernetes.RayNodeTypeLabelKey: "worker", kubernetes.RayNodeGroupLabelKey: "a10"}},
+		Owners:     []workloadmeta.KubernetesPodOwner{{Group: "ray.io", Kind: "RayCluster", Name: "nlq-metrics-qwen3-ldcdx"}},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "ray-worker", Image: workloadmeta.ContainerImage{Name: "private/apps/ray-llm-service", Tag: "vllm-stable-nydus"}}},
+	}
+	store.Set(pod)
+	service := &workloadmeta.KubernetesMetadata{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesMetadata, ID: "ray-service"},
+		EntityMeta: workloadmeta.EntityMeta{Name: "nlq-metrics-qwen3", Namespace: "ray-llm"},
+		GVR:        &schema.GroupVersionResource{Group: "ray.io", Version: "v1", Resource: "rayservices"},
+		RayService: &workloadmeta.RayServiceMetadata{IsLLM: true, ClusterNames: []string{"nlq-metrics-qwen3-ldcdx"}},
+	}
+	assert.Empty(t, collector.rayInferenceWorkload(pod))
+	store.Set(service)
+	infos := collector.retagRayDependentPods(service)
+	require.Len(t, infos, 2)
+	for _, info := range infos {
+		assert.Contains(t, info.LowCardTags, "inference_workload:nlq-metrics-qwen3")
+		assert.Contains(t, info.LowCardTags, "inference_workload_component:a10")
+	}
+	service.RayService.IsLLM = false
+	store.Set(service)
+	infos = collector.retagRayDependentPods(service)
+	require.Len(t, infos, 2)
+	for _, info := range infos {
+		for _, tag := range info.LowCardTags {
+			assert.False(t, strings.HasPrefix(tag, "inference_workload:"))
+			assert.False(t, strings.HasPrefix(tag, "inference_workload_component:"))
+		}
 	}
 }

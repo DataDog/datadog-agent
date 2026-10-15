@@ -56,10 +56,11 @@ var CollectorPriorities = make(map[string]types.CollectorPriority)
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store        workloadmeta.Component
-	cfg          config.Component
-	children     map[types.EntityID]map[types.EntityID]struct{}
-	tagProcessor taggerdef.Processor
+	rayServicesByCluster map[string]*workloadmeta.KubernetesMetadata
+	store                workloadmeta.Component
+	cfg                  config.Component
+	children             map[types.EntityID]map[types.EntityID]struct{}
+	tagProcessor         taggerdef.Processor
 
 	containerEnvAsTags              map[string]string
 	containerLabelsAsTags           map[string]string

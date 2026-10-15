@@ -1570,3 +1570,35 @@ func makePodUnsetEvent(uid string) workloadmeta.Event {
 		},
 	}
 }
+
+func TestRayServiceStreamFullStateAndDeletion(t *testing.T) {
+	sc := newDCAStreamClient("node", configmock.New(t))
+	service := &pb.RayService{Namespace: "ray", Name: "qwen", IsLlm: true, ClusterNames: []string{"qwen-ldcdx"}}
+	id := "ray.io/rayservices/ray/qwen"
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{IsFullState: true, RayServices: []*pb.RayService{service}})
+	update := sc.drainPendingUpdate()
+	assert.Contains(t, update.updatedRayServices, id)
+	require.Contains(t, sc.rayServices, id)
+	assert.True(t, sc.rayServices[id].RayService.IsLLM)
+	provider := &streamingProvider{dcaStream: sc}
+	events := provider.buildRayServiceEvents(update.updatedRayServices)
+	require.Len(t, events, 1)
+	assert.Equal(t, workloadmeta.EventTypeSet, events[0].Type)
+	copied := events[0].Entity.(*workloadmeta.KubernetesMetadata)
+	copied.RayService.ClusterNames[0] = "changed"
+	assert.Equal(t, "qwen-ldcdx", sc.rayServices[id].RayService.ClusterNames[0])
+	// A reconnect's empty full state must remove stale service metadata.
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{IsFullState: true})
+	update = sc.drainPendingUpdate()
+	assert.Contains(t, update.updatedRayServices, id)
+	assert.NotContains(t, sc.rayServices, id)
+	events = provider.buildRayServiceEvents(update.updatedRayServices)
+	require.Len(t, events, 1)
+	assert.Equal(t, workloadmeta.EventTypeUnset, events[0].Type)
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{RayServices: []*pb.RayService{service}})
+	_ = sc.drainPendingUpdate()
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{RayServices: []*pb.RayService{{Namespace: "ray", Name: "qwen", Type: pb.KubeMetadataEventType_UNSET}}})
+	update = sc.drainPendingUpdate()
+	assert.Contains(t, update.updatedRayServices, id)
+	assert.NotContains(t, sc.rayServices, id)
+}
