@@ -12,6 +12,7 @@ load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 platform_transition_wrapper(
     name = "rc_x509_ffi_windows_dll_msvc",
     actual = "@libdd_rc_source//:rc_x509_ffi_windows_dll",
+    forward_own_linker_inputs_only = True,
     platform = "//bazel/platforms:windows_x86_64_msvc_fips",
 )
 
