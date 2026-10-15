@@ -24,13 +24,14 @@ def cpython_frozen_modules(modules, tool):
             tool = tool,
         )
 
-def cpython_shared_modules(modules, copts, ext_suffix):
+def cpython_shared_modules(modules, copts, ext_suffix, target_compatible_with):
     """Creates the module_<name> extension module targets.
 
     Args:
         modules: dict of module name to its srcs, defines, linkopts, deps and dynamic_deps.
         copts: compiler options for the module sources.
         ext_suffix: the extension module file suffix.
+        target_compatible_with: platforms the modules are built for.
 
     Returns:
         The labels of the native_module_<name> targets.
@@ -43,6 +44,7 @@ def cpython_shared_modules(modules, copts, ext_suffix):
             linkopts = module.get("linkopts", []),
             local_defines = ["NDEBUG"] + module.get("defines", []),
             tags = ["manual"],
+            target_compatible_with = target_compatible_with,
             deps = [":native_internal_headers"] + module.get("deps", []),
         )
 
@@ -50,6 +52,14 @@ def cpython_shared_modules(modules, copts, ext_suffix):
             name = "native_module_" + name,
             dynamic_deps = module.get("dynamic_deps", []),
             shared_lib_name = name + ext_suffix,
+            target_compatible_with = target_compatible_with,
+            user_link_flags = select({
+                "@platforms//os:macos": [
+                    "-undefined",
+                    "dynamic_lookup",
+                ],
+                "//conditions:default": [],
+            }),
             deps = [":native_module_{}_lib".format(name)],
         )
 
