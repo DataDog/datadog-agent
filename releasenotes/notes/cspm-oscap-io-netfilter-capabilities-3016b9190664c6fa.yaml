@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    CSPM: On Linux hosts, the Ubuntu 22.04 and 24.04 benchmark rules whose
+    checks run ``ufw``, ``nft``, ``iptables`` or ``ip6tables`` now report the
+    host firewall, where they failed on every host since 7.76.0. ``oscap-io``
+    keeps the ``CAP_NET_ADMIN`` and ``CAP_NET_RAW`` capabilities for them. It
+    keeps only the capabilities the agent holds, so XCCDF rules also run when
+    the agent lacks one, such as ``CAP_SYS_CHROOT`` under CRI-O.

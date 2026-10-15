@@ -146,7 +146,7 @@ func TestSecDumpSecurityContextTriStateAbsent(t *testing.T) {
 	assert.Nil(t, sc.ReadOnlyRootFilesystem)
 }
 
-func TestSecurityProfileSecurityContextRoundtrip(t *testing.T) {
+func TestWorkloadProfileSecurityContextRoundtrip(t *testing.T) {
 	in := newProfileWithSelector(t)
 	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
 		Seccomp:         &securitycontext.SeccompProfile{Type: securitycontext.SeccompRuntimeDefault},
