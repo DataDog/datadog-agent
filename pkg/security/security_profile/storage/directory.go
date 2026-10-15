@@ -214,11 +214,15 @@ func (d *Directory) Persist(request config.StorageRequest, p *profile.Profile, r
 		filename += ".gz"
 	}
 
-	filePath := filepath.Join(d.directoryPath, filename)
+	outputDir := d.directoryPath
+	if request.OutputDirectory != "" {
+		outputDir = request.OutputDirectory
+	}
+	filePath := filepath.Join(outputDir, filename)
 
 	tmpFilePath := filePath + ".tmp"
 
-	if err := createDir(d.directoryPath); err != nil {
+	if err := createDir(outputDir); err != nil {
 		return err
 	}
 

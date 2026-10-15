@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -865,4 +866,53 @@ func TestManagerV2_onCGroupDeleted_containerUnlink(t *testing.T) {
 	assert.Empty(t, p.Instances)
 	assert.Contains(t, m.pendingProfileRemovals, testSelector)
 }
+
+func TestManagerV2_ActivityDumpCLI(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	dir := t.TempDir()
+	localStorage, err := storage.NewDirectory(dir, 100)
+	require.NoError(t, err)
+	m.localStorage = localStorage
+	m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout = 30 * time.Minute
+	m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+		config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+		config.NewStorageRequest(config.LocalStorage, config.JSON, false, dir),
+	})
+
+	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.True(t, inserted)
+	require.NotNil(t, p)
+
+	listMsg, err := m.ListActivityDumps(&api.ActivityDumpListParams{})
+	require.NoError(t, err)
+	require.Len(t, listMsg.GetDumps(), 1)
+	assert.Equal(t, p.Metadata.Name, listMsg.GetDumps()[0].GetMetadata().GetName())
+	assert.Equal(t, testContainerID, listMsg.GetDumps()[0].GetMetadata().GetContainerID())
+
+	stopMsg, err := m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: testContainerID})
+	require.NoError(t, err)
+	assert.Empty(t, stopMsg.GetError())
+
+	profilePath := filepath.Join(dir, p.Metadata.Name+"."+config.Profile.String())
+	jsonPath := filepath.Join(dir, p.Metadata.Name+"."+config.JSON.String())
+	_, err = os.Stat(profilePath)
+	require.NoError(t, err)
+	_, err = os.Stat(jsonPath)
+	require.NoError(t, err)
+
+	transcodeDir := t.TempDir()
+	transcodeMsg, err := m.GenerateTranscoding(&api.TranscodingRequestParams{
+		ActivityDumpFile: profilePath,
+		Storage: &api.StorageRequestParams{
+			LocalStorageDirectory: transcodeDir,
+			LocalStorageFormats:   []string{"json"},
+		},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, transcodeMsg.GetError())
+	require.Len(t, transcodeMsg.GetStorage(), 1)
+	_, err = os.Stat(filepath.Join(transcodeDir, p.Metadata.Name+".json"))
+	require.NoError(t, err)
+}
+
 
