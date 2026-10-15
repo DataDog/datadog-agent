@@ -165,6 +165,7 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	common.CheckAgentStops(is.T(), client)
 	common.CheckAgentRestarts(is.T(), client)
 	common.CheckIntegrationInstall(is.T(), client)
+	common.CheckGstatus(is.T(), client)
 	if *majorVersion == "6" {
 		common.SetAgentPythonMajorVersion(is.T(), client, "2")
 		common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion2)
