@@ -1,5 +1,6 @@
 ---
 fixes:
   - |
-    Check error messages in the ``agent_checks`` metadata payload are now truncated to 4096 bytes, so a check
-    reporting an ever-growing error can no longer inflate the payload to tens of megabytes.
+    Check error and warning messages in the ``agent_checks`` metadata payload are now truncated to 4096 bytes,
+    keeping both their beginning and end, so a check reporting a large message can no longer inflate the
+    payload.
