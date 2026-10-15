@@ -8,6 +8,7 @@ package npm
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	k8scorev1 "k8s.io/api/core/v1"
 	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -257,7 +259,85 @@ func (s *istioAmbientSuite) BeforeTest(suiteName, testName string) {
 // AfterTest will be called after each test
 func (s *istioAmbientSuite) AfterTest(suiteName, testName string) {
 	test1HostFakeIntakeNPMDumpInfo(s.T(), s.Env().FakeIntake)
+	if s.T().Failed() {
+		s.dumpAgentState(testName)
+	}
 	s.BaseSuite.AfterTest(suiteName, testName)
+}
+
+// dumpAgentState saves each node agent's process cache, workloadmeta, and logs to the session
+// output directory, and logs whether each test container is in workloadmeta, so attribution
+// failures can be told apart from containers the agent never learned about.
+func (s *istioAmbientSuite) dumpAgentState(testName string) {
+	t := s.T()
+	ctx := context.Background()
+	client := s.Env().KubernetesCluster.Client()
+
+	ids := map[string]string{} // container ID to namespace/pod/container
+	for _, ns := range []string{"istio-system", "clients", "direct", "waypointed"} {
+		pods, err := client.CoreV1().Pods(ns).List(ctx, k8smetav1.ListOptions{})
+		if err != nil {
+			t.Logf("listing pods in %s: %v", ns, err)
+			continue
+		}
+		for _, p := range pods.Items {
+			for _, st := range p.Status.ContainerStatuses {
+				ids[trimContainerRuntime(st.ContainerID)] = ns + "/" + p.Name + "/" + st.Name
+			}
+		}
+	}
+
+	agents, err := client.CoreV1().Pods("datadog").List(ctx, k8smetav1.ListOptions{})
+	if err != nil {
+		t.Logf("listing agent pods: %v", err)
+		return
+	}
+	for _, p := range agents.Items {
+		hasSystemProbe := false
+		for _, c := range p.Spec.Containers {
+			hasSystemProbe = hasSystemProbe || c.Name == "system-probe"
+		}
+		if !hasSystemProbe {
+			continue
+		}
+		dumps := map[string]string{}
+		for name, cmd := range map[string]struct {
+			container string
+			args      []string
+		}{
+			"process_cache": {"system-probe", []string{"system-probe", "debug", "network_tracer", "process_cache"}},
+			"workload_list": {"agent", []string{"agent", "workload-list", "-v"}},
+		} {
+			stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", p.Name, cmd.container, cmd.args)
+			if err != nil {
+				t.Logf("%s on %s: %v (%s)", name, p.Name, err, stderr)
+				continue
+			}
+			dumps[name] = stdout
+			path := fmt.Sprintf("%s/%s-%s-%s.txt", s.SessionOutputDir(), testName, p.Name, name)
+			if err := os.WriteFile(path, []byte(stdout), 0o644); err != nil {
+				t.Logf("writing %s: %v", path, err)
+			}
+		}
+		for _, c := range []string{"agent", "system-probe"} {
+			tail := int64(2000)
+			logs, err := client.CoreV1().Pods("datadog").GetLogs(p.Name, &k8scorev1.PodLogOptions{Container: c, TailLines: &tail}).DoRaw(ctx)
+			if err != nil {
+				t.Logf("%s logs on %s: %v", c, p.Name, err)
+				continue
+			}
+			path := fmt.Sprintf("%s/%s-%s-%s.log", s.SessionOutputDir(), testName, p.Name, c)
+			if err := os.WriteFile(path, logs, 0o644); err != nil {
+				t.Logf("writing %s: %v", path, err)
+			}
+		}
+		// the process cache marshals container IDs opaquely, so only workloadmeta can show them
+		for id, name := range ids {
+			if id != "" {
+				t.Logf("agent %s: %s in workload_list=%t", p.Name, name, strings.Contains(dumps["workload_list"], id))
+			}
+		}
+	}
 }
 
 // TestZtunnelSocketsInAppPodsAreAttributedToTheApp checks that every connection ztunnel opens or
