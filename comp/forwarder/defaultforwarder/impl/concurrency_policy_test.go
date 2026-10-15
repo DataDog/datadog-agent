@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -59,8 +57,4 @@ func newTestConcurrencyDomain(workers int, requests int64) concurrencyDomain {
 		connections: workers,
 		requests:    requests,
 	}.newDomain("test")
-}
-
-func newTestConcurrencyDomainFromConfig(config config.Component, log log.Component) concurrencyDomain {
-	return concurrencyPolicyFromConfig(config, log).newDomain("test")
 }
