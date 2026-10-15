@@ -47,6 +47,11 @@ function formatMetricTypes(members: SeriesInfo[]): string[] {
   return [...new Set(members.flatMap((member) => member.metricTypes ?? []))].sort();
 }
 
+function filterCachedSeriesData(dataList: SeriesData[], group: MetricGroup): SeriesData[] {
+  const currentSeriesIDs = new Set(group.members.map((member) => member.id));
+  return dataList.filter((data) => currentSeriesIDs.has(data.id));
+}
+
 /** Prefix sum of per-bucket deltas (time-ordered) — total from scenario start. */
 function cumulativeFromStart(points: Point[]): Point[] {
   if (points.length === 0) return points;
@@ -789,7 +794,7 @@ export function MetricsView({
                     .map((groupKey) => {
                       const group = groupByKey.get(groupKey);
                       if (!group) return null;
-                      const dataList = groupSeriesData.get(groupKey) ?? [];
+                      const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                       if (dataList.length === 0) return null;
                       const tagFiltered = (tagFilter.include.size > 0 || tagFilter.exclude.size > 0)
 						? dataList.filter((d) => matchesTagFilter(effectiveSeriesTags(d.tags ?? [], d.host), tagFilter))
@@ -871,7 +876,9 @@ export function MetricsView({
                           return g && g.virtual;
                         })
                         .map((groupKey) => {
-                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          const group = groupByKey.get(groupKey);
+                          if (!group) return null;
+                          const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
                             ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
@@ -987,8 +994,9 @@ export function MetricsView({
                         })
                         .map((groupKey) => {
                           const group = groupByKey.get(groupKey);
-                          const isCounterTelemetry = group?.members.some((m) => m.metricKind === 'counter');
-                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          if (!group) return null;
+                          const isCounterTelemetry = group.members.some((m) => m.metricKind === 'counter');
+                          const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
                             ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
