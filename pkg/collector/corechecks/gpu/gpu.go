@@ -505,12 +505,14 @@ func (c *Check) syncSysprobeDataHealthIssue(now time.Time) {
 
 	issue, err := gpuenvironment.NewSystemProbeDataIssue().BuildIssue(failures)
 	if err != nil {
-		log.Warnf("failed to build GPU system-probe data health issue: %v", err)
+		if logLimitCheck.ShouldLog() {
+			log.Warnf("failed to build GPU system-probe data health issue: %v", err)
+		}
 		return
 	}
 	issue.Id = gpuenvironment.SystemProbeDataIssueID
 
-	if err := c.issueReporter.ReportIssue(issue); err != nil {
+	if err := c.issueReporter.ReportIssue(issue); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("failed to report GPU system-probe data health issue: %v", err)
 	}
 }
@@ -600,12 +602,14 @@ func (c *Check) syncDRACDIHealthIssue(draContainers int, now time.Time) {
 		gpuenvironment.DRACDIContextKeyContainerCount: strconv.Itoa(draContainers),
 	})
 	if err != nil {
-		log.Warnf("failed to build GPU DRA CDI health issue: %v", err)
+		if logLimitCheck.ShouldLog() {
+			log.Warnf("failed to build GPU DRA CDI health issue: %v", err)
+		}
 		return
 	}
 	issue.Id = gpuenvironment.DRACDIIssueID
 
-	if err := c.issueReporter.ReportIssue(issue); err != nil {
+	if err := c.issueReporter.ReportIssue(issue); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("failed to report GPU DRA CDI health issue: %v", err)
 	}
 }
