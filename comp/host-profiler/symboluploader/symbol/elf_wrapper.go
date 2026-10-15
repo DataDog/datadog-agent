@@ -87,7 +87,11 @@ func newElfWrapperFromMapping(m *process.RawMapping, pr process.Process) (ef *el
 		return newElfWrapperFromVDSO(m, pr)
 	}
 
-	elfFile, err := pr.OpenELF(m.Path)
+	mf, err := pr.OpenMappingFile(m)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
+	}
+	elfFile, err := pfelf.NewFileFromFS(mf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ELF file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}

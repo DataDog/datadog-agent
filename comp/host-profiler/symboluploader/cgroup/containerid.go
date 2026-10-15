@@ -18,7 +18,7 @@ import (
 // GetSelfContainerID returns the container ID of the current process by reading cgroup.
 func GetSelfContainerID() (string, error) {
 	pid := libpf.PID(os.Getpid())
-	id := process.New(pid, pid).GetProcessMeta(process.MetaConfig{}).ContainerID.String()
+	id := process.New(pid, pid).GetProcessMeta(nil).ContainerID.String()
 	if id == "" {
 		return "", errors.New("not running in a container")
 	}
