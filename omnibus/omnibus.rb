@@ -30,6 +30,40 @@ else
       #!/usr/bin/env bash
       set -eu
       cd "#{repo_root}"
+      marker="#{shim_dir}/last_call.marker"
+      if [ "${1:-}" = "run" ] || [ "${1:-}" = "build" ]; then
+        echo "skyframe summary before: $*" >&2
+        "#{bazel}" dump --skyframe=summary >&2 || true
+        "#{bazel}" dump --skyframe=count >&2 || true
+        "#{bazel}" info used-heap-size-after-gc max-heap-size gc-count gc-time >&2 || true
+        if [ -f "$marker" ]; then
+          echo "files modified in repo since previous bazel call finished:" >&2
+          find . -path ./.cache -prune -o -path ./.git -prune -o -type f -newer "$marker" -print 2>/dev/null | head -50 >&2 || true
+          echo "end of modified files" >&2
+        fi
+        rc=0
+        if [ "$1" = "run" ]; then
+          script="$(mktemp "#{shim_dir}/run_XXXXXX.sh")"
+          "#{bazel}" run --script_path="$script" "${@:2}" || rc=$?
+          echo "skyframe summary after build phase: $*" >&2
+          "#{bazel}" dump --skyframe=summary >&2 || true
+          "#{bazel}" dump --skyframe=count >&2 || true
+          if [ "$rc" -eq 0 ]; then
+            bash "$script" || rc=$?
+            echo "skyframe summary after run phase: $*" >&2
+            "#{bazel}" dump --skyframe=summary >&2 || true
+            "#{bazel}" dump --skyframe=count >&2 || true
+          fi
+          rm -f "$script"
+        else
+          "#{bazel}" "$@" || rc=$?
+          echo "skyframe summary after: $*" >&2
+          "#{bazel}" dump --skyframe=summary >&2 || true
+          "#{bazel}" dump --skyframe=count >&2 || true
+        fi
+        touch "$marker"
+        exit $rc
+      fi
       exec "#{bazel}" "$@"
     SH
     File.chmod(0755, shim)
