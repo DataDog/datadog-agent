@@ -274,15 +274,28 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 		)
 	}
 
+	if src, ok := awsLambdaSourceFromAttributes(attrs); ok {
+		tags = appendSourceDimensions(tags, src)
+	}
+
+	if src, ok := gcpCloudRunJobsSourceFromAttributes(attrs); ok {
+		tags = appendSourceDimensions(tags, src)
+	}
+
 	if src, ok := gcpServerlessSourceFromAttributes(attrs); ok {
-		for key, value := range src.SourceIdentifier.Dimensions {
-			tags = append(tags, key+":"+value)
-		}
+		tags = appendSourceDimensions(tags, src)
 	}
 
 	tags = append(tags, processAttributes.extractTags()...)
 	tags = append(tags, systemAttributes.extractTags()...)
 
+	return tags
+}
+
+func appendSourceDimensions(tags []string, src source.Source) []string {
+	for key, value := range src.SourceIdentifier.Dimensions {
+		tags = append(tags, key+":"+value)
+	}
 	return tags
 }
 
