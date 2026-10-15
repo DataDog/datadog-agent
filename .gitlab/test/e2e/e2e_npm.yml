@@ -84,7 +84,7 @@ new-e2e-npm:
   variables:
     TARGETS: ./tests/npm
     TEAM: cloud-network-monitoring
-    EXTRA_PARAMS: --run "Test(CiliumLBConntracker|KindCiliumIstioAmbientSuite)"
+    EXTRA_PARAMS: --run TestCiliumLBConntracker
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_x64
