@@ -152,6 +152,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		aggFlow.flow = flowToAdd
+		f.flows[aggHash] = aggFlow
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
 		// use go routine for hash collision detection to avoid blocking critical path

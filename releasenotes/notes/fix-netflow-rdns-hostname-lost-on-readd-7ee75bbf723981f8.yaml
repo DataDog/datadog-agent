@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix a bug where reverse DNS hostnames resolved from a cache hit could be
+    silently dropped when a flow was re-added to an aggregation context after
+    it was previously flushed. This caused ``*.ReverseDNSHostname`` fields to
+    be intermittently empty on NetFlow/IPFIX/sFlow payloads even though the
+    enrichment succeeded.
