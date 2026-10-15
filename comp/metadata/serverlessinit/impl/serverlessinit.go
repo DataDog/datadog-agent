@@ -97,7 +97,7 @@ func (c *serverlessinitComp) applyFields() bool {
 	}
 	data := c.provider.GetInventoryData()
 	fields := buildFields(data, c.params, c.conf)
-	if reason := serverlessinit.PayloadInvalid(fields); reason != nil {
+	if reason := serverlessinit.ValidatePayload(fields); reason != nil {
 		c.log.Debugf("serverless inventory payload not submitted: %v", reason)
 		return false
 	}
