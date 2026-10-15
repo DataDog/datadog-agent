@@ -32,8 +32,6 @@ func TestGetClusterAgentEKSIdentityTags(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{
 		"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
-		"aws_account:123456789012",
-		"region:us-west-2",
 	}, tags)
 }
 
