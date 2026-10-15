@@ -7,11 +7,11 @@ package autoconnections
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -64,17 +64,6 @@ func CreateConnectionsIfEnabled(
 	}
 }
 
-func scriptAutoConnectionCredentialFileAllowed(allowedRoots []string) bool {
-	path := filepath.Clean(getScriptConfigPath())
-	for _, root := range allowedRoots {
-		relativePath, err := filepath.Rel(root, path)
-		if err == nil && filepath.IsLocal(relativePath) {
-			return true
-		}
-	}
-	return false
-}
-
 func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID string, enrollmentResult *enrollment.Result, actionsAllowlist []string) error {
 	definitions := DetermineConnectionsToCreate(actionsAllowlist)
 	if len(definitions) == 0 {
@@ -85,7 +74,7 @@ func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID 
 	tags := c.provider.GetTags(ctx, runnerID, enrollmentResult.Hostname)
 
 	for _, definition := range definitions {
-		if definition.FQNPrefix == supportedConnections["script"].FQNPrefix && !scriptAutoConnectionCredentialFileAllowed(c.scriptCredentialFileAllowedRoots) {
+		if definition.FQNPrefix == supportedConnections["script"].FQNPrefix && !resolver.ScriptCredentialFileAllowed(c.scriptCredentialFileAllowedRoots, getScriptConfigPath()) {
 			log.Warnf("Skipping automatic Script connection creation: its credential file is outside %s; add %s to the configured roots to allow it",
 				par.ScriptCredentialFileAllowedRoots, getPrivateActionRunnerDir())
 			continue

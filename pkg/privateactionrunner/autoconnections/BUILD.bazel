@@ -20,6 +20,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/credentials/resolver",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",

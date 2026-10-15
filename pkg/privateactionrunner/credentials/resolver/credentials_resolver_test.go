@@ -382,6 +382,54 @@ func TestScriptCredentialFileResolutionWithSymlinkedRoot(t *testing.T) {
 	}
 }
 
+func TestScriptCredentialFileAllowed(t *testing.T) {
+	realRoot := t.TempDir()
+	resolvedRealRoot, err := filepath.EvalSymlinks(realRoot)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(realRoot, "credentials.yaml"), []byte("credentials"), 0o600))
+	otherRoot := t.TempDir()
+	missingRoot := filepath.Join(t.TempDir(), "missing")
+	filesystemRoot := filepath.VolumeName(realRoot) + string(filepath.Separator)
+	linkedRoot := filepath.Join(t.TempDir(), "linked")
+	symlinkErr := os.Symlink(realRoot, linkedRoot)
+	sep := string(filepath.Separator)
+
+	tests := []struct {
+		name    string
+		roots   []string
+		path    string
+		symlink bool
+		exists  bool
+		want    bool
+	}{
+		{name: "plain root", roots: []string{realRoot}, path: filepath.Join(realRoot, "credentials.yaml"), exists: true, want: true},
+		{name: "symlinked root, configured form", roots: []string{linkedRoot}, path: filepath.Join(linkedRoot, "credentials.yaml"), symlink: true, exists: true, want: true},
+		{name: "symlinked root, resolved form", roots: []string{linkedRoot}, path: filepath.Join(resolvedRealRoot, "credentials.yaml"), symlink: true, exists: true, want: true},
+		{name: "path through symlink to root", roots: []string{realRoot}, path: filepath.Join(linkedRoot, "credentials.yaml"), symlink: true, exists: true},
+		{name: "missing root", roots: []string{missingRoot}, path: filepath.Join(missingRoot, "credentials.yaml"), want: true},
+		{name: "filesystem root", roots: []string{filesystemRoot}, path: filepath.Join(filesystemRoot, "credentials.yaml")},
+		{name: "relative root", roots: []string{"relative"}, path: filepath.Join(realRoot, "credentials.yaml"), exists: true},
+		{name: "different directory", roots: []string{otherRoot}, path: filepath.Join(realRoot, "credentials.yaml"), exists: true},
+		{name: "parent traversal", roots: []string{realRoot}, path: realRoot + sep + "nested" + sep + ".." + sep + "credentials.yaml"},
+		{name: "empty path", roots: []string{realRoot}},
+		{name: "no roots", roots: []string{}, path: filepath.Join(realRoot, "credentials.yaml"), exists: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.symlink && symlinkErr != nil {
+				t.Skipf("symlinks unavailable: %v", symlinkErr)
+			}
+			assert.Equal(t, tt.want, ScriptCredentialFileAllowed(tt.roots, tt.path))
+			if !tt.exists {
+				return
+			}
+			_, err := newTestResolver(t, tt.roots).ResolveConnectionInfoToCredential(context.Background(), scriptConnectionInfo(tt.path), nil)
+			assert.Equal(t, tt.want, err == nil, "predicate and resolver must agree")
+		})
+	}
+}
+
 func TestScriptCredentialFileResolutionRejectsAuthTokenPoC(t *testing.T) {
 	path := "/etc/datadog-agent/auth_token"
 	resolver := newTestResolver(t, []string{t.TempDir()})

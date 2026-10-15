@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -252,10 +253,10 @@ func (p *privateCredentialResolver) resolveYamlFileToken(ctx context.Context, pa
 }
 
 func (p *privateCredentialResolver) openScriptCredentialFile(path string) (credentialFile, error) {
-	if path == "" || !filepath.IsAbs(path) || containsParentPathElement(path) {
+	path, ok := cleanScriptCredentialPath(path)
+	if !ok {
 		return nil, errCouldNotLoadScriptCredentialFile
 	}
-	path = filepath.Clean(path)
 
 	for _, rootPath := range p.scriptCredentialFileRoots {
 		root, resolvedRootPath, err := openScriptCredentialRoot(rootPath)
@@ -274,13 +275,54 @@ func (p *privateCredentialResolver) openScriptCredentialFile(path string) (crede
 
 // The path may use either the configured or the resolved root form; os.Root enforces containment.
 func openInScriptCredentialRoot(root *os.Root, path string, rootForms ...string) (credentialFile, error) {
-	for _, rootForm := range rootForms {
-		relativePath, err := filepath.Rel(rootForm, path)
-		if err == nil && filepath.IsLocal(relativePath) {
-			return root.Open(relativePath)
+	relativePath, ok := relativeToRoot(path, rootForms...)
+	if !ok {
+		return nil, errCouldNotLoadScriptCredentialFile
+	}
+	return root.Open(relativePath)
+}
+
+// ScriptCredentialFileAllowed reports whether the resolver would accept path under roots.
+// A root that does not exist yet is matched by its configured path, since it may be created later.
+func ScriptCredentialFileAllowed(roots []string, path string) bool {
+	path, ok := cleanScriptCredentialPath(path)
+	if !ok {
+		return false
+	}
+	for _, configuredRoot := range roots {
+		rootPath := filepath.Clean(configuredRoot)
+		root, resolvedRootPath, err := openScriptCredentialRoot(rootPath)
+		switch {
+		case err == nil:
+			_ = root.Close()
+			if _, ok := relativeToRoot(path, rootPath, resolvedRootPath); ok {
+				return true
+			}
+		case errors.Is(err, fs.ErrNotExist):
+			if _, ok := relativeToRoot(path, rootPath); ok {
+				return true
+			}
 		}
 	}
-	return nil, errCouldNotLoadScriptCredentialFile
+	return false
+}
+
+// cleanScriptCredentialPath returns the cleaned path when it is absolute and has no ".." element.
+func cleanScriptCredentialPath(path string) (string, bool) {
+	if path == "" || !filepath.IsAbs(path) || containsParentPathElement(path) {
+		return "", false
+	}
+	return filepath.Clean(path), true
+}
+
+// relativeToRoot returns path relative to the first root form that contains it.
+func relativeToRoot(path string, rootForms ...string) (string, bool) {
+	for _, rootForm := range rootForms {
+		if relativePath, err := filepath.Rel(rootForm, path); err == nil && filepath.IsLocal(relativePath) {
+			return relativePath, true
+		}
+	}
+	return "", false
 }
 
 func containsParentPathElement(path string) bool {
