@@ -1,6 +1,6 @@
 # Validate and generate schema output
 
-Use these workflows after changing an Agent configuration setting. The [schema overview](../../architecture/agent-schema/index.md#how-the-commands-fit-together) explains how the generated artifacts relate to the source, and the [CLI reference](../../reference/agent-schema/cli.md) lists command arguments.
+Use these workflows after changing an Agent configuration setting. The [schema overview](index.md#how-the-commands-fit-together) explains how the generated artifacts relate to the source, and the [CLI reference](cli.md) lists command arguments.
 
 ## Validate changes and regenerate Go code
 
@@ -29,7 +29,7 @@ dda inv schema.template \
   --output=/tmp/datadog.yaml.example
 ```
 
-Choose an output path suitable for your operating system. See the [template command reference](../../reference/agent-schema/cli.md#schematemplate) for supported build types and platforms.
+Choose an output path suitable for your operating system. See the [template command reference](cli.md#schematemplate) for supported build types and platforms.
 
 ## Locate a setting
 
@@ -45,4 +45,4 @@ To list every setting whose path ends in `enabled`, use a pattern:
 dda inv -- schema.locate '*enabled'
 ```
 
-See the [lookup command reference](../../reference/agent-schema/cli.md#schemalocate) for regular expressions, schema selection, and JSON output.
+See the [lookup command reference](cli.md#schemalocate) for regular expressions, schema selection, and JSON output.

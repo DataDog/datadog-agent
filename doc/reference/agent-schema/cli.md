@@ -4,7 +4,7 @@ The schema tooling is exposed through a set of `dda inv schema.*` invoke tasks (
 
 These commands are aimed at **Agent developers** and **AI tooling running on the repository**. Most of them run automatically as part of the build and CI pipelines, so you rarely need to invoke them by hand — but they are useful when adding or editing settings, debugging schema problems, or regenerating output locally.
 
-See the [schema architecture](../../architecture/agent-schema/index.md#how-the-commands-fit-together) for how these commands fit together and the [schema workflows](../../how-to/agent-schema/workflows.md) for common tasks.
+See the [schema overview](index.md#how-the-commands-fit-together) for how these commands fit together and the [schema workflows](workflows.md) for common tasks.
 
 ## `schema.add-setting`
 
@@ -93,6 +93,6 @@ dda inv -- schema.locate 'apm_config\..*enabled' --json
 
 ## See also
 
-- Read the [schema overview](../../architecture/agent-schema/index.md) for the concepts behind the commands.
+- Read the [schema overview](index.md) for the concepts behind the commands.
 - Consult the [keyword reference](keywords.md) for the fields these commands read and write.
-- Follow the [settings how-to](../../how-to/agent-schema/settings.md) to add, document, and publish settings.
+- Follow the [settings how-to](settings.md) to add, document, and publish settings.

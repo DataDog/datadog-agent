@@ -248,7 +248,7 @@ cel_workload_exclude:
 
 ### Validation keywords
 
-Each JSON Schema type comes with built-in validation keywords. The most useful ones in the Agent schema are listed below. Validation rules can be arbitrarily nested — see [Examples](../../architecture/agent-schema/examples.md#example-3-complex-nested-type-cel_workload_exclude) for a real-world demonstration.
+Each JSON Schema type comes with built-in validation keywords. The most useful ones in the Agent schema are listed below. Validation rules can be arbitrarily nested — see [Examples](examples.md#example-3-complex-nested-type-cel_workload_exclude) for a real-world demonstration.
 
 | Keyword | Applies to | Description |
 | --- | --- | --- |
