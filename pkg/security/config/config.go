@@ -602,12 +602,12 @@ type RuntimeSecurityConfig struct {
 
 	// description: SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
 	// visibility: private
-	// default_value: 1m
+	// default_value: 30m
 	SBOMResolverEnrichmentInterval time.Duration
 
 	// description: SBOMResolverForwardInterval defines the interval for forwarding SBOMs
 	// visibility: private
-	// default_value: 20s
+	// default_value: 1m
 	SBOMResolverForwardInterval time.Duration
 
 	// description: SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
