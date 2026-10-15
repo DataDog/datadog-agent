@@ -8,6 +8,7 @@ dd_agent_go_test(
         "docker_permission_test.go",
         "dogstatsd_client_drops_test.go",
         "helpers_test.go",
+        "high_memory_k8s_test.go",
         "resilience_test.go",
     ],
     embed = [":agent-health"],
@@ -35,6 +36,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/fields",
     ],
 )
 

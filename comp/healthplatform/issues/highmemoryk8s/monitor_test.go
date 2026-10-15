@@ -24,7 +24,7 @@ func TestNewMonitor(t *testing.T) {
 
 	assert.Equal(t, usageMetric, m.Metric)
 	assert.Equal(t, limitMetric, m.DivideBy)
-	assert.Equal(t, map[string]string{"kind": "agent"}, m.Tags)
+	assert.Equal(t, map[string]string{"kind": "agent", "kube_container_name": "agent"}, m.Tags)
 	assert.Equal(t, metricsevaluator.ComparatorAbove, m.Comparator)
 	assert.Equal(t, 0.9, m.Threshold)
 	assert.NotNil(t, m.Callback)

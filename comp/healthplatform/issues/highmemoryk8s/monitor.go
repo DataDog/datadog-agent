@@ -20,10 +20,10 @@ import (
 
 const (
 	monitorName = "high_memory_k8s"
-	// Both gauges are recorded by the container checks for the Datadog Agent pods running on the node,
-	// see pkg/collector/corechecks/containers/agentperformance.
-	usageMetric = "agent_performance__memory_usage"
-	limitMetric = "agent_performance__memory_limit"
+	// Both gauges are recorded by the container checks for each container of the Datadog Agent pods running on the
+	// node, see pkg/collector/corechecks/containers/agentperformance.
+	usageMetric = "agent_performance__container_memory_usage"
+	limitMetric = "agent_performance__container_memory_limit"
 
 	threshold = 0.9
 	window    = 5 * time.Minute
@@ -39,8 +39,10 @@ func NewMonitor(store storedef.Component, hostname hostnameinterface.Component, 
 		Name:     monitorName,
 		Metric:   usageMetric,
 		DivideBy: limitMetric,
-		// The cluster Agent and cluster checks runner pods on the node have their own series.
-		Tags:        map[string]string{"kind": "agent"},
+		// Only the agent container of the node Agent pod: the cluster Agent and cluster checks runner pods on the node
+		// have their own series, and the other node Agent containers (trace-agent, process-agent, ...) have their own
+		// usage and limit.
+		Tags:        map[string]string{"kind": "agent", "kube_container_name": sourceContainer},
 		Window:      window,
 		Aggregation: metricsevaluator.AggregationAvg,
 		Comparator:  metricsevaluator.ComparatorAbove,

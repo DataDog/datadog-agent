@@ -14,17 +14,17 @@ import (
 
 // This example alerts when the node Agent uses more than 90% of its container memory limit, on average over
 // 5 minutes. Both gauges are recorded by the container checks (see pkg/collector/corechecks/containers/agentperformance)
-// for the Datadog Agent pods running on the node, so they only have values on Kubernetes.
+// for each container of the Datadog Agent pods running on the node, so they only have values on Kubernetes.
 func Example_agentMemoryUsage() {
 	// In a component, the evaluator is injected through the Requires struct.
 	var evaluator metricsevaluator.Component
 
 	err := evaluator.Register(metricsevaluator.Monitor{
 		Name:     "agent_memory_usage",
-		Metric:   "agent_performance__memory_usage",
-		DivideBy: "agent_performance__memory_limit",
-		// Only the node Agent pod; the cluster Agent and cluster checks runners have their own series.
-		Tags:        map[string]string{"kind": "agent"},
+		Metric:   "agent_performance__container_memory_usage",
+		DivideBy: "agent_performance__container_memory_limit",
+		// Only the agent container of the node Agent pod; the other containers and pods have their own series.
+		Tags:        map[string]string{"kind": "agent", "kube_container_name": "agent"},
 		Window:      5 * time.Minute,
 		Aggregation: metricsevaluator.AggregationAvg,
 		Comparator:  metricsevaluator.ComparatorAbove,
