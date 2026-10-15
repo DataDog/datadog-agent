@@ -5,5 +5,12 @@ enhancements:
     (core v1.65.0 to v1.68.0, k8sattributesprocessor v0.159.0 to v1.1.0).
 
     See the full upstream changelogs:
-    `collector-contrib v0.162.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.162.0>`_,
-    `collector core v0.162.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.162.0>`_.
+
+    - collector-contrib
+      `v0.160.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.160.0>`__,
+      `v0.161.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.161.0>`__,
+      `v0.162.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.162.0>`__
+    - collector core
+      `v0.160.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.160.0>`__,
+      `v0.161.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.161.0>`__,
+      `v0.162.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.162.0>`__
