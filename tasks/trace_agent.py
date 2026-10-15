@@ -146,9 +146,10 @@ def dupcheck_diff(ctx, report_file="", baseline_ref=""):
     Compares the trace payload duplicates report of HEAD with the one of its merge base.
 
     The Markdown comparison is printed and, if --report-file is set, written to that file, which is left empty when
-    the reports have the same issues, or when the merge base has no report and HEAD doesn't change the checker.
-    --baseline-ref overrides the merge base. The merge base is checked out to run
-    its report, so tracked files must have no local change.
+    the reports have the same issues, or when the merge base has no checker and HEAD doesn't change the checker.
+    The task fails, writing no file, when the report fails on HEAD or on a merge base that has the checker, so that
+    the comment of a previous run isn't replaced by an incomplete comparison. --baseline-ref overrides the merge base.
+    The merge base is checked out to run its report, so tracked files must have no local change.
     """
     if not ctx.run("git diff --quiet HEAD", warn=True, hide=True).ok:
         raise Exit("dupcheck-diff checks out the merge base: commit or stash your changes first", code=1)
@@ -172,15 +173,17 @@ def dupcheck_diff(ctx, report_file="", baseline_ref=""):
                 base = _dupcheck_report(os.path.join(tmpdir, "base.json"))
             finally:
                 ctx.run(f"git checkout -q {current}")
+            if base is None:
+                raise Exit(f"the dupcheck report failed on the merge base {baseline_ref}", code=1)
         changed_inputs = [
             path
             for path in CORPUS_INPUTS
             if not ctx.run(f"git diff --quiet {baseline_ref} {head_sha} -- {path}", warn=True, hide=True).ok
         ]
         if base is None:
-            print(color_message(f"No dupcheck report for the merge base {baseline_ref}", "orange"))
+            print(color_message(f"The merge base {baseline_ref} has no dupcheck checker", "orange"))
             # Without a baseline, only a PR changing the checker gets its report: other PRs whose merge base
-            # predates the checker, or has a broken one, would get a comment unrelated to their change.
+            # predates the checker would get a comment unrelated to their change.
             body = render_without_baseline(head, baseline_ref) if DUPCHECK_DIR in changed_inputs else ""
         else:
             body = render_diff(base, head, baseline_ref, changed_inputs)
