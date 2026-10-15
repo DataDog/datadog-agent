@@ -78,6 +78,14 @@ func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerI
 	return events
 }
 
+func newHostMisses(t *testing.T) *simplelru.LRU[string, sbomtypes.Package] {
+	misses, err := simplelru.NewLRU[string, sbomtypes.Package](maxHostMisses, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	return misses
+}
+
 func newPendingFileEventsResolver(t *testing.T) *Resolver {
 	return &Resolver{pendingFileEvents: newPendingFileEvents(t)}
 }
@@ -516,6 +524,7 @@ func newHostSBOMResolver(t *testing.T) *Resolver {
 			SBOMResolverForwardInterval:    time.Hour,
 		},
 		pendingFileEvents: newPendingFileEvents(t),
+		hostMisses:        newHostMisses(t),
 		wmeta:             failingWorkloadmeta{},
 	}
 
@@ -615,9 +624,16 @@ func TestHostForwardingSkipsImageSBOM(t *testing.T) {
 	}
 }
 
+// noFingerprint gives a test package scanner the fingerprint of a root whose
+// package databases are unknown.
+type noFingerprint struct{}
+
+func (noFingerprint) Fingerprint(string) string { return "" }
+
 // rootRecorder is a package scanner that records the root it was given and
 // finds the packages of report there.
 type rootRecorder struct {
+	noFingerprint
 	root   string
 	report []sbomtypes.PackageWithInstalledFiles
 }
@@ -962,43 +978,198 @@ func TestScanHostOnEmptyScan(t *testing.T) {
 	}
 }
 
-// TestRescanHostOnTick checks that the host packages are scanned again on every
-// tick until the context is done. Usage enrichment alone relies on these scans
-// to keep the host index current.
-func TestRescanHostOnTick(t *testing.T) {
+// fingerprinted is a package scanner finding the packages of report in a root
+// whose package databases have fingerprint.
+type fingerprinted struct {
+	rootRecorder
+	fingerprint string
+}
+
+func (s *fingerprinted) Fingerprint(string) string { return s.fingerprint }
+
+// TestRescanHostOnCheck checks that a check of the host package databases scans
+// the host packages again when the fingerprint of the databases changed since
+// the last scan, or when that scan is an hour old, and leaves them otherwise.
+// Usage enrichment alone relies on these checks to keep the host index current.
+func TestRescanHostOnCheck(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name        string
+		fingerprint string    // fingerprint of the databases the last scan read
+		scanned     time.Time // time of the last scan
+		wantScans   uint64
+	}{
+		{name: "unchanged", fingerprint: "dbs", scanned: now.Add(-time.Minute)},
+		{name: "databases changed", fingerprint: "old", scanned: now.Add(-time.Minute), wantScans: 1},
+		{name: "hour old", fingerprint: "dbs", scanned: now.Add(-hostRescanInterval), wantScans: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sbomGenerations = atomic.NewUint64(0)
+			r.failedSBOMGenerations = atomic.NewUint64(0)
+			r.sbomCollector = &fingerprinted{
+				rootRecorder: rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
+					Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+					InstalledFiles: []string{"/usr/bin/gzip"},
+				}}},
+				fingerprint: "dbs",
+			}
+			r.hostFingerprint, r.hostScanned = tt.fingerprint, tt.scanned
+
+			ctx, cancel := context.WithCancel(context.Background())
+			tick := make(chan time.Time)
+			done := make(chan struct{})
+			go func() {
+				r.rescanHost(ctx, tick)
+				close(done)
+			}()
+			tick <- now
+			cancel()
+			<-done
+
+			if n := r.sbomGenerations.Load(); n != tt.wantScans {
+				t.Errorf("%d scans of the host packages, want %d", n, tt.wantScans)
+			}
+			if r.hostFingerprint != "dbs" {
+				t.Errorf("fingerprint = %q, want %q, that of the databases", r.hostFingerprint, "dbs")
+			}
+		})
+	}
+}
+
+// writingScanner is a package scanner finding gzip in a root whose package
+// databases change while it reads them.
+type writingScanner struct {
+	fingerprint string
+}
+
+func (s *writingScanner) Fingerprint(string) string { return s.fingerprint }
+
+func (s *writingScanner) ScanInstalledPackages(context.Context, string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+	s.fingerprint = "written"
+	return []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+		InstalledFiles: []string{"/usr/bin/gzip"},
+	}}, nil
+}
+
+// TestScanHostFingerprintsBeforeScan checks that a scan of the host packages
+// keeps the fingerprint the package databases had before it read them, so that
+// a write while it reads them makes the next check scan again.
+func TestScanHostFingerprintsBeforeScan(t *testing.T) {
 	r := newHostSBOMResolver(t)
 	r.sbomGenerations = atomic.NewUint64(0)
 	r.failedSBOMGenerations = atomic.NewUint64(0)
-	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
-		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
-		InstalledFiles: []string{"/usr/bin/gzip"},
-	}}}
+	r.sbomCollector = &writingScanner{fingerprint: "read"}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	tick := make(chan time.Time)
-	done := make(chan struct{})
-	go func() {
-		r.rescanHost(ctx, tick)
-		close(done)
-	}()
-
-	// The second tick goes through once the scan of the first is over.
-	tick <- time.Now()
-	tick <- time.Now()
-	cancel()
-	<-done
-
-	if n := r.sbomGenerations.Load(); n != 2 {
-		t.Errorf("%d scans of the host packages, want 2", n)
+	if err := r.scanHost(); err != nil {
+		t.Fatalf("scanHost: %v", err)
 	}
-	if pkgs := r.hostSBOM.data.packages; len(pkgs) != 1 || pkgs[0].Name != "gzip" {
-		t.Errorf("host packages = %+v, want gzip, from the new scans", pkgs)
+	if r.hostFingerprint != "read" {
+		t.Errorf("fingerprint = %q, want %q, from before the scan read the databases", r.hostFingerprint, "read")
+	}
+	if !r.hostChanged(time.Now()) {
+		t.Errorf("the check missed the write made while the scan read the databases")
+	}
+}
+
+// TestScanHostCreditsMissedRuns checks that a scan finding a new package credits
+// it the runs of its files by host processes made before the scan, in the last
+// hostMissTTL, at the time of each run. Opens, processes on a root of their own
+// and processes of containers leave it as it is, and the run of a file no
+// package owns waits for a later scan.
+func TestScanHostCreditsMissedRuns(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string        // path of the file the process accesses
+		open      bool          // the process opens the file instead of running it
+		foreign   bool          // the process runs on a root of its own
+		container bool          // the process runs in a container
+		age       time.Duration // age of the run at the scan
+		credited  bool          // the scan credits the run to gzip
+		kept      bool          // the run waits for a later scan
+	}{
+		{name: "run", path: "/usr/bin/gzip", credited: true},
+		{name: "open", path: "/usr/bin/gzip", open: true},
+		{name: "foreign root", path: "/usr/bin/gzip", foreign: true},
+		{name: "container", path: "/usr/bin/gzip", container: true},
+		{name: "expired", path: "/usr/bin/gzip", age: hostMissTTL + time.Minute},
+		{name: "unowned", path: "/usr/local/bin/gzip", kept: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sbomGenerations = atomic.NewUint64(0)
+			r.failedSBOMGenerations = atomic.NewUint64(0)
+			r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
+				Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+				InstalledFiles: []string{"/usr/bin/su"},
+			}, {
+				Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+				InstalledFiles: []string{"/usr/bin/gzip"},
+			}}}
+
+			pc := &model.ProcessContext{}
+			pc.Pid = uint32(os.Getpid())
+			pc.Process.FileEvent.SetPathnameStr(tt.path)
+			pc.Process.FileEvent.Mode = 04755
+			file := &pc.Process.FileEvent
+			if tt.open {
+				pc.Process.FileEvent.SetPathnameStr("/usr/bin/zcat")
+				file = &model.FileEvent{}
+				file.SetPathnameStr(tt.path)
+				file.Mode = 04755
+			}
+			if tt.foreign {
+				r.hostRootDevice, r.hostRootInode = tempRoot(t)
+			}
+			if tt.container {
+				sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+				if err != nil {
+					t.Fatalf("NewLRU: %v", err)
+				}
+				r.sboms = sboms
+				sbom := r.newSBOM("container-id", nil, "image")
+				t.Cleanup(sbom.stop)
+				sbom.state.Store(computedState)
+				pc.ContainerContext.ContainerID = "container-id"
+			}
+
+			before := time.Now()
+			r.ResolvePackage(pc, file)
+			after := time.Now()
+			if tt.age > 0 {
+				miss, _ := r.hostMisses.Peek(tt.path)
+				miss.LastAccess = miss.LastAccess.Add(-tt.age)
+				r.hostMisses.Add(tt.path, miss)
+			}
+			r.hostRootDevice, r.hostRootInode = ownRoot(t)
+
+			if err := r.scanHost(); err != nil {
+				t.Fatalf("scanHost: %v", err)
+			}
+
+			gzip := r.hostSBOM.data.packages[1]
+			if credited := !gzip.LastAccess.IsZero(); credited != tt.credited {
+				t.Errorf("gzip = %+v, want the run credited: %t", gzip, tt.credited)
+			}
+			if tt.credited && (gzip.LastAccess.Before(before) || gzip.LastAccess.After(after) || !gzip.SuidBit || !gzip.AccessedByRoot) {
+				t.Errorf("gzip = %+v, want the setuid run as root, between %v and %v", gzip, before, after)
+			}
+			if kept := r.hostMisses.Len() > 0; kept != tt.kept {
+				t.Errorf("%d runs wait for a later scan, want some: %t", r.hostMisses.Len(), tt.kept)
+			}
+		})
 	}
 }
 
 // blockingScanner is a package scanner that signals each scan it starts and
 // finishes it, finding gzip, once release is closed.
 type blockingScanner struct {
+	noFingerprint
 	started chan struct{}
 	release chan struct{}
 }
