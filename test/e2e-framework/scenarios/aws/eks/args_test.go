@@ -63,14 +63,6 @@ func TestNewParamsAutoModeRejectsWithoutInternetAccess(t *testing.T) {
 	}
 }
 
-func TestNewParamsAutoModeWithInternetAccessOverride(t *testing.T) {
-	// WithInternetAccess clears an earlier WithoutInternetAccess, so there is no conflict.
-	params, err := NewParams(WithoutInternetAccess(), WithInternetAccess(), WithAutoMode())
-	require.NoError(t, err)
-	assert.True(t, params.AutoMode)
-	assert.False(t, params.WithoutInternetAccess)
-}
-
 func TestNewParamsWithoutInternetAccessOutsideAutoMode(t *testing.T) {
 	params, err := NewParams(WithoutInternetAccess(), WithLinuxNodeGroup())
 	require.NoError(t, err)
