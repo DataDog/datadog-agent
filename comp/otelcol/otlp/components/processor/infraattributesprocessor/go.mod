@@ -150,6 +150,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.162.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.159.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.68.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.162.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.162.0 // indirect
@@ -172,8 +173,8 @@ require (
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/api v0.293.0 // indirect
 	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260831171406-18b4a7587f8a // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )

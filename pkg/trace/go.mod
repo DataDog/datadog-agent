@@ -102,6 +102,9 @@ require (
 	go.opentelemetry.io/collector/component/componentstatus v0.162.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.162.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.162.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.159.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.68.0 // indirect
+	go.opentelemetry.io/collector/extension v1.68.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.68.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.162.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.162.0 // indirect
@@ -112,20 +115,25 @@ require (
 	go.opentelemetry.io/collector/processor/xprocessor v0.162.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.22.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0 // indirect
+	go.opentelemetry.io/collector/processor v1.65.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper v0.159.0 // indirect
+	go.opentelemetry.io/collector/processor/xprocessor v0.159.0 // indirect
+	go.opentelemetry.io/collector/receiver/receivertest v0.162.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.46.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.46.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.22.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.46.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/exp v0.0.0-20261009195045-ca0d7ba23607 // indirect
+	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260831171406-18b4a7587f8a // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
