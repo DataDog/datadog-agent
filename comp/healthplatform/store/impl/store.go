@@ -556,6 +556,12 @@ func (h *healthPlatformImpl) IssueDiscriminator(hostID string) string {
 	return issuesmod.IssueDiscriminator(h.selfIdent, hostID)
 }
 
+// ClusterDiscriminator returns the identifier cluster-wide issue ids should be
+// scoped by; see issuesmod.ClusterDiscriminator.
+func (h *healthPlatformImpl) ClusterDiscriminator() string {
+	return issuesmod.ClusterDiscriminator(h.selfIdent, h.hostnameProvider.GetSafe(context.Background()))
+}
+
 // ResourceIdentity returns the resource_type/resource_id describing the
 // entity this agent process represents; see the Component interface doc.
 func (h *healthPlatformImpl) ResourceIdentity(hostname string) (string, string) {

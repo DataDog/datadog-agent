@@ -38,3 +38,14 @@ func TestIssueDiscriminator_FallsBackToOSHostnameWithoutHostID(t *testing.T) {
 func TestIssueDiscriminator_NilSelfIdentFallsBackToHostID(t *testing.T) {
 	assert.Equal(t, "some-host-id", IssueDiscriminator(nil, "some-host-id"))
 }
+
+func TestClusterDiscriminator_NilSelfIdentFallsBackToHostID(t *testing.T) {
+	assert.Equal(t, "some-host-id", ClusterDiscriminator(nil, "some-host-id"))
+}
+
+func TestClusterDiscriminator_FallsBackToOSHostnameWithoutHostID(t *testing.T) {
+	osHostname, err := os.Hostname()
+	require.NoError(t, err)
+
+	assert.Equal(t, osHostname, ClusterDiscriminator(nil, ""))
+}

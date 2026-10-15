@@ -70,6 +70,11 @@ type Component interface {
 	// returns "" unless hostID is empty and the OS hostname is unavailable.
 	IssueDiscriminator(hostID string) string
 
+	// ClusterDiscriminator returns the identifier cluster-wide issue ids
+	// should be scoped by: this agent's Kubernetes cluster id when resolvable,
+	// or this agent's hostname as a fallback.
+	ClusterDiscriminator() string
+
 	// ResourceIdentity returns the resource_type/resource_id describing the
 	// entity this agent process represents, for HostInfo enrichment on
 	// outbound reports: ("cluster", cluster id) for the Cluster Agent,

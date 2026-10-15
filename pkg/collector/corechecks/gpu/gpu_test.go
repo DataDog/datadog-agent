@@ -313,11 +313,11 @@ func TestRunDoesNotError(t *testing.T) {
 }
 
 func TestSyncNvmlHealthIssue(t *testing.T) {
-	healthStore := healthplatformmock.New(t)
+	healthStore := healthplatformmock.New(t, healthplatformmock.WithResourceIdentity("cluster", "cluster-id-123"))
 	check := &Check{}
 	check.SetIssueReporter(healthStore)
 
-	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	issueID := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable + ":cluster-id-123"
 
 	check.syncNvmlHealthIssue(true, false)
 	issue := healthStore.GetIssue(issueID)
@@ -330,6 +330,21 @@ func TestSyncNvmlHealthIssue(t *testing.T) {
 
 	check.syncNvmlHealthIssue(false, true)
 	assert.Nil(t, healthStore.GetIssue(issueID))
+}
+
+func TestSyncNvmlHealthIssueResolvesLegacyID(t *testing.T) {
+	healthStore := healthplatformmock.New(t)
+	check := &Check{}
+	check.SetIssueReporter(healthStore)
+
+	legacyID := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
+	issue, err := gpuenvironment.NewGPUEnvironmentIssue().BuildIssue(map[string]string{"reason": gpuenvironment.ReasonNvmlUnavailable})
+	require.NoError(t, err)
+	issue.Id = legacyID
+	require.NoError(t, healthStore.ReportIssue(issue))
+
+	check.syncNvmlHealthIssue(false, true)
+	assert.Nil(t, healthStore.GetIssue(legacyID))
 }
 
 func TestSyncNvmlHealthIssueWithNilReporter(t *testing.T) {

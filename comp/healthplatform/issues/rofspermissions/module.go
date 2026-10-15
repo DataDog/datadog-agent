@@ -10,8 +10,12 @@
 package rofspermissions
 
 import (
+	"context"
+
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -32,20 +36,25 @@ const (
 	// IssueName lowercased with spaces replaced by underscores (hyphens preserved).
 	IssueType = "read-only_filesystem_error"
 
-	// IssueID is the unique instance id used when reporting this issue
+	// IssueID is the issue ID prefix used when reporting this issue.
+	// Check appends the cluster discriminator: IssueID + ":" + cluster id.
 	IssueID = "rofs-permissions"
 )
 
 type rofsPermissionsModule struct {
-	template *RofsPermissionIssue
-	conf     config.Component
+	template  *RofsPermissionIssue
+	conf      config.Component
+	hostname  hostnameinterface.Component
+	selfIdent *selfident.SelfIdent
 }
 
 // NewModule creates a new ROFS permissions issue module
 func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &rofsPermissionsModule{
-		template: NewRofsPermissionIssue(),
-		conf:     deps.Config,
+		template:  NewRofsPermissionIssue(),
+		conf:      deps.Config,
+		hostname:  deps.Hostname,
+		selfIdent: deps.SelfIdent,
 	}
 }
 
@@ -71,7 +80,17 @@ func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHe
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",
 		Fn: func() ([]runnerdef.IssueReport, error) {
-			return Check(r.conf)
+			return Check(r.conf, r.instanceIssueID)
 		},
 	}
+}
+
+// instanceIssueID scopes IssueID to this agent's cluster, falling back to the
+// host, so that hosts in different clusters don't all report the same id.
+func (r *rofsPermissionsModule) instanceIssueID() string {
+	var hostID string
+	if r.hostname != nil {
+		hostID = r.hostname.GetSafe(context.Background())
+	}
+	return IssueID + ":" + issues.ClusterDiscriminator(r.selfIdent, hostID)
 }
