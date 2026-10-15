@@ -13,4 +13,4 @@ for lib in "$@"; do
     lib_dirs="${lib_dirs:+${lib_dirs}:}$(cd "$(dirname "${lib}")" && pwd)"
 done
 
-LD_LIBRARY_PATH="${lib_dirs}" exec "${python}" -I "${test_script}" "${modules_file}"
+LD_LIBRARY_PATH="${lib_dirs}" DYLD_LIBRARY_PATH="${lib_dirs}" exec "${python}" -I "${test_script}" "${modules_file}"

@@ -288,7 +288,10 @@ SHARED_MODULES = {
     "_posixshmem": {
         "srcs": ["Modules/_multiprocessing/posixshmem.c"],
         "deps": [":native_multiprocessing_headers"],
-        "linkopts": ["-lrt"],
+        "linkopts": select({
+            "@platforms//os:macos": [],
+            "//conditions:default": ["-lrt"],
+        }),
     },
     "_multiprocessing": {
         "srcs": ["Modules/_multiprocessing/multiprocessing.c", "Modules/_multiprocessing/semaphore.c"],
@@ -301,7 +304,14 @@ SHARED_MODULES = {
             "Modules/_ctypes/callproc.c",
             "Modules/_ctypes/stgdict.c",
             "Modules/_ctypes/cfield.c",
-        ],
+        ] + select({
+            "@platforms//os:macos": ["Modules/_ctypes/malloc_closure.c"],
+            "//conditions:default": [],
+        }),
+        "defines": select({
+            "@platforms//os:macos": ["USING_MALLOC_CLOSURE_DOT_C=1"],
+            "//conditions:default": [],
+        }),
         "deps": ["@libffi//:ffi"],
     },
     "_sqlite3": {
@@ -359,35 +369,96 @@ LIBEXPAT_SRCS = [
     "Modules/expat/xmltok.c",
 ]
 
+# Extension modules only built on macOS, in the same format as SHARED_MODULES.
+MACOS_SHARED_MODULES = {
+    "readline": {"srcs": ["Modules/readline.c"], "linkopts": ["-lreadline"]},
+    "_curses": {
+        "srcs": ["Modules/_cursesmodule.c"],
+        "defines": ["_XOPEN_SOURCE_EXTENDED=1"],
+        "linkopts": ["-lncurses"],
+    },
+    "_curses_panel": {
+        "srcs": ["Modules/_curses_panel.c"],
+        "defines": ["_XOPEN_SOURCE_EXTENDED=1"],
+        "linkopts": ["-lpanel", "-lncurses"],
+    },
+    "_scproxy": {
+        "srcs": ["Modules/_scproxy.c"],
+        "linkopts": ["-framework", "SystemConfiguration", "-framework", "CoreFoundation"],
+    },
+    "_uuid": {"srcs": ["Modules/_uuidmodule.c"]},
+}
+
 # Per platform values, keyed by the config_setting matching the platform: the
 # pyconfig.h to use and the values derived from the platform triplet.
 NATIVE_PLATFORMS = {
     "@@//:linux_arm64": {
         "ext_suffix": ".cpython-{version_flat}-aarch64-linux-gnu.so".format(version_flat = PYTHON_MAJOR_MINOR_FLAT),
         "gnu_type": "aarch64-unknown-linux-gnu",
+        "libpython": "libpython{version}.so.1.0".format(version = PYTHON_MAJOR_MINOR),
+        "machdep": "linux",
         "multiarch": "aarch64-linux-gnu",
         "pyconfig": "@@//deps/cpython:pyconfig-linux-arm64.h",
     },
     "@@//:linux_x86_64": {
         "ext_suffix": ".cpython-{version_flat}-x86_64-linux-gnu.so".format(version_flat = PYTHON_MAJOR_MINOR_FLAT),
         "gnu_type": "x86_64-pc-linux-gnu",
+        "libpython": "libpython{version}.so.1.0".format(version = PYTHON_MAJOR_MINOR),
+        "machdep": "linux",
         "multiarch": "x86_64-linux-gnu",
         "pyconfig": "@@//deps/cpython:pyconfig-linux-x86_64.h",
     },
+    "@@//:macos_arm64": {
+        "ext_suffix": ".cpython-{version_flat}-darwin.so".format(version_flat = PYTHON_MAJOR_MINOR_FLAT),
+        "gnu_type": "aarch64-apple-darwin",
+        "libpython": "libpython{version}.dylib".format(version = PYTHON_MAJOR_MINOR),
+        "machdep": "darwin",
+        "multiarch": "darwin",
+        "pyconfig": "@@//deps/cpython:pyconfig-macos-arm64.h",
+    },
+    "@@//:macos_x86_64": {
+        "ext_suffix": ".cpython-{version_flat}-darwin.so".format(version_flat = PYTHON_MAJOR_MINOR_FLAT),
+        "gnu_type": "x86_64-apple-darwin",
+        "libpython": "libpython{version}.dylib".format(version = PYTHON_MAJOR_MINOR),
+        "machdep": "darwin",
+        "multiarch": "darwin",
+        "pyconfig": "@@//deps/cpython:pyconfig-macos-x86_64.h",
+    },
 }
 
-def sysconfig_vars(multiarch, gnu_type):
+# sysconfig values that differ on macOS.
+_SYSCONFIG_DARWIN_OVERRIDES = {
+    "ARFLAGS": "rcs",
+    "BASECFLAGS": "-fno-strict-overflow -Wsign-compare -Wunreachable-code",
+    "BLDSHARED": "clang -bundle -undefined dynamic_lookup",
+    "CC": "clang",
+    "CCSHARED": "",
+    "CXX": "clang",
+    "INSTSONAME": "libpython{version}.dylib".format(version = PYTHON_MAJOR_MINOR),
+    "LDCXXSHARED": "clang -bundle -undefined dynamic_lookup",
+    "LDLIBRARY": "libpython{version}.dylib".format(version = PYTHON_MAJOR_MINOR),
+    "LDSHARED": "clang -bundle -undefined dynamic_lookup",
+    "LIBS": "-ldl  -framework CoreFoundation",
+    "LINKCC": "clang",
+    "LINKFORSHARED": "-Wl,-stack_size,1000000  -framework CoreFoundation",
+    "MACOSX_DEPLOYMENT_TARGET": "12.0",
+    "PY3LIBRARY": "",
+    "SYSLIBS": "",
+}
+
+def sysconfig_vars(platform):
     """Returns the sysconfig build_time_vars for a target platform.
 
     Args:
-        multiarch: the multiarch tuple, e.g. x86_64-linux-gnu.
-        gnu_type: the GNU host type, e.g. x86_64-pc-linux-gnu.
+        platform: a NATIVE_PLATFORMS entry.
 
     Returns:
         A dict of sysconfig variable names to values, with @PREFIX@ standing
         for the install prefix.
     """
-    return {
+    multiarch = platform["multiarch"]
+    gnu_type = platform["gnu_type"]
+    base = {
         "ABIFLAGS": "",
         "AR": "ar",
         "ARFLAGS": "rcsD",
@@ -410,7 +481,7 @@ def sysconfig_vars(multiarch, gnu_type):
         "DESTSHARED": "@PREFIX@/lib/python{version}/lib-dynload".format(version = PYTHON_MAJOR_MINOR),
         "DLLLIBRARY": "",
         "EXE": "",
-        "EXT_SUFFIX": ".cpython-{version_flat}-{multiarch}.so".format(version_flat = PYTHON_MAJOR_MINOR_FLAT, multiarch = multiarch),
+        "EXT_SUFFIX": platform["ext_suffix"],
         "HOST_GNU_TYPE": gnu_type,
         "INCLUDEDIR": "@PREFIX@/include",
         "INCLUDEPY": "@PREFIX@/include/python{version}".format(version = PYTHON_MAJOR_MINOR),
@@ -432,7 +503,7 @@ def sysconfig_vars(multiarch, gnu_type):
         "LIBS": "-ldl  -lutil",
         "LINKCC": "gcc",
         "LINKFORSHARED": "-Xlinker -export-dynamic",
-        "MACHDEP": "linux",
+        "MACHDEP": platform["machdep"],
         "MULTIARCH": multiarch,
         "OPT": "-DNDEBUG -fwrapv",
         "PLATLIBDIR": "lib",
@@ -456,3 +527,6 @@ def sysconfig_vars(multiarch, gnu_type):
         "exec_prefix": "@PREFIX@",
         "prefix": "@PREFIX@",
     }
+    if platform["machdep"] == "darwin":
+        base.update(_SYSCONFIG_DARWIN_OVERRIDES)
+    return base
