@@ -234,15 +234,30 @@ func TestCapabilitiesFullAgentMetadataRefresh(t *testing.T) {
 	}
 }
 
-func TestCapabilitiesReadiness(t *testing.T) {
+func TestSetBatch(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil, nil)
+
+	ia.Set("stale", "old")
+	ia.SetBatch(map[string]interface{}{
+		"stale":  nil,
+		"test":   1234,
+		"flavor": "batch-flavor",
+	})
+
+	assert.Equal(t, 1234, ia.data["test"])
+	assert.Equal(t, "batch-flavor", ia.data["flavor"])
+	assert.Nil(t, ia.data["stale"], "a nil batch value must clear the cached field")
+	assert.True(t, ia.RefreshTriggered())
+}
+
+func TestSetBatchReadiness(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
 		capabilities *iainterface.Capabilities
 		deferred     bool
 	}{
 		{name: "absent capabilities"},
-		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}},
-		{name: "deferred capability", capabilities: &iainterface.Capabilities{DeferUntilReady: true}, deferred: true},
+		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}, deferred: true},
 		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil), deferred: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -264,8 +279,8 @@ func TestCapabilitiesReadiness(t *testing.T) {
 			assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
 			p.Comp.Set("resource_id", "complete-resource")
 			p.Comp.Submit()
-			data, err := ia.GetAsJSON()
 			if tt.deferred {
+				data, err := ia.GetAsJSON()
 				assert.EqualError(t, err, "inventory metadata is not ready")
 				assert.Nil(t, data)
 				assert.True(t, ia.LastCollect.IsZero())
@@ -275,10 +290,10 @@ func TestCapabilitiesReadiness(t *testing.T) {
 				serializerMock.On("SendMetadata", mock.MatchedBy(func(payload *Payload) bool {
 					return payload.Metadata["resource_id"] == "complete-resource"
 				})).Return(nil).Once()
-				p.Comp.SetReady(true)
+				p.Comp.SetBatch(map[string]interface{}{"resource_id": "complete-resource"})
 				p.Comp.Submit()
-				data, err = ia.GetAsJSON()
 			}
+			data, err := ia.GetAsJSON()
 			require.NoError(t, err)
 			assert.Contains(t, string(data), `"resource_id": "complete-resource"`)
 			assert.False(t, ia.LastCollect.IsZero())
@@ -288,16 +303,17 @@ func TestCapabilitiesReadiness(t *testing.T) {
 	}
 }
 
-func TestCapabilitiesReadinessDoesNotEnableInventory(t *testing.T) {
+func TestSetBatchDoesNotEnableInventory(t *testing.T) {
 	p := getProvides(t, map[string]any{"inventories_enabled": false}, nil,
 		fx.Supply(iainterface.NewServerlessCapabilities(func() string {
 			t.Fatal("disabled inventory must not resolve identity")
 			return ""
 		})))
 	ia := p.Comp.(*inventoryagent)
-	p.Comp.SetReady(true)
+	p.Comp.SetBatch(map[string]interface{}{"resource_id": "test-resource"})
 	p.Comp.Submit()
 	assert.False(t, ia.Enabled)
+	assert.Empty(t, ia.data)
 	assert.Nil(t, p.Provider.Callback)
 	assert.Nil(t, ia.MetadataProvider().Callback)
 	assert.True(t, ia.LastCollect.IsZero())

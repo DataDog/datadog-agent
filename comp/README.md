@@ -545,6 +545,14 @@ Package runner implements a component to generate metadata payload at the right 
 
 Package securityagent is the metadata provider for security-agent process
 
+### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
+
+*Datadog Team*: team/serverless-azure-and-gcp
+
+Package serverlessinit implements the serverless-init inventory metadata
+payload: it applies the platform's serverless fields to the inventoryagent
+payload and submits the first payload as soon as resource identity is known.
+
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
 Package systemprobe is the metadata provider for system-probe process

@@ -10,12 +10,14 @@ update every minute (see `inventories_min_interval`).
 
 # Content
 
-The `Set` method from the component allow the rest of the codebase to add any information to the payload.
+The `Set` method from the component allow the rest of the codebase to add any information to the payload. `SetBatch` applies a
+complete field set atomically and opens a payload that was constructed closed.
 
 ## Embedding capabilities
 
-`Capabilities` is an optional internal Fx dependency, not a YAML or environment setting. Without it, each payload
-retains the standard full-agent metadata refresh.
+`Capabilities` is an optional internal Fx dependency, not a YAML or environment setting. Without it, each payload retains the
+standard full-agent metadata refresh and the payload starts ready for submission. Present Capabilities construct the payload
+closed until the first `SetBatch` opens it.
 
 `NewServerlessCapabilities` sets `SkipFullAgentMetadataRefresh`, which skips **all** collectors in `refreshMetadata()`:
 core Agent, security Agent, process Agent, trace Agent, system-probe, Fleet, and application monitoring. Skipping
