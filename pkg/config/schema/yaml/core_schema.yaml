@@ -6462,8 +6462,15 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Data Security: single enablement flag gating both the autodiscovery provider
-          and the sds-result event platform pipeline.
+          Data Security: when true, the Agent can run Data Security scans scheduled from Datadog
+          and send their results back as `sds-result` events. Requires `shared_library_check.enabled`
+          to also be true.
+      enforce_ssl:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Data Security: when true, scans are enforced to use SSL, with no fallback to plaintext.
   data_streams:
     node_type: section
     type: object
@@ -8014,18 +8021,6 @@ properties:
               Infrastructure basic mode section [UNDOCUMENTED]
               Note: All checks starting with "custom_" are always allowed.
               integration.basic.allowed: default allowed checks (internal, should not need user configuration)
-      cloud_cost_only:
-        node_type: section
-        type: object
-        properties:
-          tagged:
-            node_type: setting
-            type: array
-            default: []
-            items:
-              type: string
-            comment: 'integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only
-              (empty means all checks)'
       enabled:
         node_type: setting
         type: boolean

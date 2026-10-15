@@ -63,6 +63,29 @@ func TestMarkedInfraMode(t *testing.T) {
 	}
 }
 
+func TestMarkedInfraModeTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		expected []string
+	}{
+		{"cloud_cost_only", "cloud_cost_only", []string{"infra_mode:cloud_cost_only"}},
+		{"end_user_device", "end_user_device", []string{"infra_mode:end_user_device"}},
+		{"full returns nil", "full", nil},
+		{"basic returns nil", "basic", nil},
+		{"none returns nil", "none", nil},
+		{"an unknown mode returns nil", "cloud_cost", nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("infrastructure_mode", tc.mode)
+			assert.Equal(t, tc.expected, MarkedInfraModeTags(cfg))
+		})
+	}
+}
+
 // Every marked mode must be a declared mode, otherwise the allowlist marks a
 // value that ResolveInfrastructureMode rejects and the mark never ships.
 func TestMarkedInfraModesAreKnown(t *testing.T) {

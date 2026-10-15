@@ -167,17 +167,16 @@ func (s *kubeadmSuite) Test00UpAndRunning() {
 	s.Require().NoError(err, "Not all agents eventually became ready in time.")
 }
 
-// TestContainerImageLayerCreated verifies that no container image payload
-// sends a layer created at the zero time. The base layers of the control plane
-// images record that time, so their payloads carry those layers with no
-// created time.
+// TestContainerImageLayerCreated verifies that every layer history sent in the
+// container image payloads carries a created time, and that it is not the zero
+// time.
 func (s *kubeadmSuite) TestContainerImageLayerCreated() {
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		names, err := s.Fakeintake.GetContainerImageNames()
 		require.NoErrorf(c, err, "Failed to query fake intake")
+		require.NotEmptyf(c, names, "No container image payload yet")
 
-		ok := true
-		unset := map[string]int{}
+		checked := 0
 		for _, name := range names {
 			images, err := s.Fakeintake.FilterContainerImages(name)
 			require.NoErrorf(c, err, "Failed to query fake intake")
@@ -187,17 +186,15 @@ func (s *kubeadmSuite) TestContainerImageLayerCreated() {
 					if history == nil {
 						continue
 					}
-					if history.GetCreated() == nil {
-						unset[name]++
+					checked++
+					if !assert.NotNilf(c, history.GetCreated(), "%s sends layer %s with no created time", name, layer.GetDigest()) {
 						continue
 					}
-					ok = assert.Falsef(c, history.GetCreated().AsTime().IsZero(), "%s sends layer %s created at the zero time", name, layer.GetDigest()) && ok
+					assert.Falsef(c, history.GetCreated().AsTime().IsZero(), "%s sends layer %s created at the zero time", name, layer.GetDigest())
 				}
 			}
 		}
-		if assert.NotEmptyf(c, unset, "No container image payload has a layer without a created time yet") && ok {
-			s.T().Logf("Layers sent with no created time, by image: %v", unset)
-		}
+		assert.NotZerof(c, checked, "No container image payload has a layer with history yet")
 	}, 8*time.Minute, 15*time.Second, "Failed validating the layer created times of the container image payloads")
 }
 
