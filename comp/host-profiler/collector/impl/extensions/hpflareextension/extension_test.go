@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 
 	"go.uber.org/zap"
 )
@@ -75,7 +76,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	conf := confmap.NewFromStringMap(map[string]any{
 		"extensions": []any{"hpflare"},
 	})
-	ddExt.NotifyConfig(context.TODO(), conf)
+	err = ddExt.NotifyConfigSnapshot(context.TODO(), extensioncapabilities.NewConfigSnapshot(conf, nil))
 	assert.NoError(t, err)
 
 	handler := ddExt.server.srv.Handler

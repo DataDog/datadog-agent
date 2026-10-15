@@ -10,6 +10,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"testing"
 	"time"
@@ -17,15 +18,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 
 	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
@@ -46,12 +52,12 @@ func newClient(objects ...runtime.Object) kubernetes.Interface {
 	client := fake.NewSimpleClientset(objects...)
 	client.Resources = []*metav1.APIResourceList{
 		{
-			GroupVersion: autoscalingGroup + "/v2beta1",
+			GroupVersion: autoscalingGroup + "/v2",
 			APIResources: []metav1.APIResource{
 				{
 					Name:    hpaResource,
 					Group:   autoscalingGroup,
-					Version: "v2beta1",
+					Version: "v2",
 				},
 			},
 		},
@@ -80,9 +86,11 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 				{
 					Type: autoscalingv2.ExternalMetricSourceType,
 					External: &autoscalingv2.ExternalMetricSource{
-						MetricName: metricName,
-						MetricSelector: &metav1.LabelSelector{
-							MatchLabels: labels,
+						Metric: autoscalingv2.MetricIdentifier{
+							Name: metricName,
+							Selector: &metav1.LabelSelector{
+								MatchLabels: labels,
+							},
 						},
 					},
 				},
@@ -103,9 +111,36 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLe
 		isLeaderFunc,
 		dcl,
 	)
-	autoscalerController.enableHPA(client, informerFactory)
+	require.NoError(t, autoscalerController.enableHPA(client, informerFactory, nil))
 
 	return autoscalerController, informerFactory
+}
+
+// newFakeLegacyHorizontalPodAutoscaler returns an autoscaling/v2beta1 or
+// autoscaling/v2beta2 HPA, as served by the dynamic client on clusters that
+// don't serve autoscaling/v2.
+func newFakeLegacyHorizontalPodAutoscaler(version, name, ns, uid, metricName string, labels map[string]string) *unstructured.Unstructured {
+	matchLabels := map[string]interface{}{}
+	for k, v := range labels {
+		matchLabels[k] = v
+	}
+	external := map[string]interface{}{
+		"metric": map[string]interface{}{"name": metricName, "selector": map[string]interface{}{"matchLabels": matchLabels}},
+	}
+	if version == "v2beta1" {
+		external = map[string]interface{}{"metricName": metricName, "metricSelector": map[string]interface{}{"matchLabels": matchLabels}}
+	}
+
+	hpa := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": autoscalingGroup + "/" + version,
+		"kind":       "HorizontalPodAutoscaler",
+		"metadata":   map[string]interface{}{"name": name, "namespace": ns, "uid": uid},
+		"spec": map[string]interface{}{
+			"metrics": []interface{}{map[string]interface{}{"type": "External", "external": external}},
+		},
+	}}
+	hpa.SetAnnotations(makeAnnotations(metricName, labels))
+	return hpa
 }
 
 var alwaysLeader = func() bool { return true }
@@ -331,7 +366,7 @@ func TestAutoscalerController(t *testing.T) {
 
 	hctrl.runControllerLoop(stop)
 
-	c := client.AutoscalingV2beta1()
+	c := client.AutoscalingV2()
 	require.NotNil(t, c)
 
 	timeoutDuration := 5 * time.Second
@@ -375,10 +410,12 @@ func TestAutoscalerController(t *testing.T) {
 		{
 			Type: autoscalingv2.ExternalMetricSourceType,
 			External: &autoscalingv2.ExternalMetricSource{
-				MetricName: "foo",
-				MetricSelector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"dcos_version": "2.1.9",
+				Metric: autoscalingv2.MetricIdentifier{
+					Name: "foo",
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"dcos_version": "2.1.9",
+						},
 					},
 				},
 			},
@@ -477,6 +514,121 @@ func TestAutoscalerController(t *testing.T) {
 	assert.EventuallyWithTf(t, assertDeleteFunc, timeoutDuration, retryPeriod, "Verify that a Delete removes the Data from the Global Store")
 }
 
+// TestAutoscalerControllerLegacyHPAVersions is an integration test of the
+// AutoscalerController on clusters that don't serve autoscaling/v2, where the
+// HPAs are watched with the dynamic informer.
+func TestAutoscalerControllerLegacyHPAVersions(t *testing.T) {
+	for _, version := range []string{"v2beta2", "v2beta1"} {
+		t.Run(version, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("kube_resources_namespace", "nsfoo")
+
+			ctx := context.Background()
+			timeoutDuration := 5 * time.Second
+			retryPeriod := 100 * time.Millisecond
+
+			hpaGVR := schema.GroupVersionResource{Group: autoscalingGroup, Version: version, Resource: hpaResource}
+			client := fake.NewSimpleClientset()
+			client.Resources = []*metav1.APIResourceList{{
+				GroupVersion: hpaGVR.GroupVersion().String(),
+				APIResources: []metav1.APIResource{{Name: hpaResource, Group: autoscalingGroup, Version: version}},
+			}}
+			dynamicClient := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+				map[schema.GroupVersionResource]string{hpaGVR: "HorizontalPodAutoscalerList"},
+				newFakeLegacyHorizontalPodAutoscaler(version, "hpa_1", "nsfoo", "1", "foo", map[string]string{"foo": "bar"}),
+			)
+			dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, 0)
+
+			eventBroadcaster := record.NewBroadcaster()
+			eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: client.CoreV1().Events("")})
+			defer eventBroadcaster.Shutdown()
+
+			hctrl, err := newAutoscalersController(
+				client,
+				eventBroadcaster.NewRecorder(kscheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
+				alwaysLeader,
+				datadogclientmock.New(t).Comp,
+			)
+			require.NoError(t, err)
+			require.NoError(t, hctrl.enableHPA(client, informers.NewSharedInformerFactory(client, 0), dynamicInformerFactory))
+			hctrl.autoscalers = make(chan interface{}, 1)
+
+			stop := make(chan struct{})
+			defer close(stop)
+			dynamicInformerFactory.Start(stop)
+			go hctrl.runHPA(stop)
+
+			waitForSync := func() {
+				select {
+				case key := <-hctrl.autoscalers:
+					t.Logf("hctrl process key:%s", key)
+				case <-time.After(timeoutDuration):
+					require.FailNow(t, "Timeout waiting for HPAs to update")
+				}
+			}
+			assertLocalStore := func(labels map[string]string) {
+				assert.EventuallyWithT(t, func(c *assert.CollectT) {
+					hctrl.toStore.m.Lock()
+					defer hctrl.toStore.m.Unlock()
+					if assert.Len(c, hctrl.toStore.data, 1) {
+						for _, em := range hctrl.toStore.data {
+							assert.Equal(c, "foo", em.MetricName)
+							assert.Equal(c, labels, em.Labels)
+							assert.Equal(c, custommetrics.ObjectReference{Type: "horizontal", Name: "hpa_1", Namespace: "nsfoo", UID: "1"}, em.Ref)
+						}
+					}
+				}, timeoutDuration, retryPeriod)
+			}
+
+			waitForSync()
+			assertLocalStore(map[string]string{"foo": "bar"})
+
+			// The event is recorded on the autoscaling/v2beta* HPA
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				events, err := client.CoreV1().Events("nsfoo").List(ctx, metav1.ListOptions{})
+				if assert.NoError(c, err) && assert.Len(c, events.Items, 1) {
+					assert.Equal(c, hpaGVR.GroupVersion().String(), events.Items[0].InvolvedObject.APIVersion)
+					assert.Equal(c, "HorizontalPodAutoscaler", events.Items[0].InvolvedObject.Kind)
+					assert.Equal(c, "hpa_1", events.Items[0].InvolvedObject.Name)
+					assert.Equal(c, autoscalerNowHandleMsgEvent, events.Items[0].Reason)
+				}
+			}, timeoutDuration, retryPeriod)
+
+			// The GC goes through the dynamic informer lister
+			stale := custommetrics.ExternalMetricValue{
+				MetricName: "bar",
+				Ref:        custommetrics.ObjectReference{Type: "horizontal", Name: "hpa_1", Namespace: "nsfoo", UID: "1"},
+			}
+			hctrl.toStore.m.Lock()
+			require.NoError(t, hctrl.store.SetExternalMetricValues(maps.Clone(hctrl.toStore.data)))
+			hctrl.toStore.m.Unlock()
+			require.NoError(t, hctrl.store.SetExternalMetricValues(map[string]custommetrics.ExternalMetricValue{custommetrics.ExternalMetricValueKeyFunc(stale): stale}))
+			hctrl.gc()
+			storedMetrics, err := hctrl.store.ListAllExternalMetricValues()
+			require.NoError(t, err)
+			require.Len(t, storedMetrics.External, 1)
+			assert.Equal(t, "foo", storedMetrics.External[0].MetricName)
+
+			// Update the metric labels
+			_, err = dynamicClient.Resource(hpaGVR).Namespace("nsfoo").Update(ctx,
+				newFakeLegacyHorizontalPodAutoscaler(version, "hpa_1", "nsfoo", "1", "foo", map[string]string{"dcos_version": "2.1.9"}),
+				metav1.UpdateOptions{},
+			)
+			require.NoError(t, err)
+			waitForSync()
+			assertLocalStore(map[string]string{"dcos_version": "2.1.9"})
+
+			// Delete the HPA
+			require.NoError(t, dynamicClient.Resource(hpaGVR).Namespace("nsfoo").Delete(ctx, "hpa_1", metav1.DeleteOptions{}))
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				hctrl.toStore.m.Lock()
+				defer hctrl.toStore.m.Unlock()
+				assert.Empty(c, hctrl.toStore.data)
+			}, timeoutDuration, retryPeriod)
+		})
+	}
+}
+
 func TestAutoscalerSync(t *testing.T) {
 	client := newClient()
 	datadogClientComp := datadogclientmock.New(t).Comp
@@ -489,7 +641,7 @@ func TestAutoscalerSync(t *testing.T) {
 		map[string]string{"foo": "bar"},
 	)
 
-	err := inf.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer().GetStore().Add(obj)
+	err := inf.Autoscaling().V2().HorizontalPodAutoscalers().Informer().GetStore().Add(obj)
 	require.NoError(t, err)
 	key := "default/hpa_1"
 	err = hctrl.syncHPA(key)
@@ -528,16 +680,18 @@ func TestAutoscalerControllerGC(t *testing.T) {
 				},
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "HorizontalPodAutoscaler",
-					APIVersion: "v2beta1",
+					APIVersion: "v2",
 				},
 				Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
 					Metrics: []autoscalingv2.MetricSpec{
 						{
 							Type: autoscalingv2.ExternalMetricSourceType,
 							External: &autoscalingv2.ExternalMetricSource{
-								MetricName: "requests_per_s",
-								MetricSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{"bar": "baz"},
+								Metric: autoscalingv2.MetricIdentifier{
+									Name: "requests_per_s",
+									Selector: &metav1.LabelSelector{
+										MatchLabels: map[string]string{"bar": "baz"},
+									},
 								},
 							},
 						},

@@ -22,12 +22,13 @@ exporters:
       tags: []
     hostname: otelcol-docker
     hostname_detection_timeout: 25s
-    idle_conn_timeout: "1m30s"
+    keepalive:
+      idle_conn_timeout: 1m30s
+      max_idle_conns: 100
     logs:
       batch_wait: 5
       compression_level: 6
       use_compression: true
-    max_idle_conns: 100
     metrics:
       delta_ttl: 3600
       histograms:
@@ -90,8 +91,8 @@ receivers:
       http:
         cors: null
         endpoint: 0.0.0.0:4318
-        idle_timeout: 0s
-        keep_alives_enabled: true
+        keepalive:
+          idle_timeout: 1m0s
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
