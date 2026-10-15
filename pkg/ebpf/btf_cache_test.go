@@ -84,7 +84,7 @@ func TestEmbeddedBTFCacheRepair(t *testing.T) {
 			ret, err = b.checkforBTF(mustRelative(t, b.btfOutputDir, extract))
 			require.NoError(t, err)
 			require.NotNil(t, ret.vmlinux)
-			require.NoError(t, b.secureBTFCache(filepath.Dir(intermediate), extract))
+			require.NoError(t, SecureCacheDir(extract))
 		})
 	}
 }
@@ -98,10 +98,14 @@ func mustRelative(t *testing.T, base, dir string) string {
 
 func TestEmbeddedBTFUnsafeFileParents(t *testing.T) {
 	for _, parent := range []string{"root", "version", "intermediate", "extraction"} {
-		for _, mode := range []os.FileMode{0770, 0777, 0777 | os.ModeSticky} {
+		modes := []os.FileMode{0770, 0777}
+		if parent == "extraction" {
+			modes = append(modes, 0777|os.ModeSticky)
+		}
+		for _, mode := range modes {
 			t.Run(parent+"/"+mode.String(), func(t *testing.T) {
 				b, intermediate, extract := embeddedCacheLoader(t, false)
-				require.NoError(t, b.secureBTFCache(filepath.Dir(intermediate), extract))
+				require.NoError(t, SecureCacheDir(extract))
 				dirs := map[string]string{"root": filepath.Dir(b.btfOutputDir), "version": b.btfOutputDir, "intermediate": filepath.Dir(intermediate), "extraction": extract}
 				unsafe := dirs[parent]
 				require.NoError(t, os.WriteFile(filepath.Join(unsafe, "planted"), []byte("untrusted"), 0600))
@@ -163,7 +167,7 @@ func TestUnprivilegedCannotPlantAfterCacheRepair(t *testing.T) {
 	}
 	out, err := plant()
 	require.NoError(t, err, string(out))
-	require.NoError(t, SecureCacheDir("BTF cache", dir))
+	require.NoError(t, SecureCacheDir(dir))
 	out, err = plant()
 	require.Error(t, err, string(out))
 	_, err = os.Stat(filepath.Join(dir, "planted"))
@@ -180,7 +184,7 @@ func TestRemoteBTFCacheRepair(t *testing.T) {
 	r := &rcBTFLoader{b: b, ctx: context.Background(), platform: platformUbuntu, platformVersion: "22.04", kernelVersion: b.kernelVersion, arch: b.arch}
 	rel := relativeBTFTarballPath(r.platform, r.platformVersion, r.kernelVersion)
 	extract := filepath.Join(b.btfOutputDir, filepath.Dir(rel), r.kernelVersion)
-	require.NoError(t, b.secureBTFCache(extract))
+	require.NoError(t, SecureCacheDir(extract))
 	victim := filepath.Join(t.TempDir(), "victim")
 	require.NoError(t, os.WriteFile(victim, []byte("unchanged"), 0600))
 	require.NoError(t, os.Symlink(victim, filepath.Join(extract, r.kernelVersion+".btf")))

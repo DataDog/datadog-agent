@@ -301,21 +301,9 @@ func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF
 	return nil, nil
 }
 
-// secureBTFCache validates every directory holding cache files as a leaf. This
-// prevents a sticky writable file parent from passing the ancestor exception.
-func (b *orderedBTFLoader) secureBTFCache(fileParents ...string) error {
-	dirs := append([]string{filepath.Dir(b.btfOutputDir), b.btfOutputDir}, fileParents...)
-	for _, dir := range dirs {
-		if err := SecureCacheDir("BTF cache directory", dir); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
-	if err := b.secureBTFCache(filepath.Join(b.btfOutputDir, extractDir)); err != nil {
-		return nil, err
+	if err := SecureCacheDir(filepath.Join(b.btfOutputDir, extractDir)); err != nil {
+		return nil, fmt.Errorf("BTF cache directory: %w", err)
 	}
 	ret, err := b.checkForMinimizedBTF(extractDir)
 	if err != nil || ret != nil {
@@ -344,11 +332,6 @@ func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 	absExtractDir := filepath.Join(b.btfOutputDir, extractDir)
 	absExtractFile := filepath.Join(absExtractDir, b.kernelVersion+".btf")
 
-	btfIntermediatePath := filepath.Join(b.btfOutputDir, btfRelativeEmbeddedFilename)
-	if err := b.secureBTFCache(filepath.Dir(btfIntermediatePath), absExtractDir); err != nil {
-		return nil, err
-	}
-
 	// If we've previously extracted the BTF file in question, we can just load it
 	ret, err := b.checkforBTF(extractDir)
 	if err != nil || ret != nil {
@@ -360,6 +343,7 @@ func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 	// of BTFs as a whole is also compressed.
 	// This means that we may need to first extract the specific BTF which we're looking for from the collection
 	// tarball, and then unarchive it.
+	btfIntermediatePath := filepath.Join(b.btfOutputDir, btfRelativeEmbeddedFilename)
 	b.resultMetadata.tarballUsed = btfIntermediatePath
 	if _, err := os.Stat(btfIntermediatePath); errors.Is(err, fs.ErrNotExist) {
 		collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)

@@ -45,9 +45,9 @@ func logCacheDirOnce(reason string) bool {
 // cache-directory component was moved aside and recreated. A recurring reclaim
 // points at something else recreating the directory as non-root, so it is worth
 // surfacing rather than doing it silently.
-func logCacheDirReclaimed(purpose, p string) {
+func logCacheDirReclaimed(p string) {
 	if logCacheDirOnce("reclaimed:" + p) {
-		log.Warnf("recreated %s component %s: it had unsafe ownership or permissions", purpose, p)
+		log.Warnf("recreated cache directory component %s: it had unsafe ownership or permissions", p)
 	}
 }
 
@@ -103,8 +103,8 @@ const dedicatedDirName = "datadog-agent"
 // or above the sticky boundary, and anything outside the datadog-agent subtree
 // are all still refused, so unexpected or broken layouts fail closed rather than
 // being silently rewritten.
-func SecureCacheDir(purpose, dir string) error {
-	components, err := cacheDirComponents(purpose, dir)
+func SecureCacheDir(dir string) error {
+	components, err := cacheDirComponents(dir)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func SecureCacheDir(purpose, dir string) error {
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		retryable, err := ensureCacheDirChain(purpose, components)
+		retryable, err := ensureCacheDirChain(components)
 		if err == nil {
 			return nil
 		}
@@ -126,16 +126,16 @@ func SecureCacheDir(purpose, dir string) error {
 		}
 		lastErr = err
 	}
-	return fmt.Errorf("unable to secure %s %s after %d attempts: %w", purpose, dir, maxAttempts, lastErr)
+	return fmt.Errorf("unable to secure directory %s after %d attempts: %w", dir, maxAttempts, lastErr)
 }
 
 // cacheDirComponents returns the absolute form of outputDir and every ancestor
 // up to the filesystem root, ordered root-first: index 0 is the filesystem root
 // ("/") and the last element is the leaf output directory.
-func cacheDirComponents(purpose, dir string) ([]string, error) {
+func cacheDirComponents(dir string) ([]string, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("unable to resolve %s %s: %w", purpose, dir, err)
+		return nil, fmt.Errorf("unable to resolve directory %s: %w", dir, err)
 	}
 	var components []string
 	for p := filepath.Clean(abs); ; {
@@ -180,7 +180,7 @@ func cacheDirComponents(purpose, dir string) ([]string, error) {
 //     permissions. A symlink or non-directory at a path component is unexpected
 //     rather than a routine leftover, so it is still refused (fail-closed)
 //     instead of being rewritten.
-func ensureCacheDirChain(purpose string, components []string) (retryable bool, err error) {
+func ensureCacheDirChain(components []string) (retryable bool, err error) {
 	// Walk root -> leaf so we know a component sits below a verified sticky
 	// boundary, and inside the agent's dedicated subtree, before we decide
 	// whether its failure is reclaimable.
@@ -202,21 +202,21 @@ func ensureCacheDirChain(purpose string, components []string) (retryable bool, e
 			// directories and will not create through a symlink at p.
 			if mErr := os.Mkdir(p, 0700); mErr != nil {
 				// A racing actor may have created p first; re-walking re-checks it.
-				return true, fmt.Errorf("unable to create %s component %s: %w", purpose, p, mErr)
+				return true, fmt.Errorf("unable to create directory component %s: %w", p, mErr)
 			}
 			continue
 		}
 		if lerr != nil {
-			return false, fmt.Errorf("unable to verify %s component %s: %w", purpose, p, lerr)
+			return false, fmt.Errorf("unable to verify directory component %s: %w", p, lerr)
 		}
 
 		stat, ok := info.Sys().(*syscall.Stat_t)
 		if !ok {
-			return false, fmt.Errorf("unable to read ownership of %s component %s", purpose, p)
+			return false, fmt.Errorf("unable to read ownership of directory component %s", p)
 		}
 		// The last component is the leaf output directory, which is held to the
 		// stricter no-group/other-write rule (see verifyDirComponent).
-		if verr := verifyDirComponent(purpose, p, info.Mode(), stat.Uid, i == len(components)-1); verr != nil {
+		if verr := verifyDirComponent(p, info.Mode(), stat.Uid, i == len(components)-1); verr != nil {
 			// Reclaim only a real, wrong-owner/permission directory that is below
 			// the sticky boundary, inside the agent's dedicated subtree, and only
 			// as root. info.Mode().IsDir() is false for a symlink or a regular
@@ -229,11 +229,11 @@ func ensureCacheDirChain(purpose string, components []string) (retryable bool, e
 			if rErr := reclaimDirComponent(p); rErr != nil {
 				return false, fmt.Errorf("%w (attempted reclaim failed: %v)", verr, rErr)
 			}
-			logCacheDirReclaimed(purpose, p)
+			logCacheDirReclaimed(p)
 			// Recreate this component fresh; deeper components were removed with
 			// the reclaimed subtree and are created as the walk continues.
 			if mErr := os.Mkdir(p, 0700); mErr != nil {
-				return true, fmt.Errorf("unable to recreate %s component %s after reclaim: %w", purpose, p, mErr)
+				return true, fmt.Errorf("unable to recreate directory component %s after reclaim: %w", p, mErr)
 			}
 			continue
 		}
@@ -294,18 +294,18 @@ func reclaimDirComponent(p string) error {
 // interpose an entry at one of those names between our check and the cache
 // write. The leaf must therefore have no group/other write bits regardless of the
 // sticky bit; isLeaf selects that stricter rule.
-func verifyDirComponent(purpose, p string, mode os.FileMode, uid uint32, isLeaf bool) error {
+func verifyDirComponent(p string, mode os.FileMode, uid uint32, isLeaf bool) error {
 	if mode&os.ModeSymlink != 0 {
-		return fmt.Errorf("refusing to use %s: %s is a symlink", purpose, p)
+		return fmt.Errorf("refusing to use directory: %s is a symlink", p)
 	}
 	if !mode.IsDir() {
-		return fmt.Errorf("refusing to use %s: %s is not a directory", purpose, p)
+		return fmt.Errorf("refusing to use directory: %s is not a directory", p)
 	}
 	if uid != 0 {
-		return fmt.Errorf("refusing to use %s: %s is not owned by root (uid=%d)", purpose, p, uid)
+		return fmt.Errorf("refusing to use directory: %s is not owned by root (uid=%d)", p, uid)
 	}
 	if mode.Perm()&0022 != 0 && (isLeaf || mode&os.ModeSticky == 0) {
-		return fmt.Errorf("refusing to use %s: %s is writable by non-root (mode=%#o)", purpose, p, mode.Perm())
+		return fmt.Errorf("refusing to use directory: %s is writable by non-root (mode=%#o)", p, mode.Perm())
 	}
 	return nil
 }

@@ -47,11 +47,6 @@ func logRuntimeDirOnce(reason string) bool {
 	return true
 }
 
-const (
-	compilerOutputDirPurpose = "compiler output directory"
-	agentTmpDirPurpose       = "agent temporary directory"
-)
-
 // asset represents an asset that needs its content integrity checked at runtime
 type asset struct {
 	filename string
@@ -104,7 +99,8 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 		// search runs. GetKernelHeaders reuses, and recursively deletes the contents
 		// of, subdirectories of ebpf.KernelHeaderDownloadDir, which lives under
 		// ebpf.AgentTmpDir.
-		if err := ebpf.SecureCacheDir(agentTmpDirPurpose, ebpf.AgentTmpDir); err != nil {
+		if err := ebpf.SecureCacheDir(ebpf.AgentTmpDir); err != nil {
+			err = fmt.Errorf("agent temporary directory: %w", err)
 			if logRuntimeDirOnce(err.Error()) {
 				log.Warnf("skipping runtime compilation: %v", err)
 			}
@@ -137,7 +133,8 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	}
 	defer f.Close()
 
-	if err := ebpf.SecureCacheDir(compilerOutputDirPurpose, outputDir); err != nil {
+	if err := ebpf.SecureCacheDir(outputDir); err != nil {
+		err = fmt.Errorf("compiler output directory: %w", err)
 		// Surface the policy refusal distinctly so operators can tell "runtime
 		// compilation disabled because the output directory is not under root's
 		// control" apart from an ordinary compilation failure. compile() runs

@@ -23,11 +23,12 @@ const (
 const (
 	// AgentTmpDir is the Agent's dedicated temporary directory. System-probe's
 	// kernel-header and BTF caches live underneath it. Before cache access,
-	// SecureCacheDir verifies that the path consists of real, root-owned
-	// directories and that each directory holding files has no non-root write
-	// access, repairing unsafe real directories within the dedicated subtree when
-	// possible. Cache users must validate their directories before their contents
-	// are read, written or deleted; validating this ancestor alone is insufficient.
+	// SecureCacheDir verifies that the destination and its ancestors are real,
+	// root-owned directories and that the destination has no non-root write access,
+	// repairing unsafe real directories within the dedicated subtree when possible.
+	// Cache users must validate the actual destination before its contents are read,
+	// written or deleted; checking this ancestor alone does not inspect existing
+	// descendants.
 	//
 	// It is deliberately a constant. The path must stay inside the Agent's own
 	// subtree for that validation and repair policy to be applicable, so it is not
