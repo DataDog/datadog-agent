@@ -18,10 +18,12 @@ import (
 
 // Interfaces used by OS components
 type PackageManager interface {
-	// Ensure ensures that a package is installed
+	// RuntimeInstall installs a package at provisioning time; prefer pre-baked machine images instead.
 	// checkBinary is a binary that should be checked before running the install command, if it is not empty it will first run the `command -v checkBinary` command and if it fails it will run the installCmd,
 	// if it succeeds we consider the package is already installed
-	Ensure(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
+	RuntimeInstall(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
+	// InstallLocalPackage installs a package file already present on the host, allowing unsigned packages.
+	InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error)
 	EnsureUninstalled(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
 	AssertInstalled(checkBinary string, opts ...PackageManagerOption) (command.Command, error)
 }
