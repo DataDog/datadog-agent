@@ -122,7 +122,7 @@ instances:
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro"), ec2.WithInternetAccess()),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
 				ec2.WithAgentOptions(agentOptions...),
 			),
 		),
@@ -211,8 +211,8 @@ func (s *basicSuite) TestAdditionalCheckWorks() {
 init_config:
 
 instances:
-  - name: Example website
-    url: http://example.com
+  - name: Agent expvar endpoint
+    url: http://127.0.0.1:5000/debug/vars
     timeout: 1
 `
 
@@ -248,7 +248,7 @@ allowed_additional_checks:
 	// Update the environment with the new agent config and check integrations
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro"), ec2.WithInternetAccess()),
+			ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(agentConfigWithAdditionalCheck),
 				agentparams.WithIntegration("http_check.d", httpCheckConfig),
