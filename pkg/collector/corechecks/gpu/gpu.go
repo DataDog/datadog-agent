@@ -453,17 +453,8 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 		// example, after an agent restart, we would resolve the issue too early
 		// (unavailable will be false at the start) even if the NVML library is
 		// not available still.
-		//
-		// Active issues are looked up by name rather than by recomputing the
-		// id, so that issues persisted by a previous run (possibly with another
-		// discriminator, or the legacy unscoped id) are resolved too.
 		if nvmlInitSuccess {
-			prefix := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
-			for _, issueID := range c.issueReporter.GetActiveIssueIDsByIssueName(gpuenvironment.IssueName) {
-				if strings.HasPrefix(issueID, prefix) {
-					c.issueReporter.ResolveIssue(issueID)
-				}
-			}
+			c.resolveNvmlIssues("")
 			c.nvmlIssueID = ""
 		}
 		return
@@ -484,6 +475,21 @@ func (c *Check) syncNvmlHealthIssue(unavailable bool, nvmlInitSuccess bool) {
 
 	if err := c.issueReporter.ReportIssue(issue); err != nil {
 		log.Warnf("failed to report GPU NVML health issue: %v", err)
+		return
+	}
+	c.resolveNvmlIssues(c.nvmlIssueID)
+}
+
+// resolveNvmlIssues resolves every active NVML issue except keep. Active issues
+// are looked up by name rather than by recomputing the id, so that issues
+// persisted by a previous run (possibly with another discriminator, or the
+// legacy unscoped id) are resolved too.
+func (c *Check) resolveNvmlIssues(keep string) {
+	prefix := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
+	for _, issueID := range c.issueReporter.GetActiveIssueIDsByIssueName(gpuenvironment.IssueName) {
+		if issueID != keep && strings.HasPrefix(issueID, prefix) {
+			c.issueReporter.ResolveIssue(issueID)
+		}
 	}
 }
 
