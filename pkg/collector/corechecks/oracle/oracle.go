@@ -76,6 +76,7 @@ type pgaOverAllocationCount struct {
 type Check struct {
 	core.CheckBase
 	*schemaWorkerState
+	*dataObservabilityWorkerState
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
 	dbCustomQueries                         *sqlx.DB
@@ -197,7 +198,6 @@ func (c *Check) Run() error {
 			return fmt.Errorf("%s failed to initialize: %w", c.logPrompt, err)
 		}
 	}
-
 	if c.driver == "oracle" && c.connection == nil {
 		conn, err := connectGoOra(c)
 		if err != nil {
@@ -268,6 +268,10 @@ func (c *Check) Run() error {
 				}
 			}
 		}
+	}
+
+	if err := c.runDataObservabilityJob(c.collectDataObservability); err != nil {
+		allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute data observability queries: %w", c.logPrompt, err))
 	}
 
 	if len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0 {
@@ -382,6 +386,7 @@ func assertBool(val bool) bool {
 
 // Teardown cleans up resources used throughout the check.
 func (c *Check) Teardown() {
+	c.stopDataObservabilityWorker(false)
 	c.stopSchemaWorker(false)
 	log.Infof("%s Teardown", c.logPrompt)
 	closeDatabase(c, c.db)
@@ -392,6 +397,10 @@ func (c *Check) Teardown() {
 
 // Configure configures the Oracle check.
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
+	c.stopDataObservabilityWorker(false)
+	if c.dataObservabilityWorkerState == nil {
+		c.dataObservabilityWorkerState = &dataObservabilityWorkerState{}
+	}
 	if c.schemaWorkerState == nil {
 		c.schemaWorkerState = &schemaWorkerState{}
 	}
@@ -401,6 +410,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return fmt.Errorf("failed to build check config: %w", err)
 	}
 	c.clock = clock.New()
+	c.dataObservabilityQueries = newDataObservabilityScheduledQueries(c.config.DataObservability.Queries)
+	c.dataObservabilityLastEvent = time.Time{}
+	c.dataObservabilityEmitter = nil
 
 	// Must be called before c.CommonConfigure because this integration supports multiple instances
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
@@ -462,7 +474,11 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
-	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second), schemaWorkerState: &schemaWorkerState{}}
+	return &Check{
+		CheckBase:                    core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second),
+		schemaWorkerState:            &schemaWorkerState{},
+		dataObservabilityWorkerState: &dataObservabilityWorkerState{},
+	}
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter

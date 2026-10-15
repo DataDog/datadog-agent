@@ -318,14 +318,25 @@ instances:
       # exclude_databases:
       #   - <DATABASE_REGEX>
 
-    ## Configure Data Observability.
+    ## Configure the Data Observability async job, which executes monitoring
+    ## queries delivered via Remote Configuration.
     #
     # data_observability:
 
       ## @param enabled - boolean - optional - default: false
-      ## Set to `true` to enable Data Observability features
+      ## Enable the Data Observability job.
       #
       # enabled: false
+
+      ## @param collection_interval - number - optional - default: 10
+      ## How often (in seconds) the job wakes up to check which queries are
+      ## due. Individual queries define when they are due using either
+      ## interval_seconds or a cron schedule. Set this value no greater than
+      ## the shortest query interval or the shortest gap between scheduled
+      ## executions. Longer collection intervals delay queries and can skip
+      ## earlier cron ticks when several become due between collection cycles.
+      #
+      # collection_interval: 10
 
     ## Configure collection of process memory usage
     #
