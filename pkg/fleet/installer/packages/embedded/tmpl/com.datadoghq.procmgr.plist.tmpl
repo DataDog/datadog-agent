@@ -34,10 +34,6 @@
         <string>{{.LogDir}}/launchd_procmgr{{.LabelSuffix}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
-        <!-- root: supervises privileged children such as system-probe.
-             Group daemon (not admin): the UDS is 0660 with no peer auth, so the socket
-             group must stay the Agent primary group. admin would let any admin-group
-             user call mutating RPCs as root. -->
         <key>UserName</key>
         <string>root</string>
         <key>GroupName</key>

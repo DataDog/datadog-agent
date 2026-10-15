@@ -98,12 +98,9 @@ var agentJobs = []string{
 // halfway through.
 const installerJob = "com.datadoghq.installer"
 
-// procmgrJob is the Datadog process manager daemon (dd-procmgrd). It has no experiment variant:
-// a configuration experiment never swaps which supervisor is running.
 const procmgrJob = "com.datadoghq.procmgr"
 
-// stableJobs are the launchd jobs that run normally, in the order they are loaded. procmgrJob is
-// loaded first, mirroring the order it starts in on Linux and Windows.
+// stableJobs are the launchd jobs that run normally, in the order they are loaded.
 var stableJobs = append(append([]string{procmgrJob}, agentJobs...), installerJob)
 
 // experimentJobs are the jobs an experiment runs under, by full label.
@@ -247,10 +244,6 @@ func stableIsPlaceholder(repositories *repository.Repositories, pkg string) (boo
 // Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
 // and one that fails must not also leave the others stopped -- the installer daemon, loaded last,
 // is what lets Fleet repair the host remotely.
-//
-// procmgrJob is loaded only when process_manager.enabled (default true); when disabled its
-// LaunchDaemon definition is removed instead. The core Agent cannot apply this setting at
-// runtime: it runs as _dd-agent and cannot modify the system launchd domain (root required).
 func installStableJobs(ctx HookContext, layout agentLayout) (err error) {
 	span, ctx := ctx.StartSpan("install_stable_jobs")
 	defer func() {
@@ -263,8 +256,6 @@ func installStableJobs(ctx HookContext, layout agentLayout) (err error) {
 	var errs []error
 	for _, label := range stableJobs {
 		if label == procmgrJob && !procmgrEnabled {
-			// Best-effort: removeJob only logs (same as uninstall). Re-run install/upgrade to
-			// re-apply after a failed remove; the Agent cannot boot out system jobs.
 			removeJob(ctx, client, label)
 			continue
 		}
@@ -275,8 +266,6 @@ func installStableJobs(ctx HookContext, layout agentLayout) (err error) {
 	return errors.Join(errs...)
 }
 
-// processManagerEnabled reads process_manager.enabled from layout's installed datadog.yaml,
-// defaulting to true (matching the schema default) when the file is missing or malformed.
 func processManagerEnabled(layout agentLayout) bool {
 	data, err := os.ReadFile(filepath.Join(layout.installRoot, "etc", "datadog.yaml"))
 	if err != nil {

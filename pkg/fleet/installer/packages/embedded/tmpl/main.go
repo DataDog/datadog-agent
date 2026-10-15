@@ -160,9 +160,7 @@ func mustRenderLaunchdJob(name string, data launchdTemplateData) []byte {
 	return buf.Bytes()
 }
 
-// jobSetLaunchd renders both launchd job sets. The installer and procmgr daemons have no -exp
-// variant: the installer is the process that supervises an experiment, and procmgr is never part
-// of the set a configuration experiment swaps, so neither is ever part of one.
+// jobSetLaunchd renders both launchd job sets. The installer and procmgr daemons have no -exp variant.
 func jobSetLaunchd(stableData, expData launchdTemplateData) map[string][]byte {
 	return map[string][]byte{
 		"com.datadoghq.installer.plist":      mustRenderLaunchdJob("com.datadoghq.installer.plist", stableData),

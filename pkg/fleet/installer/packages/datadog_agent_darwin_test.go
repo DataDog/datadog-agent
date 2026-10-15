@@ -396,7 +396,6 @@ func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 	}
 }
 
-// process_manager.enabled: false keeps the legacy jobs loaded and does not load procmgr.
 func TestInstallStableJobsSkipsProcmgrWhenDisabled(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := t.TempDir()
@@ -426,7 +425,6 @@ func TestInstallStableJobsSkipsProcmgrWhenDisabled(t *testing.T) {
 	}
 }
 
-// process_manager.enabled defaults to true (and loads procmgr) when datadog.yaml is missing.
 func TestInstallStableJobsLoadsProcmgrByDefault(t *testing.T) {
 	stubLaunchd(t)
 	dir := t.TempDir()

@@ -50,9 +50,6 @@ trap on_error ERR
 printf "${BLUE}* Uninstalling Datadog Agent, you might be asked for your sudo password...\n${NC}"
 
 printf "${BLUE}\n    - Stopping system services...\n${NC}"
-# Order matches preRemoveDatadogAgent / stableJobs: procmgr first (root daemon),
-# then the Agent jobs, then the installer. This script does not call the Go
-# hooks; it must enumerate every LaunchDaemon the DMG installs.
 $sudo_cmd launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true

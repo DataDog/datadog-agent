@@ -223,7 +223,6 @@ func TestExperimentJobsMatchTheEmbeddedDefinitions(t *testing.T) {
 	assert.NotContains(t, agentJobs, procmgrJob)
 	assert.Contains(t, stableJobs, installerJob)
 	assert.Contains(t, stableJobs, procmgrJob)
-	// installerJob and procmgrJob are not in agentJobs (no experiment variants).
 	assert.Len(t, stableJobs, len(agentJobs)+2)
 
 	for i, label := range agentJobs {
