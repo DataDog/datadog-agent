@@ -242,8 +242,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.50.2
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.2
-	github.com/aws/smithy-go v1.28.1
 	github.com/aws/karpenter-provider-aws v1.9.0
+	github.com/aws/smithy-go v1.28.1
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.64.1
 	github.com/beevik/ntp v1.6.0

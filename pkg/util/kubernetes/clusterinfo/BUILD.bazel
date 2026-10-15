@@ -12,7 +12,7 @@ go_library(
     deps = [
         "//comp/core/tagger/tags",
         "//pkg/util/clusteragent",
-        "//pkg/util/eks",
+        "//pkg/util/eks/identity",
         "//pkg/util/kubernetes/clustername",
         "@com_github_cenkalti_backoff_v7//:backoff",
     ],
@@ -23,7 +23,7 @@ dd_agent_go_test(
     srcs = ["eks_identity_test.go"],
     embed = [":clusterinfo"],
     deps = [
-        "//pkg/util/eks",
+        "//pkg/util/eks/identity",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

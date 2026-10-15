@@ -7,9 +7,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/eks",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/tagger/tags",
         "//pkg/util/cache",
         "//pkg/util/ec2",
+        "//pkg/util/eks/identity",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2//aws/arn",
         "@com_github_aws_aws_sdk_go_v2_config//:config",

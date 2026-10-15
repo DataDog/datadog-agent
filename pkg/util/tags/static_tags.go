@@ -25,10 +25,18 @@ import (
 
 // Injectable for deterministic tests. Node Agents fetch identity from the Cluster Agent;
 // the Cluster Agent resolves it directly.
+//
+// The static-tags paths are computed once at Agent startup, so they use the retrying fetch:
+// a node Agent routinely starts before the Cluster Agent is reachable, and without a retry a
+// single cold-start miss leaves the EKS identity permanently absent from container tags and
+// APM spans. The retry has its own bounded budget, so the ctx argument (kept for the injectable
+// signature) is intentionally unused here.
 var (
 	getClusterAgentStaticTags      = clusterinfo.GetClusterAgentStaticTagsWithRetry
-	getClusterAgentEKSIdentityTags = clusterinfo.GetClusterAgentEKSIdentityTags
-	getClusterAgentEKSIdentity     = eksidentity.Tags
+	getClusterAgentEKSIdentityTags = func(context.Context) ([]string, error) {
+		return clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry()
+	}
+	getClusterAgentEKSIdentity = eksidentity.Tags
 )
 
 // getFargateStaticTags return the list of static tags when running on fargate instance
