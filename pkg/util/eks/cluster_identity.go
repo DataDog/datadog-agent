@@ -19,9 +19,11 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsarn "github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
-	smithy "github.com/aws/smithy-go"
+
+	"golang.org/x/sync/singleflight"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -29,7 +31,10 @@ import (
 )
 
 const (
-	identityTimeout = 5 * time.Second
+	// identityTimeout bounds the DescribeCluster call. It is kept below the Cluster Agent
+	// client's 3s ResponseHeaderTimeout so a cold resolve completes (and caches) within the
+	// node Agent's single request attempt rather than surfacing as a client timeout.
+	identityTimeout = 2 * time.Second
 	// failureCacheTTL bounds how often a permanent failure (AccessDenied, ResourceNotFound,
 	// malformed ARN) is retried against the EKS API. These do not resolve on their own, so a
 	// node Agent must not turn them into one API call per request.
@@ -85,17 +90,53 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 	}
 
 	cacheKey := cache.BuildAgentKey("eks", "cluster-identity", clusterName)
-	if cached, found := cache.Cache.Get(cacheKey); found {
-		switch v := cached.(type) {
-		case *ClusterIdentity:
-			// Return a copy so a caller cannot mutate the value shared by the process-global cache.
-			out := *v
-			return &out, nil
-		case error:
-			return nil, v
-		}
+	if id, err, ok := lookupCache(cacheKey); ok {
+		return id, err
 	}
 
+	// Coalesce concurrent misses: after a Cluster Agent restart or a negative-TTL expiry every
+	// node Agent polls at once, and without this each would issue its own DescribeCluster and
+	// trip EKS throttling. singleflight collapses them into one resolve per cluster name; the
+	// shared result is then served from the cache by all waiters.
+	v, err, _ := resolveGroup.Do(clusterName, func() (interface{}, error) {
+		// Re-check the cache inside the flight: the winner of a prior flight may have just
+		// populated it while this goroutine was waiting to enter.
+		if id, err, ok := lookupCache(cacheKey); ok {
+			return id, err
+		}
+		return resolveAndCache(ctx, clusterName, cacheKey)
+	})
+	if err != nil {
+		return nil, err
+	}
+	id := v.(*ClusterIdentity)
+	// Return a copy so no caller aliases the value shared by the cache and the other waiters.
+	out := *id
+	return &out, nil
+}
+
+// resolveGroup coalesces concurrent GetClusterIdentity misses by cluster name.
+var resolveGroup singleflight.Group
+
+// lookupCache returns a cached identity (as a fresh copy) or cached error. ok is false on a miss.
+func lookupCache(cacheKey string) (*ClusterIdentity, error, bool) {
+	cached, found := cache.Cache.Get(cacheKey)
+	if !found {
+		return nil, nil, false
+	}
+	switch v := cached.(type) {
+	case *ClusterIdentity:
+		out := *v
+		return &out, nil, true
+	case error:
+		return nil, v, true
+	}
+	return nil, nil, false
+}
+
+// resolveAndCache performs the DescribeCluster resolve and populates the cache. The returned
+// pointer is the cached value; callers copy before handing it out.
+func resolveAndCache(ctx context.Context, clusterName, cacheKey string) (*ClusterIdentity, error) {
 	resolveCtx, cancel := context.WithTimeout(ctx, identityTimeout)
 	defer cancel()
 
@@ -120,31 +161,25 @@ func GetClusterIdentity(ctx context.Context, clusterName string) (*ClusterIdenti
 
 // failureTTL classifies a resolution error so that failures which can clear on their own are
 // retried soon, while failures that are stable for the cluster's configuration are cached longer.
-// A context deadline/cancellation, an AWS throttling error, or any error carrying a 5xx HTTP
-// status is treated as transient; everything else (AccessDenied, ResourceNotFound, malformed
-// identity, invalid name) is treated as permanent.
+// A context deadline/cancellation is transient, and the AWS SDK's own retryer decides the rest:
+// it treats throttling, 5xx, timeouts, connection resets, DNS/TLS failures, and expired-credential
+// codes (the common IRSA projected-token staleness) as retryable, so those use the short TTL.
+// Everything the retryer considers terminal (AccessDenied, ResourceNotFound, malformed identity,
+// invalid name) uses the long TTL.
 func failureTTL(err error) time.Duration {
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return transientFailureCacheTTL
 	}
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
-		if apiErr.ErrorFault() == smithy.FaultServer {
-			return transientFailureCacheTTL
-		}
-		switch apiErr.ErrorCode() {
-		case "ThrottlingException", "Throttling", "ThrottlingError", "RequestLimitExceeded",
-			"TooManyRequestsException", "ServiceUnavailable", "ServiceUnavailableException",
-			"InternalServerErrorException", "InternalFailure":
-			return transientFailureCacheTTL
-		}
-	}
-	var respErr interface{ HTTPStatusCode() int }
-	if errors.As(err, &respErr) && respErr.HTTPStatusCode() >= 500 {
+	if retryableClassifier.IsErrorRetryable(err) == aws.TrueTernary {
 		return transientFailureCacheTTL
 	}
 	return failureCacheTTL
 }
+
+// retryableClassifier reuses the AWS SDK's standard retryable-error set so that throttling, 5xx,
+// timeouts, connection resets, and expired-credential errors are all treated as transient without
+// hand-maintaining a code list.
+var retryableClassifier = retry.IsErrorRetryables(retry.DefaultRetryables)
 
 func resolveClusterIdentity(ctx context.Context, clusterName, requestRegion string, client describeClusterAPI) (*ClusterIdentity, error) {
 	output, err := client.DescribeCluster(ctx, &awseks.DescribeClusterInput{Name: aws.String(clusterName)})
