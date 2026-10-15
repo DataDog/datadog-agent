@@ -3,7 +3,7 @@
   "name": "Datadog Agent Development Container",
   "image": "registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:v141980988-494a5904",
   "features": {
-    "registry.ddbuild.io/workspaces/features/claude-code:0.1.136903543": {},
+    "registry.ddbuild.io/workspaces/features/claude-code:0.1.144347605": {},
     "registry.ddbuild.io/workspaces/features/trajectory:0.2.142808538": {},
     "registry.ddbuild.io/workspaces/features/codex:0.1.140632266": {},
     "registry.ddbuild.io/workspaces/features/base:0.4.143533862": {
