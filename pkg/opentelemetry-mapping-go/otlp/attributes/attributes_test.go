@@ -954,9 +954,22 @@ func TestParseAzureResourceID(t *testing.T) {
 			name:       "valid Azure Container Apps resource ID",
 			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
 			expected: azureResourceID{
-				SubscriptionID: "sub-123",
-				ResourceGroup:  "my-rg",
-				ResourceName:   "my-app",
+				SubscriptionID:    "sub-123",
+				ResourceGroup:     "my-rg",
+				ProviderNamespace: "Microsoft.App",
+				ResourceType:      "containerApps",
+				ResourceName:      "my-app",
+			},
+		},
+		{
+			name:       "valid markers are case-insensitive",
+			resourceID: "/SUBSCRIPTIONS/sub-123/resourcegroups/my-rg/PROVIDERS/microsoft.web/SITES/my-app",
+			expected: azureResourceID{
+				SubscriptionID:    "sub-123",
+				ResourceGroup:     "my-rg",
+				ProviderNamespace: "microsoft.web",
+				ResourceType:      "SITES",
+				ResourceName:      "my-app",
 			},
 		},
 		{
@@ -971,6 +984,46 @@ func TestParseAzureResourceID(t *testing.T) {
 		{
 			name:       "not an Azure resource ID",
 			resourceID: "arn:aws:ecs:us-east-1:123456789012:task/my-task",
+			expectErr:  true,
+		},
+		{
+			name:       "invalid subscriptions marker",
+			resourceID: "/projects/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "invalid resource groups marker",
+			resourceID: "/subscriptions/sub-123/groups/my-rg/providers/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "invalid providers marker",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/resources/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty subscription",
+			resourceID: "/subscriptions//resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty resource group",
+			resourceID: "/subscriptions/sub-123/resourceGroups//providers/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty provider namespace",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers//sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty resource type",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web//my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty resource name",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/",
 			expectErr:  true,
 		},
 	} {

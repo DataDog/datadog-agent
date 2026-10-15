@@ -41,6 +41,11 @@ const (
 	AttributeAzureContainerAppInstanceID = "azure.container_app.instance.id"
 
 	attributeAzureResourceGroupName = string(semconv143.AzureResourceGroupNameKey)
+
+	azureWebProviderNamespace           = "Microsoft.Web"
+	azureWebSiteResourceType            = "sites"
+	azureContainerAppsProviderNamespace = "Microsoft.App"
+	azureContainerAppsResourceType      = "containerApps"
 )
 
 var (
@@ -88,7 +93,8 @@ func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsReso
 	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
 	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
 	if resourceID, ok := attrs.Get(string(semconv143.CloudResourceIDKey)); ok && resourceID.Str() != "" {
-		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil {
+		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil &&
+			parsed.matches(azureWebProviderNamespace, azureWebSiteResourceType) {
 			if !nameOK || name.Str() == "" {
 				name, nameOK = pcommon.NewValueStr(parsed.ResourceName), true
 			}
@@ -135,7 +141,8 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 	// Azure App Service resource detectors do not consistently emit the individual
 	// identity attributes, while cloud.resource_id is the documented reliable path.
 	if resourceID, ok := attrs.Get(string(semconv143.CloudResourceIDKey)); ok && resourceID.Str() != "" {
-		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil {
+		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil &&
+			parsed.matches(azureWebProviderNamespace, azureWebSiteResourceType) {
 			if !nameOK || name.Str() == "" {
 				name, nameOK = pcommon.NewValueStr(parsed.ResourceName), true
 			}
@@ -185,7 +192,8 @@ func azureContainerAppsResourceFromAttributes(attrs pcommon.Map) (azureContainer
 	}
 	// Fallback: derive name, subscription_id, and resource_group from cloud.resource_id
 	if resourceID, ok := attrs.Get(string(semconv143.CloudResourceIDKey)); ok && resourceID.Str() != "" {
-		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil {
+		if parsed, err := parseAzureResourceID(resourceID.Str()); err == nil &&
+			parsed.matches(azureContainerAppsProviderNamespace, azureContainerAppsResourceType) {
 			if !nameOK || name.Str() == "" {
 				name, nameOK = pcommon.NewValueStr(parsed.ResourceName), true
 			}

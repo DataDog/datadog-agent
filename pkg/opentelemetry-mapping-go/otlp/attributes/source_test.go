@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	semconv143 "go.opentelemetry.io/otel/semconv/v1.43.0"
@@ -535,6 +536,63 @@ func TestAzureContainerAppsSource(t *testing.T) {
 			assert.Empty(t, GetHost(attrs, "fallback-host"))
 		})
 	}
+}
+
+func TestAzureResourceResolversValidateProviderAndType(t *testing.T) {
+	t.Run("App Service rejects a Container Apps resource ID", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+			string(semconv143.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
+			string(conventions.HostIDKey):         "collector-host",
+		})
+
+		_, ok := azureAppServiceResourceFromAttributes(attrs)
+		assert.False(t, ok)
+
+		got, ok := SourceFromAttrs(attrs, nil)
+		require.True(t, ok)
+		assert.Equal(t, source.HostnameKind, got.Kind)
+		assert.Equal(t, "collector-host", got.Identifier) //nolint:staticcheck // Verify the existing host fallback.
+	})
+
+	t.Run("Functions rejects a Container Apps resource ID", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			string(conventions.CloudPlatformKey):  cloudPlatformAzureFunctions,
+			string(semconv143.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-function",
+		})
+
+		_, ok := azureFunctionsResourceFromAttributes(attrs)
+		assert.False(t, ok)
+	})
+
+	t.Run("Container Apps rejects an App Service resource ID", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			string(conventions.CloudPlatformKey):  cloudPlatformAzureContainerApps,
+			string(semconv143.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
+			AttributeAzureContainerAppInstanceID:  "replica-1",
+		})
+
+		_, ok := azureContainerAppsResourceFromAttributes(attrs)
+		assert.False(t, ok)
+	})
+
+	t.Run("complete explicit identity ignores a mismatched fallback resource ID", func(t *testing.T) {
+		attrs := testutils.NewAttributeMap(map[string]string{
+			string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
+			string(conventions.ServiceNameKey):    testAzureAppServiceName,
+			string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+			attributeAzureResourceGroupName:       testAzureResourceGroup,
+			string(semconv143.CloudResourceIDKey): "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
+		})
+
+		got, ok := azureAppServiceResourceFromAttributes(attrs)
+		require.True(t, ok)
+		assert.Equal(t, azureAppServiceResource{
+			name:           testAzureAppServiceName,
+			subscriptionID: testAzureSubscriptionID,
+			resourceGroup:  testAzureResourceGroup,
+		}, got)
+	})
 }
 
 func TestBackendCompleteServerlessIdentityFixtures(t *testing.T) {

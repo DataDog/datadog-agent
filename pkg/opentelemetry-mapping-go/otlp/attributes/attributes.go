@@ -782,9 +782,16 @@ func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
 
 // azureResourceID holds the fields extracted from an Azure ARM resource ID.
 type azureResourceID struct {
-	SubscriptionID string
-	ResourceGroup  string
-	ResourceName   string
+	SubscriptionID    string
+	ResourceGroup     string
+	ProviderNamespace string
+	ResourceType      string
+	ResourceName      string
+}
+
+func (id azureResourceID) matches(providerNamespace, resourceType string) bool {
+	return strings.EqualFold(id.ProviderNamespace, providerNamespace) &&
+		strings.EqualFold(id.ResourceType, resourceType)
 }
 
 // parseAzureResourceID parses the cloud.resource_id string for Azure resources
@@ -807,13 +814,24 @@ func parseAzureResourceID(resourceID string) (azureResourceID, error) {
 	// parts[7] = "containerApps" (or sites)
 	// parts[8] = "site-name"
 
-	if len(parts) < 9 {
+	if len(parts) < 9 ||
+		parts[0] != "" ||
+		!strings.EqualFold(parts[1], "subscriptions") ||
+		parts[2] == "" ||
+		!strings.EqualFold(parts[3], "resourceGroups") ||
+		parts[4] == "" ||
+		!strings.EqualFold(parts[5], "providers") ||
+		parts[6] == "" ||
+		parts[7] == "" ||
+		parts[8] == "" {
 		return azureResourceID{}, errors.New("invalid Azure resource ID format: " + resourceID)
 	}
 
 	return azureResourceID{
-		SubscriptionID: parts[2],
-		ResourceGroup:  parts[4],
-		ResourceName:   parts[8],
+		SubscriptionID:    parts[2],
+		ResourceGroup:     parts[4],
+		ProviderNamespace: parts[6],
+		ResourceType:      parts[7],
+		ResourceName:      parts[8],
 	}, nil
 }
