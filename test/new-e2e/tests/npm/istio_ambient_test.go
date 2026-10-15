@@ -275,14 +275,19 @@ func (s *istioAmbientSuite) TestZtunnelSocketsInAppPodsAreAttributedToTheApp() {
 			pod := s.pod(tc.namespace, tc.app)
 			appID := pod.containers[tc.container]
 			s.EventuallyWithT(func(c *assert.CollectT) {
-				var moved int
+				var moved, kept int
+				owners := map[string]int{} // every connection from the pod, by its process's container
 				for _, conn := range s.connectionsFrom(c, pod.ip) {
-					assert.Falsef(c, ztunnel[conn.container], "connection from %s still attributed to ztunnel: %+v", tc.app, conn)
+					owners[containerName(conn.pidContainer, pod, ztunnel)]++
+					if ztunnel[conn.container] {
+						kept++
+					}
 					if ztunnel[conn.pidContainer] && conn.container == appID {
 						moved++
 					}
 				}
-				assert.Positivef(c, moved, "no ztunnel connection from %s was attributed to container %s", tc.app, appID)
+				assert.Zerof(c, kept, "%d connections from %s still attributed to ztunnel", kept, tc.app)
+				assert.Positivef(c, moved, "no ztunnel connection from %s was attributed to %s; connections by owning container: %v", tc.app, tc.container, owners)
 			}, 4*time.Minute, 10*time.Second)
 		})
 	}
@@ -295,13 +300,18 @@ func (s *istioAmbientSuite) TestZtunnelSocketsInMultiAppPodsStayOnZtunnel() {
 	pod := s.pod("clients", "client-two-apps")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		var kept int
+		moved := map[string]int{} // reattributed connections by the container they were moved to
 		for _, conn := range s.connectionsFrom(c, pod.ip) {
 			if !ztunnel[conn.pidContainer] {
 				continue
 			}
-			assert.Truef(c, ztunnel[conn.container], "ztunnel connection from client-two-apps was reattributed: %+v", conn)
-			kept++
+			if ztunnel[conn.container] {
+				kept++
+			} else {
+				moved[containerName(conn.container, pod, ztunnel)]++
+			}
 		}
+		assert.Emptyf(c, moved, "ztunnel connections from client-two-apps were reattributed (pod containers %v)", pod.containers)
 		assert.Positive(c, kept, "no ztunnel connection from client-two-apps")
 	}, 4*time.Minute, 10*time.Second)
 }
@@ -410,6 +420,23 @@ func (s *istioAmbientSuite) ztunnelPodIPs() map[string]bool {
 		}
 	}, 2*time.Minute, 5*time.Second, "could not list ztunnel pod IPs")
 	return ips
+}
+
+// containerName names a container ID for failure messages: the pod's container name, ztunnel, or
+// the ID's prefix when it's neither
+func containerName(id string, pod ambientPod, ztunnel map[string]bool) string {
+	for name, cid := range pod.containers {
+		if cid == id {
+			return name
+		}
+	}
+	if ztunnel[id] {
+		return "ztunnel"
+	}
+	if id == "" {
+		return "<none>"
+	}
+	return "unknown:" + id[:min(12, len(id))]
 }
 
 // trimContainerRuntime strips the runtime prefix, as in containerd://<id>
