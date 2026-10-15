@@ -10,7 +10,9 @@ shift 3
 # relative rpaths, so point the loader at the shared libraries passed as arguments.
 lib_dirs=""
 for lib in "$@"; do
-    lib_dirs="${lib_dirs:+${lib_dirs}:}$(cd "$(dirname "${lib}")" && pwd)"
+    case "${lib}" in
+        *.so | *.so.* | *.dylib) lib_dirs="${lib_dirs:+${lib_dirs}:}$(cd "$(dirname "${lib}")" && pwd)" ;;
+    esac
 done
 
 LD_LIBRARY_PATH="${lib_dirs}" DYLD_LIBRARY_PATH="${lib_dirs}" exec "${python}" -I "${test_script}" "${modules_file}"
