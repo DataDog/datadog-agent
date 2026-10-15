@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1110,8 +1111,8 @@ func TestTimeSeriesStorage_TagIntern_IgnoresDuplicateCompositeTags(t *testing.T)
 	firstTags := tagset.NewCompositeTags([]string{"service:api", "env:prod"}, nil)
 	secondTags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api", "service:api"})
 
-	first := s.AddWithKeyAndHostComposite("ns", "m1", "", 1, 1000, firstTags, storageKeyForCompositeIdentity("ns", "m1", "", firstTags))
-	second := s.AddWithKeyAndHostComposite("ns", "m2", "", 1, 1000, secondTags, storageKeyForCompositeIdentity("ns", "m2", "", secondTags))
+	first := s.AddWithKeyAndHostComposite("ns", "m1", "", 1, 1000, firstTags, storageKeyForCompositeIdentity("ns", "m1", "", firstTags), observer.UnknownType)
+	second := s.AddWithKeyAndHostComposite("ns", "m2", "", 1, 1000, secondTags, storageKeyForCompositeIdentity("ns", "m2", "", secondTags), observer.UnknownType)
 
 	assert.Equal(t, 1, s.TagInternedCount())
 	s.mu.RLock()
@@ -1168,4 +1169,35 @@ func TestSeriesKeyHashIsUnordered(t *testing.T) {
 
 	assert.NotZero(t, sorted)
 	assert.Equal(t, sorted, unsorted)
+}
+
+func TestStorageMetricTypeIsSeriesMetadata(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{})
+	tags := tagset.CompositeTags{}
+	key := storageKeyForCompositeIdentity("check", "requests", "", tags)
+	add := func(typ metrics.MetricType, ts int64) AddResult {
+		return s.AddWithKeyAndHostComposite("check", "requests", "", 1, ts, tags, key, typ)
+	}
+	first := add(observer.UnknownType, 100)
+	require.Equal(t, observer.UnknownType, s.GetSeriesMeta(first.Ref).MetricType)
+	generation := s.SeriesGeneration()
+	known := add(metrics.CountType, 101)
+	require.Equal(t, first.Ref, known.Ref)
+	require.Greater(t, s.SeriesGeneration(), generation)
+	generation = s.SeriesGeneration()
+	// A conflicting type or a late sample with no type cannot change the series type.
+	add(metrics.GaugeType, 102)
+	add(observer.UnknownType, 99)
+	require.Equal(t, generation, s.SeriesGeneration())
+	require.Equal(t, metrics.CountType, s.GetSeriesMeta(first.Ref).MetricType)
+	metas := s.ListSeries(observer.SeriesFilter{})
+	require.Len(t, metas, 1)
+	require.Equal(t, metrics.CountType, metas[0].MetricType)
+	require.Equal(t, metrics.CountType, s.ListSeriesMetadata("check")[0].MetricType)
+	require.Len(t, s.GetSeriesRange(first.Ref, 0, 102, observer.AggregateSum).Points, 4)
+	s.RemoveSeriesByRefs([]observer.SeriesRef{first.Ref})
+	require.Nil(t, s.GetSeriesMeta(first.Ref))
+	recreated := add(metrics.GaugeType, 103)
+	require.NotEqual(t, first.Ref, recreated.Ref)
+	require.Equal(t, metrics.GaugeType, s.GetSeriesMeta(recreated.Ref).MetricType)
 }

@@ -94,9 +94,10 @@ type LogObserver interface {
 // The storage keeps sum/count summaries so aggregation is specified at read
 // time, not write time.
 type MetricOutput struct {
-	Name  string
-	Value float64
-	Host  string
+	MetricType metrics.MetricType
+	Name       string
+	Value      float64
+	Host       string
 	// Tags is an immutable view retained by the observer storage.
 	Tags       tagset.CompositeTags
 	Context    MetricContext // stored on the series when HasContext is true
@@ -533,11 +534,13 @@ func WorkloadSeriesFilter() SeriesFilter {
 // SeriesMeta describes a series discovered via ListSeries.
 // The Ref field is a stable numeric identifier for use in hot-path methods.
 type SeriesMeta struct {
-	Ref       SeriesRef
-	Namespace string
-	Name      string
-	Host      string
-	Tags      tagset.CompositeTags
+	// MetricType is the first known input type, shared by all points in the series.
+	MetricType metrics.MetricType
+	Ref        SeriesRef
+	Namespace  string
+	Name       string
+	Host       string
+	Tags       tagset.CompositeTags
 }
 
 // Aggregate specifies which statistic to extract from summary stats.
@@ -641,8 +644,8 @@ type StorageReader interface {
 	WriteGeneration(handle SeriesRef) int64
 
 	// SeriesGeneration returns a global counter that increments only when the
-	// set of known series changes. Use this to cache ListSeries results and
-	// refresh them only when new series keys appear.
+	// series catalog changes, including an unknown metric type becoming known.
+	// Use this to cache ListSeries results.
 	SeriesGeneration() uint64
 }
 

@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -126,8 +127,8 @@ type timeSeriesStorage struct {
 	// It is updated under mu whenever a non-telemetry series is added or removed.
 	liveSeriesCount int
 
-	// Global generation for the series catalog; increments only when a new
-	// series key is created, not on every write to an existing series.
+	// Global generation for the series catalog; increments on insertion,
+	// removal, or when an unknown metric type becomes known.
 	seriesGen uint64
 
 	// tagIntern maps an unordered tag-set fingerprint to the canonical immutable
@@ -167,6 +168,7 @@ type bucketCounts struct {
 // seriesStats contains accumulated statistics for a time series (internal).
 // Buckets are stored in timestamp order, enabling binary search for range queries.
 type seriesStats struct {
+	MetricType metrics.MetricType
 	Namespace  string
 	Name       string
 	Host       string
@@ -356,18 +358,18 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 // the CompositeTags path, this legacy []string boundary copies caller-owned
 // tags before storage may retain them.
 func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags []string, key uint64) AddResult {
-	return s.AddWithKeyAndHostComposite(namespace, name, host, value, timestamp, tagset.CompositeTagsFromSlice(copyTags(tags)), key)
+	return s.AddWithKeyAndHostComposite(namespace, name, host, value, timestamp, tagset.CompositeTagsFromSlice(copyTags(tags)), key, observer.UnknownType)
 }
 
 // AddWithKeyAndHostComposite inserts a point using immutable composite tags.
 // A new series retains the supplied view directly, or a matching canonical
 // composite view from the bounded tag interner. Existing-series writes do not
-// inspect or transform tags.
-func (s *timeSeriesStorage) AddWithKeyAndHostComposite(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64) AddResult {
-	return s.addWithKeyAndHost(namespace, name, host, value, timestamp, tags, key)
+// inspect or transform tags. The first known metric type is retained per series.
+func (s *timeSeriesStorage) AddWithKeyAndHostComposite(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64, metricType metrics.MetricType) AddResult {
+	return s.addWithKeyAndHost(namespace, name, host, value, timestamp, tags, key, metricType)
 }
 
-func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64) AddResult {
+func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags tagset.CompositeTags, key uint64, metricType metrics.MetricType) AddResult {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -387,6 +389,7 @@ func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, valu
 		id := s.nextSeriesRef
 		s.nextSeriesRef++
 		stats = &seriesStats{
+			MetricType:           metricType,
 			Namespace:            namespace,
 			Name:                 name,
 			Host:                 host,
@@ -400,6 +403,12 @@ func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, valu
 		if namespace != observer.TelemetryNamespace {
 			s.liveSeriesCount++
 		}
+		s.seriesGen++
+	}
+	// Keep one stable type per series. Missing metadata may be filled in by a
+	// later observation, but conflicting known types do not rewrite history.
+	if stats.MetricType == observer.UnknownType && metricType != observer.UnknownType {
+		stats.MetricType = metricType
 		s.seriesGen++
 	}
 	res := AddResult{IsNew: !exists, Ref: stats.ref}
@@ -743,17 +752,19 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 		return nil
 	}
 	return &observer.SeriesMeta{
-		Ref:       ref,
-		Namespace: ss.Namespace,
-		Name:      ss.Name,
-		Host:      ss.Host,
-		Tags:      ss.Tags,
+		MetricType: ss.MetricType,
+		Ref:        ref,
+		Namespace:  ss.Namespace,
+		Name:       ss.Name,
+		Host:       ss.Host,
+		Tags:       ss.Tags,
 	}
 }
 
 // seriesMeta is lightweight series metadata including point count,
 // used for API listing without materializing point data.
 type seriesMeta struct {
+	MetricType metrics.MetricType
 	Ref        observer.SeriesRef // compact numeric ref
 	Namespace  string
 	Name       string
@@ -772,6 +783,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 	for _, stats := range s.seriesIDStats {
 		if stats != nil && stats.Namespace == namespace {
 			result = append(result, seriesMeta{
+				MetricType: stats.MetricType,
 				Ref:        stats.ref,
 				Namespace:  stats.Namespace,
 				Name:       stats.Name,
@@ -917,8 +929,8 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 }
 
 // SeriesGeneration returns a counter that increments whenever the series
-// catalog changes — either when a new series key is created or when an
-// existing key is removed via RemoveSeriesByRefs or RemoveSeriesByMetricName.
+// catalog changes: a series is inserted or removed, or its unknown metric
+// type becomes known.
 // Callers can use this to safely cache ListSeries results.
 func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	s.mu.RLock()
@@ -1196,11 +1208,12 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 			continue
 		}
 		result = append(result, observer.SeriesMeta{
-			Ref:       stats.ref,
-			Namespace: stats.Namespace,
-			Name:      stats.Name,
-			Host:      stats.Host,
-			Tags:      stats.Tags,
+			MetricType: stats.MetricType,
+			Ref:        stats.ref,
+			Namespace:  stats.Namespace,
+			Name:       stats.Name,
+			Host:       stats.Host,
+			Tags:       stats.Tags,
 		})
 	}
 	return result
