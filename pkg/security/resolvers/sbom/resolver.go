@@ -84,6 +84,10 @@ const (
 	// wait for the scan indexing them, and hostMissTTL how long one waits.
 	maxHostMisses = 1024
 	hostMissTTL   = 10 * time.Minute
+	// deletedSuffix ends the path procfs gives a file removed from its path
+	// while a process runs or maps it, as when an upgrade renames a new build
+	// over it.
+	deletedSuffix = " (deleted)"
 )
 
 // hostMiss is the run of a host file the host index lacked: the usage it
@@ -1393,16 +1397,24 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 
 // ResolvePackage returns the package that owns file, which the process of pc
 // runs or opens, and records the access as usage of the package. The path of
-// file must be resolved.
+// file must be resolved. It returns nil for a file procfs names with
+// deletedSuffix, after recording its usage.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
 	if !file.IsPathnameStrResolved || file.PathResolutionError != nil {
 		return nil
 	}
 
+	// procfs names a file replaced under a running process by its path
+	// followed by deletedSuffix, in the executables and the mappings the probe
+	// reads at start and on ruleset reloads. Such a file counts for the package
+	// that owns its path. That package may hold the build that replaced it by
+	// now, so ResolvePackage returns nil for the file.
+	lookupPath, replaced := strings.CutSuffix(file.PathnameStr, deletedSuffix)
+
 	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
 		seclog.Debugf("no sbom found for container '%s'", pc.ContainerContext.ContainerID)
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc))
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, lookupPath, file.Mode, runsAsRoot(pc))
 		return nil
 	}
 
@@ -1412,7 +1424,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	// the scan finishes (processPendingFileEvents is called at the end of analyzeWorkload).
 	if !sbom.IsComputed() {
 		sbom.Unlock()
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc))
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, lookupPath, file.Mode, runsAsRoot(pc))
 		return nil
 	}
 
@@ -1423,7 +1435,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
-	pkg := r.owner(sbom, pc.Pid, file.PathnameStr)
+	pkg := r.owner(sbom, pc.Pid, lookupPath)
 
 	// rpm lists the directories a package owns among its files. A directory
 	// resolves to its package, and opening it, as a listing or a walk of the
@@ -1454,11 +1466,14 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	// The executable of a host process the host index lacks may belong to a
 	// package installed since the last scan. Its run waits for the scan
-	// indexing it.
-	if pkg == nil && sbom.ContainerID == "" && file.PathnameStr == pc.Process.FileEvent.PathnameStr {
+	// indexing it, if the executable is still at its path.
+	if pkg == nil && !replaced && sbom.ContainerID == "" && file.PathnameStr == pc.Process.FileEvent.PathnameStr {
 		r.addHostMiss(pc, file)
 	}
 
+	if replaced {
+		return nil
+	}
 	return pkg
 }
 
