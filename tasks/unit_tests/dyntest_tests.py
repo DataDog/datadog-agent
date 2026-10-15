@@ -1,10 +1,12 @@
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from invoke import Context
 from invoke.exceptions import Exit
 
-from tasks.dyntest import evaluate_index
+from tasks.dyntest import evaluate_index, generate_jev_pr_summary
 from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.dynamic_test.jev_selection import NothingToEvaluateError
 from tasks.libs.dynamic_test.telemetry import ConsoleTelemetryHandler
@@ -25,10 +27,12 @@ class TestEvaluateIndex(unittest.TestCase):
         s3.assert_not_called()
         self.assertEqual(executor.call_args.args[1:], ("abc", "42"))
         self.assertTrue(executor.call_args.kwargs["require_pipeline_commit"])
+        self.assertEqual(executor.call_args.kwargs["pr_summary"], "")
         evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False, ignore_sha_mismatch=True)
         self.assertFalse(executor.call_args.kwargs["require_pipeline_commit"])
         # The shared evaluator is constructed exactly like for coverage: the
-        # Jev executor plugs in through the standard interface only
+        # Jev executor plugs in through the standard interface only (the
+        # allow-failure job filtering is the evaluator's own, not wired here)
         options = evaluator.call_args.kwargs
         self.assertNotIn("unreliable_jobs", options)
         self.assertNotIn("test_env", options)
@@ -110,9 +114,45 @@ class TestEvaluateIndex(unittest.TestCase):
     @patch("tasks.dyntest.is_enabled", return_value=True)
     @patch("tasks.dyntest.JevDynTestExecutor")
     @patch("tasks.dyntest.DatadogDynTestEvaluator")
+    @patch("tasks.dyntest.DatadogTelemetryHandler")
+    def test_pr_summary_file_is_injected_and_tagged(self, telemetry, evaluator, executor, *_):
+        executor.return_value.kind = IndexKind.JEV
+        result = MagicMock()
+        result.actual_count.return_value = 1
+        evaluator.return_value.evaluate.return_value = [result]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "summary.txt")
+            # Missing file (generation disabled or failed): the raw diff
+            evaluate_index.body(Context(), pipeline_id="42", selector="jev", pr_summary_file=str(path))
+            self.assertEqual(executor.call_args.kwargs["pr_summary"], "")
+            self.assertIn("jev_llm_summary:false", telemetry.call_args.kwargs["default_tags"])
+            path.write_text("LLM SUMMARY\n")
+            evaluate_index.body(Context(), pipeline_id="42", selector="jev", pr_summary_file=str(path))
+            self.assertEqual(executor.call_args.kwargs["pr_summary"], "LLM SUMMARY")
+            self.assertIn("jev_llm_summary:true", telemetry.call_args.kwargs["default_tags"])
+
+    @patch("tasks.dyntest.get_commit_sha", return_value="abc")
+    @patch("tasks.dyntest.is_enabled", return_value=True)
+    @patch("tasks.dyntest.JevDynTestExecutor")
+    @patch("tasks.dyntest.DatadogDynTestEvaluator")
     def test_initialization_failure_is_visible(self, evaluator, executor, _, enabled):
         executor.return_value.kind = IndexKind.JEV
         evaluator.return_value.initialize.return_value = False
         with self.assertRaisesRegex(Exit, "incomplete"):
             evaluate_index.body(Context(), pipeline_id="42", selector="jev", send_stats=False)
         evaluator.return_value.evaluate.assert_not_called()
+
+
+class TestGenerateJevPrSummary(unittest.TestCase):
+    @patch("tasks.dyntest.generate_pr_summary", return_value="LLM SUMMARY")
+    def test_gated_by_the_feature_flag(self, generate):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "summary.txt")
+            with patch("tasks.dyntest.is_enabled", return_value=False):
+                generate_jev_pr_summary.body(Context(), output=str(path))
+            generate.assert_not_called()
+            self.assertFalse(path.exists())
+            with patch("tasks.dyntest.is_enabled", return_value=True):
+                generate_jev_pr_summary.body(Context(), output=str(path))
+            generate.assert_called_once()
+            self.assertEqual(path.read_text().strip(), "LLM SUMMARY")

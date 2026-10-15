@@ -18,8 +18,12 @@ mod tests {
     use super::proto::process_manager_client::ProcessManagerClient;
     use super::service::ProcessManagerService;
     use crate::command::Command;
-    use crate::config::{ProcessConfig, ProcessDefinition, RestartPolicy, StaticConfigLoader};
+    use crate::config::{
+        InvalidConfigEntry, LoadedCatalog, ProcessConfig, ProcessDefinition, RestartPolicy,
+        StaticConfigLoader,
+    };
     use crate::manager::ProcessManager;
+    use std::path::PathBuf;
     use std::sync::Arc;
     use tokio::net::UnixListener;
     use tokio::sync::mpsc;
@@ -34,6 +38,15 @@ mod tests {
         ProcessManagerClient<Channel>,
         tokio::sync::oneshot::Sender<()>,
     ) {
+        start_test_server_with_catalog(LoadedCatalog::valid(defs)).await
+    }
+
+    async fn start_test_server_with_catalog(
+        catalog: LoadedCatalog,
+    ) -> (
+        ProcessManagerClient<Channel>,
+        tokio::sync::oneshot::Sender<()>,
+    ) {
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let dir = tempfile::tempdir().unwrap();
         let sock_path = dir.path().join("test.sock");
@@ -41,7 +54,7 @@ mod tests {
         let uds_stream = UnixListenerStream::new(uds);
 
         let mgr = ProcessManager::new(
-            Arc::new(StaticConfigLoader::new(defs)),
+            Arc::new(StaticConfigLoader::with_catalog(catalog)),
             Arc::new(crate::uuid_gen::V4UuidGenerator),
         );
         let svc = ProcessManagerService::new(mgr.clone(), cmd_tx);
@@ -308,6 +321,35 @@ mod tests {
         assert_eq!(resp.location, "in-memory (test)");
         assert_eq!(resp.loaded_processes, 0);
         assert_eq!(resp.runtime_processes, 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_config_excludes_invalid_entries() {
+        let catalog = LoadedCatalog {
+            processes: vec![sleep_process_def("sleeper")],
+            invalid: vec![InvalidConfigEntry {
+                name: "broken".to_string(),
+                path: PathBuf::from("/tmp/broken.yaml"),
+                error: "bad yaml".to_string(),
+            }],
+        };
+        let (mut client, _shutdown) = start_test_server_with_catalog(catalog).await;
+        let resp = client
+            .get_config(proto::GetConfigRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(resp.loaded_processes, 1);
+        assert_eq!(resp.runtime_processes, 0);
+
+        let status = client
+            .get_status(proto::GetStatusRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(status.invalid_config_processes, 1);
+        assert_eq!(status.total_processes, 2);
     }
 
     #[tokio::test]
@@ -787,7 +829,8 @@ mod tests {
             .unwrap()
             .into_inner();
         assert_eq!(resp.total_processes, 1);
-        assert_eq!(resp.created_processes, 1);
+        assert_eq!(resp.skipped_processes, 1);
+        assert_eq!(resp.created_processes, 0);
 
         client
             .start(proto::StartRequest {
@@ -841,7 +884,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_auto_start_false_stays_created() {
+    async fn test_create_auto_start_false_is_skipped() {
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
@@ -862,9 +905,10 @@ mod tests {
             .into_inner();
         assert_eq!(resp.total_processes, 1);
         assert_eq!(
-            resp.created_processes, 1,
-            "auto_start=false should leave process in created state"
+            resp.skipped_processes, 1,
+            "auto_start=false should leave process in skipped state"
         );
+        assert_eq!(resp.created_processes, 0);
         assert_eq!(resp.running_processes, 0);
     }
 

@@ -8,6 +8,7 @@ package coat
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -44,15 +45,17 @@ type SupportReport struct {
 
 // reportNotes explains how to interpret a process that is not Running.
 //
-// dd-procmgrd does not report a start-block reason over its RPC: the wire format carries
-// condition_path_exists but not condition_config_any, and there is no Blocked state, so a
-// config-gated process is indistinguishable from one waiting on start ordering. The daemon logs the
-// gate decision, so the notes point a reader at that log rather than guessing.
+// A start pass that declined to spawn is Skipped, not Created. skip_reasons names each
+// applying label (auto_start_false, path_missing, config_gate, config_veto, ordering), so a
+// config-gated process is no longer indistinguishable from one waiting on start ordering. The
+// notes send the reader to skip_reasons for that case.
 //
-// Where the log is depends on the platform, which is why the location comes from
-// daemonLogLocation rather than being written inline: only the Windows service writes a file the
-// flare can collect. Naming a path the host never produces sends support somewhere there is
-// nothing to find, in the one place that is supposed to explain a process that will not start.
+// Spawn failures are still Failed with no last_exit_code, and those are not labeled the same
+// way. The daemon log is where the spawn error is, so the notes keep pointing there. Where
+// that log is depends on the platform, which is why the location comes from daemonLogLocation
+// rather than being written inline: only the Windows service writes a file the flare can
+// collect. Naming a path the host never produces sends support somewhere there is nothing to
+// find, in the one place that is supposed to explain a process that will not start.
 //
 // What separates a failed spawn from a failed workload is last_exit_code, not restart_count. The
 // supervisor reports Failed for both a spawn that never produced a process and a process that ran
@@ -70,16 +73,14 @@ func reportNotes() []string {
 			"workload failing rather than the spawn. See last_exit_code and last_signal, and " +
 			daemonLogLocation() + ".",
 		"state=crashed: the process died on a signal. See last_signal.",
+		"state=invalid_config: processes.d YAML did not load. See config_error and " +
+			daemonLogLocation() + ".",
 		"restart_count is not a verdict on its own. It counts restarts dd-procmgrd performed, so " +
 			"restart_policy bounds it: the default policy is never, which cannot retry and leaves " +
 			"the count at 0 however badly the process failed. It is also reset once a spawn stays " +
 			"up long enough, so a low count can follow a history of restarts. Read it with " +
 			"restart_policy and last_exit_code rather than as evidence of a loop by itself.",
-		"state=created with auto_start=true: the process was never started, because a config gate " +
-			"(condition_config_any) is closed, the condition_path_exists path is missing, or a start " +
-			"ordering dependency is unmet. dd-procmgrd does not report which one over its RPC: " +
-			"search " + daemonLogLocation() + " for the gate decision.",
-		"state=created with auto_start=false: an inert catalog entry, expected until the matching service is migrated.",
+		"state=skipped: start pass declined to spawn. See skip_reasons.",
 		"A legacy service reported Stopped in servicestatus.json is the expected state when the same " +
 			"workload appears in the services list with management_mode=procmgr.",
 	}
@@ -202,6 +203,7 @@ type ScrubOptions struct {
 // the cost of missing it is a leaked credential. It is safe to call more than once.
 func (r *SupportReport) Scrub(opts ScrubOptions) {
 	scrubProcessArgs(r.Processes, opts)
+	scrubConfigErrors(r.Processes, opts)
 }
 
 // redactedValue replaces a secret. It matches the placeholder procutil substitutes, so redactions
@@ -239,6 +241,45 @@ func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 
 	for i := range processes {
 		redactSecretValues(processes[i].Args, scrubber.SensitivePatterns)
+	}
+}
+
+// Serde quotes the value it rejected back into the message, in two spellings: a string goes in
+// double quotes, a number, boolean or character in backticks. Field and variant names are
+// backticked too, which is why the kind of the value has to precede the match: matching backticks
+// alone would take the name out of "unknown field `comand`", where the name is the whole diagnosis.
+//
+// An enum field spells its rejected value the same way, in "unknown variant `bogus`". Those stay:
+// the fields typed that way (stdout and stderr) take a fixed set of words rather than values worth
+// hiding, and printing back what was written is how an operator sees the typo.
+var (
+	echoedString = regexp.MustCompile(`(invalid (?:type|value): string )"(?:[^"\\]|\\.)*"`)
+	echoedScalar = regexp.MustCompile("(invalid (?:type|value): (?:integer|boolean|floating point|character) )`[^`]*`")
+)
+
+// scrubConfigErrors redacts secret sequences inside parse errors. Serde echoes the offending
+// scalar, so a processes.d value that failed to type-check can otherwise reach the flare as
+// config_error. AddFile's line scrubber still runs on the JSON, but SupportReport.Scrub is the
+// last point that sees this field as a structured string rather than a pretty-printed line.
+//
+// Under StripArguments the echo goes whether or not it names a secret. `args: "--token abc123"` is
+// an ordinary mistake, and the error quoting it back is the argument array the operator asked to
+// keep out of the flare, arriving by another route. Only the echoed value is removed: the file, the
+// field, the expected type and the position are the whole diagnostic value of this field, and
+// scrubProcessArgs drops arguments outright precisely because it has nothing else worth keeping.
+func scrubConfigErrors(processes []ProcessSnapshot, opts ScrubOptions) {
+	scrubber := procutil.NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords(slices.Concat(hyphenSpelledSecretWords, opts.CustomSensitiveWords))
+
+	for i := range processes {
+		if processes[i].ConfigError == "" {
+			continue
+		}
+		if opts.StripArguments {
+			stripped := echoedString.ReplaceAllString(processes[i].ConfigError, `${1}"`+redactedValue+`"`)
+			processes[i].ConfigError = echoedScalar.ReplaceAllString(stripped, "${1}`"+redactedValue+"`")
+		}
+		processes[i].ConfigError = scrubSecretSequences(processes[i].ConfigError, scrubber.SensitivePatterns)
 	}
 }
 
@@ -393,9 +434,8 @@ func namesSecret(patterns []procutil.DataScrubberPattern, flag string) bool {
 	return false
 }
 
-// describeAll enriches each listed process with the fields only Describe carries, above all
-// auto_start, without which a Created process cannot be told from an inert catalog entry. A
-// process whose Describe fails keeps its List data and contributes a warning.
+// describeAll enriches each listed process with the fields only Describe carries,
+// including skip_reasons on a Skipped hold and auto_start as declared config.
 func describeAll(ctx context.Context, sess ProcmgrSession, processes map[string]ProcessSnapshot) ([]ProcessSnapshot, []string) {
 	names := make([]string, 0, len(processes))
 	for name := range processes {

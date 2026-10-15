@@ -145,7 +145,7 @@ func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
+			s.Require().FailNow("unsupported package manager", "%s", pkgManager)
 		}
 	}
 
@@ -456,7 +456,7 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 			continue
 		}
 
-		s.T().Fatalf("file %v is world writable", path)
+		s.Require().FailNow("file is world writable", "path: %v", path)
 	}
 }
 
@@ -520,7 +520,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 		}
 	}
 	if gid == 0 {
-		s.T().Fatal("Could not find available GID in range 900-999")
+		s.Require().FailNow("could not find available GID in range 900-999")
 	}
 
 	for id := 900; id < 1000; id++ {
@@ -533,7 +533,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 		}
 	}
 	if uid == 0 {
-		s.T().Fatal("Could not find available UID in range 900-999")
+		s.Require().FailNow("could not find available UID in range 900-999")
 	}
 
 	s.T().Logf("Using UID=%d GID=%d for dd-agent user/group", uid, gid)

@@ -12,6 +12,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -85,6 +87,7 @@ type checkTelemetryMetrics struct {
 	duplicateMetrics           telemetry.Counter
 	activeMetrics              telemetry.Gauge
 	missingContainerGpuMapping telemetry.Counter
+	containerMappingFailurePct telemetry.Gauge
 	deviceCount                telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
 }
 
@@ -141,6 +144,7 @@ func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
 		activeMetrics:              tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
 		duplicateMetrics:           tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
+		containerMappingFailurePct: tm.NewGauge(CheckName, "container_gpu_mapping_failure_pct", nil, "Percentage of GPU containers whose devices could not be fully matched in the last check run"),
 		deviceCount:                tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
 	}
 }
@@ -429,8 +433,9 @@ func (c *Check) Run() error {
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
+	gpuToProcessesMap := c.getGPUToProcessesMap()
 
-	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
+	if err := c.emitMetrics(snd, gpuToContainersMap, gpuToProcessesMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
 	}
 
@@ -484,6 +489,7 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		return nil
 	}
 	gpuToContainers := make(map[string][]*workloadmeta.Container, len(allPhysicalDevices))
+	var gpuContainers, unmatchedContainers int
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		if containers.IsDatadogAgentContainer(c.wmeta, container) {
@@ -491,8 +497,10 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 			continue
 		}
 
+		gpuContainers++
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
 		if err != nil {
+			unmatchedContainers++
 			c.telemetry.metrics.missingContainerGpuMapping.Inc(container.Name)
 		}
 
@@ -504,7 +512,35 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 		}
 	}
 
+	failurePct := 0.0
+	if gpuContainers > 0 {
+		failurePct = 100 * float64(unmatchedContainers) / float64(gpuContainers)
+	}
+	c.telemetry.metrics.containerMappingFailurePct.Set(failurePct)
+
 	return gpuToContainers
+}
+
+// getGPUToProcessesMap returns the mapping of GPU device UUIDs to the PIDs of the processes using them
+func (c *Check) getGPUToProcessesMap() map[string][]int32 {
+	gpus := c.wmeta.ListGPUs()
+	gpuToProcesses := make(map[string][]int32, len(gpus))
+
+	for _, gpu := range gpus {
+		pids := make([]int32, 0, len(gpu.ActivePIDs))
+		for _, pid := range gpu.ActivePIDs {
+			if pid <= 0 || pid > math.MaxInt32 {
+				continue
+			}
+			pids = append(pids, int32(pid))
+		}
+
+		if len(pids) > 0 {
+			gpuToProcesses[gpu.ID] = pids
+		}
+	}
+
+	return gpuToProcesses
 }
 
 type deviceSamplesCollection struct {
@@ -521,7 +557,7 @@ type collectorSamplesCollection struct {
 	duration      time.Duration
 }
 
-func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
+func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, gpuToProcessesMap map[string][]int32, currentExecutionTime time.Time) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
@@ -565,13 +601,14 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		deduplicatedSamples := nvidia.RemoveDuplicateSamples(deviceData.collectorSamples)
 		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedSamples)), deviceUUID)
 		deviceContainers := gpuToContainersMap[deviceUUID]
+		devicePIDs := gpuToProcessesMap[deviceUUID]
 		deviceTags := c.deviceTags[deviceUUID]
 
 		deduplicatedSamples = c.strictIntervals.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 		deduplicatedSamples = c.rateCalculator.ProcessSamples(deduplicatedSamples, currentExecutionTime, deviceUUID)
 
 		for _, sample := range deduplicatedSamples {
-			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
+			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, devicePIDs, deviceTags); err != nil {
 				multiErr = append(multiErr, fmt.Errorf("error emitting sample %s: %w", sample.Key(), err))
 			}
 		}
@@ -623,19 +660,29 @@ func collectSample(collector nvidia.Collector) (result collectorSamplesCollectio
 	return
 }
 
-func (c *Check) emitSample(sample nvidia.Sample, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
+func (c *Check) emitSample(sample nvidia.Sample, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, devicePIDs []int32, deviceTags []string) error {
 	var multiErr []error
 
 	metricWorkloads := sample.AssociatedWorkloads()
+	metricTags := []string{}
 
-	// Metrics with no associated workloads are assumed to apply to all workloads on the device.
+	// Metrics with no associated workloads are assumed to apply to all workloads on the device:
+	// they get the tags of all the containers assigned to the device, and the tags that are
+	// common to all processes using it.
 	if len(metricWorkloads) == 0 {
 		for _, deviceContainer := range deviceContainers {
 			metricWorkloads = append(metricWorkloads, deviceContainer.EntityID)
 		}
+
+		if len(devicePIDs) > 0 {
+			sharedTags, err := c.workloadTagCache.GetOrCreateSharedProcessTags(devicePIDs)
+			if err != nil {
+				multiErr = append(multiErr, fmt.Errorf("error collecting shared tags for device processes: %w", err))
+			}
+			metricTags = append(metricTags, sharedTags...)
+		}
 	}
 
-	metricTags := []string{}
 	for _, workloadID := range metricWorkloads {
 		tags, err := c.workloadTagCache.GetOrCreateWorkloadTags(workloadID)
 		if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"

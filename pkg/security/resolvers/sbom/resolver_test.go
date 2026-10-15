@@ -8,17 +8,23 @@
 package sbom
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // TestRefreshScanResetsStateForRescan checks that refreshing a workload clears
@@ -341,9 +347,11 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 
 	sbomB := NewSBOM("container-b", nil, "image:tag")
 	sbomB.data = data
+	sbomB.status = workloadmeta.Success
 	sbomB.state.Store(computedState)
 
 	r := newPendingFileEventsResolver(t)
+	r.Notifier = utils.NewNotifier[Event, *sbompkg.ScanResult]()
 
 	var wg sync.WaitGroup
 
@@ -358,21 +366,252 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 		}
 	})
 
-	// Reader: simulate triggerForwarding.func1 snapshotting packages on sbomB
-	// (reads the shared Data via copy()).
+	// Reader: forward snapshots the packages of sbomB (reads the shared Data
+	// via copy()).
 	wg.Go(func() {
 		for range 2000 {
-			sbomB.Lock()
-			if sbomB.data != nil && len(sbomB.data.packages) > 0 {
-				sbomB.data.mu.RLock()
-				packages := make([]sbomtypes.Package, len(sbomB.data.packages))
-				copy(packages, sbomB.data.packages)
-				sbomB.data.mu.RUnlock()
-				_ = packages
-			}
-			sbomB.Unlock()
+			r.forward(sbomB)
 		}
 	})
 
 	wg.Wait()
+}
+
+// TestStopLeavesBusyDebouncers checks that stopping an SBOM returns while its
+// debouncers are busy. Their callbacks take the locks the callers of stop hold,
+// so waiting for them deadlocked the resolver. A debouncer started after stop
+// returns stands for a busy one.
+func TestStopLeavesBusyDebouncers(t *testing.T) {
+	refresher := debouncer.New(time.Hour, func() {})
+	forwarder := debouncer.New(time.Hour, func() {})
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.refresher = refresher
+	sbom.forwarder = forwarder
+
+	stopped := make(chan struct{})
+	go func() {
+		sbom.stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(10 * time.Second):
+		t.Fatal("stop waited for its busy debouncers")
+	}
+
+	// The debouncers take the Stops that stop left pending, and end.
+	refresher.Start()
+	forwarder.Start()
+}
+
+// TestForwardSkipsStoppedSBOM checks that forward returns at once for a stopped
+// SBOM, as a callback still running after stop may call it.
+func TestForwardSkipsStoppedSBOM(t *testing.T) {
+	r := &Resolver{Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult]()}
+
+	forwarded := false
+	if err := r.RegisterListener(SBOMComputed, func(*sbompkg.ScanResult) {
+		forwarded = true
+	}); err != nil {
+		t.Fatalf("RegisterListener: %v", err)
+	}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "bash"},
+		InstalledFiles: []string{"/usr/bin/bash"},
+	}})
+	sbom.status = workloadmeta.Success
+	sbom.stop()
+
+	if r.forward(sbom) {
+		t.Errorf("the forward of a stopped SBOM asks for a retry")
+	}
+	if forwarded {
+		t.Errorf("a stopped SBOM was forwarded")
+	}
+}
+
+// TestRefreshScanKeepsStoppedSBOM checks that a refresh still running after its
+// workload was deleted keeps the SBOM stopped and out of the scan queue, and
+// keeps the cached data of the image for its other containers.
+func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		dataCache: dataCache,
+		scanChan:  make(chan *SBOM, 10),
+	}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.stop()
+	dataCache.Add("image:tag", &Data{})
+
+	r.refreshScan(sbom)
+
+	if got := sbom.state.Load(); got != stoppedState {
+		t.Errorf("state = %d, want stoppedState (%d)", got, stoppedState)
+	}
+	if len(r.scanChan) != 0 {
+		t.Errorf("the deleted workload was queued for a scan")
+	}
+	if _, ok := dataCache.Get("image:tag"); !ok {
+		t.Errorf("the deleted workload dropped the cached data of its image")
+	}
+}
+
+// failingWorkloadmeta answers every container lookup with an error, as the
+// store answers for an unknown ID.
+type failingWorkloadmeta struct {
+	workloadmeta.Component
+}
+
+func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, error) {
+	return nil, fmt.Errorf("container %q not found", id)
+}
+
+// newHostSBOMResolver returns a resolver whose host SBOM is computed and holds
+// util-linux, the owner of /usr/bin/su. Its forwarder waits an hour, so tests
+// call forward themselves.
+func newHostSBOMResolver(t *testing.T) *Resolver {
+	t.Helper()
+
+	r := &Resolver{
+		Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		cfg: &config.RuntimeSecurityConfig{
+			SBOMResolverEnrichmentInterval: time.Minute,
+			SBOMResolverForwardInterval:    time.Hour,
+		},
+		pendingFileEvents: newPendingFileEvents(t),
+		wmeta:             failingWorkloadmeta{},
+	}
+
+	r.hostSBOM = NewSBOM("", nil, "")
+	r.hostSBOM.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}})
+	r.hostSBOM.state.Store(computedState)
+	t.Cleanup(r.hostSBOM.stop)
+
+	return r
+}
+
+// hostAccess returns a root process with an empty container ID running
+// /usr/bin/su, setuid, as the host runs it.
+func hostAccess() (*model.ProcessContext, *model.FileEvent) {
+	file := &model.FileEvent{}
+	file.SetPathnameStr("/usr/bin/su")
+	file.Mode = 04755
+	return &model.ProcessContext{}, file
+}
+
+// TestResolvePackageRecordsHostUsage checks that a process with an empty
+// container ID resolves against the host SBOM and records its usage there, as a
+// process of a container does against the SBOM of its container.
+func TestResolvePackageRecordsHostUsage(t *testing.T) {
+	r := newHostSBOMResolver(t)
+
+	pc, file := hostAccess()
+	pkg := r.ResolvePackage(pc, file)
+	if pkg == nil || pkg.Name != "util-linux" {
+		t.Fatalf("package = %+v, want util-linux", pkg)
+	}
+	if pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+	}
+}
+
+// TestResolvePackageWithoutHostSBOM checks that ResolvePackage returns nil for a
+// host process while the host SBOM is off, and leaves the queue of pending
+// accesses empty.
+func TestResolvePackageWithoutHostSBOM(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	pc, file := hostAccess()
+	if pkg := r.ResolvePackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v, want none without a host SBOM", pkg)
+	}
+	if r.pendingFileEvents.Len() != 0 {
+		t.Errorf("the host access was queued")
+	}
+}
+
+// TestHostForwardingSkipsImageSBOM checks that the report of the host goes out
+// at once. A container report waits for the Trivy SBOM of its image, while the
+// core agent keeps the report of the host for its next host scan. Here every
+// workloadmeta lookup fails, so a host report that waited on an image SBOM
+// would wait forever.
+func TestHostForwardingSkipsImageSBOM(t *testing.T) {
+	r := newHostSBOMResolver(t)
+
+	var reports []*sbompkg.ScanResult
+	if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+		reports = append(reports, result)
+	}); err != nil {
+		t.Fatalf("RegisterListener: %v", err)
+	}
+
+	pc, file := hostAccess()
+	r.ResolvePackage(pc, file)
+
+	if r.forward(r.hostSBOM) {
+		t.Errorf("the host report waits to be forwarded again")
+	}
+	if len(reports) != 1 {
+		t.Fatalf("%d host reports forwarded, want 1", len(reports))
+	}
+	if id := reports[0].RequestID; id != "" {
+		t.Errorf("request ID = %q, want the empty ID of the host", id)
+	}
+	components := reports[0].Report.ToCycloneDX().GetComponents()
+	if len(components) != 1 {
+		t.Fatalf("report holds %d components, want 1", len(components))
+	}
+	if seen, _ := propertyValue(components[0], LastAccessProperty); seen == "0" || seen == "" {
+		t.Errorf("%s = %q, want util-linux seen running", LastAccessProperty, seen)
+	}
+}
+
+// rootRecorder is a package scanner that records the root it was given.
+type rootRecorder struct {
+	root string
+}
+
+func (s *rootRecorder) ScanInstalledPackages(_ context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+	s.root = root
+	return nil, nil
+}
+
+// TestStartIndexesHostThroughInitRoot checks that the host packages are read
+// through the root of init, as those of a container are read through the root
+// of one of its processes. A containerized system-probe sees its own image at
+// /, and HOST_ROOT, here pointing elsewhere, may be unset.
+func TestStartIndexesHostThroughInitRoot(t *testing.T) {
+	t.Setenv("HOST_ROOT", t.TempDir())
+
+	scanner := &rootRecorder{}
+	r := &Resolver{
+		cfg:                   &config.RuntimeSecurityConfig{SBOMResolverHostEnabled: true},
+		sbomCollector:         scanner,
+		sbomGenerations:       atomic.NewUint64(0),
+		failedSBOMGenerations: atomic.NewUint64(0),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := r.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	if want := utils.ProcRootPath(1); scanner.root != want {
+		t.Errorf("host scanned at %q, want %q", scanner.root, want)
+	}
+	if !r.hostSBOM.IsComputed() {
+		t.Errorf("host SBOM left uncomputed")
+	}
 }
