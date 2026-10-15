@@ -198,7 +198,7 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 	// Configs setting the logs allowlist; empty when the setting falls back.
 	var logsServiceAllowlistCfgPths []string
 	allowedMetrics := make(map[string]struct{})
-	allowedServices := make(map[string]struct{})
+	allowedLogsServices := make(map[string]struct{})
 
 	// A config may contribute to several settings. Once one of its settings failed to apply, a later
 	// setting that applied must not turn its status back to acknowledged: an error sticks.
@@ -259,7 +259,7 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		if mrfUpdate.LogsServiceAllowlist != nil {
 			logsServiceAllowlistCfgPths = append(logsServiceAllowlistCfgPths, cfgPath)
 			for _, service := range mrfUpdate.LogsServiceAllowlist {
-				allowedServices[service] = struct{}{}
+				allowedLogsServices[service] = struct{}{}
 			}
 		}
 	}
@@ -276,7 +276,7 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		enable:            enableLogs,
 		enableCfgPath:     enableLogsCfgPth,
 		allowlistSetting:  logsServiceAllowlistSetting,
-		allowed:           allowedServices,
+		allowed:           allowedLogsServices,
 		allowlistCfgPaths: logsServiceAllowlistCfgPths,
 	}, reportApplyStatus)
 
