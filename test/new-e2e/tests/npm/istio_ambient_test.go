@@ -100,13 +100,15 @@ func istioAmbientWorkload(e config.Env, kubeProvider *kubernetes.Provider, depen
 	if err := e.Ctx().RegisterComponentResource("dd:apps", "istio-ambient-workload", workload); err != nil {
 		return nil, err
 	}
-	opts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider), pulumi.Parent(workload)}
+	// everything depends on the agent so teardown removes it first: a namespace deleted after the
+	// cluster agent hangs on its stale external metrics APIService
+	opts := []pulumi.ResourceOption{pulumi.Provider(kubeProvider), pulumi.Parent(workload), dependsOnAgent}
 
 	mesh, err := istio.NewAmbientHelmInstallation(e, "", opts...)
 	if err != nil {
 		return nil, err
 	}
-	appOpts := append(opts, dependsOnAgent, utils.PulumiDependsOn(mesh.Ztunnel))
+	appOpts := append(opts, utils.PulumiDependsOn(mesh.Ztunnel))
 
 	ambient := map[string]string{"istio.io/dataplane-mode": "ambient"}
 	namespaces := map[string]map[string]string{
