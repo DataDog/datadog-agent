@@ -875,6 +875,42 @@ func holdsCode(file *model.FileEvent) bool {
 	})
 }
 
+// codeReaders are the names of the processes that read code without running
+// it: the indexers of shared libraries and kernel modules, the builders of
+// initramfs images and archives, the verifiers and scanners of files, and the
+// tools that hash or inspect binaries. The kernel cuts a process name to 15
+// bytes.
+var codeReaders = []string{
+	"ldconfig", "ldconfig.real", "depmod", "modinfo", "weak-modules",
+	"dracut-install", "cpio", "cp", "install", "tar", "rsync",
+	"rpmverify", "debsums", "aide", "fapolicyd", "clamscan", "clamd",
+	"wazuh-syscheckd", "ossec-syscheckd", "oscap", "oscap-io",
+	"md5sum", "sha1sum", "sha224sum", "sha256sum", "sha384sum", "sha512sum",
+	"b2sum", "cksum", "file", "strings", "readelf", "objdump", "nm", "gdb",
+	"perf", "systemd-coredum",
+}
+
+// bytecodeCompilers are the names of the processes that compile the Python
+// modules of a package as it installs, in children that read its sources.
+var bytecodeCompilers = []string{"py3compile", "pycompile", "pypy3compile"}
+
+// loaderNames are the prefixes of the names of the dynamic loader run as a
+// program, as ldd runs it to list the libraries of a binary.
+var loaderNames = []string{"ld-linux", "ld-musl", "ld64.so"}
+
+// readsCode reports whether the process of pc reads code without running it.
+func readsCode(pc *model.ProcessContext) bool {
+	if slices.Contains(codeReaders, pc.Comm) || slices.Contains(bytecodeCompilers, pc.Comm) {
+		return true
+	}
+	if pc.Parent != nil && slices.Contains(bytecodeCompilers, pc.Parent.Comm) {
+		return true
+	}
+	return slices.ContainsFunc(loaderNames, func(prefix string) bool {
+		return strings.HasPrefix(pc.Comm, prefix)
+	})
+}
+
 // isDir reports whether mode, the mode of the file of an event, is that of a
 // directory.
 func isDir(mode uint16) bool {
@@ -1194,12 +1230,12 @@ func (r *Resolver) HostPackageVersion(path string) string {
 }
 
 // ResolveOpen records the open of file by the process of pc as usage of the
-// package that owns it, as ResolvePackage does, when file can hold code. The
-// open of a host package file counts once it has waited settleDelay, and only
-// if the file is still at its path then. An open arriving while maxOpened
-// opens wait is dropped.
+// package that owns it, as ResolvePackage does, when file can hold code and
+// the process may run it. The open of a host package file counts once it has
+// waited settleDelay, and only if the file is still at its path then. An open
+// arriving while maxOpened opens wait is dropped.
 func (r *Resolver) ResolveOpen(pc *model.ProcessContext, file *model.FileEvent) {
-	if !holdsCode(file) {
+	if !holdsCode(file) || readsCode(pc) {
 		return
 	}
 	if pc.ContainerContext.ContainerID != "" {
