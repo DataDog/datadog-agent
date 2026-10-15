@@ -47,6 +47,7 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
+	configChanMu              sync.Mutex // serializes the failover config updates sent on configChan
 	failoverConfig            failoverConfig
 
 	// Telemetry
@@ -95,11 +96,19 @@ func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmode
 	}
 }
 
-// updateFailoverConfig sends the updated config to the processor to update
+// updateFailoverConfig sends the updated config to the processor to update.
+//
+// Config notifications run synchronously in the goroutine that changed the setting (such as the
+// remote config client), and keep reaching processors stopped by a pipeline restart, so this must
+// never block: an update the run loop has not consumed yet is replaced by the latest one.
 func (p *Processor) updateFailoverConfig() {
 	if p.config == nil {
 		return
 	}
+
+	// Read the config under the lock so that the last update sent is built from the latest config.
+	p.configChanMu.Lock()
+	defer p.configChanMu.Unlock()
 
 	conf := failoverConfig{
 		isFailoverActive: p.config.GetBool(configMRFFailoverLogs),
@@ -116,6 +125,12 @@ func (p *Processor) updateFailoverConfig() {
 		conf.failoverServiceAllowlist = serviceAllowlist
 	}
 
+	// Only this function sends on configChan, under the lock: once a pending update is dropped,
+	// the send cannot block.
+	select {
+	case <-p.configChan:
+	default:
+	}
 	p.configChan <- conf
 }
 

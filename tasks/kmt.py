@@ -908,6 +908,7 @@ def _prepare(
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
+                buildbarn_token=True,
             )
     elif component == "system-probe":
         if ci:
@@ -916,6 +917,7 @@ def _prepare(
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
+                buildbarn_token=True,
             )
     else:
         raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
@@ -1491,6 +1493,7 @@ def build(
     inv_echo = "-e" if ctx.config.run["echo"] else ""
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.build --arch={arch_obj.name}",
+        buildbarn_token=True,
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -2619,33 +2622,30 @@ def start_microvms(
     run_agent=False,
     agent_version=None,
 ):
-    stacks.build_start_microvms_binary(ctx)
     print(
         color_message(
             "[+] Creating and provisioning microVMs.\n[+] If you want to see the pulumi progress, set configParams.pulumi.verboseProgressStreams: true in ~/.test_infra_config.yaml",
             "green",
         )
     )
-    ctx.run(
-        stacks.start_microvms_cmd(
-            infra_env=infra_env,
-            instance_type_x86=instance_type_x86,
-            instance_type_arm=instance_type_arm,
-            x86_ami_id=x86_ami_id,
-            arm_ami_id=arm_ami_id,
-            destroy=destroy,
-            ssh_key_name=ssh_key_name,
-            ssh_key_path=ssh_key_path,
-            dependencies_dir=dependencies_dir,
-            shutdown_period=shutdown_period,
-            stack_name=stack_name,
-            vmconfig=vmconfig,
-            local=local,
-            provision_instance=provision_instance,
-            provision_microvms=provision_microvms,
-            run_agent=run_agent,
-            agent_version=agent_version,
-        )
+    stacks.start_microvms(
+        infra_env=infra_env,
+        instance_type_x86=instance_type_x86,
+        instance_type_arm=instance_type_arm,
+        x86_ami_id=x86_ami_id,
+        arm_ami_id=arm_ami_id,
+        destroy=destroy,
+        ssh_key_name=ssh_key_name,
+        ssh_key_path=ssh_key_path,
+        dependencies_dir=dependencies_dir,
+        shutdown_period=shutdown_period,
+        stack_name=stack_name,
+        vmconfig=vmconfig,
+        local=local,
+        provision_instance=provision_instance,
+        provision_microvms=provision_microvms,
+        run_agent=run_agent,
+        agent_version=agent_version,
     )
 
 

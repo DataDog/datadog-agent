@@ -11,6 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.75.4
 	github.com/DataDog/datadog-agent/comp/def v0.75.4
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4
+	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.75.4
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
@@ -51,7 +52,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.77.0 // indirect
@@ -72,7 +72,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/Microsoft/go-winio v0.6.3-0.20260925173824-7e8af9b09c4b // indirect
+	github.com/Microsoft/go-winio v0.6.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
@@ -106,11 +106,11 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/time v0.16.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
