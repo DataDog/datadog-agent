@@ -24,8 +24,13 @@ dd_agent_go_test(
     srcs = [
         "dupcheck_test.go",
         "pipeline_test.go",
+        "spantypes_test.go",
     ],
+    data = ["//pkg/trace/agent:obfuscate.go"],  # keep
     embed = [":dupcheck"],
+    env = {
+        "DUPCHECK_OBFUSCATE_GO": "$(rlocationpath //pkg/trace/agent:obfuscate.go)",  # keep
+    },
     deps = [
         "//comp/trace/compression/impl-gzip",
         "//pkg/opentelemetry-mapping-go/otlp/attributes",

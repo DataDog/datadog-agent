@@ -24,11 +24,10 @@ import (
 )
 
 // CorpusSpanTypes are the span types of the generated corpus: every type the
-// agent branches on in the switch statements of pkg/trace (such as
-// obfuscation and OTLP span type mapping), the types used by pkg/trace/testutil,
-// the empty type and a type unknown to the agent. The list is maintained by
-// hand: nothing checks it against pkg/trace, so update it when the agent
-// starts branching on a new span type.
+// agent obfuscation branches on, the types the OTLP conversion produces, the
+// types used by pkg/trace/testutil, the empty type and a type unknown to the
+// agent. TestCorpusCoversObfuscatedSpanTypes fails when obfuscateSpanInternal
+// in pkg/trace/agent branches on a type missing from this list.
 var CorpusSpanTypes = []string{
 	"sql", "cassandra", "redis", "valkey", "memcached", "mongodb", "elasticsearch", "opensearch",
 	"web", "http", "db", "cache", "custom",
