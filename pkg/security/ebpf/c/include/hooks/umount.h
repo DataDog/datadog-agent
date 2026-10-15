@@ -48,13 +48,17 @@ static __always_inline int sys_umount_ret_impl(void *ctx, int retval, enum TAIL_
     s32 dbg_exit_read_ret = dbg_read_vfsmount_mount_id(dbg_vfs, &dbg_reread);
     u32 dbg_mnt_flags = 0;
     bpf_probe_read(&dbg_mnt_flags, sizeof(dbg_mnt_flags), (char *)dbg_vfs + 16); // offsetof(struct vfsmount, mnt_flags)
-    // re-read the cache entry after the mount id reads: if another task claimed the
-    // element in between, owner/type/vfs no longer match what was read above.
+
+    pop_syscall(EVENT_UMOUNT);
+
+    // [do not merge] replay the pre-0bab68dee6a order: read the entry *after* it was
+    // released, as the old `syscall = pop_syscall(); get_vfsmount_mount_id(syscall->umount.vfs)`
+    // did. If another task claimed the freed element in between, owner/type/vfs no longer
+    // match, and the mount id the old code reported (dbg_prefix_mount_id) differs.
     u64 dbg_owner_after = syscall->umount.dbg_owner;
     u64 dbg_type_after = syscall->type;
     u64 dbg_vfs_after = (u64)syscall->umount.vfs;
-
-    pop_syscall(EVENT_UMOUNT);
+    u32 dbg_prefix_mount_id = get_vfsmount_mount_id((struct vfsmount *)dbg_vfs_after);
 
     struct umount_event_t *event = SPAN_FILL_EVENT(struct umount_event_t, EVENT_UMOUNT);
     if (!event) {
@@ -71,7 +75,10 @@ static __always_inline int sys_umount_ret_impl(void *ctx, int retval, enum TAIL_
     event->dbg_prog_type = prog_type;
     event->dbg_tid = (u32)bpf_get_current_pid_tgid();
     event->dbg_exit_mnt_flags = dbg_mnt_flags;
-    event->dbg_exit_mount_id_reread = dbg_reread;
+    // [do not merge] the exit-time re-read is always equal to mount_id (iterations 1-3);
+    // reuse its slot for the mount id the pre-fix code would have sent.
+    event->dbg_exit_mount_id_reread = dbg_prefix_mount_id;
+    (void)dbg_reread;
     event->dbg_owner_after = dbg_owner_after;
     event->dbg_type_after = dbg_type_after;
     event->dbg_vfs_after = dbg_vfs_after;

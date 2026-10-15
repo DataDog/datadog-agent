@@ -168,7 +168,7 @@ func TestMount(t *testing.T) {
 // [do not merge] umount flakiness debug
 func umountDbgString(event *model.Event) string {
 	u := &event.Umount
-	return fmt.Sprintf("pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d exit_reread_mount_id=%d exit_mnt_flags=%#x vfs=%#x exit-entry=%dns prog_type=%d owner_after=%#x type_after=%d vfs_after=%#x",
+	return fmt.Sprintf("pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d prefix_mount_id=%d exit_mnt_flags=%#x vfs=%#x exit-entry=%dns prog_type=%d owner_after=%#x type_after=%d vfs_after=%#x",
 		event.PIDContext.Pid, u.DbgTid, event.TimestampRaw, u.Retval, u.MountID, u.DbgEntryMountID, u.DbgEntryReadRet, u.DbgExitReadRet,
 		u.DbgExitMountIDReread, u.DbgExitMntFlags, u.DbgVfs, int64(u.DbgExitTs)-int64(u.DbgEntryTs), u.DbgProgType,
 		u.DbgOwnerAfter, u.DbgTypeAfter, u.DbgVfsAfter)
@@ -273,19 +273,65 @@ func TestMountUmountStress(t *testing.T) {
 		chmodBefore bool // TestMount/mount_resolver: chmod through the bind mount, rule match
 		holdOpen    bool // releaseFile: a file on the bind mount stays open across the umount
 		chownAfter  bool // TestMount/release-mount: fchown the open file once detached, pending rule
+		churn       bool // other threads keep entering cached syscalls while the umount runs
+		iterations  int
 	}
+	// iterations 1-3 proved every variant clean with the fixed (peek, read, pop) order; the
+	// churn variants check whether the pre-fix (pop, read) order, replayed in eBPF as
+	// prefix_mount_id, reports a wrong mount id once other tasks recycle syscall cache entries.
 	variants := []variant{
-		{name: "plain"},
-		{name: "hold-open", holdOpen: true},
-		{name: "chmod-before", chmodBefore: true},
-		{name: "full", chmodBefore: true, holdOpen: true, chownAfter: true},
+		{name: "plain", iterations: 1000},
+		{name: "plain-churn", churn: true, iterations: 5000},
+		{name: "full-churn", chmodBefore: true, holdOpen: true, chownAfter: true, churn: true, iterations: 3000},
 	}
 
-	const iterations = 1000
+	churnFile := testDrive.Path("churn-file")
+	if f, err := os.Create(churnFile); err == nil {
+		f.Close()
+	}
+	defer os.Remove(churnFile)
+	churnDir := testDrive.Path("churn-dir")
+
 	for _, v := range variants {
 		t.Run(v.name, func(t *testing.T) {
-			dumped := 0
+			iterations := v.iterations
+			if v.churn {
+				stop := make(chan struct{})
+				var wg sync.WaitGroup
+				for w := 0; w < 2*runtime.NumCPU(); w++ {
+					wg.Add(1)
+					go func(w int) {
+						defer wg.Done()
+						runtime.LockOSThread()
+						defer runtime.UnlockOSThread()
+						dir := fmt.Sprintf("%s-%d", churnDir, w)
+						for n := 0; ; n++ {
+							select {
+							case <-stop:
+								return
+							default:
+							}
+							// each of these caches a syscall_cache_t entry on entry and pops it on exit
+							_ = os.Chmod(churnFile, os.FileMode(0600|(n&1)<<2))
+							_ = os.Chown(churnFile, 0, 0)
+							_ = unix.Utimes(churnFile, []unix.Timeval{{Sec: int64(n)}, {Sec: int64(n)}})
+							_ = os.Mkdir(dir, 0755)
+							_ = os.Remove(dir)
+							if f, err := os.Open(churnFile); err == nil {
+								f.Close()
+							}
+						}
+					}(w)
+				}
+				defer func() {
+					close(stop)
+					wg.Wait()
+				}()
+			}
+
+			dumped, prefixDumped := 0, 0
 			var mountTimeouts, umountTimeouts, mismatches, ok int
+			var prefixWrong, prefixZero, prefixReclaimed int
 			for i := 0; i < iterations; i++ {
 				var mntIDAtomic atomic.Uint32
 				err := test.GetProbeEvent(func() error {
@@ -337,6 +383,21 @@ func TestMountUmountStress(t *testing.T) {
 					defer lock.Unlock()
 					received = append(received, umountDbgString(event))
 					if mntID != 0 && event.Umount.MountID == mntID {
+						u := &event.Umount
+						reclaimed := u.DbgTypeAfter != uint64(model.FileUmountEventType) || u.DbgVfsAfter != u.DbgVfs || u.DbgOwnerAfter != uint64(testSuitePid)<<32|uint64(u.DbgTid)
+						if reclaimed {
+							prefixReclaimed++
+						}
+						if u.DbgExitMountIDReread != mntID {
+							prefixWrong++
+							if u.DbgExitMountIDReread == 0 {
+								prefixZero++
+							}
+						}
+						if (reclaimed || u.DbgExitMountIDReread != mntID) && prefixDumped < 20 {
+							prefixDumped++
+							t.Logf("UMOUNTDBG variant=%s iter=%d PREFIX expected_mount_id=%d reclaimed=%v %s", v.name, i, mntID, reclaimed, umountDbgString(event))
+						}
 						matched = true
 						return true
 					}
@@ -375,6 +436,7 @@ func TestMountUmountStress(t *testing.T) {
 			}
 
 			t.Logf("UMOUNTDBG summary: variant=%s iterations=%d ok=%d mismatches=%d umount_timeouts=%d mount_timeouts=%d", v.name, iterations, ok, mismatches, umountTimeouts, mountTimeouts)
+			t.Logf("UMOUNTDBG prefix-summary: variant=%s ok=%d entry_reclaimed=%d prefix_wrong_mount_id=%d prefix_zero_mount_id=%d", v.name, ok, prefixReclaimed, prefixWrong, prefixZero)
 			if ok != iterations {
 				t.Errorf("UMOUNTDBG summary: variant=%s iterations=%d ok=%d mismatches=%d umount_timeouts=%d mount_timeouts=%d", v.name, iterations, ok, mismatches, umountTimeouts, mountTimeouts)
 			}

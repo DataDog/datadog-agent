@@ -1713,7 +1713,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		// [do not merge] umount flakiness debug
-		seclog.Warnf("UMOUNTDBG umount pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d exit_reread_mount_id=%d exit_mnt_flags=%#x vfs=%#x entry_ts=%d exit_ts=%d exit-entry=%dns prog_type=%d owner_after=%#x type_after=%d vfs_after=%#x",
+		seclog.Warnf("UMOUNTDBG umount pid=%d tid=%d ts=%d retval=%d mount_id=%d entry_mount_id=%d entry_read_ret=%d exit_read_ret=%d prefix_mount_id=%d exit_mnt_flags=%#x vfs=%#x entry_ts=%d exit_ts=%d exit-entry=%dns prog_type=%d owner_after=%#x type_after=%d vfs_after=%#x",
 			event.PIDContext.Pid, event.Umount.DbgTid, event.TimestampRaw, event.Umount.Retval, event.Umount.MountID,
 			event.Umount.DbgEntryMountID, event.Umount.DbgEntryReadRet, event.Umount.DbgExitReadRet, event.Umount.DbgExitMountIDReread,
 			event.Umount.DbgExitMntFlags, event.Umount.DbgVfs, event.Umount.DbgEntryTs, event.Umount.DbgExitTs,
