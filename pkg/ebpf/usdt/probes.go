@@ -23,6 +23,10 @@ const (
 	baseSection = ".stapsdt.base"
 	noteOwner   = "stapsdt"
 	noteType    = 3
+
+	// maxNoteSectionSize caps the size of the .note.stapsdt section read by
+	// ReadProbes, far above the ~100 KiB of the largest known (libjvm.so).
+	maxNoteSectionSize = 4 << 20
 )
 
 // Probe is a USDT probe site of an ELF file.
@@ -55,8 +59,9 @@ type Probe struct {
 //
 // A file without a .note.stapsdt section has no probe sites: ReadProbes
 // returns an empty list and no error. An error is returned only if the notes
-// cannot be enumerated; problems specific to a site are reported in its
-// Probe.Err, so that the other sites remain usable.
+// cannot be enumerated, or if the section is larger than 4 MiB (f may be
+// untrusted, e.g. a file of a container); problems specific to a site are
+// reported in its Probe.Err, so that the other sites remain usable.
 func ReadProbes(f *safeelf.File) ([]Probe, error) {
 	sec := f.Section(noteSection)
 	if sec == nil {
@@ -73,6 +78,9 @@ func ReadProbes(f *safeelf.File) ([]Probe, error) {
 		addrSize = 8
 	default:
 		return nil, fmt.Errorf("unsupported ELF class %s", f.Class)
+	}
+	if sec.Size > maxNoteSectionSize {
+		return nil, fmt.Errorf("section %s is too large: %d bytes, the limit is %d", noteSection, sec.Size, maxNoteSectionSize)
 	}
 	data, err := sec.Data()
 	if err != nil {

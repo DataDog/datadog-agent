@@ -149,6 +149,19 @@ func TestReadProbesNoNotes(t *testing.T) {
 	assert.Empty(t, probes)
 }
 
+func TestReadProbesNoteSectionTooLarge(t *testing.T) {
+	f, err := safeelf.Open(filepath.Join("testdata", "sdt_fixture_x86_64.so"))
+	require.NoError(t, err)
+	defer f.Close()
+	sec := f.Section(noteSection)
+	require.NotNil(t, sec)
+
+	// a section claiming more data than the limit is not read
+	sec.Size = maxNoteSectionSize + 1
+	_, err = ReadProbes(f)
+	assert.ErrorContains(t, err, "too large")
+}
+
 func note(order binary.ByteOrder, name string, typ uint32, desc []byte, align int) []byte {
 	var b bytes.Buffer
 	pad := func() {

@@ -77,8 +77,10 @@ type pidState struct {
 	// registered is true when the process is registered in the file
 	// registry: it maps a libjvm.so whose probes are attached.
 	registered bool
-	// startTime is the start time of a registered process, to detect the
-	// reuse of its PID by another process between two scans.
+	// libjvm is true when the process maps a libjvm.so, registered or not.
+	libjvm bool
+	// startTime is the start time of a process mapping a libjvm.so, to
+	// detect the reuse of its PID by another process between two scans.
 	startTime uint64
 }
 
@@ -136,9 +138,14 @@ func (s *processScanner) scan() (scanResult, error) {
 	for _, p := range pids {
 		pid := uint32(p)
 		res.alive[pid] = struct{}{}
-		if st, ok := s.pids[pid]; ok && st.registered && !s.sameProcess(pid, st) {
+		// Like a registered JVM, a JVM whose registration failed permanently
+		// is not inspected again (unless its comm changes): without this
+		// check, another JVM reusing its PID would be missed.
+		if st, ok := s.pids[pid]; ok && st.libjvm && !s.sameProcess(pid, st) {
+			if st.registered {
+				res.reused[pid] = struct{}{}
+			}
 			s.forget(pid, st)
-			res.reused[pid] = struct{}{}
 		}
 		s.visit(pid)
 	}
@@ -155,7 +162,7 @@ func (s *processScanner) scan() (scanResult, error) {
 	return res, nil
 }
 
-// sameProcess returns whether pid still identifies the process registered
+// sameProcess returns whether pid still identifies the process inspected
 // with st, and not another process which reused its PID.
 func (s *processScanner) sameProcess(pid uint32, st *pidState) bool {
 	startTime, err := readStartTime(s.procRoot, pid)
@@ -210,6 +217,8 @@ func (s *processScanner) inspect(pid uint32, st *pidState) {
 		return
 	}
 	if path == "" {
+		// e.g. a JVM which exec'd another program
+		st.libjvm = false
 		return
 	}
 
@@ -220,11 +229,12 @@ func (s *processScanner) inspect(pid uint32, st *pidState) {
 		return
 	}
 
+	st.libjvm = true
+	st.startTime = startTime
 	err = s.registry.Register(path, pid, s.activate, s.deactivate, utils.IgnoreCB)
 	switch {
 	case err == nil || errors.Is(err, utils.ErrPathIsAlreadyRegistered):
 		st.registered = true
-		st.startTime = startTime
 	case errors.Is(err, errRetryLater):
 		// Transient failure (e.g. too many attached files, or the file
 		// changed while being inspected): retry at the next scan.

@@ -272,6 +272,43 @@ func TestScannerDetectsPIDReuse(t *testing.T) {
 	assert.Equal(t, uint64(200), s.pids[36].startTime)
 }
 
+func TestScannerDetectsPIDReuseOfRejectedJVM(t *testing.T) {
+	procfs := newFakeProcFS(t)
+	registry := &fakeRegistry{errs: []error{errors.New("no HotSpot probe")}}
+	s := newTestScanner(procfs, registry)
+
+	// a JVM which cannot be monitored is not inspected again
+	procfs.setProcessStartedAt(39, "java", jvmMaps, 100)
+	mustScan(t, s)
+	mustScan(t, s)
+	require.Len(t, registry.registered, 1)
+	assert.False(t, s.pids[39].registered)
+
+	// another JVM with the same comm reused its PID: it is inspected
+	procfs.setProcessStartedAt(39, "java", jvmMaps, 200)
+	res := mustScan(t, s)
+	assert.Empty(t, res.reused, "the rejected JVM was not registered")
+	assert.Empty(t, registry.unregistered)
+	assert.Len(t, registry.registered, 2)
+	assert.True(t, s.pids[39].registered)
+	assert.Equal(t, 1, res.jvms)
+}
+
+func TestScannerRejectedJVMExecingAnotherProgram(t *testing.T) {
+	procfs := newFakeProcFS(t)
+	registry := &fakeRegistry{errs: []error{errors.New("no HotSpot probe")}}
+	s := newTestScanner(procfs, registry)
+
+	procfs.setProcessStartedAt(40, "java", jvmMaps, 100)
+	mustScan(t, s)
+	assert.True(t, s.pids[40].libjvm)
+
+	// the JVM exec'd a program which does not map libjvm.so
+	procfs.setProcessStartedAt(40, "sh", shellMaps, 100)
+	mustScan(t, s)
+	assert.False(t, s.pids[40].libjvm)
+}
+
 func TestReadStartTime(t *testing.T) {
 	procfs := newFakeProcFS(t)
 	// the comm may contain spaces and parentheses
