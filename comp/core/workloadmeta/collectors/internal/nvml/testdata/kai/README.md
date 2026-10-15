@@ -67,11 +67,8 @@ Captured with agent 7.84.2, before any KAI support exists.
 
 | File | Contents |
 | --- | --- |
-| `kubelet-pods.json` | `/api/v1/nodes/<node>/proxy/pods`, trimmed to the `kai-test` and `kai-resource-reservation` namespaces. This is the JSON the agent parses. |
 | `pods-kai-test.yaml` | The five fractional pods. |
 | `pods-kai-resource-reservation.yaml` | The four reservation pods created by KAI's binder. |
-| `bindrequests.yaml` | `bindrequests.scheduling.run.ai` |
-| `podgroups.yaml` | `podgroups.scheduling.run.ai` |
 
 Service-account token volumes, `imagePullSecrets` and `managedFields` were
 removed. The only remaining matches for "secret" are the standard
