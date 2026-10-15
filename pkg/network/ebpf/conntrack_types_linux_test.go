@@ -9,9 +9,9 @@ import (
 )
 
 func TestCgoAlignment_ConntrackTuple(t *testing.T) {
-	ebpftest.TestCgoAlignment[ConntrackTuple](t)
+	ebpftest.AssertCgoAlignment[ConntrackTuple](t)
 }
 
 func TestCgoAlignment_ConntrackTelemetry(t *testing.T) {
-	ebpftest.TestCgoAlignment[ConntrackTelemetry](t)
+	ebpftest.AssertCgoAlignment[ConntrackTelemetry](t)
 }
