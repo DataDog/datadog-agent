@@ -16,6 +16,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSchemaObjectIdentifierIndexAgainstDatabase(t *testing.T) {
+	setupSchemaFixtures(t)
+	c, _ := newDefaultCheck(t, "collect_schemas:\n  enabled: true", "")
+	defer c.Teardown()
+	require.NoError(t, c.init())
+	actualVersion := c.dbVersion
+	key := tableKey{conID: 1, owner: strings.ToUpper(schemaTestUser), table: "DD_ADDRESSES"}
+	for _, version := range []string{actualVersion, "12.1.0.2.0"} {
+		t.Run(version, func(t *testing.T) {
+			c.dbVersion = version
+			details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, nil)
+			require.NoError(t, c.schemaContextError(context.Background()))
+			require.Contains(t, details, key)
+			require.Len(t, details[key].Indexes, 1)
+			index := details[key].Indexes[0]
+			require.Equal(t, "NORMAL", index.Type)
+			require.True(t, index.Unique)
+			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_OID$"}}, index.Columns)
+		})
+	}
+}
+
 func TestSchemaLegacyColumnValuesAgainstDatabase(t *testing.T) {
 	pdb := setupSchemaFixtures(t)
 	require.NotEmpty(t, pdb, "this test requires a writable PDB")
@@ -42,9 +64,9 @@ func TestSchemaLegacyColumnValuesAgainstDatabase(t *testing.T) {
 		require.NoError(t, admin.QueryRowxContext(ctx, schemaSessionContainerQuery).Scan(&id, &name))
 		value := fmt.Sprintf("'CONTAINER_%d'", id)
 		for _, statement := range []string{
-			fmt.Sprintf("CREATE TABLE %s.dd_legacy_values (id NUMBER, val VARCHAR2(40) DEFAULT %s)", schemaTestUser, value),
+			fmt.Sprintf("CREATE TABLE %s.dd_legacy_values (id NUMBER, val VARCHAR2(40) DEFAULT %s, sys_nc_user GENERATED ALWAYS AS (id + 1) VIRTUAL)", schemaTestUser, value),
 			fmt.Sprintf("CREATE INDEX %s.dd_legacy_normal ON %s.dd_legacy_values(id)", schemaTestUser, schemaTestUser),
-			fmt.Sprintf("CREATE INDEX %s.dd_legacy_expression ON %s.dd_legacy_values(UPPER(val))", schemaTestUser, schemaTestUser),
+			fmt.Sprintf("CREATE INDEX %s.dd_legacy_expression ON %s.dd_legacy_values(UPPER(val), sys_nc_user)", schemaTestUser, schemaTestUser),
 		} {
 			_, err := admin.ExecContext(ctx, statement)
 			require.NoError(t, err)
@@ -78,8 +100,9 @@ func TestSchemaLegacyColumnValuesAgainstDatabase(t *testing.T) {
 		require.Equal(t, []indexKeyPart{{Column: "ID"}}, normal.Columns)
 		expression := findIndex(detail.Indexes, "DD_LEGACY_EXPRESSION")
 		require.NotNil(t, expression)
-		require.Len(t, expression.Columns, 1)
+		require.Len(t, expression.Columns, 2)
 		require.Equal(t, `UPPER("VAL")`, strings.TrimSpace(expression.Columns[0].Expression))
+		require.Equal(t, indexKeyPart{Column: "SYS_NC_USER"}, expression.Columns[1])
 	}
 	var restoredID int64
 	var restoredName string

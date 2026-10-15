@@ -127,8 +127,8 @@ func TestSchemaLegacyColumnValuesUseCorrectContainer(t *testing.T) {
 				details[key] = &tableDetails{Indexes: []*indexInfo{{Name: "IDX", Columns: []indexKeyPart{{Column: "C"}, {Column: "SYS_NC00002$"}}}}}
 				expectSchemaSwitch(mock, id, "PDB")
 				mock.ExpectQuery(`(?s)SELECT TO_NUMBER.*c\.data_default.*FROM dba_tab_cols`).WithArgs(schemaColumnArgs(id, "APP", "T", "C", "SYS_NC00002$")...).WillReturnRows(
-					sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
-						AddRow(id, "APP", "T", "C", "'DEFAULT'").AddRow(id, "APP", "T", "SYS_NC00002$", "UPPER(C)"))
+					sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "EXPRESSION_COLUMN", "DATA_DEFAULT"}).
+						AddRow(id, "APP", "T", "C", "NO", "'DEFAULT'").AddRow(id, "APP", "T", "SYS_NC00002$", "YES", "UPPER(C)"))
 				expectSchemaRestore(mock)
 			}
 			c.enrichSchemaColumnValues(context.Background(), details, columns)
@@ -165,6 +165,43 @@ func TestSchemaExpressionFailurePreservesIndexes(t *testing.T) {
 	}
 	require.NotContains(t, indexesQuery, "tab_cols")
 	require.NotContains(t, indexesQuery, "data_default")
+}
+
+func TestSchemaIndexExpressionsPreserveOrdinaryHiddenColumns(t *testing.T) {
+	for _, version := range []string{"12.1.0.2.0", "23.0.0.0.0"} {
+		t.Run(version, func(t *testing.T) {
+			c, _, mock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			c.dbVersion = version
+			key := tableKey{conID: 3, owner: "APP", table: "T"}
+			details := map[tableKey]*tableDetails{key: {Indexes: []*indexInfo{
+				{Name: "OID_PK", Type: "NORMAL", Columns: []indexKeyPart{{Column: "SYS_NC_OID$"}}},
+				{Name: "MIXED", Type: "FUNCTION-BASED NORMAL", Columns: []indexKeyPart{
+					{Column: "SYS_NC_OID$"}, {Column: "SYS_NC00002$"}, {Column: "SYS_NC_USER"},
+				}},
+			}}}
+			columns := map[columnKey]struct{}{{tableKey: key, column: "SYS_NC_USER"}: {}}
+			if version == "12.1.0.2.0" {
+				expectSchemaSession(mock, 3, "PDB1")
+				mock.ExpectQuery(regexp.QuoteMeta("CASE WHEN " + schemaIndexExpressionColumn + " THEN 'YES' ELSE 'NO' END")).
+					WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "EXPRESSION_COLUMN", "DATA_DEFAULT"}).
+						AddRow(3, "APP", "T", "SYS_NC_OID$", "NO", "SYS_OP_GUID()").
+						AddRow(3, "APP", "T", "SYS_NC00002$", "YES", "UPPER(C)").
+						AddRow(3, "APP", "T", "SYS_NC_USER", "NO", "42"))
+			} else {
+				mock.ExpectQuery(regexp.QuoteMeta("AND " + schemaIndexExpressionColumn)).
+					WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
+						AddRow(3, "APP", "T", "SYS_NC00002$", "UPPER(C)"))
+			}
+			c.enrichSchemaColumnValues(context.Background(), details, columns)
+			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_OID$"}}, details[key].Indexes[0].Columns)
+			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_OID$"}, {Expression: "UPPER(C)"}, {Column: "SYS_NC_USER"}}, details[key].Indexes[1].Columns)
+			if version == "12.1.0.2.0" {
+				require.Equal(t, "42", details[key].ColumnDefaults["SYS_NC_USER"])
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestSchemaContainerNameIsQuoted(t *testing.T) {

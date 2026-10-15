@@ -26,9 +26,12 @@ const schemaCurrentContainerID = "TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID'))"
 const schemaSessionContainerQuery = `SELECT TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID')),
 SYS_CONTEXT('USERENV', 'CON_NAME') FROM dual`
 
+const schemaIndexExpressionColumn = "c.hidden_column = 'YES' AND c.virtual_column = 'YES' AND c.user_generated = 'NO'"
+
 // Before 23ai, CDB_TAB_COLS omits the LONG default. Read it inside its PDB instead.
 const localColumnValuesQuery = `SELECT TO_NUMBER(SYS_CONTEXT('USERENV', 'CON_ID')),
-c.owner, c.table_name, c.column_name, c.data_default
+c.owner, c.table_name, c.column_name,
+CASE WHEN ` + schemaIndexExpressionColumn + ` THEN 'YES' ELSE 'NO' END, c.data_default
 FROM dba_tab_cols c WHERE /*RELATIONS*/`
 
 type schemaContainerSession interface {
@@ -62,7 +65,13 @@ func (c *Check) enrichSchemaColumnValues(ctx context.Context, details map[tableK
 	scan := func(rows *sqlx.Rows) error {
 		var key columnKey
 		var value sql.NullString
-		if err := rows.Scan(&key.conID, &key.owner, &key.table, &key.column, &value); err != nil {
+		expressionColumn := "YES"
+		dest := []any{&key.conID, &key.owner, &key.table, &key.column}
+		if local {
+			dest = append(dest, &expressionColumn)
+		}
+		dest = append(dest, &value)
+		if err := rows.Scan(dest...); err != nil {
 			return err
 		}
 		if !value.Valid {
@@ -79,14 +88,17 @@ func (c *Check) enrichSchemaColumnValues(ctx context.Context, details map[tableK
 			}
 			detail.ColumnDefaults[key.column] = text
 		}
-		for _, part := range expressions[key] {
-			*part = indexKeyPart{Expression: text}
+		if expressionColumn == "YES" {
+			for _, part := range expressions[key] {
+				*part = indexKeyPart{Expression: text}
+			}
 		}
 		return nil
 	}
 	if !local {
 		filters := columnFilterChunks(selected, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
 		query := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", "c.data_default_vc", 1)
+		query += " AND " + schemaIndexExpressionColumn
 		c.queryDetailFilters(ctx, "index expressions", query, filters, scan)
 		return
 	}

@@ -1007,7 +1007,7 @@ func TestTableDetailsIndexesGroupByOwnerAndName(t *testing.T) {
 	c, _, dbMock, cleanup := newSchemaCheck(t)
 	defer cleanup()
 	dbMock.MatchExpectationsInOrder(false)
-	dbMock.ExpectQuery(`(?s)SELECT i.con_id, i.table_owner, i.table_name, i.owner,.*ORDER BY i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, ic.column_position`).
+	dbMock.ExpectQuery(`(?s)SELECT con_id, table_owner, table_name, index_owner,.*ic\.con_id = :rel0con AND ic\.table_owner = :rel0owner AND ic\.table_name IN \(:rel0name0,.*UNION ALL.*WHERE i.join_index = 'YES'.*ORDER BY con_id, table_owner, table_name, index_owner, index_name, column_position`).
 		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
 			AddRow(3, "APP", "T", "A", "IDX", "UNIQUE", "NORMAL", "C1").
 			AddRow(3, "APP", "T", "A", "IDX", "UNIQUE", "NORMAL", "C2").
@@ -1214,14 +1214,14 @@ func TestTableDetailsResolvesForeignKeyToSelectedTableOutsidePage(t *testing.T) 
 	defer closeDB()
 
 	dbMock.MatchExpectationsInOrder(false)
-	dbMock.ExpectQuery(`(?s)cdb_constraints c.*c\.table_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDER_ITEMS")...).WillReturnRows(
+	dbMock.ExpectQuery(`(?s)cdb_constraints c.*cc\.con_id = :rel0con AND cc\.owner = :rel0owner AND cc\.table_name IN \(:rel0name0,.*ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position, cc.column_name`).WithArgs(schemaRelationArgs(3, "APP", "ORDER_ITEMS")...).WillReturnRows(
 		sqlmock.NewRows([]string{
 			"CON_ID", "OWNER", "TABLE_NAME", "CONSTRAINT_NAME", "CONSTRAINT_TYPE",
 			"R_OWNER", "R_CONSTRAINT_NAME", "COLUMN_NAME", "SEARCH_CONDITION",
 		}).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "ORDER_ID", nil).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "LINE_NO", nil))
-	dbMock.ExpectQuery(`(?s)cdb_constraints c.*c\.constraint_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDERS_PK")...).WillReturnRows(
+	dbMock.ExpectQuery(`(?s)cdb_constraints c.*cc\.con_id = :rel0con AND cc\.owner = :rel0owner AND cc\.constraint_name IN \(:rel0name0,`).WithArgs(schemaRelationArgs(3, "APP", "ORDERS_PK")...).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME", "COLUMN_NAME"}).
 			AddRow(3, "APP", "ORDERS_PK", "ORDERS", "ORDER_ID").
 			AddRow(3, "APP", "ORDERS_PK", "ORDERS", "LINE_NO"))
@@ -1237,6 +1237,7 @@ func TestTableDetailsResolvesForeignKeyToSelectedTableOutsidePage(t *testing.T) 
 	assert.Equal(t, "ORDERS", fk.ReferencedTable)
 	assert.Equal(t, []string{"ORDER_ID", "LINE_NO"}, fk.ReferencedColumns)
 	assert.Empty(t, fk.ReferencedConstraint)
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestTableDetailsUnresolvedForeignKeyFallsBackToConstraintName(t *testing.T) {

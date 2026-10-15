@@ -23,6 +23,53 @@ import (
 
 const schemaTestUser = "c##dd_schema_test"
 
+func TestSchemaIndexQueriesPreserveJoinIndexColumnsAgainstDatabase(t *testing.T) {
+	c, _ := newDefaultCheck(t, "collect_schemas:\n  enabled: true", "")
+	defer c.Teardown()
+	require.NoError(t, c.init())
+	const fixtures = `WITH fixture_indexes AS (
+SELECT 3 con_id, 'APP' table_owner, 'FACT' table_name, 'INDEX_OWNER' owner,
+ 'NORMAL_IDX' index_name, 'NONUNIQUE' uniqueness, 'NORMAL' index_type, 'NO' join_index FROM dual
+UNION ALL SELECT 3, 'APP', 'FACT', 'INDEX_OWNER', 'JOIN_IDX', 'NONUNIQUE', 'BITMAP', 'YES' FROM dual
+UNION ALL SELECT 3, 'APP', 'OTHER', 'INDEX_OWNER', 'OTHER_IDX', 'NONUNIQUE', 'BITMAP', 'YES' FROM dual
+UNION ALL SELECT 4, 'APP', 'FACT', 'INDEX_OWNER', 'JOIN_IDX', 'NONUNIQUE', 'BITMAP', 'YES' FROM dual
+UNION ALL SELECT 3, 'APP', 'FACT', 'Z_OWNER', 'NORMAL_IDX', 'NONUNIQUE', 'NORMAL', NULL FROM dual
+), fixture_columns AS (
+SELECT 3 con_id, 'APP' table_owner, 'FACT' table_name, 'INDEX_OWNER' index_owner,
+ 'NORMAL_IDX' index_name, 'SECOND_COL' column_name, 2 column_position FROM dual
+UNION ALL SELECT 3, 'APP', 'FACT', 'INDEX_OWNER', 'NORMAL_IDX', 'FIRST_COL', 1 FROM dual
+UNION ALL SELECT 3, 'DIM_OWNER', 'DIMENSION', 'INDEX_OWNER', 'JOIN_IDX', 'DIM_SECOND', 2 FROM dual
+UNION ALL SELECT 3, 'DIM_OWNER', 'DIMENSION', 'INDEX_OWNER', 'JOIN_IDX', 'DIM_FIRST', 1 FROM dual
+UNION ALL SELECT 3, 'DIM_OWNER', 'DIMENSION', 'INDEX_OWNER', 'OTHER_IDX', 'EXCLUDED', 1 FROM dual
+UNION ALL SELECT 4, 'DIM_OWNER', 'DIMENSION', 'INDEX_OWNER', 'JOIN_IDX', 'WRONG_PDB', 1 FROM dual
+UNION ALL SELECT 3, 'APP', 'FACT', 'Z_OWNER', 'NORMAL_IDX', 'NULL_JOIN_FLAG', 1 FROM dual
+)
+`
+	queries := schemaIndexQueries(map[tableKey]struct{}{{conID: 3, owner: "APP", table: "FACT"}: {}})
+	require.Len(t, queries, 1)
+	query := strings.NewReplacer("cdb_indexes", "fixture_indexes", "cdb_ind_columns", "fixture_columns").Replace(queries[0].text)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	rows, err := c.db.QueryxContext(ctx, fixtures+query, queries[0].args...)
+	require.NoError(t, err)
+	defer rows.Close()
+	var actual [][]string
+	for rows.Next() {
+		var conID int64
+		var owner, table, indexOwner, name, uniqueness, indexType, column string
+		require.NoError(t, rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column))
+		actual = append(actual, []string{strconv.FormatInt(conID, 10), owner, table, indexOwner, name, uniqueness, indexType, column})
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, [][]string{
+		{"3", "APP", "FACT", "INDEX_OWNER", "JOIN_IDX", "NONUNIQUE", "BITMAP", "DIM_FIRST"},
+		{"3", "APP", "FACT", "INDEX_OWNER", "JOIN_IDX", "NONUNIQUE", "BITMAP", "DIM_SECOND"},
+		{"3", "APP", "FACT", "INDEX_OWNER", "NORMAL_IDX", "NONUNIQUE", "NORMAL", "FIRST_COL"},
+		{"3", "APP", "FACT", "INDEX_OWNER", "NORMAL_IDX", "NONUNIQUE", "NORMAL", "SECOND_COL"},
+		{"3", "APP", "FACT", "Z_OWNER", "NORMAL_IDX", "NONUNIQUE", "NORMAL", "NULL_JOIN_FLAG"},
+	}, actual)
+}
+
 func TestSchemaContainerAvailabilityAgainstDatabase(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
 	defer c.Teardown()
