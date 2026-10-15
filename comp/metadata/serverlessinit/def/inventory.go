@@ -114,8 +114,8 @@ func InventoryEligible(conf configmodel.Reader, provider InventoryProvider) bool
 	return conf.GetBool("serverless.inventory_enabled") && provider.CanCollectInventory()
 }
 
-// PayloadInvalid reports why a built field set cannot be submitted, nil when it can.
-func PayloadInvalid(fields map[string]interface{}) error {
+// ValidatePayload reports why a built field set cannot be submitted, nil when it can.
+func ValidatePayload(fields map[string]interface{}) error {
 	id, ok := fields["resource_id"].(string)
 	if !ok || strings.TrimSpace(id) == "" {
 		return errors.New("resource id is missing or empty")
