@@ -8,7 +8,6 @@ from tasks.owners import (
     smp_pr_context_impl,
 )
 
-
 CODEOWNERS = """\
 /test/regression/ @DataDog/single-machine-performance
 /test/regression/container/logs/ @DataDog/agent-log-pipelines
