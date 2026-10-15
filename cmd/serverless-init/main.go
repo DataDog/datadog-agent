@@ -47,6 +47,10 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
+	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessinitfx "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -239,6 +243,27 @@ func setOverride(key string, val interface{}) {
 	}
 }
 
+// configureInventory must run before Fx constructs the inventoryagent component and
+// snapshots its enabled state. Never re-enable a user-disabled inventory pipeline.
+func configureInventory(cloudService cloudservice.CloudService) {
+	if serverlessinit.InventoryEligible(pkgconfigsetup.Datadog(), cloudService) {
+		return
+	}
+	if !cloudService.CanCollectInventory() {
+		log.Info("serverless-init inventory disabled: cloud service cannot collect inventory")
+	}
+	setOverride("inventories_enabled", false)
+}
+
+// wrappedCommand returns the in-container wrapped application argv. Sidecar
+// argv is not the workload, so sidecar mode supplies no command.
+func wrappedCommand() []string {
+	if modeConf.SidecarMode || len(os.Args) <= 1 {
+		return nil
+	}
+	return os.Args[1:]
+}
+
 func main() {
 
 	preloadEarly()
@@ -310,11 +335,31 @@ func main() {
 		EnhancedUsageMetric: serverlessTag.MapToArray(tagConfig.EnhancedUsageMetricTags),
 	}
 
+	// Gate before Fx construction, including provider registration: the
+	// serverlessinit component stays inert otherwise.
+	configureInventory(cloudService)
+
 	err := fxutil.OneShot(
 		run,
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
+		fx.Provide(func() serverlessinit.InventoryProvider { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
+		fx.Supply(serverlessinit.Params{
+			Sidecar:        modeConf.SidecarMode,
+			Tags:           tagConfig.Tags,
+			WrappedCommand: wrappedCommand(),
+		}),
+		// Inventory metadata via the shared inventoryagent component, driven by the
+		// serverlessinit component. Its module carries the inventoryagent adapters
+		// that only this graph needs (serializer through the demultiplexer, noop
+		// IPC, absent system-probe config) and the serverless capabilities. The
+		// component applies the platform's fields and submits the first payload
+		// without waiting for the runner's first-run delay; the metadata runner
+		// owns the periodic submissions.
+		serverlessinitfx.Module(),
+		runnerfx.Module(),
+		inventoryagentfx.Module(),
 		delegatedauthfx.Module(),
 		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
@@ -375,6 +420,10 @@ func run(
 	cloudService cloudservice.CloudService,
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
+	// inventoryComp is requested so Fx constructs the serverlessinit component;
+	// it applies the serverless fields and submits the first payload during Fx
+	// startup, before the wrapped command launches.
+	_ serverlessinit.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
