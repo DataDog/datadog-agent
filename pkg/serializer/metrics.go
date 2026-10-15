@@ -186,9 +186,14 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 }
 
 func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.PipelineSet {
+	return s.buildPipelinesWithMRF(kind, rng, s.getFailoverAllowlist())
+}
+
+// buildPipelinesWithMRF sends to the MRF domain through mrfFilter, or leaves the MRF
+// domain out when mrfFilter is nil.
+func (s *Serializer) buildPipelinesWithMRF(kind metricsKind, rng prng, mrfFilter metrics.Filter) metrics.PipelineSet {
 	pipelines := metrics.PipelineSet{}
 
-	mrfFilter := s.getFailoverAllowlist()
 	autoscalingFilter := s.getAutoscalingFailoverMetrics()
 	shadowRate := metricsShadowSampleRate(s.config, kind)
 	shadowSites := metricsShadowSites(s.config, kind)
@@ -264,11 +269,12 @@ func (s *Serializer) buildPipelinesRng(kind metricsKind, rng prng) metrics.Pipel
 }
 
 // SketchesV2Domains returns the configured domains that sketches are sent to over the v2
-// intake, which cannot carry OpenTelemetry histograms. It uses the same routing as SendSketch;
-// the names are the ones matched against serializer_experimental_use_v3_api.sketches.endpoints.
+// intake, which cannot carry OpenTelemetry histograms. It uses the same routing as SendSketch,
+// but counts the MRF domain even while failover is off, since failover can be turned on later.
+// The names are the ones matched against serializer_experimental_use_v3_api.sketches.endpoints.
 func (s *Serializer) SketchesV2Domains() []string {
 	var domains []string
-	for conf, ctx := range s.buildPipelines(metricsKindSketches) {
+	for conf, ctx := range s.buildPipelinesWithMRF(metricsKindSketches, stdRand{}, metrics.AllowAllFilter{}) {
 		if conf.V3 {
 			continue
 		}

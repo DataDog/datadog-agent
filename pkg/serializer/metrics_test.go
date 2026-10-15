@@ -791,6 +791,23 @@ func TestSketchesV2Domains(t *testing.T) {
 			expected: []string{"http://mrf.example.test"},
 		},
 		{
+			name: "MRF on v2 while failover is off",
+			config: map[string]any{
+				"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com"},
+				"multi_region_failover.enabled":                         true,
+				"multi_region_failover.dd_url":                          "http://mrf.example.test",
+			},
+			expected: []string{"http://mrf.example.test"},
+		},
+		{
+			name: "MRF on v3",
+			config: map[string]any{
+				"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com", "http://mrf.example.test"},
+				"multi_region_failover.enabled":                         true,
+				"multi_region_failover.dd_url":                          "http://mrf.example.test",
+			},
+		},
+		{
 			name:     "zlib forces v2",
 			config:   map[string]any{"serializer_experimental_use_v3_api.sketches.endpoints": []string{"https://app.datadoghq.com"}},
 			zlib:     true,
