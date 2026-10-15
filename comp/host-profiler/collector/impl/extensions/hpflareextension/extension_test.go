@@ -76,7 +76,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	conf := confmap.NewFromStringMap(map[string]any{
 		"extensions": []any{"hpflare"},
 	})
-	err = ddExt.NotifyConfigSnapshot(context.TODO(), extensioncapabilities.NewConfigSnapshot(conf, nil))
+	err = ddExt.NotifyConfigSnapshot(t.Context(), extensioncapabilities.NewConfigSnapshot(conf, nil))
 	assert.NoError(t, err)
 
 	handler := ddExt.server.srv.Handler
