@@ -1233,9 +1233,11 @@ func TestGetOrgStatus(t *testing.T) {
 	service := newTestService(t, api, &mockCoreAgentUptane{}, clock)
 
 	require.Nil(t, service.GetOrgStatus())
+	require.Nil(t, service.orgStatusPoller.getPreviousStatus())
 	api.On("FetchOrgStatus", mock.Anything).Return((*pbgo.OrgStatusResponse)(nil), errors.New("fetch failed")).Once()
 	service.orgStatusPoller.poll(service.api, service.rcType)
 	require.Nil(t, service.GetOrgStatus())
+	require.Nil(t, service.orgStatusPoller.getPreviousStatus())
 
 	for _, expected := range []*pbgo.OrgStatusResponse{
 		{Enabled: true, Authorized: true},
@@ -1248,10 +1250,12 @@ func TestGetOrgStatus(t *testing.T) {
 		service.orgStatusPoller.poll(service.api, service.rcType)
 		snapshot := service.GetOrgStatus()
 		require.Equal(t, expected, snapshot)
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus())
 
 		snapshot.Enabled = !snapshot.Enabled
 		snapshot.Authorized = !snapshot.Authorized
 		require.Equal(t, expected, service.GetOrgStatus(), "callers cannot modify the stored status")
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus(), "callers cannot modify the internal cache")
 
 		for range 6 {
 			api.On("FetchOrgStatus", mock.Anything).Return((*pbgo.OrgStatusResponse)(nil), httpapi.ErrServiceUnavailable).Once()
@@ -1259,6 +1263,7 @@ func TestGetOrgStatus(t *testing.T) {
 		}
 		clock.Add(time.Hour)
 		require.Equal(t, expected, service.GetOrgStatus(), "failed polls and elapsed time retain the last success")
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus(), "failed polls retain the internal cache")
 	}
 	api.AssertExpectations(t)
 }
