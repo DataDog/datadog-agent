@@ -106,7 +106,7 @@ func TestInsertMountBaseNamespaceFlag(t *testing.T) {
 	tagID := at.GetOrInsertImageTag("img:v1")
 	now := time.Unix(0, 1000)
 
-	at.AddBaseMountNamespaceID(testNsA)
+	at.AddBaseMountNamespaceID(tagID, testNsA)
 
 	at.InsertMount(testNsA, "/base", "/", "ext4", 0, tagID, Runtime, now, false)
 	// a mount seen only in a later namespace is not part of the base
@@ -114,15 +114,33 @@ func TestInsertMountBaseNamespaceFlag(t *testing.T) {
 
 	base := findMount(at, "/base", 0)
 	require.NotNil(t, base)
-	assert.True(t, base.InBaseNamespace)
+	assert.True(t, base.GetBaseNamespace(tagID))
 
 	late := findMount(at, "/late", 0)
 	require.NotNil(t, late)
-	assert.False(t, late.InBaseNamespace)
+	assert.False(t, late.GetBaseNamespace(tagID))
 
 	// re-observing the late mount in the base namespace upgrades its flag
 	require.False(t, at.InsertMount(testNsA, "/late", "/", "ext4", 0, tagID, Runtime, now, false))
-	assert.True(t, late.InBaseNamespace)
+	assert.True(t, late.GetBaseNamespace(tagID))
+}
+
+func TestInsertMountBaseNamespacePerImageTag(t *testing.T) {
+	at := newMountTestTree()
+	v1 := at.GetOrInsertImageTag("img:v1")
+	v2 := at.GetOrInsertImageTag("img:v2")
+	now := time.Unix(0, 1000)
+
+	// the mount is in the base namespace for v1 but not for v2
+	at.AddBaseMountNamespaceID(v1, testNsA)
+
+	require.True(t, at.InsertMount(testNsA, "/data", "/", "ext4", 0, v1, Runtime, now, false))
+	require.False(t, at.InsertMount(testNsB, "/data", "/", "ext4", 0, v2, Runtime, now, false))
+
+	mnt := findMount(at, "/data", 0)
+	require.NotNil(t, mnt)
+	assert.True(t, mnt.GetBaseNamespace(v1))
+	assert.False(t, mnt.GetBaseNamespace(v2))
 }
 
 func TestInsertMountNoBaseNamespacePinned(t *testing.T) {
@@ -134,7 +152,7 @@ func TestInsertMountNoBaseNamespacePinned(t *testing.T) {
 	// of insertion order (the base is no longer inferred from the first mount)
 	at.InsertMount(testNsA, "/data", "/", "ext4", 0, tagID, Runtime, now, false)
 	require.Len(t, at.Mounts, 1)
-	assert.False(t, at.Mounts[0].InBaseNamespace)
+	assert.False(t, at.Mounts[0].GetBaseNamespace(tagID))
 }
 
 func TestMultipleBaseMountNamespaces(t *testing.T) {
@@ -143,19 +161,19 @@ func TestMultipleBaseMountNamespaces(t *testing.T) {
 	now := time.Unix(0, 1000)
 
 	// two containers of the same image, each with its own base namespace
-	at.AddBaseMountNamespaceID(testNsA)
-	at.AddBaseMountNamespaceID(testNsB)
+	at.AddBaseMountNamespaceID(tagID, testNsA)
+	at.AddBaseMountNamespaceID(tagID, testNsB)
 
 	at.InsertMount(testNsA, "/a", "/", "ext4", 0, tagID, Runtime, now, false)
 	at.InsertMount(testNsB, "/b", "/", "ext4", 0, tagID, Runtime, now, false)
 
 	a := findMount(at, "/a", 0)
 	require.NotNil(t, a)
-	assert.True(t, a.InBaseNamespace)
+	assert.True(t, a.GetBaseNamespace(tagID))
 
 	b := findMount(at, "/b", 0)
 	require.NotNil(t, b)
-	assert.True(t, b.InBaseNamespace)
+	assert.True(t, b.GetBaseNamespace(tagID))
 }
 
 func TestRemoveBaseMountNamespaceIsRefcounted(t *testing.T) {
@@ -164,24 +182,24 @@ func TestRemoveBaseMountNamespaceIsRefcounted(t *testing.T) {
 	now := time.Unix(0, 1000)
 
 	// two containers share the same base namespace inode
-	at.AddBaseMountNamespaceID(testNsA)
-	at.AddBaseMountNamespaceID(testNsA)
+	at.AddBaseMountNamespaceID(tagID, testNsA)
+	at.AddBaseMountNamespaceID(tagID, testNsA)
 
 	// one unlinks: the inode is still a base namespace for the other
-	at.RemoveBaseMountNamespaceID(testNsA)
+	at.RemoveBaseMountNamespaceID(tagID, testNsA)
 	at.InsertMount(testNsA, "/shared", "/", "ext4", 0, tagID, Runtime, now, false)
 	shared := findMount(at, "/shared", 0)
 	require.NotNil(t, shared)
-	assert.True(t, shared.InBaseNamespace)
+	assert.True(t, shared.GetBaseNamespace(tagID))
 
 	// the second unlinks: the inode is no longer a base namespace
-	at.RemoveBaseMountNamespaceID(testNsA)
-	assert.Zero(t, at.baseMountNamespaceIDs[testNsA])
+	at.RemoveBaseMountNamespaceID(tagID, testNsA)
+	assert.Zero(t, at.baseMountNamespaceIDs[tagID][testNsA])
 
 	at.InsertMount(testNsA, "/after", "/", "ext4", 0, tagID, Runtime, now, false)
 	after := findMount(at, "/after", 0)
 	require.NotNil(t, after)
-	assert.False(t, after.InBaseNamespace)
+	assert.False(t, after.GetBaseNamespace(tagID))
 }
 
 func TestInsertMountDryRun(t *testing.T) {
@@ -199,35 +217,42 @@ func TestEvictImageTagRemovesOrphanMountsAndClearsSharedTag(t *testing.T) {
 	v2 := at.GetOrInsertImageTag("img:v2")
 	now := time.Unix(0, 1000)
 
+	at.AddBaseMountNamespaceID(v1, testNsA)
 	at.InsertMount(testNsA, "/only-v1", "/", "ext4", 0, v1, Runtime, now, false)
 	at.InsertMount(testNsA, "/shared", "/", "ext4", 0, v1, Runtime, now, false)
 	at.InsertMount(testNsA, "/shared", "/", "ext4", 0, v2, Runtime, now, false)
 
 	at.EvictImageTag("img:v1")
 
-	// a mount that only belonged to the evicted tag is removed
 	assert.Nil(t, findMount(at, "/only-v1", 0))
 
-	// a mount still referenced by another tag survives with the evicted tag cleared
 	shared := findMount(at, "/shared", 0)
 	require.NotNil(t, shared)
 	assert.False(t, shared.HasImageTag(v1))
+	assert.False(t, shared.GetBaseNamespace(v1))
 	assert.True(t, shared.HasImageTag(v2))
+	assert.False(t, shared.GetBaseNamespace(v2))
+
+	v3 := at.GetOrInsertImageTag("img:v3")
+	assert.Equal(t, v1, v3)
+	assert.False(t, shared.GetBaseNamespace(v3))
 
 	require.Len(t, at.Mounts, 1)
 }
 
 func TestMountsProtoRoundTrip(t *testing.T) {
 	src := newMountTestTree()
-	tagID := src.GetOrInsertImageTag("img:v1")
+	v1 := src.GetOrInsertImageTag("img:v1")
+	v2 := src.GetOrInsertImageTag("img:v2")
 	first := time.Unix(0, 1000)
 	last := time.Unix(0, 5000)
 
-	src.AddBaseMountNamespaceID(testNsA)
-	src.InsertMount(testNsA, "/", "/", "overlay", 0, tagID, Snapshot, first, false)
-	src.Mounts[0].RecordWithTimestamps(tagID, first, last)
-	src.InsertMount(testNsA, "/proc", "/", "proc", model.MountAttrReadOnly|model.MountAttrNoExec, tagID, Runtime, first, false)
-	src.InsertMount(testNsB, "/sys", "/", "sysfs", model.MountAttrNoSUID, tagID, Runtime, first, false)
+	src.AddBaseMountNamespaceID(v1, testNsA)
+	src.InsertMount(testNsA, "/", "/", "overlay", 0, v1, Snapshot, first, false)
+	src.Mounts[0].RecordWithTimestamps(v1, first, last)
+	src.InsertMount(testNsB, "/", "/", "overlay", 0, v2, Runtime, first, false)
+	src.InsertMount(testNsA, "/proc", "/", "proc", model.MountAttrReadOnly|model.MountAttrNoExec, v1, Runtime, first, false)
+	src.InsertMount(testNsB, "/sys", "/", "sysfs", model.MountAttrNoSUID, v1, Runtime, first, false)
 
 	proto := MountsToProto(src)
 
@@ -236,18 +261,22 @@ func TestMountsProtoRoundTrip(t *testing.T) {
 
 	require.Len(t, dst.Mounts, 3)
 
+	dstV1 := dst.GetImageTagID("img:v1")
+	require.NotZero(t, dstV1)
+	dstV2 := dst.GetImageTagID("img:v2")
+	require.NotZero(t, dstV2)
+
 	root := findMount(dst, "/", 0)
 	require.NotNil(t, root)
 	assert.Equal(t, "overlay", root.Filesystem)
-	assert.True(t, root.InBaseNamespace)
+	assert.True(t, root.GetBaseNamespace(dstV1))
+	assert.False(t, root.GetBaseNamespace(dstV2))
 
 	sys := findMount(dst, "/sys", model.MountAttrNoSUID)
 	require.NotNil(t, sys)
-	assert.False(t, sys.InBaseNamespace)
+	assert.False(t, sys.GetBaseNamespace(dstV1))
 
-	dstTagID := dst.GetImageTagID("img:v1")
-	require.NotZero(t, dstTagID)
-	firstSeen, lastSeen, ok := root.GetSeenTimes(dstTagID)
+	firstSeen, lastSeen, ok := root.GetSeenTimes(dstV1)
 	require.True(t, ok)
 	assert.Equal(t, first.UnixNano(), firstSeen)
 	assert.Equal(t, last.UnixNano(), lastSeen)

@@ -1209,8 +1209,13 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 		return
 	}
 
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		imageTag = "latest"
+	}
+
 	nsID, authoritative := baseMountNamespaceFromEvent(event)
-	if nsID == 0 || !secprof.PinBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID, authoritative) {
+	if nsID == 0 || !secprof.PinBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID, authoritative, imageTag) {
 		return
 	}
 
@@ -1218,11 +1223,6 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {
 		mounts = append(mounts, *mnt)
 	})
-
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-	if imageTag == "" {
-		imageTag = "latest"
-	}
 
 	pid := event.ProcessContext.Process.Pid
 	maxSize := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize())

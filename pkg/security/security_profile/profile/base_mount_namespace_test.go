@@ -45,9 +45,10 @@ func insertMountIn(t *testing.T, p *Profile, nsID uint32, mountPoint string) boo
 	}
 	require.True(t, p.InsertMount(mnt, "img:v1", activity_tree.Runtime, time.Unix(0, 1000)))
 
+	tagID := p.ActivityTree.GetImageTagID("img:v1")
 	for _, mn := range p.ActivityTree.Mounts {
 		if mn.MountPoint == mountPoint {
-			return mn.InBaseNamespace
+			return mn.GetBaseNamespace(tagID)
 		}
 	}
 	t.Fatalf("mount %q was not inserted", mountPoint)
@@ -57,12 +58,12 @@ func insertMountIn(t *testing.T, p *Profile, nsID uint32, mountPoint string) boo
 func TestProfile_PinBaseMountNamespace(t *testing.T) {
 	t.Run("zero namespace is never pinned", func(t *testing.T) {
 		p := newPinTestProfile()
-		assert.False(t, p.PinBaseMountNamespace(testCgroupA, 0, true))
+		assert.False(t, p.PinBaseMountNamespace(testCgroupA, 0, true, "img:v1"))
 	})
 
 	t.Run("first pin seeds and flags its namespace", func(t *testing.T) {
 		p := newPinTestProfile()
-		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false))
+		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false, "img:v1"))
 
 		assert.True(t, insertMountIn(t, p, testNsA, "/in-base"))
 		assert.False(t, insertMountIn(t, p, testNsB, "/elsewhere"))
@@ -70,15 +71,15 @@ func TestProfile_PinBaseMountNamespace(t *testing.T) {
 
 	t.Run("repeating a provisional pin does not re-seed", func(t *testing.T) {
 		p := newPinTestProfile()
-		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false))
-		assert.False(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false),
+		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false, "img:v1"))
+		assert.False(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false, "img:v1"),
 			"an unchanged pin must not ask the caller to seed again")
 	})
 
 	t.Run("an authoritative pin replaces a differing provisional one", func(t *testing.T) {
 		p := newPinTestProfile()
-		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false))
-		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsB, true),
+		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false, "img:v1"))
+		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsB, true, "img:v1"),
 			"correcting the namespace must ask the caller to seed the real base")
 
 		assert.True(t, insertMountIn(t, p, testNsB, "/real-base"))
@@ -88,19 +89,19 @@ func TestProfile_PinBaseMountNamespace(t *testing.T) {
 
 	t.Run("a confirming authoritative pin is promoted without re-seeding", func(t *testing.T) {
 		p := newPinTestProfile()
-		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false))
-		assert.False(t, p.PinBaseMountNamespace(testCgroupA, testNsA, true),
+		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, false, "img:v1"))
+		assert.False(t, p.PinBaseMountNamespace(testCgroupA, testNsA, true, "img:v1"),
 			"the namespace did not change, so there is nothing to seed")
 
 		// the pin is now authoritative, so a later differing value must not displace it
-		assert.False(t, p.PinBaseMountNamespace(testCgroupA, testNsB, true))
+		assert.False(t, p.PinBaseMountNamespace(testCgroupA, testNsB, true, "img:v1"))
 		assert.True(t, insertMountIn(t, p, testNsA, "/still-base"))
 	})
 
 	t.Run("a provisional pin never displaces an authoritative one", func(t *testing.T) {
 		p := newPinTestProfile()
-		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, true))
-		assert.False(t, p.PinBaseMountNamespace(testCgroupA, testNsB, false))
+		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, true, "img:v1"))
+		assert.False(t, p.PinBaseMountNamespace(testCgroupA, testNsB, false, "img:v1"))
 
 		assert.True(t, insertMountIn(t, p, testNsA, "/base"))
 		assert.False(t, insertMountIn(t, p, testNsB, "/guess"))
@@ -108,8 +109,8 @@ func TestProfile_PinBaseMountNamespace(t *testing.T) {
 
 	t.Run("pins are independent per cgroup", func(t *testing.T) {
 		p := newPinTestProfile()
-		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, true))
-		require.True(t, p.PinBaseMountNamespace(testCgroupB, testNsB, true),
+		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, true, "img:v1"))
+		require.True(t, p.PinBaseMountNamespace(testCgroupB, testNsB, true, "img:v1"),
 			"a second container of the same image has its own base namespace")
 
 		assert.True(t, insertMountIn(t, p, testNsA, "/base-a"))
@@ -118,12 +119,12 @@ func TestProfile_PinBaseMountNamespace(t *testing.T) {
 
 	t.Run("unlinking a workload releases its pin", func(t *testing.T) {
 		p := newPinTestProfile()
-		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, true))
+		require.True(t, p.PinBaseMountNamespace(testCgroupA, testNsA, true, "img:v1"))
 
 		p.RemoveBaseMountNamespace(testCgroupA)
 		assert.False(t, insertMountIn(t, p, testNsA, "/after-unlink"))
 
-		assert.True(t, p.PinBaseMountNamespace(testCgroupA, testNsB, false),
+		assert.True(t, p.PinBaseMountNamespace(testCgroupA, testNsB, false, "img:v1"),
 			"a released cgroup must be pinnable again")
 	})
 }

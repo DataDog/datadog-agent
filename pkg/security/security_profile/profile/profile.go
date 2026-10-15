@@ -108,6 +108,7 @@ type Profile struct {
 type baseMountNSPin struct {
 	nsID          uint32
 	authoritative bool
+	imageTagID    uint64
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -357,13 +358,14 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 // cgroupInode and reports whether the caller should seed the mount table for it. It
 // returns true only on the first pin and when a provisional pin is replaced by a
 // differing authoritative one, so callers can gate the cost of seeding on it.
-func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authoritative bool) bool {
+func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authoritative bool, imageTag string) bool {
 	p.Lock()
 	defer p.Unlock()
 
 	if nsID == 0 {
 		return false
 	}
+	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
 	if p.baseMountNSByCgroup == nil {
 		p.baseMountNSByCgroup = make(map[uint64]baseMountNSPin)
 	}
@@ -374,17 +376,17 @@ func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authori
 		}
 		if cur.nsID == nsID {
 			// the provisional pin guessed right, so promote it without seeding again
-			p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: true}
+			p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: true, imageTagID: cur.imageTagID}
 			return false
 		}
 		// Correcting a wrong guess only stops new mounts from the superseded namespace
 		// counting as base. Mounts already seeded under it keep their flag: nodes are
 		// deduped across namespaces, so they cannot be attributed back to a single one.
-		p.ActivityTree.RemoveBaseMountNamespaceID(cur.nsID)
+		p.ActivityTree.RemoveBaseMountNamespaceID(cur.imageTagID, cur.nsID)
 	}
 
-	p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: authoritative}
-	p.ActivityTree.AddBaseMountNamespaceID(nsID)
+	p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: authoritative, imageTagID: imageTagID}
+	p.ActivityTree.AddBaseMountNamespaceID(imageTagID, nsID)
 	return true
 }
 
@@ -399,7 +401,7 @@ func (p *Profile) RemoveBaseMountNamespace(cgroupInode uint64) {
 		return
 	}
 	delete(p.baseMountNSByCgroup, cgroupInode)
-	p.ActivityTree.RemoveBaseMountNamespaceID(pin.nsID)
+	p.ActivityTree.RemoveBaseMountNamespaceID(pin.imageTagID, pin.nsID)
 }
 
 // InsertMount inserts a mount into the profile's deduplicated mount table

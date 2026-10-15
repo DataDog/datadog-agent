@@ -77,7 +77,11 @@ func TestSecurityProfileV2Mounts(t *testing.T) {
 			return false
 		}
 		for _, mn := range prof.ActivityTree.Mounts {
-			if !mn.InBaseNamespace {
+			base := false
+			mn.EachSeen(func(id uint64, _, _ int64) {
+				base = base || mn.GetBaseNamespace(id)
+			})
+			if !base {
 				return false
 			}
 		}
