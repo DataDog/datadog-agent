@@ -279,10 +279,9 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) error {
 	if r.cfg.SBOMResolverHostEnabled {
-		hostRoot := os.Getenv("HOST_ROOT")
-		if hostRoot == "" {
-			hostRoot = "/"
-		}
+		// The host packages are read through the root of init, as those of a
+		// container are read through the root of one of its processes.
+		hostRoot := utils.ProcRootPath(1)
 
 		r.hostSBOM = NewSBOM("", nil, "")
 
@@ -443,7 +442,9 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 		return false
 	}
 
-	if sbom.status == workloadmeta.Pending || sbom.status == "" {
+	// The report of a container waits for the Trivy SBOM of its image. The
+	// core agent keeps the report of the host for its next host scan.
+	if sbom.ContainerID != "" && (sbom.status == workloadmeta.Pending || sbom.status == "") {
 		imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
 		if err != nil || imageSBOM == nil {
 			seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
@@ -452,7 +453,7 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 		}
 	}
 
-	if sbom.status == workloadmeta.Pending || sbom.status == "" {
+	if sbom.ContainerID != "" && (sbom.status == workloadmeta.Pending || sbom.status == "") {
 		// Retry until the image's Trivy SBOM is ready: an idle workload may
 		// produce no further file accesses to re-trigger forwarding, and the
 		// overlayfs scan can take several minutes. Bound the total wait so a
@@ -780,10 +781,6 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 // resolved.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
 	if !file.IsPathnameStrResolved {
-		return nil
-	}
-
-	if pc.Process.ContainerContext.IsNull() {
 		return nil
 	}
 
