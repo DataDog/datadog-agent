@@ -32,6 +32,10 @@ go_binary(
     srcs = ["windows_msvc_lifecycle.go"],
     cdeps = [":rc_x509_ffi_windows_dll_cc"],
     cgo = True,
+    # rules_go's auto mode disables cgo when it sees a non-host platform.
+    # This target deliberately supplies the MinGW C++ toolchain, so require
+    # cgo instead of silently compiling an empty pure-Go package.
+    pure = "off",
     tags = ["manual"],
     target_compatible_with = [
         "//bazel/platforms:rust_abi_gnu",
