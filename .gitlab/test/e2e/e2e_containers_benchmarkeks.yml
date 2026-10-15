@@ -1,0 +1,157 @@
+---
+# e2e stage - container-integrations owned jobs
+# Owned by: container-integrations
+
+# benchmarkeks: performance non-regression test of the Agent on EKS.
+#
+# TestBenchmarkEKSSuite deploys a baseline and a comparison Agent (node Agent, Cluster Agent and cluster checks runner)
+# on an EKS cluster and compares their resource usage. The comparison is the Agent of the pipeline, the baseline the one
+# of a commit of the base branch chosen like SMP does (see `dda inv new-e2e-tests.benchmarkeks-baseline`).
+#
+# The benchmark keeps an EKS cluster for about 1.5 h, so it only runs on dev branches: automatically when they change
+# the code it measures, a regression then failing the pipeline, and manually otherwise. To run it manually, play
+# new-e2e-containers-benchmarkeks-baseline only: the other jobs need it, so GitLab skips them until it is played, and
+# then runs them after it.
+
+# Pipelines the benchmark never runs in. Shared by all the benchmark jobs, so that they always exist together.
+.except_benchmarkeks_unsupported:
+  - !reference [.on_dev_branches] # never on main, release branches, the merge queue or tags
+  - !reference [.except_light_pipeline]
+  - !reference [.except_coverage_pipeline]
+  - !reference [.except_deploy]
+  - !reference [.except_disable_e2e_tests]
+
+# The code measured by the benchmark, and the benchmark itself
+.benchmarkeks_changes: &benchmarkeks_changes
+  paths:
+    - comp/core/autodiscovery/**/*
+    - comp/core/tagger/**/*
+    - comp/core/workloadmeta/**/*
+    - pkg/clusteragent/clusterchecks/**/*
+    - pkg/collector/check/**/*
+    - pkg/collector/corechecks/cluster/**/*
+    - pkg/collector/corechecks/containers/**/*
+    - pkg/collector/runner/**/*
+    - pkg/kubestatemetrics/**/*
+    - pkg/util/containerd/**/*
+    - pkg/util/containers/**/*
+    - pkg/util/kubernetes/**/*
+    - pkg/util/prometheus/**/*
+    - test/e2e-framework/components/datadog/apps/churn/**/*
+    - test/e2e-framework/components/datadog/apps/kwok/**/*
+    - test/e2e-framework/scenarios/aws/benchmarkeks/**/*
+    - test/e2e-framework/scenarios/outputs/benchmarkeks.go
+    - test/e2e-framework/testing/environments/benchmarkeks.go
+    - test/e2e-framework/testing/environments/kubernetes_readiness.go
+    - test/e2e-framework/testing/provisioners/aws/kubernetes/benchmarkeks/**/*
+    - test/new-e2e/tests/containers/benchmark/**/*
+    - test/new-e2e/tests/containers/benchmarkeks*
+    - .gitlab/test/e2e/e2e_containers_benchmarkeks.yml
+    - tasks/libs/testing/benchmarkeks.py
+  compare_to: $COMPARE_TO_BRANCH
+
+.on_benchmarkeks_changes:
+  - !reference [.except_benchmarkeks_unsupported]
+  - changes: *benchmarkeks_changes
+    when: on_success
+
+# Manual run of the jobs following new-e2e-containers-benchmarkeks-baseline: needing it, directly or not, they are
+# skipped while it is not played, and run after it once it is. Like it, they are then allowed to fail.
+.on_benchmarkeks_manual_run:
+  - when: on_success
+    allow_failure: true
+
+# Fails before provisioning anything if the baseline is unknown, the dotenv report of
+# new-e2e-containers-benchmarkeks-baseline being missing when it failed while allowed to (manual run).
+.benchmarkeks_check_baseline:
+  - |
+    if [ -z "${E2E_BENCHMARKEKS_BASELINE_AGENT_IMAGE:-}" ] || [ -z "${E2E_BENCHMARKEKS_BASELINE_CLUSTER_AGENT_IMAGE:-}" ]; then
+      echo "The baseline images are unknown: new-e2e-containers-benchmarkeks-baseline did not succeed"
+      exit 1
+    fi
+
+# Resolves the baseline and publishes its images to agent-qa, as qa_agent_linux and qa_dca did for the baseline
+# pipeline: the images of agent-qa expire after a day, the build outputs of registry.ddbuild.io are kept for months.
+new-e2e-containers-benchmarkeks-baseline:
+  extends: .docker_publish_job_definition
+  stage: e2e_init
+  rules:
+    - !reference [.on_benchmarkeks_changes]
+    - !reference [.manual]
+  needs: [] # Only needs images of the base branch
+  variables:
+    GIT_DEPTH: 0 # Full history: merge base and first-parent walk
+    IMG_REGISTRIES: agent-qa
+  script:
+    - dda inv -- -e new-e2e-tests.benchmarkeks-baseline --output-file=benchmarkeks_baseline.env
+    - source benchmarkeks_baseline.env
+    # The script of .docker_publish_job_definition, once per image
+    - export IMG_SOURCES="$BENCHMARKEKS_BASELINE_AGENT_SOURCES" IMG_DESTINATIONS="$BENCHMARKEKS_BASELINE_AGENT_DESTINATION"
+    - !reference [.docker_publish_job_definition, script]
+    - export IMG_SOURCES="$BENCHMARKEKS_BASELINE_CLUSTER_AGENT_SOURCES" IMG_DESTINATIONS="$BENCHMARKEKS_BASELINE_CLUSTER_AGENT_DESTINATION"
+    - !reference [.docker_publish_job_definition, script]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - benchmarkeks_baseline.env
+    reports:
+      # The E2E_BENCHMARKEKS_BASELINE_* variables become environment variables of the jobs needing this one
+      dotenv: benchmarkeks_baseline.env
+
+new-e2e-containers-benchmarkeks-init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  timeout: 1h 05m
+  needs:
+    - go_e2e_deps
+    - !reference [.needs_fakeintake_publish]
+    # Not to create a cluster when there is no baseline (e.g. on a branch too old), and to follow it on a manual run
+    - new-e2e-containers-benchmarkeks-baseline
+  rules:
+    - !reference [.on_benchmarkeks_changes]
+    - !reference [.on_benchmarkeks_manual_run]
+  before_script:
+    - !reference [.benchmarkeks_check_baseline]
+    - !reference [.new_e2e_template, before_script]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestBenchmarkEKSSuite
+    E2E_INIT_ONLY: "true"
+    GIT_DEPTH: 1 # Overrides .new_e2e_template: this job does not pass --impacted
+    DYNAMIC_TESTS_FLAG: "" # Never skipped by the test selection
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+    # Same as new-e2e-containers-eks-init.
+    KUBERNETES_MEMORY_REQUEST: 24Gi
+    KUBERNETES_MEMORY_LIMIT: 24Gi
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-containers-benchmarkeks:
+  extends: .new_e2e_template
+  # The Agents, then two phases of 10 min of warm-up and 20 min of measurement, separated by the swap of the images
+  timeout: 2h
+  needs:
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
+    - job: new-e2e-containers-benchmarkeks-init
+      artifacts: false
+    - job: new-e2e-containers-benchmarkeks-baseline
+      artifacts: true
+  rules:
+    - !reference [.on_benchmarkeks_changes]
+    - !reference [.on_benchmarkeks_manual_run]
+  before_script:
+    - !reference [.benchmarkeks_check_baseline]
+    - !reference [.new_e2e_template, before_script]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestBenchmarkEKSSuite
+    E2E_PRE_INITIALIZED: "true"
+    # Archived with $E2E_OUTPUT_DIR by .new_e2e_template, even when a regression fails the job
+    E2E_BENCHMARKEKS_REPORT_DIR: $E2E_OUTPUT_DIR/benchmarkeks-report
+    GIT_DEPTH: 1 # Overrides .new_e2e_template: this job does not pass --impacted
+    DYNAMIC_TESTS_FLAG: "" # Never skipped by the test selection
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+  retry: !reference [.retry_only_infra_failure, retry]
