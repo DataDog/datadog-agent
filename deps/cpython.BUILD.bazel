@@ -1,7 +1,5 @@
-load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
-load("@@//bazel/rules/foreign_cc_runnable:foreign_cc_runnable.bzl", "foreign_cc_runnable")
 load("@@//deps/cpython:macros.bzl", "cpython_frozen_modules", "cpython_shared_modules")
 load("@@//deps/cpython:native.bzl", "BUILTIN_MODULES", "FROZEN_MODULES", "LIBEXPAT_SRCS", "LIBMPDEC_SRCS", "MACOS_SHARED_MODULES", "MODULE_SRCS", "NATIVE_PLATFORMS", "OBJECT_SRCS", "PARSER_SRCS", "PYTHON_SRCS", "SHARED_MODULES", "sysconfig_vars")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
@@ -14,9 +12,8 @@ load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR", "PYTHON_MAJOR_MINOR_FLAT")
 load("@pythons_hub//:versions.bzl", "DEFAULT_PYTHON_VERSION")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_shared_library")
-load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink", "strip_prefix")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 DEFAULT_PYTHON = "@python_{}//:python3".format(DEFAULT_PYTHON_VERSION.replace(".", "_"))
@@ -67,9 +64,6 @@ run_binary(
             exclude = [
                 "**/*.pyc",
                 "BUILD.bazel",
-                # Unix-only build helper injected into the CPython repository.
-                # Keep it out of the Windows action key; the Windows build does not use it.
-                "redacted_compat.h",
             ],
         ) + [
             "bzip2_win_dir",
@@ -170,225 +164,35 @@ cc_library(
     deps = [":_python_dll"],
 )
 
-filegroup(
-    name = "all_srcs",
-    srcs = glob(
-        ["**"],
-        exclude = [
-            "BUILD.bazel",
-            ".devcontainer/**",
-            "Android/**",
-            "Doc/**",
-            "InternalDocs/**",
-            "iOS/**",
-            # Windows related.
-            "PC/**",
-            "PCbuild/**",
-            "Tools/msi/**",
-            "Tools/nuget/**",
-            # Tests that don't need to be shipped with the Agent
-            "Lib/idlelib/idle_test/**",
-            "Lib/test/**",
-        ],
-    ),
-)
-
-UNIX_BINS = [
-    "python{}".format(PYTHON_MAJOR_MINOR),
-]
-
 LINUX_SO = "libpython{}.so.1.0".format(PYTHON_MAJOR_MINOR)
 
-MACOS_DYLIB = "libpython{}.dylib".format(PYTHON_MAJOR_MINOR)
-
-python_dep_libs = {
-    "libffi": "-lffi",
-    "libsqlite3": "-lsqlite3",
-    "zlib": "-lz",
-    "bzip2": "-lbz2",
-    "liblzma": "-llzma",
-}
-
-# On macOS, the hermetic SDK's /usr/lib is injected before Bazel dependency
-# library search paths. Use exact files from rules_foreign_cc's staged deps
-# directory so CPython extension modules cannot resolve to SDK libraries.
-python_dep_libs_explicit = {
-    "libffi": "$$EXT_BUILD_DEPS/lib/libffi.a",
-    "libsqlite3": "$$EXT_BUILD_DEPS/lib/libsqlite3.dylib",
-    "zlib": "$$EXT_BUILD_DEPS/lib/libz.dylib",
-    "bzip2": "$$EXT_BUILD_DEPS/lib/libbz2.dylib",
-    "liblzma": "$$EXT_BUILD_DEPS/lib/liblzma.dylib",
-}
-
-configure_make(
+alias(
     name = "python_unix",
-    build_data = [
-        ":redacted_compat.h",
-        "@@//deps/cpython:fix_sysconfigdata.py",
-        DEFAULT_PYTHON,
-    ] + select({
-        "@platforms//os:macos": [
-            "@llvm_toolchain_llvm//:ar",
-        ],
-        "//conditions:default": [],
-    }),
-    configure_options = [
-        "--enable-ipv6",
-        "--with-ensurepip=no",  # pip is installed as a separate target
-        "--enable-shared",
-        "--without-static-libpython",
-        "--with-dbmliborder=",
-        "--with-openssl=$$EXT_BUILD_DEPS/openssl",
-        "--with-openssl-rpath=yes",
-        "--disable-test-modules",
-    ] + select({
-        "@@//:macos_arm64": ["--with-universal-archs=universal2"],
-        "@@//:macos_x86_64": ["--with-universal-archs=intel"],
-        "//conditions:default": [],
-    }) + select({
-        "@platforms//os:macos": [
-            # Override ARFLAGS: the hermetic toolchain injects -static (invalid for llvm-ar).
-            # Passing as a configure arg takes precedence over the inline env.
-            "ARFLAGS=rcs",
-        ],
-        "//conditions:default": [],
-    }),
-    copts = [
-        "-O2",
-    ],
-    dynamic_deps = [
-        "@bzip2//:bz2_pkg",
-        "@openssl//:libssl_shared_pkg",
-        "@openssl//:libcrypto_shared_pkg",
-        "@sqlite3//:sqlite3_pkg",
-        "@xz//:lzma_pkg",
-        "@zlib//:z_pkg",
-    ],
-    env = {
-        "OPT": "-DNDEBUG -fwrapv",
-        # Ensure we don't use the system provided .pc
-        "PKG_CONFIG_LIBDIR": "/does/not/exist",
-        # Avoid quotation issues around keeping `redacted` (for __DATE__/__TIME__) properly quoted
-        # (See comments on redacted_compat.h)
-        # It's important to pass this on the `env` and not on `configure_options` to avoid CPPFLAGS
-        # populated by rules_foreign_cc from being overwritten
-        "CPPFLAGS": "-include$(execpath :redacted_compat.h)",
-        # We need to pass linker flags here instead of `linkopts` because we don't want these to be
-        # propagated to dependent targets, as `linkopts` would do.
-        # This is meant to allow python to find its dependency during its modules import test.
-        # We will use the install_dir rpath later on
-        "LDFLAGS": "-Wl,-rpath,$$EXT_BUILD_DEPS/lib",
-    } | {
-        dep.upper() + "_CFLAGS": "-I$$EXT_BUILD_DEPS/include"
-        for dep in python_dep_libs.keys()
-    } | select({
-        "@platforms//os:macos": {
-            dep.upper() + "_LIBS": lib
-            for dep, lib in python_dep_libs_explicit.items()
-        },
-        "//conditions:default": {
-            dep.upper() + "_LIBS": lib
-            for dep, lib in python_dep_libs.items()
-        },
-    }) | select({
-        "@platforms//os:macos": {
-            # `ar` defaults to `libtool` on darwin toolchains, which doesn't support the same flags
-            # Setting `AR` allows us to use llvm-ar (coming from the hermetic toolchain) instead
-            # See also: https://github.com/bazelbuild/bazel/issues/5127
-            "AR": "$(execpath @llvm_toolchain_llvm//:ar)",
-        },
-        "//conditions:default": {},
-    }),
-    includes = ["python{}".format(PYTHON_MAJOR_MINOR)],
-    lib_source = ":all_srcs",
-    out_binaries = UNIX_BINS,
-    out_data_dirs = [
-        "lib/python{}".format(PYTHON_MAJOR_MINOR),
-    ],
-    out_data_files = select({
-        "@platforms//os:linux": [
-            # Even though this is a shared lib, we generally don't want to link against this.
-            # When linking against Python, one must decide between the "Stable" API (libpython3.so)
-            # or the minor-version specific libpython3.y.so. In the context of the Agent, we've always
-            # linked against the latter, but shipped both (in case there are extension modules requiring
-            # the Stable API). Therefore, we mark this one as "data".
-            # See https://peps.python.org/pep-0384/#linkage
-            "lib/libpython3.so",
-        ],
-        "@platforms//os:macos": [],
-    }),
-    out_include_dir = "include",
-    out_shared_libs = select({
-        "@platforms//os:linux": [
-            LINUX_SO,
-        ],
-        "@platforms//os:macos": [
-            MACOS_DYLIB,
-        ],
-    }),
-    # python's build system will output the entire build config to _sysconfigdata_xxx.py
-    # This is later used to build extensions with the same tools/compiler/flags/config as the interpreter
-    # However, in our case, that means using tools that are stored in the build sandbox, so they aren't
-    # usable when building an extension, causing all builds to fail.
-    # fix_sysconfigdata.py strips sandbox-absolute paths from known tool entries (leaving just the
-    # basename so they can be found on PATH), clears build flags that are Bazel-specific, and replaces
-    # sandbox paths with their install-prefix-relative equivalents.
-    postfix_script = """
-    $(execpath {DEFAULT_PYTHON}) $(execpath @@//deps/cpython:fix_sysconfigdata.py) \
-      --install-prefix "$(INSTALL_DIR)/embedded" \
-      --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
-      $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
-    rm -f $$INSTALLDIR/lib/python{version}/config-*/Makefile
-    find $$INSTALLDIR/lib/python{version} -name '*.exe' -delete
-    """.format(
-        DEFAULT_PYTHON = DEFAULT_PYTHON,
-        version = PYTHON_MAJOR_MINOR,
-    ),
+    actual = ":native_install",
+    visibility = ["//visibility:public"],
+)
+
+# Exposes the packaged libpython with the headers to cc consumers (rtloader).
+cc_import(
+    name = "native_libpython_import",
+    shared_library = ":python_pkg",
     target_compatible_with = select({
-        "@platforms//os:macos": [],
-        "@platforms//os:linux": [],
-        "//conditions:default": ["@platforms//:incompatible"],
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
     }),
-    targets = [
-        # Build in parallel but install without parallel execution
-        # (see https://github.com/python/cpython/issues/109796)
-        "-j 16",
-        "install",
-    ],
-    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
-    toolchains = ["@@//:install_dir"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "@bzip2//:libbz2",
-        "@libffi//:ffi",
-        "@openssl",
-        "@sqlite3//:libsqlite3",
-        "@xz//:liblzma",
-        "@zlib",
-    ],
 )
 
-foreign_cc_shared_wrapper(
+cc_library(
     name = "python_unix_shared",
-    input = ":python_unix",
-    visibility = ["//visibility:public"],
-)
-
-# A copy of python_unix with rpaths rewritten so the interpreter and its
-# lib-dynload modules can find libpython and the dynamic deps at runtime.
-# Use this (not :python_unix) when invoking python from a Bazel action.
-foreign_cc_runnable(
-    name = "python_unix_runnable",
-    binary_path = "bin/python{}".format(PYTHON_MAJOR_MINOR),
-    input = ":python_unix",
-    patch_globs = [
-        "lib/python{}/lib-dynload/*.so".format(PYTHON_MAJOR_MINOR),
-    ],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+    deps = [
+        ":native_headers",
+        ":native_libpython_import",
+    ],
 )
 
 # TODO(ABLD-392): temporary workaround -- remove once the agent build runs the
@@ -428,20 +232,14 @@ dd_collect_dependencies(
     visibility = ["//visibility:private"],
 )
 
-# We resort to select_file here instead of picking the output groups with filegroup
-# because configure_make names its output groups by "basename", for which we have a conflict:
-# both the versioned python binary as well as the library root (under lib) share the same name.
-# select_file lets us be more specific and remove ambiguity
-select_file(
+alias(
     name = "python_lib_dir_group_unix",
-    srcs = ":python_unix",
-    subpath = "lib/python{}".format(PYTHON_MAJOR_MINOR),
+    actual = ":native_unix_stdlib",
 )
 
-select_file(
+alias(
     name = "python3_bin",
-    srcs = ":python_unix",
-    subpath = "bin/python{}".format(PYTHON_MAJOR_MINOR),
+    actual = ":native_unix_python3_bin",
     visibility = ["//visibility:public"],
 )
 
@@ -468,31 +266,14 @@ BIN_SYMLINKS = {
     for link, target in BIN_SYMLINKS.items()
 ]
 
-filegroup(
+alias(
     name = "headers_unix",
-    srcs = [":python_unix"],
-    output_group = "include",
+    actual = ":native_unix_include",
 )
 
-filegroup(
-    name = "python_lib_unix",
-    srcs = [":python_unix"],
-    output_group = select({
-        "@platforms//os:linux": LINUX_SO,
-        "@platforms//os:macos": MACOS_DYLIB,
-    }),
-    target_compatible_with = select({
-        "@platforms//os:macos": [],
-        "@platforms//os:linux": [],
-        "//conditions:default": ["@platforms//:incompatible"],
-    }),
-)
-
-# configure_make doesn't provide output groups for "data files", so we use select_file instead
-select_file(
+alias(
     name = "python_stable_lib_linux",
-    srcs = ":python_unix",
-    subpath = "lib/libpython3.so",
+    actual = ":native_unix_libpython3",
     target_compatible_with = ["@platforms//os:linux"],
 )
 
@@ -511,21 +292,6 @@ pkg_filegroup(
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
     }),
-)
-
-dd_cc_packaged(
-    name = "python_pkg",
-    data = [":_python_pkg_common_files"],
-    dest_dir = "embedded/lib",
-    input = ":python_unix_shared",
-    installed_executables = {
-        ":python3_bin": "embedded/bin",
-        ":python_lib_dir_group_unix": "embedded/lib",
-    } | select({
-        "@platforms//os:linux": {":python_stable_lib_linux": "embedded/lib"},
-        "//conditions:default": {},
-    }),
-    visibility = ["//visibility:public"],
 )
 
 pkg_filegroup(
@@ -553,6 +319,11 @@ pkg_install(
     }),
 )
 
+NATIVE_UNIX = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
 NATIVE_COPTS = [
     "-fno-strict-overflow",
     "-fwrapv",
@@ -574,10 +345,9 @@ copy_file(
     src = select({
         condition: platform["pyconfig"]
         for condition, platform in NATIVE_PLATFORMS.items()
-    } | {
-        "//conditions:default": "@platforms//:incompatible",
     }),
     out = "pyconfig.h",
+    target_compatible_with = NATIVE_UNIX,
 )
 
 # Public headers, what extensions and embedders compile against.
@@ -699,6 +469,7 @@ cc_library(
         ]
         for condition, platform in NATIVE_PLATFORMS.items()
     }),
+    target_compatible_with = NATIVE_UNIX,
     deps = [":native_internal_headers"],
     alwayslink = True,
 )
@@ -768,6 +539,7 @@ cc_shared_library(
         condition: platform["libpython"]
         for condition, platform in NATIVE_PLATFORMS.items()
     }),
+    target_compatible_with = NATIVE_UNIX,
     user_link_flags = select({
         "@platforms//os:macos": ["-Wl,-install_name,@rpath/libpython{}.dylib".format(PYTHON_MAJOR_MINOR)],
         "//conditions:default": ["-Wl,-soname," + LINUX_SO],
@@ -779,9 +551,37 @@ cc_shared_library(
     ],
 )
 
-# The interpreter executable.
+# libpython3.so is the stable ABI library (PEP 384). Like upstream, it defines no
+# symbols: it only depends on the versioned libpython, which provides them, so extensions
+# linked against it keep working across 3.x versions. --no-as-needed keeps that
+# dependency.
+write_file(
+    name = "native_empty_c",
+    out = "native_empty.c",
+    content = [],
+)
+
+cc_library(
+    name = "native_libpython3_lib",
+    srcs = [":native_empty_c"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+cc_shared_library(
+    name = "native_libpython3",
+    dynamic_deps = [":native_libpython"],
+    shared_lib_name = "libpython3.so",
+    target_compatible_with = ["@platforms//os:linux"],
+    user_link_flags = [
+        "-Wl,--no-as-needed",
+        "-Wl,-soname,libpython3.so",
+    ],
+    deps = [":native_libpython3_lib"],
+)
+
+# The interpreter executable, named after the version as it is installed.
 cc_binary(
-    name = "native_python",
+    name = "python{}".format(PYTHON_MAJOR_MINOR),
     srcs = ["Programs/python.c"],
     copts = NATIVE_COPTS,
     dynamic_deps = [":native_libpython"],
@@ -878,7 +678,7 @@ NATIVE_COMMON_MODULE_TARGETS = cpython_shared_modules(
     dest_dir = "embedded/lib/python{}/lib-dynload".format(PYTHON_MAJOR_MINOR),
     ext_suffix = NATIVE_EXT_SUFFIX,
     modules = SHARED_MODULES,
-    target_compatible_with = [],
+    target_compatible_with = NATIVE_UNIX,
 )
 
 NATIVE_MACOS_MODULE_TARGETS = cpython_shared_modules(
@@ -900,6 +700,79 @@ filegroup(
     srcs = NATIVE_SHARED_MODULE_TARGETS,
 )
 
+alias(
+    name = "native_python",
+    actual = ":python{}".format(PYTHON_MAJOR_MINOR),
+    visibility = ["//visibility:public"],
+)
+
+dd_cc_packaged(
+    name = "python_bin_pkg",
+    dest_dir = "embedded/bin",
+    input = ":native_python",
+    mode = "0755",
+)
+
+dd_cc_packaged(
+    name = "libpython3_pkg",
+    dest_dir = "embedded/lib",
+    input = ":native_libpython3",
+    mode = "0755",
+)
+
+pkg_files(
+    name = "stdlib_files",
+    srcs = glob(
+        ["Lib/**"],
+        exclude = [
+            "Lib/**/__pycache__/**",
+            "Lib/__phello__/ham/**",
+            "Lib/idlelib/idle_test/**",
+            "Lib/test/**",
+            "Lib/venv/scripts/nt/**",
+        ],
+    ),
+    prefix = "embedded/lib/python{}".format(PYTHON_MAJOR_MINOR),
+    strip_prefix = strip_prefix.from_pkg("Lib"),
+    target_compatible_with = NATIVE_UNIX,
+)
+
+pkg_files(
+    name = "stdlib_extra_files",
+    srcs = [
+        "LICENSE",
+        ":native_sysconfigdata",
+    ],
+    prefix = "embedded/lib/python{}".format(PYTHON_MAJOR_MINOR),
+    renames = select({
+        condition: {
+            "LICENSE": "LICENSE.txt",
+            ":native_sysconfigdata": "_sysconfigdata__{}_{}.py".format(
+                platform["machdep"],
+                platform["multiarch"],
+            ),
+        }
+        for condition, platform in NATIVE_PLATFORMS.items()
+    }),
+    target_compatible_with = NATIVE_UNIX,
+)
+
+dd_cc_packaged(
+    name = "python_pkg",
+    data = [
+        ":_python_pkg_common_files",
+        ":python_bin_pkg",
+        ":stdlib_extra_files",
+        ":stdlib_files",
+    ] + NATIVE_SHARED_MODULE_TARGETS + select({
+        "@platforms//os:linux": [":libpython3_pkg"],
+        "//conditions:default": [],
+    }),
+    dest_dir = "embedded/lib",
+    input = ":native_libpython",
+    visibility = ["//visibility:public"],
+)
+
 # The _sysconfigdata module, generated from pyconfig.h and the per-platform Makefile
 # variables instead of a Makefile.
 write_file(
@@ -909,6 +782,7 @@ write_file(
         condition: [json.encode(sysconfig_vars(platform))]
         for condition, platform in NATIVE_PLATFORMS.items()
     }),
+    target_compatible_with = NATIVE_UNIX,
 )
 
 run_binary(
@@ -934,50 +808,98 @@ run_binary(
     toolchains = ["@@//:install_dir"],
 )
 
+# The installed tree, laid out as upstream's make install does.
+copy_file(
+    name = "native_unix_python3_bin",
+    src = ":native_python",
+    out = "unix/bin/python{}".format(PYTHON_MAJOR_MINOR),
+    is_executable = True,
+    target_compatible_with = NATIVE_UNIX,
+)
+
+copy_file(
+    name = "native_unix_libpython_linux",
+    src = ":native_libpython",
+    out = "unix/lib/" + LINUX_SO,
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+copy_file(
+    name = "native_unix_libpython_macos",
+    src = ":native_libpython",
+    out = "unix/lib/libpython{}.dylib".format(PYTHON_MAJOR_MINOR),
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+copy_file(
+    name = "native_unix_libpython3",
+    src = ":native_libpython3",
+    out = "unix/lib/libpython3.so",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 copy_to_directory(
-    name = "native_install",
+    name = "native_unix_stdlib",
     srcs = [
-        ":native_libpython",
-        ":native_python",
+        "LICENSE",
         ":native_shared_modules",
         ":native_sysconfigdata",
     ] + glob(
         ["Lib/**"],
         exclude = [
             "Lib/**/__pycache__/**",
+            "Lib/__phello__/ham/**",
             "Lib/idlelib/idle_test/**",
             "Lib/test/**",
+            "Lib/venv/scripts/nt/**",
         ],
     ),
+    out = "unix/lib/python{}".format(PYTHON_MAJOR_MINOR),
     replace_prefixes = select({
         condition: {
-            "Lib/": "lib/python{}/".format(PYTHON_MAJOR_MINOR),
-            "native_python": "bin/python{}".format(PYTHON_MAJOR_MINOR),
-            "native_sysconfigdata.py": "lib/python{}/_sysconfigdata__{}_{}.py".format(
-                PYTHON_MAJOR_MINOR,
+            "LICENSE": "LICENSE.txt",
+            "Lib/": "",
+            "native_sysconfigdata.py": "_sysconfigdata__{}_{}.py".format(
                 platform["machdep"],
                 platform["multiarch"],
             ),
-            platform["libpython"]: "lib/" + platform["libpython"],
         } | {
-            name + platform["ext_suffix"]: "lib/python{}/lib-dynload/{}{}".format(
-                PYTHON_MAJOR_MINOR,
-                name,
-                platform["ext_suffix"],
-            )
+            name + platform["ext_suffix"]: "lib-dynload/" + name + platform["ext_suffix"]
             for name in NATIVE_UNIX_SHARED_MODULES
         }
         for condition, platform in NATIVE_PLATFORMS.items()
     }),
+    target_compatible_with = NATIVE_UNIX,
 )
 
-NATIVE_TEST_SHARED_LIBS = [
-    "@bzip2//:bz2",
-    "@openssl//:openssl_shared",
-    "@sqlite3//:sqlite3",
-    "@xz//:lzma",
-    "@zlib//:z",
-]
+copy_to_directory(
+    name = "native_unix_include",
+    srcs = [":native_pyconfig_h"] + glob(["Include/**/*.h"]),
+    out = "unix/include",
+    replace_prefixes = {
+        "Include/": "python{}/".format(PYTHON_MAJOR_MINOR),
+        "pyconfig.h": "python{}/pyconfig.h".format(PYTHON_MAJOR_MINOR),
+    },
+    target_compatible_with = NATIVE_UNIX,
+)
+
+# The whole installed tree, used by tests and consumers that need a runnable interpreter.
+filegroup(
+    name = "native_install",
+    srcs = [
+        ":native_unix_include",
+        ":native_unix_python3_bin",
+        ":native_unix_stdlib",
+    ] + select({
+        "@platforms//os:linux": [
+            ":native_unix_libpython3",
+            ":native_unix_libpython_linux",
+        ],
+        "@platforms//os:macos": [":native_unix_libpython_macos"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = NATIVE_UNIX,
+)
 
 # Every module the build produces, imported by python_test.
 write_file(
@@ -995,16 +917,16 @@ sh_test(
     name = "native_python_test",
     srcs = ["@@//deps/cpython:native_python_test.sh"],
     args = [
-        "$(rootpath :native_install)/bin/python{}".format(PYTHON_MAJOR_MINOR),
+        "$(rootpath :native_unix_python3_bin)",
         "$(rootpath @@//deps/cpython:native_python_test.py)",
         "$(rootpath :native_test_modules)",
-    ] + [
-        "$(rootpaths {})".format(lib)
-        for lib in NATIVE_TEST_SHARED_LIBS
+        "$(rootpaths :runtime_deps)",
     ],
     data = [
         ":native_install",
         ":native_test_modules",
+        ":native_unix_python3_bin",
+        ":runtime_deps",
         "@@//deps/cpython:native_python_test.py",
-    ] + NATIVE_TEST_SHARED_LIBS,
+    ],
 )
