@@ -157,6 +157,8 @@ go_library(
         "//comp/otelcol/collector/def",
         "//comp/otelcol/logsagentpipeline/def",
         "//comp/otelcol/status/fx",
+        "//comp/privateactionrunner/phonehome/def",
+        "//comp/privateactionrunner/phonehome/fx",
         "//comp/privateactionrunner/status/statusimpl",
         "//comp/process",
         "//comp/process/agent/def",
