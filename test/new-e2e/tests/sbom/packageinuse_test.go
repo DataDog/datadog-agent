@@ -684,6 +684,40 @@ func (s *packageInUseSuite) TestHostPackageInUse() {
 		}, 10*time.Minute, 15*time.Second, "the host SBOMs never gave every package its usage past the usage window")
 	})
 
+	// The running kernel runs outside of any process, and each scan of the host
+	// packages records as run by root its kernel-core and the packages of its
+	// loaded modules, found on the node with modinfo and rpm.
+	s.Run("kernel", func() {
+		release := strings.TrimSpace(s.hostExec(s.T(), shell, "uname -r"))
+		modulePkgs := strings.Fields(s.hostExec(s.T(), shell,
+			`for m in $(cut -d" " -f1 /proc/modules); do modinfo -n "$m"; done 2>/dev/null | grep "^/" | xargs -r rpm -qf --qf "%{NAME}\n" 2>/dev/null | grep -v " " | sort -u`))
+		s.T().Logf("PKG-IN-USE[host] kernel: release %s, packages of the loaded modules %v", release, modulePkgs)
+
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+
+			comps := newestHostSBOM(c, s.Fakeintake, time.Time{})
+			kernel, ok := lo.Find(comps, func(comp *cyclonedx_v1_4.Component) bool {
+				return comp.GetName() == "kernel-core" && strings.HasPrefix(release, comp.GetVersion())
+			})
+			require.Truef(c, ok, "no kernel-core of the running release %s in the host SBOM", release)
+			ts, _ := lastSeenRunning(kernel)
+			root := propertyValues(kernel.GetProperties(), propRunningAsRoot)
+			s.T().Logf("PKG-IN-USE[host] kernel: kernel-core %s LastSeenRunning=%d RunningAsRoot=%v", kernel.GetVersion(), ts, root)
+			assert.Positivef(c, ts, "kernel-core %s, the running kernel, not reported in use", kernel.GetVersion())
+			assert.Equalf(c, []string{"true"}, root, "kernel-core %s %s", kernel.GetVersion(), propRunningAsRoot)
+
+			for _, name := range modulePkgs {
+				running := lo.ContainsBy(comps, func(comp *cyclonedx_v1_4.Component) bool {
+					ts, _ := lastSeenRunning(comp)
+					return comp.GetName() == name && ts > 0 && lo.Contains(propertyValues(comp.GetProperties(), propRunningAsRoot), "true")
+				})
+				assert.Truef(c, running, "%s, the package of a loaded module, not reported in use as root", name)
+			}
+		}, 5*time.Minute, 15*time.Second, "the host SBOM never reported the running kernel in use")
+	})
+
 	// A write to the rpm database of the host fires the bundled
 	// need_refresh_sbom / refresh_sbom rules, which scan the host packages
 	// again. The scan keeps the usage of the packages it finds again, gzip

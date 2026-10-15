@@ -1336,6 +1336,18 @@ func TestKeepUsage(t *testing.T) {
 			scan: []sbomtypes.Package{gzip("1.12"), gzip("1.12")},
 			want: []sbomtypes.Package{used(gzip("1.12"), seen, true, true), used(gzip("1.12"), seen, true, true)},
 		},
+		{
+			name: "build removed beside others",
+			prev: []sbomtypes.Package{used(kernel("55.el10"), seen, false, true), kernel("53.el10"), kernel("57.el10")},
+			scan: []sbomtypes.Package{kernel("53.el10"), kernel("57.el10")},
+			want: []sbomtypes.Package{kernel("53.el10"), kernel("57.el10")},
+		},
+		{
+			name: "upgrade of a build listed twice",
+			prev: []sbomtypes.Package{used(gzip("1.12"), seen, false, true), gzip("1.12")},
+			scan: []sbomtypes.Package{gzip("1.13"), gzip("1.13")},
+			want: []sbomtypes.Package{used(gzip("1.13"), seen, false, true), used(gzip("1.13"), seen, false, true)},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1388,6 +1400,109 @@ func TestScanHostRecordsRunningProcesses(t *testing.T) {
 	}
 	if pkg := pkgs[0]; pkg.LastAccess.IsZero() || !pkg.AccessedByRoot {
 		t.Errorf("package = %+v, want gzip in use by its running daemon", pkg)
+	}
+}
+
+// TestScanHostMarksRunningKernel checks that a scan of the host records the
+// packages of the running kernel as run by root, its image and the list of its
+// built-in modules, and leaves another installed kernel as it is.
+func TestScanHostMarksRunningKernel(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		release string
+		report  []sbomtypes.PackageWithInstalledFiles
+		running []string
+	}{
+		{
+			name:    "dpkg",
+			release: "6.8.0-139-generic",
+			report: []sbomtypes.PackageWithInstalledFiles{
+				{Package: sbomtypes.Package{Name: "linux-image-6.8.0-139-generic", Version: "6.8.0-139.139"}, InstalledFiles: []string{"/boot/vmlinuz-6.8.0-139-generic"}},
+				{Package: sbomtypes.Package{Name: "linux-modules-6.8.0-139-generic", Version: "6.8.0-139.139"}, InstalledFiles: []string{"/lib/modules/6.8.0-139-generic/modules.builtin"}},
+				{Package: sbomtypes.Package{Name: "linux-image-6.8.0-111-generic", Version: "6.8.0-111.111"}, InstalledFiles: []string{"/boot/vmlinuz-6.8.0-111-generic"}},
+			},
+			running: []string{"linux-image-6.8.0-139-generic", "linux-modules-6.8.0-139-generic"},
+		},
+		{
+			name:    "rpm",
+			release: "6.12.0-211.61.1.el10_2.x86_64",
+			report: []sbomtypes.PackageWithInstalledFiles{
+				{Package: sbomtypes.Package{Name: "kernel-core", Version: "6.12.0", Release: "211.61.1.el10_2"}, InstalledFiles: []string{"/lib/modules/6.12.0-211.61.1.el10_2.x86_64/vmlinuz"}},
+				{Package: sbomtypes.Package{Name: "kernel-core", Version: "6.12.0", Release: "55.9.1.el10_0"}, InstalledFiles: []string{"/lib/modules/6.12.0-55.9.1.el10_0.x86_64/vmlinuz"}},
+			},
+			running: []string{"kernel-core@211.61.1.el10_2"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sbomGenerations = atomic.NewUint64(0)
+			r.failedSBOMGenerations = atomic.NewUint64(0)
+			r.sbomCollector = &rootRecorder{report: tc.report}
+			r.kernelRelease = func() (string, error) { return tc.release, nil }
+
+			if err := r.scanHost(); err != nil {
+				t.Fatalf("scanHost: %v", err)
+			}
+
+			for _, pkg := range r.hostSBOM.data.packages {
+				want := slices.Contains(tc.running, pkg.Name) || slices.Contains(tc.running, pkg.Name+"@"+pkg.Release)
+				if got := !pkg.LastAccess.IsZero() && pkg.AccessedByRoot; got != want {
+					t.Errorf("%s %s run by root = %v, want %v", pkg.Name, pkg.Release, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestKernelFilesListsLoadedModules checks that the files of the running kernel
+// hold its loaded modules, found through its modules.dep under either module
+// directory, a module of weak-updates at the file it links to, and that
+// marking them records the packages owning them, and those alone, as run by
+// root.
+func TestKernelFilesListsLoadedModules(t *testing.T) {
+	const release = "6.12.0-211.61.1.el10_2.x86_64"
+	const other = "6.12.0-55.9.1.el10_0.x86_64"
+	modules := "/lib/modules/" + release
+
+	for _, dir := range []string{"usr/lib/modules", "lib/modules"} {
+		t.Run(dir, func(t *testing.T) {
+			root := t.TempDir()
+			moduleDir := filepath.Join(root, dir, release)
+			if err := os.MkdirAll(filepath.Join(moduleDir, "weak-updates"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			dep := "kernel/fs/xfs/xfs.ko.xz: kernel/lib/libcrc32c.ko.xz\n" +
+				"kernel/lib/libcrc32c.ko.xz:\n" +
+				"kernel/drivers/net/ena/ena.ko.xz:\n" +
+				"weak-updates/nvidia-uvm.ko.xz:\n"
+			if err := os.WriteFile(filepath.Join(moduleDir, "modules.dep"), []byte(dep), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("../../"+other+"/extra/nvidia-uvm.ko.xz", filepath.Join(moduleDir, "weak-updates/nvidia-uvm.ko.xz")); err != nil {
+				t.Fatal(err)
+			}
+
+			r := &Resolver{
+				kernelRelease: func() (string, error) { return release, nil },
+				loadedModules: func() ([]string, error) { return []string{"xfs", "libcrc32c", "nvidia_uvm", "vfat"}, nil },
+			}
+			d := newData([]sbomtypes.PackageWithInstalledFiles{
+				{Package: sbomtypes.Package{Name: "kernel-core", Release: "211"}, InstalledFiles: []string{modules + "/vmlinuz"}},
+				{Package: sbomtypes.Package{Name: "kernel-modules-core", Release: "211"}, InstalledFiles: []string{modules + "/kernel/fs/xfs/xfs.ko.xz", modules + "/kernel/lib/libcrc32c.ko.xz"}},
+				{Package: sbomtypes.Package{Name: "kernel-modules", Release: "211"}, InstalledFiles: []string{modules + "/kernel/drivers/net/ena/ena.ko.xz"}},
+				{Package: sbomtypes.Package{Name: "kmod-nvidia", Release: "565"}, InstalledFiles: []string{"/lib/modules/" + other + "/extra/nvidia-uvm.ko.xz"}},
+				{Package: sbomtypes.Package{Name: "kernel-modules-core", Release: "55"}, InstalledFiles: []string{"/lib/modules/" + other + "/kernel/fs/xfs/xfs.ko.xz"}},
+			}, false)
+			markRunningKernel(d, r.kernelFiles(root))
+
+			running := []string{"kernel-core@211", "kernel-modules-core@211", "kmod-nvidia@565"}
+			for _, pkg := range d.packages {
+				want := slices.Contains(running, pkg.Name+"@"+pkg.Release)
+				if got := !pkg.LastAccess.IsZero() && pkg.AccessedByRoot; got != want {
+					t.Errorf("%s %s run by root = %v, want %v", pkg.Name, pkg.Release, got, want)
+				}
+			}
+		})
 	}
 }
 

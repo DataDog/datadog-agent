@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -43,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -158,22 +160,27 @@ func (d *Data) holds(report []sbomtypes.PackageWithInstalledFiles) bool {
 // keepUsage copies onto the packages of d the usage recorded in prev, and the
 // time it started being recorded. A package keeps the usage of its build,
 // combined with that of the builds of its name only prev holds, the builds an
-// upgrade replaced.
+// upgrade replaced, when d holds a single build of the name. Kernels install
+// side by side, and the usage of a removed kernel stays with it.
 func (d *Data) keepUsage(prev *Data) {
 	held := make(map[sbomtypes.Package]bool, len(d.packages))
+	builds := make(map[string]int)
 	for _, pkg := range d.packages {
-		held[packageBuild(pkg)] = true
+		if b := packageBuild(pkg); !held[b] {
+			held[b] = true
+			builds[pkg.Name]++
+		}
 	}
 
 	prev.mu.RLock()
 	if !prev.observedSince.IsZero() {
 		d.observedSince = prev.observedSince
 	}
-	builds := make(map[sbomtypes.Package]sbomtypes.Package, len(prev.packages))
+	kept := make(map[sbomtypes.Package]sbomtypes.Package, len(prev.packages))
 	replaced := make(map[string]sbomtypes.Package)
 	for _, pkg := range prev.packages {
 		if b := packageBuild(pkg); held[b] {
-			builds[b] = combineUsage(builds[b], pkg)
+			kept[b] = combineUsage(kept[b], pkg)
 		} else {
 			replaced[pkg.Name] = combineUsage(replaced[pkg.Name], pkg)
 		}
@@ -182,7 +189,10 @@ func (d *Data) keepUsage(prev *Data) {
 
 	for i := range d.packages {
 		pkg := &d.packages[i]
-		usage := combineUsage(builds[packageBuild(*pkg)], replaced[pkg.Name])
+		usage := kept[packageBuild(*pkg)]
+		if builds[pkg.Name] == 1 {
+			usage = combineUsage(usage, replaced[pkg.Name])
+		}
 		pkg.LastAccess, pkg.SuidBit, pkg.AccessedByRoot = usage.LastAccess, usage.SuidBit, usage.AccessedByRoot
 	}
 }
@@ -317,6 +327,10 @@ type Resolver struct {
 	// settleDelay, oldest first.
 	openedLock sync.Mutex
 	opened     []openedFile
+	// kernelRelease returns the release of the running kernel, and
+	// loadedModules the names of its loaded modules.
+	kernelRelease func() (string, error)
+	loadedModules func() ([]string, error)
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -372,6 +386,8 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		hostRootDevice:        stat.Dev,
 		hostRootInode:         stat.Ino,
 		hostRootOverlay:       fsStat.Type == unix.OVERLAYFS_SUPER_MAGIC,
+		kernelRelease:         kernel.Release,
+		loadedModules:         liveModules,
 		sbomGenerations:       atomic.NewUint64(0),
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
@@ -537,6 +553,7 @@ func (r *Resolver) scanHost() error {
 	if err != nil {
 		return err
 	}
+	kernelFiles := r.kernelFiles(hostRoot)
 
 	r.hostSBOM.Lock()
 	rescan := r.hostSBOM.IsComputed()
@@ -554,6 +571,7 @@ func (r *Resolver) scanHost() error {
 	r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
 	r.hostSBOM.setReport(report)
 	r.hostSBOM.data.keepUsage(previous)
+	markRunningKernel(r.hostSBOM.data, kernelFiles)
 	r.hostSBOM.state.Store(computedState)
 	if changed {
 		r.triggerForwarding(r.hostSBOM)
@@ -573,6 +591,126 @@ func (r *Resolver) scanHost() error {
 	}
 
 	return nil
+}
+
+// kernelFiles returns the paths of the files of the running kernel, those of
+// the host packages under root that run outside of any process: its image,
+// the list of the modules built into it, and its loaded modules.
+func (r *Resolver) kernelFiles(root string) []string {
+	if r.kernelRelease == nil {
+		return nil
+	}
+	release, err := r.kernelRelease()
+	if err != nil {
+		seclog.Debugf("Failed to read the release of the running kernel: %v", err)
+		return nil
+	}
+	dir := "/lib/modules/" + release
+	files := []string{"/boot/vmlinuz-" + release, dir + "/vmlinuz", dir + "/modules.builtin"}
+	if r.loadedModules == nil {
+		return files
+	}
+
+	loaded, err := r.loadedModules()
+	if err != nil {
+		seclog.Debugf("Failed to list the loaded kernel modules: %v", err)
+		return files
+	}
+	paths, err := modulePaths(root, release)
+	if err != nil {
+		seclog.Debugf("Failed to read the modules of kernel %s: %v", release, err)
+		return files
+	}
+	for _, name := range loaded {
+		if path, ok := paths[name]; ok {
+			files = append(files, path)
+		}
+	}
+	return files
+}
+
+// modulePaths returns the paths of the modules of kernel release under root,
+// by module name, from its modules.dep. The modules of weak-updates link to
+// the modules of another kernel, whose package owns them.
+func modulePaths(root, release string) (map[string]string, error) {
+	rootFS, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer rootFS.Close()
+
+	var dir string
+	var dep []byte
+	for _, dir = range []string{"usr/lib/modules/" + release, "lib/modules/" + release} {
+		if dep, err = rootFS.ReadFile(dir + "/modules.dep"); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	paths := make(map[string]string)
+	for line := range strings.Lines(string(dep)) {
+		module, _, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		path := module
+		if !filepath.IsAbs(path) {
+			path = "/lib/modules/" + release + "/" + module
+			if strings.HasPrefix(module, "weak-updates/") {
+				if target, err := rootFS.Readlink(dir + "/" + module); err == nil {
+					if !filepath.IsAbs(target) {
+						target = filepath.Join(filepath.Dir(path), target)
+					}
+					path = target
+				}
+			}
+		}
+		paths[moduleName(module)] = path
+	}
+	return paths, nil
+}
+
+// moduleName returns the name of the kernel module in the file at path, as
+// /proc/modules lists it.
+func moduleName(path string) string {
+	name := filepath.Base(path)
+	if i := strings.Index(name, ".ko"); i >= 0 {
+		name = name[:i]
+	}
+	return strings.ReplaceAll(name, "-", "_")
+}
+
+// liveModules returns the names of the loaded kernel modules.
+func liveModules() ([]string, error) {
+	modules, err := utils.FetchLoadedModules()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(modules))
+	for name, module := range modules {
+		if module.State == "Live" {
+			names = append(names, name)
+		}
+	}
+	return names, nil
+}
+
+// markRunningKernel records as run by root the packages of d that own files,
+// the files of the running kernel. The kernel runs outside of the processes
+// whose execs and opens record usage.
+func markRunningKernel(d *Data, files []string) {
+	now := time.Now()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, path := range files {
+		if pkg := d.files.queryFile(path); pkg != nil {
+			pkg.LastAccess = now
+			pkg.AccessedByRoot = true
+		}
+	}
 }
 
 // SetProcessWalker sets walk, which calls its argument on every process the
