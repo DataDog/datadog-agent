@@ -38,6 +38,23 @@ func TestQuotaRCApplyState(t *testing.T) {
 	assert.Contains(t, got["datadog/2/LOGS_QUOTA/q2/config"].Error, "schema_version")
 }
 
+func TestQuotaRCDebugProduct(t *testing.T) {
+	m := newTestQuotaManager(t)
+	m.product = state.ProductDebug
+	got := map[string]state.ApplyStatus{}
+	m.onRCUpdate(map[string]state.RawConfig{
+		"datadog/2/DEBUG/ours/config":   {Config: []byte(`{"logs_quota":` + validQuota + `}`)},
+		"datadog/2/DEBUG/theirs/config": {Config: []byte(`{"hello":"world"}`)},
+	}, func(path string, s state.ApplyStatus) { got[path] = s })
+
+	assert.Equal(t, map[string]state.ApplyStatus{
+		"datadog/2/DEBUG/ours/config": {State: state.ApplyStateAcknowledged},
+	}, got)
+	_, quotas := m.enforcer.Status()
+	require.Len(t, quotas, 1)
+	assert.Equal(t, "enforcing", quotas[0].State)
+}
+
 func TestQuotaMockDir(t *testing.T) {
 	m := newTestQuotaManager(t)
 	dir := t.TempDir()

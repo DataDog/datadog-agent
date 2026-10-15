@@ -53,6 +53,7 @@ go_library(
         "//comp/remote-config/rcclient/types",
         "//comp/serializer/logscompression/def",
         "//pkg/config/model",
+        "//pkg/config/remote/data",
         "//pkg/config/setup",
         "//pkg/logs/launchers",
         "//pkg/logs/launchers/channel",

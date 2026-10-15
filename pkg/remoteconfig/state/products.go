@@ -49,6 +49,7 @@ var validProducts = map[string]struct{}{
 	ProductNetworkPath:                  {},
 	ProductDataSecurityDBScanTasks:      {},
 	ProductLogsQuota:                    {},
+	ProductDebug:                        {},
 }
 
 const (
@@ -70,6 +71,8 @@ const (
 	ProductAgentTask = "AGENT_TASK"
 	// ProductLogsQuota is to receive log quota enforcement rules for the logs agent
 	ProductLogsQuota = "LOGS_QUOTA"
+	// ProductDebug is the staging-only product for Remote Config proofs of concept
+	ProductDebug = "DEBUG"
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
 	// ProductAPMSemanticCoreDD is the employee-signed product that pushes

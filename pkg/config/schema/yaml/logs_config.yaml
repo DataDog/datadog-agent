@@ -768,6 +768,11 @@ properties:
         type: string
         default: ""
         comment: Prototype only. Directory of *.json files fed to the enforcer as if they were LOGS_QUOTA configs.
+      rc_product:
+        node_type: setting
+        type: string
+        default: LOGS_QUOTA
+        comment: Prototype only. Remote Config product to subscribe to. Set to DEBUG to receive configs wrapped as {"logs_quota":{...}} from the staging rc-debug-api.
   run_path:
     node_type: setting
     type: string
