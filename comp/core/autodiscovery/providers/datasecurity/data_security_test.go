@@ -8,18 +8,23 @@ package datasecurity
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
+	"google.golang.org/protobuf/proto"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/sds"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -169,8 +174,7 @@ func postgresIntegration() integration.Config {
 // newTestController builds a controller with the given autodiscovery configs and returns the mock
 // RC client it subscribes through along with the provider.
 func newTestController(t *testing.T, adConfigs []integration.Config) (*mockedRcClient, types.ConfigProvider) {
-	rc := &mockedRcClient{}
-	provider := NewController(getMockedAutodiscovery(t, adConfigs), rc, false)
+	rc, provider, _ := newTestControllerWithForwarder(t, adConfigs)
 	return rc, provider
 }
 
@@ -209,6 +213,64 @@ func TestPostgresSSLMode(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// newTestControllerWithForwarder is newTestController that also returns the event platform
+// forwarder recording the sds-results the controller sends.
+func newTestControllerWithForwarder(t *testing.T, adConfigs []integration.Config) (*mockedRcClient, types.ConfigProvider, *recordingForwarder) {
+	rc := &mockedRcClient{}
+	fwd := &recordingForwarder{}
+	provider := NewController(getMockedAutodiscovery(t, adConfigs), rc, &fakeEventPlatform{forwarder: fwd}, false)
+	return rc, provider, fwd
+}
+
+// fakeEventPlatform is an eventplatform.Component exposing a recording forwarder.
+type fakeEventPlatform struct {
+	forwarder eventplatform.Forwarder
+}
+
+func (f *fakeEventPlatform) Get() (eventplatform.Forwarder, bool) {
+	return f.forwarder, f.forwarder != nil
+}
+
+type sentEvent struct {
+	eventType string
+	raw       []byte
+}
+
+// recordingForwarder records the events sent to the event platform.
+type recordingForwarder struct {
+	mu     sync.Mutex
+	events []sentEvent
+}
+
+func (f *recordingForwarder) SendEventPlatformEvent(e *message.Message, eventType string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.events = append(f.events, sentEvent{eventType: eventType, raw: e.GetContent()})
+	return nil
+}
+
+func (f *recordingForwarder) SendEventPlatformEventBlocking(e *message.Message, eventType string) error {
+	return f.SendEventPlatformEvent(e, eventType)
+}
+
+func (f *recordingForwarder) Purge() map[string][]*message.Message { return nil }
+
+// sdsResults decodes the sds-results sent so far, keyed by sub task ID.
+func (f *recordingForwarder) sdsResults(t *testing.T) map[string]*sds.SdsResultPayload {
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[string]*sds.SdsResultPayload{}
+	for _, ev := range f.events {
+		require.Equal(t, eventplatform.EventTypeSDSResult, ev.eventType)
+		var p sds.SdsResultPayload
+		require.NoError(t, proto.Unmarshal(ev.raw, &p))
+		meta := p.GetScanResults()[0].GetScanMetadata().GetScanTaskMetadata()
+		out[meta.GetSubTaskId()] = &p
+	}
+	return out
 }
 
 // TestControllerDoesNotSubscribeWithoutPostgres asserts the controller does not subscribe to RC
@@ -396,4 +458,102 @@ func asYAML(t *testing.T, doc string) map[string]any {
 	var out map[string]any
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &out))
 	return out
+}
+
+// scanTaskTwoSubTasksConfig has a sub task targeting a known host and one targeting an unknown host.
+const scanTaskTwoSubTasksConfig = `{
+  "task_id": "task-2",
+  "scanning_rules": [
+    {"id": "rule-1", "license": "proprietary", "pattern": "\\d+"},
+    {"id": "rule-2", "license": "proprietary", "pattern": "[a-z]+"}
+  ],
+  "scan_data": [
+    {
+      "sub_task_id": "sub-ok",
+      "query": "SELECT * FROM users",
+      "timeout_seconds": 30,
+      "entity": {"platform": "postgres", "database_cluster_name": "cluster", "database_instance_name": "instance", "database_host_name": "db-host", "database": "app", "schema": "public", "table": "users"}
+    },
+    {
+      "sub_task_id": "sub-bad-host",
+      "query": "SELECT * FROM orders",
+      "timeout_seconds": 30,
+      "entity": {"platform": "postgres", "database_cluster_name": "cluster", "database_instance_name": "instance", "database_host_name": "unknown-host", "database": "app", "schema": "public", "table": "orders"}
+    },
+    {
+      "sub_task_id": "sub-bad-platform",
+      "query": "SELECT 1",
+      "timeout_seconds": 30,
+      "entity": {"platform": "mysql", "database_instance_name": "instance", "database_host_name": "db-host", "database": "app", "schema": "public", "table": "t"}
+    }
+  ]
+}`
+
+// TestControllerReportsFailedSubTasks asserts a scan task that cannot be scheduled yields one ERROR
+// sds-result per sub task.
+func TestControllerReportsFailedSubTasks(t *testing.T) {
+	rc, _, fwd := newTestControllerWithForwarder(t, []integration.Config{postgresIntegration()})
+	require.NotNil(t, rc.callback)
+
+	statuses := map[string]state.ApplyStatus{}
+	rc.callback(map[string]state.RawConfig{"rc-1": rawScanTask("rc-1", scanTaskTwoSubTasksConfig)}, func(path string, status state.ApplyStatus) {
+		statuses[path] = status
+	})
+	assert.Equal(t, state.ApplyStateError, statuses["rc-1"].State)
+
+	results := fwd.sdsResults(t)
+	require.Len(t, results, 3)
+
+	// The sub task that failed to build carries its own reason; the others report the abort.
+	reasons := map[string]string{}
+	for id, p := range results {
+		meta := p.GetScanResults()[0].GetScanMetadata().GetScanTaskMetadata()
+		assert.Equal(t, "task-2", meta.GetTaskId())
+		assert.Equal(t, sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata_ERROR, meta.GetStatus())
+		assert.Equal(t, []string{"rule-1", "rule-2"}, p.GetRuleIds())
+		assert.Equal(t, "postgres_table", p.GetResource().GetType())
+		assert.NotZero(t, p.GetTimestamp())
+		assert.NotNil(t, p.GetScanningSource().GetAgent())
+		reasons[id] = meta.GetFailureReason()
+	}
+	assert.Equal(t, `sub task not run: scan task aborted: failed to build sub task "sub-bad-host": postgres integration with host="unknown-host" not found`, reasons["sub-ok"])
+	assert.Equal(t, `postgres integration with host="unknown-host" not found`, reasons["sub-bad-host"])
+	assert.Equal(t, `sub task not run: scan task aborted: failed to build sub task "sub-bad-host": postgres integration with host="unknown-host" not found`, reasons["sub-bad-platform"])
+
+	table := results["sub-bad-host"].GetScanResults()[0].GetLocation().GetPostgresTable()
+	assert.Equal(t, "unknown-host", table.GetDatabaseHostName())
+	assert.Equal(t, "orders", table.GetTableName())
+	assert.Equal(t, "instance.app.public.orders", results["sub-bad-host"].GetResource().GetName())
+}
+
+// TestControllerReportsNothingOnSuccess asserts no sds-result is sent for a task that gets scheduled
+// (the check reports its own results).
+func TestControllerReportsNothingOnSuccess(t *testing.T) {
+	rc, _, fwd := newTestControllerWithForwarder(t, []integration.Config{postgresIntegration()})
+	rc.callback(map[string]state.RawConfig{"rc-1": rawScanTask("rc-1", scanTaskConfig)}, func(string, state.ApplyStatus) {})
+	assert.Empty(t, fwd.sdsResults(t))
+}
+
+// TestControllerReportsPartiallyDecodedTask asserts the sub tasks readable from a payload that fails
+// to decode are still reported.
+func TestControllerReportsPartiallyDecodedTask(t *testing.T) {
+	rc, _, fwd := newTestControllerWithForwarder(t, []integration.Config{postgresIntegration()})
+
+	// timeout_seconds has the wrong type: decoding fails but sub_task_id is still read.
+	badType := `{"task_id": "task-3", "scan_data": [{"sub_task_id": "sub-1", "timeout_seconds": "30"}]}`
+	statuses := map[string]state.ApplyStatus{}
+	rc.callback(map[string]state.RawConfig{"rc-1": rawScanTask("rc-1", badType)}, func(path string, status state.ApplyStatus) {
+		statuses[path] = status
+	})
+	assert.Equal(t, state.ApplyStateError, statuses["rc-1"].State)
+
+	results := fwd.sdsResults(t)
+	require.Len(t, results, 1)
+	meta := results["sub-1"].GetScanResults()[0].GetScanMetadata().GetScanTaskMetadata()
+	assert.Equal(t, "task-3", meta.GetTaskId())
+	assert.Contains(t, meta.GetFailureReason(), "failed to decode scan task")
+
+	// A syntactically invalid payload has no readable sub task: nothing to report.
+	rc.callback(map[string]state.RawConfig{"rc-2": rawScanTask("rc-2", `{not json`)}, func(string, state.ApplyStatus) {})
+	assert.Len(t, fwd.sdsResults(t), 1)
 }
