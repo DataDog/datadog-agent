@@ -163,7 +163,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
 			case workloadmeta.KindKubernetesMetadata:
 				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
-				tagInfos = append(tagInfos, c.retagRayDependentPods(ev.Entity)...)
 			case workloadmeta.KindKubernetesNode:
 				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
 			case workloadmeta.KindProcess:
@@ -202,7 +201,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		case workloadmeta.EventTypeUnset:
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
-			tagInfos = append(tagInfos, c.retagRayDependentPods(ev.Entity)...)
 			// A removed Kueue entity is no longer in the store, so the pods
 			// that used it get re-tagged without it.
 			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
@@ -1126,8 +1124,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 		}
 	}
 	tagList.AddLow(tags.InferenceWorkloadComponent, component)
-	if workload := c.rayInferenceWorkload(pod); workload != "" {
-		tagList.AddLow(tags.InferenceWorkload, workload)
+	// Serve labels do not identify LLMs. Require the official Ray LLM image too.
+	if cluster := pod.Labels[kubernetes.RayClusterLabelKey]; cluster != "" && pod.Labels[kubernetes.RayServeLabelKey] == "true" && isRayLLMPod(pod) {
+		tagList.AddLow(tags.InferenceWorkload, cluster)
 		component := pod.Labels[kubernetes.RayNodeTypeLabelKey]
 		if component == "worker" && pod.Labels[kubernetes.RayNodeGroupLabelKey] != "" {
 			component = pod.Labels[kubernetes.RayNodeGroupLabelKey]
@@ -1165,67 +1164,20 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 }
 
 func isRayLLMPod(pod *workloadmeta.KubernetesPod) bool {
+	// Workloadmeta containers follow status order, not pod spec order. Identify
+	// the standard KubeRay container by name so sidecars cannot qualify a pod.
 	for _, container := range pod.Containers {
-		if container.IsLLM || kubernetes.IsRayLLMContainer(container.Image.Name, nil, nil) {
+		if container.Name != "ray-head" && container.Name != "ray-worker" {
+			continue
+		}
+		// Image.Name excludes the tag and digest. Match the full repository so
+		// custom images with the same short name do not qualify.
+		switch container.Image.Name {
+		case "rayproject/ray-llm", "docker.io/rayproject/ray-llm", "index.docker.io/rayproject/ray-llm", "registry-1.docker.io/rayproject/ray-llm":
 			return true
 		}
 	}
 	return false
-}
-
-func (c *WorkloadMetaCollector) rayInferenceWorkload(pod *workloadmeta.KubernetesPod) string {
-	cluster := ""
-	for _, owner := range pod.Owners {
-		if owner.Group == "ray.io" && owner.Kind == "RayCluster" {
-			cluster = owner.Name
-			break
-		}
-	}
-	if cluster == "" {
-		// A pod without a RayCluster owner needs both KubeRay labels for the fallback.
-		if pod.Labels[kubernetes.RayServeLabelKey] != "true" {
-			return ""
-		}
-		cluster = pod.Labels[kubernetes.RayClusterLabelKey]
-	}
-	if cluster == "" {
-		return ""
-	}
-	if service := c.rayServicesByCluster[pod.Namespace+"/"+cluster]; service != nil {
-		if service.RayService.IsLLM {
-			return service.Name
-		}
-		return ""
-	}
-
-	if !isRayLLMPod(pod) {
-		return ""
-	}
-	return kubernetes.RayClusterWorkloadName(cluster)
-}
-
-func (c *WorkloadMetaCollector) retagRayDependentPods(entity workloadmeta.Entity) []*types.TagInfo {
-	metadata, ok := entity.(*workloadmeta.KubernetesMetadata)
-	if !ok || metadata.GVR == nil || metadata.GVR.Group != "ray.io" || metadata.GVR.Resource != "rayservices" {
-		return nil
-	}
-	c.rayServicesByCluster = make(map[string]*workloadmeta.KubernetesMetadata)
-	for _, service := range c.store.ListKubernetesMetadata(func(m *workloadmeta.KubernetesMetadata) bool { return m.RayService != nil }) {
-		for _, cluster := range service.RayService.ClusterNames {
-			c.rayServicesByCluster[service.Namespace+"/"+cluster] = service
-		}
-	}
-	var result []*types.TagInfo
-	for _, pod := range c.store.ListKubernetesPods() {
-		if metadata.Namespace != "" && pod.Namespace != metadata.Namespace {
-			continue
-		}
-		if pod.Labels[kubernetes.RayClusterLabelKey] == "" {
-			continue
-		}
-		result = append(result, c.handleKubePod(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod, IsComplete: c.entityCompleteness[pod.EntityID]})...)
-	}
-	return result
 }
 
 // addResourceLabelsAndAnnotationsAsTags applies the labels-as-tags and

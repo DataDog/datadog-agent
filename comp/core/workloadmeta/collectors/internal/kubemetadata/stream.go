@@ -11,7 +11,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,9 +21,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	grpcmeta "google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -202,7 +199,7 @@ func (p *streamingProvider) handleWmetaPodEvents(bundle workloadmeta.EventBundle
 
 func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods map[string]string) {
 	var events []workloadmeta.CollectorEvent
-	events = append(events, p.buildRayServiceEvents(update.updatedRayServices)...)
+
 	if len(update.updatedKueueQueues) > 0 {
 		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
 	}
@@ -454,7 +451,6 @@ func (p *streamingProvider) buildKueueWorkloadEvents(updatedWorkloadIDs map[stri
 }
 
 type streamUpdate struct {
-	updatedRayServices          map[string]struct{}
 	updateIsFullState           bool
 	updatedPods                 map[string]struct{} // keys are "namespace/name"
 	updatedNamespaces           map[string]struct{}
@@ -466,9 +462,8 @@ type streamUpdate struct {
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
 // pod-to-service and namespace metadata. It keeps a local cache.
 type dcaStreamClient struct {
-	rayServices map[string]*workloadmeta.KubernetesMetadata
-	nodeName    string
-	cfg         configmodel.Reader
+	nodeName string
+	cfg      configmodel.Reader
 
 	mu                   sync.RWMutex
 	podServices          map[string][]string          // "namespace/podName" -> services
@@ -490,7 +485,6 @@ type dcaStreamClient struct {
 
 func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClient {
 	return &dcaStreamClient{
-		rayServices:          make(map[string]*workloadmeta.KubernetesMetadata),
 		nodeName:             nodeName,
 		cfg:                  cfg,
 		podServices:          make(map[string][]string),
@@ -718,14 +712,6 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 	defer sc.mu.Unlock()
 
 	if resp.IsFullState {
-		if sc.pendingUpdate.updatedRayServices == nil {
-			sc.pendingUpdate.updatedRayServices = make(map[string]struct{})
-		}
-		for id := range sc.rayServices {
-			sc.pendingUpdate.updatedRayServices[id] = struct{}{}
-		}
-		sc.rayServices = make(map[string]*workloadmeta.KubernetesMetadata)
-		sc.applyRayServices(resp.RayServices)
 		newPodServices := make(map[string][]string, len(resp.Mappings))
 		for _, mapping := range resp.Mappings {
 			key := mapping.Namespace + "/" + mapping.PodName
@@ -797,12 +783,11 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.RayServices) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
 
-	sc.applyRayServices(resp.RayServices)
 	for _, mapping := range resp.Mappings {
 		key := mapping.Namespace + "/" + mapping.PodName
 		switch mapping.Type {
@@ -1032,54 +1017,4 @@ func (sc *dcaStreamClient) notifyUpdate() {
 	case sc.updateCh <- struct{}{}:
 	default: // signal already pending
 	}
-}
-
-// applyRayServices is called while sc.mu is held.
-func (sc *dcaStreamClient) applyRayServices(services []*pb.RayService) {
-	if sc.rayServices == nil {
-		sc.rayServices = make(map[string]*workloadmeta.KubernetesMetadata)
-	}
-	for _, service := range services {
-		if service.Namespace == "" || service.Name == "" {
-			continue
-		}
-		id := string(util.GenerateKubeMetadataEntityID("ray.io", "rayservices", service.Namespace, service.Name))
-		switch service.Type {
-		case pb.KubeMetadataEventType_SET:
-			sc.rayServices[id] = &workloadmeta.KubernetesMetadata{
-				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesMetadata, ID: id},
-				EntityMeta: workloadmeta.EntityMeta{Name: service.Name, Namespace: service.Namespace},
-				GVR:        &schema.GroupVersionResource{Group: "ray.io", Version: "v1", Resource: "rayservices"},
-				RayService: &workloadmeta.RayServiceMetadata{IsLLM: service.IsLlm, ClusterNames: slices.Clone(service.ClusterNames)},
-			}
-		case pb.KubeMetadataEventType_UNSET:
-			delete(sc.rayServices, id)
-		default:
-			continue
-		}
-		if sc.pendingUpdate.updatedRayServices == nil {
-			sc.pendingUpdate.updatedRayServices = make(map[string]struct{})
-		}
-		sc.pendingUpdate.updatedRayServices[id] = struct{}{}
-	}
-}
-
-func (p *streamingProvider) buildRayServiceEvents(updated map[string]struct{}) []workloadmeta.CollectorEvent {
-	var events []workloadmeta.CollectorEvent
-	for id := range updated {
-		sc := p.dcaStream
-		sc.mu.RLock()
-		service, found := sc.rayServices[id]
-		var entity workloadmeta.Entity
-		typ := workloadmeta.EventTypeUnset
-		if found {
-			entity = service.DeepCopy()
-			typ = workloadmeta.EventTypeSet
-		} else {
-			entity = &workloadmeta.KubernetesMetadata{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesMetadata, ID: id}, GVR: &schema.GroupVersionResource{Group: "ray.io", Version: "v1", Resource: "rayservices"}}
-		}
-		sc.mu.RUnlock()
-		events = append(events, workloadmeta.CollectorEvent{Source: workloadmeta.SourceClusterOrchestrator, Type: typ, Entity: entity})
-	}
-	return events
 }
