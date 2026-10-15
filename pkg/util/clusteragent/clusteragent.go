@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/eks"
+	eksidentity "github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -88,7 +88,7 @@ type DCAClientInterface interface {
 	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
-	GetEKSClusterIdentity(ctx context.Context) (*eks.ClusterIdentity, error)
+	GetEKSClusterIdentity(ctx context.Context) (*eksidentity.ClusterIdentity, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
 	SupportsNamespaceMetadataCollection() bool
@@ -520,8 +520,8 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 }
 
 // GetEKSClusterIdentity queries the Cluster Agent for authoritative EKS identity.
-func (c *DCAClient) GetEKSClusterIdentity(ctx context.Context) (*eks.ClusterIdentity, error) {
-	identity := &eks.ClusterIdentity{}
+func (c *DCAClient) GetEKSClusterIdentity(ctx context.Context) (*eksidentity.ClusterIdentity, error) {
+	identity := &eksidentity.ClusterIdentity{}
 	if err := c.doJSONQuery(ctx, "api/v1/cluster/eks-identity", "GET", nil, identity, false); err != nil {
 		return nil, err
 	}

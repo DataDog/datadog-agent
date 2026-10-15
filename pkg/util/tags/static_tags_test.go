@@ -157,6 +157,8 @@ func stubEKSIdentity(t *testing.T, tags []string, err error) *int {
 
 var eksIdentityTags = []string{
 	"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
+	"eks_cluster_account:123456789012",
+	"eks_cluster_region:us-west-2",
 }
 
 func TestStaticTagsSliceEKSIdentityOnNodeAgent(t *testing.T) {

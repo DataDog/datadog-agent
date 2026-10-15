@@ -838,9 +838,9 @@ func TestHandleKubePod(t *testing.T) {
 		{
 			name: "eks cluster identity static tags",
 			staticTags: map[string][]string{
-				"eks_cluster_arn": {"arn:aws:eks:us-west-2:123456789012:cluster/orders"},
-				"aws_account":     {"123456789012"},
-				"region":          {"us-west-2"},
+				"eks_cluster_arn":     {"arn:aws:eks:us-west-2:123456789012:cluster/orders"},
+				"eks_cluster_account": {"123456789012"},
+				"eks_cluster_region":  {"us-west-2"},
 			},
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -860,8 +860,8 @@ func TestHandleKubePod(t *testing.T) {
 					LowCardTags: []string{
 						"kube_namespace:" + podNamespace,
 						"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
-						"aws_account:123456789012",
-						"region:us-west-2",
+						"eks_cluster_account:123456789012",
+						"eks_cluster_region:us-west-2",
 					},
 					StandardTags: []string{},
 				},
