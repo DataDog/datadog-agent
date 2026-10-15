@@ -72,6 +72,7 @@ func TestSBOMHostInstallUsageSuite(t *testing.T) {
 			scenec2.WithPreAgentInstallHook(startCron),
 			scenec2.WithPreAgentInstallHook(startScriptDaemon),
 			scenec2.WithPreAgentInstallHook(startExplicitDaemon),
+			scenec2.WithPreAgentInstallHook(startReplacedDaemon),
 			scenec2.WithAgentOptions(
 				agentparams.WithAgentConfig(hostInstallUsageAgentConfig),
 				agentparams.WithSystemProbeConfig(hostInstallUsageSystemProbeConfig),
@@ -159,6 +160,85 @@ func startExplicitDaemon(_ *aws.Environment, host *remote.Host) (pulumi.Resource
 	})
 }
 
+// replacedDaemonPackage and replacedLibPackage are the dpkg packages
+// startReplacedDaemon installs. The binary of the first, a copy of sleep, runs
+// as a daemon that preloads replacedLib, the library of the second, a copy of
+// libutil.so.1, a stub glibc keeps for compatibility. Copies of both replace
+// them once the daemon runs, as an upgrade renames a new build over a file.
+const (
+	replacedDaemonPackage = "sbom-replaced-daemon"
+	replacedLibPackage    = "sbom-replaced-lib"
+	replacedLib           = "/usr/lib/sbom-replaced-lib/libsbomreplaced.so"
+)
+
+// startReplacedDaemonScript builds replacedDaemonPackage and
+// replacedLibPackage with dpkg-deb, installs them, runs the daemon as a
+// transient service that preloads the library, then renames a copy of the
+// binary and of the library over them, so procfs names both with the suffix
+// of a replaced file. The library comes from the directory of the libc of
+// sleep, as the loader ignores a library of another ABI, such as the x32 one
+// ldconfig lists first on a multilib host. Type=exec makes systemd-run return
+// once the daemon runs its binary, and the script waits up to 5 s for the
+// loader to map the library before the renames. The replaced subtest checks
+// the mapping. A retry first stops the daemon of an earlier attempt.
+// needrestart, which restarts the services running a replaced file once apt
+// installs the Agent, is told to leave the service alone.
+const startReplacedDaemonScript = `set -e
+umask 022
+cloud-init status --wait >/dev/null 2>&1 || true
+sudo systemctl stop sbom-replaced-daemon 2>/dev/null || true
+sudo systemctl reset-failed sbom-replaced-daemon 2>/dev/null || true
+d=$(mktemp -d)
+mkdir -p "$d/daemon/DEBIAN" "$d/daemon/usr/bin" "$d/lib/DEBIAN" "$d/lib/usr/lib/sbom-replaced-lib"
+printf 'Package: sbom-replaced-daemon\nVersion: 1.0\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/daemon/DEBIAN/control"
+printf 'Package: sbom-replaced-lib\nVersion: 1.0\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/lib/DEBIAN/control"
+cp /usr/bin/sleep "$d/daemon/usr/bin/sbom-replaced-daemon"
+libc=$(ldd /usr/bin/sleep | awk '$1 == "libc.so.6" {print $3}')
+cp "${libc%/*}/libutil.so.1" "$d/lib/usr/lib/sbom-replaced-lib/libsbomreplaced.so"
+dpkg-deb --root-owner-group --build "$d/daemon" "$d/sbom-replaced-daemon.deb" >/dev/null
+dpkg-deb --root-owner-group --build "$d/lib" "$d/sbom-replaced-lib.deb" >/dev/null
+n=0
+until sudo dpkg -i "$d/sbom-replaced-daemon.deb" "$d/sbom-replaced-lib.deb"; do
+	n=$((n + 1))
+	[ "$n" -lt 30 ]
+	sleep 10
+done
+if [ -d /etc/needrestart/conf.d ]; then
+	echo '$nrconf{override_rc}{qr(^sbom-replaced-daemon)} = 0;' | sudo tee /etc/needrestart/conf.d/sbom-replaced-daemon.conf >/dev/null
+fi
+sudo systemd-run --unit=sbom-replaced-daemon --property=Type=exec --setenv=LD_PRELOAD=/usr/lib/sbom-replaced-lib/libsbomreplaced.so /usr/bin/sbom-replaced-daemon infinity
+pid=$(systemctl show -p MainPID --value sbom-replaced-daemon)
+n=0
+until sudo grep -qF /usr/lib/sbom-replaced-lib/libsbomreplaced.so "/proc/$pid/maps" || [ "$n" -ge 50 ]; do
+	n=$((n + 1))
+	sleep 0.1
+done
+for f in /usr/bin/sbom-replaced-daemon /usr/lib/sbom-replaced-lib/libsbomreplaced.so; do
+	sudo cp -p "$f" "$f.new"
+	sudo mv -f "$f.new" "$f"
+done`
+
+// startReplacedDaemon starts the daemon of replacedDaemonPackage and replaces
+// its binary and its library before the Agent is installed, so the probe of
+// system-probe finds it running replaced files when it starts.
+func startReplacedDaemon(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
+	return host.OS.Runner().Command("start-replaced-daemon", &command.Args{
+		Create: pulumi.String(startReplacedDaemonScript),
+	})
+}
+
+// mapsExecutable reports whether maps, the content of /proc/<pid>/maps, maps
+// the file at path with execute permission.
+func mapsExecutable(maps, path string) bool {
+	for _, line := range strings.Split(maps, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 6 && strings.Contains(fields[1], "x") && strings.HasSuffix(line, " "+path) {
+			return true
+		}
+	}
+	return false
+}
+
 // hostInt runs cmd on the host and returns the integer it prints.
 func (s *hostInstallUsageSuite) hostInt(cmd string) int64 {
 	out := strings.TrimSpace(s.Env().RemoteHost.MustExecute(cmd))
@@ -202,7 +282,8 @@ func (s *hostInstallUsageSuite) Test00UpAndRunning() {
 
 // TestHostUsage checks the usage of the host packages: a daemon and two scripts
 // started before the Agent, one through its shebang and one as the operand of
-// python3, a binary and its library run by root, and a setuid binary.
+// python3, a daemon and its library replaced on disk before the Agent, a binary
+// and its library run by root, and a setuid binary.
 func (s *hostInstallUsageSuite) TestHostUsage() {
 	host := s.Env().RemoteHost
 	defer func() {
@@ -267,6 +348,39 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 			assert.Positivef(c, ts, "%s is unused, with its script running as the operand of python3 since before the Agent", explicitDaemonPackage)
 			assert.Equalf(c, []string{"true"}, propertyValues(explicit.GetProperties(), propRunningAsRoot), "%s %s, systemd runs it as root", explicitDaemonPackage, propRunningAsRoot)
 		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s in use", explicitDaemonPackage)
+	})
+
+	// The binary of replacedDaemonPackage and replacedLib, which the daemon
+	// preloads, are replaced on disk once the daemon runs, before the Agent, so
+	// procfs names both with the suffix of a replaced file, and their use comes
+	// from the replay of those paths: the executable of the daemon and its
+	// mappings.
+	s.Run("replaced", func() {
+		pid := s.mainPID(replacedDaemonPackage)
+		exe := strings.TrimSpace(host.MustExecute("sudo readlink /proc/" + pid + "/exe"))
+		s.Require().Truef(strings.HasSuffix(exe, " (deleted)"), "the daemon of %s runs %s, a binary in place", replacedDaemonPackage, exe)
+		maps := host.MustExecute("sudo cat /proc/" + pid + "/maps")
+		if !mapsExecutable(maps, replacedLib+" (deleted)") {
+			journal := host.MustExecute("sudo journalctl --no-pager -u " + replacedDaemonPackage)
+			s.Require().Failf("premise", "the daemon of %s maps %s in place, or not at all:\n%s\n%s", replacedDaemonPackage, replacedLib, maps, journal)
+		}
+		sysprobeStart := s.hostInt(`date -d "$(systemctl show -p ExecMainStartTimestamp --value datadog-agent-sysprobe)" +%s`)
+		for _, file := range []string{"/usr/bin/" + replacedDaemonPackage, replacedLib} {
+			s.Require().Lessf(s.hostInt("stat -c %Z "+file), sysprobeStart, "%s was replaced after system-probe started", file)
+		}
+		s.Require().Lessf(s.unitStart(replacedDaemonPackage), s.unitStart("datadog-agent-sysprobe"), "%s started after system-probe", replacedDaemonPackage)
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			comps := newestHostSBOM(c, s.Fakeintake, time.Time{})
+			for _, name := range []string{replacedDaemonPackage, replacedLibPackage} {
+				comp := findComponent(comps, name)
+				require.NotNilf(c, comp, "no %s in the host SBOM", name)
+				ts, _ := lastSeenRunning(comp)
+				s.T().Logf("PKG-IN-USE[host] replaced: %s LastSeenRunning=%d", name, ts)
+				assert.Positivef(c, ts, "%s is unused, with its replaced file running since before the Agent", name)
+				assert.Equalf(c, []string{"true"}, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s %s, systemd runs it as root", name, propRunningAsRoot)
+			}
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s and %s in use", replacedDaemonPackage, replacedLibPackage)
 	})
 
 	// sudo runs gzip as root from its setuid binary, and the loader opens

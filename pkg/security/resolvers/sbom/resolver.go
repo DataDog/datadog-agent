@@ -60,6 +60,10 @@ const (
 	// hostRescanInterval is the period of the scans of the host packages, the
 	// default period of the host scans of the core agent.
 	hostRescanInterval = time.Hour
+	// deletedSuffix ends the path procfs gives a file removed from its path
+	// while a process runs or maps it, as when an upgrade renames a new build
+	// over it.
+	deletedSuffix = " (deleted)"
 )
 
 // pendingFileEvent holds the minimal information needed to re-process a file
@@ -964,16 +968,23 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 }
 
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
-// resolved.
+// resolved. It returns nil for a file procfs names with deletedSuffix, after recording its usage.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
 	if !file.IsPathnameStrResolved {
 		return nil
 	}
 
+	// procfs names a file replaced under a running process by its path
+	// followed by deletedSuffix, in the executables and the mappings the probe
+	// reads at start and on ruleset reloads. Such a file counts for the package
+	// that owns its path. That package may hold the build that replaced it by
+	// now, so ResolvePackage returns nil for the file.
+	lookupPath, replaced := strings.CutSuffix(file.PathnameStr, deletedSuffix)
+
 	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
 		seclog.Debugf("no sbom found for container '%s'", pc.ContainerContext.ContainerID)
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, lookupPath, file.Mode, pc.UID)
 		return nil
 	}
 
@@ -983,7 +994,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	// the scan finishes (processPendingFileEvents is called at the end of analyzeWorkload).
 	if !sbom.IsComputed() {
 		sbom.Unlock()
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, lookupPath, file.Mode, pc.UID)
 		return nil
 	}
 
@@ -996,7 +1007,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	// A process on a root of its own opens the files of that root under the
 	// paths of host files, and its root is read once the path matches.
-	pkg := sbom.data.files.queryFile(file.PathnameStr)
+	pkg := sbom.data.files.queryFile(lookupPath)
 	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pc.Pid) {
 		pkg = nil
 	}
@@ -1039,6 +1050,9 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		sbom.invalidated = false
 	}
 
+	if replaced {
+		return nil
+	}
 	return pkg
 }
 
