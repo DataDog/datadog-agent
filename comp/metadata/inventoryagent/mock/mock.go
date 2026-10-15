@@ -48,6 +48,9 @@ func (m *inventoryagentMock) Refresh() {}
 // SetBatch is an empty function on this mock
 func (m *inventoryagentMock) SetBatch(map[string]interface{}) {}
 
+// SetReady is an empty function on this mock
+func (m *inventoryagentMock) SetReady(bool) {}
+
 // Submit is an empty function on this mock
 func (m *inventoryagentMock) Submit() {}
 
