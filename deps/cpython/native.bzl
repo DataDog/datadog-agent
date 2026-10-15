@@ -1,9 +1,9 @@
 """Source lists for the native CPython build.
 
 They mirror upstream's Makefile.pre.in (PARSER_OBJS, OBJECT_OBJS, PYTHON_OBJS,
-MODULE_OBJS), Modules/Setup.bootstrap.in (built-in modules) and
-Tools/build/freeze_modules.py (frozen modules). Re-check them when bumping the
-CPython version.
+MODULE_OBJS), Modules/Setup.bootstrap.in (built-in modules),
+Modules/Setup.stdlib.in (shared modules) and Tools/build/freeze_modules.py
+(frozen modules). Re-check them when bumping the CPython version.
 """
 
 PARSER_SRCS = [
@@ -223,4 +223,133 @@ FROZEN_MODULES = [
     ("__phello__.ham.eggs", "Lib/__phello__/ham/eggs.py"),
     ("__phello__.spam", "Lib/__phello__/spam.py"),
     ("frozen_only", "Tools/freeze/flag.py"),
+]
+
+# Extension modules installed in lib-dynload, mapped to their srcs and their
+# optional defines, linkopts, deps and dynamic_deps.
+SHARED_MODULES = {
+    "array": {"srcs": ["Modules/arraymodule.c"]},
+    "_asyncio": {"srcs": ["Modules/_asynciomodule.c"]},
+    "_bisect": {"srcs": ["Modules/_bisectmodule.c"]},
+    "_contextvars": {"srcs": ["Modules/_contextvarsmodule.c"]},
+    "_csv": {"srcs": ["Modules/_csv.c"]},
+    "_heapq": {"srcs": ["Modules/_heapqmodule.c"]},
+    "_json": {"srcs": ["Modules/_json.c"]},
+    "_lsprof": {"srcs": ["Modules/_lsprof.c", "Modules/rotatingtree.c"]},
+    "_opcode": {"srcs": ["Modules/_opcode.c"]},
+    "_pickle": {"srcs": ["Modules/_pickle.c"]},
+    "_queue": {"srcs": ["Modules/_queuemodule.c"]},
+    "_random": {"srcs": ["Modules/_randommodule.c"]},
+    "_struct": {"srcs": ["Modules/_struct.c"]},
+    "_interpreters": {"srcs": ["Modules/_interpretersmodule.c"]},
+    "_interpchannels": {"srcs": ["Modules/_interpchannelsmodule.c"]},
+    "_interpqueues": {"srcs": ["Modules/_interpqueuesmodule.c"]},
+    "_zoneinfo": {"srcs": ["Modules/_zoneinfo.c"]},
+    "math": {"srcs": ["Modules/mathmodule.c"], "linkopts": ["-lm"]},
+    "cmath": {"srcs": ["Modules/cmathmodule.c"], "linkopts": ["-lm"]},
+    "_statistics": {"srcs": ["Modules/_statisticsmodule.c"], "linkopts": ["-lm"]},
+    "_datetime": {"srcs": ["Modules/_datetimemodule.c"], "linkopts": ["-lm"]},
+    "_decimal": {"srcs": ["Modules/_decimal/_decimal.c"], "deps": [":native_libmpdec"], "linkopts": ["-lm"]},
+    "binascii": {
+        "srcs": ["Modules/binascii.c"],
+        "defines": ["USE_ZLIB_CRC32"],
+        "deps": ["@zlib"],
+        "dynamic_deps": ["@zlib//:z_pkg"],
+    },
+    "_bz2": {"srcs": ["Modules/_bz2module.c"], "deps": ["@bzip2//:libbz2"], "dynamic_deps": ["@bzip2//:bz2_pkg"]},
+    "_lzma": {"srcs": ["Modules/_lzmamodule.c"], "deps": ["@xz//:liblzma"], "dynamic_deps": ["@xz//:lzma_pkg"]},
+    "zlib": {"srcs": ["Modules/zlibmodule.c"], "deps": ["@zlib"], "dynamic_deps": ["@zlib//:z_pkg"]},
+    "_md5": {"srcs": ["Modules/md5module.c", "Modules/_hacl/Hacl_Hash_MD5.c"], "deps": [":native_hacl_headers"]},
+    "_sha1": {"srcs": ["Modules/sha1module.c", "Modules/_hacl/Hacl_Hash_SHA1.c"], "deps": [":native_hacl_headers"]},
+    "_sha2": {"srcs": ["Modules/sha2module.c"], "deps": [":native_hacl_sha2"]},
+    "_sha3": {"srcs": ["Modules/sha3module.c", "Modules/_hacl/Hacl_Hash_SHA3.c"], "deps": [":native_hacl_headers"]},
+    "_blake2": {"srcs": ["Modules/_blake2/blake2module.c", "Modules/_blake2/blake2b_impl.c", "Modules/_blake2/blake2s_impl.c"]},
+    "pyexpat": {"srcs": ["Modules/pyexpat.c"], "deps": [":native_expat"]},
+    "_elementtree": {"srcs": ["Modules/_elementtree.c"], "deps": [":native_expat_headers"]},
+    "_codecs_cn": {"srcs": ["Modules/cjkcodecs/_codecs_cn.c"]},
+    "_codecs_hk": {"srcs": ["Modules/cjkcodecs/_codecs_hk.c"]},
+    "_codecs_iso2022": {"srcs": ["Modules/cjkcodecs/_codecs_iso2022.c"]},
+    "_codecs_jp": {"srcs": ["Modules/cjkcodecs/_codecs_jp.c"]},
+    "_codecs_kr": {"srcs": ["Modules/cjkcodecs/_codecs_kr.c"]},
+    "_codecs_tw": {"srcs": ["Modules/cjkcodecs/_codecs_tw.c"]},
+    "_multibytecodec": {"srcs": ["Modules/cjkcodecs/multibytecodec.c"]},
+    "unicodedata": {"srcs": ["Modules/unicodedata.c"]},
+    "fcntl": {"srcs": ["Modules/fcntlmodule.c"]},
+    "grp": {"srcs": ["Modules/grpmodule.c"]},
+    "mmap": {"srcs": ["Modules/mmapmodule.c"]},
+    "_posixsubprocess": {"srcs": ["Modules/_posixsubprocess.c"]},
+    "resource": {"srcs": ["Modules/resource.c"]},
+    "select": {"srcs": ["Modules/selectmodule.c"]},
+    "_socket": {"srcs": ["Modules/socketmodule.c"]},
+    "syslog": {"srcs": ["Modules/syslogmodule.c"]},
+    "termios": {"srcs": ["Modules/termios.c"]},
+    "_posixshmem": {
+        "srcs": ["Modules/_multiprocessing/posixshmem.c"],
+        "deps": [":native_multiprocessing_headers"],
+        "linkopts": ["-lrt"],
+    },
+    "_multiprocessing": {
+        "srcs": ["Modules/_multiprocessing/multiprocessing.c", "Modules/_multiprocessing/semaphore.c"],
+        "deps": [":native_multiprocessing_headers"],
+    },
+    "_ctypes": {
+        "srcs": [
+            "Modules/_ctypes/_ctypes.c",
+            "Modules/_ctypes/callbacks.c",
+            "Modules/_ctypes/callproc.c",
+            "Modules/_ctypes/stgdict.c",
+            "Modules/_ctypes/cfield.c",
+        ],
+        "deps": ["@libffi//:ffi"],
+    },
+    "_sqlite3": {
+        "srcs": [
+            "Modules/_sqlite/blob.c",
+            "Modules/_sqlite/connection.c",
+            "Modules/_sqlite/cursor.c",
+            "Modules/_sqlite/microprotocols.c",
+            "Modules/_sqlite/module.c",
+            "Modules/_sqlite/prepare_protocol.c",
+            "Modules/_sqlite/row.c",
+            "Modules/_sqlite/statement.c",
+            "Modules/_sqlite/util.c",
+        ],
+        "deps": ["@sqlite3//:libsqlite3"],
+        "dynamic_deps": ["@sqlite3//:sqlite3_pkg"],
+    },
+    "_ssl": {
+        "srcs": ["Modules/_ssl.c"],
+        "deps": ["@openssl//:openssl_shared"],
+        "dynamic_deps": ["@openssl//:openssl_shared"],
+    },
+    "_hashlib": {
+        "srcs": ["Modules/_hashopenssl.c"],
+        "deps": ["@openssl//:libcrypto_shared"],
+        "dynamic_deps": ["@openssl//:libcrypto_shared"],
+    },
+}
+
+# The libmpdec bundled with CPython, used by _decimal.
+LIBMPDEC_SRCS = [
+    "Modules/_decimal/libmpdec/basearith.c",
+    "Modules/_decimal/libmpdec/constants.c",
+    "Modules/_decimal/libmpdec/context.c",
+    "Modules/_decimal/libmpdec/convolute.c",
+    "Modules/_decimal/libmpdec/crt.c",
+    "Modules/_decimal/libmpdec/difradix2.c",
+    "Modules/_decimal/libmpdec/fnt.c",
+    "Modules/_decimal/libmpdec/fourstep.c",
+    "Modules/_decimal/libmpdec/io.c",
+    "Modules/_decimal/libmpdec/mpalloc.c",
+    "Modules/_decimal/libmpdec/mpdecimal.c",
+    "Modules/_decimal/libmpdec/numbertheory.c",
+    "Modules/_decimal/libmpdec/sixstep.c",
+    "Modules/_decimal/libmpdec/transpose.c",
+]
+
+# The expat bundled with CPython, used by pyexpat.
+LIBEXPAT_SRCS = [
+    "Modules/expat/xmlparse.c",
+    "Modules/expat/xmlrole.c",
+    "Modules/expat/xmltok.c",
 ]
