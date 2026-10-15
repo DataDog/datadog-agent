@@ -29,6 +29,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -37,7 +38,114 @@ const (
 	includeAtMatch = "include_at_match"
 
 	metricProcessingRulesConfigKey = "anomaly_detection.metrics.processing_rules"
+	metricAllowedTypesConfigKey    = "anomaly_detection.metrics.allowed_types"
 )
+
+// Compile-time check that observerdef.UnknownType (-1) plus all metrics.MetricType
+// values (0..metrics.NumMetricTypes-1) fit within a 32-bit bitmask when shifted by mt+1.
+const (
+	_ = uint(observerdef.UnknownType + 1)
+	_ = uint(31 - (metrics.NumMetricTypes + 1))
+)
+
+// metricTypeFilter is a bitmask of allowed metric types.
+// A zero value means all metric types (including UnknownType) are allowed.
+// Bit (1 << uint(mt+1)) corresponds to mt, so bit 0 is UnknownType (-1)
+// and bits 1..NumMetricTypes are metrics.GaugeType..metrics.CountWithTimestampType.
+type metricTypeFilter uint32
+
+func metricTypeBit(mt metrics.MetricType) (uint32, bool) {
+	if mt < observerdef.UnknownType || mt >= metrics.NumMetricTypes {
+		return 0, false
+	}
+	return uint32(1) << uint(mt+1), true
+}
+
+// isTypeAllowed reports whether mt is permitted by the bitmask filter.
+// A zero filter permits every metric type.
+func (f metricTypeFilter) isTypeAllowed(mt metrics.MetricType) bool {
+	if f == 0 {
+		return true
+	}
+	bit, ok := metricTypeBit(mt)
+	if !ok {
+		return false
+	}
+	return (uint32(f) & bit) != 0
+}
+
+// ValidMetricTypeNames returns all supported metric type names in canonical order,
+// starting with "Unknown" followed by each metrics.MetricType.String().
+func ValidMetricTypeNames() []string {
+	names := make([]string, 0, int(metrics.NumMetricTypes)+1)
+	names = append(names, "Unknown")
+	for mt := metrics.MetricType(0); mt < metrics.NumMetricTypes; mt++ {
+		names = append(names, mt.String())
+	}
+	return names
+}
+
+// ParseMetricTypeName resolves a metric type name (case-insensitive, ignoring
+// underscores and hyphens) into its metrics.MetricType value, including UnknownType.
+func ParseMetricTypeName(raw string) (metrics.MetricType, error) {
+	normalized := normalizeMetricTypeToken(raw)
+	if normalized != "" {
+		if normalized == "unknown" {
+			return observerdef.UnknownType, nil
+		}
+		for mt := metrics.MetricType(0); mt < metrics.NumMetricTypes; mt++ {
+			if normalizeMetricTypeToken(mt.String()) == normalized {
+				return mt, nil
+			}
+		}
+	}
+	return observerdef.UnknownType, fmt.Errorf(
+		"invalid metric type %q (valid types: %s)",
+		strings.TrimSpace(raw),
+		strings.Join(ValidMetricTypeNames(), ", "),
+	)
+}
+
+// ParseAllowedMetricTypes validates and compiles a list of metric type names into a bitmask.
+// An empty slice produces a zero filter that allows all metric types.
+func ParseAllowedMetricTypes(raw []string) (metricTypeFilter, error) {
+	if len(raw) == 0 {
+		return 0, nil
+	}
+	var mask metricTypeFilter
+	for _, item := range raw {
+		mt, err := ParseMetricTypeName(item)
+		if err != nil {
+			return 0, err
+		}
+		bit, ok := metricTypeBit(mt)
+		if !ok {
+			return 0, fmt.Errorf("metric type %q out of bitmask range", item)
+		}
+		mask |= metricTypeFilter(bit)
+	}
+	return mask, nil
+}
+
+func normalizeMetricTypeToken(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '_' || c == '-' || c == ' ' {
+			continue
+		}
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
 
 // metricsProcessingRule is one entry in anomaly_detection.metrics.processing_rules.
 type metricsProcessingRule struct {
