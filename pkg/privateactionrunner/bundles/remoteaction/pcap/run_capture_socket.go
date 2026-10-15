@@ -58,6 +58,17 @@ type captureRequest struct {
 	SnapLen      uint32 `json:"snapLen,omitempty"`
 }
 
+// captureSocketPath returns system-probe's capture-only socket when one is
+// configured, so the runner does not need the main system-probe socket, and
+// the main socket otherwise.
+func captureSocketPath() string {
+	cfg := pkgconfigsetup.SystemProbe()
+	if p := cfg.GetString("packet_capture.socket"); p != "" {
+		return p
+	}
+	return cfg.GetString("system_probe_config.sysprobe_socket")
+}
+
 // socketCaptureTrigger triggers captures via system-probe's packet_capture
 // module over its unix domain socket.
 type socketCaptureTrigger struct{}
@@ -69,9 +80,9 @@ func newCaptureTrigger() captureTrigger {
 // Capture triggers a packet capture on system-probe over its unix socket
 // and streams the resulting PCAP data to a local temp file.
 func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInputs) (captureOutcome, error) {
-	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
+	socketPath := captureSocketPath()
 	if socketPath == "" {
-		return captureOutcome{}, errors.New("system-probe socket path not configured (system_probe_config.sysprobe_socket)")
+		return captureOutcome{}, errors.New("system-probe socket path not configured (packet_capture.socket or system_probe_config.sysprobe_socket)")
 	}
 
 	reqBody, err := json.Marshal(captureRequest{

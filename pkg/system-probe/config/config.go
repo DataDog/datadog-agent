@@ -204,6 +204,7 @@ func load() (*types.Config, error) {
 	}
 	if cfg.GetBool(pktcapNS("enabled")) {
 		c.EnabledModules[PacketCaptureModule] = struct{}{}
+		c.PacketCaptureSocket = cfg.GetString(pktcapNS("socket"))
 	}
 	// Read from the core config (datadog.yaml), not the system-probe config, so that
 	// enabling logon_duration in the core agent (e.g. via infrastructure_mode:
