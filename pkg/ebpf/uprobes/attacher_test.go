@@ -100,7 +100,7 @@ func TestAttachLibraryHonorsExcludeInternal(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var entries []kernel.FakeProcFSEntry
 			if tt.createProcess {
-				entries = append(entries, kernel.FakeProcFSEntry{Pid: pid, Cmdline: tt.exe, Command: tt.exe, Exe: tt.exe})
+				entries = append(entries, kernel.FakeProcFSEntry{Pid: pid, Cmdline: tt.exe, Command: filepath.Base(tt.exe), Exe: tt.exe})
 			}
 			procRoot := kernel.CreateFakeProcFS(t, entries)
 
@@ -223,6 +223,22 @@ func TestAttachPidReturnsCorrectErrors(t *testing.T) {
 				}, nil
 			},
 			expectedError: ErrSelfExcluded,
+			isExpected:    true,
+			shouldLog:     false,
+		},
+		{
+			name: "external excluded",
+			pid:  1,
+			setup: func(_ *testing.T, pid uint32) (AttacherConfig, *MockBinaryInspector) {
+				exe := "redis/redisd"
+				procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: filepath.Base(exe), Exe: exe}})
+
+				return AttacherConfig{
+					ProcRoot:         procRoot,
+					ExternalExcludes: []string{"redisd"},
+				}, nil
+			},
+			expectedError: ErrExternalProcessRejected,
 			isExpected:    true,
 			shouldLog:     false,
 		},
