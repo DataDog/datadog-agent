@@ -127,8 +127,8 @@ type timeSeriesStorage struct {
 	// It is updated under mu whenever a non-telemetry series is added or removed.
 	liveSeriesCount int
 
-	// Global generation for the series catalog; increments on insertion,
-	// removal, or when an unknown metric type becomes known.
+	// Global generation for the series catalog; increments only when a new
+	// series key is created, not on every write to an existing series.
 	seriesGen uint64
 
 	// tagIntern maps an unordered tag-set fingerprint to the canonical immutable
@@ -409,7 +409,6 @@ func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, valu
 	// later observation, but conflicting known types do not rewrite history.
 	if stats.MetricType == observer.UnknownType && metricType != observer.UnknownType {
 		stats.MetricType = metricType
-		s.seriesGen++
 	}
 	res := AddResult{IsNew: !exists, Ref: stats.ref}
 	stats.writeGeneration++
@@ -929,8 +928,8 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 }
 
 // SeriesGeneration returns a counter that increments whenever the series
-// catalog changes: a series is inserted or removed, or its unknown metric
-// type becomes known.
+// catalog changes — either when a new series key is created or when an
+// existing key is removed via RemoveSeriesByRefs or RemoveSeriesByMetricName.
 // Callers can use this to safely cache ListSeries results.
 func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	s.mu.RLock()

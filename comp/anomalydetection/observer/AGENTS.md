@@ -132,8 +132,8 @@ writing. Detectors can pick any aggregation without re-ingesting data.
 
 Input metric types flow through both live handles and synchronous replay into
 `SeriesMeta.MetricType`; storage retains one type per series, never per point.
-The first known type wins. An unknown type can become known later, which also
-invalidates the series catalog generation. Type changes do not create new series.
+The first known type wins. An unknown type can become known later without
+changing the series identity or catalog generation. Type changes do not create new series.
 Log pattern frequencies and connection-error totals use `metrics.CountType`;
 numeric JSON fields use `metrics.GaugeType`. `metrics.CounterType` is the
 DogStatsD counter normalized to a rate, not the type for log event totals.

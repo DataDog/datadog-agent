@@ -1183,8 +1183,7 @@ func TestStorageMetricTypeIsSeriesMetadata(t *testing.T) {
 	generation := s.SeriesGeneration()
 	known := add(metrics.CountType, 101)
 	require.Equal(t, first.Ref, known.Ref)
-	require.Greater(t, s.SeriesGeneration(), generation)
-	generation = s.SeriesGeneration()
+	require.Equal(t, generation, s.SeriesGeneration())
 	// A conflicting type or a late sample with no type cannot change the series type.
 	add(metrics.GaugeType, 102)
 	add(observer.UnknownType, 99)

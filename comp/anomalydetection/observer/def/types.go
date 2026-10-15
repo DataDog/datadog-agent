@@ -644,8 +644,8 @@ type StorageReader interface {
 	WriteGeneration(handle SeriesRef) int64
 
 	// SeriesGeneration returns a global counter that increments only when the
-	// series catalog changes, including an unknown metric type becoming known.
-	// Use this to cache ListSeries results.
+	// set of known series changes. Use this to cache ListSeries results and
+	// refresh them only when new series keys appear.
 	SeriesGeneration() uint64
 }
 
