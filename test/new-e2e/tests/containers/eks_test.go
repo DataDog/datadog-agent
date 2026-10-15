@@ -69,10 +69,10 @@ func (suite *eksSuite) SetupSuite() {
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.envSpecificClusterTags = []string{"^kube_distribution:eks$"}
 	// Authoritative EKS cluster identity resolved by the Cluster Agent through eks:DescribeCluster.
+	// Only eks_cluster_arn is emitted; the ARN encodes the account and Region. The regex accepts
+	// every AWS partition (aws, aws-cn, aws-us-gov, aws-iso*, aws-eusc).
 	suite.envContainerTags = []string{
-		`^eks_cluster_arn:arn:aws:eks:[a-z0-9-]+:[0-9]{12}:cluster/[A-Za-z0-9_-]+$`,
-		`^aws_account:[0-9]{12}$`,
-		`^region:[a-z0-9-]+$`,
+		`^eks_cluster_arn:arn:aws[a-z-]*:eks:[a-z0-9-]+:[0-9]{12}:cluster/[A-Za-z0-9_-]+$`,
 	}
 }
 
@@ -326,9 +326,7 @@ func (suite *eksSuite) TestHostTags() {
 			`nodegroup-image:ami-[0-9a-f]{17}`,
 			`^os:linux$`,
 			// Authoritative EKS identity; present on nodes whose Agent reaches the Cluster Agent.
-			`^eks_cluster_arn:arn:aws:eks:[a-z0-9-]+:[0-9]{12}:cluster/[A-Za-z0-9_-]+$`,
-			`^aws_account:[0-9]{12}$`,
-			`^region:[a-z0-9-]+$`,
+			`^eks_cluster_arn:arn:aws[a-z-]*:eks:[a-z0-9-]+:[0-9]{12}:cluster/[A-Za-z0-9_-]+$`,
 		},
 	}
 

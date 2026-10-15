@@ -29,7 +29,7 @@ func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
 	}
 	tags := identity.Tags()
 	if tags == nil {
-		return nil, errors.New("Cluster Agent returned incomplete EKS identity")
+		return nil, errors.New("cluster agent returned incomplete EKS identity")
 	}
 	return tags, nil
 }

@@ -75,8 +75,6 @@ func TestResolveFallsBackToConfiguredName(t *testing.T) {
 	assert.Equal(t, "orders", state.requested)
 	assert.ElementsMatch(t, []string{
 		"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
-		"aws_account:123456789012",
-		"region:us-west-2",
 	}, Tags(t.Context()))
 }
 

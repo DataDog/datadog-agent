@@ -14,6 +14,7 @@ go_library(
         "@com_github_aws_aws_sdk_go_v2//aws/arn",
         "@com_github_aws_aws_sdk_go_v2_config//:config",
         "@com_github_aws_aws_sdk_go_v2_service_eks//:eks",
+        "@com_github_aws_smithy_go//:smithy-go",
     ],
 )
 
@@ -25,6 +26,7 @@ dd_agent_go_test(
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_service_eks//:eks",
         "@com_github_aws_aws_sdk_go_v2_service_eks//types",
+        "@com_github_aws_smithy_go//:smithy-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

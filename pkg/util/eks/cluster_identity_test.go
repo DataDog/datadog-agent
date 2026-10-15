@@ -8,11 +8,14 @@ package eks
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
 	awsekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	smithy "github.com/aws/smithy-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -177,11 +180,44 @@ func TestClusterIdentityTags(t *testing.T) {
 	}
 	assert.Equal(t, []string{
 		"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
-		"aws_account:123456789012",
-		"region:us-west-2",
 	}, identity.Tags())
 
 	var nilIdentity *ClusterIdentity
 	assert.Nil(t, nilIdentity.Tags())
-	assert.Nil(t, (&ClusterIdentity{ClusterARN: identity.ClusterARN}).Tags())
+	// A malformed ARN yields no tag, even if the other fields are set.
+	assert.Nil(t, (&ClusterIdentity{ClusterARN: "not-an-arn", AccountID: "123456789012", Region: "us-west-2"}).Tags())
+	// A valid ARN alone is sufficient; account and Region are encoded in it.
+	assert.Equal(t, []string{
+		"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
+	}, (&ClusterIdentity{ClusterARN: identity.ClusterARN}).Tags())
+}
+
+func TestFailureTTLClassifiesTransientVsPermanent(t *testing.T) {
+	// Permanent: self-consistency and access failures do not clear on their own.
+	assert.Equal(t, failureCacheTTL, failureTTL(ErrInvalidClusterIdentity))
+	assert.Equal(t, failureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "AccessDeniedException", Message: "no"}))
+	assert.Equal(t, failureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "ResourceNotFoundException", Message: "no"}))
+
+	// Transient: context deadline, throttling, and server-fault errors are retried soon.
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(context.DeadlineExceeded))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(fmt.Errorf("wrap: %w", context.Canceled)))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "ThrottlingException", Message: "slow down", Fault: smithy.FaultClient}))
+	assert.Equal(t, transientFailureCacheTTL, failureTTL(&smithy.GenericAPIError{Code: "InternalServerErrorException", Message: "boom", Fault: smithy.FaultServer}))
+}
+
+func TestGetClusterIdentityRejectsOverlongName(t *testing.T) {
+	// clusterNamePattern bounds the name at 100 chars; a 101-char name is rejected before any API call.
+	id, err := GetClusterIdentity(context.Background(), "a"+strings.Repeat("b", 100))
+	assert.Nil(t, id)
+	assert.ErrorIs(t, err, ErrInvalidClusterName)
+}
+
+func TestIsValidClusterARN(t *testing.T) {
+	assert.True(t, isValidClusterARN("arn:aws:eks:us-west-2:123456789012:cluster/orders"))
+	assert.True(t, isValidClusterARN("arn:aws-us-gov:eks:us-gov-west-1:123456789012:cluster/orders"))
+	assert.False(t, isValidClusterARN(""))
+	assert.False(t, isValidClusterARN("not-an-arn"))
+	assert.False(t, isValidClusterARN("arn:aws:ec2:us-west-2:123456789012:cluster/orders"))   // wrong service
+	assert.False(t, isValidClusterARN("arn:aws:eks:us-west-2:12345:cluster/orders"))          // bad account
+	assert.False(t, isValidClusterARN("arn:aws:eks:us-west-2:123456789012:nodegroup/orders")) // wrong resource
 }
