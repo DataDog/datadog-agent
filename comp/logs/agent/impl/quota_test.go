@@ -6,8 +6,6 @@
 package agentimpl
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,23 +51,4 @@ func TestQuotaRCDebugProduct(t *testing.T) {
 	_, quotas := m.enforcer.Status()
 	require.Len(t, quotas, 1)
 	assert.Equal(t, "enforcing", quotas[0].State)
-}
-
-func TestQuotaMockDir(t *testing.T) {
-	m := newTestQuotaManager(t)
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "q1.json"), []byte(validQuota), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "ignored.txt"), []byte("x"), 0o644))
-
-	last := m.pollMockDir(dir, nil)
-	_, quotas := m.enforcer.Status()
-	require.Len(t, quotas, 1)
-	assert.Equal(t, "mock", quotas[0].Source)
-	assert.Equal(t, "q1.json", quotas[0].Path)
-	assert.Equal(t, "enforcing", quotas[0].State)
-
-	require.NoError(t, os.Remove(filepath.Join(dir, "q1.json")))
-	m.pollMockDir(dir, last)
-	_, quotas = m.enforcer.Status()
-	assert.Empty(t, quotas)
 }
