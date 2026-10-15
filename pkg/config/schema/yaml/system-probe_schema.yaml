@@ -634,6 +634,12 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      excluded_cert_processes:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
       enable_cilium_lb_conntracker:
         node_type: setting
         type: boolean
