@@ -84,6 +84,22 @@ func (c *PodResourcesClient) ListPodResources(ctx context.Context) ([]*podresour
 	return resp.GetPodResources(), err
 }
 
+// GetAllocatableDeviceIDs returns the IDs of the devices the kubelet currently
+// reports as allocatable, across all resource names. The kubelet only reports
+// devices the device plugin advertises as healthy.
+func (c *PodResourcesClient) GetAllocatableDeviceIDs(ctx context.Context) ([]string, error) {
+	resp, err := c.client.GetAllocatableResources(ctx, &podresourcesv1.AllocatableResourcesRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	var ids []string
+	for _, device := range resp.GetDevices() {
+		ids = append(ids, device.GetDeviceIds()...)
+	}
+	return ids, nil
+}
+
 // GetContainerResourcesMap returns the PodResources allocations assigned to each container.
 func (c *PodResourcesClient) GetContainerResourcesMap(ctx context.Context) (map[ContainerKey][]ContainerAllocatedResource, error) {
 	pods, err := c.ListPodResources(ctx)

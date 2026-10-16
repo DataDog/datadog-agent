@@ -927,7 +927,11 @@ metrics:
         Whether the GPU is unavailable for the reason in the unavailable_reason
         tag. The lost reason means NVML reports the GPU as inaccessible
         (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
-        0 means available, 1 means unavailable.
+        The not_allocatable reason means the Kubernetes device plugin has marked
+        the GPU (or one of its MIG slices) unhealthy, so the kubelet no longer
+        reports it as allocatable; it is only reported on Kubernetes nodes where
+        the kubelet PodResources API is reachable. 0 means available, 1 means
+        unavailable.
       aggregation: absolute_usage
     tagsets:
       - device
@@ -935,10 +939,11 @@ metrics:
       - unavailable_reason
     validator:
       values: [0, 1]
+    optional: true
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
         physical: true
         vgpu: true
   device.needs_recovery:

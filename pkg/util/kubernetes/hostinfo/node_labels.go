@@ -63,3 +63,9 @@ func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error)
 func (n *NodeInfo) GetNodeName(ctx context.Context) (string, error) {
 	return n.client.GetNodename(ctx)
 }
+
+// GetAllocatableDeviceIDs returns the IDs of the devices the kubelet currently
+// reports as allocatable on this host, across all resource names.
+func (n *NodeInfo) GetAllocatableDeviceIDs(ctx context.Context) ([]string, error) {
+	return n.client.GetAllocatableDeviceIDs(ctx)
+}

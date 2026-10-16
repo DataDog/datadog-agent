@@ -489,6 +489,16 @@ func (ku *KubeUtil) GetDevicesList(ctx context.Context) ([]*Device, error) {
 	return devices, nil
 }
 
+// GetAllocatableDeviceIDs returns the IDs of the devices the kubelet currently
+// reports as allocatable, across all resource names. It returns an error if the
+// pod resources API is not available.
+func (ku *KubeUtil) GetAllocatableDeviceIDs(ctx context.Context) ([]string, error) {
+	if ku.podResourcesClient == nil {
+		return nil, errors.New("pod resources client is not available")
+	}
+	return ku.podResourcesClient.GetAllocatableDeviceIDs(ctx)
+}
+
 // GetLocalPodList returns the list of pods running on the node.
 // If kubernetes_pod_expiration_duration is set, old exited pods
 // will be filtered out to keep the podlist size down: see json.go
