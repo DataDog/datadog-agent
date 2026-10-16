@@ -1,0 +1,38 @@
+//go:build anomalydetectiontestbench && linux
+
+package observerimpl
+
+import "testing"
+
+func TestSeasonalIntegrationScratchOwnership(t *testing.T) {
+	if seasonalIntegrationMode == "" || seasonalIntegrationMode == "baseline" {
+		t.Skip("shared scratch arm only")
+	}
+	old := realSeasonalDiscoverAll
+	realSeasonalDiscoverAll = true
+	defer func() { realSeasonalDiscoverAll = old }()
+	d := realSeasonalTestWrapper("phase_pooled_floor")
+	d.budget = newSeasonalAdmissionBudget(1200)
+	f := &seasonalProfileFixture{storage: newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 120}), detector: d, names: []string{"integration_a", "integration_b", "integration_c"}, tags: make([][]string, 3)}
+	for i := 0; i < 200; i++ {
+		f.step(i)
+	}
+	if len(d.sharedLikelihoodScratch) == 0 || len(d.states) != 3 {
+		t.Fatal("shared scratch or series state missing")
+	}
+	for _, s := range d.states {
+		if s.detector.(*BOCPDDetector).likelihoodScratch != nil || s.countDetector.(*BOCPDDetector).likelihoodScratch != nil {
+			t.Fatal("series retained transient scratch")
+		}
+		if len(s.detector.(*BOCPDDetector).series) == 0 {
+			t.Fatal("private posterior state missing")
+		}
+	}
+	if d.reusableReader.StorageReader != nil || d.reusableExcludedReader.StorageReader != nil {
+		t.Fatal("reader retained storage after synchronous call")
+	}
+	d.Reset()
+	if d.sharedLikelihoodScratch != nil || len(d.states) != 0 {
+		t.Fatal("reset retained owned state")
+	}
+}

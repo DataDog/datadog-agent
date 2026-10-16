@@ -1,0 +1,79 @@
+//go:build anomalydetectiontestbench
+
+package observerimpl
+
+import (
+	"math"
+	"reflect"
+	"testing"
+)
+
+func TestSeasonalConstantHistoryEquivalence(t *testing.T) {
+	for _, kind := range []string{"flat", "negative", "late_change", "signed_zero", "gap", "nonfinite", "late_first", "seasonal_after_flat", "noise"} {
+		t.Run(kind, func(t *testing.T) {
+			compact, _ := newHourlyAdaptiveSeasonalModel(15, []int{120, 240})
+			dense, _ := newHourlyAdaptiveSeasonalModel(15, []int{120, 240})
+			dense.expandHistory()
+			for slot := 0; slot < 600; slot++ {
+				value := 7.0
+				switch kind {
+				case "negative":
+					value = -7
+				case "late_change":
+					if slot >= 300 {
+						value = 9
+					}
+				case "signed_zero":
+					value = 0
+					if slot >= 300 {
+						value = math.Copysign(0, -1)
+					}
+				case "gap":
+					if slot == 20 || (slot >= 300 && slot < 450) {
+						continue
+					}
+				case "nonfinite":
+					if slot == 100 {
+						value = math.NaN()
+					}
+					if slot == 300 {
+						value = math.Inf(1)
+					}
+				case "late_first":
+					if slot < 200 {
+						continue
+					}
+				case "seasonal_after_flat":
+					if slot >= 200 {
+						value = 10 + math.Sin(float64(slot%16)*math.Pi/8)*5
+					}
+				case "noise":
+					value = float64((slot * 137) % 97)
+				}
+				a, b := compact.Observe(slot, value), dense.Observe(slot, value)
+				if !reflect.DeepEqual(a, b) || !reflect.DeepEqual(compact.Profile, dense.Profile) || compact.LastFit != dense.LastFit || compact.Revision != dense.Revision || compact.Offset != dense.Offset || compact.Rejected != dense.Rejected {
+					t.Fatalf("model diverged at %d", slot)
+				}
+				for i := max(0, slot-130); i <= slot+1; i++ {
+					x, xok := compact.sample(i)
+					y, yok := dense.sample(i)
+					if xok != yok || (xok && math.Float64bits(x) != math.Float64bits(y)) {
+						t.Fatalf("sample diverged at slot %d index %d", slot, i)
+					}
+				}
+				if compact.append(slot, value) || dense.append(slot, value) {
+					t.Fatal("duplicate accepted")
+				}
+			}
+			if kind == "flat" || kind == "negative" {
+				if !compact.constantHistory || len(compact.History) != 0 || len(compact.Valid) != 0 {
+					t.Fatal("constant allocated dense history")
+				}
+			}
+			compact.releaseHistory()
+			if compact.historyCapacity() != 0 || compact.constantHistory {
+				t.Fatal("released state retained history")
+			}
+		})
+	}
+}

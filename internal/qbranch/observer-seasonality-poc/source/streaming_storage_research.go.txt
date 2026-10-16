@@ -1,0 +1,10 @@
+//go:build anomalydetectiontestbench
+
+package observerimpl
+
+// TestbenchStreamingStorageConfig uses the live Agent's detector-derived
+// retention policy. This research harness helper does not change detectors.
+func TestbenchStreamingStorageConfig(settings ComponentSettings) StorageConfig {
+	detectors, _, _, _, _ := defaultCatalog().Instantiate(settings)
+	return storageConfigFromAgentConfig(nil, detectors)
+}

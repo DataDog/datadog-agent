@@ -1,0 +1,418 @@
+//go:build anomalydetectiontestbench
+
+// Research adapter installed only into the isolated main checkout.
+// MODEL_SOURCE is replaced by the exact, namespaced v2 model when installing.
+package observerimpl
+
+import (
+	"fmt"
+	"math"
+	"os"
+	"sort"
+)
+
+var seasonalCorrelationRequired = os.Getenv("OBSERVER_REAL_SEASONAL_CORRELATION") != "off"
+
+type hourlySeasonalProfile struct {
+	Center []float64 `json:"center"`
+	Scale  []float64 `json:"scale"`
+	Period int       `json:"period"`
+	Gain   float64   `json:"validation_gain"`
+	ACF    float64   `json:"autocorrelation"`
+}
+
+func hourlySeasonalMedian(x []float64) float64 {
+	sort.Float64s(x)
+	n := len(x)
+	if n%2 == 1 {
+		return x[n/2]
+	}
+	return (x[n/2-1] + x[n/2]) / 2
+}
+
+const hourlyAdaptiveMaxPeriod = 1024
+const hourlyAdaptiveMaxCandidates = 32
+
+type hourlyAdaptiveChange struct {
+	At     int    `json:"at"`
+	Kind   string `json:"kind"`
+	Period int    `json:"period"`
+	Offset int    `json:"offset"`
+}
+
+// All persistent collections have configuration-derived fixed bounds. The
+// replay result may record unbounded changes; the model itself keeps counters.
+type hourlyAdaptiveSeasonalModel struct {
+	Version          int
+	Step             int
+	Candidates       []int
+	historySize      int
+	constantHistory  bool
+	constantValue    float64
+	History          []float64
+	Valid            []bool
+	Last             int
+	Profile          *hourlySeasonalProfile
+	Offset           int
+	Revision         int
+	AnchorLow        float64
+	AnchorHigh       float64
+	AnchorNoise      float64
+	PhaseChanges     int
+	Replacements     int
+	Rejected         int
+	LastFit          int
+	CandidateOldLoss float64
+	CandidateNewLoss float64
+}
+
+func hourlyAdaptiveFinite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
+func hourlyAdaptiveMod(i, n int) int      { return (i%n + n) % n }
+
+func newHourlyAdaptiveSeasonalModel(step int, seconds []int) (*hourlyAdaptiveSeasonalModel, error) {
+	if step <= 0 || len(seconds) == 0 || len(seconds) > hourlyAdaptiveMaxCandidates {
+		return nil, fmt.Errorf("invalid cadence/candidate count")
+	}
+	m := &hourlyAdaptiveSeasonalModel{Version: 1, Step: step, Last: -1, LastFit: -1}
+	for _, s := range seconds {
+		if s <= 0 || s%step != 0 {
+			return nil, fmt.Errorf("period must be a positive multiple of cadence")
+		}
+		p := s / step
+		if p < 8 || p > hourlyAdaptiveMaxPeriod {
+			return nil, fmt.Errorf("period exceeds supported slot bounds")
+		}
+		m.Candidates = append(m.Candidates, p)
+	}
+	sort.Ints(m.Candidates)
+	m.Candidates = compactHourlyAdaptiveInts(m.Candidates)
+	size := realSeasonalPlan.cycles() * m.Candidates[len(m.Candidates)-1]
+	m.historySize = size
+	m.constantHistory = true
+	return m, nil
+}
+func compactHourlyAdaptiveInts(in []int) []int {
+	out := in[:0]
+	for _, v := range in {
+		if len(out) == 0 || out[len(out)-1] != v {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// Compact only an exactly constant, contiguous finite prefix. Any gap,
+// nonfinite value or changed float64 bit pattern expands to the original ring.
+// This changes representation only: qualification and fit schedules are intact.
+func (m *hourlyAdaptiveSeasonalModel) historyCapacity() int {
+	if m.constantHistory {
+		return m.historySize
+	}
+	return len(m.History)
+}
+func (m *hourlyAdaptiveSeasonalModel) expandHistory() {
+	if !m.constantHistory {
+		return
+	}
+	m.History = make([]float64, m.historySize)
+	m.Valid = make([]bool, m.historySize)
+	for slot := max(0, m.Last-m.historySize+1); slot <= m.Last; slot++ {
+		i := slot % m.historySize
+		m.History[i], m.Valid[i] = m.constantValue, true
+	}
+	m.constantHistory = false
+}
+func (m *hourlyAdaptiveSeasonalModel) releaseHistory() {
+	m.History, m.Valid = nil, nil
+	m.historySize, m.constantValue, m.constantHistory = 0, 0, false
+}
+func (m *hourlyAdaptiveSeasonalModel) sample(slot int) (float64, bool) {
+	if slot < 0 || slot > m.Last || slot <= m.Last-m.historyCapacity() {
+		return 0, false
+	}
+	if m.constantHistory {
+		return m.constantValue, true
+	}
+	i := slot % len(m.History)
+	return m.History[i], m.Valid[i]
+}
+func (m *hourlyAdaptiveSeasonalModel) append(slot int, value float64) bool {
+	if slot <= m.Last {
+		return false
+	}
+	if m.constantHistory {
+		if slot == m.Last+1 && hourlyAdaptiveFinite(value) && (m.Last < 0 || math.Float64bits(value) == math.Float64bits(m.constantValue)) {
+			m.constantValue, m.Last = value, slot
+			return true
+		}
+		m.expandHistory()
+	}
+	for i := max(m.Last+1, slot-len(m.History)+1); i <= slot; i++ {
+		m.Valid[i%len(m.Valid)] = false
+	}
+	i := slot % len(m.History)
+	m.History[i] = 0
+	m.Valid[i] = hourlyAdaptiveFinite(value)
+	if m.Valid[i] {
+		m.History[i] = value
+	}
+	m.Last = slot
+	return true
+}
+func (m *hourlyAdaptiveSeasonalModel) Predict(slot int) (float64, float64, bool) {
+	if m.Profile == nil {
+		return 0, 1, false
+	}
+	i := hourlyAdaptiveMod(slot-m.Offset, m.Profile.Period)
+	return m.Profile.Center[i], m.Profile.Scale[i], true
+}
+
+func hourlyAdaptiveQuantile(x []float64, q float64) float64 {
+	v := append([]float64(nil), x...)
+	sort.Float64s(v)
+	return v[int(float64(len(v)-1)*q)]
+}
+
+// Fit by absolute slot phase so missing data and rolling-history eviction do
+// not rotate the learned template. Noise floors use training units, not 1.0.
+func (m *hourlyAdaptiveSeasonalModel) fit(start, end, period int) *hourlySeasonalProfile {
+	if end-start < min(4, realSeasonalPlan.FitCycles)*period {
+		return nil
+	}
+	p := &hourlySeasonalProfile{Period: period, Center: make([]float64, period), Scale: make([]float64, period)}
+	residuals := make([]float64, 0, end-start)
+	maxAbs := 0.0
+	for phase := 0; phase < period; phase++ {
+		x := make([]float64, 0, (end-start)/period+1)
+		first := start + hourlyAdaptiveMod(phase-start, period)
+		for i := first; i < end; i += period {
+			if v, ok := m.sample(i); ok {
+				x = append(x, v)
+				maxAbs = math.Max(maxAbs, math.Abs(v))
+			}
+		}
+		if len(x) < min(4, realSeasonalPlan.FitCycles) {
+			return nil
+		}
+		p.Center[phase] = hourlySeasonalMedian(x)
+		for j := range x {
+			x[j] = math.Abs(x[j] - p.Center[phase])
+			residuals = append(residuals, x[j])
+		}
+		p.Scale[phase] = 1.4826 * hourlySeasonalMedian(x)
+	}
+	noise := 1.4826 * hourlySeasonalMedian(residuals)
+	// Numerical floor follows float64 resolution rather than the metric's
+	// absolute level (large counters converted to gauges may have tiny noise).
+	ulp := math.Nextafter(maxAbs, math.Inf(1)) - maxAbs
+	floor := math.Max(noise*0.5, math.Max(math.SmallestNonzeroFloat64, 32*ulp))
+	for i := range p.Scale {
+		p.Scale[i] = math.Max(floor, p.Scale[i])
+	}
+	return p
+}
+
+func (m *hourlyAdaptiveSeasonalModel) candidate() *hourlySeasonalProfile {
+	var best *hourlySeasonalProfile
+	for _, period := range m.Candidates {
+		// Use the configured fit/validation cycles; allocation never implies observations.
+		start := m.Last + 1 - realSeasonalPlan.cycles()*period
+		if start < 0 || start <= m.Last-m.historyCapacity() {
+			continue
+		}
+		cut := start + realSeasonalPlan.FitCycles*period
+		end := m.Last + 1
+		p := m.fit(start, cut, period)
+		if p == nil {
+			continue
+		}
+		var mean, count float64
+		for i := start; i < cut; i++ {
+			if v, ok := m.sample(i); ok {
+				mean += v
+				count++
+			}
+		}
+		if count < float64(realSeasonalPlan.FitCycles*period)*5/6 {
+			continue
+		}
+		mean /= count
+		// A return to a steady level after a one-off incident can beat the
+		// full training mean without being periodic. Require improvement over
+		// a recent-level forecast as well; both baselines use training only.
+		var recentMean, recentCount float64
+		for i := cut - period; i < cut; i++ {
+			if v, ok := m.sample(i); ok {
+				recentMean += v
+				recentCount++
+			}
+		}
+		if recentCount < float64(period)*.75 {
+			continue
+		}
+		recentMean /= recentCount
+		var err, base, recentBase, pairs, sx, sy, sxx, syy, sxy float64
+		valid := 0
+		for i := cut; i < end; i++ {
+			if v, ok := m.sample(i); ok {
+				err += math.Pow(v-p.Center[i%period], 2)
+				base += math.Pow(v-mean, 2)
+				recentBase += math.Pow(v-recentMean, 2)
+				valid++
+			}
+		}
+		base = math.Min(base, recentBase)
+		if valid < period || base <= 0 || !hourlyAdaptiveFinite(base) || !hourlyAdaptiveFinite(err) {
+			continue
+		}
+		gain := 1 - err/base
+		for i := start + period; i < end; i++ {
+			a, ok := m.sample(i)
+			b, ok2 := m.sample(i - period)
+			if ok && ok2 {
+				a -= mean
+				b -= mean
+				sx += a
+				sy += b
+				sxx += a * a
+				syy += b * b
+				sxy += a * b
+				pairs++
+			}
+		}
+		// Keep correlation as a diagnostic when disabled; invalid correlation is
+		// represented by zero, but never acts as a hidden eligibility gate.
+		acf := 0.0
+		validACF := false
+		if pairs >= 2 {
+			den := (sxx - sx*sx/pairs) * (syy - sy*sy/pairs)
+			if den > 0 {
+				acf = (sxy - sx*sy/pairs) / math.Sqrt(den)
+				validACF = hourlyAdaptiveFinite(acf)
+			}
+		}
+		if !validACF {
+			acf = 0
+		}
+		if !hourlyAdaptiveFinite(gain) || gain < 0.5 || (seasonalCorrelationRequired && (!validACF || acf < 0.6)) {
+			continue
+		}
+		if best == nil || gain > best.Gain+0.02 {
+			// Compare against the active model on data excluded from this fit.
+			// Comparing the final full-cycle refit on its own training suffix
+			// would promote noise-fitting candidates and reset detectors needlessly.
+			if m.Profile != nil {
+				oldLoss := m.loss(m.Profile, m.Offset, cut, end)
+				newLoss := m.loss(p, 0, cut, end)
+				if !hourlyAdaptiveFinite(oldLoss) || !hourlyAdaptiveFinite(newLoss) {
+					continue
+				}
+				m.CandidateOldLoss = oldLoss
+				m.CandidateNewLoss = newLoss
+			}
+			best = m.fit(start, end, period)
+			if best != nil {
+				best.Gain = gain
+				best.ACF = acf
+			}
+		}
+	}
+	return best
+}
+
+func (m *hourlyAdaptiveSeasonalModel) loss(p *hourlySeasonalProfile, offset, start, end int) float64 {
+	var sum float64
+	n := 0
+	for i := start; i < end; i++ {
+		if v, ok := m.sample(i); ok {
+			phase := hourlyAdaptiveMod(i-offset, p.Period)
+			// Compare forecasts on one fixed scale. Letting each candidate use
+			// its own spread would reward inflating uncertainty without improving
+			// the predicted values. Phase-specific scales remain an output ablation.
+			z := math.Abs(v-p.Center[phase]) / m.AnchorNoise
+			// Limit an isolated incident's influence on schedule matching.
+			sum += math.Min(z*z, 36)
+			n++
+		}
+	}
+	if n < (end-start)*3/4 {
+		return math.Inf(1)
+	}
+	return sum / float64(n)
+}
+
+func (m *hourlyAdaptiveSeasonalModel) activate(p *hourlySeasonalProfile) {
+	m.Profile = p
+	m.Offset = 0
+	m.Revision++
+	m.AnchorLow = hourlyAdaptiveQuantile(p.Center, .1)
+	m.AnchorHigh = hourlyAdaptiveQuantile(p.Center, .9)
+	m.AnchorNoise = hourlyAdaptiveQuantile(p.Scale, .5)
+}
+
+// Observe must be called AFTER scoring Predict(slot). Phase matching uses two
+// prior cycles and occurs at most four times/cycle; refits at most once/2 cycles.
+// Poor fit alone does not disable a model: a real fault can also cause poor fit.
+func (m *hourlyAdaptiveSeasonalModel) Observe(slot int, value float64) *hourlyAdaptiveChange {
+	if !m.append(slot, value) {
+		return nil
+	}
+	if m.Profile == nil {
+		// Continue bounded discovery after a cold start. Finding no initial
+		// seasonality is not a permanent decision about this series.
+		if slot != realSeasonalTrain-1 && slot-m.LastFit < 2*m.Candidates[len(m.Candidates)-1] {
+			return nil
+		}
+		m.LastFit = slot
+		if p := m.candidate(); p != nil {
+			m.activate(p)
+			return &hourlyAdaptiveChange{At: slot, Kind: "activation", Period: p.Period}
+		}
+		return nil
+	}
+	p := m.Profile
+	var change *hourlyAdaptiveChange
+	if (slot+1)%max(4, p.Period/4) == 0 {
+		start := max(0, slot+1-2*p.Period)
+		base := m.loss(p, m.Offset, start, slot+1)
+		best := base
+		offset := m.Offset
+		for delta := -min(12, max(1, p.Period/10)); delta <= min(12, max(1, p.Period/10)); delta++ {
+			score := m.loss(p, m.Offset+delta, start, slot+1)
+			if score < best {
+				best = score
+				offset = m.Offset + delta
+			}
+		}
+		if offset != m.Offset && best < base*.75 && base-best > .25 {
+			m.Offset = hourlyAdaptiveMod(offset, p.Period)
+			m.PhaseChanges++
+			change = &hourlyAdaptiveChange{At: slot, Kind: "phase", Period: p.Period, Offset: m.Offset}
+		}
+	}
+	if slot-m.LastFit < 2*p.Period {
+		return change
+	}
+	m.LastFit = slot
+	q := m.candidate()
+	if q == nil {
+		return change
+	}
+	// Preserve the original range as a guard against learning persistent faults.
+	// This deliberately also rejects sufficiently large legitimate level changes.
+	limit := math.Max(3*m.AnchorNoise, .15*(m.AnchorHigh-m.AnchorLow))
+	if math.Abs(hourlyAdaptiveQuantile(q.Center, .1)-m.AnchorLow) > limit || math.Abs(hourlyAdaptiveQuantile(q.Center, .9)-m.AnchorHigh) > limit {
+		m.Rejected++
+		return change
+	}
+	oldLoss := m.CandidateOldLoss
+	newLoss := m.CandidateNewLoss
+	if newLoss < oldLoss*.65 && oldLoss-newLoss > .5 {
+		m.Profile = q
+		m.Offset = 0
+		m.Revision++
+		m.Replacements++
+		change = &hourlyAdaptiveChange{At: slot, Kind: "profile", Period: q.Period}
+	}
+	return change
+}

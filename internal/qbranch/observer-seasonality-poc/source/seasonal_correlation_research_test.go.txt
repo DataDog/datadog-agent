@@ -1,0 +1,136 @@
+//go:build anomalydetectiontestbench
+
+package observerimpl
+
+import (
+	"encoding/json"
+	"math"
+	"os"
+	"reflect"
+	"testing"
+)
+
+// Fixed mechanism probes. These measure forecasts only, not detector accuracy.
+func TestSeasonalCorrelationForecastProbes(t *testing.T) {
+	path := os.Getenv("SEASONAL_CORRELATION_PROBES")
+	if path == "" {
+		t.Skip("explicit forecast probes")
+	}
+	old := seasonalCorrelationRequired
+	defer func() { seasonalCorrelationRequired = old }()
+	if realSeasonalPlan.FitCycles != 3 || realSeasonalPlan.ValidationCycles != 2 {
+		t.Fatal("requires six-hour schedule")
+	}
+	results := []map[string]any{}
+	for _, family := range []string{"stable", "noisy", "trend", "noise", "isolated_burst", "training_outlier", "alternating_amplitude", "pattern_disappears"} {
+		for seed := 0; seed < 16; seed++ {
+			values := make([]float64, 11*240)
+			rng := uint64(seed + 17)
+			for slot := range values {
+				rng = rng*6364136223846793005 + 1
+				noise := float64(rng>>11)/float64(uint64(1)<<53) - .5
+				phase := slot % 240
+				cycle := slot / 240
+				wave := 20 * math.Sin(2*math.Pi*float64(phase)/240)
+				if phase >= 120 && phase < 132 {
+					wave += 60
+				}
+				value := 100 + .4*noise
+				switch family {
+				case "stable":
+					value += wave
+				case "noisy":
+					value += wave + float64(20+seed*5)*noise
+				case "trend":
+					value += float64(slot) * .05
+				case "noise":
+					value += 80 * noise
+				case "isolated_burst":
+					if slot >= 240 && slot < 252 {
+						value += 100
+					}
+				case "training_outlier":
+					value += wave
+					if cycle == 0 && phase >= 120 && phase < 140 {
+						value += float64(200 + seed*100)
+					}
+				case "alternating_amplitude":
+					if cycle%2 == 0 {
+						value += wave
+					} else {
+						value += wave * float64(2+seed) / 2
+					}
+				case "pattern_disappears":
+					if slot < 6*240 {
+						value += wave
+					}
+				}
+				values[slot] = value
+			}
+			mean := func(a, b int) float64 {
+				sum := 0.0
+				for _, v := range values[a:b] {
+					sum += v
+				}
+				return sum / float64(b-a)
+			}
+			loss := func(level float64, a, b int) float64 {
+				sum := 0.0
+				for _, v := range values[a:b] {
+					sum += (v - level) * (v - level)
+				}
+				return sum / float64(b-a)
+			}
+			baseline := mean(0, 3*240)
+			recent := mean(2*240, 3*240)
+			if loss(recent, 3*240, 5*240) < loss(baseline, 3*240, 5*240) {
+				baseline = recent
+			}
+			baselineMSE := loss(baseline, 6*240, 11*240)
+			var previous *hourlySeasonalProfile
+			previousOffset := 0
+			for _, required := range []bool{true, false} {
+				seasonalCorrelationRequired = required
+				m, err := newHourlyAdaptiveSeasonalModel(15, []int{1800, 3600})
+				if err != nil {
+					t.Fatal(err)
+				}
+				for slot, v := range values[:5*240] {
+					m.Observe(slot, v)
+				}
+				row := map[string]any{"family": family, "seed": seed, "correlation_required": required, "qualified": m.Profile != nil, "baseline_future_mse": baselineMSE}
+				if m.Profile != nil {
+					sum := 0.0
+					for slot := 6 * 240; slot < 11*240; slot++ {
+						pred, _, ok := m.Predict(slot)
+						if !ok {
+							t.Fatal("prediction absent")
+						}
+						e := values[slot] - pred
+						sum += e * e
+					}
+					mse := sum / float64(5*240)
+					row["future_mse"] = mse
+					row["future_gain"] = 1 - mse/baselineMSE
+					row["period_seconds"] = m.Profile.Period * 15
+					row["validation_gain"] = m.Profile.Gain
+					row["correlation"] = m.Profile.ACF
+				}
+				if required {
+					previous = m.Profile
+					previousOffset = m.Offset
+				} else if previous != nil && m.Profile != nil {
+					row["same_as_gate_on_profile"] = reflect.DeepEqual(previous, m.Profile) && previousOffset == m.Offset
+				}
+				results = append(results, row)
+			}
+		}
+	}
+	data, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+}

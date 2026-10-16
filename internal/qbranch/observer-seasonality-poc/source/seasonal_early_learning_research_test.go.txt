@@ -1,0 +1,84 @@
+//go:build anomalydetectiontestbench
+
+package observerimpl
+
+import (
+	"math"
+	"reflect"
+	"testing"
+
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+)
+
+// Exercise the actual adapter transition, including release and BOCPD warmup.
+// Two identical pasts with different newly arriving boundary points must fit
+// identical baselines, divisors, and calibration variances.
+func TestEarlySeasonalBoundaryCausality(t *testing.T) {
+	const origin int64 = 100000
+	boundary := realSeasonalTrain + realSeasonalCalibration
+	var completed []*realSeasonalGaugeState
+	for _, poison := range []bool{false, true} {
+		storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 120})
+		d := realSeasonalTestWrapper("phase_pooled_floor")
+		for slot := 0; slot <= boundary; slot++ {
+			v := 100 + 25*math.Sin(2*math.Pi*float64(slot%240)/240) + .2*math.Sin(float64(slot)*.413)
+			if poison && slot == boundary {
+				v = 1e9
+			}
+			now := origin + int64(slot)*15
+			storage.Add("early", "system.load.1", v, now, nil)
+			d.Detect(storage, now)
+			s := d.states[realSeasonalTestMeta(t, storage).Ref]
+			if slot < boundary && s.mature {
+				t.Fatalf("early activation at slot %d", slot)
+			}
+			if slot == boundary {
+				if !s.mature || s.resets != 1 || s.reason != "" {
+					t.Fatalf("missing activation at %d: mature=%v resets=%d reason=%s", slot, s.mature, s.resets, s.reason)
+				}
+				if s.model.Profile.Period != 240 {
+					t.Fatalf("unexpected fitted period %d", s.model.Profile.Period)
+				}
+				if len(s.model.History) != 0 || len(s.model.Valid) != 0 || len(s.calibration) != 0 {
+					t.Fatal("finished learning retained arrays")
+				}
+				for _, x := range s.scale.Applied {
+					if !hourlyAdaptiveFinite(x) || x <= 0 {
+						t.Fatal("invalid divisor")
+					}
+				}
+				completed = append(completed, s)
+			}
+		}
+		refs := []observer.SeriesRef{}
+		for _, m := range storage.ListSeries(observer.WorkloadSeriesFilter()) {
+			refs = append(refs, m.Ref)
+		}
+		d.RemoveSeries(refs)
+		if len(d.states) != 0 || (d.budget != nil && len(d.budget.entries) != 0) {
+			t.Fatal("removal leaked state")
+		}
+	}
+	a, b := completed[0], completed[1]
+	if !reflect.DeepEqual(a.model.Profile.Center, b.model.Profile.Center) || !reflect.DeepEqual(a.scale.Applied, b.scale.Applied) || a.calibrationVariance != b.calibrationVariance {
+		t.Fatal("arriving point contaminated training or calibration")
+	}
+}
+
+func TestEarlySeasonalHistoryBound(t *testing.T) {
+	m, err := newHourlyAdaptiveSeasonalModel(15, []int{1800, 3600})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.historyCapacity() != realSeasonalPlan.cycles()*240 {
+		t.Fatal("history bound does not match plan")
+	}
+	// An allocated history must not qualify from less than the required cycles.
+	for slot := 0; slot < realSeasonalPlan.cycles()*240-1; slot++ {
+		v := 100 + 30*math.Sin(2*math.Pi*float64(slot%240)/240)
+		m.Observe(slot, v)
+		if m.Profile != nil && m.Profile.Period == 240 {
+			t.Fatalf("hourly model used fewer cycles at %d", slot)
+		}
+	}
+}

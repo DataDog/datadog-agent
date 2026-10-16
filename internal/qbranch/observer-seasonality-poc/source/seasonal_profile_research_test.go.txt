@@ -1,0 +1,269 @@
+//go:build anomalydetectiontestbench && linux
+
+package observerimpl
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"strconv"
+	"sync"
+	"syscall"
+	"testing"
+	"time"
+
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+)
+
+// This is a capacity fixture, not another detection-quality evaluation.
+// Every candidate learns causally through the unmodified research adapter.
+// All arms use identical bounded storage and input; no anomaly history is kept.
+type seasonalProfileFixture struct {
+	storage   *timeSeriesStorage
+	detector  observer.Detector
+	tags      [][]string
+	names     []string
+	anomalies int
+}
+
+type seasonalProfileSampler struct {
+	mu                                     sync.Mutex
+	maxHeapAlloc, maxHeapInuse, maxHeapSys uint64
+	samples                                int
+}
+
+func (s *seasonalProfileSampler) observe() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	s.mu.Lock()
+	s.maxHeapAlloc = max(s.maxHeapAlloc, m.HeapAlloc)
+	s.maxHeapInuse = max(s.maxHeapInuse, m.HeapInuse)
+	s.maxHeapSys = max(s.maxHeapSys, m.HeapSys)
+	s.samples++
+	s.mu.Unlock()
+}
+
+func seasonalProfileCPU() float64 {
+	var r syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &r); err != nil {
+		panic(err)
+	}
+	return float64(r.Utime.Sec+r.Stime.Sec) + float64(r.Utime.Usec+r.Stime.Usec)/1e6
+}
+
+func seasonalProfileMemory() map[string]any {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return map[string]any{"heap_alloc": m.HeapAlloc, "heap_inuse": m.HeapInuse, "heap_sys": m.HeapSys,
+		"heap_objects": m.HeapObjects, "total_alloc": m.TotalAlloc, "mallocs": m.Mallocs, "num_gc": m.NumGC, "pause_total_ns": m.PauseTotalNs}
+}
+
+func (f *seasonalProfileFixture) step(slot int) {
+	const origin int64 = 1700000000
+	now := origin + int64(slot)*15
+	for i := range f.names {
+		phase := slot % 240
+		pulse := 0.0
+		if phase >= 120 && phase < 128 {
+			pulse = 200
+		}
+		// Hourly shape with bounded non-repeating noise; different scales/offsets.
+		value := (100 + pulse + 5*math.Sin(float64(phase)*2*math.Pi/240) + .15*math.Sin(float64(slot)*.413+float64(i)*.09)) * (1 + float64(i%9)/10)
+		f.storage.Add("profile", f.names[i], value, now, f.tags[i])
+	}
+	f.anomalies += len(f.detector.Detect(f.storage, now).Anomalies)
+}
+
+func (f *seasonalProfileFixture) census() map[string]any {
+	out := map[string]any{"series": len(f.names), "detector_anomalies": f.anomalies}
+	d, ok := f.detector.(*realSeasonalDetector)
+	if !ok {
+		return out
+	}
+	var mature, frozen, finalized, rejected, calibration, historyBytes, profileBytes, scaleBytes, calibrationBytes int
+	periods := map[int]int{}
+	for _, s := range d.states {
+		if s.mature {
+			mature++
+		}
+		if s.frozen {
+			frozen++
+		}
+		if s.finalized {
+			finalized++
+		}
+		if s.reason != "" {
+			rejected++
+		}
+		calibration += len(s.calibration)
+		if s.model == nil {
+			continue
+		}
+		historyBytes += cap(s.model.History)*8 + cap(s.model.Valid)
+		calibrationBytes += cap(s.calibration) * 16
+		if p := s.model.Profile; p != nil {
+			periods[p.Period]++
+			profileBytes += (cap(p.Center) + cap(p.Scale)) * 8
+		}
+		if s.scale != nil {
+			scaleBytes += (cap(s.scale.Original) + cap(s.scale.Applied)) * 8
+		}
+	}
+	out["states"] = len(d.states)
+	out["mature"] = mature
+	out["frozen"] = frozen
+	out["finalized"] = finalized
+	out["rejected"] = rejected
+	out["periods"] = periods
+	out["calibration_points"] = calibration
+	out["history_array_capacity_bytes"] = historyBytes
+	out["profile_array_capacity_bytes"] = profileBytes
+	out["scale_array_capacity_bytes"] = scaleBytes
+	out["calibration_array_capacity_bytes"] = calibrationBytes
+	return out
+}
+
+func TestSeasonalCapacityProfile(t *testing.T) {
+	dir := os.Getenv("SEASONAL_PROFILE_DIR")
+	if dir == "" {
+		t.Skip("explicit capacity profiling only")
+	}
+	n, err := strconv.Atoi(os.Getenv("SEASONAL_PROFILE_N"))
+	if err != nil || n < 1 || n > 1200 {
+		t.Fatal("invalid N")
+	}
+	mode := os.Getenv("SEASONAL_PROFILE_MODE")
+	if mode != "raw_unwrapped" && mode != "raw_wrapped_nochange" && mode != "phase_pooled_floor" {
+		t.Fatal("invalid mode")
+	}
+	if len(realSeasonalSelectors) != 9 {
+		t.Fatal("use sealed nine-series selector file")
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	runtime.MemProfileRate = 64 * 1024
+	runtime.GOMAXPROCS(8)
+	result := map[string]any{"mode": mode, "n": n, "go_version": runtime.Version(), "gomaxprocs": runtime.GOMAXPROCS(0), "mem_profile_rate": runtime.MemProfileRate, "cadence_seconds": 15, "steady_steps": 240, "storage_max_points": 120}
+	snapshots := map[string]any{}
+	result["snapshots"] = snapshots
+	save := func() {
+		b, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "result.json"), b, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot := func(name string, f *seasonalProfileFixture) {
+		runtime.GC()
+		runtime.GC()
+		x := seasonalProfileMemory()
+		if f != nil {
+			x["census"] = f.census()
+		}
+		snapshots[name] = x
+		file, err := os.Create(filepath.Join(dir, name+".heap.pprof"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := pprof.WriteHeapProfile(file); err != nil {
+			t.Fatal(err)
+		}
+		file.Close()
+		runtime.KeepAlive(f)
+		save()
+		t.Logf("PROFILE_STAGE %s %s N=%d", name, mode, n)
+	}
+	// Initialize profiling I/O before the empty-process comparison snapshot.
+	snapshot("bootstrap", nil)
+	snapshot("empty", nil)
+	f := &seasonalProfileFixture{storage: newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 120}), tags: make([][]string, n), names: make([]string, n)}
+	for i := range n {
+		s := realSeasonalSelectors[i%len(realSeasonalSelectors)]
+		f.names[i] = s.Name
+		f.tags[i] = append(append([]string(nil), s.Tags...), fmt.Sprintf("profile_replica:%04d", i))
+	}
+	if mode == "raw_unwrapped" {
+		f.detector = realSeasonalTestFactory()
+	} else {
+		f.detector = realSeasonalTestWrapper(mode)
+	}
+	sampler := &seasonalProfileSampler{}
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		tick := time.NewTicker(50 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-tick.C:
+				sampler.observe()
+			case <-stop:
+				return
+			}
+		}
+	}()
+	start := time.Now()
+	for slot := 0; slot <= 2400; slot++ {
+		f.step(slot)
+		if slot == 0 {
+			snapshot("candidate_created", f)
+		}
+		if slot == 1920 {
+			snapshot("training_frozen", f)
+		}
+		if slot == 2399 {
+			snapshot("calibration_end", f)
+		}
+	}
+	close(stop)
+	<-done
+	result["learning_wall_seconds_instrumented"] = time.Since(start).Seconds()
+	result["learning_sampled_peak"] = map[string]any{"heap_alloc": sampler.maxHeapAlloc, "heap_inuse": sampler.maxHeapInuse, "heap_sys": sampler.maxHeapSys, "samples": sampler.samples, "sample_interval_ms": 50}
+	snapshot("mature", f)
+	if d, ok := f.detector.(*realSeasonalDetector); ok {
+		if len(d.states) != n {
+			t.Fatalf("wrong state count %d", len(d.states))
+		}
+		for ref, s := range d.states {
+			if s.reason != "" || !s.frozen || !s.finalized || s.model.Profile.Period != 240 || len(s.calibration) != 0 || (mode == "phase_pooled_floor" && !s.mature) {
+				t.Fatalf("invalid mature state %v: %s", ref, s.reason)
+			}
+		}
+	}
+	// Timed steady hour: no heap sampling or forced GC inside this segment.
+	// CPU profile includes ingestion + detector wrapper, not scorer/reporter.
+	file, err := os.Create(filepath.Join(dir, "steady.cpu.pprof"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pprof.StartCPUProfile(file); err != nil {
+		t.Fatal(err)
+	}
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	cpu := seasonalProfileCPU()
+	start = time.Now()
+	for slot := 2401; slot <= 2640; slot++ {
+		f.step(slot)
+	}
+	elapsed := time.Since(start).Seconds()
+	cpu = seasonalProfileCPU() - cpu
+	runtime.ReadMemStats(&after)
+	pprof.StopCPUProfile()
+	file.Close()
+	result["steady"] = map[string]any{"wall_seconds": elapsed, "process_cpu_seconds": cpu, "allocated_bytes": after.TotalAlloc - before.TotalAlloc, "allocations": after.Mallocs - before.Mallocs, "gc_cycles": after.NumGC - before.NumGC, "gc_pause_ns": after.PauseTotalNs - before.PauseTotalNs, "series_points": n * 240, "data_seconds": 3600}
+	snapshot("steady", f)
+	runtime.KeepAlive(f)
+	// Check live-state release, not RSS returning to the OS.
+	f = nil
+	snapshot("released", nil)
+	result["complete"] = true
+	save()
+}

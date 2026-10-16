@@ -1,0 +1,247 @@
+//go:build anomalydetectiontestbench && linux
+
+package observerimpl
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"sort"
+	"strconv"
+	"testing"
+	"time"
+)
+
+type stageCostSeries struct {
+	Name string   `json:"name"`
+	Tags []string `json:"tags"`
+}
+type stageCostPoint struct {
+	Timestamp int64
+	Value     float64
+	Series    uint32
+}
+
+func TestSeasonalStageCost(t *testing.T) {
+	dir := os.Getenv("SEASONAL_COST_OUTPUT")
+	if dir == "" {
+		t.Skip("explicit profile")
+	}
+	input := os.Getenv("SEASONAL_COST_INPUT")
+	n, err := strconv.Atoi(os.Getenv("SEASONAL_COST_N"))
+	if err != nil || (n != 258 && n != 1200) {
+		t.Fatal("invalid N")
+	}
+	mode := os.Getenv("SEASONAL_COST_MODE")
+	if mode != "raw" && mode != "automatic" && mode != "structure" {
+		t.Fatal("invalid mode")
+	}
+	if (mode == "structure") != seasonalStructureOnly {
+		t.Fatal("structure flag/mode mismatch")
+	}
+	validate := os.Getenv("SEASONAL_ATTRIBUTION_VALIDATE") == "1"
+	digest := sha256.New()
+	var meta []stageCostSeries
+	data, err := os.ReadFile(filepath.Join(input, "series.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &meta); err != nil {
+		t.Fatal(err)
+	}
+	data, err = os.ReadFile(filepath.Join(input, "points.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data)%20 != 0 || len(meta) != 258 {
+		t.Fatal("invalid fixture")
+	}
+	points := make([]stageCostPoint, len(data)/20)
+	for i := range points {
+		b := data[20*i:]
+		points[i] = stageCostPoint{int64(binary.LittleEndian.Uint64(b)), math.Float64frombits(binary.LittleEndian.Uint64(b[8:])), binary.LittleEndian.Uint32(b[16:])}
+		if int(points[i].Series) >= len(meta) || (i > 0 && points[i].Timestamp < points[i-1].Timestamp) {
+			t.Fatal("invalid point")
+		}
+	}
+	data = nil
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	runtime.MemProfileRate = 64 * 1024
+	profile, err := os.Create(filepath.Join(dir, "whole.cpu.pprof"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = pprof.StartCPUProfile(profile); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { pprof.StopCPUProfile(); profile.Close() }()
+	label := func(s string) {
+		pprof.SetGoroutineLabels(pprof.WithLabels(context.Background(), pprof.Labels("stage", s)))
+	}
+	result := map[string]any{"mode": mode, "validation_only": validate, "n": n, "source_series": len(meta), "go_version": runtime.Version(), "input_points": len(points), "input_heap_excluded": true, "storage_points": 120, "detector_tick_seconds": 1}
+	snapshots := map[string]any{}
+	stages := map[string]any{}
+	result["snapshots"] = snapshots
+	result["stages"] = stages
+	save := func() {
+		b, e := json.MarshalIndent(result, "", "  ")
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = os.WriteFile(filepath.Join(dir, "result.json"), b, 0644); e != nil {
+			t.Fatal(e)
+		}
+	}
+	snapshot := func(name string, f *seasonalProfileFixture) {
+		label("snapshot")
+		runtime.GC()
+		runtime.GC()
+		m := seasonalProfileMemory()
+		if f != nil {
+			m["census"] = f.census()
+			if d, ok := f.detector.(*realSeasonalDetector); ok {
+				m["budget"] = d.budget.census()
+			}
+		}
+		snapshots[name] = m
+		file, e := os.Create(filepath.Join(dir, name+".heap.pprof"))
+		if e != nil {
+			t.Fatal(e)
+		}
+		if e = pprof.WriteHeapProfile(file); e != nil {
+			t.Fatal(e)
+		}
+		file.Close()
+		runtime.KeepAlive(f)
+		runtime.KeepAlive(points)
+		runtime.KeepAlive(meta)
+		save()
+	}
+	snapshot("bootstrap", nil)
+	snapshot("empty", nil)
+	f := &seasonalProfileFixture{storage: newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 120}), names: make([]string, n), tags: make([][]string, n)}
+	for i := range f.names {
+		m := meta[i%len(meta)]
+		f.names[i] = m.Name
+		f.tags[i] = append(append([]string(nil), m.Tags...), fmt.Sprintf("cost_replica:%d", i/len(meta)))
+	}
+	if mode == "raw" {
+		f.detector = realSeasonalTestFactory()
+	} else {
+		realSeasonalDiscoverAll = true
+		d := realSeasonalTestWrapper("phase_pooled_floor")
+		d.budget = newSeasonalAdmissionBudget(1200)
+		f.detector = d
+	}
+	start := points[0].Timestamp
+	at := 0
+	last := -1
+	sampler := &seasonalProfileSampler{}
+	stop, done := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		tick := time.NewTicker(50 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-tick.C:
+				sampler.observe()
+			case <-stop:
+				return
+			}
+		}
+	}()
+	for _, stage := range []struct {
+		Name string
+		End  int
+	}{{"startup", 60}, {"learning", 17940}, {"qualification", 18060}, {"calibration", 21540}, {"activation", 21660}, {"mature", 39600}} {
+		label(stage.Name)
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		cpu := seasonalProfileCPU()
+		wall := time.Now()
+		for elapsed := last + 1; elapsed <= stage.End; elapsed++ {
+			now := start + int64(elapsed)
+			for at < len(points) && points[at].Timestamp <= now {
+				p := points[at]
+				for i := int(p.Series); i < n; i += len(meta) {
+					f.storage.Add("cost", f.names[i], p.Value, p.Timestamp, f.tags[i])
+				}
+				at++
+			}
+			detected := f.detector.Detect(f.storage, now).Anomalies
+			f.anomalies += len(detected)
+			// Hash only in separate correctness runs: no encoding/sorting in timed profiles.
+			if validate && len(detected) > 0 {
+				canonical := make([]string, len(detected))
+				for i, a := range detected {
+					b, e := json.Marshal(a)
+					if e != nil {
+						t.Fatal(e)
+					}
+					canonical[i] = string(b)
+				}
+				sort.Strings(canonical)
+				for _, a := range canonical {
+					fmt.Fprintf(digest, "%d %s\n", now, a)
+				}
+			}
+		}
+		cpu = seasonalProfileCPU() - cpu
+		elapsedWall := time.Since(wall).Seconds()
+		runtime.ReadMemStats(&after)
+		stages[stage.Name] = map[string]any{"process_cpu_seconds": cpu, "wall_seconds": elapsedWall, "allocated_bytes": after.TotalAlloc - before.TotalAlloc, "allocations": after.Mallocs - before.Mallocs, "gc_cycles": after.NumGC - before.NumGC, "data_seconds": stage.End - last, "start_second": last + 1, "end_second": stage.End}
+		if validate {
+			stages[stage.Name].(map[string]any)["cumulative_emission_sha256"] = fmt.Sprintf("%x", digest.Sum(nil))
+		}
+		last = stage.End
+		snapshot(stage.Name, f)
+		t.Logf("DISCOVERY_COST %s %s %d CPU=%.3f", mode, stage.Name, n, cpu)
+	}
+	close(stop)
+	<-done
+	result["sampled_absolute_peak_heap"] = sampler.maxHeapAlloc
+	if mode == "automatic" {
+		d := f.detector.(*realSeasonalDetector)
+		ready := 0
+		for _, s := range d.states {
+			if s.mature {
+				ready++
+			}
+		}
+		result["mature_count"] = ready
+		if ready == 0 {
+			t.Fatal("no mature seasonal series")
+		}
+		if len(d.states) != n {
+			t.Fatalf("wrong series count %d", len(d.states))
+		}
+	}
+	if mode == "structure" {
+		d := f.detector.(*realSeasonalDetector)
+		if len(d.states) != n || d.budget.active != 0 {
+			t.Fatal("invalid structure state count/budget")
+		}
+		for _, s := range d.states {
+			if s.model != nil || s.scale != nil || s.mature || len(s.calibration) != 0 || len(s.pending) != 0 {
+				t.Fatal("structure arm performed seasonal work")
+			}
+		}
+	}
+	runtime.KeepAlive(f)
+	f = nil
+	snapshot("released", nil)
+	runtime.KeepAlive(points)
+	runtime.KeepAlive(meta)
+	result["complete"] = true
+	save()
+}
