@@ -38,7 +38,6 @@ func buildFields(inv serverlessdef.ServerlessInitData, params serverlessdef.Para
 		"serverless_init_version": serverlessTags.GetExtensionVersion(),
 		"agent_version_base":      version.AgentVersion,
 		"agent_commit":            version.Commit,
-		"report_reason":           reportReasonStartup,
 		"flavor":                  serverlessInitFlavor,
 
 		"resource_id":        inv.ResourceID,
