@@ -163,3 +163,35 @@ func TestEnableDiscovery(t *testing.T) {
 		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 }
+
+func TestEnableJVMMemory(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		_ = mock.NewSystemProbe(t)
+
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.False(t, cfg.ModuleIsEnabled(JVMMemoryModule))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		_ = mock.NewSystemProbe(t)
+
+		t.Setenv("DD_JVM_MEMORY_ENABLED", "true")
+
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.True(t, cfg.ModuleIsEnabled(JVMMemoryModule))
+	})
+
+	t.Run("via config file", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		mockCfg := mock.NewSystemProbe(t)
+		mockCfg.SetInTest("jvm_memory.enabled", true)
+
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.True(t, cfg.ModuleIsEnabled(JVMMemoryModule))
+	})
+}

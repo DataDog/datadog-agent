@@ -444,6 +444,9 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 type testEventArgs struct {
 	Filter testEventFilterArgs
 	Expect testEventExpectArgs
+	// Optional.Tags are the tags that may be present, its other fields are
+	// ignored.
+	Optional testEventExpectArgs
 }
 
 type testEventFilterArgs struct {
@@ -466,6 +469,11 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		optionalTags := []*regexp.Regexp{}
+		if args.Optional.Tags != nil {
+			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
 		sendEvent := func(alertType, text string) {
@@ -540,7 +548,7 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(events[len(events)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
+				err := assertTags(events[len(events)-1].GetTags(), expectedTags, optionalTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyEventQuery)
 			}
 

@@ -36,6 +36,7 @@ var moduleOrder = []types.ModuleName{
 	config.PrivilegedLogsModule,
 	config.InjectorModule,
 	config.NoisyNeighborModule,
+	config.JVMMemoryModule,
 	config.LogonDurationModule,
 }
 

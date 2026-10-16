@@ -1,0 +1,38 @@
+---
+features:
+  - |
+    Add the ``jvm_memory`` check, which reports the memory pools and the
+    garbage collection pauses of HotSpot JVMs running on the host or in
+    containers, without any change to the JVMs. The data is collected by
+    system-probe through the USDT probes built into the JVM. Enable it by
+    setting ``jvm_memory.enabled: true`` in ``system-probe.yaml`` (or the
+    ``DD_JVM_MEMORY_ENABLED=true`` environment variable); the check is then
+    scheduled automatically in the core Agent.
+
+    The check submits the following metrics, tagged with the container tags
+    of the JVM:
+
+    - ``jvm_memory.pool.used``, ``jvm_memory.pool.committed`` and
+      ``jvm_memory.pool.max`` (gauges, in bytes): the state of each memory
+      pool right after the last garbage collection, tagged with ``pool`` (the
+      normalized pool name, for example ``g1_eden_space`` or ``metaspace``)
+      and ``pool_type`` (``heap`` or ``non_heap``). ``jvm_memory.pool.max``
+      is omitted for pools without a maximum size. These metrics are only
+      submitted when a garbage collection ended since the previous run of
+      the check, so a JVM that does not collect garbage reports no pool
+      metrics. The pools of the JVMs running in the same container are
+      summed: a pool is reported, with the latest values of all these JVMs,
+      when a garbage collection ended in at least one of them.
+    - ``jvm_memory.gc.pauses`` (count): the number of stop-the-world pauses.
+    - ``jvm_memory.gc.full_pauses`` (count): the number of pauses of full
+      garbage collections.
+    - ``jvm_memory.gc.pause_time`` (count, in seconds): the time spent in
+      stop-the-world pauses.
+
+    The GC counts of the JVMs running in the same container are summed.
+
+    This check requires a HotSpot JVM built with SDT probes, such as the
+    Eclipse Temurin, Azul Zulu, Debian, Ubuntu and Red Hat builds of OpenJDK.
+    Amazon Corretto, Oracle JDK, GraalVM, OpenJ9 and the builds for musl-based
+    distributions such as Alpine Linux do not ship these probes, and their
+    JVMs are ignored.
