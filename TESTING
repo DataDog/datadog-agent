@@ -1,0 +1,105 @@
+# Top-level presubmit declarations for datadog-agent.
+#
+# Schema: better_gitlab's presubmit/testing.proto (Testing message), textproto.
+# See $HOME/ws/better_gitlab/testing_requirements.md for the full format and
+# https://github.com/.../better_gitlab (presubmit/plan.md) for semantics.
+
+# ---------------------------------------------------------------------------
+# Technical linters (mirrors .gitlab/build/lint/technical_linters.yml).
+#
+# Left out, same as better_gitlab/examples/datadog_agent/technical_linters.sh:
+#   lint_licenses, check_modules_replace         need go_deps/go_tools_deps
+#                                                 artifacts not fetched here
+#   validate_experiment_systemd_units,           only run on specific file
+#   lint_releasenotes_rst,                       changes (rules:), which needs
+#   lint_releasenotes_unique_ids,                a changed-files selection we
+#   lint_rtloader                                don't do here yet
+# ---------------------------------------------------------------------------
+
+action {
+  name: "lint_rust_licenses"
+  command: "dda inv -- -e lint-rust-licenses"
+}
+action {
+  name: "lint_shell_version"
+  command: "shellcheck --version"
+}
+action {
+  name: "lint_shell"
+  command: "shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*"
+}
+action {
+  name: "lint_filename"
+  command: "dda inv -- -e linter.filenames"
+}
+action {
+  name: "lint_copyrights"
+  command: "dda inv -- -e linter.copyrights"
+}
+action {
+  name: "lint_docs_links"
+  command: "dda inv -- -e linter.docs-links"
+}
+action {
+  name: "lint_codeowners"
+  command: "dda inv -- -e github.lint-codeowner"
+}
+action {
+  name: "lint_components"
+  command: "dda inv -- -e lint-components lint-fxutil-oneshot-test"
+}
+action {
+  name: "lint_gopls_plugin"
+  command: "dda inv -- -e claude.set-buildtags --check"
+}
+action {
+  name: "lint_python"
+  command: "dda inv -- -e linter.python --show-versions"
+}
+action {
+  name: "lint_update_go"
+  command: "dda inv -- -e linter.update-go"
+}
+action {
+  name: "validate_modules"
+  command: "dda inv -- -e modules.validate"
+}
+action {
+  name: "validate_modules_used_by_otel"
+  command: "dda inv -- -e modules.validate-used-by-otel"
+}
+
+# Run every technical linter on any changed file, except third_party/ and the
+# directories pyproject.toml's [tool.ruff] excludes (those aren't part of the
+# lintable/buildable source tree).
+presubmit {
+  exclude_regex: "^\\.git/"
+  exclude_regex: "^\\.github/"
+  exclude_regex: "^chocolatey/"
+  exclude_regex: "^Dockerfiles/"
+  exclude_regex: "^omnibus/"
+  exclude_regex: "^releasenotes/"
+  exclude_regex: "^vendor/"
+  exclude_regex: "^venv/"
+  exclude_regex: "^dev/"
+  exclude_regex: "^third_party/"
+  exclude_regex: "^cmd/system-probe/subcommands/usm/debug_scripts/"
+  check_action: "lint_rust_licenses"
+  check_action: "lint_shell_version"
+  check_action: "lint_shell"
+  check_action: "lint_filename"
+  check_action: "lint_copyrights"
+  check_action: "lint_docs_links"
+  check_action: "lint_codeowners"
+  check_action: "lint_components"
+  check_action: "lint_gopls_plugin"
+  check_action: "lint_python"
+  check_action: "lint_update_go"
+  check_action: "validate_modules"
+  check_action: "validate_modules_used_by_otel"
+}
+
+# Per-top-level-folder bazel test suites live in each folder's own TESTING
+# file (bazel/TESTING, cmd/TESTING, comp/TESTING, pkg/TESTING, test/TESTING),
+# since a TESTING file already applies to everything at or below it — no
+# include_regex needed there.
