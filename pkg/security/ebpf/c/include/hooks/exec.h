@@ -237,9 +237,18 @@ static __always_inline int sched_process_fork_common(void *ctx, u32 pid, u32 par
 
     event->pid_entry.fork_flags = syscall->fork.flags;
 
-    u32 *inum = bpf_map_lookup_elem(&mntns_cache, &ppid);
-    if (inum) {
-        u32 child_mntns_entry = *inum;
+    u32 child_mntns_entry = 0;
+    if (syscall->fork.flags & CLONE_NEWNS) {
+        if (syscall->fork.newmnt) {
+            child_mntns_entry = get_mount_mount_ns_inum(syscall->fork.newmnt);
+        }
+    } else {
+        u32 *inum = bpf_map_lookup_elem(&mntns_cache, &ppid);
+        if (inum) {
+            child_mntns_entry = *inum;
+        }
+    }
+    if (child_mntns_entry) {
         event->process.mntns = child_mntns_entry;
         bpf_map_update_elem(&mntns_cache, &pid, &child_mntns_entry, BPF_ANY);
     }
