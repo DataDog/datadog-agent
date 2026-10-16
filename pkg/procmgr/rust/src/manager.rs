@@ -671,6 +671,7 @@ impl ProcessManager {
         }
 
         if let Some(name) = critical_stopped.first() {
+            self.update_startup_order().await;
             self.request_supervisor_exit(name, 0);
             return Ok(ReloadResult {
                 added,
@@ -1383,6 +1384,28 @@ mod tests {
             ProcessState::Stopped,
             "the replacement must not be started on the way out"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_after_reload_removes_critical() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![
+            critical_def("crit"),
+            sleep_def("sibling"),
+        ]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        config_loader.set(vec![sleep_def("sibling")]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.removed.contains(&"crit".to_string()));
+        assert_eq!(mgr.supervisor_exit_code(), Some(0));
+
+        mgr.shutdown().await;
+
+        let procs = mgr.processes().await;
+        assert!(procs.iter().all(|p| !p.is_running()));
         Ok(())
     }
 
