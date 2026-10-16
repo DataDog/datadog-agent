@@ -28,6 +28,7 @@ dd_agent_go_test(
         "//comp/filterlist/fx-mock",
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/forwarder/eventplatform/mock",
+        "//comp/forwarder/orchestrator/def",
         "//comp/forwarder/orchestrator/mock",
         "//comp/haagent/mock",
         "//comp/serializer/metricscompression/fx-mock",
