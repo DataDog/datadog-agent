@@ -10,6 +10,4 @@ invoke_unit_tests:
     - !reference [.on_invoke_tasks_changes]
   script:
     - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
-    # `dda inv --dep` is a no-op with DDA_NO_DYNAMIC_DEPS=1, so install into dda's own environment instead
-    - python3 -m pip install tree-sitter==0.26.0 tree-sitter-go==0.25.0
     - dda inv -- -e invoke-unit-tests.run
