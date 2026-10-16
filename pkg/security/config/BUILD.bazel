@@ -27,6 +27,13 @@ go_library(
     ],
 )
 
+# config.go is the sole input to //pkg/security/generators/config_doc.
+filegroup(
+    name = "config_doc_input",
+    srcs = ["config.go"],
+    visibility = ["//docs/cloud-workload-security:__pkg__"],
+)
+
 go_stringer(
     name = "enum_string",
     src = "dump.go",
@@ -36,15 +43,27 @@ go_stringer(
         "StorageFormat",
         "StorageType",
     ],
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["credential_endpoints_test.go"],
+    srcs = [
+        "credential_endpoints_test.go",
+        "sbom_test.go",
+    ],
     embed = [":config"],
     deps = [
         "//pkg/security/secl/model",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/mock",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/mock",
+        ],
+        "//conditions:default": [],
+    }),
 )

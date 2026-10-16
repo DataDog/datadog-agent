@@ -18,7 +18,6 @@ import (
 // The available options are:
 //   - [WithOS]
 //   - [WithAMI]
-//   - [WithLatestAMI]
 //   - [WithArch]
 //   - [WithInstanceType]
 //   - [WithUserData]
@@ -34,7 +33,6 @@ import (
 type vmArgs struct {
 	osInfo          *os.Descriptor
 	ami             string
-	useLatestAMI    bool
 	userData        string
 	instanceType    string
 	instanceProfile string
@@ -76,14 +74,6 @@ func WithAMI(ami string, osDesc os.Descriptor, arch os.Architecture) VMOption {
 	return func(p *vmArgs) error {
 		p.osInfo = utils.Pointer(osDesc.WithArch(arch))
 		p.ami = ami
-		return nil
-	}
-}
-
-// WithLatestAMI sets the latest AMI for the OS and architecture.
-func WithLatestAMI() VMOption {
-	return func(p *vmArgs) error {
-		p.useLatestAMI = true
 		return nil
 	}
 }

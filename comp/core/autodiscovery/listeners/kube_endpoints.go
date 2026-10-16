@@ -23,6 +23,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	infov1 "k8s.io/client-go/informers/core/v1"
@@ -268,8 +269,19 @@ func (l *KubeEndpointsListener) endpointsDiffer(first, second *v1.Endpoints) boo
 		return true
 	}
 
+	// Endpoints' own annotations/labels, used for CEL workload-exclude filtering
+	if metadataDiffers(first, second) {
+		return true
+	}
+
 	// Endpoint subsets
 	return subsetsDiffer(first, second)
+}
+
+// metadataDiffers detects if two objects have different annotations or labels.
+func metadataDiffers(first, second metav1.Object) bool {
+	return !equality.Semantic.DeepEqual(first.GetAnnotations(), second.GetAnnotations()) ||
+		!equality.Semantic.DeepEqual(first.GetLabels(), second.GetLabels())
 }
 
 // subsetsDiffer detects if two Endpoints have different subsets.
@@ -340,7 +352,7 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 
-	filterableEndpoint := workloadfilter.CreateKubeEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
+	filterableEndpoint := workloadfilter.CreateKubeEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations(), kep.GetLabels())
 	metricsExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
 	globalExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 

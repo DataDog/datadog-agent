@@ -6,8 +6,10 @@
 package metrics
 
 import (
+	"cmp"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -23,10 +25,6 @@ type weightSample struct {
 }
 
 type weightSamples []weightSample
-
-func (w weightSamples) Len() int           { return len(w) }
-func (w weightSamples) Less(i, j int) bool { return w[i].value < w[j].value }
-func (w weightSamples) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
 
 // Histogram tracks the distribution of samples added over one flush period
 type Histogram struct {
@@ -118,7 +116,7 @@ func neumaierAdd(s, c, x float64) (float64, float64) {
 
 // sampleSum computes sum(value*weight) over h.samples using compensated summation.
 //
-// Precondition: flush() calls sort.Sort(h.samples) before invoking sampleSum, so samples
+// Precondition: flush() sorts h.samples before invoking sampleSum, so samples
 // are in ascending order of .value.
 //
 // Algorithm (for uniform weights, which is the dominant DogStatsD shape — one sample rate
@@ -221,7 +219,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 		return []*Serie{}, NoSerieError{}
 	}
 
-	sort.Sort(h.samples)
+	slices.SortFunc(h.samples, func(a, b weightSample) int { return cmp.Compare(a.value, b.value) })
 
 	series := make([]*Serie, 0, len(h.aggregates)+len(h.percentiles))
 

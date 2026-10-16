@@ -94,6 +94,12 @@ func newConfig(deps dependencies) (*cfg, error) {
 		// normally triggers it) is skipped on this path.
 		pkgconfigenv.DetectFeatures(config)
 
+		if deps.Params.configLoadSecurityAgent {
+			if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
+				return &cfg{Config: config}, err
+			}
+		}
+
 		return &cfg{Config: config}, nil
 	}
 

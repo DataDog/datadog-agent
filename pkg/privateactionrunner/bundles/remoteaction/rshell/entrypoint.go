@@ -22,12 +22,15 @@ type RshellBundle struct {
 // from the config.
 func NewRshellBundle(cfg *config.Config) types.Bundle {
 	commandHandlerConfig := RunCommandHandlerConfig{
-		OperatorAllowedPaths:          cfg.RShellAllowedPaths,
-		OperatorAllowedCommands:       cfg.RShellAllowedCommands,
-		OperatorAllowedSystemServices: cfg.RShellAllowedSystemServices,
-		DisableDetailedTelemetry:      cfg.RShellDisableDetailedTelemetry,
-		PrivilegedEnabled:             cfg.RShellPrivilegedEnabled,
-		PrivilegedSocket:              cfg.RShellPrivilegedSocket,
+		OperatorAllowedPaths:              cfg.RShellAllowedPaths,
+		OperatorAllowedCommands:           cfg.RShellAllowedCommands,
+		OperatorAllowedSystemServices:     cfg.RShellAllowedSystemServices,
+		DisableDetailedTelemetry:          cfg.RShellDisableDetailedTelemetry,
+		PrivilegedEnabled:                 cfg.RShellPrivilegedEnabled,
+		PrivilegedSocket:                  cfg.RShellPrivilegedSocket,
+		OperatorElevatableCommands:        cfg.RShellPrivilegedElevatableCommands,
+		OperatorAllowedCommandsConfigured: cfg.RShellAllowedCommandsConfigured,
+		OperatorAllowedPathsConfigured:    cfg.RShellAllowedPathsConfigured,
 	}
 	return &RshellBundle{
 		actions: map[string]types.Action{

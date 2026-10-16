@@ -28,7 +28,6 @@ copy_file(
 
 expand_template(
     name = "xmlversion_h",
-    template = "include/libxml/xmlversion.h.in",
     out = "include/libxml/xmlversion.h",
     substitutions = {
         "@VERSION@": VERSION,
@@ -65,6 +64,7 @@ expand_template(
         "@platforms//os:linux": {"@MODULE_EXTENSION@": ".so"},
         "@platforms//os:macos": {"@MODULE_EXTENSION@": ".dylib"},
     }),
+    template = "include/libxml/xmlversion.h.in",
 )
 
 cc_library(
@@ -77,8 +77,17 @@ cc_library(
 cc_library(
     name = "libxml2",
     srcs = [
+        "HTMLparser.c",
+        "HTMLtree.c",
+        "SAX2.c",
         "buf.c",
+        "c14n.c",
         "chvalid.c",
+        "codegen/charset.inc",
+        "codegen/escape.inc",
+        "codegen/html5ent.inc",
+        "codegen/ranges.inc",
+        "codegen/unicode.inc",
         "dict.c",
         "encoding.c",
         "entities.c",
@@ -89,81 +98,75 @@ cc_library(
         "list.c",
         "parser.c",
         "parserInternals.c",
-        "SAX2.c",
+        "pattern.c",
+        "relaxng.c",
+        "schematron.c",
         "threads.c",
         "timsort.h",
         "tree.c",
         "uri.c",
         "valid.c",
-        "xmlIO.c",
-        "xmlmemory.c",
-        "xmlstring.c",
-        "HTMLparser.c",
-        "HTMLtree.c",
-        "xmlmodule.c",
-        "xmlsave.c",
-        "pattern.c",
-        "xmlregexp.c",
-        "relaxng.c",
         "xinclude.c",
         "xlink.c",
-        "xpointer.c",
+        "xmlIO.c",
+        "xmlmemory.c",
+        "xmlmodule.c",
+        "xmlreader.c",
+        "xmlregexp.c",
+        "xmlsave.c",
         "xmlschemas.c",
         "xmlschemastypes.c",
-        "schematron.c",
-        "xmlreader.c",
+        "xmlstring.c",
         "xmlwriter.c",
         "xpath.c",
-        "codegen/charset.inc",
-        "codegen/escape.inc",
-        "codegen/html5ent.inc",
-        "codegen/ranges.inc",
-        "codegen/unicode.inc",
-        "c14n.c",
+        "xpointer.c",
     ] + glob(["include/private/*.h"]),
     hdrs = PUBLIC_HEADERS,
-    implementation_deps = [
-        ":xml2_config_h",
-    ],
-    deps = [
-        "@zlib//:zlib",
-    ],
-    includes = [
-        "include/libxml",
-        "include",
-        "codegen",
-    ],
     copts = [
         "-O2",
         "-std=gnu11",
+        "-Wno-array-bounds",
+        "-Wno-format-extra-args",
+    ],
+    implementation_deps = [
+        ":xml2_config_h",
+    ],
+    includes = [
+        "codegen",
+        "include",
+        "include/libxml",
     ],
     local_defines = [
         "NDEBUG",
     ],
     strip_include_prefix = "include/",
     visibility = ["//visibility:public"],
+    deps = [
+        "@zlib",
+    ],
 )
 
 cc_shared_library(
     name = "xml2",
-    deps = [":libxml2"],
-    visibility = ["//visibility:public"],
     dynamic_deps = [
         "@zlib//:z_pkg",
     ],
+    visibility = ["//visibility:public"],
+    deps = [":libxml2"],
 )
 
 pkg_files(
     name = "headers",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/libxml2/libxml",
+    prefix = "embedded/include/libxml2/libxml",
 )
 
 dd_cc_packaged(
     name = "xml2_pkg",
+    dest_dir = "embedded/lib",
     input = ":xml2",
-    version = "16.1.3",
     installed_files = [":headers"],
+    version = "16.1.3",
     visibility = ["//visibility:public"],
 )
 
@@ -172,5 +175,4 @@ pkg_filegroup(
     srcs = [
         ":headers",
     ],
-    prefix = "embedded",
 )

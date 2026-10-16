@@ -359,7 +359,7 @@ func (p *Pod) ToBytes() ([]byte, error) {
 }
 
 // CreatePod creates a Filterable Pod object.
-func CreatePod(id, name, namespace string, annotations map[string]string, rootOwner *core.FilterRootOwner) *Pod {
+func CreatePod(id, name, namespace string, annotations, labels map[string]string, rootOwner *core.FilterRootOwner) *Pod {
 	return &Pod{
 		FilterPod: &core.FilterPod{
 			Id:          id,
@@ -367,6 +367,7 @@ func CreatePod(id, name, namespace string, annotations map[string]string, rootOw
 			Namespace:   namespace,
 			Annotations: annotations,
 			Rootowner:   rootOwner,
+			Labels:      labels,
 		},
 	}
 }
@@ -405,12 +406,13 @@ type KubeService struct {
 }
 
 // CreateKubeService creates a Filterable KubeService object
-func CreateKubeService(name, namespace string, annotations map[string]string) *KubeService {
+func CreateKubeService(name, namespace string, annotations, labels map[string]string) *KubeService {
 	return &KubeService{
 		FilterKubeService: &core.FilterKubeService{
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 	}
 }
@@ -466,12 +468,13 @@ type KubeEndpoint struct {
 }
 
 // CreateKubeEndpoint creates a Filterable KubeEndpoint object
-func CreateKubeEndpoint(name, namespace string, annotations map[string]string) *KubeEndpoint {
+func CreateKubeEndpoint(name, namespace string, annotations, labels map[string]string) *KubeEndpoint {
 	return &KubeEndpoint{
 		FilterKubeEndpoint: &core.FilterKubeEndpoint{
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 	}
 }

@@ -109,6 +109,7 @@ func TestConvertImageToEvent(t *testing.T) {
 						"os": "linux",
 						"architecture": "amd64",
 						"variant": "v1",
+						"created": "2023-01-03T00:00:00Z",
 						"rootfs": {
 							"diff_ids": ["sha256:layer1", "sha256:layer2"]
 						},
@@ -155,6 +156,7 @@ func TestConvertImageToEvent(t *testing.T) {
 					OS:           "linux",
 					Architecture: "amd64",
 					Variant:      "v1",
+					Created:      *parseTime("2023-01-03T00:00:00Z"),
 					Layers: []workloadmeta.ContainerImageLayer{
 						{
 							DiffID: "sha256:layer1",
@@ -256,18 +258,12 @@ func TestConvertImageToEvent(t *testing.T) {
 			assert.Equal(t, expectedImg.OS, actualImg.OS)
 			assert.Equal(t, expectedImg.Architecture, actualImg.Architecture)
 			assert.Equal(t, expectedImg.Variant, actualImg.Variant)
+			assert.Equal(t, expectedImg.Created, actualImg.Created)
 
 			// Check layers
 			require.Equal(t, len(expectedImg.Layers), len(actualImg.Layers))
 			for i, expectedLayer := range expectedImg.Layers {
-				actualLayer := actualImg.Layers[i]
-				assert.Equal(t, expectedLayer.DiffID, actualLayer.DiffID)
-				if expectedLayer.History != nil && actualLayer.History != nil {
-					assert.Equal(t, expectedLayer.History.CreatedBy, actualLayer.History.CreatedBy)
-					assert.Equal(t, expectedLayer.History.Author, actualLayer.History.Author)
-					assert.Equal(t, expectedLayer.History.Comment, actualLayer.History.Comment)
-					assert.Equal(t, expectedLayer.History.EmptyLayer, actualLayer.History.EmptyLayer)
-				}
+				assert.Equal(t, expectedLayer, actualImg.Layers[i])
 			}
 		})
 	}
@@ -573,6 +569,7 @@ func TestParseImageInfo(t *testing.T) {
 						"os": "linux",
 						"architecture": "amd64",
 						"variant": "v1",
+						"created": "2023-01-03T00:00:00Z",
 						"rootfs": {
 							"diff_ids": ["sha256:layer1", "sha256:layer2"]
 						},
@@ -603,6 +600,7 @@ func TestParseImageInfo(t *testing.T) {
 					"label1": "value1",
 					"label2": "value2",
 				},
+				created: *parseTime("2023-01-03T00:00:00Z"),
 				layers: []workloadmeta.ContainerImageLayer{
 					{
 						DiffID: "sha256:layer1",
@@ -622,6 +620,54 @@ func TestParseImageInfo(t *testing.T) {
 							Author:     "author2",
 							Comment:    "Layer 2 comment",
 							EmptyLayer: false,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "History entries without a created time",
+			info: map[string]string{
+				"info": `{
+					"imageSpec": {
+						"rootfs": {
+							"diff_ids": ["sha256:layer1"]
+						},
+						"history": [
+							{
+								"created_by": "ARG VERSION",
+								"empty_layer": true
+							},
+							{
+								"created": "not a time",
+								"created_by": "COPY app /app"
+							},
+							{
+								"created_by": "ENTRYPOINT [\"/app\"]",
+								"empty_layer": true
+							}
+						]
+					}
+				}`,
+			},
+			expected: imageInfo{
+				layers: []workloadmeta.ContainerImageLayer{
+					{
+						History: &imgspecs.History{
+							CreatedBy:  "ARG VERSION",
+							EmptyLayer: true,
+						},
+					},
+					{
+						DiffID: "sha256:layer1",
+						History: &imgspecs.History{
+							CreatedBy: "COPY app /app",
+						},
+					},
+					{
+						History: &imgspecs.History{
+							CreatedBy:  `ENTRYPOINT ["/app"]`,
+							EmptyLayer: true,
 						},
 					},
 				},
@@ -653,17 +699,11 @@ func TestParseImageInfo(t *testing.T) {
 			assert.Equal(t, tt.expected.arch, result.arch)
 			assert.Equal(t, tt.expected.variant, result.variant)
 			assert.Equal(t, tt.expected.labels, result.labels)
+			assert.Equal(t, tt.expected.created, result.created)
 
 			require.Equal(t, len(tt.expected.layers), len(result.layers))
 			for i, expectedLayer := range tt.expected.layers {
-				actualLayer := result.layers[i]
-				assert.Equal(t, expectedLayer.DiffID, actualLayer.DiffID)
-				if expectedLayer.History != nil && actualLayer.History != nil {
-					assert.Equal(t, expectedLayer.History.CreatedBy, actualLayer.History.CreatedBy)
-					assert.Equal(t, expectedLayer.History.Author, actualLayer.History.Author)
-					assert.Equal(t, expectedLayer.History.Comment, actualLayer.History.Comment)
-					assert.Equal(t, expectedLayer.History.EmptyLayer, actualLayer.History.EmptyLayer)
-				}
+				assert.Equal(t, expectedLayer, result.layers[i])
 			}
 		})
 	}

@@ -45,7 +45,7 @@ func TestSetrlimitEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create test module: %v", err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

@@ -100,9 +100,10 @@ type EBPFResolver struct {
 
 	// otelProcCtxQueue carries the pids whose OTel process context is waiting to
 	// be resolved by the loop Start spawns. otelProcCtxPending mirrors what the
-	// channel holds so a pid is never queued twice.
+	// channel holds so a pid is never queued twice, and keeps when it was first
+	// queued.
 	otelProcCtxQueue   chan uint32
-	otelProcCtxPending map[uint32]struct{}
+	otelProcCtxPending map[uint32]time.Time
 	otelProcCtxLock    sync.Mutex
 
 	// stats
@@ -721,9 +722,9 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 				bestFS     string
 			)
 			p.mountResolver.Iterate(func(mount *model.Mount) {
-				if strings.HasPrefix(pathnameStr, mount.MountPointStr) {
-					if len(mount.MountPointStr) > len(bestPrefix) {
-						bestPrefix = mount.MountPointStr
+				if strings.HasPrefix(pathnameStr, mount.Path) {
+					if len(mount.Path) > len(bestPrefix) {
+						bestPrefix = mount.Path
 						bestFS = mount.FSType
 					}
 				}
@@ -1596,16 +1597,34 @@ func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 
 	select {
 	case p.otelProcCtxQueue <- pid:
-		p.otelProcCtxPending[pid] = struct{}{}
+		p.otelProcCtxPending[pid] = time.Now()
 	default:
 		p.countSpanCtx(spanCtxStepProcessCtx, spanCtxQueueFull)
 		seclog.Warnf("OTel process context queue full, dropping pid %d", pid)
 	}
 }
 
-// SnapshotOTelProcessContext resolves the OTel process context of a process
-// that published before the agent was watching.
-func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
+// OTelProcessContextSnapshot resolves the OTel process contexts of processes
+// that published before the agent was watching. It holds the scratch state one
+// Resolve hands to the next, so a walk wants one of these for its whole length
+// rather than one per process -- and, being scoped to the walk, releases that
+// state when the walk is done.
+//
+// Not safe for concurrent use.
+type OTelProcessContextSnapshot struct {
+	resolver *EBPFResolver
+	target   otelTargetProcess
+}
+
+// NewOTelProcessContextSnapshot returns a snapshot to resolve a walk's
+// processes through.
+func (p *EBPFResolver) NewOTelProcessContextSnapshot() *OTelProcessContextSnapshot {
+	return &OTelProcessContextSnapshot{resolver: p}
+}
+
+// Resolve resolves the OTel process context of pid.
+func (s *OTelProcessContextSnapshot) Resolve(pid uint32) {
+	p := s.resolver
 	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
 		return
 	}
@@ -1613,12 +1632,18 @@ func (p *EBPFResolver) SnapshotOTelProcessContext(pid uint32) {
 		return
 	}
 
-	p.resolveAndUpdateOTelTLS(pid)
+	p.resolveAndUpdateOTelTLS(pid, &s.target)
 }
 
 // resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
 // OTel process context
 func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
+	// Reused across resolutions: parsing /proc/<pid>/maps is the bulk of a
+	// resolution's allocations, and this loop runs one for every process that
+	// publishes or updates an OTel process context. Owned by this goroutine,
+	// which is why it needs no synchronization.
+	target := new(otelTargetProcess)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -1627,20 +1652,26 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 			// Cleared before resolving, so an update that lands while this pid
 			// is in flight is queued again rather than lost.
 			p.otelProcCtxLock.Lock()
+			queuedAt := p.otelProcCtxPending[pid]
 			delete(p.otelProcCtxPending, pid)
 			p.otelProcCtxLock.Unlock()
+			p.reportOTelProcCtxQueueLatency(queuedAt)
 
 			if !p.hasEntry(pid) {
 				p.countSpanCtx(spanCtxStepProcessCtx, spanCtxNoProcessEntry)
 				continue
 			}
-			p.resolveAndUpdateOTelTLS(pid)
+			p.resolveAndUpdateOTelTLS(pid, target)
 		}
 	}
 }
 
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) {
-	target := newOTelTargetProcess(pid)
+// resolveAndUpdateOTelTLS resolves pid's OTel process context through target,
+// which it rebinds to pid: callers pass a target they own and reuse across
+// calls rather than one per resolution.
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetProcess) {
+	start := time.Now()
+	target.reset(pid)
 
 	procCtx, err := target.processContext()
 	if err != nil {
@@ -1667,15 +1698,17 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32) {
 	}
 	if value == nil {
 		// Not registered yet: do the expensive ELF parse and register offsets for eBPF to read.
-		res, resolveErr := target.resolveTLSOffsets()
+		res, resolveErr := target.resolveTLSOffsets(procCtx)
 		if resolveErr == nil {
 			resolveErr = p.updateOTelTLS(pid, res)
+			p.reportOTelTLSLatency(start, true)
 		}
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, resolveErr)
 		return
 	}
 
 	p.reportSpanCtx(spanCtxStepOTelTLS, pid, nil)
+	p.reportOTelTLSLatency(start, false)
 }
 
 func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
@@ -2076,7 +2109,7 @@ func (p *EBPFResolver) UpdateProcessContexts(pce *model.ProcessCacheEntry, cgrou
 	if !cgroupContext.IsNull() {
 		pce.Process.CGroup = cgroupContext
 	}
-	if !containerContext.IsNull() {
+	if containerContext.ContainerID != "" || containerContext.PodUID != "" {
 		pce.Process.ContainerContext = containerContext
 	}
 }
@@ -2157,7 +2190,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		envVarsResolver:              envVarsResolver,
 		userSessionResolver:          userSessionResolver,
 		otelProcCtxQueue:             make(chan uint32, otelProcCtxQueueSize),
-		otelProcCtxPending:           make(map[uint32]struct{}),
+		otelProcCtxPending:           make(map[uint32]time.Time),
 	}
 
 	for _, t := range metrics.AllTypesTags {

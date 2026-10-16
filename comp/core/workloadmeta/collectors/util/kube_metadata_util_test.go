@@ -106,3 +106,13 @@ func TestParseKubeMetadataEntityID(t *testing.T) {
 	}
 
 }
+
+var kubeMetadataEntityIDSink workloadmeta.KubeMetadataEntityID
+
+func BenchmarkGenerateKubeMetadataEntityID(b *testing.B) {
+	name := b.Name()
+	b.ReportAllocs()
+	for b.Loop() {
+		kubeMetadataEntityIDSink = GenerateKubeMetadataEntityID("apps", "deployments", "default", name)
+	}
+}

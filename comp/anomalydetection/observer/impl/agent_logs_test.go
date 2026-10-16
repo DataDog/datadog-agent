@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/observer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +25,7 @@ type captureHandle struct {
 	logs []observerdef.LogView
 }
 
-func (h *captureHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *captureHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
 func (h *captureHandle) ObserveLog(msg observerdef.LogView) {
 	// Copy tags so the captured view remains valid after the callback returns.
 	tags := make([]string, len(msg.Tags()))
@@ -53,7 +54,7 @@ func newBlockingHandle() *blockingHandle {
 	}
 }
 
-func (h *blockingHandle) ObserveMetric(_ observerdef.MetricView) {}
+func (h *blockingHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
 func (h *blockingHandle) ObserveLog(_ observerdef.LogView) {
 	h.startOnce.Do(func() { close(h.started) })
 	<-h.release
@@ -440,7 +441,7 @@ func BenchmarkAgentLogTapEnqueueFullQueue(b *testing.B) {
 // simulateLogEmit calls the registered LogObserver directly, simulating what
 // maybeObserve does inside pkg/util/log at every emit site.
 func simulateLogEmit(level pkglog.LogLevel, message string) {
-	pkglog.SimulateLogEmit(level, message) //nolint:staticcheck
+	observer.SimulateLogEmit(level, message) //nolint:staticcheck
 }
 
 func containsAgentLogTag(tags []string, tag string) bool {

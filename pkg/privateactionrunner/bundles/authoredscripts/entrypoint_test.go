@@ -6,13 +6,35 @@
 package com_datadoghq_authoredscripts
 
 import (
+	"net/http"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+type entrypointTestRCClient struct {
+	product string
+	handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+}
+
+func (c *entrypointTestRCClient) Subscribe(product string, handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+	c.product = product
+	c.handler = handler
+}
+
+func (*entrypointTestRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
+	return state.ConfigTUFProof{}, false
+}
+
 func TestAuthoredScriptsGetAction(t *testing.T) {
-	bundle := NewAuthoredScripts()
+	client := &entrypointTestRCClient{}
+	bundle, err := NewAuthoredScripts(client, http.DefaultClient)
+	require.NoError(t, err)
+	require.Equal(t, state.ProductUpdaterCatalogDD, client.product)
+	require.NotNil(t, client.handler)
+
 	handler := bundle.GetAction("addRepo")
 
 	assert.IsType(t, &RunAuthoredScriptHandler{}, handler)

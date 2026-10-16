@@ -18,10 +18,13 @@ const reportInterval = 5 * time.Minute
 type gauges struct {
 	daemonReachable          telemetry.Gauge
 	daemonReady              telemetry.Gauge
+	daemonServiceState       telemetry.Gauge
 	processRunning           telemetry.Gauge
+	processState             telemetry.Gauge
 	serviceInstalled         telemetry.Gauge
 	serviceProcmgrConfigured telemetry.Gauge
 	serviceManagementMode    telemetry.Gauge
+	serviceRunning           telemetry.Gauge
 }
 
 // StartReporter periodically probes dd-procmgrd and migratable services, updating COAT gauges.
@@ -33,7 +36,19 @@ func StartReporter(ctx context.Context, tlm telemetry.Component) {
 	g := gauges{
 		daemonReachable: tlm.NewGauge("runtime", "procmgr_daemon_reachable", []string{}, "dd-procmgrd is reachable from the core agent"),
 		daemonReady:     tlm.NewGauge("runtime", "procmgr_daemon_ready", []string{}, "dd-procmgrd reports ready"),
-		processRunning:  tlm.NewGauge("runtime", "procmgr_process_running", []string{"process"}, "Managed process is running under dd-procmgrd"),
+		daemonServiceState: tlm.NewGauge(
+			"runtime",
+			"procmgr_daemon_service_state",
+			[]string{"state"},
+			"OS unit/service state of dd-procmgrd (not gRPC readiness)",
+		),
+		processRunning: tlm.NewGauge("runtime", "procmgr_process_running", []string{"process"}, "Managed process is running under dd-procmgrd"),
+		processState: tlm.NewGauge(
+			"runtime",
+			"procmgr_process_state",
+			[]string{"process", "state"},
+			"1 for the state dd-procmgrd currently reports for a managed process, 0 for all other states",
+		),
 		serviceInstalled: tlm.NewGauge(
 			"runtime",
 			"agent_service_installed",
@@ -51,6 +66,12 @@ func StartReporter(ctx context.Context, tlm telemetry.Component) {
 			"agent_service_management_mode",
 			[]string{"service", "mode"},
 			"How an agent service process is supervised",
+		),
+		serviceRunning: tlm.NewGauge(
+			"runtime",
+			"agent_service_running",
+			[]string{"service", "supervisor"},
+			"Process is up under this supervisor (not ownership)",
 		),
 	}
 
@@ -92,6 +113,14 @@ func report(ctx context.Context, g gauges, collector *Collector) {
 	setBoolGauge(g.daemonReachable, snapshot.Daemon.Reachable)
 	setBoolGauge(g.daemonReady, snapshot.Daemon.Ready)
 
+	// Skip the family on non-linux/windows: ServiceState is empty there and emitting
+	// all-zero one-hots would only add noise under zero_metric drop.
+	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
+		for _, state := range daemonServiceStates {
+			setBoolGauge(g.daemonServiceState, daemonServiceStateIsActive(snapshot.Daemon.ServiceState, state), state)
+		}
+	}
+
 	for _, service := range snapshot.Services {
 		spec, ok := serviceByID(service.ID)
 		if !ok {
@@ -102,13 +131,23 @@ func report(ctx context.Context, g gauges, collector *Collector) {
 		setBoolGauge(g.serviceProcmgrConfigured, service.ProcmgrConfigured, service.ID)
 		setBoolGauge(g.processRunning, service.ProcmgrState == ProcessStateRunning, spec.ProcmgrProcessName)
 
+		// processRunning alone cannot separate "deliberately stopped" from "crash looping",
+		// so also report the state itself.
+		for _, state := range procmgrProcessStates {
+			setBoolGauge(g.processState, procmgrStateIsActive(service, state), spec.ProcmgrProcessName, state)
+		}
+
 		// Do not emit management_mode=none on platforms where we never classify
 		// systemd/SCM/procmgr (e.g. macOS); avoids polluting COAT adoption metrics.
+		// agent_service_running uses the same gate so macOS with mode none skips both families.
 		emitMgmtMode := service.ManagementMode != ManagementModeNone ||
 			runtime.GOOS == "linux" || runtime.GOOS == "windows"
 		if emitMgmtMode {
 			for _, mode := range managementModes {
 				setBoolGauge(g.serviceManagementMode, service.ManagementMode == mode, service.ID, string(mode))
+			}
+			for _, supervisor := range serviceSupervisors {
+				setBoolGauge(g.serviceRunning, serviceRunningUnder(service, supervisor), service.ID, supervisor)
 			}
 		}
 	}
