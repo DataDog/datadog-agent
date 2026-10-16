@@ -1,14 +1,14 @@
 ---
 enhancements:
   - |
-    The Versa check now supports a configurable `client_timeout` attribute that sets an http timeout
-    for all checks, as well as endpoint-specific
-    pagination and timeout parameters. Users of this check can now specify timeouts and pagination
-    for each `collect_*` endpoint. For example, to customize the behavior for `collect_sla_metrics`:
-    ```
-    endpoint_overrides:
-      sla_metrics:
-        timeout: 60
-        max_items: 500
-        max_pages: 40
-    ```
+    The Versa check adds a ``client_timeout`` option (seconds, default 10) for
+    Versa API requests, and an ``endpoint_overrides`` option to set
+    ``max_count``, ``max_pages``, and ``timeout`` per endpoint. For example:
+
+    .. code-block:: yaml
+
+      endpoint_overrides:
+        sla_metrics:
+          timeout: 60
+          max_count: 500
+          max_pages: 40

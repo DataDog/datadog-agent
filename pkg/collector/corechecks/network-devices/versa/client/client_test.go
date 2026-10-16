@@ -8,9 +8,12 @@
 package client
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client/fixtures"
@@ -881,16 +884,28 @@ func TestGetSLAMetricsPaginationWithEndpointOverride(t *testing.T) {
 	require.Equal(t, 2, len(slaMetrics))
 }
 
-func TestEndpointTimeout(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/vnms/dashboard/vdStatus", func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(200 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(fixtures.GetDirectorStatus))
-	})
-	server := httptest.NewServer(mux)
-	defer server.Close()
+// delayedTransport responds after a delay, or fails once the request context is
+// cancelled (which is how http.Client enforces its Timeout)
+type delayedTransport struct {
+	delay time.Duration
+	body  string
+}
 
+func (d *delayedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	select {
+	case <-time.After(d.delay):
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(d.body)),
+			Request:    req,
+		}, nil
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
+	}
+}
+
+func TestEndpointTimeout(t *testing.T) {
 	tests := []struct {
 		name        string
 		options     []ClientOptions
@@ -899,7 +914,7 @@ func TestEndpointTimeout(t *testing.T) {
 		{
 			name:        "client-wide timeout exceeded",
 			options:     []ClientOptions{WithTimeout(50 * time.Millisecond)},
-			expectedErr: "Client.Timeout exceeded",
+			expectedErr: "context deadline exceeded",
 		},
 		{
 			name: "endpoint override longer than client-wide timeout",
@@ -914,22 +929,36 @@ func TestEndpointTimeout(t *testing.T) {
 				WithTimeout(5 * time.Second),
 				WithEndpointConfig(EndpointDirectorStatus, EndpointConfig{Timeout: 50 * time.Millisecond}),
 			},
-			expectedErr: "Client.Timeout exceeded",
+			expectedErr: "context deadline exceeded",
 		},
+	}
+
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "testuser",
+		Password: "testpass",
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := testClient(server, append(tt.options, WithMaxAttempts(1))...)
-			require.NoError(t, err)
+			// synctest uses virtual time, so the 200ms response delay and the
+			// client timeouts are deterministic regardless of CI load
+			synctest.Test(t, func(t *testing.T) {
+				client, err := NewClient("10.0.0.1", 9182, "10.0.0.2:8443", true, authConfig, append(tt.options, WithMaxAttempts(1))...)
+				require.NoError(t, err)
+				client.httpClient.Transport = &delayedTransport{
+					delay: 200 * time.Millisecond,
+					body:  fixtures.GetDirectorStatus,
+				}
 
-			status, err := client.GetDirectorStatus()
-			if tt.expectedErr != "" {
-				require.ErrorContains(t, err, tt.expectedErr)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, status)
+				status, err := client.GetDirectorStatus()
+				if tt.expectedErr != "" {
+					require.ErrorContains(t, err, tt.expectedErr)
+					return
+				}
+				require.NoError(t, err)
+				require.NotNil(t, status)
+			})
 		})
 	}
 }
