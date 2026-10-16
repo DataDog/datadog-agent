@@ -34,7 +34,7 @@ type invalidConfigModule struct {
 
 // NewModule captures the config so the once-only startup check can read it.
 func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &invalidConfigModule{cfg: deps.Config, checker: newChecker(deps.Config, deps.Hostname, deps.SelfIdent)}
+	return &invalidConfigModule{cfg: deps.Config, checker: newChecker(deps.Config, deps.Schema, deps.Hostname, deps.SelfIdent)}
 }
 
 func (m *invalidConfigModule) IssueName() string {
@@ -49,21 +49,20 @@ func (m *invalidConfigModule) BuildIssue(context map[string]string) (*healthplat
 	return InvalidConfigIssue{}.BuildIssue(context)
 }
 
-// BuiltInPeriodicHealthCheck returns nil as schema validation runs only at startup
+// BuiltInPeriodicHealthCheck returns nil as the configuration is only validated when loaded
 func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
-// BuiltInStartupHealthCheck runs schema validation once at agent startup.
+// BuiltInStartupHealthCheck reports the schema violations found when the
+// configuration was loaded, once at agent startup.
 // The check is gated inside Fn rather than at registration time so that
 // IssueNames-based stale-issue resolution still fires on restart even when
 // the flag is disabled — returning nil/empty resolves any previously-stored
 // issues rather than leaving them orphaned.
 //
-// The gate exists because schema.ValidateConfig decompresses, parses, and
-// compiles the full core_schema.yaml (~8000 lines) into a *jsonschema.Schema
-// stored in a process-lifetime global — adding ~8 MiB of permanent heap even
-// when the agent config is valid.
+// The gate only controls the reporting: the configuration is validated when
+// it's loaded whether or not the check is enabled.
 func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",

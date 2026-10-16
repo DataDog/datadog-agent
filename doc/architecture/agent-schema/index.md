@@ -14,7 +14,7 @@ The schema replaces this with a **single source of truth**. All information abou
 - **IDE autocompletion** — the schema can be published to [SchemaStore](https://www.schemastore.org/) so editors like VS Code automatically validate and complete configuration files.
 - **Automatic generation of `datadog.yaml.example` and `system-probe.yaml.example`** — the example file shipped with the Agent is generated directly from the schema, ensuring it stays in sync.
 - **Type-safe code generation** — Go configuration code can be generated from the schema, removing the imperative setup code entirely.
-- **Runtime validation**  — The user configuration can be validated at runtime by the Agent allowing automatic fallback to default upon an invalid value.
+- **Runtime validation**  — The user configuration can be validated at runtime by the Agent allowing automatic fallback to default upon an invalid value. This is done by the <<<repo("comp/core/schema", "schema component")>>>. Validation links the JSON schema library and the embedded schemas into the binary, so only the Agent `run` and `experimental check-config` commands use the real implementation (`core.WithSchema(schemafx.Module())`); every other binary uses the noop one.
 
 ## Terminology
 

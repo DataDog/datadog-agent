@@ -280,8 +280,9 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 	return nil
 }
 
-// LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component) error {
+// LoadDatadog reads config files and initializes config with decrypted secrets. The configuration is validated against
+// its schema with schemaValidator.
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, schemaValidator pkgconfigmodel.SchemaValidator) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -291,7 +292,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config)
+	err := loadCustom(config, schemaValidator, config)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -407,19 +408,20 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	return ctx.Err()
 }
 
-// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
-func LoadSystemProbe(config pkgconfigmodel.Config) error {
-	return loadCustom(config)
+// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe. The
+// configuration is validated against its schema with schemaValidator.
+func LoadSystemProbe(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator) error {
+	// schema enforcement is configured in datadog.yaml, which is always loaded before system-probe.yaml
+	return loadCustom(config, schemaValidator, Datadog())
 }
 
-// loadCustom reads config into the provided config object
-func loadCustom(config pkgconfigmodel.Config) error {
+// loadCustom reads config into the provided config object and validates it with schemaValidator. If 'schema.enforce' is
+// true in datadog.yaml, invalid settings are reverted to their default.
+func loadCustom(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator, ddConf pkgconfigmodel.Config) error {
 	log.Info("Starting to load the configuration")
-	if err := config.ReadInConfig(); err != nil {
-		return err
-	}
-	config.Validate()
-	return nil
+	err := config.ReadInConfig()
+	config.Validate(schemaValidator, ddConf.GetBool("schema.enforce"))
+	return err
 }
 
 // setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS

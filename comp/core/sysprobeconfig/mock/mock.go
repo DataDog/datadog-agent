@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -50,7 +51,7 @@ func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) syspro
 		}
 	})
 
-	syscfg, err := sysconfig.New("", "")
+	syscfg, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 	if err != nil {
 		t.Fatalf("sysprobe config create: %s", err)
 	}

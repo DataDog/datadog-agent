@@ -8,6 +8,7 @@
 package config
 
 import (
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"runtime"
 	"strconv"
 	"testing"
@@ -56,7 +57,7 @@ func TestEventMonitor(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(tc.usmEvents))
 			t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", strconv.FormatBool(tc.usmEvents))
 
-			cfg, err := New("/doesnotexist", "")
+			cfg, err := New("/doesnotexist", "", &schemanoopimpl.SchemaNoop{})
 			t.Logf("%+v\n", cfg)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(types.EventMonitorModule))
@@ -101,7 +102,7 @@ func TestEnableDiscovery(t *testing.T) {
 		// Reset global config to avoid test interference.
 		_ = mock.NewSystemProbe(t)
 
-		cfg, err := New("", "")
+		cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		assert.False(t, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
@@ -114,7 +115,7 @@ func TestEnableDiscovery(t *testing.T) {
 
 		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 
-		cfg, err := New("", "")
+		cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
@@ -125,7 +126,7 @@ func TestEnableDiscovery(t *testing.T) {
 
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
 
-		cfg, err := New("", "")
+		cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
@@ -135,7 +136,7 @@ func TestEnableDiscovery(t *testing.T) {
 		_ = mock.NewSystemProbe(t)
 
 		// No other modules enabled — discovery should still auto-enable on Linux
-		cfg, err := New("", "")
+		cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
@@ -147,7 +148,7 @@ func TestEnableDiscovery(t *testing.T) {
 		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 		t.Setenv("DD_DISCOVERY_ENABLED", "false")
 
-		cfg, err := New("", "")
+		cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		assert.False(t, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})
@@ -159,7 +160,7 @@ func TestEnableDiscovery(t *testing.T) {
 		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 		mockCfg.SetInTest("discovery.enabled", false)
 
-		cfg, err := New("", "")
+		cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		assert.False(t, cfg.ModuleIsEnabled(types.DiscoveryModule))
 	})

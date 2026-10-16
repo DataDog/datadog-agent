@@ -20,6 +20,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/pkg/config/legacy"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -58,7 +59,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 
 	cfg.AddConfigPath(newConfigDir)
-	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{})
+	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{})
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}

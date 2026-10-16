@@ -27,6 +27,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/log/fx-trace",
         "//comp/core/remoteagent/fx-trace",
+        "//comp/core/schema/fx-noop",
         "//comp/core/secrets/fx",
         "//comp/core/tagger/def",
         "//comp/core/tagger/fx-optional-remote",

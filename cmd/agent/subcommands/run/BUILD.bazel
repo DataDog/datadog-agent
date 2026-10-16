@@ -84,6 +84,7 @@ go_library(
         "//comp/core/pid/impl",
         "//comp/core/profiler/fx",
         "//comp/core/remoteagentregistry/fx",
+        "//comp/core/schema/fx",
         "//comp/core/secrets/def",
         "//comp/core/settings/def",
         "//comp/core/settings/fx",

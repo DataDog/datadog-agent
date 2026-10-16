@@ -22,6 +22,7 @@ go_library(
         "//comp/core/log/mock",
         "//comp/core/pid/fx",
         "//comp/core/remoteflags/fx",
+        "//comp/core/schema/fx-noop",
         "//comp/core/secrets/fx",
         "//comp/core/secrets/fx-noop",
         "//comp/core/sysprobeconfig/def",

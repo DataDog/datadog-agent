@@ -84,6 +84,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.83.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.83.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.83.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/schema/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/schema/noop-impl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.83.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.83.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.83.3 // indirect
@@ -627,6 +629,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../../comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../../comp/core/log/impl-trace
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../comp/core/log/mock
+	github.com/DataDog/datadog-agent/comp/core/schema/def => ../../../../comp/core/schema/def
+	github.com/DataDog/datadog-agent/comp/core/schema/noop-impl => ../../../../comp/core/schema/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../../comp/core/secrets/def
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../../comp/core/secrets/impl

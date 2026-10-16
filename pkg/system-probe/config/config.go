@@ -25,12 +25,13 @@ const (
 	Namespace = "system_probe_config"
 )
 
-// New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
-func New(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
-	return newSysprobeConfig(configPath, fleetPoliciesDirPath)
+// New creates a config object for system-probe. It assumes no configuration has been loaded as this point. The
+// configuration is validated against its schema with schemaValidator.
+func New(configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator) (*types.Config, error) {
+	return newSysprobeConfig(configPath, fleetPoliciesDirPath, schemaValidator)
 }
 
-func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
+func newSysprobeConfig(configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator) (*types.Config, error) {
 	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
 
 	cfg.SetConfigName("system-probe")
@@ -48,7 +49,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 		cfg.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadSystemProbe(cfg)
+	err := pkgconfigsetup.LoadSystemProbe(cfg, schemaValidator)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message

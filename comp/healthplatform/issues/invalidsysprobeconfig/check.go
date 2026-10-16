@@ -11,25 +11,25 @@ import (
 	"hash/fnv"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/schema"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// checker validates the customer-provided system-probe config against the schema.
+// checker reports the schema violations found when the system-probe configuration was loaded.
 type checker struct {
 	cfg       sysprobeconfig.Component
+	schema    schema.Component
 	hostname  hostnameinterface.Component
 	selfIdent *selfident.SelfIdent
 }
 
-func newChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
-	return &checker{cfg: cfg, hostname: hostname, selfIdent: selfIdent}
+func newChecker(cfg sysprobeconfig.Component, schema schema.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
+	return &checker{cfg: cfg, schema: schema, hostname: hostname, selfIdent: selfIdent}
 }
 
 // Scope each problem to its host or DaemonSet, config file, and setting.
@@ -45,11 +45,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 }
 
 func (c *checker) validate() ([]runnerdef.IssueReport, error) {
-	violations, schemaErr := schema.ValidateConfig(c.cfg, model.SystemProbeSchema)
-	if schemaErr != nil {
-		pkglog.Warnf("invalidsysprobeconfig: schema validator unavailable; skipping check: %v", schemaErr)
-		return nil, schemaErr
-	}
+	violations := c.schema.GetViolations(model.SystemProbeSchema)
 	if len(violations) == 0 {
 		return nil, nil
 	}
