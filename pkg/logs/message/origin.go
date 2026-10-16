@@ -6,6 +6,7 @@
 package message
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -40,6 +41,18 @@ func NewOrigin(source *sources.LogSource) *Origin {
 // The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
+}
+
+// HasTag reports whether Tags would contain tag, without allocating.
+func (o *Origin) HasTag(tag string) bool {
+	if o == nil || o.LogSource == nil {
+		return false
+	}
+	if slices.Contains(o.tags, tag) || slices.Contains(o.LogSource.Config.Tags, tag) {
+		return true
+	}
+	category, ok := strings.CutPrefix(tag, "sourcecategory:")
+	return ok && category != "" && category == o.LogSource.Config.SourceCategory
 }
 
 // TagsPayload returns the raw tag payload of the origin.

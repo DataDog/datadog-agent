@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -123,6 +124,36 @@ func TestExpiry(t *testing.T) {
 	assert.Equal(t, "expired", configs[1].Quotas[0].State)
 }
 
+func TestExpiredQuotasArePruned(t *testing.T) {
+	now := t0
+	e := newTestEnforcer(&now)
+	e.Update(map[string][]byte{
+		"a": snap(t0.Add(time.Minute), []string{"team:a"}),
+		"b": snap(t0.Add(time.Hour), []string{"team:b"}),
+	})
+	assert.Len(t, e.active.Load().quotas, 2)
+
+	now = t0.Add(time.Minute)
+	assert.False(t, e.Check(newMsg("team:a")))
+	assert.Len(t, e.active.Load().quotas, 1)
+	assert.True(t, e.Check(newMsg("team:b")))
+
+	now = t0.Add(time.Hour)
+	assert.False(t, e.Check(newMsg("team:b")))
+	assert.Empty(t, e.active.Load().quotas)
+}
+
+func TestTelemetrySeriesRemovedWithQuota(t *testing.T) {
+	now := t0
+	e := newTestEnforcer(&now)
+	e.Update(map[string][]byte{"c": snap(t0.Add(time.Hour), []string{"team:tlm"})})
+	e.Check(newMsg("team:tlm"))
+	assert.EqualValues(t, 1, metrics.TlmQuotaDroppedEvents.WithValues("team:tlm").Get())
+
+	e.Update(map[string][]byte{})
+	assert.Zero(t, metrics.TlmQuotaDroppedEvents.WithValues("team:tlm").Get())
+}
+
 func TestUpdateReplacesConfigs(t *testing.T) {
 	now := t0
 	e := newTestEnforcer(&now)
@@ -201,4 +232,34 @@ func BenchmarkCheck(b *testing.B) {
 			e.Check(msg)
 		}
 	})
+	b.Run("tag hit", func(b *testing.B) {
+		e := NewEnforcer()
+		e.Update(map[string][]byte{"c": snap(time.Now().Add(time.Hour), []string{"env:prod", "team:search"})})
+		for b.Loop() {
+			e.Check(msg)
+		}
+	})
+	b.Run("50 quotas miss", func(b *testing.B) {
+		e := NewEnforcer()
+		e.Update(manyQuotas(50, time.Now().Add(time.Hour)))
+		for b.Loop() {
+			e.Check(msg)
+		}
+	})
+	b.Run("50 quotas expired", func(b *testing.B) {
+		e := NewEnforcer()
+		e.Update(manyQuotas(50, time.Now().Add(time.Second)))
+		e.now = func() time.Time { return time.Now().Add(time.Hour) }
+		for b.Loop() {
+			e.Check(msg)
+		}
+	})
+}
+
+func manyQuotas(n int, expiresAt time.Time) map[string][]byte {
+	configs := make(map[string][]byte, n)
+	for i := range n {
+		configs[strconv.Itoa(i)] = snap(expiresAt, []string{"team:t" + strconv.Itoa(i)})
+	}
+	return configs
 }
