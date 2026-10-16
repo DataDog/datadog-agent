@@ -2112,6 +2112,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "previous": {
                     "$ref": "#/$defs/NamespaceIDs",
                     "description": "Namespace IDs of the thread before the syscall"
+                },
+                "mntns_host": {
+                    "type": "boolean",
+                    "description": "Indicates that the mount namespace of the thread after the syscall is the host's initial one"
+                },
+                "mntns_outside_base": {
+                    "type": "boolean",
+                    "description": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one"
                 }
             },
             "additionalProperties": false,
@@ -5860,6 +5868,14 @@ ancestor lineage to find the same value. |
         "previous": {
             "$ref": "#/$defs/NamespaceIDs",
             "description": "Namespace IDs of the thread before the syscall"
+        },
+        "mntns_host": {
+            "type": "boolean",
+            "description": "Indicates that the mount namespace of the thread after the syscall is the host's initial one"
+        },
+        "mntns_outside_base": {
+            "type": "boolean",
+            "description": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one"
         }
     },
     "additionalProperties": false,
@@ -5881,6 +5897,8 @@ ancestor lineage to find the same value. |
 | `cgroupns` | Cgroup namespace ID |
 | `timens` | Time namespace ID |
 | `previous` | Namespace IDs of the thread before the syscall |
+| `mntns_host` | Indicates that the mount namespace of the thread after the syscall is the host's initial one |
+| `mntns_outside_base` | Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one |
 
 | References |
 | ---------- |

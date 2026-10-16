@@ -23274,6 +23274,28 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setns.mntns_host":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetNS.MntNSHost
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.mntns_outside_base":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetNS.MntNSOutsideBase
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setns.netns":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -40114,6 +40136,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"setns.cgroupns",
 		"setns.ipcns",
 		"setns.mntns",
+		"setns.mntns_host",
+		"setns.mntns_outside_base",
 		"setns.netns",
 		"setns.nstype",
 		"setns.pidns",
@@ -44059,6 +44083,10 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setns", reflect.Int, "int", false, nil
 	case "setns.mntns":
 		return "setns", reflect.Int, "int", false, nil
+	case "setns.mntns_host":
+		return "setns", reflect.Bool, "bool", false, nil
+	case "setns.mntns_outside_base":
+		return "setns", reflect.Bool, "bool", false, nil
 	case "setns.netns":
 		return "setns", reflect.Int, "int", false, nil
 	case "setns.nstype":
@@ -49926,6 +49954,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("setns.ipcns", &ev.SetNS.NamespaceIDs.IPCNS, value)
 	case "setns.mntns":
 		return ev.setUint32FieldValue("setns.mntns", &ev.SetNS.NamespaceIDs.MntNS, value)
+	case "setns.mntns_host":
+		return ev.setBoolFieldValue("setns.mntns_host", &ev.SetNS.MntNSHost, value)
+	case "setns.mntns_outside_base":
+		return ev.setBoolFieldValue("setns.mntns_outside_base", &ev.SetNS.MntNSOutsideBase, value)
 	case "setns.netns":
 		return ev.setUint32FieldValue("setns.netns", &ev.SetNS.NamespaceIDs.NetNS, value)
 	case "setns.nstype":
