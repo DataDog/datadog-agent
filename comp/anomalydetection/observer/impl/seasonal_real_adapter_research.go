@@ -9,6 +9,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -56,12 +57,12 @@ func realSeasonalMedian(v []float64) float64 {
 // Exact preceding study estimator, reading only the frozen training ring.
 func realSeasonalFitScale(m *hourlyAdaptiveSeasonalModel) (*realSeasonalScale, error) {
 	if m.Profile == nil || m.Last != realSeasonalTrain-1 {
-		return nil, fmt.Errorf("no frozen training profile")
+		return nil, errors.New("no frozen training profile")
 	}
 	p := m.Profile.Period
 	n := realSeasonalPlan.cycles()
 	if p <= 0 || n*p > realSeasonalTrain {
-		return nil, fmt.Errorf("invalid period")
+		return nil, errors.New("invalid period")
 	}
 	out := &realSeasonalScale{Original: make([]float64, p), Applied: make([]float64, p), TrainingStart: realSeasonalTrain - n*p}
 	groups := make([][]float64, p)
@@ -79,7 +80,7 @@ func realSeasonalFitScale(m *hourlyAdaptiveSeasonalModel) (*realSeasonalScale, e
 	mse := make([]float64, p)
 	for q, g := range groups {
 		if len(g) != n {
-			return nil, fmt.Errorf("incomplete phase")
+			return nil, errors.New("incomplete phase")
 		}
 		bias := realSeasonalMedian(g) - m.Profile.Center[q]
 		for i, v := range g {
@@ -91,7 +92,7 @@ func realSeasonalFitScale(m *hourlyAdaptiveSeasonalModel) (*realSeasonalScale, e
 			}
 			e := (v - realSeasonalMedian(other)) + bias
 			if !hourlyAdaptiveFinite(e) {
-				return nil, fmt.Errorf("nonfinite error")
+				return nil, errors.New("nonfinite error")
 			}
 			pooled = append(pooled, e)
 			mse[q] += e * e / float64(n)
@@ -106,13 +107,13 @@ func realSeasonalFitScale(m *hourlyAdaptiveSeasonalModel) (*realSeasonalScale, e
 	out.V0 = sigma * sigma
 	floor := math.Max(math.SmallestNonzeroFloat64, 32*(math.Nextafter(maxAbs, math.Inf(1))-maxAbs))
 	if !hourlyAdaptiveFinite(out.V0) || !hourlyAdaptiveFinite(floor) {
-		return nil, fmt.Errorf("nonfinite pooled scale")
+		return nil, errors.New("nonfinite pooled scale")
 	}
 	for q, v := range mse {
 		out.Original[q] = math.Max(math.Sqrt((float64(n)*v+2*out.V0)/float64(n+2)), floor)
 		out.Applied[q] = math.Max(out.Original[q], math.Sqrt(out.V0))
 		if !hourlyAdaptiveFinite(out.Applied[q]) || out.Applied[q] <= 0 {
-			return nil, fmt.Errorf("invalid divisor")
+			return nil, errors.New("invalid divisor")
 		}
 	}
 	return out, nil
@@ -197,10 +198,10 @@ func (s *realSeasonalGaugeState) closeSlot() (bool, error) {
 		return false, nil
 	}
 	if s.slot != s.closed {
-		return false, fmt.Errorf("missing_closed_slot")
+		return false, errors.New("missing_closed_slot")
 	}
 	if len(s.pending) == 0 || len(s.pending) > 15 {
-		return false, fmt.Errorf("invalid_closed_slot_count")
+		return false, errors.New("invalid_closed_slot_count")
 	}
 	timestamps := make([]int64, 0, len(s.pending))
 	for ts := range s.pending {
@@ -211,7 +212,7 @@ func (s *realSeasonalGaugeState) closeSlot() (bool, error) {
 	for _, ts := range timestamps {
 		v := s.pending[ts]
 		if !hourlyAdaptiveFinite(v) {
-			return false, fmt.Errorf("nonfinite_prereadiness")
+			return false, errors.New("nonfinite_prereadiness")
 		}
 		sum += v
 		low = math.Min(low, v)
@@ -219,10 +220,10 @@ func (s *realSeasonalGaugeState) closeSlot() (bool, error) {
 	}
 	mean := sum / float64(len(timestamps))
 	if !hourlyAdaptiveFinite(mean) {
-		return false, fmt.Errorf("nonfinite_slot_mean")
+		return false, errors.New("nonfinite_slot_mean")
 	}
 	if !hourlyAdaptiveFinite(high - low) {
-		return false, fmt.Errorf("nonfinite_within_slot_spread")
+		return false, errors.New("nonfinite_within_slot_spread")
 	}
 	s.slotCounts[len(timestamps)]++
 	s.maxWithinSlotSpread = math.Max(s.maxWithinSlotSpread, high-low)
@@ -231,7 +232,7 @@ func (s *realSeasonalGaugeState) closeSlot() (bool, error) {
 		if s.slot == realSeasonalTrain-1 {
 			s.frozen = true
 			if s.model.Profile == nil {
-				return false, fmt.Errorf("no_admission_at_training_cutoff")
+				return false, errors.New("no_admission_at_training_cutoff")
 			}
 			scale, err := realSeasonalFitScale(s.model)
 			if err != nil {

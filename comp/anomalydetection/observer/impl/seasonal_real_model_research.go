@@ -8,7 +8,7 @@
 package observerimpl
 
 import (
-	"fmt"
+	"errors"
 	"math"
 	"os"
 	"sort"
@@ -74,16 +74,16 @@ func hourlyAdaptiveMod(i, n int) int      { return (i%n + n) % n }
 
 func newHourlyAdaptiveSeasonalModel(step int, seconds []int) (*hourlyAdaptiveSeasonalModel, error) {
 	if step <= 0 || len(seconds) == 0 || len(seconds) > hourlyAdaptiveMaxCandidates {
-		return nil, fmt.Errorf("invalid cadence/candidate count")
+		return nil, errors.New("invalid cadence/candidate count")
 	}
 	m := &hourlyAdaptiveSeasonalModel{Version: 1, Step: step, Last: -1, LastFit: -1}
 	for _, s := range seconds {
 		if s <= 0 || s%step != 0 {
-			return nil, fmt.Errorf("period must be a positive multiple of cadence")
+			return nil, errors.New("period must be a positive multiple of cadence")
 		}
 		p := s / step
 		if p < 8 || p > hourlyAdaptiveMaxPeriod {
-			return nil, fmt.Errorf("period exceeds supported slot bounds")
+			return nil, errors.New("period exceeds supported slot bounds")
 		}
 		m.Candidates = append(m.Candidates, p)
 	}

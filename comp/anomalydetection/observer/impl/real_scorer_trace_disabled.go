@@ -9,5 +9,4 @@ package observerimpl
 
 func researchTraceActive() bool                         { return false }
 func researchTraceEnabled(int64) bool                   { return false }
-func researchTrace(string, int64, map[string]any)       {}
 func researchTraceGlobal(string, int64, map[string]any) {}

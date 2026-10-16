@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -206,7 +207,7 @@ func TestSeasonalStageCost(t *testing.T) {
 		runtime.ReadMemStats(&after)
 		stages[stage.Name] = map[string]any{"process_cpu_seconds": cpu, "wall_seconds": elapsedWall, "allocated_bytes": after.TotalAlloc - before.TotalAlloc, "allocations": after.Mallocs - before.Mallocs, "gc_cycles": after.NumGC - before.NumGC, "data_seconds": stage.End - last, "start_second": last + 1, "end_second": stage.End}
 		if validate {
-			stages[stage.Name].(map[string]any)["cumulative_emission_sha256"] = fmt.Sprintf("%x", digest.Sum(nil))
+			stages[stage.Name].(map[string]any)["cumulative_emission_sha256"] = hex.EncodeToString(digest.Sum(nil))
 		}
 		last = stage.End
 		snapshot(stage.Name, f)

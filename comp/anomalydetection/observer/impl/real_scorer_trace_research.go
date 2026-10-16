@@ -66,11 +66,6 @@ func researchTraceEnabled(timestamp int64) bool {
 	}
 	return false
 }
-func researchTrace(kind string, timestamp int64, fields map[string]any) {
-	if researchTraceEnabled(timestamp) {
-		researchTraceGlobal(kind, timestamp, fields)
-	}
-}
 func researchTraceGlobal(kind string, timestamp int64, fields map[string]any) {
 	if !researchTraceActive() {
 		return
