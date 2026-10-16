@@ -44,7 +44,7 @@ Before deploying, update the provided manifests for your environment:
 
 If your cluster does not enforce NetworkPolicy resources, these manifests do not restrict egress; use your cluster's supported network controls instead.
 
-## Cluster name
+## Kubernetes cluster name
 
 In [`operator/collector.yaml`](operator/collector.yaml), uncomment the detector and its config. For an explicit name, uncomment `env` and `OTEL_RESOURCE_ATTRIBUTES` in `spec.env`.
 

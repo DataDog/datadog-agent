@@ -41,7 +41,7 @@ Before deploying, update the provided Helm values files for your environment. Th
 
 If your cluster does not enforce NetworkPolicy resources, these values do not restrict egress; use your cluster's supported network controls instead.
 
-## Cluster name
+## Kubernetes cluster name
 
 In [`helm/collector-values.yaml`](helm/collector-values.yaml), set `presets.resourceDetection.enabled: true` and enable the needed detector.
 
