@@ -48,9 +48,9 @@ const (
 	defaultMaxBytes   = 160 << 20
 )
 
-// drainOverrun records how long a capture ran past its requested duration,
-// so stopGracePeriod can be tuned from observed values. A capture that ends
-// early on a packet or byte cap records 0.
+// drainOverrun records how long a capture that reached its requested duration
+// ran past it, so stopGracePeriod can be tuned from observed values. Captures
+// that end early (a cap, an error, the caller leaving) are not recorded.
 var drainOverrun = telemetryimpl.GetCompatComponent().NewHistogram(
 	"packet_capture", "drain_overrun_seconds", []string{},
 	"Time a capture ran past its requested duration before its drain loop exited",
@@ -185,7 +185,9 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	case <-capturer.Done():
 	case <-ctx.Done():
 	}
-	drainOverrun.Observe(max(0, time.Since(startedAt)-duration).Seconds())
+	if overrun := time.Since(startedAt) - duration; overrun >= 0 {
+		drainOverrun.Observe(overrun.Seconds())
+	}
 
 	if err := capturer.Stop(); err != nil {
 		log.Errorf("packet_capture: stopping capture: %s", err)
