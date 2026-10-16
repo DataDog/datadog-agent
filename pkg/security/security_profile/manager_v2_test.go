@@ -478,6 +478,10 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 		kernelVersion:          &kernel.Version{},
 		pathsReducer:           activity_tree.NewPathsReducer(),
 		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		profilePendingEvents:   make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:              atomic.NewUint64(0),
+		pendingProfiles:        atomic.NewUint64(0),
+		resolvedCgroups:        make(map[containerutils.CGroupID]struct{}),
 		localStorage:           localStorage,
 		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
@@ -506,6 +510,8 @@ func newTestEventV2(eventType model.EventType, imageTag string, variant string) 
 	entry := model.NewPlaceholderProcessCacheEntry(42, 42, false)
 	entry.ContainerContext.ContainerID = containerutils.ContainerID(testContainerID)
 	entry.ContainerContext.Tags = []string{"image_name:" + testImageName, "image_tag:" + imageTag}
+	entry.CGroup.CGroupID = containerutils.CGroupID("/docker/" + testContainerID)
+	entry.CGroup.CGroupPathKey = model.PathKey{Inode: 4242, MountID: 1}
 	entry.FileEvent.PathnameStr = "/usr/bin/proc"
 	entry.FileEvent.BasenameStr = "proc"
 	// a file with an inode but without mount ID would be seen as fileless
@@ -758,3 +764,105 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		assert.Contains(t, m.profiles, testSelector)
 	})
 }
+
+type lazyTimeFieldHandlers struct {
+	*model.FakeFieldHandlers
+}
+
+func (fh *lazyTimeFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
+	if ev.Timestamp.IsZero() {
+		ev.Timestamp = time.Now()
+	}
+	return ev.Timestamp
+}
+
+func TestManagerV2_queueAndResolvePendingEvents(t *testing.T) {
+	t.Run("queues event with unresolved timestamp and drains on periodic resolution", func(t *testing.T) {
+		m, anomalies := newInsertionTestManagerV2(t)
+		tagger := &fakeContainerTagger{}
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+		ev := newTestEventV2(model.ExecEventType, "v1", "known")
+		ev.Timestamp = time.Time{}
+		ev.FieldHandlers = &lazyTimeFieldHandlers{FakeFieldHandlers: &model.FakeFieldHandlers{}}
+		ev.ProcessContext.Process.ContainerContext.Tags = nil
+		ev.Rules = []*model.MatchedRule{
+			model.NewMatchedRule("rule_1", "1.0", nil, "pol", "1.0"),
+		}
+
+		m.queueEventForTagResolution(ev, nil)
+		require.Equal(t, uint64(1), m.queueSize.Load())
+		require.Equal(t, uint64(1), m.pendingProfiles.Load())
+
+		tagger.tags = []string{"image_name:" + testImageName, "image_tag:v1"}
+		m.resolvePendingEvents()
+
+		assert.Equal(t, uint64(0), m.queueSize.Load())
+		assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+
+		p := m.profiles[testSelector]
+		require.NotNil(t, p)
+		node := findTestEventNode(p, model.ExecEventType, "known")
+		require.NotNil(t, node)
+		require.NotEmpty(t, p.ActivityTree.ProcessNodes)
+		var matchedRules []*model.MatchedRule
+		for _, pn := range p.ActivityTree.ProcessNodes {
+			if pn.Process.FileEvent.PathnameStr == "/usr/bin/known" {
+				matchedRules = pn.MatchedRules
+			}
+		}
+		require.Len(t, matchedRules, 1)
+		assert.Equal(t, "rule_1", matchedRules[0].RuleID)
+		require.Len(t, *anomalies, 1)
+		require.Len(t, (*anomalies)[0].Rules, 1)
+		assert.Equal(t, "rule_1", (*anomalies)[0].Rules[0].RuleID)
+	})
+
+	t.Run("drains pending events even if short-lived container cgroup already exited", func(t *testing.T) {
+		m, anomalies := newInsertionTestManagerV2(t)
+		tagger := &fakeContainerTagger{}
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+		ev := newTestEventV2(model.ExecEventType, "v1", "known")
+		ev.Timestamp = time.Time{}
+		ev.FieldHandlers = &lazyTimeFieldHandlers{FakeFieldHandlers: &model.FakeFieldHandlers{}}
+		ev.ProcessContext.Process.ContainerContext.Tags = nil
+
+		m.queueEventForTagResolution(ev, nil)
+		require.Equal(t, uint64(1), m.queueSize.Load())
+
+		m.resolvers.CGroupResolver.Delete(4242)
+		require.Nil(t, m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID)))
+
+		tagger.tags = []string{"image_name:" + testImageName, "image_tag:v1"}
+		m.resolvePendingEvents()
+
+		p := m.profiles[testSelector]
+		require.NotNil(t, p)
+		assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
+		assert.Empty(t, p.Instances)
+		assert.Contains(t, m.pendingProfileRemovals, testSelector)
+		assert.Empty(t, m.resolvedCgroups)
+		require.Len(t, *anomalies, 1)
+		assert.Equal(t, p.Metadata.Name, (*anomalies)[0].SecurityProfileContext.Name)
+	})
+}
+
+func TestManagerV2_onCGroupDeleted_containerUnlink(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+
+	_, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.True(t, inserted)
+
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	require.Len(t, p.Instances, 1)
+
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+
+	m.onCGroupDeleted(cgce)
+	assert.Empty(t, p.Instances)
+	assert.Contains(t, m.pendingProfileRemovals, testSelector)
+}
+
