@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    The IoT Agent no longer supports the armv7 (armhf) architecture as of this
+    version. If you install the IoT Agent ``armhf``/``armv7hl`` ``.deb`` or
+    ``.rpm`` package, this and future releases will not have a new armv7
+    package available through the normal APT/YUM repositories. Please reach out
+    to Datadog support if you need continued armv7 support.
