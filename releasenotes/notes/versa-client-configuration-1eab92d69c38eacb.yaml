@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    The Versa check now supports a configurable client_timeout attribute, as well as endpoint-specific
+    pagination and timeout parameters. Users of this check can now specify timeouts and pagination
+    for each `collect_*` endpoint. For example, to customize the behavior for `collect_sla_metrics`:
+    ```
+    endpoint_overrides:
+      sla_metrics:
+        timeout: 60
+        max_items: 500
+        max_pages: 40
+    ```
