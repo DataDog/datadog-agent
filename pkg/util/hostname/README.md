@@ -91,19 +91,22 @@ On macOS and Windows, `infrastructure_mode: end_user_device` selects `<device-na
 FQDN, container or OS discovery. Explicit `hostname` and `hostname_file` settings still take precedence, and
 sidecar hostname handling is unchanged. Other operating systems and modes keep the existing resolution order.
 
-The device name is the configured Computer Name on macOS (collected through SystemConfiguration), and the OS
-computer name on Windows. The serial comes from IOKit on macOS and `Win32_BIOS.SerialNumber` on Windows, including
-VMs. Both parts are lowercased; runs of non-ASCII-alphanumeric characters become a hyphen and leading/trailing
-hyphens are removed. Only the name is truncated if necessary to keep the result within 253 characters; the serial
-is preserved. If either part is unusable, or the serial is missing or a known placeholder, the Agent logs a warning
-and continues through the existing providers.
+The final hostname combines a name and serial on both platforms:
+
+- **Windows:** `<OS-hostname>-<serial-number>`, using `os.Hostname()` and `Win32_BIOS.SerialNumber`.
+- **macOS:** `<Computer-Name>-<serial-number>`, using the configured Computer Name from SystemConfiguration and
+  the hardware serial from IOKit.
+
+This also applies to VMs. Both parts are lowercased; runs of non-ASCII-alphanumeric characters become a hyphen and
+leading/trailing hyphens are removed. Only the name is truncated if necessary to keep the result within 253 characters;
+the serial is preserved. If either part is unusable, or the serial is missing or a known placeholder, the Agent logs
+a warning and continues through the existing providers.
 
 The result is cached until restart. Network-derived macOS hostname changes do not change it; intentional Computer
-Name changes take effect after restart. The selected name is the primary Agent hostname. Host metadata also sends
-it as `agent-hostname` for canonical naming, including names with an EC2-default prefix. Existing OS/cloud metadata
-and configured/cloud aliases remain available. No historical identity migration is performed. Devices sharing both
-a device name and serial can still collide, and failed serial collection across restarts can switch a host back to
-its legacy identity.
+Name changes take effect after restart. The selected name is the primary Agent hostname and is sent as
+`internalHostname` in host metadata. Existing OS/cloud metadata and configured/cloud aliases remain available.
+No historical identity migration is performed. Devices sharing both a device name and serial can still collide,
+and failed serial collection across restarts can switch a host back to its legacy identity.
 
 Process-agent and trace-agent obtain the selected hostname through core-agent RPC or the Agent CLI. If both fail,
 they retain their existing OS hostname fallback behavior, including trace-agent’s environment checks. This fallback

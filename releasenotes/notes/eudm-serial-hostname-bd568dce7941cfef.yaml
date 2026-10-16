@@ -13,5 +13,5 @@ upgrade:
     without an explicit hostname override will report a new hostname when a
     usable serial is available. Existing device history is not migrated by this
     change. Device renames take effect after restarting the Agent. The serial-suffixed
-    name is the primary Agent hostname and is sent as the canonical name in host
-    metadata. Existing OS/cloud metadata and host aliases are preserved.
+    name is the primary Agent hostname. Existing OS/cloud metadata and host aliases
+    are preserved.

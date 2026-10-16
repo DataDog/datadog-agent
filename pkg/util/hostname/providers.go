@@ -177,9 +177,8 @@ func getProviderCatalog(legacyHostnameResolution bool) []provider {
 
 func saveHostname(cacheHostnameKey string, hostname string, providerName string, legacyHostnameResolution bool) Data {
 	data := Data{
-		Hostname:  hostname,
-		Provider:  providerName,
-		Canonical: providerName == eudmProviderName,
+		Hostname: hostname,
+		Provider: providerName,
 	}
 
 	cache.Cache.Set(cacheHostnameKey, data, cache.NoExpiration)

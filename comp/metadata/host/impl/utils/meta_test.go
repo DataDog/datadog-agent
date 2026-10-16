@@ -96,8 +96,8 @@ func TestCanonicalConfiguredMetadata(t *testing.T) {
 	}
 }
 
-// EUDM selects a canonical hostname without discarding OS metadata or aliases.
-func TestEUDMCanonicalHostnamePreservesAliases(t *testing.T) {
+// EUDM retains ordinary metadata naming and alias behavior.
+func TestEUDMHostnamePreservesMetadata(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{})
 	cfg.SetInTest("ec2_use_dmi", false)
@@ -111,12 +111,12 @@ func TestEUDMCanonicalHostnamePreservesAliases(t *testing.T) {
 	require.Contains(t, baseline.HostAliases, "shared-device")
 	require.Contains(t, baseline.HostAliases, "i-other-identity")
 	cfg.SetInTest("infrastructure_mode", "end_user_device")
-	host := identityHostname{data: hostnameinterface.Data{Hostname: selected, Canonical: true}}
+	host := identityHostname{data: hostnameinterface.Data{Hostname: selected}}
 	encoded, err := json.Marshal(getMeta(context.Background(), cfg, host))
 	require.NoError(t, err)
 	var payload map[string]interface{}
 	require.NoError(t, json.Unmarshal(encoded, &payload))
-	assert.Equal(t, selected, payload["agent-hostname"])
+	assert.NotContains(t, payload, "agent-hostname")
 	osHostname, err := os.Hostname()
 	require.NoError(t, err)
 	assert.Equal(t, osHostname, payload["socket-hostname"])

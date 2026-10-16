@@ -55,7 +55,6 @@ func TestEUDMResolution(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, data.Hostname)
 			require.Equal(t, tc.provider, data.Provider)
-			require.Equal(t, tc.provider == eudmProviderName, data.Canonical)
 			if data.Provider == eudmProviderName {
 				// Legacy resolution uses the provider chain and maintains its own cache.
 				legacy, err := GetWithLegacyResolutionProvider(context.Background())

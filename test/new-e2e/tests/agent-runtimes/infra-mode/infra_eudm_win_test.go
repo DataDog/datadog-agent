@@ -66,7 +66,7 @@ func (s *eudmWindowsSuite) TestSerialHostname() {
 			}
 			matched++
 			assert.Equal(c, expected, payload.Hostname)
-			assert.Equal(c, expected, payload.Meta["agent-hostname"])
+			assert.NotContains(c, payload.Meta, "agent-hostname")
 			assert.NotEmpty(c, payload.Meta["socket-hostname"])
 			assert.NotEmpty(c, payload.Meta["socket-fqdn"])
 			assert.Contains(c, payload.Meta["host_aliases"], "eudm-test-alias")

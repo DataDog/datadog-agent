@@ -16,9 +16,6 @@ import (
 type Data struct {
 	Hostname string
 	Provider string
-	// Canonical indicates that the resolved hostname must be sent as agent-hostname
-	// in host metadata, regardless of hostname_force_config_as_canonical.
-	Canonical bool
 }
 
 // Component is the type for hostname methods.
