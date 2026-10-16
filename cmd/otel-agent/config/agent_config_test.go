@@ -19,6 +19,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -451,8 +452,9 @@ func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
 
-	// log_level will be mapped to lowercase by code and set accordingly
-	assert.Equal(t, "info", c.Get("log_level"))
+	lvl, err := types.ValidateLogLevel(c.GetString("log_level"))
+	require.NoError(t, err)
+	assert.Equal(t, types.InfoLvl, lvl)
 }
 
 func (suite *ConfigTestSuite) TestLogLevelSpec() {
