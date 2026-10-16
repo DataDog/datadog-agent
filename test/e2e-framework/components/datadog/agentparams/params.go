@@ -334,6 +334,8 @@ agent_telemetry.use_compression: false
 compliance_config.endpoints.logs_dd_url: %[1]s:%[2]d
 compliance_config.endpoints.logs_no_ssl: true
 compliance_config.endpoints.force_use_http: true
+runtime_security_config.endpoints.logs_dd_url: %[1]s:%[2]d
+runtime_security_config.endpoints.logs_no_ssl: true
 `, hostname, port, scheme)
 		// Set (not append) the shared primary-endpoint slot so a later WithSite
 		// clears this dd_url override and vice-versa.

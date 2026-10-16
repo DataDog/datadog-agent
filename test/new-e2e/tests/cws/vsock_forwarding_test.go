@@ -8,6 +8,7 @@ package cws
 import (
 	_ "embed"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -58,6 +59,9 @@ const (
 
 	// guestHostname must match DD_HOSTNAME in the env fixture.
 	guestHostname = "terrapin"
+
+	// cwsIntakeService is the service CWS events are reported under.
+	cwsIntakeService = "runtime-security-agent"
 )
 
 //go:embed config/e2e-vsock-forwarder-system-probe.yaml
@@ -95,9 +99,10 @@ func TestVSockForwardingSuite(t *testing.T) {
 		e2e.WithStackName("cws-vsock-forwarding"),
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithRunOptions(
-				// No WithInternetAccess: every assertion reads a log file on
-				// the host, and the agent reports to the stack's fakeintake, so
-				// nothing here needs to reach the public Internet.
+				// No WithInternetAccess: assertions read log files on the host
+				// or query the stack's fakeintake, which the agent -- CWS events
+				// included -- reports to, so nothing here needs to reach the
+				// public Internet.
 				ec2.WithEC2InstanceOptions(
 					ec2.WithUserData(vsockUserData),
 				),
@@ -194,6 +199,32 @@ func (s *vsockForwardingSuite) TestEventCrossesVSockHop() {
 	assertLogsEventually(s.T(), s, forwarderLogPath, []string{
 		"received remote event from rule",
 	}, 6*time.Minute)
+}
+
+// TestForwardedEventReachesIntake extends TestEventCrossesVSockHop past the
+// receiver log line: with direct_send_from_system_probe the forwarder ships what
+// it receives itself, so a guest event must end up in fakeintake. The guest's
+// distinct hostname is what tells its events apart from the forwarder's own
+// self-test events, and checks the forwarder keeps the guest's hostname instead
+// of stamping its own.
+func (s *vsockForwardingSuite) TestForwardedEventReachesIntake() {
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(cwsIntakeService)
+		require.NoError(c, err)
+
+		hostnames := make([]string, 0, len(logs))
+		for _, log := range logs {
+			if log.HostName == guestHostname {
+				return
+			}
+			if !slices.Contains(hostnames, log.HostName) {
+				hostnames = append(hostnames, log.HostName)
+			}
+		}
+		assert.Fail(c, "no guest event in fakeintake",
+			"%d %s logs received, none from host %q (hostnames seen: %v)",
+			len(logs), cwsIntakeService, guestHostname, hostnames)
+	}, 6*time.Minute, 10*time.Second)
 }
 
 // TestGuestIsIsolatedFromCoreAgent checks the guest reached nothing but the
