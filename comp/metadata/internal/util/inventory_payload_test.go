@@ -240,7 +240,7 @@ func TestSubmitBypassesCollectionDelays(t *testing.T) {
 			for range 2 {
 				i.Refresh()
 				before := time.Now()
-				i.Submit()
+				assert.NoError(t, i.Submit())
 				assert.False(t, i.LastCollect.Before(before))
 				assert.False(t, i.LastCollect.After(time.Now()))
 				assert.False(t, i.RefreshTriggered())
@@ -257,9 +257,10 @@ func TestSubmitSkippedWithoutCollectionOrSerializer(t *testing.T) {
 		name       string
 		enabled    bool
 		serializer bool
+		wantErr    string
 	}{
-		{name: "disabled", serializer: true},
-		{name: "missing serializer", enabled: true},
+		{name: "disabled", serializer: true, wantErr: "inventory metadata is disabled"},
+		{name: "missing serializer", enabled: true, wantErr: "inventory serializer is nil"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			i := getTestInventoryPayload(t, map[string]any{"inventories_enabled": tt.enabled})
@@ -273,7 +274,7 @@ func TestSubmitSkippedWithoutCollectionOrSerializer(t *testing.T) {
 			lastCollect := time.Now().Add(-time.Hour)
 			i.LastCollect = lastCollect
 			i.forceRefresh.Store(true)
-			i.Submit()
+			assert.EqualError(t, i.Submit(), tt.wantErr)
 			assert.Equal(t, lastCollect, i.LastCollect)
 			assert.True(t, i.forceRefresh.Load())
 			if !tt.enabled {
@@ -290,7 +291,7 @@ func TestSubmitRefreshAndScheduledCollection(t *testing.T) {
 	serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Times(3)
 
 	i.Refresh()
-	i.Submit()
+	assert.NoError(t, i.Submit())
 	assert.False(t, i.RefreshTriggered())
 	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
@@ -313,7 +314,7 @@ func TestSubmitPreservesRefreshTriggeredWhileBuildingPayload(t *testing.T) {
 		i.Refresh()
 		return &testPayload{}
 	}
-	i.Submit()
+	assert.NoError(t, i.Submit())
 	assert.True(t, i.RefreshTriggered())
 
 	i.getPayload = func() marshaler.JSONMarshaler { return &testPayload{} }
@@ -327,9 +328,10 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 		name         string
 		emptyPayload bool
 		sendError    error
+		wantErr      string
 	}{
-		{name: "empty payload", emptyPayload: true},
-		{name: "serializer error", sendError: errors.New("submission failed")},
+		{name: "empty payload", emptyPayload: true, wantErr: "inventory payload is nil"},
+		{name: "serializer error", sendError: errors.New("submission failed"), wantErr: "unable to submit inventories payload: submission failed"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
@@ -341,7 +343,11 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 			}
 			i.Refresh()
 			before := time.Now()
-			i.Submit()
+			err := i.Submit()
+			assert.EqualError(t, err, tt.wantErr)
+			if tt.sendError != nil {
+				assert.ErrorIs(t, err, tt.sendError)
+			}
 			assert.False(t, i.LastCollect.Before(before))
 			assert.False(t, i.RefreshTriggered())
 			lastCollect := i.LastCollect
@@ -377,7 +383,6 @@ func TestCollectRetainsFullAgentTiming(t *testing.T) {
 		time.Sleep(time.Minute)
 		assert.Equal(t, 10*time.Second, i.Collect(t.Context()))
 		s.AssertNumberOfCalls(t, "SendMetadata", 1)
-		assert.False(t, i.LastSubmit.IsZero())
 		for range 2 {
 			time.Sleep(10 * time.Second)
 			i.Collect(t.Context())
@@ -391,4 +396,18 @@ func TestCollectRetainsFullAgentTiming(t *testing.T) {
 		i.Collect(t.Context())
 		s.AssertNumberOfCalls(t, "SendMetadata", 3)
 	})
+}
+
+func TestCollectFirstRunDelayOverride(t *testing.T) {
+	delayed := getTestInventoryPayload(t, nil)
+	assert.Positive(t, delayed.FirstRunDelay)
+	delayed.Collect(context.Background())
+	delayed.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata", mock.Anything)
+
+	immediate := getTestInventoryPayload(t, nil)
+	immediate.FirstRunDelay = 0
+	serializerMock := immediate.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Once()
+	assert.Equal(t, immediate.MinInterval, immediate.Collect(context.Background()))
+	serializerMock.AssertExpectations(t)
 }

@@ -6,7 +6,7 @@
 // Package serverlessinit defines the serverless-init inventory metadata provider.
 package serverlessinit
 
-// team: team/serverless-azure-and-gcp
+// team: serverless-azure-and-gcp fleet-automation
 
 // Component is the component type.
 type Component interface{}
