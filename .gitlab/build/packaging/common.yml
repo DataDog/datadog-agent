@@ -1,15 +1,10 @@
 ---
 .static_quality_gate_package: |
   # Measure package size and generate in-place report
-  # This runs after the main script and won't fail the job if there are issues.
-  # Only run if the job status is success.
+  # This should fail the job if there are issues.
   # This is common for both rpm and deb packages
-  if [[ "$CI_JOB_STATUS" != "success" ]]; then
-    echo "ℹ️  Skipping package measurement (job status is not success)"
-    exit 0
-  fi
 
-  if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
+  if [[ -n "${STATIC_QUALITY_GATE_NAME:-}" ]]; then
     echo "📊 Starting package measurement..."
 
     # If the gate name contains "suse", use the SUSE package directory,
@@ -55,7 +50,7 @@
           --gate-name "$STATIC_QUALITY_GATE_NAME" \
           --build-job-name "$CI_JOB_NAME" \
           --output-path "${REPORT_FILENAME}" \
-          --debug || { echo "⚠️  Package measurement failed for $package_file"; exit 1; }
+          --debug
 
         echo "✅ Package measurement completed"
 
