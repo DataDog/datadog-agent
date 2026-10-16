@@ -19,6 +19,14 @@ profiles:
         preserve_tags:
           - check_name
           - state
+      - name: checks.metadata_message_oversized
+        preserve_tags:
+          - check_name
+          - kind
+          - truncated
+      - name: checks.metadata_message_oversized_bytes
+        preserve_tags:
+          - kind
       - name: pymem.inuse
       - name: health_platform.issues_detected
         preserve_tags:
