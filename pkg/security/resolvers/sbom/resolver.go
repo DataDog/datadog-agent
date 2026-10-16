@@ -720,7 +720,12 @@ func (r *Resolver) SetProcessWalker(walk func(func(*model.ProcessCacheEntry))) {
 	r.walkProcesses = walk
 }
 
+// getContainerSBOM returns the SBOM workloadmeta holds for the image of the
+// container containerID. The functional tests run without workloadmeta.
 func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
+	if r.wmeta == nil {
+		return nil, fmt.Errorf("No workloadmeta to get the image of container '%s' from", containerID)
+	}
 	container, err := r.wmeta.GetContainer(string(containerID))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get container metadata for '%s': %v", containerID, err)

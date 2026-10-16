@@ -480,6 +480,15 @@ func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, err
 	return nil, fmt.Errorf("container %q not found", id)
 }
 
+// TestGetContainerSBOMWithoutWorkloadmeta checks that a resolver without
+// workloadmeta, as in the functional tests, reports an error for a container.
+func TestGetContainerSBOMWithoutWorkloadmeta(t *testing.T) {
+	r := &Resolver{}
+	if sbom, err := r.getContainerSBOM("container-id"); err == nil || sbom != nil {
+		t.Errorf("getContainerSBOM() = %v, %v, want an error", sbom, err)
+	}
+}
+
 // ownRoot returns the device and the inode of the root of the test process.
 func ownRoot(t *testing.T) (dev, ino uint64) {
 	t.Helper()
