@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"sync"
 	"syscall"
 	"testing"
@@ -609,14 +610,16 @@ func TestHostForwardingSkipsImageSBOM(t *testing.T) {
 	}
 }
 
-// rootRecorder is a package scanner that records the root it was given.
+// rootRecorder is a package scanner that records the root it was given and
+// finds the packages of report there.
 type rootRecorder struct {
-	root string
+	root   string
+	report []sbomtypes.PackageWithInstalledFiles
 }
 
 func (s *rootRecorder) ScanInstalledPackages(_ context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	s.root = root
-	return nil, nil
+	return s.report, nil
 }
 
 // TestStartIndexesHostThroughInitRoot checks that the host packages are read
@@ -628,7 +631,10 @@ func TestStartIndexesHostThroughInitRoot(t *testing.T) {
 
 	scanner := &rootRecorder{}
 	r := &Resolver{
-		cfg:                   &config.RuntimeSecurityConfig{SBOMResolverHostEnabled: true},
+		cfg: &config.RuntimeSecurityConfig{
+			SBOMResolverHostEnabled:     true,
+			SBOMResolverForwardInterval: time.Hour,
+		},
 		sbomCollector:         scanner,
 		sbomGenerations:       atomic.NewUint64(0),
 		failedSBOMGenerations: atomic.NewUint64(0),
@@ -639,6 +645,7 @@ func TestStartIndexesHostThroughInitRoot(t *testing.T) {
 	if err := r.Start(ctx); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
+	t.Cleanup(r.hostSBOM.stop)
 
 	if want := utils.ProcRootPath(1); scanner.root != want {
 		t.Errorf("host scanned at %q, want %q", scanner.root, want)
@@ -716,5 +723,210 @@ func TestPendingFileEventsSkipDirectories(t *testing.T) {
 	r.queuePendingFileEvent("container-id", "/usr/share/doc", syscall.S_IFDIR|0755, 0)
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("the directory open was queued")
+	}
+}
+
+// TestRefreshScanRescansHost checks that a refresh of the host scans the host
+// packages again in place, outside the queue and the cache of the workload
+// scans, and keeps the usage of the packages it finds again, upgraded ones
+// included.
+func TestRefreshScanRescansHost(t *testing.T) {
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+
+	r := newHostSBOMResolver(t)
+	r.dataCache = dataCache
+	r.scanChan = make(chan *SBOM, 1)
+	r.sbomGenerations = atomic.NewUint64(0)
+	r.failedSBOMGenerations = atomic.NewUint64(0)
+
+	utilLinux := sbomtypes.PackageWithInstalledFiles{
+		Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}
+	r.hostSBOM.setReport([]sbomtypes.PackageWithInstalledFiles{utilLinux, {
+		Package:        sbomtypes.Package{Name: "gzip", Version: "1.12"},
+		InstalledFiles: []string{"/usr/bin/gzip"},
+	}})
+	pc, file := hostAccess()
+	r.ResolvePackage(pc, file)
+	file.SetPathnameStr("/usr/bin/gzip")
+	file.Mode = 0755
+	r.ResolvePackage(pc, file)
+
+	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{utilLinux, {
+		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+		InstalledFiles: []string{"/usr/bin/gzip"},
+	}}}
+	r.refreshScan(r.hostSBOM)
+
+	pkgs := r.hostSBOM.data.packages
+	if len(pkgs) != 2 || pkgs[0].Name != "util-linux" || pkgs[1].Version != "1.13" {
+		t.Fatalf("host packages = %+v, want util-linux and gzip 1.13, from the new scan", pkgs)
+	}
+	if pkg := pkgs[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want the usage of util-linux kept", pkg)
+	}
+	if pkg := pkgs[1]; pkg.LastAccess.IsZero() || pkg.SuidBit || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want the upgraded gzip in use, run as root", pkg)
+	}
+	if !r.hostSBOM.IsComputed() {
+		t.Errorf("state = %d, want computedState (%d)", r.hostSBOM.state.Load(), computedState)
+	}
+	if len(r.scanChan) != 0 {
+		t.Errorf("the host was queued as a workload")
+	}
+	if dataCache.Len() != 0 {
+		t.Errorf("the host entered the workload cache")
+	}
+}
+
+// TestKeepUsage checks the usage a rescan keeps. A package keeps the usage of
+// its build, combined with that of the builds of its name the rescan no longer
+// finds, as an upgrade replaces them.
+func TestKeepUsage(t *testing.T) {
+	seen := time.Unix(1700000000, 0)
+	used := func(pkg sbomtypes.Package, at time.Time, suid, root bool) sbomtypes.Package {
+		pkg.LastAccess, pkg.SuidBit, pkg.AccessedByRoot = at, suid, root
+		return pkg
+	}
+	kernel := func(release string) sbomtypes.Package {
+		return sbomtypes.Package{Name: "kernel-core", Version: "6.12.0", Release: release}
+	}
+	gzip := func(version string) sbomtypes.Package {
+		return sbomtypes.Package{Name: "gzip", Version: version}
+	}
+
+	tests := []struct {
+		name string
+		prev []sbomtypes.Package
+		scan []sbomtypes.Package
+		want []sbomtypes.Package
+	}{
+		{
+			name: "builds side by side",
+			prev: []sbomtypes.Package{used(kernel("55.el10"), seen, false, true), kernel("53.el10")},
+			scan: []sbomtypes.Package{kernel("55.el10"), kernel("53.el10")},
+			want: []sbomtypes.Package{used(kernel("55.el10"), seen, false, true), kernel("53.el10")},
+		},
+		{
+			name: "build installed beside",
+			prev: []sbomtypes.Package{used(kernel("55.el10"), seen, false, true), kernel("53.el10")},
+			scan: []sbomtypes.Package{kernel("55.el10"), kernel("53.el10"), kernel("57.el10")},
+			want: []sbomtypes.Package{used(kernel("55.el10"), seen, false, true), kernel("53.el10"), kernel("57.el10")},
+		},
+		{
+			name: "upgrade",
+			prev: []sbomtypes.Package{used(gzip("1.12"), seen, false, true)},
+			scan: []sbomtypes.Package{gzip("1.13")},
+			want: []sbomtypes.Package{used(gzip("1.13"), seen, false, true)},
+		},
+		{
+			name: "rescan during an upgrade",
+			prev: []sbomtypes.Package{used(gzip("1.12"), seen, false, true), gzip("1.13")},
+			scan: []sbomtypes.Package{gzip("1.13")},
+			want: []sbomtypes.Package{used(gzip("1.13"), seen, false, true)},
+		},
+		{
+			name: "build listed twice",
+			prev: []sbomtypes.Package{used(gzip("1.12"), seen, false, true), used(gzip("1.12"), seen.Add(-time.Minute), true, false)},
+			scan: []sbomtypes.Package{gzip("1.12"), gzip("1.12")},
+			want: []sbomtypes.Package{used(gzip("1.12"), seen, true, true), used(gzip("1.12"), seen, true, true)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := make([]sbomtypes.PackageWithInstalledFiles, len(tt.scan))
+			for i, pkg := range tt.scan {
+				report[i].Package = pkg
+			}
+
+			d := newData(report, false)
+			d.keepUsage(&Data{packages: tt.prev})
+
+			if !slices.EqualFunc(d.packages, tt.want, func(got, want sbomtypes.Package) bool {
+				return packageBuild(got) == packageBuild(want) && got.LastAccess.Equal(want.LastAccess) &&
+					got.SuidBit == want.SuidBit && got.AccessedByRoot == want.AccessedByRoot
+			}) {
+				t.Errorf("packages = %+v, want %+v", d.packages, tt.want)
+			}
+		})
+	}
+}
+
+// TestScanHostRecordsRunningProcesses checks that a rescan of the host packages
+// that finds a new package records the processes running on the host against
+// the new index, as the daemon of the package may have started before the scan.
+func TestScanHostRecordsRunningProcesses(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.sbomGenerations = atomic.NewUint64(0)
+	r.failedSBOMGenerations = atomic.NewUint64(0)
+	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+		InstalledFiles: []string{"/usr/bin/gzip"},
+	}}}
+
+	daemon := &model.ProcessCacheEntry{}
+	daemon.Pid = uint32(os.Getpid())
+	daemon.FileEvent.SetPathnameStr("/usr/bin/gzip")
+	daemon.FileEvent.Mode = 0755
+	r.SetProcessWalker(func(walk func(*model.ProcessCacheEntry)) {
+		walk(daemon)
+	})
+
+	if err := r.scanHost(); err != nil {
+		t.Fatalf("scanHost: %v", err)
+	}
+
+	pkgs := r.hostSBOM.data.packages
+	if len(pkgs) != 1 || pkgs[0].Name != "gzip" {
+		t.Fatalf("host packages = %+v, want gzip, from the new scan", pkgs)
+	}
+	if pkg := pkgs[0]; pkg.LastAccess.IsZero() || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want gzip in use by its running daemon", pkg)
+	}
+}
+
+// TestScanHostOnEmptyScan checks a rescan that finds no package. Over an index
+// holding packages it fails, as a package scanner that fails finds none, and
+// leaves the index as it was. Over the empty index of a host without package
+// databases it succeeds.
+func TestScanHostOnEmptyScan(t *testing.T) {
+	tests := []struct {
+		name    string
+		indexed []sbomtypes.PackageWithInstalledFiles
+		wantErr bool
+	}{
+		{
+			name: "packages indexed",
+			indexed: []sbomtypes.PackageWithInstalledFiles{{
+				Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+				InstalledFiles: []string{"/usr/bin/su"},
+			}},
+			wantErr: true,
+		},
+		{name: "no package database"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sbomGenerations = atomic.NewUint64(0)
+			r.failedSBOMGenerations = atomic.NewUint64(0)
+			r.sbomCollector = &rootRecorder{}
+			r.hostSBOM.setReport(tt.indexed)
+			data := r.hostSBOM.data
+
+			err := r.scanHost()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("scanHost() = %v, want an error: %t", err, tt.wantErr)
+			}
+			if tt.wantErr && r.hostSBOM.data != data {
+				t.Errorf("the scan replaced the index with an empty one")
+			}
+		})
 	}
 }
