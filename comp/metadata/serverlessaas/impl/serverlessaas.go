@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -83,14 +84,24 @@ func NewComponent(deps Requires) Provides {
 			onSubmitted:      c.recordSubmission,
 		}
 	}
-	c.payload = util.CreateInventoryPayload(deps.Config, deps.Log, metadataSerializer, c.getPayload, "agent.json")
+	c.payload = util.CreateInventoryPayload(immediateInventoryConfig{deps.Config}, deps.Log, metadataSerializer, c.getPayload, "agent.json")
 	c.payload.Enabled = c.payload.Enabled && isEnabled()
-	c.payload.FirstRunDelay = 0
 
 	return Provides{
 		Comp:     c,
 		Provider: c.payload.MetadataProvider(),
 	}
+}
+
+// immediateInventoryConfig skips the host startup delay only for this provider.
+// The shared configuration and other metadata providers retain their settings.
+type immediateInventoryConfig struct{ config.Component }
+
+func (c immediateInventoryConfig) GetDuration(key string) time.Duration {
+	if key == "inventories_first_run_delay" {
+		return 0
+	}
+	return c.Component.GetDuration(key)
 }
 
 func isEnabled() bool {

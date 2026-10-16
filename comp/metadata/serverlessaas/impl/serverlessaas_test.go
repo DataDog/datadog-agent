@@ -131,6 +131,7 @@ func TestFirstCompletePayloadIsImmediate(t *testing.T) {
 
 	interval := provides.Provider.Callback(t.Context())
 
+	assert.Equal(t, time.Duration(3600), conf.GetDuration("inventories_first_run_delay"))
 	assert.Equal(t, time.Minute, interval)
 	require.Len(t, serializer.payloads, 1)
 	payload := serializer.payloads[0]
