@@ -1117,6 +1117,7 @@ func deepCopySetgidEvent(fieldToCopy SetgidEvent) SetgidEvent {
 func deepCopySetNSEvent(fieldToCopy SetNSEvent) SetNSEvent {
 	copied := SetNSEvent{}
 	copied.MntNSHost = fieldToCopy.MntNSHost
+	copied.MntNSOutsideBase = fieldToCopy.MntNSOutsideBase
 	copied.NSType = fieldToCopy.NSType
 	copied.NamespaceIDs = deepCopyNamespaceIDs(fieldToCopy.NamespaceIDs)
 	copied.Previous = deepCopyNamespaceIDs(fieldToCopy.Previous)

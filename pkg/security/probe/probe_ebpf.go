@@ -76,6 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -2129,6 +2130,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			return false
 		}
 		event.SetNS.MntNSHost = p.hostMntNS != 0 && event.SetNS.MntNS == p.hostMntNS
+		// the root's mntns was captured when it was exec'd and isn't updated by setns, so it
+		// stays the container's base even when the root itself is the one leaving it
+		if event.SetNS.MntNS != 0 && event.ProcessContext.ContainerContext.ContainerID != "" {
+			if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil && root.Process.MntNS != 0 {
+				event.SetNS.MntNSOutsideBase = event.SetNS.MntNS != root.Process.MntNS
+			}
+		}
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false

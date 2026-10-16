@@ -718,6 +718,8 @@ type SetNSEventSerializer struct {
 	Previous *NamespaceIDsSerializer `json:"previous,omitempty"`
 	// Indicates that the mount namespace of the thread after the syscall is the host's initial one
 	MntNSHost bool `json:"mntns_host,omitempty"`
+	// Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one
+	MntNSOutsideBase bool `json:"mntns_outside_base,omitempty"`
 }
 
 // NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved
@@ -1705,6 +1707,7 @@ func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
 		NamespaceIDsSerializer: NamespaceIDsSerializer(e.SetNS.NamespaceIDs),
 		Previous:               &previous,
 		MntNSHost:              e.SetNS.MntNSHost,
+		MntNSOutsideBase:       e.SetNS.MntNSOutsideBase,
 	}
 }
 

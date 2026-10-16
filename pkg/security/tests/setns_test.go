@@ -102,6 +102,10 @@ func TestSetNS(t *testing.T) {
 			Expression: `setns.mntns_host && process.file.name == "syscall_tester"`,
 		},
 		{
+			ID:         "test_setns_mntns_outside_base",
+			Expression: `setns.mntns_outside_base && process.file.name == "syscall_tester"`,
+		},
+		{
 			ID:         "test_setns_netns_denied",
 			Expression: `setns.nstype & CLONE_NEWNET > 0 && setns.retval == EPERM && process.file.name == "syscall_tester"`,
 		},
@@ -261,6 +265,8 @@ func TestSetNS(t *testing.T) {
 			assert.Equal(t, hostMntNS, event.SetNS.MntNS, "wrong mount namespace")
 			assert.NotZero(t, event.SetNS.Previous.MntNS, "the unshared mount namespace should be resolved")
 			assert.NotEqual(t, hostMntNS, event.SetNS.Previous.MntNS, "the syscall was made from the unshared mount namespace")
+			// the suite itself may run in a container, then the tester leaves the container's base
+			assert.Equal(t, event.ProcessContext.ContainerContext.ContainerID != "", event.SetNS.MntNSOutsideBase, "only a tester in a container leaves its base mount namespace")
 
 			test.validateSetNSSchema(t, event)
 		}, "test_setns_mntns_host")
@@ -282,8 +288,63 @@ func TestSetNS(t *testing.T) {
 			assert.NotZero(t, event.SetNS.MntNS, "the unshared mount namespace should be resolved")
 			assert.NotEqual(t, hostMntNS, event.SetNS.MntNS, "should have joined the unshared mount namespace")
 			assert.Equal(t, event.SetNS.Previous.MntNS, event.SetNS.MntNS, "joining its own namespace shouldn't change it")
+			// the suite itself may run in a container, then the tester leaves the container's base
+			assert.Equal(t, event.ProcessContext.ContainerContext.ContainerID != "", event.SetNS.MntNSOutsideBase, "only a tester in a container leaves its base mount namespace")
 
 			test.validateSetNSSchema(t, event)
+		}, "test_setns_mntns")
+	})
+
+	// a tester in a container leaving the container's base mount namespace for the one it just
+	// unshared, then joining its own mount namespace, the base, which doesn't leave it
+	t.Run("container-mntns", func(t *testing.T) {
+		if testEnvironment == DockerEnvironment {
+			t.Skip("Skip test spawning docker containers on docker")
+		}
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+		if ownNamespaceIDs(t, test).MntNS == 0 {
+			t.Skip("the mount namespace ID isn't resolved on this kernel")
+		}
+
+		dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+		if err != nil {
+			t.Fatalf("failed to create docker wrapper: %v", err)
+		}
+		// unshare and setns need CAP_SYS_ADMIN for a mount namespace
+		dockerWrapper.runArgs = []string{"--privileged"}
+		if out, err := dockerWrapper.start(); err != nil {
+			t.Fatalf("failed to start docker wrapper: %s: %v", out, err)
+		}
+		defer func() { _, _ = dockerWrapper.stop() }()
+
+		runInContainer := func(args ...string) error {
+			if out, err := dockerWrapper.Command(syscallTester, args, nil).CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}
+
+		test.WaitSignalFromRule(t, func() error {
+			return runInContainer("setns", "mnt-unshared", "/proc/self/ns/mnt")
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_setns_mntns_outside_base")
+			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
+			assert.NotEmpty(t, event.ProcessContext.ContainerContext.ContainerID, "the tester should be in a container")
+			assert.True(t, event.SetNS.MntNSOutsideBase, "should have left the container's base mount namespace")
+			assert.False(t, event.SetNS.MntNSHost, "the unshared mount namespace isn't the host's")
+
+			test.validateSetNSSchema(t, event)
+		}, "test_setns_mntns_outside_base")
+
+		test.WaitSignalFromRule(t, func() error {
+			return runInContainer("setns", "mnt")
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_setns_mntns")
+			assert.Equal(t, int64(0), event.SetNS.Retval, "setns should have succeeded")
+			assert.NotEmpty(t, event.ProcessContext.ContainerContext.ContainerID, "the tester should be in a container")
+			assert.False(t, event.SetNS.MntNSOutsideBase, "joining the base mount namespace doesn't leave it")
 		}, "test_setns_mntns")
 	})
 }

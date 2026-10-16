@@ -55,6 +55,9 @@
                         "mntns_host": {
                             "type": "boolean"
                         },
+                        "mntns_outside_base": {
+                            "type": "boolean"
+                        },
                         "previous": {
                             "type": "object",
                             "properties": {
