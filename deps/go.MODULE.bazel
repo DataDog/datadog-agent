@@ -155,6 +155,7 @@ use_repo(
     "com_github_frapposelli_wwhrd",
     "com_github_freddierice_go_losetup",
     "com_github_fsnotify_fsnotify",
+    "com_github_geoffgarside_ber",
     "com_github_glaslos_ssdeep",
     "com_github_go_delve_delve",
     "com_github_go_enry_go_license_detector_v4",
