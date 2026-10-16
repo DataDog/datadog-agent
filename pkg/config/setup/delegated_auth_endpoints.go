@@ -134,6 +134,23 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 	// Backward-compatible placement of the orchestrator setting; only read when the
 	// orchestrator_explorer one is not configured.
 	"process_config.orchestrator_additional_endpoints",
+	// Read by comp/trace/config/impl.appendEndpoints into the trace agent's frozen
+	// AgentConfig snapshot; the trace and stats writers hold pending endpoints (no key)
+	// until the writeback lands, then receive the resolved key through the config-change
+	// subscription wired by the same package.
+	"apm_config.additional_endpoints",
+}
+
+// IsDelegatedAuthMapEndpointKey reports whether the map-shape additional_endpoints setting is
+// enrolled for delegated-auth write-back. Consumers that find a DELA[...] directive under a
+// non-enrolled key can use this to warn that the directive will not resolve.
+func IsDelegatedAuthMapEndpointKey(key string) bool {
+	for _, k := range mapShapeDelegatedAuthEndpointKeys {
+		if k == key {
+			return true
+		}
+	}
+	return false
 }
 
 // listShapeDelegatedAuthEndpointKeys lists the list-shaped settings enabled for write-back.

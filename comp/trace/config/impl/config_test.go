@@ -44,8 +44,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -3010,4 +3012,44 @@ func TestTracesSendToMainEndpoint(t *testing.T) {
 		cfg.Endpoints = cfg.Endpoints[:1]
 		assert.NoError(t, validate(cfg, coreConfig))
 	})
+}
+
+func TestAppendEndpointsHoldsPendingDelegatedAuth(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("apm_config.additional_endpoints", map[string][]string{
+		"https://trace.agent.second-org.datadoghq.com": {"00000000000000000000000000000001", "DELA[org-uuid-1, aws]"},
+		"https://trace.agent.third-org.datadoghq.com":  {"DELA[org-uuid-2, aws]", "DELA[org-uuid-3, aws]"},
+	})
+
+	var endpoints []*traceconfig.Endpoint
+	endpoints = appendEndpoints(endpoints, "apm_config.additional_endpoints")
+
+	var real, pending int
+	for _, e := range endpoints {
+		assert.False(t, utils.IsDelaDirective(e.APIKey), "a directive must never ship as an API key")
+		if e.HasPendingDelegatedAuth {
+			pending++
+			assert.Empty(t, e.APIKey)
+		} else {
+			real++
+		}
+	}
+	assert.Equal(t, 1, real, "static key on the mixed domain is kept")
+	assert.Equal(t, 3, pending, "one pending marker per directive, so two orgs sharing a host both ship")
+}
+
+func TestAppendEndpointsPendingMarkerForUnenrolledKey(t *testing.T) {
+	// The telemetry setting is not yet enrolled for delegated-auth write-back; a directive
+	// there must still never ship as an API key.
+	cfg := configmock.New(t)
+	cfg.SetInTest("apm_config.telemetry.additional_endpoints", map[string][]string{
+		"https://telemetry.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+	})
+
+	var endpoints []*traceconfig.Endpoint
+	endpoints = appendEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
+
+	require.Len(t, endpoints, 1)
+	assert.Empty(t, endpoints[0].APIKey)
+	assert.True(t, endpoints[0].HasPendingDelegatedAuth)
 }

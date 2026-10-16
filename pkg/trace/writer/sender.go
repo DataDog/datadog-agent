@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -61,6 +62,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			userAgent:      fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 			isMRF:          endpoint.IsMRF,
 			MRFFailoverAPM: cfg.MRFFailoverAPM,
+			host:           endpoint.Host,
 		}
 		apiKeyManager := &apiKeyManager{
 			apiKey:           endpoint.APIKey,
@@ -69,7 +71,50 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			isFromSecret:     cfg.APIKeyIsFromSecretFn,
 		}
 
-		senders[i] = newSender(scfg, apiKeyManager, statsd)
+		senders[i] = newSender(scfg, apiKeyManager, statsd, endpoint.HasPendingDelegatedAuth)
+	}
+
+	// Delegated-auth write-backs update the pending senders with the resolved key, and
+	// keep updating them across key rotations.
+	if cfg.OnAdditionalEndpointsUpdate != nil {
+		cfg.OnAdditionalEndpointsUpdate(func(host string, apiKeys []string) {
+			realKeys, _ := utils.PartitionRealAndPendingKeys(apiKeys)
+			if len(realKeys) == 0 {
+				return
+			}
+			// Keys already held by the host's static senders are never handed to a
+			// pending one; pending-origin senders take distinct keys (also across
+			// rotations, where the list replaces their previous key).
+			staticHeld := make(map[string]struct{}, len(senders))
+			for _, s := range senders {
+				if s.cfg.host == host && !s.awaitDelegatedAuth {
+					if key := s.apiKeyManager.Get(); key != "" {
+						staticHeld[utils.SanitizeAPIKey(key)] = struct{}{}
+					}
+				}
+			}
+			assigned := make(map[string]struct{}, len(senders))
+			for _, s := range senders {
+				if s.cfg.host != host || !s.awaitDelegatedAuth {
+					continue
+				}
+				for _, key := range realKeys {
+					key = utils.SanitizeAPIKey(key)
+					if _, ok := staticHeld[key]; ok {
+						continue
+					}
+					if _, ok := assigned[key]; ok {
+						continue
+					}
+					assigned[key] = struct{}{}
+					if s.apiKeyManager.Get() != key {
+						s.apiKeyManager.Update(key)
+						log.Infof("delegated auth provided an API key for endpoint %s", host)
+					}
+					break
+				}
+			}
+		})
 	}
 	return senders
 }
@@ -173,6 +218,9 @@ type senderConfig struct {
 	isMRF bool
 	// MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
 	MRFFailoverAPM func() bool
+
+	// host is the configured endpoint URL string; used to match delegated-auth write-backs.
+	host string
 }
 
 // apiKeyManager handles API Key access for concurrent use
@@ -243,6 +291,17 @@ type sender struct {
 	cfg           *senderConfig
 	apiKeyManager *apiKeyManager
 
+	// awaitsDelegatedAuth marks a sender built from a pending DELA[...] endpoint: it holds
+	// payloads (without sending an empty key) until the delegated-auth write-back delivers
+	// a resolved key through the OnAdditionalEndpointsUpdate subscription. Once its queue
+	// is full, further payloads drop (with a metric) instead of blocking the flush path,
+	// which pushes to every sender sequentially.
+	awaitDelegatedAuth bool
+	holdLogged         *atomic.Bool
+	// stopCh is closed by Stop; waitForDelegatedAuth aborts on it so a held payload is
+	// dropped and the loop goroutine can exit.
+	stopCh chan struct{}
+
 	queue      chan *payload // payload queue
 	inflight   *atomic.Int32 // inflight payloads
 	maxRetries int32
@@ -253,16 +312,24 @@ type sender struct {
 	enabled *atomic.Bool // false on inactive MRF senders. True otherwise
 }
 
-// newSender returns a new sender based on the given config cfg.
-func newSender(cfg *senderConfig, apiKeyManager *apiKeyManager, statsd statsd.ClientInterface) *sender {
+// delegatedAuthWaitInterval is how long a pending sender waits between key rechecks while
+// holding payloads; it mirrors the logs pipeline's credential wait.
+const delegatedAuthWaitInterval = time.Second
+
+// newSender returns a new sender based on the given config cfg. awaitDelegatedAuth marks a
+// sender whose endpoint is waiting on a delegated-auth key.
+func newSender(cfg *senderConfig, apiKeyManager *apiKeyManager, statsd statsd.ClientInterface, awaitDelegatedAuth bool) *sender {
 	s := sender{
-		cfg:           cfg,
-		apiKeyManager: apiKeyManager,
-		queue:         make(chan *payload, cfg.maxQueued),
-		inflight:      atomic.NewInt32(0),
-		maxRetries:    int32(cfg.maxRetries),
-		statsd:        statsd,
-		enabled:       atomic.NewBool(true),
+		cfg:                cfg,
+		apiKeyManager:      apiKeyManager,
+		awaitDelegatedAuth: awaitDelegatedAuth,
+		holdLogged:         atomic.NewBool(false),
+		stopCh:             make(chan struct{}),
+		queue:              make(chan *payload, cfg.maxQueued),
+		inflight:           atomic.NewInt32(0),
+		maxRetries:         int32(cfg.maxRetries),
+		statsd:             statsd,
+		enabled:            atomic.NewBool(true),
 	}
 	for i := 0; i < cfg.maxConns; i++ {
 		go s.loop()
@@ -289,6 +356,9 @@ func (s *sender) backoff(attempt int) {
 // Stop stops the sender. It attempts to wait for all inflight payloads to complete
 // with a timeout of 5 seconds.
 func (s *sender) Stop() {
+	// Signal pending delegated-auth waits first so held payloads abort instead of
+	// holding the drain timeout open.
+	close(s.stopCh)
 	s.WaitForInflight()
 	s.mu.Lock()
 	s.closed = true
@@ -325,6 +395,14 @@ func (s *sender) Push(p *payload) {
 	select {
 	case s.queue <- p:
 	default:
+		// A pending delegated-auth sender holds its queue until its key arrives; blocking
+		// here would stall the sequential flush path for every destination. Drop for the
+		// second destination instead, with a metric.
+		if s.awaitDelegatedAuth && s.apiKeyManager.Get() == "" {
+			_ = s.statsd.Count("datadog.trace_agent.sender.delegated_auth_dropped", 1, []string{}, 1)
+			ppool.Put(p)
+			return
+		}
 		_ = s.statsd.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
 		s.queue <- p
 	}
@@ -332,7 +410,31 @@ func (s *sender) Push(p *payload) {
 }
 
 // sendPayload sends the payload p to the destination URL.
+// waitForDelegatedAuth holds a payload until the delegated-auth write-back delivers a key,
+// or the sender stops. It reports whether the payload may still be sent (false = dropped).
+func (s *sender) waitForDelegatedAuth() bool {
+	if s.holdLogged.CompareAndSwap(false, true) {
+		log.Infof("%s: queuing payloads until delegated auth provides an API key", s.cfg.url)
+	}
+	ticker := time.NewTicker(delegatedAuthWaitInterval)
+	defer ticker.Stop()
+	for s.apiKeyManager.Get() == "" {
+		select {
+		case <-s.stopCh:
+			return false
+		case <-ticker.C:
+		}
+	}
+	return true
+}
+
 func (s *sender) sendPayload(p *payload) {
+	if s.awaitDelegatedAuth && s.apiKeyManager.Get() == "" {
+		if !s.waitForDelegatedAuth() {
+			s.releasePayload(p, eventTypeDropped, &eventData{count: 1, host: s.cfg.host})
+			return
+		}
+	}
 	for attempt := 0; ; attempt++ {
 		s.backoff(attempt)
 		if s.sendOnce(p) {
