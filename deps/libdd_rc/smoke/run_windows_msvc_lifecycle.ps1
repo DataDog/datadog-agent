@@ -2,6 +2,8 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 Set-StrictMode -Version 3.0
 
+[Environment]::SetEnvironmentVariable('RC_X509_LIFECYCLE_SUCCEEDED', $null, 'Process')
+
 $PlatformArgs = @(
     '-c', 'dbg',
     '--platforms=//bazel/platforms:windows_x86_64',
@@ -76,3 +78,4 @@ Get-ChildItem -LiteralPath $agentBinDir | Format-Table -AutoSize
 if ($LASTEXITCODE -ne 0) {
     throw "Packaged Windows MSVC/MinGW lifecycle probe exited with code $LASTEXITCODE"
 }
+[Environment]::SetEnvironmentVariable('RC_X509_LIFECYCLE_SUCCEEDED', '1', 'Process')
