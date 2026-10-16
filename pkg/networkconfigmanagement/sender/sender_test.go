@@ -16,7 +16,6 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -169,50 +168,6 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 
 			for _, metric := range tt.expectedMetrics {
 				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", metric.tags)
-			}
-		})
-	}
-}
-
-func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
-	tests := []struct {
-		name              string
-		extractedMetadata profile.ExtractedMetadata
-		configType        types.ConfigType
-		tags              []string
-		expectedMetrics   []expectedMetric
-	}{
-		{
-			name: "Config size metric submitted if present",
-			extractedMetadata: profile.ExtractedMetadata{
-				ConfigSize: 300,
-			},
-			configType: ncmRunningConfigTypeTag,
-			tags:       []string{"device_id:10.0.0.1", "config_type:running"},
-			expectedMetrics: []expectedMetric{
-				{
-					submissionType: "Gauge",
-					name:           ncmConfigSizeMetric,
-					value:          300,
-				},
-			},
-		},
-		{
-			name:            "Nothing extracted - no metrics expected",
-			expectedMetrics: []expectedMetric{},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockSender := mocksender.NewMockSender(t, "test")
-			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-
-			sender := NewNCMSender(mockSender, "test-namespace", clock.NewMock(), "test-agent-host")
-			sender.SetDeviceTags(tt.tags)
-			sender.SendMetricsFromExtractedMetadata(tt.extractedMetadata, tt.configType)
-
-			for _, metric := range tt.expectedMetrics {
-				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", tt.tags)
 			}
 		})
 	}

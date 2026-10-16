@@ -15,7 +15,6 @@ import (
 
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
@@ -28,7 +27,6 @@ const (
 	ncmCheckIntervalMetric             = "datadog.ncm.check_interval"
 	ncmCheckFailureMetric              = "datadog.ncm.check_failure"
 	ncmCheckInventoryEntriesSentMetric = "datadog.ncm.inventory.entries_sent"
-	ncmConfigSizeMetric                = "ncm.config_size"
 	ncmConfigContentBytesMetric        = "datadog.ncm.config_content_bytes"
 	ncmStoreConfigsEvictedMetric       = "datadog.ncm.store.configs_evicted"
 
@@ -114,25 +112,15 @@ func (s *NCMSender) sendNCMPayloadMetrics(payload ncmreport.NCMPayload) {
 	s.Sender.Count(ncmCheckInventoryEntriesSentMetric, float64(len(payload.Inventories)), s.agentHostname, tags)
 }
 
-// SendMetricsFromExtractedMetadata sends metrics from data extracted from the device config after processing
-func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedMetadata, configType types.ConfigType) {
-	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
-	switch configType {
-	case types.RUNNING:
-		tags = append(s.getDeviceTags(), ncmRunningConfigTypeTag)
-	case types.STARTUP:
-		tags = append(s.getDeviceTags(), ncmStartupConfigTypeTag)
-	}
-	// if config size was extracted, submit the metric
-	if metadata.ConfigSize != 0 {
-		s.Sender.Gauge(ncmConfigSizeMetric, float64(metadata.ConfigSize), s.agentHostname, tags)
-	}
-}
-
 // SendConfigContentSize reports the byte size of the redacted config content that is retrieved from the device
 func (s *NCMSender) SendConfigContentSize(contentBytes int, configType types.ConfigType) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
-	tags = append(tags, "config_type:"+string(configType))
+	switch configType {
+	case types.RUNNING:
+		tags = append(tags, ncmRunningConfigTypeTag)
+	case types.STARTUP:
+		tags = append(tags, ncmStartupConfigTypeTag)
+	}
 	s.Sender.Gauge(ncmConfigContentBytesMetric, float64(contentBytes), s.agentHostname, tags)
 }
 
