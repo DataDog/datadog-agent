@@ -85,9 +85,10 @@ const (
 // container. A *Data is shared across SBOMs that run the same image (via the
 // dataCache), so it needs its own lock rather than relying on each SBOM's lock.
 type Data struct {
-	mu       sync.RWMutex
-	files    fileQuerier
-	packages []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
+	mu            sync.RWMutex
+	files         fileQuerier
+	packages      []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
+	observedSince time.Time           // when the usage of packages started being recorded
 }
 
 // newData builds the cached scan Data from a freshly generated report. It keeps
@@ -104,8 +105,9 @@ func newData(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) *Data
 	}
 
 	return &Data{
-		files:    newFileQuerier(report, packages, usrMerged),
-		packages: packages,
+		files:         newFileQuerier(report, packages, usrMerged),
+		packages:      packages,
+		observedSince: time.Now(),
 	}
 }
 
@@ -133,9 +135,10 @@ func (d *Data) holds(report []sbomtypes.PackageWithInstalledFiles) bool {
 	return true
 }
 
-// keepUsage copies onto the packages of d the usage recorded in prev. A
-// package keeps the usage of its build, combined with that of the builds of
-// its name only prev holds, the builds an upgrade replaced.
+// keepUsage copies onto the packages of d the usage recorded in prev, and the
+// time it started being recorded. A package keeps the usage of its build,
+// combined with that of the builds of its name only prev holds, the builds an
+// upgrade replaced.
 func (d *Data) keepUsage(prev *Data) {
 	held := make(map[sbomtypes.Package]bool, len(d.packages))
 	for _, pkg := range d.packages {
@@ -143,6 +146,9 @@ func (d *Data) keepUsage(prev *Data) {
 	}
 
 	prev.mu.RLock()
+	if !prev.observedSince.IsZero() {
+		d.observedSince = prev.observedSince
+	}
 	builds := make(map[sbomtypes.Package]sbomtypes.Package, len(prev.packages))
 	replaced := make(map[string]sbomtypes.Package)
 	for _, pkg := range prev.packages {
@@ -649,10 +655,12 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 	sbom.data.mu.RLock()
 	packages := make([]sbomtypes.Package, len(sbom.data.packages))
 	copy(packages, sbom.data.packages)
+	observedSince := sbom.data.observedSince
 	sbom.data.mu.RUnlock()
 
 	// Create SBOM report and notify listeners
 	packagesReport := NewPackagesReport(packages, sbom.ContainerID)
+	packagesReport.observedSince = observedSince
 	scanResult := &sbompkg.ScanResult{
 		Report:           packagesReport,
 		CreatedAt:        time.Now(),

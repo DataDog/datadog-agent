@@ -8,11 +8,13 @@ package sbom
 
 import (
 	"errors"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,13 +36,26 @@ const (
 	RunningAsRootProperty = "RunningAsRoot"   // RunningAsRootProperty reports whether the package was seen running as root
 )
 
+// UsageObservedSinceProperty names the CycloneDX metadata property of a runtime
+// usage report, and of the SBOMs it enriches, holding when the usage started
+// being recorded, as a unix timestamp. A package seen running since then
+// carries the time it was last seen.
+const UsageObservedSinceProperty = "UsageObservedSince"
+
 // IsEnriched reports whether bom went through runtime enrichment, i.e. whether
-// any of its components carries the runtime properties above. An enriched BOM
-// carries them on its very first component, so the scan only runs to completion
-// for a BOM that was never enriched.
+// it holds the start of usage observation or any of its components carries the
+// runtime properties above. An enriched BOM carries them on its very first
+// component, so the scan only runs to completion for a BOM that was never
+// enriched.
 func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
 	if bom == nil {
 		return false
+	}
+
+	for _, property := range bom.GetMetadata().GetProperties() {
+		if property.GetName() == UsageObservedSinceProperty {
+			return true
+		}
 	}
 
 	for _, component := range bom.Components {
@@ -56,6 +71,13 @@ func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
 	}
 
 	return false
+}
+
+// UsageEnrichmentEnabled reports whether the runtime usage of packages reaches
+// the SBOMs. system-probe reports it on sbom.enrichment.usage.enabled, and on
+// Linux alone.
+func UsageEnrichmentEnabled(agentConfig model.Reader) bool {
+	return runtime.GOOS == "linux" && agentConfig.GetBool("sbom.enrichment.usage.enabled")
 }
 
 // HostKind is the kind of the runtime usage report that system-probe forwards
