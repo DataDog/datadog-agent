@@ -89,7 +89,7 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 
 	paths := s.paths(key)
 	// Return immediately when a valid artifact is already cached.
-	artifactUsable, err := isArtifactUsable(ctx, paths.artifactDirectory, validate)
+	artifactUsable, err := isArtifactReady(ctx, paths.artifactDirectory, validate)
 	if err != nil {
 		return Artifact{}, fmt.Errorf("could not inspect artifact %s: %w", key, err)
 	}
@@ -118,7 +118,7 @@ func (s *Store) Ensure(ctx context.Context, key Key, populate PopulateFunc, vali
 	}()
 
 	// Recheck after locking in case another process published first.
-	artifactUsable, err = isArtifactUsable(ctx, paths.artifactDirectory, validate)
+	artifactUsable, err = isArtifactReady(ctx, paths.artifactDirectory, validate)
 	if err != nil {
 		return Artifact{}, fmt.Errorf("could not inspect artifact %s after acquiring its lock: %w", key, err)
 	}
@@ -170,7 +170,7 @@ func (s *Store) paths(key Key) storePaths {
 
 func populateAndPublish(ctx context.Context, key Key, paths storePaths, populate PopulateFunc, validate ValidateFunc) (Artifact, error) {
 	// Remove an existing entry that failed validation.
-	if err := os.RemoveAll(paths.artifactDirectory); err != nil {
+	if err := removeCacheTree(paths.artifactDirectory); err != nil {
 		return Artifact{}, fmt.Errorf("could not remove unusable artifact %s: %w", key, err)
 	}
 
@@ -179,7 +179,7 @@ func populateAndPublish(ctx context.Context, key Key, paths storePaths, populate
 		return Artifact{}, fmt.Errorf("could not prepare staging for artifact %s: %w", key, err)
 	}
 	defer func() {
-		_ = os.RemoveAll(paths.stagingParentDirectory)
+		_ = removeCacheTree(paths.stagingParentDirectory)
 	}()
 
 	stagingRoot, err := os.MkdirTemp(paths.stagingParentDirectory, stagingDirectoryPrefix)
@@ -196,6 +196,10 @@ func populateAndPublish(ctx context.Context, key Key, paths storePaths, populate
 	if err := ctx.Err(); err != nil {
 		return Artifact{}, err
 	}
+	rootMode, err := makeContentsReadOnly(stagingRoot)
+	if err != nil {
+		return Artifact{}, fmt.Errorf("could not make artifact %s read-only: %w", key, err)
+	}
 
 	// Atomically publish the complete artifact.
 	if err := createPrivateDirectory(filepath.Dir(paths.artifactDirectory)); err != nil {
@@ -203,6 +207,9 @@ func populateAndPublish(ctx context.Context, key Key, paths storePaths, populate
 	}
 	if err := os.Rename(stagingRoot, paths.artifactDirectory); err != nil {
 		return Artifact{}, fmt.Errorf("could not publish artifact %s: %w", key, err)
+	}
+	if err := os.Chmod(paths.artifactDirectory, rootMode&^0o222); err != nil {
+		return Artifact{}, fmt.Errorf("could not make published artifact %s read-only: %w", key, err)
 	}
 
 	return Artifact{Directory: paths.artifactDirectory}, nil
@@ -248,6 +255,87 @@ func isArtifactUsable(ctx context.Context, directory string, validate ValidateFu
 	return true, nil
 }
 
+// A writable root marks an incomplete publication; readers wait for its lock.
+func isArtifactReady(ctx context.Context, directory string, validate ValidateFunc) (bool, error) {
+	info, err := os.Lstat(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.IsDir() || info.Mode().Perm()&0o222 != 0 {
+		return false, nil
+	}
+	return isArtifactUsable(ctx, directory, validate)
+}
+
+// makeContentsReadOnly preserves read and execute permissions, and never follows links.
+// The root remains writable until after publication so it can be renamed.
+func makeContentsReadOnly(root string) (os.FileMode, error) {
+	var rootMode os.FileMode
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == root && !entry.IsDir() {
+			return fmt.Errorf("artifact root is not a directory: %s", root)
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if !entry.IsDir() && !entry.Type().IsRegular() {
+			return fmt.Errorf("unexpected file type in artifact: %s", path)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		mode := info.Mode()
+		if path == root {
+			rootMode = mode
+			return nil
+		}
+		if mode.Perm()&0o222 != 0 {
+			return os.Chmod(path, mode&^0o222)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return rootMode, nil
+}
+
+// removeCacheTree restores owner access so a published package can be removed
+// on validation failure, or staging can be cleaned after a crash.
+func removeCacheTree(root string) error {
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if errors.Is(walkErr, os.ErrNotExist) {
+			return nil
+		}
+		if walkErr != nil {
+			return walkErr
+		}
+		if !entry.IsDir() && !entry.Type().IsRegular() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		mode := info.Mode() | 0o200
+		if entry.IsDir() {
+			mode |= 0o500
+		}
+		return os.Chmod(path, mode)
+	})
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(root)
+}
+
 func createPrivateDirectory(path string) error {
 	if err := os.MkdirAll(path, privateDirectoryMode); err != nil {
 		return err
@@ -267,7 +355,7 @@ func waitForArtifactOrAcquireLock(
 			return false, err
 		}
 
-		artifactUsable, err := isArtifactUsable(ctx, artifactDirectory, validate)
+		artifactUsable, err := isArtifactReady(ctx, artifactDirectory, validate)
 		if err != nil {
 			return false, err
 		}
@@ -296,7 +384,7 @@ func waitForArtifactOrAcquireLock(
 }
 
 func prepareStagingParent(paths storePaths) error {
-	if err := os.RemoveAll(paths.stagingParentDirectory); err != nil {
+	if err := removeCacheTree(paths.stagingParentDirectory); err != nil {
 		return err
 	}
 	return createPrivateDirectory(paths.stagingParentDirectory)
