@@ -9,13 +9,16 @@ package collectorimpl
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	tmock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
@@ -31,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -99,6 +103,91 @@ type oneTimeTestCheck struct {
 
 func (c *oneTimeTestCheck) Interval() time.Duration { return 0 }
 
+// runInCollectorBubble runs f against a started collector inside a synctest
+// bubble, so synctest.Wait settles worker goroutines and their cleanup.
+func runInCollectorBubble(t *testing.T, f func(t *testing.T, c *collectorImpl)) {
+	synctest.Test(t, func(t *testing.T) {
+		suite := &CollectorTestSuite{}
+		suite.SetT(t)
+		suite.SetupTest()
+		defer suite.TearDownTest()
+		synctest.Wait()
+		f(t, suite.c)
+	})
+}
+
+func TestCompletedOneTimeChecksDoNotGrowWorkerPool(t *testing.T) {
+	runInCollectorBubble(t, func(t *testing.T, c *collectorImpl) {
+		baseline := expvars.GetWorkerCount()
+		for i := 0; i < 50; i++ {
+			ch := &oneTimeTestCheck{TestCheck: NewCheckUnique(checkid.ID(fmt.Sprintf("one-shot:%d", i)), "TestCheck")}
+			// Returning immediately lets the check finish before RunCheck returns.
+			close(ch.stop)
+			id, err := c.RunCheck(ch)
+			require.NoError(t, err)
+			synctest.Wait()
+			require.Equal(t, baseline, expvars.GetWorkerCount())
+			require.Zero(t, c.checkInstances)
+			// The worker must exit without waiting for the check to be unscheduled.
+			require.Contains(t, c.checks, id)
+			require.NoError(t, c.StopCheck(id))
+		}
+	})
+}
+
+func TestRunningOneTimeCheckHoldsOneExtraWorker(t *testing.T) {
+	runInCollectorBubble(t, func(t *testing.T, c *collectorImpl) {
+		baseline := expvars.GetWorkerCount()
+		ch := &oneTimeTestCheck{TestCheck: NewCheckUnique("long-running:1", "TestCheck")}
+		id, err := c.RunCheck(ch)
+		require.NoError(t, err)
+		<-ch.started
+		synctest.Wait()
+		// The pool keeps its full size while one worker is busy with the check.
+		require.Equal(t, baseline+1, expvars.GetWorkerCount())
+		require.Zero(t, c.checkInstances)
+
+		require.NoError(t, c.StopCheck(id))
+		synctest.Wait()
+		require.Equal(t, baseline, expvars.GetWorkerCount())
+	})
+}
+
+func TestFinishedOneTimeChecksKeepDynamicPoolMinimum(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := newTestCollector(t, map[string]interface{}{"check_runners": 0})
+		synctest.Wait()
+		require.Equal(t, 4, expvars.GetWorkerCount())
+
+		var oneShots []*oneTimeTestCheck
+		for i := 0; i < 6; i++ {
+			ch := &oneTimeTestCheck{TestCheck: NewCheckUnique(checkid.ID(fmt.Sprintf("one-shot:%d", i)), "TestCheck")}
+			_, err := c.RunCheck(ch)
+			require.NoError(t, err)
+			oneShots = append(oneShots, ch)
+		}
+		// 11 periodic checks need 10 workers. The pool already has 10, six of
+		// them busy with the interval-zero checks.
+		for i := 0; i < 11; i++ {
+			_, err := c.RunCheck(NewCheckUnique(checkid.ID(fmt.Sprintf("periodic:%d", i)), "TestCheck"))
+			require.NoError(t, err)
+		}
+		synctest.Wait()
+		require.Equal(t, 10, expvars.GetWorkerCount())
+
+		for _, ch := range oneShots {
+			close(ch.stop)
+		}
+		synctest.Wait()
+		require.Equal(t, 10, expvars.GetWorkerCount())
+
+		// Workers that exit while the runner stops are not replaced.
+		c.stop(context.TODO())
+		synctest.Wait()
+		require.Zero(t, expvars.GetWorkerCount())
+	})
+}
+
 // ChecksList is a sort.Interface so we can use the Sort function
 type ChecksList []checkid.ID
 
@@ -112,11 +201,21 @@ type CollectorTestSuite struct {
 }
 
 func (suite *CollectorTestSuite) SetupTest() {
+	suite.c = newTestCollector(suite.T(), nil)
+}
+
+// newTestCollector returns a started collector. overrides are applied on top
+// of the default test configuration.
+func newTestCollector(t *testing.T, overrides map[string]interface{}) *collectorImpl {
 	hostname, _ := hostnameinterface.NewMock("my-hostname")
-	suite.c = newCollector(dependencies{
-		Lc:               compdef.NewTestLifecycle(suite.T()),
-		Config:           config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}),
-		Log:              logmock.New(suite.T()),
+	cfg := map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond}
+	for k, v := range overrides {
+		cfg[k] = v
+	}
+	c := newCollector(dependencies{
+		Lc:               compdef.NewTestLifecycle(t),
+		Config:           config.NewMockWithOverrides(t, cfg),
+		Log:              logmock.New(t),
 		HaAgent:          haagentmock.NewMockHaAgent(),
 		HealthPlatform:   healthplatformnoopimpl.NewNoopComponent(),
 		Hostname:         hostname,
@@ -124,7 +223,8 @@ func (suite *CollectorTestSuite) SetupTest() {
 		MetricSerializer: option.None[serializer.MetricSerializer](),
 		AgentTelemetry:   option.None[agenttelemetry.Component](),
 	})
-	suite.c.start(context.TODO())
+	c.start(context.TODO())
+	return c
 }
 
 func (suite *CollectorTestSuite) TearDownTest() {

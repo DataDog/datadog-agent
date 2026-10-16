@@ -6,7 +6,7 @@
 // Package main provides a standalone scorer for anomaly detection eval output.
 // It has two mutually exclusive scoring modes:
 //
-//   - Default (F1 scoring): Reads a headless output JSON produced with time_cluster,
+//   - Default (F1 scoring): Reads high-severity anomaly_scorer episodes from headless output,
 //     resolves ground truth timestamps from the scenario's episode.json, and computes
 //     a Gaussian F1 score measuring whether the disruption was detected at the right time.
 //
@@ -84,8 +84,16 @@ func main() {
 	fmt.Printf("Gaussian F1 Score\n")
 	fmt.Printf("  Input:       %s\n", *outputPath)
 	fmt.Printf("  Sigma:       %.1fs\n", *sigma)
-	fmt.Printf("  Predictions: %d scored, %d warmup filtered, %d post-onset ignored\n",
+	fmt.Printf("  Predictions: %d high-severity after warmup, %d warmup filtered, %d subsequent incident starts ignored\n",
 		result.NumPredictions, result.NumFilteredWarmup, result.NumFilteredCascading)
+	fmt.Printf("  Ignored: %d non-high/correlator periods, %d early recovery starts, %d outside scenario\n",
+		result.NumFilteredNonHigh, result.NumFilteredRecovery, result.NumFilteredOutsideScenario)
+	fmt.Printf("  False positives: %d baseline, %d recovery tail\n", result.NumBaselineFPs, result.NumRecoveryFPs)
+	if result.RecoveryEnd > result.RecoveryStart {
+		fmt.Printf("  Recovery quiet window: [%d, %d), final %ds\n", result.RecoveryQuietStart, result.RecoveryEnd, result.RecoveryQuietDurationSeconds)
+	} else {
+		fmt.Println("  Recovery not scored: no scenario metadata (timestamp-only mode)")
+	}
 	fmt.Println()
 	fmt.Printf("  F1:        %.4f\n", result.F1)
 	fmt.Printf("  Precision: %.4f\n", result.Precision)

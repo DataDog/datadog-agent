@@ -347,99 +347,6 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 	}
 }
 
-// This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
-// This means that the event is actually forwarded to user space, but the rule should not be evaluated
-var _ = declareInlineConfig(TestFilterOpenLeafDiscarderActivityDump)
-
-func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-
-	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
-		return kv.IsSuse12Kernel()
-	})
-
-	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
-	// a discarder is created).
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.filename =~ "/*mp/*-no-approver-*"`,
-	}
-
-	outputDir := t.TempDir()
-	expectedFormats := []string{"json", "protobuf"}
-	var testActivityDumpTracedEventTypes = []string{"exec", "open"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
-		// this exercises the v1 activity dump manager, which is inactive under security profile v2
-		disableSecurityProfileV2:            true,
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      model.MaxTracedCgroupsCount,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.CloseTest()
-
-	dockerInstance, _, err := test.StartADockerGetDump()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer dockerInstance.stop()
-
-	cmd := dockerInstance.Command("mkdir", []string{"/tmp/test"}, []string{})
-	if _, err := cmd.CombinedOutput(); err != nil {
-		t.Fatal(err)
-	}
-
-	testFile := "/tmp/test/test-obc-2"
-
-	if err := test.GetEventDiscarder(t, func() error {
-		cmd := dockerInstance.Command("touch", []string{testFile}, []string{})
-		if _, err = cmd.CombinedOutput(); err != nil {
-			t.Fatal(err)
-		}
-		return nil
-	}, func(event eval.Event, _ eval.Field, _ eval.EventType) bool {
-		e := event.(*model.Event)
-		if e == nil || e.GetEventType() != model.FileOpenEventType {
-			return false
-		}
-		v, _ := e.GetFieldValue("open.file.path")
-		return v == testFile
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	// Check that we get a probe event "saved by activity dumps"
-	if err := test.GetProbeEvent(func() error {
-		cmd := dockerInstance.Command("cat", []string{testFile}, []string{})
-		_, err = cmd.CombinedOutput()
-		if err != nil {
-			t.Fatal(err)
-			return err
-		}
-		return nil
-	}, func(event *model.Event) bool {
-		return event.GetType() == "open" && event.IsSavedByActivityDumps()
-	}, 3*time.Second); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
@@ -1511,6 +1418,54 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 		assert.Containsf(t, []int{unix.AF_INET, unix.AF_INET6}, addressFamily, "should not get a connect event with address family other than AF_INET or AF_INET6")
 		return false
 	}, 2*time.Second, model.ConnectEventType)
+	if err != nil {
+		if _, ok := err.(ErrTimeout); !ok {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestFilterBindAddrFamily(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_bind",
+			Expression: `bind.addr.port == 4241`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = test.GetProbeEvent(func() error {
+		return runSyscallTesterFunc(
+			context.Background(),
+			t,
+			syscallTester,
+			"bind",
+			"AF_UNIX",
+		)
+	}, func(event *model.Event) bool {
+		addressFamilyIntf, err := event.GetFieldValue("bind.addr.family")
+		if !assert.NoError(t, err) {
+			return false
+		}
+		addressFamily, ok := addressFamilyIntf.(int)
+		if !assert.True(t, ok) {
+			return false
+		}
+		assert.Containsf(t, []int{unix.AF_INET, unix.AF_INET6}, addressFamily, "should not get a bind event with address family other than AF_INET or AF_INET6")
+		return false
+	}, 2*time.Second, model.BindEventType)
 	if err != nil {
 		if _, ok := err.(ErrTimeout); !ok {
 			t.Fatal(err)

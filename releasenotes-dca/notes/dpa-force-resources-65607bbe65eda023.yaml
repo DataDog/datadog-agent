@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    Added the ``autoscaling.datadoghq.com/force-resources`` annotation on ``DatadogPodAutoscaler``
+    objects to override container resources on top of the vertical recommendation during an
+    incident. The value is a JSON list of container resources, in the same format as the
+    ``DatadogPodAutoscaler``, for example
+    ``[{"name": "app", "requests": {"cpu": "2", "memory": "200Mi"}, "limits": {"cpu": "4"}}]``. Only the
+    values that are set are forced; everything else keeps following the recommendation. Forced values
+    are bounded by ``spec.constraints`` and rolled out like a recommendation that raises limits. They
+    are suppressed by the ``autoscaling.datadoghq.com/pause`` annotation and by the ``Preview`` apply
+    mode. While applied, they are reported by the ``VerticalScalingLimited`` status condition and the
+    ``datadog.cluster_agent.autoscaling.workload.force_resources`` gauge.

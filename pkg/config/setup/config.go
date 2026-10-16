@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -289,9 +290,16 @@ func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
 	return messages
 }
 
-func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, additionalKnownEnvVars []string) []string {
+var findUnknownEnvVarsOnce = sync.OnceFunc(func() {
+	for _, v := range findUnknownEnvVars(os.Environ()) {
+		log.Warnf("Unknown environment variable: %v", v)
+	}
+})
+
+func findUnknownEnvVars(environ []string) []string {
 	var unknownVars []string
 
+	// List of known env vars used by the Datadog ecosystem that should not be warned on
 	knownVars := map[string]struct{}{
 		// these variables are used by the agent, but not via the Config struct,
 		// so must be listed separately.
@@ -348,12 +356,17 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_APM_NET_RECEIVER_FD":  {},
 		"DD_APM_UNIX_RECEIVER_FD": {},
 		"DD_OTLP_CONFIG_GRPC_FD":  {},
+		// otelAgentEnvVars lists DD_* environment variables that are consumed by the
+		// otel-agent binary via CLI flags (envflag) rather than through the Datadog
+		// config system.
+		"DD_SYNC_DELAY":  {},
+		"DD_SYNC_TO":     {},
+		"DD_CORE_CONFIG": {},
 	}
-	for _, key := range config.GetEnvVars() {
-		knownVars[key] = struct{}{}
-	}
-	for _, key := range additionalKnownEnvVars {
-		knownVars[key] = struct{}{}
+	for _, cfg := range []pkgconfigmodel.Config{Datadog(), SystemProbe()} {
+		for _, key := range cfg.GetEnvVars() {
+			knownVars[key] = struct{}{}
+		}
 	}
 
 	for _, equality := range environ {
@@ -397,7 +410,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) error {
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -407,7 +420,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config, additionalEnvVars)
+	err := loadCustom(config)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -520,12 +533,12 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
-func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
-	return loadCustom(config, additionalKnownEnvVars)
+func LoadSystemProbe(config pkgconfigmodel.Config) error {
+	return loadCustom(config)
 }
 
 // loadCustom reads config into the provided config object
-func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
+func loadCustom(config pkgconfigmodel.Config) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
 		return err
@@ -535,9 +548,7 @@ func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) e
 		log.Warnf("%s", warn)
 	}
 
-	for _, v := range findUnknownEnvVars(config, os.Environ(), additionalKnownEnvVars) {
-		log.Warnf("Unknown environment variable: %v", v)
-	}
+	findUnknownEnvVarsOnce()
 
 	for _, warningMsg := range findUnexpectedUnicode(config) {
 		log.Warnf("%s", warningMsg)
@@ -720,7 +731,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		// updating it.
 		yamlConf, err := yaml.Marshal(config.AllSettings())
 		if err != nil {
-			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %w", err)
 		}
 
 		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
@@ -972,6 +983,15 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
 
+	// A value outside the declared set applies no mode override and carries no
+	// `infra_mode` mark on the payloads, so report it rather than letting a typo
+	// look like a working configuration. Other readers of the raw setting still
+	// see the typo, so this does not claim the Agent behaves as `full`.
+	if infraMode != "" && !constants.IsKnownInfraMode(infraMode) {
+		log.Warnf("invalid value for 'infrastructure_mode': %q, expected one of %v",
+			infraMode, constants.KnownInfraModes)
+	}
+
 	// Apply legacy alias: copy values from legacy key to integration.additional
 	// Legacy `allowed_additional_checks` -> `integration.additional`
 	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
@@ -979,13 +999,13 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	if infraMode == "end_user_device" {
+	if infraMode == constants.InfraModeEndUserDevice {
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("logon_duration.enabled", true, pkgconfigmodel.SourceInfraMode)
-	} else if infraMode == "none" {
+	} else if infraMode == constants.InfraModeNone {
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 		// Avoid detailed ECS task metadata collection when not collecting infrastructure.

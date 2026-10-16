@@ -24,7 +24,7 @@ fetch_openjdk                        @DataDog/agent-metric-pipelines
 # tests_* defaults to agent-devx, with overrides below
 tests_*                                 @DataDog/agent-devx
 tests_ebpf*                             @DataDog/ebpf-platform
-tests_gpu                               @DataDog/gpu-monitoring-agent
+tests_gpu                               @DataDog/accelerator-telemetry
 tests_windows-x64                       @DataDog/windows-products
 tests_windows_sysprobe*                 @DataDog/windows-products
 tests_windows_secagent*                 @DataDog/windows-products @DataDog/agent-security
@@ -156,6 +156,7 @@ qa_*_oci                               @DataDog/agent-delivery
 qa_installer_script*                   @DataDog/agent-delivery
 generate_config_templates              @DataDog/fleet-automation
 generate_config_json_schema            @DataDog/fleet-automation
+lint_config_schema                     @DataDog/fleet-automation
 
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery
@@ -190,6 +191,7 @@ ddot_byoc_*                   @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm
+trace_dupcheck_*              @DataDog/agent-apm
 
 # Functional test
 static_quality_gates                           @DataDog/agent-build
@@ -255,7 +257,7 @@ new-e2e-agent-platform-*                @DataDog/fleet
 new-e2e-platform-integrations-*         @DataDog/agent-integrations
 new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
-new-e2e-gpu*                            @DataDog/gpu-monitoring-agent
+new-e2e-gpu*                            @DataDog/accelerator-telemetry
 # --- Action platform / discovery ---
 new-e2e-privateactionrunner*            @DataDog/action-platform
 new-e2e-discovery                       @DataDog/agent-discovery
@@ -266,7 +268,6 @@ new-e2e-installer-windows*              @DataDog/fleet @DataDog/windows-products
 new-e2e-windows-security-agent          @DataDog/windows-products @DataDog/agent-security
 new-e2e-windows-fips-compliance-test*   @DataDog/windows-products @DataDog/agent-runtimes
 new-e2e-windows-systemprobe*            @DataDog/windows-products @DataDog/ebpf-platform
-go_e2e_test_binaries              @DataDog/agent-devx
 all-artifacts                     @DataDog/agent-devx
 
 # Kernel matrix testing

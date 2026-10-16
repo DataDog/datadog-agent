@@ -11,7 +11,7 @@
 .tests_linux_ebpf:
   stage: source_test
   extends: .unit_test_base
-  needs: ["go_deps"]
+  needs: ["setup_agent_version", "go_deps"]
   variables:
     KUBERNETES_MEMORY_REQUEST: "24Gi"
     KUBERNETES_MEMORY_LIMIT: "24Gi"
@@ -52,7 +52,7 @@ tests_ebpf_arm64:
   rules:
     - !reference [.except_light_pipeline]
     - when: on_success
-  needs: ["go_deps"]
+  needs: ["setup_agent_version", "go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
     KUBERNETES_MEMORY_REQUEST: "12Gi"
@@ -92,7 +92,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   rules:
     - !reference [.except_light_pipeline]
     - when: on_success
-  needs: ["go_deps"]
+  needs: ["setup_agent_version", "go_deps"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
     KUBERNETES_MEMORY_REQUEST: "12Gi"

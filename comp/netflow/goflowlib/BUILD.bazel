@@ -16,6 +16,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/netflow/common",
         "//comp/netflow/config/def",
+        "//comp/netflow/dpi",
         "//comp/netflow/goflowlib/netflowstate",
         "//pkg/metrics",
         "@com_github_netsampler_goflow2//decoders/netflow/templates",

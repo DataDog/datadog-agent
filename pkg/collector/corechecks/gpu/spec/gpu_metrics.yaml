@@ -20,7 +20,7 @@
 #   - support:
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
-#       - capabilities_required (optional): {nvlink: <min_generation>, c2c: <bool>} (hardware capabilities required for the metric)
+#       - capabilities_required (optional): {nvlink: <min_generation>, max_nvlink: <max_generation>, c2c: <bool>} (hardware capabilities required for the metric; max_nvlink requires nvlink)
 metric_prefix: gpu
 metrics:
   clock.speed.graphics:
@@ -920,6 +920,27 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  device.unavailable:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the GPU is unavailable for the reason in the unavailable_reason
+        tag. The lost reason means NVML reports the GPU as inaccessible
+        (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
+        0 means available, 1 means unavailable.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - unavailable_reason
+    validator:
+      values: [0, 1]
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: true
   device.needs_recovery:
     metadata:
       metric_type: gauge
@@ -1035,14 +1056,14 @@ metrics:
         min: 0
         max: 1000000000000000
     support:
-      unsupported_architectures:
-        - hopper
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 4
   nvlink.errors.crc.flit:
     metadata:
       metric_type: gauge
@@ -1064,6 +1085,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.buffer.overrun:
     metadata:
       metric_type: gauge
@@ -1104,6 +1126,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.effective:
     metadata:
       metric_type: gauge
@@ -1177,6 +1200,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.replay:
     metadata:
       metric_type: gauge
@@ -1199,6 +1223,7 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 1
+        max_nvlink: 6
   nvlink.errors.rx:
     metadata:
       metric_type: gauge
@@ -2244,6 +2269,36 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  retired_pages:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of GPU memory pages retired, or pending retirement, after a
+        double-bit ECC error or multiple single-bit ECC errors, as reported
+        by NVML. Pending retirements take effect after the next driver
+        reload. A growing count can indicate degrading GPU memory. Tagged
+        by retirement cause (multiple_single_bit or double_bit). Only for
+        datacenter GPUs from Kepler to Turing.
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    custom_tags:
+      - cause
+    validator:
+      range:
+        min: 0
+        max: 1000000
+    support:
+      unsupported_architectures:
+        - fermi
+        - ampere
+        - hopper
+        - ada
+        - blackwell
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   slowdown_temperature:
     metadata:
       metric_type: gauge
@@ -2394,3 +2449,27 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  vgpu.license_status:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether the vGPU software license for the device's enabled product is
+        active (1) or inactive (0), as reported by NVML from inside the guest
+        VM. An inactive license exposes the workload to driver performance
+        limitations but does not by itself indicate that throttling is in
+        effect. Tagged with vgpu_product. Only emitted for vGPU devices that
+        support vGPU software licensing.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    custom_tags:
+      - vgpu_product
+    validator:
+      values: [0, 1]
+    optional: true
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: false
+        vgpu: true

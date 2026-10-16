@@ -320,6 +320,7 @@ func init() {
 	KFilterGetters["chdir"] = fimKFiltersGetter(model.FileChdirEventType, []eval.Field{"file"})
 	KFilterGetters["bpf"] = bpfKFiltersGetter
 	KFilterGetters["sysctl"] = sysctlKFiltersGetter
+	KFilterGetters["bind"] = bindKFiltersGetter
 	KFilterGetters["connect"] = connectKFiltersGetter
 	KFilterGetters["prctl"] = prctlKFiltersGetter
 	KFilterGetters["setsockopt"] = setsockoptKFiltersGetter

@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -103,6 +104,7 @@ type ProcessCheck struct {
 	lastContainerRates         map[string]*proccontainers.ContainerRateMetrics
 	realtimeLastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	networkID                  string
+	initializeNetworkID        func()
 
 	realtimeLastCPUTime cpu.TimesStat
 	realtimeLastProcs   map[int32]*procutil.Stats
@@ -163,11 +165,10 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		p.sysprobeClient = client.Get(syscfg.SystemProbeAddress)
 	}
 
-	networkID, err := retryGetNetworkID(p.sysprobeClient)
-	if err != nil {
-		log.Infof("no network ID detected: %s", err)
-	}
-	p.networkID = networkID
+	// Network ID is enrichment for process payloads, not a prerequisite for
+	// starting other components. Resolve it on the check's first Run instead of
+	// blocking the process runner's OnStart hook with metadata retries.
+	p.initializeNetworkID = p.deferredNetworkIDLookup(retryGetNetworkID)
 
 	p.maxBatchSize = getMaxBatchSize(p.config)
 	p.maxBatchBytes = getMaxBatchBytes(p.config)
@@ -470,8 +471,25 @@ func (p *ProcessCheck) aggregateZombiesByParent(procs map[int32]*procutil.Proces
 	return zombiesByPPID
 }
 
+// deferredNetworkIDLookup retains the existing retry and failure behavior, but
+// performs it only once, on the check runner's goroutine. No process sample or
+// payload is produced until lookup completes, and no extra worker needs teardown.
+func (p *ProcessCheck) deferredNetworkIDLookup(lookup func(*http.Client) (string, error)) func() {
+	return sync.OnceFunc(func() {
+		networkID, err := lookup(p.sysprobeClient)
+		if err != nil {
+			log.Infof("no network ID detected: %s", err)
+		}
+		p.networkID = networkID
+	})
+}
+
 // Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
+	if p.initializeNetworkID != nil {
+		p.initializeNetworkID()
+	}
+
 	if options == nil {
 		return p.run(nextGroupID(), false)
 	}
