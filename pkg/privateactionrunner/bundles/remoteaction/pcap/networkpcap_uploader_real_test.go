@@ -8,6 +8,7 @@ package com_datadoghq_remoteaction_pcap
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -58,7 +59,9 @@ func TestNetworkPcapUploader_RealIntake(t *testing.T) {
 	}
 
 	captureID := "uploader-real-test-" + uuid.New().String()
-	err := uploader.Upload(context.Background(), syntheticPcap, captureID)
+	pcapPath := filepath.Join(t.TempDir(), "synthetic.pcap")
+	require.NoError(t, os.WriteFile(pcapPath, syntheticPcap, 0o600))
+	err := uploader.Upload(context.Background(), pcapPath, captureID)
 	require.NoError(t, err, "expected the real networkpcap intake to accept the zstd multipart upload (202)")
 
 	t.Logf("uploaded capture_id=%s via real networkPcapUploader.Upload to https://%s/api/v2/networkpcap and got 202 — edge-accept confirmed for the real Go code path; S3/Husky storage landing is not independently verifiable with tooling available in this project", captureID, intakeHost)

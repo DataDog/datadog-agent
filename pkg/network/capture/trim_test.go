@@ -32,7 +32,7 @@ var (
 	testSecret = gopacket.Payload("GET /secret HTTP/1.1\r\nAuthorization: Bearer abc\r\n\r\n")
 )
 
-func serialize(t *testing.T, l ...gopacket.SerializableLayer) []byte {
+func serialize(t testing.TB, l ...gopacket.SerializableLayer) []byte {
 	t.Helper()
 	buf := gopacket.NewSerializeBuffer()
 	require.NoError(t, gopacket.SerializeLayers(buf, gopacket.SerializeOptions{FixLengths: true}, l...))
@@ -100,28 +100,22 @@ func ipv6DestinationOptions(next layers.IPProtocol) []byte {
 	return []byte{byte(next), 0x00, 0x01, 0x04, 0, 0, 0, 0}
 }
 
-// ipv6FragmentHeader builds the 8-byte IPv6 fragment extension header (RFC
-// 8200 §4.5), matching gopacket's decodeIPv6Fragment field layout.
-func ipv6FragmentHeader(next layers.IPProtocol, fragOffset uint16, moreFragments bool) []byte {
-	var mf uint16
-	if moreFragments {
-		mf = 1
+// ipv6FragmentHeader is an 8-byte fragment extension header at offset (in
+// 8-byte units), with the more-fragments flag set when offset is 0.
+func ipv6FragmentHeader(next layers.IPProtocol, offset uint16) []byte {
+	flags := offset << 3
+	if offset == 0 {
+		flags |= 1
 	}
-	word := fragOffset<<3 | mf
-	return []byte{
-		byte(next), 0x00,
-		byte(word >> 8), byte(word),
-		0, 0, 0, 1, // Identification
-	}
+	return []byte{byte(next), 0, byte(flags >> 8), byte(flags), 0, 0, 0, 1}
 }
 
-// tcpRawHeader builds a 20-byte TCP header with an explicit (possibly
-// invalid) data offset nibble, bypassing layers.TCP's own validation so
-// malformed-offset packets can be crafted for headerLen.
+// tcpRawHeader is a 20-byte TCP header with an explicit, possibly invalid,
+// data offset nibble, bypassing layers.TCP's own validation.
 func tcpRawHeader(dataOffset uint8) []byte {
 	h := make([]byte, 20)
-	binary.BigEndian.PutUint16(h[0:2], 40000) // src port
-	binary.BigEndian.PutUint16(h[2:4], 8080)  // dst port
+	binary.BigEndian.PutUint16(h[0:2], 40000)
+	binary.BigEndian.PutUint16(h[2:4], 8080)
 	h[12] = dataOffset << 4
 	return h
 }
@@ -129,6 +123,7 @@ func tcpRawHeader(dataOffset uint8) []byte {
 func TestHeaderLen(t *testing.T) {
 	ipv4TCP := serialize(t, ipv4(layers.IPProtocolTCP), tcpWithTimestamps(), testSecret)
 	tcpSegment := serialize(t, tcpWithTimestamps(), testSecret)
+	udpSegment := serialize(t, udp(53), testSecret)
 	// An IHL of 15 (60 bytes) exceeds the IP total length, so IPv4 fails its
 	// own decode after gopacket has set its Contents to the whole remainder.
 	badIHL := serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolUDP), udp(9999), gopacket.Payload("secret"))
@@ -247,67 +242,41 @@ func TestHeaderLen(t *testing.T) {
 			wantLen: 14 + 20,
 		},
 		{
-			name:     "non-first IPv4 fragment UDP keeps the IP header only",
+			name:     "first IPv4 fragment keeps the UDP header",
 			linkType: layers.LinkTypeEthernet,
 			packet: serialize(t, eth(layers.EthernetTypeIPv4),
-				&layers.IPv4{Version: 4, IHL: 5, TTL: 64, Protocol: layers.IPProtocolUDP, FragOffset: 100, SrcIP: testIPv4Src, DstIP: testIPv4Dst},
-				testSecret),
-			wantLen: 14 + 20,
+				&layers.IPv4{Version: 4, IHL: 5, TTL: 64, Protocol: layers.IPProtocolUDP, Flags: layers.IPv4MoreFragments, SrcIP: testIPv4Src, DstIP: testIPv4Dst},
+				udp(53), testSecret),
+			wantLen: 14 + 20 + 8,
 		},
 		{
-			// The first fragment (offset 0, MoreFragments set) still carries a
-			// real TCP header, but IPv4.NextLayerType treats any fragmented
-			// packet as opaque, so headerLen fails closed and keeps only the
-			// IP header — favoring the privacy guarantee over completeness.
-			name:     "first IPv4 fragment (more fragments set) keeps the IP header only",
+			name:     "first IPv4 fragment keeps the TCP header",
 			linkType: layers.LinkTypeEthernet,
 			packet: serialize(t, eth(layers.EthernetTypeIPv4),
 				&layers.IPv4{Version: 4, IHL: 5, TTL: 64, Protocol: layers.IPProtocolTCP, Flags: layers.IPv4MoreFragments, SrcIP: testIPv4Src, DstIP: testIPv4Dst},
 				tcpWithTimestamps(), testSecret),
-			wantLen: 14 + 20,
+			wantLen: 14 + 20 + 32,
 		},
 		{
-			// gopacket's IPv6 fragment decoder always hands off to the opaque
-			// Fragment layer type regardless of offset, so both the first and a
-			// later fragment stop at the fragment extension header.
-			name:     "IPv6 fragment extension header (first fragment) keeps headers up to the fragment header",
+			name:     "first IPv6 fragment keeps the UDP header",
 			linkType: layers.LinkTypeEthernet,
-			packet: serialize(t,
-				eth(layers.EthernetTypeIPv6),
-				ipv6(layers.IPProtocolIPv6Fragment),
-				gopacket.Payload(append(ipv6FragmentHeader(layers.IPProtocolTCP, 0, true), serialize(t, tcpWithTimestamps(), testSecret)...))),
+			packet: serialize(t, eth(layers.EthernetTypeIPv6), ipv6(layers.IPProtocolIPv6Fragment),
+				gopacket.Payload(append(ipv6FragmentHeader(layers.IPProtocolUDP, 0), udpSegment...))),
+			wantLen: 14 + 40 + 8 + 8,
+		},
+		{
+			name:     "non-first IPv6 fragment keeps the IP headers only",
+			linkType: layers.LinkTypeEthernet,
+			packet: serialize(t, eth(layers.EthernetTypeIPv6), ipv6(layers.IPProtocolIPv6Fragment),
+				gopacket.Payload(append(ipv6FragmentHeader(layers.IPProtocolUDP, 100), testSecret...))),
 			wantLen: 14 + 40 + 8,
 		},
 		{
-			name:     "IPv6 fragment extension header (non-first fragment) keeps headers up to the fragment header",
+			name:     "first IPv4 fragment with its transport header cut short fails closed",
 			linkType: layers.LinkTypeEthernet,
-			packet: serialize(t,
-				eth(layers.EthernetTypeIPv6),
-				ipv6(layers.IPProtocolIPv6Fragment),
-				gopacket.Payload(append(ipv6FragmentHeader(layers.IPProtocolUDP, 200, false), testSecret...))),
-			wantLen: 14 + 40 + 8,
-		},
-		{
-			// TCP data offset > remaining packet length: gopacket sets
-			// Contents to the whole remainder (header+payload) but also nils
-			// Payload, so the DecodeFailure that follows has zero LayerContents
-			// and headerLen's fail-closed correction (n -= last) undoes the
-			// bogus TCP contribution, stopping at the IP header.
-			name:     "TCP data offset beyond packet length fails closed at the IP header",
-			linkType: layers.LinkTypeEthernet,
-			// 20-byte raw TCP header + a short payload: total length (26)
-			// is less than the claimed data offset * 4 (60), so the data
-			// offset claims to reach past the end of the packet.
-			packet: serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolTCP),
-				gopacket.Payload(append(tcpRawHeader(15), []byte("secret")...))),
-			wantLen:    14 + 20,
-			wantFailed: true,
-		},
-		{
-			name:     "TCP data offset less than 5 fails closed at the IP header",
-			linkType: layers.LinkTypeEthernet,
-			packet: serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolTCP),
-				gopacket.Payload(append(tcpRawHeader(2), []byte("secret")...))),
+			packet: serialize(t, eth(layers.EthernetTypeIPv4),
+				&layers.IPv4{Version: 4, IHL: 5, TTL: 64, Protocol: layers.IPProtocolTCP, Flags: layers.IPv4MoreFragments, SrcIP: testIPv4Src, DstIP: testIPv4Dst},
+				tcpWithTimestamps(), testSecret)[:14+20+24],
 			wantLen:    14 + 20,
 			wantFailed: true,
 		},
@@ -316,6 +285,28 @@ func TestHeaderLen(t *testing.T) {
 			linkType:   layers.LinkTypeEthernet,
 			packet:     serialize(t, eth(layers.EthernetType(0x88b5)), testSecret),
 			wantLen:    14,
+			wantFailed: true,
+		},
+		{
+			name:     "non-first IPv4 fragment UDP keeps the IP header only",
+			linkType: layers.LinkTypeEthernet,
+			packet: serialize(t, eth(layers.EthernetTypeIPv4),
+				&layers.IPv4{Version: 4, IHL: 5, TTL: 64, Protocol: layers.IPProtocolUDP, FragOffset: 100, SrcIP: testIPv4Src, DstIP: testIPv4Dst},
+				testSecret),
+			wantLen: 14 + 20,
+		},
+		{
+			name:       "TCP data offset beyond the packet fails closed at the IP header",
+			linkType:   layers.LinkTypeEthernet,
+			packet:     serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolTCP), gopacket.Payload(append(tcpRawHeader(15), testSecret...))),
+			wantLen:    14 + 20,
+			wantFailed: true,
+		},
+		{
+			name:       "TCP data offset below 5 fails closed at the IP header",
+			linkType:   layers.LinkTypeEthernet,
+			packet:     serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolTCP), gopacket.Payload(append(tcpRawHeader(2), testSecret...))),
+			wantLen:    14 + 20,
 			wantFailed: true,
 		},
 		{
@@ -381,6 +372,29 @@ func TestHeaderLenWithinSnapLen(t *testing.T) {
 			cut, failed := headerLen(tt.packet[:min(len(tt.packet), maxSnapLen)], tt.linkType)
 			assert.False(t, failed)
 			assert.Equal(t, full, cut)
+		})
+	}
+}
+
+func BenchmarkHeaderLen(b *testing.B) {
+	t := b
+	packets := map[string][]byte{
+		"cooked IPv4 TCP": append(linuxSLL(layers.EthernetTypeIPv4), serialize(t, ipv4(layers.IPProtocolTCP), tcpWithTimestamps(), testSecret)...),
+		"VXLAN IPv4 TCP": serialize(t,
+			eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolUDP), udp(4789),
+			&layers.VXLAN{ValidIDFlag: true, VNI: 7},
+			eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolTCP), tcpWithTimestamps(), testSecret),
+	}
+	for name, p := range packets {
+		linkType := layers.LinkTypeEthernet
+		if name == "cooked IPv4 TCP" {
+			linkType = layers.LinkTypeLinuxSLL
+		}
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				headerLen(p, linkType)
+			}
 		})
 	}
 }

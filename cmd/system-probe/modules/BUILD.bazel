@@ -50,6 +50,7 @@ go_library(
         "//pkg/system-probe/config/types",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/impl",
             "//comp/networkpath/traceroute/def",
             "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
             "//pkg/collector/corechecks/ebpf/probe/noisyneighbor",
@@ -150,6 +151,7 @@ go_library(
             "@org_golang_google_grpc//:grpc",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/impl",
             "//comp/networkpath/traceroute/def",
             "//pkg/collector/corechecks/ebpf/probe/ebpfcheck",
             "//pkg/collector/corechecks/ebpf/probe/noisyneighbor",

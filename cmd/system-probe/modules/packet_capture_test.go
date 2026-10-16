@@ -81,3 +81,31 @@ func TestHandleCaptureFlushDoesNotRaceWithPackets(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, "0", resp.Trailer.Get("X-Packet-Count"))
 }
+
+func TestBoundRequest(t *testing.T) {
+	for _, tc := range []struct {
+		name                 string
+		in                   captureRequest
+		wantErr              bool
+		wantPackets, wantMax uint64
+	}{
+		{name: "zero duration", in: captureRequest{DurationSecs: 0}, wantErr: true},
+		{name: "duration above the limit", in: captureRequest{DurationSecs: maxDurationSecs + 1}, wantErr: true},
+		{name: "duration that would overflow", in: captureRequest{DurationSecs: 1 << 40}, wantErr: true},
+		{name: "unset caps use the defaults", in: captureRequest{DurationSecs: 5}, wantPackets: defaultMaxPackets, wantMax: defaultMaxBytes},
+		{name: "larger caps are lowered", in: captureRequest{DurationSecs: 5, MaxPackets: 1e12, MaxBytes: 1e12}, wantPackets: defaultMaxPackets, wantMax: defaultMaxBytes},
+		{name: "smaller caps are kept", in: captureRequest{DurationSecs: maxDurationSecs, MaxPackets: 10, MaxBytes: 1000}, wantPackets: 10, wantMax: 1000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := tc.in
+			err := boundRequest(&r)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantPackets, r.MaxPackets)
+			assert.Equal(t, tc.wantMax, r.MaxBytes)
+		})
+	}
+}

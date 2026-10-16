@@ -118,13 +118,13 @@ func (h *RunCaptureHandler) Run(
 		inputs.SnapLen = defaultSnapLen
 	}
 
-	// Neither cap can be disabled: non-positive values fall back to the
-	// defaults. A negative value would otherwise wrap to a huge limit when
-	// converted to uint64.
-	if inputs.MaxPackets <= 0 {
+	// A caller can lower the caps but not raise or disable them: non-positive
+	// and larger values fall back to the defaults. A negative value would
+	// otherwise wrap to a huge limit when converted to uint64.
+	if inputs.MaxPackets <= 0 || inputs.MaxPackets > defaultMaxPackets {
 		inputs.MaxPackets = defaultMaxPackets
 	}
-	if inputs.MaxBytes <= 0 {
+	if inputs.MaxBytes <= 0 || inputs.MaxBytes > defaultMaxBytes {
 		inputs.MaxBytes = defaultMaxBytes
 	}
 
@@ -144,7 +144,7 @@ func (h *RunCaptureHandler) Run(
 	if out.PcapPath != "" {
 		defer os.Remove(out.PcapPath)
 
-		if err := h.sendCapture(ctx, out.PcapPath, captureID); err != nil {
+		if err := h.uploader.Upload(ctx, out.PcapPath, captureID); err != nil {
 			return nil, fmt.Errorf("sending capture %s to event platform: %w", captureID, err)
 		}
 	}
@@ -158,19 +158,4 @@ func (h *RunCaptureHandler) Run(
 		HeadersTruncated: out.HeadersTruncated,
 		CaptureErrors:    out.Errors,
 	}, nil
-}
-
-// sendCapture uploads the pcap file at pcapPath to the "networkpcap" EVP
-// attachment track via its multipart intake endpoint.
-func (h *RunCaptureHandler) sendCapture(ctx context.Context, pcapPath string, captureID string) error {
-	pcapBytes, err := os.ReadFile(pcapPath)
-	if err != nil {
-		return fmt.Errorf("reading captured pcap file: %w", err)
-	}
-
-	if err := h.uploader.Upload(ctx, pcapBytes, captureID); err != nil {
-		return fmt.Errorf("uploading pcap to event platform: %w", err)
-	}
-
-	return nil
 }

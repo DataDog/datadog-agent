@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/capture"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -38,6 +39,38 @@ type captureRequest struct {
 // stopGracePeriod bounds how long the handler waits, beyond the requested
 // duration, for the capturer's drain loop to exit before forcing Stop().
 const stopGracePeriod = 5 * time.Second
+
+// Limits enforced here, where the capture runs, whatever the caller sends.
+// They match the Private Action Runner's, which validates first.
+const (
+	maxDurationSecs   = 120
+	defaultMaxPackets = 2_000_000
+	defaultMaxBytes   = 160 << 20
+)
+
+// drainOverrun records how long a capture ran past its requested duration,
+// so stopGracePeriod can be tuned from observed values. A capture that ends
+// early on a packet or byte cap records 0.
+var drainOverrun = telemetryimpl.GetCompatComponent().NewHistogram(
+	"packet_capture", "drain_overrun_seconds", []string{},
+	"Time a capture ran past its requested duration before its drain loop exited",
+	[]float64{0.05, 0.1, 0.25, 0.5, 1, 2, 5},
+)
+
+// boundRequest rejects a duration outside 1..maxDurationSecs and lowers
+// unset or larger caps to the defaults, so no request can disable them.
+func boundRequest(r *captureRequest) error {
+	if r.DurationSecs < 1 || r.DurationSecs > maxDurationSecs {
+		return fmt.Errorf("durationSecs must be between 1 and %d, got %d", maxDurationSecs, r.DurationSecs)
+	}
+	if r.MaxPackets == 0 || r.MaxPackets > defaultMaxPackets {
+		r.MaxPackets = defaultMaxPackets
+	}
+	if r.MaxBytes == 0 || r.MaxBytes > defaultMaxBytes {
+		r.MaxBytes = defaultMaxBytes
+	}
+	return nil
+}
 
 type packetCapture struct{}
 
@@ -98,8 +131,8 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if reqBody.DurationSecs <= 0 {
-		http.Error(w, "durationSecs must be positive", http.StatusBadRequest)
+	if err := boundRequest(&reqBody); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -132,6 +165,7 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
 	w.Header().Set("Trailer", "X-Packet-Count, X-Bytes-Captured, X-Packets-Dropped, X-Headers-Truncated, X-Capture-Errors")
 
+	startedAt := time.Now()
 	if err := capturer.Start(ctx); err != nil {
 		log.Errorf("packet_capture: starting capture: %s", err)
 		w.Header().Del("Trailer")
@@ -151,6 +185,7 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	case <-capturer.Done():
 	case <-ctx.Done():
 	}
+	drainOverrun.Observe(max(0, time.Since(startedAt)-duration).Seconds())
 
 	if err := capturer.Stop(); err != nil {
 		log.Errorf("packet_capture: stopping capture: %s", err)

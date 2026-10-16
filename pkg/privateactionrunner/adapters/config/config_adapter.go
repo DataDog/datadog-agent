@@ -48,7 +48,7 @@ type Config struct {
 	DatadogSite string
 
 	// NetworkPcapLogsDDURL overrides the host:port captures are uploaded to.
-	// Empty means "pcap-intake.<DatadogSite>".
+	// Empty means "cnm-intake.<DatadogSite>".
 	NetworkPcapLogsDDURL string
 
 	// the following are constants with default values. They are part of the config struct to allow for the ability to be overwritten in the YAML config file if needed
