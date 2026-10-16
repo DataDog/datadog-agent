@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package authoredscripts
 
 import (
@@ -22,6 +20,7 @@ import (
 )
 
 const testPackageDigest = "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c"
+const testMaterializationID = "test-materialization"
 
 type testPackageMaterializer struct {
 	mu                sync.Mutex
@@ -80,7 +79,7 @@ func TestNewArtifactResolver(t *testing.T) {
 }
 
 func TestArtifactResolverResolveReusesValidArtifact(t *testing.T) {
-	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64"}
+	materializer := &testPackageMaterializer{materializationID: testMaterializationID}
 	cacheRoot := filepath.Join(t.TempDir(), "cache")
 	resolver, err := NewArtifactResolver(cacheRoot, materializer)
 	require.NoError(t, err)
@@ -97,7 +96,7 @@ func TestArtifactResolverResolveReusesValidArtifact(t *testing.T) {
 }
 
 func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
-	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64"}
+	materializer := &testPackageMaterializer{materializationID: testMaterializationID}
 	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
 	require.NoError(t, err)
 	descriptor := testArtifactDescriptor()
@@ -113,7 +112,7 @@ func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 }
 
 func TestArtifactResolverResolveTreatsFQNCaseInsensitively(t *testing.T) {
-	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64"}
+	materializer := &testPackageMaterializer{materializationID: testMaterializationID}
 	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
 	require.NoError(t, err)
 	descriptor := testArtifactDescriptor()
@@ -131,7 +130,7 @@ func TestArtifactResolverResolveTreatsFQNCaseInsensitively(t *testing.T) {
 
 func TestArtifactResolverResolveDoesNotPublishFailedMaterialization(t *testing.T) {
 	materializeErr := errors.New("download failed")
-	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64", materializeErr: materializeErr}
+	materializer := &testPackageMaterializer{materializationID: testMaterializationID, materializeErr: materializeErr}
 	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
 	require.NoError(t, err)
 
@@ -141,7 +140,7 @@ func TestArtifactResolverResolveDoesNotPublishFailedMaterialization(t *testing.T
 }
 
 func TestArtifactResolverResolveValidatesDescriptor(t *testing.T) {
-	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64"}
+	materializer := &testPackageMaterializer{materializationID: testMaterializationID}
 	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
 	require.NoError(t, err)
 
