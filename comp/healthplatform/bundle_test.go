@@ -35,6 +35,7 @@ import (
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	fakeintakeserver "github.com/DataDog/datadog-agent/test/fakeintake/server"
 
+	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	dogstatsdclientdrops "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsdclientdrops"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
@@ -115,8 +116,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 	const (
 		testSource  = "test-bundle-lifecycle"
 		testIssueID = "test-bundle-lifecycle-issue"
-		// Reuse a real issue name registered by the bundle's side-effect imports
-		// so the registry's BuildIssue lookup succeeds.
+		// Reuse an issue name from the bundle's Fx group so the registry's BuildIssue lookup succeeds.
 		testIssueName = "Docker Socket Permission"
 	)
 	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]runnerdef.IssueReport, error) {
@@ -422,9 +422,27 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 // GetActiveIssueIDsByIssueName is called with module.IssueName(). They must
 // match or restart-based issue resolution silently breaks.
 func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
-	cfg := config.NewMock(t)
-	hn, _ := hostnameinterface.NewMock("test-host")
-	mods := issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hn})
+	type appDeps struct {
+		fx.In
+		Modules  []issues.Module `group:"healthplatform_issue"`
+		Registry registrydef.Component
+	}
+
+	// Use the production bundle's Fx group and registry without starting health checks.
+	deps := fxutil.Test[appDeps](t,
+		Bundle(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("health_platform.enabled", false)
+			cfg.SetInTest("run_path", t.TempDir())
+			return cfg
+		}),
+		telemetrymock.Module(),
+		hostnameinterface.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	mods := fxutil.GetAndFilterGroup(deps.Modules)
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
 		issue, err := mod.BuildIssue(map[string]string{})
@@ -435,5 +453,24 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 		assert.Equal(t, mod.IssueType(), issue.IssueType,
 			"module IssueType() %q must equal BuildIssue().IssueType %q",
 			mod.IssueType(), issue.IssueType)
+	}
+
+	assertTemplates := func(check *runnerdef.BuiltInHealthCheck) {
+		t.Helper()
+		require.NotEmpty(t, check.IssueNames, "check %s has no issue names", check.Source)
+		for _, name := range check.IssueNames {
+			_, ok := deps.Registry.GetTemplate(name)
+			assert.True(t, ok, "check %s has no template for issue %q", check.Source, name)
+		}
+	}
+	periodic := deps.Registry.GetBuiltInPeriodicHealthChecks()
+	startup := deps.Registry.GetBuiltInStartupHealthChecks()
+	require.NotEmpty(t, periodic)
+	require.NotEmpty(t, startup)
+	for _, check := range periodic {
+		assertTemplates(&check.BuiltInHealthCheck)
+	}
+	for _, check := range startup {
+		assertTemplates(check)
 	}
 }

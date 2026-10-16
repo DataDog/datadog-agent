@@ -77,12 +77,13 @@ the shared source. `comp/healthplatform/issueregistry/utils/selfident.SelfIdent`
   `SelfIdent.IssueDiscriminator()` when non-empty, else `hostID`, else `os.Hostname()`. All agents
   owned by the same DaemonSet therefore compute the same discriminator, so `id`s built from it
   collapse into one backend issue instead of one per host; every other agent keeps per-host
-  behavior. It tolerates a nil `selfIdent` (`ModuleDeps` is a plain struct).
+  behavior. It tolerates a nil `selfIdent` from direct callers, including tests.
 - `healthplatformstore.Component.IssueDiscriminator(hostID)` (implemented in `store/impl`) delegates
   to that function with a process-shared `SelfIdent`, for Path-B reporters that hold the store
   component. Path-A modules that don't (`invalidconfig`, `invalidsysprobeconfig`) call it directly
-  with their own `*selfident.SelfIdent` from `issues.ModuleDeps.SelfIdent` — a second,
-  independently-cached instance is harmless since both resolve the same deterministic value.
+  with the shared `*selfident.SelfIdent` injected into their constructors. `bundle.go` provides
+  this instance once with `fx.Provide(newSelfIdent)` and optional workloadmeta. The store retains
+  its separate cached instance; both resolve the same deterministic value.
 - **`selfident` is behind the `kubeapiserver` build tag.** `selfident_noop.go` provides the same API
   returning `""` everywhere for flavors built without it — the iot and heroku agents,
   `cluster-agent-cloudfoundry`, and `serverless-init`. None of them can run as a Kubernetes
@@ -138,4 +139,7 @@ affected-count is a backend follow-up, not handled by the agent today. Document 
    )
    ```
 5. In `BuildIssue`, set both `IssueName` and `IssueType` to the fixed constants, and set `Title` to a string that embeds the instance-specific value from `context`.
-6. Register the module via `issues.RegisterModuleFactory(NewModule)` in an `init()` function.
+6. Add `Requires` embedding `compdef.In` with only the dependencies your constructor needs (omit it for a zero-argument constructor), and `Provides` embedding `compdef.Out` with a direct `issues.Module` field tagged `group:"healthplatform_issue"`.
+7. Expose `Module() fxutil.Module` using `fxutil.Component(fxutil.ProvideComponentConstructor(newModule))`, then add the package's `Module()` to `bundle.go`.
+8. Return an empty `Provides` to opt out at construction time; the registry filters nil group members. Config is available in the constructor, so environment and config gates are supported. Keep gates inside check functions when stale issues still need resolution.
+9. For a build-tagged module, expose an empty `Module()` with the opposite tag so the bundle can include it unconditionally.

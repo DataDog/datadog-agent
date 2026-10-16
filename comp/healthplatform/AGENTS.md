@@ -30,7 +30,7 @@ Sub-package roles:
 | Sub-package | Role |
 |---|---|
 | `issues/<module>/` | Detection + remediation bundled per issue type |
-| `issueregistry/` | Wires module factories into a `Registry` at startup |
+| `issueregistry/` | Consumes the `healthplatform_issue` Fx value group into a `Registry` at startup |
 | `runner/` | Executes `HealthCheckFunc`, translates `IssueReport` → proto `Issue` via the registry (falls back to a minimal proto when no template is registered) |
 | `scheduler/` | Drives periodic checks on a timer |
 | `store/` | Persists the current issue set across agent restarts |
@@ -79,7 +79,7 @@ Issue packages live under `comp/healthplatform/issues/<pkgname>/`. The required 
 
 | File | Purpose | Required? |
 |---|---|---|
-| `module.go` | Constants (`IssueName`, `IssueID`), `init()` registration, struct, interface impl | Yes |
+| `module.go` | Constants (`IssueName`, `IssueID`), Fx `Module()` registration, struct, interface impl | Yes |
 | `issue.go` | `BuildIssue` implementation and template struct | Yes |
 | `check.go` | Built-in detection logic (`HealthCheckFunc`) | Only if the module self-detects |
 | `check_noop.go` | No-op stub gated behind the opposite build tag | Required when `check.go` has a build constraint |
@@ -95,9 +95,9 @@ When the issue is detected externally and the external component calls both `Bui
 |---|---|---|
 | `<type>_issue.go` | Exported constants (`IssueName`, `IssueID`), `BuildIssue` struct and implementation | Yes |
 | `BUILD.bazel` | Bazel build definition | Yes |
-| `module.go` / `init()` | Module registration | **No** — skip entirely |
+| `module.go` / `Module()` | Module registration | **No** — skip entirely |
 
-The package is **not** blank-imported in `bundle.go` (no `init()` to trigger). External reporters import the package directly to access `IssueName`, `IssueID`, and `BuildIssue`. Multiple issue types sharing a package (e.g. annotation + template errors in `ad-misconfiguration`) are supported — each gets its own `<type>_issue.go` file with its own constants and `BuildIssue` struct; shared helpers live in `<type>_issue.go` of the primary type or a dedicated shared file.
+The package does **not** provide an Fx issue module in `bundle.go`. External reporters import the package directly to access `IssueName`, `IssueID`, and `BuildIssue`. Multiple issue types sharing a package (e.g. annotation + template errors in `ad-misconfiguration`) are supported — each gets its own `<type>_issue.go` file with its own constants and `BuildIssue` struct; shared helpers live in `<type>_issue.go` of the primary type or a dedicated shared file.
 
 ---
 
@@ -218,26 +218,37 @@ The one sanctioned exception: pre-populate `IssueNames` with *other* modules' is
 
 ## Registration (Path A only)
 
-> Skip this section entirely for Path B issue packages — they have no `init()` and are not blank-imported in `bundle.go`.
+> Skip this section entirely for Path B issue packages — they do not contribute to the issue group.
 
 ```go
-func init() {
-    issues.RegisterModuleFactory(NewModule)
+type Requires struct {
+    compdef.In
+    Config config.Component
+}
+
+type Provides struct {
+    compdef.Out
+    Module issues.Module `group:"healthplatform_issue"`
+}
+
+func Module() fxutil.Module {
+    return fxutil.Component(fxutil.ProvideComponentConstructor(newModule))
+}
+
+func newModule(reqs Requires) Provides {
+    return Provides{Module: &myIssueModule{cfg: reqs.Config}}
 }
 ```
 
-- Always in `init()`, always the only statement
-- Conditional registration inside `init()` is allowed for environment guards:
-  ```go
-  func init() {
-      if env.IsContainerized() {
-          issues.RegisterModuleFactory(NewModule)
-      }
-  }
-  ```
-- Do **not** gate on config values inside `init()` — config is not available at init time
-
-After adding a new Path A module, blank-import its package in `bundle.go` so `init()` fires.
+- Import `compdef "github.com/DataDog/datadog-agent/comp/def"` and `"github.com/DataDog/datadog-agent/pkg/util/fxutil"`.
+- Request only the dependencies the module uses; omit `Requires` for a zero-argument constructor.
+- Use a direct top-level `issues.Module` field tagged `group:"healthplatform_issue"`; no provider wrapper is needed.
+- Add the package's `Module()` to `fxutil.Bundle(...)` in `bundle.go` with a normal import.
+- Return an empty `Provides` to opt out at construction time; the registry drops nil members with `fxutil.GetAndFilterGroup`.
+- Config is available in the constructor, so config and environment gates are legitimate. Keep gates inside `Fn` when the check must still resolve stale issues after being disabled.
+- For build-tagged modules, add an opposite-tag `module_noop.go` exposing `Module()` that returns `fxutil.Component()`; see `rofspermissions`.
+- Modules needing `*selfident.SelfIdent` receive the single shared provider from `bundle.go`; workloadmeta is optional.
+- Issue names must be unique; the registry warns and ignores duplicates. Fx group order is unspecified.
 
 ---
 
@@ -378,8 +389,8 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 
 ### Path / layout checks
 
-- [ ] If the issue uses Path A (runner-mediated): `module.go` exists with `init()` and the package is blank-imported in `bundle.go`
-- [ ] If the issue uses Path B (direct reporter): no `module.go`, no `init()`, no bundle blank import
+- [ ] If the issue uses Path A (runner-mediated): `module.go` exposes `Module()` providing a `group:"healthplatform_issue"` member and `bundle.go` includes it
+- [ ] If the issue uses Path B (direct reporter): no `module.go`, no Fx issue module in the bundle
 - [ ] `BuildIssue` does **not** set `issue.Id` (Path A) — the runner sets it. Path B callers set it before `store.ReportIssue`
 - [ ] Test file asserts `assert.Empty(t, issue.Id)` inside `BuildIssue` tests (Path A) or that `Id` is non-empty before `store.ReportIssue` (Path B)
 
@@ -390,14 +401,14 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 | Anti-pattern | Why it breaks |
 |---|---|
 | Varying `IssueName` per instance | Breaks registry lookup and UI aggregation |
-| Gating `RegisterModuleFactory` on a config value in `init()` | Config is not available at init time |
-| Gating the entire check at registration time rather than inside `Fn` | Stale issues from a prior run are never resolved when the check is disabled |
+| Registering issue modules through package globals | Use the Fx value group; constructors receive config and can gate on it |
+| Gating a check at construction time when it must resolve stale issues | Keep that gate inside `Fn` so stale issues resolve when the check is disabled |
 | Pre-populating `IssueNames` with your own module's `IssueName()` | Redundant — `RegisterModule` appends it automatically |
 | Leaving `issue.IssueType` unset in `BuildIssue` | The agent does not backfill it from `IssueName`; the field ships empty |
 | Computing `IssueType` at runtime instead of a fixed const | Duplicates logic that belongs to the backend; drifts silently if the naming rule ever changes |
 | Indexing `context` without a default | Silently embeds empty strings in titles/descriptions |
 | Defining `issueName` or `issueType` as a string literal instead of aliasing the exported const | The two diverge silently; use `const issueName = IssueName` / `const issueType = IssueType` |
-| Adding a module (`init()` + `bundle.go` blank import) for a pure Path B issue | Unnecessary boilerplate; the runner registry is never consulted for direct reporters |
+| Adding an Fx issue module to `bundle.go` for a pure Path B issue | Unnecessary boilerplate; the runner registry is never consulted for direct reporters |
 | Mirroring `IssueName` in `store/def/constants.go` when external reporters already import the issue package | Unnecessary indirection; reference the constant from the issue package directly (e.g. `admisconfig.AnnotationIssueName`) |
 | Omitting `check_noop.go` for a build-tag-constrained `check.go` | Package fails to compile on other platforms |
 | Hardcoding config values or secrets in context maps | Keep configured values out of issue reports; use the existing scrubber for user-supplied text that must be included |

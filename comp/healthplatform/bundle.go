@@ -22,20 +22,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 	egressfx "github.com/DataDog/datadog-agent/comp/healthplatform/egress/fx"
 	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
-
-	// Issue modules register themselves via init(); imported here for side effects.
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	registryfx "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/fx"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"        // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/docker"                // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpupodresources"       // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"         // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig" // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"           // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"       // registers templates via init()
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/docker"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpupodresources"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
@@ -51,6 +51,14 @@ import (
 // Bundle defines the fx options for the health platform bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
+		admissionprobe.Module(),
+		docker.Module(),
+		gpupodresources.Module(),
+		invalidconfig.Module(),
+		invalidsysprobeconfig.Module(),
+		missedbytes.Module(),
+		rofspermissions.Module(),
+		fx.Provide(newSelfIdent),
 		registryfx.Module(),
 		runnerfx.Module(),
 		schedulerfx.Module(),
@@ -60,6 +68,13 @@ func Bundle() fxutil.BundleOptions {
 		statusfx.Module(),
 		fx.Invoke(bootstrapBuiltInHealthChecks),
 	)
+}
+
+func newSelfIdent(in struct {
+	fx.In
+	Wmeta workloadmeta.Component `optional:"true"`
+}) *selfident.SelfIdent {
+	return selfident.New(in.Wmeta)
 }
 
 // bootstrapBuiltInHealthChecks registers all built-in health checks at startup

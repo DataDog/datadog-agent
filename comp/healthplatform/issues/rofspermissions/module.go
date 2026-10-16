@@ -11,16 +11,30 @@ package rofspermissions
 
 import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func init() {
-	if env.IsContainerized() {
-		issues.RegisterModuleFactory(NewModule)
-	}
+// Requires defines the dependencies for the issue module.
+type Requires struct {
+	compdef.In
+	Config config.Component
+}
+
+// Provides defines the issue modules contributed to the registry.
+type Provides struct {
+	compdef.Out
+	Module issues.Module `group:"healthplatform_issue"`
+}
+
+// Module provides the issue modules to the health platform registry.
+func Module() fxutil.Module {
+	return fxutil.Component(fxutil.ProvideComponentConstructor(newModule))
 }
 
 const (
@@ -41,12 +55,11 @@ type rofsPermissionsModule struct {
 	conf     config.Component
 }
 
-// NewModule creates a new ROFS permissions issue module
-func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &rofsPermissionsModule{
-		template: NewRofsPermissionIssue(),
-		conf:     deps.Config,
+func newModule(reqs Requires) Provides {
+	if !env.IsContainerized() {
+		return Provides{}
 	}
+	return Provides{Module: &rofsPermissionsModule{template: NewRofsPermissionIssue(), conf: reqs.Config}}
 }
 
 func (r *rofsPermissionsModule) IssueName() string {
