@@ -289,8 +289,8 @@ func (r *domainResolver) SetBaseDomain(domain string) {
 // reloadAdditionalEndpoints replaces this resolver's keys for setting with what's in config and
 // returns the deduped keys before and after. If the domain is missing from config (found=false),
 // its keys for setting are dropped, but only for the infra additional_endpoints setting: its
-// resolvers are keyed by the raw config URL, and it's the only resolver-backed setting with
-// delegated auth write-back. Other forwarders normalize to scheme://host, so a miss there isn't a
+// resolvers are keyed by the raw config URL, while every other enrolled setting (process,
+// orchestrator, ...) keys resolvers by scheme://host. A miss there isn't a
 // removal and nothing changes (applied=false).
 //
 // The lookup honors that split: infra resolvers match their raw configured URL, while

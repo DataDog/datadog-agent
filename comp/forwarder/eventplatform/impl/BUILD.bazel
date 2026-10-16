@@ -56,9 +56,13 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["epforwarder_test.go"],
+    srcs = [
+        "epforwarder_test.go",
+        "pipelines_dela_test.go",
+    ],
     embed = [":impl"],
     deps = [
+        "//pkg/config/model",
         "//comp/core/config",
         "//comp/core/secrets/noop-impl",
         "//comp/forwarder/eventplatform/def",
@@ -69,6 +73,7 @@ dd_agent_go_test(
         "//comp/serializer/logscompression/def",
         "//comp/serializer/logscompression/fx-mock",
         "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",
     ],
 )

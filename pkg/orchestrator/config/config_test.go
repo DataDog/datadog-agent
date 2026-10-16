@@ -18,6 +18,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/redact"
 )
@@ -519,4 +520,42 @@ func (suite *YamlConfigTestSuite) TestLoadComprehensive() {
 	suite.Equal(30000000, orchestratorCfg.MaxWeightPerMessageBytes)
 	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, "token")
 	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, "secret")
+}
+
+func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsHoldsPendingDelegatedAuth() {
+	var actualEndpoints []apicfg.Endpoint
+
+	suite.config.SetInTest("api_key", "wassupkey")
+	suite.config.SetInTest("orchestrator_explorer.orchestrator_additional_endpoints",
+		`{"https://orchestrator1.com": ["key1", "DELA[org-uuid-1, aws]"], "https://orchestrator2.com": ["DELA[org-uuid-2, aws]"]}`)
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+
+	pending := map[string]bool{}
+	realKeys := 0
+	for _, ep := range actualEndpoints {
+		suite.False(utils.IsDelaDirective(ep.APIKey), "a directive must never ship as an API key")
+		if ep.HasPendingDelegatedAuth {
+			pending[ep.Endpoint.Hostname()] = true
+			suite.Empty(ep.APIKey)
+		} else {
+			realKeys++
+		}
+	}
+	suite.Equal(1, realKeys, "static key on the mixed domain is kept")
+	suite.True(pending["orchestrator1.com"], "mixed domain keeps its pending marker")
+	suite.True(pending["orchestrator2.com"], "DELA-only domain keeps its pending marker")
+
+	// The pending flag must survive into the resolver input.
+	keysPerDomains := apicfg.KeysPerDomains(actualEndpoints)
+	anyPending := func(domain string) bool {
+		for _, keys := range keysPerDomains[domain] {
+			if keys.HasPendingDelegatedAuth {
+				return true
+			}
+		}
+		return false
+	}
+	suite.True(anyPending("https://orchestrator1.com"))
+	suite.True(anyPending("https://orchestrator2.com"))
 }

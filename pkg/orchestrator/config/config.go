@@ -89,6 +89,9 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; pkgconfigsetup.Datadog().IsConfigured(key) {
+		if utils.IsDelaDirective(pkgconfigsetup.Datadog().GetString(key)) {
+			pkglog.Warnf("api_key holds a delegated-auth directive; only settings enrolled for delegated auth (such as %s) are resolved, the directive will be sent as-is to the main orchestrator endpoint", OrchestratorNSKey("orchestrator_additional_endpoints"))
+		}
 		oc.OrchestratorEndpoints[0].APIKey = utils.SanitizeAPIKey(pkgconfigsetup.Datadog().GetString(key))
 		oc.OrchestratorEndpoints[0].ConfigSettingPath = "api_key"
 	}
@@ -142,11 +145,21 @@ func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpo
 		if err != nil {
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
 		}
-		for _, k := range apiKeys {
+		// DELA[...] directives are held aside as pending: the domain stays alive (with no
+		// key) until the delegatedauth component writes the resolved key back into the config.
+		realKeys, hasPending := utils.PartitionRealAndPendingKeys(apiKeys)
+		for _, k := range realKeys {
 			*endpoints = append(*endpoints, apicfg.Endpoint{
 				APIKey:            utils.SanitizeAPIKey(k),
 				Endpoint:          u,
 				ConfigSettingPath: configPath,
+			})
+		}
+		if hasPending {
+			*endpoints = append(*endpoints, apicfg.Endpoint{
+				Endpoint:                u,
+				ConfigSettingPath:        configPath,
+				HasPendingDelegatedAuth: true,
 			})
 		}
 	}
