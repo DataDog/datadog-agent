@@ -164,11 +164,16 @@ func (s *packageAgentSuite) TestPrivilegedRshellGate() {
 	defer s.Purge()
 	s.waitForCoreUnitsActive()
 
-	state := s.host.State()
-	state.AssertUnitsLoaded(rshellPrivilegedSocketUnit, rshellPrivilegedServiceUnit)
+	// The unit files are written on every host. `systemctl show` loads a unit
+	// on demand, so this also works where the socket is not enabled and
+	// nothing else references it.
+	for _, unit := range []string{rshellPrivilegedSocketUnit, rshellPrivilegedServiceUnit} {
+		s.Equal("loaded", strings.TrimSpace(s.host.Run("systemctl show -p LoadState --value "+unit)), unit)
+	}
 	if !s.privilegedRshellExpected() {
 		s.T().Skip("the privileged rshell helper requires Landlock ABI 3 (kernel 6.2+); backported kernels are not detected here")
 	}
+	state := s.host.State()
 	state.AssertUnitsEnabled(rshellPrivilegedSocketUnit)
 	s.assertRshellPrivilegedFlag(false)
 
@@ -176,7 +181,8 @@ func (s *packageAgentSuite) TestPrivilegedRshellGate() {
 	const backupPath = "/tmp/datadog.yaml.rshell-gate-backup"
 	s.host.Run(fmt.Sprintf("sudo cp -p %s %s", configPath, backupPath))
 	defer s.host.Run(fmt.Sprintf("sudo mv %s %s", backupPath, configPath))
-	s.Require().NotContains(s.host.Run("sudo cat "+configPath), "private_action_runner:", "the test appends this section")
+	// The default config only mentions private_action_runner in comments.
+	s.Require().Equal("0", strings.TrimSpace(s.host.Run(fmt.Sprintf("sudo grep -c '^private_action_runner:' %s || true", configPath))), "the test appends this section")
 
 	// Opting in only needs a config change and an Agent restart.
 	s.host.Run(fmt.Sprintf(`printf 'private_action_runner:\n  restricted_shell:\n    privileged:\n      enabled: true\n' | sudo tee -a %s > /dev/null`, configPath))
