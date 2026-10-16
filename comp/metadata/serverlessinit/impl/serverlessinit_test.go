@@ -95,7 +95,7 @@ func newTestComponent(t *testing.T, overrides map[string]any, provider *fakeProv
 func enabledConfig() map[string]any {
 	return map[string]any{
 		"serverless.inventory_enabled":      true,
-		"inventories_first_run_delay":       3600,
+		"inventories_first_run_delay":       0,
 		"inventories_min_interval":          2,
 		"inventories_max_interval":          6,
 		"inventories_configuration_enabled": false,
@@ -139,7 +139,6 @@ func TestFirstCollectionAndPayloadCompatibility(t *testing.T) {
 		require.NoError(t, json.Unmarshal(raw, &wire))
 		assert.Len(t, wire, 4)
 		assert.Equal(t, "resource", wire["agent_metadata"].(map[string]any)["resource_id"])
-		assert.Equal(t, 3600*time.Second, p.Comp.(*serverlessinitComp).conf.GetDuration("inventories_first_run_delay")*time.Second)
 	})
 }
 

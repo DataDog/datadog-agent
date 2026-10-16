@@ -89,7 +89,6 @@ func NewComponent(deps Requires) Provides {
 	}
 	c.payload = util.CreateInventoryPayload(deps.Config, deps.Log, metadataSerializer, c.getPayload, "agent.json")
 	c.payload.Enabled = c.payload.Enabled && serverlessdef.InventoryEligible(deps.Config, deps.Provider)
-	c.payload.FirstRunDelay = 0
 	provides := Provides{Comp: c}
 	if c.payload.Enabled {
 		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64, _ model.Source) { c.payload.Refresh() })

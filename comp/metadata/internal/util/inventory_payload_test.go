@@ -397,17 +397,3 @@ func TestCollectRetainsFullAgentTiming(t *testing.T) {
 		s.AssertNumberOfCalls(t, "SendMetadata", 3)
 	})
 }
-
-func TestCollectFirstRunDelayOverride(t *testing.T) {
-	delayed := getTestInventoryPayload(t, nil)
-	assert.Positive(t, delayed.FirstRunDelay)
-	delayed.Collect(context.Background())
-	delayed.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata", mock.Anything)
-
-	immediate := getTestInventoryPayload(t, nil)
-	immediate.FirstRunDelay = 0
-	serializerMock := immediate.serializer.(*serializermock.MetricSerializer)
-	serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Once()
-	assert.Equal(t, immediate.MinInterval, immediate.Collect(context.Background()))
-	serializerMock.AssertExpectations(t)
-}

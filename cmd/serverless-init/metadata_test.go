@@ -43,6 +43,7 @@ func TestAppServiceMetadataLateIdentity(t *testing.T) {
 			Lc: lc,
 			Config: config.NewMockWithOverrides(t, map[string]any{
 				"serverless.inventory_enabled":      true,
+				"inventories_first_run_delay":       0,
 				"inventories_configuration_enabled": false,
 			}),
 			Log:        logmock.New(t),
