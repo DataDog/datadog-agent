@@ -24,6 +24,10 @@ type Config struct {
 	SocketAddress      string
 	MaxConnsPerMessage int
 
+	// PacketCaptureSocket is an additional socket serving only the
+	// packet_capture module. Empty when not configured or the module is off.
+	PacketCaptureSocket string
+
 	LogFile          string
 	LogLevel         string
 	DebugPort        int
