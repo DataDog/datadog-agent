@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
@@ -40,6 +41,86 @@ func skipIfNoThreadPointer(t *testing.T) {
 	checkKernelCompatibility(t, "thread pointer offsets require kernel 4.7+", func(kv *kernel.Version) bool {
 		return kv.Code < kernel.Kernel4_7
 	})
+}
+
+// Mirrors OTEL_CONTINUE_FILE_ENV in otel_process_ctx_common.h and continueFileEnv
+// in the Go tester.
+const spanTesterContinueFileEnv = "SPAN_TESTER_CONTINUE_FILE"
+
+// Must stay below the 30s the testers wait for their continue file.
+const spanCtxResolveTimeout = 20 * time.Second
+
+// The fake statsd client keys each tag on its own, so this counts both readers:
+// otel_tls (OTel, Node.js) and go_labels (dd-trace-go).
+var spanCtxResolvedKey = metrics.MetricSpanContextResolutionSuccess + ":status:ok"
+
+// runSpanTester runs a span tester, which publishes its process context or
+// tracer memfd and then blocks on a continue file.
+func (tm *testModule) runSpanTester(cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd, bin string, args []string) ([]byte, error) {
+	if _, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe); !ok {
+		return cmdFunc(bin, args, nil).CombinedOutput()
+	}
+
+	continueFile, _, err := tm.Path("span-tester-continue")
+	if err != nil {
+		return nil, err
+	}
+	_ = os.Remove(continueFile)
+	defer os.Remove(continueFile)
+
+	tm.eventMonitor.SendStats()
+	resolvedBefore := tm.statsdClient.Get(spanCtxResolvedKey)
+
+	var out bytes.Buffer
+	cmd := cmdFunc(bin, args, []string{spanTesterContinueFileEnv + "=" + continueFile})
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	err = tm.waitSpanCtxResolved(resolvedBefore, done)
+	if errors.Is(err, errSpanTesterExited) {
+		return out.Bytes(), err
+	}
+
+	// Unconditional: the tester must exit even when the resolution failed.
+	if writeErr := os.WriteFile(continueFile, nil, 0o600); writeErr != nil && err == nil {
+		err = writeErr
+	}
+	if waitErr := <-done; err == nil {
+		err = waitErr
+	}
+	return out.Bytes(), err
+}
+
+var errSpanTesterExited = errors.New("the tester exited before the agent resolved its span context")
+
+func (tm *testModule) waitSpanCtxResolved(resolvedBefore int64, done <-chan error) error {
+	timeout := time.After(spanCtxResolveTimeout)
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case waitErr := <-done:
+			return fmt.Errorf("%w: %v", errSpanTesterExited, waitErr)
+		case <-timeout:
+			return fmt.Errorf("timed out after %s waiting for the agent to resolve the span context of the tester (process context failures: %v, resolution failures: %v)",
+				spanCtxResolveTimeout,
+				tm.statsdClient.GetByPrefix(metrics.MetricSpanContextProcessCtxFailed+":"),
+				tm.statsdClient.GetByPrefix(metrics.MetricSpanContextResolutionFailed+":"))
+		case <-ticker.C:
+			tm.eventMonitor.SendStats()
+			if tm.statsdClient.Get(spanCtxResolvedKey) > resolvedBefore {
+				return nil
+			}
+		}
+	}
 }
 
 // splitTraceID parses a decimal 128-bit trace id into (hi, lo) the same way
@@ -201,286 +282,10 @@ func assertSpanFields(t *testing.T, sc *traceJSON, expectedSpanID, expectedTrace
 	}
 }
 
-// TestGoSpan tests Go pprof label-based span context collection.
-// dd-trace-go sets goroutine labels "span id" and "local root span id" as decimal strings.
-// The eBPF code traverses TLS -> runtime.g -> runtime.m -> curg -> labels to read them.
-func TestGoSpan(t *testing.T) {
-	SkipIfNotAvailable(t)
-	skipIfNoThreadPointer(t)
-
-	executable := which(t, "touch")
-
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "test_go_span_rule_open",
-			Expression: `open.file.path == "{{.Root}}/test-go-span"`,
-		},
-		{
-			ID:         "test_go_span_rule_open_no_labels",
-			Expression: `open.file.path == "{{.Root}}/test-go-span-no-labels"`,
-		},
-		{
-			ID:         "test_go_span_rule_exec",
-			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
-		},
-	}
-
-	test, err := newTestModule(t, nil, ruleDefs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.CloseTest()
-
-	spanTester, err := loadSyscallTester(t, test, "span_go_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// touchPathFor picks the touch binary path the wrapper-mode expects so the
-	// exec rule's `in [ "/usr/bin/touch", "<which>" ]` clause matches.
-	touchPathFor := func(kind wrapperType) string {
-		if kind == stdWrapperType {
-			return executable
-		}
-		return "/usr/bin/touch"
-	}
-
-	t.Run("valid_span", func(t *testing.T) {
-		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			testFile, _, err := test.Path("test-go-span")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testFile)
-
-			args := []string{
-				"-go-span-test",
-				"-go-span-span-id", "987654321",
-				"-go-span-local-root-span-id", "123456789",
-				"-go-span-file-path", testFile,
-			}
-			envs := []string{}
-
-			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, envs)
-				out, err := cmd.CombinedOutput()
-
-				if err != nil {
-					return fmt.Errorf("%s: %w", out, err)
-				}
-
-				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, "test_go_span_rule_open")
-
-				test.validateSpanSchema(t, event)
-
-				jsonStr, err := test.marshalEvent(event)
-				if assert.NoError(t, err, "marshalEvent") {
-					assertSerializedTrace(t, jsonStr,
-						strconv.FormatUint(987654321, 10),
-						utils.TraceID{Lo: 123456789}.HexString(),
-						nil)
-				}
-			}, "test_go_span_rule_open")
-		})
-	})
-
-	t.Run("valid_span_exec", func(t *testing.T) {
-		// Set pprof labels then execv touch. fill_span_context_go runs at
-		// prepare_binprm — before the image switch — so the goroutine's
-		// labels are still readable.
-		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			testFile, _, err := test.Path("test-go-span-exec")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testFile)
-
-			args := []string{
-				"-go-span-exec-test",
-				"-go-span-span-id", "987654321",
-				"-go-span-local-root-span-id", "123456789",
-				"-go-span-file-path", testFile,
-				"-go-span-exec-target", touchPathFor(kind),
-			}
-
-			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("%s: %w", out, err)
-				}
-				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, "test_go_span_rule_exec")
-
-				test.validateSpanSchema(t, event)
-
-				// In-process exec via syscall.Exec preserves the tgid:
-				// fill_span_context_go reads the goroutine's pprof labels at
-				// prepare_binprm, AddExecEntry persists event.SpanContext
-				// onto the new touch PCE → process.span_context populated.
-				jsonStr, err := test.marshalEvent(event)
-				if assert.NoError(t, err, "marshalEvent") {
-					assertSerializedSpanContext(t, jsonStr,
-						strconv.FormatUint(987654321, 10),
-						utils.TraceID{Lo: 123456789}.HexString(),
-						nil,
-						spanLocations{onTopLevelProcess: true})
-				}
-			}, "test_go_span_rule_exec")
-		})
-	})
-
-	t.Run("no_labels", func(t *testing.T) {
-		// Memfd is registered (so the agent resolves Go label offsets) but
-		// pprof labels are never set. The eBPF reader should yield an empty
-		// span context.
-		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			testFile, _, err := test.Path("test-go-span-no-labels")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testFile)
-
-			args := []string{
-				"-go-span-no-labels-test",
-				"-go-span-file-path", testFile,
-			}
-
-			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("%s: %w", out, err)
-				}
-				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, "test_go_span_rule_open_no_labels")
-
-				jsonStr, err := test.marshalEvent(event)
-				if assert.NoError(t, err, "marshalEvent") {
-					assertNoSerializedTrace(t, jsonStr)
-				}
-			}, "test_go_span_rule_open_no_labels")
-		})
-	})
-
-	t.Run("no_labels_exec", func(t *testing.T) {
-		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			testFile, _, err := test.Path("test-go-span-no-labels-exec")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testFile)
-
-			args := []string{
-				"-go-span-no-labels-exec-test",
-				"-go-span-file-path", testFile,
-				"-go-span-exec-target", touchPathFor(kind),
-			}
-
-			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("%s: %w", out, err)
-				}
-				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, "test_go_span_rule_exec")
-
-				jsonStr, err := test.marshalEvent(event)
-				if assert.NoError(t, err, "marshalEvent") {
-					assertNoSerializedTrace(t, jsonStr)
-				}
-			}, "test_go_span_rule_exec")
-		})
-	})
-
-	t.Run("fork_exec_propagates_to_child", func(t *testing.T) {
-		// The parent's span reaches the exec'd program through two independent
-		// routes, and this sub-test pins both.
-		//
-		// The exec event carries it directly: the fork handed the parent's
-		// go_labels_procs registration down to the child, and until execve
-		// replaces the image the child still holds a copy-on-write view of the
-		// parent's goroutine, so the read at prepare_binprm resolves the
-		// parent's labels.
-		//
-		// The fork event carries it too: sched_process_fork fires in the
-		// PARENT's context, and ResolveSpanContext persists what it captured
-		// onto the child's ProcessCacheEntry, which the exec then supersedes --
-		// leaving it in the ancestor lineage.
-		const parentSpanID uint64 = 987654321
-		const parentLocalRootSpanID uint64 = 123456789
-
-		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			testFile, _, err := test.Path("test-go-span-fork-exec")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(testFile)
-
-			args := []string{
-				"-go-span-fork-exec-test",
-				"-go-span-span-id", strconv.FormatUint(parentSpanID, 10),
-				"-go-span-local-root-span-id", strconv.FormatUint(parentLocalRootSpanID, 10),
-				"-go-span-file-path", testFile,
-				"-go-span-exec-target", touchPathFor(kind),
-			}
-
-			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("%s: %w", out, err)
-				}
-				return nil
-			}, func(event *model.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, "test_go_span_rule_exec")
-
-				// (1) The exec event carries the parent's span, read from the
-				// registration the fork handed down.
-				sc := event.FieldHandlers.ResolveSpanContext(event)
-				assert.Equal(t, parentSpanID, sc.SpanID,
-					"exec event should carry the fork parent's pprof span_id")
-				assert.Equal(t, strconv.FormatUint(parentLocalRootSpanID, 10), sc.TraceID.String(),
-					"exec event should carry the fork parent's pprof local_root_span_id")
-
-				// (2) The fork-parent entry in the ancestor lineage carries it
-				// as well, from the capture at fork time.
-				var foundSpan bool
-				var ancestorSpanID, ancestorTraceIDLo, ancestorTraceIDHi uint64
-				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
-					if pce.Tracer.Trace.SpanID != 0 {
-						foundSpan = true
-						ancestorSpanID = pce.Tracer.Trace.SpanID
-						ancestorTraceIDLo = pce.Tracer.Trace.TraceID.Lo
-						ancestorTraceIDHi = pce.Tracer.Trace.TraceID.Hi
-						break
-					}
-				}
-				assert.True(t, foundSpan,
-					"an ancestor should carry the parent's pprof-label span captured at fork time")
-				assert.Equal(t, parentSpanID, ancestorSpanID,
-					"fork-parent ancestor SpanID should equal the parent's pprof span_id")
-				assert.Equal(t, parentLocalRootSpanID, ancestorTraceIDLo,
-					"fork-parent ancestor TraceID.Lo should equal the parent's pprof local_root_span_id")
-				assert.Equal(t, uint64(0), ancestorTraceIDHi,
-					"Go pprof labels only populate the low 64 bits of trace_id")
-
-				// (3) Both serialized copies carry it: the exec'd process's own,
-				// which the exec stamped, and the fork parent's.
-				jsonStr, err := test.marshalEvent(event)
-				if assert.NoError(t, err, "marshalEvent") {
-					assertSerializedSpanContext(t, jsonStr,
-						strconv.FormatUint(parentSpanID, 10),
-						utils.TraceID{Lo: parentLocalRootSpanID}.HexString(),
-						nil,
-						spanLocations{onTopLevelProcess: true, onAncestor: true})
-				}
-			}, "test_go_span_rule_exec")
-		})
-	})
-}
+// Discard the runtime, as in production: hashing a file opened by the previous
+// mode makes the agent open it too, and that stale open would match the next
+// mode's rule while its tester still waits on the event stream.
+var _ = declare(TestDDTraceGoSpan, testOpts{discardRuntime: true})
 
 // TestDDTraceGoSpan tests the full dd-trace-go integration: dd-trace-go creates
 // a real span which internally sets pprof labels ("span id", "local root span id"),
@@ -557,8 +362,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			var expectedSpanID, expectedLocalRootSpanID uint64
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				out, err := cmd.CombinedOutput()
+				out, err := test.runSpanTester(cmdFunc, spanTester, args)
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -600,8 +404,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			var expectedSpanID, expectedLocalRootSpanID uint64
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				out, err := cmd.CombinedOutput()
+				out, err := test.runSpanTester(cmdFunc, spanTester, args)
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -647,8 +450,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
+				if out, err := test.runSpanTester(cmdFunc, spanTester, args); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
 				return nil
@@ -678,8 +480,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
+				if out, err := test.runSpanTester(cmdFunc, spanTester, args); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
 				return nil
@@ -695,10 +496,19 @@ func TestDDTraceGoSpan(t *testing.T) {
 	})
 
 	t.Run("fork_exec_propagates_to_child", func(t *testing.T) {
-		// The same two propagation routes as the TestGoSpan sub-test of this
-		// name, driven by a real dd-trace-go span: the exec event reads the
-		// registration the fork handed down, and the fork event's own capture
-		// stays behind in the ancestor lineage.
+		// The parent's span reaches the exec'd program through two independent
+		// routes, and this sub-test pins both.
+		//
+		// The exec event carries it directly: the fork handed the parent's
+		// go_labels_procs registration down to the child, and until execve
+		// replaces the image the child still holds a copy-on-write view of the
+		// parent's goroutine, so the read at prepare_binprm resolves the
+		// parent's labels.
+		//
+		// The fork event carries it too: sched_process_fork fires in the
+		// PARENT's context, and ResolveSpanContext persists what it captured
+		// onto the child's ProcessCacheEntry, which the exec then supersedes --
+		// leaving it in the ancestor lineage.
 		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 			testFile, _, err := test.Path("test-ddtrace-span-fork-exec")
 			if err != nil {
@@ -718,8 +528,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			var parentSpanID, parentLocalRootSpanID uint64
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(spanTester, args, []string{})
-				out, err := cmd.CombinedOutput()
+				out, err := test.runSpanTester(cmdFunc, spanTester, args)
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
@@ -761,8 +570,6 @@ func TestDDTraceGoSpan(t *testing.T) {
 				assert.Equal(t, uint64(0), ancestorTraceIDHi,
 					"dd-trace-go pprof labels only populate the low 64 bits of trace_id")
 
-				// (3) Both serialized copies carry it: the exec'd process's own,
-				// which the exec stamped, and the fork parent's.
 				jsonStr, err := test.marshalEvent(event)
 				if assert.NoError(t, err, "marshalEvent") {
 					assertSerializedSpanContext(t, jsonStr,
@@ -775,6 +582,8 @@ func TestDDTraceGoSpan(t *testing.T) {
 		})
 	})
 }
+
+var _ = declare(TestOTelSpan, testOpts{discardRuntime: true})
 
 // TestOTelSpan covers OTel Thread Local Context Record span collection across
 // every TLS access model a tracer can publish the record through: local-exec
@@ -793,7 +602,7 @@ func TestOTelSpan(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_otel_span_rule_open",
-			Expression: `open.file.path in [ "{{.Root}}/test-otel-span", "{{.Root}}/test-otel-span-ready" ]`,
+			Expression: `open.file.path == "{{.Root}}/test-otel-span"`,
 		},
 		{
 			ID:         "test_otel_span_rule_open_invalid",
@@ -864,10 +673,6 @@ func TestOTelSpan(t *testing.T) {
 		binary  string
 		fixture string
 		dlopen  bool
-		// snapshot runs the variant inside a container, where the process is
-		// already running by the time the agent sees it, so resolution has to be
-		// driven by an explicit snapshot rather than by the exec event.
-		snapshot bool
 		// execCoverage adds the variant to the exec sub-tests. Carrying a span
 		// across exec is independent of the access model the record was published
 		// through, so only a few variants need to prove it.
@@ -896,12 +701,6 @@ func TestOTelSpan(t *testing.T) {
 		{name: "dlopen-glibc-gnu", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_gnu.so", dlopen: true},
 		{name: "dlopen-glibc-ie", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ie.so", dlopen: true},
 		{name: "dlopen-glibc-ld", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_ld.so", dlopen: true},
-
-		// The snapshot route, which resolves a process the agent never saw exec.
-		// It is independent of the access model, so one tester per eBPF path --
-		// static TLS and the DTV walk -- is enough.
-		{name: "snapshot-exe-static-glibc", binary: "otel_tls_exe_static_glibc", snapshot: true},
-		{name: "snapshot-dlopen-glibc-gnu", binary: "otel_tls_dlopen_glibc", fixture: "libotel_tls_glibc_gnu.so", dlopen: true, snapshot: true},
 	}
 
 	// loadOTelTesterVariant materializes a spec's artifacts, dropping the variant
@@ -938,33 +737,13 @@ func TestOTelSpan(t *testing.T) {
 		return variant, true
 	}
 
-	var snapshotWrapper *dockerCmdWrapper
-	snapshotUnavailable := false
 	var negativeTester string
 	var otelTesterVariants []otelTesterVariant
 	var otelExecVariants []otelTesterVariant
-	var snapshotTesterVariants []otelTesterVariant
 
 	for _, spec := range otelTesterSpecs {
 		variant, ok := loadOTelTesterVariant(t, spec)
 		if !ok {
-			continue
-		}
-
-		if spec.snapshot {
-			if snapshotWrapper == nil && !snapshotUnavailable {
-				// ubuntu:20.04, the same image RunMultiMode's docker leg uses:
-				// the testers link against a 2.23 sysroot so they start there.
-				snapshotWrapper, err = newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
-				if err != nil {
-					t.Logf("skipping the OTel TLS variants needing a container: %v", err)
-					snapshotUnavailable = true
-				}
-			}
-			if snapshotWrapper == nil {
-				continue
-			}
-			snapshotTesterVariants = append(snapshotTesterVariants, variant)
 			continue
 		}
 
@@ -982,7 +761,7 @@ func TestOTelSpan(t *testing.T) {
 		// never tried (see build_otel_tls_glibc_artifacts); producing some but
 		// not the one needing nothing more than a static link is an error worth
 		// failing on rather than a platform this cannot cover.
-		if len(otelTesterVariants) == 0 && len(snapshotTesterVariants) == 0 {
+		if len(otelTesterVariants) == 0 {
 			t.Skip("no OTel TLS tester embedded")
 		}
 		t.Fatal("otel_tls_exe_static_glibc is missing while other OTel TLS testers were embedded")
@@ -1030,11 +809,9 @@ func TestOTelSpan(t *testing.T) {
 					defer os.Remove(testFile)
 
 					args := otelArgs(variant, "otel-span-open", fakeTraceID128b, "204", testFile)
-					envs := []string{}
 
 					test.WaitSignalFromRule(t, func() error {
-						cmd := cmdFunc(variant.binary, args, envs)
-						out, err := cmd.CombinedOutput()
+						out, err := test.runSpanTester(cmdFunc, variant.binary, args)
 
 						if err != nil {
 							return fmt.Errorf("%s: %w", out, err)
@@ -1045,103 +822,6 @@ func TestOTelSpan(t *testing.T) {
 						assertTriggeredRule(t, rule, "test_otel_span_rule_open")
 						assertOTelOpenSpan(t, event)
 					}, "test_otel_span_rule_open")
-				})
-			})
-		}
-
-		// A tester running in a container was started before the agent could see
-		// it, so these variants publish the record behind a ready file and have
-		// the resolution driven by an explicit snapshot.
-		for _, variant := range snapshotTesterVariants {
-			variant := variant
-			t.Run(variant.name, func(t *testing.T) {
-				ebpfProbe, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-				if !ok {
-					t.Skip("OTel TLS snapshot requires the eBPF probe")
-				}
-
-				snapshotWrapper.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-					requireOTelTesterRuns(t, variant, cmdFunc)
-
-					testFile, _, err := test.Path("test-otel-span")
-					if err != nil {
-						t.Fatal(err)
-					}
-					readyFile, _, err := test.Path("test-otel-span-ready")
-					if err != nil {
-						t.Fatal(err)
-					}
-					continueFile, _, err := test.Path("test-otel-span-continue")
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer os.Remove(testFile)
-					defer os.Remove(readyFile)
-					defer os.Remove(continueFile)
-
-					args := otelArgs(variant, "otel-span-open-wait", fakeTraceID128b, "204", readyFile, continueFile, testFile)
-					var out bytes.Buffer
-					var done chan error
-					commandWaited := false
-
-					releaseCommand := func() {
-						_ = os.WriteFile(continueFile, []byte("continue"), 0o600)
-					}
-					waitCommand := func(timeout time.Duration) error {
-						if done == nil || commandWaited {
-							return nil
-						}
-						select {
-						case err := <-done:
-							commandWaited = true
-							return err
-						case <-time.After(timeout):
-							return fmt.Errorf("timed out waiting for the %s tester", variant.name)
-						}
-					}
-					t.Cleanup(func() {
-						releaseCommand()
-						if err := waitCommand(time.Second); err != nil {
-							t.Logf("%s: %v", out.String(), err)
-						}
-					})
-
-					err = test.getSignalFromRule(t, func() error {
-						cmd := cmdFunc(variant.binary, args, []string{})
-						cmd.Stdout = &out
-						cmd.Stderr = &out
-						if err := cmd.Start(); err != nil {
-							return err
-						}
-						done = make(chan error, 1)
-						go func() {
-							done <- cmd.Wait()
-						}()
-						return nil
-					}, func(event *model.Event, rule *rules.Rule) error {
-						switch event.Open.File.PathnameStr {
-						case readyFile:
-							validateProcessContext(t, event)
-							ebpfProbe.Resolvers.ProcessResolver.ResolveOTelProcessContext(event.PIDContext.Pid)
-							releaseCommand()
-							return errSkipEvent
-						case testFile:
-							validateProcessContext(t, event)
-							assertTriggeredRule(t, rule, "test_otel_span_rule_open")
-							assertOTelOpenSpan(t, event)
-							return nil
-						default:
-							return errSkipEvent
-						}
-					}, "test_otel_span_rule_open")
-					if err != nil {
-						releaseCommand()
-						_ = waitCommand(time.Second)
-						t.Fatal(err)
-					}
-					if err := waitCommand(5 * time.Second); err != nil {
-						t.Fatalf("%s: %v", out.String(), err)
-					}
 				})
 			})
 		}
@@ -1156,11 +836,9 @@ func TestOTelSpan(t *testing.T) {
 			defer os.Remove(testFile)
 
 			args := []string{"otel-span-open-invalid", fakeTraceID128b, "204", testFile}
-			envs := []string{}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(negativeTester, args, envs)
-				out, err := cmd.CombinedOutput()
+				out, err := test.runSpanTester(cmdFunc, negativeTester, args)
 
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
@@ -1186,11 +864,9 @@ func TestOTelSpan(t *testing.T) {
 			defer os.Remove(testFile)
 
 			args := []string{"otel-span-open-null-ptr", testFile}
-			envs := []string{}
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(negativeTester, args, envs)
-				out, err := cmd.CombinedOutput()
+				out, err := test.runSpanTester(cmdFunc, negativeTester, args)
 
 				if err != nil {
 					return fmt.Errorf("%s: %w", out, err)
@@ -1225,8 +901,7 @@ func TestOTelSpan(t *testing.T) {
 					args := otelArgs(variant, append([]string{"otel-span-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)...)
 
 					test.WaitSignalFromRule(t, func() error {
-						cmd := cmdFunc(variant.binary, args, []string{})
-						if out, err := cmd.CombinedOutput(); err != nil {
+						if out, err := test.runSpanTester(cmdFunc, variant.binary, args); err != nil {
 							return fmt.Errorf("%s: %w", out, err)
 						}
 						return nil
@@ -1270,8 +945,7 @@ func TestOTelSpan(t *testing.T) {
 			args := append([]string{"otel-span-exec-invalid", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(negativeTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
+				if out, err := test.runSpanTester(cmdFunc, negativeTester, args); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
 				return nil
@@ -1296,8 +970,7 @@ func TestOTelSpan(t *testing.T) {
 			args := append([]string{"otel-span-exec-null-ptr"}, otelExecArgs(kind, testFile)...)
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(negativeTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
+				if out, err := test.runSpanTester(cmdFunc, negativeTester, args); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
 				return nil
@@ -1332,8 +1005,7 @@ func TestOTelSpan(t *testing.T) {
 					args := otelArgs(variant, append([]string{"otel-span-fork-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)...)
 
 					test.WaitSignalFromRule(t, func() error {
-						cmd := cmdFunc(variant.binary, args, []string{})
-						if out, err := cmd.CombinedOutput(); err != nil {
+						if out, err := test.runSpanTester(cmdFunc, variant.binary, args); err != nil {
 							return fmt.Errorf("%s: %w", out, err)
 						}
 						return nil
@@ -1397,8 +1069,7 @@ func TestOTelSpan(t *testing.T) {
 			args := append([]string{"otel-span-exec", fakeTraceID128b, "204"}, otelExecArgs(kind, testFile)...)
 
 			test.WaitSignalFromRule(t, func() error {
-				cmd := cmdFunc(negativeTester, args, []string{})
-				if out, err := cmd.CombinedOutput(); err != nil {
+				if out, err := test.runSpanTester(cmdFunc, negativeTester, args); err != nil {
 					return fmt.Errorf("%s: %w", out, err)
 				}
 				return nil
@@ -1449,8 +1120,7 @@ func TestOTelSpan(t *testing.T) {
 					args := otelArgs(variant, "otel-span-fork-open", fakeTraceID128b, "204", childSpanID, testFile)
 
 					test.WaitSignalFromRule(t, func() error {
-						cmd := cmdFunc(variant.binary, args, []string{})
-						if out, err := cmd.CombinedOutput(); err != nil {
+						if out, err := test.runSpanTester(cmdFunc, variant.binary, args); err != nil {
 							return fmt.Errorf("%s: %w", out, err)
 						}
 						return nil
@@ -1464,5 +1134,261 @@ func TestOTelSpan(t *testing.T) {
 				})
 			})
 		}
+	})
+}
+
+var _ = declare(TestNodeSpan, testOpts{discardRuntime: true})
+
+// TestNodeSpan covers the Node.js thread context reader, which does not stop at
+// a thread-local pointer the way the native one does: it walks from the
+// discovery struct through the V8 objects a record hangs off. The tester stands
+// in for those objects, so the shapes that walk has to survive -- a key sharing
+// its bucket, a chain deeper than the reader follows, a frame holding no context
+// -- can be produced on demand rather than waited for.
+func TestNodeSpan(t *testing.T) {
+	SkipIfNotAvailable(t)
+	skipIfNoThreadPointer(t)
+
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
+		t.Skip("Node.js span test only supported on amd64 and arm64")
+	}
+
+	executable := which(t, "touch")
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_node_span_rule_open",
+			Expression: `open.file.path == "{{.Root}}/test-node-span"`,
+		},
+		{
+			ID:         "test_node_span_rule_open_no_span",
+			Expression: `open.file.path == "{{.Root}}/test-node-span-no-span"`,
+		},
+		{
+			// Shared by all the exec sub-tests, which run sequentially.
+			ID:         "test_node_span_rule_exec",
+			Expression: fmt.Sprintf(`exec.file.path in [ "/bin/touch", "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	// dlopen is the only access path worth driving here: it is how a Node addon
+	// is loaded. Which underlying TLS access model that lands on is the native
+	// tester's business (TestOTelSpan already covers it, dlopen'd and linked at
+	// startup, across every dialect).
+	nodeBinary, err := loadSyscallTesterArtifact(test, "otel_nodejs_dlopen_glibc")
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatal(err)
+		}
+		// Producing neither artifact means the build was cross-compiling and
+		// never tried; see build_otel_tls_artifacts.
+		t.Skip("otel_nodejs_dlopen_glibc not embedded; skipping the Node.js span test")
+	}
+	nodeFixture, err := loadSyscallTesterArtifact(test, "libotel_nodejs_glibc.so")
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatal(err)
+		}
+		t.Skip("libotel_nodejs_glibc.so not embedded; skipping the Node.js span test")
+	}
+
+	nodeArgs := func(args ...string) []string {
+		return append([]string{nodeFixture}, args...)
+	}
+
+	requireNodeTesterRuns := func(t *testing.T, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		t.Helper()
+		if out, err := cmdFunc(nodeBinary, nodeArgs("check"), nil).CombinedOutput(); err != nil {
+			t.Skipf("Node.js span tester cannot run here: %v (output: %s)", err, bytes.TrimSpace(out))
+		}
+	}
+
+	fakeTraceID128b := "136272290892501783905308705057321818530"
+
+	assertNodeOpenSpan := func(t *testing.T, event *model.Event) {
+		t.Helper()
+		test.validateSpanSchema(t, event)
+
+		assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
+		assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+
+		// The key names these resolve through come from the process context, the
+		// tracer metadata of a Node.js writer carrying none.
+		assert.Equal(t, "GET", event.SpanContext.Attributes["http.method"])
+		assert.Equal(t, "/test", event.SpanContext.Attributes["http.target"])
+		assert.Equal(t, "will@datadoghq.com", event.SpanContext.Attributes["http.user"])
+	}
+
+	assertNoSpan := func(t *testing.T, event *model.Event) {
+		t.Helper()
+		assert.Equal(t, uint64(0), event.SpanContext.SpanID)
+		assert.Equal(t, "0", event.SpanContext.TraceID.String())
+	}
+
+	nodeExecArgs := func(kind wrapperType, testFile string) []string {
+		touchPath := "/usr/bin/touch"
+		if kind == stdWrapperType {
+			touchPath = executable
+		}
+		return []string{touchPath, "--reference", "/etc/passwd", testFile}
+	}
+
+	runOpen := func(t *testing.T, command, fileName, ruleID string,
+		check func(t *testing.T, event *model.Event)) {
+		t.Helper()
+
+		test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			requireNodeTesterRuns(t, cmdFunc)
+
+			testFile, _, err := test.Path(fileName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := nodeArgs(command, fakeTraceID128b, "204", testFile)
+
+			test.WaitSignalFromRule(t, func() error {
+				if out, err := test.runSpanTester(cmdFunc, nodeBinary, args); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, ruleID)
+				check(t, event)
+			}, ruleID)
+		})
+	}
+
+	t.Run("valid_record", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open", "test-node-span", "test_node_span_rule_open", assertNodeOpenSpan)
+	})
+
+	// The entry the reader is after is not the first of its bucket, another key
+	// having hashed to the same one. It must walk past it rather than give up.
+	t.Run("bucket_collision", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-chained", "test-node-span",
+			"test_node_span_rule_open", assertNodeOpenSpan)
+	})
+
+	// A bucket whose chain runs deeper than the reader follows. Dropping the
+	// context is the answer; walking on unbounded is not an option in eBPF.
+	t.Run("chain_overflow", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-deep", "test-node-span-no-span",
+			"test_node_span_rule_open_no_span", assertNoSpan)
+	})
+
+	// The record of a span that has ended: still reachable from every
+	// asynchronous context that inherited it, and cleared for good.
+	t.Run("invalidated_record", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-invalid", "test-node-span-no-span",
+			"test_node_span_rule_open_no_span", assertNoSpan)
+	})
+
+	// An asynchronous context holding undefined, which is what the writer leaves
+	// when it detaches a context and nothing takes its place.
+	t.Run("no_context", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-no-context", "test-node-span-no-span",
+			"test_node_span_rule_open_no_span", assertNoSpan)
+	})
+
+	// A thread the writer never ran on, leaving the discovery struct zeroed --
+	// what every thread of a Node process that never enters JS looks like.
+	t.Run("no_writer", func(t *testing.T) {
+		runOpen(t, "otel-node-span-open-no-writer", "test-node-span-no-span",
+			"test_node_span_rule_open_no_span", assertNoSpan)
+	})
+
+	t.Run("valid_record_exec", func(t *testing.T) {
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			requireNodeTesterRuns(t, cmdFunc)
+
+			testFile, _, err := test.Path("test-node-span-exec")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := nodeArgs(append([]string{"otel-node-span-exec", fakeTraceID128b, "204"}, nodeExecArgs(kind, testFile)...)...)
+
+			test.WaitSignalFromRule(t, func() error {
+				if out, err := test.runSpanTester(cmdFunc, nodeBinary, args); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_node_span_rule_exec")
+				test.validateSpanSchema(t, event)
+
+				assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
+				assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
+			}, "test_node_span_rule_exec")
+		})
+	})
+
+	t.Run("fork_exec_propagates_to_child", func(t *testing.T) {
+		// Two propagation routes, same as for the native reader. The exec event
+		// walks the discovery struct the fork handed down, against the child's
+		// still copy-on-write view of the parent's object graph: prepare_binprm
+		// runs before the exec replaces that memory. The fork event captured the
+		// same values in the parent's context onto the child's ProcessCacheEntry,
+		// which the exec supersedes, leaving them in the ancestor lineage too.
+		test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+			requireNodeTesterRuns(t, cmdFunc)
+
+			testFile, _, err := test.Path("test-node-span-fork-exec")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
+
+			args := nodeArgs(append([]string{"otel-node-span-fork-exec", fakeTraceID128b, "204"}, nodeExecArgs(kind, testFile)...)...)
+
+			test.WaitSignalFromRule(t, func() error {
+				if out, err := test.runSpanTester(cmdFunc, nodeBinary, args); err != nil {
+					return fmt.Errorf("%s: %w", out, err)
+				}
+				return nil
+			}, func(event *model.Event, rule *rules.Rule) {
+				assertTriggeredRule(t, rule, "test_node_span_rule_exec")
+
+				assert.Equal(t, uint64(204), event.SpanContext.SpanID,
+					"exec event should carry the fork parent's Node.js record span_id")
+				assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String(),
+					"exec event should carry the fork parent's Node.js record trace_id")
+
+				var foundAncestor *model.ProcessCacheEntry
+				for pce := event.ProcessContext.Ancestor; pce != nil; pce = pce.Ancestor {
+					if pce.Tracer.Trace.SpanID != 0 {
+						foundAncestor = pce
+						break
+					}
+				}
+				if assert.NotNil(t, foundAncestor,
+					"an ancestor should carry the parent's Node.js span captured at fork time") {
+					assert.Equal(t, uint64(204), foundAncestor.Tracer.Trace.SpanID,
+						"fork-parent ancestor SpanID should equal the Node.js record span_id")
+					assert.Equal(t, fakeTraceID128b, foundAncestor.Tracer.Trace.TraceID.String(),
+						"fork-parent ancestor TraceID should equal the Node.js record trace_id")
+				}
+
+				expectedHi, expectedLo, ok := splitTraceID(fakeTraceID128b)
+				if !assert.True(t, ok, "splitTraceID") {
+					return
+				}
+				jsonStr, err := test.marshalEvent(event)
+				if assert.NoError(t, err, "marshalEvent") {
+					assertSerializedSpanContext(t, jsonStr, "204",
+						utils.TraceID{Hi: expectedHi, Lo: expectedLo}.HexString(), nil,
+						spanLocations{onTopLevelProcess: true, onAncestor: true})
+				}
+			}, "test_node_span_rule_exec")
+		})
 	})
 }

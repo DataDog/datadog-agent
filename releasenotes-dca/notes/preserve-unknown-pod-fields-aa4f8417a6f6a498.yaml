@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix the Cluster Agent admission controller unintentionally removing custom
+    fields from Kubernetes Pod specifications during mutation.

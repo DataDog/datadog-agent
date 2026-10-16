@@ -662,8 +662,8 @@ type Container struct {
 	// and that it would be impossible to compute later on
 	CollectorTags   []string
 	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext `proto:"ignore"`
-	ReadinessProbe  *ContainerProbe           `proto:"ignore"`
+	SecurityContext *ContainerSecurityContext
+	ReadinessProbe  *ContainerProbe `proto:"ignore"`
 	Resources       ContainerResources
 	ResizePolicy    ContainerResizePolicy `proto:"ignore"`
 
@@ -789,18 +789,24 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// PodSecurityContext is the Security Context of a Kubernetes pod
+// PodSecurityContext is the Security Context of a Kubernetes pod. Containers
+// inherit RunAsNonRoot and SeccompProfile from here unless they set their own.
 type PodSecurityContext struct {
-	RunAsUser  int32
-	RunAsGroup int32
-	FsGroup    int32
+	RunAsUser      int32
+	RunAsGroup     int32
+	FsGroup        int32
+	RunAsNonRoot   *bool
+	SeccompProfile *SeccompProfile
 }
 
-// ContainerSecurityContext is the Security Context of a Container
+// ContainerSecurityContext is the Security Context of a Container.
 type ContainerSecurityContext struct {
 	*Capabilities
-	Privileged     bool
-	SeccompProfile *SeccompProfile
+	Privileged               bool
+	SeccompProfile           *SeccompProfile
+	RunAsNonRoot             *bool
+	AllowPrivilegeEscalation *bool
+	ReadOnlyRootFilesystem   *bool
 }
 
 // Capabilities is the capabilities a certain Container security context is capable of
@@ -848,12 +854,12 @@ type KubernetesPod struct {
 	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string   `proto:"ignore"`
-	FinishedAt                 time.Time           `proto:"ignore"`
-	SecurityContext            *PodSecurityContext `proto:"ignore"`
-	Resources                  ContainerResources  `proto:"ignore"`
-	DeletionTimestamp          *time.Time          `proto:"ignore"`
-	ReadyTimestamp             *time.Time          `proto:"ignore"`
+	NamespaceAnnotations       map[string]string `proto:"ignore"`
+	FinishedAt                 time.Time         `proto:"ignore"`
+	SecurityContext            *PodSecurityContext
+	Resources                  ContainerResources `proto:"ignore"`
+	DeletionTimestamp          *time.Time         `proto:"ignore"`
+	ReadyTimestamp             *time.Time         `proto:"ignore"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
@@ -1790,6 +1796,7 @@ type ContainerImageMetadata struct {
 	OSVersion    string
 	Architecture string
 	Variant      string
+	Created      time.Time
 	Layers       []ContainerImageLayer
 	SBOM         *CompressedSBOM
 }
@@ -1888,6 +1895,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+		_, _ = fmt.Fprintln(&sb, "Created:", i.Created)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
 		if i.SBOM != nil {
@@ -2351,6 +2359,11 @@ type GPU struct {
 	// Healthy indicates whether or not the GPU device is healthy
 	Healthy bool
 
+	// Lost indicates that the driver reports the GPU as lost (e.g., it fell off
+	// the bus). Attributes that require querying the device keep the values
+	// reported before the GPU was lost.
+	Lost bool
+
 	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
 	ParentGPUUUID string
 
@@ -2419,6 +2432,9 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
 	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
+	if g.Lost {
+		_, _ = fmt.Fprintln(&sb, "Lost: true")
+	}
 
 	// Do not show "physical" device type as it's the default and redundant information
 	if g.DeviceType == GPUDeviceTypeMIG {

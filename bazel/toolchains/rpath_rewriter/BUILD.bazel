@@ -96,14 +96,14 @@ genrule(
     name = "baz_so",
     srcs = [":foo"],
     outs = ["baz.so"],
-    cmd = "cp $(location :foo) $@",
+    cmd = "cp $(execpath :foo) $@",
     target_compatible_with = ["@platforms//os:macos"],
 )
 
 sh_test(
     name = "macos_dir_test",
     srcs = ["macos_dir_test.sh"],
-    args = ["$(location @llvm_toolchain_llvm//:install-name-tool)"],
+    args = ["$(rootpath @llvm_toolchain_llvm//:install-name-tool)"],
     data = [
         ":bar",
         ":baz_so",

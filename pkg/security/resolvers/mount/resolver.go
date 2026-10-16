@@ -477,6 +477,14 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, depth int) (string
 	if err != nil {
 		return "", parentSource, parentOrigin, err
 	}
+
+	// mount points from kernel events are resolved from the root of the parent file system, not from the root of
+	// the parent mount, which differ when the parent is a bind mount of a sub directory
+	if mount.Origin != model.MountOriginProcfs && mount.Origin != model.MountOriginListmount {
+		if parent := mr.lookupByMountID(mount.ParentPathKey.MountID); parent != nil {
+			mountPointStr = trimMountRoot(mountPointStr, parent.RootStr)
+		}
+	}
 	mountPointStr = path.Join(parentMountPath, mountPointStr)
 
 	if parentSource != model.MountSourceMountID {
@@ -645,6 +653,18 @@ func (mr *Resolver) Iterate(cb func(*model.Mount)) {
 
 	for mount := range mr.mounts.ValuesIter() {
 		cb(mount)
+	}
+}
+
+// IterateNamespace calls cb for every cached mount in the given mount namespace
+func (mr *Resolver) IterateNamespace(nsInode uint32, cb func(*model.Mount)) {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	for mount := range mr.mounts.ValuesIter() {
+		if mount.NamespaceInode == nsInode {
+			cb(mount)
+		}
 	}
 }
 

@@ -213,6 +213,9 @@ var procmgrConfigs = []procmgrConfig{
 	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
 	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
 	{"process-agent", processmanager.WriteProcessProcmgrConfig, processmanager.RemoveProcessProcmgrConfig},
+	{"system-probe", processmanager.WriteSysprobeProcmgrConfig, processmanager.RemoveSysprobeProcmgrConfig},
+	{"trace-agent", processmanager.WriteTraceProcmgrConfig, processmanager.RemoveTraceProcmgrConfig},
+	{"security-agent", processmanager.WriteSecurityProcmgrConfig, processmanager.RemoveSecurityProcmgrConfig},
 }
 
 func ensureProcmgrConfig(cfg procmgrConfig) error {

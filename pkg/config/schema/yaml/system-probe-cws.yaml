@@ -362,6 +362,22 @@ properties:
     node_type: section
     type: object
     properties:
+      bind:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
+          rate:
+            node_type: setting
+            type: integer
+            default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
       connect:
         node_type: section
         type: object
@@ -369,7 +385,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -393,7 +409,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -402,6 +418,22 @@ properties:
             node_type: setting
             type: integer
             default: 80
+      syscalls:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          rate:
+            node_type: setting
+            type: integer
+            default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
   event_server:
     node_type: section
     type: object
@@ -548,11 +580,11 @@ properties:
       enrichment_interval:
         node_type: setting
         type: string
-        default: 1m
+        default: 30m
       forward_interval:
         node_type: setting
         type: string
-        default: 20s
+        default: 1m
       generate_policies:
         node_type: setting
         type: boolean
@@ -615,7 +647,7 @@ properties:
               num_events_allowed:
                 node_type: setting
                 type: integer
-                default: 10
+                default: 2000
               num_keys:
                 node_type: setting
                 type: integer
@@ -623,7 +655,7 @@ properties:
               period:
                 node_type: setting
                 type: string
-                default: 1m
+                default: 1s
           silent_rule_events:
             node_type: section
             type: object
@@ -723,6 +755,9 @@ properties:
             - open
             - dns
             - bind
+            - mount
+            - connect
+            - capabilities
             items:
               type: string
           excluded_images:

@@ -11,11 +11,11 @@ _VERSION = "2.39.2"
 expand_template(
     name = "blkid_h",
     out = "blkid.h",
-    template = "libblkid/src/blkid.h.in",
     substitutions = {
         "@LIBBLKID_DATE@": "REDACTED",
         "@LIBBLKID_VERSION@": _VERSION,
     },
+    template = "libblkid/src/blkid.h.in",
 )
 
 cc_library(
@@ -23,14 +23,14 @@ cc_library(
     srcs = [
         "lib/blkdev.c",
         "lib/buffer.c",
-        "lib/caputils.c",
+        "lib/c_strtod.c",
         "lib/canonicalize.c",
+        "lib/caputils.c",
         "lib/color-names.c",
         "lib/cpuset.c",
         "lib/crc32.c",
         "lib/crc32c.c",
         "lib/crc64.c",
-        "lib/c_strtod.c",
         "lib/encode.c",
         "lib/env.c",
         "lib/fileutils.c",
@@ -60,17 +60,17 @@ cc_library(
     hdrs = glob(["include/*.h"]) + [
         ":blkid_h",
     ],
+    copts = [
+        "-include generated/config.h",
+    ],
     include_prefix = "blkid",
     includes = [
         "include",
     ],
-    visibility = ["//visibility:private"],
-    copts = [
-        "-include generated/config.h",
-    ],
     local_defines = [
         "_GNU_SOURCE",
     ],
+    visibility = ["//visibility:private"],
 )
 
 cc_library(
@@ -80,25 +80,25 @@ cc_library(
         "libblkid/src/**/*.h",
     ]) + ["generated/config.h"],
     hdrs = [":blkid_h"],
-    deps = [":libcommon"],
-    includes = [
-        "libblkid/src",
-        "include",
-        "generated",
-    ],
     copts = [
         "-include generated/config.h",
+    ],
+    includes = [
+        "generated",
+        "include",
+        "libblkid/src",
     ],
     local_defines = [
         "_GNU_SOURCE",
     ],
     visibility = ["//visibility:public"],
+    deps = [":libcommon"],
 )
 
 cc_shared_library(
     name = "blkid",
-    deps = [":libblkid"],
     visibility = ["//visibility:public"],
+    deps = [":libblkid"],
 )
 
 pkg_files(
@@ -109,10 +109,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "blkid_pkg",
-    input = ":blkid",
     dest_dir = "embedded/lib",
-    version = "1.1.0",
+    input = ":blkid",
     installed_files = [":blkid_hdr_files"],
+    version = "1.1.0",
     visibility = ["//visibility:public"],
 )
 
@@ -121,7 +121,10 @@ pkg_filegroup(
     srcs = [
         ":blkid_hdr_files",
     ],
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )
 
 pkg_install(

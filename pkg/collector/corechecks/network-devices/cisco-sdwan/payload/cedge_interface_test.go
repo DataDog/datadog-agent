@@ -265,9 +265,9 @@ func TestCEdgeInterface(t *testing.T) {
 				IsPhysical:  boolPtr(true),
 			},
 			expectedIPV4Address:      nil,
-			expectedIPV4AddressError: "invalid ip address",
+			expectedIPV4AddressError: `invalid ip address: "hello"`,
 			expectedIPV6Address:      nil,
-			expectedIPV6AddressError: "invalid ip address",
+			expectedIPV6AddressError: `invalid ip address: "hello2"`,
 		},
 		{
 			name:      "invalid mask",
@@ -303,7 +303,7 @@ func TestCEdgeInterface(t *testing.T) {
 				IsPhysical:  boolPtr(true),
 			},
 			expectedIPV4Address:      nil,
-			expectedIPV4AddressError: "invalid mask",
+			expectedIPV4AddressError: "invalid mask: \"hellohello\"",
 		},
 		{
 			name:      "unspecified ip address",
@@ -339,7 +339,7 @@ func TestCEdgeInterface(t *testing.T) {
 				IsPhysical:  boolPtr(true),
 			},
 			expectedIPV4Address:      nil,
-			expectedIPV4AddressError: "invalid ip address",
+			expectedIPV4AddressError: `invalid ip address: "0.0.0.0"`,
 		},
 		{
 			name:      "ip address with interface name suffix",

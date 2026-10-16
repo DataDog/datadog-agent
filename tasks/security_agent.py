@@ -296,7 +296,9 @@ OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifact
 # 2.17 symbols end up referenced. The host toolchain would link them against the
 # build image's glibc instead, which is newer than every KMT host and than the
 # ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
-# linked variant would then be skipped outside the newest legs.
+# linked variant would then be skipped outside the newest legs. The Node.js
+# tester is Bazel-built the same way, alongside the native one; it is glibc-only,
+# so there is no musl counterpart to build.
 #
 # musl is covered by TestResolveOTelTLSMuslDTV in
 # pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
@@ -563,35 +565,25 @@ def generate_cws_documentation(ctx):
 
 
 @task
-def cws_go_generate(ctx):
+def cws_go_generate(ctx, windows=False):
     # CWS codegens keep their //go:generate directives so a future Gazelle
     # extension can emit the matching Bazel targets from them (ABLD-475).
+    # Off Windows, cws_codegen renders backend_windows.md from the committed
+    # schema, so refresh that first.
+    if windows and sys.platform == "linux":
+        bazel("run", "//docs/cloud-workload-security:backend_windows_schema")
     bazel("run", "//pkg/security:cws_codegen")
 
 
 @task
 def generate_syscall_table(ctx):
-    def single_run(ctx, table_url, output_file, output_string_file, abis=None):
-        if abis:
-            abis = f"-abis {abis}"
-        ctx.run(
-            f"go run github.com/DataDog/datadog-agent/pkg/security/generators/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
-        )
+    """Regenerate secl model syscall enums from the pinned Linux kernel tables.
 
-    linux_version = "v6.13"
-    single_run(
-        ctx,
-        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
-        "pkg/security/secl/model/syscalls_linux_amd64.go",
-        "pkg/security/secl/model/syscalls_string_linux_amd64.go",
-        abis="common,64",
-    )
-    single_run(
-        ctx,
-        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h",
-        "pkg/security/secl/model/syscalls_linux_arm64.go",
-        "pkg/security/secl/model/syscalls_string_linux_arm64.go",
-    )
+    Tables are fetched as http_file repos in MODULE.bazel (same pins as
+    utils_syscall_table). Bumping the kernel version means updating those
+    URLs and sha256 entries.
+    """
+    bazel("run", "//pkg/security/secl/model:syscall_table")
 
 
 @task

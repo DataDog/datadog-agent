@@ -19,7 +19,6 @@ dd_agent_go_test(
     name = "instrumentationlibrary_test",
     srcs = ["metadata_test.go"],
     embed = [":instrumentationlibrary"],
-    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@io_opentelemetry_go_collector_pdata//pcommon",

@@ -78,6 +78,7 @@ TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/bu
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
 DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+BAZEL_EXIT_NO_TESTS_FOUND = 4  # https://bazel.build/run/scripts#exit-codes
 # TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
 # bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
@@ -621,7 +622,7 @@ def process_test_result(
 
 @task
 @run_on_devcontainer
-def test(
+def test_legacy(
     ctx,
     module=None,
     targets=None,
@@ -885,7 +886,7 @@ def test(
         "bazel_args": "Additional flags passed directly to bazel test. Quote the value when passing multiple flags.",
     },
 )
-def test_new(
+def test(
     ctx,
     module=None,
     targets=None,
@@ -897,8 +898,7 @@ def test_new(
     """
     Run go tests.
 
-    This task uses Bazel to run the tests and will soon replace the existing `test` task, which
-    will be renamed to `legacy` and eventually be dropped.
+    This task is a thin wrapper around Bazel.
     """
 
     if only_modified_packages:
@@ -907,6 +907,9 @@ def test_new(
         modules, _ = process_input_args(ctx, module, targets, input_flavor=None)
 
     if not modules:
+        if only_modified_packages:
+            print("No modified Go packages to test")
+            return
         raise Exit("No targets selected for testing!")
 
     bazel_flags = [
@@ -927,11 +930,17 @@ def test_new(
         for target in module.test_targets
     ]
 
-    bazel(
+    result = bazel(
         "test",
         *bazel_flags,
         *_minimize_bazel_patterns(bazel_targets),
+        ignore_errors=True,
     )
+    if result.returncode == BAZEL_EXIT_NO_TESTS_FOUND and only_modified_packages:
+        print("No test targets in modified packages")
+        return
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
 
 
 @task

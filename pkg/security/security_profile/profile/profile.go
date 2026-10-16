@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -70,8 +71,11 @@ type Profile struct {
 
 	Header   ActivityDumpHeader
 	Metadata mtdt.Metadata
-	selector cgroupModel.WorkloadSelector
-	tags     []string
+	// SecurityContexts holds the declared SecurityContexts observed for this
+	// image, keyed by workload-template slot.
+	SecurityContexts map[securitycontext.Key]*securitycontext.SecurityContext
+	selector         cgroupModel.WorkloadSelector
+	tags             []string
 
 	versionContexts map[string]*VersionContext
 
@@ -90,6 +94,20 @@ type Profile struct {
 	// First has been sent
 	hasAlreadyBeenSent *atomic.Bool
 	isEnabled          bool
+	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
+	observedRollups bool
+	seededSyscalls  []uint32
+
+	baseMountNSByCgroup map[uint64]baseMountNSPin
+}
+
+// baseMountNSPin is a workload's base mount namespace. A pin is provisional when it was
+// derived from the namespace of the event itself because the workload's root process was
+// not resolvable: that event may come from a process that has setns'd away from the base,
+// so the value is replaced as soon as an authoritative one is available.
+type baseMountNSPin struct {
+	nsID          uint32
+	authoritative bool
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -98,6 +116,20 @@ func (p *Profile) IsEnabled() bool {
 	defer p.Unlock()
 
 	return p.isEnabled
+}
+
+// SaveSecurityContext stores sc under key. Zero-value keys and nil values
+// are dropped. Last write wins per key.
+func (p *Profile) SaveSecurityContext(key securitycontext.Key, sc *securitycontext.SecurityContext) {
+	if sc == nil || key.IsZero() {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	if p.SecurityContexts == nil {
+		p.SecurityContexts = make(map[securitycontext.Key]*securitycontext.SecurityContext, 1)
+	}
+	p.SecurityContexts[key] = sc
 }
 
 // Disable disables the profile and drops its activity tree to free the memory it held.
@@ -142,6 +174,21 @@ func WithWorkloadSelector(selector cgroupModel.WorkloadSelector) Opts {
 func WithEventTypes(eventTypes []model.EventType) Opts {
 	return func(p *Profile) {
 		p.eventTypes = eventTypes
+	}
+}
+
+// WithObservedRollups makes the encoder derive per-version syscall/capability
+// lists from the activity tree (V2 only; V1 keeps the backend-supplied list).
+func WithObservedRollups() Opts {
+	return func(p *Profile) {
+		p.observedRollups = true
+	}
+}
+
+// WithSeededSyscalls sets syscall ids to union into the profile's reported syscall lists.
+func WithSeededSyscalls(ids []uint32) Opts {
+	return func(p *Profile) {
+		p.seededSyscalls = ids
 	}
 }
 
@@ -304,6 +351,64 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	defer p.Unlock()
 
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
+}
+
+// PinBaseMountNamespace records the base mount namespace of the workload identified by
+// cgroupInode and reports whether the caller should seed the mount table for it. It
+// returns true only on the first pin and when a provisional pin is replaced by a
+// differing authoritative one, so callers can gate the cost of seeding on it.
+func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authoritative bool) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	if nsID == 0 {
+		return false
+	}
+	if p.baseMountNSByCgroup == nil {
+		p.baseMountNSByCgroup = make(map[uint64]baseMountNSPin)
+	}
+
+	if cur, pinned := p.baseMountNSByCgroup[cgroupInode]; pinned {
+		if cur.authoritative || !authoritative {
+			return false
+		}
+		if cur.nsID == nsID {
+			// the provisional pin guessed right, so promote it without seeding again
+			p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: true}
+			return false
+		}
+		// Correcting a wrong guess only stops new mounts from the superseded namespace
+		// counting as base. Mounts already seeded under it keep their flag: nodes are
+		// deduped across namespaces, so they cannot be attributed back to a single one.
+		p.ActivityTree.RemoveBaseMountNamespaceID(cur.nsID)
+	}
+
+	p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: authoritative}
+	p.ActivityTree.AddBaseMountNamespaceID(nsID)
+	return true
+}
+
+// RemoveBaseMountNamespace drops the base mount namespace recorded for the workload
+// identified by cgroupInode from the tree's base-namespace set.
+func (p *Profile) RemoveBaseMountNamespace(cgroupInode uint64) {
+	p.Lock()
+	defer p.Unlock()
+
+	pin, ok := p.baseMountNSByCgroup[cgroupInode]
+	if !ok {
+		return
+	}
+	delete(p.baseMountNSByCgroup, cgroupInode)
+	p.ActivityTree.RemoveBaseMountNamespaceID(pin.nsID)
+}
+
+// InsertMount inserts a mount into the profile's deduplicated mount table
+func (p *Profile) InsertMount(mnt *model.Mount, imageTag string, generationType activity_tree.NodeGenerationType, timestamp time.Time) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	imageTagID := p.ActivityTree.GetOrInsertImageTag(imageTag)
+	return p.ActivityTree.InsertMount(mnt.NamespaceInode, mnt.Path, mnt.RootStr, mnt.FSType, mnt.MountFlags, imageTagID, generationType, timestamp, false)
 }
 
 // ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory
@@ -683,7 +788,30 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.ActivityTree.ComputeSyscallsList()
+	return unionSyscalls(p.ActivityTree.ComputeSyscallsList(), p.seededSyscalls)
+}
+
+// unionSyscalls returns base ∪ extra, deduplicated and sorted.
+func unionSyscalls(base, extra []uint32) []uint32 {
+	if len(extra) == 0 {
+		return base
+	}
+	seen := make(map[uint32]struct{}, len(base)+len(extra))
+	out := make([]uint32, 0, len(base)+len(extra))
+	for _, s := range base {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	for _, s := range extra {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // MatchesSelector is used to control how an event should be added to a profile

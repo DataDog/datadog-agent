@@ -84,17 +84,14 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 // getInfraTags returns the host tags specific to the configured infrastructure_mode,
 // or nil if the active mode does not contribute any host tags.
 func getInfraTags(conf model.Reader) []string {
-	// EUDM mode has a custom logic for its infra tags
-	if conf.GetString("infrastructure_mode") == infrastructureModeEndUserDevice {
+	mode := configUtils.ResolveInfrastructureMode(conf)
+	if mode == configUtils.InfraModeEndUserDevice {
 		return getEUDMTags()
 	}
-
-	// infra mode "full" is not included in the host tags to keep the same tag set if the config doesn't include the infrastructure mode key
-	if conf.GetString("infrastructure_mode") != "full" {
-		return []string{"infra_mode:" + conf.GetString("infrastructure_mode")}
+	if mode == configUtils.InfraModeFull {
+		return nil
 	}
-
-	return nil
+	return []string{configUtils.InfraModeTagKey + ":" + mode}
 }
 
 // this is a "low-tech" version of tagger/utils/taglist.go but host tags are handled separately here for now
@@ -125,16 +122,22 @@ func appendAndSplitTags(target []string, tags []string, splits map[string]string
 	return target
 }
 
-// Get the host tags, optionally looking in the cache
+// Get the host tags, optionally looking in the cache.
+//
+// includeInfraMode controls whether System includes infra_mode:* tags. The
+// cache always stores the full tag set; when includeInfraMode is false the
+// returned System slice is a copy with infra_mode:* removed. Callers that copy
+// host tags onto metrics or logs must pass false. Other tags (including EUDM
+// hardware tags) are unchanged.
+//
 // There are two levels of caching:
 // - First one controlled by `cached` boolean, used for performances (cache all tags)
 // - Second one per provider, to avoid missing host tags for 30 minutes when a component fails (for instance, Cluster Agent).
 // This second layer is always on.
-func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
+func Get(ctx context.Context, cached bool, conf model.Reader, includeInfraMode bool) *Tags {
 	if cached {
 		if x, found := cache.Cache.Get(tagsCacheKey); found {
-			tags := x.(*Tags)
-			return tags
+			return applyInfraModeFilter(x.(*Tags), includeInfraMode)
 		}
 	}
 
@@ -146,6 +149,9 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	configTags := configUtils.GetConfiguredTags(conf, false)
 	hostTags := make([]string, 0, len(configTags))
 	hostTags = appendToHostTags(hostTags, configTags)
+	if conf.GetBool("private_action_runner.enabled") {
+		hostTags = appendToHostTags(hostTags, []string{"private_action_runner_enabled:true"})
+	}
 
 	env := conf.GetString("env")
 	if env != "" {
@@ -225,5 +231,17 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	}
 
 	cache.Cache.Set(tagsCacheKey, t, cache.NoExpiration)
-	return t
+	return applyInfraModeFilter(t, includeInfraMode)
+}
+
+// applyInfraModeFilter returns tags unchanged when includeInfraMode is true.
+// Otherwise it returns a shallow copy whose System list omits infra_mode:*.
+func applyInfraModeFilter(tags *Tags, includeInfraMode bool) *Tags {
+	if includeInfraMode {
+		return tags
+	}
+	return &Tags{
+		System:              configUtils.WithoutInfraModeTags(tags.System),
+		GoogleCloudPlatform: tags.GoogleCloudPlatform,
+	}
 }

@@ -6,6 +6,7 @@
 package authoredscripts
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -72,5 +73,7 @@ func (d Descriptor) Validate() error {
 }
 
 type Catalog interface {
+	// WaitForReady waits until the first valid catalog snapshot is available.
+	WaitForReady(ctx context.Context) error
 	Lookup(fqn string) (Descriptor, error)
 }

@@ -40,6 +40,12 @@ func (v *windowsFlareSuite) TestzzzFlareWindows() {
 	expectedCounterStrings := []string{"Write Packets/sec", "Events Logged per sec"}
 	flarehelpers.AssertFileContains(v.T(), flare, "counter_strings.txt", expectedCounterStrings...)
 
+	// dd-procmgr-service supervises agent processes that used to be SCM services of their own,
+	// so their legacy services show up Stopped. Without the supervisor in the dump there is
+	// nothing in the flare explaining who runs them. Its name does not start with "datadog",
+	// which is why the service filter needs more than a prefix match.
+	flarehelpers.AssertFileContains(v.T(), flare, "servicestatus.json", "dd-procmgr-service")
+
 	_, err := flare.GetFile("datadog-raw.reg")
 	assert.Error(v.T(), err, "File 'datadog-raw.reg' was found in flare, but was expected not to be part of the archive")
 }

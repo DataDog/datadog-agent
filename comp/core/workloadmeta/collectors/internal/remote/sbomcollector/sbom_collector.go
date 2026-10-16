@@ -88,6 +88,14 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
+	// The host SBOM stays out of workloadmeta, so the sbom check merges the
+	// report of the host itself.
+	if event.Kind == sbompkg.HostKind {
+		log.Debug("Received forwarded SBOM for the host")
+		sbompkg.SetHostUsage(&newBom)
+		return workloadmeta.Event{}, nil
+	}
+
 	if event.Kind != string(workloadmeta.KindContainer) {
 		return workloadmeta.Event{}, fmt.Errorf("expected KindContainer, got %s", event.Kind)
 	}
@@ -300,5 +308,9 @@ func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
 	return true
 }
 
-func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {
+// HandleResync notifies the events of the first response after a reconnect, as
+// Run does for any other response. The SBOM stream sends each report as it
+// comes, so the first one after a reconnect is one update among the others.
+func (s *streamHandler) HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent) {
+	store.Notify(events)
 }

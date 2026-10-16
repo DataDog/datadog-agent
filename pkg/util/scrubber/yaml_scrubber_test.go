@@ -55,13 +55,27 @@ func TestScrubDataObj(t *testing.T) {
 			name: "DataSecurityScanningRules",
 			input: map[string]interface{}{
 				"scanning_rules": []interface{}{
-					map[string]interface{}{"id": "rule-1", "license": "proprietary", "pattern": `\d+`},
+					map[string]interface{}{
+						"id":                     "rule-1",
+						"license":                "proprietary",
+						"pattern":                `(\d+)`,
+						"pattern_capture_groups": []interface{}{"1"},
+						"proximity_keywords":     map[string]interface{}{"included_keywords": []interface{}{"card"}},
+						"validator":              map[string]interface{}{"type": "LuhnChecksum"},
+					},
 				},
 				"task_id": "task-1",
 			},
 			expected: map[string]interface{}{
 				"scanning_rules": []interface{}{
-					map[string]interface{}{"id": "rule-1", "license": "proprietary", "pattern": "********"},
+					map[string]interface{}{
+						"id":                     "rule-1",
+						"license":                "proprietary",
+						"pattern":                "********",
+						"pattern_capture_groups": "********",
+						"proximity_keywords":     "********",
+						"validator":              "********",
+					},
 				},
 				"task_id": "task-1",
 			},
@@ -324,6 +338,17 @@ additional_endpoints:
 		assert.Contains(t, scrubbed, "site: datadoghq.com")
 	})
 
+	t.Run("URL-keyed map: DELA fallback is fully scrubbed", func(t *testing.T) {
+		input := `additional_endpoints:
+  "https://mydomain.datadoghq.com":
+    - DELA[org-uuid, aws, fallback=supersecretXYZ]
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		assert.NotContains(t, scrubbed, "supersecretXYZ")
+		assert.NotContains(t, scrubbed, "XYZ")
+	})
+
 	t.Run("URL-keyed map: ENC placeholders are preserved", func(t *testing.T) {
 		input := `additional_endpoints:
   "https://mydomain.datadoghq.com":
@@ -367,6 +392,52 @@ additional_endpoints:
 		assert.Contains(t, scrubbed, "10516")
 		assert.Contains(t, scrubbed, "/v1")
 	})
+
+	t.Run("list-of-endpoint-structs: DELA fallback is fully scrubbed", func(t *testing.T) {
+		input := `logs_config:
+  additional_endpoints:
+    - api_key: DELA[org-uuid, aws, fallback=supersecretXYZ]
+      host: agent-http-intake.logs.datadoghq.com
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		assert.NotContains(t, scrubbed, "supersecretXYZ")
+		assert.NotContains(t, scrubbed, "XYZ")
+	})
+}
+
+func TestPrivateActionRunnerCredentialValuesScrub(t *testing.T) {
+	// Case variants coexist to ensure every original key is updated. Non-string
+	// keys in the second section exercise map[interface{}]interface{} as well.
+	input := `private_action_runner:
+  enabled: true
+  credentials:
+    values:
+      production: {value: sensitive-value}
+      placeholder: {value: 'ENC[credential]'}
+      absent: {value: null}
+    Values: sensitive-value
+  Credentials:
+    VALUES: {Production: {Value: sensitive-value}}
+  CREDENTIALS: visible-value
+Private_Action_Runner:
+  1: visible-value
+  Credentials:
+    2: visible-value
+    Values:
+      3: sensitive-value
+      Production: {Value: sensitive-value}
+      entries: [sensitive-value, 'ENC[credential]', null]
+    VALUES: sensitive-value
+unrelated:
+  values:
+    production: visible-value
+`
+
+	scrubbed, err := ScrubYamlString(input)
+	require.NoError(t, err)
+	expected := strings.ReplaceAll(input, "sensitive-value", `"********"`)
+	assert.YAMLEq(t, expected, scrubbed)
 }
 
 func TestEmptyYaml(t *testing.T) {

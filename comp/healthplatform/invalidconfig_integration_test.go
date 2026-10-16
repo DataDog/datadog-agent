@@ -9,7 +9,6 @@ package healthplatform
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -23,10 +22,13 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
@@ -36,19 +38,6 @@ import (
 )
 
 // team: fleet-remediation
-
-// findInvalidConfigIssue returns the invalid-config issue among a health
-// report's issues, if any. The issue's map key is IssueID scoped with a
-// host+path suffix (invalidconfig.IssueID + ":" + digest), so lookups must
-// match by prefix rather than by the bare constant.
-func findInvalidConfigIssue(issues map[string]*healthplatformpayload.Issue) *healthplatformpayload.Issue {
-	for id, iss := range issues {
-		if strings.HasPrefix(id, invalidconfig.IssueID+":") {
-			return iss
-		}
-	}
-	return nil
-}
 
 // requireSchema skips the test when the compressed schema files haven't been
 // generated yet (run `dda inv schema.compress`). CI always has them; local
@@ -63,10 +52,11 @@ func requireSchema(t *testing.T) {
 // TestInvalidConfigExtraErrorsSurviveFullPipeline exercises the complete
 // pipeline: schema violation in config → startup check → runner.BuildIssue →
 // store → forwarder → fakeintake. Asserts that the legacy and structured
-// violations reach the intake without the resolved secret value.
+// violations from both config checks reach intake without configured values.
 func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	requireSchema(t)
 	const rawInvalidLogsEnabled = "RAW_LOGS_ENABLED_MUST_NOT_APPEAR_83d4d1"
+	const rawInvalidHealthPort = "RAW_HEALTH_PORT_MUST_NOT_APPEAR_42fa6e"
 
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
@@ -99,6 +89,12 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			return cfg
 		}),
 		telemetrymock.Module(),
+		fx.Provide(func(t testing.TB) sysprobeconfig.Component {
+			cfg := sysprobeconfigmock.NewMock(t)
+			cfg.Set("system_probe_config.health_port", rawInvalidHealthPort, model.SourceFile)
+			cfg.Set("system_probe_config.health_port", 0, model.SourceAgentRuntime)
+			return cfg
+		}),
 		hostnameinterface.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
@@ -108,83 +104,98 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		waitInterval = 50 * time.Millisecond
 	)
 
-	var receivedIssue *healthplatformpayload.Issue
+	received := map[string]*healthplatformpayload.Issue{}
 	require.Eventually(t, func() bool {
 		payloads, err := fiClient.GetAgentHealth()
-		if err != nil || len(payloads) == 0 {
+		if err != nil {
 			return false
 		}
-		for _, p := range payloads {
-			if iss := findInvalidConfigIssue(p.Issues); iss != nil {
-				receivedIssue = iss
-				return true
+		for _, payload := range payloads {
+			for id, issue := range payload.Issues {
+				if issue.IssueType == invalidconfig.IssueType || issue.IssueType == invalidsysprobeconfig.IssueType {
+					received[id] = issue
+				}
 			}
 		}
-		return false
-	}, waitTimeout, waitInterval, "invalid-config issue never reached fakeintake")
-	require.NotNil(t, receivedIssue)
+		return len(received) == 4
+	}, waitTimeout, waitInterval, "four separate configuration issues must reach fakeintake")
 
-	errorsStruct := receivedIssue.GetExtra().GetFields()["errors"].GetStructValue()
-	require.NotNil(t, errorsStruct, "extra.errors must reach fakeintake as a path-keyed struct")
-	portErrors := errorsStruct.GetFields()["/agent_ipc/port"]
-	require.NotNil(t, portErrors, "/agent_ipc/port must be present in extra.errors")
-	vals := portErrors.GetListValue().GetValues()
-	require.NotEmpty(t, vals)
-	assert.Contains(t, vals[0].GetStringValue(), "want integer")
-
-	fields := receivedIssue.GetExtra().GetFields()
-	assert.NotContains(t, fields, "violations_version")
-	violations := fields["violations"].GetListValue().GetValues()
-	byPath := make(map[string]map[string]any)
-	for _, value := range violations {
-		violation := value.GetStructValue()
-		byPath[violation.GetFields()["path"].GetStringValue()] = violation.AsMap()
+	byPath := map[string]*healthplatformpayload.Issue{}
+	for _, issue := range received {
+		fields := issue.GetExtra().GetFields()
+		assert.Equal(t, float64(1), fields["error_count"].GetNumberValue())
+		errors := fields["errors"].GetStructValue().GetFields()
+		require.Len(t, errors, 1)
+		violations := fields["violations"].GetListValue().GetValues()
+		require.Len(t, violations, 1)
+		path := violations[0].GetStructValue().GetFields()["path"].GetStringValue()
+		byPath[path] = issue
+		require.Contains(t, errors, path)
+		require.Len(t, issue.Remediation.Steps, 4)
+		assert.Equal(t, issue.Description+" "+issue.Remediation.Steps[1].Text,
+			errors[path].GetListValue().GetValues()[0].GetStringValue())
+		encoded, err := json.Marshal(issue)
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), rawInvalidLogsEnabled)
+		assert.NotContains(t, string(encoded), rawInvalidHealthPort)
+		assert.NotContains(t, string(encoded), "PRIVATE_UNRESOLVED_HANDLE")
 	}
 	for _, expected := range []struct {
 		path, actualType, expectedType string
 		defaultValue                   any
 	}{
+		{"/agent_ipc/port", "string", "integer", float64(0)},
 		{"/logs_enabled", "string", "boolean", false},
 		{"/forwarder_apikey_validation_interval", "array", "integer", float64(60)},
+		{"/system_probe_config/health_port", "string", "integer", float64(0)},
 	} {
 		require.Contains(t, byPath, expected.path)
-		violation := byPath[expected.path]
+		violation := byPath[expected.path].Extra.GetFields()["violations"].GetListValue().GetValues()[0].GetStructValue().AsMap()
 		assert.Equal(t, expected.actualType, violation["actual_type"])
 		assert.Equal(t, []any{expected.expectedType}, violation["expected_types"])
 		assert.Equal(t, "known", violation["default_status"])
 		assert.Equal(t, expected.defaultValue, violation["default_value"])
 	}
-	assert.Len(t, byPath, 3)
-	assert.NotContains(t, errorsStruct.GetFields(), "/dogstatsd_port")
 	assert.NotContains(t, byPath, "/dogstatsd_port")
 
-	receivedJSON, err := json.Marshal(receivedIssue)
-	require.NoError(t, err)
-	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
-	assert.NotContains(t, string(receivedJSON), "PRIVATE_UNRESOLVED_HANDLE")
-	const explanation = "`/logs_enabled` expects true or false, but received a string."
-	const correction = "Set `/logs_enabled` to true or false. The default value for this setting is `false`."
-	assert.Contains(t, receivedIssue.GetDescription(), explanation)
-	assert.NotContains(t, receivedIssue.GetDescription(), "/dogstatsd_port")
-	assert.Contains(t, receivedIssue.GetRemediation().GetSteps()[1].Text, correction)
-	for _, verbose := range []bool{false, true} {
-		found := false
-		for _, result := range Diagnose(store, diagnose.Config{Verbose: verbose}) {
-			if result.Category != receivedIssue.Id {
-				continue
+	for _, tc := range []struct {
+		issue                          *healthplatformpayload.Issue
+		value, explanation, correction string
+	}{
+		{byPath["/logs_enabled"], rawInvalidLogsEnabled,
+			"`/logs_enabled` expects true or false, but received a string.",
+			"Set `/logs_enabled` to true or false. The default value for this setting is `false`."},
+		{byPath["/system_probe_config/health_port"], rawInvalidHealthPort,
+			"`/system_probe_config/health_port` expects a whole number, but received a string.",
+			"Set `/system_probe_config/health_port` to a whole number. The default value for this setting is `0`."},
+	} {
+		receivedJSON, err := json.Marshal(tc.issue)
+		require.NoError(t, err)
+		assert.NotContains(t, string(receivedJSON), tc.value)
+		assert.NotContains(t, string(receivedJSON), "PRIVATE_UNRESOLVED_HANDLE")
+		assert.Contains(t, tc.issue.GetDescription(), tc.explanation)
+		assert.NotContains(t, tc.issue.GetDescription(), "/dogstatsd_port")
+		require.Len(t, tc.issue.GetRemediation().GetSteps(), 4)
+		assert.Contains(t, tc.issue.GetRemediation().GetSteps()[1].Text, tc.correction)
+		for _, verbose := range []bool{false, true} {
+			found := false
+			for _, result := range Diagnose(store, diagnose.Config{Verbose: verbose}) {
+				if result.Category != tc.issue.Id {
+					continue
+				}
+				found = true
+				assert.Contains(t, result.Diagnosis, tc.explanation)
+				assert.NotContains(t, result.Diagnosis+result.Remediation, tc.value)
+				assert.NotContains(t, result.Diagnosis+result.Remediation, "/dogstatsd_port")
+				assert.NotContains(t, result.Diagnosis+result.Remediation, "PRIVATE_UNRESOLVED_HANDLE")
+				if verbose {
+					assert.Contains(t, result.Remediation, tc.correction)
+				} else {
+					assert.Empty(t, result.Remediation)
+				}
 			}
-			found = true
-			assert.Contains(t, result.Diagnosis, explanation)
-			assert.NotContains(t, result.Diagnosis+result.Remediation, "/dogstatsd_port")
-			assert.NotContains(t, result.Diagnosis+result.Remediation, rawInvalidLogsEnabled)
-			assert.NotContains(t, result.Diagnosis+result.Remediation, "PRIVATE_UNRESOLVED_HANDLE")
-			if verbose {
-				assert.Contains(t, result.Remediation, correction)
-			} else {
-				assert.Empty(t, result.Remediation)
-			}
+			assert.True(t, found, "%s issue missing from diagnostics", tc.issue.IssueName)
 		}
-		assert.True(t, found, "invalid-config issue missing from diagnostics")
+		t.Logf("received configuration issue: %s", receivedJSON)
 	}
-	t.Logf("received invalid-config issue: %s", receivedJSON)
 }

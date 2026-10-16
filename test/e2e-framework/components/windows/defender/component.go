@@ -25,6 +25,19 @@ type Manager struct {
 	Resources []pulumi.Resource
 }
 
+// skipIfDefenderAbsent treats a missing WinDefend service as an already
+// satisfied Defender configuration. Some E2E AMIs remove the Windows Defender
+// feature while images from other providers still ship it, so every command in
+// this component must support both host states.
+func skipIfDefenderAbsent(command string) string {
+	return `
+if ($null -eq (Get-Service -Name "WinDefend" -ErrorAction SilentlyContinue)) {
+    Write-Host "Windows Defender is not installed; skipping Defender configuration"
+    exit 0
+}
+` + command
+}
+
 // NewDefender creates a new instance of the Windows NewDefender component
 func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Option) (*Manager, error) {
 	params, err := common.ApplyOption(&Configuration{}, options)
@@ -39,9 +52,9 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 	var deps []pulumi.ResourceOption
 	cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("get-defender-status"), &command.Args{
-		Create: pulumi.String(client.PsHost().
+		Create: pulumi.String(skipIfDefenderAbsent(client.PsHost().
 			WaitForServiceStatus("WinDefend", "Running").
-			Compile()),
+			Compile())),
 	}, deps...)
 	if err != nil {
 		return nil, err
@@ -51,9 +64,9 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 	// Wait for get-mppreference to succeed after WinDefend is running
 	cmd, err = host.OS.Runner().Command(manager.namer.ResourceName("wait-for-mppreference"), &command.Args{
-		Create: pulumi.String(client.PsHost().
+		Create: pulumi.String(skipIfDefenderAbsent(client.PsHost().
 			WaitForGetMpPreference().
-			Compile()),
+			Compile())),
 	}, deps...)
 	if err != nil {
 		return nil, err
@@ -63,9 +76,9 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 	if params.Disabled {
 		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("disable-defender"), &command.Args{
-			Create: pulumi.String(client.PsHost().
+			Create: pulumi.String(skipIfDefenderAbsent(client.PsHost().
 				DisableWindowsDefender().
-				Compile()),
+				Compile())),
 		}, deps...)
 		if err != nil {
 			return nil, err
@@ -76,9 +89,9 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 	if params.Uninstall {
 		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("uninstall-defender"), &command.Args{
-			Create: pulumi.String(client.PsHost().
+			Create: pulumi.String(skipIfDefenderAbsent(client.PsHost().
 				UninstallWindowsDefender().
-				Compile()),
+				Compile())),
 		}, deps...)
 		if err != nil {
 			return nil, err

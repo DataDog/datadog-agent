@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 
+package(default_package_metadata = ["//:package_metadata"])
+
 go_library(
     name = "secret-generic-connector_lib",
     srcs = ["main.go"],

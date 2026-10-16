@@ -344,8 +344,8 @@ func (s *packageApmInjectSuite) TestAgentDowngradeReinstallsAPMInject() {
 func (s *packageApmInjectSuite) TestSystemdServiceRebootBrokenInjector() {
 	s.requireSystemd()
 
-	s.host.InstallDocker()
-	// InstallDocker starts the daemon but some packages, notably SUSE's, do
+	s.host.PrepareDocker()
+	// PrepareDocker starts the daemon but some packages, notably SUSE's, do
 	// not enable it. Enable it explicitly so Docker and datadog-apm-inject are
 	// part of the same boot transaction and exercise the service ordering.
 	s.Env().RemoteHost.MustExecute("sudo systemctl enable docker.service")

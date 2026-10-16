@@ -9,7 +9,24 @@ package system
 
 // #cgo LDFLAGS: -ldl
 // #include <stdlib.h>
+// #include <string.h>
 // #include <dlfcn.h>
+//
+// static int check_library_exists(const char *name, char **error) {
+//     *error = NULL;
+//
+//     void *handle = dlopen(name, RTLD_LAZY);
+//     if (handle != NULL) {
+//         dlclose(handle);
+//         return 1;
+//     }
+//
+//     const char *dl_error = dlerror();
+//     if (dl_error != NULL) {
+//         *error = strdup(dl_error);
+//     }
+//     return 0;
+// }
 import "C"
 
 import (
@@ -26,18 +43,15 @@ func CheckLibraryExists(libname string) error {
 	cname := C.CString(libname)
 	defer C.free(unsafe.Pointer(cname))
 
-	// Lazy: resolve undefined symbols as they are needed, avoid loading everything at once
-	handle := C.dlopen(cname, C.RTLD_LAZY)
-	if handle == nil {
-		e := C.dlerror()
-		var errstr string
-		if e != nil {
-			errstr = C.GoString(e)
-		}
-
-		return fmt.Errorf("could not locate %s: %s", libname, errstr)
+	var errorMessage *C.char
+	if C.check_library_exists(cname, &errorMessage) != 0 {
+		return nil
 	}
+	defer C.free(unsafe.Pointer(errorMessage))
 
-	defer C.dlclose(handle)
-	return nil
+	var errstr string
+	if errorMessage != nil {
+		errstr = C.GoString(errorMessage)
+	}
+	return fmt.Errorf("could not locate %s: %s", libname, errstr)
 }

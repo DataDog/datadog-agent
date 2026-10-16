@@ -22,9 +22,12 @@ import (
 )
 
 const (
-	processProcmgrDefinitionFile = "datadog-agent-process.yaml"
-	parProcmgrDefinitionFile     = "datadog-agent-action.yaml"
-	ddotProcmgrDefinitionFile    = "datadog-agent-ddot.yaml"
+	processProcmgrDefinitionFile  = "datadog-agent-process.yaml"
+	sysprobeProcmgrDefinitionFile = "datadog-agent-sysprobe.yaml"
+	traceProcmgrDefinitionFile    = "datadog-agent-trace.yaml"
+	securityProcmgrDefinitionFile = "datadog-agent-security.yaml"
+	parProcmgrDefinitionFile      = "datadog-agent-action.yaml"
+	ddotProcmgrDefinitionFile     = "datadog-agent-ddot.yaml"
 )
 
 // Servicedef defines a service
@@ -44,10 +47,12 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 		{
 			name: "apm",
 			configKeys: map[string]model.Reader{
-				"apm_config.enabled": coreConf,
+				"apm_config.enabled":                           coreConf,
+				"apm_config.error_tracking_standalone.enabled": coreConf,
 			},
-			serviceName:    "datadog-trace-agent",
-			shouldShutdown: false,
+			procmgrDefinitionFile: traceProcmgrDefinitionFile,
+			serviceName:           "datadog-trace-agent",
+			shouldShutdown:        false,
 		},
 		{
 			name: "process",
@@ -73,7 +78,13 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"runtime_security_config.enabled": sysprobeConf,
 				"software_inventory.enabled":      coreConf,
 			},
-			serviceName:    "datadog-system-probe",
+			procmgrDefinitionFile: sysprobeProcmgrDefinitionFile,
+			serviceName:           "datadog-system-probe",
+			// Still false, but for a second reason now. The legacy service declares
+			// ServicesDependedOn: ["datadogagent"], so the SCM stops it for free on the
+			// fallback path. When it is suppressed, system-probe is a dd-procmgr child and
+			// the procmgr entry below is what stops it: shutdown stops dd-procmgr-service,
+			// which stops its children.
 			shouldShutdown: false,
 		},
 		{
@@ -81,8 +92,9 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			configKeys: map[string]model.Reader{
 				"runtime_security_config.enabled": sysprobeConf,
 			},
-			serviceName:    "datadog-security-agent",
-			shouldShutdown: false,
+			procmgrDefinitionFile: securityProcmgrDefinitionFile,
+			serviceName:           "datadog-security-agent",
+			shouldShutdown:        false,
 		},
 		{
 			name: "datadog-installer",
@@ -168,8 +180,9 @@ func (s *Servicedef) isEnabledByConfig() bool {
 
 // needsProcmgrStartupGate reports whether starting this service must wait for
 // dd-procmgr-service to reach a final startup outcome. Only procmgr-managed legacy
-// services need procmgrStarted for suppression decisions; apm, sysprobe, and other
-// dependents start independently of procmgr health.
+// services need procmgrStarted for suppression decisions. The wait is shared rather
+// than stacked, so apm and cws joining process, sysprobe, PAR and DDOT on it costs no
+// extra latency.
 //
 // It deliberately does not look at processes.d. An installer run can create or remove a
 // definition while the agent is starting, so reading it here and again when the decision

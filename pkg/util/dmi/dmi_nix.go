@@ -14,10 +14,12 @@ import (
 )
 
 var (
-	hypervisorUUIDPath   = "/sys/hypervisor/uuid"
-	dmiProductUUIDPath   = "/sys/devices/virtual/dmi/id/product_uuid"
-	dmiBoardAssetTagPath = "/sys/devices/virtual/dmi/id/board_asset_tag"
-	dmiBoardVendorPath   = "/sys/devices/virtual/dmi/id/board_vendor"
+	hypervisorUUIDPath     = "/sys/hypervisor/uuid"
+	dmiProductUUIDPath     = "/sys/devices/virtual/dmi/id/product_uuid"
+	dmiBoardAssetTagPath   = "/sys/devices/virtual/dmi/id/board_asset_tag"
+	dmiBoardVendorPath     = "/sys/devices/virtual/dmi/id/board_vendor"
+	dmiProductNamePath     = "/sys/devices/virtual/dmi/id/product_name"
+	dmiChassisAssetTagPath = "/sys/devices/virtual/dmi/id/chassis_asset_tag"
 )
 
 func readFile(path string) string {
@@ -46,4 +48,14 @@ func GetProductUUID() string {
 // GetHypervisorUUID returns the hypervisor UUID
 func GetHypervisorUUID() string {
 	return readFile(hypervisorUUIDPath)
+}
+
+// GetProductName returns the product name from DMI
+func GetProductName() string {
+	return readFile(dmiProductNamePath)
+}
+
+// GetChassisAssetTag returns the chassis asset tag from DMI
+func GetChassisAssetTag() string {
+	return readFile(dmiChassisAssetTagPath)
 }
