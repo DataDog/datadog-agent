@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.60.0 // indirect
-	github.com/twmb/murmur3 v1.2.0 // indirect
+	github.com/twmb/murmur3 v1.2.1 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
