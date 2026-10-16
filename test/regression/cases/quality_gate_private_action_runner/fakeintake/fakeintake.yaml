@@ -1,0 +1,2 @@
+# Keep this immutable tag aligned with test/fakeintake/version/VERSION.
+image: public.ecr.aws/datadog/fakeintake:v24

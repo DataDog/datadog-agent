@@ -1,6 +1,16 @@
 auth_token_file_path: /tmp/agent-auth-token
 
-dd_url: http://127.0.0.1:9091
+dd_url: http://127.0.0.1:80
+
+# SMP starts the case's fakeintake sidecar before the runner. Trust its
+# deterministic test-only signing key and poll it for AP_RUNNER_KEYS.
+remote_configuration:
+  enabled: true
+  rc_dd_url: http://127.0.0.1:80
+  no_tls: true
+  refresh_interval: 5s
+  config_root: '{"signatures":[{"keyid":"748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4","sig":"7d0add66dd09fd998bc94f623dccde85a837e1f74a3a88b896243188700ea06beea7d7a4d56feaec6f3ac86b806a6838410def8724f11fe5c708cee9ca253e00"}],"signed":{"_type":"root","consistent_snapshot":true,"expires":"2030-01-01T00:00:00Z","keys":{"748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4":{"keytype":"ed25519","keyval":{"public":"79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"},"scheme":"ed25519"}},"roles":{"root":{"keyids":["748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4"],"threshold":1},"snapshot":{"keyids":["748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4"],"threshold":1},"targets":{"keyids":["748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4"],"threshold":1},"timestamp":{"keyids":["748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4"],"threshold":1}},"spec_version":"1.0","version":1}}'
+  director_root: '{"signatures":[{"keyid":"748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4","sig":"7d0add66dd09fd998bc94f623dccde85a837e1f74a3a88b896243188700ea06beea7d7a4d56feaec6f3ac86b806a6838410def8724f11fe5c708cee9ca253e00"}],"signed":{"_type":"root","consistent_snapshot":true,"expires":"2030-01-01T00:00:00Z","keys":{"748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4":{"keytype":"ed25519","keyval":{"public":"79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"},"scheme":"ed25519"}},"roles":{"root":{"keyids":["748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4"],"threshold":1},"snapshot":{"keyids":["748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4"],"threshold":1},"targets":{"keyids":["748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4"],"threshold":1},"timestamp":{"keyids":["748a031656dcf38688f8cf7c6ff1fd44beb20ff14a4885cc904f25c1e08f56c4"],"threshold":1}},"spec_version":"1.0","version":1}}'
 
 # Disable cloud detection. This stops the Agent from poking around the
 # execution environment & network. This is particularly important if the target
