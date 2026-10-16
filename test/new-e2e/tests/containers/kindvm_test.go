@@ -6,7 +6,9 @@
 package containers
 
 import (
+	"context"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
@@ -15,6 +17,7 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 )
 
@@ -39,7 +42,11 @@ clusterAgent:
 				scenec2.WithInstanceType("t3.xlarge"),
 			),
 			scenkind.WithFakeintakeOptions(
-				fakeintake.WithMemory(2048),
+				// The task memory is shared with a datadog-agent sidecar. With 31m of retention, a smaller
+				// task gets OOM-killed and replaced by one with a new IP, failing all remaining queries.
+				// Fargate requires 1024 CPU units for more than 4096MiB.
+				fakeintake.WithCPU(1024),
+				fakeintake.WithMemory(6144),
 				fakeintake.WithRetentionPeriod("31m"),
 			),
 			scenkind.WithDeployDogstatsd(),
@@ -61,6 +68,94 @@ clusterAgent:
 func (suite *kindSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
+}
+
+func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
+	const (
+		deploymentLabel = "nvidia.com/dynamo-graph-deployment-name"
+		deploymentName  = "my-model"
+		componentLabel  = "nvidia.com/dynamo-component-type"
+		subTypeLabel    = "nvidia.com/dynamo-sub-component-type"
+		namespace       = "workload-cpustress"
+	)
+
+	ctx := suite.T().Context()
+	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
+	list, err := pods.List(ctx, metav1.ListOptions{})
+	suite.Require().NoError(err)
+
+	var podName string
+	for _, pod := range list.Items {
+		if strings.HasPrefix(pod.Name, "stress-ng-") {
+			podName = pod.Name
+			break
+		}
+	}
+	suite.Require().NotEmpty(podName, "no stress-ng pod found for Dynamo tag test")
+
+	// Restore all labels so a retry can use the same pod.
+	pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
+	suite.Require().NoError(err)
+	originalLabels := pod.Labels
+	setLabels := func(ctx context.Context, labels map[string]string) error {
+		pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		pod.Labels = labels
+		_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
+		return err
+	}
+	labels := make(map[string]string, len(originalLabels)+3)
+	for key, value := range originalLabels {
+		labels[key] = value
+	}
+	labels[deploymentLabel] = deploymentName
+	labels[componentLabel] = "worker"
+	labels[subTypeLabel] = "decode"
+	suite.Require().NoError(setLabels(ctx, labels))
+	defer func() {
+		suite.Require().NoError(setLabels(context.Background(), originalLabels), "restore stress-ng pod labels")
+	}()
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				`^kube_namespace:` + namespace + `$`,
+				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
+				`^dynamo_graph_deployment:` + deploymentName + `$`,
+				`^inference_workload:` + deploymentName + `$`,
+				`^inference_workload_component:decode$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^dynamo_graph_deployment:` + deploymentName + `$`,
+				`^inference_workload:` + deploymentName + `$`,
+				`^inference_workload_component:decode$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
+				`^image_id:.*/apps-stress-ng@sha256:`,
+				`^image_name:.*/apps-stress-ng$`,
+				`^image_tag:`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:` + namespace + `$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
+				`^pod_phase:running$`,
+				`^runtime:containerd$`,
+				`^short_image:apps-stress-ng$`,
+			},
+		},
+	})
 }
 
 func (suite *kindSuite) TestControlPlane() {

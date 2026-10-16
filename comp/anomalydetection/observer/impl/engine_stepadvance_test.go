@@ -48,11 +48,15 @@ func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64) observer.Detec
 }
 
 func makeTestAnomaly(name string, ts int64) observer.Anomaly {
+	ref := observer.SeriesRef(0)
+	if name == "metric_b" {
+		ref = 1
+	}
 	return observer.Anomaly{
 		Source:       observer.SeriesDescriptor{Namespace: "ns", Name: name, Aggregate: observer.AggregateAverage},
+		SourceRef:    &observer.QueryHandle{Ref: ref, Aggregate: observer.AggregateAverage},
 		DetectorName: "scanmw",
 		Timestamp:    ts,
-		Description:  name + " changed",
 	}
 }
 
@@ -270,11 +274,11 @@ func TestEngine_EvictsAtAdmissionAndSynchronizesDependentState(t *testing.T) {
 		capacityEvicted += count
 	}
 
-	e.IngestMetric("workload", &metricObs{name: "first", value: 1, timestamp: 1})
+	e.IngestMetric("workload", &metricObs{name: "first", value: 1, timestamp: 1, storageKey: storageKeyForCompositeIdentity("workload", "first", "", testCompositeTags(nil))})
 	firstMetas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, firstMetas, 1)
 	first := firstMetas[0].Ref
-	e.IngestMetric("workload", &metricObs{name: "second", value: 1, timestamp: 2})
+	e.IngestMetric("workload", &metricObs{name: "second", value: 1, timestamp: 2, storageKey: storageKeyForCompositeIdentity("workload", "second", "", testCompositeTags(nil))})
 	secondMetas := storage.ListSeries(observer.WorkloadSeriesFilter())
 	require.Len(t, secondMetas, 2)
 	var second observer.SeriesRef
@@ -285,7 +289,7 @@ func TestEngine_EvictsAtAdmissionAndSynchronizesDependentState(t *testing.T) {
 	}
 	require.NotEqual(t, first, second)
 
-	e.IngestMetric("workload", &metricObs{name: "third", value: 1, timestamp: 3})
+	e.IngestMetric("workload", &metricObs{name: "third", value: 1, timestamp: 3, storageKey: storageKeyForCompositeIdentity("workload", "third", "", testCompositeTags(nil))})
 
 	assert.Equal(t, 1, storage.TotalSeriesCount())
 	assert.ElementsMatch(t, []observer.SeriesRef{first, second}, detector.removed)

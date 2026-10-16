@@ -31,7 +31,7 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
-	recordernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
+	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
 	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
@@ -68,6 +68,7 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
+	dogstatsdclientdropdetectorfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/fx"
 	dogstatsdclienttelemetryfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -167,6 +168,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	processagentstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
+	procmgrFlareFx "github.com/DataDog/datadog-agent/comp/procmgr/flare/fx"
+	procmgrStatusFx "github.com/DataDog/datadog-agent/comp/procmgr/status/fx"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -473,6 +476,7 @@ func getSharedFxOption() fx.Option {
 		commonendpoints.Module(),
 		filterlist.Module(),
 		metriclookbackModule(),
+		dogstatsdclientdropdetectorfx.Module(),
 		dogstatsdclienttelemetryfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
@@ -486,6 +490,8 @@ func getSharedFxOption() fx.Option {
 		}),
 		otelcol.Bundle(),
 		hostProfilerFlareFx.Module(),
+		procmgrFlareFx.Module(),
+		procmgrStatusFx.Module(),
 		rctelemetryreporterfx.Module(),
 		rcprotocoltestfx.Module(),
 		rcservicefx.Module(),
@@ -495,6 +501,7 @@ func getSharedFxOption() fx.Option {
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		adfx.Module(),
+		fx.Supply(autodiscovery.Params{PreloadConfigsOnStart: true}),
 		networkpathrcproviderfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
@@ -504,26 +511,10 @@ func getSharedFxOption() fx.Option {
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
-		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
-		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
-		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
-		//
-		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
-		// in the function args to order the execution. This pattern might be worth revising because it is
-		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, ac autodiscovery.Component, _ secrets.Component, cfg config.Component) {
-			lc.Append(fx.Hook{
-				OnStart: func(_ context.Context) error {
-					//  setup the AutoConfig instance
-					common.LoadComponents(ac, cfg)
-					return nil
-				},
-			})
-		}),
 		logs.Bundle(),
 		observerfx.Module(),
 		logssourcefx.Module(),
-		recordernoopfx.Module(),
+		recorderfx.Module(),
 		reporterfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
@@ -565,20 +556,21 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
-					"log_level":                              commonsettings.NewLogLevelRuntimeSetting(),
-					"runtime_mutex_profile_fraction":         commonsettings.NewRuntimeMutexProfileFraction(),
-					"runtime_block_profile_rate":             commonsettings.NewRuntimeBlockProfileRate(),
-					"dogstatsd_stats":                        internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
-					"dogstatsd_capture_duration":             internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
-					"log_payloads":                           commonsettings.NewLogPayloadsRuntimeSetting(),
-					"internal_profiling_goroutines":          commonsettings.NewProfilingGoroutines(),
-					"internal_profiling_period":              commonsettings.NewProfilingPeriod(),
-					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
-					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
-					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
-					"multi_region_failover.metric_allowlist": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.metric_allowlist", "Allowlist of metrics to be redirected to failover region."),
-					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
-					"dogstatsd_stream_log_too_big":           commonsettings.NewDogstatsdStreamLogTooBigSetting(),
+					"log_level":                                    commonsettings.NewLogLevelRuntimeSetting(),
+					"runtime_mutex_profile_fraction":               commonsettings.NewRuntimeMutexProfileFraction(),
+					"runtime_block_profile_rate":                   commonsettings.NewRuntimeBlockProfileRate(),
+					"dogstatsd_stats":                              internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
+					"dogstatsd_capture_duration":                   internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
+					"log_payloads":                                 commonsettings.NewLogPayloadsRuntimeSetting(),
+					"internal_profiling_goroutines":                commonsettings.NewProfilingGoroutines(),
+					"internal_profiling_period":                    commonsettings.NewProfilingPeriod(),
+					"multi_region_failover.failover_metrics":       internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
+					"multi_region_failover.failover_logs":          internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
+					"multi_region_failover.failover_apm":           internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
+					"multi_region_failover.metric_allowlist":       internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.metric_allowlist", "Allowlist of metrics to be redirected to failover region."),
+					"multi_region_failover.logs_service_allowlist": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.logs_service_allowlist", "Allowlist of services whose logs are redirected to failover region."),
+					"internal_profiling":                           commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+					"dogstatsd_stream_log_too_big":                 commonsettings.NewDogstatsdStreamLogTooBigSetting(),
 				},
 				Config: config,
 			}
@@ -681,7 +673,7 @@ func startAgent(
 		ac.AddConfigProvider(actionsController, false, 0)
 
 		if configUtils.IsDataSecurityEnabled(cfg) {
-			dataSecurityController := datasecurity.NewController(ac, rcclient)
+			dataSecurityController := datasecurity.NewController(ac, rcclient, cfg.GetBool("data_security.enforce_ssl"))
 			ac.AddConfigProvider(dataSecurityController, false, 0)
 		}
 	}
@@ -725,8 +717,10 @@ func startAgent(
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	// load and run all configs in AD
-	ac.LoadAndRun(ctx)
+	// LoadAndRun joins preloading before snapshotting and starting the providers.
+	if err = ac.LoadAndRun(ctx); err != nil {
+		return err
+	}
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)
@@ -766,9 +760,9 @@ func startAgent(
 	})
 
 	// start dependent services
-	// must run in background go command because the agent might be in service start pending
+	// runs in the background because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
-	go startDependentServices(cfg, sysprobeConf)
+	startDependentServicesAsync(cfg, sysprobeConf)
 
 	return nil
 }

@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"bytes"
+	"errors"
 	"expvar"
 
 	"github.com/richardartoul/molecule"
@@ -66,7 +67,7 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 			bufferContext := marshaler.NewBufferContext()
 			pb = newPayloadsBuilder(bufferContext, config, strategy, logger, pipelineConfig, pipelineContext)
 		} else {
-			pbv3, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			pbv3, err := newSketchesPayloadBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
 			if err != nil {
 				return err
 			}
@@ -385,4 +386,16 @@ func (pb *payloadsBuilder) finishPayload() error {
 	pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointCount))
 
 	return nil
+}
+
+var errOtelUnsupported = errors.New("Sketches v1 serializer does not support OpenTelemetry histogram metrics")
+
+// WriteOtelExplicitHistogram is not supported and returns an error.
+func (pb *payloadsBuilder) WriteOtelExplicitHistogram(_ metrics.DistributionMetadata, _ int, _ metrics.OtelExplicitHistogramPoints) error {
+	return errOtelUnsupported
+}
+
+// WriteOtelExponentialHistogram is not supported and returns an error.
+func (pb *payloadsBuilder) WriteOtelExponentialHistogram(_ metrics.DistributionMetadata, _ int, _ metrics.OtelExponentialHistogramPoints) error {
+	return errOtelUnsupported
 }

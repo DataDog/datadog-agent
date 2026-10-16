@@ -31,6 +31,7 @@ func TestCollect(t *testing.T) {
 	t.Logf("  ModelName: %s", info.ModelName)
 	t.Logf("  ChassisType: %s", info.ChassisType)
 	t.Logf("  Identifier: %s", info.Identifier)
+	t.Logf("  ComputerName: %s", info.ComputerName)
 
 	// Chassis type should be one of the expected values
 	validChassisTypes := []string{"Laptop", "Desktop", "Virtual Machine", "Other"}

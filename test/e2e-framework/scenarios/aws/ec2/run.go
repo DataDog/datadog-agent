@@ -42,10 +42,7 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 			return err
 		}
 		if params.agentOptions != nil {
-			// Agent install needs to be serial with the docker
-			// install because they both use the apt lock, and
-			// can cause each others' installs to fail if run
-			// at the same time.
+			// Prepare the pre-baked Docker runtime before installing the Agent.
 			params.agentOptions = append(params.agentOptions,
 				agentparams.WithPulumiResourceOptions(
 					utils.PulumiDependsOn(dockerManager)))
@@ -88,6 +85,17 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 	if params.agentOptions != nil {
 		if tags := ddagentEnv.Tags(); len(tags) > 0 {
 			params.agentOptions = append(params.agentOptions, agentparams.WithTags(tags))
+		}
+	}
+
+	for _, hook := range params.preAgentInstallHooks {
+		res, err := hook(&awsEnv, host)
+		if err != nil {
+			return err
+		}
+		if res != nil && params.agentOptions != nil {
+			params.agentOptions = append(params.agentOptions,
+				agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(res)))
 		}
 	}
 	if !params.installUpdater {
@@ -161,9 +169,10 @@ func VMRunWithParams(ctx *pulumi.Context, override *Params) error {
 // default.
 func mergeParams(base, override *Params) *Params {
 	merged := &Params{
-		Name:           base.Name,
-		installDocker:  base.installDocker || override.installDocker,
-		installUpdater: base.installUpdater || override.installUpdater,
+		Name:                 base.Name,
+		preAgentInstallHooks: append(base.preAgentInstallHooks, override.preAgentInstallHooks...),
+		installDocker:        base.installDocker || override.installDocker,
+		installUpdater:       base.installUpdater || override.installUpdater,
 	}
 
 	if override.Name != "" && override.Name != defaultVMName {

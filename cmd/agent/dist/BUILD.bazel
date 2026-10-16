@@ -24,7 +24,10 @@ pkg_filegroup(
         "@platforms//os:windows": ["//cmd/agent/dist/protected:all_files"],
         "//conditions:default": [],
     }),
-    visibility = ["//packages/agent:__subpackages__"],
+    visibility = [
+        "//packages/agent:__subpackages__",
+        "//packages/heroku:__subpackages__",
+    ],
 )
 
 pkg_files(
@@ -46,6 +49,7 @@ pkg_filegroup(
     visibility = [
         "//cmd/agent:__subpackages__",
         "//packages/agent:__subpackages__",
+        "//packages/heroku:__subpackages__",
     ],
 )
 

@@ -143,3 +143,33 @@ func TestDirectory(t *testing.T) {
 		}
 	})
 }
+
+func TestClearLocalProfilesOnStart(t *testing.T) {
+	write := func(t *testing.T, dir, name, contents string) string {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0600))
+		return path
+	}
+
+	t.Run("deletes stored profiles but keeps unrelated files", func(t *testing.T) {
+		dir := t.TempDir()
+		profilePath := write(t, dir, "old.profile", "profile")
+		gzPath := write(t, dir, "old.profile.gz", "gz")
+		jsonPath := write(t, dir, "old.json", "json")
+		notesPath := write(t, dir, "notes.txt", "keep me")
+
+		require.NoError(t, ClearLocalProfilesOnStart(dir))
+
+		for _, p := range []string{profilePath, gzPath, jsonPath} {
+			_, err := os.Stat(p)
+			assert.ErrorIs(t, err, os.ErrNotExist)
+		}
+		_, err := os.Stat(notesPath)
+		require.NoError(t, err, "unrelated files must not be deleted")
+	})
+
+	t.Run("missing directory is a no-op", func(t *testing.T) {
+		require.NoError(t, ClearLocalProfilesOnStart(filepath.Join(t.TempDir(), "profiles")))
+	})
+}

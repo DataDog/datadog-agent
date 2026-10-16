@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	autoscaling "k8s.io/api/autoscaling/v2beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -96,6 +97,28 @@ func (f *hpav2Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 						{
 							LabelKeys:   labelKeys,
 							LabelValues: labelValues,
+							Value:       1,
+						},
+					},
+				}
+			}),
+		),
+		*generator.NewFamilyGeneratorWithStability(
+			"kube_horizontalpodautoscaler_ownerref",
+			"Owner reference information about this autoscaler.",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
+				ownerKind, ownerName, ok := objectOwnerRef(a)
+				if !ok {
+					return &metric.Family{}
+				}
+				return &metric.Family{
+					Metrics: []*metric.Metric{
+						{
+							LabelKeys:   []string{"ownerref_kind", "ownerref_name"},
+							LabelValues: []string{ownerKind, ownerName},
 							Value:       1,
 						},
 					},
@@ -401,5 +424,84 @@ func wrapHPAFunc(f func(*autoscaling.HorizontalPodAutoscaler) *metric.Family) fu
 		}
 
 		return metricFamily
+	}
+}
+
+// NewExtendedHorizontalPodAutoscalerFactory returns a factory that emits
+// ownerReference-derived labels for HorizontalPodAutoscalers collected
+// through the default autoscaling/v2 KSM generator. hpav2Factory above only
+// runs as a backwards-compat replacement on clusters that don't serve
+// autoscaling/v2 (see manageResourcesReplacement); this factory covers the
+// complementary, and far more common, case where the upstream KSM generator
+// handles autoscaling/v2 directly and therefore never sees this
+// enrichment.
+func NewExtendedHorizontalPodAutoscalerFactory(client *apiserver.APIClient) customresource.RegistryFactory {
+	return &extendedHPAFactory{
+		client: client.Cl,
+	}
+}
+
+type extendedHPAFactory struct {
+	client kubernetes.Interface
+}
+
+func (f *extendedHPAFactory) Name() string {
+	return "horizontalpodautoscalers_extended"
+}
+
+func (f *extendedHPAFactory) CreateClient(_ *rest.Config) (interface{}, error) {
+	return f.client, nil
+}
+
+func (f *extendedHPAFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
+	return []generator.FamilyGenerator{
+		*generator.NewFamilyGeneratorWithStability(
+			"kube_horizontalpodautoscaler_ownerref",
+			"Owner reference information about this autoscaler.",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			func(obj interface{}) *metric.Family {
+				hpa := obj.(*autoscalingv2.HorizontalPodAutoscaler)
+
+				ownerKind, ownerName, ok := objectOwnerRef(hpa)
+				if !ok {
+					return &metric.Family{}
+				}
+
+				return &metric.Family{
+					Metrics: []*metric.Metric{
+						{
+							LabelKeys:   []string{"namespace", "horizontalpodautoscaler", "ownerref_kind", "ownerref_name"},
+							LabelValues: []string{hpa.Namespace, hpa.Name, ownerKind, ownerName},
+							Value:       1,
+						},
+					},
+				}
+			},
+		),
+	}
+}
+
+func (f *extendedHPAFactory) ExpectedType() interface{} {
+	return &autoscalingv2.HorizontalPodAutoscaler{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "HorizontalPodAutoscaler",
+			APIVersion: autoscalingv2.SchemeGroupVersion.String(),
+		},
+	}
+}
+
+func (f *extendedHPAFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+	client := customResourceClient.(kubernetes.Interface)
+	return &cache.ListWatch{
+		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
+			opts.FieldSelector = fieldSelector
+			return client.AutoscalingV2().HorizontalPodAutoscalers(ns).List(ctx, opts)
+		},
+		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+			opts.FieldSelector = fieldSelector
+			return client.AutoscalingV2().HorizontalPodAutoscalers(ns).Watch(ctx, opts)
+		},
 	}
 }

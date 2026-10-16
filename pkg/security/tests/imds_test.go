@@ -74,7 +74,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("aws_imds_v1_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -151,7 +151,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("aws_imds_v1_response", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -231,7 +231,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("aws_imds_v2_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -308,7 +308,7 @@ func TestAWSIMDSv2Response(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("aws_imds_v2_response", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -387,7 +387,7 @@ func TestGCPIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("gcp_imds_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -464,7 +464,7 @@ func TestAzureIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("azure_imds_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -541,7 +541,7 @@ func TestIBMIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("ibm_imds_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -618,7 +618,7 @@ func TestOracleIMDS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("oracle_imds_request", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -700,7 +700,7 @@ func TestIMDSProcessContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, testFilePtr, err := test.Path("test-open")
 	if err != nil {
@@ -795,7 +795,7 @@ func TestEKSPodIdentityResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	queryPodIdentity := func() error {
 		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", podIdentityAddr, testutils.EKSPodIdentityCredentialsURL), nil)

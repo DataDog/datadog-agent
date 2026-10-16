@@ -69,6 +69,7 @@ go_library(
 operators(
     name = "eval_operators",
     output = "eval_operators.go",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 dd_agent_go_test(

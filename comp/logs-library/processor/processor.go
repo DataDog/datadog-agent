@@ -6,9 +6,7 @@
 package processor
 
 import (
-	"bytes"
 	"context"
-	"regexp"
 	"slices"
 	"sync"
 
@@ -49,6 +47,7 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
+	configChanMu              sync.Mutex // serializes the failover config updates sent on configChan
 	failoverConfig            failoverConfig
 
 	// Telemetry
@@ -97,11 +96,19 @@ func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmode
 	}
 }
 
-// updateFailoverConfig sends the updated config to the processor to update
+// updateFailoverConfig sends the updated config to the processor to update.
+//
+// Config notifications run synchronously in the goroutine that changed the setting (such as the
+// remote config client), and keep reaching processors stopped by a pipeline restart, so this must
+// never block: an update the run loop has not consumed yet is replaced by the latest one.
 func (p *Processor) updateFailoverConfig() {
 	if p.config == nil {
 		return
 	}
+
+	// Read the config under the lock so that the last update sent is built from the latest config.
+	p.configChanMu.Lock()
+	defer p.configChanMu.Unlock()
 
 	conf := failoverConfig{
 		isFailoverActive: p.config.GetBool(configMRFFailoverLogs),
@@ -118,6 +125,12 @@ func (p *Processor) updateFailoverConfig() {
 		conf.failoverServiceAllowlist = serviceAllowlist
 	}
 
+	// Only this function sends on configChan, under the lock: once a pending update is dropped,
+	// the send cannot block.
+	select {
+	case <-p.configChan:
+	default:
+	}
 	p.configChan <- conf
 }
 
@@ -268,12 +281,10 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
+			var matched bool
+			content, matched = config.ApplyMaskSequence(content, rule)
+			if matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
 			}
 		case config.ExcludeTruncated:
 			if msg.IsTruncated {
@@ -295,17 +306,6 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	msg.SetContent(content)
 	return true // we want to send this message
-}
-
-// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
-// to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
-	prefix, _ := r.LiteralPrefix()
-	if prefix == "" {
-		return true
-	}
-
-	return bytes.Contains(content, []byte(prefix))
 }
 
 // GetHostname returns the hostname to applied the given log message

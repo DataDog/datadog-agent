@@ -14,7 +14,6 @@ go_library(
     deps = [
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl",
-        "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/logs-library/client",
         "//comp/logs-library/metrics",
@@ -45,6 +44,7 @@ dd_agent_go_test(
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/logs/message",
         "//pkg/util/fxutil",
         "//pkg/util/log",

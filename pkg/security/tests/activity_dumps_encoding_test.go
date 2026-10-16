@@ -16,28 +16,28 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 //go:embed testdata/adv1.protobuf
 var v1testdata []byte
 
-func getTestDataActivityDump(tb testing.TB) *dump.ActivityDump {
-	ad := dump.NewEmptyActivityDump(nil, false, 0, nil, nil)
-	if err := ad.Profile.DecodeFromReader(bytes.NewReader(v1testdata), config.Protobuf); err != nil {
+func getTestDataProfile(tb testing.TB) *profile.Profile {
+	p := profile.New()
+	if err := p.DecodeFromReader(bytes.NewReader(v1testdata), config.Protobuf); err != nil {
 		tb.Fatal(err)
 	}
-	return ad
+	return p
 }
 
-func runEncoding(b *testing.B, encode func(ad *dump.ActivityDump) (*bytes.Buffer, error)) {
+func runEncoding(b *testing.B, encode func(p *profile.Profile) (*bytes.Buffer, error)) {
 	b.Helper()
-	ad := getTestDataActivityDump(b)
+	p := getTestDataProfile(b)
 
 	size := 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		raw, err := encode(ad)
+		raw, err := encode(p)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -47,60 +47,60 @@ func runEncoding(b *testing.B, encode func(ad *dump.ActivityDump) (*bytes.Buffer
 }
 
 func BenchmarkProtobufEncoding(b *testing.B) {
-	runEncoding(b, func(ad *dump.ActivityDump) (*bytes.Buffer, error) {
-		return ad.Profile.EncodeSecDumpProtobuf()
+	runEncoding(b, func(p *profile.Profile) (*bytes.Buffer, error) {
+		return p.EncodeSecDumpProtobuf()
 	})
 }
 
 func BenchmarkProtoJSONEncoding(b *testing.B) {
-	runEncoding(b, func(ad *dump.ActivityDump) (*bytes.Buffer, error) {
-		return ad.Profile.EncodeJSON("")
+	runEncoding(b, func(p *profile.Profile) (*bytes.Buffer, error) {
+		return p.EncodeJSON("")
 	})
 }
 
 func TestProtobufDecoding(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	ad := getTestDataActivityDump(t)
+	p := getTestDataProfile(t)
 
-	out, err := ad.Profile.EncodeSecDumpProtobuf()
+	out, err := p.EncodeSecDumpProtobuf()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	decoded, err := decodeAD(out)
+	decoded, err := decodeProfile(out)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	newOut, err := decoded.Profile.EncodeSecDumpProtobuf()
+	newOut, err := decoded.EncodeSecDumpProtobuf()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !assert.Equal(t, out.Len(), newOut.Len()) {
-		diffActivityDumps(t, out, newOut)
+		diffProfiles(t, out, newOut)
 	}
 }
 
-func decodeAD(buffer *bytes.Buffer) (*dump.ActivityDump, error) {
-	decoded := dump.NewEmptyActivityDump(nil, false, 0, nil, nil)
-	if err := decoded.Profile.DecodeSecDumpProtobuf(bytes.NewReader(buffer.Bytes())); err != nil {
+func decodeProfile(buffer *bytes.Buffer) (*profile.Profile, error) {
+	decoded := profile.New()
+	if err := decoded.DecodeSecDumpProtobuf(bytes.NewReader(buffer.Bytes())); err != nil {
 		return nil, err
 	}
 	return decoded, nil
 }
 
-func diffActivityDumps(tb testing.TB, a, b *bytes.Buffer) {
-	ad, err := decodeAD(a)
+func diffProfiles(tb testing.TB, a, b *bytes.Buffer) {
+	pa, err := decodeProfile(a)
 	if err != nil {
 		tb.Fatal(err)
 	}
 
-	bd, err := decodeAD(b)
+	pb, err := decodeProfile(b)
 	if err != nil {
 		tb.Fatal(err)
 	}
 
-	assert.Equal(tb, ad, bd)
+	assert.Equal(tb, pa, pb)
 }

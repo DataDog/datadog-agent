@@ -34,7 +34,6 @@ dd_agent_go_test(
     name = "apiimpl_test",
     srcs = [
         "api_test.go",
-        "server_test.go",
     ],
     embed = [":apiimpl"],
     deps = [

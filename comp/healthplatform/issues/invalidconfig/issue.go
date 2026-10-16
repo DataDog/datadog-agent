@@ -6,99 +6,163 @@
 package invalidconfig
 
 import (
+	"encoding/json"
 	"fmt"
-	"path/filepath"
-	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/dustin/go-humanize/english"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
-	contextKeyConfigPath = "config_path"
-	contextKeyErrors     = "errors"
-	contextKeyErrorCount = "error_count"
-	contextKeyImpact     = "impact"
+	contextKeyConfigPath  = "config_path"
+	contextKeyErrors      = "errors"
+	contextKeyErrorCount  = "error_count"
+	contextKeyImpact      = "impact"
+	contextKeyViolations  = "violations"
+	contextKeyViolation   = "violation"
+	contextKeySettingPath = "setting_path"
 )
-
-// contextErrorKey returns the Context key for the i-th error line.
-func contextErrorKey(i int) string {
-	return "error." + strconv.Itoa(i)
-}
 
 // InvalidConfigIssue is the template for "invalid-config" issues.
 type InvalidConfigIssue struct{}
 
 // BuildIssue decodes the IssueReport.Context and builds the proto Issue.
 func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) {
-	path := ctx[contextKeyConfigPath]
+	issue := BuildIssue(ctx, "Agent")
+	issue.IssueName = IssueName
+	issue.IssueType = IssueType
+	return issue, nil
+}
+
+// BuildIssue builds one configuration issue, shared by the Agent and system-probe checks.
+func BuildIssue(ctx map[string]string, component string) *healthplatform.Issue {
+	path := ctx[contextKeySettingPath]
+	setting := inlineCode(path)
 	if path == "" {
-		path = "(unknown path)"
+		setting = "the configuration"
 	}
-	count, _ := strconv.Atoi(ctx[contextKeyErrorCount])
-
-	errLines := make([]string, 0, count)
-	for i := 0; i < count; i++ {
-		if v := ctx[contextErrorKey(i)]; v != "" {
-			errLines = append(errLines, v)
+	description := "The value at " + setting + " does not match the configuration schema."
+	correction := "Check the value and format of " + setting + "."
+	title := "Invalid configuration: " + setting
+	if path == "" {
+		title = "Invalid " + component + " configuration"
+		description = "The " + component + " configuration does not match the configuration schema."
+	}
+	fields := map[string]any{}
+	var violation violationPayload
+	if err := json.Unmarshal([]byte(ctx[contextKeyViolation]), &violation); err == nil {
+		if details, fix := formatViolation(violation); details != "" {
+			description, correction = details, fix
+			title = "Incorrect type for " + setting
+			var metadata any
+			_ = json.Unmarshal([]byte(ctx[contextKeyViolation]), &metadata)
+			fields[contextKeyViolations] = []any{metadata}
 		}
 	}
-
-	suffix := ""
-	if count != 1 {
-		suffix = "s"
-	}
-	desc := fmt.Sprintf("Found %d schema violation%s in %s", count, suffix, path)
-	if len(errLines) > 0 {
-		desc += ": " + strings.Join(errLines, "; ")
+	configPath := ctx[contextKeyConfigPath]
+	where := "your " + component + " configuration file"
+	if configPath != "" {
+		where = inlineCode(configPath)
 	} else {
-		desc += "."
+		configPath = "(unknown path)"
 	}
-
-	errGroups := make(map[string][]string, len(errLines))
-	for _, line := range errLines {
-		// Schema errors have the form: at '<path>': <message>
-		// Strip the "at '" prefix and trailing "'" to get a bare JSON path.
-		before, msg, _ := strings.Cut(line, ": ")
-		path := strings.TrimSuffix(strings.TrimPrefix(before, "at '"), "'")
-		errGroups[path] = append(errGroups[path], msg)
-	}
-	errMap := make(map[string]any, len(errGroups))
-	for path, msgs := range errGroups {
-		slice := make([]any, len(msgs))
-		for i, m := range msgs {
-			slice[i] = m
-		}
-		errMap[path] = slice
-	}
-
-	extra, _ := structpb.NewStruct(map[string]any{
-		contextKeyConfigPath: path,
-		contextKeyErrorCount: count,
-		contextKeyErrors:     errMap,
-		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
-	})
-
+	fields[contextKeyConfigPath] = configPath
+	fields[contextKeyErrorCount] = 1
+	// Fleet can show only the inline warning, so include the fix there too.
+	fields[contextKeyErrors] = map[string]any{path: []any{description + " " + correction}}
+	fields[contextKeyImpact] = "The Datadog " + component + " may apply defaults for incorrectly-typed fields and may not behave as configured."
+	extra, _ := structpb.NewStruct(fields)
 	return &healthplatform.Issue{
-		IssueName:   IssueName,
-		IssueType:   IssueType,
-		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d Schema Violation%s in %s", count, suffix, filepath.Base(path)),
-		Description: desc,
+		Title:       title,
+		Description: description,
 		Category:    "configuration",
-		Location:    "agent",
+		Location:    strings.ToLower(component),
 		Severity:    healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM,
 		Source:      "config",
 		Extra:       extra,
 		Tags:        []string{"config", "schema"},
 		Remediation: &healthplatform.Remediation{
-			Summary: "Fix each schema violation in the configuration file, then restart the Datadog Agent.",
+			Summary: "Correct this setting, then restart the Datadog Agent.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
-				{Order: 2, Text: "Fix each violation listed in the description."},
+				{Order: 1, Text: "Check this setting in " + where + " or environment variables."},
+				{Order: 2, Text: correction},
 				{Order: 3, Text: "Restart the Datadog Agent."},
 				{Order: 4, Text: "Run `datadog-agent diagnose` to confirm the configuration is now valid."},
 			},
 		},
-	}, nil
+	}
+}
+
+var typeLabels = map[string]string{
+	"boolean": "true or false",
+	"integer": "a whole number",
+	"number":  "a number",
+	"string":  "a string",
+	"array":   "a YAML list",
+	"object":  "a YAML mapping",
+	"null":    "null",
+}
+
+// formatViolation separates what is wrong from how to fix it.
+// Empty results tell the caller to keep the existing safe messages.
+func formatViolation(violation violationPayload) (string, string) {
+	actual := typeLabels[violation.ActualType]
+	if actual == "" || len(violation.ExpectedTypes) == 0 {
+		return "", ""
+	}
+	expected := make([]string, len(violation.ExpectedTypes))
+	for i, kind := range violation.ExpectedTypes {
+		expected[i] = typeLabels[kind]
+		if expected[i] == "" {
+			return "", ""
+		}
+	}
+	want := english.OxfordWordSeries(expected, "or")
+	if violation.Path == "" {
+		violation.Path = "/"
+	}
+	path := inlineCode(violation.Path)
+	description := fmt.Sprintf("%s expects %s, but received %s.", path, want, actual)
+	correction := fmt.Sprintf("Set %s to %s.", path, want)
+	switch violation.DefaultStatus {
+	case "known":
+		value, err := json.Marshal(violation.DefaultValue)
+		if err != nil || violation.DefaultValue == nil {
+			return "", ""
+		}
+		correction += " The default value for this setting is " + inlineCode(string(value))
+		if violation.DefaultValue == "" {
+			correction += " (an empty string)"
+		}
+		return description, correction + "."
+	case "none":
+		return description, correction + " This setting has no default."
+	case "unknown":
+		return description, correction
+	default:
+		return "", ""
+	}
+}
+
+// inlineCode replaces control characters with spaces and wraps text as Markdown code.
+// Its fence is longer than any backtick run so the text cannot close it.
+func inlineCode(text string) string {
+	text = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, text)
+	fenceLength := 1
+	for _, ticks := range strings.FieldsFunc(text, func(r rune) bool { return r != '`' }) {
+		fenceLength = max(fenceLength, len(ticks)+1)
+	}
+	fence := strings.Repeat("`", fenceLength)
+	if strings.HasPrefix(text, "`") || strings.HasSuffix(text, "`") {
+		text = " " + text + " "
+	}
+	return fence + text + fence
 }

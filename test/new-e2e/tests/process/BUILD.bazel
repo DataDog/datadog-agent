@@ -48,13 +48,21 @@ dd_agent_go_test(
         "docker_test.go",
         "ecs_test.go",
         "fargate_test.go",
+        "infra_mode_test.go",
         "k8s_test.go",
         "linux_test.go",
+        "testing_test.go",
         "windows_test.go",
     ],
-    data = ["config/helm-template.tmpl"],
+    data = [
+        "config/helm-template.tmpl",
+        "fixtures/zombie_parent.py",
+    ],
     embed = [":process"],
-    embedsrcs = ["config/helm-template.tmpl"],
+    embedsrcs = [
+        "config/helm-template.tmpl",
+        "fixtures/zombie_parent.py",
+    ],
     tags = ["manual"],
     deps = [
         "//pkg/util/testutil/flake",

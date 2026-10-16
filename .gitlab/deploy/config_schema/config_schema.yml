@@ -9,7 +9,7 @@
   stage: deploy_packages
   rules: !reference [.on_deploy]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   # The schema tasks only read the YAML schema from the repository: no artifact
   # from any other job is needed.
   needs: []
@@ -22,6 +22,9 @@ generate_config_templates:
     expire_in: 3 months
     paths:
       - pkg/config/example/
+    exclude:
+      - pkg/config/example/security-agent.yaml.example
+      - pkg/config/example/application_monitoring.yaml.example
 
 generate_config_json_schema:
   extends: .config_schema_artifacts
