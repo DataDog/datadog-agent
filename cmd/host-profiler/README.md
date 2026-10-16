@@ -2,7 +2,7 @@
 
 The `host-profiler` command is the entry point for the standalone Datadog Host Profiler binary, which collects system-wide, low-overhead profiling data from Linux hosts using eBPF technology.
 
-> **⚠️ Linux Only**: This binary is **only supported on Linux** systems with eBPF capabilities (kernel 5.10+). It will not compile or run on macOS, Windows, or other operating systems.
+> **⚠️ Linux Only**: This binary is **only supported on Linux** systems with eBPF capabilities (see the [supported Linux kernel versions](https://github.com/open-telemetry/opentelemetry-ebpf-profiler#supported-linux-kernel-version)). It will not compile or run on macOS, Windows, or other operating systems.
 
 ## High-Level Architecture
 
