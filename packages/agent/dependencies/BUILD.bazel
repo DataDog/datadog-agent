@@ -5,7 +5,9 @@ This replaces datadog-agent-dependencies.rb.
 """
 
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//compliance:package_licenses.bzl", "package_licenses")
 
@@ -65,6 +67,46 @@ pkg_filegroup(
     }),
 )
 
+# Windows loads both native DLLs through the normal executable-directory search
+# when the Agent starts. Keep this reusable package input separate from
+# :all_files until the optimized NASM-backed FIPS build replaces the temporary
+# debug/no-assembly diagnostic configuration.
+pkg_files(
+    name = "rc_x509_windows_runtime_files",
+    srcs = [
+        "//deps/libdd_rc:aws_lc_fips_crypto_windows_dll",
+        "//deps/libdd_rc:rc_x509_ffi_windows_dll",
+    ],
+    prefix = "bin/agent",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+pkg_files(
+    name = "rc_x509_windows_lifecycle_probe_file",
+    testonly = True,
+    srcs = ["//deps/libdd_rc/smoke:windows_msvc_lifecycle"],
+    prefix = "bin/agent",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+pkg_filegroup(
+    name = "rc_x509_packaged_agent_windows_files",
+    testonly = True,
+    srcs = [
+        ":rc_x509_windows_lifecycle_probe_file",
+        ":rc_x509_windows_runtime_files",
+        "//packages/agent/product:agent_binary",
+    ],
+)
+
+pkg_tar(
+    name = "rc_x509_packaged_agent_windows_archive",
+    testonly = True,
+    srcs = [":rc_x509_packaged_agent_windows_files"],
+    extension = "tar",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
 # _collected_libs serves as the main entry point for automatic collection of dependencies
 # When a leaf depencency needs to be added to the agent package, adding it here
 # will cause dd_collect_dependencies to also package all of its dependencies, and the
@@ -111,6 +153,48 @@ dd_collect_dependencies(
 pkg_filegroup(
     name = "collected_libs",
     srcs = [":_collected_libs"],
+)
+
+# Validate the actual Agent package inputs, rather than only the focused
+# libdd-rc smoke package. The platform-specific tests below assert Linux's
+# static linkage and macOS's packaged AWS-LC FIPS dylib respectively.
+pkg_filegroup(
+    name = "rc_x509_packaged_agent_files",
+    testonly = True,
+    srcs = [
+        ":collected_libs",
+        "//packages/agent/product:agent_binary",
+    ],
+)
+
+pkg_tar(
+    name = "rc_x509_packaged_agent_archive",
+    testonly = True,
+    srcs = [":rc_x509_packaged_agent_files"],
+    extension = "tar",
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+sh_test(
+    name = "rc_x509_packaged_agent_linux_test",
+    srcs = ["rc_x509_packaged_agent_linux_test.sh"],
+    args = ["$(location :rc_x509_packaged_agent_archive)"],
+    data = [":rc_x509_packaged_agent_archive"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+sh_test(
+    name = "rc_x509_packaged_agent_macos_test",
+    srcs = ["rc_x509_packaged_agent_test.sh"],
+    args = ["$(location :rc_x509_packaged_agent_archive)"],
+    data = [":rc_x509_packaged_agent_archive"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:macos"],
 )
 
 package_licenses(

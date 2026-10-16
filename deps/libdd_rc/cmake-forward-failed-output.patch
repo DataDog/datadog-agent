@@ -1,0 +1,25 @@
+diff --git a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1090,7 +1090,20 @@ impl Default for Version {
+ 
+ fn run(cmd: &mut Command, program: &str) {
+     eprintln!("running: {:?}", cmd);
+-    let status = match cmd.status() {
++    let status_result = if env::var_os("CMAKE_RS_FORWARD_FAILED_OUTPUT").is_some() {
++        cmd.output().map(|output| {
++            if !output.status.success() {
++                eprintln!("{} stdout:", program);
++                eprint!("{}", String::from_utf8_lossy(&output.stdout));
++                eprintln!("{} stderr:", program);
++                eprint!("{}", String::from_utf8_lossy(&output.stderr));
++            }
++            output.status
++        })
++    } else {
++        cmd.status()
++    };
++    let status = match status_result {
+         Ok(status) => status,
+         Err(ref e) if e.kind() == ErrorKind::NotFound => {
+             fail(&format!(
