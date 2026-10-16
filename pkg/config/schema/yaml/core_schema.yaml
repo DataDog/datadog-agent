@@ -586,9 +586,12 @@ properties:
       requests in flight.
 
       With "dynamic", all workers of a domain share one limit that is scaled at
-      runtime. The limit starts at 1, grows while the forwarder cannot keep up with
-      the payload arrival rate, and shrinks when the backend pushes back (HTTP
-      408/429/503 or timeouts) or when the extra concurrency goes unused, up to 'forwarder.dynamic_concurrency.max_concurrent_requests'.
+      runtime. The limit starts at 'forwarder.dynamic_concurrency.initial_limit'
+      and grows, up to 'forwarder.dynamic_concurrency.max_concurrent_requests',
+      while the forwarder is fully occupied, meaning it cannot keep up with the
+      payload arrival rate.
+      It shrinks when the backend pushes back (HTTP 408/429/503 or timeouts) or
+      when the forwarder is rarely fully occupied.
   forwarder:
     node_type: section
     type: object
@@ -626,25 +629,24 @@ properties:
             default: 15s
             format: duration
             description: |-
-              How often the forwarder evaluates whether to raise the limit. Set it
-              to at least the interval at which payloads arrive, so that a single
-              batch does not look like a sustained backlog.
+              How often the forwarder evaluates whether to raise or lower the limit.
+              Set it to at least the interval at which payloads arrive, so that a
+              single batch does not look like a sustained backlog.
           increase_threshold:
             node_type: setting
             type: number
             default: 0.8
             description: |-
-              The fraction (between 0 and 1) of an evaluation interval during which
-              all allowed requests must be in flight for the limit to be raised.
+              Increase the limit if the forwarder is fully occupied for at least
+              this fraction (between 0 and 1) of an evaluation interval.
           decrease_threshold:
             node_type: setting
             type: number
             default: 0.2
             description: |-
-              The limit is lowered by one, down to 1, after each evaluation interval
-              during which all allowed requests were in flight for less than this
-              fraction (between 0 and 'increase_threshold') of the interval. This
-              releases concurrency that is no longer needed. Set to 0 to disable.
+              Decrease the limit if the forwarder is fully occupied for less than
+              this fraction (between 0 and 'increase_threshold') of an evaluation
+              interval. Set to 0 to disable.
           increase_step:
             node_type: setting
             type: integer
