@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -616,13 +615,10 @@ var _ = declareInlineConfig(TestWorkloadProfileDedicatedWaitFirstPersistence)
 func TestWorkloadProfileDedicatedWaitFirstPersistence(t *testing.T) {
 	skipIfNoWorkloadProfileEnv(t)
 
-	const persistencePeriod = 10 * time.Second
-
 	tagger := NewFakeManualTagger()
 	storageDir := t.TempDir()
 	opts := workloadProfileTestOpts(storageDir, tagger)
 	opts.profileReportingWaitPersistence = true
-	opts.workloadProfilePersistencePeriod = persistencePeriod
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
@@ -639,25 +635,6 @@ func TestWorkloadProfileDedicatedWaitFirstPersistence(t *testing.T) {
 	}
 	eventTypes := supportedWorkloadProfileEventTypes(t)
 
-	waitForFirstPersistence := func(t *testing.T, image string) {
-		t.Helper()
-		deadline := time.Now().Add(2 * persistencePeriod)
-		for time.Now().Before(deadline) {
-			if p := m.GetProfile(cgroupModel.WorkloadSelector{Image: image, Tag: "*"}); p != nil && p.HasAlreadyBeenSent() {
-				return
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		t.Fatalf("the profile of %s wasn't persisted within %s", image, 2*persistencePeriod)
-	}
-
-	// The persistence ticker is shared by all the profiles: wait for a first persistence on a
-	// warmup profile so that the profile under test starts right after a tick.
-	warmupImage := newWorkloadProfileImage()
-	warmupInstance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, warmupImage, "v1")
-	_, _ = warmupInstance.Command("true", nil, nil).CombinedOutput()
-	waitForFirstPersistence(t, warmupImage)
-
 	// step 1: the profile starts
 	image := newWorkloadProfileImage()
 	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v1")
@@ -672,7 +649,7 @@ func TestWorkloadProfileDedicatedWaitFirstPersistence(t *testing.T) {
 	if p := m.GetProfile(selector); p == nil {
 		t.Fatalf("no profile for %s", image)
 	} else if p.HasAlreadyBeenSent() {
-		t.Fatalf("the profile was persisted before the end of the first activities, the test raced with the %s persistence ticker", persistencePeriod)
+		t.Fatal("the profile shouldn't have been persisted before the explicit persistence")
 	}
 	for _, et := range eventTypes {
 		assert.False(t, et.hasAnomalyFor(anomalies, "known"), "no %s anomaly should be sent before the first persistence", et.name)
@@ -683,7 +660,10 @@ func TestWorkloadProfileDedicatedWaitFirstPersistence(t *testing.T) {
 	}
 
 	// step 3: the first persistence of the profile opens the anomaly detection
-	waitForFirstPersistence(t, image)
+	m.PersistAllProfiles()
+	if p := m.GetProfile(selector); p == nil || !p.HasAlreadyBeenSent() {
+		t.Fatalf("the profile of %s should have been marked as sent after its persistence", image)
+	}
 	files, err := os.ReadDir(storageDir)
 	if err != nil {
 		t.Fatal(err)
