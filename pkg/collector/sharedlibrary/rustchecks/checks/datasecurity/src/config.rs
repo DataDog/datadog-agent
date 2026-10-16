@@ -139,7 +139,7 @@ mod tests {
         assert_eq!(ssl_mode("verify-ca"), SslMode::VerifyCa);
         assert_eq!(ssl_mode("verify-full"), SslMode::VerifyFull);
         assert_eq!(ssl_mode("allow"), SslMode::Allow);
-        assert_eq!(ssl_mode("bogus"), SslMode::Allow);
+        assert_eq!(ssl_mode("invalid_mode"), SslMode::Allow);
     }
 }
 
