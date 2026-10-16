@@ -11,11 +11,16 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/kubeinfo",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/status",
         "//comp/core/workloadmeta/def",
         "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/cloudprovider",
+        "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/util/wait",
         "@io_k8s_apimachinery//pkg/version",
+        "@org_golang_x_mod//semver",
     ],
 )
 
@@ -35,6 +40,7 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/core",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",

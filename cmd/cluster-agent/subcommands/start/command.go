@@ -210,8 +210,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
-				fx.Provide(func(wmeta workloadmeta.Component) status.HeaderInformationProvider {
-					return status.NewHeaderInformationProvider(kubeinfo.NewProvider(wmeta))
+				fx.Provide(func(wmeta workloadmeta.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(kubeinfo.NewProvider(wmeta, hostname))
 				}),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
@@ -476,7 +476,6 @@ func start(log log.Component,
 	kubeDistro := cloudprovider.DCAGetName(mainCtx)
 
 	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Distribution: %s", clusterID, clusterName, kubeDistro)
-	kubeinfo.SetClusterInfo(clusterName, clusterID, kubeDistro)
 
 	// Setup APM tracing
 	if config.GetBool("cluster_agent.tracing.enabled") {

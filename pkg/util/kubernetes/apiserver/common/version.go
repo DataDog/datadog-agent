@@ -24,9 +24,6 @@ import (
 
 const serverVersionCacheKey = "kubeServerVersion"
 
-// MinSupportedKubeVersion is the oldest officially supported Kubernetes version.
-const MinSupportedKubeVersion = "v1.23"
-
 // kubeServerVersion is a local struct adapted to the agent retry package.
 // It allow retrieving the kubernetes server version with a retry.
 type kubeServerVersion struct {
@@ -119,18 +116,6 @@ func NormalizeKubeSemver(v *version.Info) (string, bool) {
 	}
 
 	return "", false
-}
-
-// IsKubeVersionSupported returns whether the server version is at least
-// MinSupportedKubeVersion. ok is false when the version cannot be parsed.
-func IsKubeVersionSupported(v *version.Info) (supported bool, ok bool) {
-	sv, ok := NormalizeKubeSemver(v)
-	if !ok {
-		return false, false
-	}
-	// Compare major.minor only: vendor suffixes like "-eks-abc" are semver
-	// pre-releases and would otherwise sort below the stable release.
-	return semver.Compare(semver.MajorMinor(sv), MinSupportedKubeVersion) >= 0, true
 }
 
 func digitsPrefix(s string) string {

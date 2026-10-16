@@ -9,6 +9,7 @@ package kubeinfo
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -43,9 +45,19 @@ func kubeCapabilities(serverVersion *version.Info) *workloadmeta.KubeCapabilitie
 	}
 }
 
-func reset(t *testing.T) {
-	SetClusterInfo("", "", "")
-	t.Cleanup(func() { SetClusterInfo("", "", "") })
+// newProvider returns a Provider with stubbed cluster information getters.
+func newProvider(wmeta workloadmeta.Component, clusterName, clusterID, distribution string) Provider {
+	hostname, _ := hostnamemock.NewMock("my-host")
+	p := NewProvider(wmeta, hostname)
+	p.getClusterName = func(_ context.Context, host string) string {
+		if host != "my-host" {
+			return ""
+		}
+		return clusterName
+	}
+	p.getClusterID = func() (string, error) { return clusterID, nil }
+	p.getDistribution = func(context.Context) string { return distribution }
+	return p
 }
 
 func TestProvider(t *testing.T) {
@@ -57,19 +69,16 @@ func TestProvider(t *testing.T) {
 	}{
 		{name: "not collected yet"},
 		{name: "supported", serverVersion: &version.Info{GitVersion: "v1.23.17-eks-a1b2c3"}, wantDetected: "v1.23.17-eks-a1b2c3"},
-		{name: "unparsable", serverVersion: &version.Info{GitVersion: "foo"}, wantDetected: "foo"},
 		{name: "unsupported", serverVersion: &version.Info{GitVersion: "v1.22.17-eks-a1b2c3"}, wantDetected: "v1.22.17-eks-a1b2c3", wantWarning: true},
-		{name: "unsupported without git version", serverVersion: &version.Info{Major: "1", Minor: "22+"}, wantDetected: "v1.22+", wantWarning: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reset(t)
 			wmeta := newWorkloadmeta(t)
 			if tt.serverVersion != nil {
 				wmeta.Set(kubeCapabilities(tt.serverVersion))
 			}
 
-			p := NewProvider(wmeta)
+			p := newProvider(wmeta, "", "", "")
 			assert.Equal(t, "Kubernetes Information", p.Name())
 
 			stats := map[string]interface{}{}
@@ -130,10 +139,7 @@ func TestProviderClusterInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reset(t)
-			SetClusterInfo(tt.clusterName, tt.clusterID, tt.distribution)
-
-			p := NewProvider(newWorkloadmeta(t))
+			p := newProvider(newWorkloadmeta(t), tt.clusterName, tt.clusterID, tt.distribution)
 			stats := map[string]interface{}{}
 			require.NoError(t, p.JSON(false, stats))
 			kubeInfo := stats["kubernetesInfo"].(map[string]interface{})

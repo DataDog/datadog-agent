@@ -49,6 +49,12 @@ func captureLogs(t *testing.T) *syncBuffer {
 	return &logs
 }
 
+func setPollInterval(t *testing.T, interval time.Duration) {
+	previous := versionPollInterval
+	versionPollInterval = interval
+	t.Cleanup(func() { versionPollInterval = previous })
+}
+
 func TestWarnOnUnsupportedVersion(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -65,6 +71,7 @@ func TestWarnOnUnsupportedVersion(t *testing.T) {
 			wmeta := newWorkloadmeta(t)
 			// After newWorkloadmeta, which sets up its own logger.
 			logs := captureLogs(t)
+			setPollInterval(t, 10*time.Millisecond)
 			if tt.setBefore {
 				wmeta.Set(kubeCapabilities(tt.serverVersion))
 			}
@@ -122,10 +129,17 @@ func TestVersionStatus(t *testing.T) {
 		wantUnsupported bool
 	}{
 		{name: "nil"},
-		{name: "supported", serverVersion: &version.Info{GitVersion: "v1.23.0"}, wantDetected: "v1.23.0"},
-		{name: "unsupported", serverVersion: &version.Info{GitVersion: "v1.22.17-eks-a1b2c3"}, wantDetected: "v1.22.17-eks-a1b2c3", wantUnsupported: true},
-		{name: "major minor only", serverVersion: &version.Info{Major: "1", Minor: "22+"}, wantDetected: "v1.22+", wantUnsupported: true},
-		{name: "unparsable", serverVersion: &version.Info{GitVersion: "foo"}, wantDetected: "foo"},
+		{name: "empty", serverVersion: &version.Info{}},
+		{name: "unparsable", serverVersion: &version.Info{GitVersion: "foo", Major: "x", Minor: "y"}, wantDetected: "foo"},
+		{name: "old", serverVersion: &version.Info{GitVersion: "v1.21.14"}, wantDetected: "v1.21.14", wantUnsupported: true},
+		{name: "just below", serverVersion: &version.Info{GitVersion: "v1.22.17"}, wantDetected: "v1.22.17", wantUnsupported: true},
+		{name: "eks below", serverVersion: &version.Info{GitVersion: "v1.22.17-eks-a1b2c3"}, wantDetected: "v1.22.17-eks-a1b2c3", wantUnsupported: true},
+		{name: "minimum", serverVersion: &version.Info{GitVersion: "v1.23.0"}, wantDetected: "v1.23.0"},
+		{name: "eks minimum", serverVersion: &version.Info{GitVersion: "v1.23.17-eks-a1b2c3"}, wantDetected: "v1.23.17-eks-a1b2c3"},
+		{name: "gke minimum pre-release", serverVersion: &version.Info{GitVersion: "v1.23.0-gke.100"}, wantDetected: "v1.23.0-gke.100"},
+		{name: "k3s build metadata", serverVersion: &version.Info{GitVersion: "v1.30.1+k3s1"}, wantDetected: "v1.30.1+k3s1"},
+		{name: "major minor only below", serverVersion: &version.Info{Major: "1", Minor: "22+"}, wantDetected: "v1.22+", wantUnsupported: true},
+		{name: "major minor only minimum", serverVersion: &version.Info{Major: "1", Minor: "23+"}, wantDetected: "v1.23+"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

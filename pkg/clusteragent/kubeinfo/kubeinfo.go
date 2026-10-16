@@ -12,8 +12,10 @@ package kubeinfo
 import (
 	"context"
 	"fmt"
-	"sync"
+	"time"
 
+	"golang.org/x/mod/semver"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -21,71 +23,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// supportDropRelease is the first release without official support for
-// Kubernetes versions older than common.MinSupportedKubeVersion.
-const supportDropRelease = "7.86.0"
-
-// clusterInfo is the cluster information collected at startup.
-type clusterInfo struct {
-	clusterName  string
-	clusterID    string
-	distribution string
-}
-
-var (
-	mu    sync.RWMutex
-	state clusterInfo
+const (
+	// minSupportedKubeVersion is the oldest officially supported Kubernetes version.
+	minSupportedKubeVersion = "v1.23"
+	// supportDropRelease is the first release without official support for
+	// Kubernetes versions older than minSupportedKubeVersion.
+	supportDropRelease = "7.86.0"
 )
 
-// SetClusterInfo stores the cluster name, ID and distribution.
-func SetClusterInfo(clusterName, clusterID, distribution string) {
-	mu.Lock()
-	defer mu.Unlock()
-	state = clusterInfo{clusterName: clusterName, clusterID: clusterID, distribution: distribution}
-}
-
-func getClusterInfo() clusterInfo {
-	mu.RLock()
-	defer mu.RUnlock()
-	return state
-}
+// versionPollInterval is the interval to check whether workloadmeta collected the server version.
+var versionPollInterval = 5 * time.Second
 
 // WarnOnUnsupportedVersion waits for the Kubernetes server version collected by
 // workloadmeta and logs a warning if it is not supported.
 func WarnOnUnsupportedVersion(ctx context.Context, wmeta workloadmeta.Component) {
-	filter := workloadmeta.NewFilterBuilder().
-		AddKind(workloadmeta.KindKubeCapabilities).
-		SetEventType(workloadmeta.EventTypeSet).
-		Build()
-	ch := wmeta.Subscribe("kubeinfo", workloadmeta.NormalPriority, filter)
-	defer wmeta.Unsubscribe(ch)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case bundle, ok := <-ch:
-			if !ok {
-				return
-			}
-			bundle.Acknowledge()
-			for _, event := range bundle.Events {
-				kubeCapabilities, ok := event.Entity.(*workloadmeta.KubeCapabilities)
-				if !ok || kubeCapabilities.Version == nil {
-					continue
-				}
-				if detected, unsupported := versionStatus(kubeCapabilities.Version); unsupported {
-					log.Warnf("[DEPRECATION WARNING] %s", warningMessage(detected))
-				}
-				return
-			}
+	_ = wait.PollUntilContextCancel(ctx, versionPollInterval, true, func(context.Context) (bool, error) {
+		kubeCapabilities, err := wmeta.GetKubeCapabilities()
+		if err != nil || kubeCapabilities.Version == nil {
+			return false, nil
 		}
-	}
+		if detected, unsupported := versionStatus(kubeCapabilities.Version); unsupported {
+			log.Warnf("[DEPRECATION WARNING] %s", warningMessage(detected))
+		}
+		return true, nil
+	})
 }
 
 // versionStatus returns the server version to display and whether it is unsupported.
 func versionStatus(serverVersion *version.Info) (detected string, unsupported bool) {
-	if serverVersion == nil {
+	if serverVersion == nil || (serverVersion.String() == "" && serverVersion.Major == "" && serverVersion.Minor == "") {
 		return "", false
 	}
 
@@ -95,11 +61,14 @@ func versionStatus(serverVersion *version.Info) (detected string, unsupported bo
 		detected = fmt.Sprintf("v%s.%s", serverVersion.Major, serverVersion.Minor)
 	}
 
-	supported, ok := common.IsKubeVersionSupported(serverVersion)
+	sv, ok := common.NormalizeKubeSemver(serverVersion)
 	if !ok {
 		log.Debugf("Cannot parse the Kubernetes server version %q, skipping the supported version check", detected)
+		return detected, false
 	}
-	return detected, ok && !supported
+	// Compare major.minor only: vendor suffixes like "-eks-abc" are semver
+	// pre-releases and would otherwise sort below the stable release.
+	return detected, semver.Compare(semver.MajorMinor(sv), minSupportedKubeVersion) < 0
 }
 
 func warningMessage(detected string) string {
@@ -107,5 +76,5 @@ func warningMessage(detected string) string {
 		"Starting with Datadog Cluster Agent %s, Kubernetes versions older than %s are no longer officially supported: "+
 		"features are supported on a best-effort basis and might not work as expected. "+
 		"Upgrade your cluster to Kubernetes %s or later.",
-		detected, common.MinSupportedKubeVersion, supportDropRelease, common.MinSupportedKubeVersion, common.MinSupportedKubeVersion)
+		detected, minSupportedKubeVersion, supportDropRelease, minSupportedKubeVersion, minSupportedKubeVersion)
 }

@@ -8,25 +8,43 @@
 package kubeinfo
 
 import (
+	"context"
 	"embed"
 	"io"
+	"time"
 
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 //go:embed status_templates
 var templatesFS embed.FS
 
+// statusTimeout bounds the lookups done when rendering the status.
+const statusTimeout = 2 * time.Second
+
 // Provider adds the Kubernetes information to the status header.
 type Provider struct {
-	wmeta workloadmeta.Component
+	wmeta    workloadmeta.Component
+	hostname hostnameinterface.Component
+
+	getClusterName  func(ctx context.Context, hostname string) string
+	getClusterID    func() (string, error)
+	getDistribution func(ctx context.Context) string
 }
 
 // NewProvider returns a Provider
-func NewProvider(wmeta workloadmeta.Component) Provider {
-	return Provider{wmeta: wmeta}
+func NewProvider(wmeta workloadmeta.Component, hostname hostnameinterface.Component) Provider {
+	return Provider{
+		wmeta:           wmeta,
+		hostname:        hostname,
+		getClusterName:  clustername.GetRFC1123CompliantClusterName,
+		getClusterID:    clustername.GetClusterID,
+		getDistribution: cloudprovider.DCAGetName,
+	}
 }
 
 // Index returns the index
@@ -55,10 +73,15 @@ func (Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 
+// getStatusInfo gets the information on demand: the cluster agent computes and
+// caches it at startup, a failed cluster ID or distribution lookup is retried.
 func (p Provider) getStatusInfo() map[string]interface{} {
+	ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
+	defer cancel()
+
 	versionInfo := map[string]interface{}{
 		"detected":     "",
-		"minSupported": common.MinSupportedKubeVersion,
+		"minSupported": minSupportedKubeVersion,
 	}
 	// The version is collected by workloadmeta: it is unknown until collected.
 	if kubeCapabilities, err := p.wmeta.GetKubeCapabilities(); err == nil {
@@ -69,11 +92,12 @@ func (p Provider) getStatusInfo() map[string]interface{} {
 		}
 	}
 
-	i := getClusterInfo()
+	hostname, _ := p.hostname.Get(ctx)
+	clusterID, _ := p.getClusterID()
 	return map[string]interface{}{
-		"clusterName":  i.clusterName,
-		"clusterID":    i.clusterID,
-		"distribution": i.distribution,
+		"clusterName":  p.getClusterName(ctx, hostname),
+		"clusterID":    clusterID,
+		"distribution": p.getDistribution(ctx),
 		"version":      versionInfo,
 	}
 }
