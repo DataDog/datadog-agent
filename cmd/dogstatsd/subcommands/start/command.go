@@ -59,6 +59,7 @@ import (
 	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
+	serverlessaasfx "github.com/DataDog/datadog-agent/comp/metadata/serverlessaas/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -166,6 +167,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		resourcesfx.Module(),
 		hostfx.Module(),
 		inventoryagentfx.Module(),
+		serverlessaasfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),

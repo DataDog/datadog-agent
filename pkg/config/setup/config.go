@@ -343,6 +343,8 @@ func findUnknownEnvVars(environ []string) []string {
 		"DD_TRACE_PIPE_NAME":                       {},
 		"DD_TRACE_TRANSPORT":                       {},
 		"DD_VERSION":                               {},
+		// this variable gates Azure App Service extension inventory reporting
+		"DD_SERVERLESS_AAS_EXTENSION_INVENTORY_ENABLED": {},
 		// this variable is used by the Kubernetes leader election mechanism
 		"DD_POD_NAME": {},
 		// this variable is used by tracers
