@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    The Agent now accepts `disabled` log level as a synonym of `off`,
+    The Agent now accepts ``disabled`` log level as a synonym of ``off``,
     for compatbility with OpenTelemetry.
