@@ -190,6 +190,7 @@ ddot_byoc_*                   @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm
+trace_dupcheck_*              @DataDog/agent-apm
 
 # Functional test
 static_quality_gates                           @DataDog/agent-build
