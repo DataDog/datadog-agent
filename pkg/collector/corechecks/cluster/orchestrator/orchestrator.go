@@ -25,7 +25,6 @@ import (
 	"k8s.io/client-go/metadata/metadatainformer"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -228,6 +227,8 @@ func (o *OrchestratorCheck) Run() error {
 	// Enable terminated resource bundle to start buffering terminated resources
 	o.collectorBundle.EnableTerminatedResourceBundle()
 
+	o.collectorBundle.RetryDiscovery()
+
 	// Initialize collectors
 	o.collectorBundle.Initialize()
 
@@ -258,15 +259,6 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
 
-	// Only collect pods that are in a terminated state: Succeeded, Failed, or Pending.
-	terminatedPodsTweakListOptions := func(options *metav1.ListOptions) {
-		options.FieldSelector = fields.AndSelectors(
-			fields.OneTermNotEqualSelector("status.phase", "Pending"),
-			fields.OneTermNotEqualSelector("status.phase", "Running"),
-			fields.OneTermNotEqualSelector("status.phase", "Unknown"),
-		).String()
-	}
-
 	of := &collectors.OrchestratorInformerFactory{
 		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
 		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
@@ -274,7 +266,6 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		MetadataInformerFactory:      metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval),
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
 		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
-		TerminatedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(terminatedPodsTweakListOptions)),
 	}
 
 	return of

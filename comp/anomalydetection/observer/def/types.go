@@ -15,8 +15,12 @@ import (
 	"strings"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
+
+// UnknownType represents a metric whose type is unavailable during replay.
+const UnknownType metrics.MetricType = -1
 
 // Handle is the lightweight observation interface passed to other components.
 type Handle interface {
@@ -49,6 +53,7 @@ type MetricView interface {
 	// GetTimestampUnix returns the sample timestamp in Unix seconds.
 	GetTimestampUnix() int64
 	GetSampleRate() float64
+	GetMetricType() metrics.MetricType
 }
 
 // LogView provides read-only access to a log message.
@@ -89,9 +94,10 @@ type LogObserver interface {
 // The storage keeps sum/count summaries so aggregation is specified at read
 // time, not write time.
 type MetricOutput struct {
-	Name  string
-	Value float64
-	Host  string
+	MetricType metrics.MetricType
+	Name       string
+	Value      float64
+	Host       string
 	// Tags is an immutable view retained by the observer storage.
 	Tags       tagset.CompositeTags
 	Context    MetricContext // stored on the series when HasContext is true
@@ -528,11 +534,13 @@ func WorkloadSeriesFilter() SeriesFilter {
 // SeriesMeta describes a series discovered via ListSeries.
 // The Ref field is a stable numeric identifier for use in hot-path methods.
 type SeriesMeta struct {
-	Ref       SeriesRef
-	Namespace string
-	Name      string
-	Host      string
-	Tags      tagset.CompositeTags
+	// MetricType is the first known input type, shared by all points in the series.
+	MetricType metrics.MetricType
+	Ref        SeriesRef
+	Namespace  string
+	Name       string
+	Host       string
+	Tags       tagset.CompositeTags
 }
 
 // Aggregate specifies which statistic to extract from summary stats.
