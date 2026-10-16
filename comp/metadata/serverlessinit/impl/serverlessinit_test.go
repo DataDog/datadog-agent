@@ -244,18 +244,33 @@ func TestShutdownBeforeFirstCallback(t *testing.T) {
 	})
 }
 
-func TestShutdownSkipsSuccessfulSubmission(t *testing.T) {
+func TestShutdownSkipsSubmittedIdentity(t *testing.T) {
+	for _, shutdownResourceID := range []string{"ready", ""} {
+		synctest.Test(t, func(t *testing.T) {
+			provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "ready"}}
+			p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
+			p.Provider.Callback(t.Context())
+			provider.setData(serverlessdef.ServerlessInitData{ResourceID: shutdownResourceID})
+			start := time.Now()
+			require.NoError(t, lc.hooks[0].OnStop(t.Context()))
+			assert.Equal(t, start, time.Now())
+			assert.Len(t, s.payloads, 1)
+		})
+	}
+}
+
+func TestShutdownSubmitsChangedIdentity(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "ready"}}
+		provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "first"}}
 		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 		p.Provider.Callback(t.Context())
-		provider.data.ResourceID = ""
-		reads := provider.reads
-		start := time.Now()
+		require.Len(t, s.payloads, 1)
+		provider.setData(serverlessdef.ServerlessInitData{ResourceID: "second"})
 		require.NoError(t, lc.hooks[0].OnStop(t.Context()))
-		assert.Equal(t, start, time.Now())
-		assert.Equal(t, reads, provider.reads)
-		assert.Len(t, s.payloads, 1)
+		require.Len(t, s.payloads, 2)
+		assert.Equal(t, "second", s.payloads[1].Metadata["resource_id"])
+		assert.Equal(t, "startup", s.payloads[1].Metadata["report_reason"])
+		assert.NotEqual(t, s.payloads[0].UUID, s.payloads[1].UUID)
 	})
 }
 
@@ -303,13 +318,13 @@ func TestShutdownSerializerError(t *testing.T) {
 			s.err = errors.New("enqueue failed")
 			p.Provider.Callback(t.Context())
 			require.Len(t, s.payloads, 1)
-			assert.True(t, p.Comp.(*serverlessinitComp).payload.LastSubmit.IsZero())
+			assert.False(t, p.Comp.(*serverlessinitComp).submittedCurrentIdentity)
 			s.err = finalError
 			require.NoError(t, lc.hooks[0].OnStop(t.Context()))
 			require.Len(t, s.payloads, 2)
 			assert.Equal(t, "startup", s.payloads[1].Metadata["report_reason"])
 			assert.Equal(t, s.payloads[0].UUID, s.payloads[1].UUID)
-			assert.Equal(t, finalError != nil, p.Comp.(*serverlessinitComp).payload.LastSubmit.IsZero())
+			assert.Equal(t, finalError == nil, p.Comp.(*serverlessinitComp).submittedCurrentIdentity)
 		})
 	}
 }
