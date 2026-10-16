@@ -23,7 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorypayload"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -43,7 +43,7 @@ type serverlessinitComp struct {
 	conf                     config.Component
 	log                      log.Component
 	hostname                 hostnameinterface.Component
-	data                     *inventoryagent.Data
+	data                     *inventorypayload.Data
 	fields                   map[string]interface{}
 	uuid                     string
 	lastResourceID           string
@@ -147,7 +147,7 @@ func (c *serverlessinitComp) collectPayload(ctx context.Context, final bool) tim
 			c.submittedCurrentIdentity = false
 		}
 		if c.data == nil {
-			c.data = inventoryagent.NewData(c.conf, c.log, c.hostname)
+			c.data = inventorypayload.NewData(c.conf, c.log, c.hostname)
 		}
 		if ctx.Err() != nil {
 			return c.payload.MinInterval

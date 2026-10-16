@@ -22,7 +22,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/impl"
+	inventorypayload "github.com/DataDog/datadog-agent/comp/metadata/inventorypayload"
 	serverlessinitimpl "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/impl"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -57,7 +57,7 @@ func TestAppServiceMetadataLateIdentity(t *testing.T) {
 		go func() { p.Provider.Callback(ctx); close(done) }()
 		synctest.Wait()
 		s.AssertNotCalled(t, "SendMetadata", mock.Anything)
-		s.On("SendMetadata", mock.MatchedBy(func(payload *inventoryagent.Payload) bool {
+		s.On("SendMetadata", mock.MatchedBy(func(payload *inventorypayload.Payload) bool {
 			return payload.Metadata["resource_id"] == "/subscriptions/sub/resourcegroups/group/providers/microsoft.web/sites/test-site"
 		})).Return(nil).Once()
 		t.Setenv("WEBSITE_OWNER_NAME", "sub+webspace")
