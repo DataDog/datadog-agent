@@ -85,6 +85,38 @@ func TestKeysPerDomain(t *testing.T) {
 				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
 			},
 		},
+		{
+			// A pending delegated-auth marker carries no key: the domain stays alive
+			// in the resolver until the resolved key is written back to the config.
+			input: []Endpoint{
+				{Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path1", HasPendingDelegatedAuth: true},
+			},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {{ConfigSettingPath: "path1", HasPendingDelegatedAuth: true}},
+			},
+		},
+		{
+			input: []Endpoint{
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path1"},
+				{Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path2", HasPendingDelegatedAuth: true},
+			},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {
+					utils.NewAPIKeys("path1", "key1"),
+					{ConfigSettingPath: "path2", HasPendingDelegatedAuth: true},
+				},
+			},
+		},
+		{
+			// A plain empty key (e.g. the main api_key during async delegated-auth
+			// startup) must keep its resolver alive: only the pending marker is keyless.
+			input: []Endpoint{
+				{APIKey: "", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path1"},
+			},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {utils.NewAPIKeys("path1", "")},
+			},
+		},
 	} {
 		assert.Equal(t, tt.expected, KeysPerDomains(tt.input))
 	}
