@@ -23,6 +23,8 @@ clusterAgent:
 datadog:
   kubeStateMetricsCore:
     useClusterCheckRunners: false
+  instrumentationCrd:
+    enabled: true
   apm:
     instrumentation:
       enabled: true
