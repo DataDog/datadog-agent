@@ -12,8 +12,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/registry"
+	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 )
 
 //go:embed fixtures/invalid_agent_config.yaml
@@ -38,6 +42,7 @@ func init() {
 //   - demolab:demoScenario  — name of the scenario being demonstrated:
 //     "docker-permissions" → Docker + busybox; issue triggered via SSH after provisioning
 //     "invalid-config"    → bad check_runners value in datadog.yaml; issue fires on agent startup
+//     "high-memory-k8s"   → kind cluster on EC2, node Agent with a 1Gi memory limit; issue triggered via SSH
 //     default             → plain EC2 VM with health_platform enabled, no issue pre-triggered
 //
 // Pulumi config keys read by aws.NewEnvironment (namespace "ddagent"):
@@ -55,9 +60,25 @@ func AgentHealthDemoRun(ctx *pulumi.Context) error {
 				agentparams.WithAgentConfig(invalidAgentConfig+demoForwarderInterval),
 			),
 		))
+	case highMemoryK8sScenario:
+		return highMemoryK8sRun(ctx)
 	default:
 		// Plain EC2 VM with the Agent installed; health_platform is enabled by
 		// default, so no extra agent config is needed.
 		return ec2.VMRunWithParams(ctx, ec2.GetParams())
 	}
+}
+
+// highMemoryK8sRun provisions a kind cluster on an EC2 VM, with the node Agent deployed through Helm with a memory
+// limit so that its usage can be pushed close to it.
+func highMemoryK8sRun(ctx *pulumi.Context) error {
+	awsEnv, err := resAws.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
+	params := kindvm.ParamsFromEnvironment(awsEnv)
+	if err := kindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(highMemoryK8sHelmValues))(params); err != nil {
+		return err
+	}
+	return kindvm.RunWithEnv(ctx, awsEnv, outputs.NewKubernetes(), params)
 }

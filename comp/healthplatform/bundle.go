@@ -21,7 +21,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	metricsevaluator "github.com/DataDog/datadog-agent/comp/core/metricsevaluator/def"
 	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
 	egressfx "github.com/DataDog/datadog-agent/comp/healthplatform/egress/fx"
 	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
@@ -29,9 +31,10 @@ import (
 	// Issue modules register themselves via init(); imported here for side effects.
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	registryfx "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/fx"
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"        // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/docker"                // registers templates via init()
-	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpupodresources"       // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"  // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/docker"          // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/gpupodresources" // registers templates via init()
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/highmemoryk8s"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"         // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig" // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/missedbytes"           // registers templates via init()
@@ -43,6 +46,7 @@ import (
 	statusfx "github.com/DataDog/datadog-agent/comp/healthplatform/status/fx"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -59,7 +63,31 @@ func Bundle() fxutil.BundleOptions {
 		corefx.Module(),
 		statusfx.Module(),
 		fx.Invoke(bootstrapBuiltInHealthChecks),
+		fx.Invoke(registerHighMemoryK8sMonitor),
 	)
+}
+
+type highMemoryK8sDeps struct {
+	fx.In
+
+	Config   config.Component
+	Hostname hostnameinterface.Component
+	Log      log.Component
+	Store    storedef.Component
+	// Only the node Agent provides the evaluator. Other binaries wiring this bundle, such as serverless-init,
+	// cannot build it, so it is optional and the monitor is skipped there.
+	Evaluator metricsevaluator.Component `optional:"true"`
+}
+
+// registerHighMemoryK8sMonitor reports the high memory issue while the node Agent runs close to its Kubernetes
+// container memory limit.
+func registerHighMemoryK8sMonitor(deps highMemoryK8sDeps) {
+	if deps.Evaluator == nil || !deps.Config.GetBool("health_platform.enabled") || !env.IsKubernetes() {
+		return
+	}
+	if err := deps.Evaluator.Register(highmemoryk8s.NewMonitor(deps.Store, deps.Hostname, deps.Log)); err != nil {
+		deps.Log.Warnf("failed to register the %s monitor: %v", highmemoryk8s.IssueName, err)
+	}
 }
 
 // bootstrapBuiltInHealthChecks registers all built-in health checks at startup

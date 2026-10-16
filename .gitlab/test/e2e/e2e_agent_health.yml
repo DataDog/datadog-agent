@@ -6,6 +6,7 @@
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - comp/core/metricsevaluator/**/*
         - comp/healthplatform/**/*
         - test/new-e2e/tests/agent-health/**/*
       compare_to: $COMPARE_TO_BRANCH
