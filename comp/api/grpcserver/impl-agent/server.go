@@ -260,9 +260,14 @@ func (s *remoteAgentServer) ReportRemoteAgentEvent(_ context.Context, in *pb.Rep
 	events := make([]remoteagentregistry.RemoteAgentEvent, 0, len(in.Events))
 	for _, pbEvent := range in.Events {
 		event := remoteagentregistry.RemoteAgentEvent{Message: pbEvent.Message}
-		switch pbEvent.Details.(type) {
+		switch d := pbEvent.Details.(type) {
 		case *pb.Event_InvalidApiKey:
 			event.Details = &remoteagentregistry.InvalidAPIKey{}
+		case *pb.Event_HealthIssue:
+			event.Details = &remoteagentregistry.HealthIssue{
+				Severity:  convertHealthIssueSeverity(d.HealthIssue.GetSeverity()),
+				Component: d.HealthIssue.GetComponent(),
+			}
 		}
 		events = append(events, event)
 	}
@@ -272,6 +277,20 @@ func (s *remoteAgentServer) ReportRemoteAgentEvent(_ context.Context, in *pb.Rep
 	}
 
 	return &pb.ReportRemoteAgentEventResponse{}, nil
+}
+
+// convertHealthIssueSeverity maps the protobuf severity enum to the internal severity type.
+func convertHealthIssueSeverity(s pb.HealthIssueSeverity) remoteagentregistry.HealthIssueSeverity {
+	switch s {
+	case pb.HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_LOW:
+		return remoteagentregistry.HealthIssueSeverityLow
+	case pb.HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_MEDIUM:
+		return remoteagentregistry.HealthIssueSeverityMedium
+	case pb.HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_HIGH:
+		return remoteagentregistry.HealthIssueSeverityHigh
+	default:
+		return remoteagentregistry.HealthIssueSeverityUnspecified
+	}
 }
 
 // registerRemoteAgent is the shared implementation of the RegisterRemoteAgent RPC, used by both the dedicated

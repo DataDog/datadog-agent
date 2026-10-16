@@ -72,6 +72,7 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 	shutdownChan := make(chan struct{})
 	eventSubscribers := append([]*remoteagentregistry.EventSubscriber{}, reqs.EventSubscribers...)
 	eventSubscribers = append(eventSubscribers, newSecretsRefreshEventSubscriber(reqs.Secrets))
+	eventSubscribers = append(eventSubscribers, newHealthIssueLogEventSubscriber())
 	registry := &remoteAgentRegistry{
 		conf:             reqs.Config,
 		ipc:              reqs.Ipc,
@@ -107,6 +108,30 @@ func newSecretsRefreshEventSubscriber(resolver secrets.Component) *remoteagentre
 					// One refresh is sufficient for the whole report; the resolver coalesces and throttles requests.
 					resolver.Refresh()
 					return
+				}
+			}
+		},
+	}
+}
+
+// newHealthIssueLogEventSubscriber creates the subscriber that surfaces health issues reported by remote agents.
+// It is a template consumer: it type-asserts the HealthIssue variant and logs it at a level matching the severity.
+func newHealthIssueLogEventSubscriber() *remoteagentregistry.EventSubscriber {
+	return &remoteagentregistry.EventSubscriber{
+		Name: "health-issue-log",
+		Callback: func(agent remoteagentregistry.RegisteredAgent, events []remoteagentregistry.RemoteAgentEvent) {
+			for _, event := range events {
+				issue, ok := event.Details.(*remoteagentregistry.HealthIssue)
+				if !ok {
+					continue
+				}
+				switch issue.Severity {
+				case remoteagentregistry.HealthIssueSeverityHigh:
+					log.Errorf("Remote agent '%s' reported a high-severity health issue in component %q: %s", agent.DisplayName, issue.Component, event.Message)
+				case remoteagentregistry.HealthIssueSeverityLow:
+					log.Infof("Remote agent '%s' reported a low-severity health issue in component %q: %s", agent.DisplayName, issue.Component, event.Message)
+				default:
+					log.Warnf("Remote agent '%s' reported a %s-severity health issue in component %q: %s", agent.DisplayName, issue.Severity, issue.Component, event.Message)
 				}
 			}
 		},
