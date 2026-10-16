@@ -39,15 +39,35 @@ func MountsToProto(at *ActivityTree) []*adproto.MountNode {
 	out := make([]*adproto.MountNode, 0, len(at.Mounts))
 	for _, mn := range at.Mounts {
 		out = append(out, &adproto.MountNode{
-			NodeBase:      nodeBaseToProto(&mn.NodeBase, at.GetTagFromID),
-			MountPoint:    mn.MountPoint,
-			MountRoot:     mn.MountRoot,
-			Filesystem:    mn.Filesystem,
-			MountFlags:    mn.MountFlags,
-			BaseNamespace: mn.InBaseNamespace,
+			MountPoint: mn.MountPoint,
+			MountRoot:  mn.MountRoot,
+			Filesystem: mn.Filesystem,
+			MountFlags: mn.MountFlags,
+			Seen:       mountSeenToProto(mn, at.GetTagFromID),
 		})
 	}
 	return out
+}
+
+func mountSeenToProto(mn *MountNode, tagIDToImageTag func(id uint64) string) map[string]*adproto.MountSeen {
+	if mn == nil {
+		return nil
+	}
+	seen := make(map[string]*adproto.MountSeen, mn.SeenLen())
+	mn.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
+		tag := tagIDToImageTag(id)
+		if tag == "" {
+			return
+		}
+		seen[tag] = &adproto.MountSeen{
+			Times: &adproto.ImageTagTimes{
+				FirstSeen: uint64(firstSeen),
+				LastSeen:  uint64(lastSeen),
+			},
+			BaseNamespace: mn.GetBaseNamespace(id),
+		}
+	})
+	return seen
 }
 
 func processActivityNodeToProto(pan *ProcessNode, tagIDToImageTag func(id uint64) string) *adproto.ProcessActivityNode {
