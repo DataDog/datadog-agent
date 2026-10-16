@@ -6,9 +6,9 @@
 
 # Datadog Agent uninstall script for macOS.
 # Paired with install_mac_os.sh (Agent 7.79.0+). Removes the system-wide
-# components installed by the DMG: LaunchDaemons (agent, sysprobe, data-plane,
-# installer), GUI LaunchAgent, /Applications app, /opt/datadog-agent and
-# /opt/datadog-packages trees, and symlinks.
+# components installed by the DMG: LaunchDaemons (procmgr, agent, sysprobe,
+# data-plane, installer), GUI LaunchAgent, /Applications app, /opt/datadog-agent
+# and /opt/datadog-packages trees, and symlinks.
 set -eu
 
 if [ -t 1 ]; then
@@ -50,6 +50,7 @@ trap on_error ERR
 printf "${BLUE}* Uninstalling Datadog Agent, you might be asked for your sudo password...\n${NC}"
 
 printf "${BLUE}\n    - Stopping system services...\n${NC}"
+$sudo_cmd launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
 $sudo_cmd launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
@@ -71,6 +72,7 @@ $sudo_cmd pkill -f 'ai-usage-agent-native-host.*--desktop-monitor' 2>/dev/null |
 $sudo_cmd pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
 
 printf "${BLUE}\n    - Removing launchd plists...\n${NC}"
+$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.procmgr.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist

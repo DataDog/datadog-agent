@@ -40,7 +40,7 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
-	infraTagger               *infratags.Tagger
+	infraTagger               *infratags.MetricTagger
 }
 
 // extractTagsMetadata returns tags (client tags + host tag), information needed to query the tagger

@@ -236,7 +236,15 @@ architectures:
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
-        unsupported_fields: []
+        unsupported_fields:
+          - FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
+          - FI_DEV_NVLINK_ERROR_DL_REPLAY
+          - FI_DEV_NVLINK_ERROR_DL_RECOVERY
+          - FI_DEV_NVLINK_ERROR_DL_CRC
       - device_modes: [mig]
         capabilities:
           nvlink: 0
