@@ -40,6 +40,14 @@ func TestNotConfiguredByDefault(t *testing.T) {
 	for _, setting := range []string{URLSetting, APIKeySetting, SiteSetting, ConfigRootSetting, DirectorRootSetting, KeySetting} {
 		assert.Equal(t, "", cfg.GetString(setting), setting)
 	}
+
+	// And the status section contributes nothing at all, so the Cluster Agent
+	// status output is unchanged.
+	provider := NewProvider(cfg, NewEndpointStatus())
+	assert.Nil(t, provider.statusInfo())
+	stats := map[string]interface{}{}
+	require.NoError(t, provider.JSON(false, stats))
+	assert.Empty(t, stats)
 }
 
 // TestIsConfiguredIgnoresWhitespace guards against a Helm value rendering to a

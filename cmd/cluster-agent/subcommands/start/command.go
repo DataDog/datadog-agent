@@ -210,8 +210,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
-				// Shared by the client built in start() and, later, the status section.
+				// Shared by the status section below and the client built in start().
 				fx.Provide(autoscalingrc.NewEndpointStatus),
+				// Renders nothing unless autoscaling.endpoint.url is set.
+				fx.Provide(func(config config.Component, endpointStatus *autoscalingrc.EndpointStatus) status.InformationProvider {
+					return status.NewInformationProvider(autoscalingrc.NewProvider(config, endpointStatus))
+				}),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),

@@ -7,10 +7,16 @@ go_library(
         "client.go",
         "endpoint.go",
         "endpointstatus.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/autoscalingendpoint.tmpl",
+        "status_templates/autoscalingendpointHTML.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/remoteconfig",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/status",
         "//pkg/config/model",
         "//pkg/config/remote/client",
         "//pkg/config/remote/service",
@@ -25,6 +31,7 @@ dd_agent_go_test(
     srcs = [
         "client_test.go",
         "endpoint_test.go",
+        "status_test.go",
     ],
     embed = [":remoteconfig"],
     deps = [
