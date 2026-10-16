@@ -148,3 +148,34 @@ func TestProxyConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestNewPkgConfigIgnoresDDEnvVars(t *testing.T) {
+	t.Setenv("DD_API_KEY", "env-key")
+	t.Setenv("DD_SITE", "env.site")
+	t.Setenv("DD_DD_URL", "https://env.url")
+	t.Setenv("DD_SKIP_SSL_VALIDATION", "true")
+
+	cfg := &ExporterConfig{
+		API: datadogconfig.APIConfig{
+			Key:  "exporter-key",
+			Site: "exporter.site",
+		},
+	}
+	cfg.Metrics.Metrics.TCPAddrConfig.Endpoint = "https://exporter.url"
+
+	pkgconfig := newPkgConfig(cfg)
+
+	assert.Equal(t, "exporter-key", pkgconfig.GetString("api_key"))
+	assert.Equal(t, "exporter.site", pkgconfig.GetString("site"))
+	assert.Equal(t, "https://exporter.url", pkgconfig.GetString("dd_url"))
+	assert.False(t, pkgconfig.GetBool("skip_ssl_validation"))
+}
+
+func TestNewPkgConfigSkipSSLValidationIgnoresDDEnvVar(t *testing.T) {
+	t.Setenv("DD_SKIP_SSL_VALIDATION", "false")
+
+	cfg := &ExporterConfig{}
+	cfg.ClientConfig.InsecureSkipVerify = true
+
+	assert.True(t, newPkgConfig(cfg).GetBool("skip_ssl_validation"))
+}
