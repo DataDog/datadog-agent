@@ -88,9 +88,6 @@ nav:
     - Use optional dependencies: how-to/components/optional-dependencies.md
     - Add flare data: how-to/components/flares.md
     - Add a status provider: how-to/components/status.md
-  - Agent schema:
-    - Add and document settings: how-to/agent-schema/settings.md
-    - Validate and generate output: how-to/agent-schema/workflows.md
   - Checks:
     - Run JMXFetch: how-to/run-jmxfetch.md
   - Debug agents:
@@ -126,8 +123,12 @@ nav:
   - Component framework:
     - Status providers: reference/components/status.md
   - Agent schema:
+    - reference/agent-schema/index.md
     - Keywords: reference/agent-schema/keywords.md
+    - Annotated examples: reference/agent-schema/examples.md
     - CLI commands: reference/agent-schema/cli.md
+    - Add and document settings: reference/agent-schema/settings.md
+    - Validate and generate output: reference/agent-schema/workflows.md
   - Images:
     - Developer environment: reference/images/dev.md
     - Builders: reference/images/builders.md
@@ -139,9 +140,6 @@ nav:
   - Component framework:
     - architecture/components/index.md
     - Fx: architecture/components/fx.md
-  - Agent schema:
-    - architecture/agent-schema/index.md
-    - Annotated examples: architecture/agent-schema/examples.md
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
 

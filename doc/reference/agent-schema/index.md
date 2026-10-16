@@ -44,7 +44,7 @@ The Agent ships with multiple configuration files, each with its own schema:
 
 The main Agent schema covers metrics, logs, APM, processes, and other Agent features. The system-probe schema covers settings for its separate binary, including eBPF probes, network performance monitoring, and universal service monitoring.
 
-Each schema generates its corresponding example configuration file. Only nodes with `visibility: public` appear in those examples. Both schemas use the same [keywords](../../reference/agent-schema/keywords.md).
+Each schema generates its corresponding example configuration file. Only nodes with `visibility: public` appear in those examples. Both schemas use the same [keywords](keywords.md).
 
 ## JSON Schema foundation
 
@@ -63,6 +63,6 @@ The schema files under `pkg/config/schema/yaml/` are the source of truth and are
 ## Related documentation
 
 - Read the [annotated examples](examples.md) to understand settings, sections, and nested values.
-- Follow the [settings how-to](../../how-to/agent-schema/settings.md) to add, document, and publish settings.
-- Use the [schema workflows](../../how-to/agent-schema/workflows.md) to validate changes, regenerate output, and locate settings.
-- Consult the [keyword reference](../../reference/agent-schema/keywords.md) and [CLI reference](../../reference/agent-schema/cli.md) for supported fields and command arguments.
+- Follow the [settings how-to](settings.md) to add, document, and publish settings.
+- Use the [schema workflows](workflows.md) to validate changes, regenerate output, and locate settings.
+- Consult the [keyword reference](keywords.md) and [CLI reference](cli.md) for supported fields and command arguments.
