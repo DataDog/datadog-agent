@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
@@ -38,6 +39,10 @@ func TestUnshareEvent(t *testing.T) {
 		{
 			ID:         "test_unshare_newuser_newnet",
 			Expression: `unshare.flags & CLONE_NEWUSER > 0 && unshare.flags & CLONE_NEWNET > 0 && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_clone_newns_exec",
+			Expression: `exec.file.name == "syscall_tester" && exec.argv in ["sleep"]`,
 		},
 	}
 
@@ -104,6 +109,26 @@ func TestUnshareEvent(t *testing.T) {
 	t.Run("unshare-newns", func(t *testing.T) {
 		flags := unix.CLONE_NEWNS
 		if err := test.GetEventSent(t, runUnshare(flags), assertUnshare(t, flags), time.Second*3, "test_unshare_newns"); err != nil {
+			t.Error(err)
+		}
+	})
+
+	t.Run("clone-newns", func(t *testing.T) {
+		if ebpfLessEnabled {
+			t.Skip("Not applicable to ebpfless")
+		}
+		err := test.GetEventSent(t, func() error {
+			cmd := exec.Command(syscallTester, "sleep", "0")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: unix.CLONE_NEWNS}
+			return cmd.Run()
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			assert.NotZero(t, event.Exec.Process.MntNS, "child mntns should be resolved")
+			if event.ProcessContext.Parent != nil {
+				assert.NotEqual(t, event.ProcessContext.Parent.MntNS, event.Exec.Process.MntNS, "child cloned with CLONE_NEWNS should not inherit parent mntns")
+			}
+			return true
+		}, time.Second*3, "test_clone_newns_exec")
+		if err != nil {
 			t.Error(err)
 		}
 	})
