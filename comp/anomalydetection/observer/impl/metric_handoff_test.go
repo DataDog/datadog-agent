@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	"github.com/stretchr/testify/assert"
@@ -27,16 +28,20 @@ func (*precheckOnlyMetricView) GetTags() tagset.CompositeTags {
 }
 func (*precheckOnlyMetricView) GetTimestampUnix() int64 { panic("timestamp must not be read") }
 func (*precheckOnlyMetricView) GetSampleRate() float64  { panic("sample rate must not be read") }
+func (*precheckOnlyMetricView) GetMetricType() metrics.MetricType {
+	panic("metric type must not be read")
+}
 
 func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	ch := make(chan observation, 1)
 	h := &handle{ch: ch, source: "dogstatsd"}
 	sample := &metricObs{
-		name:      "requests",
-		value:     42,
-		host:      "host-a",
-		tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod"}),
-		timestamp: 123,
+		name:       "requests",
+		value:      42,
+		metricType: metrics.CountType,
+		host:       "host-a",
+		tags:       tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod"}),
+		timestamp:  123,
 	}
 
 	require.False(t, testObserveMetricAndReportDrop(h, sample))
@@ -45,6 +50,7 @@ func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	// Mutating the scalar fields here must not change the queued observation.
 	sample.name = "reused"
 	sample.value = -1
+	sample.metricType = metrics.GaugeType
 	sample.host = "host-b"
 	sample.timestamp = 456
 
@@ -52,6 +58,7 @@ func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	require.True(t, queued.hasMetric)
 	assert.Equal(t, "requests", queued.metric.name)
 	assert.Equal(t, 42.0, queued.metric.value)
+	assert.Equal(t, metrics.CountType, queued.metric.metricType)
 	assert.Equal(t, "host-a", queued.metric.host)
 	assert.Equal(t, int64(123), queued.metric.timestamp)
 	assert.Equal(t, []string{"service:web", "env:prod"}, queued.metric.tags.UnsafeToReadOnlySliceString())
@@ -77,6 +84,7 @@ func TestMetricHandoffRetainsImmutableCompositeTags(t *testing.T) {
 	decision := prepareMetricHandoff(queued.source, queued.metric, filter, nil)
 	require.NotNil(t, decision.metric)
 	assert.Equal(t, sample.tags, decision.metric.tags)
+	assert.Equal(t, sample.metricType, decision.metric.GetMetricType())
 	assert.Equal(t, storageKeyForContextKey(queued.source, queued.metric.contextKey), decision.metric.storageKey)
 }
 
