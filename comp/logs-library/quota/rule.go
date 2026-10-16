@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 type snapshot struct {
@@ -26,6 +28,7 @@ type entry struct {
 // quota drops every log carrying all of its tags until its deadline.
 type quota struct {
 	tags     []string
+	key      string
 	deadline time.Time
 	stats    *quotaStats
 }
@@ -46,8 +49,10 @@ func parseSnapshot(raw []byte) ([]*quota, error) {
 		if slices.Contains(e.Tags, "") {
 			return nil, fmt.Errorf("quotas[%d]: empty tag", i)
 		}
+		tags := slices.Compact(slices.Sorted(slices.Values(e.Tags)))
 		quotas = append(quotas, &quota{
-			tags:     slices.Compact(slices.Sorted(slices.Values(e.Tags))),
+			tags:     tags,
+			key:      quotaKey(tags),
 			deadline: time.Unix(e.ExpiresAt, 0),
 		})
 	}
@@ -58,19 +63,19 @@ func (q *quota) expired(now time.Time) bool {
 	return !now.Before(q.deadline)
 }
 
-func (q *quota) matches(tags []string) bool {
+func (q *quota) matches(o *message.Origin) bool {
 	for _, t := range q.tags {
-		if !slices.Contains(tags, t) {
+		if !o.HasTag(t) {
 			return false
 		}
 	}
 	return true
 }
 
-// key identifies the quota in stats and telemetry.
-func (q *quota) key() string {
-	if len(q.tags) == 0 {
+// quotaKey identifies a quota in stats and telemetry.
+func quotaKey(tags []string) string {
+	if len(tags) == 0 {
 		return "*"
 	}
-	return strings.Join(q.tags, ",")
+	return strings.Join(tags, ",")
 }
