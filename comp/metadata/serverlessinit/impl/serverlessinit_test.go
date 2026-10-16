@@ -25,7 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorypayload"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
@@ -38,13 +38,13 @@ import (
 
 type recordingSerializer struct {
 	serializer.MetricSerializer
-	payloads []*inventoryagent.Payload
+	payloads []*inventorypayload.Payload
 	err      error
 	onSend   func()
 }
 
 func (s *recordingSerializer) SendMetadata(p marshaler.JSONMarshaler) error {
-	s.payloads = append(s.payloads, p.(*inventoryagent.Payload))
+	s.payloads = append(s.payloads, p.(*inventorypayload.Payload))
 	if s.onSend != nil {
 		s.onSend()
 	}
