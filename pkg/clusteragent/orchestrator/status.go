@@ -69,7 +69,9 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 		// obfuscate the api keys
 		for _, endpoint := range orchestratorCfg.OrchestratorEndpoints {
 			endpointStr := endpoint.Endpoint.String()
-			if len(endpoint.APIKey) > 5 {
+			if endpoint.HasPendingDelegatedAuth {
+				endpoints[endpointStr] = append(endpoints[endpointStr], "pending")
+			} else if len(endpoint.APIKey) > 5 {
 				endpoints[endpointStr] = append(endpoints[endpointStr], endpoint.APIKey[len(endpoint.APIKey)-5:])
 			}
 		}

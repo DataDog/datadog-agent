@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    Add delegated authentication (Workload Identity Federation) support for cluster-agent
+    dual shipping. A ``DELA[...]`` directive can now be used in place of a static API key in
+    ``orchestrator_explorer.orchestrator_additional_endpoints`` (or the backward-compatible
+    ``process_config.orchestrator_additional_endpoints``) and in the event-platform
+    ``additional_endpoints`` settings (container image, container lifecycle, kubeactions,
+    event management, config-files discovery, SBOM, software inventory, and the other
+    event-platform pipelines); the agent resolves it to an auto-refreshed intake key and
+    dual-ships those payloads once the credential is available. This also enables delegated
+    authentication for the event-platform settings in any agent that runs those pipelines,
+    not only the cluster-agent.

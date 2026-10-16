@@ -407,6 +407,21 @@ additional_endpoints:
 
 	// The same list-of-endpoint-structs shape sits under deeply nested security keys;
 	// the leaf-key matcher must cover them too.
+	t.Run("map-of-endpoint-structs: orchestrator additional_endpoints scrubbed", func(t *testing.T) {
+		// The orchestrator leaf key differs from additional_endpoints; the matcher must
+		// cover it so flare scrubs both static keys and DELA fallbacks.
+		input := `orchestrator_explorer:
+  orchestrator_additional_endpoints:
+    https://app.datadoghq.com:
+      - aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+      - DELA[org-uuid, aws, fallback=supersecretXYZ]
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		assert.NotContains(t, scrubbed, "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb")
+		assert.NotContains(t, scrubbed, "supersecretXYZ")
+	})
+
 	t.Run("list-of-endpoint-structs: security keys scrub DELA fallback", func(t *testing.T) {
 		input := `compliance_config:
   endpoints:
