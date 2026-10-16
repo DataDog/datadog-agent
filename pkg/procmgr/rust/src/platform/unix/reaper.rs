@@ -10,25 +10,46 @@
 //! just-spawned pid cannot be reaped before it is registered. Linux only;
 //! other Unix builds keep the registry for uniform spawn code.
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::io;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use tokio::process::Child;
 
-static SUPERVISED: Mutex<BTreeSet<u32>> = Mutex::new(BTreeSet::new());
+static SUPERVISED: Mutex<BTreeMap<u32, usize>> = Mutex::new(BTreeMap::new());
 
-fn supervised() -> MutexGuard<'static, BTreeSet<u32>> {
+fn supervised() -> MutexGuard<'static, BTreeMap<u32, usize>> {
     SUPERVISED.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn retain(map: &mut BTreeMap<u32, usize>, pid: u32) {
+    *map.entry(pid).or_insert(0) += 1;
+}
+
+fn release(map: &mut BTreeMap<u32, usize>, pid: u32) {
+    match map.get_mut(&pid) {
+        Some(n) if *n > 1 => *n -= 1,
+        Some(_) => {
+            map.remove(&pid);
+        }
+        None => {}
+    }
 }
 
 /// Holds a catalog pid in [`SUPERVISED`] until dropped (after Tokio reaps it).
 #[derive(Debug)]
 pub(crate) struct SupervisedPid(u32);
 
+impl SupervisedPid {
+    fn acquire(map: &mut BTreeMap<u32, usize>, pid: u32) -> Self {
+        retain(map, pid);
+        Self(pid)
+    }
+}
+
 impl Drop for SupervisedPid {
     fn drop(&mut self) {
-        supervised().remove(&self.0);
+        release(&mut supervised(), self.0);
     }
 }
 
@@ -36,18 +57,15 @@ impl Drop for SupervisedPid {
 pub(crate) fn spawn_registered(
     spawn: impl FnOnce() -> io::Result<Child>,
 ) -> io::Result<(Child, Option<SupervisedPid>)> {
-    let mut set = supervised();
+    let mut map = supervised();
     let child = spawn()?;
-    let guard = child.id().map(|pid| {
-        set.insert(pid);
-        SupervisedPid(pid)
-    });
+    let guard = child.id().map(|pid| SupervisedPid::acquire(&mut map, pid));
     Ok((child, guard))
 }
 
 #[cfg(test)]
 fn is_supervised(pid: u32) -> bool {
-    supervised().contains(&pid)
+    supervised().contains_key(&pid)
 }
 
 #[must_use = "dropping the reaper stops it"]
@@ -154,7 +172,7 @@ fn reap_pass() -> PassOutcome {
         let Some(pid) = status.pid() else {
             return PassOutcome::Drained;
         };
-        if u32::try_from(pid.as_raw()).is_ok_and(|raw| known.contains(&raw)) {
+        if u32::try_from(pid.as_raw()).is_ok_and(|raw| known.contains_key(&raw)) {
             return PassOutcome::KnownPending;
         }
         match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
@@ -172,11 +190,11 @@ mod tests {
     const FAKE_PID_A: u32 = 4_100_000_001;
     const FAKE_PID_B: u32 = 4_100_000_002;
     const FAKE_PID_C: u32 = 4_100_000_003;
+    const FAKE_PID_REUSE: u32 = 4_100_000_004;
 
     #[test]
     fn guard_registers_until_dropped() {
-        supervised().insert(FAKE_PID_A);
-        let guard = SupervisedPid(FAKE_PID_A);
+        let guard = SupervisedPid::acquire(&mut supervised(), FAKE_PID_A);
         assert!(is_supervised(FAKE_PID_A));
         drop(guard);
         assert!(!is_supervised(FAKE_PID_A));
@@ -184,14 +202,23 @@ mod tests {
 
     #[test]
     fn guards_are_independent_per_pid() {
-        supervised().insert(FAKE_PID_B);
-        supervised().insert(FAKE_PID_C);
-        let guard_b = SupervisedPid(FAKE_PID_B);
-        let guard_c = SupervisedPid(FAKE_PID_C);
+        let guard_b = SupervisedPid::acquire(&mut supervised(), FAKE_PID_B);
+        let guard_c = SupervisedPid::acquire(&mut supervised(), FAKE_PID_C);
         drop(guard_c);
         assert!(is_supervised(FAKE_PID_B));
         assert!(!is_supervised(FAKE_PID_C));
         drop(guard_b);
+    }
+
+    #[test]
+    fn pid_reuse_keeps_registration_until_last_guard_drops() {
+        let first = SupervisedPid::acquire(&mut supervised(), FAKE_PID_REUSE);
+        let second = SupervisedPid::acquire(&mut supervised(), FAKE_PID_REUSE);
+        assert!(is_supervised(FAKE_PID_REUSE));
+        drop(first);
+        assert!(is_supervised(FAKE_PID_REUSE));
+        drop(second);
+        assert!(!is_supervised(FAKE_PID_REUSE));
     }
 
     #[tokio::test]
