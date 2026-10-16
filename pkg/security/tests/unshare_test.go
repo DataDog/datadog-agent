@@ -17,11 +17,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestUnshareEvent(t *testing.T) {
@@ -117,15 +119,36 @@ func TestUnshareEvent(t *testing.T) {
 		if ebpfLessEnabled {
 			t.Skip("Not applicable to ebpfless")
 		}
-		err := test.GetEventSent(t, func() error {
-			cmd := exec.Command(syscallTester, "sleep", "0")
-			cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: unix.CLONE_NEWNS}
-			return cmd.Run()
-		}, func(_ *rules.Rule, event *model.Event) bool {
-			assert.NotZero(t, event.Exec.Process.MntNS, "child mntns should be resolved")
-			if event.ProcessContext.Parent != nil {
-				assert.NotEqual(t, event.ProcessContext.Parent.MntNS, event.Exec.Process.MntNS, "child cloned with CLONE_NEWNS should not inherit parent mntns")
+		parentMntNS, err := utils.NewNSPathFromPid(utils.Getpid(), utils.MntNsType).GetNSID()
+		require.NoError(t, err)
+
+		var (
+			cmd        *exec.Cmd
+			childMntNS uint32
+		)
+		defer func() {
+			if cmd != nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+				_ = cmd.Wait()
 			}
+		}()
+
+		err = test.GetEventSent(t, func() error {
+			cmd = exec.Command(syscallTester, "sleep", "2")
+			cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: unix.CLONE_NEWNS}
+			if err := cmd.Start(); err != nil {
+				return err
+			}
+			var nsErr error
+			childMntNS, nsErr = utils.NewNSPathFromPid(uint32(cmd.Process.Pid), utils.MntNsType).GetNSID()
+			return nsErr
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			if event.Exec.Process.Pid != uint32(cmd.Process.Pid) {
+				return false
+			}
+			assert.NotZero(t, event.Exec.Process.MntNS, "child mntns should be resolved")
+			assert.NotEqual(t, parentMntNS, event.Exec.Process.MntNS, "child cloned with CLONE_NEWNS should not inherit parent mntns")
+			assert.Equal(t, childMntNS, event.Exec.Process.MntNS, "child mntns should match /proc/<pid>/ns/mnt")
 			return true
 		}, time.Second*3, "test_clone_newns_exec")
 		if err != nil {
