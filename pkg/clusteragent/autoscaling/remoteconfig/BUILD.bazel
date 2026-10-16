@@ -7,6 +7,7 @@ go_library(
         "client.go",
         "endpoint.go",
         "endpointstatus.go",
+        "flare.go",
         "status.go",
     ],
     embedsrcs = [
@@ -16,9 +17,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/remoteconfig",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/flare/types",
         "//comp/core/status",
         "//pkg/config/model",
         "//pkg/config/remote/client",
+        "//pkg/config/remote/flare",
         "//pkg/config/remote/service",
         "//pkg/config/utils",
         "//pkg/util/log",
@@ -31,10 +34,12 @@ dd_agent_go_test(
     srcs = [
         "client_test.go",
         "endpoint_test.go",
+        "flare_test.go",
         "status_test.go",
     ],
     embed = [":remoteconfig"],
     deps = [
+        "//comp/core/flare/helpers",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/config/remote/meta",
