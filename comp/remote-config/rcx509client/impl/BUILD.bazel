@@ -15,6 +15,7 @@ go_library(
     target_compatible_with = select({
         "@rules_go//go/platform:darwin": [],
         "@rules_go//go/platform:linux": [],
+        "@rules_go//go/platform:windows": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     visibility = ["//visibility:public"],

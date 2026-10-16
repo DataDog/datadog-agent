@@ -63,6 +63,7 @@ if ($LASTEXITCODE -ne 0) {
 
 $agentBinDir = Join-Path $stageDir 'bin\agent'
 $expectedFiles = @(
+    (Join-Path $agentBinDir 'agent.exe'),
     (Join-Path $agentBinDir 'windows_msvc_lifecycle.exe'),
     (Join-Path $agentBinDir 'rc_x509_ffi.dll'),
     (Join-Path $agentBinDir 'aws_lc_fips_0_14_2_crypto.dll')
@@ -77,5 +78,13 @@ Get-ChildItem -LiteralPath $agentBinDir | Format-Table -AutoSize
 & (Join-Path $agentBinDir 'windows_msvc_lifecycle.exe')
 if ($LASTEXITCODE -ne 0) {
     throw "Packaged Windows MSVC/MinGW lifecycle probe exited with code $LASTEXITCODE"
+}
+
+Write-Host 'Packaged Windows Agent version probe:'
+[Environment]::SetEnvironmentVariable('DD_REMOTE_CONFIGURATION_ENABLED', 'false', 'Process')
+[Environment]::SetEnvironmentVariable('DD_REMOTE_CONFIGURATION_X509_ENABLED', 'false', 'Process')
+& (Join-Path $agentBinDir 'agent.exe') version
+if ($LASTEXITCODE -ne 0) {
+    throw "Packaged Windows Agent version probe exited with code $LASTEXITCODE"
 }
 [Environment]::SetEnvironmentVariable('RC_X509_LIFECYCLE_SUCCEEDED', '1', 'Process')

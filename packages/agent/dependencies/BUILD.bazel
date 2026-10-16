@@ -93,6 +93,7 @@ pkg_filegroup(
     srcs = [
         ":rc_x509_windows_lifecycle_probe_file",
         ":rc_x509_windows_runtime_files",
+        "//packages/agent/product:agent_binary",
     ],
 )
 
