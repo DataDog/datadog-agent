@@ -136,7 +136,7 @@ func TestTruncateCheckError(t *testing.T) {
 	assert.Equal(t, exact, truncateCheckError(exact))
 
 	long := "Traceback (most recent call last):\n" +
-		strings.Repeat("another command is already in progress\n", 100000) +
+		strings.Repeat("another command is already in progress\n", maxCheckErrorLength) +
 		"psycopg.OperationalError: connection is bad"
 	got := truncateCheckError(long)
 	assert.LessOrEqual(t, len(got), maxCheckErrorLength)
@@ -154,7 +154,7 @@ func TestTruncateCheckError(t *testing.T) {
 }
 
 func TestTruncateLoaderErrors(t *testing.T) {
-	longMsg := strings.Repeat("another command is already in progress\n", 100000)
+	longMsg := strings.Repeat("another command is already in progress\n", maxCheckErrorLength)
 	errs := map[string]string{"python": longMsg, "core": "check not found"}
 
 	got := truncateLoaderErrors(errs)
@@ -173,13 +173,13 @@ func TestGetPayloadTruncatesCheckMessages(t *testing.T) {
 	expvars.Reset()
 	t.Cleanup(expvars.Reset)
 
-	longMsg := strings.Repeat("another command is already in progress\n", 100000)
+	longMsg := strings.Repeat("another command is already in progress\n", maxCheckErrorLength)
 	errCheck := &TestCheck{name: "error_check"}
 	warnCheck := &TestCheck{name: "warning_check"}
 	expvars.AddCheckStats(errCheck, 0, errors.New(longMsg), nil, checkstats.SenderStats{}, haagentmock.NewMockHaAgent())
 	expvars.AddCheckStats(warnCheck, 0, nil, []error{errors.New(longMsg)}, checkstats.SenderStats{}, haagentmock.NewMockHaAgent())
 
-	pl := newTestCollector(t, nil).GetPayload(context.Background())
+	pl := newUnstartedTestCollector(t, nil).GetPayload(context.Background())
 
 	statuses := map[checkid.ID][]interface{}{}
 	for _, entry := range pl.AgentChecks {
