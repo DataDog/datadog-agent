@@ -18,7 +18,8 @@ use anyhow::Result;
 use log::{debug, info, warn};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use tokio::sync::{RwLock, mpsc, oneshot};
 use tonic::Status;
 
@@ -51,6 +52,8 @@ pub struct ProcessManager {
     startup_order: Arc<RwLock<Vec<usize>>>,
     config_loader: Arc<dyn ConfigLoader>,
     uuid_gen: Arc<dyn UuidGenerator>,
+    shutting_down: Arc<AtomicBool>,
+    supervisor_exit: Arc<Mutex<Option<i32>>>,
 }
 
 impl ProcessManager {
@@ -73,17 +76,62 @@ impl ProcessManager {
             startup_order: Arc::new(RwLock::new(startup_result.order)),
             config_loader,
             uuid_gen,
+            shutting_down: Arc::new(AtomicBool::new(false)),
+            supervisor_exit: Arc::new(Mutex::new(None)),
         }
     }
 
     async fn start(&self, exit_tx: &mpsc::Sender<ExitEvent>) {
         let order = self.startup_order.read().await;
         let mut procs = self.processes.write().await;
-        let decided = run_start_pass(&mut procs, &order, exit_tx, |_| true);
+        let decided = self.run_start_pass(&mut procs, &order, exit_tx, |_| true);
         finalize_start_holds(&mut procs, &order, &decided);
     }
 
-    pub async fn run(&self) -> Result<()> {
+    fn spawn_process(
+        &self,
+        proc: &mut ManagedProcess,
+        exit_tx: &mpsc::Sender<ExitEvent>,
+    ) -> Result<()> {
+        match proc.spawn(exit_tx.clone()) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if proc.config().exit_with_supervisor {
+                    warn!("[{}] critical process failed to start", proc.name());
+                    self.request_supervisor_exit(proc.name(), SPAWN_FAILURE_EXIT_CODE);
+                }
+                Err(e)
+            }
+        }
+    }
+
+    fn request_supervisor_exit(&self, name: &str, code: i32) {
+        if self.is_shutting_down() {
+            debug!("[{name}] critical process ended during shutdown, nothing to do");
+            return;
+        }
+        let mut exit = self
+            .supervisor_exit
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if exit.is_none() {
+            info!("[{name}] critical process ended, shutting down with exit code {code}");
+            *exit = Some(code);
+        }
+    }
+
+    pub(crate) fn supervisor_exit_code(&self) -> Option<i32> {
+        *self
+            .supervisor_exit
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn is_shutting_down(&self) -> bool {
+        self.shutting_down.load(Ordering::SeqCst)
+    }
+
+    pub async fn run(&self) -> Result<i32> {
         let _reaper = platform::start_reaper();
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
@@ -97,6 +145,9 @@ impl ProcessManager {
         tokio::pin!(shutdown);
 
         loop {
+            if self.supervisor_exit_code().is_some() {
+                break;
+            }
             tokio::select! {
                 _ = &mut shutdown => {
                     break;
@@ -126,6 +177,7 @@ impl ProcessManager {
             }
         }
 
+        self.shutting_down.store(true, Ordering::SeqCst);
         info!("dd-procmgrd shutting down");
 
         let _ = grpc_shutdown_tx.send(());
@@ -136,8 +188,9 @@ impl ProcessManager {
         }
 
         self.shutdown().await;
-        info!("dd-procmgrd stopped");
-        Ok(())
+        let code = self.supervisor_exit_code().unwrap_or(0);
+        info!("dd-procmgrd stopped (exit code {code})");
+        Ok(code)
     }
 
     pub(crate) async fn processes(&self) -> tokio::sync::RwLockReadGuard<'_, Vec<ManagedProcess>> {
@@ -183,6 +236,19 @@ impl ProcessManager {
         }
         info!("[{}] exited with {}", proc.name(), event.status);
         proc.set_last_status(event.status);
+        if self.is_shutting_down() {
+            debug!("[{}] exited during shutdown, not restarting", proc.name());
+            return;
+        }
+        if proc.config().exit_with_supervisor
+            && matches!(
+                proc.state(),
+                ProcessState::Exited | ProcessState::Crashed | ProcessState::Failed
+            )
+        {
+            self.request_supervisor_exit(proc.name(), exit_code_of(&event.status));
+            return;
+        }
         if let Some(delay) = proc.handle_restart() {
             let tx = restart_tx.clone();
             let name = event.name.clone();
@@ -212,7 +278,7 @@ impl ProcessManager {
             proc.record_start_hold(holds, &[]);
             return;
         }
-        if let Err(e) = proc.spawn(exit_tx.clone()) {
+        if let Err(e) = self.spawn_process(proc, exit_tx) {
             warn!("[{}] restart failed: {e:#}", proc.name());
         }
     }
@@ -257,7 +323,7 @@ impl ProcessManager {
         {
             let order = self.startup_order.read().await;
             let mut procs = self.processes.write().await;
-            let decided = run_start_pass(&mut procs, &order, exit_tx, |p| p.name() == name);
+            let decided = self.run_start_pass(&mut procs, &order, exit_tx, |p| p.name() == name);
             finalize_start_holds(&mut procs, &order, &decided);
         }
         Ok(CreateResult { uuid, warnings })
@@ -290,8 +356,9 @@ impl ProcessManager {
                 proc.name()
             )));
         }
-        proc.spawn(exit_tx.clone())
-            .map_err(|e| Status::internal(format!("failed to start '{}': {e:#}", proc.name())))?;
+        let name = proc.name().to_owned();
+        self.spawn_process(proc, exit_tx)
+            .map_err(|e| Status::internal(format!("failed to start '{name}': {e:#}")))?;
         let uuid = proc.uuid().to_owned();
         let pid = proc.pid();
         let state = proc.state();
@@ -305,7 +372,7 @@ impl ProcessManager {
     /// rather than through this command channel, so holding it across the wait
     /// makes every read hang for the duration.
     pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
-        let (uuid, wait) = {
+        let (uuid, critical, wait) = {
             let mut procs = self.processes.write().await;
             let invalid = self.invalid.read().await;
             if let Some(inv) = find_invalid(&invalid, &procs, name_or_uuid)? {
@@ -325,7 +392,11 @@ impl ProcessManager {
                 )));
             }
             proc.request_stop();
-            (proc.uuid().to_owned(), proc.take_stop_wait())
+            (
+                proc.uuid().to_owned(),
+                proc.config().exit_with_supervisor,
+                proc.take_stop_wait(),
+            )
         };
 
         if let Some(wait) = wait {
@@ -342,6 +413,9 @@ impl ProcessManager {
         let proc = &mut procs[idx];
         proc.finish_stop();
         let state = proc.state();
+        if critical {
+            self.request_supervisor_exit(proc.name(), 0);
+        }
         Ok(StopResult { uuid, state })
     }
 
@@ -371,6 +445,7 @@ impl ProcessManager {
         let mut removed = Vec::new();
         let mut stopped_procs = Vec::new();
         let mut valid_to_invalid = Vec::new();
+        let mut critical_stopped: Vec<String> = Vec::new();
         {
             let mut procs = self.processes.write().await;
             let mut i = 0;
@@ -381,6 +456,9 @@ impl ProcessManager {
                     let mut proc = procs.remove(i);
                     info!("[{}] config removed, stopping", proc.name());
                     if proc.is_running() {
+                        if proc.config().exit_with_supervisor {
+                            critical_stopped.push(proc.name().to_owned());
+                        }
                         proc.request_stop();
                     }
                     removed.push(proc.name().to_owned());
@@ -415,6 +493,9 @@ impl ProcessManager {
                     .expect("name was present");
                 info!("[{name}] config is no longer valid, stopping");
                 if procs[i].is_running() {
+                    if procs[i].config().exit_with_supervisor {
+                        critical_stopped.push(name.clone());
+                    }
                     procs[i].request_stop();
                     stopping_to_invalid.push((name.clone(), entry));
                     valid_to_invalid.push(name);
@@ -519,6 +600,9 @@ impl ProcessManager {
                     if *existing.config() != config {
                         info!("[{name}] config changed, updating");
                         if existing.is_running() {
+                            if existing.config().exit_with_supervisor {
+                                critical_stopped.push(name.clone());
+                            }
                             existing.request_stop();
                             modified_running.push(name.clone());
                         }
@@ -592,6 +676,17 @@ impl ProcessManager {
             pending_restart.push(name.clone());
         }
 
+        if let Some(name) = critical_stopped.first() {
+            self.update_startup_order().await;
+            self.request_supervisor_exit(name, 0);
+            return Ok(ReloadResult {
+                added,
+                removed,
+                modified,
+                unchanged,
+            });
+        }
+
         // Before start pass, deferred restarts, and gate re-eval (all walk order).
         self.update_startup_order().await;
 
@@ -616,7 +711,7 @@ impl ProcessManager {
                 pending_restart.iter().map(String::as_str).collect();
             let order = self.startup_order.read().await;
             let mut procs = self.processes.write().await;
-            let mut decided = run_start_pass(&mut procs, &order, exit_tx, |p| {
+            let mut decided = self.run_start_pass(&mut procs, &order, exit_tx, |p| {
                 added_names.contains(p.name()) || recovered_names.contains(p.name())
             });
             for &idx in order.iter() {
@@ -626,7 +721,7 @@ impl ProcessManager {
                 }
                 let name = proc.name().to_owned();
                 info!("[{name}] restarting with updated config");
-                if let Err(e) = proc.spawn(exit_tx.clone()) {
+                if let Err(e) = self.spawn_process(proc, exit_tx) {
                     warn!("[{name}] failed to restart: {e:#}");
                 }
                 decided.insert(idx);
@@ -689,7 +784,7 @@ impl ProcessManager {
                 info!("[{name}] start conditions now met after reload, starting");
                 // After burst check; before `spawn` (clears the skip reason).
                 proc.record_recovered_restart();
-                if let Err(e) = proc.spawn(exit_tx.clone()) {
+                if let Err(e) = self.spawn_process(proc, exit_tx) {
                     warn!("[{name}] failed to start after gate re-eval: {e:#}");
                 }
             }
@@ -722,7 +817,42 @@ impl ProcessManager {
         let mut procs = self.processes.write().await;
         shutdown::shutdown_ordered(&mut procs, &order).await;
     }
+
+    fn run_start_pass(
+        &self,
+        procs: &mut [ManagedProcess],
+        order: &[usize],
+        exit_tx: &mpsc::Sender<ExitEvent>,
+        selected: impl Fn(&ManagedProcess) -> bool,
+    ) -> HashSet<usize> {
+        let mut decided = HashSet::new();
+        for &idx in order {
+            let proc = &mut procs[idx];
+            if !selected(proc) {
+                continue;
+            }
+            let holds = proc.evaluate_start_pass();
+            if holds.is_empty() {
+                if let Err(e) = self.spawn_process(proc, exit_tx) {
+                    warn!("{e:#}");
+                }
+            } else {
+                proc.record_start_hold(holds, &[]);
+            }
+            decided.insert(idx);
+        }
+        decided
+    }
 }
+
+fn exit_code_of(status: &std::process::ExitStatus) -> i32 {
+    status
+        .code()
+        .or_else(|| platform::last_signal(status).map(|sig| 128 + sig))
+        .unwrap_or(1)
+}
+
+const SPAWN_FAILURE_EXIT_CODE: i32 = 1;
 
 pub fn looks_like_uuid_prefix(s: &str) -> bool {
     s.len() >= 8 && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
@@ -812,41 +942,6 @@ fn resolve_index(
 struct StartupOrderResult {
     order: Vec<usize>,
     warnings: Vec<String>,
-}
-
-/// Run a start pass over the rows of `order` that `selected` accepts: spawn the
-/// ones no hold denies, and record on the others the holds that denied them.
-/// Returns the indices it decided, which `finalize_start_holds` must be told
-/// about so it leaves their labels alone.
-///
-/// Only rows in `order` are considered, and that is what keeps a dependency
-/// cycle from starting: its members are excluded from the order, so they reach
-/// `finalize_start_holds` untouched and rest in `Skipped` with `ordering`.
-/// Resolve the order before calling this, or a cycle introduced by the config
-/// being loaded will start anyway.
-fn run_start_pass(
-    procs: &mut [ManagedProcess],
-    order: &[usize],
-    exit_tx: &mpsc::Sender<ExitEvent>,
-    selected: impl Fn(&ManagedProcess) -> bool,
-) -> HashSet<usize> {
-    let mut decided = HashSet::new();
-    for &idx in order {
-        let proc = &mut procs[idx];
-        if !selected(proc) {
-            continue;
-        }
-        let holds = proc.evaluate_start_pass();
-        if holds.is_empty() {
-            if let Err(e) = proc.spawn(exit_tx.clone()) {
-                warn!("{e:#}");
-            }
-        } else {
-            proc.record_start_hold(holds, &[]);
-        }
-        decided.insert(idx);
-    }
-    decided
 }
 
 /// After a start pass, never-spawned rows that were declined (or excluded for
@@ -1111,6 +1206,304 @@ mod tests {
 
         test_helpers::cleanup_process(procs[0].pid().unwrap());
         Ok(())
+    }
+
+    fn critical_def(name: &str) -> ProcessDefinition {
+        let mut def = sleep_def(name);
+        def.config.exit_with_supervisor = true;
+        def.config.restart = config::RestartPolicy::Always;
+        def.config.restart_sec = Some(0.0);
+        def
+    }
+
+    fn critical_missing_binary_def(name: &str) -> ProcessDefinition {
+        let mut def = ProcessDefinition {
+            name: name.to_string(),
+            config: test_helpers::make_config("/nonexistent/binary", vec![]),
+        };
+        def.config.exit_with_supervisor = true;
+        def
+    }
+
+    async fn exit_with(
+        mgr: &ProcessManager,
+        name: &str,
+        status: std::process::ExitStatus,
+    ) -> mpsc::Receiver<String> {
+        let (restart_tx, restart_rx) = mpsc::channel::<String>(8);
+        let pid = mgr
+            .processes()
+            .await
+            .iter()
+            .find(|p| p.name() == name)
+            .and_then(|p| p.pid())
+            .expect("process should be running");
+        test_helpers::cleanup_process(pid);
+        mgr.handle_exit(
+            ExitEvent {
+                name: name.to_string(),
+                pid,
+                status,
+            },
+            &restart_tx,
+        )
+        .await;
+        restart_rx
+    }
+
+    async fn assert_nothing_queued(restart_rx: &mut mpsc::Receiver<String>) {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(
+            restart_rx.try_recv().is_err(),
+            "no restart should have been queued"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_critical_exit_requests_supervisor_exit_with_child_code() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![critical_def("crit")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        assert_eq!(mgr.supervisor_exit_code(), None);
+
+        let mut restart_rx = exit_with(&mgr, "crit", test_helpers::exit_status(7)).await;
+
+        assert_eq!(mgr.supervisor_exit_code(), Some(7));
+        assert_eq!(mgr.processes().await[0].state(), ProcessState::Failed);
+        assert_nothing_queued(&mut restart_rx).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_critical_clean_exit_propagates_zero() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![critical_def("crit")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        let mut restart_rx = exit_with(&mgr, "crit", test_helpers::exit_status(0)).await;
+
+        assert_eq!(mgr.supervisor_exit_code(), Some(0));
+        assert_eq!(mgr.processes().await[0].state(), ProcessState::Exited);
+        assert_nothing_queued(&mut restart_rx).await;
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_critical_signal_death_exits_128_plus_signal() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![critical_def("crit")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        exit_with(&mgr, "crit", test_helpers::signal_exit_status(9)).await;
+
+        assert_eq!(mgr.supervisor_exit_code(), Some(128 + 9));
+        assert_eq!(mgr.processes().await[0].state(), ProcessState::Crashed);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_non_critical_exit_does_not_request_supervisor_exit() -> anyhow::Result<()> {
+        let mut def = sleep_def("aux");
+        def.config.restart = config::RestartPolicy::Always;
+        def.config.restart_sec = Some(0.0);
+        let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        let mut restart_rx = exit_with(&mgr, "aux", test_helpers::exit_status(1)).await;
+
+        assert_eq!(mgr.supervisor_exit_code(), None);
+        assert_eq!(
+            restart_rx.recv().await.as_deref(),
+            Some("aux"),
+            "the restart policy still applies to a non-critical process"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_critical_exit_during_shutdown_is_ignored() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![critical_def("crit")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        mgr.shutting_down.store(true, Ordering::SeqCst);
+
+        let mut restart_rx = exit_with(&mgr, "crit", test_helpers::exit_status(3)).await;
+
+        assert_eq!(
+            mgr.supervisor_exit_code(),
+            None,
+            "the daemon's own shutdown must not fire the critical logic"
+        );
+        assert_nothing_queued(&mut restart_rx).await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_first_supervisor_exit_request_wins() {
+        let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        mgr.request_supervisor_exit("a", 5);
+        mgr.request_supervisor_exit("b", 9);
+        assert_eq!(mgr.supervisor_exit_code(), Some(5));
+    }
+
+    #[tokio::test]
+    async fn test_stop_of_critical_requests_supervisor_exit() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(
+            loader(vec![critical_def("crit"), sleep_def("aux")]),
+            uuid_gen(),
+        );
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        mgr.handle_stop("aux").await?;
+        assert_eq!(
+            mgr.supervisor_exit_code(),
+            None,
+            "stopping a non-critical process leaves the supervisor alone"
+        );
+
+        let result = mgr.handle_stop("crit").await?;
+        assert_eq!(result.state, ProcessState::Stopped);
+        assert_eq!(mgr.supervisor_exit_code(), Some(0));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_replacing_critical_requests_supervisor_exit() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![critical_def("crit")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut changed = critical_def("crit");
+        changed.config.args = alt_sleep_args();
+        config_loader.set(vec![changed]);
+
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+
+        assert_eq!(result.modified, vec!["crit".to_string()]);
+        assert_eq!(mgr.supervisor_exit_code(), Some(0));
+        assert_eq!(
+            mgr.processes().await[0].state(),
+            ProcessState::Stopped,
+            "the replacement must not be started on the way out"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_after_reload_removes_critical() -> anyhow::Result<()> {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![
+            critical_def("crit"),
+            sleep_def("sibling"),
+        ]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        config_loader.set(vec![sleep_def("sibling")]);
+        let result = mgr.handle_reload_config(&exit_tx).await?;
+        assert!(result.removed.contains(&"crit".to_string()));
+        assert_eq!(mgr.supervisor_exit_code(), Some(0));
+
+        mgr.shutdown().await;
+
+        let procs = mgr.processes().await;
+        assert!(procs.iter().all(|p| !p.is_running()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reload_unchanged_critical_leaves_supervisor_running() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![critical_def("crit")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        mgr.handle_reload_config(&exit_tx).await?;
+
+        assert_eq!(mgr.supervisor_exit_code(), None);
+        let procs = mgr.processes().await;
+        assert!(procs[0].is_running());
+        test_helpers::cleanup_process(procs[0].pid().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_critical_spawn_failure_requests_supervisor_exit() {
+        let mgr = ProcessManager::new(
+            loader(vec![critical_missing_binary_def("crit")]),
+            uuid_gen(),
+        );
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+
+        mgr.start(&exit_tx).await;
+
+        assert_eq!(mgr.supervisor_exit_code(), Some(SPAWN_FAILURE_EXIT_CODE));
+    }
+
+    #[tokio::test]
+    async fn test_reload_adds_critical_spawn_failure_requests_supervisor_exit() -> anyhow::Result<()>
+    {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![sleep_def("sibling")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        assert_eq!(mgr.supervisor_exit_code(), None);
+
+        config_loader.set(vec![
+            sleep_def("sibling"),
+            critical_missing_binary_def("crit"),
+        ]);
+        mgr.handle_reload_config(&exit_tx).await?;
+
+        assert_eq!(mgr.supervisor_exit_code(), Some(SPAWN_FAILURE_EXIT_CODE));
+        let procs = mgr.processes().await;
+        assert_eq!(
+            procs.iter().find(|p| p.name() == "crit").map(|p| p.state()),
+            Some(ProcessState::Failed)
+        );
+        if let Some(pid) = procs
+            .iter()
+            .find(|p| p.name() == "sibling")
+            .and_then(|p| p.pid())
+        {
+            test_helpers::cleanup_process(pid);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_handle_start_critical_spawn_failure_requests_supervisor_exit() {
+        let mut def = critical_missing_binary_def("crit");
+        def.config.auto_start = false;
+        let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        assert_eq!(mgr.supervisor_exit_code(), None);
+
+        let err = mgr.handle_start("crit", &exit_tx).await.unwrap_err();
+        assert_eq!(err.code(), tonic::Code::Internal);
+        assert_eq!(mgr.supervisor_exit_code(), Some(SPAWN_FAILURE_EXIT_CODE));
+    }
+
+    #[tokio::test]
+    async fn test_create_critical_spawn_failure_requests_supervisor_exit() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        let mut cfg = test_helpers::make_config("/nonexistent/binary", vec![]);
+        cfg.exit_with_supervisor = true;
+
+        mgr.handle_create("crit".to_string(), cfg, &exit_tx).await?;
+
+        assert_eq!(mgr.supervisor_exit_code(), Some(SPAWN_FAILURE_EXIT_CODE));
+        Ok(())
+    }
+
+    #[test]
+    fn test_exit_code_of_plain_exit() {
+        assert_eq!(exit_code_of(&test_helpers::exit_status(0)), 0);
+        assert_eq!(exit_code_of(&test_helpers::exit_status(42)), 42);
     }
 
     async fn reload_modified_running_svc_a(

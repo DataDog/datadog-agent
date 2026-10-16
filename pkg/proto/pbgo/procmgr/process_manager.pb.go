@@ -389,6 +389,7 @@ type ProcessDetail struct {
 	RuntimeUser         string                 `protobuf:"bytes,22,opt,name=runtime_user,json=runtimeUser,proto3" json:"runtime_user,omitempty"`
 	ConfigError         string                 `protobuf:"bytes,23,opt,name=config_error,json=configError,proto3" json:"config_error,omitempty"`
 	SkipReasons         []string               `protobuf:"bytes,24,rep,name=skip_reasons,json=skipReasons,proto3" json:"skip_reasons,omitempty"`
+	ExitWithSupervisor  bool                   `protobuf:"varint,25,opt,name=exit_with_supervisor,json=exitWithSupervisor,proto3" json:"exit_with_supervisor,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -589,6 +590,13 @@ func (x *ProcessDetail) GetSkipReasons() []string {
 		return x.SkipReasons
 	}
 	return nil
+}
+
+func (x *ProcessDetail) GetExitWithSupervisor() bool {
+	if x != nil {
+		return x.ExitWithSupervisor
+	}
+	return false
 }
 
 type DescribeResponse struct {
@@ -1447,7 +1455,7 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\tprocesses\x18\x01 \x03(\v2\x18.datadog.procmgr.ProcessR\tprocesses\"3\n" +
 	"\x0fDescribeRequest\x12 \n" +
 	"\fname_or_uuid\x18\x01 \x01(\tR\n" +
-	"nameOrUuid\"\xea\x06\n" +
+	"nameOrUuid\"\x9c\a\n" +
 	"\rProcessDetail\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\tR\x04uuid\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
@@ -1476,7 +1484,8 @@ const file_datadog_procmgr_process_manager_proto_rawDesc = "" +
 	"\x04user\x18\x15 \x01(\tR\x04user\x12!\n" +
 	"\fruntime_user\x18\x16 \x01(\tR\vruntimeUser\x12!\n" +
 	"\fconfig_error\x18\x17 \x01(\tR\vconfigError\x12!\n" +
-	"\fskip_reasons\x18\x18 \x03(\tR\vskipReasons\x1a6\n" +
+	"\fskip_reasons\x18\x18 \x03(\tR\vskipReasons\x120\n" +
+	"\x14exit_with_supervisor\x18\x19 \x01(\bR\x12exitWithSupervisor\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x11\n" +

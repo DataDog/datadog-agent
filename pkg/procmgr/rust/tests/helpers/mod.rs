@@ -195,6 +195,8 @@ struct DescribeSnapshot {
     pub runtime_user: String,
     #[serde(default)]
     pub config_error: String,
+    #[serde(default)]
+    pub exit_with_supervisor: bool,
 }
 
 /// Unset fields are not checked (same pattern as ReloadExpect / StatusProcessesCount).
@@ -225,6 +227,7 @@ pub struct DescribeExpect {
     pub runtime_user: Option<String>,
     pub config_error: Option<String>,
     pub has_config_error: Option<bool>,
+    pub exit_with_supervisor: Option<bool>,
 }
 
 impl DescribeSnapshot {
@@ -325,6 +328,12 @@ impl DescribeSnapshot {
             "config_error",
             &self.config_error,
             expected.has_config_error,
+            self,
+        );
+        assert_describe_field(
+            "exit_with_supervisor",
+            &self.exit_with_supervisor,
+            &expected.exit_with_supervisor,
             self,
         );
         if let Some(expected_alive) = expected.pid_alive {
@@ -825,8 +834,30 @@ impl DaemonHandle {
         signal::kill(Pid::from_raw(pid), sig).expect("failed to send signal to daemon");
     }
 
+    pub fn try_exit_status(&mut self) -> Option<ExitStatus> {
+        self.child
+            .try_wait()
+            .expect("failed to check daemon status")
+    }
+
+    pub fn wait_for_exit(&mut self, timeout: Duration) -> Option<ExitStatus> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(status) = self.try_exit_status() {
+                return Some(status);
+            }
+            if Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
     /// Gracefully stop the daemon and wait for exit.
     pub fn stop(&mut self) -> ExitStatus {
+        if let Some(status) = self.try_exit_status() {
+            return status;
+        }
         #[cfg(unix)]
         self.send_signal(Signal::SIGTERM);
         // TODO(S19): replace with GenerateConsoleCtrlEvent for graceful shutdown;
@@ -1195,6 +1226,20 @@ impl TestEnv {
 
     pub fn with_process(self, name: &str) -> Self {
         install_process_fixture(self.env_root(), &self.config_dir, name);
+        self
+    }
+
+    pub fn with_process_extra(self, name: &str, extra_yaml: &str) -> Self {
+        install_process_fixture(self.env_root(), &self.config_dir, name);
+        let path = self.config_dir.join(format!("{name}.yaml"));
+        let mut yaml = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+        if !yaml.ends_with('\n') {
+            yaml.push('\n');
+        }
+        yaml.push_str(extra_yaml);
+        yaml.push('\n');
+        write_config(&self.config_dir, name, &yaml);
         self
     }
 
@@ -1719,6 +1764,25 @@ impl TestEnv {
     /// Get the daemon's own PID.
     pub fn daemon_pid(&self) -> u32 {
         self.daemon().pid()
+    }
+
+    pub fn wait_for_daemon_exit(&mut self, timeout: Duration) -> Option<ExitStatus> {
+        self.daemon
+            .as_mut()
+            .expect("daemon not started")
+            .wait_for_exit(timeout)
+    }
+
+    pub fn daemon_is_running(&mut self) -> bool {
+        self.daemon
+            .as_mut()
+            .expect("daemon not started")
+            .try_exit_status()
+            .is_none()
+    }
+
+    pub fn stop_daemon(&mut self) -> ExitStatus {
+        self.daemon.as_mut().expect("daemon not started").stop()
     }
 }
 
