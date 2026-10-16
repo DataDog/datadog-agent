@@ -8,6 +8,7 @@ go_library(
         "cloudrun.go",
         "cloudrun_jobs.go",
         "containerapp.go",
+        "inventory.go",
         "microvm.go",
         "service.go",
     ],
