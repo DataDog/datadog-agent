@@ -5,6 +5,8 @@ load("@rules_go//proto:def.bzl", "go_proto_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
+package(default_package_metadata = ["//comp/forwarder/defaultforwarder:go_package_metadata"])
+
 proto_library(
     name = "retry_proto",
     srcs = ["HttpTransactionProto.proto"],

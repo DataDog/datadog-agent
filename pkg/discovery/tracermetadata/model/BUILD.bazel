@@ -1,6 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
+load("//bazel/rules/go_package_metadata:defs.bzl", "go_package_metadata")
+
+package(default_package_metadata = [":go_package_metadata"])
+
+go_package_metadata(
+    name = "go_package_metadata",
+    module = "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model",
+)
 
 # Source-level export so the //pkg/security/secl/model:event_deep_copy_*
 # Bazel codegens can resolve tracermetadata.TracerMetadata.

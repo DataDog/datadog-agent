@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 
+package(default_package_metadata = ["//test/new-e2e:go_package_metadata"])
+
 go_library(
     name = "system-probe_lib",
     srcs = ["main.go"],

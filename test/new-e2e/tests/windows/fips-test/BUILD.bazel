@@ -1,5 +1,7 @@
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+package(default_package_metadata = ["//test/new-e2e:go_package_metadata"])
+
 dd_agent_go_test(
     name = "fips-test_test",
     srcs = [

@@ -1,4 +1,12 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_package_metadata:defs.bzl", "go_package_metadata")
+
+package(default_package_metadata = [":go_package_metadata"])
+
+go_package_metadata(
+    name = "go_package_metadata",
+    module = "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry",
+)
 
 go_library(
     name = "telemetry",

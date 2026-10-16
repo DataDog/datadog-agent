@@ -1,5 +1,13 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go_package_metadata:defs.bzl", "go_package_metadata")
+
+package(default_package_metadata = [":go_package_metadata"])
+
+go_package_metadata(
+    name = "go_package_metadata",
+    module = "github.com/DataDog/datadog-agent/pkg/security/seclwin",
+)
 
 write_source_file(
     name = "sync",

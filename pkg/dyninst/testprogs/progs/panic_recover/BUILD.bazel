@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
+package(default_package_metadata = ["//pkg/dyninst/testprogs/progs:go_package_metadata"])
+
 go_library(
     name = "panic_recover_lib",
     srcs = ["main.go"],

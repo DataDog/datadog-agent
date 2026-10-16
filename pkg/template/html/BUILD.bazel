@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+package(default_package_metadata = ["//pkg/template:go_package_metadata"])
+
 # gazelle:go_stringer off
 go_library(
     name = "html",

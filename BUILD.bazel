@@ -8,30 +8,19 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
-load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
-load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
+load("//bazel/rules/go_package_metadata:defs.bzl", "go_package_metadata")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
-load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
-package(
-    default_package_metadata = [":package_metadata"],
-    default_visibility = ["//visibility:public"],
-)
+package(default_visibility = ["//visibility:public"])
 
-package_metadata(
-    name = "package_metadata",
-    attributes = [
-        ":license",
-    ],
-    purl = purl_for_generic(
-        download_url = "https://github.com/DataDog/datadog-agent/releases/tag/{version}",
-        package = "datadog-agent",
-        version = release_json.get("current_milestone"),
-    ),
+go_package_metadata(
+    name = "go_package_metadata",
+    attributes = [":license"],
+    module = "github.com/DataDog/datadog-agent",
 )
 
 license(
@@ -125,6 +114,7 @@ gazelle_binary(
         "//bazel/rules/go_msgp:gazelle_extension",
         "//bazel/rules/go_stringer:gazelle_extension",
         "//bazel/rules/write_pb_go:gazelle_extension",
+        "//bazel/rules/go_package_metadata:gazelle_extension",  # must follow //bazel/rules/go
     ],
 )
 

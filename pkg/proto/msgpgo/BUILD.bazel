@@ -2,6 +2,8 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 
+package(default_package_metadata = ["//pkg/proto:go_package_metadata"])
+
 go_msgp(
     name = "key_gen",
     src = "key.go",

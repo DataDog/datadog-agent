@@ -1,5 +1,7 @@
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+package(default_package_metadata = ["//pkg/trace/otel:go_package_metadata"])
+
 dd_agent_go_test(
     name = "integration_test",
     srcs = ["container_tags_v2_test.go"],

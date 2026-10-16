@@ -2,6 +2,8 @@ load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_go//go:def.bzl", "go_library")
 
+package(default_package_metadata = ["//pkg/security/secl:go_package_metadata"])
+
 # Generates policy.schema.json from the secl/rules Go types. run_binary runs at
 # the execroot, so -rules-dir is workspace-relative; the generator chdirs into
 # it to satisfy jsonschema's AddGoComments.
