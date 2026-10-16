@@ -81,6 +81,7 @@ func NewComponent(deps Requires) Provides {
 		conf:       deps.Config,
 		log:        deps.Log,
 		hostname:   deps.Hostname,
+		fields:     map[string]interface{}{},
 		collecting: make(chan struct{}, 1),
 	}
 	var metadataSerializer serializer.MetricSerializer
@@ -100,80 +101,96 @@ func NewComponent(deps Requires) Provides {
 	return provides
 }
 
+// collect is the runner callback: it waits for resource identity, records the
+// inventory snapshot, and returns the interval the payload reports.
 func (c *serverlessinitComp) collect(ctx context.Context) time.Duration {
-	return c.collectPayload(ctx, false)
+	release, ok := c.enter(ctx)
+	if !ok {
+		return c.payload.MinInterval
+	}
+	defer release()
+	data, ok := c.waitForIdentity(ctx)
+	if !ok {
+		return c.payload.MinInterval
+	}
+	c.applyInventoryData(data)
+	return c.payload.Collect(ctx)
 }
 
-func (c *serverlessinitComp) collectPayload(ctx context.Context, final bool) time.Duration {
+// enter serializes collection and shutdown behind a single slot, rejecting
+// calls after stop. The stopped check runs after acquisition so stop cannot
+// interleave between the check and the work. release is nil when ok is false.
+func (c *serverlessinitComp) enter(ctx context.Context) (release func(), ok bool) {
 	if ctx.Err() != nil || !c.payload.Enabled {
-		return c.payload.MinInterval
+		return nil, false
 	}
 	select {
 	case c.collecting <- struct{}{}:
-		defer func() { <-c.collecting }()
 	case <-ctx.Done():
-		return c.payload.MinInterval
+		return nil, false
 	}
 	if c.stopped {
-		return c.payload.MinInterval
+		<-c.collecting
+		return nil, false
 	}
-	if final {
-		c.stopped = true
-	}
+	return func() { <-c.collecting }, true
+}
 
+// waitForIdentity polls the provider until it reports a resource identity,
+// retrying at identityRetryInterval; ok is false when ctx ends first.
+func (c *serverlessinitComp) waitForIdentity(ctx context.Context) (serverlessdef.ServerlessInitData, bool) {
 	for ctx.Err() == nil {
 		data := c.provider.GetInventoryData()
-		if strings.TrimSpace(data.ResourceID) == "" {
-			// The last known identity was already reported; do not spend the shutdown grace waiting.
-			if final && c.submittedCurrentIdentity {
-				return c.payload.MinInterval
-			}
-			select {
-			case <-ctx.Done():
-				return c.payload.MinInterval
-			case <-time.After(identityRetryInterval):
-			}
-			continue
+		if strings.TrimSpace(data.ResourceID) != "" {
+			return data, true
 		}
-		fields := buildFields(data, c.params, c.conf)
-		if !reflect.DeepEqual(fields, c.fields) {
-			c.payload.Refresh()
+		select {
+		case <-ctx.Done():
+			return serverlessdef.ServerlessInitData{}, false
+		case <-time.After(identityRetryInterval):
 		}
-		c.fields = fields
-		if data.ResourceID != c.lastResourceID {
-			c.uuid = uuid.New().String()
-			c.lastResourceID = data.ResourceID
-			c.submittedCurrentIdentity = false
-		}
-		if c.data == nil {
-			c.data = inventorypayload.NewData(c.conf, c.log, c.hostname)
-		}
-		if ctx.Err() != nil {
-			return c.payload.MinInterval
-		}
-		if !final {
-			return c.payload.Collect(ctx)
-		}
-		if c.submittedCurrentIdentity {
-			return c.payload.MinInterval
-		}
-		if err := c.payload.Submit(); err != nil {
-			c.log.Errorf("unable to submit serverless-init inventory payload at shutdown: %s", err)
-		}
-		return c.payload.MinInterval
 	}
-	return c.payload.MinInterval
+	return serverlessdef.ServerlessInitData{}, false
+}
+
+// applyInventoryData records a newly observed inventory snapshot: it triggers
+// a payload refresh when the wire fields changed, rotates the host UUID when
+// the resource identity changed, and constructs the base payload data on first
+// use (NewData reads install info, so the constructor stays free of file reads).
+func (c *serverlessinitComp) applyInventoryData(data serverlessdef.ServerlessInitData) {
+	fields := buildFields(data, c.params, c.conf)
+	if !reflect.DeepEqual(fields, c.fields) {
+		c.payload.Refresh()
+	}
+	c.fields = fields
+	if data.ResourceID != c.lastResourceID {
+		c.uuid = uuid.New().String()
+		c.lastResourceID = data.ResourceID
+		c.submittedCurrentIdentity = false
+	}
+	if c.data == nil {
+		c.data = inventorypayload.NewData(c.conf, c.log, c.hostname)
+	}
+}
+
+func (c *serverlessinitComp) identityReady() bool {
+	data := c.provider.GetInventoryData()
+	return strings.TrimSpace(data.ResourceID) != ""
 }
 
 func (c *serverlessinitComp) recordSubmission() {
 	c.submittedCurrentIdentity = true
 }
 
+// getPayload stamps the submission state as the report reason: the first
+// payload for an identity is a startup report, later ones periodic.
 func (c *serverlessinitComp) getPayload() marshaler.JSONMarshaler {
 	fields := maps.Clone(c.fields)
+	reason := reportReasonStartup
 	if c.submittedCurrentIdentity {
-		fields["report_reason"] = reportReasonPeriodic
+		reason = reportReasonPeriodic
 	}
+	fields["report_reason"] = reason
 	return c.data.GetPayload(fields, c.uuid)
 }
 
@@ -190,9 +207,32 @@ func (s submissionRecordingSerializer) SendMetadata(payload marshaler.JSONMarsha
 	return nil
 }
 
+// stop submits the final payload, spending up to shutdownGrace waiting for
+// resource identity when the current identity has not been reported yet.
 func (c *serverlessinitComp) stop(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, shutdownGrace)
 	defer cancel()
-	c.collectPayload(ctx, true)
+	release, ok := c.enter(ctx)
+	if !ok {
+		return nil
+	}
+	defer release()
+	c.stopped = true
+	// The last known identity was already reported; do not spend the grace waiting.
+	if c.submittedCurrentIdentity && !c.identityReady() {
+		return nil
+	}
+	data, ok := c.waitForIdentity(ctx)
+	if !ok {
+		return nil
+	}
+	c.applyInventoryData(data)
+	// The identity did not change since its last submission.
+	if c.submittedCurrentIdentity {
+		return nil
+	}
+	if err := c.payload.Submit(); err != nil {
+		c.log.Errorf("unable to submit serverless-init inventory payload at shutdown: %s", err)
+	}
 	return nil
 }
