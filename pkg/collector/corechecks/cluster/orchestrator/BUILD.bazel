@@ -78,6 +78,7 @@ dd_agent_go_test(
         "//comp/core",
         "//comp/core/autodiscovery/integration",
         "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/types",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
