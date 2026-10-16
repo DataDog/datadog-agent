@@ -226,10 +226,17 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 	return typ
 }
 
+// SpanKindNamer is the subset of an OTel span used by the span type, resource name and operation
+// name helpers. ptrace.Span implements it; decoders that don't build pdata can provide their own.
+type SpanKindNamer interface {
+	Kind() ptrace.SpanKind
+	Name() string
+}
+
 // GetOTelSpanTypeWithAccessor returns the DD span type based on OTel span kind and attributes,
 // using a pre-created accessor to avoid repeated allocation when multiple lookups share the
 // same span and resource attribute maps.
-func GetOTelSpanTypeWithAccessor[A semantics.Accessor](span ptrace.Span, accessor A) string {
+func GetOTelSpanTypeWithAccessor[S SpanKindNamer, A semantics.Accessor](span S, accessor A) string {
 	typ := lookupString(accessor, semantics.ConceptSpanType, false)
 	if typ != "" {
 		return typ
@@ -327,7 +334,7 @@ func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) 
 }
 
 // getOTelResourceV2 returns the DD resource name using a pre-created accessor.
-func getOTelResourceV2[A semantics.Accessor](span ptrace.Span, accessor A) (resName string) {
+func getOTelResourceV2[S SpanKindNamer, A semantics.Accessor](span S, accessor A) (resName string) {
 	defer func() {
 		if len(resName) > normalizeutil.MaxResourceLen {
 			resName = resName[:normalizeutil.MaxResourceLen]
@@ -405,12 +412,12 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) string {
 
 // GetOTelResourceV2WithAccessor is like GetOTelResourceV2 but uses a pre-created accessor to avoid
 // repeated allocation when multiple lookups share the same span and resource attribute maps.
-func GetOTelResourceV2WithAccessor[A semantics.Accessor](span ptrace.Span, accessor A) string {
+func GetOTelResourceV2WithAccessor[S SpanKindNamer, A semantics.Accessor](span S, accessor A) string {
 	return getOTelResourceV2(span, accessor)
 }
 
 // getOTelOperationNameV2 returns the DD operation name using a pre-created accessor.
-func getOTelOperationNameV2[A semantics.Accessor](span ptrace.Span, accessor A) string {
+func getOTelOperationNameV2[S SpanKindNamer, A semantics.Accessor](span S, accessor A) string {
 
 	if operationName := lookupString(accessor, semantics.ConceptOperationName, true); operationName != "" {
 		return operationName
@@ -510,7 +517,7 @@ func GetOTelOperationNameV2(span ptrace.Span, res pcommon.Resource) string {
 
 // GetOTelOperationNameV2WithAccessor is like GetOTelOperationNameV2 but uses a pre-created accessor to avoid
 // repeated allocation when multiple lookups share the same span and resource attribute maps.
-func GetOTelOperationNameV2WithAccessor[A semantics.Accessor](span ptrace.Span, accessor A) string {
+func GetOTelOperationNameV2WithAccessor[S SpanKindNamer, A semantics.Accessor](span S, accessor A) string {
 	return getOTelOperationNameV2(span, accessor)
 }
 

@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "otlpidx",
+    srcs = [
+        "decode.go",
+        "semantics.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/api/internal/otlpidx",
+    visibility = ["//pkg/trace/api:__subpackages__"],
+    deps = [
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/sampler",
+        "//pkg/trace/semantics",
+        "//pkg/trace/traceutil/normalize",
+        "//pkg/trace/transform",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_golang_google_protobuf//encoding/protowire",
+    ],
+)
+
+dd_agent_go_test(
+    name = "otlpidx_test",
+    srcs = [
+        "decode_test.go",
+        "semantics_test.go",
+    ],
+    embed = [":otlpidx"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
+        "//pkg/trace/config",
+        "//pkg/trace/transform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
+        "@org_golang_google_protobuf//encoding/protowire",
+    ],
+)
