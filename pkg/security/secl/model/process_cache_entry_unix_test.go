@@ -194,4 +194,19 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
 	})
+
+	t.Run("fork-clone-newns", func(t *testing.T) {
+		child := newPCE(2, nil, false)
+		child.ForkFlags = cloneNewNS
+		parent.Fork(child)
+
+		assert.Zero(t, child.MntNS)
+		assert.Equal(t, parent.NetNS, child.NetNS)
+
+		execChild := newPCE(2, nil, false)
+		execChild.ForkFlags = cloneNewNS
+		child.Exec(execChild)
+
+		assert.Zero(t, execChild.MntNS)
+	})
 }
