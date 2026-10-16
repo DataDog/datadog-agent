@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -28,6 +29,9 @@ type quotaStats struct {
 	droppedEvents atomic.Int64
 	droppedBytes  atomic.Int64
 	lastDrop      atomic.Int64
+
+	tlmEvents telemetry.SimpleCounter
+	tlmBytes  telemetry.SimpleCounter
 }
 
 type configEntry struct {
@@ -35,8 +39,24 @@ type configEntry struct {
 	err    error
 }
 
+// ruleSet holds the unexpired quotas and the earliest of their deadlines.
 type ruleSet struct {
-	quotas []*quota
+	quotas     []*quota
+	nextExpiry time.Time
+}
+
+func newRuleSet(quotas []*quota, now time.Time) *ruleSet {
+	rs := &ruleSet{}
+	for _, q := range quotas {
+		if q.expired(now) {
+			continue
+		}
+		rs.quotas = append(rs.quotas, q)
+		if rs.nextExpiry.IsZero() || q.deadline.Before(rs.nextExpiry) {
+			rs.nextExpiry = q.deadline
+		}
+	}
+	return rs
 }
 
 // Enforcer holds the active quotas. Check is safe to call concurrently with Update.
@@ -73,23 +93,31 @@ func (e *Enforcer) Update(configs map[string][]byte) map[string]error {
 	}
 	e.lastSync = e.now()
 
-	rs := &ruleSet{}
+	var quotas []*quota
 	stats := map[string]*quotaStats{}
 	for _, path := range slices.Sorted(maps.Keys(e.configs)) {
 		for _, q := range e.configs[path].quotas {
-			k := q.key()
-			if stats[k] == nil {
-				stats[k] = e.stats[k]
-				if stats[k] == nil {
-					stats[k] = &quotaStats{}
+			if stats[q.key] == nil {
+				stats[q.key] = e.stats[q.key]
+				if stats[q.key] == nil {
+					stats[q.key] = &quotaStats{
+						tlmEvents: metrics.TlmQuotaDroppedEvents.WithValues(q.key),
+						tlmBytes:  metrics.TlmQuotaDroppedBytes.WithValues(q.key),
+					}
 				}
 			}
-			q.stats = stats[k]
-			rs.quotas = append(rs.quotas, q)
+			q.stats = stats[q.key]
+			quotas = append(quotas, q)
+		}
+	}
+	for k := range e.stats {
+		if stats[k] == nil {
+			metrics.TlmQuotaDroppedEvents.Delete(k)
+			metrics.TlmQuotaDroppedBytes.Delete(k)
 		}
 	}
 	e.stats = stats
-	e.active.Store(rs)
+	e.active.Store(newRuleSet(quotas, e.lastSync))
 	return result
 }
 
@@ -100,27 +128,29 @@ func (e *Enforcer) Check(msg *message.Message) bool {
 		return false
 	}
 	now := e.now()
-	var tags []string
-	tagsLoaded := false
+	if !now.Before(rs.nextExpiry) {
+		rs = e.prune(rs, now)
+	}
 	for _, q := range rs.quotas {
-		if q.expired(now) {
-			continue
-		}
-		if !tagsLoaded && len(q.tags) > 0 {
-			tags, tagsLoaded = msg.Origin.Tags(), true
-		}
-		if !q.matches(tags) {
+		if !q.matches(msg.Origin) {
 			continue
 		}
 		size := msg.Size()
 		q.stats.droppedEvents.Add(1)
 		q.stats.droppedBytes.Add(size)
 		q.stats.lastDrop.Store(now.Unix())
-		metrics.TlmQuotaDroppedEvents.Inc(q.key())
-		metrics.TlmQuotaDroppedBytes.Add(float64(size), q.key())
+		q.stats.tlmEvents.Inc()
+		q.stats.tlmBytes.Add(float64(size))
 		return true
 	}
 	return false
+}
+
+// prune drops expired quotas from the active set unless Update replaced it concurrently.
+func (e *Enforcer) prune(rs *ruleSet, now time.Time) *ruleSet {
+	pruned := newRuleSet(rs.quotas, now)
+	e.active.CompareAndSwap(rs, pruned)
+	return pruned
 }
 
 // ConfigStatus describes one received config for agent status.
@@ -154,7 +184,7 @@ func (e *Enforcer) Status() (lastSync string, configs []ConfigStatus) {
 		}
 		for _, q := range entry.quotas {
 			qs := QuotaStatus{
-				Tags:          q.key(),
+				Tags:          q.key,
 				State:         "enforcing",
 				ExpiresAt:     formatTime(q.deadline),
 				DroppedEvents: q.stats.droppedEvents.Load(),
