@@ -963,8 +963,9 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 	return sbom
 }
 
-// ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
-// resolved.
+// ResolvePackage returns the package that owns file, which the process of pc
+// runs or opens, and records the access as usage of the package. The path of
+// file must be resolved.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
 	if !file.IsPathnameStrResolved {
 		return nil
@@ -994,12 +995,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
-	// A process on a root of its own opens the files of that root under the
-	// paths of host files, and its root is read once the path matches.
-	pkg := sbom.data.files.queryFile(file.PathnameStr)
-	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pc.Pid) {
-		pkg = nil
-	}
+	pkg := r.owner(sbom, pc.Pid, file.PathnameStr)
 
 	// rpm lists the directories a package owns among its files. A directory
 	// resolves to its package, and opening it, as a listing or a walk of the
@@ -1039,6 +1035,40 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		sbom.invalidated = false
 	}
 
+	return pkg
+}
+
+// LookupPackage returns the package that owns file, as ResolvePackage does,
+// and leaves the usage of the package as it is. The package fields of CWS
+// events read it, for the files a process runs or opens as well as for the
+// target of a chmod or an unlink.
+func (r *Resolver) LookupPackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
+	if !file.IsPathnameStrResolved {
+		return nil
+	}
+
+	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
+	if sbom == nil {
+		return nil
+	}
+
+	sbom.RLock()
+	defer sbom.RUnlock()
+
+	if !sbom.IsComputed() {
+		return nil
+	}
+	return r.owner(sbom, pc.Pid, file.PathnameStr)
+}
+
+// owner returns the package of sbom that owns the file at path, opened by the
+// process pid. A process on a root of its own opens the files of that root
+// under the paths of host files, and its root is read once the path matches.
+func (r *Resolver) owner(sbom *SBOM, pid uint32, path string) *sbomtypes.Package {
+	pkg := sbom.data.files.queryFile(path)
+	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pid) {
+		return nil
+	}
 	return pkg
 }
 
