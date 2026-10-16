@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 //go:build anomalydetectiontestbench
 
 package observerimpl
@@ -275,20 +280,19 @@ func realSeasonalGaugeDetector(factory func() observer.Detector, agg observer.Ag
 	return b
 }
 
-func init() {
+// wrapSeasonalResearchDetector is opt-in and only compiled into the testbench.
+func wrapSeasonalResearchDetector(d observer.Detector, factory func() observer.Detector) observer.Detector {
 	mode := os.Getenv("OBSERVER_REAL_SEASONAL_MODE")
 	if mode == "" || mode == "raw_unwrapped" {
-		return
+		return d
 	}
 	if mode != "raw_fullcycle" && mode != "residual_fullcycle" && mode != "phase_pooled_floor" && mode != "raw_wrapped_nochange" {
 		panic("invalid OBSERVER_REAL_SEASONAL_MODE")
 	}
-	seasonalResearchWrapper = func(d observer.Detector, factory func() observer.Detector) observer.Detector {
-		if d.Name() != "bocpd" {
-			return d
-		}
-		return &realSeasonalDetector{Detector: d, factory: factory, states: make(map[observer.SeriesRef]*realSeasonalGaugeState), mode: mode, budget: seasonalAdmissionFromEnvironment()}
+	if d.Name() != "bocpd" {
+		return d
 	}
+	return &realSeasonalDetector{Detector: d, factory: factory, states: make(map[observer.SeriesRef]*realSeasonalGaugeState), mode: mode, budget: seasonalAdmissionFromEnvironment()}
 }
 func (d *realSeasonalDetector) Ready() bool { return d.ready || d.Detector.Ready() }
 func (d *realSeasonalDetector) Reset() {

@@ -4,27 +4,25 @@ Can the Agent stop alerting on expected recurring workloads while still detectin
 an unexpected change? This Innovation Week experiment adds a seasonal input layer
 in front of BOCPD and measures the detection benefit and resource cost.
 
-This directory is a **reproducible research POC**, not production integration.
-It contains the tested source, prerequisites, tests and aggregate results. Nothing
-here is compiled into the Agent. The runner creates a separate detached checkout
-at the recorded Agent revision; it never installs the experiment into your working
-checkout. A production implementation would be a separate change.
+This is a **testbench POC**, not a production seasonality feature. The implementation
+and tests live in `comp/anomalydetection/observer/impl` as ordinary Go files.
+Seasonality requires the `anomalydetectiontestbench` build tag and explicit runtime
+configuration. The BOCPD numerical prerequisite below is shared code.
 
 ## What to review
 
-- `source/seasonal_real_model_research.go.txt`: bounded history, periodic profile,
-  prediction-error and lag-correlation qualification.
-- `source/seasonal_real_adapter_research.go.txt`: causal slot aggregation,
+- `comp/anomalydetection/observer/impl/seasonal_real_model_research.go`: bounded
+  history, periodic profile, prediction-error and lag-correlation qualification.
+- `seasonal_real_adapter_research.go` in the same package: causal slot aggregation,
   normalization, BOCPD calibration and shared temporary buffers/readers.
-- `source/seasonal_admission_research.go.txt`: FIFO learner budget and inactivity
-  release. Qualification is separate from admission to a learner slot.
-- `source/*_test.go.txt`: causality, raw fallback, storage corrections, eviction,
-  history compression, learner limits and detector-state preservation.
-- `results/`: aggregate measurements and validation receipts, without recordings.
+- `seasonal_admission_research.go`: FIFO learner budget and inactivity release.
+- `seasonal_*_test.go`: causality, raw fallback, eviction, history compression,
+  learner limits and detector-state preservation.
+- This directory's `results/`: historical aggregate measurements and validation
+  receipts, without recordings. These were measured at research base
+  `83a564c77e936dd5255a5a2e319742c0be2c144f`, not remeasured on this PR's base.
 
-The `.go.txt` suffix keeps experiment sources out of recursive Go builds. The
-runner verifies their hashes and copies them into the pinned research checkout.
-Historical comparison modes remain because the preservation tests exercise them;
+Historical comparison modes remain because preservation tests exercise them;
 the configuration below selects the six-hour automatic-discovery experiment.
 
 ## Algorithm
@@ -95,16 +93,15 @@ not a pure measurement of seasonal arithmetic or a cost of calibration alone.
 
 ## Reproduce
 
-Use Linux with the Agent development environment and `dda`. The pinned revision
-is `83a564c77e936dd5255a5a2e319742c0be2c144f`; it must exist in your local Git
-object database. Fetch that revision if needed. Commands below assume this
-directory is the current directory and that `/tmp/observer-seasonality` is new.
+Use Linux with the Agent development environment and `dda`. From this directory:
 
 ```sh
-python3 run.py prepare --checkout /tmp/observer-seasonality
-python3 run.py test --checkout /tmp/observer-seasonality
-python3 run.py build --checkout /tmp/observer-seasonality
+python3 run.py test
+python3 run.py build
 ```
+
+The runner only invokes development tasks in the current checkout; there is no
+patch installation or reconstructed checkout.
 
 Tests run without the recorded workload. The suite checks the original ten-hour
 schedule where older tests use fixed boundaries, then checks the six-hour schedule
@@ -113,11 +110,11 @@ explicitly. All Agent compilation/testing goes through `dda inv`.
 For a resource comparison, provide the fixture described in `FIXTURE.md`:
 
 ```sh
-python3 run.py profile --checkout /tmp/observer-seasonality \
+python3 run.py profile \
   --fixture /path/to/fixture --output /tmp/seasonality-raw-1 --arm raw
-python3 run.py profile --checkout /tmp/observer-seasonality \
+python3 run.py profile \
   --fixture /path/to/fixture --output /tmp/seasonality-structure-1 --arm structure
-python3 run.py profile --checkout /tmp/observer-seasonality \
+python3 run.py profile \
   --fixture /path/to/fixture --output /tmp/seasonality-full-1 --arm automatic
 ```
 
@@ -146,12 +143,17 @@ preprocessing; the resource fixture alone does not reproduce final scorer alerts
 
 ## Prerequisites and limits
 
-The pinned experiment includes a BOCPD likelihood-underflow fix in
-`patches/metrics_detector_bocpd.patch`, applied equally to raw and seasonal arms.
-Thus “raw” here is the **pinned research baseline**, not unmodified current main.
-The other patches wire the testbench wrapper, bounded streaming storage and
-optional scorer tracing. They are only applied to the disposable research checkout.
-Tracing is disabled in resource measurements.
+The experiment includes a BOCPD likelihood-underflow fix in
+`comp/anomalydetection/observer/impl/metrics_detector_bocpd.go`, applied equally to
+raw and seasonal arms. It is shared detector code and can affect ordinary Agent
+detection at extreme likelihoods even though seasonality is testbench-only.
+Thus “raw” in the historical results is the **research baseline**, not unmodified
+main. This prerequisite needs its own production review before merging the POC.
+
+The catalog hook enables the seasonal wrapper only in testbench builds. The
+streaming replay helper uses detector-derived retention. Optional diagnostic
+scorer tracing is disabled in resource measurements and has no-op implementations
+outside the testbench.
 
 Before production work: measure real workload prevalence and alert impact, handle
 metric types explicitly, retry/relearn without stale profiles, decide how history

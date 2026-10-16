@@ -420,6 +420,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 		switch entry.kind {
 		case componentDetector:
 			if d, ok := instance.(observerdef.Detector); ok {
+				d = wrapSeasonalResearchDetector(d, func() observerdef.Detector { return entry.factory(cfg).(observerdef.Detector) })
 				detectors = append(detectors, d)
 			} else if sd, ok := instance.(observerdef.SeriesDetector); ok {
 				detectors = append(detectors, newSeriesDetectorAdapter(sd, defaultAggregations))

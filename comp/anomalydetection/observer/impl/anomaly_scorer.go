@@ -512,7 +512,9 @@ func correlationEventSeverity(threshold string) severityeventsdef.SeverityLevel 
 //	ScoreState()   → returns accumulated telemetry snapshot.
 //	Reset()        → clears all internal state for reanalysis.
 type anomalyScorer struct {
-	mu sync.Mutex
+	// Diagnostic bookkeeping only; never read by scoring or dispatch logic.
+	researchTraceConfigWritten bool
+	mu                         sync.Mutex
 
 	dispatchersMu sync.RWMutex
 
@@ -668,6 +670,11 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaG
 // transition. It optionally logs the event and manages episodes while severity
 // is at or above the configured event threshold.
 func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
+	researchTraceGlobal("scorer_dispatch", evt.Timestamp, map[string]any{
+		"from_level": evt.FromLevel.String(), "to_level": evt.ToLevel.String(), "direction": evt.Direction,
+		"cooldown_seconds": s.config.CooldownSecs, "correlation_events": s.config.CorrelationEvents,
+		"correlation_event_threshold": s.config.CorrelationEventThreshold,
+	})
 	direction := "escalation"
 	if evt.Direction == severityeventsdef.SeverityEventDeescalation {
 		direction = "deescalation"
@@ -705,9 +712,11 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 				// snapshot represents the same second as the severity transition.
 				Contributors: s.topAnomalies.contributors(s.config.MaxReportedItems),
 			})
+			researchTraceGlobal("scorer_episode_start", evt.Timestamp, map[string]any{"pattern": s.openEpisode.Pattern, "first_seen": s.openEpisode.FirstSeen, "from_level": evt.FromLevel.String(), "to_level": evt.ToLevel.String()})
 		} else if evt.FromLevel >= threshold && evt.ToLevel < threshold && s.openEpisode != nil {
 			ep := *s.openEpisode
 			ep.LastUpdated = evt.Timestamp
+			researchTraceGlobal("scorer_episode_end", evt.Timestamp, map[string]any{"pattern": ep.Pattern, "first_seen": ep.FirstSeen, "last_updated": ep.LastUpdated, "from_level": evt.FromLevel.String(), "to_level": evt.ToLevel.String()})
 			s.openEpisode = nil
 			s.pendingEvents = append(s.pendingEvents, observerdef.CorrelatorEvent{
 				Kind:           observerdef.CorrelatorEventEpisodeEnded,
@@ -740,6 +749,15 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 		sec = s.lastAdvancedSec + 1
 	}
 	s.pending[sec] = append(s.pending[sec], a)
+	if researchTraceActive() {
+		level := anomalyLevel(a, s.config.AnomalyScorerConfig)
+		researchTraceGlobal("scorer_accepted", sec, map[string]any{
+			"series_id": seriesID(a), "source": a.Source.DisplayName(), "namespace": a.Source.Namespace,
+			"source_ref": a.SourceRef, "detector": a.DetectorName, "anomaly_timestamp": a.Timestamp,
+			"effective_second": sec, "last_advanced_second": s.lastAdvancedSec,
+			"score": a.Score, "level": level, "weight": levelWeights[level],
+		})
+	}
 
 	if s.openEpisode != nil {
 		if s.config.MaxEpisodeAnomalies <= 0 || len(s.openEpisode.Anomalies) < s.config.MaxEpisodeAnomalies {
@@ -757,6 +775,10 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 func (s *anomalyScorer) Advance(dataTime int64) {
 	s.mu.Lock()
 
+	if researchTraceActive() && !s.researchTraceConfigWritten {
+		researchTraceGlobal("scorer_config", dataTime, map[string]any{"config": s.config, "level_weights": levelWeights, "top_anomaly_window_seconds": topAnomalyWindowSecs})
+		s.researchTraceConfigWritten = true
+	}
 	start := s.lastAdvancedSec + 1
 	if s.lastAdvancedSec == 0 {
 		// First Advance: start from the earliest pending anomaly (or dataTime if
@@ -775,6 +797,9 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	for sec := start; sec <= dataTime; sec++ {
 		ewma := s.advanceSecond(sec)
 		level := s.advanceRawLevel(ewma)
+		if researchTraceActive() {
+			researchTraceGlobal("scorer_raw_severity", sec, map[string]any{"ewma": ewma, "raw_level": level.String(), "raw_level_number": int(level), "advance_data_time": dataTime})
+		}
 		states = append(states, secState{sec: sec, ewma: ewma, level: level})
 	}
 	s.lastAdvancedSec = dataTime
@@ -843,6 +868,7 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 // Implements observerdef.Correlator.
 func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
+	researchTraceGlobal("scorer_reset", s.lastAdvancedSec, map[string]any{})
 	s.pending = make(map[int64][]observerdef.Anomaly)
 	s.windowMap = make(map[string]windowEntry)
 	if s.topAnomalies != nil {
@@ -1011,7 +1037,34 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 		input = meanWeight * (1 - math.Exp(-float64(count)/s.config.SaturationK))
 	}
 
+	researchPreviousEWMA := s.ewma
 	s.ewma = s.config.Alpha*input + (1-s.config.Alpha)*s.ewma
+	if researchTraceActive() {
+		var active []map[string]any
+		if researchTraceEnabled(sec) {
+			// Sort a newly allocated key slice, never scorer-owned state.
+			ids := make([]string, 0, len(s.windowMap))
+			for sid := range s.windowMap {
+				ids = append(ids, sid)
+			}
+			sort.Strings(ids)
+			active = make([]map[string]any, 0, len(ids))
+			for _, sid := range ids {
+				entry := s.windowMap[sid]
+				for level := 4; level >= 0; level-- {
+					if entry[level] != 0 {
+						active = append(active, map[string]any{"series_id": sid, "level": level, "weight": levelWeights[level], "last_seen_by_level": entry})
+						break
+					}
+				}
+			}
+		}
+		researchTraceGlobal("scorer_window", sec, map[string]any{
+			"window_start": windowStart, "window_end": sec, "active": active,
+			"bins": bins, "count": count, "weight_sum": weightSum, "input": input,
+			"previous_ewma": researchPreviousEWMA, "ewma": s.ewma, "new_anomaly_count": len(anomalies),
+		})
+	}
 
 	s.buckets = append(s.buckets, observerdef.AnomalyScoreBucket{
 		Second:    sec,

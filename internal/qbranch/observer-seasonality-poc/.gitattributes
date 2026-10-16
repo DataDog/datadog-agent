@@ -1,2 +1,0 @@
-# Unified-diff context lines intentionally start with a space.
-patches/*.patch -whitespace

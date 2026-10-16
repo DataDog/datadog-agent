@@ -63,14 +63,16 @@ type BOCPDConfig struct {
 	Hazard float64 `json:"hazard"`
 
 	// CPThreshold is the posterior P(changepoint at t) threshold to emit.
+	// With this constant-hazard recurrence, that probability equals Hazard.
 	// Default: 0.6
 	CPThreshold float64 `json:"cp_threshold"`
 
-	// ShortRunLength is the run-length horizon k for short-run posterior mass P(r_t <= k).
+	// ShortRunLength is the run-length horizon k for short-run posterior mass P(1 <= r_t <= k).
 	// Default: 5
 	ShortRunLength int `json:"short_run_length"`
 
-	// CPMassThreshold is the threshold for short-run posterior mass P(r_t <= k).
+	// CPMassThreshold is the threshold for short-run posterior mass P(1 <= r_t <= k).
+	// Its mathematical ceiling is 1-Hazard; equality is rounding-sensitive.
 	// Default: 0.7
 	CPMassThreshold float64 `json:"cp_mass_threshold"`
 
@@ -120,6 +122,9 @@ func DefaultBOCPDConfig() BOCPDConfig {
 type BOCPDDetector struct {
 	config BOCPDConfig
 	ready  bool
+
+	// Reused across series by the single-writer engine; not retained per series.
+	likelihoodScratch []float64
 
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
@@ -376,6 +381,9 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	// detector can catch cascading shifts, not just the first deviation from
 	// the warmup baseline.
 	oldLen := len(state.runProbs)
+	// Choose the numerical path while all prior hypotheses are still intact.
+	// A late retry after the descending update would use overwritten state.
+	scaled := b.prepareLikelihoods(state, x)
 	fullLen := oldLen + 1
 	newLen := fullLen
 	if newLen > b.config.MaxRunLength+1 {
@@ -393,18 +401,37 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	var cpMass float64
 	var shortRunRawMass float64
 	var discardedGrowthProb float64
-	for r := oldLen - 1; r >= 0; r-- {
-		pred := gaussianPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
-		growthProb := state.runProbs[r] * (1.0 - hazard) * pred
-		if r+1 < newLen {
-			state.runProbs[r+1] = growthProb
-			state.means[r+1], state.precisions[r+1] = normalPosterior(state.means[r], state.precisions[r], x, state.obsVar)
-		} else {
-			discardedGrowthProb = growthProb
+	// Keep the ordinary loop's arithmetic intact. Merging scaled/raw products
+	// inside the loop can change multiply-add contraction and ordinary rounding.
+	if scaled {
+		for r := oldLen - 1; r >= 0; r-- {
+			pred := b.likelihoodScratch[r]
+			growthProb := (1.0 - hazard) * pred
+			if r+1 < newLen {
+				state.runProbs[r+1] = growthProb
+				state.means[r+1], state.precisions[r+1] = normalPosterior(state.means[r], state.precisions[r], x, state.obsVar)
+			} else {
+				discardedGrowthProb = growthProb
+			}
+			cpMass += pred
+			if r+1 <= b.config.ShortRunLength {
+				shortRunRawMass += growthProb
+			}
 		}
-		cpMass += state.runProbs[r] * pred
-		if r+1 <= b.config.ShortRunLength {
-			shortRunRawMass += growthProb
+	} else {
+		for r := oldLen - 1; r >= 0; r-- {
+			pred := b.likelihoodScratch[r]
+			growthProb := state.runProbs[r] * (1.0 - hazard) * pred
+			if r+1 < newLen {
+				state.runProbs[r+1] = growthProb
+				state.means[r+1], state.precisions[r+1] = normalPosterior(state.means[r], state.precisions[r], x, state.obsVar)
+			} else {
+				discardedGrowthProb = growthProb
+			}
+			cpMass += state.runProbs[r] * pred
+			if r+1 <= b.config.ShortRunLength {
+				shortRunRawMass += growthProb
+			}
 		}
 	}
 	cpRaw := hazard * cpMass
@@ -446,6 +473,65 @@ func (b *BOCPDDetector) updatePosterior(state *bocpdSeriesState, x float64) (boo
 	triggeredByShift := shortRunMass >= b.config.CPMassThreshold && len(state.runProbs) > b.config.ShortRunLength+1
 	triggered := triggeredByPeak || triggeredByShift
 	return triggered, cpProb, shortRunMass
+}
+
+// prepareLikelihoods returns whether scratch contains scaled weighted likelihoods
+// instead of raw densities. The ordinary path preserves the existing operation
+// order. Common scaling cancels in both full and retained normalization.
+func (b *BOCPDDetector) prepareLikelihoods(state *bocpdSeriesState, x float64) bool {
+	n := len(state.runProbs)
+	if cap(b.likelihoodScratch) < n {
+		b.likelihoodScratch = make([]float64, b.config.MaxRunLength+1)
+	}
+	b.likelihoodScratch = b.likelihoodScratch[:n]
+	const minNormal = 0x1p-1022
+	var total float64
+	unsafe := false
+	for r := n - 1; r >= 0; r-- {
+		variance := state.obsVar + 1.0/state.precisions[r]
+		pred := gaussianPDF(x, state.means[r], variance)
+		b.likelihoodScratch[r] = pred
+		total += state.runProbs[r] * pred
+		// The direct density squares dimensional values and multiplies variance by
+		// 2π. Either can overflow even when the standardized residual is finite.
+		if state.runProbs[r] > 0 && (math.Abs(x-state.means[r]) > math.Sqrt(math.MaxFloat64) || variance > math.MaxFloat64/(2*math.Pi)) {
+			unsafe = true
+		}
+	}
+	if !unsafe && !math.IsNaN(total) && !math.IsInf(total, 0) &&
+		total*b.config.Hazard >= minNormal && total*(1-b.config.Hazard) >= minNormal {
+		return false
+	}
+	maxLog := math.Inf(-1)
+	for r, p := range state.runProbs {
+		v := math.Log(p) + bocpdGaussianLogPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
+		if v > maxLog {
+			maxLog = v
+		}
+	}
+	// This corrects representational underflow, not invalid parameters or
+	// arbitrary float64 extremes. Preserve legacy fallback when no finite
+	// log contribution can be formed. Zero prior probabilities stay zero.
+	if math.IsInf(maxLog, 0) || math.IsNaN(maxLog) {
+		return false
+	}
+	for r, p := range state.runProbs {
+		v := math.Log(p) + bocpdGaussianLogPDF(x, state.means[r], state.obsVar+1.0/state.precisions[r])
+		b.likelihoodScratch[r] = math.Exp(v - maxLog)
+	}
+	return true
+}
+
+func bocpdGaussianLogPDF(x, mean, variance float64) float64 {
+	if variance < 1e-12 {
+		variance = 1e-12
+	}
+	sd := math.Sqrt(variance)
+	z := (x - mean) / sd
+	if math.IsInf(x-mean, 0) {
+		z = x/sd - mean/sd
+	}
+	return -0.5*math.Log(2*math.Pi) - 0.5*math.Log(variance) - (0.5*z)*z
 }
 
 // makeAnomaly constructs an Anomaly for a new alert onset.

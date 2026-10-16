@@ -1,33 +1,18 @@
 #!/usr/bin/env python3
-"""Prepare and run the pinned Observer seasonality POC in a separate checkout."""
+"""Run the Observer seasonality POC tests and resource profiles from this checkout."""
 
 import argparse
-import hashlib
-import json
 import os
-import shutil
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-MANIFEST = ROOT / "manifest.json"
+REPO = ROOT.parents[2]
 PACKAGE = "comp/anomalydetection/observer/impl"
 
 
 def run(args, cwd, env=None):
     subprocess.run([str(arg) for arg in args], cwd=cwd, env=env, check=True)
-
-
-def verified_manifest():
-    manifest = json.loads(MANIFEST.read_text())
-    for source, item in manifest["files"].items():
-        assert hashlib.sha256((ROOT / source).read_bytes()).hexdigest() == item["sha256"], source
-        destination = Path(item["destination"])
-        if destination.is_absolute() or ".." in destination.parts:
-            raise ValueError(f"Invalid destination: {destination}")
-    for source, digest in manifest["patches"].items():
-        assert hashlib.sha256((ROOT / source).read_bytes()).hexdigest() == digest, source
-    return manifest
 
 
 def environment():
@@ -37,7 +22,7 @@ def environment():
         if not key.startswith(("OBSERVER_REAL_SEASONAL_", "OBSERVER_HOURLY_", "OBSERVER_RESEARCH_", "SEASONAL_"))
     }
     env.update(
-        GOTOOLCHAIN="go1.26.7",
+        GOTOOLCHAIN=f"go{(REPO / '.go-version').read_text().strip()}",
         CGO_ENABLED="0",
         GOMAXPROCS="8",
         GOGC="100",
@@ -47,30 +32,6 @@ def environment():
         OBSERVER_REAL_SEASONAL_INTEGRATION="scratch_readers",
     )
     return env
-
-
-def prepare(repo, checkout, manifest):
-    if checkout.exists():
-        raise ValueError("Choose a new checkout path; existing directories are never overwritten")
-    run(["git", "worktree", "add", "--detach", checkout, manifest["base"]], repo)
-    patches = [ROOT / name for name in manifest["patches"]]
-    run(["git", "apply", "--check", *patches], checkout)
-    run(["git", "apply", *patches], checkout)
-    for name, item in manifest["files"].items():
-        dest = checkout / item["destination"]
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ROOT / name, dest)
-    (checkout / ".seasonality-poc.json").write_text(
-        json.dumps({"base": manifest["base"], "manifest_sha256": hashlib.sha256(MANIFEST.read_bytes()).hexdigest()})
-        + "\n"
-    )
-
-
-def check_checkout(checkout, manifest):
-    marker = json.loads((checkout / ".seasonality-poc.json").read_text())
-    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=checkout, text=True).strip()
-    if head != manifest["base"] or marker["manifest_sha256"] != hashlib.sha256(MANIFEST.read_bytes()).hexdigest():
-        raise ValueError("Checkout does not match this POC; prepare a new checkout")
 
 
 def test(checkout, env, pattern):
@@ -92,20 +53,13 @@ def test(checkout, env, pattern):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["prepare", "test", "build", "profile"])
-    parser.add_argument("--checkout", type=Path, required=True)
-    parser.add_argument("--repo", type=Path, default=ROOT.parents[2])
+    parser.add_argument("command", choices=["test", "build", "profile"])
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--arm", choices=["raw", "structure", "automatic"], default="automatic")
     parser.add_argument("--validate-emissions", action="store_true")
     args = parser.parse_args()
-    manifest = verified_manifest()
-    checkout = args.checkout.resolve()
-    if args.command == "prepare":
-        prepare(args.repo.resolve(), checkout, manifest)
-        return
-    check_checkout(checkout, manifest)
+    checkout = REPO
     env = environment()
     if args.command == "test":
         # Older preservation tests intentionally exercise the original ten-hour schedule.
