@@ -174,8 +174,28 @@ $agentLogPath = Join-Path $stageDir 'agent.log'
 $agentStdoutPath = Join-Path $stageDir 'agent.stdout.log'
 $agentStderrPath = Join-Path $stageDir 'agent.stderr.log'
 $agentPidPath = Join-Path $stageDir 'agent.pid'
+$agentExitCodePath = Join-Path $stageDir 'agent.exit-code'
+$agentRunnerPath = Join-Path $stageDir 'run-agent.ps1'
 $authTokenPath = Join-Path $agentConfigDir 'auth_token'
 $cmdPort = Get-FreeTcpPort
+
+# Start-Process's Process wrapper can report a null ExitCode in Windows
+# PowerShell even after both WaitForExit overloads complete. Record the native
+# executable's $LASTEXITCODE in the child PowerShell process instead, before
+# that process exits, so the lifecycle gate can still require agent.exe to
+# return zero.
+$agentRunner = @'
+$ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
+& $env:RC_X509_AGENT_PATH -c $env:RC_X509_AGENT_CONFIG_DIR run --pidfile $env:RC_X509_AGENT_PID_PATH
+$nativeExitCode = $LASTEXITCODE
+if ($null -eq $nativeExitCode) {
+    throw 'agent.exe exited without setting LASTEXITCODE'
+}
+Set-Content -LiteralPath $env:RC_X509_AGENT_EXIT_CODE_PATH -Value ([string]$nativeExitCode) -Encoding ASCII
+exit $nativeExitCode
+'@
+Set-Content -LiteralPath $agentRunnerPath -Value $agentRunner -Encoding UTF8
 
 # YAML accepts forward slashes in Windows paths and avoids backslash escaping.
 $agentLogYamlPath = $agentLogPath.Replace('\', '/')
@@ -243,6 +263,10 @@ try {
     $inheritedHTTPProxy = [Environment]::GetEnvironmentVariable('HTTP_PROXY', 'Process')
     $inheritedHTTPSProxy = [Environment]::GetEnvironmentVariable('HTTPS_PROXY', 'Process')
     $inheritedNoProxy = [Environment]::GetEnvironmentVariable('NO_PROXY', 'Process')
+    $inheritedAgentPath = [Environment]::GetEnvironmentVariable('RC_X509_AGENT_PATH', 'Process')
+    $inheritedAgentConfigDir = [Environment]::GetEnvironmentVariable('RC_X509_AGENT_CONFIG_DIR', 'Process')
+    $inheritedAgentPidPath = [Environment]::GetEnvironmentVariable('RC_X509_AGENT_PID_PATH', 'Process')
+    $inheritedAgentExitCodePath = [Environment]::GetEnvironmentVariable('RC_X509_AGENT_EXIT_CODE_PATH', 'Process')
     try {
         [Environment]::SetEnvironmentVariable('CI_IDENTITIES_GITLAB_ID_TOKEN', $null, 'Process')
         [Environment]::SetEnvironmentVariable('BUILDBARN_ID_TOKEN', $null, 'Process')
@@ -251,9 +275,13 @@ try {
         [Environment]::SetEnvironmentVariable('HTTP_PROXY', 'http://127.0.0.1:1', 'Process')
         [Environment]::SetEnvironmentVariable('HTTPS_PROXY', 'http://127.0.0.1:1', 'Process')
         [Environment]::SetEnvironmentVariable('NO_PROXY', '127.0.0.1,localhost', 'Process')
+        [Environment]::SetEnvironmentVariable('RC_X509_AGENT_PATH', (Join-Path $agentBinDir 'agent.exe'), 'Process')
+        [Environment]::SetEnvironmentVariable('RC_X509_AGENT_CONFIG_DIR', $agentConfigDir, 'Process')
+        [Environment]::SetEnvironmentVariable('RC_X509_AGENT_PID_PATH', $agentPidPath, 'Process')
+        [Environment]::SetEnvironmentVariable('RC_X509_AGENT_EXIT_CODE_PATH', $agentExitCodePath, 'Process')
         $agentProcess = Start-Process `
-            -FilePath (Join-Path $agentBinDir 'agent.exe') `
-            -ArgumentList @('-c', $agentConfigDir, 'run', '--pidfile', $agentPidPath) `
+            -FilePath (Get-Process -Id $PID).Path `
+            -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $agentRunnerPath)) `
             -WorkingDirectory $agentBinDir `
             -RedirectStandardOutput $agentStdoutPath `
             -RedirectStandardError $agentStderrPath `
@@ -267,6 +295,10 @@ try {
         [Environment]::SetEnvironmentVariable('HTTP_PROXY', $inheritedHTTPProxy, 'Process')
         [Environment]::SetEnvironmentVariable('HTTPS_PROXY', $inheritedHTTPSProxy, 'Process')
         [Environment]::SetEnvironmentVariable('NO_PROXY', $inheritedNoProxy, 'Process')
+        [Environment]::SetEnvironmentVariable('RC_X509_AGENT_PATH', $inheritedAgentPath, 'Process')
+        [Environment]::SetEnvironmentVariable('RC_X509_AGENT_CONFIG_DIR', $inheritedAgentConfigDir, 'Process')
+        [Environment]::SetEnvironmentVariable('RC_X509_AGENT_PID_PATH', $inheritedAgentPidPath, 'Process')
+        [Environment]::SetEnvironmentVariable('RC_X509_AGENT_EXIT_CODE_PATH', $inheritedAgentExitCodePath, 'Process')
         $ciIdentityToken = $null
         $buildbarnToken = $null
         $inheritedAPIKey = $null
@@ -274,6 +306,10 @@ try {
         $inheritedHTTPProxy = $null
         $inheritedHTTPSProxy = $null
         $inheritedNoProxy = $null
+        $inheritedAgentPath = $null
+        $inheritedAgentConfigDir = $null
+        $inheritedAgentPidPath = $null
+        $inheritedAgentExitCodePath = $null
     }
 
     $startDeadline = [DateTime]::UtcNow.AddSeconds(60)
@@ -291,7 +327,7 @@ try {
     }
     if (-not $x509Started) {
         $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
-        $agentStatus = if ($agentProcess.HasExited) { "exit code $($agentProcess.ExitCode)" } else { 'still running' }
+        $agentStatus = if ($agentProcess.HasExited) { 'Agent runner exited' } else { 'still running' }
         throw "Agent did not report that the x509 component started ($agentStatus)`n$probeOutput"
     }
 
@@ -325,15 +361,18 @@ try {
         $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
         throw "Agent did not exit within 30 seconds of the graceful stop request`n$probeOutput"
     }
-    # Complete redirected-stream processing and refresh the Process object
-    # before reading ExitCode. Windows PowerShell can otherwise return $null
-    # here even though the timed wait observed the process exit.
+    # Complete redirected-stream processing before reading the exit-code file
+    # written by the child runner.
     $agentProcess.WaitForExit()
-    $agentProcess.Refresh()
-    $agentExitCode = $agentProcess.ExitCode
-    if ($null -eq $agentExitCode) {
+    if (-not (Test-Path -LiteralPath $agentExitCodePath -PathType Leaf)) {
         $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
-        throw "Agent exited but PowerShell did not report its exit code`n$probeOutput"
+        throw "Agent runner exited without recording the native Agent exit code`n$probeOutput"
+    }
+    $agentExitCodeText = (Get-Content -LiteralPath $agentExitCodePath -Raw).Trim()
+    [int]$agentExitCode = 0
+    if (-not [int]::TryParse($agentExitCodeText, [ref]$agentExitCode)) {
+        $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
+        throw "Agent runner recorded an invalid native Agent exit code '$agentExitCodeText'`n$probeOutput"
     }
     if ($agentExitCode -ne 0) {
         $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
@@ -348,8 +387,17 @@ try {
 }
 finally {
     if ($null -ne $agentProcess -and -not $agentProcess.HasExited) {
-        Stop-Process -Id $agentProcess.Id -Force
-        $agentProcess.WaitForExit()
+        if (Test-Path -LiteralPath $agentPidPath -PathType Leaf) {
+            $agentPidText = ([string](Get-Content -LiteralPath $agentPidPath -Raw -ErrorAction SilentlyContinue)).Trim()
+            [int]$agentPid = 0
+            if ([int]::TryParse($agentPidText, [ref]$agentPid)) {
+                Stop-Process -Id $agentPid -Force -ErrorAction SilentlyContinue
+            }
+        }
+        if (-not $agentProcess.WaitForExit(5000)) {
+            Stop-Process -Id $agentProcess.Id -Force
+            $agentProcess.WaitForExit()
+        }
     }
     if (Test-Path -LiteralPath $authTokenPath -PathType Leaf) {
         Remove-Item -LiteralPath $authTokenPath -Force -ErrorAction SilentlyContinue
