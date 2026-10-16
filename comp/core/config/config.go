@@ -98,6 +98,9 @@ func newConfig(deps dependencies) (*cfg, error) {
 			if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
 				return &cfg{Config: config}, err
 			}
+			// The delegated-auth endpoint scan never ran on this path (LoadDatadog is
+			// skipped), so cover values from the merge.
+			pkgconfigsetup.ConfigureDelegatedAuthEndpoints(context.Background(), config, deps.DelegatedAuth)
 		}
 
 		return &cfg{Config: config}, nil
@@ -120,6 +123,9 @@ func newConfig(deps dependencies) (*cfg, error) {
 		if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
 			return returnErrFct(err)
 		}
+		// Directives in security-agent.yaml were invisible to the delegated-auth endpoint
+		// scan that ran inside LoadDatadog; re-run it over the merged values.
+		pkgconfigsetup.ConfigureDelegatedAuthEndpoints(context.Background(), config, deps.DelegatedAuth)
 	}
 
 	return &cfg{Config: config}, nil

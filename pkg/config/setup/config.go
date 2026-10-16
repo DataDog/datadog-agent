@@ -21,8 +21,6 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -485,19 +483,7 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	// during config initialization (see bindDelegatedAuthConfig for examples)
 
 	// Get global provider config from delegated_auth prefix (used for all instances)
-	var providerConfig common.ProviderConfig
-	provider := config.GetString("delegated_auth.provider")
-	switch provider {
-	case "aws":
-		providerConfig = &cloudauthconfig.AWSProviderConfig{
-			Region: config.GetString("delegated_auth.aws.region"),
-		}
-	case "":
-		// Empty provider means auto-detect, so ProviderConfig stays nil even when
-		// delegated_auth.aws.region is set: a non-nil ProviderConfig means "explicitly configured"
-		// downstream and would skip provider detection entirely. The component reads the configured
-		// region itself once detection picks AWS.
-	}
+	providerConfig := defaultProviderConfigForConfig(config)
 
 	startupCtx := ctx
 	cancelStartup := func() {}
@@ -529,6 +515,10 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 		}
 	}
 
+	// Warn before registering: a synchronous resolution replaces the directive with the key,
+	// which would hide it from the direct-send warning.
+	WarnDirectSendDelegatedAuthDirectives(config)
+
 	// Register directives embedded in the supported additional endpoint settings.
 	configureAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
 	configureListShapeAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
@@ -538,7 +528,11 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
 func LoadSystemProbe(config pkgconfigmodel.Config) error {
-	return loadCustom(config)
+	if err := loadCustom(config); err != nil {
+		return err
+	}
+	WarnDirectSendDelegatedAuthDirectives(config)
+	return nil
 }
 
 // loadCustom reads config into the provided config object
