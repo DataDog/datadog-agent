@@ -258,25 +258,25 @@ func TestUnexpectedWhitespace(t *testing.T) {
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
-	test := func(v string, unknown bool, additional []string) func(*testing.T) {
+	test := func(v string, unknown bool) func(*testing.T) {
 		return func(t *testing.T) {
 			env := []string{v + "=foo"}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(newTestConf(t), env, additional))
+			assert.Equal(t, exp, findUnknownEnvVars(env))
 		}
 	}
-	t.Run("DD_API_KEY", test("DD_API_KEY", false, nil))
-	t.Run("DD_SITE", test("DD_SITE", false, nil))
-	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true, nil))
-	t.Run("UNKNOWN", test("UNKNOWN", false, nil)) // no DD_ prefix
-	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false, nil))
-	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false, nil))
-	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false, nil))
-	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false, nil))
-	t.Run("DD_SYSTEM_PROBE_EXTRA", test("DD_SYSTEM_PROBE_EXTRA", false, []string{"DD_SYSTEM_PROBE_EXTRA"}))
+	t.Run("DD_API_KEY", test("DD_API_KEY", false))
+	t.Run("DD_SITE", test("DD_SITE", false))
+	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true))
+	t.Run("UNKNOWN", test("UNKNOWN", false)) // no DD_ prefix
+	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
+	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
+	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
+	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
+	t.Run("DD_SYSTEM_PROBE_EXTRA", test("DD_SYSTEM_PROBE_EXTRA", true))
 }
 
 func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
@@ -551,7 +551,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -668,7 +668,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -732,6 +732,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 	config := confFromYAML(t, datadogYaml)
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
+	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.basic_tests_enabled"))
 	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled"))
 	assert.Equal(t, 80, config.GetInt("network_path.connections_monitoring.eudm_basic_candidate_limit"))
 	assert.Equal(t, false, config.GetBool("network_path.remote_config.enabled"))
@@ -1398,7 +1399,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1446,7 +1447,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1488,7 +1489,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1541,7 +1542,7 @@ use_proxy_for_cloud_metadata: true
 		"diff_url": "second_value",
 	})
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = resolveSecrets(config, resolver, "unit_test")
@@ -1588,7 +1589,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
@@ -1611,7 +1612,13 @@ func TestServerlessConfigInit(t *testing.T) {
 
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
-	assert.False(t, conf.IsKnown("inventories_enabled"))
+
+	// inventory metadata collection is available in serverless-init, gated by
+	// the serverless-only serverless.inventory_enabled ramp key
+	assert.True(t, conf.IsKnown("inventories_enabled"))
+	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
+	assert.True(t, conf.IsKnown("serverless.inventory_enabled"))
+	assert.True(t, conf.IsKnown("serverless.inventory_wrapped_command_enabled"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.
@@ -1619,6 +1626,32 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.Equal(t, int64(10*1024*1024), conf.GetInt64("evp_proxy_config.max_payload_size"))
 	assert.True(t, conf.GetBool("ol_proxy_config.enabled"))
 	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
+}
+
+func TestServerlessInventoryWrappedCommandEnabled(t *testing.T) {
+	const envVar = "DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED"
+	const key = "serverless.inventory_wrapped_command_enabled"
+	for _, tt := range []struct {
+		name string
+		env  string
+		want bool
+	}{
+		{name: "unset"},
+		{name: "disabled", env: "false"},
+		{name: "enabled", env: "true", want: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envVar, tt.env)
+			if tt.env == "" {
+				require.NoError(t, os.Unsetenv(envVar))
+			}
+			conf := newEmptyMockConf(t)
+			initCommonBase(conf)
+
+			assert.True(t, conf.IsKnown(key))
+			assert.Equal(t, tt.want, conf.GetBool(key))
+		})
+	}
 }
 
 func TestDisableCoreAgent(t *testing.T) {
@@ -1704,7 +1737,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), []string{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t))
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

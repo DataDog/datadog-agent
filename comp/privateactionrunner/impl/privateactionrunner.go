@@ -386,7 +386,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
@@ -405,7 +405,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.coreConfig, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
 	if err != nil {
 		return runCtx, nil, err
 	}
@@ -477,7 +477,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		if p.shutdowner != nil {
 			go func() {
@@ -521,7 +521,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.coreConfig, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
 	if err != nil {
 		return err
 	}

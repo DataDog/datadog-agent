@@ -1,4 +1,5 @@
 from invoke.context import Context
+from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.e2e_framework import doc, tool
@@ -25,6 +26,7 @@ scenario_name = "aws/eks"
         "windows_node_group": doc.windows_node_group,
         "gpu_node_group": doc.gpu_node_group,
         "gpu_instance_type": doc.gpu_instance_type,
+        "auto_mode": doc.eks_auto_mode,
         "instance_type": aws_doc.instance_type,
         "full_image_path": doc.full_image_path,
         "cluster_agent_full_image_path": doc.cluster_agent_full_image_path,
@@ -51,6 +53,7 @@ def create_eks(
     windows_node_group: bool = False,
     gpu_node_group: bool = False,
     gpu_instance_type: str | None = None,
+    auto_mode: bool | None = False,
     instance_type: str | None = None,
     full_image_path: str | None = None,
     cluster_agent_full_image_path: str | None = None,
@@ -63,6 +66,30 @@ def create_eks(
     """
     Create a new EKS environment. It lasts around 20 minutes.
     """
+
+    # EKS Auto Mode provisions nodes itself, so managed node groups cannot coexist with
+    # it. Reject the opt-in node groups rather than silently dropping them, which would
+    # otherwise yield contradictory infrastructure (for example a Windows Agent with no
+    # Windows nodes to run on). --linux-node-group and --bottlerocket-node-group default
+    # to True, so an explicit request cannot be told apart from the default and they are
+    # turned off rather than reported.
+    if auto_mode:
+        requested = [
+            flag
+            for flag, enabled in (
+                ("--linux-arm-node-group", linux_arm_node_group),
+                ("--windows-node-group", windows_node_group),
+                ("--gpu-node-group", gpu_node_group),
+            )
+            if enabled
+        ]
+        if requested:
+            raise Exit(
+                f"--auto-mode is incompatible with managed node groups, remove {', '.join(requested)}: "
+                "EKS Auto Mode provisions nodes itself."
+            )
+        linux_node_group = False
+        bottlerocket_node_group = False
 
     # When GPU node group is enabled, disable other node groups for a GPU-only cluster
     # GPU instances are x86_64 only, so ARM is incompatible
@@ -78,6 +105,7 @@ def create_eks(
         "ddinfra:aws/eks/windowsNodeGroup": windows_node_group,
         "ddinfra:aws/eks/gpuNodeGroup": gpu_node_group,
         "ddinfra:aws/eks/gpuInstanceType": gpu_instance_type if gpu_instance_type else "g4dn.xlarge",
+        "ddinfra:aws/eks/autoMode": auto_mode,
         "ddagent:localChartPath": local_chart_path,
         "ddtestworkload:deployArgoRollout": install_argorollout,
         "ddinfra:kubernetesVersion": kube_version,

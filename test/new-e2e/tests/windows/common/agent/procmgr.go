@@ -28,7 +28,7 @@ func ProcmgrProcessConfigPath(installRoot, processName string) string {
 }
 
 // GetProcmgrProcessState returns the dd-procmgrd-reported state of processName, for example
-// "Running", "Stopped" or "Created".
+// "Running", "Stopped", "Created", or "Skipped".
 //
 // Workloads that dd-procmgr supervises have no SCM service to query, so this is the
 // equivalent of GetServiceStatus for them.

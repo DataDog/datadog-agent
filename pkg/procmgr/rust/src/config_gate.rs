@@ -8,7 +8,10 @@
 //!
 //! Mirrors the Windows legacy SCM startup checks in
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
-//! configured key evaluates to true. A default install leaves every gate open.
+//! configured key evaluates to true. A default install leaves those legacy SCM gates
+//! open (their schema defaults keep at least one term true). Gates that copy an
+//! Agent Data Plane check stay closed by default, since `data_plane.enabled` defaults
+//! to false.
 //!
 //! `condition_config_none` is the veto, for keys that have to be false rather than true.
 //! It cannot be expressed as an any-of term, and it is per entry because the same key can
@@ -107,6 +110,9 @@ enum GatedKey {
     RuntimeSecurity,
     SoftwareInventory,
     SystemProbeExternal,
+    ApmEnabled,
+    ApmErrorTrackingStandalone,
+    DataPlaneEnabled,
 }
 
 struct GatedKeySpec {
@@ -130,6 +136,9 @@ const WINDOWS_CRASH_DETECTION_KEY: &str = "windows_crash_detection.enabled";
 const RUNTIME_SECURITY_KEY: &str = "runtime_security_config.enabled";
 const SOFTWARE_INVENTORY_KEY: &str = "software_inventory.enabled";
 const SYSTEM_PROBE_EXTERNAL_KEY: &str = "system_probe_config.external";
+const APM_ENABLED_KEY: &str = "apm_config.enabled";
+const APM_ERROR_TRACKING_STANDALONE_KEY: &str = "apm_config.error_tracking_standalone.enabled";
+const DATA_PLANE_ENABLED_KEY: &str = "data_plane.enabled";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -203,6 +212,28 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         key: SYSTEM_PROBE_EXTERNAL_KEY,
         default: false,
         fleet_policy_file: SYSPROBE_POLICY,
+    },
+    // Named by the trace-agent processes.d entry. `apm_config.enabled` defaults true, so
+    // an empty datadog.yaml opens the gate the way a default Windows install starts the
+    // SCM service. The standalone key is the other half of Go `utils.IsAPMEnabled`;
+    // unknown keys resolve false, so omitting it would drop Error Tracking standalone.
+    GatedKeySpec {
+        kind: GatedKey::ApmEnabled,
+        key: APM_ENABLED_KEY,
+        default: true,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::ApmErrorTrackingStandalone,
+        key: APM_ERROR_TRACKING_STANDALONE_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::DataPlaneEnabled,
+        key: DATA_PLANE_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
     },
 ];
 
@@ -1930,5 +1961,93 @@ process_config:
         );
         let sysprobe = fx.sysprobe("runtime_security_config:\n  enabled: false\n");
         fx.assert_key(&sysprobe, RUNTIME_SECURITY_KEY, true);
+    }
+
+    // -------------------------------------------------------- APM / trace-agent keys
+
+    #[test]
+    fn apm_enabled_defaults_on() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, true);
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, false);
+    }
+
+    #[test]
+    fn apm_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  enabled: false\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn apm_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  enabled: true\n");
+        fx.env("DD_APM_ENABLED", "false");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn apm_error_tracking_standalone_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  error_tracking_standalone:\n    enabled: true\n");
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, true);
+    }
+
+    #[test]
+    fn apm_error_tracking_standalone_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("apm_config:\n  error_tracking_standalone:\n    enabled: false\n");
+        fx.env("DD_APM_ERROR_TRACKING_STANDALONE_ENABLED", "true");
+        fx.assert_key(&agent, APM_ERROR_TRACKING_STANDALONE_KEY, true);
+    }
+
+    #[test]
+    fn fleet_policy_drives_apm_enabled() {
+        let fx = Gate::new();
+        fx.fleet(AGENT_POLICY, "apm_config:\n  enabled: false\n");
+        let agent = fx.agent("apm_config:\n  enabled: true\n");
+        fx.assert_key(&agent, APM_ENABLED_KEY, false);
+    }
+
+    // -------------------------------------------------------- Agent Data Plane keys
+
+    #[test]
+    fn data_plane_enabled_defaults_off() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn data_plane_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("data_plane:\n  enabled: true\n");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    #[test]
+    fn data_plane_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("data_plane:\n  enabled: false\n");
+        fx.env("DD_DATA_PLANE_ENABLED", "true");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    #[test]
+    fn fleet_policy_drives_data_plane_enabled() {
+        let fx = Gate::new();
+        fx.fleet(AGENT_POLICY, "data_plane:\n  enabled: true\n");
+        let agent = fx.agent("data_plane:\n  enabled: false\n");
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    #[test]
+    fn agent_service_env_drives_data_plane_enabled() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.service_env(&[("DD_DATA_PLANE_ENABLED", "true")]);
+        fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
     }
 }

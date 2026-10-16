@@ -80,7 +80,7 @@ func (s *windowsPARSplitLifecycleSuite) SetupSuite() {
 	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
 	s.waitForProcessState(parControlProcess, "Stopped", 30*time.Second)
 	_ = s.runProcmgr("stop", parExecutorProcess)
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Stopped", "Exited", "Failed"}, 30*time.Second)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Skipped", "Stopped", "Exited", "Failed"}, 30*time.Second)
 	s.Require().NoError(s.runProcmgr("start", parControlProcess))
 }
 
@@ -137,7 +137,7 @@ func (s *windowsPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervi
 	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 180s timeout")
 
 	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Stopped", "Exited"}, 3*time.Minute)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Skipped", "Stopped", "Exited"}, 3*time.Minute)
 }
 
 func (s *windowsPARSplitLifecycleSuite) clearSigningKeys() {
