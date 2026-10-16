@@ -269,6 +269,10 @@ pub struct ProcessConfig {
     pub after: Vec<String>,
     #[serde(default)]
     pub before: Vec<String>,
+    /// On unsupervised exit, stop siblings and exit the daemon with this
+    /// process's code (including 0). Takes precedence over `restart`.
+    #[serde(default)]
+    pub exit_with_supervisor: bool,
 }
 
 const DEFAULT_STOP_TIMEOUT_SECS: u64 = 90;
@@ -303,6 +307,7 @@ impl Default for ProcessConfig {
             runtime_success_sec: None,
             after: vec![],
             before: vec![],
+            exit_with_supervisor: false,
         }
     }
 }
@@ -671,6 +676,26 @@ condition_path_exists: /usr/bin/sleep
         .unwrap();
         let configs = load_configs(dir.path()).unwrap().processes;
         assert!(!configs[0].config.auto_start);
+    }
+
+    #[test]
+    fn test_exit_with_supervisor_defaults_false() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("p.yaml"), "command: /a\n").unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
+        assert!(!configs[0].config.exit_with_supervisor);
+    }
+
+    #[test]
+    fn test_exit_with_supervisor_true() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(
+            dir.path().join("p.yaml"),
+            "command: /a\nexit_with_supervisor: true\n",
+        )
+        .unwrap();
+        let configs = load_configs(dir.path()).unwrap().processes;
+        assert!(configs[0].config.exit_with_supervisor);
     }
 
     #[test]

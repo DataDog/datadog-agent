@@ -178,6 +178,11 @@ fn run_service_inner() -> Result<()> {
     if let Err(ref e) = result {
         warn!("ProcessManager exited with error: {e:#}");
     }
+    let result = result.map(|code| {
+        if code != 0 {
+            info!("ProcessManager exited with code {code}");
+        }
+    });
 
     // Keep the service alive long enough for SCM to treat the start as
     // successful (mirrors Go's runTimeExitGate). If the process has
@@ -191,7 +196,7 @@ fn run_service_inner() -> Result<()> {
 
 /// Run as a Windows service. If launched interactively (not by SCM), falls
 /// back to console mode so the binary remains debuggable.
-pub fn run_as_service() -> Result<()> {
+pub fn run_as_service() -> Result<i32> {
     let name = service_name_wide();
 
     let table: [SERVICE_TABLE_ENTRYW; 2] = [
@@ -208,7 +213,7 @@ pub fn run_as_service() -> Result<()> {
 
     let ok = unsafe { StartServiceCtrlDispatcherW(table.as_ptr()) };
     if ok != 0 {
-        return Ok(());
+        return Ok(0);
     }
 
     let err = unsafe { GetLastError() };
@@ -222,7 +227,7 @@ pub fn run_as_service() -> Result<()> {
 
 /// Fallback console mode: runs the process manager directly without SCM,
 /// useful for interactive debugging.
-fn run_console_fallback() -> Result<()> {
+fn run_console_fallback() -> Result<i32> {
     dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PROCMGR",
         level: log::Level::Info,
