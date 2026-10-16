@@ -298,8 +298,12 @@ func (c *DeviceEventsGatherer) Refresh(queryTime time.Time) error {
 		}
 
 		for _, event := range c.driverEventsSource.Get() {
-			driverEventsByDevice[event.DeviceUUID] = append(driverEventsByDevice[event.DeviceUUID], event)
-			c.seenDevices[event.DeviceUUID] = true
+			deviceKey := event.DeviceKey()
+			if deviceKey == "" {
+				continue
+			}
+			driverEventsByDevice[deviceKey] = append(driverEventsByDevice[deviceKey], event)
+			c.seenDevices[deviceKey] = true
 		}
 	}
 

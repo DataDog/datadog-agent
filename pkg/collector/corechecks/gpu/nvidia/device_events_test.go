@@ -190,6 +190,32 @@ func TestDeviceEventsGathererRefreshesSourcesIndependently(t *testing.T) {
 			newDriverOnlyXIDEvent(newDriverXIDEvent("GPU-2", 31, timestamp, "other kernel message")),
 		}, gatherer.getXIDEvents("GPU-2"))
 	})
+
+	t.Run("groups unresolved devices by PCI bus ID instead of collapsing them", func(t *testing.T) {
+		// Xid 79 leaves the GPU unresolvable through NVML, so these events arrive with no
+		// UUID. Grouping on DeviceUUID would merge both devices into one empty-key bucket.
+		first := newUnresolvedDriverXIDEvent("0000:97:00.0", 79, timestamp, "fallen off the bus")
+		second := newUnresolvedDriverXIDEvent("0000:98:00.0", 79, timestamp, "also fallen off the bus")
+		source := &fakeDriverEventsSource{events: []model.DriverEvent{first, second}}
+		gatherer := NewDeviceEventsGatherer(source)
+
+		require.NoError(t, gatherer.Refresh(timestamp.Add(time.Second)))
+
+		require.Equal(t, []xidEvent{newDriverOnlyXIDEvent(first)}, gatherer.getXIDEvents("0000:97:00.0"))
+		require.Equal(t, []xidEvent{newDriverOnlyXIDEvent(second)}, gatherer.getXIDEvents("0000:98:00.0"))
+		require.Empty(t, gatherer.getXIDEvents(""))
+	})
+
+	t.Run("skips events carrying neither identifier", func(t *testing.T) {
+		source := &fakeDriverEventsSource{events: []model.DriverEvent{
+			newDriverXIDEvent("", 31, timestamp, "no device identifier"),
+		}}
+		gatherer := NewDeviceEventsGatherer(source)
+
+		require.NoError(t, gatherer.Refresh(timestamp.Add(time.Second)))
+
+		require.Empty(t, gatherer.getXIDEvents(""))
+	})
 }
 
 type fakeDriverEventsSource struct {
