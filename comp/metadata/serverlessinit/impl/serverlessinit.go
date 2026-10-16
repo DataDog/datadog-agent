@@ -37,17 +37,17 @@ const (
 )
 
 type serverlessinitComp struct {
-	payload             util.InventoryPayload
-	provider            serverlessdef.InventoryProvider
-	params              serverlessdef.Params
-	conf                config.Component
-	log                 log.Component
-	hostname            hostnameinterface.Component
-	data                *inventoryagent.Data
-	fields              map[string]interface{}
-	uuid                string
-	lastResourceID      string
-	submittedResourceID string
+	payload                  util.InventoryPayload
+	provider                 serverlessdef.InventoryProvider
+	params                   serverlessdef.Params
+	conf                     config.Component
+	log                      log.Component
+	hostname                 hostnameinterface.Component
+	data                     *inventoryagent.Data
+	fields                   map[string]interface{}
+	uuid                     string
+	lastResourceID           string
+	submittedCurrentIdentity bool
 	// Serializes collection and shutdown without an uninterruptible lock wait.
 	collecting chan struct{}
 	stopped    bool
@@ -83,7 +83,11 @@ func NewComponent(deps Requires) Provides {
 		hostname:   deps.Hostname,
 		collecting: make(chan struct{}, 1),
 	}
-	c.payload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, c.getPayload, "agent.json")
+	var metadataSerializer serializer.MetricSerializer
+	if deps.Serializer != nil {
+		metadataSerializer = submissionRecordingSerializer{MetricSerializer: deps.Serializer, onSubmitted: c.recordSubmission}
+	}
+	c.payload = util.CreateInventoryPayload(deps.Config, deps.Log, metadataSerializer, c.getPayload, "agent.json")
 	c.payload.Enabled = c.payload.Enabled && serverlessdef.InventoryEligible(deps.Config, deps.Provider)
 	c.payload.FirstRunDelay = 0
 	provides := Provides{Comp: c}
@@ -116,55 +120,75 @@ func (c *serverlessinitComp) collectPayload(ctx context.Context, final bool) tim
 	}
 	if final {
 		c.stopped = true
-		if !c.payload.LastSubmit.IsZero() {
-			return c.payload.MinInterval
-		}
 	}
 
 	for ctx.Err() == nil {
 		data := c.provider.GetInventoryData()
-		if strings.TrimSpace(data.ResourceID) != "" {
-			fields := buildFields(data, c.params, c.conf)
-			if !reflect.DeepEqual(fields, c.fields) {
-				c.payload.Refresh()
-			}
-			c.fields = fields
-			if data.ResourceID != c.lastResourceID {
-				c.uuid = uuid.New().String()
-				c.lastResourceID = data.ResourceID
-			}
-			if c.data == nil {
-				c.data = inventoryagent.NewData(c.conf, c.log, c.hostname)
-			}
-			if ctx.Err() != nil {
+		if strings.TrimSpace(data.ResourceID) == "" {
+			// The last known identity was already reported; do not spend the shutdown grace waiting.
+			if final && c.submittedCurrentIdentity {
 				return c.payload.MinInterval
 			}
-			lastSubmit := c.payload.LastSubmit
-			if final {
-				c.payload.Submit()
-			} else {
-				c.payload.Collect(ctx)
+			select {
+			case <-ctx.Done():
+				return c.payload.MinInterval
+			case <-time.After(identityRetryInterval):
 			}
-			if !c.payload.LastSubmit.Equal(lastSubmit) {
-				c.submittedResourceID = data.ResourceID
-			}
+			continue
+		}
+		fields := buildFields(data, c.params, c.conf)
+		if !reflect.DeepEqual(fields, c.fields) {
+			c.payload.Refresh()
+		}
+		c.fields = fields
+		if data.ResourceID != c.lastResourceID {
+			c.uuid = uuid.New().String()
+			c.lastResourceID = data.ResourceID
+			c.submittedCurrentIdentity = false
+		}
+		if c.data == nil {
+			c.data = inventoryagent.NewData(c.conf, c.log, c.hostname)
+		}
+		if ctx.Err() != nil {
 			return c.payload.MinInterval
 		}
-		select {
-		case <-ctx.Done():
-			return c.payload.MinInterval
-		case <-time.After(identityRetryInterval):
+		if !final {
+			return c.payload.Collect(ctx)
 		}
+		if c.submittedCurrentIdentity {
+			return c.payload.MinInterval
+		}
+		if err := c.payload.Submit(); err != nil {
+			c.log.Errorf("unable to submit serverless-init inventory payload at shutdown: %s", err)
+		}
+		return c.payload.MinInterval
 	}
 	return c.payload.MinInterval
 }
 
+func (c *serverlessinitComp) recordSubmission() {
+	c.submittedCurrentIdentity = true
+}
+
 func (c *serverlessinitComp) getPayload() marshaler.JSONMarshaler {
 	fields := maps.Clone(c.fields)
-	if c.submittedResourceID == c.lastResourceID {
+	if c.submittedCurrentIdentity {
 		fields["report_reason"] = reportReasonPeriodic
 	}
 	return c.data.GetPayload(fields, c.uuid)
+}
+
+type submissionRecordingSerializer struct {
+	serializer.MetricSerializer
+	onSubmitted func()
+}
+
+func (s submissionRecordingSerializer) SendMetadata(payload marshaler.JSONMarshaler) error {
+	if err := s.MetricSerializer.SendMetadata(payload); err != nil {
+		return err
+	}
+	s.onSubmitted()
+	return nil
 }
 
 func (c *serverlessinitComp) stop(ctx context.Context) error {

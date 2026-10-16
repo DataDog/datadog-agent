@@ -50,12 +50,16 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["inventoryagent_test.go"],
+    srcs = [
+        "data_test.go",
+        "inventoryagent_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "//comp/core/log/def",
