@@ -33,6 +33,11 @@ func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys [
 		return nil, nil, errors.New("config was not properly validated")
 	}
 	for _, e := range cfg.Endpoints {
+		if e.HasPendingDelegatedAuth {
+			// A pending delegated-auth endpoint has no key yet; skip it rather than send
+			// with an empty one.
+			continue
+		}
 		urlStr := e.Host + pipelineStatsURLSuffix
 		log.Debugf("[pipeline_stats] Intake URL %s", urlStr)
 		url, err := url.Parse(urlStr)

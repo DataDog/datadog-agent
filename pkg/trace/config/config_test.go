@@ -204,6 +204,13 @@ func TestWriterEndpoints(t *testing.T) {
 		assert.Equal(t, []*Endpoint{mrf, additional}, c.WriterEndpoints())
 		assert.True(t, c.HasWriterDestination())
 	})
+	t.Run("skip-main-pending-delegated-auth-is-destination", func(t *testing.T) {
+		// A pending delegated-auth endpoint has no key yet, but a key is on its way:
+		// the config must validate instead of failing with no writer destination.
+		pending := &Endpoint{Host: "https://additional", HasPendingDelegatedAuth: true}
+		c := &AgentConfig{Endpoints: []*Endpoint{main, pending}, SkipMainEndpoint: true}
+		assert.True(t, c.HasWriterDestination())
+	})
 	t.Run("skip-main-no-destination", func(t *testing.T) {
 		c := &AgentConfig{Endpoints: []*Endpoint{main}, SkipMainEndpoint: true}
 		assert.Empty(t, c.WriterEndpoints())

@@ -48,6 +48,12 @@ type Endpoint struct {
 
 	// IsMRF determines whether this is a Multi-Region Failover endpoint.
 	IsMRF bool `mapstructure:"-" json:"-"`
+
+	// HasPendingDelegatedAuth marks an endpoint whose only configured keys are DELA[...]
+	// directives still waiting for the delegatedauth component to write back a resolved
+	// API key. APIKey is empty for such endpoints; writers hold payloads for them until
+	// the key arrives.
+	HasPendingDelegatedAuth bool `mapstructure:"-" json:"-"`
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
@@ -395,6 +401,12 @@ type AgentConfig struct {
 	// any following ones are read from the 'additional_endpoints' parts of the
 	// configuration file, if present.
 	Endpoints []*Endpoint
+
+	// OnAdditionalEndpointsUpdate, when set, subscribes cb to runtime changes of the
+	// apm_config.additional_endpoints setting (e.g. delegated-auth key writeback), delivering
+	// the host and its current API key list. Set by the config loader when the underlying
+	// config supports update notifications; nil means runtime updates are unavailable.
+	OnAdditionalEndpointsUpdate func(cb func(host string, apiKeys []string))
 
 	// SkipMainEndpoint makes the trace and stats writers skip the main endpoint
 	// (Endpoints[0], derived from api_key and apm_config.apm_dd_url) and send
@@ -829,7 +841,8 @@ func (c *AgentConfig) WriterEndpoints() []*Endpoint {
 // would receive traces and stats, taking SkipMainEndpoint into account.
 func (c *AgentConfig) HasWriterDestination() bool {
 	for _, e := range c.WriterEndpoints() {
-		if e != nil && !e.IsMRF && e.Host != "" && e.APIKey != "" {
+		// A pending delegated-auth endpoint counts: a key is on its way.
+		if e != nil && !e.IsMRF && e.Host != "" && (e.APIKey != "" || e.HasPendingDelegatedAuth) {
 			return true
 		}
 	}

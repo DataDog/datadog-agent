@@ -99,14 +99,15 @@ func TestOnlyDirectivesRegisterInstances(t *testing.T) {
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 }
 
-func TestAPMAdditionalEndpointsAreOutsideTheInitialScope(t *testing.T) {
+func TestTraceProxyAdditionalEndpointsRemainOutsideScope(t *testing.T) {
+	// apm_config.additional_endpoints is enrolled (trace writers hold pending endpoints);
+	// the proxy settings (profiling, debugger, symdb, evp, ol) are not, until their
+	// senders gain pending handling. Keep a canary so their enrollment is a conscious act.
 	rec := newRecordingComponent()
-	config := confFromYAML(t, `
-apm_config:
-  additional_endpoints:
-    "https://trace.agent.second-org.datadoghq.com":
-      - "DELA[org-uuid-1, aws]"
-`)
+	config := confFromYAML(t, "site: datadogh.com\n")
+	config.SetInTest("apm_config.profiling_additional_endpoints", map[string][]string{
+		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+	})
 
 	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
 	assert.Empty(t, rec.recorded)
@@ -598,4 +599,17 @@ func TestEventPlatformEndpointsAreWithinScope(t *testing.T) {
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 	assert.Equal(t, "container_image.additional_endpoints", rec.recorded[0].AdditionalEndpointsListConfigKey)
+}
+
+func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, "site: datadogh.com\n")
+	config.SetInTest("apm_config.additional_endpoints", map[string][]string{
+		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+	})
+
+	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+	assert.Equal(t, "apm_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsConfigKey)
 }
