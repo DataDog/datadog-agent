@@ -140,12 +140,9 @@ func TestUnshareEvent(t *testing.T) {
 				return err
 			}
 			var nsErr error
-			childMntNS, nsErr = utils.NewNSPathFromPid(uint32(cmd.Process.Pid), utils.MntNsType).GetNSID()
+			childMntNS, nsErr = utils.NewNSPathFromPath(fmt.Sprintf("/proc/%d/ns/mnt", cmd.Process.Pid), utils.MntNsType).GetNSID()
 			return nsErr
 		}, func(_ *rules.Rule, event *model.Event) bool {
-			if event.Exec.Process.Pid != uint32(cmd.Process.Pid) {
-				return false
-			}
 			assert.NotZero(t, event.Exec.Process.MntNS, "child mntns should be resolved")
 			assert.NotEqual(t, parentMntNS, event.Exec.Process.MntNS, "child cloned with CLONE_NEWNS should not inherit parent mntns")
 			assert.Equal(t, childMntNS, event.Exec.Process.MntNS, "child mntns should match /proc/<pid>/ns/mnt")
