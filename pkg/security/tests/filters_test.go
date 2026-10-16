@@ -595,6 +595,10 @@ func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
 	}
 }
 
+// In deny mode, every rejected open of the host goes through the sampler: the global open sampling rate could be
+// exhausted by the opens of the container runtime before the syscall tester runs.
+var _ = declare(TestFilterOpenSavedByWorkloadProfileSampler, testOpts{eventSamplingOpenRateUnlimited: true})
+
 // TestFilterOpenSavedByWorkloadProfileSampler checks that an event rejected by the approvers is still forwarded
 // to user space when the workload profile sampler samples it, flagged so that the rule engine doesn't evaluate it,
 // and that the sampler then rejects the same event for the same process.
@@ -642,8 +646,9 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 	}
 	defer dockerInstance.stop()
 
-	// countSavedEvents runs the syscall tester in the container and counts the forwarded events flagged as saved
-	// from the approvers that match the filter
+	// countSavedEvents runs the syscall tester in the container and counts its forwarded events flagged as saved
+	// from the approvers that match the filter. The test files are on the host and can be opened by other processes
+	// too, which are sampled under their own key.
 	countSavedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) int {
 		var count atomic.Int32
 		runUntilSentinel(t, test, dockerInstance, func() error {
@@ -653,6 +658,9 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 			return nil
 		}, func(event *model.Event) {
 			if event.GetEventType() != eventType || !event.IsSavedByActivityDumps() {
+				return
+			}
+			if event.ProcessContext.FileEvent.PathnameStr != syscallTester {
 				return
 			}
 			if v, _ := event.GetFieldValue(filter.key); v == filter.value {

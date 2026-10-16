@@ -161,6 +161,10 @@ runtime_security_config:
       enabled: {{ .EnableAnomalyDetection }}
 {{end}}
   event_sampling:
+{{if .EventSamplingOpenRateUnlimited}}
+    open:
+      rate: 0
+{{end}}
     syscalls:
       enabled: {{ .EventSamplingSyscallsEnabled }}
 

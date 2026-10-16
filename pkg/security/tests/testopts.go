@@ -31,6 +31,7 @@ type testOpts struct {
 	profilingStartupDelay                   time.Duration
 	profileReportingWaitPersistence         bool
 	eventSamplingSyscallsEnabled            bool
+	eventSamplingOpenRateUnlimited          bool
 	disableDiscarders                       bool
 	disableERPCDentryResolution             bool
 	disableMapDentryResolution              bool
