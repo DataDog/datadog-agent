@@ -73,6 +73,19 @@ func endpointForServer(t *testing.T, srv *httptest.Server, apiKeyPath string) lo
 	return logsconfig.NewEndpoint("api-key", apiKeyPath, host, port, "", false /* useSSL */)
 }
 
+// pendingEndpointForServer builds a plain-HTTP Endpoint whose API-key slot holds a DELA
+// directive, so it starts pending delegated auth.
+func pendingEndpointForServer(t *testing.T, srv *httptest.Server, apiKeyPath string) logsconfig.Endpoint {
+	t.Helper()
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	host, portStr, err := net.SplitHostPort(u.Host)
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portStr)
+	require.NoError(t, err)
+	return logsconfig.NewEndpoint("DELA[org-uuid, aws]", apiKeyPath, host, port, "", false /* useSSL */)
+}
+
 // TestSendToEndpointStreamsGzippedMultipart verifies the streaming send path: the request body
 // must be gzip-encoded, streamed (chunked, i.e. no precomputed Content-Length), and decode back
 // to the exact event/dump parts that were handed in. This locks in the io.Pipe rewrite that
@@ -253,4 +266,28 @@ func TestHandleActivityDumpGatesMRFEndpointOnFailover(t *testing.T) {
 	require.NoError(t, backend.HandleActivityDump("image", "tag", []byte(`{}`), []byte("dump")))
 	assert.Equal(t, int64(2), primaryHits.Load())
 	assert.Equal(t, int64(1), mrfHits.Load(), "MRF endpoint should receive the dump while failing over")
+}
+
+func TestHandleActivityDumpSkipsEndpointWaitingForDelegatedAuth(t *testing.T) {
+	primaryHits := atomic.NewInt64(0)
+	pendingHits := atomic.NewInt64(0)
+
+	primarySrv := newCountingServer(primaryHits)
+	defer primarySrv.Close()
+	pendingSrv := newCountingServer(pendingHits)
+	defer pendingSrv.Close()
+
+	primaryEp := endpointForServer(t, primarySrv, "api_key")
+	// A DELA directive in the API-key slot builds the endpoint as pending delegated auth.
+	pendingEp := pendingEndpointForServer(t, pendingSrv, "runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints")
+
+	backend := &ActivityDumpRemoteBackend{
+		tooLargeEntities: atomic.NewUint64(0),
+		client:           primarySrv.Client(),
+		endpoints:        logsconfig.NewEndpoints(primaryEp, []logsconfig.Endpoint{pendingEp}, false, true),
+	}
+
+	require.NoError(t, backend.HandleActivityDump("image", "tag", []byte(`{}`), []byte("dump")))
+	assert.Equal(t, int64(1), primaryHits.Load(), "primary endpoint still receives the dump")
+	assert.Equal(t, int64(0), pendingHits.Load(), "a pending delegated-auth endpoint must be skipped, not sent an empty key")
 }

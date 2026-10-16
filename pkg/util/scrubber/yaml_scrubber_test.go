@@ -404,6 +404,29 @@ additional_endpoints:
 		assert.NotContains(t, scrubbed, "supersecretXYZ")
 		assert.NotContains(t, scrubbed, "XYZ")
 	})
+
+	// The same list-of-endpoint-structs shape sits under deeply nested security keys;
+	// the leaf-key matcher must cover them too.
+	t.Run("list-of-endpoint-structs: security keys scrub DELA fallback", func(t *testing.T) {
+		input := `compliance_config:
+  endpoints:
+    additional_endpoints:
+      - api_key: DELA[org-uuid, aws, fallback=supersecretXYZ]
+        host: agent-http-intake.logs.datadoghq.com
+runtime_security_config:
+  activity_dump:
+    remote_storage:
+      endpoints:
+        additional_endpoints:
+          - api_key: DELA[org-uuid, aws, fallback=othersecretABC]
+            host: agent-http-intake.logs.datadoghq.com
+`
+		scrubbed, err := ScrubYamlString(input)
+		require.NoError(t, err)
+		assert.NotContains(t, scrubbed, "supersecretXYZ")
+		assert.NotContains(t, scrubbed, "othersecretABC")
+		assert.Contains(t, scrubbed, "agent-http-intake.logs.datadoghq.com")
+	})
 }
 
 func TestPrivateActionRunnerCredentialValuesScrub(t *testing.T) {
