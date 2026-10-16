@@ -57,9 +57,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "yaml_pkg",
+    data = [":headers"],
     dest_dir = "embedded/lib",
     input = ":yaml",
-    installed_files = [":headers"],
     version = VERSION,
     visibility = ["//visibility:public"],
 )
