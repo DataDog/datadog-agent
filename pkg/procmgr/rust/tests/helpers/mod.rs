@@ -840,7 +840,6 @@ impl DaemonHandle {
             .expect("failed to check daemon status")
     }
 
-    /// Wait for a voluntary daemon exit; does not kill on timeout.
     pub fn wait_for_exit(&mut self, timeout: Duration) -> Option<ExitStatus> {
         let deadline = Instant::now() + timeout;
         loop {
@@ -1230,7 +1229,6 @@ impl TestEnv {
         self
     }
 
-    /// [`with_process`](Self::with_process) plus YAML lines appended to the fixture.
     pub fn with_process_extra(self, name: &str, extra_yaml: &str) -> Self {
         install_process_fixture(self.env_root(), &self.config_dir, name);
         let path = self.config_dir.join(format!("{name}.yaml"));
