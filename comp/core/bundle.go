@@ -22,6 +22,7 @@ import (
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	remoteflagsfx "github.com/DataDog/datadog-agent/comp/core/remoteflags/fx"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
@@ -35,6 +36,7 @@ import (
 type bundleOptions struct {
 	secretsModule       fx.Option
 	delegatedAuthModule fx.Option
+	schemaModule        fx.Option
 }
 
 // Option changes some module implementations included in the bundle
@@ -45,6 +47,7 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 	params := &bundleOptions{
 		secretsModule:       secretsnoopfx.Module(),
 		delegatedAuthModule: delegatedauthnoopfx.Module(),
+		schemaModule:        schemanoopfx.Module(),
 	}
 	for _, option := range options {
 		option(params)
@@ -63,6 +66,7 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 		pidfx.Module(), // You must supply pidimpl.NewParams in order to use it
 		params.secretsModule,
 		params.delegatedAuthModule,
+		params.schemaModule,
 	}
 
 	return fxutil.Bundle(
@@ -77,5 +81,14 @@ func WithSecrets() Option {
 	return func(params *bundleOptions) {
 		params.secretsModule = secretsfx.Module()
 		params.delegatedAuthModule = delegatedauthfx.Module()
+	}
+}
+
+// WithSchema replaces the noop schema module with schemaModule, typically comp/core/schema/fx to validate the
+// configurations against their schema. The module is a parameter so the bundle doesn't import the real implementation:
+// it would link the JSON schema library and the embedded schemas into every binary using the bundle.
+func WithSchema(schemaModule fx.Option) Option {
+	return func(params *bundleOptions) {
+		params.schemaModule = schemaModule
 	}
 }
