@@ -97,16 +97,19 @@ pub struct Connection {
     pub ssl_password: Option<String>,
 }
 
+/// Same modes as the postgres integration's `ssl` option. Like the integration, an unknown value
+/// falls back to `allow` (the default).
 #[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum SslMode {
     Disable,
-    #[default]
-    Allow,
     Prefer,
     Require,
     VerifyCa,
     VerifyFull,
+    #[default]
+    #[serde(other)]
+    Allow,
 }
 
 fn default_port() -> u16 {
@@ -117,4 +120,27 @@ fn default_application_name() -> String {
     "datadog-agent".to_string()
 }
 
-// TODO(dsec-163): add tests for the config deserialization.
+#[cfg(test)]
+mod tests {
+    use serde::de::IntoDeserializer;
+
+    use super::*;
+
+    fn ssl_mode(value: &str) -> SslMode {
+        let de = IntoDeserializer::<serde::de::value::Error>::into_deserializer(value);
+        SslMode::deserialize(de).unwrap()
+    }
+
+    #[test]
+    fn ssl_mode_parses_known_values_and_defaults_to_allow() {
+        assert_eq!(ssl_mode("disable"), SslMode::Disable);
+        assert_eq!(ssl_mode("prefer"), SslMode::Prefer);
+        assert_eq!(ssl_mode("require"), SslMode::Require);
+        assert_eq!(ssl_mode("verify-ca"), SslMode::VerifyCa);
+        assert_eq!(ssl_mode("verify-full"), SslMode::VerifyFull);
+        assert_eq!(ssl_mode("allow"), SslMode::Allow);
+        assert_eq!(ssl_mode("bogus"), SslMode::Allow);
+    }
+}
+
+// TODO(dsec-163): add more tests for the config deserialization.
