@@ -8,10 +8,5 @@
 ---
 fixes:
   - |
-    The orchestrator check now retries the Kubernetes API discovery on its next runs when it fails entirely, or
-    partially for API groups the check collects, and enables the resource collectors that become available. Retries
-    back off exponentially from about 20 seconds up to about 15 minutes between attempts until the discovery succeeds.
-    When collector discovery is enabled, resources are collected only once the discovery has succeeded, at least
-    partially.
-    Previously a failed discovery could leave the check running without collecting some or all resources until it
-    was rescheduled.
+    Fix a bug in the orchestrator check that would lead to not enabling collectors if the Kubernetes API discovery
+    failed.
