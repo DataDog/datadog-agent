@@ -134,7 +134,12 @@ dda inv aws.eks.gensim.status --stack-name="$STACK"
 local validation (`validation`). An uploaded S3 artifact (`upload=succeeded`, `validation=pending`) is **not yet a
 validated benchmark recording**.
 
-3. Fetch the uploaded artifact into a fresh local directory and run the shared PyArrow validator:
+3. Fetch the uploaded artifact into a fresh local directory and run the shared PyArrow validator.
+`uv run --with pyarrow dda inv ...` does **not** reliably expose `pyarrow` to the validator (`dda` overrides `PATH`, so the
+validator's `python3` fails with `No module named 'pyarrow'` and leaves a partial `$OUT`). If that happens, the artifact is
+already downloaded in `$OUT`: create a venv (`uv venv /tmp/pyarrow-venv && uv pip install --python /tmp/pyarrow-venv/bin/python pyarrow`)
+and run the validator directly with it first on `PATH`:
+`PATH=/tmp/pyarrow-venv/bin:$PATH bash test/e2e-framework/scenarios/aws/gensim-eks/validate-recording.sh "$OUT" 60 --backend eks --run-id "$RUN_ID" --scenario-dir "$SCENARIO_ID" --episode "$EPISODE" --namespace default`.
 
 ```bash
 uv run --with pyarrow dda inv aws.eks.gensim.fetch \
