@@ -3,6 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "otel-agent_test",
     srcs = [
+        "apikey_rotation_test.go",
         "complete_test.go",
         "ddot_fargate_test.go",
         "dogtel_gateway_test.go",
@@ -48,6 +49,7 @@ dd_agent_go_test(
         "testdata/sources.json",
     ],
     embedsrcs = [
+        "config/apikey-rotation.yml",
         "config/complete.yml",
         "config/ddot-fargate.yml",
         "config/dogtel-secrets.yml",
