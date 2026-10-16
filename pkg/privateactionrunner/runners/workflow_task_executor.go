@@ -55,7 +55,11 @@ func NewWorkflowTaskExecutor(
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) (*WorkflowTaskExecutor, error) {
-	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig)
+	var integrationConfigProvider resolver.IntegrationConfigProvider
+	if configuration.AllowIntegrationCredentials {
+		integrationConfigProvider = resolver.NewAgentIntegrationConfigProvider(ipcClient)
+	}
+	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig, integrationConfigProvider)
 	if err != nil {
 		return nil, err
 	}
