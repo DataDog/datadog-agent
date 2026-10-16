@@ -61,6 +61,82 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 	assert.Nil(t, stats["fips_port_range_start"])
 }
 
+func TestCommonHeaderProviderConfigFileErrorAbsentWhenConfigIsValid(t *testing.T) {
+	config := config.NewMock(t)
+
+	provider := newCommonHeaderProvider(agentParams, config)
+
+	stats := map[string]interface{}{}
+	require.NoError(t, provider.JSON(false, stats))
+
+	assert.Empty(t, stats["conf_file_error"])
+}
+
+// TestCommonHeaderProviderRendersConfigFileError covers both surfaces the Windows
+// Agent Manager and `agent status` share.
+func TestCommonHeaderProviderRendersConfigFileError(t *testing.T) {
+	const parseErr = "could not parse /etc/datadog-agent/datadog.yaml: boom. All settings from this file are ignored"
+
+	config := config.NewMock(t)
+
+	provider := newCommonHeaderProvider(agentParams, config)
+	provider.(*headerProvider).constdata["conf_file_error"] = parseErr
+
+	text := new(bytes.Buffer)
+	require.NoError(t, provider.Text(false, text))
+	assert.Contains(t, text.String(), parseErr)
+
+	html := new(bytes.Buffer)
+	require.NoError(t, provider.HTML(false, html))
+	assert.Contains(t, html.String(), parseErr)
+}
+
+// TestCommonHeaderProviderTextIndentsConfigFileError guards alignment under the
+// section header. The template indents only the interpolation point, so without
+// a per-line indent every line after the first falls back to column 0.
+func TestCommonHeaderProviderTextIndentsConfigFileError(t *testing.T) {
+	const parseErr = "could not parse /etc/datadog-agent/datadog.yaml: boom.\n" +
+		"All settings from this file are ignored and defaults are in use.\n" +
+		"  1 | api_key: redacted\n" +
+		"> 2 |   xx: yy"
+
+	config := config.NewMock(t)
+
+	provider := newCommonHeaderProvider(agentParams, config)
+	provider.(*headerProvider).constdata["conf_file_error"] = parseErr
+
+	text := new(bytes.Buffer)
+	require.NoError(t, provider.Text(false, text))
+
+	out := text.String()
+	assert.Contains(t, out, "\n    could not parse /etc/datadog-agent/datadog.yaml: boom.")
+	assert.Contains(t, out, "\n    All settings from this file are ignored")
+	assert.Contains(t, out, "\n      1 | api_key: redacted", "quoted lines keep their own padding on top of the indent")
+	assert.Contains(t, out, "\n    > 2 |   xx: yy", "the marker stays flush with the section indent")
+}
+
+// TestCommonHeaderProviderHTMLPreservesConfigErrorLayout guards the quoted YAML
+// context. The newlines reach the HTML either way, but a browser collapses them
+// unless the element preserves whitespace, and the padded line numbers only line
+// up in a monospace font. Regression test for the Agent Manager rendering the
+// whole snippet as one run-on line.
+func TestCommonHeaderProviderHTMLPreservesConfigErrorLayout(t *testing.T) {
+	const parseErr = "could not parse /etc/datadog-agent/datadog.yaml: boom.\n  1 | api_key: redacted\n> 2 |   xx: aa"
+
+	config := config.NewMock(t)
+
+	provider := newCommonHeaderProvider(agentParams, config)
+	provider.(*headerProvider).constdata["conf_file_error"] = parseErr
+
+	html := new(bytes.Buffer)
+	require.NoError(t, provider.HTML(false, html))
+
+	out := html.String()
+	assert.Contains(t, out, "white-space:pre-wrap", "newlines must survive browser rendering")
+	assert.Contains(t, out, "monospace", "padded line numbers need a fixed-width font")
+	assert.Contains(t, out, "&gt; 2 |", "the offending-line marker must be escaped, not dropped")
+}
+
 func TestCommonHeaderProviderText(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
