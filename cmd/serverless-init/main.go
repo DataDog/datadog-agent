@@ -199,6 +199,12 @@ func preloadEarly() {
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
 
+	// The full-Agent inventory first-run delay staggers the first inventory
+	// payload behind the agent's startup request train. Serverless-init has no
+	// such train: the payload is gated on resource identity instead, and a
+	// delay would only postpone the earliest possible send after identity.
+	setOverride("inventories_first_run_delay", 0)
+
 	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
 	setOverride("data_plane.enabled", false)
 	setOverride("data_plane.dogstatsd.enabled", false)
