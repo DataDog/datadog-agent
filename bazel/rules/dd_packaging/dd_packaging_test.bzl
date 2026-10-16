@@ -774,6 +774,78 @@ def _test_packaged_data_pkg_files_collected(name):
 def _test_packaged_data_pkg_files_collected_impl(env, target):
     _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
 
+# Test 16: mode sets the permissions of an unversioned input, such as a binary.
+def _test_mode(name):
+    util.helper_target(
+        cc_binary,
+        name = name + "_bin",
+        srcs = ["testdata/main.c"],
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        dest_dir = "embedded/bin",
+        input = ":" + name + "_bin",
+        mode = "0755",
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_packaged"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_mode_impl,
+        target = name + "_subject",
+    )
+
+def _test_mode_impl(env, target):
+    env.expect.that_dict(_installed_modes(target)).contains_at_least({"embedded/bin/test_mode_bin": "0755"})
+
+# Test 17: mode applies to the library file of a versioned input, not to its symlinks.
+def _test_versioned_mode(name):
+    util.helper_target(
+        cc_library,
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        libname = "libfoo",
+        mode = "0755",
+        version = "1.2",
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_packaged"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_versioned_mode_impl,
+        target = name + "_subject",
+    )
+
+def _test_versioned_mode_impl(env, target):
+    env.expect.that_dict(_installed_modes(target)).contains_at_least({"lib/libfoo.so.1.2": "0755"})
+    symlink_modes = {
+        link.destination: link.attributes.get("mode")
+        for link, _ in target[PackageFilegroupInfo].pkg_symlinks
+    }
+    env.expect.that_dict(symlink_modes).contains_at_least({"lib/libfoo.so.1": "0644", "lib/libfoo.so": "0644"})
+
+def _installed_modes(target):
+    return {
+        dest: files.attributes.get("mode")
+        for files, _ in target[PackageFilegroupInfo].pkg_files
+        for dest in files.dest_src_map
+    }
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -795,5 +867,7 @@ def dd_packaging_test_suite(name):
             _test_data_reaches_packaged,
             _test_packaged_data_collected,
             _test_packaged_data_pkg_files_collected,
+            _test_mode,
+            _test_versioned_mode,
         ],
     )
