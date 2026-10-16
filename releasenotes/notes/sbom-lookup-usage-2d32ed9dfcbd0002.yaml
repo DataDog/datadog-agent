@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CWS package fields such as ``process.file.package.name`` leave the
+    runtime usage of the package they read as it is. A rule or an event on a
+    ``chmod``, ``rename`` or ``unlink`` target put the package of that target
+    in use in the SBOM.

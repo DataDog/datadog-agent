@@ -79,16 +79,6 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
 
-// otelAgentEnvVars lists DD_* environment variables that are consumed by the
-// otel-agent binary via CLI flags (envflag) rather than through the Datadog
-// config system. They are passed to LoadDatadog so findUnknownEnvVars does not
-// emit spurious "Unknown environment variable" warnings for them.
-var otelAgentEnvVars = []string{
-	"DD_SYNC_DELAY",
-	"DD_SYNC_TO",
-	"DD_CORE_CONFIG",
-}
-
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	if len(uris) == 0 {
@@ -119,7 +109,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, otelAgentEnvVars)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{})
 		if err != nil {
 			return nil, err
 		}
@@ -569,8 +559,14 @@ func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*d
 // OTel exporter config. This ensures Unmarshal constructs endpoint URLs with the correct site.
 // Returns an error if the input datadog exporter config is invalid.
 func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
+	// Validate that site is configured in pkgconfig
+	site := strings.TrimSpace(pkgconfig.GetString("site"))
+	if site == "" {
+		site = constants.DefaultSite
+	}
+
 	if ddcfg == nil {
-		return map[string]any{"api": map[string]any{"site": pkgconfig.GetString("site")}}, nil
+		return map[string]any{"api": map[string]any{"site": site}}, nil
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -578,16 +574,20 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		ddcfgMap["api"] = map[string]any{"site": pkgconfig.GetString("site")}
-		return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		ddcfgMap["api"] = map[string]any{"site": site} // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		return ddcfgMap, nil
+
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
 		return nil, errors.New("invalid datadog exporter config")
 	}
 	apiSite, ok := apicfgMap["site"]
-	if !ok || apiSite == "" {
-		apicfgMap["site"] = pkgconfig.GetString("site")
+	apiSiteStr, isString := apiSite.(string)
+	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
+		apicfgMap["site"] = site
+	} else {
+		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	}
 	return ddcfgMap, nil
 }

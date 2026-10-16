@@ -449,6 +449,21 @@ type RuntimeSecurityConfig struct {
 	// default_value: 40
 	EventSamplingConnectThreshold int
 
+	// description: EventSamplingBindEnabled defines if the agent should sample bind events
+	// visibility: private
+	// default_value: true
+	EventSamplingBindEnabled bool
+
+	// description: EventSamplingBindRate defines the rate at which the agent should sample bind events
+	// visibility: private
+	// default_value: 500
+	EventSamplingBindRate int
+
+	// description: EventSamplingBindThreshold defines the ring buffer pressure percentage below which bind events are always admitted when dynamic sampling is enabled
+	// visibility: private
+	// default_value: 60
+	EventSamplingBindThreshold int
+
 	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
 	// visibility: private
 	// default_value: true
@@ -629,19 +644,19 @@ type RuntimeSecurityConfig struct {
 	// default_value: 10
 	SBOMResolverWorkloadsCacheSize int
 
-	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM, which the runtime usage enrichment of the host SBOM needs too
 	// visibility: private
 	// default_value: false
 	SBOMResolverHostEnabled bool
 
 	// description: SBOMResolverEnrichmentInterval defines the minimum amount of time to wait before enriching an SBOM with runtime usage information
 	// visibility: private
-	// default_value: 1m
+	// default_value: 30m
 	SBOMResolverEnrichmentInterval time.Duration
 
 	// description: SBOMResolverForwardInterval defines the interval for forwarding SBOMs
 	// visibility: private
-	// default_value: 20s
+	// default_value: 1m
 	SBOMResolverForwardInterval time.Duration
 
 	// description: SBOMResolverRefreshInterval defines the interval for refreshing SBOMs
@@ -1016,8 +1031,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnrichmentInterval: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_interval"),
 		SBOMResolverRefreshInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.refresh_interval"),
 		SBOMResolverForwardInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.forward_interval"),
-		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
-		SBOMResolverGeneratePolicies:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
+		SBOMResolverHostEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled") ||
+			pkgconfigsetup.Datadog().GetBool("sbom.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.host.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
+		SBOMResolverGeneratePolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -1046,6 +1062,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingConnectEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
 		EventSamplingConnectRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
 		EventSamplingConnectThreshold:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
+		EventSamplingBindEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.bind.enabled"),
+		EventSamplingBindRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.rate"),
+		EventSamplingBindThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.bind.threshold"),
 		EventSamplingSyscallsEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
 		EventSamplingSyscallsRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
 		EventSamplingSyscallsThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.threshold"),
@@ -1142,6 +1161,14 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
+
+	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.FileMountEventType) {
+		for _, et := range []model.EventType{model.FileMoveMountEventType, model.PivotRootEventType} {
+			if !slices.Contains(rsConfig.SecurityProfileV2EventTypes, et) {
+				rsConfig.SecurityProfileV2EventTypes = append(rsConfig.SecurityProfileV2EventTypes, et)
+			}
+		}
+	}
 
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
@@ -1251,6 +1278,8 @@ func (c *RuntimeSecurityConfig) EventSamplingEnabledFor(eventType model.EventTyp
 		enabled = c.EventSamplingOpenEnabled
 	case model.ConnectEventType:
 		enabled = c.EventSamplingConnectEnabled
+	case model.BindEventType:
+		enabled = c.EventSamplingBindEnabled
 	case model.SyscallsEventType:
 		enabled = c.EventSamplingSyscallsEnabled
 	default:
@@ -1284,6 +1313,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	}{
 		{"open", c.EventSamplingOpenThreshold},
 		{"connect", c.EventSamplingConnectThreshold},
+		{"bind", c.EventSamplingBindThreshold},
 		{"syscalls", c.EventSamplingSyscallsThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {

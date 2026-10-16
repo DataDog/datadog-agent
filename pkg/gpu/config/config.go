@@ -24,6 +24,9 @@ type Config struct {
 	NVLinkFECLightErrorThreshold int
 	// LegacySMActive indicates whether the legacy sm_active metric should be emitted.
 	LegacySMActive bool
+	// PreferGrEngineSMActive indicates whether the sm_active metric reported from the GPM GR engine activity should
+	// have priority over the other sm_active sources.
+	PreferGrEngineSMActive bool
 	// StaticMetricsReportingInterval is the reporting interval for static GPU metrics.
 	StaticMetricsReportingInterval time.Duration
 	// Enabled indicates whether the GPU monitoring probe is enabled.
@@ -64,6 +67,8 @@ type Config struct {
 	CgroupReapplyInfinitely bool
 	// JobsConfig provides the ability for the user to define run/group identifiers to be attached to traces and metrics.
 	JobsConfig JobsConfig
+	// TracingConfig configures the tracers injected into GPU workloads.
+	TracingConfig TracingConfig
 }
 
 // StreamConfig is the configuration for the streams.
@@ -124,11 +129,10 @@ func (i IdentifierConfig) Configured() bool {
 }
 
 // NewJobsConfig reads the training job identifiers from the agent configuration.
-func NewJobsConfig() JobsConfig {
-	agentCfg := pkgconfigsetup.Datadog()
+func NewJobsConfig(cfg model.Reader) JobsConfig {
 	return JobsConfig{
-		Run:   newIdentifierConfig(agentCfg, "gpu.jobs.run"),
-		Group: newIdentifierConfig(agentCfg, "gpu.jobs.group"),
+		Run:   newIdentifierConfig(cfg, "gpu.jobs.run"),
+		Group: newIdentifierConfig(cfg, "gpu.jobs.group"),
 	}
 }
 
@@ -136,6 +140,23 @@ func newIdentifierConfig(cfg model.Reader, prefix string) IdentifierConfig {
 	return IdentifierConfig{
 		Key:  cfg.GetString(prefix + ".key"),
 		Type: IdentifierType(strings.ToLower(cfg.GetString(prefix + ".type"))),
+	}
+}
+
+// TracingConfig configures the tracers injected into GPU workloads. Its fields match an
+// apm_config.instrumentation.targets entry of Single Step Instrumentation.
+type TracingConfig struct {
+	// Enabled indicates whether tracers should be injected into GPU workloads.
+	Enabled bool
+	// TracerVersions maps a tracer language to the tracer version to inject.
+	TracerVersions map[string]string
+}
+
+// NewTracingConfig reads the GPU tracing configuration from the agent configuration.
+func NewTracingConfig(cfg model.Reader) TracingConfig {
+	return TracingConfig{
+		Enabled:        cfg.GetBool("gpu.tracing.enabled"),
+		TracerVersions: cfg.GetStringMapString("gpu.tracing.tracer_versions"),
 	}
 }
 
@@ -147,6 +168,7 @@ func New() *Config {
 		DisabledCollectors:             agentCfg.GetStringSlice("gpu.disabled_collectors"),
 		NVLinkFECLightErrorThreshold:   agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
 		LegacySMActive:                 agentCfg.GetBool("gpu.legacy_sm_active"),
+		PreferGrEngineSMActive:         agentCfg.GetBool("gpu.prefer_gr_engine_sm_active"),
 		StaticMetricsReportingInterval: agentCfg.GetDuration("gpu.static_metrics_reporting_interval"),
 		ScanProcessesInterval:          time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
@@ -172,6 +194,7 @@ func New() *Config {
 		DeviceCacheRefreshInterval: spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "device_cache_refresh_interval")),
 		CgroupReapplyInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_interval")),
 		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
-		JobsConfig:                 NewJobsConfig(),
+		JobsConfig:                 NewJobsConfig(agentCfg),
+		TracingConfig:              NewTracingConfig(agentCfg),
 	}
 }

@@ -27,6 +27,15 @@ properties:
       Set to true to restore the legacy mapping of GPM SM utilization to
       gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
       reported as both gpu.sm_active and gpu.sm_utilization.
+  prefer_gr_engine_sm_active:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      gpu.sm_active falls back to the GPM GR engine activity (the same value as gpu.gr_engine_active)
+      when no other source is available. Set to true to report it with priority over the sampling and
+      eBPF sources. This source is not used if gpu.legacy_sm_active is enabled.
   nccl:
     node_type: section
     type: object
@@ -194,6 +203,36 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  tracing:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Configure the tracers injected into GPU workloads. The fields match an
+      apm_config.instrumentation.targets entry of Single Step Instrumentation.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to inject tracers into GPU workloads.
+      tracer_versions:
+        node_type: setting
+        type: object
+        default:
+          c: '0'
+        additionalProperties:
+          type: string
+        env_parser: json
+        visibility: public
+        description: |-
+          Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+          Defaults to the latest major version 0 of the C tracer.
+        example: |2-
+
+            c: "0.24.0"
   use_sp_process_metrics:
     node_type: setting
     type: boolean

@@ -262,9 +262,11 @@ namespace CustomActions.Tests.Native
         [InlineData(@"missing\deeper")]
         public void AssertSecureOwner_Accepts_A_Missing_Directory(string relativePath)
         {
-            var act = () => SecureDirectory.AssertSecureOwner(_session, Path.Combine(_root, relativePath));
+            var exists = true;
+            var act = () => SecureDirectory.AssertSecureOwner(_session, Path.Combine(_root, relativePath), out exists);
 
             act.Should().NotThrow();
+            exists.Should().BeFalse();
         }
 
         [Fact]
@@ -274,7 +276,7 @@ namespace CustomActions.Tests.Native
             var path = Path.Combine(_root, "a-file");
             File.WriteAllText(path, "not a directory");
 
-            var act = () => SecureDirectory.AssertSecureOwner(_session, path);
+            var act = () => SecureDirectory.AssertSecureOwner(_session, path, out _);
 
             act.Should().Throw<SecureDirectoryException>().WithMessage("*is not a directory*");
         }
@@ -285,7 +287,7 @@ namespace CustomActions.Tests.Native
             // Built by hand because Path.Combine rejects the name
             var path = _root + @"\in|valid";
 
-            var act = () => SecureDirectory.AssertSecureOwner(_session, path);
+            var act = () => SecureDirectory.AssertSecureOwner(_session, path, out _);
 
             act.Should().Throw<SecureDirectoryException>().WithMessage("*Failed to open*");
         }
@@ -295,9 +297,11 @@ namespace CustomActions.Tests.Native
         {
             var path = TestDirectory.CreateOwnedBy(Path.Combine(_root, "trusted"), TestDirectory.Administrators);
 
-            var act = () => SecureDirectory.AssertSecureOwner(_session, path);
+            var exists = false;
+            var act = () => SecureDirectory.AssertSecureOwner(_session, path, out exists);
 
             act.Should().NotThrow();
+            exists.Should().BeTrue();
         }
 
         [ElevatedFact]
@@ -307,7 +311,7 @@ namespace CustomActions.Tests.Native
                 TestDirectory.UntrustedOwner, grantEveryone: true);
             var before = Dacl(path);
 
-            var act = () => SecureDirectory.AssertSecureOwner(_session, path);
+            var act = () => SecureDirectory.AssertSecureOwner(_session, path, out _);
 
             act.Should().Throw<SecureDirectoryException>().WithMessage("*has unexpected owner*");
             // The check must not change anything, it runs before the install makes any change.

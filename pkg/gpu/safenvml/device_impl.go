@@ -545,6 +545,16 @@ func (d *safeDeviceImpl) GetVirtualizationMode() (nvml.GpuVirtualizationMode, er
 	return mode, NewNvmlAPIErrorOrNil("GetVirtualizationMode", ret)
 }
 
+func (d *safeDeviceImpl) GetGridLicensableFeatures() (nvml.GridLicensableFeatures, error) {
+	// The Go binding uses the v4 struct layout, which older versions of the
+	// function would fill incorrectly, so require the _v4 symbol.
+	if err := d.lib.lookup(toNativeName("GetGridLicensableFeatures_v4")); err != nil {
+		return nvml.GridLicensableFeatures{}, err
+	}
+	features, ret := d.nvmlDevice.GetGridLicensableFeatures()
+	return features, NewNvmlAPIErrorOrNil("GetGridLicensableFeatures_v4", ret)
+}
+
 func (d *safeDeviceImpl) GetSupportedEventTypes() (uint64, error) {
 	if err := d.lib.lookup(toNativeName("GetSupportedEventTypes")); err != nil {
 		return 0, err
@@ -567,6 +577,15 @@ func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, e
 	}
 	count, ret := d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
 	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
+}
+
+func (d *safeDeviceImpl) GetRetiredPagesCount(cause nvml.PageRetirementCause) (uint64, error) {
+	if err := d.lib.lookup(toNativeName("GetRetiredPages_v2")); err != nil {
+		return 0, err
+	}
+	// We only need the number of retired pages, not their addresses
+	addresses, _, ret := d.nvmlDevice.GetRetiredPages_v2(cause)
+	return uint64(len(addresses)), NewNvmlAPIErrorOrNil("GetRetiredPages_v2", ret)
 }
 
 func (d *safeDeviceImpl) GetSramEccErrorStatus() (nvml.EccSramErrorStatus, error) {

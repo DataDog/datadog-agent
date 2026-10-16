@@ -29,6 +29,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -40,8 +41,7 @@ type Requires struct {
 	Config    config.Component
 	Telemetry telemetry.Component
 
-	// Recorder is an optional component for transparent metric recording.
-	// If provided, all handles will be wrapped to record metrics to parquet files.
+	// Recorder is an optional component that records handle observations.
 	Recorder option.Option[recorderdef.Component]
 
 	// Reporters are provided by reporter/fx, reporter/fx-testbench, etc. via the
@@ -75,6 +75,7 @@ type observation struct {
 type metricHandoff struct {
 	name       string
 	value      float64
+	metricType metrics.MetricType
 	host       string
 	tags       tagset.CompositeTags
 	timestamp  int64
@@ -90,6 +91,7 @@ func newMetricHandoff(sample observerdef.MetricView, name, host string, precheck
 	return metricHandoff{
 		name:       name,
 		value:      sample.GetValue(),
+		metricType: sample.GetMetricType(),
 		host:       host,
 		tags:       sample.GetTags(),
 		timestamp:  timestamp,
@@ -102,6 +104,7 @@ func newMetricHandoff(sample observerdef.MetricView, name, host string, precheck
 type metricObs struct {
 	name       string
 	value      float64
+	metricType metrics.MetricType
 	host       string
 	tags       tagset.CompositeTags
 	timestamp  int64
@@ -131,6 +134,8 @@ func (m *metricObs) GetTimestampUnix() int64 { return m.timestamp }
 func (m *metricObs) GetSampleRate() float64 {
 	return 1.0
 }
+
+func (m *metricObs) GetMetricType() metrics.MetricType { return m.metricType }
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
@@ -366,24 +371,24 @@ func NewComponent(deps Requires) (Provides, error) {
 	}
 
 	// Set up handle function based on recording and analysis configuration.
-	// Recording enables parquet writers. ObserverRequired enables the live
-	// anomaly-detection pipeline and its default metric/log ingestion paths.
+	// A configured recorder wraps handles. Recording-only mode bypasses analysis
+	// while keeping the recorder in the observation path.
 	observerRequired := anomalydetectionconfig.ObserverRequired(cfg)
+	recorder, recorderEnabled := deps.Recorder.Get()
 	if observerRequired {
 		obsTelemetry.initLogsInFlight()
 		obsTelemetry.setSeriesCount(0)
 	}
 
 	obs.handleFunc = obs.noopHandle
-	if observerRequired {
+	if observerRequired && !(recorderEnabled && anomalydetectionconfig.RecordingOnly(cfg)) {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	recorder, recorderEnabled := deps.Recorder.Get()
 	if recorderEnabled {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
-		// Record detect digests and advance log alongside parquet for parity debugging.
+		// Record detect digests and advance log alongside observations for parity debugging.
 		parquetDir := cfg.GetString("anomaly_detection.recording.output_dir")
 		if parquetDir != "" {
 			digestPath := filepath.Join(parquetDir, detectDigestFileName)
@@ -783,7 +788,7 @@ func (o *observerImpl) UniqueAnomalySourceCount() int {
 }
 
 // GetHandle returns a lightweight handle for a named source.
-// If a recorder is configured, the handle will be wrapped to record metrics.
+// If a recorder is configured, the handle will be wrapped to record observations.
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 	logging.Infof("getting handle for %s", name)
 	return o.handleFunc(name)
@@ -815,6 +820,11 @@ var _ observerdef.Handle = (*metricDropHandle)(nil)
 func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
 func (m *metricDropHandle) ObserveLog(msg observerdef.LogView)               { m.inner.ObserveLog(msg) }
 
+// ObserveMetricAndReportDrop reports a metric suppressed by configuration.
+func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ uint64) bool {
+	return true
+}
+
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
 func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
@@ -826,6 +836,12 @@ type noopObserveHandle struct{}
 
 func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView, _ uint64) {}
 func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)                 {}
+
+// ObserveMetricAndReportDrop reports that the disabled analysis handle does not
+// drop observations through backpressure.
+func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView, _ uint64) bool {
+	return false
+}
 
 // RecordSamplerDropped increments the observer input-rate-limiter drop counter.
 func (o *observerImpl) RecordSamplerDropped(source, priority string) {
@@ -1126,6 +1142,7 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 		normalizedSource,
 		name,
 		sample.GetValue(),
+		sample.GetMetricType(),
 		host,
 		sample.GetTags(),
 		sample.GetTimestampUnix(),
@@ -1141,6 +1158,7 @@ func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter 
 		normalizedSource,
 		sample.name,
 		sample.value,
+		sample.metricType,
 		sample.host,
 		sample.tags,
 		sample.timestamp,
@@ -1155,6 +1173,7 @@ func prepareMetricAfterPrecheck(
 	source string,
 	name string,
 	value float64,
+	metricType metrics.MetricType,
 	host string,
 	resolvedTags tagset.CompositeTags,
 	timestamp int64,
@@ -1186,6 +1205,7 @@ func prepareMetricAfterPrecheck(
 		metric: &metricObs{
 			name:       name,
 			value:      value,
+			metricType: metricType,
 			host:       host,
 			tags:       resolvedTags,
 			timestamp:  timestamp,
@@ -1241,6 +1261,11 @@ type handle struct {
 // requests key derivation on the preprocessing goroutine when contextKey is zero.
 func (h *handle) ObserveMetric(sample observerdef.MetricView, contextKey uint64) {
 	_ = h.observeMetricAndReportDrop(sample, contextKey)
+}
+
+// ObserveMetricAndReportDrop forwards once and reports a backpressure drop.
+func (h *handle) ObserveMetricAndReportDrop(sample observerdef.MetricView, contextKey uint64) bool {
+	return h.observeMetricAndReportDrop(sample, contextKey)
 }
 
 // observeMetricAndReportDrop reports whether this call was dropped by observer
