@@ -47,6 +47,11 @@ function formatMetricTypes(members: SeriesInfo[]): string[] {
   return [...new Set(members.flatMap((member) => member.metricTypes ?? []))].sort();
 }
 
+function filterCachedSeriesData(dataList: SeriesData[], group: MetricGroup): SeriesData[] {
+  const currentSeriesIDs = new Set(group.members.map((member) => member.id));
+  return dataList.filter((data) => currentSeriesIDs.has(data.id));
+}
+
 /** Prefix sum of per-bucket deltas (time-ordered) — total from scenario start. */
 function cumulativeFromStart(points: Point[]): Point[] {
   if (points.length === 0) return points;
@@ -262,9 +267,9 @@ export function MetricsView({
     [allSeries, aggregationType, selectedMetricTypes]
   );
 
-  const metricGroups = useMemo(() => {
+  const allMetricGroups = useMemo(() => {
     const groups = new Map<string, MetricGroup>();
-    filteredSeries.forEach((s) => {
+    allSeries.forEach((s) => {
       const baseName = getBaseMetricName(s.name);
       const key = `${s.namespace}/${baseName}`;
       if (!groups.has(key)) {
@@ -280,7 +285,20 @@ export function MetricsView({
     });
 
     return Array.from(groups.values()).sort((a, b) => a.baseName.localeCompare(b.baseName));
-  }, [filteredSeries]);
+  }, [allSeries]);
+
+  const allGroupByKey = useMemo(() => {
+    const map = new Map<string, MetricGroup>();
+    allMetricGroups.forEach((g) => map.set(g.key, g));
+    return map;
+  }, [allMetricGroups]);
+
+  const metricGroups = useMemo(() => {
+    const filteredSeriesIDs = new Set(filteredSeries.map((series) => series.id));
+    return allMetricGroups
+      .map((group) => ({ ...group, members: group.members.filter((member) => filteredSeriesIDs.has(member.id)) }))
+      .filter((group) => group.members.length > 0);
+  }, [allMetricGroups, filteredSeries]);
 
   const groupByKey = useMemo(() => {
     const map = new Map<string, MetricGroup>();
@@ -404,7 +422,7 @@ export function MetricsView({
     const fetchSeriesData = async () => {
       const next = new Map<string, SeriesData[]>();
       for (const groupKey of selectedGroups) {
-        const group = groupByKey.get(groupKey);
+        const group = allGroupByKey.get(groupKey);
         if (!group) continue;
         const seriesList: SeriesData[] = [];
         for (const s of group.members) {
@@ -426,7 +444,7 @@ export function MetricsView({
     return () => {
       cancelled = true;
     };
-  }, [selectedGroups, state.connectionState, state.activeScenario, groupByKey, groupSeriesData.size]);
+  }, [selectedGroups, state.connectionState, state.activeScenario, allGroupByKey, groupSeriesData.size]);
 
   const toggleDetector = (name: string) => {
     actions.toggleComponent(name);
@@ -789,7 +807,7 @@ export function MetricsView({
                     .map((groupKey) => {
                       const group = groupByKey.get(groupKey);
                       if (!group) return null;
-                      const dataList = groupSeriesData.get(groupKey) ?? [];
+                      const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                       if (dataList.length === 0) return null;
                       const tagFiltered = (tagFilter.include.size > 0 || tagFilter.exclude.size > 0)
 						? dataList.filter((d) => matchesTagFilter(effectiveSeriesTags(d.tags ?? [], d.host), tagFilter))
@@ -871,7 +889,9 @@ export function MetricsView({
                           return g && g.virtual;
                         })
                         .map((groupKey) => {
-                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          const group = groupByKey.get(groupKey);
+                          if (!group) return null;
+                          const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
                             ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
@@ -987,8 +1007,9 @@ export function MetricsView({
                         })
                         .map((groupKey) => {
                           const group = groupByKey.get(groupKey);
-                          const isCounterTelemetry = group?.members.some((m) => m.metricKind === 'counter');
-                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          if (!group) return null;
+                          const isCounterTelemetry = group.members.some((m) => m.metricKind === 'counter');
+                          const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
                             ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)

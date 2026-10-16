@@ -282,6 +282,11 @@ func assertSpanFields(t *testing.T, sc *traceJSON, expectedSpanID, expectedTrace
 	}
 }
 
+// Discard the runtime, as in production: hashing a file opened by the previous
+// mode makes the agent open it too, and that stale open would match the next
+// mode's rule while its tester still waits on the event stream.
+var _ = declare(TestDDTraceGoSpan, testOpts{discardRuntime: true})
+
 // TestDDTraceGoSpan tests the full dd-trace-go integration: dd-trace-go creates
 // a real span which internally sets pprof labels ("span id", "local root span id"),
 // and the eBPF Go labels reader extracts them from the goroutine's label storage.
@@ -577,6 +582,8 @@ func TestDDTraceGoSpan(t *testing.T) {
 		})
 	})
 }
+
+var _ = declare(TestOTelSpan, testOpts{discardRuntime: true})
 
 // TestOTelSpan covers OTel Thread Local Context Record span collection across
 // every TLS access model a tracer can publish the record through: local-exec
@@ -1129,6 +1136,8 @@ func TestOTelSpan(t *testing.T) {
 		}
 	})
 }
+
+var _ = declare(TestNodeSpan, testOpts{discardRuntime: true})
 
 // TestNodeSpan covers the Node.js thread context reader, which does not stop at
 // a thread-local pointer the way the native one does: it walks from the
