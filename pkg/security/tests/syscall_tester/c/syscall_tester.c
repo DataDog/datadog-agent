@@ -1337,10 +1337,45 @@ static int setns_from_path(const char *path, int nstype) {
     return EXIT_SUCCESS;
 }
 
-// Usage: syscall_tester setns <net|mnt|any|netns-roundtrip>
+// setns_from_pidfd joins its own mount and network namespaces through a pidfd. With denied set it
+// first drops its capabilities, so the kernel fails on the mount namespace before it validates the
+// network one, and only that EPERM counts as a success.
+static int setns_from_pidfd(int denied) {
+    int fd = syscall(__NR_pidfd_open, getpid(), 0);
+    if (fd < 0) {
+        perror("pidfd_open");
+        return EXIT_FAILURE;
+    }
+
+    if (denied && setuid(1) < 0) {
+        perror("setuid");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    int ret = setns(fd, CLONE_NEWNS | CLONE_NEWNET);
+    int err = errno;
+    close(fd);
+
+    if (denied) {
+        if (ret == 0 || err != EPERM) {
+            fprintf(stderr, "setns should have failed with EPERM, got %d (%s)\n", ret, strerror(err));
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
+    }
+
+    if (ret < 0) {
+        fprintf(stderr, "setns: %s\n", strerror(err));
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+// Usage: syscall_tester setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied>
 int test_setns(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: setns <net|mnt|any|netns-roundtrip>\n");
+        fprintf(stderr, "Usage: setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied>\n");
         return EXIT_FAILURE;
     }
 
@@ -1357,6 +1392,14 @@ int test_setns(int argc, char **argv) {
     // nstype 0 lets the kernel infer the namespace type from the file descriptor
     if (strcmp(mode, "any") == 0) {
         return setns_from_path("/proc/self/ns/net", 0);
+    }
+
+    if (strcmp(mode, "pidfd") == 0) {
+        return setns_from_pidfd(0);
+    }
+
+    if (strcmp(mode, "pidfd-denied") == 0) {
+        return setns_from_pidfd(1);
     }
 
     // Leave the current network namespace, then join it back through the file descriptor
