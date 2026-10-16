@@ -58,7 +58,6 @@ static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval) {
 
     struct setns_event_t event = {
         .syscall.retval = retval,
-        .fd = syscall->setns.fd,
         .nstype = nstype,
         .mntns_id = syscall->setns.mntns_id,
         .netns_id = syscall->setns.netns_id,
@@ -80,7 +79,6 @@ HOOK_SYSCALL_ENTRY2(setns, int, fd, int, nstype) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SETNS,
         .setns = {
-            .fd = fd,
             .nstype = nstype,
         }
     };

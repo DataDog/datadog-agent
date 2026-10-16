@@ -2031,10 +2031,6 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "SetNSEvent": {
             "properties": {
-                "fd": {
-                    "type": "integer",
-                    "description": "File descriptor of the namespace the thread requested to join"
-                },
                 "nstype": {
                     "type": "string",
                     "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
@@ -2051,7 +2047,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
-                "fd",
                 "nstype"
             ],
             "description": "SetNSEventSerializer serializes a setns event"
@@ -5698,10 +5693,6 @@ ancestor lineage to find the same value. |
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
-        "fd": {
-            "type": "integer",
-            "description": "File descriptor of the namespace the thread requested to join"
-        },
         "nstype": {
             "type": "string",
             "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
@@ -5718,7 +5709,6 @@ ancestor lineage to find the same value. |
     "additionalProperties": false,
     "type": "object",
     "required": [
-        "fd",
         "nstype"
     ],
     "description": "SetNSEventSerializer serializes a setns event"
@@ -5728,7 +5718,6 @@ ancestor lineage to find the same value. |
 
 | Field | Description |
 | ----- | ----------- |
-| `fd` | File descriptor of the namespace the thread requested to join |
 | `nstype` | Namespace types the thread joined, ANY if the type couldn't be determined |
 | `mntns` | Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
 | `netns` | Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved |
