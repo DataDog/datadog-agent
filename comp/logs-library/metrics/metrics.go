@@ -41,6 +41,13 @@ var (
 	// TlmLogsDropped is the total number of logs dropped per Destination
 	TlmLogsDropped = telemetryimpl.GetCompatComponent().NewCounter("logs", "dropped",
 		[]string{"destination"}, "Total number of logs dropped per Destination")
+	// DestinationDelegatedAuthDropped is the total number of logs dropped because a
+	// delegated-auth API key never arrived within the pending-hold bound
+	DestinationDelegatedAuthDropped = expvar.Map{}
+	// TlmDestinationDelegatedAuthDropped is the total number of logs dropped because a
+	// delegated-auth API key never arrived within the pending-hold bound
+	TlmDestinationDelegatedAuthDropped = telemetryimpl.GetCompatComponent().NewCounter("logs", "delegated_auth_dropped",
+		[]string{"destination"}, "Total number of logs dropped because a delegated-auth API key never arrived")
 	// BytesSent is the total number of sent bytes before encoding if any
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any
@@ -205,6 +212,7 @@ func init() {
 	LogsExpvars.Set("LogsSent", &LogsSent)
 	LogsExpvars.Set("DestinationErrors", &DestinationErrors)
 	LogsExpvars.Set("DestinationLogsDropped", &DestinationLogsDropped)
+	LogsExpvars.Set("DestinationDelegatedAuthDropped", &DestinationDelegatedAuthDropped)
 	LogsExpvars.Set("BytesSent", &BytesSent)
 	LogsExpvars.Set("RetryCount", &RetryCount)
 	LogsExpvars.Set("RetryTimeSpent", &RetryTimeSpent)

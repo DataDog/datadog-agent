@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Bound how long logs destinations hold payloads while a delegated-auth (Workload Identity
+    Federation) API key has not arrived. A ``DELA[...]`` directive that cannot resolve in the
+    running process (malformed or unsupported directive, direct-send from system-probe, or
+    config-stream setups without the delegated-auth scan) previously held payloads for that
+    destination indefinitely. After five minutes, payloads for the waiting destination are
+    dropped and counted in a new per-destination metric (``logs`` expvar
+    ``DestinationDelegatedAuthDropped`` and telemetry counter ``logs.delegated_auth_dropped``)
+    so the stall is distinguishable from other drops; the destination resumes sending as soon
+    as the key does arrive.
