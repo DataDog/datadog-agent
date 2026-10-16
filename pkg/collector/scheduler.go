@@ -27,6 +27,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -107,6 +108,7 @@ func (s *CheckScheduler) SetMetricLookbackShadowSenderManager(senderManager send
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	if coll, ok := s.collector.Get(); ok {
+		configs = filterSkippedConfigs(configs, setup.Datadog())
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
 			// Check if this check is allowed in infra basic mode
@@ -124,6 +126,32 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	} else {
 		log.Errorf("Collector not available, unable to schedule checks")
 	}
+}
+
+// filterSkippedConfigs drops check configs whose name is listed in the
+// `skip_execution` setting (DD_SKIP_EXECUTION, space separated).
+// This is a temporary mechanism to prevent the Core Agent from scheduling
+// checks executed out of process by the Agent Check Runner (ACR) while it
+// is not an official product. Skipped checks can still be run manually
+// with `agent check`.
+func filterSkippedConfigs(configs []integration.Config, cfg pkgconfigmodel.Reader) []integration.Config {
+	skipped := cfg.GetStringSlice("skip_execution")
+	if len(skipped) == 0 {
+		return configs
+	}
+	skippedSet := make(map[string]struct{}, len(skipped))
+	for _, name := range skipped {
+		skippedSet[name] = struct{}{}
+	}
+	kept := configs[:0]
+	for _, config := range configs {
+		if _, found := skippedSet[config.Name]; found {
+			log.Infof("Skipping scheduling of check %q: listed in 'skip_execution'", config.Name)
+			continue
+		}
+		kept = append(kept, config)
+	}
+	return kept
 }
 
 // Unschedule unschedules checks matching configs

@@ -42,6 +42,17 @@ class TestCodegenInitSettings(unittest.TestCase):
         codegen.run_codegen(schema, self.tmpdir)
         self.validate_generated_code(fixture('basic_full_agent_settings.gen'))
 
+    def test_optional_string_default(self):
+        # Preserve the distinction between an unset value and an explicit empty string
+        # when downstream processes compute their own defaults from the config stream.
+        for default, expected in ((None, 'nil'), ('', '""'), ('/plugins', '"/plugins"')):
+            with self.subTest(default=default):
+                node = {'node_type': 'setting', 'type': 'string', 'default': default}
+                self.assertEqual(
+                    codegen.setting_sourcecode('optional_path', node),
+                    [f'\tconfig.BindEnvAndSetDefault("optional_path", {expected})'],
+                )
+
     def test_codegen_renamed_from(self):
         # Settings with 'renamed_from' bind their former names as deprecated ones, whether they sit
         # at the root or inside a section, and whichever init function they land in.

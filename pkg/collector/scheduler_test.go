@@ -25,6 +25,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -138,6 +139,35 @@ func TestGetChecksFromConfigs(t *testing.T) {
 		"check_b",
 		"check_c",
 	}, actualChecks)
+}
+
+func TestFilterSkippedConfigs(t *testing.T) {
+	configs := []integration.Config{
+		{Name: "http_check", Instances: []integration.Data{integration.Data("{}")}},
+		{Name: "tls", Instances: []integration.Data{integration.Data("{}")}},
+		{Name: "cpu", Instances: []integration.Data{integration.Data("{}")}},
+	}
+
+	t.Run("no skip_execution setting keeps all configs", func(t *testing.T) {
+		cfg := configmock.New(t)
+		kept := filterSkippedConfigs(configs, cfg)
+		assert.Len(t, kept, 3)
+	})
+
+	t.Run("listed check names are filtered out", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("skip_execution", []string{"http_check", "tls"}, pkgconfigmodel.SourceFile)
+		kept := filterSkippedConfigs(configs, cfg)
+		require.Len(t, kept, 1)
+		assert.Equal(t, "cpu", kept[0].Name)
+	})
+
+	t.Run("unknown names in skip_execution are ignored", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("skip_execution", []string{"not_a_check"}, pkgconfigmodel.SourceFile)
+		kept := filterSkippedConfigs(configs, cfg)
+		assert.Len(t, kept, 3)
+	})
 }
 
 func TestGetChecksFromConfigsLoadsSelectedShadowCheckWithSenderManagerOverride(t *testing.T) {
