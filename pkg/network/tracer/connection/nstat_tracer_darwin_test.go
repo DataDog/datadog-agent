@@ -1534,22 +1534,35 @@ func TestNStatTracerBacksOffDescriptionsUntilSourceHasTuple(t *testing.T) {
 	})
 	require.True(t, tracer.sources[listener].listenerIndexed)
 
+	// Step like the run loop: due fast retries on every wakeup, full scans
+	// every nstatDescriptionRetry.
 	var retries []time.Duration
+	nextScan := start.Add(nstatDescriptionRetry)
 	for now.Before(start.Add(4 * time.Second)) {
-		now = now.Add(nstatDescriptionRetry)
+		now = now.Add(nstatDescriptionRetryMin)
 		before := requestCount(unbound)
-		scan()
+		if !now.Before(nextScan) {
+			tracer.queuePendingDescriptions(now)
+			nextScan = now.Add(nstatDescriptionRetry)
+		}
+		tracer.queueFastRetries(now)
+		tracer.pumpDescriptionRequests(now)
 		if requestCount(unbound) > before {
 			retries = append(retries, now.Sub(start))
 		}
 	}
 	require.Equal(t, []time.Duration{
-		100 * time.Millisecond,
-		300 * time.Millisecond,
-		700 * time.Millisecond,
+		10 * time.Millisecond,
+		30 * time.Millisecond,
+		70 * time.Millisecond,
+		150 * time.Millisecond,
+		400 * time.Millisecond,
+		800 * time.Millisecond,
 		1500 * time.Millisecond,
-		3100 * time.Millisecond,
-	}, retries)
+		2800 * time.Millisecond,
+	}, retries, "retries due before the next scan are sent on time; later ones wait for a scan")
+	require.Empty(t, tracer.fastRetries, "only retries due before the next scan are tracked")
+	require.True(t, tracer.nextFastRetry().IsZero())
 	require.Equal(t, 1, requestCount(listener), "an indexed listener is not described again")
 
 	// A connect shows up in counts first, so the next scan describes the
@@ -1558,8 +1571,52 @@ func TestNStatTracerBacksOffDescriptionsUntilSourceHasTuple(t *testing.T) {
 	tracer.processEvent(nstat.Event{Kind: nstat.EventCounts, SourceRef: unbound, Counts: &nstat.Counts{ConnectAttempts: 1}})
 	scan()
 	require.Equal(t, before+1, requestCount(unbound))
-	require.Equal(t, nstatDescriptionRetry, nstatDescriptionDelay(0))
+	require.Equal(t, nstatDescriptionRetryMin, nstatDescriptionDelay(0))
 	require.Equal(t, nstatDescriptionRetryMax, nstatDescriptionDelay(math.MaxUint8))
+}
+
+func TestNStatTracerFastRetryDescribesConnectBeforeNextScan(t *testing.T) {
+	control := newFakeNStatControl()
+	tracer := newNStatTracerWithControl(testNStatConfig(), control)
+	start := time.Unix(410, 0)
+	now := start
+	tracer.now = func() time.Time { return now }
+	tracer.enumerationComplete = true
+
+	const sourceRef = 93
+	tracer.processEvent(nstat.Event{Kind: nstat.EventAdded, SourceRef: sourceRef, Provider: nstat.ProviderTCPKernel})
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, []uint64{sourceRef}, control.descriptions())
+
+	// The first reply arrives before connect sets the remote address.
+	partial := testNStatTCPFlow(9393, tcpStateClosed)
+	partial.Remote = nstat.Endpoint{}
+	tracer.processEvent(nstat.Event{Kind: nstat.EventDescription, SourceRef: sourceRef, Provider: nstat.ProviderTCPKernel, Flow: partial})
+	require.Nil(t, tracer.sources[sourceRef].conn)
+	require.Equal(t, start.Add(nstatDescriptionRetryMin), tracer.nextFastRetry())
+
+	now = now.Add(nstatDescriptionRetryMin - time.Millisecond)
+	tracer.queueFastRetries(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Len(t, control.descriptions(), 1, "not due yet")
+
+	now = start.Add(nstatDescriptionRetryMin)
+	tracer.queueFastRetries(now)
+	tracer.pumpDescriptionRequests(now)
+	require.Equal(t, []uint64{sourceRef, sourceRef}, control.descriptions(), "retried well before the next full scan")
+
+	tracer.processEvent(nstat.Event{
+		Kind:      nstat.EventDescription,
+		SourceRef: sourceRef,
+		Provider:  nstat.ProviderTCPKernel,
+		Flow:      testNStatTCPFlow(9393, tcpStateSynSent),
+	})
+	require.NotNil(t, tracer.sources[sourceRef].conn)
+
+	// The pending fast retry for the now-published source is dropped.
+	now = now.Add(time.Second)
+	tracer.queueFastRetries(now)
+	require.Empty(t, tracer.fastRetries)
 }
 
 func TestNStatTracerDropsSourcesTheKernelNoLongerHas(t *testing.T) {

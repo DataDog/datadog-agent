@@ -53,11 +53,15 @@ const (
 	nstatConnectProbeRefresh = time.Second
 	nstatConnectProbeWindow  = 15 * time.Second
 
-	// A source without a tuple is described again after nstatDescriptionRetry,
+	// A source without a tuple is described again after nstatDescriptionRetryMin,
 	// doubling up to nstatDescriptionRetryMax. Counts showing activity reset
 	// the delay, since a source usually gains its tuple when it connects or
-	// first sends.
+	// first sends. A connect usually follows the first description within
+	// milliseconds, and its packets are captured before a slower retry, so
+	// retries due before the next full scan (every nstatDescriptionRetry)
+	// are tracked separately and wake the run loop.
 	nstatDescriptionRetry    = 100 * time.Millisecond
+	nstatDescriptionRetryMin = 10 * time.Millisecond
 	nstatDescriptionRetryMax = 5 * time.Second
 
 	// QueryAll reports counts for every live source each second. An
@@ -223,6 +227,9 @@ type nstatTracer struct {
 	descriptionQueue      []uint64
 	descriptionRetryQueue []uint64
 	descriptionQueued     map[uint64]struct{}
+	// fastRetries holds the due time of description retries that fall
+	// before the next full scan.
+	fastRetries map[uint64]time.Time
 
 	subscriptionContexts map[uint64]struct{}
 	subscriptionReady    chan struct{}
@@ -274,6 +281,7 @@ func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatT
 		listeners:            make(map[darwinTCPListenerKey]map[uint64]struct{}),
 		loopbackInterfaces:   darwinLoopbackInterfaces(),
 		descriptionQueued:    make(map[uint64]struct{}),
+		fastRetries:          make(map[uint64]time.Time),
 		subscriptionContexts: make(map[uint64]struct{}),
 		subscriptionReady:    make(chan struct{}),
 		subscriptionErrors:   make(chan error, 1),
@@ -354,7 +362,7 @@ func (t *nstatTracer) run() {
 	defer t.wg.Done()
 	buffer := make([]byte, nstatDatagramBufferSize)
 	nextQuery := t.now().Add(nstatQueryInterval)
-	var nextScan time.Time
+	var nextScan, nextFastRetry time.Time
 
 	for {
 		select {
@@ -364,6 +372,9 @@ func (t *nstatTracer) run() {
 		}
 
 		timeout := min(nextQuery.Sub(t.now()), nstatPollInterval)
+		if !nextFastRetry.IsZero() {
+			timeout = min(timeout, nextFastRetry.Sub(t.now()))
+		}
 		if timeout < 0 {
 			timeout = 0
 		}
@@ -391,7 +402,9 @@ func (t *nstatTracer) run() {
 			t.queuePendingDescriptions(now)
 			nextScan = now.Add(nstatDescriptionRetry)
 		}
+		t.queueFastRetries(now)
 		t.pumpDescriptionRequests(now)
+		nextFastRetry = t.nextFastRetry()
 		if scan {
 			t.expirePendingRemovals(now)
 		}
@@ -624,7 +637,11 @@ func (t *nstatTracer) pumpDescriptionRequests(now time.Time) {
 		source.descriptionRequested = true
 		switch {
 		case nstatSourceAwaitingTuple(source):
-			source.nextDescription = now.Add(nstatDescriptionDelay(source.descriptionRetries))
+			delay := nstatDescriptionDelay(source.descriptionRetries)
+			source.nextDescription = now.Add(delay)
+			if delay < nstatDescriptionRetry {
+				t.fastRetries[sourceRef] = source.nextDescription
+			}
 			if source.descriptionRetries < math.MaxUint8 {
 				source.descriptionRetries++
 			}
@@ -649,6 +666,35 @@ func (t *nstatTracer) pumpDescriptionRequests(now time.Time) {
 			t.mu.Unlock()
 		}
 	}
+}
+
+// queueFastRetries queues the fast retries that are due. Entries for sources
+// that were removed or resolved meanwhile are dropped.
+func (t *nstatTracer) queueFastRetries(now time.Time) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for sourceRef, due := range t.fastRetries {
+		if now.Before(due) {
+			continue
+		}
+		delete(t.fastRetries, sourceRef)
+		if source := t.sources[sourceRef]; source != nil && t.wantsDescriptionLocked(source, now) {
+			t.queueDescriptionLocked(sourceRef, source)
+		}
+	}
+}
+
+// nextFastRetry returns the earliest pending fast retry, or zero if none.
+func (t *nstatTracer) nextFastRetry() time.Time {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var next time.Time
+	for _, due := range t.fastRetries {
+		if next.IsZero() || due.Before(next) {
+			next = due
+		}
+	}
+	return next
 }
 
 func (t *nstatTracer) popDescriptionRequestLocked() (uint64, bool) {
@@ -897,7 +943,7 @@ func nstatSourceAwaitingTuple(source *nstatSource) bool {
 // nstatDescriptionDelay doubles the retry delay for each description request
 // already sent, up to nstatDescriptionRetryMax.
 func nstatDescriptionDelay(retries uint8) time.Duration {
-	return min(nstatDescriptionRetry<<min(retries, 16), nstatDescriptionRetryMax)
+	return min(nstatDescriptionRetryMin<<min(retries, 16), nstatDescriptionRetryMax)
 }
 
 func nstatCountsShowActivity(previous, current nstat.Counts) bool {
