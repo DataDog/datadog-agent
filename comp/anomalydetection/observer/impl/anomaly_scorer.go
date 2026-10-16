@@ -142,15 +142,13 @@ func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfi
 	return levelWeights[len(levelWeights)-1]
 }
 
-// seriesID returns a stable string key for deduplication.
-// Prefers SourceRef.CompactID() when available (set by the metrics pipeline);
-// falls back to Source.Key() otherwise. SeriesDescriptor.Key() always returns
-// a non-empty string, so the result is never "".
-func seriesID(a observerdef.Anomaly) string {
-	if a.SourceRef != nil {
-		return a.SourceRef.CompactID()
+// scorerHandleKey keeps storage-backed identities numeric. CompactID grouped
+// every unsupported aggregation under "unknown"; preserve that equivalence.
+func scorerHandleKey(handle observerdef.QueryHandle) observerdef.QueryHandle {
+	if handle.Aggregate < observerdef.AggregateNone || handle.Aggregate > observerdef.AggregateCount {
+		handle.Aggregate = -1
 	}
-	return a.Source.Key()
+	return handle
 }
 
 // windowEntry tracks the last second at which each anomaly level (0–4) was
@@ -526,10 +524,13 @@ type anomalyScorer struct {
 	// cap if one ever does.
 	pending map[int64][]observerdef.Anomaly
 
-	// windowMap tracks the highest anomaly level seen per series within the
+	// windowMap tracks per-level timestamps for each storage-backed series in the
 	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
-	// Entries are evicted once lastSeenSec falls outside the window.
-	windowMap map[string]windowEntry
+	// Entries are evicted once every level timestamp falls outside the window.
+	windowMap map[observerdef.QueryHandle]windowEntry
+	// Fallback identities are kept separately so stored-series keys do not carry
+	// string headers or allocate formatted IDs. Created only when needed.
+	fallbackWindowMap map[string]windowEntry
 	// topAnomalies retains bounded five-minute attribution only when
 	// correlation events are enabled.
 	topAnomalies *topAnomalyBuffer
@@ -609,7 +610,7 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	scorer := &anomalyScorer{
 		config:    cfg,
 		pending:   make(map[int64][]observerdef.Anomaly),
-		windowMap: make(map[string]windowEntry),
+		windowMap: make(map[observerdef.QueryHandle]windowEntry),
 	}
 	if cfg.CorrelationEvents {
 		scorer.topAnomalies = newTopAnomalyBuffer(cfg.MaxReportedItems)
@@ -844,7 +845,8 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
 	s.pending = make(map[int64][]observerdef.Anomaly)
-	s.windowMap = make(map[string]windowEntry)
+	s.windowMap = make(map[observerdef.QueryHandle]windowEntry)
+	s.fallbackWindowMap = nil
 	if s.topAnomalies != nil {
 		s.topAnomalies.reset()
 	}
@@ -958,51 +960,40 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 
 	// Step 1: merge new anomalies into the window.
 	for _, a := range anomalies {
-		sid := seriesID(a)
 		level := anomalyLevel(a, s.config.AnomalyScorerConfig)
-		entry := s.windowMap[sid]
-		if sec > entry[level] {
-			entry[level] = sec
+		if a.SourceRef != nil {
+			key := scorerHandleKey(*a.SourceRef)
+			entry := s.windowMap[key]
+			if sec > entry[level] {
+				entry[level] = sec
+			}
+			s.windowMap[key] = entry
+		} else {
+			if s.fallbackWindowMap == nil {
+				s.fallbackWindowMap = make(map[string]windowEntry)
+			}
+			key := a.Source.Key()
+			entry := s.fallbackWindowMap[key]
+			if sec > entry[level] {
+				entry[level] = sec
+			}
+			s.fallbackWindowMap[key] = entry
 		}
-		s.windowMap[sid] = entry
 	}
 
 	// Step 2: evict per-level timestamps that have fallen out of the window,
 	// and remove the series entirely when no level remains active.
 	windowStart := sec - s.config.WindowSecs + 1
-	for sid, entry := range s.windowMap {
-		alive := false
-		for level := 0; level < 5; level++ {
-			if entry[level] > 0 && entry[level] < windowStart {
-				entry[level] = 0
-			}
-			if entry[level] > 0 {
-				alive = true
-			}
-		}
-		if !alive {
-			delete(s.windowMap, sid)
-			continue
-		}
-		s.windowMap[sid] = entry
-	}
+	expireScorerWindow(s.windowMap, windowStart)
+	expireScorerWindow(s.fallbackWindowMap, windowStart)
 
 	// Step 3: bucket from the live window.
 	// Each series contributes at the highest level that still has an active timestamp.
 	var bins [5]int
 	var count int
 	var weightSum float64
-	for _, entry := range s.windowMap {
-		for level := 4; level >= 0; level-- {
-			if entry[level] == 0 {
-				continue
-			}
-			bins[level]++
-			count++
-			weightSum += levelWeights[level]
-			break
-		}
-	}
+	countScorerWindow(s.windowMap, &bins, &count, &weightSum)
+	countScorerWindow(s.fallbackWindowMap, &bins, &count, &weightSum)
 
 	// Step 4: saturated input → EWMA.
 	var input float64
@@ -1032,4 +1023,35 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 	}
 
 	return s.ewma
+}
+
+func expireScorerWindow[K comparable](window map[K]windowEntry, start int64) {
+	for key, entry := range window {
+		alive := false
+		for level := range entry {
+			if entry[level] > 0 && entry[level] < start {
+				entry[level] = 0
+			}
+			alive = alive || entry[level] > 0
+		}
+		if !alive {
+			delete(window, key)
+			continue
+		}
+		window[key] = entry
+	}
+}
+
+func countScorerWindow[K comparable](window map[K]windowEntry, bins *[5]int, count *int, weightSum *float64) {
+	for _, entry := range window {
+		for level := len(entry) - 1; level >= 0; level-- {
+			if entry[level] == 0 {
+				continue
+			}
+			bins[level]++
+			*count++
+			*weightSum += levelWeights[level]
+			break
+		}
+	}
 }
