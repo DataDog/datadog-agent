@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -117,7 +118,7 @@ func TestCollectRecentLastCollect(t *testing.T) {
 	i.LastCollect = time.Now()
 	i.createdAt = time.Now().Add(-2 * time.Minute)
 
-	interval := i.collect(context.Background())
+	interval := i.Collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	// check that no Payload was send since LastCollect is recent
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
@@ -133,7 +134,7 @@ func TestCollectStartupTime(t *testing.T) {
 	serializerMock := i.serializer.(*serializermock.MetricSerializer)
 	duration := 1 * time.Minute
 
-	interval := i.collect(context.Background())
+	interval := i.Collect(context.Background())
 	assert.Equal(t, duration-time.Since(createdAt).Round(duration), interval.Round(duration))
 	assert.Empty(t, serializerMock.Calls)
 
@@ -155,7 +156,7 @@ func TestCollectStartupTime(t *testing.T) {
 		})).Return(nil)
 
 	i.serializer = serializerMock
-	interval = i.collect(context.Background())
+	interval = i.Collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	serializerMock.AssertExpectations(t)
 }
@@ -183,7 +184,7 @@ func TestCollect(t *testing.T) {
 	i.LastCollect = time.Now().Add(-1 * time.Hour)
 
 	now := time.Now()
-	interval := i.collect(context.Background())
+	interval := i.Collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	assert.False(t, i.LastCollect.Before(now))
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
@@ -195,7 +196,7 @@ func TestCollect(t *testing.T) {
 	i.serializer = serializerMock
 
 	i.LastCollect = time.Now().Add(-i.MinInterval + 1*time.Second)
-	i.collect(context.Background())
+	i.Collect(context.Background())
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 
 	// testing collect with LastCollect between MinInterval and MaxInterval with forceRefresh being trigger
@@ -212,7 +213,7 @@ func TestCollect(t *testing.T) {
 			return true
 		})).Return(nil)
 
-	i.collect(context.Background())
+	i.Collect(context.Background())
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 	assert.False(t, i.forceRefresh.Load())
 }
@@ -232,7 +233,7 @@ func TestSubmitBypassesCollectionDelays(t *testing.T) {
 			})
 			i.LastCollect = time.Now()
 			serializerMock := i.serializer.(*serializermock.MetricSerializer)
-			i.collect(context.Background())
+			i.Collect(context.Background())
 			serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
 
 			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Twice()
@@ -245,7 +246,7 @@ func TestSubmitBypassesCollectionDelays(t *testing.T) {
 				assert.False(t, i.RefreshTriggered())
 			}
 			serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
-			i.collect(context.Background())
+			i.Collect(context.Background())
 			serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
 		})
 	}
@@ -291,16 +292,16 @@ func TestSubmitRefreshAndScheduledCollection(t *testing.T) {
 	i.Refresh()
 	i.Submit()
 	assert.False(t, i.RefreshTriggered())
-	assert.Equal(t, i.MinInterval, i.collect(context.Background()))
+	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
 
 	i.Refresh()
-	assert.Equal(t, i.MinInterval, i.collect(context.Background()))
+	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
 	assert.False(t, i.RefreshTriggered())
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
 
 	i.LastCollect = time.Now().Add(-i.MaxInterval)
-	assert.Equal(t, i.MinInterval, i.collect(context.Background()))
+	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 3)
 }
 
@@ -316,7 +317,7 @@ func TestSubmitPreservesRefreshTriggeredWhileBuildingPayload(t *testing.T) {
 	assert.True(t, i.RefreshTriggered())
 
 	i.getPayload = func() marshaler.JSONMarshaler { return &testPayload{} }
-	i.collect(context.Background())
+	i.Collect(context.Background())
 	assert.False(t, i.RefreshTriggered())
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
 }
@@ -344,7 +345,7 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 			assert.False(t, i.LastCollect.Before(before))
 			assert.False(t, i.RefreshTriggered())
 			lastCollect := i.LastCollect
-			i.collect(context.Background())
+			i.Collect(context.Background())
 			assert.Equal(t, lastCollect, i.LastCollect)
 			if tt.emptyPayload {
 				serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
@@ -355,45 +356,39 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 			i.getPayload = func() marshaler.JSONMarshaler { return &testPayload{} }
 			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Once()
 			i.Refresh()
-			i.collect(context.Background())
+			i.Collect(context.Background())
 			assert.False(t, i.RefreshTriggered())
 			serializerMock.AssertExpectations(t)
 		})
 	}
 }
 
-func TestSubmissionGateWithholdsPayload(t *testing.T) {
-	i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
-	serializerMock := i.serializer.(*serializermock.MetricSerializer)
-	builds := 0
-	i.getPayload = func() marshaler.JSONMarshaler {
-		builds++
-		return &testPayload{}
-	}
-	withheld := true
-	i.SetSubmissionGate(func() error {
-		if withheld {
-			return errors.New("payload insufficient")
+func TestCollectRetainsFullAgentTiming(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		i := getTestInventoryPayload(t, map[string]any{
+			"inventories_first_run_delay": 60,
+			"inventories_min_interval":    10,
+			"inventories_max_interval":    30,
+		})
+		s := i.serializer.(*serializermock.MetricSerializer)
+		s.On("SendMetadata", &testPayload{}).Return(nil).Times(3)
+		assert.Equal(t, time.Minute, i.Collect(t.Context()))
+		assert.Empty(t, s.Calls)
+		time.Sleep(time.Minute)
+		assert.Equal(t, 10*time.Second, i.Collect(t.Context()))
+		s.AssertNumberOfCalls(t, "SendMetadata", 1)
+		assert.False(t, i.LastSubmit.IsZero())
+		for range 2 {
+			time.Sleep(10 * time.Second)
+			i.Collect(t.Context())
+			s.AssertNumberOfCalls(t, "SendMetadata", 1)
 		}
-		return nil
+		time.Sleep(10 * time.Second)
+		i.Collect(t.Context())
+		s.AssertNumberOfCalls(t, "SendMetadata", 2)
+		i.Refresh()
+		time.Sleep(10 * time.Second)
+		i.Collect(t.Context())
+		s.AssertNumberOfCalls(t, "SendMetadata", 3)
 	})
-
-	i.Refresh()
-	i.LastCollect = time.Now().Add(-time.Hour)
-	lastCollect := i.LastCollect
-	assert.Equal(t, i.MinInterval, i.collect(context.Background()))
-	i.Submit()
-	assert.Zero(t, builds, "a withheld submission must not build a payload")
-	assert.Equal(t, lastCollect, i.LastCollect)
-	assert.True(t, i.RefreshTriggered(), "a withheld submission must not consume a pending refresh")
-	serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
-
-	serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Twice()
-	withheld = false
-	i.Submit()
-	assert.False(t, i.RefreshTriggered())
-	i.Refresh()
-	assert.Equal(t, i.MinInterval, i.collect(context.Background()))
-	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
-	assert.Equal(t, 2, builds)
 }

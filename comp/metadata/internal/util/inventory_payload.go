@@ -98,20 +98,19 @@ type PayloadGetter func() marshaler.JSONMarshaler
 // because ScrubJSON operates on JSON key names and cannot reach inside opaque string values.
 type InventoryPayload struct {
 	m sync.Mutex
-	// submissionGate, when set, is consulted before every submission: a
-	// non-nil return withholds the payload. Called under the payload lock: it
-	// must not call back in.
-	submissionGate func() error
 
-	conf          config.Component
-	log           log.Component
-	serializer    serializer.MetricSerializer
-	getPayload    PayloadGetter
-	createdAt     time.Time
-	firstRunDelay time.Duration
+	conf       config.Component
+	log        log.Component
+	serializer serializer.MetricSerializer
+	getPayload PayloadGetter
+	createdAt  time.Time
+	// FirstRunDelay may be set before registering the provider.
+	FirstRunDelay time.Duration
 
-	Enabled       bool
-	LastCollect   time.Time
+	Enabled     bool
+	LastCollect time.Time
+	// LastSubmit records a successful serializer enqueue, not network delivery.
+	LastSubmit    time.Time
 	MinInterval   time.Duration
 	MaxInterval   time.Duration
 	forceRefresh  atomic.Bool
@@ -138,7 +137,7 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		serializer:    s,
 		getPayload:    getPayload,
 		createdAt:     time.Now(),
-		firstRunDelay: conf.GetDuration("inventories_first_run_delay") * time.Second,
+		FirstRunDelay: conf.GetDuration("inventories_first_run_delay") * time.Second,
 		FlareFileName: flareFileName,
 		MinInterval:   minInterval,
 		MaxInterval:   maxInterval,
@@ -185,30 +184,18 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 // invnetory is enabled or not).
 func (i *InventoryPayload) MetadataProvider() runnerdef.Provider {
 	if i.Enabled {
-		return runnerdef.NewProvider(i.collect)
+		return runnerdef.NewProvider(i.Collect)
 	}
 	return runnerdef.NewProvider(nil)
 }
 
-// SetSubmissionGate installs a gate consulted before every submission: a
-// non-nil return withholds the payload. Called under the payload lock: it must
-// not call back in.
-func (i *InventoryPayload) SetSubmissionGate(gate func() error) {
-	i.m.Lock()
-	defer i.m.Unlock()
-	i.submissionGate = gate
-}
-
-// collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next
+// Collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next
 // interval to be called.
-func (i *InventoryPayload) collect(_ context.Context) time.Duration {
+func (i *InventoryPayload) Collect(_ context.Context) time.Duration {
 	i.m.Lock()
 	defer i.m.Unlock()
-	if i.submissionGate != nil {
-		if err := i.submissionGate(); err != nil {
-			i.log.Debugf("inventory payload not submitted: %v", err)
-			return i.MinInterval
-		}
+	if !i.Enabled {
+		return i.MinInterval
 	}
 	if i.serializer == nil {
 		i.log.Tracef("serializer is nil, skipping submission")
@@ -220,8 +207,8 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	// The backend is resposible for creating the host entry in the DB using the information gathered by the agent.
 	// Since we upload the information to different endpoints, we could run into a race condition.
 	// Ensuring the request order and timeframe reduces the likelihood of hitting that race condition.
-	if timeSince(i.createdAt) < i.firstRunDelay {
-		return i.firstRunDelay - timeSince(i.createdAt)
+	if timeSince(i.createdAt) < i.FirstRunDelay {
+		return i.FirstRunDelay - timeSince(i.createdAt)
 	}
 
 	// Collect will be called every MinInterval second. We send a new payload if a refresh was trigger or if it's
@@ -241,27 +228,23 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	}
 	if err := i.serializer.SendMetadata(p); err != nil {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
+	} else {
+		i.LastSubmit = time.Now()
 	}
 	return i.MinInterval
 }
 
 // Submit synchronously builds a payload and enqueues it for submission now,
-// ignoring the first-run delay and the min/max interval gating that collect()
+// ignoring the first-run delay and the min/max interval gating that Collect()
 // applies. SendMetadata only enqueues a transaction (the HTTP POST is async and
 // drained at shutdown), so this does not wait for delivery. Nothing is built or
-// enqueued while disabled or while the submission gate withholds the payload.
+// enqueued while disabled.
 func (i *InventoryPayload) Submit() {
 	i.m.Lock()
 	defer i.m.Unlock()
 	if !i.Enabled {
 		i.log.Debugf("inventory metadata is disabled, skipping submission")
 		return
-	}
-	if i.submissionGate != nil {
-		if err := i.submissionGate(); err != nil {
-			i.log.Debugf("inventory payload not submitted: %v", err)
-			return
-		}
 	}
 	if i.serializer == nil {
 		i.log.Tracef("serializer is nil, skipping submission")
@@ -277,7 +260,9 @@ func (i *InventoryPayload) Submit() {
 	}
 	if err := i.serializer.SendMetadata(p); err != nil {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
+		return
 	}
+	i.LastSubmit = time.Now()
 }
 
 // Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.

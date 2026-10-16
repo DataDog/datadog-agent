@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
@@ -91,7 +91,7 @@ func TestAppServiceGetInventoryData(t *testing.T) {
 
 	inv := service.GetInventoryData()
 
-	assert.Equal(t, serverlessinit.InventoryData{
+	assert.Equal(t, serverlessdef.ServerlessInitData{
 		WorkloadType:        workloadTypeAzureAppService,
 		ResourceID:          "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.web/sites/test_site_name",
 		ResourceName:        "Test_Site_Name",
@@ -126,7 +126,7 @@ func TestAppServiceGetInventoryDataFunctionApp(t *testing.T) {
 			inv := service.GetInventoryData()
 
 			assert.True(t, service.CanCollectInventory())
-			assert.Equal(t, serverlessinit.InventoryData{
+			assert.Equal(t, serverlessdef.ServerlessInitData{
 				WorkloadType:        workloadTypeAzureFunction,
 				ResourceID:          "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.web/sites/Test_Site_Name",
 				ResourceName:        "Test_Site_Name",
@@ -210,7 +210,7 @@ func TestAppServiceGetInventoryDataWithoutAzureIDs(t *testing.T) {
 
 	assert.Equal(t, workloadTypeAzureAppService, inv.WorkloadType)
 	assert.Empty(t, inv.ResourceID)
-	assert.False(t, service.CanCollectInventory())
+	assert.True(t, service.CanCollectInventory(), "identity readiness does not change platform eligibility")
 	assert.Equal(t, "test_site_name", inv.ResourceName)
 	assert.Equal(t, "eastus", inv.Region)
 }

@@ -13,7 +13,7 @@ import (
 
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
-	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -62,14 +62,12 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
-func (a *AppService) CanCollectInventory() bool {
-	return a.GetInventoryData().ResourceID != ""
-}
+func (a *AppService) CanCollectInventory() bool { return true }
 
 // GetInventoryData derives the inventory metadata from
 // traceutil.GetAppServicesTags. Web apps lowercase the ARM ID for inventory
 // only; function apps keep its casing.
-func (a *AppService) GetInventoryData() serverlessinit.InventoryData {
+func (a *AppService) GetInventoryData() serverlessdef.ServerlessInitData {
 	aasTags := traceutil.GetAppServicesTags()
 
 	workloadType := workloadTypeAzureAppService
@@ -80,7 +78,7 @@ func (a *AppService) GetInventoryData() serverlessinit.InventoryData {
 		resourceID = strings.ToLower(resourceID)
 	}
 
-	return serverlessinit.InventoryData{
+	return serverlessdef.ServerlessInitData{
 		WorkloadType:        workloadType,
 		ResourceID:          resourceID,
 		ResourceName:        os.Getenv(WebsiteName),
@@ -98,17 +96,17 @@ func appServiceStackRuntime() string {
 	// DOCKER, SITECONTAINERS, and other non-language stacks do not identify a runtime.
 	switch os.Getenv(WebsiteStack) {
 	case "NODE":
-		return serverlessinit.RuntimeNodeJS
+		return serverlessdef.RuntimeNodeJS
 	case "PYTHON":
-		return serverlessinit.RuntimePython
+		return serverlessdef.RuntimePython
 	case "JAVA", "TOMCAT":
-		return serverlessinit.RuntimeJava
+		return serverlessdef.RuntimeJava
 	case "DOTNETCORE":
-		return serverlessinit.RuntimeDotNet
+		return serverlessdef.RuntimeDotNet
 	case "PHP":
-		return serverlessinit.RuntimePHP
+		return serverlessdef.RuntimePHP
 	case "RUBY":
-		return serverlessinit.RuntimeRuby
+		return serverlessdef.RuntimeRuby
 	default:
 		return ""
 	}
