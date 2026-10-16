@@ -82,6 +82,7 @@ func TestNewArtifactResolver(t *testing.T) {
 func TestArtifactResolverResolveReusesValidArtifact(t *testing.T) {
 	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64"}
 	cacheRoot := filepath.Join(t.TempDir(), "cache")
+	cleanupReadOnlyTestCache(t, cacheRoot)
 	resolver, err := NewArtifactResolver(cacheRoot, materializer)
 	require.NoError(t, err)
 	descriptor := testArtifactDescriptor()
@@ -94,16 +95,24 @@ func TestArtifactResolverResolveReusesValidArtifact(t *testing.T) {
 	assert.Equal(t, first, second)
 	assert.Equal(t, filepath.Join(cacheRoot, "artifacts", descriptor.Package, artifactDigestIDPrefix+descriptor.SHA256, materializer.materializationID), first.Directory)
 	assert.Equal(t, 1, materializer.materializationCount())
+	for _, path := range []string{first.Directory, first.ScriptDirectory(), filepath.Join(first.ScriptDirectory(), manifestFile), filepath.Join(first.ScriptDirectory(), "run.sh")} {
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		assert.Zero(t, info.Mode().Perm()&0o222, "published package path is writable: %s", path)
+	}
 }
 
 func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64"}
-	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
+	cacheRoot := filepath.Join(t.TempDir(), "cache")
+	cleanupReadOnlyTestCache(t, cacheRoot)
+	resolver, err := NewArtifactResolver(cacheRoot, materializer)
 	require.NoError(t, err)
 	descriptor := testArtifactDescriptor()
 
 	artifact, err := resolver.Resolve(context.Background(), descriptor)
 	require.NoError(t, err)
+	require.NoError(t, os.Chmod(artifact.ScriptDirectory(), 0o700))
 	require.NoError(t, os.Remove(filepath.Join(artifact.ScriptDirectory(), "run.sh")))
 
 	repaired, err := resolver.Resolve(context.Background(), descriptor)
@@ -114,7 +123,9 @@ func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 
 func TestArtifactResolverResolveTreatsFQNCaseInsensitively(t *testing.T) {
 	materializer := &testPackageMaterializer{materializationID: "test-linux-amd64"}
-	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
+	cacheRoot := filepath.Join(t.TempDir(), "cache")
+	cleanupReadOnlyTestCache(t, cacheRoot)
+	resolver, err := NewArtifactResolver(cacheRoot, materializer)
 	require.NoError(t, err)
 	descriptor := testArtifactDescriptor()
 
@@ -158,4 +169,23 @@ func testArtifactDescriptor() Descriptor {
 		URL:     "oci://registry.example.test/authored-script@sha256:" + testPackageDigest,
 		SHA256:  testPackageDigest,
 	}
+}
+
+func cleanupReadOnlyTestCache(t *testing.T, root string) {
+	t.Helper()
+	t.Cleanup(func() {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+			if os.IsNotExist(walkErr) {
+				return nil
+			}
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				return os.Chmod(path, 0o700)
+			}
+			return nil
+		})
+		require.NoError(t, err)
+	})
 }
