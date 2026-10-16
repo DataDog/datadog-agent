@@ -144,12 +144,16 @@ impl ProcessManager {
         let shutdown = platform::shutdown_signal();
         tokio::pin!(shutdown);
 
+        let mut external_shutdown = false;
         loop {
             if self.supervisor_exit_code().is_some() {
                 break;
             }
             tokio::select! {
+                biased;
                 _ = &mut shutdown => {
+                    external_shutdown = true;
+                    self.shutting_down.store(true, Ordering::SeqCst);
                     break;
                 }
                 Some(event) = exit_rx.recv() => {
@@ -177,7 +181,9 @@ impl ProcessManager {
             }
         }
 
-        self.shutting_down.store(true, Ordering::SeqCst);
+        if !external_shutdown {
+            self.shutting_down.store(true, Ordering::SeqCst);
+        }
         info!("dd-procmgrd shutting down");
 
         let _ = grpc_shutdown_tx.send(());
@@ -188,7 +194,11 @@ impl ProcessManager {
         }
 
         self.shutdown().await;
-        let code = self.supervisor_exit_code().unwrap_or(0);
+        let code = if external_shutdown {
+            0
+        } else {
+            self.supervisor_exit_code().unwrap_or(0)
+        };
         info!("dd-procmgrd stopped (exit code {code})");
         Ok(code)
     }
