@@ -87,4 +87,205 @@ Write-Host 'Packaged Windows Agent version probe:'
 if ($LASTEXITCODE -ne 0) {
     throw "Packaged Windows Agent version probe exited with code $LASTEXITCODE"
 }
+
+function Get-FreeTcpPort {
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    try {
+        $listener.Start()
+        return ([Net.IPEndPoint]$listener.LocalEndpoint).Port
+    }
+    finally {
+        $listener.Stop()
+    }
+}
+
+function Protect-SensitiveOutput {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Output,
+        [string[]]$SensitiveFilePaths = @()
+    )
+
+    foreach ($sensitiveFilePath in $SensitiveFilePaths) {
+        if (Test-Path -LiteralPath $sensitiveFilePath -PathType Leaf) {
+            $sensitiveValue = [string](Get-Content -LiteralPath $sensitiveFilePath -Raw -ErrorAction SilentlyContinue)
+            $sensitiveValue = $sensitiveValue.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($sensitiveValue)) {
+                $Output = $Output -replace [Regex]::Escape($sensitiveValue), '<redacted>'
+            }
+        }
+    }
+    return $Output
+}
+
+function Get-AgentProbeOutput {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Paths,
+        [string[]]$SensitiveFilePaths = @()
+    )
+
+    $content = @($Paths | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | ForEach-Object {
+        Get-Content -LiteralPath $_ -Raw -ErrorAction SilentlyContinue
+    })
+    return (Protect-SensitiveOutput -Output ($content -join "`n") -SensitiveFilePaths $SensitiveFilePaths)
+}
+
+Write-Host 'Packaged Windows Agent x509 component probe:'
+$agentConfigDir = Join-Path $stageDir 'config'
+New-Item -Path $agentConfigDir -ItemType Directory | Out-Null
+$agentLogPath = Join-Path $stageDir 'agent.log'
+$agentStdoutPath = Join-Path $stageDir 'agent.stdout.log'
+$agentStderrPath = Join-Path $stageDir 'agent.stderr.log'
+$agentPidPath = Join-Path $stageDir 'agent.pid'
+$authTokenPath = Join-Path $agentConfigDir 'auth_token'
+$cmdPort = Get-FreeTcpPort
+
+# YAML accepts forward slashes in Windows paths and avoids backslash escaping.
+$agentLogYamlPath = $agentLogPath.Replace('\', '/')
+$authTokenYamlPath = $authTokenPath.Replace('\', '/')
+$agentConfig = @"
+api_key: 00000000000000000000000000000000
+hostname: rc-x509-windows-smoke
+log_level: debug
+log_to_console: true
+log_file: '$agentLogYamlPath'
+auth_token_file_path: '$authTokenYamlPath'
+ipc_address: 127.0.0.1
+cmd_port: $cmdPort
+use_dogstatsd: false
+logs_enabled: false
+apm_config:
+  enabled: false
+process_config:
+  enabled: disabled
+inventories_enabled: false
+enable_metadata_collection: false
+remote_configuration:
+  enabled: true
+  rc_dd_url: http://127.0.0.1:1
+  no_tls: true
+  x509:
+    enabled: true
+    debug_ping_enabled: true
+"@
+Set-Content -LiteralPath (Join-Path $agentConfigDir 'datadog.yaml') -Value $agentConfig -Encoding UTF8
+
+[Environment]::SetEnvironmentVariable('DD_REMOTE_CONFIGURATION_ENABLED', $null, 'Process')
+[Environment]::SetEnvironmentVariable('DD_REMOTE_CONFIGURATION_X509_ENABLED', $null, 'Process')
+
+$agentProcess = $null
+$probeLogPaths = @($agentLogPath, $agentStdoutPath, $agentStderrPath)
+try {
+    # These tokens are needed by the container/Bazel setup, not by the Agent
+    # under test. Keep them out of the child process entirely, and force dummy
+    # API-key values so inherited environment overrides cannot inject a real
+    # key into this isolated probe.
+    $ciIdentityToken = [Environment]::GetEnvironmentVariable('CI_IDENTITIES_GITLAB_ID_TOKEN', 'Process')
+    $buildbarnToken = [Environment]::GetEnvironmentVariable('BUILDBARN_ID_TOKEN', 'Process')
+    $inheritedAPIKey = [Environment]::GetEnvironmentVariable('DD_API_KEY', 'Process')
+    $inheritedRCAPIKey = [Environment]::GetEnvironmentVariable('DD_REMOTE_CONFIGURATION_API_KEY', 'Process')
+    try {
+        [Environment]::SetEnvironmentVariable('CI_IDENTITIES_GITLAB_ID_TOKEN', $null, 'Process')
+        [Environment]::SetEnvironmentVariable('BUILDBARN_ID_TOKEN', $null, 'Process')
+        [Environment]::SetEnvironmentVariable('DD_API_KEY', '00000000000000000000000000000000', 'Process')
+        [Environment]::SetEnvironmentVariable('DD_REMOTE_CONFIGURATION_API_KEY', '00000000000000000000000000000000', 'Process')
+        $agentProcess = Start-Process `
+            -FilePath (Join-Path $agentBinDir 'agent.exe') `
+            -ArgumentList @('-c', $agentConfigDir, 'run', '--pidfile', $agentPidPath) `
+            -WorkingDirectory $agentBinDir `
+            -RedirectStandardOutput $agentStdoutPath `
+            -RedirectStandardError $agentStderrPath `
+            -PassThru
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable('CI_IDENTITIES_GITLAB_ID_TOKEN', $ciIdentityToken, 'Process')
+        [Environment]::SetEnvironmentVariable('BUILDBARN_ID_TOKEN', $buildbarnToken, 'Process')
+        [Environment]::SetEnvironmentVariable('DD_API_KEY', $inheritedAPIKey, 'Process')
+        [Environment]::SetEnvironmentVariable('DD_REMOTE_CONFIGURATION_API_KEY', $inheritedRCAPIKey, 'Process')
+        $ciIdentityToken = $null
+        $buildbarnToken = $null
+        $inheritedAPIKey = $null
+        $inheritedRCAPIKey = $null
+    }
+
+    $startDeadline = [DateTime]::UtcNow.AddSeconds(60)
+    $x509Started = $false
+    while ([DateTime]::UtcNow -lt $startDeadline -and -not $agentProcess.HasExited) {
+        $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
+        if (
+            $probeOutput -match 'remote config x509 debug ping handler enabled' -and
+            $probeOutput -match 'remote config x509 client started'
+        ) {
+            $x509Started = $true
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $x509Started) {
+        $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
+        $agentStatus = if ($agentProcess.HasExited) { "exit code $($agentProcess.ExitCode)" } else { 'still running' }
+        throw "Agent did not report that the x509 component started ($agentStatus)`n$probeOutput"
+    }
+
+    $stopDeadline = [DateTime]::UtcNow.AddSeconds(30)
+    $stopRequested = $false
+    $lastStopError = $null
+    $previousCertificateValidator = [Net.ServicePointManager]::ServerCertificateValidationCallback
+    try {
+        [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+        while ([DateTime]::UtcNow -lt $stopDeadline -and -not $agentProcess.HasExited) {
+            if (Test-Path -LiteralPath $authTokenPath -PathType Leaf) {
+                $authToken = (Get-Content -LiteralPath $authTokenPath -Raw).Trim()
+                try {
+                    Invoke-WebRequest `
+                        -UseBasicParsing `
+                        -Method Post `
+                        -Uri "https://127.0.0.1:$cmdPort/agent/stop" `
+                        -Headers @{ Authorization = "Bearer $authToken" } | Out-Null
+                    $stopRequested = $true
+                    break
+                }
+                catch {
+                    # The x509 component can start before the command API is
+                    # listening. Retry until the bounded stop deadline.
+                    $lastStopError = Protect-SensitiveOutput `
+                        -Output ([string]$_.Exception.Message) `
+                        -SensitiveFilePaths @($authTokenPath)
+                }
+            }
+            Start-Sleep -Seconds 1
+        }
+    }
+    finally {
+        [Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCertificateValidator
+    }
+
+    if (-not $stopRequested) {
+        $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
+        throw "Could not request a graceful Agent shutdown through the local command API. LastError=$lastStopError`n$probeOutput"
+    }
+    if (-not $agentProcess.WaitForExit(30000)) {
+        $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
+        throw "Agent did not exit within 30 seconds of the graceful stop request`n$probeOutput"
+    }
+    if ($agentProcess.ExitCode -ne 0) {
+        $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
+        throw "Agent x509 component probe exited with code $($agentProcess.ExitCode)`n$probeOutput"
+    }
+
+    $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
+    if ($probeOutput -notmatch 'remote config x509 client stopped') {
+        throw "Agent exited without reporting a clean x509 component stop`n$probeOutput"
+    }
+    Write-Host 'Packaged Windows Agent initialized and cleanly stopped the x509 component'
+}
+finally {
+    if ($null -ne $agentProcess -and -not $agentProcess.HasExited) {
+        Stop-Process -Id $agentProcess.Id -Force
+        $agentProcess.WaitForExit()
+    }
+    if (Test-Path -LiteralPath $authTokenPath -PathType Leaf) {
+        Remove-Item -LiteralPath $authTokenPath -Force -ErrorAction SilentlyContinue
+    }
+    $authToken = $null
+}
 [Environment]::SetEnvironmentVariable('RC_X509_LIFECYCLE_SUCCEEDED', '1', 'Process')
