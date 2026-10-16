@@ -6,10 +6,12 @@ $PlatformArgs = @(
     '-c', 'dbg',
     '--platforms=//bazel/platforms:windows_x86_64',
     '--extra_toolchains=@rust_toolchains//:rw-395021384',
-    '--extra_toolchains=@winlibs_mingw64//:mingw_cc_toolchain'
+    '--extra_toolchains=@winlibs_mingw64//:mingw_cc_toolchain',
+    '--action_env=PATH',
+    '--@rules_rust//cargo/settings:debug_std_streams_output_group=true'
 )
 
-bazel build @PlatformArgs --jobs=8 --verbose_failures --remote_download_outputs=all --action_env=PATH '--@rules_rust//cargo/settings:debug_std_streams_output_group=true' //deps/libdd_rc/smoke:windows_msvc_lifecycle
+bazel build @PlatformArgs --jobs=8 --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:windows_msvc_lifecycle
 if ($LASTEXITCODE -ne 0) {
     throw "Bazel build failed with exit code $LASTEXITCODE"
 }
@@ -18,6 +20,8 @@ $lifecycleOutputs = @(bazel cquery @PlatformArgs --output=files //deps/libdd_rc/
 if ($LASTEXITCODE -ne 0) {
     throw "Lifecycle executable cquery failed with exit code $LASTEXITCODE"
 }
+Write-Host 'Lifecycle target declared outputs:'
+$lifecycleOutputs | ForEach-Object { Write-Host "  $_" }
 $lifecycleExecutables = @($lifecycleOutputs | Where-Object { $_ -match '\.exe$' })
 if ($lifecycleExecutables.Count -ne 1) {
     throw "Expected one lifecycle executable, found $($lifecycleExecutables.Count): $lifecycleOutputs"
@@ -27,10 +31,29 @@ $ffiOutputs = @(bazel cquery @PlatformArgs --output=files //deps/libdd_rc/smoke:
 if ($LASTEXITCODE -ne 0) {
     throw "FFI DLL cquery failed with exit code $LASTEXITCODE"
 }
-$ffiDlls = @($ffiOutputs | Where-Object { $_ -match '(^|[/\\])rc_x509_ffi\.dll$' })
-if ($ffiDlls.Count -ne 1) {
-    throw "Expected one rc-x509 FFI DLL, found $($ffiDlls.Count): $ffiOutputs"
+Write-Host 'Transitioned FFI target declared outputs:'
+$ffiOutputs | ForEach-Object { Write-Host "  $_" }
+$ffiDlls = @($ffiOutputs | Where-Object { $_ -match '\.dll$' })
+if ($ffiDlls.Count -eq 0) {
+    # rules_rust may expose only the import library through DefaultInfo even
+    # though the same rustc action produced the runtime DLL. Keep this
+    # diagnostic moving while printing enough evidence to model it explicitly
+    # in the subsequent packaging change.
+    $ffiDlls = @(
+        Get-ChildItem -Path bazel-out -Filter 'rc_x509_ffi*.dll' -File -Recurse -ErrorAction Continue |
+            Where-Object { $_.FullName -match 'x64_windows-dbg' }
+    )
 }
+if ($ffiDlls.Count -eq 0) {
+    throw "Could not find the rc-x509 FFI DLL; declared outputs: $ffiOutputs"
+}
+$ffiDll = @($ffiDlls | Sort-Object -Property FullName)[0]
+if ($ffiDll -is [IO.FileInfo]) {
+    $ffiDllPath = $ffiDll.FullName
+} else {
+    $ffiDllPath = $ffiDll
+}
+Write-Host "Selected rc-x509 FFI DLL: $ffiDllPath"
 
 # aws-lc-fips-sys exposes its CMake install as a tree artifact. The Windows
 # runtime DLLs are nested inside that tree, so cquery does not list them as
@@ -54,7 +77,7 @@ if (Test-Path -LiteralPath $stageDir) {
 }
 New-Item -Path $stageDir -ItemType Directory | Out-Null
 Copy-Item -LiteralPath $lifecycleExecutables[0] -Destination (Join-Path $stageDir 'windows_msvc_lifecycle.exe')
-Copy-Item -LiteralPath $ffiDlls[0] -Destination $stageDir
+Copy-Item -LiteralPath $ffiDllPath -Destination $stageDir
 $awsLcDlls | Sort-Object -Property FullName | Group-Object -Property Name | ForEach-Object {
     Copy-Item -LiteralPath $_.Group[0].FullName -Destination $stageDir
 }
