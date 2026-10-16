@@ -61,9 +61,7 @@ type SectionInfo struct {
 }
 
 func (e *elfWrapper) Close() error {
-	if e.reader != nil {
-		e.reader.Close()
-	}
+	// elfFile owns reader (if any) and closes it
 	return e.elfFile.Close()
 }
 
@@ -91,32 +89,22 @@ func newElfWrapperFromMapping(m *process.RawMapping, pr process.Process) (ef *el
 	if err != nil {
 		return nil, fmt.Errorf("failed to open mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
-	elfFile, err := pfelf.NewFileFromFS(mf)
+	f, ok := mf.(*os.File)
+	if !ok {
+		_ = mf.Close()
+		return nil, fmt.Errorf("failed to cast mapping file %s to *os.File for PID %d", m.Path, pr.PID())
+	}
+	// elfFile takes ownership of f
+	elfFile, err := pfelf.NewFileFromFS(f)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ELF file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
-	defer func() {
-		if err != nil {
-			elfFile.Close()
-		}
-	}()
 
-	r, err := pr.OpenMappingFile(m)
+	ef, err = newElfWrapper(elfFile, m.Path, f, &ProcessFileHelper{pid: pr.PID()}, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
+		_ = elfFile.Close()
 	}
-	defer func() {
-		if err != nil {
-			r.Close()
-		}
-	}()
-
-	f, ok := r.(*os.File)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast mapping file %s to *os.File for PID %d", m.Path, pr.PID())
-	}
-
-	return newElfWrapper(elfFile, m.Path, f, &ProcessFileHelper{pid: pr.PID()}, nil)
+	return ef, err
 }
 
 func newElfWrapperFromFile(filePath string, helper FileHelper) (ef *elfWrapper, err error) {
@@ -125,29 +113,21 @@ func newElfWrapperFromFile(filePath string, helper FileHelper) (ef *elfWrapper, 
 		return nil, err
 	}
 
-	elfFile, err := pfelf.Open(procFilePath)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if err != nil {
-			elfFile.Close()
-		}
-	}()
-
 	f, err := os.Open(procFilePath)
 	if err != nil {
 		return nil, err
 	}
+	// elfFile takes ownership of f
+	elfFile, err := pfelf.NewFileFromFS(f)
+	if err != nil {
+		return nil, err
+	}
 
-	defer func() {
-		if err != nil {
-			f.Close()
-		}
-	}()
-
-	return newElfWrapper(elfFile, filePath, f, helper, nil)
+	ef, err = newElfWrapper(elfFile, filePath, f, helper, nil)
+	if err != nil {
+		_ = elfFile.Close()
+	}
+	return ef, err
 }
 
 func newElfWrapper(elfFile *pfelf.File, filePath string, reader *os.File, helper FileHelper, data []byte) (*elfWrapper, error) {
