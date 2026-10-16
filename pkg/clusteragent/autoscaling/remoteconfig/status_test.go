@@ -155,7 +155,9 @@ func TestStatusUnknownUntilEndpointAnswers(t *testing.T) {
 
 	out := renderedText(t, info)
 	assert.Contains(t, out, "no answer from the endpoint yet")
-	// The reason never reaches the status, so the entry names what to check
+	// The reason never reaches the status, so the entry names what to check.
+	// A wrong URL and an unscoped key are indistinguishable here, so both.
+	assert.Contains(t, out, URLSetting)
 	assert.Contains(t, out, APIKeySetting)
 	assert.Contains(t, out, "Remote Configuration Read permission")
 	assert.NotContains(t, out, "Organization enabled:")

@@ -9,7 +9,7 @@
     <br>Organization enabled: {{ if .OrgEnabled }}True{{ else }}False{{ end }}
     <br>API Key: {{ if .APIKeyAuthorized }}Authorized{{ else }}Not authorized{{ end }}
   {{- else }}
-    <br>Organization status: no answer from the endpoint yet, check that {{ .APIKeySetting }} has the Remote Configuration Read permission
+    <br>Organization status: no answer from the endpoint yet, check {{ .URLSetting }} and that {{ .APIKeySetting }} has the Remote Configuration Read permission
   {{- end }}
     <br>Last error: {{ if .LastError }}{{ .LastError }}{{ else }}None{{ end }}
   {{- end }}
