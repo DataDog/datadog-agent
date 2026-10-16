@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "workload",
+    srcs = [
+        "cases.go",
+        "workload.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/parity/workload",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network",
+            "//pkg/network/netlink/testutil",
+            "//pkg/network/testutil",
+            "//pkg/network/tracer/testutil/parity",
+            "//pkg/util/kernel/netns",
+            "@com_github_stretchr_testify//require",
+            "@com_github_vishvananda_netns//:netns",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network",
+            "//pkg/network/netlink/testutil",
+            "//pkg/network/testutil",
+            "//pkg/network/tracer/testutil/parity",
+            "//pkg/util/kernel/netns",
+            "@com_github_stretchr_testify//require",
+            "@com_github_vishvananda_netns//:netns",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "workload_test",
+    srcs = ["workload_test.go"],
+    embed = [":workload"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network",
+            "//pkg/process/util",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network",
+            "//pkg/process/util",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

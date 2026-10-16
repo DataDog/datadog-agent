@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "parity-snapshot_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/parity/cmd/parity-snapshot",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/network",
+        "//pkg/network/tracer/testutil/parity",
+        "//pkg/network/tracer/testutil/parity/snapshot",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_binary(
+    name = "parity-snapshot",
+    embed = [":parity-snapshot_lib"],
+    visibility = ["//visibility:public"],
+)

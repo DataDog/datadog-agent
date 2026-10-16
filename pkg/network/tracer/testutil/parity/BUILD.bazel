@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "parity",
+    srcs = ["parity.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/parity",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/network"],
+)
+
+dd_agent_go_test(
+    name = "parity_test",
+    srcs = ["parity_test.go"],
+    embed = [":parity"],
+    deps = [
+        "//pkg/network",
+        "//pkg/network/protocols",
+        "//pkg/process/util",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
