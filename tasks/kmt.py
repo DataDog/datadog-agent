@@ -682,7 +682,11 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
     _, _, env = get_build_flags(ctx, arch=arch)
     env_str = " ".join([f"{k}=\"{v.strip()}\"" for k, v in env.items()])
 
-    test_runner_files = glob("test/new-e2e/system-probe/test-runner/*.go")
+    test_runner_files = (
+        glob("test/new-e2e/system-probe/test-runner/*.go")
+        + glob("test/new-e2e/system-probe/config/*.go")
+        + ["test/new-e2e/system-probe/config/platforms.json"]
+    )
     nw.build(
         rule="gobin",
         pool="gobuild",
