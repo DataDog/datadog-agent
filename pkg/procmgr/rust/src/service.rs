@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result, bail};
 use log::{error, info, warn};
 use windows_sys::Win32::Foundation::{
-    ERROR_FAILED_SERVICE_CONTROLLER_CONNECT, GetLastError, NO_ERROR,
+    ERROR_FAILED_SERVICE_CONTROLLER_CONNECT, ERROR_SERVICE_SPECIFIC_ERROR, GetLastError, NO_ERROR,
 };
 use windows_sys::Win32::System::Services::{
     RegisterServiceCtrlHandlerExW, SERVICE_ACCEPT_PRESHUTDOWN, SERVICE_ACCEPT_SHUTDOWN,
@@ -69,7 +69,13 @@ fn service_name_wide() -> Vec<u16> {
         .collect()
 }
 
-fn set_service_status(state: u32, controls: u32, exit_code: u32, wait_hint_ms: u32) {
+fn set_service_status(
+    state: u32,
+    controls: u32,
+    win32_exit: u32,
+    service_specific: u32,
+    wait_hint_ms: u32,
+) {
     let handle = STATUS_HANDLE.load(Ordering::SeqCst);
     if handle.is_null() {
         return;
@@ -78,14 +84,27 @@ fn set_service_status(state: u32, controls: u32, exit_code: u32, wait_hint_ms: u
         dwServiceType: SERVICE_WIN32_OWN_PROCESS,
         dwCurrentState: state,
         dwControlsAccepted: controls,
-        dwWin32ExitCode: exit_code,
-        dwServiceSpecificExitCode: 0,
+        dwWin32ExitCode: win32_exit,
+        dwServiceSpecificExitCode: service_specific,
         dwCheckPoint: 0,
         dwWaitHint: wait_hint_ms,
     };
     unsafe {
         SetServiceStatus(handle, &status);
     }
+}
+
+fn stopped_exit_codes(code: i32) -> (u32, u32) {
+    if code == 0 {
+        (NO_ERROR, 0)
+    } else {
+        (ERROR_SERVICE_SPECIFIC_ERROR, code as u32)
+    }
+}
+
+fn set_service_stopped(code: i32) {
+    let (win32, specific) = stopped_exit_codes(code);
+    set_service_status(SERVICE_STOPPED, 0, win32, specific, 0);
 }
 
 /// SCM control-event callback. Runs on an OS thread managed by SCM, not
@@ -102,6 +121,7 @@ unsafe extern "system" fn ctrl_handler(
                 SERVICE_STOP_PENDING,
                 0,
                 NO_ERROR,
+                0,
                 SCM_STOP_WAIT_HINT.as_millis() as u32,
             );
             platform::shutdown_notify().notify_one();
@@ -127,15 +147,15 @@ unsafe extern "system" fn service_main(_argc: u32, _argv: *mut *mut u16) {
     }
     STATUS_HANDLE.store(handle, Ordering::SeqCst);
 
-    set_service_status(SERVICE_START_PENDING, 0, NO_ERROR, 10_000);
+    set_service_status(SERVICE_START_PENDING, 0, NO_ERROR, 0, 10_000);
 
-    if let Err(e) = run_service_inner() {
-        error!("service failed: {e:#}");
-        set_service_status(SERVICE_STOPPED, 0, 1, 0);
-        return;
+    match run_service_inner() {
+        Ok(code) => set_service_stopped(code),
+        Err(e) => {
+            error!("service failed: {e:#}");
+            set_service_stopped(1);
+        }
     }
-
-    set_service_status(SERVICE_STOPPED, 0, NO_ERROR, 0);
 }
 
 /// Default log file path under the Windows program data root (registry `ConfigRoot` when set,
@@ -148,7 +168,7 @@ fn default_log_file() -> PathBuf {
 
 /// Core service logic: creates the tokio runtime, runs ProcessManager, then
 /// waits for the exit gate before reporting stopped.
-fn run_service_inner() -> Result<()> {
+fn run_service_inner() -> Result<i32> {
     dd_agent_log::init(dd_agent_log::LogConfig {
         logger_name: "PROCMGR",
         level: log::Level::Info,
@@ -165,6 +185,7 @@ fn run_service_inner() -> Result<()> {
         SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN | SERVICE_ACCEPT_PRESHUTDOWN,
         NO_ERROR,
         0,
+        0,
     );
 
     let running_since = Instant::now();
@@ -175,14 +196,11 @@ fn run_service_inner() -> Result<()> {
         mgr.run().await
     });
 
-    if let Err(ref e) = result {
-        warn!("ProcessManager exited with error: {e:#}");
+    match &result {
+        Ok(0) => {}
+        Ok(code) => info!("ProcessManager exited with code {code}"),
+        Err(e) => warn!("ProcessManager exited with error: {e:#}"),
     }
-    let result = result.map(|code| {
-        if code != 0 {
-            info!("ProcessManager exited with code {code}");
-        }
-    });
 
     // Keep the service alive long enough for SCM to treat the start as
     // successful (mirrors Go's runTimeExitGate). If the process has
@@ -243,4 +261,20 @@ fn run_console_fallback() -> Result<i32> {
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
         mgr.run().await
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_stopped_exit_codes_clean() {
+        assert_eq!(stopped_exit_codes(0), (NO_ERROR, 0));
+    }
+
+    #[test]
+    fn test_stopped_exit_codes_critical_child() {
+        assert_eq!(stopped_exit_codes(42), (ERROR_SERVICE_SPECIFIC_ERROR, 42));
+        assert_eq!(stopped_exit_codes(1), (ERROR_SERVICE_SPECIFIC_ERROR, 1));
+    }
 }
