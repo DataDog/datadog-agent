@@ -313,6 +313,8 @@ func (r *domainResolver) reloadAdditionalEndpoints(setting string, config config
 	if setting == "additional_endpoints" {
 		endpoints, found = endpointsMap[r.configName]
 	} else {
+		// No break: several config keys (e.g. with and without a trailing slash) can
+		// normalize to this resolver, and all of their keys apply.
 		for key, keyset := range endpointsMap {
 			// configName is never empty today (constructors derive it from a URL), but guard
 			// locally so an empty name could never claim keys via SchemeHostKey("").
