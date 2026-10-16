@@ -60,6 +60,9 @@ type startupRecovery struct {
 	consecutiveFailures int
 	lastError           error
 	nextRetry           time.Time
+	// originalDirective mirrors authInstance.originalDirective, so an equivalent
+	// re-registration can leave a running recovery alone.
+	originalDirective string
 }
 
 // detectAWSCredentialSource is a seam for tests. The real detection probes IMDS as its last step,
@@ -311,6 +314,13 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	d.startupMu.Lock()
 	defer d.startupMu.Unlock()
 
+	// Re-registering the same endpoint directive (e.g. the endpoint scan re-running after a
+	// config merge) is a no-op: the existing instance or its background recovery stays as it
+	// is, so a late scan cannot restart a fetch or extend startup during an auth outage.
+	if d.hasEquivalentEndpointRegistration(params) {
+		return nil
+	}
+
 	if err := d.stopStartupRecovery(ctx, params.APIKeyConfigKey); err != nil {
 		return err
 	}
@@ -325,6 +335,23 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 
 	d.startStartupRecovery(params, err)
 	return nil
+}
+
+// hasEquivalentEndpointRegistration reports whether an instance or startup recovery is already
+// registered under the same key with the same endpoint directive.
+func (d *delegatedAuthComponent) hasEquivalentEndpointRegistration(params delegatedauth.InstanceParams) bool {
+	if params.AdditionalEndpointDirective == "" {
+		return false
+	}
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if existing := d.instances[params.APIKeyConfigKey]; existing != nil {
+		return existing.originalDirective == params.AdditionalEndpointDirective
+	}
+	if recovery := d.startupRecoveries[params.APIKeyConfigKey]; recovery != nil {
+		return recovery.originalDirective == params.AdditionalEndpointDirective
+	}
+	return false
 }
 
 func (d *delegatedAuthComponent) tryAddInstance(ctx context.Context, params delegatedauth.InstanceParams) error {
@@ -466,6 +493,7 @@ func (d *delegatedAuthComponent) startStartupRecovery(params delegatedauth.Insta
 		done:                make(chan struct{}),
 		consecutiveFailures: 1,
 		lastError:           initialErr,
+		originalDirective:   params.AdditionalEndpointDirective,
 	}
 
 	d.mu.Lock()

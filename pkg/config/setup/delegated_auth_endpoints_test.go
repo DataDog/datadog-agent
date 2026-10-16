@@ -443,3 +443,126 @@ func TestConfigureDelegatedAuthReturnsContextError(t *testing.T) {
 	err := configureDelegatedAuth(ctx, confFromYAML(t, ""), newRecordingComponent())
 	require.ErrorIs(t, err, context.Canceled)
 }
+
+func TestSecurityEndpointsAreWithinScope(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+runtime_security_config:
+  endpoints:
+    additional_endpoints:
+      - host: org2.datadoghq.com
+        api_key: DELA[org-uuid-1, aws]
+compliance_config:
+  endpoints:
+    additional_endpoints:
+      - host: org3.datadoghq.com
+        api_key: DELA[org-uuid-2, aws]
+runtime_security_config_activity_dump_remote_storage: placeholder
+`)
+
+	// The activity-dump key is nested too deep for the YAML helper's flat style below,
+	// so set it directly.
+	config.SetInTest("runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints",
+		[]any{map[string]any{"host": "org4.datadoghq.com", "api_key": "DELA[org-uuid-3, aws]"}})
+
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 3)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+	assert.Equal(t, "org-uuid-2", rec.recorded[1].OrgUUID)
+	assert.Equal(t, "org-uuid-3", rec.recorded[2].OrgUUID)
+}
+
+func TestSecurityKeysRegisterWithoutLogsHTTPTransport(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+logs_config:
+  additional_endpoints:
+    - host: org2.datadoghq.com
+      api_key: DELA[org-uuid-1, aws]
+runtime_security_config:
+  endpoints:
+    additional_endpoints:
+      - host: org2.datadoghq.com
+        api_key: DELA[org-uuid-2, aws]
+`)
+
+	// No logs_config.use_http/force_use_http: the logs pipeline would use TCP and
+	// ignore its delegated-auth entries, but the security pipelines are always HTTP.
+	configureListShapeAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-2", rec.recorded[0].OrgUUID)
+}
+
+func TestConfigureDelegatedAuthEndpointsCoversLateMergedValues(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+site: datadogh.com
+`)
+
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	assert.Empty(t, rec.recorded, "nothing to register yet")
+
+	// Values merged after LoadDatadog (e.g. security-agent.yaml) must still register.
+	config.SetInTest("runtime_security_config.endpoints.additional_endpoints",
+		[]any{map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"}})
+
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+}
+
+func TestDirectSendDelegatedAuthDirectives(t *testing.T) {
+	directiveEntry := []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"}}
+	cwsKey := "runtime_security_config.endpoints.additional_endpoints"
+	complianceKey := "compliance_config.endpoints.additional_endpoints"
+
+	directSendOff := confFromYAML(t, `
+runtime_security_config:
+  direct_send_from_system_probe: false
+`)
+	directSendOff.SetInTest(cwsKey, directiveEntry)
+	assert.Empty(t, directSendDelegatedAuthDirectives(directSendOff), "security-agent ships and can resolve")
+
+	directSendOn := confFromYAML(t, `
+runtime_security_config:
+  direct_send_from_system_probe: true
+`)
+	assert.Empty(t, directSendDelegatedAuthDirectives(directSendOn), "no directives present")
+
+	directSendOn.SetInTest(cwsKey, directiveEntry)
+	assert.Equal(t, []directSendDirective{{path: cwsKey + "[0]", flag: "runtime_security_config.direct_send_from_system_probe"}}, directSendDelegatedAuthDirectives(directSendOn))
+
+	// Compliance events move to system-probe through their own flag.
+	complianceInSysprobe := confFromYAML(t, `
+compliance_config:
+  run_in_system_probe: true
+`)
+	assert.Empty(t, directSendDelegatedAuthDirectives(complianceInSysprobe), "no directives present")
+	complianceInSysprobe.SetInTest(complianceKey, directiveEntry)
+	assert.Equal(t, []directSendDirective{{path: complianceKey + "[0]", flag: "compliance_config.run_in_system_probe"}}, directSendDelegatedAuthDirectives(complianceInSysprobe))
+
+	complianceInAgent := confFromYAML(t, `
+compliance_config:
+  run_in_system_probe: false
+`)
+	complianceInAgent.SetInTest(complianceKey, directiveEntry)
+	assert.Empty(t, directSendDelegatedAuthDirectives(complianceInAgent), "security-agent ships and can resolve")
+}
+
+func TestConfigureDelegatedAuthEndpointsSkipsResolvedEntries(t *testing.T) {
+	rec := newRecordingComponent()
+	config := confFromYAML(t, `
+site: datadogh.com
+`)
+	cwsKey := "runtime_security_config.endpoints.additional_endpoints"
+	config.SetInTest(cwsKey, []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"}})
+
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	require.Len(t, rec.recorded, 1)
+
+	// The writeback replaces the directive with the resolved key; a re-scan of the
+	// effective config must not register the entry again.
+	config.SetInTest(cwsKey, []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "resolved-api-key"}})
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	assert.Len(t, rec.recorded, 1, "resolved entry must not re-register")
+}

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
@@ -129,8 +130,25 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 
 // listShapeDelegatedAuthEndpointKeys lists the list-shaped settings enabled for write-back.
 var listShapeDelegatedAuthEndpointKeys = []string{
-	// Supported for HTTP logs endpoints. TCP endpoints skip pending directives.
+	// Supported for HTTP logs endpoints. TCP endpoints skip pending directives; the HTTP
+	// transport gate below is what decides whether the logs pipeline is on HTTP today.
 	pkgconfigmodel.DelaLogsEndpointsKey,
+	// Security-agent pipelines (CWS events, compliance events, activity-dump remote storage).
+	// Their senders are the HTTP logs pipeline and never fall back to TCP, so they register
+	// without a transport gate.
+	pkgconfigmodel.DelaCWSEndpointsKey,
+	pkgconfigmodel.DelaComplianceEndpointsKey,
+	pkgconfigmodel.DelaActivityDumpEndpointsKey,
+}
+
+// listShapeKeyUsesHTTP reports whether the setting's consumer ships over HTTP today. Only the
+// logs pipeline can fall back to TCP (which ignores delegated-auth entries); the security-agent
+// pipelines are always HTTP.
+func listShapeKeyUsesHTTP(config pkgconfigmodel.Reader, configKey string) bool {
+	if configKey == pkgconfigmodel.DelaLogsEndpointsKey {
+		return logsUseHTTPWithAdditionalEndpoints(config)
+	}
+	return true
 }
 
 // logsUseHTTPWithAdditionalEndpoints mirrors how the logs agent picks HTTP when additional endpoints
@@ -165,7 +183,7 @@ func configureListShapeAdditionalEndpointsDelegatedAuth(ctx context.Context, con
 			if !ok || !strings.HasPrefix(strings.TrimSpace(directive), pkgconfigmodel.DelaDirectivePrefix) {
 				continue
 			}
-			if !logsUseHTTPWithAdditionalEndpoints(config) {
+			if !listShapeKeyUsesHTTP(config, configKey) {
 				log.Warnf("Additional endpoint entry %d at %q uses delegated auth, which requires HTTP logs transport; set logs_config.force_use_http to enable it", index, configKey)
 				continue
 			}
@@ -257,5 +275,103 @@ func addDelegatedAuthEndpointInstance(ctx context.Context, config pkgconfigmodel
 	err = delegatedAuthComp.AddInstance(ctx, params)
 	if err != nil {
 		log.Errorf("Failed to configure delegated auth for %s: %v", describe, err)
+	}
+}
+
+// defaultProviderConfigForConfig derives the process-wide delegated-auth provider configuration
+// from the delegated_auth prefix: an explicit provider yields that provider's config, an empty
+// one keeps nil so the component auto-detects.
+func defaultProviderConfigForConfig(config pkgconfigmodel.Reader) common.ProviderConfig {
+	switch config.GetString("delegated_auth.provider") {
+	case "aws":
+		return &cloudauthconfig.AWSProviderConfig{
+			Region: config.GetString("delegated_auth.aws.region"),
+		}
+	default:
+		// Empty provider means auto-detect, so ProviderConfig stays nil even when
+		// delegated_auth.aws.region is set: a non-nil ProviderConfig means "explicitly configured"
+		// downstream and would skip provider detection entirely. The component reads the configured
+		// region itself once detection picks AWS.
+		return nil
+	}
+}
+
+// ConfigureDelegatedAuthEndpoints re-runs the additional_endpoints delegated-auth scan. Values
+// merged after LoadDatadog (e.g. security-agent.yaml, fleet policies) are invisible to the scan
+// that runs inside it; this covers them. Re-running on an entry whose directive was already
+// resolved registers nothing: the scan re-reads the effective config, where the resolved key
+// has replaced the directive text.
+func ConfigureDelegatedAuthEndpoints(ctx context.Context, config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) {
+	// Warn before registering: a synchronous resolution replaces the directive with the key,
+	// which would hide it from the direct-send warning.
+	WarnDirectSendDelegatedAuthDirectives(config)
+
+	providerConfig := defaultProviderConfigForConfig(config)
+
+	startupCtx := ctx
+	cancelStartup := func() {}
+	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
+		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	}
+	defer cancelStartup()
+
+	configureAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
+	configureListShapeAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
+}
+
+// directSendDelegatedAuthDirectiveKeys lists the list-shape settings whose payloads ship from
+// the system-probe process and the config flag that moves them there; that process never runs
+// the delegated-auth scan, so directives in those settings cannot resolve where the payload
+// ships from.
+var directSendDelegatedAuthDirectiveKeys = []struct {
+	flag string
+	key  string
+}{
+	{"runtime_security_config.direct_send_from_system_probe", pkgconfigmodel.DelaCWSEndpointsKey},
+	{"runtime_security_config.direct_send_from_system_probe", pkgconfigmodel.DelaActivityDumpEndpointsKey},
+	{"compliance_config.run_in_system_probe", pkgconfigmodel.DelaComplianceEndpointsKey},
+}
+
+type directSendDirective struct {
+	// path is the config path of the entry holding the directive.
+	path string
+	// flag is the setting that moves the entry's payloads into the system-probe process.
+	flag string
+}
+
+// directSendDelegatedAuthDirectives lists the additional-endpoint entries holding a DELA
+// directive in settings that ship from the system-probe. The results feed a startup warning:
+// those entries cannot resolve in the process that ships them.
+func directSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) []directSendDirective {
+	var found []directSendDirective
+	for _, setting := range directSendDelegatedAuthDirectiveKeys {
+		if !config.GetBool(setting.flag) {
+			continue
+		}
+		entries, _ := common.NormalizeListShapeEntries(config.Get(setting.key))
+		for index, rawEntry := range entries {
+			entry, ok := rawEntry.(map[string]any)
+			if !ok {
+				continue
+			}
+			if _, directive, ok := common.CaseInsensitiveStringFieldWithKey(entry, "api_key"); ok && strings.HasPrefix(strings.TrimSpace(directive), pkgconfigmodel.DelaDirectivePrefix) {
+				found = append(found, directSendDirective{
+					path: fmt.Sprintf("%s[%d]", setting.key, index),
+					flag: setting.flag,
+				})
+			}
+		}
+	}
+	return found
+}
+
+// WarnDirectSendDelegatedAuthDirectives warns when DELA directives sit in settings that ship
+// from the system-probe: that process cannot resolve them, so those payloads will not dual-ship
+// (and are held until restart). Called from the config load paths so that every placement of
+// the directive (datadog.yaml, security-agent.yaml, fleet policies, system-probe.yaml) is
+// flagged somewhere at startup.
+func WarnDirectSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) {
+	for _, found := range directSendDelegatedAuthDirectives(config) {
+		log.Warnf("%s uses delegated auth, but %s ships its payloads from the system-probe process, which cannot resolve delegated-auth directives; those payloads will not dual-ship", found.path, found.flag)
 	}
 }

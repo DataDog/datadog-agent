@@ -2251,3 +2251,47 @@ func TestInitializeIfNeeded_DetectionTimeoutCanRetry(t *testing.T) {
 	assert.Equal(t, 2, calls)
 	assert.True(t, comp.initialized)
 }
+
+func TestAddInstanceIsNoOpForUnchangedEndpointDirective(t *testing.T) {
+	mockClock := clock.NewMock()
+	mockConfig := mock.New(t)
+	attempts := 0
+	comp := &delegatedAuthComponent{
+		instances:         make(map[string]*authInstance),
+		startupRecoveries: make(map[string]*startupRecovery),
+		clock:             mockClock,
+	}
+	comp.addInstanceAttempt = func(_ context.Context, _ delegatedauth.InstanceParams) error {
+		attempts++
+		return errors.New("provider unavailable")
+	}
+
+	params := delegatedauth.InstanceParams{
+		Config:                      mockConfig,
+		OrgUUID:                     "test-org",
+		APIKeyConfigKey:             "runtime_security_config.endpoints.additional_endpoints[0][test-org]",
+		AllowAsyncStartup:           true,
+		AdditionalEndpointDirective: "DELA[test-org, aws]",
+	}
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+	require.Equal(t, 1, attempts)
+
+	comp.mu.RLock()
+	recovery := comp.startupRecoveries[params.APIKeyConfigKey]
+	comp.mu.RUnlock()
+	require.NotNil(t, recovery)
+
+	// A late scan re-registering the same directive is a no-op: no new fetch, and the
+	// running recovery is neither restarted nor stopped.
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+	assert.Equal(t, 1, attempts, "unchanged directive must not trigger a new fetch")
+	comp.mu.RLock()
+	recoveryAgain := comp.startupRecoveries[params.APIKeyConfigKey]
+	comp.mu.RUnlock()
+	assert.Same(t, recovery, recoveryAgain, "unchanged directive must keep the running recovery")
+
+	// A changed directive still replaces the registration.
+	params.AdditionalEndpointDirective = "DELA[other-org, aws]"
+	require.NoError(t, comp.AddInstance(context.Background(), params))
+	assert.Equal(t, 2, attempts, "changed directive must re-register")
+}
