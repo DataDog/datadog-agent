@@ -96,10 +96,12 @@ func (p Provider) statusInfo() map[string]interface{} {
 
 	info["Started"] = true
 	// Both fields are false until the first answer, so report them only once
-	// there has been one. A service that is never authorized never gets an
-	// answer at all, and the reason only reaches the log, so the template names
-	// the setting to check instead.
+	// there has been one. An endpoint that answers 4XX never produces one: the
+	// service reports that as a proxy error, which poll drops before logging
+	// above debug. This line is the only diagnostic the operator gets, so the
+	// template names both settings that can cause it.
 	info["Reported"] = snapshot.reported
+	info["URLSetting"] = URLSetting
 	info["APIKeySetting"] = APIKeySetting
 	if snapshot.reported {
 		info["OrgEnabled"] = snapshot.orgEnabled
