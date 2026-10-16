@@ -126,6 +126,14 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 	// until the writeback lands. System-probe shares the helper but rejects pending directives
 	// at startup via CheckAPIKeysResolved, since it cannot resolve them.
 	"process_config.additional_endpoints",
+	// Read by pkg/orchestrator/config.extractEndpoints and served by the orchestrator forwarder
+	// (cluster-agent / cluster-check runners). Pending directives keep the domain alive with no
+	// key until the writeback lands; the reload lookup normalizes to scheme://host, so path or
+	// trailing-slash config keys still receive the resolved key.
+	"orchestrator_explorer.orchestrator_additional_endpoints",
+	// Backward-compatible placement of the orchestrator setting; only read when the
+	// orchestrator_explorer one is not configured.
+	"process_config.orchestrator_additional_endpoints",
 }
 
 // listShapeDelegatedAuthEndpointKeys lists the list-shaped settings enabled for write-back.
@@ -139,6 +147,15 @@ var listShapeDelegatedAuthEndpointKeys = []string{
 	pkgconfigmodel.DelaCWSEndpointsKey,
 	pkgconfigmodel.DelaComplianceEndpointsKey,
 	pkgconfigmodel.DelaActivityDumpEndpointsKey,
+	// Event-platform pipelines (container image, kubeactions, event management, config-files
+	// discovery, SBOM, ...). All of them build endpoints through the same HTTP logs pipeline
+	// sender and hold pending directives like the logs setting does; composed from the model's
+	// pipeline prefix registry, which the eventplatform package pins against its descriptors.
+}
+
+func init() {
+	listShapeDelegatedAuthEndpointKeys = append(listShapeDelegatedAuthEndpointKeys,
+		pkgconfigmodel.DelaEventPlatformEndpointsKeys()...)
 }
 
 // listShapeKeyUsesHTTP reports whether the setting's consumer ships over HTTP today. Only the
