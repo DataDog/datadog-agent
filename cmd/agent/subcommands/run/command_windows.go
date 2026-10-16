@@ -66,6 +66,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -152,7 +153,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			traceroute traceroute.Component,
 			healthplatformComp healthplatformdef.Component,
 			ncmComp option.Option[networkconfigmanagement.Component],
-
+			eventPlatform eventplatform.Component,
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
 
@@ -182,6 +183,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				traceroute,
 				healthplatformComp,
 				ncmComp,
+				eventPlatform,
 			)
 			if err != nil {
 				return err
