@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // This file runs under whichever selfident variant the build selects: the no-op
@@ -37,4 +38,18 @@ func TestIssueDiscriminator_FallsBackToOSHostnameWithoutHostID(t *testing.T) {
 // worst way to find out.
 func TestIssueDiscriminator_NilSelfIdentFallsBackToHostID(t *testing.T) {
 	assert.Equal(t, "some-host-id", IssueDiscriminator(nil, "some-host-id"))
+}
+
+func TestResourceIdentity_NilSelfIdentFallsBackToHost(t *testing.T) {
+	resourceType, resourceID := ResourceIdentity(flavor.DefaultAgent, nil, "some-host")
+	assert.Equal(t, "host", resourceType)
+	assert.Equal(t, "some-host", resourceID)
+}
+
+// A SelfIdent built with no workloadmeta resolves no DaemonSet under either
+// selfident variant, so a node agent falls back to its host.
+func TestResourceIdentity_NodeAgentWithoutDaemonSetFallsBackToHost(t *testing.T) {
+	resourceType, resourceID := ResourceIdentity(flavor.DefaultAgent, selfident.New(nil), "some-host")
+	assert.Equal(t, "host", resourceType)
+	assert.Equal(t, "some-host", resourceID)
 }

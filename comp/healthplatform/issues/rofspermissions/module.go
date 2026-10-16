@@ -10,11 +10,16 @@
 package rofspermissions
 
 import (
+	"context"
+
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func init() {
@@ -32,20 +37,25 @@ const (
 	// IssueName lowercased with spaces replaced by underscores (hyphens preserved).
 	IssueType = "read-only_filesystem_error"
 
-	// IssueID is the unique instance id used when reporting this issue
+	// IssueID is the issue ID prefix used when reporting this issue.
+	// Check appends the reporting agent's resource_id: IssueID + ":" + resource_id.
 	IssueID = "rofs-permissions"
 )
 
 type rofsPermissionsModule struct {
-	template *RofsPermissionIssue
-	conf     config.Component
+	template  *RofsPermissionIssue
+	conf      config.Component
+	hostname  hostnameinterface.Component
+	selfIdent *selfident.SelfIdent
 }
 
 // NewModule creates a new ROFS permissions issue module
 func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &rofsPermissionsModule{
-		template: NewRofsPermissionIssue(),
-		conf:     deps.Config,
+		template:  NewRofsPermissionIssue(),
+		conf:      deps.Config,
+		hostname:  deps.Hostname,
+		selfIdent: deps.SelfIdent,
 	}
 }
 
@@ -71,7 +81,21 @@ func (r *rofsPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHe
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",
 		Fn: func() ([]runnerdef.IssueReport, error) {
-			return Check(r.conf)
+			return Check(r.conf, r.instanceIssueID)
 		},
 	}
+}
+
+// instanceIssueID scopes IssueID to the resource_id the outbound report
+// carries, so agents on different resources don't all report the same id.
+// The hostname is resolved the same way egress resolves it.
+func (r *rofsPermissionsModule) instanceIssueID() string {
+	var hostname string
+	if r.hostname != nil {
+		if h, err := r.hostname.Get(context.Background()); err == nil {
+			hostname = h
+		}
+	}
+	_, resourceID := issues.ResourceIdentity(flavor.GetFlavor(), r.selfIdent, hostname)
+	return IssueID + ":" + resourceID
 }
