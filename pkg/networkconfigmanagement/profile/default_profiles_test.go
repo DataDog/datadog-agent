@@ -125,6 +125,58 @@ func Test_TMOSGetRunningValidator(t *testing.T) {
 	assert.Error(t, v.Validate("not a tmos config header\n"))
 }
 
+func Test_PanOSGetRunningValidator(t *testing.T) {
+	// Depending on PAN-OS version, `show config running` returns either
+	// angle-bracket XML or curly-brace hierarchical output; the validator must
+	// accept both. See AGENT-16721.
+	v := DefaultProfile(t, ProfilePanOS).Commands.GetRunning.Validator
+
+	// XML format
+	assert.NoError(t, v.Validate("<?xml version=\"1.0\"?>\n<config version=\"7.1.0\">\n  <mgt-config/>\n</config>\n"))
+	// Curly-brace format (operational mode on newer PAN-OS)
+	assert.NoError(t, v.Validate("config {\n  mgt-config {\n    users {\n    }\n  }\n}\n"))
+	assert.NoError(t, v.Validate("config {\n  devices {\n  }\n}\n"))
+	// Neither format -> error (e.g. an error string or empty output)
+	assert.Error(t, v.Validate("Invalid syntax.\n"))
+	assert.Error(t, v.Validate(""))
+}
+
+func Test_PanOSRedaction(t *testing.T) {
+	// The phash password hash and SNMP community string must be redacted in both
+	// output formats.
+	rules := DefaultProfile(t, ProfilePanOS).Redactions
+
+	// XML format
+	xmlRedacted, err := Redact([]byte("<phash>$1$ljjdxeva$.isIbumicIMfaHvG/EKqd.</phash>\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(xmlRedacted), "ljjdxeva")
+	assert.Contains(t, string(xmlRedacted), "<phash><secret hidden></phash>")
+
+	// Curly-brace format
+	curlyRedacted, err := Redact([]byte("      admin {\n        phash $1$ljjdxeva$.isIbumicIMfaHvG/EKqd.;\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(curlyRedacted), "ljjdxeva")
+	assert.Contains(t, string(curlyRedacted), "phash <secret hidden>;")
+
+	// SNMP community string — XML format
+	xmlSNMP, err := Redact([]byte("<snmp-community-string>ndm-lab-snmp</snmp-community-string>\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(xmlSNMP), "ndm-lab-snmp")
+	assert.Contains(t, string(xmlSNMP), "<snmp-community-string><secret hidden></snmp-community-string>")
+
+	// SNMP community string — curly-brace format
+	curlySNMP, err := Redact([]byte("              snmp-community-string ndm-lab-snmp;\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(curlySNMP), "ndm-lab-snmp")
+	assert.Contains(t, string(curlySNMP), "snmp-community-string <secret hidden>;")
+
+	// SNMP community string — curly-brace format, quoted value with whitespace
+	quotedSNMP, err := Redact([]byte("              snmp-community-string \"ops team secret\";\n"), rules)
+	assert.NoError(t, err)
+	assert.NotContains(t, string(quotedSNMP), "ops team secret")
+	assert.Contains(t, string(quotedSNMP), "snmp-community-string <secret hidden>;")
+}
+
 func Test_DefaultProfiles_Startup(t *testing.T) {
 	tests := []struct {
 		name                      string
