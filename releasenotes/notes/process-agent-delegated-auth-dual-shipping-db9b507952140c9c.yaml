@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Add delegated authentication (Workload Identity Federation) support for
+    process-agent dual shipping. A ``DELA[...]`` directive can now be used in
+    ``process_config.additional_endpoints`` in place of a static API key; the
+    process-agent resolves it to an auto-refreshed intake key and sends process
+    data to the second destination once the credential is available. System-probe
+    sends that use the same setting fail fast at startup when a directive cannot
+    be resolved by that process.
