@@ -1,0 +1,17 @@
+<div class="stat">
+  <span class="stat_title">Configuration Endpoint</span>
+  <span class="stat_data">
+    Endpoint: {{ .Endpoint }}
+  {{- if not .Started }}
+    <br>Client: not started
+  {{- else }}
+  {{- if .Reported }}
+    <br>Organization enabled: {{ if .OrgEnabled }}True{{ else }}False{{ end }}
+    <br>API Key: {{ if .APIKeyAuthorized }}Authorized{{ else }}Not authorized{{ end }}
+  {{- else }}
+    <br>Organization status: no answer from the endpoint yet, check that {{ .APIKeySetting }} has the Remote Configuration Read permission
+  {{- end }}
+    <br>Last error: {{ if .LastError }}{{ .LastError }}{{ else }}None{{ end }}
+  {{- end }}
+  </span>
+</div>
