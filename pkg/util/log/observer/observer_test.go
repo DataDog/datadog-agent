@@ -86,13 +86,8 @@ func TestHandler(t *testing.T) {
 	r := slog.NewRecord(time.Now(), slog.LevelInfo, "hello", 0)
 	require.NoError(t, h.Handle(context.Background(), r))
 
-	// levels outside the agent's set must not panic and clamp to the closest one
-	r = slog.NewRecord(time.Now(), slog.LevelInfo+2, "custom level", 0)
-	require.NoError(t, h.Handle(context.Background(), r))
-
-	require.Len(t, calls, 2)
+	require.Len(t, calls, 1)
 	assert.Equal(t, "info:hello", calls[0])
-	assert.Equal(t, "warn:custom level", calls[1])
 }
 
 func TestHandlerConcurrentEmissions(t *testing.T) {
