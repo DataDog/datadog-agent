@@ -16,6 +16,22 @@ if ($LASTEXITCODE -ne 0) {
     throw "Bazel build failed with exit code $LASTEXITCODE"
 }
 
+$executionRoots = @(bazel info @PlatformArgs execution_root)
+if ($LASTEXITCODE -ne 0 -or $executionRoots.Count -ne 1) {
+    throw "Could not resolve one Bazel execution root: $executionRoots"
+}
+$executionRoot = $executionRoots[0]
+Write-Host "Bazel execution root: $executionRoot"
+
+function Resolve-BazelOutputPath {
+    param([Parameter(Mandatory = $true)][string]$OutputPath)
+
+    if ([IO.Path]::IsPathRooted($OutputPath)) {
+        return $OutputPath
+    }
+    return (Join-Path $executionRoot $OutputPath)
+}
+
 $lifecycleOutputs = @(bazel cquery @PlatformArgs --output=files //deps/libdd_rc/smoke:windows_msvc_lifecycle)
 if ($LASTEXITCODE -ne 0) {
     throw "Lifecycle executable cquery failed with exit code $LASTEXITCODE"
@@ -25,6 +41,10 @@ $lifecycleOutputs | ForEach-Object { Write-Host "  $_" }
 $lifecycleExecutables = @($lifecycleOutputs | Where-Object { $_ -match '\.exe$' })
 if ($lifecycleExecutables.Count -ne 1) {
     throw "Expected one lifecycle executable, found $($lifecycleExecutables.Count): $lifecycleOutputs"
+}
+$lifecycleExecutablePath = Resolve-BazelOutputPath ($lifecycleExecutables[0])
+if (-not (Test-Path -LiteralPath $lifecycleExecutablePath)) {
+    throw "Lifecycle executable does not exist: $lifecycleExecutablePath"
 }
 
 $ffiOutputs = @(bazel cquery @PlatformArgs --output=files //deps/libdd_rc/smoke:rc_x509_ffi_windows_dll_msvc)
@@ -37,11 +57,9 @@ $ffiDlls = @($ffiOutputs | Where-Object { $_ -match '\.dll$' })
 if ($ffiDlls.Count -eq 0) {
     throw "Could not find the rc-x509 FFI DLL; declared outputs: $ffiOutputs"
 }
-$ffiDll = @($ffiDlls | Sort-Object -Property FullName)[0]
-if ($ffiDll -is [IO.FileInfo]) {
-    $ffiDllPath = $ffiDll.FullName
-} else {
-    $ffiDllPath = $ffiDll
+$ffiDllPath = Resolve-BazelOutputPath (@($ffiDlls | Sort-Object)[0])
+if (-not (Test-Path -LiteralPath $ffiDllPath)) {
+    throw "rc-x509 FFI DLL does not exist: $ffiDllPath"
 }
 Write-Host "Selected rc-x509 FFI DLL: $ffiDllPath"
 
@@ -51,7 +69,7 @@ Write-Host "Selected rc-x509 FFI DLL: $ffiDllPath"
 # walking all of bazel-out, which contains tens of thousands of configured
 # targets and is prohibitively slow on the Windows runner.
 $configurationOutputPaths = @(
-    ($lifecycleExecutables[0] -replace '[/\\]bin[/\\].*$', '')
+    ($lifecycleExecutablePath -replace '[/\\]bin[/\\].*$', '')
     ($ffiDllPath -replace '[/\\]bin[/\\].*$', '')
 ) | Sort-Object -Unique
 $awsLcOutputPaths = @($configurationOutputPaths | ForEach-Object {
@@ -77,7 +95,7 @@ if (Test-Path -LiteralPath $stageDir) {
     Remove-Item -LiteralPath $stageDir -Recurse -Force
 }
 New-Item -Path $stageDir -ItemType Directory | Out-Null
-Copy-Item -LiteralPath $lifecycleExecutables[0] -Destination (Join-Path $stageDir 'windows_msvc_lifecycle.exe')
+Copy-Item -LiteralPath $lifecycleExecutablePath -Destination (Join-Path $stageDir 'windows_msvc_lifecycle.exe')
 Copy-Item -LiteralPath $ffiDllPath -Destination $stageDir
 $awsLcDlls | Sort-Object -Property FullName | Group-Object -Property Name | ForEach-Object {
     Copy-Item -LiteralPath $_.Group[0].FullName -Destination $stageDir
