@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -21,20 +21,20 @@ func TestBuildFieldsMissingValues(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "", model.SourceAgentRuntime)
-	inv := serverlessinit.InventoryData{
+	inv := serverlessdef.ServerlessInitData{
 		ResourceID:   "test-resource",
 		ResourceName: "test-app",
 		WorkloadType: "azure_app_service",
 	}
 
-	fields := buildFields(inv, serverlessinit.Params{Sidecar: true}, conf)
+	fields := buildFields(inv, serverlessdef.Params{Sidecar: true}, conf)
 
 	for _, key := range []string{
 		"parent_resource_id", "region", "gcp_project_id", "aws_account_id",
 		"azure_subscription_id", "azure_resource_group", "runtime",
 		"dd_env", "dd_site", "dd_version", "dd_service", "wrapped_command",
 	} {
-		assert.Contains(t, fields, key, "missing fields must still be passed to SetBatch to clear cached values")
+		assert.Contains(t, fields, key, "missing fields must remain explicit nulls")
 		assert.Nil(t, fields[key], key)
 	}
 	assert.Equal(t, inv.ResourceID, fields["resource_id"])
@@ -49,7 +49,7 @@ func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "datadoghq.eu", model.SourceAgentRuntime)
-	inv := serverlessinit.InventoryData{
+	inv := serverlessdef.ServerlessInitData{
 		ResourceID:          "test-resource",
 		ResourceName:        "test-app",
 		WorkloadType:        "azure_app_service",
@@ -62,7 +62,7 @@ func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
 		RuntimeCandidates:   []string{"python"},
 	}
 
-	fields := buildFields(inv, serverlessinit.Params{
+	fields := buildFields(inv, serverlessdef.Params{
 		Sidecar: true,
 		Tags: map[string]string{
 			"env": "test-env", "service": "test-service", "version": "test-version",
@@ -85,8 +85,8 @@ func TestBuildFieldsPreservesNonemptyStrings(t *testing.T) {
 		t.Run(value, func(t *testing.T) {
 			// Generic missing-value normalization only changes empty strings. Runtime has its
 			// own semantics; unrelated fields must still preserve these values.
-			inv := serverlessinit.InventoryData{Region: value}
-			fields := buildFields(inv, serverlessinit.Params{Sidecar: true}, conf)
+			inv := serverlessdef.ServerlessInitData{Region: value}
+			fields := buildFields(inv, serverlessdef.Params{Sidecar: true}, conf)
 			assert.Equal(t, value, fields["region"])
 		})
 	}
@@ -131,8 +131,8 @@ func TestBuildFieldsRuntime(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", tt.override)
-			inv := serverlessinit.InventoryData{RuntimeCandidates: []string{tt.metadata}}
-			fields := buildFields(inv, serverlessinit.Params{
+			inv := serverlessdef.ServerlessInitData{RuntimeCandidates: []string{tt.metadata}}
+			fields := buildFields(inv, serverlessdef.Params{
 				Sidecar:        tt.sidecar,
 				WrappedCommand: tt.command,
 			}, conf)
@@ -159,7 +159,7 @@ func TestBuildFieldsWrappedCommand(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			conf := configmock.New(t)
-			inv := serverlessinit.InventoryData{ResourceID: "test-resource"}
+			inv := serverlessdef.ServerlessInitData{ResourceID: "test-resource"}
 			tags := map[string]string{"service": "test-service", "env": "test-env", "version": "1.2.3"}
 			var defaultFields map[string]interface{}
 			for _, enabled := range []string{"unset", "false", "true"} {
@@ -167,7 +167,7 @@ func TestBuildFieldsWrappedCommand(t *testing.T) {
 					if enabled != "unset" {
 						conf.Set("serverless.inventory_wrapped_command_enabled", enabled == "true", model.SourceAgentRuntime)
 					}
-					fields := buildFields(inv, serverlessinit.Params{
+					fields := buildFields(inv, serverlessdef.Params{
 						Sidecar:        scenario.sidecar,
 						WrappedCommand: scenario.command,
 						Tags:           tags,

@@ -5,122 +5,171 @@
 
 //go:build !windows
 
-// Package serverlessinitimpl implements the serverless-init inventory payload
-// component: it owns the serverless field set of the inventoryagent payload
-// and the first-payload submission.
+// Package serverlessinitimpl implements the serverless-init inventory metadata provider.
 package serverlessinitimpl
 
 import (
 	"context"
+	"maps"
+	"reflect"
+	"slices"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	iadef "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/impl"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
-	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+)
+
+const (
+	identityRetryInterval = 10 * time.Millisecond
+	shutdownGrace         = 250 * time.Millisecond
 )
 
 type serverlessinitComp struct {
-	inventoryAgent iadef.Component
-	provider       serverlessinit.InventoryProvider
-	params         serverlessinit.Params
-	conf           config.Component
-	log            log.Component
-	eligible       bool
-	// uuid is the payload uuid for the current identity, rotated when the
-	// identity changes; a same-identity resume keeps it. Serverless containers
-	// do not share a host GUID, so it starts fresh per publish.
-	uuid           string
-	lastResourceID string
+	payload             util.InventoryPayload
+	provider            serverlessdef.InventoryProvider
+	params              serverlessdef.Params
+	conf                config.Component
+	log                 log.Component
+	hostname            hostnameinterface.Component
+	data                *inventoryagent.Data
+	fields              map[string]interface{}
+	uuid                string
+	lastResourceID      string
+	submittedResourceID string
+	// Serializes collection and shutdown without an uninterruptible lock wait.
+	collecting chan struct{}
+	stopped    bool
 }
 
-// Requires defines the dependencies for the serverlessinit component
+// Requires defines the dependencies for the serverlessinit component.
 type Requires struct {
-	Lc     compdef.Lifecycle
-	Log    log.Component
-	Config config.Component
-	// Params carry the process-level context the embedding binary resolves
-	// before Fx starts.
-	Params serverlessinit.Params
-	// InventoryAgent is the payload this component drives: it applies the
-	// serverless field set through SetBatch and submits through it.
-	InventoryAgent iadef.Component
-	// Provider is the platform contract; the embedding binary supplies its
-	// cloud-service implementation.
-	Provider serverlessinit.InventoryProvider
-	// Runner runs the periodic submissions of the inventoryagent payload.
-	Runner runnerdef.Component
+	Lc         compdef.Lifecycle
+	Log        log.Component
+	Config     config.Component
+	Params     serverlessdef.Params
+	Provider   serverlessdef.InventoryProvider
+	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
 }
 
-// Provides defines the output of the serverlessinit component
+// Provides defines the output of the serverlessinit component.
 type Provides struct {
-	Comp serverlessinit.Component
+	Comp     serverlessdef.Component
+	Provider runnerdef.Provider
 }
 
-// NewComponent creates a new serverlessinit component. Platforms whose
-// resource identity is resolved before Fx construction publish at startup;
-// the rest stay closed until their identity event calls
-// InventoryIdentityArrived.
+// NewComponent registers collection without reading inventory data or submitting a payload.
 func NewComponent(deps Requires) Provides {
+	params := deps.Params
+	params.Tags = maps.Clone(params.Tags)
+	params.WrappedCommand = slices.Clone(params.WrappedCommand)
 	c := &serverlessinitComp{
-		inventoryAgent: deps.InventoryAgent,
-		provider:       deps.Provider,
-		params:         deps.Params,
-		conf:           deps.Config,
-		log:            deps.Log,
-		eligible:       serverlessinit.InventoryEligible(deps.Config, deps.Provider),
+		provider:   deps.Provider,
+		params:     params,
+		conf:       deps.Config,
+		log:        deps.Log,
+		hostname:   deps.Hostname,
+		collecting: make(chan struct{}, 1),
 	}
-
-	if c.applyFields() {
-		deps.Lc.Append(compdef.Hook{OnStart: func(context.Context) error {
-			c.submitFirst()
-			return nil
-		}})
+	c.payload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, c.getPayload, "agent.json")
+	c.payload.Enabled = c.payload.Enabled && serverlessdef.InventoryEligible(deps.Config, deps.Provider)
+	c.payload.FirstRunDelay = 0
+	provides := Provides{Comp: c}
+	if c.payload.Enabled {
+		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64, _ model.Source) { c.payload.Refresh() })
+		provides.Provider = runnerdef.NewProvider(c.collect)
+		// The runner depends on this provider; it stops before this hook, and
+		// the serializer's dependencies drain after it.
+		deps.Lc.Append(compdef.Hook{OnStop: c.stop})
 	}
-
-	return Provides{Comp: c}
+	return provides
 }
 
-// applyFields installs the full field set for the provider's current identity,
-// rotating the payload uuid when the identity changed — a same-identity resume
-// keeps it. It reports whether the built field set passed validation: an
-// invalid set is not applied, and the submission gate withholds any payload
-// without a resource id. Field set and uuid land in one atomic batch, so a
-// concurrent serialization never mixes a rotated uuid with the previous
-// field set.
-func (c *serverlessinitComp) applyFields() bool {
-	if !c.eligible {
-		return false
-	}
-	data := c.provider.GetInventoryData()
-	fields := buildFields(data, c.params, c.conf)
-	if reason := serverlessinit.ValidatePayload(fields); reason != nil {
-		c.log.Debugf("serverless inventory payload not submitted: %v", reason)
-		return false
-	}
-
-	if data.ResourceID != c.lastResourceID {
-		c.uuid = uuid.New().String()
-		c.lastResourceID = data.ResourceID
-	}
-	c.inventoryAgent.SetBatch(fields, c.uuid)
-	return true
+func (c *serverlessinitComp) collect(ctx context.Context) time.Duration {
+	return c.collectPayload(ctx, false)
 }
 
-// submitFirst enqueues the startup payload and switches later runner
-// submissions to the periodic report reason.
-func (c *serverlessinitComp) submitFirst() {
-	c.inventoryAgent.Submit()
-	c.inventoryAgent.Set("report_reason", reportReasonPeriodic)
+func (c *serverlessinitComp) collectPayload(ctx context.Context, final bool) time.Duration {
+	if ctx.Err() != nil || !c.payload.Enabled {
+		return c.payload.MinInterval
+	}
+	select {
+	case c.collecting <- struct{}{}:
+		defer func() { <-c.collecting }()
+	case <-ctx.Done():
+		return c.payload.MinInterval
+	}
+	if c.stopped {
+		return c.payload.MinInterval
+	}
+	if final {
+		c.stopped = true
+		if !c.payload.LastSubmit.IsZero() {
+			return c.payload.MinInterval
+		}
+	}
+
+	for ctx.Err() == nil {
+		data := c.provider.GetInventoryData()
+		if strings.TrimSpace(data.ResourceID) != "" {
+			fields := buildFields(data, c.params, c.conf)
+			if !reflect.DeepEqual(fields, c.fields) {
+				c.payload.Refresh()
+			}
+			c.fields = fields
+			if data.ResourceID != c.lastResourceID {
+				c.uuid = uuid.New().String()
+				c.lastResourceID = data.ResourceID
+			}
+			if c.data == nil {
+				c.data = inventoryagent.NewData(c.conf, c.log, c.hostname)
+			}
+			if ctx.Err() != nil {
+				return c.payload.MinInterval
+			}
+			lastSubmit := c.payload.LastSubmit
+			if final {
+				c.payload.Submit()
+			} else {
+				c.payload.Collect(ctx)
+			}
+			if !c.payload.LastSubmit.Equal(lastSubmit) {
+				c.submittedResourceID = data.ResourceID
+			}
+			return c.payload.MinInterval
+		}
+		select {
+		case <-ctx.Done():
+			return c.payload.MinInterval
+		case <-time.After(identityRetryInterval):
+		}
+	}
+	return c.payload.MinInterval
 }
 
-// InventoryIdentityArrived publishes the payload after the platform learned
-// its resource identity at runtime.
-func (c *serverlessinitComp) InventoryIdentityArrived() {
-	if c.applyFields() {
-		c.submitFirst()
+func (c *serverlessinitComp) getPayload() marshaler.JSONMarshaler {
+	fields := maps.Clone(c.fields)
+	if c.submittedResourceID == c.lastResourceID {
+		fields["report_reason"] = reportReasonPeriodic
 	}
+	return c.data.GetPayload(fields, c.uuid)
+}
+
+func (c *serverlessinitComp) stop(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, shutdownGrace)
+	defer cancel()
+	c.collectPayload(ctx, true)
+	return nil
 }

@@ -47,9 +47,9 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
-	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
-	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessinitfx "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -58,6 +58,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"go.uber.org/fx"
 
@@ -81,14 +82,14 @@ import (
 
 const datadogConfigPath = "datadog.yaml"
 
-// Shutdown time budget for serverless-init. These values sum to ~9s, which
-// fits within the tightest supported platform grace window. Platform defaults:
+// Shutdown timeouts for the trace, log, and metrics phases. Platform defaults:
 //
 //	Cloud Run (tightest): 10s — https://docs.cloud.google.com/run/docs/container-contract#shutdown
 //	Azure Container Apps:  30s — https://learn.microsoft.com/en-us/azure/container-apps/application-lifecycle-management#shutdown
 //	Azure App Service:     30s via WEBSITES_SHUTDOWN_TIMEOUT (scale-in SIGTERM delivery is unreliable)
 //
-// Any change here is the only edit needed — all phases read these constants.
+// These phase timeouts do not bound total shutdown. Metadata construction and
+// enqueue are synchronous and cannot be canceled.
 //
 // The three metrics-pipeline bounds (aggregator → forwarder) are separate
 // because the metrics path stages independently: the demux/aggregator drains
@@ -121,21 +122,8 @@ const (
 	// tick that fires close to SIGTERM consumes part of the shutdown budget.
 	metricsFlushInterval = 3 * time.Second
 
-	// shutdownBudgetWatchdog fires a debug log if total shutdown elapsed time
-	// exceeds this. Four shutdown phases run, each independently
-	// timeout-bounded: trace (2.5 s) + logs (1.5 s) + demux Stop (2 s) +
-	// forwarder purge (3 s). The DogStatsD server and demux Stop phases now
-	// drain the worker batchers and the aggregator sample channel internally
-	// (via the dogstatsd_flush_incomplete_buckets gate wired in preloadEarly),
-	// still bounded by aggregator_stop_timeout
-	// (2 s) — so the old explicit ServerlessFlush (1 s) and metric-drain
-	// (0.1 s) phases are gone. Worst-case sum is ≈9 s — strictly under both
-	// the watchdog and Cloud Run's 10 s grace window. In practice each phase
-	// finishes in milliseconds (the worker batchers are small, the sample
-	// channels short, and HTTP requests either land or were already in
-	// flight), so the watchdog only fires on a genuine overrun rather than a
-	// guaranteed-late tripwire. The debug log is observability, not a
-	// guarantee.
+	// shutdownBudgetWatchdog logs when shutdown exceeds this elapsed time.
+	// It does not interrupt shutdown or bound its duration.
 	shutdownBudgetWatchdog = 9*time.Second + 500*time.Millisecond
 )
 
@@ -153,9 +141,7 @@ func preloadEarly() {
 	// overrides or future default changes.
 	setOverride("forwarder_storage_max_size_in_bytes", 0)
 
-	// Bound DefaultForwarder.Stop()'s purge window so shutdown stays inside
-	// the platform grace budget (Cloud Run default 10s), leaving room for
-	// the aggregator flush, logs flush, and trace agent stop.
+	// Bound the forwarder purge window, leaving room for the other shutdown phases.
 	setOverride("forwarder_stop_timeout", metricsForwarderStopTimeoutSeconds)
 
 	// Wait for in-flight HTTP transactions to complete before cancelling the
@@ -326,24 +312,17 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
-		fx.Provide(func() serverlessinit.InventoryProvider { return cloudService }),
+		fx.Provide(func() serverlessdef.InventoryProvider { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
-		fx.Supply(serverlessinit.Params{
+		fx.Supply(serverlessdef.Params{
 			Sidecar:        modeConf.SidecarMode,
 			Tags:           tagConfig.Tags,
 			WrappedCommand: wrappedCommand(),
 		}),
-		// Inventory metadata via the shared inventoryagent component, driven by the
-		// serverlessinit component. Its module carries the inventoryagent adapters
-		// that only this graph needs (serializer through the demultiplexer, noop
-		// IPC, absent system-probe config) and the serverless capabilities. The
-		// component applies the platform's fields and submits the first payload
-		// without waiting for the runner's first-run delay; the metadata runner
-		// owns the periodic submissions.
+		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
 		serverlessinitfx.Module(),
 		runnerfx.Module(),
-		inventoryagentfx.Module(),
 		delegatedauthfx.Module(),
 		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
@@ -404,10 +383,7 @@ func run(
 	cloudService cloudservice.CloudService,
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
-	// inventoryComp is requested so Fx constructs the serverlessinit component;
-	// it applies the serverless fields and submits the first payload during Fx
-	// startup, before the wrapped command launches.
-	_ serverlessinit.Component,
+	_ runner.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
@@ -426,8 +402,9 @@ func run(
 	//      by traceStopTimeout (2.5 s).
 	//   4. logs agent flushes any buffered records — bounded by
 	//      logsFlushTimeout (1.5 s).
-	//   5. run() returns; Fx OnStop hooks fire in reverse construction order,
-	//      and the metrics pipeline flushes itself (no external orchestration):
+	//   5. run() returns and Fx stops hooks in reverse construction order.
+	//      The runner stops before the provider's bounded identity wait and
+	//      best-effort final enqueue. Serializer dependencies drain afterward:
 	//        5a. dsdServer.stop() — gated by dogstatsd_flush_incomplete_buckets
 	//            (set in preloadEarly) — closes stopChan; each worker flushes its
 	//            batcher (batcher.flush() → AggregateSamples → samplesChan push)
@@ -445,7 +422,7 @@ func run(
 	//            the drain and the flush are bounded together by
 	//            aggregator_stop_timeout (2 s).
 	//        5c. SharedForwarder.Stop() — drains in-flight HTTP transactions —
-	//            bounded by forwarder_stop_timeout (2 s).
+	//            bounded by forwarder_stop_timeout.
 	defer flushLogsAgent(logConfig.FlushTimeout, logsAgent)
 	defer tracingCtx.TraceAgent.Stop()
 	defer func() {
