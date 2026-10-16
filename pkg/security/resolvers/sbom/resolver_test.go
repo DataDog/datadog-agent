@@ -574,6 +574,52 @@ func TestResolvePackageWithoutHostSBOM(t *testing.T) {
 	}
 }
 
+// TestLookupPackageRecordsNoUsage checks that a lookup, as the package fields of
+// a CWS event make, returns the package of a host file, leaves its usage as it
+// is and leaves the forwarder of the host report idle.
+func TestLookupPackageRecordsNoUsage(t *testing.T) {
+	r := newHostSBOMResolver(t)
+
+	pc, file := hostAccess()
+	pkg := r.LookupPackage(pc, file)
+	if pkg == nil || pkg.Name != "util-linux" {
+		t.Fatalf("package = %+v, want util-linux", pkg)
+	}
+	if !pkg.LastAccess.IsZero() || pkg.SuidBit || pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want its usage as it was", pkg)
+	}
+	if r.hostSBOM.forwarder != nil {
+		t.Errorf("the lookup armed the forwarding of the host report")
+	}
+}
+
+// TestLookupPackageQueuesNoAccess checks that a lookup for a container leaves
+// the queue of pending accesses empty, before the SBOM of the container exists
+// and while its scan runs. The queue replays its accesses as usage.
+func TestLookupPackageQueuesNoAccess(t *testing.T) {
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](2, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := newPendingFileEventsResolver(t)
+	r.sboms = sboms
+
+	pc, file := hostAccess()
+	pc.ContainerContext.ContainerID = "container-id"
+	if pkg := r.LookupPackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v before the SBOM of the container, want none", pkg)
+	}
+
+	r.sboms.Add("container-id", NewSBOM("container-id", nil, "workload"))
+	if pkg := r.LookupPackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v while the scan runs, want none", pkg)
+	}
+
+	if n := r.pendingFileEvents.Len(); n != 0 {
+		t.Errorf("%d containers hold queued accesses, want 0", n)
+	}
+}
+
 // TestHostForwardingSkipsImageSBOM checks that the report of the host goes out
 // at once. A container report waits for the Trivy SBOM of its image, while the
 // core agent keeps the report of the host for its next host scan. Here every
