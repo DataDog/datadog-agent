@@ -168,6 +168,11 @@ func istioAmbientWorkload(e config.Env, kubeProvider *kubernetes.Provider, depen
 			{name: "client", image: tools, command: bothServers},
 			{name: "vault-agent", image: tools, command: sleep},
 		}},
+		// cloud-sql-proxy is on the default ignore list: its own connections belong to the app
+		{namespace: "clients", name: "client-sql", role: "client", containers: []ambientContainer{
+			{name: "client", image: tools, command: bothServers},
+			{name: "cloud-sql-proxy", image: tools, command: loop("direct-server.direct")},
+		}},
 		// two app containers: the pod is ambiguous, so its traffic stays on ztunnel
 		{namespace: "clients", name: "client-two-apps", role: "client", containers: []ambientContainer{
 			{name: "client", image: tools, command: bothServers},
@@ -351,6 +356,7 @@ func (s *istioAmbientSuite) TestZtunnelSocketsInAppPodsAreAttributedToTheApp() {
 	for _, tc := range []struct{ namespace, app, container string }{
 		{"clients", "client", "client"},
 		{"clients", "client-vault", "client"},
+		{"clients", "client-sql", "client"},
 		{"direct", "direct-server", "server"},
 		{"waypointed", "waypoint-server", "server"},
 	} {

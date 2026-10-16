@@ -60,8 +60,9 @@ type netnsContainerResolver struct {
 	readNetNS   func(pid int) (uint32, error)
 	rootNetNS   uint32
 	ownerImages map[string]struct{}
-	// ignoredContainers are helper containers (for example vault-agent) that share a pod's network
-	// namespace but don't make or receive its traffic, so they don't count toward the pod's containers
+	// ignoredContainers are helper containers (for example vault-agent or cloud-sql-proxy) that share a
+	// pod's network namespace and carry no traffic of their own, only the application's, so they don't
+	// count toward the pod's containers
 	ignoredContainers map[string]struct{}
 
 	mtx        sync.RWMutex
@@ -236,7 +237,7 @@ func (r *netnsContainerResolver) addLocked(id *intern.Value, container *workload
 	if netns == r.rootNetNS {
 		return
 	}
-	// neither are helpers and pause containers, which share a pod's namespace without carrying its traffic
+	// neither are helpers and pause containers, whose traffic, if any, belongs to the pod's application
 	if _, ignored := r.ignoredContainers[kubernetesContainerName(container)]; ignored || utilcontainers.IsPauseContainer(container.Labels) {
 		return
 	}
