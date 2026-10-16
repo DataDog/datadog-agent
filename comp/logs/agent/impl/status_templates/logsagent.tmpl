@@ -109,24 +109,24 @@
 {{- end }}
 {{- end }}
 {{- with .quotaEnforcement }}
-{{- if or .LastSync .Quotas }}
+{{- if or .LastSync .Configs }}
 
   =================
   Quota Enforcement
   =================
     Last update: {{ .LastSync }}
-  {{- range .Quotas }}
+  {{- range .Configs }}
 
-    - {{ .Source }}/{{ .Path }}
-      State: {{ .State }}
+    - {{ .Path }}
       {{- if .Error }}
       Error: {{ .Error }}
+      {{- else if not .Quotas }}
+      No quotas
       {{- end }}
-      {{- if .QuotaID }}
-      Quota: {{ .QuotaID }} v{{ .Version }}{{ if .Name }} ({{ .Name }}){{ end }}
-      Match: {{ .Match }}
-      Issued: {{ .IssuedAt }}  Received: {{ .ReceivedAt }}  Expires: {{ .ExpiresAt }}
-      Dropped: {{ .DroppedEvents }} events, {{ .DroppedBytes }} bytes{{ if .LastDrop }} (last {{ .LastDrop }}){{ end }}
+      {{- range .Quotas }}
+      Tags: {{ .Tags }}
+        State: {{ .State }}  Expires: {{ .ExpiresAt }}
+        Dropped: {{ .DroppedEvents }} events, {{ .DroppedBytes }} bytes{{ if .LastDrop }} (last {{ .LastDrop }}){{ end }}
       {{- end }}
   {{- end }}
 {{- end }}
