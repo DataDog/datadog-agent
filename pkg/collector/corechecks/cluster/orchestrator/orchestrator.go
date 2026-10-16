@@ -25,7 +25,6 @@ import (
 	"k8s.io/client-go/metadata/metadatainformer"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -227,6 +226,8 @@ func (o *OrchestratorCheck) Run() error {
 
 	// Enable terminated resource bundle to start buffering terminated resources
 	o.collectorBundle.EnableTerminatedResourceBundle()
+
+	o.collectorBundle.RetryDiscovery()
 
 	// Initialize collectors
 	o.collectorBundle.Initialize()
