@@ -197,7 +197,8 @@ func TestAllCollectorsWork(t *testing.T) {
 	devices := setupMockDevices(t,
 		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 		testutil.WithMockAllFunctions(),
-		testutil.WithArchitecture("blackwell")) // Ensure all functions are marked as supported
+		testutil.WithArchitecture("blackwell"), // Ensure all functions are marked as supported
+		testutil.WithNvLinkErrorCounters())
 
 	eventsGatherer := NewDeviceEventsGatherer(nil)
 	require.NoError(t, eventsGatherer.Start())
@@ -316,6 +317,7 @@ func TestDisabledCollectors(t *testing.T) {
 				testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
 				testutil.WithMockAllFunctions(),
 				testutil.WithArchitecture("blackwell"),
+				testutil.WithNvLinkErrorCounters(),
 			)
 
 			// Setup dependencies

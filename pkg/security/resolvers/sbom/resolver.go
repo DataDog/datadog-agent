@@ -57,6 +57,9 @@ const (
 	// re-arming when no image SBOM will ever be produced (for example when
 	// container image SBOM collection is disabled and the image stays pending).
 	maxForwardWait = 30 * time.Minute
+	// hostRescanInterval is the period of the scans of the host packages, the
+	// default period of the host scans of the core agent.
+	hostRescanInterval = time.Hour
 )
 
 // pendingFileEvent holds the minimal information needed to re-process a file
@@ -104,6 +107,76 @@ func newData(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) *Data
 		files:    newFileQuerier(report, packages, usrMerged),
 		packages: packages,
 	}
+}
+
+// holds reports whether d holds the packages report lists, and those alone, in
+// any order.
+func (d *Data) holds(report []sbomtypes.PackageWithInstalledFiles) bool {
+	if len(report) != len(d.packages) {
+		return false
+	}
+
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	builds := make(map[sbomtypes.Package]int, len(d.packages))
+	for _, pkg := range d.packages {
+		builds[packageBuild(pkg)]++
+	}
+	for _, pkg := range report {
+		b := packageBuild(pkg.Package)
+		if builds[b] == 0 {
+			return false
+		}
+		builds[b]--
+	}
+	return true
+}
+
+// keepUsage copies onto the packages of d the usage recorded in prev. A
+// package keeps the usage of its build, combined with that of the builds of
+// its name only prev holds, the builds an upgrade replaced.
+func (d *Data) keepUsage(prev *Data) {
+	held := make(map[sbomtypes.Package]bool, len(d.packages))
+	for _, pkg := range d.packages {
+		held[packageBuild(pkg)] = true
+	}
+
+	prev.mu.RLock()
+	builds := make(map[sbomtypes.Package]sbomtypes.Package, len(prev.packages))
+	replaced := make(map[string]sbomtypes.Package)
+	for _, pkg := range prev.packages {
+		if b := packageBuild(pkg); held[b] {
+			builds[b] = combineUsage(builds[b], pkg)
+		} else {
+			replaced[pkg.Name] = combineUsage(replaced[pkg.Name], pkg)
+		}
+	}
+	prev.mu.RUnlock()
+
+	for i := range d.packages {
+		pkg := &d.packages[i]
+		usage := combineUsage(builds[packageBuild(*pkg)], replaced[pkg.Name])
+		pkg.LastAccess, pkg.SuidBit, pkg.AccessedByRoot = usage.LastAccess, usage.SuidBit, usage.AccessedByRoot
+	}
+}
+
+// combineUsage returns usage combined with the usage recorded on pkg: the
+// later of their last accesses, and each flag either one holds.
+func combineUsage(usage, pkg sbomtypes.Package) sbomtypes.Package {
+	if pkg.LastAccess.After(usage.LastAccess) {
+		usage.LastAccess = pkg.LastAccess
+	}
+	usage.SuidBit = usage.SuidBit || pkg.SuidBit
+	usage.AccessedByRoot = usage.AccessedByRoot || pkg.AccessedByRoot
+	return usage
+}
+
+// packageBuild returns pkg stripped of its usage, which leaves the fields
+// naming the build of the package.
+func packageBuild(pkg sbomtypes.Package) sbomtypes.Package {
+	pkg.LastAccess, pkg.SuidBit, pkg.AccessedByRoot = time.Time{}, false, false
+	return pkg
 }
 
 // SBOM defines an SBOM
@@ -203,7 +276,14 @@ type Resolver struct {
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
 	hostRootDevice uint64
+	hostRootInode  uint64
 	hostSBOM       *SBOM
+	// hostScanLock serializes the scans of the host packages, the hourly ones
+	// and those a package database write triggers. A scan reads the databases
+	// before it swaps the index, so the scan that read them last swaps last.
+	hostScanLock sync.Mutex
+	// walkProcesses calls its argument on every process the probe knows of.
+	walkProcesses func(func(*model.ProcessCacheEntry))
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -252,6 +332,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		scanChan:              make(chan *SBOM, 100),
 		sbomCollector:         sbomCollector,
 		hostRootDevice:        stat.Dev,
+		hostRootInode:         stat.Ino,
 		sbomGenerations:       atomic.NewUint64(0),
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
@@ -279,20 +360,16 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) error {
 	if r.cfg.SBOMResolverHostEnabled {
-		hostRoot := os.Getenv("HOST_ROOT")
-		if hostRoot == "" {
-			hostRoot = "/"
-		}
-
 		r.hostSBOM = NewSBOM("", nil, "")
-
-		report, err := r.generateSBOM(hostRoot)
-		if err != nil {
+		if err := r.scanHost(); err != nil {
 			return err
 		}
-		r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
-		r.hostSBOM.setReport(report)
-		r.hostSBOM.state.Store(computedState)
+
+		rescan := time.NewTicker(hostRescanInterval)
+		go func() {
+			defer rescan.Stop()
+			r.rescanHost(ctx, rescan.C)
+		}()
 	}
 
 	go func() {
@@ -320,7 +397,8 @@ func (r *Resolver) Start(ctx context.Context) error {
 	return nil
 }
 
-// RefreshSBOM regenerates a SBOM for a container
+// RefreshSBOM regenerates the SBOM of a container, or the SBOM of the host for
+// the empty container ID.
 func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	if sbom := r.getSBOM(containerID); sbom != nil {
 		seclog.Debugf("Refreshing SBOM for container %s", containerID)
@@ -354,8 +432,16 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 // initial scan, so without this reset the refresh re-scan is discarded and the
 // runtime properties are never recomputed. The SBOM of a workload deleted while
 // its refresh waited stays stopped, and the cached data of its image stays for
-// the other containers of the image.
+// the other containers of the image. The host SBOM, outside the workloads, is
+// scanned again in place.
 func (r *Resolver) refreshScan(sbom *SBOM) {
+	if sbom.ContainerID == "" {
+		if err := r.scanHost(); err != nil {
+			seclog.Warnf("Failed to refresh the host SBOM: %v", err)
+		}
+		return
+	}
+
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 	sbom.Lock()
@@ -368,6 +454,87 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 	r.removeSBOMData(sbom.workloadKey)
 	sbom.state.Store(pendingState)
 	r.triggerScan(sbom)
+}
+
+// rescanHost scans the host packages again on every tick until ctx is done, so
+// the host index follows the packages installed after it was built. With CWS
+// on, a write to the package databases rescans the host at once as well. Usage
+// enrichment alone relies on these rescans.
+func (r *Resolver) rescanHost(ctx context.Context, tick <-chan time.Time) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick:
+			if err := r.scanHost(); err != nil {
+				seclog.Warnf("Failed to rescan the host packages: %v", err)
+			}
+		}
+	}
+}
+
+// scanHost indexes the packages installed on the host into the host SBOM, and
+// forwards the result when the packages changed. A package keeps the usage the
+// previous index recorded on its build, and on the builds of its name the scan
+// no longer finds, so a daemon seen running before the scan still counts, and
+// so does a daemon its upgrade restarted, whose start was recorded on the
+// build the upgrade replaced. The host resolves against the previous index
+// until the scan is over.
+func (r *Resolver) scanHost() error {
+	r.hostScanLock.Lock()
+	defer r.hostScanLock.Unlock()
+
+	// The host packages are read through the root of init, as those of a
+	// container are read through the root of one of its processes.
+	hostRoot := utils.ProcRootPath(1)
+
+	report, err := r.generateSBOM(hostRoot)
+	if err != nil {
+		return err
+	}
+
+	r.hostSBOM.Lock()
+	rescan := r.hostSBOM.IsComputed()
+	previous := r.hostSBOM.data
+	// A package scanner that fails finds no package, and the index then
+	// still holds the packages of the host.
+	if len(report) == 0 && len(previous.packages) > 0 {
+		r.hostSBOM.Unlock()
+		return errors.New("no package found on the host")
+	}
+	// A change of packages alone is forwarded: a report makes the next host
+	// scan of the core agent go out in full, and the hourly rescan of an
+	// unchanged host keeps its heartbeats.
+	changed := !rescan || !previous.holds(report)
+	r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
+	r.hostSBOM.setReport(report)
+	r.hostSBOM.data.keepUsage(previous)
+	r.hostSBOM.state.Store(computedState)
+	if changed {
+		r.triggerForwarding(r.hostSBOM)
+	}
+	r.hostSBOM.Unlock()
+
+	// A package manager runs the scripts of a package before it exits, so
+	// the daemon of a new package may start before the scan, when its files
+	// have no entry in the index. The processes running on the host are then
+	// recorded against the new index. At start the probe replays them all.
+	if rescan && changed && r.walkProcesses != nil {
+		r.walkProcesses(func(entry *model.ProcessCacheEntry) {
+			if entry.ContainerContext.ContainerID == "" && entry.ExitTime.IsZero() {
+				r.ResolvePackage(&entry.ProcessContext, &entry.FileEvent)
+			}
+		})
+	}
+
+	return nil
+}
+
+// SetProcessWalker sets walk, which calls its argument on every process the
+// probe knows of, for the scans of the host packages to record the processes
+// running on the host.
+func (r *Resolver) SetProcessWalker(walk func(func(*model.ProcessCacheEntry))) {
+	r.walkProcesses = walk
 }
 
 func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
@@ -443,7 +610,9 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 		return false
 	}
 
-	if sbom.status == workloadmeta.Pending || sbom.status == "" {
+	// The report of a container waits for the Trivy SBOM of its image. The
+	// core agent keeps the report of the host for its next host scan.
+	if sbom.ContainerID != "" && (sbom.status == workloadmeta.Pending || sbom.status == "") {
 		imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
 		if err != nil || imageSBOM == nil {
 			seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
@@ -452,7 +621,7 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 		}
 	}
 
-	if sbom.status == workloadmeta.Pending || sbom.status == "" {
+	if sbom.ContainerID != "" && (sbom.status == workloadmeta.Pending || sbom.status == "") {
 		// Retry until the image's Trivy SBOM is ready: an idle workload may
 		// produce no further file accesses to re-trigger forwarding, and the
 		// overlayfs scan can take several minutes. Bound the total wait so a
@@ -592,6 +761,24 @@ func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID,
 // address space and the kernel no longer resolves it (ESRCH).
 func isProcRootGone(err error) bool {
 	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
+}
+
+// onHostRoot reports whether the root of the process pid is the root of the
+// host. A process of a system container or a snap runs on a root of its own
+// with an empty container ID. A process whose root cannot be read, most often
+// one already gone, counts as a host process.
+func (r *Resolver) onHostRoot(pid uint32) bool {
+	stat, err := utils.UnixStat(utils.ProcRootPath(pid))
+	if err != nil {
+		return true
+	}
+	return stat.Dev == r.hostRootDevice && stat.Ino == r.hostRootInode
+}
+
+// isDir reports whether mode, the mode of the file of an event, is that of a
+// directory.
+func isDir(mode uint16) bool {
+	return mode&syscall.S_IFMT == syscall.S_IFDIR
 }
 
 func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
@@ -776,14 +963,11 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 	return sbom
 }
 
-// ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
-// resolved.
+// ResolvePackage returns the package that owns file, which the process of pc
+// runs or opens, and records the access as usage of the package. The path of
+// file must be resolved.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
 	if !file.IsPathnameStrResolved {
-		return nil
-	}
-
-	if pc.Process.ContainerContext.IsNull() {
 		return nil
 	}
 
@@ -811,8 +995,12 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
-	pkg := sbom.data.files.queryFile(file.PathnameStr)
-	if pkg != nil {
+	pkg := r.owner(sbom, pc.Pid, file.PathnameStr)
+
+	// rpm lists the directories a package owns among its files. A directory
+	// resolves to its package, and opening it, as a listing or a walk of the
+	// filesystem does, leaves the usage of the package as it is.
+	if pkg != nil && !isDir(file.Mode) {
 		seclog.Tracef("file '%s' found in sbom for container '%s'", file.PathnameStr, sbom.ContainerID)
 
 		sbom.data.mu.Lock()
@@ -850,14 +1038,49 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	return pkg
 }
 
+// LookupPackage returns the package that owns file, as ResolvePackage does,
+// and leaves the usage of the package as it is. The package fields of CWS
+// events read it, for the files a process runs or opens as well as for the
+// target of a chmod or an unlink.
+func (r *Resolver) LookupPackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
+	if !file.IsPathnameStrResolved {
+		return nil
+	}
+
+	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
+	if sbom == nil {
+		return nil
+	}
+
+	sbom.RLock()
+	defer sbom.RUnlock()
+
+	if !sbom.IsComputed() {
+		return nil
+	}
+	return r.owner(sbom, pc.Pid, file.PathnameStr)
+}
+
+// owner returns the package of sbom that owns the file at path, opened by the
+// process pid. A process on a root of its own opens the files of that root
+// under the paths of host files, and its root is read once the path matches.
+func (r *Resolver) owner(sbom *SBOM, pid uint32, path string) *sbomtypes.Package {
+	pkg := sbom.data.files.queryFile(path)
+	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pid) {
+		return nil
+	}
+	return pkg
+}
+
 // queuePendingFileEvent stores a file access that arrived before the SBOM for the
 // given container was ready, keeping up to maxPendingFileEvents distinct paths per
 // container. Accesses are merged per path: the snapshot replay emits one open event
 // per (process, mapped file) pair and runs again on every ruleset reload, so without
 // deduplication the shared libraries mapped by every process of a workload crowd out
-// the distinct paths worth keeping.
+// the distinct paths worth keeping. Directory opens, which leave the usage of their
+// package as it is, stay out of the queue.
 func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, uid uint32) {
-	if containerID == "" {
+	if containerID == "" || isDir(fileMode) {
 		return
 	}
 
@@ -985,7 +1208,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	}
 
 	id := workload.GCroupCacheEntry.GetContainerID()
-	// We don't scan hosts for now
+	// The host SBOM comes from scanHost.
 	if len(id) == 0 {
 		return
 	}
