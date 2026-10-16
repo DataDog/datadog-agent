@@ -274,7 +274,7 @@ build do
   end
 
   # dd-procmgrd (process manager daemon)
-  if (linux_target? || windows_target?) && !heroku_target?
+  if (linux_target? || windows_target? || osx_target?) && !heroku_target?
     command "bazel run #{omnibazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 

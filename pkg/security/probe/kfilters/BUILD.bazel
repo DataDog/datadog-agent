@@ -5,6 +5,7 @@ go_library(
     name = "kfilters",
     srcs = [
         "approvers.go",
+        "bind.go",
         "bpf.go",
         "capabilities.go",
         "capabilities_linux.go",
