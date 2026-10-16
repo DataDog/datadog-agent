@@ -88,7 +88,7 @@ func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (fs.File, error) {
 }
 
 func (d *dummyProcess) Open(name string) (fs.File, error) {
-	return os.DirFS("/").Open(name)
+	return os.Open(name)
 }
 
 func (d *dummyProcess) Close() error {

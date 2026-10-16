@@ -9,6 +9,7 @@ package cgroup
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"go.opentelemetry.io/ebpf-profiler/libpf"
@@ -18,7 +19,11 @@ import (
 // GetSelfContainerID returns the container ID of the current process by reading cgroup.
 func GetSelfContainerID() (string, error) {
 	pid := libpf.PID(os.Getpid())
-	id := process.New(pid, pid).GetProcessMeta(nil).ContainerID.String()
+	enricher, err := process.NewSelfContainerIDEnricher()
+	if err != nil {
+		return "", fmt.Errorf("failed to create self container ID enricher: %w", err)
+	}
+	id := process.New(pid, pid).GetProcessMeta([]process.MetaEnricher{enricher}).ContainerID.String()
 	if id == "" {
 		return "", errors.New("not running in a container")
 	}
