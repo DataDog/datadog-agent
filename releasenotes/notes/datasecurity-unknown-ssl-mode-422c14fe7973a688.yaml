@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Data Security PostgreSQL scans no longer fail entirely when the ``ssl``
+    option of the matching ``postgres`` integration instance is not a valid
+    mode. Like the ``postgres`` integration, they now fall back to ``allow``.
