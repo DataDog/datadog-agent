@@ -588,7 +588,7 @@ properties:
       With "dynamic", all workers of a domain share one limit that is scaled at
       runtime. The limit starts at 1, grows while the forwarder cannot keep up with
       the payload arrival rate, and shrinks when the backend pushes back (HTTP
-      408/429/503 or timeouts), up to 'forwarder.dynamic_concurrency.max_concurrent_requests'.
+      408/429/503 or timeouts) or when the extra concurrency goes unused, up to 'forwarder.dynamic_concurrency.max_concurrent_requests'.
   forwarder:
     node_type: section
     type: object
@@ -636,6 +636,15 @@ properties:
             description: |-
               The fraction (between 0 and 1) of an evaluation interval during which
               all allowed requests must be in flight for the limit to be raised.
+          decay_threshold:
+            node_type: setting
+            type: number
+            default: 0.2
+            description: |-
+              The limit is lowered by one, down to 1, after each evaluation interval
+              during which all allowed requests were in flight for less than this
+              fraction (between 0 and 'saturation_threshold') of the interval. This
+              releases concurrency that is no longer needed. Set to 0 to disable.
           increase_step:
             node_type: setting
             type: integer
