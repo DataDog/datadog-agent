@@ -15,7 +15,6 @@ import (
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -84,9 +83,7 @@ func acquireHostname(c *config.AgentConfig) error {
 
 // acquireHostnameFallback attempts to acquire a hostname for this configuration. It
 // tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
-// set, otherwise falling back to os.Hostname when it is usable. On macOS and
-// Windows in EUDM mode, it requires the core agent hostname to preserve the
-// device-name-and-serial identity.
+// set, otherwise falling back to os.Hostname when it is usable.
 func acquireHostnameFallback(c *config.AgentConfig) error {
 	var out bytes.Buffer
 	cmd := exec.Command(c.DDAgentBin, "hostname")
@@ -100,11 +97,6 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 		}
 		// There was either an error retrieving the hostname from the core agent, or
 		// it was empty and is disallowed by the disable_empty_hostname feature flag.
-		// EUDM on macOS and Windows requires the core agent's device-name-and-serial
-		// hostname; falling back to os.Hostname would report a different identity.
-		if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "end_user_device" && (runtime.GOOS == "darwin" || runtime.GOOS == "windows") {
-			return fmt.Errorf("cannot resolve EUDM hostname from core-agent at %q; refusing to use a different OS hostname (lookup error: %v)", c.DDAgentBin, err)
-		}
 		if !osHostnameUsableFunc(context.Background()) {
 			// In a container, os.Hostname() returns the container/pod name, not the
 			// node hostname. Fail so the orchestrator can restart and retry once the

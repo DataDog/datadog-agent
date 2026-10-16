@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/stretchr/testify/require"
 )
@@ -76,4 +77,14 @@ func TestGetDeviceIdentity(t *testing.T) {
 	collectSystemInfo = func() (*systeminfo.SystemInfo, error) { return nil, nil }
 	_, err = Get()
 	require.Error(t, err)
+}
+
+func TestEnabled(t *testing.T) {
+	for _, mode := range []string{"", "host", "end_user_device"} {
+		t.Run(mode, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("infrastructure_mode", mode)
+			require.Equal(t, mode == "end_user_device" && (runtime.GOOS == "darwin" || runtime.GOOS == "windows"), Enabled(cfg))
+		})
+	}
 }

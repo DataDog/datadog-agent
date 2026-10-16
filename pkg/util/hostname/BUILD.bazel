@@ -83,6 +83,7 @@ dd_agent_go_test(
         "//comp/core/telemetry/impl",
         "//pkg/config/env",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/azure",
         "//pkg/util/cloudproviders/gce",

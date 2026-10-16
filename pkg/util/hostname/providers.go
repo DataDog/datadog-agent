@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	eudmProviderName    = "eudm"
 	configProviderName  = hostnameinterface.ConfigProvider
 	fargateProviderName = hostnameinterface.FargateProvider
 )
@@ -81,7 +82,7 @@ var (
 	}
 
 	eudmProvider = provider{
-		name:             hostnameinterface.EUDMProvider,
+		name:             eudmProviderName,
 		cb:               fromEUDM,
 		stopIfSuccessful: true,
 		expvarName:       "eudm",
@@ -176,8 +177,9 @@ func getProviderCatalog(legacyHostnameResolution bool) []provider {
 
 func saveHostname(cacheHostnameKey string, hostname string, providerName string, legacyHostnameResolution bool) Data {
 	data := Data{
-		Hostname: hostname,
-		Provider: providerName,
+		Hostname:  hostname,
+		Provider:  providerName,
+		Canonical: providerName == eudmProviderName,
 	}
 
 	cache.Cache.Set(cacheHostnameKey, data, cache.NoExpiration)
@@ -200,13 +202,6 @@ func GetWithLegacyResolutionProvider(ctx context.Context) (Data, error) {
 	// If the user has set the ec2_imdsv2_transition_payload_enabled then IMDSv2 is used by default by the agent, `legacy_resolution_hostname` is needed for the transition
 	if pkgconfigsetup.Datadog().GetBool("ec2_prefer_imdsv2") || !pkgconfigsetup.Datadog().GetBool("ec2_imdsv2_transition_payload_enabled") {
 		return Data{}, nil
-	}
-	// EUDM has no IMDS migration identity. Reuse the selected hostname rather
-	// than collecting the serial again and potentially taking a different fallback.
-	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") == "end_user_device" {
-		if data, err := GetWithProvider(ctx); err == nil && data.Provider == hostnameinterface.EUDMProvider {
-			return data, nil
-		}
 	}
 	return getHostname(ctx, "legacy_resolution_hostname", true)
 }

@@ -111,7 +111,7 @@ func TestEUDMCanonicalHostnamePreservesAliases(t *testing.T) {
 	require.Contains(t, baseline.HostAliases, "shared-device")
 	require.Contains(t, baseline.HostAliases, "i-other-identity")
 	cfg.SetInTest("infrastructure_mode", "end_user_device")
-	host := identityHostname{data: hostnameinterface.Data{Hostname: selected, Provider: hostnameinterface.EUDMProvider}}
+	host := identityHostname{data: hostnameinterface.Data{Hostname: selected, Canonical: true}}
 	encoded, err := json.Marshal(getMeta(context.Background(), cfg, host))
 	require.NoError(t, err)
 	var payload map[string]interface{}

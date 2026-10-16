@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
@@ -25,6 +26,11 @@ var (
 // Supported reports whether this platform provides EUDM device identity.
 func Supported() bool {
 	return runtime.GOOS == "darwin" || runtime.GOOS == "windows"
+}
+
+// Enabled reports whether device hostname resolution is enabled on this host.
+func Enabled(config model.Reader) bool {
+	return config.GetString("infrastructure_mode") == "end_user_device" && Supported()
 }
 
 // Get returns the normalized device name suffixed with its hardware serial.

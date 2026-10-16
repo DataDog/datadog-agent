@@ -12,9 +12,6 @@ upgrade:
     macOS and Windows devices using ``infrastructure_mode: end_user_device``
     without an explicit hostname override will report a new hostname when a
     usable serial is available. Existing device history is not migrated by this
-    change. Device renames take effect after restarting the Agent. In this mode,
-    trace-agent reports a hostname resolution error if it cannot obtain the
-    hostname through either core-agent RPC or the Agent CLI, instead of using
-    a potentially different OS hostname. The serial-suffixed name is the primary Agent
-    hostname and is sent as the canonical name in host metadata. Existing OS/cloud
-    metadata and host aliases are preserved.
+    change. Device renames take effect after restarting the Agent. The serial-suffixed
+    name is the primary Agent hostname and is sent as the canonical name in host
+    metadata. Existing OS/cloud metadata and host aliases are preserved.

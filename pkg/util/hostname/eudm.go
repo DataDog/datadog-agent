@@ -15,10 +15,10 @@ import (
 )
 
 var getEUDMHostname = eudm.Get
-var eudmSupported = eudm.Supported
+var eudmEnabled = eudm.Enabled
 
 func fromEUDM(_ context.Context, _ string) (string, error) {
-	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") != "end_user_device" || !eudmSupported() {
+	if !eudmEnabled(pkgconfigsetup.Datadog()) {
 		return "", errors.New("EUDM hostname resolution is not enabled on this host")
 	}
 	name, err := getEUDMHostname()
