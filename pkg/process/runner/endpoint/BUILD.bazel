@@ -10,6 +10,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/process/util/api/config",
+        "//pkg/util/log",
         "//pkg/util/scrubber",
     ],
 )
@@ -19,6 +20,8 @@ dd_agent_go_test(
     srcs = ["endpoints_test.go"],
     embed = [":endpoint"],
     deps = [
+        "//pkg/config/mock",
+        "//pkg/config/utils",
         "//pkg/process/util/api/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

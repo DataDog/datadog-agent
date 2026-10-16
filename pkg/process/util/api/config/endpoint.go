@@ -21,6 +21,11 @@ type Endpoint struct {
 	// The path of the config used to get the API key. This path is used to listen for configuration updates from
 	// the config.
 	ConfigSettingPath string
+
+	// HasPendingDelegatedAuth marks an endpoint whose only configured keys are DELA[...] directives
+	// still waiting for the delegatedauth component to write back a resolved API key. APIKey is
+	// empty for such endpoints; the forwarder keeps the domain alive until the config updates.
+	HasPendingDelegatedAuth bool
 }
 
 // KeysPerDomains turns a list of endpoints into a map of URL -> []APIKey
@@ -29,9 +34,18 @@ func KeysPerDomains(endpoints []Endpoint) map[string][]utils.APIKeys {
 
 	for _, ep := range endpoints {
 		domain := removePathIfPresent(ep.Endpoint)
+		// Only the delegated-auth pending marker contributes no key: the domain stays
+		// alive through HasPendingDelegatedAuth. A plain empty key (e.g. the main api_key
+		// during async delegated-auth startup) is kept as-is so its resolver is not
+		// dropped before the resolved key is written back.
+		var keys []string
+		if !ep.HasPendingDelegatedAuth {
+			keys = []string{ep.APIKey}
+		}
 		keysPerDomains[domain] = append(keysPerDomains[domain], utils.APIKeys{
-			ConfigSettingPath: ep.ConfigSettingPath,
-			Keys:              []string{ep.APIKey},
+			ConfigSettingPath:        ep.ConfigSettingPath,
+			Keys:                     keys,
+			HasPendingDelegatedAuth: ep.HasPendingDelegatedAuth,
 		})
 	}
 
