@@ -417,14 +417,15 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 	storage := &stateViewStorage{sv: sv}
 
 	type seriesInfo struct {
-		ID         string   `json:"id"`
-		Namespace  string   `json:"namespace"`
-		Name       string   `json:"name"`
-		Host       string   `json:"host,omitempty"`
-		Tags       []string `json:"tags"`
-		PointCount int      `json:"pointCount"`
-		Virtual    bool     `json:"virtual"`
-		MetricKind string   `json:"metricKind,omitempty"`
+		ID          string   `json:"id"`
+		Namespace   string   `json:"namespace"`
+		Name        string   `json:"name"`
+		Host        string   `json:"host,omitempty"`
+		Tags        []string `json:"tags"`
+		PointCount  int      `json:"pointCount"`
+		Virtual     bool     `json:"virtual"`
+		MetricKind  string   `json:"metricKind,omitempty"`
+		MetricTypes []string `json:"metricTypes,omitempty"`
 	}
 
 	var allSeries []seriesInfo
@@ -457,14 +458,15 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 				}
 
 				allSeries = append(allSeries, seriesInfo{
-					ID:         compactID,
-					Namespace:  m.Namespace,
-					Name:       nameWithAgg,
-					Host:       m.Host,
-					Tags:       m.Tags.UnsafeToReadOnlySliceString(),
-					PointCount: pointCount,
-					Virtual:    virtual,
-					MetricKind: metricKind,
+					ID:          compactID,
+					Namespace:   m.Namespace,
+					Name:        nameWithAgg,
+					Host:        m.Host,
+					Tags:        m.Tags.UnsafeToReadOnlySliceString(),
+					PointCount:  pointCount,
+					Virtual:     virtual,
+					MetricKind:  metricKind,
+					MetricTypes: api.tb.metricTypeNames(m.Namespace, m.Name, m.Host, m.Tags.UnsafeToReadOnlySliceString()),
 				})
 			}
 		}

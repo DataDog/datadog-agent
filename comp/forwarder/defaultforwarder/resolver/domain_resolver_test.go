@@ -140,6 +140,27 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
 }
 
+func TestUpdateAdditionalEndpointsAfterAgentVersionDomainRewrite(t *testing.T) {
+	const configuredDomain = "https://app.datadoghq.com"
+	resolver, err := NewSingleDomainResolver(configuredDomain, []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "old-key"),
+	})
+	require.NoError(t, err)
+
+	// The forwarder rewrites the request domain after the resolver is created.
+	requestDomain, err := utils.AddAgentVersionToDomain(configuredDomain, "app")
+	require.NoError(t, err)
+	require.NotEqual(t, configuredDomain, requestDomain)
+	resolver.SetBaseDomain(requestDomain)
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("additional_endpoints", map[string][]string{configuredDomain: {"new-key"}})
+	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, logmock.New(t))
+
+	assert.Equal(t, requestDomain, resolver.GetBaseDomain())
+	assertKeys(t, []string{"new-key"}, resolver)
+}
+
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
 		utils.NewAPIKeys("api_key", "key1"),

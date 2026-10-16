@@ -29,6 +29,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -74,6 +75,7 @@ type observation struct {
 type metricHandoff struct {
 	name       string
 	value      float64
+	metricType metrics.MetricType
 	host       string
 	tags       tagset.CompositeTags
 	timestamp  int64
@@ -89,6 +91,7 @@ func newMetricHandoff(sample observerdef.MetricView, name, host string, precheck
 	return metricHandoff{
 		name:       name,
 		value:      sample.GetValue(),
+		metricType: sample.GetMetricType(),
 		host:       host,
 		tags:       sample.GetTags(),
 		timestamp:  timestamp,
@@ -101,6 +104,7 @@ func newMetricHandoff(sample observerdef.MetricView, name, host string, precheck
 type metricObs struct {
 	name       string
 	value      float64
+	metricType metrics.MetricType
 	host       string
 	tags       tagset.CompositeTags
 	timestamp  int64
@@ -130,6 +134,8 @@ func (m *metricObs) GetTimestampUnix() int64 { return m.timestamp }
 func (m *metricObs) GetSampleRate() float64 {
 	return 1.0
 }
+
+func (m *metricObs) GetMetricType() metrics.MetricType { return m.metricType }
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
@@ -1136,6 +1142,7 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 		normalizedSource,
 		name,
 		sample.GetValue(),
+		sample.GetMetricType(),
 		host,
 		sample.GetTags(),
 		sample.GetTimestampUnix(),
@@ -1151,6 +1158,7 @@ func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter 
 		normalizedSource,
 		sample.name,
 		sample.value,
+		sample.metricType,
 		sample.host,
 		sample.tags,
 		sample.timestamp,
@@ -1165,6 +1173,7 @@ func prepareMetricAfterPrecheck(
 	source string,
 	name string,
 	value float64,
+	metricType metrics.MetricType,
 	host string,
 	resolvedTags tagset.CompositeTags,
 	timestamp int64,
@@ -1196,6 +1205,7 @@ func prepareMetricAfterPrecheck(
 		metric: &metricObs{
 			name:       name,
 			value:      value,
+			metricType: metricType,
 			host:       host,
 			tags:       resolvedTags,
 			timestamp:  timestamp,
