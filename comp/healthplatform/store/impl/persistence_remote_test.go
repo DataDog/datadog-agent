@@ -92,8 +92,8 @@ func TestRemoteIssueLoaderLoad(t *testing.T) {
 		}
 		_, _ = w.Write(snapshotResponse(t, resourceID,
 			[]remoteIssue{
-				{IssueID: agentIssueID, IssueName: "Invalid Agent Configuration", IssueType: "invalid_agent_configuration"},
-				{IssueID: "another-id", IssueName: "Another Issue", IssueType: "another_issue"},
+				{IssueID: agentIssueID, IssueName: "Invalid Agent Configuration", IssueType: "invalid_agent_configuration", Category: "configuration"},
+				{IssueID: "another-id", IssueName: "Another Issue", IssueType: "another_issue", Category: "availability"},
 			}))
 	})
 
@@ -104,6 +104,7 @@ func TestRemoteIssueLoaderLoad(t *testing.T) {
 	assert.True(t, snapshot.contains(agentIssueID))
 	assert.True(t, snapshot.contains("another-id"))
 	assert.False(t, snapshot.contains("different-issue"))
+	assert.Equal(t, "configuration", snapshot.issues[agentIssueID].Category)
 
 	request := <-requestCh
 	assert.Equal(t, http.MethodGet, request.method)
@@ -130,7 +131,7 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	const issueID = "invalid-config:daemonset-uid"
 	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{
-			{IssueID: issueID, IssueName: "Invalid Agent Configuration", IssueType: "invalid_agent_configuration"},
+			{IssueID: issueID, IssueName: "Invalid Agent Configuration", IssueType: "invalid_agent_configuration", Category: "configuration"},
 		}))
 	})
 
@@ -153,6 +154,7 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	require.NotNil(t, persisted)
 	assert.Equal(t, "Invalid Agent Configuration", persisted.IssueType)
 	assert.Equal(t, "invalid_agent_configuration", persisted.ProtoIssueType)
+	assert.Equal(t, "configuration", persisted.Category)
 	assert.Equal(t, IssueStateActive, persisted.State)
 	assert.NotEmpty(t, persisted.FirstSeen)
 	assert.NotEmpty(t, persisted.LastSeen)
@@ -163,6 +165,7 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	assert.Equal(t, issueID, resolved.Id)
 	assert.Equal(t, "Invalid Agent Configuration", resolved.IssueName)
 	assert.Equal(t, "invalid_agent_configuration", resolved.IssueType)
+	assert.Equal(t, "configuration", resolved.Category)
 	require.NotNil(t, resolved.PersistedIssue)
 	assert.Equal(t, IssueStateResolved, resolved.PersistedIssue.State)
 }
@@ -252,37 +255,43 @@ func TestRemoteIssueLoaderLoadResponseErrors(t *testing.T) {
 		{
 			name:       "wrong resource ID",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"other-uid","type":"agent_health_issue_ids","attributes":{"issues":[]}}}`,
+			body:       `{"data":{"id":"other-uid","type":"agent_health_issues","attributes":{"issues":[]}}}`,
 			wantError:  "expected \"daemonset-uid\"",
 		},
 		{
 			name:       "missing issues",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{}}}`,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{}}}`,
 			wantError:  "no issues",
 		},
 		{
 			name:       "empty issue ID",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issues":[{"issue_id":"","issue_name":"First Issue","issue_type":"first_issue"}]}}}`,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"","issue_name":"First Issue","issue_type":"first_issue","category":"configuration"}]}}}`,
 			wantError:  "empty issue ID",
 		},
 		{
 			name:       "empty issue name",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"","issue_type":"first_issue"}]}}}`,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"","issue_type":"first_issue","category":"configuration"}]}}}`,
 			wantError:  "no issue_name",
 		},
 		{
 			name:       "empty issue type",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":""}]}}}`,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"","category":"configuration"}]}}}`,
 			wantError:  "no issue_type",
+		},
+		{
+			name:       "empty category",
+			statusCode: http.StatusOK,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue","category":""}]}}}`,
+			wantError:  "no category",
 		},
 		{
 			name:       "duplicate issue ID",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue"},{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue"}]}}}`,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issues","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue","category":"configuration"},{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue","category":"configuration"}]}}}`,
 			wantError:  "duplicate issue ID",
 		},
 	}

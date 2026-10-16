@@ -30,7 +30,7 @@ const (
 	remoteIssuesAgentTypeParam   = "agent_type"
 	remoteIssuesNodeAgentType    = "node"
 	remoteIssuesClusterAgentType = "cluster"
-	remoteIssuesResourceType     = "agent_health_issue_ids"
+	remoteIssuesResourceType     = "agent_health_issues"
 	remoteIssuesHTTPTimeout      = 10 * time.Second
 	remoteIssuesMaxResponse      = 10 * 1024 * 1024
 	jsonAPIContentType           = "application/vnd.api+json"
@@ -62,6 +62,7 @@ type remoteIssue struct {
 	IssueID   string `json:"issue_id"`
 	IssueName string `json:"issue_name"`
 	IssueType string `json:"issue_type"`
+	Category  string `json:"category"`
 }
 
 type remoteIssueSnapshot struct {
@@ -202,6 +203,9 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*remoteIssueSnapshot, err
 		}
 		if strings.TrimSpace(issue.IssueType) == "" {
 			return nil, fmt.Errorf("remote issue response contains no issue_type for issue %q", issue.IssueID)
+		}
+		if strings.TrimSpace(issue.Category) == "" {
+			return nil, fmt.Errorf("remote issue response contains no category for issue %q", issue.IssueID)
 		}
 		if _, exists := snapshot.issues[issue.IssueID]; exists {
 			return nil, fmt.Errorf("remote issue response contains duplicate issue ID %q", issue.IssueID)
