@@ -1,0 +1,31 @@
+# Isolated agent config for the quantile memory repro.
+# Copy to datadog.yaml and substitute $LAB with the absolute path to this
+directory. Uses dummy credentials and loopback dd_url to avoid real intake.
+# This is NOT comprehensive network isolation; for strict no-egress use a
+# container/VM boundary.
+
+api_key: '00000000000000000000000000000000'
+hostname: quantile-repro
+confd_path: __LAB__/conf.d
+additional_checksd: __LAB__/checks.d
+autoconf_template_dir: __LAB__/autoconf
+run_path: __LAB__/run
+auth_token_file_path: __LAB__/run/auth_token
+log_file: __LAB__/run/agent.log
+log_level: debug
+cmd_port: 15001
+expvar_port: 15000
+GUI_port: -1
+use_dogstatsd: true
+dogstatsd_port: 8125
+dogstatsd_non_local_traffic: false
+apm_config:
+  enabled: false
+logs_enabled: false
+remote_configuration:
+  enabled: false
+agent_telemetry:
+  enabled: false
+telemetry:
+  enabled: true
+dd_url: http://127.0.0.1:18080

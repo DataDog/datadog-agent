@@ -479,6 +479,45 @@ func TestCounterExpirySeconds(t *testing.T) {
 	testWithTagsStore(t, testCounterExpirySeconds)
 }
 
+func TestReproQuantileTimeSamplerDistribution(t *testing.T) {
+	requireQuantileRepro(t)
+	for _, tc := range []struct {
+		name       string
+		sampleRate float64
+		giant      bool
+	}{
+		{name: "rate_1e-9", sampleRate: 1e-9},
+		{name: "rate_1e-12", sampleRate: 1e-12, giant: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.giant && testing.Short() {
+				t.Skip("giant sample rate repro")
+			}
+			sampler := testTimeSampler(tags.NewStore(true, "quantile-repro"))
+			matcher := filterlist.NewNoopTagMatcher()
+			sample := &metrics.MetricSample{
+				Name:       "quantile.repro.distribution",
+				Value:      1,
+				Mtype:      metrics.DistributionType,
+				SampleRate: tc.sampleRate,
+			}
+			sampleAlloc := quantileReproTotalAlloc(func() { sampler.sample(sample, 10, matcher) })
+			var sketches metrics.SketchSeriesList
+			flushAlloc := quantileReproTotalAlloc(func() { _, sketches = flushSerie(sampler, 30, false) })
+
+			t.Logf("sample_rate=%g TotalAlloc sample=%d flush (includes Finish)=%d", tc.sampleRate, sampleAlloc, flushAlloc)
+			require.Len(t, sketches, 1)
+			require.Len(t, sketches[0].Points, 1)
+			sketch := sketches[0].Points[0].Sketch
+			require.NotNil(t, sketch)
+			// Match the sampler's truncation, including floating-point rounding
+			// of the reciprocal, rather than assuming an exact decimal count.
+			require.Equal(t, int64(1/tc.sampleRate), sketch.Basic.Cnt)
+			logQuantileReproSketch(t, sketch)
+		})
+	}
+}
+
 func testSketch(t *testing.T, store *tags.Store) {
 	const (
 		defaultBucketSize = 10

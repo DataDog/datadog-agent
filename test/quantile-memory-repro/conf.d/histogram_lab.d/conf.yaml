@@ -1,0 +1,7 @@
+init_config: {}
+
+instances:
+  - min_collection_interval: 1
+    # Set to true to exercise the monotonic baseline+jump path instead of the
+    # non-monotonic huge count. Run with --check-times 2.
+    monotonic_jump: false
