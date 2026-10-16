@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/impl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
@@ -31,7 +32,50 @@ import (
 const (
 	defaultInterval   = 10 * time.Minute
 	firstPayloadDelay = 1 * time.Minute
+
+	// maxCheckErrorLength caps the size of a single check error or warning message in the payload, so that
+	// large messages do not inflate the whole payload.
+	maxCheckErrorLength = 4096
+
+	truncatedMarkerFormat = "\n[... %d bytes truncated ...]\n"
 )
+
+// truncateCheckError limits msg to maxCheckErrorLength bytes, marker included. It keeps both the beginning and
+// the end of the message, as the end often holds the most useful part (e.g. the exception of a stack trace),
+// and never splits a UTF-8 character.
+func truncateCheckError(msg string) string {
+	if len(msg) <= maxCheckErrorLength {
+		return msg
+	}
+	// The marker for the actual number of dropped bytes can't be longer than this one.
+	budget := maxCheckErrorLength - len(fmt.Sprintf(truncatedMarkerFormat, len(msg)))
+	headEnd := budget / 2
+	tailStart := len(msg) - (budget - headEnd)
+	for i := 0; i < utf8.UTFMax && headEnd > 0 && !utf8.RuneStart(msg[headEnd]); i++ {
+		headEnd--
+	}
+	for i := 0; i < utf8.UTFMax && tailStart < len(msg) && !utf8.RuneStart(msg[tailStart]); i++ {
+		tailStart++
+	}
+	return msg[:headEnd] + fmt.Sprintf(truncatedMarkerFormat, tailStart-headEnd) + msg[tailStart:]
+}
+
+func truncateCheckWarnings(warnings []string) []string {
+	truncated := make([]string, len(warnings))
+	for i, w := range warnings {
+		truncated[i] = truncateCheckError(w)
+	}
+	return truncated
+}
+
+// truncateLoaderErrors truncates each error of a loader name -> error map.
+func truncateLoaderErrors(errs map[string]string) map[string]string {
+	truncated := make(map[string]string, len(errs))
+	for loader, e := range errs {
+		truncated[loader] = truncateCheckError(e)
+	}
+	return truncated
+}
 
 // jmxInstanceData stores metadata about a JMX instance for building consistent check IDs
 type jmxInstanceData struct {
@@ -84,11 +128,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			var status []interface{}
 			if s.LastError != "" {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "ERROR", s.LastError, "", integrationTags,
+					s.CheckName, s.CheckName, s.CheckID, "ERROR", truncateCheckError(s.LastError), "", integrationTags,
 				}
 			} else if len(s.LastWarnings) != 0 {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "WARNING", s.LastWarnings, "", integrationTags,
+					s.CheckName, s.CheckName, s.CheckID, "WARNING", truncateCheckWarnings(s.LastWarnings), "", integrationTags,
 				}
 			} else {
 				status = []interface{}{
@@ -101,7 +145,8 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 
 	loaderErrors := collector.GetLoaderErrors()
 	for check, errs := range loaderErrors {
-		jsonErrs, err := json.Marshal(errs)
+		// Truncate each error rather than the marshalled result, so the payload keeps a valid JSON document.
+		jsonErrs, err := json.Marshal(truncateLoaderErrors(errs))
 		if err != nil {
 			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
@@ -114,7 +159,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	configErrors := autodiscoveryimpl.GetConfigErrors()
 	for check, e := range configErrors {
 		status := []interface{}{
-			check, check, "initialization", "ERROR", e, []string{},
+			check, check, "initialization", "ERROR", truncateCheckError(e), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -122,7 +167,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	jmxStartupError := jmxStatus.GetStartupError()
 	if jmxStartupError.LastError != "" {
 		status := []interface{}{
-			"jmx", "jmx", "initialization", "ERROR", jmxStartupError.LastError, []string{},
+			"jmx", "jmx", "initialization", "ERROR", truncateCheckError(jmxStartupError.LastError), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}

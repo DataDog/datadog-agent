@@ -7,9 +7,9 @@ package observerimpl
 
 import (
 	"sort"
-	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -20,7 +20,7 @@ const (
 )
 
 // LogCountBucketConfig controls materialization of fixed-width log count
-// buckets. It applies only to .count metrics emitted by log extractors.
+// buckets. It applies only to count metrics emitted by log extractors.
 type LogCountBucketConfig struct {
 	Enabled          bool
 	BucketSeconds    int64
@@ -87,8 +87,8 @@ func newMaterializedLogCountBucketizer(config LogCountBucketConfig) *materialize
 	}
 }
 
-func (b *materializedLogCountBucketizer) handlesMetric(name string) bool {
-	return strings.HasSuffix(name, ".count")
+func (b *materializedLogCountBucketizer) handlesMetric(metric observerdef.MetricOutput) bool {
+	return metric.MetricType == pkgmetrics.CountType
 }
 
 // observe adds one extractor output to its pending bucket. False means
@@ -170,6 +170,7 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 					nextEnd,
 					state.tags,
 					state.seriesKey,
+					pkgmetrics.CountType,
 				)
 				if state.hasContext && result.Ref >= 0 {
 					storage.SetContext(result.Ref, state.context)
