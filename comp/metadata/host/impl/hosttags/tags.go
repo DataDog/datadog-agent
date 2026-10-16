@@ -61,21 +61,34 @@ func getProvidersDefinitions(ctx context.Context, conf model.Reader) map[string]
 	if conf.GetBool("collect_gce_tags") || conf.GetBool("collect_ec2_tags") || conf.GetBool("collect_ec2_instance_info") {
 		cloudProvider, _ = cloudproviders.DetectCloudProvider(ctx, false)
 	}
-	runsOnOtherCloud := func(provider string) bool {
-		return cloudProvider != "" && cloudProvider != provider
+	// shouldCollect returns whether the given setting is enabled and the host is not
+	// running on a cloud provider other than the one the setting targets. When the
+	// setting was explicitly configured by the user but is bypassed, a warning is
+	// logged to make it visible (settings enabled by default are bypassed silently).
+	shouldCollect := func(setting string, provider string) bool {
+		if !conf.GetBool(setting) {
+			return false
+		}
+		if cloudProvider == "" || cloudProvider == provider {
+			return true
+		}
+		if conf.IsConfigured(setting) {
+			log.Warnf("'%s' is enabled but the host is running on %s, not %s: skipping collection", setting, cloudProvider, provider)
+		}
+		return false
 	}
 
-	if conf.GetBool("collect_gce_tags") && !runsOnOtherCloud(gce.CloudProviderName) {
+	if shouldCollect("collect_gce_tags", gce.CloudProviderName) {
 		providers["gce"] = &providerDef{1, gce.GetTags}
 	}
 
-	if conf.GetBool("collect_ec2_tags") && !runsOnOtherCloud(ec2.CloudProviderName) {
+	if shouldCollect("collect_ec2_tags", ec2.CloudProviderName) {
 		// WARNING: if this config is enabled on a non-ec2 host, then its
 		// retries may time out, causing a 3s delay
 		providers["ec2"] = &providerDef{10, ec2tags.GetTags}
 	}
 
-	if conf.GetBool("collect_ec2_instance_info") && !runsOnOtherCloud(ec2.CloudProviderName) {
+	if shouldCollect("collect_ec2_instance_info", ec2.CloudProviderName) {
 		providers["ec2_instance_info"] = &providerDef{3, ec2tags.GetInstanceInfo}
 	}
 

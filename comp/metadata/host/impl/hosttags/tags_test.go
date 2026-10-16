@@ -7,6 +7,8 @@
 package hosttags
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func setupTest(t *testing.T) (model.Config, context.Context) {
@@ -381,6 +384,28 @@ func TestGetProvidersDefinitionsKeepsAllProvidersWhenNoCloudProviderDetected(t *
 	assert.True(t, hasEC2, "ec2 provider should still be registered when no cloud provider is detected")
 	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
 	assert.True(t, hasEC2InstanceInfo, "ec2_instance_info provider should still be registered when no cloud provider is detected")
+}
+
+func TestGetProvidersDefinitionsWarnsOnlyWhenBypassedSettingIsConfigured(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	// collect_gce_tags is enabled by default and not explicitly configured: no warning expected
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	setupCloudProvider(t, azure.CloudProviderName)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.WarnLvl)
+	assert.NoError(t, err)
+	log.SetupLogger(l, "warn")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "off") })
+
+	getProvidersDefinitions(ctx, mockConfig)
+	w.Flush()
+
+	logs := b.String()
+	assert.Contains(t, logs, "'collect_ec2_tags' is enabled but the host is running on Azure")
+	assert.NotContains(t, logs, "collect_gce_tags")
+	assert.NotContains(t, logs, "collect_ec2_instance_info")
 }
 
 func TestHostTagsCache(t *testing.T) {
