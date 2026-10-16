@@ -16,7 +16,8 @@ pub fn connector(conn: &Connection) -> Result<Option<MakeTlsConnector>> {
         SslConnector::builder(SslMethod::tls()).context("creating the OpenSSL connector")?;
 
     // Like libpq, `require` verifies the certificate chain (not the host name) when a root
-    // certificate is provided.
+    // certificate is provided. This is what the postgres integration documents for `ssl`, see
+    // https://github.com/DataDog/integrations-core/blob/e5b2b9c9e1bcb2caa1a3de3a44a11bfa3678d6aa/postgres/assets/configuration/spec.yaml#L197-L198
     let verify = matches!(conn.ssl, SslMode::VerifyCa | SslMode::VerifyFull)
         || (conn.ssl == SslMode::Require && conn.ssl_root_cert.is_some());
     if verify {
