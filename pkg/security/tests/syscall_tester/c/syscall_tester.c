@@ -1375,7 +1375,7 @@ static int setns_from_pidfd(int denied) {
 // Usage: syscall_tester setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied>
 int test_setns(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "Usage: setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied>\n");
+        fprintf(stderr, "Usage: setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied|mnt-unshared <path>>\n");
         return EXIT_FAILURE;
     }
 
@@ -1425,6 +1425,16 @@ int test_setns(int argc, char **argv) {
 
         close(fd);
         return EXIT_SUCCESS;
+    }
+
+    // Leave the current mount namespace, then join the one at path, opened from the new namespace:
+    // /proc/self/ns/mnt is then the unshared namespace itself
+    if (strcmp(mode, "mnt-unshared") == 0 && argc >= 3) {
+        if (unshare(CLONE_NEWNS) < 0) {
+            perror("unshare");
+            return EXIT_FAILURE;
+        }
+        return setns_from_path(argv[2], CLONE_NEWNS);
     }
 
     fprintf(stderr, "Unknown setns mode: %s\n", mode);
