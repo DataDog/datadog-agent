@@ -1,3 +1,5 @@
+load("//bazel/rules:platform_transition.bzl", "platform_transition_file")
+
 exports_files(
     [
         "Cargo.lock",
@@ -11,5 +13,24 @@ exports_files(
         "lib.rs",
         "libdd_rc.BUILD.bazel",
     ],
+    visibility = ["//visibility:public"],
+)
+
+# Runtime files built with MSVC but consumed and packaged by the MinGW Agent
+# configuration. Keeping these as single-file targets lets rules_pkg model the
+# final MSI layout without scraping nested Cargo/CMake output directories.
+platform_transition_file(
+    name = "rc_x509_ffi_windows_dll",
+    actual = "@libdd_rc_source//:rc_x509_ffi_windows_dll",
+    basename = "rc_x509_ffi.dll",
+    platform = "//bazel/platforms:windows_x86_64_msvc_fips",
+    visibility = ["//visibility:public"],
+)
+
+platform_transition_file(
+    name = "aws_lc_fips_crypto_windows_dll",
+    actual = "@libdd_rc_source//:aws_lc_fips_crypto_windows_dll_file",
+    basename = "aws_lc_fips_0_14_2_crypto.dll",
+    platform = "//bazel/platforms:windows_x86_64_msvc_fips",
     visibility = ["//visibility:public"],
 )

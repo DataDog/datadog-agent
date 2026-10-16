@@ -5,7 +5,7 @@ This replaces datadog-agent-dependencies.rb.
 """
 
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
@@ -63,6 +63,45 @@ pkg_filegroup(
         ],
         "//conditions:default": [],
     }),
+)
+
+# Windows loads both native DLLs through the normal executable-directory search
+# when the Agent starts. Keep this reusable package input separate from
+# :all_files until the optimized NASM-backed FIPS build replaces the temporary
+# debug/no-assembly diagnostic configuration.
+pkg_files(
+    name = "rc_x509_windows_runtime_files",
+    srcs = [
+        "//deps/libdd_rc:aws_lc_fips_crypto_windows_dll",
+        "//deps/libdd_rc:rc_x509_ffi_windows_dll",
+    ],
+    prefix = "bin/agent",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+pkg_files(
+    name = "rc_x509_windows_lifecycle_probe_file",
+    testonly = True,
+    srcs = ["//deps/libdd_rc/smoke:windows_msvc_lifecycle"],
+    prefix = "bin/agent",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+pkg_filegroup(
+    name = "rc_x509_packaged_agent_windows_files",
+    testonly = True,
+    srcs = [
+        ":rc_x509_windows_lifecycle_probe_file",
+        ":rc_x509_windows_runtime_files",
+    ],
+)
+
+pkg_tar(
+    name = "rc_x509_packaged_agent_windows_archive",
+    testonly = True,
+    srcs = [":rc_x509_packaged_agent_windows_files"],
+    extension = "tar",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 # _collected_libs serves as the main entry point for automatic collection of dependencies

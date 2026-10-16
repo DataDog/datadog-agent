@@ -1,4 +1,5 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
+load("@//bazel/rules:platform_transition.bzl", "platform_transition_wrapper")
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
@@ -125,6 +126,16 @@ rust_shared_library(
     ],
 )
 
+# Build the Windows DLL behind an MSVC-only transition while its Go/cgo
+# consumer remains on the Agent's MinGW platform. Only the shared library's own
+# import-library inputs cross the ABI boundary.
+platform_transition_wrapper(
+    name = "_rc_x509_ffi_windows_dll_msvc",
+    actual = ":rc_x509_ffi_windows_dll",
+    forward_own_linker_inputs_only = True,
+    platform = "@//bazel/platforms:windows_x86_64_msvc_fips",
+)
+
 cc_library(
     name = "rc_x509_ffi_headers",
     hdrs = ["include/libdd_rc.h"],
@@ -142,6 +153,22 @@ genrule(
     outs = ["libaws_lc_fips_0_14_2_crypto.dylib"],
     cmd = "cp $(location @@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output)/build/artifacts/libaws_lc_fips_0_14_2_crypto.dylib $@",
     target_compatible_with = ["@platforms//os:macos"],
+)
+
+# The AWS-LC build script exposes a tree artifact. Materialize its Windows
+# runtime DLL as a regular declared file so the Agent package graph can place
+# it beside agent.exe. This target itself is built in the MSVC configuration by
+# a narrow transition in the main repository.
+genrule(
+    name = "aws_lc_fips_crypto_windows_dll_file",
+    srcs = ["@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output"],
+    outs = ["aws_lc_fips_0_14_2_crypto.dll"],
+    cmd_bat = "copy /B /Y \"$(location @@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output)\\build\\artifacts\\aws_lc_fips_0_14_2_crypto.dll\" \"$@\" >NUL",
+    target_compatible_with = [
+        "@platforms//os:windows",
+        "@//bazel/platforms:rust_abi_msvc",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_import(
@@ -183,7 +210,10 @@ cc_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
-    deps = [":rc_x509_ffi"] + select({
+    deps = select({
+        "@rules_go//go/platform:windows": [":_rc_x509_ffi_windows_dll_msvc"],
+        "//conditions:default": [":rc_x509_ffi"],
+    }) + select({
         "@rules_go//go/platform:darwin": [":aws_lc_fips_crypto_dylib"],
         "//conditions:default": [],
     }),

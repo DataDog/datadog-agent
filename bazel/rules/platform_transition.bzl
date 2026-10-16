@@ -44,6 +44,28 @@ def _platform_transition_wrapper_impl(ctx):
         cc_info,
     ]
 
+def _platform_transition_file_impl(ctx):
+    # Forward one regular file from the transitioned target without copying it.
+    # This is useful for runtime artifacts produced in a split ABI configuration:
+    # consumers see a normal single-file target while the file remains owned by
+    # the configuration that built it.
+    target = ctx.attr.actual[0]
+    matches = [
+        file
+        for file in target[DefaultInfo].files.to_list()
+        if file.basename == ctx.attr.basename
+    ]
+    if len(matches) != 1:
+        fail("Expected one file named {} from {}, found: {}".format(
+            ctx.attr.basename,
+            target.label,
+            [file.path for file in matches],
+        ))
+    return [DefaultInfo(
+        files = depset(matches),
+        runfiles = ctx.runfiles(files = matches),
+    )]
+
 platform_transition_wrapper = rule(
     implementation = _platform_transition_wrapper_impl,
     attrs = {
@@ -56,6 +78,21 @@ platform_transition_wrapper = rule(
             default = False,
             doc = "Forward only linker inputs owned by the transitioned target.",
         ),
+        "platform": attr.label(mandatory = True),
+        "_allowlist_function_transition": attr.label(
+            default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
+        ),
+    },
+)
+
+platform_transition_file = rule(
+    implementation = _platform_transition_file_impl,
+    attrs = {
+        "actual": attr.label(
+            cfg = _platform_transition,
+            mandatory = True,
+        ),
+        "basename": attr.string(mandatory = True),
         "platform": attr.label(mandatory = True),
         "_allowlist_function_transition": attr.label(
             default = "@bazel_tools//tools/allowlists/function_transition_allowlist",
