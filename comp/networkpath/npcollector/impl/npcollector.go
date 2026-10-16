@@ -296,15 +296,15 @@ func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	return vpcSubnets, nil
 }
 
-func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (s *npCollectorImpl) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	if !s.collectorConfigs.connectionsMonitoringEnabled && !s.collectorConfigs.basicModeEnabled() {
-		return
+		return nil
 	}
 
 	// Standard Dynamic Tests take complete precedence when both modes are
 	// configured; basic is a fallback and must not schedule duplicate paths.
 	basicMode := !s.collectorConfigs.connectionsMonitoringEnabled
-	s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, basicMode)
+	return s.scheduleNetworkPathTests(payload.PathOriginNetworkTraffic, conns, basicMode)
 }
 
 func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
@@ -314,14 +314,14 @@ func (s *npCollectorImpl) ScheduleNetflowPathTests(conns iter.Seq[npmodel.Networ
 	s.scheduleNetworkPathTests(payload.PathOriginNetflow, conns, false)
 }
 
-func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], basicMode bool) {
+func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, conns iter.Seq[npmodel.NetworkPathConnection], basicMode bool) []npmodel.NetworkPath {
 	var vpcSubnets []netip.Prefix
 	if origin == payload.PathOriginNetworkTraffic {
 		var err error
 		vpcSubnets, err = s.getVPCSubnets()
 		if err != nil {
 			s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
-			return
+			return nil
 		}
 	}
 
@@ -334,13 +334,23 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		s.flushBasicPaths(startTime)
 	}
 	connCount := 0
+	// One entry per yielded connection, in yield order, including the declined
+	// ones: callers pair decisions to connections by position.
+	var networkPaths []npmodel.NetworkPath
 	for conn := range conns {
 		connCount++
+		// Appended up front so no path out of the loop body can skip it and
+		// shift every later decision by one.
+		networkPaths = append(networkPaths, npmodel.NetworkPath{})
+		decision := &networkPaths[len(networkPaths)-1]
+
 		evaluation := s.evaluateNetworkPathForConn(conn, origin, vpcSubnets)
 		if !evaluation.shouldSchedule {
 			s.logger.Tracef("Skipped connection: addr=%s, protocol=%s", conn.Dest, conn.Type)
 			continue
 		}
+		decision.TestEligible = true
+
 		pathtest := s.makePathtest(conn, origin)
 		pathtest.TestConfigID = evaluation.testConfigID
 		pathtest.TestConfigName = evaluation.testConfigName
@@ -348,13 +358,25 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 		if evaluation.testConfigID != "" {
 			pathtest.TestConfigSource = payload.TestConfigSourceRemote
 		}
+		// From the pathtest, not the raw connection: ICMP mode may have rewritten
+		// the protocol and zeroed the port, and the event is emitted for this same
+		// pathtest. Both sides must hash the same values or the join misses.
+		pathtest.CorrelationKey = pathtest.MakeCorrelationKey(conn.SourceHostname)
+
 		// Filtering and basic ranking are separate steps: filtering determines
 		// eligibility and provenance, while basic ranking independently chooses
 		// among admitted paths and never changes the filter outcome.
 		if basicMode {
-			s.basicSelector.add(pathtest, saturatingAdd(conn.SentBytes, conn.RecvBytes), startTime)
+			// The selector drops a zero-byte observation, so no test would carry
+			// that key. Eligible but unnamed beats an unresolvable link.
+			if bytes := saturatingAdd(conn.SentBytes, conn.RecvBytes); bytes > 0 {
+				decision.CorrelationKey = pathtest.CorrelationKey
+				s.basicSelector.add(pathtest, bytes, startTime)
+			}
 			continue
 		}
+		decision.CorrelationKey = pathtest.CorrelationKey
+
 		if origin == payload.PathOriginNetworkTraffic {
 			pathtest.DynamicTestProfile = payload.DynamicTestProfileStandard
 		}
@@ -365,6 +387,7 @@ func (s *npCollectorImpl) scheduleNetworkPathTests(origin payload.PathOrigin, co
 	}
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(connCount), []string{}, 1)
 	_ = s.statsdClient.Gauge(common.NetworkPathCollectorMetricPrefix+"schedule.duration", s.TimeNowFn().Sub(startTime).Seconds(), nil, 1)
+	return networkPaths
 }
 
 func (s *npCollectorImpl) flushBasicPaths(now time.Time) {
@@ -503,6 +526,12 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		path.SourceProduct = payload.SourceProductNetflow
 	}
 	path.CollectorType = payload.CollectorTypeAgent
+	// Only CNM-derived tests carry the key. Configured and Synthetics tests have
+	// their own identity, and NetFlow flow payloads have no correlation field to
+	// join against, so a key on a NetFlow path event would reference nothing.
+	if ptest.Pathtest.Origin == payload.PathOriginNetworkTraffic {
+		path.CorrelationKey = ptest.Pathtest.CorrelationKey
+	}
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)

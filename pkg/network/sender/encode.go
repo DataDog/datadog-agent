@@ -13,6 +13,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
@@ -27,7 +28,18 @@ func (d *directSender) encodeConnection(
 	conns *network.Connections,
 	routeSet *indexedset.IndexedSet[network.Via],
 	resolvConfSet *indexedset.IndexedSet[network.ResolvConf],
+	networkPath *npmodel.NetworkPath,
 ) {
+	// nil means the collector never evaluated this connection, which must stay
+	// distinguishable from "evaluated and declined". Leave the field unset.
+	if networkPath != nil {
+		builder.SetNetworkPath(func(w *model.NetworkPathBuilder) {
+			w.SetTestEligible(networkPath.TestEligible)
+			if networkPath.TestEligible {
+				w.SetCorrelationKey(networkPath.CorrelationKey)
+			}
+		})
+	}
 	builder.SetPid(int32(nc.Pid))
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(unique.Make(nc.Source.Addr.String()).Value())

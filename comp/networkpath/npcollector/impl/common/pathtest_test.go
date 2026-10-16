@@ -49,6 +49,9 @@ func TestPathtest_GetHash(t *testing.T) {
 	assert.NotEqual(t, p2.GetHash(), p3.GetHash())
 	assert.NotEqual(t, p1.GetHash(), p4.GetHash())
 	assert.NotEqual(t, p1.GetHash(), p5.GetHash())
+
+	assert.NotEmpty(t, p1.MakeCorrelationKey("source-host"))
+	assert.Empty(t, p1.MakeCorrelationKey(""))
 }
 
 func TestPathtest_GetHash_Netflow(t *testing.T) {

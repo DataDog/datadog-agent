@@ -32,10 +32,21 @@ import (
 
 type capturingNPCollector struct {
 	conns []npmodel.NetworkPathConnection
+	// results is returned verbatim; when nil, one approved result per yielded
+	// connection is synthesised so existing tests keep working.
+	results []npmodel.NetworkPath
 }
 
-func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) {
+func (c *capturingNPCollector) ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection]) []npmodel.NetworkPath {
 	c.conns = slices.Collect(conns)
+	if c.results != nil {
+		return c.results
+	}
+	out := make([]npmodel.NetworkPath, len(c.conns))
+	for i := range out {
+		out[i] = npmodel.NetworkPath{TestEligible: true}
+	}
+	return out
 }
 
 func (*capturingNPCollector) ScheduleNetflowPathTests(iter.Seq[npmodel.NetworkPathConnection]) {}
@@ -1087,4 +1098,57 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 
 	connMissing := cc.Connections[1]
 	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
+}
+
+// Results are a subsequence of conns.Conns, because only parseable connections
+// are yielded. The unparseable one in the middle shifts every later result by
+// one, and each individual key still looks well-formed.
+func TestNetworkPathResultsSkipUnparseableConnections(t *testing.T) {
+	first := makeConnection(1)
+	first.Laddr.Ip = "10.0.0.1"
+	first.Raddr.Ip = "10.0.0.2"
+
+	unparseable := makeConnection(2)
+	unparseable.Laddr.Ip = "not-an-ip"
+	unparseable.Raddr.Ip = "10.0.0.3"
+
+	last := makeConnection(3)
+	last.Laddr.Ip = "10.0.0.4"
+	last.Raddr.Ip = "10.0.0.5"
+
+	collector := &capturingNPCollector{results: []npmodel.NetworkPath{
+		{TestEligible: true, CorrelationKey: "key-for-first"},
+		{TestEligible: true, CorrelationKey: "key-for-last"},
+	}}
+	check := &ConnectionsCheck{npCollector: collector}
+	check.scheduleNetworkPath(&model.Connections{
+		Conns: []*model.Connection{first, unparseable, last},
+	})
+
+	require.Len(t, collector.conns, 2, "the unparseable connection must not be yielded")
+
+	require.NotNil(t, first.NetworkPath)
+	assert.Equal(t, "key-for-first", first.NetworkPath.CorrelationKey)
+
+	assert.Nil(t, unparseable.NetworkPath, "a connection never evaluated must carry no metadata")
+
+	require.NotNil(t, last.NetworkPath)
+	assert.Equal(t, "key-for-last", last.NetworkPath.CorrelationKey,
+		"the second result belongs to the last connection, not to conns.Conns[1]")
+}
+
+// test_eligible false with no key is what separates "evaluated and declined"
+// from "never evaluated".
+func TestNetworkPathStampsDeclinedConnections(t *testing.T) {
+	conn := makeConnection(1)
+	conn.Laddr.Ip = "10.0.0.1"
+	conn.Raddr.Ip = "10.0.0.2"
+
+	collector := &capturingNPCollector{results: []npmodel.NetworkPath{{TestEligible: false}}}
+	check := &ConnectionsCheck{npCollector: collector}
+	check.scheduleNetworkPath(&model.Connections{Conns: []*model.Connection{conn}})
+
+	require.NotNil(t, conn.NetworkPath, "declined connections are still evaluated")
+	assert.False(t, conn.NetworkPath.TestEligible)
+	assert.Empty(t, conn.NetworkPath.CorrelationKey)
 }
