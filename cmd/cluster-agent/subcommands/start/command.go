@@ -101,6 +101,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/autoscalinggate"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
+	autoscalingrc "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/remoteconfig"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -213,6 +214,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(wmeta workloadmeta.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(kubeinfo.NewProvider(wmeta, hostname))
 				}),
+				// Shared by the client built in start() and, later, the status section.
+				fx.Provide(autoscalingrc.NewEndpointStatus),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),
@@ -315,6 +318,7 @@ func start(log log.Component,
 	refreshTaggerGlobalTags option.Option[func(context.Context)],
 	helmactions helmactions.Component,
 	kubeActions kubeactionscomp.Component,
+	autoscalingEndpointStatus *autoscalingrc.EndpointStatus,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -340,6 +344,11 @@ func start(log log.Component,
 	if !config.IsConfigured("api_key") {
 		return errors.New("no API key configured, exiting")
 	}
+
+	// Autoscaling can read its configuration from another Datadog endpoint. It is
+	// validated where the client is built: with no autoscaling product enabled
+	// the setting is unused and must not fail startup.
+	autoscalingEndpointConfigured := autoscalingrc.IsConfigured(config)
 
 	// Expose the registered metrics via HTTP. /metrics must stay reachable on
 	// all interfaces so the node agent can scrape cluster-agent telemetry, but
@@ -505,6 +514,17 @@ func start(log log.Component,
 		defer tracer.Stop()
 	}
 
+	autoscalingProducts := []string{}
+	if config.GetBool("autoscaling.workload.enabled") {
+		autoscalingProducts = append(autoscalingProducts, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+	}
+	if config.GetBool("autoscaling.cluster.enabled") {
+		autoscalingProducts = append(autoscalingProducts, state.ProductClusterAutoscalingValues)
+	}
+	if autoscalingEndpointConfigured && len(autoscalingProducts) == 0 {
+		log.Warnf("%s is set but no autoscaling product is enabled, so the endpoint is unused", autoscalingrc.URLSetting)
+	}
+
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
@@ -517,11 +537,9 @@ func start(log log.Component,
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			products = append(products, state.ProductAPMTracing)
 		}
-		if config.GetBool("autoscaling.workload.enabled") {
-			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
-		}
-		if config.GetBool("autoscaling.cluster.enabled") {
-			products = append(products, state.ProductClusterAutoscalingValues)
+		if !autoscalingEndpointConfigured {
+			// Otherwise the autoscaling client below serves them.
+			products = append(products, autoscalingProducts...)
 		}
 		if config.GetBool("kubeactions.enabled") {
 			products = append(products, state.ProductK8SActions)
@@ -588,17 +606,45 @@ func start(log log.Component,
 	}
 
 	// Autoscaling Product
-	var pp workload.PodPatcher
-	if config.GetBool("autoscaling.workload.enabled") {
-		if rcClient == nil {
+	//
+	// The default client unless autoscaling.endpoint.url points autoscaling at
+	// another Datadog endpoint; the config retrievers consume either the same way,
+	// so this holds whichever one through their subscription interface.
+	var autoscalingRCClient workload.RcClient = rcClient
+	// Set only when autoscaling has a client of its own, which it owns: it must
+	// not poll before the retrievers have subscribed, and it has to be closed.
+	var autoscalingOwnRCClient *autoscalingrc.Client
+	if len(autoscalingProducts) > 0 {
+		// With its own endpoint autoscaling ignores the default client, so a
+		// missing one is not a reason to refuse to start. Remote configuration
+		// disabled wholesale still is: an autoscaling setting must not undo it.
+		if !autoscalingEndpointConfigured && rcClient == nil {
 			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
 		}
+		if autoscalingEndpointConfigured && !rcEnabled {
+			return fmt.Errorf("%s is set but remote configuration is disabled; autoscaling cannot receive recommendations", autoscalingrc.URLSetting)
+		}
 
+		if autoscalingEndpointConfigured {
+			client, err := autoscalingrc.NewClient(config, hostnameGetter.GetSafe(mainCtx), clusterName, clusterID, autoscalingProducts, autoscalingEndpointStatus)
+			if err != nil {
+				// No fallback: that is how a deployment ends up autoscaling on
+				// another organization's data.
+				return fmt.Errorf("unable to start the autoscaling configuration endpoint client: %w", err)
+			}
+			defer client.Close()
+			autoscalingRCClient = client
+			autoscalingOwnRCClient = client
+		}
+	}
+
+	var pp workload.PodPatcher
+	if config.GetBool("autoscaling.workload.enabled") {
 		if !config.GetBool("admission_controller.enabled") {
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
+		if patcher, err := provider.StartWorkloadAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, autoscalingRCClient, wmeta, taggerComp, demultiplexer, autoscalingGate); err == nil {
 			pp = patcher
 		} else {
 			return fmt.Errorf("Error while starting workload autoscaling: %v", err)
@@ -606,13 +652,16 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("autoscaling.cluster.enabled") {
-		if rcClient == nil {
-			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
-		}
-
-		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, demultiplexer); err != nil {
+		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, autoscalingRCClient, demultiplexer); err != nil {
 			return fmt.Errorf("Error while starting cluster autoscaling: %w", err)
 		}
+	}
+
+	if autoscalingOwnRCClient != nil {
+		// Every autoscaling config retriever has subscribed by now; an update is
+		// delivered only to the listeners registered when it arrives. Mirrors how
+		// the default client is started after subscribeAgentConfig.
+		autoscalingOwnRCClient.Start()
 	}
 
 	var sh clusterspot.PodHandler

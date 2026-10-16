@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "remoteconfig",
+    srcs = [
+        "client.go",
+        "endpoint.go",
+        "endpointstatus.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/remoteconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/remote/client",
+        "//pkg/config/remote/service",
+        "//pkg/config/utils",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)
+
+dd_agent_go_test(
+    name = "remoteconfig_test",
+    srcs = [
+        "client_test.go",
+        "endpoint_test.go",
+    ],
+    embed = [":remoteconfig"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/remote/meta",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
