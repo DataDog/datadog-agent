@@ -129,10 +129,24 @@ func (d *directSender) addDNS(builder *model.ConnectionBuilder, nc network.Conne
 
 func getDNSNameForIP(conns *network.Connections, ip util.Address) string {
 	if dnsEntry := conns.DNS[ip]; len(dnsEntry) > 0 {
-		// We are only using the first entry for now, but in the future, if we find a good solution,
-		// we might want to report the other DNS names too if necessary.
-		// (need more investigation on how to best achieve that).
 		return dnsEntry[0].Get()
 	}
 	return ""
+}
+
+// getDNSNamesForIP returns every DNS name the reverse-DNS map associates with
+// ip. Network Path filtering evaluates all of them so that a destination IP
+// which resolves to multiple names (e.g. a Datadog intake endpoint CNAME'd to
+// an AWS ELB) is filtered consistently regardless of which name was cached
+// first.
+func getDNSNamesForIP(conns *network.Connections, ip util.Address) []string {
+	dnsEntry := conns.DNS[ip]
+	if len(dnsEntry) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(dnsEntry))
+	for _, name := range dnsEntry {
+		names = append(names, name.Get())
+	}
+	return names
 }
