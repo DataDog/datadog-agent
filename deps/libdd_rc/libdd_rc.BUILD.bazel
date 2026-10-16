@@ -222,6 +222,9 @@ cc_library(
 # bridge.go is intentionally omitted: it contains Cargo-relative #cgo paths.
 # Bazel supplies the header, Rust archive, and any platform-specific native
 # runtime libraries through rc_x509_ffi_cc.
+# The optional log-sink API currently transports a Unix integer file descriptor
+# and cannot represent a 64-bit Windows HANDLE. Keep both Go wrappers out of the
+# Windows package; the x509 client itself does not depend on native tracing.
 go_library(
     name = "libddrcffi",
     srcs = [
@@ -233,10 +236,12 @@ go_library(
         "ffi-hosts/go/internal/libddrcffi/ffi.go",
         "ffi-hosts/go/internal/libddrcffi/invokepool.go",
         "ffi-hosts/go/internal/libddrcffi/lifecycle.go",
-        "ffi-hosts/go/internal/libddrcffi/log_sink.go",
         "ffi-hosts/go/internal/libddrcffi/pinnedhandle.go",
         "ffi-hosts/go/internal/libddrcffi/registry.go",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": ["ffi-hosts/go/internal/libddrcffi/log_sink.go"],
+    }),
     cdeps = [":rc_x509_ffi_cc"],
     cgo = True,
     importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/internal/libddrcffi",
@@ -253,9 +258,11 @@ go_library(
     srcs = [
         "ffi-hosts/go/rcx509/backoff.go",
         "ffi-hosts/go/rcx509/client.go",
-        "ffi-hosts/go/rcx509/log_sink.go",
         "ffi-hosts/go/rcx509/session.go",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": ["ffi-hosts/go/rcx509/log_sink.go"],
+    }),
     importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509",
     visibility = ["//visibility:public"],
     deps = [
