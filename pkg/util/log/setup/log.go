@@ -17,6 +17,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	"github.com/DataDog/datadog-agent/pkg/util/log/observer"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
@@ -176,6 +177,8 @@ func buildSlogLogger(
 	}
 
 	var handlerList []stdslog.Handler
+	handlerList = append(handlerList, observer.NewHandler())
+
 	if len(writers) > 0 {
 		handlerList = append(handlerList, handlers.NewFormat(formatter, newSplitWriter(writers...)))
 	}

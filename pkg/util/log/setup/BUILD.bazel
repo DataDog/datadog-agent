@@ -21,6 +21,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/util/log",
         "//pkg/util/log/errortracking",
+        "//pkg/util/log/observer",
         "//pkg/util/log/slog",
         "//pkg/util/log/slog/filewriter",
         "//pkg/util/log/slog/formatters",
