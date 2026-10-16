@@ -1,6 +1,6 @@
 ---
 agents:
-  enabled: false
+  enabled: true
 clusterChecksRunner:
   enabled: false
 clusterAgent:
