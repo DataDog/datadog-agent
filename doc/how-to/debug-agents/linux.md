@@ -24,6 +24,56 @@ To use the `/var/crash/` folder, set the pattern to `/var/crash/core-%e-%p-%t`.
 
 ///
 
+### Bounding core dumps (Kubernetes and shared nodes)
+
+By default, `go_core_dump` and `c_core_dump` set the core dump size limit (`RLIMIT_CORE`) to unlimited. A core dump is about as large as the memory of the process (the resident set size, RSS). On Kubernetes, a large core dump can fill an `emptyDir` volume and cause the kubelet to evict the pod. A crash loop can fill the node disk.
+
+To bound core dumps, set `core_dump.dir` to the directory where the kernel writes core dumps. The Agent then computes the limit at start and again every minute. The first matching row applies:
+
+| Condition | `RLIMIT_CORE` |
+|---|---|
+| A `core_dump` setting is invalid | 0 (no core dump) |
+| Free space in `core_dump.dir` is less than `core_dump.min_free_disk` + `core_dump.max_size` | 0 (no core dump) |
+| `core_dump.max_total_size` is set, and the files in `core_dump.dir` plus `core_dump.max_size` are larger | 0 (no core dump) |
+| A core dump of this binary, younger than `core_dump.max_age`, is in `core_dump.dir` | 0 (no core dump) |
+| Otherwise | `core_dump.max_size` |
+
+Sizes are a number of bytes with an optional unit: `3221225472`, `3GB`, `3G`, `3Gi` and `3GiB` are all 3 GiB. The units K, M, G and T are powers of 1024. Decimals such as `3.5GB` are invalid.
+
+The Agent also deletes core dumps of this binary in `core_dump.dir` that are older than `core_dump.max_age`. It deletes only regular files directly in the directory whose name matches the kernel core pattern. It never follows symlinks. It deletes only when the pattern writes into `core_dump.dir` and holds the binary name (`%e`, `%E` or `%f`). It deletes nothing for other patterns, for example `/var/crash/core.%p`, because their names can match the cores of other programs.
+
+`core_dump.max_age: 0` turns off deletion. Then one core dump of a binary blocks the next ones until you delete it by hand.
+
+Example for a pod that mounts an `emptyDir` with `sizeLimit: 4Gi` at `/var/crash`:
+
+```yaml
+go_core_dump: true
+c_core_dump: true
+core_dump:
+  dir: /var/crash
+  max_size: 3Gi
+  max_total_size: 4Gi  # the emptyDir sizeLimit; statfs does not see it
+  min_free_disk: 10Gi  # free node disk that must stay after a core dump
+  max_age: 72h
+```
+
+The free space comes from `statfs`. For an `emptyDir`, `statfs` returns the free space of the node disk, not the `sizeLimit`. Set `core_dump.max_total_size` to the `sizeLimit` to stay below it.
+
+If N containers write to the same volume, each container counts the files of all others. But each container reads the directory only once a minute, so N containers can crash before any of them sees the other cores. To be safe in all cases, set `core_dump.max_size` to `max_total_size / N` or less. A crash loop of the same config on all containers is the usual case for that.
+
+The kernel core pattern (`/proc/sys/kernel/core_pattern`) is set on the node, not by the Agent. For the bounds to work, the pattern must write files into `core_dump.dir`, for example `/var/crash/core.%e.%p`:
+
+* `%h` is replaced by the host name of the container, so it is matched exactly.
+* With `%e`, `%E` or `%f` in the pattern, the file name holds the binary name, so the limit is one core dump per binary. `%e` is the name of the crashing thread, truncated to 15 characters. If a thread has another name, the Agent does not find its core dump: use `%E` or `%f` (Linux 5.9 and later) to avoid this.
+* Without a binary name (for example `/var/crash/core`), the Agent cannot tell which binary crashed. Any core dump in the directory sets the limit to 0 for all binaries, and the Agent deletes nothing.
+* If the pattern is a pipe (`|/usr/lib/systemd/systemd-coredump ...`), core dumps do not go to `core_dump.dir`. The kernel ignores `RLIMIT_CORE` for pipes. The program gets the limit as `%c` and can apply it.
+
+In bounded mode the Agent sets the hard `RLIMIT_CORE` to `core_dump.max_size`. A process without privileges cannot raise its hard limit again, so child processes keep this hard limit.
+
+`c_core_dump: true` alone enables core dumps for crashes in C code (Python checks). It does not set `GOTRACEBACK=crash`, so Go panics do not make a core dump. Set `go_core_dump: true` for that.
+
+To check the result, look for `Core dumps:` in the Agent log at start. The Agent logs the settings and the core pattern it read, a warning if core dumps will not land in `core_dump.dir`, and the limit it set, for example `Core dumps: RLIMIT_CORE set to 3221225472 bytes (core_dump.max_size)` or `Core dumps: disabled (RLIMIT_CORE=0): ...`. It logs the limit again only when it changes.
+
 For previous versions of the Agent and for crashes that happen before initialization (e.g. during Go runtime initialization or during configuration initialization), you need to set the crashing setting manually. To do this follow these steps:
 
 1. Set the user limit for core dump maximum size limit to a high-enough value. For example, you can set it to be arbitrarily big by running `ulimit -c unlimited`.

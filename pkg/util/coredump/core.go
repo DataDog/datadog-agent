@@ -16,19 +16,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// Setup enables core dumps and sets the core dump size limit based on configuration
+// Setup enables core dumps and sets the core dump size limit based on configuration.
+//
+// When `core_dump.dir` is empty, `go_core_dump` sets RLIMIT_CORE to unlimited.
+// When `core_dump.dir` is set, the limit is bounded: see BoundedEnabled.
 func Setup(cfg model.Reader) error {
-	if cfg.GetBool("go_core_dump") {
-		debug.SetTraceback("crash")
+	if !cfg.GetBool("go_core_dump") {
+		return nil
+	}
 
-		err := unix.Setrlimit(unix.RLIMIT_CORE, &unix.Rlimit{
-			Cur: unix.RLIM_INFINITY,
-			Max: unix.RLIM_INFINITY,
-		})
+	debug.SetTraceback("crash")
 
-		if err != nil {
-			return fmt.Errorf("Failed to set ulimit for core dumps: %s", err)
-		}
+	if BoundedEnabled(cfg) {
+		// Errors are logged as warnings inside: never fail startup.
+		ApplyBounded(cfg)
+		return nil
+	}
+
+	err := unix.Setrlimit(unix.RLIMIT_CORE, &unix.Rlimit{
+		Cur: unix.RLIM_INFINITY,
+		Max: unix.RLIM_INFINITY,
+	})
+
+	if err != nil {
+		return fmt.Errorf("Failed to set ulimit for core dumps: %s", err)
 	}
 
 	return nil
