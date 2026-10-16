@@ -13,6 +13,7 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 )
@@ -75,14 +76,17 @@ type testMetric struct {
 	value      float64
 	timestamp  int64
 	tags       []string
+	metricType pkgmetrics.MetricType
+	sampleRate float64
 }
 
-func (m *testMetric) GetName() string               { return m.name }
-func (m *testMetric) GetValue() float64             { return m.value }
-func (m *testMetric) GetTags() tagset.CompositeTags { return tagset.CompositeTagsFromSlice(m.tags) }
-func (m *testMetric) GetHost() string               { return m.host }
-func (m *testMetric) GetTimestampUnix() int64       { return m.timestamp }
-func (m *testMetric) GetSampleRate() float64        { return 1 }
+func (m *testMetric) GetName() string                      { return m.name }
+func (m *testMetric) GetValue() float64                    { return m.value }
+func (m *testMetric) GetTags() tagset.CompositeTags        { return tagset.CompositeTagsFromSlice(m.tags) }
+func (m *testMetric) GetHost() string                      { return m.host }
+func (m *testMetric) GetTimestampUnix() int64              { return m.timestamp }
+func (m *testMetric) GetSampleRate() float64               { return m.sampleRate }
+func (m *testMetric) GetMetricType() pkgmetrics.MetricType { return m.metricType }
 
 type testLog struct {
 	content, status, hostname string
@@ -113,7 +117,7 @@ func TestRecorderForwardsOnceBeforeWriting(t *testing.T) {
 				return inner
 			})("check")
 			metricTags := []string{"env:prod", "host:agent"}
-			metric := &testMetric{name: "load", host: "agent", value: 2.5, timestamp: 123, tags: metricTags}
+			metric := &testMetric{name: "load", host: "agent", value: 2.5, timestamp: 123, tags: metricTags, metricType: pkgmetrics.CountType, sampleRate: 0.1}
 			h.ObserveMetric(metric, 42)
 			logTags := []string{"team:core"}
 			log := &testLog{content: "hello", status: "warn", hostname: "agent", timestamp: 456000, tags: logTags}
@@ -127,7 +131,7 @@ func TestRecorderForwardsOnceBeforeWriting(t *testing.T) {
 				require.Equal(t, 1, base.metrics)
 				require.Equal(t, uint64(42), base.key)
 			}
-			require.Equal(t, recorder.MetricData{Source: "check", Name: "load", Value: 2.5, Timestamp: 123, Tags: []string{"env:prod", "host:agent"}, Dropped: reporting}, metrics.data[0])
+			require.Equal(t, recorder.MetricData{Source: "check", Name: "load", MetricType: "Count", SampleRate: 0.1, Value: 2.5, Timestamp: 123, Tags: []string{"env:prod", "host:agent"}, Dropped: reporting}, metrics.data[0])
 			require.Equal(t, recorder.LogData{Source: "check", TimestampMs: 456000, Content: []byte("hello"), Status: "warn", Hostname: "agent", Tags: []string{"team:core"}}, logs.data[0])
 			metricTags[0] = "changed"
 			logTags[0] = "changed"
@@ -145,10 +149,12 @@ func TestRecorderTimestampFallbackAndHostTag(t *testing.T) {
 	logs := &logWriter{events: &events}
 	h := NewComponent(metrics, logs).GetHandle(func(string) observer.Handle { return &testHandle{events: &events} })("logs")
 	before := time.Now()
-	h.ObserveMetric(&testMetric{name: "count", host: "agent", tags: []string{"host:other"}}, 0)
+	h.ObserveMetric(&testMetric{name: "count", host: "agent", tags: []string{"host:other"}, metricType: observer.UnknownType, sampleRate: 0}, 0)
 	h.ObserveLog(&testLog{content: "message"})
 	after := time.Now()
 	require.Equal(t, []string{"host:other", "host:agent"}, metrics.data[0].Tags)
+	require.Equal(t, "Unknown", metrics.data[0].MetricType)
+	require.Equal(t, float64(0), metrics.data[0].SampleRate)
 	require.GreaterOrEqual(t, metrics.data[0].Timestamp, before.Unix())
 	require.LessOrEqual(t, metrics.data[0].Timestamp, after.Unix())
 	require.GreaterOrEqual(t, logs.data[0].TimestampMs, before.UnixMilli())

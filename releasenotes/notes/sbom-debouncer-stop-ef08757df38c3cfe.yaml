@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix a deadlock of the CWS SBOM resolver when it dropped an SBOM whose
+    forwarding or refresh was due. The deadlock stopped the processing of
+    runtime security events.

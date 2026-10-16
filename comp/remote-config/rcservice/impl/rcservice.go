@@ -161,7 +161,7 @@ func getTags(config cfgcomp.Component, taggerOpt option.Option[tagger.Component]
 		// by the first agent metadata V5 payload.
 		ctx, cc := context.WithTimeout(context.Background(), time.Second)
 		defer cc()
-		hostTags := hosttags.Get(ctx, true, config)
+		hostTags := hosttags.Get(ctx, true, config, true)
 		tags := append(hostTags.System, hostTags.GoogleCloudPlatform...)
 
 		// On ECS Fargate, the task_arn tag is not part of host tags but is
