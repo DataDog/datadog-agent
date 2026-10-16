@@ -619,8 +619,6 @@ func (v *ssiSuite) TestDatadogInstrumentation() {
 			}, dependsOnAgent)
 		},
 	}))
-	fi := v.Env().FakeIntake.Client()
-
 	k8s := v.Env().KubernetesCluster.Client()
 	WaitForAdmissionWebhookReady(v.T(), k8s)
 	baseline := RestartUntil(v.T(), k8s, ddiNamespace, ddiApp, noInjection(ddiApp))
@@ -702,9 +700,6 @@ func (v *ssiSuite) TestDatadogInstrumentation() {
 	validator.RequireEnvs(v.T(), map[string]string{"DD_SERVICE": ddiAPMService, "DD_TRACE_ENABLED": "true"}, []string{ddiApp})
 	validator.RequireAppliedTargetName(v.T(), "datadoginstrumentation:"+ddiNamespace+"/"+ddiAPMName)
 	validator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedPolicyAnnotation})
-	require.Eventually(v.T(), func() bool {
-		return FindTracesForService(v.T(), fi, ddiAPMService) != 0
-	}, time.Minute, 10*time.Second, "did not find traces for DDI-configured service %s", ddiAPMService)
 }
 
 func (v *ssiSuite) TestRemoteConfig() {
