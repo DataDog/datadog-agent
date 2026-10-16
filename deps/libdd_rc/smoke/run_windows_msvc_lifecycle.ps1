@@ -11,16 +11,12 @@ $PlatformArgs = @(
     '--@rules_rust//cargo/settings:debug_std_streams_output_group=true'
 )
 
-bazel build @PlatformArgs --jobs=8 --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:windows_msvc_lifecycle
-if ($LASTEXITCODE -ne 0) {
-    throw "Bazel build failed with exit code $LASTEXITCODE"
-}
-
 $executionRoots = @(bazel info @PlatformArgs execution_root)
 if ($LASTEXITCODE -ne 0 -or $executionRoots.Count -ne 1) {
     throw "Could not resolve one Bazel execution root: $executionRoots"
 }
 $executionRoot = $executionRoots[0]
+$env:RC_X509_BAZEL_EXECUTION_ROOT = $executionRoot
 Write-Host "Bazel execution root: $executionRoot"
 
 function Resolve-BazelOutputPath {
@@ -30,6 +26,11 @@ function Resolve-BazelOutputPath {
         return $OutputPath
     }
     return (Join-Path $executionRoot $OutputPath)
+}
+
+bazel build @PlatformArgs --jobs=8 --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:windows_msvc_lifecycle
+if ($LASTEXITCODE -ne 0) {
+    throw "Bazel build failed with exit code $LASTEXITCODE"
 }
 
 $lifecycleOutputs = @(bazel cquery @PlatformArgs --output=files //deps/libdd_rc/smoke:windows_msvc_lifecycle)

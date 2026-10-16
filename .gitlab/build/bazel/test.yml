@@ -165,10 +165,17 @@ bazel:rc-x509-ffi:windows-amd64-noasm-debug:
       try {
         & .\deps\libdd_rc\smoke\run_windows_msvc_lifecycle.ps1
       } finally {
+        $BuildScriptLogs = @()
+        if ($env:RC_X509_BAZEL_EXECUTION_ROOT) {
+          $BazelOutputRoot = Join-Path $env:RC_X509_BAZEL_EXECUTION_ROOT "bazel-out"
+          $BuildScriptLogs = @(Get-ChildItem -LiteralPath $BazelOutputRoot -Directory -ErrorAction Continue | ForEach-Object {
+            Join-Path $_.FullName "bin\external\rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2\aws-lc-fips-sys_build_script"
+          })
+        }
         Write-Host "AWS-LC FIPS build-script raw stdout:"
-        Get-ChildItem -Path bazel-out -Filter "aws-lc-fips-sys_build_script.stdout.log" -File -Recurse -ErrorAction Continue | Get-Content -ErrorAction Continue
+        $BuildScriptLogs | ForEach-Object { Get-Content -LiteralPath "$($_).stdout.log" -ErrorAction Continue }
         Write-Host "AWS-LC FIPS build-script raw stderr:"
-        Get-ChildItem -Path bazel-out -Filter "aws-lc-fips-sys_build_script.stderr.log" -File -Recurse -ErrorAction Continue | Get-Content -ErrorAction Continue
+        $BuildScriptLogs | ForEach-Object { Get-Content -LiteralPath "$($_).stderr.log" -ErrorAction Continue }
       }
       exit (Get-Variable LASTEXITCODE -ValueOnly)
 
