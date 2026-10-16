@@ -65,8 +65,10 @@ def _compare_inventories(
     return added_files, removed_files, changed_files
 
 
-@task
-def compare_inventories(_, parent_inventory_report, current_inventory_report):
+def _compare_inventory_reports(parent_inventory_report, current_inventory_report) -> tuple[bool, str]:
+    """
+    Compare two inventory reports and return whether any change was detected along with the comment body.
+    """
     with open(parent_inventory_report) as f:
         parent_inventory = yaml.safe_load(f)
     with open(current_inventory_report) as f:
@@ -76,10 +78,14 @@ def compare_inventories(_, parent_inventory_report, current_inventory_report):
     added, removed, changed = _compare_inventories(parent_file_inventory, current_file_inventory)
     if len(added) == 0 and len(removed) == 0 and len(changed) == 0:
         print(color_message('✅ No change detected', 'green'))
-        body = "No change detected\n\n"
-    else:
-        _print_inventory_diff(added, removed, changed)
-        body = _inventory_changes_to_comment(added, removed, changed)
+        return False, "No change detected\n\n"
+    _print_inventory_diff(added, removed, changed)
+    return True, _inventory_changes_to_comment(added, removed, changed)
+
+
+@task
+def compare_inventories(_, parent_inventory_report, current_inventory_report):
+    _, body = _compare_inventory_reports(parent_inventory_report, current_inventory_report)
     return body
 
 
@@ -175,6 +181,7 @@ _PRODUCTS = [
 def check(ctx, branch_name, reports_folder):
     parent_sha = get_ancestor(ctx, branch_name)
     pr_comment = f"File checks results against ancestor [{parent_sha[:8]}](https://github.com/DataDog/datadog-agent/commit/{parent_sha}):\n\n"
+    has_changes = False
 
     for product in _PRODUCTS:
         for artifact in glob.glob(f'{reports_folder}/{product["package_prefix"]}*.deb'):
@@ -207,12 +214,18 @@ def check(ctx, branch_name, reports_folder):
 
             parent_report_file = tempfile.NamedTemporaryFile()
             _get_parent_report(ctx, parent_sha, gate_short_name, parent_report_file.file.name)
-            body = compare_inventories(ctx, parent_report_file.file.name, report_filename)
+            artifact_has_changes, body = _compare_inventory_reports(parent_report_file.file.name, report_filename)
+            has_changes |= artifact_has_changes
             pr_comment += body
 
     github = GithubAPI()
     prs = list(github.get_pr_for_branch(branch_name))
     if len(prs):
-        pr_commenter(ctx, title='Files inventory check summary', body=pr_comment, pr=prs[0])
+        if has_changes:
+            pr_commenter(ctx, title='Files inventory check summary', body=pr_comment, pr=prs[0])
+        else:
+            # Remove the comment from a previous run so the PR doesn't show outdated results
+            print(color_message('No file change detected in any package, removing PR comment if any', 'green'))
+            pr_commenter(ctx, title='Files inventory check summary', pr=prs[0], delete=True, force_delete=True)
     else:
         print(color_message(f"Can't fetch PR assciated with branch {branch_name}", "red"))
