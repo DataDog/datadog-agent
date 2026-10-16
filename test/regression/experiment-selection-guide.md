@@ -1,10 +1,10 @@
 # Add and select SMP regression experiments
 
-This guide explains how teams add SMP regression experiments. It also explains how teams select when experiments run.
+This guide explains how to add an SMP regression experiment and choose when it runs.
 
 ## Selection buckets
 
-The central `container/selection.yaml` manifest controls the container lane. The separate `ebpf/` lane does not use this manifest.
+The `container/selection.yaml` manifest controls most Agent experiments. The separate `ebpf/` lane does not use this manifest.
 
 The manifest has three optional sections. The CLI combines the experiments from all matching sections.
 
@@ -14,7 +14,7 @@ The manifest has three optional sections. The CLI combines the experiments from 
 | `codeowners` | Selected when a configured team owns a changed file | Not selected |
 | `labels` | Selected when the pull request has a configured label | Not selected |
 
-Each experiment must match one or more manifest entries. The resolve lint job rejects an experiment that matches no entry.
+Each experiment under `container/` must match one or more manifest entries. The resolve lint job rejects an experiment that matches no entry.
 
 The resolver combines all matching buckets. On `main`, no pull request context is available, so the selected set contains only `always` experiments. The nightly quality-gate schedule is separate from this manifest.
 
@@ -57,7 +57,17 @@ test/regression/
 
 The CLI finds each directory below `container/` that contains `experiment.yaml`. Intermediate directories only group experiments.
 
-The directory name is the experiment name. Names must be unique without case differences across the container lane.
+The directory name is the experiment name. Names must be unique without case differences within `container/`.
+
+## Set the optimization goal
+
+The `optimization_goal` field selects the metric used to compare the baseline and comparison builds. Use one of these values:
+
+* `cpu`
+* `memory`
+* `ingress_throughput`
+* `egress_throughput`
+* `none`, which disables comparative analysis
 
 ## Add a label experiment
 
@@ -86,7 +96,7 @@ The manifest key must equal the repository label. Matching is case-sensitive.
 
 A label change does not start a new SMP job. Restart the pipeline after you apply the label to an existing pull request. Pushing a new commit will also create a new pipeline.
 
-## Add a codeowners experiment
+## Add a CODEOWNERS experiment
 
 Use code ownership when experiments must run after changes to team-owned code.
 
@@ -106,13 +116,15 @@ CI compares changed files with `.github/CODEOWNERS`.
 
 The CLI compares the emitted slug and manifest key exactly. A case difference or spelling error prevents selection.
 
-Experiment folder ownership controls reviews only. It does not select codeowners experiments. You must add a codeowner entry to the manifest if you want the owned experiments to run.
+Experiment folder ownership controls reviews only. It does not select `codeowners` experiments. Add the team slug and experiment glob to the manifest to run the experiment for changes owned by that team.
 
 ## The always bucket
 
 The `always` bucket runs on every pull request and every `main` commit. This selection does not control the nightly SMP schedule.
 
-The `quality_gate_` prefix is reserved for designated quality gates. A container quality gate must live below `container/quality_gates/`, match the `always` bucket, and have a CODEOWNERS entry for its owning team. Agent CI uses the prefix when applying the quality-gate pass or fail decision, so do not use it for a label-triggered, codeowners-triggered, or other non-gate experiment.
+The `quality_gate_` prefix is reserved for designated quality gates. A quality gate must live below `container/quality_gates/`, match the `always` bucket, and have a CODEOWNERS entry for its owning team.
+
+Agent CI uses the prefix to apply the quality gate result. Do not use it for a label-triggered, CODEOWNERS-triggered, or other non-gate experiment.
 
 Quality gates are discovered automatically for nightly confidence runs. Ask `#single-machine-performance` about the ownership, promotion, incident-response, and limit-adjustment contract before adding a new gate.
 
@@ -136,7 +148,7 @@ smp experiments resolve \
   --label smp/logs/syslog
 ```
 
-The command returns a nonzero status for duplicate names. It also rejects stale globs and experiments without a bucket.
+The command returns a nonzero status for duplicate names. It also rejects stale globs and experiments under `container/` without a bucket.
 
 An experiment may match more than one manifest entry. The resolver selects it once and does not submit duplicate copies. Prefer the simplest configuration that expresses when the experiment should run.
 
