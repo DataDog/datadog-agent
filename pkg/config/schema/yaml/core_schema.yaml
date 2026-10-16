@@ -574,6 +574,103 @@ properties:
       each request can be sent before waiting for the response.
     tags:
     - template_section:Common
+  forwarder_concurrency_policy:
+    node_type: setting
+    type: string
+    default: static
+    description: |-
+      How the forwarder limits the number of concurrent requests to each domain.
+      Possible values are "static" or "dynamic".
+
+      With "static", each worker can have up to 'forwarder_max_concurrent_requests'
+      requests in flight.
+
+      With "dynamic", all workers of a domain share one limit that is scaled at
+      runtime. The limit starts at 'forwarder.dynamic_concurrency.initial_limit'
+      and grows, up to 'forwarder.dynamic_concurrency.max_concurrent_requests',
+      while the forwarder is fully occupied, meaning it cannot keep up with the
+      payload arrival rate.
+      It shrinks when the backend pushes back (HTTP 408/429/503 or timeouts) or
+      when the forwarder is rarely fully occupied.
+  forwarder:
+    node_type: section
+    type: object
+    description: Forwarder configuration.
+    properties:
+      dynamic_concurrency:
+        node_type: section
+        type: object
+        description: |-
+          Settings used by the forwarder when 'forwarder_concurrency_policy' is
+          set to "dynamic".
+        properties:
+          num_workers:
+            node_type: setting
+            type: integer
+            default: 1
+            description: The number of workers used by the forwarder.
+          max_concurrent_requests:
+            node_type: setting
+            type: integer
+            default: 10
+            description: |-
+              The maximum number of concurrent requests to each domain, shared by
+              all workers. The forwarder scales the limit at runtime up to this value.
+          initial_limit:
+            node_type: setting
+            type: integer
+            default: 1
+            description: |-
+              The concurrency limit the forwarder starts with, and resets to when
+              it restarts. Must be between 1 and 'max_concurrent_requests'.
+          eval_interval:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            description: |-
+              How often the forwarder evaluates whether to raise or lower the limit.
+              Set it to at least the interval at which payloads arrive, so that a
+              single batch does not look like a sustained backlog.
+          increase_threshold:
+            node_type: setting
+            type: number
+            default: 0.8
+            description: |-
+              Increase the limit if the forwarder is fully occupied for at least
+              this fraction (between 0 and 1) of an evaluation interval.
+          decrease_threshold:
+            node_type: setting
+            type: number
+            default: 0.2
+            description: |-
+              Decrease the limit if the forwarder is fully occupied for less than
+              this fraction (between 0 and 'increase_threshold') of an evaluation
+              interval. Set to 0 to disable.
+          increase_step:
+            node_type: setting
+            type: integer
+            default: 1
+            description: How much the limit is raised by after each saturated evaluation
+              interval.
+          min_decrease_interval:
+            node_type: setting
+            type: string
+            default: 1s
+            format: duration
+            description: |-
+              The minimum time between two decreases of the limit. The limit is
+              halved when the backend pushes back; pushback received within this
+              interval of the previous decrease is ignored, so a burst of errors
+              halves the limit only once.
+          increase_cooldown:
+            node_type: setting
+            type: string
+            default: 15s
+            format: duration
+            description: |-
+              How long after a decrease the forwarder waits before raising the
+              limit again.
   forwarder_storage_max_size_in_bytes:
     node_type: setting
     type: integer

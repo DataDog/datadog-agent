@@ -42,23 +42,27 @@ type concurrencyDomain interface {
 	newRequestSemaphore() weightedSemaphore
 	// wrapTransport lets the domain observe the responses from the backend.
 	wrapTransport(rt http.RoundTripper) http.RoundTripper
+	// start is called once, before the workers of the domain start, and stop
+	// once, after they have all stopped.
 	start()
 	stop()
 }
 
-type staticConcurrencyPolicy struct {
-	workers     int
-	connections int
-	requests    int64
-}
-
 func concurrencyPolicyFromConfig(config config.Component, log log.Component) concurrencyPolicy {
+	switch policy := config.GetString("forwarder_concurrency_policy"); policy {
+	case "dynamic":
+		return dynamicConcurrencyPolicy{log: log, settings: dynamicConcurrencySettingsFromConfig(config, log)}
+	case "", "static":
+	default:
+		log.Warnf("Invalid forwarder_concurrency_policy '%s', falling back to 'static'", policy)
+	}
+
 	workers := config.GetInt("forwarder_num_workers")
 
 	return staticConcurrencyPolicy{
 		workers:     workers,
 		connections: workers,
-		requests:    maxConcurrentRequestsFromConfig(config, log),
+		requests:    maxConcurrentRequestsFromConfig(config, log, "forwarder_max_concurrent_requests"),
 	}
 }
 
@@ -69,17 +73,23 @@ func newLocalConcurrencyDomainFromConfig(config config.Component, log log.Compon
 	return staticConcurrencyPolicy{
 		workers:     1,
 		connections: 1,
-		requests:    maxConcurrentRequestsFromConfig(config, log),
+		requests:    maxConcurrentRequestsFromConfig(config, log, "forwarder_max_concurrent_requests"),
 	}
 }
 
-func maxConcurrentRequestsFromConfig(config config.Component, log log.Component) int64 {
-	requests := config.GetInt64("forwarder_max_concurrent_requests")
+func maxConcurrentRequestsFromConfig(config config.Component, log log.Component, key string) int64 {
+	requests := config.GetInt64(key)
 	if requests <= 0 {
-		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", requests)
+		log.Warnf("Invalid %s '%d', setting to 1", key, requests)
 		requests = 1
 	}
 	return requests
+}
+
+type staticConcurrencyPolicy struct {
+	workers     int
+	connections int
+	requests    int64
 }
 
 func (p staticConcurrencyPolicy) numWorkers() int {
