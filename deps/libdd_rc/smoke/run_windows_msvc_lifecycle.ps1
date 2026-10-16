@@ -35,16 +35,6 @@ Write-Host 'Transitioned FFI target declared outputs:'
 $ffiOutputs | ForEach-Object { Write-Host "  $_" }
 $ffiDlls = @($ffiOutputs | Where-Object { $_ -match '\.dll$' })
 if ($ffiDlls.Count -eq 0) {
-    # rules_rust may expose only the import library through DefaultInfo even
-    # though the same rustc action produced the runtime DLL. Keep this
-    # diagnostic moving while printing enough evidence to model it explicitly
-    # in the subsequent packaging change.
-    $ffiDlls = @(
-        Get-ChildItem -Path bazel-out -Filter 'rc_x509_ffi*.dll' -File -Recurse -ErrorAction Continue |
-            Where-Object { $_.FullName -match 'x64_windows-dbg' }
-    )
-}
-if ($ffiDlls.Count -eq 0) {
     throw "Could not find the rc-x509 FFI DLL; declared outputs: $ffiOutputs"
 }
 $ffiDll = @($ffiDlls | Sort-Object -Property FullName)[0]
@@ -57,19 +47,30 @@ Write-Host "Selected rc-x509 FFI DLL: $ffiDllPath"
 
 # aws-lc-fips-sys exposes its CMake install as a tree artifact. The Windows
 # runtime DLLs are nested inside that tree, so cquery does not list them as
-# separate files. The build's remote_download_outputs=all makes them available
-# for this explicit staging probe.
-$awsLcDlls = @(
-    Get-ChildItem -Path bazel-out -Filter 'aws_lc_fips_0_14_2_*.dll' -File -Recurse -ErrorAction Continue |
-        Where-Object { $_.FullName -match 'aws-lc-fips-sys_build_script\.out_dir' }
-)
-if ($awsLcDlls.Count -eq 0) {
-    Write-Host 'DLLs found beneath AWS-LC FIPS build outputs:'
-    Get-ChildItem -Path bazel-out -Filter '*.dll' -File -Recurse -ErrorAction Continue |
-        Where-Object { $_.FullName -match 'aws-lc-fips' } |
-        Select-Object -ExpandProperty FullName
-    throw 'Could not find an AWS-LC FIPS runtime DLL under bazel-out'
+# separate files. Search that one known output tree rather than recursively
+# walking all of bazel-out, which contains tens of thousands of configured
+# targets and is prohibitively slow on the Windows runner.
+$configurationOutputPaths = @(
+    ($lifecycleExecutables[0] -replace '[/\\]bin[/\\].*$', '')
+    ($ffiDllPath -replace '[/\\]bin[/\\].*$', '')
+) | Sort-Object -Unique
+$awsLcOutputPaths = @($configurationOutputPaths | ForEach-Object {
+    Join-Path $_ 'bin\external\rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2\aws-lc-fips-sys_build_script.out_dir'
+})
+Write-Host 'AWS-LC FIPS build-output candidates:'
+$awsLcOutputPaths | ForEach-Object { Write-Host "  $_" }
+$existingAwsLcOutputPaths = @($awsLcOutputPaths | Where-Object { Test-Path -LiteralPath $_ })
+if ($existingAwsLcOutputPaths.Count -eq 0) {
+    throw "No AWS-LC FIPS build-output candidate exists: $awsLcOutputPaths"
 }
+$awsLcDlls = @($existingAwsLcOutputPaths | ForEach-Object {
+    Get-ChildItem -LiteralPath $_ -Filter '*.dll' -File -Recurse -ErrorAction Continue
+})
+if ($awsLcDlls.Count -eq 0) {
+    throw "Could not find an AWS-LC FIPS runtime DLL under $existingAwsLcOutputPaths"
+}
+Write-Host 'AWS-LC FIPS runtime DLLs:'
+$awsLcDlls | ForEach-Object { Write-Host "  $($_.FullName)" }
 
 $stageDir = Join-Path $env:TEMP "rc-x509-msvc-lifecycle-$env:CI_JOB_ID"
 if (Test-Path -LiteralPath $stageDir) {
