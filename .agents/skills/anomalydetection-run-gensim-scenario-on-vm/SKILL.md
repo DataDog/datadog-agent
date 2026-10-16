@@ -37,7 +37,7 @@ Ask for missing inputs and resolve ambiguity before changing resources:
 | Credentials | For `vm`, local env file defining `DD_API_KEY` and `DD_APP_KEY` for dddev; for `eks`, configured e2e AWS sandbox profile and dddev keys. Do not read, echo, or print secret values |
 | Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full`; confirm pipeline and amd64 platform |
 | Run settings | Flush interval (default `1m`), retention (default `90m`), optional recording-only mode (`true`/`false`), VM full/shortened mode or EKS mode (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
-| Output | Fresh local absolute directory per episode (e.g. `/tmp/vm-scenarios/<episode>` or `/tmp/eks-scenarios/<episode>`); never overwrite an existing directory |
+| Output | Fresh local absolute directory per episode (e.g. `/tmp/vm-scenarios/<episode>` or `/tmp/eks-scenarios/<episode>`); never overwrite an existing directory. If the user gives a custom name (e.g. `kafka-partition-saturation2`), use it as the directory name; `--episode`/`--scenario` on `fetch` still use the real names |
 | Batch / teardown | Episodes to run and resources to remove afterwards; retain reusable infrastructure until the batch finishes |
 
 Retention must exceed the episode duration plus the final flush wait (and the full batch on VM). Do not operate on
@@ -95,17 +95,34 @@ one full flush interval past `end_time`, and uploads a zip archive to S3. Load
 [the EKS reference](references/eks.md) when troubleshooting multi-pod collection, inspecting Helm differences, or
 running the live acceptance checklist.
 
-1. Submit the episode or batch (requires a clean `gensim-episodes` checkout and a recorder-enabled `agent-dev` image):
+1. Submit the episode or batch (requires a clean `gensim-episodes` checkout and a recorder-enabled `agent-dev` image).
+`--episodes` is `<dir under postmortems/ or synthetics/>:<episodes/*.yaml name without extension>`, e.g.
+`703_shopify_bfcm_incident:kafka-partition-saturation`, not the human scenario name. A user-supplied "scenario" path in
+`observer-scenarios*` is usually an old recording output (`episode.json` + `parquet/`), not a source; read its
+`episode.json` for the episode name and locate the source in `gensim-episodes`.
+
+If the user's `gensim-episodes` checkout is dirty (`submit` refuses it), never reset or stash it. Clone it to a fresh
+directory (`git clone --local <repo> /tmp/gensim-episodes-clean`) and pass `GENSIM_REPO_PATH=/tmp/gensim-episodes-clean`.
+
+A first submit provisions the EKS cluster, node group and image builder and takes well over 10 minutes. **Never run it in
+the foreground or under a short `timeout`**: killing it mid-update leaves a partial Pulumi state. Run it with
+`run_in_background` (no timeout), redirect output to a log file, and poll `status` or the log. If a run was interrupted,
+check that no `pulumi` process is active before re-submitting; the orphan `pulumi-resource-*` plugin processes alone do
+not mean an update is running.
 
 ```bash
-dda inv aws.eks.gensim.submit \
+GENSIM_REPO_PATH="${GENSIM_REPO_PATH:-}" dda inv aws.eks.gensim.submit \
   --stack-name="$STACK" \
   --image="docker.io/datadog/agent-dev:$TAG" \
-  --episodes="$SCENARIO_ID:$EPISODE" \
+  --episodes="$EPISODE_DIR:$EPISODE" \
   --s3-bucket="$S3_BUCKET" \
   --flush-interval="$FLUSH" \
-  --retention="$RETENTION"
+  --retention="$RETENTION" > /tmp/gensim-submit-"$STACK".log 2>&1   # run in background
 ```
+
+Source the user's env file (`set -a; . "$ENV_FILE"; set +a`) in the same shell invocation without printing it. If
+`dda inv e2e.setup` fails only on a missing local keypair file, do not delete the remote keypair; try `submit` first
+(EKS does not need the SSH key) and report the issue.
 
 2. Monitor in-cluster execution:
 
