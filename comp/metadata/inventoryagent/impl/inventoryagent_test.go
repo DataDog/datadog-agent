@@ -13,13 +13,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -31,7 +28,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
-	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorypayload"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -43,7 +40,6 @@ import (
 	sysprobecfg "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
@@ -61,7 +57,6 @@ type testDeps struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
-	Capabilities   *iainterface.Capabilities `optional:"true"`
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -72,11 +67,10 @@ func makeRequires(deps testDeps) Requires {
 		Serializer:     deps.Serializer,
 		IPCClient:      deps.IPCClient,
 		Hostname:       deps.Hostname,
-		Capabilities:   deps.Capabilities,
 	}
 }
 
-func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any, options ...fx.Option) Provides {
+func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
 	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, sysprobeConfOverrides)
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
@@ -89,7 +83,6 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
-			fx.Options(options...),
 		)),
 	)
 }
@@ -103,290 +96,103 @@ func TestSet(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	ia.Set("test", 1234)
-	assert.Equal(t, 1234, ia.data["test"])
+	assert.Equal(t, 1234, ia.Get()["test"])
 }
 
 func TestGetPayload(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
-	ia.hostname = "hostname-for-test"
 
 	ia.Set("test", 1234)
 	startTime := time.Now().UnixNano()
 
 	p := ia.getPayload()
-	payload := p.(*Payload)
+	payload := p.(*inventorypayload.Payload)
 
 	assert.True(t, payload.Timestamp > startTime)
-	assert.Equal(t, "hostname-for-test", payload.Hostname)
+	assert.Equal(t, "my-hostname", payload.Hostname)
 	assert.Equal(t, 1234, payload.Metadata["test"])
 }
 
-func TestCapabilitiesFullAgentMetadataRefresh(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		capabilities *iainterface.Capabilities
-		wantFetches  int
-	}{
-		{name: "absent capabilities", wantFetches: 1},
-		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}, wantFetches: 1},
-		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil)},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
-			originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
-			t.Cleanup(func() {
-				fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
-				fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
-			})
-			fetches := map[string]int{}
-			fetcher := func(name, remoteConfig string) func(pkgconfigmodel.Reader, ipc.HTTPClient) (string, error) {
-				return func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
-					fetches[name]++
-					return remoteConfig, nil
-				}
-			}
-			fetchSecurityConfig = fetcher("security", "compliance_config:\n  enabled: true")
-			fetchProcessConfig = fetcher("process", "process_config:\n  process_collection:\n    enabled: true")
-			fetchTraceConfig = fetcher("trace", "apm_config:\n  enabled: true")
-			fetchSystemProbeConfig = fetcher("system-probe", "network_config:\n  enabled: true")
+func TestFullAgentMetadataRefresh(t *testing.T) {
+	originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
+	originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
+	t.Cleanup(func() {
+		fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
+		fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
+	})
+	fetches := map[string]int{}
+	fetcher := func(name, remoteConfig string) func(pkgconfigmodel.Reader, ipc.HTTPClient) (string, error) {
+		return func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
+			fetches[name]++
+			return remoteConfig, nil
+		}
+	}
+	fetchSecurityConfig = fetcher("security", "compliance_config:\n  enabled: true")
+	fetchProcessConfig = fetcher("process", "process_config:\n  process_collection:\n    enabled: true")
+	fetchTraceConfig = fetcher("trace", "apm_config:\n  enabled: true")
+	fetchSystemProbeConfig = fetcher("system-probe", "network_config:\n  enabled: true")
 
-			var options []fx.Option
-			if tt.capabilities != nil {
-				options = append(options, fx.Supply(tt.capabilities))
-			}
-			if tt.wantFetches == 0 {
-				options = append(options, fx.Decorate(func(ipc.HTTPClient) ipc.HTTPClient { return nil }))
-			}
-			p := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil, options...)
-			ia := p.Comp.(*inventoryagent)
-			configDir := t.TempDir()
-			configmock.New(t).SetConfigFile(filepath.Join(configDir, "datadog.yaml"))
-			fleetDir := filepath.Join(configDir, "managed", "datadog-agent", "stable")
-			if err := os.MkdirAll(fleetDir, 0700); err != nil {
+	p := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil)
+	ia := p.Comp.(*inventoryagent)
+	configDir := t.TempDir()
+	configmock.New(t).SetConfigFile(filepath.Join(configDir, "datadog.yaml"))
+	fleetDir := filepath.Join(configDir, "managed", "datadog-agent", "stable")
+	if err := os.MkdirAll(fleetDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	ia.Set("resource_id", "test-resource")
+	ia.Set("flavor", "embedded-test")
+	ia.Set("config_dd_url", "explicit-url")
+	for index, value := range []string{"first", "second"} {
+		ia.conf.Set("site", value+".example.com", pkgconfigmodel.SourceAgentRuntime)
+		ia.conf.Set("logs_enabled", index == 0, pkgconfigmodel.SourceAgentRuntime)
+		ia.conf.Set("config_id", value, pkgconfigmodel.SourceAgentRuntime)
+		ia.conf.Set("fleet_layers", []string{value}, pkgconfigmodel.SourceAgentRuntime)
+		applicationConfig := []byte("service: " + value)
+		fleetConfig := []byte("service: fleet-" + value)
+		for path, contents := range map[string][]byte{
+			filepath.Join(configDir, "application_monitoring.yaml"): applicationConfig,
+			filepath.Join(fleetDir, "application_monitoring.yaml"):  fleetConfig,
+		} {
+			if err := os.WriteFile(path, contents, 0600); err != nil {
 				t.Fatal(err)
 			}
-			ia.Set("resource_id", "test-resource")
-			ia.Set("flavor", "embedded-test")
-			ia.Set("config_dd_url", "explicit-url")
-			for index, value := range []string{"first", "second"} {
-				ia.conf.Set("site", value+".example.com", pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("logs_enabled", index == 0, pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("config_id", value, pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("fleet_layers", []string{value}, pkgconfigmodel.SourceAgentRuntime)
-				applicationConfig := []byte("service: " + value)
-				fleetConfig := []byte("service: fleet-" + value)
-				for path, contents := range map[string][]byte{
-					filepath.Join(configDir, "application_monitoring.yaml"): applicationConfig,
-					filepath.Join(fleetDir, "application_monitoring.yaml"):  fleetConfig,
-				} {
-					if err := os.WriteFile(path, contents, 0600); err != nil {
-						t.Fatal(err)
-					}
-				}
-				payload := ia.getPayload().(*Payload)
+		}
+		payload := ia.getPayload().(*inventorypayload.Payload)
 
-				assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
-				assert.Equal(t, version.AgentPackageVersion, payload.Metadata["package_version"])
-				assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
-				assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
-				assert.Contains(t, payload.Metadata, "install_method_tool")
-				assert.Equal(t, "embedded-test", payload.Metadata["flavor"])
-				assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
-				assert.Equal(t, uuid.GetUUID(), payload.UUID)
-				for _, field := range []string{"full_configuration", "agent_runtime_configuration"} {
-					assert.Contains(t, payload.Metadata[field], "site: "+value+".example.com", field)
-				}
-				for name, field := range map[string]string{
-					"security":     "feature_cspm_enabled",
-					"process":      "feature_process_enabled",
-					"trace":        "feature_apm_enabled",
-					"system-probe": "feature_networks_enabled",
-				} {
-					assert.Equal(t, (index+1)*tt.wantFetches, fetches[name], name)
-					if tt.wantFetches == 0 {
-						assert.NotContains(t, payload.Metadata, field)
-					} else {
-						assert.Equal(t, true, payload.Metadata[field], field)
-					}
-				}
-				// Local collectors are intentionally skipped too, even with populated inputs.
-				for field, expected := range map[string]any{
-					"config_site":                         value + ".example.com",
-					"feature_logs_enabled":                index == 0,
-					"fleet_policies_applied":              []string{value},
-					"config_id":                           value,
-					"application_monitoring_config":       applicationConfig,
-					"application_monitoring_config_fleet": fleetConfig,
-				} {
-					if tt.wantFetches == 0 {
-						assert.NotContains(t, payload.Metadata, field)
-					} else {
-						assert.Equal(t, expected, payload.Metadata[field], field)
-					}
-				}
-				if tt.wantFetches == 0 {
-					assert.Equal(t, "explicit-url", payload.Metadata["config_dd_url"], "skipping refresh must not filter explicitly set fields")
-				} else {
-					assert.Equal(t, ia.conf.GetString("dd_url"), payload.Metadata["config_dd_url"], "default refresh replaces explicitly set collector fields")
-				}
-			}
-		})
+		assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
+		assert.Equal(t, version.AgentPackageVersion, payload.Metadata["package_version"])
+		assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
+		assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
+		assert.Contains(t, payload.Metadata, "install_method_tool")
+		assert.Equal(t, "embedded-test", payload.Metadata["flavor"])
+		assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
+		assert.Equal(t, uuid.GetUUID(), payload.UUID)
+		for _, field := range []string{"full_configuration", "agent_runtime_configuration"} {
+			assert.Contains(t, payload.Metadata[field], "site: "+value+".example.com", field)
+		}
+		for name, field := range map[string]string{
+			"security":     "feature_cspm_enabled",
+			"process":      "feature_process_enabled",
+			"trace":        "feature_apm_enabled",
+			"system-probe": "feature_networks_enabled",
+		} {
+			assert.Equal(t, index+1, fetches[name], name)
+			assert.Equal(t, true, payload.Metadata[field], field)
+		}
+		for field, expected := range map[string]any{
+			"config_site":                         value + ".example.com",
+			"feature_logs_enabled":                index == 0,
+			"fleet_policies_applied":              []string{value},
+			"config_id":                           value,
+			"application_monitoring_config":       applicationConfig,
+			"application_monitoring_config_fleet": fleetConfig,
+		} {
+			assert.Equal(t, expected, payload.Metadata[field], field)
+		}
+		assert.Equal(t, ia.conf.GetString("dd_url"), payload.Metadata["config_dd_url"], "default refresh replaces explicitly set collector fields")
 	}
 }
-
-func TestCapabilitiesReadiness(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		capabilities *iainterface.Capabilities
-		deferred     bool
-	}{
-		{name: "absent capabilities"},
-		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}},
-		{name: "deferred capability", capabilities: &iainterface.Capabilities{DeferUntilReady: true}, deferred: true},
-		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil), deferred: true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			serializerMock := serializermock.NewMetricSerializer(t)
-			options := []fx.Option{fx.Decorate(func(serializer.MetricSerializer) serializer.MetricSerializer {
-				return serializerMock
-			})}
-			if tt.capabilities != nil {
-				options = append(options, fx.Supply(tt.capabilities))
-			}
-			p := getProvides(t, map[string]any{"inventories_first_run_delay": 0}, nil, options...)
-			ia := p.Comp.(*inventoryagent)
-			require.NotNil(t, p.Provider.Callback, "a deferred provider must remain registered")
-			if !tt.deferred {
-				serializerMock.On("SendMetadata", mock.Anything).Return(nil).Twice()
-			}
-
-			// Exercise the published callback immediately after construction, before injection.
-			assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
-			p.Comp.Set("resource_id", "complete-resource")
-			p.Comp.Submit()
-			data, err := ia.GetAsJSON()
-			if tt.deferred {
-				assert.EqualError(t, err, "inventory metadata is not ready")
-				assert.Nil(t, data)
-				assert.True(t, ia.LastCollect.IsZero())
-				assert.True(t, ia.RefreshTriggered())
-				serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
-
-				serializerMock.On("SendMetadata", mock.MatchedBy(func(payload *Payload) bool {
-					return payload.Metadata["resource_id"] == "complete-resource"
-				})).Return(nil).Once()
-				p.Comp.SetReady(true)
-				p.Comp.Submit()
-				data, err = ia.GetAsJSON()
-			}
-			require.NoError(t, err)
-			assert.Contains(t, string(data), `"resource_id": "complete-resource"`)
-			assert.False(t, ia.LastCollect.IsZero())
-			assert.False(t, ia.RefreshTriggered())
-			serializerMock.AssertExpectations(t)
-		})
-	}
-}
-
-func TestCapabilitiesReadinessDoesNotEnableInventory(t *testing.T) {
-	p := getProvides(t, map[string]any{"inventories_enabled": false}, nil,
-		fx.Supply(iainterface.NewServerlessCapabilities(func() string {
-			t.Fatal("disabled inventory must not resolve identity")
-			return ""
-		})))
-	ia := p.Comp.(*inventoryagent)
-	p.Comp.SetReady(true)
-	p.Comp.Submit()
-	assert.False(t, ia.Enabled)
-	assert.Nil(t, p.Provider.Callback)
-	assert.Nil(t, ia.MetadataProvider().Callback)
-	assert.True(t, ia.LastCollect.IsZero())
-	_, err := ia.GetAsJSON()
-	assert.EqualError(t, err, "inventory metadata is disabled")
-}
-
-func TestCapabilitiesPayloadUUID(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		withResolver bool
-		resolvedUUID string
-	}{
-		{name: "nil resolver"},
-		{name: "empty override", withResolver: true},
-		{name: "override", withResolver: true, resolvedUUID: "process-uuid"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			originalGetUUID := uuid.GetUUID
-			t.Cleanup(func() { uuid.GetUUID = originalGetUUID })
-			hostUUIDCalls := 0
-			uuid.GetUUID = func() string {
-				hostUUIDCalls++
-				return "host-uuid"
-			}
-			resolvedUUID := tt.resolvedUUID
-			resolverCalls := 0
-			var resolver func() string
-			if tt.withResolver {
-				resolver = func() string {
-					resolverCalls++
-					return resolvedUUID
-				}
-			}
-			p := getProvides(t, nil, nil, fx.Supply(iainterface.NewServerlessCapabilities(resolver)))
-			ia := p.Comp.(*inventoryagent)
-			first := ia.getPayload().(*Payload)
-			if resolvedUUID == "" {
-				assert.Equal(t, "host-uuid", first.UUID)
-				assert.Equal(t, 1, hostUUIDCalls)
-			} else {
-				assert.Equal(t, resolvedUUID, first.UUID)
-				assert.Zero(t, hostUUIDCalls)
-			}
-			resolvedUUID = "next-instance-uuid"
-			second := ia.getPayload().(*Payload)
-			if tt.withResolver {
-				assert.Equal(t, resolvedUUID, second.UUID)
-				assert.Equal(t, 2, resolverCalls)
-				if tt.resolvedUUID == "" {
-					assert.Equal(t, 1, hostUUIDCalls)
-				} else {
-					assert.Zero(t, hostUUIDCalls)
-				}
-			} else {
-				assert.Equal(t, "host-uuid", second.UUID)
-				assert.Equal(t, 2, hostUUIDCalls)
-			}
-		})
-	}
-}
-
-func TestInitDataErrorInstallInfo(t *testing.T) {
-	defer func() { installinfoGet = installinfo.Get }()
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return nil, errors.New("some error")
-	}
-
-	ia := getTestInventoryPayload(t, nil, nil)
-
-	ia.initData()
-	assert.Equal(t, "undefined", ia.data["install_method_tool"])
-	assert.Equal(t, "", ia.data["install_method_tool_version"])
-	assert.Equal(t, "", ia.data["install_method_installer_version"])
-
-	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return &installinfo.InstallInfo{
-			Tool:             "test_tool",
-			ToolVersion:      "1.2.3",
-			InstallerVersion: "4.5.6",
-		}, nil
-	}
-
-	ia.initData()
-	assert.Equal(t, "test_tool", ia.data["install_method_tool"])
-	assert.Equal(t, "1.2.3", ia.data["install_method_tool_version"])
-	assert.Equal(t, "4.5.6", ia.data["install_method_installer_version"])
-}
-
 func TestInitData(t *testing.T) {
 	sysprobeOverrides := map[string]any{
 		"dynamic_instrumentation.enabled":                      true,
@@ -547,10 +353,10 @@ func TestInitData(t *testing.T) {
 	expected["feature_usm_http2_enabled"] = sysprobecfg.HTTP2MonitoringSupported()
 
 	for name, value := range expected {
-		assert.Equal(t, value, ia.data[name], "value for '%s' is wrong", name)
+		assert.Equal(t, value, ia.Get()[name], "value for '%s' is wrong", name)
 	}
 
-	assert.ElementsMatch(t, []string{"http://noprox.example.com", "http://name:********@proxy.example.com/"}, ia.data["config_no_proxy"])
+	assert.ElementsMatch(t, []string{"http://noprox.example.com", "http://name:********@proxy.example.com/"}, ia.Get()["config_no_proxy"])
 }
 
 func TestGet(t *testing.T) {
@@ -563,7 +369,7 @@ func TestGet(t *testing.T) {
 
 	// verify that the return map is a copy
 	p["test"] = 21
-	assert.Equal(t, 1234, ia.data["test"])
+	assert.Equal(t, 1234, ia.Get()["test"])
 }
 
 func TestFlareProviderFilename(t *testing.T) {
@@ -646,8 +452,8 @@ func TestFetchSecurityAgent(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchSecurityAgentMetadata()
 
-	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
-	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_cspm_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_cspm_host_benchmarks_enabled"].(bool))
 
 	fetchSecurityConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `compliance_config:
@@ -659,8 +465,8 @@ func TestFetchSecurityAgent(t *testing.T) {
 
 	ia.fetchSecurityAgentMetadata()
 
-	assert.True(t, ia.data["feature_cspm_enabled"].(bool))
-	assert.True(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_cspm_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_cspm_host_benchmarks_enabled"].(bool))
 }
 
 func TestFetchProcessAgent(t *testing.T) {
@@ -687,10 +493,10 @@ func TestFetchProcessAgent(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchProcessAgentMetadata()
 
-	assert.False(t, ia.data["feature_process_enabled"].(bool))
-	assert.False(t, ia.data["feature_process_language_detection_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_process_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_process_language_detection_enabled"].(bool))
 	// default to true in the process agent configuration
-	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_processes_container_enabled"].(bool))
 
 	fetchProcessConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `
@@ -706,9 +512,9 @@ language_detection:
 
 	ia.fetchProcessAgentMetadata()
 
-	assert.True(t, ia.data["feature_process_enabled"].(bool))
-	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
-	assert.True(t, ia.data["feature_process_language_detection_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_process_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_processes_container_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_process_language_detection_enabled"].(bool))
 }
 
 func TestFetchTraceAgent(t *testing.T) {
@@ -734,8 +540,8 @@ func TestFetchTraceAgent(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchTraceAgentMetadata()
 
-	assert.True(t, ia.data["feature_apm_enabled"].(bool))
-	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
+	assert.True(t, ia.Get()["feature_apm_enabled"].(bool))
+	assert.Equal(t, "", ia.Get()["config_apm_dd_url"].(string))
 
 	fetchTraceConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `
@@ -746,8 +552,8 @@ apm_config:
 	}
 
 	ia.fetchTraceAgentMetadata()
-	assert.True(t, ia.data["feature_apm_enabled"].(bool))
-	assert.Equal(t, "https://user:********@some_url_for_trace", ia.data["config_apm_dd_url"].(string))
+	assert.True(t, ia.Get()["feature_apm_enabled"].(bool))
+	assert.Equal(t, "https://user:********@some_url_for_trace", ia.Get()["config_apm_dd_url"].(string))
 }
 
 func TestFetchSystemProbeAgent(t *testing.T) {
@@ -780,47 +586,47 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	ia.fetchSystemProbeMetadata()
 
 	// We test default value when the system-probe could not be contacted
-	assert.False(t, ia.data["feature_cws_enabled"].(bool))
-	assert.True(t, ia.data["feature_cws_network_enabled"].(bool))
-	assert.False(t, ia.data["feature_cws_security_profiles_enabled"].(bool))
-	assert.True(t, ia.data["feature_cws_remote_config_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_enabled"].(bool))
-	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
-	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
-	assert.False(t, ia.data["feature_traceroute_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
-	assert.Equal(t, runtime.GOOS == "linux", ia.data["feature_discovery_enabled"].(bool))
-	assert.False(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
-	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
-	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
-	assert.False(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_core_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_runtime_compilation_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_kernel_headers_download_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_cws_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_cws_network_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_cws_security_profiles_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_cws_remote_config_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_networks_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_networks_http_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_networks_https_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_traceroute_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_kafka_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_postgres_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_redis_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_http2_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_istio_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_go_tls_enabled"].(bool))
+	assert.Equal(t, runtime.GOOS == "linux", ia.Get()["feature_discovery_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_gpu_monitoring_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_tcp_queue_length_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_oom_kill_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_windows_crash_detection_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_core_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_runtime_compilation_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_kernel_headers_download_enabled"].(bool))
 	if runtime.GOOS == "linux" {
-		assert.Equal(t, !isPrebuiltDeprecated, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
+		assert.Equal(t, !isPrebuiltDeprecated, ia.Get()["system_probe_prebuilt_fallback_enabled"].(bool))
 	}
-	assert.False(t, ia.data["system_probe_telemetry_enabled"].(bool))
-	assert.Equal(t, 600, ia.data["system_probe_max_connections_per_message"].(int))
-	assert.True(t, ia.data["system_probe_track_tcp_4_connections"].(bool))
-	assert.True(t, ia.data["system_probe_track_udp_4_connections"].(bool))
+	assert.False(t, ia.Get()["system_probe_telemetry_enabled"].(bool))
+	assert.Equal(t, 600, ia.Get()["system_probe_max_connections_per_message"].(int))
+	assert.True(t, ia.Get()["system_probe_track_tcp_4_connections"].(bool))
+	assert.True(t, ia.Get()["system_probe_track_udp_4_connections"].(bool))
 	if !kernel.IsIPv6Enabled() {
-		assert.False(t, ia.data["system_probe_track_tcp_6_connections"].(bool))
-		assert.False(t, ia.data["system_probe_track_udp_6_connections"].(bool))
+		assert.False(t, ia.Get()["system_probe_track_tcp_6_connections"].(bool))
+		assert.False(t, ia.Get()["system_probe_track_udp_6_connections"].(bool))
 	} else {
-		assert.True(t, ia.data["system_probe_track_tcp_6_connections"].(bool))
-		assert.True(t, ia.data["system_probe_track_udp_6_connections"].(bool))
+		assert.True(t, ia.Get()["system_probe_track_tcp_6_connections"].(bool))
+		assert.True(t, ia.Get()["system_probe_track_udp_6_connections"].(bool))
 	}
-	assert.True(t, ia.data["system_probe_protocol_classification_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
-	assert.False(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_protocol_classification_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_gateway_lookup_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_root_namespace_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_dynamic_instrumentation_enabled"].(bool))
 
 	// Testing an inventoryagent without system-probe object
 	p := NewComponent(
@@ -838,39 +644,39 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	ia = p.Comp.(*inventoryagent)
 	ia.fetchSystemProbeMetadata()
 
-	assert.False(t, ia.data["feature_cws_enabled"].(bool))
-	assert.False(t, ia.data["feature_cws_network_enabled"].(bool))
-	assert.False(t, ia.data["feature_cws_security_profiles_enabled"].(bool))
-	assert.False(t, ia.data["feature_cws_remote_config_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_http_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
-	assert.False(t, ia.data["feature_traceroute_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
-	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
-	assert.False(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
-	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
-	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
-	assert.False(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_core_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_runtime_compilation_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_kernel_headers_download_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_telemetry_enabled"].(bool))
-	assert.Equal(t, 0, ia.data["system_probe_max_connections_per_message"].(int))
-	assert.False(t, ia.data["system_probe_track_tcp_4_connections"].(bool))
-	assert.False(t, ia.data["system_probe_track_tcp_6_connections"].(bool))
-	assert.False(t, ia.data["system_probe_track_udp_4_connections"].(bool))
-	assert.False(t, ia.data["system_probe_track_udp_6_connections"].(bool))
-	assert.False(t, ia.data["system_probe_protocol_classification_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
-	assert.False(t, ia.data["system_probe_root_namespace_enabled"].(bool))
-	assert.False(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_cws_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_cws_network_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_cws_security_profiles_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_cws_remote_config_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_networks_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_networks_http_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_networks_https_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_traceroute_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_kafka_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_postgres_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_http2_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_istio_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_usm_go_tls_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_discovery_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_gpu_monitoring_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_tcp_queue_length_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_oom_kill_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_windows_crash_detection_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_core_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_runtime_compilation_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_kernel_headers_download_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_prebuilt_fallback_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_telemetry_enabled"].(bool))
+	assert.Equal(t, 0, ia.Get()["system_probe_max_connections_per_message"].(int))
+	assert.False(t, ia.Get()["system_probe_track_tcp_4_connections"].(bool))
+	assert.False(t, ia.Get()["system_probe_track_tcp_6_connections"].(bool))
+	assert.False(t, ia.Get()["system_probe_track_udp_4_connections"].(bool))
+	assert.False(t, ia.Get()["system_probe_track_udp_6_connections"].(bool))
+	assert.False(t, ia.Get()["system_probe_protocol_classification_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_gateway_lookup_enabled"].(bool))
+	assert.False(t, ia.Get()["system_probe_root_namespace_enabled"].(bool))
+	assert.False(t, ia.Get()["feature_dynamic_instrumentation_enabled"].(bool))
 
 	// Testing an inventoryagent where we can contact the system-probe process
 	fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
@@ -949,40 +755,40 @@ gpu_monitoring:
 	ia = getTestInventoryPayload(t, nil, nil)
 	ia.fetchSystemProbeMetadata()
 
-	assert.True(t, ia.data["feature_cws_enabled"].(bool))
-	assert.True(t, ia.data["feature_cws_network_enabled"].(bool))
-	assert.True(t, ia.data["feature_cws_security_profiles_enabled"].(bool))
-	assert.True(t, ia.data["feature_cws_remote_config_enabled"].(bool))
-	assert.True(t, ia.data["feature_networks_enabled"].(bool))
-	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
-	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
-	assert.True(t, ia.data["feature_traceroute_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_redis_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_http2_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
-	assert.True(t, ia.data["feature_discovery_enabled"].(bool))
-	assert.True(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
-	assert.True(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
-	assert.True(t, ia.data["feature_oom_kill_enabled"].(bool))
-	assert.True(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_core_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_runtime_compilation_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_kernel_headers_download_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_telemetry_enabled"].(bool))
-	assert.Equal(t, 123, ia.data["system_probe_max_connections_per_message"].(int))
-	assert.True(t, ia.data["system_probe_track_tcp_4_connections"].(bool))
-	assert.True(t, ia.data["system_probe_track_udp_4_connections"].(bool))
-	assert.True(t, ia.data["system_probe_track_tcp_6_connections"].(bool))
-	assert.True(t, ia.data["system_probe_track_udp_6_connections"].(bool))
-	assert.True(t, ia.data["system_probe_protocol_classification_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
-	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_cws_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_cws_network_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_cws_security_profiles_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_cws_remote_config_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_networks_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_networks_http_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_networks_https_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_traceroute_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_kafka_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_postgres_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_redis_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_http2_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_istio_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_usm_go_tls_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_discovery_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_gpu_monitoring_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_tcp_queue_length_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_oom_kill_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_windows_crash_detection_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_core_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_runtime_compilation_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_kernel_headers_download_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_prebuilt_fallback_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_telemetry_enabled"].(bool))
+	assert.Equal(t, 123, ia.Get()["system_probe_max_connections_per_message"].(int))
+	assert.True(t, ia.Get()["system_probe_track_tcp_4_connections"].(bool))
+	assert.True(t, ia.Get()["system_probe_track_udp_4_connections"].(bool))
+	assert.True(t, ia.Get()["system_probe_track_tcp_6_connections"].(bool))
+	assert.True(t, ia.Get()["system_probe_track_udp_6_connections"].(bool))
+	assert.True(t, ia.Get()["system_probe_protocol_classification_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_gateway_lookup_enabled"].(bool))
+	assert.True(t, ia.Get()["system_probe_root_namespace_enabled"].(bool))
+	assert.True(t, ia.Get()["feature_dynamic_instrumentation_enabled"].(bool))
 }
 
 func TestFetchFleet(t *testing.T) {
@@ -990,7 +796,7 @@ func TestFetchFleet(t *testing.T) {
 		"config_id": "my-config",
 	}, nil)
 	ia.fetchFleetMetadata()
-	assert.Equal(t, "my-config", ia.data["config_id"].(string))
+	assert.Equal(t, "my-config", ia.Get()["config_id"].(string))
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {
@@ -998,7 +804,7 @@ func TestGetProvidedConfigurationDisable(t *testing.T) {
 		"inventories_configuration_enabled": false,
 	}, nil)
 
-	payload := ia.getPayload().(*Payload)
+	payload := ia.getPayload().(*inventorypayload.Payload)
 
 	// No configuration should be in the payload
 	assert.NotContains(t, payload.Metadata, "full_configuration")
@@ -1016,7 +822,7 @@ func TestGetProvidedConfiguration(t *testing.T) {
 		"inventories_configuration_enabled": true,
 	}, nil)
 
-	payload := ia.getPayload().(*Payload)
+	payload := ia.getPayload().(*inventorypayload.Payload)
 
 	// All configuration level should be in the payload
 	assert.Contains(t, payload.Metadata, "full_configuration")
@@ -1027,34 +833,4 @@ func TestGetProvidedConfiguration(t *testing.T) {
 	assert.Contains(t, payload.Metadata, "remote_configuration")
 	assert.Contains(t, payload.Metadata, "cli_configuration")
 	assert.Contains(t, payload.Metadata, "source_local_configuration")
-}
-
-func TestGetProvidedConfigurationOnly(t *testing.T) {
-	ia := getTestInventoryPayload(t, map[string]any{
-		"inventories_configuration_enabled": true,
-	}, nil)
-
-	data := make(agentMetadata)
-	ia.getConfigs(data)
-
-	keys := []string{}
-	for k := range data {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-	expected := []string{
-		"provided_configuration",
-		"full_configuration",
-		"file_configuration",
-		"environment_variable_configuration",
-		"agent_runtime_configuration",
-		"fleet_policies_configuration",
-		"remote_configuration",
-		"cli_configuration",
-		"source_local_configuration",
-	}
-	sort.Strings(expected)
-
-	assert.Equal(t, expected, keys)
 }

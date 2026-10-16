@@ -12,6 +12,7 @@ import (
 
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -98,6 +99,14 @@ type CloudService interface {
 	// RunSidecar; in init-container mode it spawns the user app via RunInit.
 	// MicroVM overrides this to pass its child handle so /ready reflects liveness.
 	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
+
+	// GetInventoryData returns the per-platform serverless fields for the
+	// inventory metadata payload. Implementations must not deadlock with the
+	// rest of the CloudService interface.
+	GetInventoryData() serverlessdef.ServerlessInitData
+
+	// CanCollectInventory reports whether the platform permits inventory collection.
+	CanCollectInventory() bool
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
