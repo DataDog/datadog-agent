@@ -779,6 +779,7 @@ func (h *healthPlatformImpl) loadFromRemote(ctx context.Context) error {
 			IssueID:        issueID,
 			IssueType:      issue.IssueName,
 			ProtoIssueType: issue.IssueType,
+			Category:       issue.Category,
 			State:          IssueStateActive,
 			FirstSeen:      now,
 			LastSeen:       now,
