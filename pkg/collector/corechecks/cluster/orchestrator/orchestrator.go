@@ -249,8 +249,11 @@ func (o *OrchestratorCheck) Run() error {
 // refreshInfraTags adds the infrastructure mode tags to the payload tags when
 // they were not available at Configure time. On a Cluster Check Runner they come
 // from the Cluster Agent's tagger stream, which can connect after the check is
-// configured. It runs before the collector bundle starts the manifest buffer,
-// whose goroutine also reads the tags.
+// configured.
+//
+// Other goroutines read the tags in two places: the manifest buffer, which only
+// runs inside a collector bundle run and so never overlaps this call, and the
+// terminated resource flush that Cancel triggers, which the bundle lock covers.
 func (o *OrchestratorCheck) refreshInfraTags() {
 	infraTags := o.tagger.GetInfraTags()
 	missing := slices.ContainsFunc(infraTags, func(tag string) bool {
@@ -259,7 +262,15 @@ func (o *OrchestratorCheck) refreshInfraTags() {
 	if !missing {
 		return
 	}
-	o.orchestratorConfig.ExtraTags = taggerutils.AppendUniqueTags(o.orchestratorConfig.ExtraTags, infraTags...)
+
+	update := func() {
+		o.orchestratorConfig.ExtraTags = taggerutils.AppendUniqueTags(o.orchestratorConfig.ExtraTags, infraTags...)
+	}
+	if o.collectorBundle != nil {
+		o.collectorBundle.GetTerminatedResourceBundle().withLock(update)
+	} else {
+		update()
+	}
 	log.Infoc(fmt.Sprintf("Adding infrastructure mode tags %v to orchestrator payloads", infraTags), orchestrator.ExtraLogContext...)
 }
 
