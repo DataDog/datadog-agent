@@ -629,21 +629,21 @@ properties:
               How often the forwarder evaluates whether to raise the limit. Set it
               to at least the interval at which payloads arrive, so that a single
               batch does not look like a sustained backlog.
-          saturation_threshold:
+          increase_threshold:
             node_type: setting
             type: number
             default: 0.8
             description: |-
               The fraction (between 0 and 1) of an evaluation interval during which
               all allowed requests must be in flight for the limit to be raised.
-          decay_threshold:
+          decrease_threshold:
             node_type: setting
             type: number
             default: 0.2
             description: |-
               The limit is lowered by one, down to 1, after each evaluation interval
               during which all allowed requests were in flight for less than this
-              fraction (between 0 and 'saturation_threshold') of the interval. This
+              fraction (between 0 and 'increase_threshold') of the interval. This
               releases concurrency that is no longer needed. Set to 0 to disable.
           increase_step:
             node_type: setting
