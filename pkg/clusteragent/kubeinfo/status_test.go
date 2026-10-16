@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
+//go:build kubeapiserver && test
 
 package kubeinfo
 
@@ -13,17 +13,39 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/version"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func reset(t *testing.T) {
-	resetState := func() {
-		mu.Lock()
-		defer mu.Unlock()
-		state = info{}
+func newWorkloadmeta(t *testing.T) workloadmetamock.Mock {
+	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+}
+
+func kubeCapabilities(serverVersion *version.Info) *workloadmeta.KubeCapabilities {
+	return &workloadmeta.KubeCapabilities{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubeCapabilities,
+			ID:   workloadmeta.KubeCapabilitiesID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: workloadmeta.KubeCapabilitiesName,
+		},
+		Version: serverVersion,
 	}
-	resetState()
-	t.Cleanup(resetState)
+}
+
+func reset(t *testing.T) {
+	SetClusterInfo("", "", "")
+	t.Cleanup(func() { SetClusterInfo("", "", "") })
 }
 
 func TestProvider(t *testing.T) {
@@ -33,7 +55,7 @@ func TestProvider(t *testing.T) {
 		wantDetected  string
 		wantWarning   bool
 	}{
-		{name: "unknown", serverVersion: nil},
+		{name: "not collected yet"},
 		{name: "supported", serverVersion: &version.Info{GitVersion: "v1.23.17-eks-a1b2c3"}, wantDetected: "v1.23.17-eks-a1b2c3"},
 		{name: "unparsable", serverVersion: &version.Info{GitVersion: "foo"}, wantDetected: "foo"},
 		{name: "unsupported", serverVersion: &version.Info{GitVersion: "v1.22.17-eks-a1b2c3"}, wantDetected: "v1.22.17-eks-a1b2c3", wantWarning: true},
@@ -42,9 +64,12 @@ func TestProvider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reset(t)
-			setServerVersion(tt.serverVersion)
+			wmeta := newWorkloadmeta(t)
+			if tt.serverVersion != nil {
+				wmeta.Set(kubeCapabilities(tt.serverVersion))
+			}
 
-			p := Provider{}
+			p := NewProvider(wmeta)
 			assert.Equal(t, "Kubernetes Information", p.Name())
 
 			stats := map[string]interface{}{}
@@ -108,7 +133,7 @@ func TestProviderClusterInfo(t *testing.T) {
 			reset(t)
 			SetClusterInfo(tt.clusterName, tt.clusterID, tt.distribution)
 
-			p := Provider{}
+			p := NewProvider(newWorkloadmeta(t))
 			stats := map[string]interface{}{}
 			require.NoError(t, p.JSON(false, stats))
 			kubeInfo := stats["kubernetesInfo"].(map[string]interface{})

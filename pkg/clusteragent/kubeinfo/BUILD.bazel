@@ -12,10 +12,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/status",
+        "//comp/core/workloadmeta/def",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/log",
         "@io_k8s_apimachinery//pkg/version",
-        "@io_k8s_client_go//discovery",
     ],
 )
 
@@ -34,13 +34,15 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
-        "//pkg/util/cache",
+        "//comp/core",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/version",
-        "@io_k8s_client_go//discovery/fake",
-        "@io_k8s_client_go//kubernetes/fake",
-        "@io_k8s_client_go//testing",
+        "@org_uber_go_fx//:fx",
     ],
 )

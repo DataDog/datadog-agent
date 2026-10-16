@@ -210,7 +210,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
-				fx.Supply(status.NewHeaderInformationProvider(kubeinfo.Provider{})),
+				fx.Provide(func(wmeta workloadmeta.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(kubeinfo.NewProvider(wmeta))
+				}),
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),
@@ -399,8 +401,7 @@ func start(log log.Component,
 	}
 	pkglog.Infof("Got APIClient connection")
 
-	// Runs in the background as getting the server version can retry for a while.
-	go kubeinfo.CheckServerVersion(apiCl.Cl.Discovery())
+	go kubeinfo.WarnOnUnsupportedVersion(mainCtx, wmeta)
 
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)

@@ -3,73 +3,135 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver
+//go:build kubeapiserver && test
 
 package kubeinfo
 
 import (
-	"errors"
+	"bytes"
+	"context"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/runtime"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/version"
-	fakediscovery "k8s.io/client-go/discovery/fake"
-	fakeclientset "k8s.io/client-go/kubernetes/fake"
-	k8stesting "k8s.io/client-go/testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func TestCheckServerVersion(t *testing.T) {
+// syncBuffer is a bytes.Buffer safe for concurrent use by the logger and the test.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+func captureLogs(t *testing.T) *syncBuffer {
+	var logs syncBuffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logs, log.InfoLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "info")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "off") })
+	return &logs
+}
+
+func TestWarnOnUnsupportedVersion(t *testing.T) {
 	tests := []struct {
-		name            string
-		serverVersion   *version.Info
-		err             error
-		wantVersion     string
-		wantUnsupported bool
+		name          string
+		serverVersion *version.Info
+		setBefore     bool
+		wantWarning   bool
 	}{
-		{name: "supported", serverVersion: &version.Info{GitVersion: "v1.30.2"}, wantVersion: "v1.30.2"},
-		{name: "unsupported", serverVersion: &version.Info{GitVersion: "v1.22.17"}, wantVersion: "v1.22.17", wantUnsupported: true},
-		{name: "discovery error", err: errors.New("forbidden")},
+		{name: "unsupported, collected before", serverVersion: &version.Info{GitVersion: "v1.22.17"}, setBefore: true, wantWarning: true},
+		{name: "unsupported, collected concurrently", serverVersion: &version.Info{GitVersion: "v1.22.17"}, wantWarning: true},
+		{name: "supported", serverVersion: &version.Info{GitVersion: "v1.30.2"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reset(t)
-			// KubeServerVersion caches the version globally.
-			cache.Cache.Flush()
-			t.Cleanup(cache.Cache.Flush)
-			previousTimeout := serverVersionTimeout
-			serverVersionTimeout = 100 * time.Millisecond
-			t.Cleanup(func() { serverVersionTimeout = previousTimeout })
-
-			discoveryCl := fakeclientset.NewClientset().Discovery().(*fakediscovery.FakeDiscovery)
-			discoveryCl.FakedServerVersion = tt.serverVersion
-			if tt.err != nil {
-				discoveryCl.PrependReactor("get", "version", func(k8stesting.Action) (bool, runtime.Object, error) {
-					return true, nil, tt.err
-				})
+			wmeta := newWorkloadmeta(t)
+			// After newWorkloadmeta, which sets up its own logger.
+			logs := captureLogs(t)
+			if tt.setBefore {
+				wmeta.Set(kubeCapabilities(tt.serverVersion))
 			}
 
-			CheckServerVersion(discoveryCl)
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				WarnOnUnsupportedVersion(context.Background(), wmeta)
+			}()
+			if !tt.setBefore {
+				wmeta.Set(kubeCapabilities(tt.serverVersion))
+			}
 
-			i := getInfo()
-			assert.Equal(t, tt.wantVersion, i.serverVersion)
-			assert.Equal(t, tt.wantUnsupported, i.unsupported)
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("WarnOnUnsupportedVersion did not return after the version was collected")
+			}
+			log.Flush()
+
+			warnings := strings.Count(logs.String(), "[DEPRECATION WARNING]")
+			if tt.wantWarning {
+				assert.Equal(t, 1, warnings)
+				assert.Contains(t, logs.String(), "Kubernetes v1.22.17 is older than v1.23")
+			} else {
+				assert.Zero(t, warnings)
+			}
 		})
 	}
 }
 
-func TestSetClusterInfoKeepsServerVersion(t *testing.T) {
-	reset(t)
-	setServerVersion(&version.Info{GitVersion: "v1.22.17"})
-	SetClusterInfo("my-cluster", "id", "gke")
+func TestWarnOnUnsupportedVersionStopsOnContextCancel(t *testing.T) {
+	wmeta := newWorkloadmeta(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		WarnOnUnsupportedVersion(ctx, wmeta)
+	}()
+	// Covers both canceling before and while waiting for the version.
+	cancel()
 
-	i := getInfo()
-	assert.Equal(t, "my-cluster", i.clusterName)
-	assert.Equal(t, "id", i.clusterID)
-	assert.Equal(t, "gke", i.distribution)
-	assert.Equal(t, "v1.22.17", i.serverVersion)
-	assert.True(t, i.unsupported)
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("WarnOnUnsupportedVersion did not return after the context was canceled")
+	}
+}
+
+func TestVersionStatus(t *testing.T) {
+	tests := []struct {
+		name            string
+		serverVersion   *version.Info
+		wantDetected    string
+		wantUnsupported bool
+	}{
+		{name: "nil"},
+		{name: "supported", serverVersion: &version.Info{GitVersion: "v1.23.0"}, wantDetected: "v1.23.0"},
+		{name: "unsupported", serverVersion: &version.Info{GitVersion: "v1.22.17-eks-a1b2c3"}, wantDetected: "v1.22.17-eks-a1b2c3", wantUnsupported: true},
+		{name: "major minor only", serverVersion: &version.Info{Major: "1", Minor: "22+"}, wantDetected: "v1.22+", wantUnsupported: true},
+		{name: "unparsable", serverVersion: &version.Info{GitVersion: "foo"}, wantDetected: "foo"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			detected, unsupported := versionStatus(tt.serverVersion)
+			assert.Equal(t, tt.wantDetected, detected)
+			assert.Equal(t, tt.wantUnsupported, unsupported)
+		})
+	}
 }

@@ -10,13 +10,13 @@
 package kubeinfo
 
 import (
+	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/discovery"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,50 +25,71 @@ import (
 // Kubernetes versions older than common.MinSupportedKubeVersion.
 const supportDropRelease = "7.86.0"
 
-// serverVersionTimeout bounds the retries to get the server version.
-var serverVersionTimeout = 10 * time.Second
-
-// info is the information collected at startup.
-type info struct {
+// clusterInfo is the cluster information collected at startup.
+type clusterInfo struct {
 	clusterName  string
 	clusterID    string
 	distribution string
-	// serverVersion is empty until the server version is known.
-	serverVersion string
-	// unsupported is true when the server version is older than common.MinSupportedKubeVersion.
-	unsupported bool
 }
 
 var (
 	mu    sync.RWMutex
-	state info
+	state clusterInfo
 )
 
 // SetClusterInfo stores the cluster name, ID and distribution.
 func SetClusterInfo(clusterName, clusterID, distribution string) {
 	mu.Lock()
 	defer mu.Unlock()
-	state.clusterName = clusterName
-	state.clusterID = clusterID
-	state.distribution = distribution
+	state = clusterInfo{clusterName: clusterName, clusterID: clusterID, distribution: distribution}
 }
 
-// CheckServerVersion gets the Kubernetes server version and logs a warning if it is not supported.
-func CheckServerVersion(discoveryCl discovery.DiscoveryInterface) {
-	serverVersion, err := common.KubeServerVersion(discoveryCl, serverVersionTimeout)
-	if err != nil {
-		log.Infof("Cannot get the Kubernetes server version, skipping the supported version check: %v", err)
-		return
+func getClusterInfo() clusterInfo {
+	mu.RLock()
+	defer mu.RUnlock()
+	return state
+}
+
+// WarnOnUnsupportedVersion waits for the Kubernetes server version collected by
+// workloadmeta and logs a warning if it is not supported.
+func WarnOnUnsupportedVersion(ctx context.Context, wmeta workloadmeta.Component) {
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindKubeCapabilities).
+		SetEventType(workloadmeta.EventTypeSet).
+		Build()
+	ch := wmeta.Subscribe("kubeinfo", workloadmeta.NormalPriority, filter)
+	defer wmeta.Unsubscribe(ch)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case bundle, ok := <-ch:
+			if !ok {
+				return
+			}
+			bundle.Acknowledge()
+			for _, event := range bundle.Events {
+				kubeCapabilities, ok := event.Entity.(*workloadmeta.KubeCapabilities)
+				if !ok || kubeCapabilities.Version == nil {
+					continue
+				}
+				if detected, unsupported := versionStatus(kubeCapabilities.Version); unsupported {
+					log.Warnf("[DEPRECATION WARNING] %s", warningMessage(detected))
+				}
+				return
+			}
+		}
 	}
-	setServerVersion(serverVersion)
 }
 
-func setServerVersion(serverVersion *version.Info) {
+// versionStatus returns the server version to display and whether it is unsupported.
+func versionStatus(serverVersion *version.Info) (detected string, unsupported bool) {
 	if serverVersion == nil {
-		return
+		return "", false
 	}
 
-	detected := serverVersion.String()
+	detected = serverVersion.String()
 	if detected == "" {
 		// The server only reported Major/Minor.
 		detected = fmt.Sprintf("v%s.%s", serverVersion.Major, serverVersion.Minor)
@@ -78,21 +99,7 @@ func setServerVersion(serverVersion *version.Info) {
 	if !ok {
 		log.Debugf("Cannot parse the Kubernetes server version %q, skipping the supported version check", detected)
 	}
-	unsupported := ok && !supported
-	if unsupported {
-		log.Warnf("[DEPRECATION WARNING] %s", warningMessage(detected))
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	state.serverVersion = detected
-	state.unsupported = unsupported
-}
-
-func getInfo() info {
-	mu.RLock()
-	defer mu.RUnlock()
-	return state
+	return detected, ok && !supported
 }
 
 func warningMessage(detected string) string {
