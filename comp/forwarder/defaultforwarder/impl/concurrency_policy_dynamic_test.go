@@ -44,8 +44,8 @@ func newTestDynamicConcurrencySettings(workers int, maxLimit int64) dynamicConcu
 		maxLimit:            maxLimit,
 		initialLimit:        1,
 		evalInterval:        15 * time.Second,
-		saturationThreshold: 0.8,
-		decayThreshold:      0.2,
+		increaseThreshold:   0.8,
+		decreaseThreshold:   0.2,
 		increaseStep:        1,
 		minDecreaseInterval: time.Second,
 		increaseCooldown:    15 * time.Second,
@@ -114,7 +114,7 @@ func TestDynamicDomainDecaysWhenIdle(t *testing.T) {
 	p, sem, clock := newTestDynamicDomain(t, 10)
 	p.limit = 4
 
-	// Saturated for less than decayThreshold of the window: step down by one.
+	// Saturated for less than decreaseThreshold of the window: step down by one.
 	clock.advance(p.settings.evalInterval)
 	sem.saturatedAccum = p.settings.evalInterval / 10
 	p.onEval()
@@ -123,7 +123,7 @@ func TestDynamicDomainDecaysWhenIdle(t *testing.T) {
 
 	// Exactly at the threshold the limit holds.
 	clock.advance(p.settings.evalInterval)
-	sem.saturatedAccum = time.Duration(float64(p.settings.evalInterval) * p.settings.decayThreshold)
+	sem.saturatedAccum = time.Duration(float64(p.settings.evalInterval) * p.settings.decreaseThreshold)
 	p.onEval()
 	assert.Equal(t, int64(3), p.limit)
 }
@@ -141,7 +141,7 @@ func TestDynamicDomainDecayFloorsAtOne(t *testing.T) {
 
 func TestDynamicDomainDecayDisabled(t *testing.T) {
 	p, _, clock := newTestDynamicDomain(t, 10)
-	p.settings.decayThreshold = 0
+	p.settings.decreaseThreshold = 0
 	p.limit = 4
 
 	clock.advance(p.settings.evalInterval)
@@ -292,8 +292,8 @@ func TestDynamicConcurrencySettingsFromConfig(t *testing.T) {
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.max_concurrent_requests", 20)
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.initial_limit", 4)
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.eval_interval", "30s")
-	mockConfig.SetInTest("forwarder.dynamic_concurrency.saturation_threshold", 0.5)
-	mockConfig.SetInTest("forwarder.dynamic_concurrency.decay_threshold", 0.1)
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.increase_threshold", 0.5)
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.decrease_threshold", 0.1)
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.increase_step", 3)
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.min_decrease_interval", "2s")
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.increase_cooldown", "1m")
@@ -303,8 +303,8 @@ func TestDynamicConcurrencySettingsFromConfig(t *testing.T) {
 		maxLimit:            20,
 		initialLimit:        4,
 		evalInterval:        30 * time.Second,
-		saturationThreshold: 0.5,
-		decayThreshold:      0.1,
+		increaseThreshold:   0.5,
+		decreaseThreshold:   0.1,
 		increaseStep:        3,
 		minDecreaseInterval: 2 * time.Second,
 		increaseCooldown:    time.Minute,
@@ -321,8 +321,8 @@ func TestDynamicConcurrencySettingsFromConfigClampsInvalid(t *testing.T) {
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.max_concurrent_requests", 5)
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.initial_limit", 50)
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.eval_interval", "0s")
-	mockConfig.SetInTest("forwarder.dynamic_concurrency.saturation_threshold", 1.5)
-	mockConfig.SetInTest("forwarder.dynamic_concurrency.decay_threshold", -0.1)
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.increase_threshold", 1.5)
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.decrease_threshold", -0.1)
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.increase_step", 0)
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.min_decrease_interval", "-1s")
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.increase_cooldown", "-1s")
@@ -330,21 +330,21 @@ func TestDynamicConcurrencySettingsFromConfigClampsInvalid(t *testing.T) {
 	s := dynamicConcurrencySettingsFromConfig(mockConfig, logmock.New(t))
 	assert.Equal(t, int64(5), s.initialLimit)
 	assert.Equal(t, time.Second, s.evalInterval)
-	assert.Equal(t, 1.0, s.saturationThreshold)
-	assert.Equal(t, 0.0, s.decayThreshold)
+	assert.Equal(t, 1.0, s.increaseThreshold)
+	assert.Equal(t, 0.0, s.decreaseThreshold)
 	assert.Equal(t, int64(1), s.increaseStep)
 	assert.Equal(t, time.Duration(0), s.minDecreaseInterval)
 	assert.Equal(t, time.Duration(0), s.increaseCooldown)
 
 	mockConfig.SetInTest("forwarder.dynamic_concurrency.initial_limit", 0)
-	mockConfig.SetInTest("forwarder.dynamic_concurrency.saturation_threshold", -0.5)
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.increase_threshold", -0.5)
 	s = dynamicConcurrencySettingsFromConfig(mockConfig, logmock.New(t))
 	assert.Equal(t, int64(1), s.initialLimit)
-	assert.Equal(t, 0.0, s.saturationThreshold)
+	assert.Equal(t, 0.0, s.increaseThreshold)
 
-	// decay_threshold must not exceed saturation_threshold.
-	mockConfig.SetInTest("forwarder.dynamic_concurrency.saturation_threshold", 0.5)
-	mockConfig.SetInTest("forwarder.dynamic_concurrency.decay_threshold", 0.7)
+	// decrease_threshold must not exceed increase_threshold.
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.increase_threshold", 0.5)
+	mockConfig.SetInTest("forwarder.dynamic_concurrency.decrease_threshold", 0.7)
 	s = dynamicConcurrencySettingsFromConfig(mockConfig, logmock.New(t))
-	assert.Equal(t, 0.5, s.decayThreshold)
+	assert.Equal(t, 0.5, s.decreaseThreshold)
 }

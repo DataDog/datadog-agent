@@ -27,13 +27,13 @@ type dynamicConcurrencySettings struct {
 	// limit. It is sized to the payload arrival cadence so that a single batch
 	// arriving between ticks does not look like sustained backlog.
 	evalInterval time.Duration
-	// saturationThreshold is the fraction of an evaluation window the semaphore
+	// increaseThreshold is the fraction of an evaluation window the semaphore
 	// must spend fully saturated before the limit grows.
-	saturationThreshold float64
-	// decayThreshold is the saturation below which the limit decays by one per
+	increaseThreshold float64
+	// decreaseThreshold is the saturation below which the limit decays by one per
 	// evaluation window, so that capacity grown for a past backlog is released
 	// once it is no longer needed. Zero disables decay.
-	decayThreshold float64
+	decreaseThreshold float64
 	// increaseStep is the additive growth applied per evaluation window.
 	increaseStep int64
 	// minDecreaseInterval debounces decreases: a burst of backoff signals (e.g.
@@ -53,8 +53,8 @@ func dynamicConcurrencySettingsFromConfig(config config.Component, log log.Compo
 		maxLimit:            maxConcurrentRequestsFromConfig(config, log, prefix+"max_concurrent_requests"),
 		initialLimit:        config.GetInt64(prefix + "initial_limit"),
 		evalInterval:        config.GetDuration(prefix + "eval_interval"),
-		saturationThreshold: config.GetFloat64(prefix + "saturation_threshold"),
-		decayThreshold:      config.GetFloat64(prefix + "decay_threshold"),
+		increaseThreshold:   config.GetFloat64(prefix + "increase_threshold"),
+		decreaseThreshold:   config.GetFloat64(prefix + "decrease_threshold"),
 		increaseStep:        config.GetInt64(prefix + "increase_step"),
 		minDecreaseInterval: config.GetDuration(prefix + "min_decrease_interval"),
 		increaseCooldown:    config.GetDuration(prefix + "increase_cooldown"),
@@ -69,15 +69,15 @@ func dynamicConcurrencySettingsFromConfig(config config.Component, log log.Compo
 		log.Warnf("Invalid %seval_interval '%s', setting to 1s", prefix, s.evalInterval)
 		s.evalInterval = time.Second
 	}
-	if s.saturationThreshold < 0 || s.saturationThreshold > 1 {
-		clamped := min(max(s.saturationThreshold, 0), 1)
-		log.Warnf("Invalid %ssaturation_threshold '%v', setting to %v", prefix, s.saturationThreshold, clamped)
-		s.saturationThreshold = clamped
+	if s.increaseThreshold < 0 || s.increaseThreshold > 1 {
+		clamped := min(max(s.increaseThreshold, 0), 1)
+		log.Warnf("Invalid %sincrease_threshold '%v', setting to %v", prefix, s.increaseThreshold, clamped)
+		s.increaseThreshold = clamped
 	}
-	if s.decayThreshold < 0 || s.decayThreshold > s.saturationThreshold {
-		clamped := min(max(s.decayThreshold, 0), s.saturationThreshold)
-		log.Warnf("Invalid %sdecay_threshold '%v', setting to %v", prefix, s.decayThreshold, clamped)
-		s.decayThreshold = clamped
+	if s.decreaseThreshold < 0 || s.decreaseThreshold > s.increaseThreshold {
+		clamped := min(max(s.decreaseThreshold, 0), s.increaseThreshold)
+		log.Warnf("Invalid %sdecrease_threshold '%v', setting to %v", prefix, s.decreaseThreshold, clamped)
+		s.decreaseThreshold = clamped
 	}
 	if s.increaseStep < 1 {
 		log.Warnf("Invalid %sincrease_step '%d', setting to 1", prefix, s.increaseStep)
@@ -226,9 +226,9 @@ func (d *dynamicConcurrencyDomain) onEval() {
 	if !d.lastDecrease.IsZero() && now.Sub(d.lastDecrease) < d.settings.increaseCooldown {
 		return
 	}
-	if saturation >= d.settings.saturationThreshold {
+	if saturation >= d.settings.increaseThreshold {
 		d.setLimit(min(d.settings.maxLimit, d.limit+d.settings.increaseStep))
-	} else if saturation < d.settings.decayThreshold {
+	} else if saturation < d.settings.decreaseThreshold {
 		d.setLimit(max(1, d.limit-1))
 	}
 }
