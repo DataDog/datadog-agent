@@ -17,6 +17,7 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/mohae/deepcopy"
 )
 
 // sources lists the known sources, following the order of hierarchy between them
@@ -309,6 +311,127 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	for _, receiver := range receivers {
 		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
+}
+
+func (c *ntmConfig) selectorToKey(selector interface{}) (string, interface{}, bool) {
+	path, converted := selector.([]string)
+	if !converted {
+		return "", nil, false
+	}
+
+	settingName := ""
+	trailingElements := make([]string, 0, len(path))
+	for {
+		if len(path) == 0 {
+			return "", nil, false
+		}
+		// get the last element from the path and add it to the trailing elements
+		lastElem := path[len(path)-1]
+		trailingElements = append(trailingElements, lastElem)
+		// remove that element from the path and see if we've reached a known field
+		path = path[:len(path)-1]
+		settingName = strings.Join(path, ".")
+		if c.isKnownKey(settingName) {
+			break
+		}
+	}
+	slices.Reverse(trailingElements)
+
+	if len(trailingElements) == 0 {
+		trailingElements = nil
+	}
+
+	return settingName, trailingElements, true
+}
+
+// SetSecretAtPath assigns a value to a setting at key, or to a part of that setting
+// key is optional, if an empty string, a key will be built from the selector
+// selector
+func (c *ntmConfig) SetSecretAtPath(key string, selector, newValue interface{}) error {
+	origSelector := deepcopy.Copy(selector)
+
+	c.Lock()
+	defer c.Unlock()
+
+	if key == "" {
+		if trueKey, remainingSelector, ok := c.selectorToKey(selector); ok {
+			key = trueKey
+			selector = remainingSelector
+		} else {
+			return fmt.Errorf("could not understand selector %v", selector)
+		}
+	}
+
+	if selector == nil {
+		_, err := c.insertValueIntoTree(key, newValue, model.SourceSecret)
+		return err
+	}
+
+	trailingElements, converted := selector.([]string)
+	if !converted {
+		return fmt.Errorf("could not understand selector %v", selector)
+	}
+
+	// retrieve the config value at the known field
+	startingValue := c.getNodeValue(key)
+	iterateValue := startingValue
+	// iterate down until we find the final object that we are able to modify
+	for k, elem := range trailingElements {
+		switch modifyValue := iterateValue.(type) {
+		case map[string]interface{}:
+			if k == len(trailingElements)-1 {
+				// if we reached the final object, modify it directly by assigning the newValue parameter
+				modifyValue[elem] = newValue
+			} else {
+				// otherwise iterate inside that compound object
+				iterateValue = modifyValue[elem]
+			}
+		case map[interface{}]interface{}:
+			if k == len(trailingElements)-1 {
+				// use integer key when it exists in map to avoid mixing string and integer keys (e.g., "2" and 2)
+				if index, err := strconv.Atoi(elem); err == nil {
+					if _, exists := modifyValue[index]; exists {
+						modifyValue[index] = newValue
+						continue
+					}
+				}
+				modifyValue[elem] = newValue
+			} else {
+				iterateValue = modifyValue[elem]
+			}
+		case []string:
+			index, err := strconv.Atoi(elem)
+			if err != nil {
+				return err
+			}
+			if index >= len(modifyValue) {
+				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+			}
+			if k == len(trailingElements)-1 {
+				modifyValue[index] = fmt.Sprintf("%s", newValue)
+			} else {
+				iterateValue = modifyValue[index]
+			}
+		case []interface{}:
+			index, err := strconv.Atoi(elem)
+			if err != nil {
+				return err
+			}
+			if index >= len(modifyValue) {
+				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+			}
+			if k == len(trailingElements)-1 {
+				modifyValue[index] = newValue
+			} else {
+				iterateValue = modifyValue[index]
+			}
+		default:
+			return fmt.Errorf("cannot assign to setting '%s' of type %T", origSelector, iterateValue)
+		}
+	}
+
+	_, err := c.insertValueIntoTree(key, startingValue, model.SourceSecret)
+	return err
 }
 
 func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (*nodeImpl, error) {
