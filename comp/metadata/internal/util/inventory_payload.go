@@ -55,6 +55,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -107,10 +108,8 @@ type InventoryPayload struct {
 	// FirstRunDelay may be set before registering the provider.
 	FirstRunDelay time.Duration
 
-	Enabled     bool
-	LastCollect time.Time
-	// LastSubmit records a successful serializer enqueue, not network delivery.
-	LastSubmit    time.Time
+	Enabled       bool
+	LastCollect   time.Time
 	MinInterval   time.Duration
 	MaxInterval   time.Duration
 	forceRefresh  atomic.Bool
@@ -228,8 +227,6 @@ func (i *InventoryPayload) Collect(_ context.Context) time.Duration {
 	}
 	if err := i.serializer.SendMetadata(p); err != nil {
 		i.log.Errorf("unable to submit inventories payload, %s", err)
-	} else {
-		i.LastSubmit = time.Now()
 	}
 	return i.MinInterval
 }
@@ -237,32 +234,27 @@ func (i *InventoryPayload) Collect(_ context.Context) time.Duration {
 // Submit synchronously builds a payload and enqueues it for submission now,
 // ignoring the first-run delay and the min/max interval gating that Collect()
 // applies. SendMetadata only enqueues a transaction (the HTTP POST is async and
-// drained at shutdown), so this does not wait for delivery. Nothing is built or
-// enqueued while disabled.
-func (i *InventoryPayload) Submit() {
+// drained at shutdown), so a nil error does not mean the payload was delivered.
+func (i *InventoryPayload) Submit() error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	if !i.Enabled {
-		i.log.Debugf("inventory metadata is disabled, skipping submission")
-		return
+		return errors.New("inventory metadata is disabled")
 	}
 	if i.serializer == nil {
-		i.log.Tracef("serializer is nil, skipping submission")
-		return
+		return errors.New("inventory serializer is nil")
 	}
 
 	i.forceRefresh.Store(false)
 	i.LastCollect = time.Now()
 	p := i.getPayload()
 	if p == nil {
-		i.log.Debugf("inventory payload is nil, skipping submission")
-		return
+		return errors.New("inventory payload is nil")
 	}
 	if err := i.serializer.SendMetadata(p); err != nil {
-		i.log.Errorf("unable to submit inventories payload, %s", err)
-		return
+		return fmt.Errorf("unable to submit inventories payload: %w", err)
 	}
-	i.LastSubmit = time.Now()
+	return nil
 }
 
 // Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.

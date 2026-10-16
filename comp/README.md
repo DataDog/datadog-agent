@@ -547,11 +547,9 @@ Package securityagent is the metadata provider for security-agent process
 
 ### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
 
-*Datadog Team*: team/serverless-azure-and-gcp
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
 
-Package serverlessinit implements the serverless-init inventory metadata
-payload: it applies the platform's serverless fields to the inventoryagent
-payload and submits the first payload as soon as resource identity is known.
+Package serverlessinit defines the serverless-init inventory metadata provider.
 
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
