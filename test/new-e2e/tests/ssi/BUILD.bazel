@@ -43,6 +43,7 @@ dd_agent_go_test(
     srcs = ["ssi_test.go"],
     data = [
         "testdata/base.yaml",
+        "testdata/ddi.yaml",
         "testdata/injection_mode.yaml",
         "testdata/local_sdk_injection.yaml",
         "testdata/namespace_selection.yaml",
@@ -57,6 +58,7 @@ dd_agent_go_test(
     embed = [":ssi"],
     embedsrcs = [
         "testdata/base.yaml",
+        "testdata/ddi.yaml",
         "testdata/injection_mode.yaml",
         "testdata/local_sdk_injection.yaml",
         "testdata/namespace_selection.yaml",
