@@ -136,6 +136,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
+	reporter := report.Sender(s)
 
 	c.mu.Lock()
 	gnmiClient := c.client
@@ -148,61 +149,20 @@ func (c *Check) Run() error {
 
 	now := time.Now()
 	snapshot := gnmiClient.Snapshot()
-	stalenessThreshold := report.DefaultStalenessThreshold(c.interval)
-	freshSnapshot := report.FilterStale(snapshot, stalenessThreshold, now)
-
-	healthStats := report.HealthStats{
-		StreamState:      gnmiClient.StreamState(),
-		ReconnectCount:   gnmiClient.ReconnectAttempts(),
-		ReceivedSamples:  gnmiClient.ReceivedSamples(),
-		SampleAgeSeconds: report.OldestSampleAgeSeconds(snapshot, now),
-	}
-	if err := report.ReportHealth(s, checkConfig, snapshot, healthStats); err != nil {
-		return err
-	}
+	c.updateStatusFromClient(gnmiClient, checkConfig, snapshot)
 
 	c.mu.Lock()
 	bandwidthState := c.interfaceBandwidthState
-	// Prune even when no fresh samples arrive (for example after a device disconnects).
-	bandwidthState.PruneInactive(now, 3*c.interval)
+	lastMetadataReport := c.lastMetadataReport
 	c.mu.Unlock()
-	if len(freshSnapshot) > 0 {
-		if err := report.ReportMetrics(s, checkConfig, freshSnapshot, snapshot); err != nil {
-			return err
-		}
-		if err := report.ReportDerivedMetrics(s, checkConfig, freshSnapshot, bandwidthState); err != nil {
-			return err
-		}
+	lastMetadataReport, err = report.CollectSnapshot(reporter, checkConfig, gnmiClient, snapshot,
+		bandwidthState, lastMetadataReport, now, report.DefaultPreviewOptions())
+	if err != nil {
+		return err
 	}
-
-	readyForMetadata := gnmiClient.StreamState() == client.StreamStateConnected &&
-		gnmiClient.Synchronized() &&
-		report.InterfaceSnapshotComplete(snapshot, checkConfig.Profile.Metadata)
-
-	c.updateStatusFromClient(gnmiClient, checkConfig, snapshot)
-
-	if readyForMetadata {
-		if err := report.ReportInterfaceStatus(s, checkConfig, snapshot); err != nil {
-			return err
-		}
-	}
-
-	metadataInterval := report.MetadataCollectionInterval(checkConfig)
 	c.mu.Lock()
-	shouldReportMetadata := report.ShouldReportMetadata(c.lastMetadataReport, metadataInterval, now)
+	c.lastMetadataReport = lastMetadataReport
 	c.mu.Unlock()
-	if shouldReportMetadata && readyForMetadata {
-		sent, err := report.ReportMetadata(s, checkConfig, snapshot, now)
-		if err != nil {
-			return err
-		}
-		if sent {
-			c.mu.Lock()
-			c.lastMetadataReport = now
-			c.mu.Unlock()
-		}
-	}
-
 	s.Commit()
 	return nil
 }
