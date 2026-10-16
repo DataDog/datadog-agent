@@ -125,11 +125,9 @@ func installAgentLogTapWithQueueSize(
 	return tap
 }
 
-// enqueue runs on the async handler's drain goroutine (the observer handler
-// lives inside the multi-handler it drains, see pkg/util/log/setup). Keep
-// this path bounded: no tag construction, rule matching, rate limiter, JSON
-// encoding, or observer call is allowed here — anything slow here stalls log
-// writes.
+// enqueue blocks handling of log messages, so keep this path bounded: no tag
+// construction, rule matching, rate limiter, JSON encoding, or observer call
+// is allowed here.
 func (t *agentLogTap) enqueue(level pkglog.LogLevel, message string) {
 	// Prevent anomaly-detection's own logs from feeding back into the tap. This
 	// must happen before the asynchronous handoff because worker-side logging is

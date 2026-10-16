@@ -82,7 +82,7 @@ func (h *handler) Enabled(_ context.Context, _ slog.Level) bool {
 
 // Handle forwards the record to the registered observer.
 func (h *handler) Handle(_ context.Context, r slog.Record) error {
-	observe(fromSlogLevel(r.Level), r.Message)
+	observe(types.FromSlogLevel(r.Level), r.Message)
 	return nil
 }
 
@@ -105,26 +105,4 @@ func observe(level types.LogLevel, message string) {
 	}
 	defer observing.Store(false)
 	(*hp)(level, message)
-}
-
-// fromSlogLevel converts a slog level to a LogLevel, clamping to the closest
-// known level. Records can carry levels outside the agent's set (e.g.
-// slog.LevelInfo+2 from slog callers), and observing them must not panic.
-func fromSlogLevel(level slog.Level) types.LogLevel {
-	switch {
-	case level <= slog.Level(types.TraceLvl):
-		return types.TraceLvl
-	case level <= slog.Level(types.DebugLvl):
-		return types.DebugLvl
-	case level <= slog.Level(types.InfoLvl):
-		return types.InfoLvl
-	case level <= slog.Level(types.WarnLvl):
-		return types.WarnLvl
-	case level <= slog.Level(types.ErrorLvl):
-		return types.ErrorLvl
-	case level <= slog.Level(types.CriticalLvl):
-		return types.CriticalLvl
-	default:
-		return types.Off
-	}
 }

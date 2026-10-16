@@ -172,6 +172,8 @@ func buildSlogLogger(
 	}
 
 	var handlerList []stdslog.Handler
+	handlerList = append(handlerList, observer.NewHandler())
+
 	if len(writers) > 0 {
 		handlerList = append(handlerList, handlers.NewFormat(formatter, newSplitWriter(writers...)))
 	}
@@ -185,11 +187,6 @@ func buildSlogLogger(
 		closeFuncs = append(closeFuncs, func() { syslogReceiver.Close() })
 	}
 
-	// The observer branch runs inside the multi-handler drained by the async
-	// handler, so the observer callback sees records one at a time and never
-	// runs concurrently with itself. It is registered first, so a record is
-	// observed before it is written.
-	handlerList = append([]stdslog.Handler{observer.NewHandler()}, handlerList...)
 	multiHandler := handlers.NewMulti(handlerList...)
 	asyncHandler := handlers.NewAsync(multiHandler)
 

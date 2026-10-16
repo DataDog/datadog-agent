@@ -6,19 +6,27 @@
 package logging
 
 import (
-	"bufio"
 	"bytes"
 	"testing"
 
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
+
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func TestGlobalLoggerPrefixesFormattedAndUnformattedMessages(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
+type bufferingWriter struct {
+	buffer []string
+}
 
-	l, err := pkglog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, pkglog.InfoLvl)
+func (b *bufferingWriter) Write(p []byte) (n int, err error) {
+	b.buffer = append(b.buffer, string(p))
+	return len(p), nil
+}
+
+func TestGlobalLoggerPrefixesFormattedAndUnformattedMessages(t *testing.T) {
+	w := &bufferingWriter{}
+
+	l, err := pkglog.LoggerFromWriterWithMinLevelAndMsgFormat(w, pkglog.InfoLvl)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		pkglog.SetupLogger(pkglog.Default(), pkglog.InfoStr)
@@ -28,10 +36,11 @@ func TestGlobalLoggerPrefixesFormattedAndUnformattedMessages(t *testing.T) {
 
 	Infof("configured %d detectors", 2)
 	Warn("logssource", "unavailable")
-	w.Flush()
 
-	require.Contains(t, b.String(), "[anomalydetection] configured 2 detectors")
-	require.Contains(t, b.String(), "[anomalydetection] logssource unavailable")
+	require.Equal(t, []string{
+		"[anomalydetection] configured 2 detectors\n",
+		"[anomalydetection] logssource unavailable\n",
+	}, w.buffer)
 }
 
 func TestGlobalLoggerPreservesCallerAttribution(t *testing.T) {
