@@ -824,6 +824,8 @@
 /pkg/util/filesystem/rights_*.go                                      @DataDog/fleet-automation
 /pkg/util/funcs/                                                      @DataDog/ebpf-platform
 /pkg/util/gpu/                                                        @DataDog/accelerator-telemetry
+/pkg/util/log/                                                        @DataDog/agent-runtimes
+/pkg/util/log/observer/                                               @DataDog/anomaly-detection @DataDog/agent-runtimes
 /pkg/util/installinfo/                                                @DataDog/fleet-automation
 /pkg/util/kernel/                                                     @DataDog/ebpf-platform
 /pkg/util/safeelf/                                                    @DataDog/ebpf-platform
