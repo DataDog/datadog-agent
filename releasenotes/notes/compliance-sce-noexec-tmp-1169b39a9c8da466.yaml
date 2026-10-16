@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSPM: On Linux hosts whose ``/tmp`` is mounted ``noexec``, as the CIS
+    benchmarks recommend, the host benchmark rules checked by SCE scripts now
+    report the host state, where they reported an error. OpenSCAP runs each
+    script through the interpreter named on its first line.

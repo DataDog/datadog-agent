@@ -1,0 +1,65 @@
+--- a/src/SCE/sce_engine.c
++++ b/src/SCE/sce_engine.c
+@@ -365,6 +365,53 @@
+ }
+ 
+ 
++/*
++ * exec_script_interpreter runs script through the interpreter named on its
++ * first line, as the kernel does for an executable script: "#!", the
++ * interpreter path, and at most one argument. A script without that line
++ * runs under /bin/sh. It returns only if execve fails.
++ *
++ * It serves scripts that cannot be executed directly, such as those in an
++ * OSCAP_TEMP_DIR on a noexec mount, which the CIS benchmarks recommend for
++ * /tmp. It needs no helper on PATH.
++ */
++static void exec_script_interpreter(const char *script, char **env)
++{
++	char line[PATH_MAX + 64] = "";
++	char *interp = "/bin/sh";
++	char *arg = NULL;
++	FILE *f = fopen(script, "r");
++
++	if (f != NULL) {
++		if (fgets(line, sizeof(line), f) != NULL && strncmp(line, "#!", 2) == 0) {
++			char *p = line + 2;
++			p[strcspn(p, "\r\n")] = '\0';
++			p += strspn(p, " \t");
++			interp = p;
++			p += strcspn(p, " \t");
++			if (*p != '\0') {
++				*p++ = '\0';
++				p += strspn(p, " \t");
++				char *end = p + strlen(p);
++				while (end > p && (end[-1] == ' ' || end[-1] == '\t'))
++					*--end = '\0';
++				if (*p != '\0')
++					arg = p;
++			}
++		}
++		fclose(f);
++	}
++
++	char *argv[4];
++	int i = 0;
++	argv[i++] = interp;
++	if (arg != NULL)
++		argv[i++] = arg;
++	argv[i++] = (char *)script;
++	argv[i] = NULL;
++	execve(interp, argv, env);
++}
++
+ xccdf_test_result_type_t sce_engine_eval_rule(struct xccdf_policy *policy, const char *rule_id, const char *id, const char *href,
+ 		struct xccdf_value_binding_iterator *value_binding_it,
+ 		struct xccdf_check_import_iterator *check_import_it,
+@@ -576,7 +623,7 @@
+ 
+ 				execvp("oscap-run-sce-script", argvp);
+ #else
+-				execvpe("oscap-run-sce-script", argvp, env_values);
++				exec_script_interpreter(tmp_href, env_values);
+ #endif
+ 			} else {
+ 				execve(tmp_href, argvp, env_values);
