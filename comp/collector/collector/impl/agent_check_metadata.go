@@ -60,19 +60,22 @@ func truncateCheckError(msg string) string {
 	return msg[:headEnd] + fmt.Sprintf(truncatedMarkerFormat, tailStart-headEnd) + msg[tailStart:]
 }
 
-func truncateCheckWarnings(warnings []string) []string {
+// noTruncation is used in place of truncateCheckError when the truncation is disabled.
+func noTruncation(msg string) string { return msg }
+
+func truncateCheckWarnings(warnings []string, truncate func(string) string) []string {
 	truncated := make([]string, len(warnings))
 	for i, w := range warnings {
-		truncated[i] = truncateCheckError(w)
+		truncated[i] = truncate(w)
 	}
 	return truncated
 }
 
 // truncateLoaderErrors truncates each error of a loader name -> error map.
-func truncateLoaderErrors(errs map[string]string) map[string]string {
+func truncateLoaderErrors(errs map[string]string, truncate func(string) string) map[string]string {
 	truncated := make(map[string]string, len(errs))
 	for loader, e := range errs {
-		truncated[loader] = truncateCheckError(e)
+		truncated[loader] = truncate(e)
 	}
 	return truncated
 }
@@ -114,6 +117,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 		ExternalhostTags: *externalhost.GetPayload(),
 	}
 
+	truncate := truncateCheckError
+	if !c.config.GetBool("agent_checks_metadata_message_truncation_enabled") {
+		truncate = noTruncation
+	}
+
 	checkStats := expvars.GetCheckStats()
 	for _, stats := range checkStats {
 		for _, s := range stats {
@@ -128,11 +136,11 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 			var status []interface{}
 			if s.LastError != "" {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "ERROR", truncateCheckError(s.LastError), "", integrationTags,
+					s.CheckName, s.CheckName, s.CheckID, "ERROR", truncate(s.LastError), "", integrationTags,
 				}
 			} else if len(s.LastWarnings) != 0 {
 				status = []interface{}{
-					s.CheckName, s.CheckName, s.CheckID, "WARNING", truncateCheckWarnings(s.LastWarnings), "", integrationTags,
+					s.CheckName, s.CheckName, s.CheckID, "WARNING", truncateCheckWarnings(s.LastWarnings, truncate), "", integrationTags,
 				}
 			} else {
 				status = []interface{}{
@@ -146,7 +154,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	loaderErrors := collector.GetLoaderErrors()
 	for check, errs := range loaderErrors {
 		// Truncate each error rather than the marshalled result, so the payload keeps a valid JSON document.
-		jsonErrs, err := json.Marshal(truncateLoaderErrors(errs))
+		jsonErrs, err := json.Marshal(truncateLoaderErrors(errs, truncate))
 		if err != nil {
 			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
@@ -159,7 +167,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	configErrors := autodiscoveryimpl.GetConfigErrors()
 	for check, e := range configErrors {
 		status := []interface{}{
-			check, check, "initialization", "ERROR", truncateCheckError(e), []string{},
+			check, check, "initialization", "ERROR", truncate(e), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
@@ -167,7 +175,7 @@ func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
 	jmxStartupError := jmxStatus.GetStartupError()
 	if jmxStartupError.LastError != "" {
 		status := []interface{}{
-			"jmx", "jmx", "initialization", "ERROR", truncateCheckError(jmxStartupError.LastError), []string{},
+			"jmx", "jmx", "initialization", "ERROR", truncate(jmxStartupError.LastError), []string{},
 		}
 		payload.AgentChecks = append(payload.AgentChecks, status)
 	}
