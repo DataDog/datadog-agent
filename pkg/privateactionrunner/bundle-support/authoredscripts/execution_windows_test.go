@@ -10,11 +10,14 @@ package authoredscripts
 import (
 	"context"
 	"os/exec"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows"
 )
 
 func TestExecuteCommandWindowsSuccess(t *testing.T) {
@@ -48,6 +51,33 @@ func TestExecuteCommandWindowsContextTimeout(t *testing.T) {
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.ErrorContains(t, err, "timed out")
+}
+
+func TestExecuteCommandWindowsContextTimeoutTerminatesDescendants(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cmd := exec.Command(
+		"powershell.exe",
+		"-NoProfile",
+		"-NonInteractive",
+		"-Command",
+		`$child = Start-Process powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 30' -PassThru; [Console]::Out.Write($child.Id); Start-Sleep -Seconds 30`,
+	)
+
+	result, err := ExecuteCommand(ctx, cmd)
+
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	childPID, parseErr := strconv.ParseUint(strings.TrimSpace(result.Stdout), 10, 32)
+	require.NoError(t, parseErr, "child PID was not captured before cancellation: %q", result.Stdout)
+	process, openErr := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(childPID))
+	if openErr != nil {
+		require.ErrorIs(t, openErr, windows.ERROR_INVALID_PARAMETER)
+		return
+	}
+	defer windows.CloseHandle(process)
+	status, waitErr := windows.WaitForSingleObject(process, 5_000)
+	require.NoError(t, waitErr)
+	assert.Equal(t, uint32(windows.WAIT_OBJECT_0), status, "descendant process was not terminated with its Windows job")
 }
 
 func TestExecuteCommandWindowsOutputLimit(t *testing.T) {

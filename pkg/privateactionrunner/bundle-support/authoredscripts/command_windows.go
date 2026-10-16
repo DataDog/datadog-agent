@@ -98,6 +98,15 @@ func startCommand(cmd *exec.Cmd) (commandController, error) {
 			ignoreExitError(waitErr),
 		)
 	}
+	if err := resumeProcessPrimaryThread(cmd.Process.Pid); err != nil {
+		killErr := cmd.Process.Kill()
+		waitErr := cmd.Wait()
+		return nil, errors.Join(
+			fmt.Errorf("could not resume authored-script process: %w", err),
+			ignoreProcessDone(killErr),
+			ignoreExitError(waitErr),
+		)
+	}
 
 	started = true
 	return controller, nil
@@ -107,7 +116,7 @@ func configureCommand(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
-	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NEW_PROCESS_GROUP
+	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_SUSPENDED
 	cmd.WaitDelay = processWaitDelay
 }
 
@@ -143,6 +152,36 @@ func assignProcessToWindowsJob(job windows.Handle, pid int) error {
 	}
 	defer windows.CloseHandle(process)
 	return windows.AssignProcessToJobObject(job, process)
+}
+
+func resumeProcessPrimaryThread(pid int) error {
+	// os/exec does not expose the primary thread handle returned by CreateProcess.
+	// The process is still suspended here, so its only thread is the primary thread.
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return fmt.Errorf("could not snapshot Windows threads: %w", err)
+	}
+	defer windows.CloseHandle(snapshot)
+
+	entry := windows.ThreadEntry32{}
+	entry.Size = uint32(unsafe.Sizeof(entry))
+	for err = windows.Thread32First(snapshot, &entry); err == nil; err = windows.Thread32Next(snapshot, &entry) {
+		if entry.OwnerProcessID != uint32(pid) {
+			continue
+		}
+
+		thread, err := windows.OpenThread(windows.THREAD_SUSPEND_RESUME, false, entry.ThreadID)
+		if err != nil {
+			return fmt.Errorf("could not open primary thread %d: %w", entry.ThreadID, err)
+		}
+		_, resumeErr := windows.ResumeThread(thread)
+		closeErr := windows.CloseHandle(thread)
+		return errors.Join(resumeErr, closeErr)
+	}
+	if errors.Is(err, windows.ERROR_NO_MORE_FILES) {
+		return fmt.Errorf("could not find initial thread for process %d", pid)
+	}
+	return err
 }
 
 func (c *windowsCommandController) cancel() error {

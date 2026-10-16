@@ -28,6 +28,7 @@ func TestConfigureCommandWindowsPreservesProcessAttributes(t *testing.T) {
 
 	assert.True(t, cmd.SysProcAttr.HideWindow)
 	assert.NotZero(t, cmd.SysProcAttr.CreationFlags&windows.CREATE_NEW_PROCESS_GROUP)
+	assert.NotZero(t, cmd.SysProcAttr.CreationFlags&windows.CREATE_SUSPENDED)
 }
 
 func TestNewCommandWindowsWrapsPowerShellEntrypoint(t *testing.T) {
