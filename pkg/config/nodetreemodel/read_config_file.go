@@ -223,14 +223,18 @@ func (c *ntmConfig) loadYamlInto(dest *nodeImpl, source model.Source, inData map
 				//    setting_name_1:      # no value -> nil in Go
 				//    setting name_2: 1234
 				if value != nil {
+					var conversions []model.ConfigTypeConversion
 					if converted, err := basic.ConvertToDefaultType(value, schemaChild.Get(), false); err == nil {
+						conversions = typeConversions(currPath, "", source, value, converted)
 						value = converted
 					}
 					// normalize YAML v2 map[interface{}]interface{} to map[string]interface{}
 					if normalized, err := ToMapStringInterface(value, currPath); err == nil {
 						value = normalized
 					}
-					dest.InsertChildNode(key, newLeafNode(value, source))
+					leaf := newLeafNode(value, source)
+					leaf.conversions = conversions
+					dest.InsertChildNode(key, leaf)
 				}
 			}
 			continue

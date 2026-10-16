@@ -7,6 +7,7 @@ go_library(
         "assert.go",
         "assert_testonly.go",
         "config.go",
+        "conversions.go",
         "debug_string.go",
         "debug_string_testonly.go",
         "getter.go",
@@ -23,6 +24,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/util/defaultpaths",
         "//pkg/util/log",
+        "//pkg/util/scrubber",
         "@com_github_mohae_deepcopy//:deepcopy",
         "@com_github_spf13_cast//:cast",
         "@in_yaml_go_yaml_v2//:yaml",
@@ -35,6 +37,7 @@ dd_agent_go_test(
     srcs = [
         "compatibility_test.go",
         "config_test.go",
+        "conversions_test.go",
         "getter_test.go",
         "node_test.go",
         "read_config_file_test.go",

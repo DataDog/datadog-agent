@@ -37,10 +37,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	dogstatsdclientdrops "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsdclientdrops"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -48,6 +50,60 @@ import (
 )
 
 // team: fleet-remediation
+
+func TestConfigConversionReachesFakeintake(t *testing.T) {
+	ready := make(chan bool, 1)
+	fi := fakeintakeserver.NewServer(fakeintakeserver.WithAddress("127.0.0.1:0"), fakeintakeserver.WithReadyChannel(ready))
+	fi.Start()
+	require.True(t, <-ready)
+	t.Cleanup(func() { _ = fi.Stop() })
+	client := fakeintakeclient.NewClient(fi.URL())
+	cfg := config.NewMockFromYAML(t, `dogstatsd_port: "9000"`)
+	for key, value := range map[string]any{
+		"api_key": "test-api-key", "dd_url": fi.URL(), "run_path": t.TempDir(),
+		"health_platform.enabled": true, "health_platform.persist_on_kubernetes": true,
+		"health_platform.invalidconfig_check.enabled": true, "health_platform.forwarder.interval": 100 * time.Millisecond,
+	} {
+		cfg.SetInTest(key, value)
+	}
+	type dependencies struct {
+		fx.In
+		Scheduler schedulerdef.Component
+	}
+	deps := fxutil.Test[dependencies](t, Bundle(),
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		telemetrymock.Module(), hostnameinterface.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	hostname, _ := hostnameinterface.NewMock("my-hostname")
+	for _, module := range issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hostname}) {
+		if module.IssueName() == invalidconfig.ConversionIssueName {
+			check := module.BuiltInPeriodicHealthCheck()
+			require.NoError(t, deps.Scheduler.Schedule("test-config-conversion", check.Fn, 100*time.Millisecond, nil))
+		}
+	}
+	id := invalidconfig.ConfigAdjustmentIssueID(invalidconfig.ConversionIssueID, "agent", "my-hostname")
+	seen := func(state healthplatformpayload.IssueState) bool {
+		payloads, err := client.GetAgentHealth()
+		if err != nil {
+			return false
+		}
+		for _, payload := range payloads {
+			issue := payload.Issues[id]
+			if issue != nil && issue.GetPersistedIssue().GetState() == state {
+				if state == healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE {
+					require.Contains(t, issue.Description, "converted it to a whole number")
+					require.NotContains(t, issue.Description, "9000")
+					require.NotEmpty(t, issue.Remediation.Steps)
+				}
+				return true
+			}
+		}
+		return false
+	}
+	require.Eventually(t, func() bool { return seen(healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE) }, 5*time.Second, 20*time.Millisecond)
+	cfg.Set("dogstatsd_port", 9000, model.SourceFile)
+	require.Eventually(t, func() bool { return seen(healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) }, 5*time.Second, 20*time.Millisecond)
+}
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
@@ -427,7 +483,11 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 	mods := issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hn})
 	require.NotEmpty(t, mods, "no modules registered")
 	for _, mod := range mods {
-		issue, err := mod.BuildIssue(map[string]string{})
+		ctx := map[string]string{}
+		if mod.IssueName() == invalidconfig.ConversionIssueName {
+			ctx["conversions"] = `[{"key":"dogstatsd_port","from_type":"string","to_type":"integer"}]`
+		}
+		issue, err := mod.BuildIssue(ctx)
 		require.NoError(t, err, "module %s: BuildIssue failed", mod.IssueName())
 		assert.Equal(t, mod.IssueName(), issue.IssueName,
 			"module IssueName() %q must equal BuildIssue().IssueName %q",

@@ -30,9 +30,10 @@ type Node interface {
 }
 
 type nodeImpl struct {
-	children map[string]*nodeImpl
-	val      interface{}
-	source   model.Source
+	children    map[string]*nodeImpl
+	val         interface{}
+	source      model.Source
+	conversions []model.ConfigTypeConversion
 }
 
 var _ Node = (*nodeImpl)(nil)
@@ -307,6 +308,7 @@ func (n *nodeImpl) ReplaceValue(v interface{}, source model.Source) error {
 	}
 	n.val = v
 	n.source = source
+	n.conversions = nil
 	return nil
 }
 

@@ -284,8 +284,10 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 	}
 
 	// convert the value to the type of the default
+	var conversions []model.ConfigTypeConversion
 	if declaredNode.IsLeafNode() {
 		if converted, err := basic.ConvertToDefaultType(newValue, declaredNode.Get(), false); err == nil {
+			conversions = typeConversions(strings.ToLower(key), "", source, newValue, converted)
 			if ok := c.setWarnings[key]; !ok && reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
 				typePair := fmt.Sprintf("%T->%T", newValue, converted)
 				isIntWidthConversion := typePair == "int64->int" || typePair == "int->int64"
@@ -311,6 +313,9 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
 		return false
 	} else if newTree != nil {
+		if leaf, err := getNodeFromtree(key, newTree); err == nil {
+			leaf.conversions = conversions
+		}
 		// a new node was allocated, merge it into root
 		c.root, _ = c.root.Merge(newTree)
 	}
