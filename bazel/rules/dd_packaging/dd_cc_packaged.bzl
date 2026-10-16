@@ -4,7 +4,7 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
@@ -99,7 +99,9 @@ _dd_cc_packaged_rule = rule(
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, data = [], libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, data = [], executable = False, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
+    if executable and version:
+        fail("{}: executable can't be combined with version".format(name))
     patched_name = "{}_patched".format(name)
     base = dest_dir if dest_dir else "lib"
     package_dest_dir = paths.join(base, prefix) if prefix else base
@@ -142,6 +144,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
         pkg_files(
             name = packaged_lib,
             srcs = [":{}".format(patched_name)],
+            attributes = pkg_attributes(mode = "0755") if executable else None,
             prefix = package_dest_dir,
             visibility = visibility,
             package_metadata = [],
@@ -165,10 +168,13 @@ dd_cc_packaged = macro(
     packaged object at installation time if the final artifact
     depends, directly or indirectly, on the wrapped binary.
 
-    If installed_executables is provided, each entry is rpath-patched and
-    installed with mode 0755. Files and directory artifacts are installed as
-    prefix/basename. Use this instead of wrapping files in pkg_files and passing
-    them via installed_files, so that rpath rewriting is not skipped.
+    installed_executables is deprecated and scheduled for removal: package each
+    binary with its own dd_cc_packaged (executable = True) and list it in data.
+    Each entry is rpath-patched and installed with mode 0755. Files and
+    directory artifacts are installed as prefix/basename.
+
+    If executable is set, the input is installed with mode 0755. It can't be
+    combined with version.
 
     If data is provided, these runtime dependencies are collected by
     dd_collect_dependencies along with the packaged object.
@@ -186,8 +192,9 @@ dd_cc_packaged = macro(
             configurable = False,
             providers = [[CcInfo], [CcSharedLibraryInfo]],
         ),
+        # TODO(agent-build): remove installed_executables attribute
         "installed_executables": attr.label_keyed_string_dict(
-            doc = "Dict mapping labels to installation prefixes. Each entry is rpath-patched and installed with mode 0755.",
+            doc = "Deprecated, scheduled for removal: use an executable dd_cc_packaged in data instead. Dict mapping labels to installation prefixes. Each entry is rpath-patched and installed with mode 0755.",
             configurable = True,
         ),
         "installed_files": attr.label_list(
@@ -196,6 +203,11 @@ dd_cc_packaged = macro(
         "data": attr.label_list(
             doc = "Runtime dependencies that the input doesn't link against. dd_collect_dependencies collects them along with the packaged dependency.",
             configurable = True,
+        ),
+        "executable": attr.bool(
+            doc = "Install the input with mode 0755, for binaries. Can't be combined with version.",
+            default = False,
+            configurable = False,
         ),
         "libname": attr.string(
             default = "",

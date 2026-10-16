@@ -774,6 +774,38 @@ def _test_packaged_data_pkg_files_collected(name):
 def _test_packaged_data_pkg_files_collected_impl(env, target):
     _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
 
+# Test 16: an executable dd_cc_packaged input is installed with mode 0755.
+def _test_executable_mode(name):
+    util.helper_target(
+        cc_binary,
+        name = name + "_bin",
+        srcs = ["testdata/main.c"],
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        dest_dir = "embedded/bin",
+        executable = True,
+        input = ":" + name + "_bin",
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_packaged"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_executable_mode_impl,
+        target = name + "_subject",
+    )
+
+def _test_executable_mode_impl(env, target):
+    modes = {
+        dest: files.attributes.get("mode")
+        for files, _ in target[PackageFilegroupInfo].pkg_files
+        for dest in files.dest_src_map
+    }
+    env.expect.that_dict(modes).contains_at_least({"embedded/bin/test_executable_mode_bin": "0755"})
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -795,5 +827,6 @@ def dd_packaging_test_suite(name):
             _test_data_reaches_packaged,
             _test_packaged_data_collected,
             _test_packaged_data_pkg_files_collected,
+            _test_executable_mode,
         ],
     )
