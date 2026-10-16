@@ -15,9 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
 
 func testHostname(name string) hostnameinterface.Component {
@@ -31,7 +33,7 @@ func testSelfIdent() *selfident.SelfIdent {
 
 // A valid system-probe setting passes the schema → no report.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	reports, err := newChecker(sysprobeconfigmock.NewMock(t), testHostname("h"), testSelfIdent()).Run()
+	reports, err := newTestChecker(sysprobeconfigmock.NewMock(t), testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
@@ -41,7 +43,7 @@ func TestCheck_SeparateIssuesRemainStable(t *testing.T) {
 		"system_probe_config.health_port":                "wrong",
 		"system_probe_config.internal_profiling.api_key": []string{"PRIVATE_KEY"},
 	})
-	c := newChecker(cfg, testHostname("h"), testSelfIdent())
+	c := newTestChecker(cfg, testHostname("h"), testSelfIdent())
 	reports, err := c.Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 2)
@@ -58,6 +60,8 @@ func TestCheck_SeparateIssuesRemainStable(t *testing.T) {
 	}
 	assert.NotEqual(t, ids["/system_probe_config/health_port"], ids["/system_probe_config/internal_profiling/api_key"])
 	cfg.SetInTest("system_probe_config.health_port", 5558)
+	// the validation result is cached, reset it to validate the updated config
+	schema.ResetViolationsCache()
 	reports, err = c.Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
@@ -69,7 +73,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 		"system_probe_config.health_port": "not-an-integer",
 	})
-	reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
+	reports, err := newTestChecker(cfg, testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	assert.Regexp(t, `^invalid-system-probe-config:[0-9a-f]{16}$`, reports[0].IssueID)
@@ -83,9 +87,9 @@ func TestInstanceIssueID_UniquePerHost(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
 		"system_probe_config.health_port": "not-an-integer",
 	})
-	a, err := newChecker(cfg, testHostname("host-a"), testSelfIdent()).Run()
+	a, err := newTestChecker(cfg, testHostname("host-a"), testSelfIdent()).Run()
 	require.NoError(t, err)
-	b, err := newChecker(cfg, testHostname("host-b"), testSelfIdent()).Run()
+	b, err := newTestChecker(cfg, testHostname("host-b"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	require.Len(t, a, 1)
 	require.Len(t, b, 1)
@@ -112,7 +116,7 @@ func TestCheck_ExplainsTypeAndDefault(t *testing.T) {
 	cfg := sysprobeconfigmock.NewMock(t)
 	cfg.Set("system_probe_config.health_port", "PRIVATE_INVALID_PORT", model.SourceFile)
 	cfg.Set("system_probe_config.health_port", 5558, model.SourceAgentRuntime)
-	reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
+	reports, err := newTestChecker(cfg, testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(reports[0].Context)
@@ -136,7 +140,7 @@ func TestCheck_ReportsInvalidAPIKeyTypesWithoutValues(t *testing.T) {
 	for _, value := range []any{[]string{"PRIVATE_KEY"}, map[string]any{"value": "PRIVATE_KEY"}} {
 		cfg := sysprobeconfigmock.NewMock(t)
 		cfg.Set("system_probe_config.internal_profiling.api_key", value, model.SourceFile)
-		reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
+		reports, err := newTestChecker(cfg, testHostname("h"), testSelfIdent()).Run()
 		require.NoError(t, err)
 		require.Len(t, reports, 1)
 		issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(reports[0].Context)
@@ -151,7 +155,7 @@ func TestCheck_ReportsInvalidAPIKeyTypesWithoutValues(t *testing.T) {
 // Without system-probe config the startup check must NOT register, or the bundle would
 // resolve a real persisted issue without ever validating.
 func TestBuiltInStartupHealthCheck_SkippedWhenSysprobeAbsent(t *testing.T) {
-	m := &invalidSysprobeConfigModule{datadog: config.NewMock(t), checker: newChecker(nil, nil, testSelfIdent())}
+	m := &invalidSysprobeConfigModule{datadog: config.NewMock(t), checker: newTestChecker(nil, nil, testSelfIdent())}
 	assert.Nil(t, m.BuiltInStartupHealthCheck())
 }
 
@@ -161,7 +165,7 @@ func TestBuiltInStartupHealthCheck_GatedByFlag(t *testing.T) {
 		"system_probe_config.health_port": "not-an-integer",
 	})
 	dd := config.NewMock(t)
-	m := &invalidSysprobeConfigModule{datadog: dd, checker: newChecker(sp, testHostname("h"), testSelfIdent())}
+	m := &invalidSysprobeConfigModule{datadog: dd, checker: newTestChecker(sp, testHostname("h"), testSelfIdent())}
 
 	// Enabled (default) → violation surfaces.
 	reports, err := m.BuiltInStartupHealthCheck().Fn()
@@ -173,4 +177,10 @@ func TestBuiltInStartupHealthCheck_GatedByFlag(t *testing.T) {
 	reports, err = m.BuiltInStartupHealthCheck().Fn()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
+}
+
+// newTestChecker returns a checker that validates cfg from scratch, ignoring the results cached by previous tests.
+func newTestChecker(cfg sysprobeconfig.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
+	schema.ResetViolationsCache()
+	return newChecker(cfg, hostname, selfIdent)
 }

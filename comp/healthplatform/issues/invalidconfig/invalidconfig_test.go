@@ -128,14 +128,14 @@ func TestBuildIssue_Remediation(t *testing.T) {
 // A vanilla mock has only defaults, which round-trip through YAML cleanly and
 // pass the schema. Confirms Run() is a no-op on a healthy config.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	reports, err := newChecker(config.NewMock(t), testHostname(t), testSelfIdent(t)).Run()
+	reports, err := newTestChecker(config.NewMock(t), testHostname(t), testSelfIdent(t)).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 }
 
 func TestCheck_SeparateIssuesRemainStable(t *testing.T) {
 	cfg := config.NewMockFromYAML(t, "agent_ipc: {port: wrong}\ndogstatsd_port: {wrong: type}")
-	c := newChecker(cfg, testHostname(t), testSelfIdent(t))
+	c := newTestChecker(cfg, testHostname(t), testSelfIdent(t))
 	reports, err := c.Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 2)
@@ -157,15 +157,21 @@ func TestCheck_SeparateIssuesRemainStable(t *testing.T) {
 	assert.NotEqual(t, ids["/agent_ipc/port"], ids["/dogstatsd_port"])
 	cfg.Set("agent_ipc.port", 5001, model.SourceFile)
 	cfg.Set("dogstatsd_port", []string{"still wrong"}, model.SourceFile)
+	// the validation result is cached, reset it to validate the updated config
+	schema.ResetViolationsCache()
 	reports, err = c.Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	assert.Equal(t, ids["/dogstatsd_port"], reports[0].IssueID, "changing the rejected value must not create another issue")
 	cfg.Set("dogstatsd_port", 8125, model.SourceFile)
+	// the validation result is cached, reset it to validate the updated config
+	schema.ResetViolationsCache()
 	reports, err = c.Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
 	cfg.Set("agent_ipc.port", "wrong again", model.SourceFile)
+	// the validation result is cached, reset it to validate the updated config
+	schema.ResetViolationsCache()
 	reports, err = c.Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
@@ -179,7 +185,7 @@ func TestCheck_DurationStringIsNotAViolation(t *testing.T) {
 		"remote_configuration:\n  refresh_interval: 5s", // nested key
 	} {
 		cfg := config.NewMockFromYAML(t, yaml)
-		reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+		reports, err := newTestChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 		require.NoError(t, err)
 		assert.Empty(t, reports, "duration string %q should not produce a schema violation: %+v", yaml, reports)
 	}
@@ -192,7 +198,7 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetInTest("agent_ipc.port", "not-a-number")
 
-	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+	reports, err := newTestChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 	if err != nil {
 		t.Skipf("schema validator unavailable (schema not embedded in test binary): %v", err)
 	}
@@ -236,7 +242,7 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 		t.Run(testCase.yaml, func(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, testCase.yaml)
 
-			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			reports, err := newTestChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 			require.NoError(t, err)
 			if testCase.want == "" {
 				assert.Empty(t, reports)
@@ -265,7 +271,7 @@ func TestCheck_UnresolvedSecretWithConfiguredBackend(t *testing.T) {
 	} {
 		t.Run(backend, func(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, backend+"\nagent_ipc: {port: 'ENC[value]'}")
-			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			reports, err := newTestChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 			require.NoError(t, err)
 			assert.Empty(t, reports)
 		})
@@ -283,7 +289,7 @@ func TestCheck_ResolvedSecrets(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, "agent_ipc:\n  port: ENC[value]\n")
 			cfg.Set("agent_ipc.port", tc.value, model.SourceSecret)
 
-			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			reports, err := newTestChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 			require.NoError(t, err)
 			if tc.want == "" {
 				assert.Empty(t, reports)
@@ -304,7 +310,7 @@ func TestCheck_ResolvedSecretInMap(t *testing.T) {
 	requireSchema(t)
 	cfg := config.NewMockFromYAML(t, "additional_endpoints: {'https://example.test': 'ENC[PRIVATE_HANDLE]'}")
 	cfg.Set("additional_endpoints", cfg.Get("additional_endpoints"), model.SourceSecret)
-	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+	reports, err := newTestChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
@@ -335,8 +341,8 @@ func TestInstanceIssueID_DiffersByConfigPath(t *testing.T) {
 	cfg2 := config.NewMockFromYAML(t, "config_path_marker: b")
 
 	si := testSelfIdent(t)
-	c1 := newChecker(cfg1, hn, si)
-	c2 := newChecker(cfg2, hn, si)
+	c1 := newTestChecker(cfg1, hn, si)
+	c2 := newTestChecker(cfg2, hn, si)
 	c1.cfg = fakeConfigFileUsed{Component: cfg1, path: "/etc/datadog-agent/datadog.yaml"}
 	c2.cfg = fakeConfigFileUsed{Component: cfg2, path: "/etc/datadog-agent/datadog-cluster.yaml"}
 
@@ -352,8 +358,8 @@ func TestInstanceIssueID_DiffersByHostname(t *testing.T) {
 	hn2, _ := hostnamemock.NewMock("host-b")
 
 	si := testSelfIdent(t)
-	c1 := newChecker(cfg, hn1, si)
-	c2 := newChecker(cfg, hn2, si)
+	c1 := newTestChecker(cfg, hn1, si)
+	c2 := newTestChecker(cfg, hn2, si)
 
 	assert.NotEqual(t, c1.instanceIssueID(""), c2.instanceIssueID(""))
 }
@@ -367,4 +373,10 @@ type fakeConfigFileUsed struct {
 
 func (f fakeConfigFileUsed) ConfigFileUsed() string {
 	return f.path
+}
+
+// newTestChecker returns a checker that validates cfg from scratch, ignoring the results cached by previous tests.
+func newTestChecker(cfg config.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
+	schema.ResetViolationsCache()
+	return newChecker(cfg, hostname, selfIdent)
 }

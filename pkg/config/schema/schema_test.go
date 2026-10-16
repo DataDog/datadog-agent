@@ -33,6 +33,8 @@ properties:
 )
 
 func initTestSchema(t *testing.T) {
+	ResetViolationsCache()
+	t.Cleanup(ResetViolationsCache)
 	schemaCompileOnce.Do(func() {
 		c := jsonschema.NewCompiler()
 
@@ -70,6 +72,11 @@ type fakeReader struct {
 func (f fakeReader) AllSettingsWithoutDefault() map[string]interface{} { return f.settings }
 
 func (f fakeReader) AllSettingsBySource() map[model.Source]interface{} { return nil }
+
+func (f fakeReader) IsSetting(key string) bool {
+	_, ok := f.settings[key]
+	return ok
+}
 
 func TestGetRawSchema(t *testing.T) {
 	for _, id := range []model.SchemaID{model.CoreSchema, model.SystemProbeSchema} {
@@ -159,6 +166,7 @@ func TestValidateConfigTypeViolation(t *testing.T) {
 		assert.Equal(t, []Violation{{
 			Message:       "at '/api_key': got number, want string",
 			Path:          "/api_key",
+			SettingKey:    "api_key",
 			ActualType:    "number",
 			ExpectedTypes: []string{"string"},
 		}}, violations)
@@ -204,7 +212,42 @@ func TestValidateConfigIgnoresAgentRuntime(t *testing.T) {
 	assert.Equal(t, []Violation{{
 		Message:       "at '/api_key': got number, want string",
 		Path:          "/api_key",
+		SettingKey:    "api_key",
 		ActualType:    "number",
 		ExpectedTypes: []string{"string"},
 	}}, violations)
+}
+
+func TestValidateConfigSettingKey(t *testing.T) {
+	initTestSchema(t)
+	violations, err := ValidateConfig(fakeReader{settings: map[string]interface{}{"tags": []interface{}{"a", 1}}}, CoreSchema)
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	assert.Equal(t, "/tags/1", violations[0].Path)
+	assert.Equal(t, "tags", violations[0].SettingKey)
+}
+
+func TestValidateConfigIsCachedPerSchema(t *testing.T) {
+	initTestSchema(t)
+	invalid := fakeReader{settings: map[string]interface{}{"api_key": 1234}}
+	valid := fakeReader{settings: map[string]interface{}{"api_key": "abc"}}
+
+	violations, err := ValidateConfig(invalid, CoreSchema)
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+
+	// the result from the first validation is returned for the same schema
+	cached, err := ValidateConfig(valid, CoreSchema)
+	require.NoError(t, err)
+	assert.Equal(t, violations, cached)
+
+	// other schemas are validated independently
+	violations, err = ValidateConfig(valid, SystemProbeShema)
+	require.NoError(t, err)
+	assert.Empty(t, violations)
+
+	ResetViolationsCache()
+	violations, err = ValidateConfig(valid, CoreSchema)
+	require.NoError(t, err)
+	assert.Empty(t, violations)
 }

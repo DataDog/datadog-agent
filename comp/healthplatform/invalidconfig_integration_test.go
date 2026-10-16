@@ -55,6 +55,8 @@ func requireSchema(t *testing.T) {
 // violations from both config checks reach intake without configured values.
 func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	requireSchema(t)
+	pkgconfigschema.ResetViolationsCache()
+	t.Cleanup(pkgconfigschema.ResetViolationsCache)
 	const rawInvalidLogsEnabled = "RAW_LOGS_ENABLED_MUST_NOT_APPEAR_83d4d1"
 	const rawInvalidHealthPort = "RAW_HEALTH_PORT_MUST_NOT_APPEAR_42fa6e"
 
