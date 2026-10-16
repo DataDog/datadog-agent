@@ -168,7 +168,8 @@ func (s *packageAgentSuite) TestPrivilegedRshellGate() {
 	// on demand, so this also works where the socket is not enabled and
 	// nothing else references it.
 	for _, unit := range []string{rshellPrivilegedSocketUnit, rshellPrivilegedServiceUnit} {
-		s.Equal("loaded", strings.TrimSpace(s.host.Run("systemctl show -p LoadState --value "+unit)), unit)
+		// No --value: systemd 219 (CentOS 7, Amazon Linux 2) does not support it.
+		s.Equal("LoadState=loaded", strings.TrimSpace(s.host.Run("systemctl show -p LoadState "+unit)), unit)
 	}
 	if !s.privilegedRshellExpected() {
 		s.T().Skip("the privileged rshell helper requires Landlock ABI 3 (kernel 6.2+); backported kernels are not detected here")
