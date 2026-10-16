@@ -1,0 +1,21 @@
+---
+agents:
+  enabled: false
+clusterChecksRunner:
+  enabled: false
+clusterAgent:
+  admissionController:
+    configMode: "hostip"
+  image:
+    pullPolicy: IfNotPresent
+  envDict:
+    DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED: "false"
+datadog:
+  kubeStateMetricsCore:
+    useClusterCheckRunners: false
+  apm:
+    instrumentation:
+      enabled: false
+      onDemand: true
+      injector:
+        imageTag: "0.52.0"
