@@ -724,6 +724,97 @@ def _test_dynamic_dep_runfiles_impl(env, target):
         matching.str_endswith("libdynamic_dep_runfiles.so"),
     )
 
+# Test 15: dd_cc_packaged's data attr reaches another dd_cc_packaged target the
+# input doesn't link against.
+def _test_packaged_data_collected(name):
+    util.helper_target(
+        cc_library,
+        name = name + "_plugin_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_plugin_so",
+        deps = [":" + name + "_plugin_lib"],
+    )
+    util.helper_target(
+        pkg_files,
+        name = name + "_plugin_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_plugin_packaged",
+        input = ":" + name + "_plugin_so",
+        installed_files = [":" + name + "_plugin_hdrs"],
+    )
+    util.helper_target(
+        cc_library,
+        name = name + "_host_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_host_so",
+        deps = [":" + name + "_host_lib"],
+    )
+    dd_cc_packaged(
+        name = name + "_host_packaged",
+        input = ":" + name + "_host_so",
+        data = [":" + name + "_plugin_packaged"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_host_packaged"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_packaged_data_collected_impl,
+        target = name + "_subject",
+    )
+
+def _test_packaged_data_collected_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
+# Test 16: a pkg_files target in dd_cc_packaged's data is collected.
+def _test_packaged_data_pkg_files_collected(name):
+    util.helper_target(
+        cc_library,
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    util.helper_target(
+        pkg_files,
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        data = [":" + name + "_hdrs"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_packaged"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_packaged_data_pkg_files_collected_impl,
+        target = name + "_subject",
+    )
+
+def _test_packaged_data_pkg_files_collected_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -744,5 +835,7 @@ def dd_packaging_test_suite(name):
             _test_go_chain_reaches_packaged,
             _test_data_reaches_packaged,
             _test_dynamic_dep_runfiles,
+            _test_packaged_data_collected,
+            _test_packaged_data_pkg_files_collected,
         ],
     )

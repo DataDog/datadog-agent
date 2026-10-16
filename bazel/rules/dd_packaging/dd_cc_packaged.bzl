@@ -96,10 +96,13 @@ _dd_cc_packaged_rule = rule(
             doc = "A list of files that should be installed alongside the packaged dependency",
             providers = [[PackageFilesInfo], [PackageFilegroupInfo]],
         ),
+        "data": attr.label_list(
+            doc = "Runtime dependencies that the input doesn't link against. dd_collect_dependencies collects them along with the packaged dependency.",
+        ),
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, data = [], libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
     base = dest_dir if dest_dir else "lib"
     package_dest_dir = paths.join(base, prefix) if prefix else base
@@ -151,6 +154,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
         name = name,
         input = input,
         installed_files = extra_files + installed_files,
+        data = data,
         visibility = visibility,
         package_metadata = [],
         **kwargs
@@ -168,6 +172,9 @@ dd_cc_packaged = macro(
     installed with mode 0755. Files and directory artifacts are installed as
     prefix/basename. Use this instead of wrapping files in pkg_files and passing
     them via installed_files, so that rpath rewriting is not skipped.
+
+    If data is provided, these runtime dependencies are collected by
+    dd_collect_dependencies along with the packaged object.
 
     If a version is provided and the input is a cc_shared_library, the library
     will be installed along with the versioned symlink (see so_symlink).
@@ -187,6 +194,10 @@ dd_cc_packaged = macro(
             configurable = True,
         ),
         "installed_files": attr.label_list(
+            configurable = True,
+        ),
+        "data": attr.label_list(
+            doc = "Runtime dependencies that the input doesn't link against. dd_collect_dependencies collects them along with the packaged dependency.",
             configurable = True,
         ),
         "libname": attr.string(
