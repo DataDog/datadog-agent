@@ -267,9 +267,9 @@ export function MetricsView({
     [allSeries, aggregationType, selectedMetricTypes]
   );
 
-  const metricGroups = useMemo(() => {
+  const allMetricGroups = useMemo(() => {
     const groups = new Map<string, MetricGroup>();
-    filteredSeries.forEach((s) => {
+    allSeries.forEach((s) => {
       const baseName = getBaseMetricName(s.name);
       const key = `${s.namespace}/${baseName}`;
       if (!groups.has(key)) {
@@ -285,7 +285,20 @@ export function MetricsView({
     });
 
     return Array.from(groups.values()).sort((a, b) => a.baseName.localeCompare(b.baseName));
-  }, [filteredSeries]);
+  }, [allSeries]);
+
+  const allGroupByKey = useMemo(() => {
+    const map = new Map<string, MetricGroup>();
+    allMetricGroups.forEach((g) => map.set(g.key, g));
+    return map;
+  }, [allMetricGroups]);
+
+  const metricGroups = useMemo(() => {
+    const filteredSeriesIDs = new Set(filteredSeries.map((series) => series.id));
+    return allMetricGroups
+      .map((group) => ({ ...group, members: group.members.filter((member) => filteredSeriesIDs.has(member.id)) }))
+      .filter((group) => group.members.length > 0);
+  }, [allMetricGroups, filteredSeries]);
 
   const groupByKey = useMemo(() => {
     const map = new Map<string, MetricGroup>();
@@ -409,7 +422,7 @@ export function MetricsView({
     const fetchSeriesData = async () => {
       const next = new Map<string, SeriesData[]>();
       for (const groupKey of selectedGroups) {
-        const group = groupByKey.get(groupKey);
+        const group = allGroupByKey.get(groupKey);
         if (!group) continue;
         const seriesList: SeriesData[] = [];
         for (const s of group.members) {
@@ -431,7 +444,7 @@ export function MetricsView({
     return () => {
       cancelled = true;
     };
-  }, [selectedGroups, state.connectionState, state.activeScenario, groupByKey, groupSeriesData.size]);
+  }, [selectedGroups, state.connectionState, state.activeScenario, allGroupByKey, groupSeriesData.size]);
 
   const toggleDetector = (name: string) => {
     actions.toggleComponent(name);
