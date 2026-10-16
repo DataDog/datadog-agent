@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "aggregator.go",
         "check_sampler.go",
+        "check_sampler_sdc.go",
         "context_resolver.go",
         "context_resolver_debug.go",
         "demultiplexer.go",
@@ -54,6 +55,7 @@ go_library(
         "//comp/haagent/def",
         "//comp/serializer/metricscompression/def",
         "//pkg/aggregator/ckey",
+        "//pkg/aggregator/internal/sdc",
         "//pkg/aggregator/internal/tags",
         "//pkg/aggregator/internal/util",
         "//pkg/aggregator/sender",
@@ -95,6 +97,7 @@ dd_agent_go_test(
     srcs = [
         "aggregator_test.go",
         "check_sampler_bench_test.go",
+        "check_sampler_sdc_test.go",
         "check_sampler_test.go",
         "context_resolver_bench_test.go",
         "context_resolver_test.go",
@@ -158,6 +161,7 @@ dd_agent_go_test(
         "//comp/serializer/metricscompression/def",
         "//comp/serializer/metricscompression/fx-mock",
         "//pkg/aggregator/ckey",
+        "//pkg/aggregator/internal/sdc",
         "//pkg/aggregator/internal/tags",
         "//pkg/collector/check/id",
         "//pkg/config/mock",
