@@ -30,6 +30,10 @@ type dynamicConcurrencySettings struct {
 	// saturationThreshold is the fraction of an evaluation window the semaphore
 	// must spend fully saturated before the limit grows.
 	saturationThreshold float64
+	// decayThreshold is the saturation below which the limit decays by one per
+	// evaluation window, so that capacity grown for a past backlog is released
+	// once it is no longer needed. Zero disables decay.
+	decayThreshold float64
 	// increaseStep is the additive growth applied per evaluation window.
 	increaseStep int64
 	// minDecreaseInterval debounces decreases: a burst of backoff signals (e.g.
@@ -50,6 +54,7 @@ func dynamicConcurrencySettingsFromConfig(config config.Component, log log.Compo
 		initialLimit:        config.GetInt64(prefix + "initial_limit"),
 		evalInterval:        config.GetDuration(prefix + "eval_interval"),
 		saturationThreshold: config.GetFloat64(prefix + "saturation_threshold"),
+		decayThreshold:      config.GetFloat64(prefix + "decay_threshold"),
 		increaseStep:        config.GetInt64(prefix + "increase_step"),
 		minDecreaseInterval: config.GetDuration(prefix + "min_decrease_interval"),
 		increaseCooldown:    config.GetDuration(prefix + "increase_cooldown"),
@@ -68,6 +73,11 @@ func dynamicConcurrencySettingsFromConfig(config config.Component, log log.Compo
 		clamped := min(max(s.saturationThreshold, 0), 1)
 		log.Warnf("Invalid %ssaturation_threshold '%v', setting to %v", prefix, s.saturationThreshold, clamped)
 		s.saturationThreshold = clamped
+	}
+	if s.decayThreshold < 0 || s.decayThreshold > s.saturationThreshold {
+		clamped := min(max(s.decayThreshold, 0), s.saturationThreshold)
+		log.Warnf("Invalid %sdecay_threshold '%v', setting to %v", prefix, s.decayThreshold, clamped)
+		s.decayThreshold = clamped
 	}
 	if s.increaseStep < 1 {
 		log.Warnf("Invalid %sincrease_step '%d', setting to 1", prefix, s.increaseStep)
@@ -200,7 +210,8 @@ func (d *dynamicConcurrencyDomain) onBackoff() {
 }
 
 // onEval grows the limit when the semaphore was saturated for most of the
-// window, unless we recently backed off.
+// window and decays it when the semaphore was mostly idle, unless we recently
+// backed off.
 func (d *dynamicConcurrencyDomain) onEval() {
 	now := d.now()
 	window := now.Sub(d.lastEval)
@@ -217,6 +228,8 @@ func (d *dynamicConcurrencyDomain) onEval() {
 	}
 	if saturation >= d.settings.saturationThreshold {
 		d.setLimit(min(d.settings.maxLimit, d.limit+d.settings.increaseStep))
+	} else if saturation < d.settings.decayThreshold {
+		d.setLimit(max(1, d.limit-1))
 	}
 }
 
