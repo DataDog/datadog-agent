@@ -8,10 +8,9 @@
 package hostimpl
 
 import (
-	"fmt"
+	"context"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
-	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -24,9 +23,9 @@ type Payload struct {
 
 // getPayload returns the complete metadata payload as seen in Agent v5. Note: gohai can't be used on the platforms
 // this module builds for
-func (h *host) getPayload(hostname string) *Payload {
+func (h *host) getPayload(ctx context.Context) *Payload {
 	return &Payload{
 		CommonPayload: *utils.GetCommonPayload(h.hostname, h.config),
-		Payload:       *utils.GetPayload(ctx, h.config),
+		Payload:       *utils.GetPayload(ctx, h.config, h.hostnameComp, h.pythonInfo),
 	}
 }

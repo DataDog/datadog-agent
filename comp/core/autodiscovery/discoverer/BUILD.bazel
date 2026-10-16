@@ -5,18 +5,20 @@ go_library(
     name = "discoverer",
     srcs = [
         "discovery_json.go",
-        "python_bridge.go",  # //go:build python
-        "python_bridge_nopython.go",  # //go:build !python
+        "factory.go",
+        "resolution.go",
         "types.go",
         "worker.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/autodiscovery/configresolver",
+        "//comp/core/autodiscovery/discoverer/def",
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/listeners",
+        "//comp/core/autodiscovery/providers/names",
         "//comp/core/autodiscovery/telemetry",
-        "//comp/core/workloadmeta/def",
-        "//pkg/collector/python",
         "//pkg/util/log",
         "@io_k8s_apimachinery//pkg/util/wait",
         "@io_k8s_client_go//util/workqueue",

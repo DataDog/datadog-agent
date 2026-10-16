@@ -154,7 +154,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
@@ -195,9 +194,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				localTaggerfx.Module(),
 				workloadfilterfx.Module(),
 				fx.Supply(
-					status.Params{
-						PythonVersionGetFunc: python.GetPythonVersion,
-					},
 					status.NewInformationProvider(leaderelection.Provider{}),
 					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(admissionpkg.Provider{}),

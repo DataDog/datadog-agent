@@ -21,6 +21,7 @@ go_library(
         "//comp/core/status",
         "//comp/core/sysprobeconfig/def",
         "//comp/def",
+        "//comp/metadata/host/impl/pythoninfo",
         "//comp/process/agent",
         "//comp/process/agent/def",
         "//comp/process/expvars/impl",

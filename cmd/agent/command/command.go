@@ -12,6 +12,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -52,8 +53,55 @@ type GlobalParams struct {
 	NoColor bool
 }
 
+// ProductComposition contains product/flavor-specific composition choices for shared subcommands.
+//
+// Fields should be added as feature migrations need product-level control over
+// reused subcommand composition. The zero value should remain valid for products
+// that do not include optional feature modules.
+type ProductComposition struct {
+	// AutodiscoveryOptions are product-specific Fx options included alongside the
+	// shared Autodiscovery module.
+	AutodiscoveryOptions []fx.Option
+
+	// HostMetadataOptions are product-specific Fx options included alongside the
+	// shared host metadata module.
+	HostMetadataOptions []fx.Option
+
+	// CollectorOptions are product-specific Fx options included alongside the
+	// shared collector module.
+	CollectorOptions []fx.Option
+
+	// CheckOptions are product-specific Fx options included alongside the shared
+	// check command graph.
+	CheckOptions []fx.Option
+
+	// GUIOptions are product-specific Fx options included alongside the shared GUI
+	// module.
+	GUIOptions []fx.Option
+
+	// MetricLookbackOptions are product-specific Fx options included alongside the
+	// shared run command graph to enable metric lookback shadow checks.
+	MetricLookbackOptions []fx.Option
+
+	// AnomalyDetectionOptions are product-specific Fx options included alongside the
+	// shared run command graph to enable anomaly detection features.
+	AnomalyDetectionOptions []fx.Option
+
+	// DataObservabilityOptions are product-specific Fx options included alongside the
+	// shared run command graph to enable Data Observability features.
+	DataObservabilityOptions []fx.Option
+
+	// LogsSeverityOptions are product-specific Fx options included alongside the
+	// shared run command graph to enable smart logs severity providers.
+	LogsSeverityOptions []fx.Option
+
+	// StatusOptions are product-specific Fx options included alongside the
+	// shared status module.
+	StatusOptions []fx.Option
+}
+
 // SubcommandFactory is a callable that will return a slice of subcommands.
-type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
+type SubcommandFactory func(globalParams *GlobalParams, product ProductComposition) []*cobra.Command
 
 // GetDefaultCoreBundleParams returns the default params for the Core Bundle (config loaded from the "datadog" file
 // and logger disabled).
@@ -69,6 +117,12 @@ func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
+	return MakeCommandWithProductComposition(subcommandFactories, ProductComposition{})
+}
+
+// MakeCommandWithProductComposition makes the top-level Cobra command for this app
+// using the supplied product/flavor composition.
+func MakeCommandWithProductComposition(subcommandFactories []SubcommandFactory, product ProductComposition) *cobra.Command {
 	globalParams := GlobalParams{}
 
 	// AgentCmd is the root command
@@ -104,7 +158,7 @@ monitoring and performance data.`,
 	}
 
 	for _, sf := range subcommandFactories {
-		subcommands := sf(&globalParams)
+		subcommands := sf(&globalParams, product)
 		for _, cmd := range subcommands {
 			agentCmd.AddCommand(cmd)
 		}

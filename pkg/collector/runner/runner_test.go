@@ -177,7 +177,7 @@ func syncTestNewRunner(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 3)
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -195,7 +195,7 @@ func syncTestRunnerAddWorker(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 1)
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -214,7 +214,7 @@ func syncTestRunnerStaticUpdateNumWorkers(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 2)
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer func() {
 		r.Stop()
@@ -249,7 +249,7 @@ func syncTestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 		assertAsyncWorkerCount(t, 0)
 		min, max, expectedWorkers := testCase[0], testCase[1], testCase[2]
 
-		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 		require.NotNil(t, r)
 
 		for checks := min; checks <= max; checks++ {
@@ -275,7 +275,7 @@ func syncTestRunner(t *testing.T) {
 		checks[idx] = newCheck(t, fmt.Sprintf("mycheck_%d:123", idx), false, nil)
 	}
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -300,7 +300,7 @@ func syncTestRunnerShadowWorkerUsesShadowChannel(t *testing.T) {
 	inner := newCheck(t, "mycheck:123", false, nil)
 	shadow := check.NewShadowCheck(inner, time.Second)
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -331,7 +331,7 @@ func syncTestRunnerStopStopsShadowWorkers(t *testing.T) {
 	inner.RunLock.Lock()
 	shadow := check.NewShadowCheck(inner, time.Second)
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 
 	r.AddShadowWorker()
@@ -392,7 +392,7 @@ func syncTestRunnerStop(t *testing.T) {
 		checks[idx].RunLock.Lock()
 	}
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -444,7 +444,7 @@ func syncTestRunnerConfigurableValues(t *testing.T) {
 	mockConfig.SetInTest("check_runner_utilization_warning_cooldown", "5m")
 	mockConfig.SetInTest("check_runners", 1)
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -474,7 +474,7 @@ func syncTestRunnerDefaultConfigurableValues(t *testing.T) {
 	mockConfig.SetInTest("check_runner_utilization_monitor_interval", "60s")
 	mockConfig.SetInTest("check_runner_utilization_warning_cooldown", "10m")
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -514,7 +514,7 @@ func syncTestRunnerStopWithStuckCheck(t *testing.T) {
 	blockedCheck.RunLock.Lock()
 	blockedCheck.StopLock.Lock()
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -567,7 +567,7 @@ func syncTestRunnerStopCheck(t *testing.T) {
 	blockedCheck.RunLock.Lock()
 	blockedCheck.StopLock.Lock()
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer func() {
 		r.Stop()
@@ -615,7 +615,7 @@ func syncTestRunnerScheduler(t *testing.T) {
 	sched1 := newScheduler()
 	sched2 := newScheduler()
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -641,7 +641,7 @@ func syncTestRunnerShouldAddCheckStats(t *testing.T) {
 	sched.Run()        // otherwise Stop would be a no-op
 	defer sched.Stop() // ends the queue goroutine that Enter starts below
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), nil)
 	require.NotNil(t, r)
 	defer r.Stop()
 

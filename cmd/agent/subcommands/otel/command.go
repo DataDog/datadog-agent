@@ -28,7 +28,7 @@ import (
 const extensionName = "ddot"
 
 // Commands returns a slice of subcommands for the 'agent' command.
-func Commands(_ *command.GlobalParams) []*cobra.Command {
+func Commands(_ *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	otelCmd := &cobra.Command{
 		Use:   "otel [command]",
 		Short: "Manage the DDOT installation",
