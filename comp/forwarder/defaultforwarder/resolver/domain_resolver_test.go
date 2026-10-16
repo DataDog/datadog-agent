@@ -6,6 +6,7 @@
 package resolver
 
 import (
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -317,9 +318,10 @@ func TestOnUpdateConfigRemovesDomainAfterResolution(t *testing.T) {
 	assert.False(t, resolver.IsUsable())
 }
 
-func TestUpdateAdditionalEndpointsKeepsKeysOnMissOutsideInfraSetting(t *testing.T) {
+func TestUpdateAdditionalEndpointsDeliversWritebackForPathBearingProcessKey(t *testing.T) {
 	const setting = "process_config.additional_endpoints"
-	// Process-style resolvers strip the path, so a trailing slash in config never matches.
+	// Process-style resolvers are keyed by scheme://host, but the config map keeps the raw
+	// URL: a trailing slash (or path) must still deliver the written-back key.
 	resolver, err := NewSingleDomainResolver("https://process.datadoghq.eu", []utils.APIKeys{
 		utils.NewAPIKeys(setting, "process-key"),
 	})
@@ -329,8 +331,92 @@ func TestUpdateAdditionalEndpointsKeepsKeysOnMissOutsideInfraSetting(t *testing.
 	config.SetInTest(setting, map[string][]string{"https://process.datadoghq.eu/": {"rotated-key"}})
 	updateAdditionalEndpoints(resolver, setting, config, logmock.New(t))
 
+	assertKeys(t, []string{"rotated-key"}, resolver)
+	assert.True(t, resolver.IsUsable())
+}
+
+func TestUpdateAdditionalEndpointsRefreshesKeyForPathBearingProcessKey(t *testing.T) {
+	const setting = "process_config.additional_endpoints"
+	// If the credential resolves before endpoint construction, the only delivery of the
+	// refreshed key is the write-back reload: it must keep landing on the resolver.
+	resolver, err := NewSingleDomainResolver("https://process.datadoghq.eu", []utils.APIKeys{
+		utils.NewAPIKeys(setting, "first-key"),
+	})
+	require.NoError(t, err)
+
+	log := logmock.New(t)
+	config := configmock.New(t)
+	config.SetInTest(setting, map[string][]string{"https://process.datadoghq.eu/api/v1/": {"first-key"}})
+	updateAdditionalEndpoints(resolver, setting, config, log)
+	assertKeys(t, []string{"first-key"}, resolver)
+
+	config.SetInTest(setting, map[string][]string{"https://process.datadoghq.eu/api/v1/": {"second-key"}})
+	updateAdditionalEndpoints(resolver, setting, config, log)
+	assertKeys(t, []string{"second-key"}, resolver)
+}
+
+func TestUpdateAdditionalEndpointsMergesKeysForSameHostProcessKeys(t *testing.T) {
+	const setting = "process_config.additional_endpoints"
+	// Two keys normalizing to the same resolver both contribute their keys on reload;
+	// previously only the exactly-matched one survived and the other's key was dropped.
+	resolver, err := NewSingleDomainResolver("https://process.datadoghq.eu", []utils.APIKeys{
+		utils.NewAPIKeys(setting, "keyA"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest(setting, map[string][]string{
+		"https://process.datadoghq.eu":  {"keyA"},
+		"https://process.datadoghq.eu/": {"keyB"},
+	})
+	updateAdditionalEndpoints(resolver, setting, config, logmock.New(t))
+
+	// The collected keysets arrive in config-map iteration order, which is randomized.
+	keys := resolver.GetAPIKeys()
+	sort.Strings(keys)
+	assert.Equal(t, []string{"keyA", "keyB"}, keys)
+}
+
+func TestUpdateAdditionalEndpointsKeepsKeysWhenProcessDomainRemoved(t *testing.T) {
+	const setting = "process_config.additional_endpoints"
+	// A miss for a process-style setting is not a removal: the domain absent from config
+	// keeps its keys (applied=false), unchanged by the normalized-lookup fix.
+	resolver, err := NewSingleDomainResolver("https://process.datadoghq.eu", []utils.APIKeys{
+		utils.NewAPIKeys(setting, "process-key"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest(setting, map[string][]string{"https://other.datadoghq.eu": {"other-key"}})
+	updateAdditionalEndpoints(resolver, setting, config, logmock.New(t))
+
 	assertKeys(t, []string{"process-key"}, resolver)
 	assert.True(t, resolver.IsUsable())
+}
+
+func TestUpdateAdditionalEndpointsInfraMatchesRawURLExactly(t *testing.T) {
+	// Infra resolvers are keyed by the raw configured URL: a path-bearing infra key matches
+	// its own resolver exactly, and must not leak its keys into the resolver of the bare host.
+	bareHost, err := NewSingleDomainResolver("https://app.datadoghq.com", []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "bare-key"),
+	})
+	require.NoError(t, err)
+	slashHost, err := NewSingleDomainResolver("https://app.datadoghq.com/", []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "slash-key"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{
+		"https://app.datadoghq.com":  {"bare-key"},
+		"https://app.datadoghq.com/": {"slash-key"},
+	})
+	log := logmock.New(t)
+	updateAdditionalEndpoints(bareHost, "additional_endpoints", config, log)
+	updateAdditionalEndpoints(slashHost, "additional_endpoints", config, log)
+
+	assertKeys(t, []string{"bare-key"}, bareHost)
+	assertKeys(t, []string{"slash-key"}, slashHost)
 }
 
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
