@@ -1,0 +1,81 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build anomalydetectiontestbench
+
+package observerimpl
+
+import (
+	"encoding/json"
+	"os"
+	"unicode/utf8"
+
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+)
+
+type realSeasonalSelector struct {
+	Name      string   `json:"name"`
+	Tags      []string `json:"tags"`
+	Transform string   `json:"transform"`
+}
+
+var realSeasonalSelectors []realSeasonalSelector
+
+var realSeasonalDiscoverAll = os.Getenv("OBSERVER_REAL_SEASONAL_DISCOVERY") == "all"
+
+func init() {
+	path := os.Getenv("OBSERVER_REAL_SEASONAL_SELECTION")
+	if path == "" {
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(data, &realSeasonalSelectors); err != nil {
+		panic(err)
+	}
+	if len(realSeasonalSelectors) != 9 {
+		panic("research selection must contain nine identities")
+	}
+	for _, s := range realSeasonalSelectors {
+		if s.Name == "" || len(s.Tags) == 0 {
+			panic("research selection needs metric name and role tags")
+		}
+	}
+}
+
+func realSeasonalEligible(meta observer.SeriesMeta) bool {
+	if realSeasonalDiscoverAll {
+		return true
+	}
+	if realSeasonalSelectors == nil {
+		return realSeasonalGaugeNames[meta.Name]
+	}
+	for _, s := range realSeasonalSelectors {
+		if s.Name != meta.Name {
+			continue
+		}
+		match := true
+		for _, required := range s.Tags {
+			found := meta.Tags.Find(func(tag string) bool {
+				// Preserve encoding/json's replacement of malformed UTF-8;
+				// ordinary valid tags use no temporary slice or JSON buffer.
+				if !utf8.ValidString(tag) {
+					tag = string([]rune(tag))
+				}
+				return tag == required
+			})
+			if !found {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}

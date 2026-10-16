@@ -1,0 +1,35 @@
+{
+  "scope": "Independent 20-hour healthy and fault recordings; evaluation after hour 6",
+  "healthy_high_episodes": {
+    "raw": 4,
+    "seasonal": 0
+  },
+  "fault_high_episodes": {
+    "raw": 7,
+    "seasonal": 1
+  },
+  "fault_detection_delay_seconds": {
+    "raw": 4.124827,
+    "seasonal": 14.124827
+  },
+  "limitation": "Medium-severity time increased; this is not a general accuracy improvement",
+  "source_receipts": {
+    "normal-parity.json": {
+      "native_exact": true,
+      "scorer_trace_exact_except_sequence": true,
+      "seasonal_diagnostics_exact": true,
+      "detector_emissions": 1751,
+      "reference_sha256": "d834f1716cddba7d75ef2181bdcab2b0944ee64fc80c18850e04328c15d8e04c",
+      "actual_sha256": "d834f1716cddba7d75ef2181bdcab2b0944ee64fc80c18850e04328c15d8e04c"
+    },
+    "fault-parity.json": {
+      "native_equal_except_episode_list_order": true,
+      "detector_emissions_ordered_exact": true,
+      "scorer_trace_exact_except_sequence": true,
+      "seasonal_diagnostics_exact": true,
+      "detector_emissions": 1930,
+      "reference_sha256": "9f5e661e5b673bcf89abf6d2272d4ee3efecbb03974f172c733a3da82187afd0",
+      "actual_sha256": "7dfa0bff6c56f464f4e62dba685f74db36403a942ed6ed731c9c1778132f54b2"
+    }
+  }
+}

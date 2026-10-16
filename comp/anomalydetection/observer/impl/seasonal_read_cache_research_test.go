@@ -1,0 +1,78 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build anomalydetectiontestbench
+
+package observerimpl
+
+import (
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"reflect"
+	"testing"
+)
+
+func TestSeasonalReadCacheVisibilityAndCorrection(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 120})
+	storage.Add("contract", "redis.mem.used", 10, 100, nil)
+	storage.Add("contract", "redis.mem.used", 40, 115, nil)
+	ref := storage.ListSeries(observer.WorkloadSeriesFilter())[0].Ref
+	d := realSeasonalTestWrapper("raw_wrapped_nochange")
+	d.budget = newSeasonalAdmissionBudget(1)
+	d.Detect(storage, 99)
+	if d.budget.active != 0 {
+		t.Fatal("future point admitted")
+	}
+	d.Detect(storage, 100)
+	s := d.states[ref]
+	if s.origin != 100 {
+		t.Fatal("visible point ignored")
+	}
+	d.Detect(storage, 101)
+	storage.Add("contract", "redis.mem.used", 30, 100, nil)
+	d.Detect(storage, 101)
+	if s.pending[100] != 20 {
+		t.Fatal("same-timestamp correction ignored")
+	}
+	d.Detect(storage, 115)
+	v, ok := s.model.sample(0)
+	if !ok || v != 20 || s.last != 115 {
+		t.Fatal("preloaded future point ignored", v, s.last)
+	}
+	d.Detect(storage, 176)
+	if d.budget.active != 0 || s.reason != "learning_lease_expired" {
+		t.Fatal("unchanged storage stopped lease clock")
+	}
+	d.RemoveSeries([]observer.SeriesRef{ref})
+	if len(d.states) != 0 || len(d.metas) != 0 {
+		t.Fatal("removal retained cache")
+	}
+	d.Reset()
+	if d.metaInitialized || len(d.metas) != 0 {
+		t.Fatal("reset retained cache")
+	}
+}
+
+func TestSeasonalReadCacheMetadataFilters(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 120})
+	storage.Add("contract", "redis.mem.used", 10, 100, []string{"env:test", "role:db"})
+	storage.Add("other", "unrelated", 20, 100, nil)
+	for _, meta := range storage.ListSeries(observer.SeriesFilter{}) {
+		r := &realSeasonalReader{StorageReader: storage, ref: meta.Ref}
+		for _, filter := range []observer.SeriesFilter{{}, {Namespace: "contract"}, {Namespace: "other"}, {ExcludeNamespaces: []string{"contract"}}, {Namespace: "contract", ExcludeNamespaces: []string{"contract"}}, {NamePattern: "redis"}, {NamePattern: "none"}, {Host: "nonexistent"}, {TagMatchers: map[string]string{"env": "test"}}, {TagMatchers: map[string]string{"env": "prod"}}} {
+			var want []observer.SeriesMeta
+			for _, m := range storage.ListSeries(filter) {
+				if m.Ref == meta.Ref {
+					want = append(want, m)
+				}
+			}
+			if got := r.ListSeries(filter); !reflect.DeepEqual(got, want) {
+				t.Fatalf("filter mismatch %+v: got %+v want %+v", filter, got, want)
+			}
+		}
+	}
+	if got := (&realSeasonalReader{StorageReader: storage, ref: 999}).ListSeries(observer.SeriesFilter{}); len(got) != 0 {
+		t.Fatal("unknown ref returned metadata")
+	}
+}
