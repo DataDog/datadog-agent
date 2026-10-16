@@ -269,8 +269,7 @@ pub struct ProcessConfig {
     pub after: Vec<String>,
     #[serde(default)]
     pub before: Vec<String>,
-    /// On unsupervised exit, stop siblings and exit the daemon with this
-    /// process's code (including 0). Takes precedence over `restart`.
+    /// Exit the daemon with this process's code (incl. 0). Overrides `restart`.
     #[serde(default)]
     pub exit_with_supervisor: bool,
 }

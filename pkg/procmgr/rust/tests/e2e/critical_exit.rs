@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! `exit_with_supervisor` e2e: critical fixtures sleep briefly so siblings are up first.
-
 use crate::helpers::{DescribeExpect, TestEnv, wait_for_pid_gone};
 use std::os::unix::process::ExitStatusExt;
 use std::time::Duration;
