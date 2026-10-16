@@ -85,6 +85,7 @@ message ProcessDetail {
   string runtime_user = 22;
   string config_error = 23;
   repeated string skip_reasons = 24;
+  bool exit_with_supervisor = 25;
 }
 
 message DescribeResponse {
