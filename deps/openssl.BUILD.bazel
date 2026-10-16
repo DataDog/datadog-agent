@@ -319,6 +319,18 @@ pkg_filegroup(
 
 dd_cc_packaged(
     name = "libcrypto_shared_pkg",
+    data = select({
+        # On non-FIPS Windows, nothing from the OpenSSL install tree is needed:
+        # import libs and headers are only required for the FIPS cryptography source
+        # build, and copy_to_directory produces a non-existent TreeArtifact when all
+        # files are excluded, which would break the installer.
+        ":fips_windows": [":_openssl_files"],
+        "@platforms//os:windows": [],
+        "//conditions:default": [":_openssl_files"],
+    }) + select({
+        "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
+        "//conditions:default": [],
+    }),
     dest_dir = "embedded/lib",
     input = ":_libcrypto_shared_input",
     installed_executables = select({
@@ -352,18 +364,6 @@ dd_cc_packaged(
             "@openssl_fips//:fips_provider": "embedded3/lib/ossl-modules",
         },
         "//conditions:default": {},
-    }),
-    installed_files = select({
-        # On non-FIPS Windows, nothing from the OpenSSL install tree is needed:
-        # import libs and headers are only required for the FIPS cryptography source
-        # build, and copy_to_directory produces a non-existent TreeArtifact when all
-        # files are excluded, which would break the installer.
-        ":fips_windows": [":_openssl_files"],
-        "@platforms//os:windows": [],
-        "//conditions:default": [":_openssl_files"],
-    }) + select({
-        "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
-        "//conditions:default": [],
     }),
     libname = "libcrypto",
     version = OPENSSL_VERSION,
