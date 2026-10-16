@@ -173,6 +173,74 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 	}
 }
 
+func TestNCMSender_SendConfigContentSize(t *testing.T) {
+	tests := []struct {
+		name            string
+		content         []byte
+		configType      types.ConfigType
+		tags            []string
+		expectedMetrics []expectedMetric
+	}{
+		{
+			name:       "Running config content size submitted in bytes",
+			content:    []byte("hostname test-01"), // 16 bytes
+			configType: types.RUNNING,
+			tags:       []string{"device_ip:10.0.0.1"},
+			expectedMetrics: []expectedMetric{
+				{
+					submissionType: "Gauge",
+					name:           ncmConfigContentBytesMetric,
+					value:          16,
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, ncmRunningConfigTypeTag},
+				},
+			},
+		},
+		{
+			name:       "Startup config is tagged with its own config type",
+			content:    []byte("hostname test-01"), // 16 bytes
+			configType: types.STARTUP,
+			tags:       []string{"device_ip:10.0.0.1"},
+			expectedMetrics: []expectedMetric{
+				{
+					submissionType: "Gauge",
+					name:           ncmConfigContentBytesMetric,
+					value:          16,
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, ncmStartupConfigTypeTag},
+				},
+			},
+		},
+		{
+			name:       "Empty config content is reported as zero",
+			content:    []byte{},
+			configType: types.RUNNING,
+			tags:       []string{"device_ip:10.0.0.1"},
+			expectedMetrics: []expectedMetric{
+				{
+					submissionType: "Gauge",
+					name:           ncmConfigContentBytesMetric,
+					value:          0,
+					tags:           []string{"device_ip:10.0.0.1", "agent_version:" + version.AgentVersion, ncmRunningConfigTypeTag},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender(t, "test")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			sender := NewNCMSender(mockSender, "test-namespace", clock.NewMock(), "test-agent-host")
+			sender.SetDeviceTags(tt.tags)
+
+			sender.SendConfigContentSize(len(tt.content), tt.configType)
+
+			for _, metric := range tt.expectedMetrics {
+				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", metric.tags)
+			}
+		})
+	}
+}
+
 func TestNCMSender_SendDeviceMetadata(t *testing.T) {
 	mockSender := &mocksender.MockSender{}
 	namespace := "test-namespace"
