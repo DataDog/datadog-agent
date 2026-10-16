@@ -189,6 +189,46 @@ instances:
       #
       # enabled: true
 
+    ## Collect passive standalone procedure observations and recognized direct-call cursor metrics.
+    ## Requires Database Monitoring and Oracle 12c or newer. Disabled by default.
+    ## Grant SELECT on DBA_OBJECTS, or CDB_OBJECTS when connecting to the container root,
+    ## in addition to the existing Database Monitoring grants.
+    ## Direct-call metrics count recognized cursor executions, including dynamic SQL wrappers.
+    ## Editioned objects are excluded from text-based direct-call metrics.
+    ## Calls inside loops, branches, packages, functions, and arbitrary anonymous blocks do not
+    ## have inferred invocation counts. Observed-only procedures have no execution or timing counters.
+    ## Child query associations describe observed execution context or cursor origin, not exclusive ownership.
+    ## Multitenant databases use active-session observations for query links, including root connections.
+    ## PROGRAM_ID can retain another PDB's identity after its cursor disappears, so cursor-origin
+    ## inference is limited to non-CDB databases. Short statements may be missed between samples.
+    ## Update the installed DD_SESSION view and restart the check for procedure activity attribution,
+    ## or use direct sampling. Ambiguous schema-qualified calls shadowed by local objects or public
+    ## synonyms are excluded.
+    ## First observations and cursor reloads, invalidations, or counter resets establish a new baseline.
+    #
+    # stored_procedures:
+
+        ## @param enabled - boolean - optional - default: false
+        ## Enable passive standalone procedure collection. Requires `dbm: true`.
+        #
+        # enabled: false
+
+        ## @param collection_interval - integer - optional - default: 60
+        ## Positive interval in seconds between procedure collections.
+        #
+        # collection_interval: 60
+
+        ## @param db_rows_limit - integer - optional - default: 250
+        ## Positive maximum number of recent V$SQL cursors to inspect, ordered by total elapsed time.
+        ## This bounds coverage; procedures whose cursors have aged out or fall outside the limit may be absent.
+        #
+        # db_rows_limit: 250
+
+        ## @param max_run_time - integer - optional - default: 5
+        ## Positive deadline in seconds for each procedure collection and activity name resolution.
+        #
+        # max_run_time: 5
+
     ## Configure collection of execution plans
     #
     # execution_plans:

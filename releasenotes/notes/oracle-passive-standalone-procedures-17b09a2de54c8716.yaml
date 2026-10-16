@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Oracle Database Monitoring can optionally collect standalone procedure observations,
+    recognized direct-call cursor metrics, observed query associations, and entry/current
+    procedure context on activity samples. Enable ``stored_procedures.enabled`` and update
+    database grants and the installed activity view. Nested calls without direct-call evidence
+    have no inferred execution counts or timing. Collection is disabled by default.

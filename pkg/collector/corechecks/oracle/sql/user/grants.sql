@@ -43,6 +43,7 @@ declare
     'v_$lock',
     'gv_$lock',
     'dba_objects',
+    'cdb_objects',
     'cdb_data_files',
     'dba_data_files'
   );

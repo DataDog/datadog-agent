@@ -118,6 +118,11 @@ type Check struct {
 	clock                                   clock.Clock
 	lastSampleID                            uint64
 	obfuscator                              *obfuscate.Obfuscator
+	proceduresLastRun                       time.Time
+	procedureCursors                        map[procedureCursorKey]procedureCursorBaseline
+	procedureViewUnavailable                bool
+	procedureActivityObserved               map[string]observedProcedure
+	procedureActivityAssociations           map[procedureQueryAssociation]time.Time
 }
 
 type vDatabase struct {
@@ -290,6 +295,11 @@ func (c *Check) Run() error {
 	}
 
 	if c.dbmEnabled {
+		if c.config.StoredProcedures.Enabled && checkIntervalExpired(&c.proceduresLastRun, c.config.StoredProcedures.CollectionInterval) {
+			if err := c.collectStoredProcedures(); err != nil {
+				allErrors = errors.Join(allErrors, fmt.Errorf("failed to collect stored procedures: %w", err))
+			}
+		}
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
@@ -465,7 +475,9 @@ func (c *Check) GetObfuscatedStatement(o *obfuscate.Obfuscator, statement string
 		if c.config.InstanceConfig.LogUnobfuscatedQueries {
 			log.Errorf("%s Obfuscation error for SQL: %s", c.logPrompt, statement)
 		}
-		return common.ObfuscatedStatement{Statement: statement}, err
+		// Callers retain metrics and session metadata even when obfuscation fails.
+		// Never return raw SQL for them to include in their payloads.
+		return common.ObfuscatedStatement{Statement: "SQL obfuscation error"}, err
 	}
 }
 

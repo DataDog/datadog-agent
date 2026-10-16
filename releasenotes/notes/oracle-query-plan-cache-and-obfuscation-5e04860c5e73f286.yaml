@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Database Monitoring for Oracle now collects execution plans independently for
+    each query and container when different statements share a plan hash.
+security:
+  - |
+    Database Monitoring for Oracle replaces SQL text with a safe placeholder when
+    obfuscation fails, while preserving query counters and session metadata.
+    Full query text and execution plan samples are omitted for those statements.

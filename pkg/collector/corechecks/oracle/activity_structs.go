@@ -54,18 +54,22 @@ type OracleSQLRow struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRow struct {
-	Now           string `json:"now"`
-	UtcMs         float64
-	SessionID     uint64 `json:"sid,omitempty"`
-	SessionSerial uint64 `json:"serial,omitempty"`
-	User          string `json:"user,omitempty"`
-	Status        string `json:"status"`
-	OsUser        string `json:"os_user,omitempty"`
-	Process       string `json:"process,omitempty"`
-	Client        string `json:"client,omitempty"`
-	Port          string `json:"port,omitempty"`
-	Program       string `json:"program,omitempty"`
-	Type          string `json:"type,omitempty"`
+	EntryProcedureName        string `json:"entry_procedure_name,omitempty"`
+	EntryProcedureSignature   string `json:"entry_procedure_signature,omitempty"`
+	CurrentProcedureName      string `json:"current_procedure_name,omitempty"`
+	CurrentProcedureSignature string `json:"current_procedure_signature,omitempty"`
+	Now                       string `json:"now"`
+	UtcMs                     float64
+	SessionID                 uint64 `json:"sid,omitempty"`
+	SessionSerial             uint64 `json:"serial,omitempty"`
+	User                      string `json:"user,omitempty"`
+	Status                    string `json:"status"`
+	OsUser                    string `json:"os_user,omitempty"`
+	Process                   string `json:"process,omitempty"`
+	Client                    string `json:"client,omitempty"`
+	Port                      string `json:"port,omitempty"`
+	Program                   string `json:"program,omitempty"`
+	Type                      string `json:"type,omitempty"`
 	OracleSQLRow
 	Module                string `json:"module,omitempty"`
 	Action                string `json:"action,omitempty"`
@@ -91,6 +95,11 @@ type OracleActivityRow struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRowDB struct {
+	ConID                      int            `db:"CON_ID"`
+	PLSQLEntryObjectID         sql.NullInt64  `db:"PLSQL_ENTRY_OBJECT_ID"`
+	PLSQLEntrySubprogramID     sql.NullInt64  `db:"PLSQL_ENTRY_SUBPROGRAM_ID"`
+	PLSQLObjectID              sql.NullInt64  `db:"PLSQL_OBJECT_ID"`
+	PLSQLSubprogramID          sql.NullInt64  `db:"PLSQL_SUBPROGRAM_ID"`
 	SampleID                   uint64         `db:"SAMPLE_ID"`
 	Now                        string         `db:"NOW"`
 	UtcMs                      float64        `db:"UTC_MS"`

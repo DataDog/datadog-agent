@@ -610,7 +610,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted = getFqtEmittedCache()
 			}
 
-			if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
+			if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); queryRow.QuerySignature != "" && !found {
 				FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
 				FQTDB := FQTDB{Instance: c.cdbName, QuerySignature: queryRow.QuerySignature, Statement: SQLStatement, FQTDBMetadata: FQTDBMetadata}
 				FQTDBOracle := FQTDBOracle{
@@ -636,12 +636,14 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
-			if c.config.ExecutionPlans.Enabled && sendPlan && statementMetricRow.PlanHashValue != 0 {
+			if c.config.ExecutionPlans.Enabled && sendPlan && statementMetricRow.PlanHashValue != 0 && queryRow.QuerySignature != "" {
 				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
 					sendPlan = false
 				}
 
-				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
+				// A plan hash identifies a plan shape, not the query or container.
+				// Use the emitted signature because an FMS group's representative SQL_ID can change.
+				planCacheKey := fmt.Sprintf("%d:%s:%d", statementMetricRow.ConID, queryRow.QuerySignature, statementMetricRow.PlanHashValue)
 				if c.planEmitted == nil {
 					c.planEmitted = getPlanEmittedCache(c)
 				}

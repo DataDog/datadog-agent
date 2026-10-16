@@ -8,12 +8,14 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -177,9 +179,33 @@ AND status = 'ACTIVE'`)
 	}
 
 	var err error
+	baseActivityQuery := activityQuery
+	procedureActivity := c.config.StoredProcedures.Enabled && isDbVersionGreaterOrEqualThan(c, minMultitenantVersion)
+	usingView := !activeSessionHistory && c.hostingType == selfManaged && !c.config.QuerySamples.ForceDirectQuery
+	if procedureActivity && !(usingView && c.procedureViewUnavailable) {
+		prefix := "s."
+		if usingView {
+			prefix = ""
+		}
+		columns := []string{"con_id", "plsql_entry_object_id", "plsql_entry_subprogram_id", "plsql_object_id", "plsql_subprogram_id"}
+		var selection strings.Builder
+		for _, column := range columns {
+			fmt.Fprintf(&selection, "%s%s,\n", prefix, column)
+		}
+		needle := prefix + "sql_id,"
+		activityQuery = strings.Replace(activityQuery, needle, selection.String()+needle, 1)
+	}
 	if activeSessionHistory {
 		err = selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, c.lastSampleID)
 	} else {
+		err = selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
+	}
+	if err != nil && usingView && procedureActivity && strings.Contains(err.Error(), "ORA-00904") && activityQuery != baseActivityQuery {
+		// An older installed DD_SESSION view must not break ordinary activity.
+		c.procedureViewUnavailable = true
+		log.Warnf("%s DD_SESSION lacks procedure columns; rerun the Oracle setup and restart the check to enable procedure activity attribution", c.logPrompt)
+		activityQuery = baseActivityQuery
+		sessionSamples = nil
 		err = selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
 	}
 
@@ -195,10 +221,19 @@ AND status = 'ACTIVE'`)
 	}
 
 	o := c.LazyInitObfuscator()
+	procedureContext, cancelProcedures := context.WithTimeout(context.Background(), time.Duration(c.config.StoredProcedures.MaxRunTime)*time.Second)
+	defer cancelProcedures()
+	resolver := procedureResolver{c: c, ctx: procedureContext, objects: make(map[procedureObjectKey]*procedureObject)}
 	var payloadSent bool
 	var blockerFallbackErrLogged bool
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
+		if procedureActivity {
+			if err := enrichProcedureActivity(&resolver, sample, &sessionRow); err != nil {
+				log.Warnf("%s cannot resolve procedure activity: %v", c.logPrompt, err)
+				procedureActivity = false
+			}
+		}
 
 		if activeSessionHistory && sample.SampleID > c.lastSampleID {
 			c.lastSampleID = sample.SampleID
@@ -348,13 +383,15 @@ AND status = 'ACTIVE'`)
 			log.Debugf("activity sql text empty for %#v \n", sample)
 		}
 
+		statementLength := utf8.RuneCountInString(statement)
+		completeSQLText := hasRealSQLText && statementLength < maxSQLTextLength
 		if hasRealSQLText {
 			/*
 			 * If the statement length is maxSQLTextLength characters, we are assuming that the statement was truncated,
 			 * so we are trying to fetch it complete. The full statement is stored in a LOB, so we are calling
 			 * getFullSQLText which doesn't leak PGA memory
 			 */
-			if len(statement) == maxSQLTextLength {
+			if statementLength == maxSQLTextLength {
 				var fetchedStatement string
 				err = getFullSQLText(c, &fetchedStatement, "sql_id", sessionRow.SQLID)
 				if err != nil {
@@ -362,6 +399,7 @@ AND status = 'ACTIVE'`)
 				}
 				if fetchedStatement != "" {
 					statement = fetchedStatement
+					completeSQLText = err == nil
 				}
 			}
 		} else {
@@ -388,6 +426,7 @@ AND status = 'ACTIVE'`)
 			sessionRow.Statement = statement
 			sessionRow.QuerySignature = common.GetQuerySignature(statement)
 		}
+		c.observeCurrentProcedureQuery(sample, sessionRow, completeSQLText)
 
 		if sample.PdbName.Valid {
 			sessionRow.PdbName = sample.PdbName.String

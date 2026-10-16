@@ -67,6 +67,14 @@ type QueryMetricsConfig struct {
 	MaxRunTime         int64                       `yaml:"max_run_time"`
 }
 
+// StoredProceduresConfig controls passive standalone procedure collection.
+type StoredProceduresConfig struct {
+	Enabled            bool  `yaml:"enabled"`
+	CollectionInterval int64 `yaml:"collection_interval"`
+	DBRowsLimit        int   `yaml:"db_rows_limit"`
+	MaxRunTime         int64 `yaml:"max_run_time"`
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 type SysMetricsConfig struct {
 	Enabled bool `yaml:"enabled"`
@@ -176,6 +184,7 @@ type InstanceConfig struct {
 	ReportedHostname                   string                   `yaml:"reported_hostname"`
 	QuerySamples                       QuerySamplesConfig       `yaml:"query_samples"`
 	QueryMetrics                       QueryMetricsConfig       `yaml:"query_metrics"`
+	StoredProcedures                   StoredProceduresConfig   `yaml:"stored_procedures"`
 	SysMetrics                         SysMetricsConfig         `yaml:"sysmetrics"`
 	Tablespaces                        TablespacesConfig        `yaml:"tablespaces"`
 	ProcessMemory                      ProcessMemoryConfig      `yaml:"process_memory"`
@@ -261,6 +270,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.DBRowsLimit = 10000
 	instance.QueryMetrics.MaxRunTime = 20
 	instance.QueryTimeout = defaultQueryTimeout
+	instance.StoredProcedures.CollectionInterval = 60
+	instance.StoredProcedures.DBRowsLimit = 250
+	instance.StoredProcedures.MaxRunTime = 5
 
 	instance.ExecutionPlans.Enabled = true
 	instance.ExecutionPlans.PlanCacheRetention = 15
@@ -290,6 +302,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 	if err := yaml.Unmarshal(rawInitConfig, &initCfg); err != nil {
 		return nil, err
+	}
+	if instance.StoredProcedures.Enabled && (instance.StoredProcedures.CollectionInterval <= 0 || instance.StoredProcedures.DBRowsLimit <= 0 || instance.StoredProcedures.MaxRunTime <= 0) {
+		return nil, errors.New("stored_procedures collection_interval, db_rows_limit, and max_run_time must be positive")
 	}
 
 	if err := validateCustomQueryCollectionIntervals("custom_queries", instance.CustomQueries); err != nil {

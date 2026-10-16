@@ -1,11 +1,16 @@
 declare
-  multitenant_sql varchar2(4000);
-  non_cdb_sql varchar2(4000);
-  command varchar2(4000);
+  multitenant_sql varchar2(32767);
+  non_cdb_sql varchar2(32767);
+  command varchar2(32767);
 begin
   multitenant_sql :=  q'<
 CREATE OR REPLACE VIEW dd_session AS
 SELECT /*+ push_pred(sq) push_pred(sq_prev) */
+  s.con_id as con_id,
+  decode(s.ksusepeo, 0, to_number(null), s.ksusepeo) as plsql_entry_object_id,
+  decode(s.ksusepeo, 0, to_number(null), s.ksusepes) as plsql_entry_subprogram_id,
+  decode(bitand(s.ksusstmbv, power(2,11)), power(2,11), nullif(s.ksusepco,0), to_number(null)) as plsql_object_id,
+  decode(bitand(s.ksusstmbv, power(2,11)), power(2,11), nullif(s.ksusepcs,0), to_number(null)) as plsql_subprogram_id,
   s.indx as sid,
   s.ksuseser as serial#,
   s.ksuudlna as username,
@@ -94,6 +99,11 @@ WHERE
   non_cdb_sql := q'<
 CREATE OR REPLACE VIEW dd_session AS
 SELECT /*+ push_pred(sq) push_pred(sq_prev) */
+  s.con_id as con_id,
+  decode(s.ksusepeo, 0, to_number(null), s.ksusepeo) as plsql_entry_object_id,
+  decode(s.ksusepeo, 0, to_number(null), s.ksusepes) as plsql_entry_subprogram_id,
+  decode(bitand(s.ksusstmbv, power(2,11)), power(2,11), nullif(s.ksusepco,0), to_number(null)) as plsql_object_id,
+  decode(bitand(s.ksusstmbv, power(2,11)), power(2,11), nullif(s.ksusepcs,0), to_number(null)) as plsql_subprogram_id,
   s.indx as sid,
   s.ksuseser as serial#,
   s.ksuudlna as username,

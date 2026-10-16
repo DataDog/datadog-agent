@@ -37,8 +37,18 @@ type dbInstanceEvent struct {
 }
 
 func sendDbInstanceMetadata(c *Check) error {
-	configTags := make([]string, len(c.config.Tags))
-	copy(configTags, c.config.Tags)
+	configTags := make([]string, 0, len(c.config.Tags)+1)
+	for _, tag := range c.config.Tags {
+		// The discovered CDB scopes raw activity PDB names to query metric PDBs.
+		// A conflicting user tag must not make that mapping ambiguous.
+		if c.cdbName != "" && strings.HasPrefix(strings.ToLower(tag), "cdb:") {
+			continue
+		}
+		configTags = append(configTags, tag)
+	}
+	if c.cdbName != "" {
+		configTags = append(configTags, "cdb:"+c.cdbName)
+	}
 	m := dbInstanceMetadata{
 		Dbm:            c.dbmEnabled,
 		ConnectionHost: config.GetConnectData(c.config.InstanceConfig),

@@ -8,11 +8,23 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Invalid budgets otherwise create a permanently timing-out or unbounded
+// optional collector after the Agent has accepted its configuration.
+func TestStoredProcedureBudgets(t *testing.T) {
+	for _, option := range []string{"collection_interval", "db_rows_limit", "max_run_time"} {
+		for _, value := range []int{0, -1} {
+			_, err := NewCheckConfig([]byte(fmt.Sprintf("username: datadog\nstored_procedures:\n  enabled: true\n  %s: %d\n", option, value)), nil)
+			require.ErrorContains(t, err, "must be positive")
+		}
+	}
+}
 
 func TestCustomQueryCollectionIntervalConfiguration(t *testing.T) {
 	tests := []struct {
