@@ -27,6 +27,7 @@ type Task struct {
 type Attributes struct {
 	Name                  string                                          `json:"name"`
 	BundleID              string                                          `json:"bundle_id"`
+	ExecutionFQN          string                                          `json:"execution_fqn,omitempty"`
 	SecDatadogHeaderValue string                                          `json:"sec_datadog_header_value"`
 	Inputs                map[string]interface{}                          `json:"inputs"`
 	Client                actionsclientpb.Client                          `json:"client"`

@@ -103,6 +103,26 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 }
 
+func TestRemoteCatalogLooksUpProductBundlePackageByPublicFQN(t *testing.T) {
+	const publicFQN = "com.datadoghq.helm.addRepo"
+	client := &testCatalogRCClient{}
+	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
+	require.NoError(t, err)
+
+	pkg := validRemotePackage()
+	pkg.Name = "com.datadoghq.helm.addrepo"
+	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{pkg}})
+	require.Equal(t, state.ApplyStateAcknowledged, status.State)
+
+	descriptor, err := catalog.Lookup(publicFQN)
+	require.NoError(t, err)
+	require.Equal(t, publicFQN, descriptor.FQN)
+	require.Equal(t, pkg.Name, descriptor.Package)
+
+	_, err = catalog.Lookup("com.other.helm.addRepo")
+	require.ErrorIs(t, err, ErrPackageNotConfigured)
+}
+
 func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
 	client := &testCatalogRCClient{}
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
