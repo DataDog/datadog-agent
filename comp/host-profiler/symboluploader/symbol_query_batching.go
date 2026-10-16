@@ -12,8 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 
+	ddhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
@@ -68,15 +70,30 @@ func getBuildID(gnuBuildID, goBuildID string, fileID libpf.FileID) string {
 
 func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier SymbolQuerier, ind int,
 	buildIDToResult map[string][]*ElfWithBackendSources) {
+	symbolCount := 0
+	for _, results := range buildIDToResult {
+		symbolCount += len(results)
+	}
 	symbolFiles, err := querier.QuerySymbols(ctx, buildIDs, arch)
 	if err != nil {
+		reason := reasonRequestError
+		var sce *ddhttp.StatusCodeError
+		if errors.As(err, &sce) && sce.StatusCode == http.StatusTooManyRequests {
+			reason = reasonRateLimited
+		}
+		errMsg := fmt.Errorf("failed to query symbols: %w", err)
+		paths := make([]string, 0, len(buildIDToResult))
 		for _, results := range buildIDToResult {
 			for _, result := range results {
-				result.BackendSymbolSources[ind].Err = fmt.Errorf("failed to query symbols: %w", err)
+				paths = append(paths, result.Path())
+				result.BackendSymbolSources[ind].Err = errMsg
 			}
 		}
+		SymbolUpload.Error(reason, symbolCount, paths...)
 		return
 	}
+
+	SymbolUpload.Info(reasonQueried, symbolCount)
 
 	// Note that the same buildID can appear multiple times in the symbolFiles with different buildIDTypes
 	// because there is no constraint in sourcemap DB that prevents having identical goBuildID, gnuBuildID
@@ -94,6 +111,7 @@ func invokeQuerier(ctx context.Context, buildIDs []string, arch string, querier 
 			src, err := symbol.NewSource(symbolFile.SymbolSource)
 			if err != nil {
 				result.BackendSymbolSources[ind].Err = fmt.Errorf("failed to parse symbol source: %w", err)
+				SymbolUpload.Error(reasonSourceParseError, 1, result.Path())
 			} else {
 				result.BackendSymbolSources[ind].SymbolSource = src
 			}
@@ -119,6 +137,7 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 	arch := batch[0].Arch()
 
 	elfResults := make([]ElfWithBackendSources, 0, len(batch))
+	invalidBuildIDs := 0
 
 	for _, e := range batch {
 		elfResults = append(elfResults,
@@ -127,16 +146,19 @@ func ExecuteSymbolQueryBatch(ctx context.Context, batch SymbolQueryBatch, querie
 		result := &elfResults[len(elfResults)-1]
 		if e.Arch() != arch {
 			result.fillWithError(fmt.Errorf("arch mismatch: expected %s, got %s", arch, e.Arch()))
+			invalidBuildIDs++
 			continue
 		}
 
 		buildID := getBuildID(e.GnuBuildID(), e.GoBuildID(), e.FileID())
 		if buildID == "" {
 			result.fillWithError(errors.New("empty buildID"))
+			invalidBuildIDs++
 			continue
 		}
 		buildIDToResult[buildID] = append(buildIDToResult[buildID], result)
 	}
+	SymbolUpload.Error(reasonInvalidBuildID, invalidBuildIDs)
 
 	buildIDs := make([]string, 0, len(buildIDToResult))
 	for buildID := range buildIDToResult {

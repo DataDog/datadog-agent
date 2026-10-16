@@ -310,7 +310,7 @@ func newTestUploader(ctx context.Context, opts uploaderOpts) (*DatadogSymbolUplo
 		},
 		DisableDebugSectionCompression: opts.disableDebugSectionCompression,
 	}
-	return NewDatadogSymbolUploader(ctx, cfg)
+	return NewDatadogSymbolUploader(ctx, cfg, nil)
 }
 
 type buildOptions struct {
@@ -606,7 +606,7 @@ func TestTransport(t *testing.T) {
 		Version: "test",
 	}
 
-	uploader, err := NewDatadogSymbolUploader(t.Context(), cfg)
+	uploader, err := NewDatadogSymbolUploader(t.Context(), cfg, nil)
 	require.NoError(t, err)
 
 	customTransport, ok := uploader.client.Transport.(*http.Transport)
