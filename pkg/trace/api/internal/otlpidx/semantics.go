@@ -257,7 +257,7 @@ func (d *decoder) resourceSemantics() {
 // v2, scope convention enabled).
 func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 	res := d.resAttrs
-	if d.opts.CopyResourceAttributesToSpans {
+	if !d.opts.ResourceAttributesOnPayload {
 		res = nil // already merged into the span
 	}
 	attrs := span.Attributes
@@ -381,7 +381,7 @@ const otlpSampleRate = "1.00"
 
 // finishPayload sets payload- and chunk-level fields once all spans are decoded.
 func (d *decoder) finishPayload(tp *idx.InternalTracerPayload) {
-	if !d.opts.CopyResourceAttributesToSpans {
+	if d.opts.ResourceAttributesOnPayload {
 		d.applyRenames(d.resAttrs, d.resRenames)
 	}
 	if d.opts.SkipSemantics {

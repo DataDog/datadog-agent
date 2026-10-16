@@ -135,9 +135,10 @@ func newDrainingOTLPReceiver(b *testing.B) (*OTLPReceiver, func()) {
 //   - pdata_v04: pdata decode + receiveResourceSpansV2 (today's full receiver path, pb.Span output)
 //   - pdata_v04_to_idx: today's path + ConvertToIdx (what reaching V1 costs without a new decoder)
 //   - direct_idx_raw: direct decoder, raw decode only (no semantic mapping)
-//   - direct_idx: direct decoder with semantic mapping, resource attributes once on the payload
-//   - direct_idx_copy_res: direct decoder with semantic mapping, resource attributes copied into
-//     every span (today's behaviour)
+//   - direct_idx: direct decoder with semantic mapping, resource attributes copied into every span
+//     (the default)
+//   - direct_idx_res_on_payload: direct decoder with semantic mapping, resource attributes stored
+//     once on the payload
 func BenchmarkOTLPIngest(b *testing.B) {
 	md := http.Header{header.Lang: {"go"}}
 	for _, p := range otlpBenchProfiles {
@@ -198,7 +199,7 @@ func BenchmarkOTLPIngest(b *testing.B) {
 		}{
 			{"direct_idx_raw", otlpidx.Options{SkipSemantics: true}},
 			{"direct_idx", otlpidx.Options{}},
-			{"direct_idx_copy_res", otlpidx.Options{CopyResourceAttributesToSpans: true}},
+			{"direct_idx_res_on_payload", otlpidx.Options{ResourceAttributesOnPayload: true}},
 		} {
 			b.Run(p.name+"/"+v.name, func(b *testing.B) {
 				b.SetBytes(int64(len(raw)))

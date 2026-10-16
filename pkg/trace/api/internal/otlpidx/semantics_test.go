@@ -152,9 +152,11 @@ func TestSemanticsMatchV04(t *testing.T) {
 
 			b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
 			require.NoError(t, err)
-			tps, err := DecodeExportRequest(b)
-			require.NoError(t, err)
-			assertMatchesV04(t, want, tps[0], tps[0].Chunks[0].Spans[0])
+			for _, opts := range []Options{{}, {ResourceAttributesOnPayload: true}} {
+				tps, err := DecodeExportRequestWithOptions(b, opts)
+				require.NoError(t, err)
+				assertMatchesV04(t, want, tps[0], tps[0].Chunks[0].Spans[0])
+			}
 		})
 	}
 }

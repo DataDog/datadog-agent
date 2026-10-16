@@ -116,10 +116,8 @@ func TestDecodeExportRequest(t *testing.T) {
 	assert.Equal(t, "go", tp.LanguageName())
 	assert.Equal(t, "otlp-1.30.0", tp.TracerVersion())
 
-	// Resource attributes live on the payload; DD convention keys (service.name) are dropped
-	// like today's v04 mapping does.
-	assert.Equal(t, "from-resource", str(tp, attr(t, tp, tp.Attributes, "shared")))
-	assert.False(t, hasAttr(tp, tp.Attributes, "service.name"))
+	// Resource attributes are copied into spans by default (see TestResourceAttributesCopiedToSpans).
+	assert.Empty(t, tp.Attributes)
 
 	require.Len(t, tp.Chunks, 2)
 	chunkA, chunkB := tp.Chunks[0], tp.Chunks[1]
@@ -271,11 +269,11 @@ func TestDecodeMalformed(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TestCopyResourceAttributesToSpans covers the per-span copy mode and guards against handing the
-// same *AnyValue to several spans: string table compaction and attribute mapping mutate values in
-// place.
-func TestCopyResourceAttributesToSpans(t *testing.T) {
-	tps, err := DecodeExportRequestWithOptions(buildRequest(t), Options{CopyResourceAttributesToSpans: true})
+// TestResourceAttributesCopiedToSpans covers the default per-span copy mode and guards against
+// handing the same *AnyValue to several spans: string table compaction and attribute mapping
+// mutate values in place.
+func TestResourceAttributesCopiedToSpans(t *testing.T) {
+	tps, err := DecodeExportRequest(buildRequest(t))
 	require.NoError(t, err)
 	tp := tps[0]
 	assert.Empty(t, tp.Attributes)
@@ -289,6 +287,20 @@ func TestCopyResourceAttributesToSpans(t *testing.T) {
 	assert.NotSame(t, a, b)
 	assert.NotSame(t, a.GetValue(), b.GetValue())
 	assert.Equal(t, "svc", s2.Service())
+}
+
+func TestResourceAttributesOnPayload(t *testing.T) {
+	tps, err := DecodeExportRequestWithOptions(buildRequest(t), Options{ResourceAttributesOnPayload: true})
+	require.NoError(t, err)
+	tp := tps[0]
+	assert.Equal(t, "from-resource", str(tp, attr(t, tp, tp.Attributes, "shared")))
+	assert.False(t, hasAttr(tp, tp.Attributes, "service.name"), "DD convention keys are dropped")
+	s1, s2 := tp.Chunks[0].Spans[0], tp.Chunks[1].Spans[0]
+	assert.Equal(t, "from-span", str(tp, attr(t, tp, s1.Attributes(), "shared")))
+	assert.False(t, hasAttr(tp, s2.Attributes(), "shared"), "resource attributes are not copied into spans")
+	assert.False(t, hasAttr(tp, s2.Attributes(), "deployment.environment.name"))
+	assert.Equal(t, "svc", s2.Service())
+	assert.Equal(t, "prod", s2.Env())
 }
 
 func FuzzDecodeExportRequest(f *testing.F) {

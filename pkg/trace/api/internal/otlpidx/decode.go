@@ -155,9 +155,10 @@ func shortBytesField(b []byte) (num protowire.Number, val, rest []byte, ok bool)
 
 // Options controls decoding variants.
 type Options struct {
-	// CopyResourceAttributesToSpans copies resource attributes into every span (today's v04
-	// behaviour) instead of storing them once in the payload's Attributes.
-	CopyResourceAttributesToSpans bool
+	// ResourceAttributesOnPayload stores resource attributes once in the payload's Attributes
+	// instead of copying them into every span. The V1 intake doesn't yet propagate payload
+	// attributes to spans (see otlp-to-v1-plan.md), so this is off by default.
+	ResourceAttributesOnPayload bool
 	// SkipSemantics disables the Datadog semantic mapping, leaving only the raw decode. Used to
 	// benchmark the decode cost in isolation.
 	SkipSemantics bool
@@ -278,7 +279,7 @@ func decodeResourceSpans(b []byte, opts Options) (*idx.InternalTracerPayload, er
 		Strings: d.strings,
 		Chunks:  d.order,
 	}
-	if !d.opts.CopyResourceAttributesToSpans {
+	if d.opts.ResourceAttributesOnPayload {
 		tp.Attributes = d.resAttrs
 	}
 	d.finishPayload(tp)
@@ -498,7 +499,7 @@ func (d *decoder) attrsHint() int {
 	if d.lastAttrs > 0 {
 		return d.lastAttrs
 	}
-	if d.opts.CopyResourceAttributesToSpans {
+	if !d.opts.ResourceAttributesOnPayload {
 		return minAttrsHint + len(d.resAttrs)
 	}
 	return minAttrsHint
@@ -595,7 +596,7 @@ func (d *decoder) decodeSpan(b []byte) (*idx.Span, rawSpan, error) {
 			}
 		}
 	}
-	if d.opts.CopyResourceAttributesToSpans {
+	if !d.opts.ResourceAttributesOnPayload {
 		// Resource attributes have lower precedence than span attributes.
 		for k, v := range d.resAttrs {
 			if _, ok := span.Attributes[k]; !ok {
