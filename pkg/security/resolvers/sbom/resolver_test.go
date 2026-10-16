@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
@@ -796,6 +797,202 @@ func TestResolvePackageRecordsNoUsageOnDirectory(t *testing.T) {
 	if r.hostSBOM.forwarder != nil {
 		t.Errorf("the directory open triggered forwarding")
 	}
+}
+
+// TestResolveOpen checks that the open of a host file records usage once it
+// has waited settleDelay, if the file is still at its path then, and leaves
+// the usage as it is when the file is gone or replaced there, as rpm leaves
+// each executable it opens to clear its file capabilities. An overlayfs file
+// counts on an overlayfs host root alone: elsewhere it is the file of a
+// container, seen through /proc/<pid>/root.
+func TestResolveOpen(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		after        func(t *testing.T, path string)
+		flags        int32
+		overlayRoot  bool
+		unknownInode bool
+		records      bool
+	}{
+		{name: "open", records: true},
+		{name: "open of a removed file", after: removeFile},
+		{name: "open of a replaced file", after: replaceFile},
+		{name: "open of an overlayfs file", flags: model.LowerLayer},
+		{name: "open of an overlayfs file on an overlayfs host root", flags: model.LowerLayer, overlayRoot: true, records: true},
+		{name: "open of a replaced overlayfs file on an overlayfs host root", after: replaceFile, flags: model.UpperLayer, overlayRoot: true, records: true},
+		{name: "open of a removed file of unknown inode", after: removeFile, unknownInode: true, records: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.hostRoot = t.TempDir()
+			r.hostRootOverlay = tc.overlayRoot
+
+			pc, file := hostAccess()
+			path := createFile(t, r.hostRoot+file.PathnameStr)
+			if !tc.unknownInode {
+				file.Inode = inode(t, path)
+			}
+			file.Flags = tc.flags
+
+			r.ResolveOpen(pc, file)
+			if len(r.opened) != 1 {
+				t.Fatalf("%d opens wait, want the open of %s", len(r.opened), file.PathnameStr)
+			}
+			opened := r.opened[0].at
+			if tc.after != nil {
+				tc.after(t, path)
+			}
+
+			pkg := &r.hostSBOM.data.packages[0]
+			r.recordSettled(opened)
+			if !pkg.LastAccess.IsZero() {
+				t.Errorf("usage recorded before the open waited %v", settleDelay)
+			}
+			r.recordSettled(opened.Add(settleDelay))
+			if got := !pkg.LastAccess.IsZero(); got != tc.records {
+				t.Errorf("usage recorded = %v, want %v", got, tc.records)
+			}
+		})
+	}
+}
+
+// TestResolvePackageRecordsRunOfReplacedFile checks that a process running a
+// file an upgrade replaced records usage, as it keeps running the build the
+// upgrade replaced.
+func TestResolvePackageRecordsRunOfReplacedFile(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.hostRoot = t.TempDir()
+
+	pc, file := hostAccess()
+	path := createFile(t, r.hostRoot+file.PathnameStr)
+	file.Inode = inode(t, path)
+	replaceFile(t, path)
+
+	if pkg := r.ResolvePackage(pc, file); pkg == nil || pkg.LastAccess.IsZero() {
+		t.Errorf("package = %+v, want util-linux with its usage recorded", pkg)
+	}
+}
+
+// TestResolveOpenWithFullQueue checks that the open of a host file arriving
+// while maxOpened opens wait for settleDelay is dropped, and leaves the usage
+// of its package as it is.
+func TestResolveOpenWithFullQueue(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.opened = make([]openedFile, maxOpened)
+
+	pc, file := hostAccess()
+	r.ResolveOpen(pc, file)
+
+	if pkg := r.hostSBOM.data.packages[0]; !pkg.LastAccess.IsZero() {
+		t.Errorf("package = %+v, want util-linux with its usage as it was", pkg)
+	}
+	if len(r.opened) != maxOpened {
+		t.Errorf("%d opens wait, want %d", len(r.opened), maxOpened)
+	}
+}
+
+// TestResolveOpenWaitsForPackageFiles checks that the opens of host files
+// outside the host packages, and of directories, stay out of the opens waiting
+// for settleDelay, while the open of a host package file waits.
+func TestResolveOpenWaitsForPackageFiles(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	pc, _ := hostAccess()
+
+	other := &model.FileEvent{}
+	other.SetPathnameStr("/tmp/report.txt")
+	r.ResolveOpen(pc, other)
+
+	dir := &model.FileEvent{}
+	dir.SetPathnameStr("/usr/share/doc/util-linux")
+	dir.Mode = syscall.S_IFDIR | 0755
+	r.ResolveOpen(pc, dir)
+
+	if len(r.opened) != 0 {
+		t.Fatalf("%d opens wait, want none", len(r.opened))
+	}
+
+	_, file := hostAccess()
+	r.ResolveOpen(pc, file)
+	if len(r.opened) != 1 {
+		t.Errorf("%d opens wait, want the open of /usr/bin/su", len(r.opened))
+	}
+}
+
+// TestResolveOpenOfContainerFile checks that the open of a file of a container
+// records usage at once, whatever stands at the same path on the host.
+func TestResolveOpenOfContainerFile(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.hostRoot = t.TempDir()
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}})
+	sbom.state.Store(computedState)
+	t.Cleanup(sbom.stop)
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	sboms.Add(sbom.ContainerID, sbom)
+	r.sboms = sboms
+
+	pc, file := hostAccess()
+	pc.ContainerContext.ContainerID = sbom.ContainerID
+	file.Inode = 1
+
+	r.ResolveOpen(pc, file)
+	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() {
+		t.Errorf("package = %+v, want util-linux with its usage recorded", pkg)
+	}
+}
+
+// createFile creates an empty executable file at path and its directories,
+// and returns path.
+func createFile(t *testing.T, path string) string {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, nil, 0755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// removeFile deletes the file at path, as rpm deletes an executable it removes.
+func removeFile(t *testing.T, path string) {
+	t.Helper()
+
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// replaceFile renames a new file over the file at path, as rpm installs each
+// file of a package it upgrades or reinstalls.
+func replaceFile(t *testing.T, path string) {
+	t.Helper()
+
+	if err := os.WriteFile(path+".new", nil, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(path+".new", path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// inode returns the inode of the file at path.
+func inode(t *testing.T, path string) uint64 {
+	t.Helper()
+
+	stat, err := utils.UnixStat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stat.Ino
 }
 
 // TestPendingFileEventsSkipDirectories checks that a directory open waiting on

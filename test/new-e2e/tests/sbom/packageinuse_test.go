@@ -715,6 +715,51 @@ func (s *packageInUseSuite) TestHostPackageInUse() {
 			assert.GreaterOrEqualf(c, ts, used, "gzip lost the usage recorded before the scan of the host packages")
 		}, 6*time.Minute, 20*time.Second, "the host SBOM never carried gzip after the scan of the host packages")
 	})
+
+	// rpm opens each executable it replaces, to clear its file capabilities,
+	// right before it renames the new file over it. A process that does the
+	// same to /usr/bin/kubeadm leaves kubeadm unused, and its open of
+	// /usr/bin/crictl, left in place, puts cri-tools in use. The kubeadm install
+	// brings both packages, and nothing runs them afterwards. The new file is
+	// created a step earlier: with CWS on, the open of a file renamed right
+	// after resolves under the new path. The process opens both files a second
+	// and a half after it starts, past the first second of its unit (see
+	// hostExec).
+	s.Run("replaced", func() {
+		const kubeadm = "/usr/bin/kubeadm"
+		const restore = "if [ -e " + kubeadm + ".orig ]; then mv -f " + kubeadm + ".orig " + kubeadm + "; fi; rm -f " + kubeadm + ".new"
+		s.T().Cleanup(func() { s.hostExec(s.T(), shell, restore) })
+		openedAt := s.hostEpoch(shell)
+
+		// Each attempt runs the whole sequence, as the open sampler may drop
+		// either open. The new file is created a step ahead of the rename, as
+		// the rename hook gives an open under way the path of its target.
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+
+			s.hostExec(c, shell, restore+"; ln "+kubeadm+" "+kubeadm+".orig && : > "+kubeadm+".new")
+			s.hostExec(c, shell, `python3 -c '
+import os, time
+time.sleep(1.5)
+f = "`+kubeadm+`"
+os.close(os.open(f, os.O_RDONLY | os.O_NOFOLLOW))
+os.rename(f + ".new", f)
+os.close(os.open("/usr/bin/crictl", os.O_RDONLY | os.O_NOFOLLOW))
+'`)
+
+			comps := newestHostSBOM(c, s.Fakeintake, time.Time{})
+			criTools := findComponent(comps, "cri-tools")
+			require.NotNilf(c, criTools, "no cri-tools in the host SBOM")
+			criToolsTS, _ := lastSeenRunning(criTools)
+			require.GreaterOrEqualf(c, criToolsTS, openedAt, "cri-tools not reported in use since the open of /usr/bin/crictl yet")
+			kubeadmComp := findComponent(comps, "kubeadm")
+			require.NotNilf(c, kubeadmComp, "no kubeadm in the host SBOM")
+			kubeadmTS, _ := lastSeenRunning(kubeadmComp)
+			s.T().Logf("PKG-IN-USE[host] replaced: kubeadm LastSeenRunning=%d, cri-tools LastSeenRunning=%d, opened at %d", kubeadmTS, criToolsTS, openedAt)
+			assert.Lessf(c, kubeadmTS, openedAt, "the open of %s before its replacement put kubeadm in use", kubeadm)
+		}, 5*time.Minute, 15*time.Second, "the host SBOM never reported cri-tools in use after the open of /usr/bin/crictl")
+	})
 }
 
 // startHostShell runs a privileged pod in the PID namespace of the node, on the
@@ -769,7 +814,9 @@ func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
 
 // hostExec runs script on the node from shell, as a transient systemd unit
 // started in the mount namespace of init, and returns its output. The unit runs
-// as root in a cgroup of the host, so its processes are host processes.
+// as root in a cgroup of the host, so its processes are host processes. Most
+// opens made in the first second of the unit never reach system-probe, so a
+// script whose opens a subtest checks makes them later.
 func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) string {
 	cmd := []string{"nsenter", "-t", "1", "-m", "--", "systemd-run", "--wait", "--pipe", "--quiet", "--collect", "/bin/sh", "-c", script}
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, cmd)

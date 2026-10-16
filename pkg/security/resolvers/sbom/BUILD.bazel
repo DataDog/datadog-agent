@@ -34,6 +34,7 @@ go_library(
             "@com_github_samber_lo//:lo",
             "@com_github_skydive_project_go_debouncer//:go-debouncer",
             "@com_github_twmb_murmur3//:murmur3",
+            "@org_golang_x_sys//unix",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:linux": [
@@ -53,6 +54,7 @@ go_library(
             "@com_github_samber_lo//:lo",
             "@com_github_skydive_project_go_debouncer//:go-debouncer",
             "@com_github_twmb_murmur3//:murmur3",
+            "@org_golang_x_sys//unix",
             "@org_uber_go_atomic//:atomic",
         ],
         "//conditions:default": [],
