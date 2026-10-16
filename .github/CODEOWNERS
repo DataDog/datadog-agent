@@ -991,6 +991,7 @@
 /tasks/quality_gates.py                                         @DataDog/agent-build
 /tasks/static_quality_gates/                                    @DataDog/agent-build
 /tasks/files_inventory.py                                       @DataDog/agent-build
+/tasks/unit_tests/files_inventory_check_tests.py                @DataDog/agent-build
 /tasks/rtloader.py                                              @DataDog/agent-runtimes
 /tasks/secret_generic_connector.py                              @DataDog/fleet-automation
 /tasks/security_agent.py                                        @DataDog/agent-security
