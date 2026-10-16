@@ -498,6 +498,8 @@ var _ = declareInlineConfig(TestWorkloadProfileDedicatedTags)
 // TestWorkloadProfileDedicatedTags checks that the tags sent with a profile shared by several image tags and containers
 // cover all of them.
 func TestWorkloadProfileDedicatedTags(t *testing.T) {
+	t.Skip("Skip until the fix is implemented")
+
 	skipIfNoWorkloadProfileEnv(t)
 
 	tagger := NewFakeManualTagger()

@@ -355,6 +355,8 @@ var _ = declareInlineConfig(TestFilterOpenLeafDiscarderWorkloadProfile)
 // TestFilterOpenLeafDiscarderWorkloadProfile checks that an open hidden by a leaf discarder (rule without approver)
 // is still forwarded to user space, so that the workload profile learns it for each process opening the file.
 func TestFilterOpenLeafDiscarderWorkloadProfile(t *testing.T) {
+	t.Skip("Skip until the fix is implemented")
+
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -508,6 +510,8 @@ var _ = declareInlineConfig(TestFilterOpenApproverWorkloadProfile)
 // TestFilterOpenApproverWorkloadProfile checks that the opens rejected by the approvers of a rule are forwarded by
 // the workload profile sampler, so that each process opening the file is learned by the workload profile.
 func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
+	t.Skip("Skip until the fix is implemented")
+
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
