@@ -716,7 +716,7 @@ type SetNSEventSerializer struct {
 	NamespaceIDsSerializer
 	// Namespace IDs of the thread before the syscall
 	Previous *NamespaceIDsSerializer `json:"previous,omitempty"`
-	// Indicates that the mount namespace of the thread once the syscall returned is the host's initial one
+	// Indicates that the mount namespace of the thread after the syscall is the host's initial one
 	MntNSHost bool `json:"mntns_host,omitempty"`
 }
 
