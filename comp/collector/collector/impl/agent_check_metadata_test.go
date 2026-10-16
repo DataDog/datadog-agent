@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
@@ -219,6 +222,49 @@ func TestGetPayloadCheckMessageTruncation(t *testing.T) {
 					assert.Equal(t, longMsg, msg)
 				}
 			}
+		})
+	}
+}
+
+func TestOversizedMessageTelemetry(t *testing.T) {
+	longMsg := strings.Repeat("x", maxCheckErrorLength+1)
+
+	for _, enabled := range []bool{true, false} {
+		truncated := strconv.FormatBool(enabled)
+		t.Run("truncation enabled="+truncated, func(t *testing.T) {
+			tel := telemetryimpl.GetCompatComponent()
+			tel.Reset()
+			t.Cleanup(tel.Reset)
+			// Reset drops the registry, so the package metrics must be registered again.
+			tlmOversizedMessages = tel.NewCounter("checks", "metadata_message_oversized",
+				[]string{"check_name", "kind", "truncated"}, "test")
+			tlmOversizedMessageBytes = tel.NewHistogram("checks", "metadata_message_oversized_bytes",
+				[]string{"kind"}, "test", []float64{8 << 10, 16 << 10})
+
+			capError := newMessageCapper(enabled, "postgres", kindError)
+			capWarning := newMessageCapper(enabled, "postgres", kindWarning)
+
+			assert.Equal(t, "short", capError("short"))
+			assert.Equal(t, strings.Repeat("a", maxCheckErrorLength), capError(strings.Repeat("a", maxCheckErrorLength)))
+			assert.Zero(t, tlmOversizedMessages.WithValues("postgres", kindError, truncated).Get(), "short messages are not counted")
+
+			got := capError(longMsg)
+			capError(longMsg)
+			capWarning(longMsg)
+			if enabled {
+				assert.LessOrEqual(t, len(got), maxCheckErrorLength)
+			} else {
+				assert.Equal(t, longMsg, got)
+			}
+
+			assert.Equal(t, float64(2), tlmOversizedMessages.WithValues("postgres", kindError, truncated).Get())
+			assert.Equal(t, float64(1), tlmOversizedMessages.WithValues("postgres", kindWarning, truncated).Get())
+			assert.Zero(t, tlmOversizedMessages.WithValues("postgres", kindError, strconv.FormatBool(!enabled)).Get())
+
+			text, err := tel.GatherText(func(*telemetry.MetricFamily) bool { return true })
+			require.NoError(t, err)
+			assert.Contains(t, text, `checks__metadata_message_oversized_bytes_count{kind="error"} 2`)
+			assert.Contains(t, text, `checks__metadata_message_oversized_bytes_count{kind="warning"} 1`)
 		})
 	}
 }
