@@ -102,6 +102,22 @@ func writeNetworkPcapAttachment(w *multipart.Writer, pcap io.Reader) error {
 	return err
 }
 
+// writeMultipart writes the event and the pcap attachment to w as a
+// multipart body with the given boundary.
+func writeMultipart(w io.Writer, boundary string, event networkPcapEvent, pcap io.Reader) error {
+	mw := multipart.NewWriter(w)
+	if err := mw.SetBoundary(boundary); err != nil {
+		return err
+	}
+	if err := writeNetworkPcapEvent(mw, event); err != nil {
+		return err
+	}
+	if err := writeNetworkPcapAttachment(mw, pcap); err != nil {
+		return err
+	}
+	return mw.Close()
+}
+
 // Upload sends the pcap file at pcapPath as a zstd-compressed, streamed
 // multipart request. Each attempt reads the file again, so neither the capture
 // nor the compressed payload is held in memory.
@@ -140,17 +156,10 @@ func (u *networkPcapUploader) Upload(ctx context.Context, pcapPath string, captu
 				if err != nil {
 					return err
 				}
-				mw := multipart.NewWriter(zw)
-				if err := mw.SetBoundary(boundary); err != nil {
-					return err
-				}
-				if err := writeNetworkPcapEvent(mw, event); err != nil {
-					return err
-				}
-				if err := writeNetworkPcapAttachment(mw, f); err != nil {
-					return err
-				}
-				if err := mw.Close(); err != nil {
+				if err := writeMultipart(zw, boundary, event, f); err != nil {
+					// Close frees the compressor even when the body was
+					// abandoned, e.g. the server answered before reading it.
+					_ = zw.Close()
 					return err
 				}
 				return zw.Close()
