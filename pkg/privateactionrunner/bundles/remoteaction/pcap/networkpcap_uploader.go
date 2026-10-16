@@ -13,6 +13,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -23,7 +24,7 @@ import (
 
 // defaultNetworkPcapIntakeHostPrefix is prepended to the Datadog site to build
 // the intake host; network_pcap.logs_dd_url overrides it.
-const defaultNetworkPcapIntakeHostPrefix = "pcap-intake."
+const defaultNetworkPcapIntakeHostPrefix = "cnm-intake."
 
 const networkPcapPath = "/api/v2/networkpcap"
 
@@ -88,7 +89,7 @@ func writeNetworkPcapEvent(w *multipart.Writer, event networkPcapEvent) error {
 	return err
 }
 
-func writeNetworkPcapAttachment(w *multipart.Writer, pcapBytes []byte) error {
+func writeNetworkPcapAttachment(w *multipart.Writer, pcap io.Reader) error {
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", `form-data; name="pcap"; filename="capture.pcap"`)
 	h.Set("Content-Type", "application/octet-stream")
@@ -97,17 +98,18 @@ func writeNetworkPcapAttachment(w *multipart.Writer, pcapBytes []byte) error {
 	if err != nil {
 		return fmt.Errorf("creating pcap part: %w", err)
 	}
-	_, err = part.Write(pcapBytes)
+	_, err = io.Copy(part, pcap)
 	return err
 }
 
-// Upload sends pcapBytes as a zstd-compressed, streamed multipart request, so
-// the compressed payload is never held in memory.
+// Upload sends the pcap file at pcapPath as a zstd-compressed, streamed
+// multipart request. Each attempt reads the file again, so neither the capture
+// nor the compressed payload is held in memory.
 //
 // It retries on transport errors, 408, 429 and 5xx. It does not retry 413:
 // resending the same bytes cannot succeed. A capture cannot be re-taken, so
 // failures are returned rather than dropped.
-func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, captureID string) error {
+func (u *networkPcapUploader) Upload(ctx context.Context, pcapPath string, captureID string) error {
 	// The capture ran on this host. A hostname lookup failure is not fatal:
 	// the capture is uploaded without one rather than lost.
 	hostnameValue, err := hostname.Get(ctx)
@@ -126,8 +128,13 @@ func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, capt
 	contentType := "multipart/form-data; boundary=" + boundary
 
 	newBody := func() (io.ReadCloser, error) {
+		f, err := os.Open(pcapPath)
+		if err != nil {
+			return nil, fmt.Errorf("opening captured pcap file: %w", err)
+		}
 		pr, pw := io.Pipe()
 		go func() {
+			defer f.Close()
 			err := func() error {
 				zw, err := zstd.NewWriter(pw)
 				if err != nil {
@@ -140,7 +147,7 @@ func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, capt
 				if err := writeNetworkPcapEvent(mw, event); err != nil {
 					return err
 				}
-				if err := writeNetworkPcapAttachment(mw, pcapBytes); err != nil {
+				if err := writeNetworkPcapAttachment(mw, f); err != nil {
 					return err
 				}
 				if err := mw.Close(); err != nil {
@@ -163,7 +170,10 @@ func (u *networkPcapUploader) Upload(ctx context.Context, pcapBytes []byte, capt
 			}
 		}
 
-		body, _ := newBody()
+		body, err := newBody()
+		if err != nil {
+			return err
+		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.url, body)
 		if err != nil {
 			_ = body.Close()

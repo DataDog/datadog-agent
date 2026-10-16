@@ -7,8 +7,12 @@ package com_datadoghq_remoteaction_pcap
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -31,11 +35,19 @@ func testUploader(t *testing.T, statuses ...int) (*networkPcapUploader, *atomic.
 	return &networkPcapUploader{url: srv.URL + networkPcapPath, httpClient: srv.Client()}, &calls
 }
 
+// writePcapFile writes data to a temp file and returns its path.
+func writePcapFile(t *testing.T, data []byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "capture.pcap")
+	require.NoError(t, os.WriteFile(path, data, 0o600))
+	return path
+}
+
 func TestUploadRetriesThrottlingAndServerErrors(t *testing.T) {
 	for _, status := range []int{http.StatusTooManyRequests, http.StatusServiceUnavailable} {
 		t.Run(http.StatusText(status), func(t *testing.T) {
 			u, calls := testUploader(t, status, http.StatusAccepted)
-			require.NoError(t, u.Upload(context.Background(), []byte("pcap"), "capture-id"))
+			require.NoError(t, u.Upload(context.Background(), writePcapFile(t, []byte("pcap")), "capture-id"))
 			assert.EqualValues(t, 2, calls.Load())
 		})
 	}
@@ -43,7 +55,7 @@ func TestUploadRetriesThrottlingAndServerErrors(t *testing.T) {
 
 func TestUploadDoesNotRetryClientErrors(t *testing.T) {
 	u, calls := testUploader(t, http.StatusBadRequest)
-	require.Error(t, u.Upload(context.Background(), []byte("pcap"), "capture-id"))
+	require.Error(t, u.Upload(context.Background(), writePcapFile(t, []byte("pcap")), "capture-id"))
 	assert.EqualValues(t, 1, calls.Load())
 }
 
@@ -51,4 +63,37 @@ func TestNewUploaderUsesAgentTransport(t *testing.T) {
 	transport := &http.Transport{}
 	u := newNetworkPcapUploader(&config.Config{AgentHTTPClient: &http.Client{Transport: transport}})
 	assert.Same(t, transport, u.httpClient.Transport)
+}
+
+// Each attempt reads the file again, so a retry sends the whole capture.
+func TestUploadRetrySendsTheFullFileAgain(t *testing.T) {
+	var (
+		mu     sync.Mutex
+		bodies [][]byte
+		calls  atomic.Int32
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		bodies = append(bodies, b)
+		mu.Unlock()
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	t.Cleanup(srv.Close)
+	u := &networkPcapUploader{url: srv.URL + networkPcapPath, httpClient: srv.Client()}
+
+	require.NoError(t, u.Upload(context.Background(), writePcapFile(t, make([]byte, 64<<10)), "capture-id"))
+	require.Len(t, bodies, 2)
+	assert.NotEmpty(t, bodies[0])
+	assert.Equal(t, bodies[0], bodies[1])
+}
+
+func TestUploadMissingFile(t *testing.T) {
+	u, calls := testUploader(t, http.StatusAccepted)
+	require.Error(t, u.Upload(context.Background(), filepath.Join(t.TempDir(), "missing.pcap"), "capture-id"))
+	assert.EqualValues(t, 0, calls.Load())
 }

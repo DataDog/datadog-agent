@@ -31,7 +31,7 @@ var (
 	testSecret = gopacket.Payload("GET /secret HTTP/1.1\r\nAuthorization: Bearer abc\r\n\r\n")
 )
 
-func serialize(t *testing.T, l ...gopacket.SerializableLayer) []byte {
+func serialize(t testing.TB, l ...gopacket.SerializableLayer) []byte {
 	t.Helper()
 	buf := gopacket.NewSerializeBuffer()
 	require.NoError(t, gopacket.SerializeLayers(buf, gopacket.SerializeOptions{FixLengths: true}, l...))
@@ -99,9 +99,20 @@ func ipv6DestinationOptions(next layers.IPProtocol) []byte {
 	return []byte{byte(next), 0x00, 0x01, 0x04, 0, 0, 0, 0}
 }
 
+// ipv6FragmentHeader is an 8-byte fragment extension header at offset (in
+// 8-byte units), with the more-fragments flag set when offset is 0.
+func ipv6FragmentHeader(next layers.IPProtocol, offset uint16) []byte {
+	flags := offset << 3
+	if offset == 0 {
+		flags |= 1
+	}
+	return []byte{byte(next), 0, byte(flags >> 8), byte(flags), 0, 0, 0, 1}
+}
+
 func TestHeaderLen(t *testing.T) {
 	ipv4TCP := serialize(t, ipv4(layers.IPProtocolTCP), tcpWithTimestamps(), testSecret)
 	tcpSegment := serialize(t, tcpWithTimestamps(), testSecret)
+	udpSegment := serialize(t, udp(53), testSecret)
 	// An IHL of 15 (60 bytes) exceeds the IP total length, so IPv4 fails its
 	// own decode after gopacket has set its Contents to the whole remainder.
 	badIHL := serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolUDP), udp(9999), gopacket.Payload("secret"))
@@ -220,6 +231,45 @@ func TestHeaderLen(t *testing.T) {
 			wantLen: 14 + 20,
 		},
 		{
+			name:     "first IPv4 fragment keeps the UDP header",
+			linkType: layers.LinkTypeEthernet,
+			packet: serialize(t, eth(layers.EthernetTypeIPv4),
+				&layers.IPv4{Version: 4, IHL: 5, TTL: 64, Protocol: layers.IPProtocolUDP, Flags: layers.IPv4MoreFragments, SrcIP: testIPv4Src, DstIP: testIPv4Dst},
+				udp(53), testSecret),
+			wantLen: 14 + 20 + 8,
+		},
+		{
+			name:     "first IPv4 fragment keeps the TCP header",
+			linkType: layers.LinkTypeEthernet,
+			packet: serialize(t, eth(layers.EthernetTypeIPv4),
+				&layers.IPv4{Version: 4, IHL: 5, TTL: 64, Protocol: layers.IPProtocolTCP, Flags: layers.IPv4MoreFragments, SrcIP: testIPv4Src, DstIP: testIPv4Dst},
+				tcpWithTimestamps(), testSecret),
+			wantLen: 14 + 20 + 32,
+		},
+		{
+			name:     "first IPv6 fragment keeps the UDP header",
+			linkType: layers.LinkTypeEthernet,
+			packet: serialize(t, eth(layers.EthernetTypeIPv6), ipv6(layers.IPProtocolIPv6Fragment),
+				gopacket.Payload(append(ipv6FragmentHeader(layers.IPProtocolUDP, 0), udpSegment...))),
+			wantLen: 14 + 40 + 8 + 8,
+		},
+		{
+			name:     "non-first IPv6 fragment keeps the IP headers only",
+			linkType: layers.LinkTypeEthernet,
+			packet: serialize(t, eth(layers.EthernetTypeIPv6), ipv6(layers.IPProtocolIPv6Fragment),
+				gopacket.Payload(append(ipv6FragmentHeader(layers.IPProtocolUDP, 100), testSecret...))),
+			wantLen: 14 + 40 + 8,
+		},
+		{
+			name:     "first IPv4 fragment with its transport header cut short fails closed",
+			linkType: layers.LinkTypeEthernet,
+			packet: serialize(t, eth(layers.EthernetTypeIPv4),
+				&layers.IPv4{Version: 4, IHL: 5, TTL: 64, Protocol: layers.IPProtocolTCP, Flags: layers.IPv4MoreFragments, SrcIP: testIPv4Src, DstIP: testIPv4Dst},
+				tcpWithTimestamps(), testSecret)[:14+20+24],
+			wantLen:    14 + 20,
+			wantFailed: true,
+		},
+		{
 			name:       "unknown ethertype keeps the link-layer header only",
 			linkType:   layers.LinkTypeEthernet,
 			packet:     serialize(t, eth(layers.EthernetType(0x88b5)), testSecret),
@@ -289,6 +339,29 @@ func TestHeaderLenWithinSnapLen(t *testing.T) {
 			cut, failed := headerLen(tt.packet[:min(len(tt.packet), maxSnapLen)], tt.linkType)
 			assert.False(t, failed)
 			assert.Equal(t, full, cut)
+		})
+	}
+}
+
+func BenchmarkHeaderLen(b *testing.B) {
+	t := b
+	packets := map[string][]byte{
+		"cooked IPv4 TCP": append(linuxSLL(layers.EthernetTypeIPv4), serialize(t, ipv4(layers.IPProtocolTCP), tcpWithTimestamps(), testSecret)...),
+		"VXLAN IPv4 TCP": serialize(t,
+			eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolUDP), udp(4789),
+			&layers.VXLAN{ValidIDFlag: true, VNI: 7},
+			eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolTCP), tcpWithTimestamps(), testSecret),
+	}
+	for name, p := range packets {
+		linkType := layers.LinkTypeEthernet
+		if name == "cooked IPv4 TCP" {
+			linkType = layers.LinkTypeLinuxSLL
+		}
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				headerLen(p, linkType)
+			}
 		})
 	}
 }

@@ -85,13 +85,10 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	require.Greater(t, out.PacketCount, 0, "expected at least one ICMP packet — is traffic being generated on %s during the capture window?", iface)
 
 	captureID := "e2e-test-" + uuid.New().String()
-	pcapBytes, err := os.ReadFile(out.PcapPath)
-	require.NoError(t, err)
-
-	err = handler.uploader.Upload(context.Background(), pcapBytes, captureID)
+	err = handler.uploader.Upload(context.Background(), out.PcapPath, captureID)
 	require.NoError(t, err, "expected the real networkpcap intake to accept the upload (202); a failure here means the agent-side upload path is broken against a real, reachable intake, independent of any S3/Husky-landing question")
 
-	t.Logf("uploaded capture_id=%s (%d bytes) to https://%s/api/v2/networkpcap and got 202 — this confirms edge-accept only, NOT confirmed storage landing in S3/Husky", captureID, len(pcapBytes), intakeHost)
+	t.Logf("uploaded capture_id=%s (%d bytes) to https://%s/api/v2/networkpcap and got 202 — this confirms edge-accept only, NOT confirmed storage landing in S3/Husky", captureID, out.FileSizeBytes, intakeHost)
 }
 
 // TestRunCapture_RealEndToEndViaRun drives the action through Run() with a

@@ -30,6 +30,7 @@ go_test(
     name = "capture_test",
     srcs = [
         "capture_test.go",
+        "drain_test.go",
         "pcap_output_test.go",
         "trim_test.go",
     ],

@@ -187,6 +187,22 @@ func TestRunCapture_ExplicitCapsArePreserved(t *testing.T) {
 	assert.Equal(t, int64(567890), rec.got.MaxBytes)
 }
 
+// A caller can lower the caps but not raise them.
+func TestRunCapture_LargerCapsAreLowered(t *testing.T) {
+	handler, rec := newRecordingHandler()
+	task := newTask(map[string]interface{}{
+		"captureId":    "cap-1",
+		"durationSecs": 5,
+		"maxPackets":   1e12,
+		"maxBytes":     1e12,
+	})
+
+	_, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+	assert.Equal(t, defaultMaxPackets, rec.got.MaxPackets)
+	assert.Equal(t, int64(defaultMaxBytes), rec.got.MaxBytes)
+}
+
 func TestRunCaptureValidation_DurationTooLow(t *testing.T) {
 	handler := newTestHandler()
 	task := newTask(map[string]interface{}{

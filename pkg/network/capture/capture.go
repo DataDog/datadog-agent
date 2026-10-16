@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/pcapgo"
@@ -35,10 +36,9 @@ type capturer struct {
 
 	// handle is the activated libpcap handle, set on Start.
 	handle *pcap.Handle
-	// filter re-checks every packet in user space. libpcap starts receiving
-	// when the handle is activated, before the kernel filter is installed, so
-	// packets read in that window would otherwise bypass the filter.
-	filter *pcap.BPF
+	// readPacket and linkType come from handle; tests replace readPacket.
+	readPacket func() ([]byte, gopacket.CaptureInfo, error)
+	linkType   layers.LinkType
 	// writer encodes the pcap file onto cfg.Output, set on Start.
 	writer *pcapgo.Writer
 
@@ -129,6 +129,8 @@ func (c *capturer) Start(ctx context.Context) error {
 		return fmt.Errorf("capture: %w", err)
 	}
 	c.handle = handle
+	c.readPacket = handle.ReadPacketData
+	c.linkType = handle.LinkType()
 
 	c.writer = pcapgo.NewWriter(c.cfg.Output)
 	if err := c.writer.WriteFileHeader(c.cfg.SnapLen, handle.LinkType()); err != nil {
@@ -169,14 +171,12 @@ func (c *capturer) openHandle() (*pcap.Handle, error) {
 		return nil, fmt.Errorf("activating %s: %w", c.cfg.Interface, err)
 	}
 
+	// libpcap also filters, in user space, packets queued before the kernel
+	// filter is installed, so none bypass it.
 	if c.cfg.Filter != "" {
 		if err := handle.SetBPFFilter(c.cfg.Filter); err != nil {
 			handle.Close()
 			return nil, fmt.Errorf("installing BPF filter %q: %w", c.cfg.Filter, err)
-		}
-		if c.filter, err = handle.NewBPF(c.cfg.Filter); err != nil {
-			handle.Close()
-			return nil, fmt.Errorf("compiling BPF filter %q: %w", c.cfg.Filter, err)
 		}
 	}
 	return handle, nil
@@ -237,8 +237,8 @@ func (c *capturer) Stats() CaptureStats {
 
 // drainLoop is the background goroutine that reads packets from libpcap,
 // trims them to their headers, and writes PCAP records. Terminates on: stop
-// signal, context cancellation, handle EOF, MaxPackets limit, MaxBytes limit,
-// or Duration expiry.
+// signal, context cancellation, handle EOF, a read or write error, MaxPackets
+// limit, MaxBytes limit, or Duration expiry.
 func (c *capturer) drainLoop(ctx context.Context) {
 	defer close(c.doneCh)
 
@@ -248,8 +248,6 @@ func (c *capturer) drainLoop(ctx context.Context) {
 		defer t.Stop()
 		deadline = t.C
 	}
-
-	linkType := c.handle.LinkType()
 
 	// Tracks the true on-disk file size for the MaxBytes cap. Start()
 	// has already written the global header by the time we get here.
@@ -266,23 +264,21 @@ func (c *capturer) drainLoop(ctx context.Context) {
 		default:
 		}
 
-		data, ci, err := c.handle.ReadPacketData()
+		data, ci, err := c.readPacket()
 		if errors.Is(err, pcap.NextErrorTimeoutExpired) {
 			continue
 		}
 		if errors.Is(err, io.EOF) {
 			return
 		}
+		// Other read errors repeat on every call, e.g. once the interface is
+		// removed, so end the capture rather than spin until the deadline.
 		if err != nil {
 			c.errCount.Add(1)
-			continue
+			return
 		}
 
-		if c.filter != nil && !c.filter.Matches(ci, data) {
-			continue
-		}
-
-		n, failed := headerLen(data, linkType)
+		n, failed := headerLen(data, c.linkType)
 		if failed && ci.CaptureLength < ci.Length {
 			c.headersTruncated.Add(1)
 		}
@@ -298,9 +294,10 @@ func (c *capturer) drainLoop(ctx context.Context) {
 			return
 		}
 
+		// A write error means the output is gone, e.g. the caller disconnected.
 		if err := c.writer.WritePacket(ci, data[:n]); err != nil {
 			c.errCount.Add(1)
-			continue
+			return
 		}
 
 		fileBytes += recordSize
