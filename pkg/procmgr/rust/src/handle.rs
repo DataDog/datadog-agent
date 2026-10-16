@@ -147,6 +147,8 @@ impl RetainedProcessHandle {
 pub(crate) struct ProcessHandle {
     #[cfg(not(windows))]
     child: Child,
+    #[cfg(not(windows))]
+    supervised: Option<crate::platform::SupervisedPid>,
 
     #[cfg(windows)]
     pid: u32,
@@ -158,8 +160,11 @@ pub(crate) struct ProcessHandle {
 
 impl ProcessHandle {
     #[cfg(not(windows))]
-    pub(crate) fn from_child(child: Child) -> Self {
-        Self { child }
+    pub(crate) fn from_child(
+        child: Child,
+        supervised: Option<crate::platform::SupervisedPid>,
+    ) -> Self {
+        Self { child, supervised }
     }
 
     #[cfg(windows)]
@@ -196,7 +201,9 @@ impl ProcessHandle {
     pub(crate) async fn wait(&mut self) -> Result<ExitStatus> {
         #[cfg(not(windows))]
         {
-            Ok(self.child.wait().await?)
+            let status = self.child.wait().await?;
+            self.supervised = None;
+            Ok(status)
         }
         #[cfg(windows)]
         {
