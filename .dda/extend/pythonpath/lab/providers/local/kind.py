@@ -63,7 +63,7 @@ class KindOptions(ProviderOptions):
     @property
     def wants_agent(self) -> bool:
         """Check if agent installation is requested."""
-        return not self.no_agent or self.build_agent or bool(self.load_image)
+        return not self.no_agent
 
 
 @register_provider
