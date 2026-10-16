@@ -277,6 +277,41 @@ func TestFromDDConfig(t *testing.T) {
 	}
 }
 
+func TestFromDDConfigAllowedRegistries(t *testing.T) {
+	t.Run("unset denies all registries", func(t *testing.T) {
+		cfg, err := FromDDConfig(configmock.New(t), nil)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.AllowedRegistries)
+	})
+
+	t.Run("Agent YAML", func(t *testing.T) {
+		mockConfig := configmock.NewFromYAML(t, `
+private_action_runner:
+  allowed_registries:
+    - registry.example.com
+    - another.example.com/team/scripts
+`)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"registry.example.com", "another.example.com/team/scripts"}, cfg.AllowedRegistries)
+	})
+
+	t.Run("explicit empty denies all registries", func(t *testing.T) {
+		mockConfig := configmock.NewFromYAML(t, "private_action_runner:\n  allowed_registries: []\n")
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Empty(t, cfg.AllowedRegistries)
+	})
+
+	t.Run("environment overrides YAML", func(t *testing.T) {
+		t.Setenv("DD_PRIVATE_ACTION_RUNNER_ALLOWED_REGISTRIES", "registry.example.com,another.example.com/team")
+		mockConfig := configmock.NewFromYAML(t, "private_action_runner:\n  allowed_registries: []\n")
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"registry.example.com", "another.example.com/team"}, cfg.AllowedRegistries)
+	})
+}
+
 func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {
 	t.Run("unset selects compatibility mode", func(t *testing.T) {
 		mockConfig := configmock.New(t)

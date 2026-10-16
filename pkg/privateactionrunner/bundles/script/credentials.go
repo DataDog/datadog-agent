@@ -51,6 +51,9 @@ type RunPredefinedPowershellScriptConfig struct {
 }
 
 func parseCredentials(credentials *privateconnection.PrivateCredentials) (*ScriptBundleConfig, error) {
+	if credentials == nil {
+		return nil, fmt.Errorf("script connection credentials are required")
+	}
 	tokens := credentials.AsTokenMap()
 	stringConfig := tokens["configFileLocation"] // ResolveConnectionInfoToCredential has loaded the content of the file
 

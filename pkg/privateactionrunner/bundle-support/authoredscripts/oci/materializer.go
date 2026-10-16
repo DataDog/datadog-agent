@@ -86,6 +86,10 @@ func (m *Materializer) Materialize(ctx context.Context, descriptor authoredscrip
 		return fmt.Errorf("OCI package version %q does not match catalog version %q", downloadedPackage.Version, descriptor.Version)
 	}
 
+	return extractPackage(ctx, downloadedPackage, destination)
+}
+
+func extractPackage(ctx context.Context, downloadedPackage *fleetoci.DownloadedPackage, destination string) error {
 	dependencyNames, err := dependencyLayerNames(downloadedPackage)
 	if err != nil {
 		return err
