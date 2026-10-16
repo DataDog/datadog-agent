@@ -32,14 +32,17 @@ import (
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
 type memPersistence struct {
-	mu    sync.Mutex
-	state *PersistedState
+	mu        sync.Mutex
+	state     *PersistedState
+	loadErr   error
+	loadCalls int
 }
 
 func (m *memPersistence) load() (*PersistedState, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.state, nil
+	m.loadCalls++
+	return m.state, m.loadErr
 }
 
 func (m *memPersistence) save(state *PersistedState) error {
@@ -125,6 +128,60 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 				"health_platform", "issues_detected", []string{"issue_type", "severity"}, ""),
 		},
 	}
+}
+
+func TestSelectPersistenceMode(t *testing.T) {
+	tests := []struct {
+		name                        string
+		isKubernetes                bool
+		persistOnKubernetes         bool
+		persistRemotelyOnKubernetes bool
+		want                        persistenceMode
+	}{
+		{
+			name: "non-Kubernetes uses disk",
+			want: persistenceModeDisk,
+		},
+		{
+			name:         "Kubernetes persistence disabled",
+			isKubernetes: true,
+			want:         persistenceModeDisabled,
+		},
+		{
+			name:                "Kubernetes local persistence",
+			isKubernetes:        true,
+			persistOnKubernetes: true,
+			want:                persistenceModeDisk,
+		},
+		{
+			name:                        "Kubernetes remote persistence",
+			isKubernetes:                true,
+			persistRemotelyOnKubernetes: true,
+			want:                        persistenceModeRemote,
+		},
+		{
+			name:                        "Kubernetes remote persistence takes precedence",
+			isKubernetes:                true,
+			persistOnKubernetes:         true,
+			persistRemotelyOnKubernetes: true,
+			want:                        persistenceModeRemote,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, selectPersistenceMode(test.isKubernetes, test.persistOnKubernetes, test.persistRemotelyOnKubernetes))
+		})
+	}
+}
+
+func TestStartFailsOpenWhenPersistenceLoadFails(t *testing.T) {
+	h := newTestStore(t)
+	persistence := &memPersistence{loadErr: assert.AnError}
+	h.persistence = persistence
+
+	require.NoError(t, h.start(context.Background()))
+	assert.Equal(t, 1, persistence.loadCalls)
 }
 
 func TestReportIssueNil(t *testing.T) {
@@ -256,13 +313,10 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	assert.NotEmpty(t, h.persistedIssues["t:id"].ResolvedAt)
 }
 
-// TestResolveIssuePreservesIssueType guards that the resolved tombstone carries
-// the same IssueType as the active issue did — backend grouping/filtering by
-// issue_type must not break across a resolve transition.
-func TestResolveIssuePreservesIssueType(t *testing.T) {
+func TestResolveIssuePreservesIssueTypeAndCategory(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", IssueType: "custom_type",
+		Id: "t:id", IssueName: "t", IssueType: "custom_type", Category: "configuration",
 	}))
 
 	ch := make(chan *healthplatformpayload.Issue, 1)
@@ -273,12 +327,13 @@ func TestResolveIssuePreservesIssueType(t *testing.T) {
 	require.Len(t, ch, 1)
 	got := <-ch
 	assert.Equal(t, "custom_type", got.IssueType)
+	assert.Equal(t, "configuration", got.Category)
 }
 
-func TestResolveAllIssuesPreservesIssueType(t *testing.T) {
+func TestResolveAllIssuesPreservesIssueTypeAndCategory(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:1", IssueName: "t", IssueType: "custom_type",
+		Id: "t:1", IssueName: "t", IssueType: "custom_type", Category: "configuration",
 	}))
 
 	ch := make(chan *healthplatformpayload.Issue, 1)
@@ -289,6 +344,7 @@ func TestResolveAllIssuesPreservesIssueType(t *testing.T) {
 	require.Len(t, ch, 1)
 	got := <-ch
 	assert.Equal(t, "custom_type", got.IssueType)
+	assert.Equal(t, "configuration", got.Category)
 }
 
 func TestResolveIssueUnknownIDIsNoop(t *testing.T) {
@@ -360,7 +416,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	h1 := newTestStore(t)
 	h1.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", IssueType: "custom_type", Title: "Test Issue", Source: "test-src",
+		Id: "t:id", IssueName: "t", IssueType: "custom_type", Category: "configuration", Title: "Test Issue", Source: "test-src",
 	}))
 	firstSeen := h1.persistedIssues["t:id"].FirstSeen
 
@@ -368,7 +424,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	h2.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h2.loadFromDisk())
 
-	// Proto payload is not persisted — it is repopulated when the check re-runs.
+	// Detailed proto payload is not persisted — it is repopulated when the check re-runs.
 	// What must survive is the lifecycle state so that storeIssue can correctly
 	// resume firstSeen and state on the next ReportIssue call.
 	persisted := h2.persistedIssues["t:id"]
@@ -376,21 +432,20 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	assert.Equal(t, "t:id", persisted.IssueID)
 	assert.Equal(t, "t", persisted.IssueType)
 	assert.Equal(t, "custom_type", persisted.ProtoIssueType, "proto IssueType must survive persistence round-trip")
+	assert.Equal(t, "configuration", persisted.Category)
 	assert.Equal(t, firstSeen, persisted.FirstSeen)
 	assert.Equal(t, IssueStateActive, persisted.State)
 
 	// Re-reporting the same issue picks up the persisted firstSeen.
 	require.NoError(t, h2.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", Title: "Test Issue", Source: "test-src",
+		Id: "t:id", IssueName: "t", Category: "permissions", Title: "Test Issue", Source: "test-src",
 	}))
 	assert.Equal(t, firstSeen, h2.persistedIssues["t:id"].FirstSeen, "firstSeen must be preserved across restart")
 	assert.Equal(t, IssueStateActive, h2.persistedIssues["t:id"].State)
+	assert.Equal(t, "permissions", h2.persistedIssues["t:id"].Category, "category must reflect the latest report")
 }
 
-// TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone guards that a resolved
-// issue reconstructed from disk on restart (before its check re-runs) still
-// carries IssueType in the tombstone sent to observers.
-func TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone(t *testing.T) {
+func TestLoadPersistedStatePreservesIssueTypeAndCategoryOnResolvedTombstone(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "issues.json")
 	logger := logmock.New(t)
@@ -398,7 +453,7 @@ func TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone(t *testing.T) {
 	h1 := newTestStore(t)
 	h1.persistence = newDiskPersistence(path, logger)
 	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
-		Id: "t:id", IssueName: "t", IssueType: "custom_type",
+		Id: "t:id", IssueName: "t", IssueType: "custom_type", Category: "configuration",
 	}))
 	h1.ResolveIssue("t:id")
 
@@ -411,6 +466,7 @@ func TestLoadFromDiskPreservesIssueTypeOnResolvedTombstone(t *testing.T) {
 	require.Len(t, ch, 1)
 	got := <-ch
 	assert.Equal(t, "custom_type", got.IssueType)
+	assert.Equal(t, "configuration", got.Category)
 }
 
 func TestPersistenceVersionMismatch(t *testing.T) {
