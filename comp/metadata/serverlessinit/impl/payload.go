@@ -10,7 +10,7 @@ package serverlessinitimpl
 import (
 	"strings"
 
-	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -28,7 +28,7 @@ const serverlessInitFlavor = "serverless-init"
 // serverless context into the (unprefixed) agent_metadata keys. env, service,
 // and version come from the tag map so they match the values this container
 // tags its telemetry with; site is not a tag, so it comes from the config.
-func buildFields(inv serverlessinit.InventoryData, params serverlessinit.Params, conf configmodel.Reader) map[string]interface{} {
+func buildFields(inv serverlessdef.ServerlessInitData, params serverlessdef.Params, conf configmodel.Reader) map[string]interface{} {
 	wrappedCommand := params.WrappedCommand
 	if params.Sidecar {
 		wrappedCommand = nil
@@ -62,7 +62,7 @@ func buildFields(inv serverlessinit.InventoryData, params serverlessinit.Params,
 	}
 
 	// wrapped_command is opt-in because redaction is best effort; it is set to
-	// nil when disabled to clear any value cached by the component.
+	// nil when disabled.
 	fields["wrapped_command"] = nil
 	if conf.GetBool("serverless.inventory_wrapped_command_enabled") && len(wrappedCommand) > 0 {
 		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(wrappedCommand, " "))
@@ -70,7 +70,7 @@ func buildFields(inv serverlessinit.InventoryData, params serverlessinit.Params,
 
 	for key, value := range fields {
 		if text, ok := value.(string); ok && text == "" {
-			// Passing nil also clears a previously populated value in the component's cache.
+			// Keep unavailable fields explicit on the wire.
 			fields[key] = nil
 		}
 	}

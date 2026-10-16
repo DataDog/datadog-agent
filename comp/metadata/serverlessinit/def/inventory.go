@@ -6,9 +6,6 @@
 package serverlessinit
 
 import (
-	"errors"
-	"strings"
-
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -24,15 +21,15 @@ const (
 	RuntimeRuby   = "Ruby"
 )
 
-// InventoryData holds the per-platform serverless fields that feed the
+// ServerlessInitData holds the per-platform serverless fields that feed the
 // serverless-init inventory metadata payload. Each InventoryProvider
 // implementation derives these from its own environment so the payload builder
 // stays thin and the derivation lives next to the existing tag logic.
 //
 // Empty strings represent unavailable values. The serverless-init payload builder
 // converts them to nil, allowing optional fields to be omitted or serialized as
-// JSON null. Missing required identity remains subject to CanCollectInventory.
-type InventoryData struct {
+// JSON null. Payloads without resource identity are withheld.
+type ServerlessInitData struct {
 	WorkloadType string
 
 	// ResourceID is the Canonical Cloud Resource ID (CCRID), the first component
@@ -63,29 +60,17 @@ type InventoryData struct {
 
 // InventoryProvider is the platform contract this component consumes. The
 // embedding binary's cloud-service detection implements it. GetInventoryData
-// must not perform I/O: identity resolution happens before Fx construction,
-// so it derives from facts resolved at that point.
+// must not perform I/O and must support concurrent reads while identity changes.
 type InventoryProvider interface {
-	// CanCollectInventory reports whether the platform permits inventory collection.
+	// CanCollectInventory reports platform support without collecting data or checking identity readiness.
 	CanCollectInventory() bool
 	// GetInventoryData returns the per-platform serverless fields for the
 	// inventory metadata payload.
-	GetInventoryData() InventoryData
+	GetInventoryData() ServerlessInitData
 }
 
 // InventoryEligible reports whether the serverless inventory payload may be
-// collected: the configuration opt-in and a provider that can collect. The
-// embedding binary must apply it before Fx constructs the inventoryagent
-// component, which snapshots its enabled state at construction.
+// collected: the configuration opt-in and a provider that can collect.
 func InventoryEligible(conf configmodel.Reader, provider InventoryProvider) bool {
 	return conf.GetBool("serverless.inventory_enabled") && provider.CanCollectInventory()
-}
-
-// ValidatePayload reports why a built field set cannot be submitted, nil when it can.
-func ValidatePayload(fields map[string]interface{}) error {
-	id, ok := fields["resource_id"].(string)
-	if !ok || strings.TrimSpace(id) == "" {
-		return errors.New("resource id is missing or empty")
-	}
-	return nil
 }

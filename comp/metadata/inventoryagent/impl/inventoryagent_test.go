@@ -18,8 +18,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -31,7 +29,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
-	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -61,7 +58,6 @@ type testDeps struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
-	Capabilities   *iainterface.Capabilities `optional:"true"`
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -72,11 +68,10 @@ func makeRequires(deps testDeps) Requires {
 		Serializer:     deps.Serializer,
 		IPCClient:      deps.IPCClient,
 		Hostname:       deps.Hostname,
-		Capabilities:   deps.Capabilities,
 	}
 }
 
-func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any, options ...fx.Option) Provides {
+func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
 	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, sysprobeConfOverrides)
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
@@ -89,7 +84,6 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
-			fx.Options(options...),
 		)),
 	)
 }
@@ -121,213 +115,85 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, 1234, payload.Metadata["test"])
 }
 
-func TestCapabilitiesFullAgentMetadataRefresh(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		capabilities *iainterface.Capabilities
-		wantFetches  int
-	}{
-		{name: "absent capabilities", wantFetches: 1},
-		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}, wantFetches: 1},
-		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(false, nil)},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
-			originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
-			t.Cleanup(func() {
-				fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
-				fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
-			})
-			fetches := map[string]int{}
-			fetcher := func(name, remoteConfig string) func(pkgconfigmodel.Reader, ipc.HTTPClient) (string, error) {
-				return func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
-					fetches[name]++
-					return remoteConfig, nil
-				}
-			}
-			fetchSecurityConfig = fetcher("security", "compliance_config:\n  enabled: true")
-			fetchProcessConfig = fetcher("process", "process_config:\n  process_collection:\n    enabled: true")
-			fetchTraceConfig = fetcher("trace", "apm_config:\n  enabled: true")
-			fetchSystemProbeConfig = fetcher("system-probe", "network_config:\n  enabled: true")
+func TestFullAgentMetadataRefresh(t *testing.T) {
+	originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
+	originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
+	t.Cleanup(func() {
+		fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
+		fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
+	})
+	fetches := map[string]int{}
+	fetcher := func(name, remoteConfig string) func(pkgconfigmodel.Reader, ipc.HTTPClient) (string, error) {
+		return func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
+			fetches[name]++
+			return remoteConfig, nil
+		}
+	}
+	fetchSecurityConfig = fetcher("security", "compliance_config:\n  enabled: true")
+	fetchProcessConfig = fetcher("process", "process_config:\n  process_collection:\n    enabled: true")
+	fetchTraceConfig = fetcher("trace", "apm_config:\n  enabled: true")
+	fetchSystemProbeConfig = fetcher("system-probe", "network_config:\n  enabled: true")
 
-			var options []fx.Option
-			if tt.capabilities != nil {
-				options = append(options, fx.Supply(tt.capabilities))
-			}
-			if tt.wantFetches == 0 {
-				options = append(options, fx.Decorate(func(ipc.HTTPClient) ipc.HTTPClient { return nil }))
-			}
-			p := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil, options...)
-			ia := p.Comp.(*inventoryagent)
-			configDir := t.TempDir()
-			configmock.New(t).SetConfigFile(filepath.Join(configDir, "datadog.yaml"))
-			fleetDir := filepath.Join(configDir, "managed", "datadog-agent", "stable")
-			if err := os.MkdirAll(fleetDir, 0700); err != nil {
+	p := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil)
+	ia := p.Comp.(*inventoryagent)
+	configDir := t.TempDir()
+	configmock.New(t).SetConfigFile(filepath.Join(configDir, "datadog.yaml"))
+	fleetDir := filepath.Join(configDir, "managed", "datadog-agent", "stable")
+	if err := os.MkdirAll(fleetDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	ia.Set("resource_id", "test-resource")
+	ia.Set("flavor", "embedded-test")
+	ia.Set("config_dd_url", "explicit-url")
+	for index, value := range []string{"first", "second"} {
+		ia.conf.Set("site", value+".example.com", pkgconfigmodel.SourceAgentRuntime)
+		ia.conf.Set("logs_enabled", index == 0, pkgconfigmodel.SourceAgentRuntime)
+		ia.conf.Set("config_id", value, pkgconfigmodel.SourceAgentRuntime)
+		ia.conf.Set("fleet_layers", []string{value}, pkgconfigmodel.SourceAgentRuntime)
+		applicationConfig := []byte("service: " + value)
+		fleetConfig := []byte("service: fleet-" + value)
+		for path, contents := range map[string][]byte{
+			filepath.Join(configDir, "application_monitoring.yaml"): applicationConfig,
+			filepath.Join(fleetDir, "application_monitoring.yaml"):  fleetConfig,
+		} {
+			if err := os.WriteFile(path, contents, 0600); err != nil {
 				t.Fatal(err)
 			}
-			ia.Set("resource_id", "test-resource")
-			ia.Set("flavor", "embedded-test")
-			ia.Set("config_dd_url", "explicit-url")
-			for index, value := range []string{"first", "second"} {
-				ia.conf.Set("site", value+".example.com", pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("logs_enabled", index == 0, pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("config_id", value, pkgconfigmodel.SourceAgentRuntime)
-				ia.conf.Set("fleet_layers", []string{value}, pkgconfigmodel.SourceAgentRuntime)
-				applicationConfig := []byte("service: " + value)
-				fleetConfig := []byte("service: fleet-" + value)
-				for path, contents := range map[string][]byte{
-					filepath.Join(configDir, "application_monitoring.yaml"): applicationConfig,
-					filepath.Join(fleetDir, "application_monitoring.yaml"):  fleetConfig,
-				} {
-					if err := os.WriteFile(path, contents, 0600); err != nil {
-						t.Fatal(err)
-					}
-				}
-				payload := ia.getPayload().(*Payload)
-
-				assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
-				assert.Equal(t, version.AgentPackageVersion, payload.Metadata["package_version"])
-				assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
-				assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
-				assert.Contains(t, payload.Metadata, "install_method_tool")
-				assert.Equal(t, "embedded-test", payload.Metadata["flavor"])
-				assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
-				assert.Equal(t, uuid.GetUUID(), payload.UUID)
-				for _, field := range []string{"full_configuration", "agent_runtime_configuration"} {
-					assert.Contains(t, payload.Metadata[field], "site: "+value+".example.com", field)
-				}
-				for name, field := range map[string]string{
-					"security":     "feature_cspm_enabled",
-					"process":      "feature_process_enabled",
-					"trace":        "feature_apm_enabled",
-					"system-probe": "feature_networks_enabled",
-				} {
-					assert.Equal(t, (index+1)*tt.wantFetches, fetches[name], name)
-					if tt.wantFetches == 0 {
-						assert.NotContains(t, payload.Metadata, field)
-					} else {
-						assert.Equal(t, true, payload.Metadata[field], field)
-					}
-				}
-				// Local collectors are intentionally skipped too, even with populated inputs.
-				for field, expected := range map[string]any{
-					"config_site":                         value + ".example.com",
-					"feature_logs_enabled":                index == 0,
-					"fleet_policies_applied":              []string{value},
-					"config_id":                           value,
-					"application_monitoring_config":       applicationConfig,
-					"application_monitoring_config_fleet": fleetConfig,
-				} {
-					if tt.wantFetches == 0 {
-						assert.NotContains(t, payload.Metadata, field)
-					} else {
-						assert.Equal(t, expected, payload.Metadata[field], field)
-					}
-				}
-				if tt.wantFetches == 0 {
-					assert.Equal(t, "explicit-url", payload.Metadata["config_dd_url"], "skipping refresh must not filter explicitly set fields")
-				} else {
-					assert.Equal(t, ia.conf.GetString("dd_url"), payload.Metadata["config_dd_url"], "default refresh replaces explicitly set collector fields")
-				}
-			}
-		})
-	}
-}
-
-func TestSetBatch(t *testing.T) {
-	ia := getTestInventoryPayload(t, nil, nil)
-
-	ia.Set("stale", "old")
-	ia.SetBatch(map[string]interface{}{
-		"stale":  nil,
-		"test":   1234,
-		"flavor": "batch-flavor",
-	}, "batch-uuid")
-
-	assert.Equal(t, 1234, ia.data["test"])
-	assert.Equal(t, "batch-flavor", ia.data["flavor"])
-	assert.Nil(t, ia.data["stale"], "a nil batch value must clear the cached field")
-	assert.Equal(t, "batch-uuid", ia.uuidOverride)
-	assert.True(t, ia.RefreshTriggered())
-
-	payload := ia.getPayload().(*Payload)
-	assert.Equal(t, "batch-uuid", payload.UUID, "the batch uuid rides the same atomic write as the fields")
-
-	ia.SetBatch(map[string]interface{}{"test": 1234}, "")
-	payload = ia.getPayload().(*Payload)
-	assert.Equal(t, uuid.GetUUID(), payload.UUID, "an empty batch uuid falls back to the host machine GUID")
-}
-
-func TestCapabilitiesSubmissionGate(t *testing.T) {
-	validate := func(fields map[string]interface{}) error {
-		if id, _ := fields["resource_id"].(string); id == "" {
-			return errors.New("missing resource id")
 		}
-		return nil
+		payload := ia.getPayload().(*Payload)
+
+		assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
+		assert.Equal(t, version.AgentPackageVersion, payload.Metadata["package_version"])
+		assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
+		assert.Equal(t, "full", payload.Metadata["infrastructure_mode"])
+		assert.Contains(t, payload.Metadata, "install_method_tool")
+		assert.Equal(t, "embedded-test", payload.Metadata["flavor"])
+		assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
+		assert.Equal(t, uuid.GetUUID(), payload.UUID)
+		for _, field := range []string{"full_configuration", "agent_runtime_configuration"} {
+			assert.Contains(t, payload.Metadata[field], "site: "+value+".example.com", field)
+		}
+		for name, field := range map[string]string{
+			"security":     "feature_cspm_enabled",
+			"process":      "feature_process_enabled",
+			"trace":        "feature_apm_enabled",
+			"system-probe": "feature_networks_enabled",
+		} {
+			assert.Equal(t, index+1, fetches[name], name)
+			assert.Equal(t, true, payload.Metadata[field], field)
+		}
+		for field, expected := range map[string]any{
+			"config_site":                         value + ".example.com",
+			"feature_logs_enabled":                index == 0,
+			"fleet_policies_applied":              []string{value},
+			"config_id":                           value,
+			"application_monitoring_config":       applicationConfig,
+			"application_monitoring_config_fleet": fleetConfig,
+		} {
+			assert.Equal(t, expected, payload.Metadata[field], field)
+		}
+		assert.Equal(t, ia.conf.GetString("dd_url"), payload.Metadata["config_dd_url"], "default refresh replaces explicitly set collector fields")
 	}
-	serializerMock := serializermock.NewMetricSerializer(t)
-	p := getProvides(t, map[string]any{"inventories_first_run_delay": 0}, nil,
-		fx.Decorate(func(serializer.MetricSerializer) serializer.MetricSerializer {
-			return serializerMock
-		}),
-		fx.Supply(iainterface.NewServerlessCapabilities(false, validate)))
-	ia := p.Comp.(*inventoryagent)
-	require.NotNil(t, p.Provider.Callback, "a gated provider must remain registered")
-
-	// No serverless field is applied yet: both submission paths are withheld
-	// without building a payload or consuming a pending refresh.
-	ia.Refresh()
-	assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
-	p.Comp.Submit()
-	assert.True(t, ia.LastCollect.IsZero())
-	assert.True(t, ia.RefreshTriggered())
-	serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
-
-	serializerMock.On("SendMetadata", mock.MatchedBy(func(payload *Payload) bool {
-		return payload.Metadata["resource_id"] == "complete-resource"
-	})).Return(nil).Twice()
-	p.Comp.SetBatch(map[string]interface{}{"resource_id": "complete-resource"}, "complete-uuid")
-	p.Comp.Submit()
-	assert.False(t, ia.LastCollect.IsZero())
-	assert.False(t, ia.RefreshTriggered())
-	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
-
-	// The runner callback also submits the now-valid payload on a forced refresh.
-	ia.Refresh()
-	assert.Equal(t, ia.MinInterval, p.Provider.Callback(t.Context()))
-	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
-	serializerMock.AssertExpectations(t)
-}
-
-func TestSetBatchDoesNotEnableInventory(t *testing.T) {
-	p := getProvides(t, map[string]any{"inventories_enabled": false}, nil,
-		fx.Supply(iainterface.NewServerlessCapabilities(false, nil)))
-	ia := p.Comp.(*inventoryagent)
-	p.Comp.SetBatch(map[string]interface{}{"resource_id": "test-resource"}, "test-uuid")
-	p.Comp.Submit()
-	assert.False(t, ia.Enabled)
-	assert.Empty(t, ia.data)
-	assert.Nil(t, p.Provider.Callback)
-	assert.Nil(t, ia.MetadataProvider().Callback)
-	assert.True(t, ia.LastCollect.IsZero())
-	_, err := ia.GetAsJSON()
-	assert.EqualError(t, err, "inventory metadata is disabled")
-}
-
-func TestCapabilitiesDisabled(t *testing.T) {
-	p := getProvides(t, nil, nil,
-		fx.Supply(iainterface.NewServerlessCapabilities(true, nil)))
-	ia := p.Comp.(*inventoryagent)
-
-	assert.False(t, ia.Enabled, "the Disabled capability must withhold the payload")
-	assert.Nil(t, p.Provider.Callback)
-	assert.Nil(t, ia.MetadataProvider().Callback)
-	p.Comp.SetBatch(map[string]interface{}{"resource_id": "test-resource"}, "test-uuid")
-	p.Comp.Submit()
-	assert.Empty(t, ia.data)
-	assert.True(t, ia.LastCollect.IsZero())
-	_, err := ia.GetAsJSON()
-	assert.EqualError(t, err, "inventory metadata is disabled")
 }
 
 func TestInitDataErrorInstallInfo(t *testing.T) {

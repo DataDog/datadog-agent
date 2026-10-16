@@ -10,25 +10,18 @@ update every minute (see `inventories_min_interval`).
 
 # Content
 
-The `Set` method from the component allow the rest of the codebase to add any information to the payload. `SetBatch` applies
-a complete field set and the payload uuid atomically under one lock.
+The `Set` method lets other components add metadata to the payload.
 
-## Embedding capabilities
+## Shared payload code
 
-`Capabilities` is an optional internal Fx dependency, not a YAML or environment setting. Without it, each payload retains the
-standard full-agent metadata refresh and the payload starts ready for submission. Present Capabilities construct the payload
-closed until the first `SetBatch` opens it.
+`inventoryagentimpl.NewData` collects common fields such as versions, startup time, installation information,
+and infrastructure mode. Its `GetPayload` method combines those fields with caller-supplied metadata and the
+optional scrubbed configuration. It uses the same JSON format as the full Agent without running its collectors.
 
-`NewServerlessCapabilities` sets `SkipFullAgentMetadataRefresh`, which skips **all** collectors in `refreshMetadata()`:
-core Agent, security Agent, process Agent, trace Agent, system-probe, Fleet, and application monitoring. Skipping
-collection drops both cross-process enrichment and locally derived fields, for example `config_site`,
-`feature_logs_enabled`, `fleet_policies_applied`, Fleet's `config_id`, and the application-monitoring file fields.
-Serverless-init does not need them and injects `dd_site` explicitly.
-
-What remains available: construction-time metadata (versions, startup time, installation information, infrastructure
-mode), values supplied through `Set`, and optional configuration payloads controlled by
-`inventories_configuration_enabled`. The capability skips collection rather than filtering the payload, and does not
-affect the metadata runner, its scheduling, or explicit `Submit()` calls.
+Serverless-init registers its own metadata runner provider and uses this library code without constructing the
+inventoryagent component. It owns eligibility, resource-identity readiness, and UUID selection. The shared inventory
+helper provides transport and scheduling. Serverless-init skips `inventories_first_run_delay` but retains
+`inventories_min_interval` and `inventories_max_interval`. The full Agent retains all three settings.
 
 ## Agent Configuration
 

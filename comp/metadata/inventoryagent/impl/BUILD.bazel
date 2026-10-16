@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = [
+        "data.go",
         "inventoryagent.go",
         "status.go",
     ],
@@ -61,7 +62,6 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/core/sysprobeconfig/def",
         "//comp/core/sysprobeconfig/mock",
-        "//comp/metadata/inventoryagent/def",
         "//pkg/config/fetcher",
         "//pkg/config/fetcher/sysprobe",
         "//pkg/config/mock",
@@ -79,8 +79,6 @@ dd_agent_go_test(
         "//pkg/util/uuid",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//mock",
-        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )
