@@ -29,6 +29,7 @@ const (
 	ncmCheckFailureMetric              = "datadog.ncm.check_failure"
 	ncmCheckInventoryEntriesSentMetric = "datadog.ncm.inventory.entries_sent"
 	ncmConfigSizeMetric                = "ncm.config_size"
+	ncmConfigContentBytesMetric        = "datadog.ncm.config_content_bytes"
 	ncmStoreConfigsEvictedMetric       = "datadog.ncm.store.configs_evicted"
 
 	ncmRunningConfigTypeTag = "config_type:running"
@@ -126,6 +127,13 @@ func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedM
 	if metadata.ConfigSize != 0 {
 		s.Sender.Gauge(ncmConfigSizeMetric, float64(metadata.ConfigSize), s.agentHostname, tags)
 	}
+}
+
+// SendConfigContentSize reports the byte size of the redacted config content that is retrieved from the device
+func (s *NCMSender) SendConfigContentSize(contentBytes int, configType types.ConfigType) {
+	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
+	tags = append(tags, "config_type:"+string(configType))
+	s.Sender.Gauge(ncmConfigContentBytesMetric, float64(contentBytes), s.agentHostname, tags)
 }
 
 // SendNCMPayload sends the network device configuration payload to event platform
