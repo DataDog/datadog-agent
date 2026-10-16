@@ -11,7 +11,11 @@ package collectorv2
 import (
 	"context"
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"os"
+	"strconv"
+	"strings"
 
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -58,4 +62,25 @@ func (s *OSScanner) ScanInstalledPackages(ctx context.Context, root string) ([]s
 		pkgs = append(pkgs, result...)
 	}
 	return pkgs, nil
+}
+
+// databases lists the files the scanners read packages from.
+var databases = append([]string{statusPath, statusDPath, apkInstalledPath}, rpmdbPaths...)
+
+// Fingerprint digests the size and modification time of the package databases in
+// root, which every package change updates. It returns "" for a root it cannot open.
+func (s *OSScanner) Fingerprint(root string) string {
+	rootFS, err := os.OpenRoot(root)
+	if err != nil {
+		return ""
+	}
+	defer rootFS.Close()
+
+	h := fnv.New64a()
+	for _, db := range databases {
+		if info, err := rootFS.Stat(strings.TrimSuffix(db, "/")); err == nil {
+			fmt.Fprintf(h, "%s %d %d\n", db, info.Size(), info.ModTime().UnixNano())
+		}
+	}
+	return strconv.FormatUint(h.Sum64(), 16)
 }

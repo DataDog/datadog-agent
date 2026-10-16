@@ -185,8 +185,9 @@ type SBOM struct {
 
 	ContainerID containerutils.ContainerID
 
-	data   *Data
-	cached bool // data counts as a use of its key in the data cache
+	data        *Data
+	cached      bool   // data counts as a use of its key in the data cache
+	fingerprint string // fingerprint of the package databases data was scanned from
 
 	workloadKey workloadKey
 	status      workloadmeta.SBOMStatus
@@ -207,6 +208,15 @@ type workloadKey string
 
 func getWorkloadKey(selector *cgroupModel.WorkloadSelector) workloadKey {
 	return workloadKey(selector.Image + ":" + selector.Tag)
+}
+
+// dataKey returns the data cache key of the scan of a workload of key, from a
+// root whose package databases have fingerprint.
+func dataKey(key workloadKey, fingerprint string) workloadKey {
+	if fingerprint == "" {
+		return key
+	}
+	return key + "@" + workloadKey(fingerprint)
 }
 
 // IsComputed returns true if SBOM was successfully generated
@@ -302,6 +312,7 @@ type Resolver struct {
 
 type sbomCollector interface {
 	ScanInstalledPackages(ctx context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error)
+	Fingerprint(root string) string
 }
 
 // NewSBOMResolver returns a new instance of Resolver
@@ -407,6 +418,10 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 
 		// create a refresher debouncer on demand
 		sbom.Lock()
+		if sbom.state.Load() == stoppedState {
+			sbom.Unlock()
+			return nil
+		}
 		refresher = sbom.refresher
 		if refresher == nil {
 			refresher = debouncer.New(
@@ -426,14 +441,8 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	return fmt.Errorf("container %s not found", containerID)
 }
 
-// refreshScan invalidates a workload's cached SBOM data and re-queues it for a
-// full re-scan. The state is reset to pending because analyzeWorkload drops any
-// SBOM not in the pending state: a workload is left in the computed state by its
-// initial scan, so without this reset the refresh re-scan is discarded and the
-// runtime properties are never recomputed. The SBOM of a workload deleted while
-// its refresh waited stays stopped, and the cached data of its image stays for
-// the other containers of the image. The host SBOM, outside the workloads, is
-// scanned again in place.
+// refreshScan scans a workload again, its state reset to pending as analyzeWorkload
+// scans pending SBOMs alone. The host SBOM is scanned again in place.
 func (r *Resolver) refreshScan(sbom *SBOM) {
 	if sbom.ContainerID == "" {
 		if err := r.scanHost(); err != nil {
@@ -442,6 +451,12 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 		return
 	}
 
+	r.rescan(sbom, r.rootFingerprint(sbom))
+}
+
+// rescan queues sbom for a scan of its root, whose databases have fingerprint. The old
+// scan stays cached for the image's other containers when the databases changed.
+func (r *Resolver) rescan(sbom *SBOM, fingerprint string) {
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 	sbom.Lock()
@@ -451,7 +466,9 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 		return
 	}
 
-	r.removeSBOMData(sbom.workloadKey)
+	if fingerprint == "" || fingerprint == sbom.fingerprint {
+		r.removeSBOMData(dataKey(sbom.workloadKey, sbom.fingerprint))
+	}
 	sbom.state.Store(pendingState)
 	r.triggerScan(sbom)
 }
@@ -588,6 +605,7 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 				if r.forward(sbom) {
 					forwarder.Call()
 				}
+				r.refreshChanged(sbom, r.rootFingerprint(sbom))
 			},
 		)
 		forwarder.Start()
@@ -888,9 +906,8 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	}
 
 	// bail out if the workload has been analyzed while queued up
-	if data, exists := r.dataCache.acquire(sb.workloadKey); exists {
-		r.setData(sb, data, true)
-
+	fingerprint := r.rootFingerprint(sb)
+	if r.acquireData(sb, fingerprint) {
 		sb.state.Store(computedState)
 
 		r.sbomsCacheHit.Inc()
@@ -909,7 +926,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		return scanErr
 	}
 
-	data := r.setScan(sb, report)
+	data := r.setScan(sb, report, fingerprint)
 
 	// mark the SBOM as successful
 	sb.state.Store(computedState)
@@ -1119,9 +1136,7 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	}
 
 	// check if this sbom has been scanned before
-	if data, cached := r.dataCache.acquire(sbom.workloadKey); cached {
-		r.setData(sbom, data, true)
-
+	if r.acquireData(sbom, r.rootFingerprint(sbom)) {
 		sbom.state.Store(computedState)
 
 		r.sbomsCacheHit.Inc()
@@ -1238,28 +1253,71 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 // Must be called with sbom.Lock() already held.
 func (r *Resolver) stopSBOM(sbom *SBOM) {
 	sbom.stop()
-	r.setData(sbom, nil, false)
+	r.setData(sbom, nil, false, "")
+}
+
+// acquireData gives sbom the cached scan of its workload on databases of fingerprint,
+// if any, and reports whether it did. Must be called with sbom.Lock() already held.
+func (r *Resolver) acquireData(sbom *SBOM, fingerprint string) bool {
+	data, ok := r.dataCache.acquire(dataKey(sbom.workloadKey, fingerprint))
+	if ok {
+		r.setData(sbom, data, true, fingerprint)
+	}
+	return ok
 }
 
 // setScan gives sbom the data of its fresh scan report, cached unless empty, as
 // a failing scanner returns. Must be called with sbom.Lock() already held.
-func (r *Resolver) setScan(sbom *SBOM, report []sbomtypes.PackageWithInstalledFiles) *Data {
+func (r *Resolver) setScan(sbom *SBOM, report []sbomtypes.PackageWithInstalledFiles, fingerprint string) *Data {
 	data := newData(report, sbom.usrMerged)
 	if len(report) > 0 {
-		r.dataCache.add(sbom.workloadKey, data)
+		r.dataCache.add(dataKey(sbom.workloadKey, fingerprint), data)
 	}
-	r.setData(sbom, data, len(report) > 0)
+	r.setData(sbom, data, len(report) > 0, fingerprint)
 	return data
 }
 
-// setData gives sbom data, a use of its key in the data cache when cached is set,
-// and releases the data it held. Must be called with sbom.Lock() already held.
-func (r *Resolver) setData(sbom *SBOM, data *Data, cached bool) {
+// setData gives sbom data scanned from databases of fingerprint, a cache use when cached
+// is set, and releases the data it held. Must be called with sbom.Lock() already held.
+func (r *Resolver) setData(sbom *SBOM, data *Data, cached bool, fingerprint string) {
 	if sbom.cached {
-		r.dataCache.release(sbom.workloadKey)
+		r.dataCache.release(dataKey(sbom.workloadKey, sbom.fingerprint))
 	}
 	sbom.data = data
 	sbom.cached = cached
+	sbom.fingerprint = fingerprint
+}
+
+// rootFingerprint returns the fingerprint of the package databases in the root
+// of the container of sbom, or the empty string when no process of it is found.
+func (r *Resolver) rootFingerprint(sbom *SBOM) string {
+	if sbom.ContainerID == "" || sbom.cgroup == nil {
+		return ""
+	}
+	cfs := utils.DefaultCGroupFS()
+	for _, pid := range sbom.cgroup.GetPIDs() {
+		if id, _, _, err := cfs.FindCGroupContext(pid, pid); err != nil || id != sbom.ContainerID {
+			continue
+		}
+		if fingerprint := r.sbomCollector.Fingerprint(utils.ProcRootPath(pid)); fingerprint != "" {
+			return fingerprint
+		}
+	}
+	return ""
+}
+
+// refreshChanged refreshes the SBOM of a container whose databases changed since its
+// scan, fingerprint being their current one, as the CWS refresh rules would.
+func (r *Resolver) refreshChanged(sbom *SBOM, fingerprint string) {
+	sbom.RLock()
+	changed := sbom.state.Load() == computedState && fingerprint != "" && sbom.fingerprint != "" && fingerprint != sbom.fingerprint
+	sbom.RUnlock()
+	if !changed {
+		return
+	}
+	if err := r.RefreshSBOM(sbom.ContainerID); err != nil {
+		seclog.Debugf("failed to refresh the SBOM of %s after a package change: %v", sbom.ContainerID, err)
+	}
 }
 
 // onSBOMEvicted releases everything indexed by the container ID of an SBOM leaving
