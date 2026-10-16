@@ -49,6 +49,7 @@ dd_agent_go_test(
         "testdata/sources.json",
     ],
     embedsrcs = [
+        "config/apikey-rotation.yml",
         "config/complete.yml",
         "config/ddot-fargate.yml",
         "config/dogtel-secrets.yml",
