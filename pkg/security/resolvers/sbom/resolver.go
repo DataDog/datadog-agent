@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -841,6 +843,38 @@ func (r *Resolver) replaced(file *model.FileEvent) bool {
 	return stat.Ino != file.Inode
 }
 
+// codeSuffixes are the suffixes of the files that loaders and interpreters
+// run, beside executables and shared libraries.
+var codeSuffixes = []string{
+	".py", ".pyc", ".pyo", ".pl", ".pm", ".rb", ".js", ".mjs", ".cjs", ".node",
+	".jar", ".class", ".lua", ".php", ".phar", ".tcl", ".sh", ".beam", ".dll",
+	".wasm", ".ko", ".ko.gz", ".ko.xz", ".ko.zst",
+}
+
+// sharedLibrary matches the names of shared libraries: libfoo.so, and with a
+// version, libfoo.so.1 or libssl.so.1.0.2k.
+var sharedLibrary = regexp.MustCompile(`\.so(\.[0-9][0-9A-Za-z_]*)*$`)
+
+// holdsCode reports whether file can hold code that a process runs: an
+// executable, a shared library, a kernel module or a module of an interpreter.
+// Files under /etc hold configuration, the shell snippets of profile.d that
+// every login sources included.
+func holdsCode(file *model.FileEvent) bool {
+	if strings.HasPrefix(file.PathnameStr, "/etc/") {
+		return false
+	}
+	if file.Mode&0111 != 0 {
+		return true
+	}
+	name := path.Base(file.PathnameStr)
+	if sharedLibrary.MatchString(name) {
+		return true
+	}
+	return slices.ContainsFunc(codeSuffixes, func(suffix string) bool {
+		return strings.HasSuffix(name, suffix)
+	})
+}
+
 // isDir reports whether mode, the mode of the file of an event, is that of a
 // directory.
 func isDir(mode uint16) bool {
@@ -1160,10 +1194,14 @@ func (r *Resolver) HostPackageVersion(path string) string {
 }
 
 // ResolveOpen records the open of file by the process of pc as usage of the
-// package that owns it, as ResolvePackage does. The open of a host package
-// file counts once it has waited settleDelay, and only if the file is still at
-// its path then. An open arriving while maxOpened opens wait is dropped.
+// package that owns it, as ResolvePackage does, when file can hold code. The
+// open of a host package file counts once it has waited settleDelay, and only
+// if the file is still at its path then. An open arriving while maxOpened
+// opens wait is dropped.
 func (r *Resolver) ResolveOpen(pc *model.ProcessContext, file *model.FileEvent) {
+	if !holdsCode(file) {
+		return
+	}
 	if pc.ContainerContext.ContainerID != "" {
 		r.ResolvePackage(pc, file)
 		return
