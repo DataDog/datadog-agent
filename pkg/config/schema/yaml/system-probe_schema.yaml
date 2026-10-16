@@ -757,6 +757,7 @@ properties:
         default:
         - vault-agent
         - vault-agent-init
+        - cloud-sql-proxy
         items:
           type: string
       netns_container_attribution_owner_images:
