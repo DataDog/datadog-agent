@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/quota",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/telemetry/def",
         "//comp/logs-library/metrics",
         "//pkg/logs/message",
     ],
@@ -20,6 +21,7 @@ dd_agent_go_test(
     srcs = ["enforcer_test.go"],
     embed = [":quota"],
     deps = [
+        "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
