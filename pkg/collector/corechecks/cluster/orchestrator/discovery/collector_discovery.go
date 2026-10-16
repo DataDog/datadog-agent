@@ -75,7 +75,11 @@ func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error
 		return nil, nil, err
 	}
 
-	groups, resources, err := client.Cl.Discovery().ServerGroupsAndResources()
+	return getServerGroupsAndResources(client.Cl.Discovery())
+}
+
+func getServerGroupsAndResources(client discovery.DiscoveryInterface) ([]*v1.APIGroup, []*v1.APIResourceList, error) {
+	groups, resources, err := client.ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, nil, err

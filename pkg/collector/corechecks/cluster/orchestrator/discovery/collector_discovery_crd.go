@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
@@ -56,26 +57,38 @@ func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 // fillCache adds all the discovered resources and their versions to the cache.
 func (d *DiscoveryCollector) fillCache() error {
 	if !d.cache.Filled {
-		var err error
-		d.cache.Groups, d.cache.Resources, err = GetServerGroupsAndResources()
+		groups, resources, err := GetServerGroupsAndResources()
 		if err != nil {
 			return err
 		}
-
-		if len(d.cache.Resources) == 0 {
-			return errors.New("failed to discover resources from API groups")
-		}
-		for _, list := range d.cache.Resources {
-			for _, resource := range list.APIResources {
-				cv := CollectorVersion{
-					GroupVersion: list.GroupVersion,
-					Kind:         resource.Name,
-				}
-				d.cache.CollectorForVersion[cv] = struct{}{}
-			}
-		}
-		d.cache.Filled = true
+		return d.updateCache(groups, resources)
 	}
+	return nil
+}
+
+// Refresh updates discovery without changing the cache when the request fails.
+func (d *DiscoveryCollector) Refresh(client discovery.DiscoveryInterface) error {
+	groups, resources, err := getServerGroupsAndResources(client)
+	if err != nil {
+		return err
+	}
+	return d.updateCache(groups, resources)
+}
+
+func (d *DiscoveryCollector) updateCache(groups []*v1.APIGroup, resources []*v1.APIResourceList) error {
+	if len(resources) == 0 {
+		return errors.New("failed to discover resources from API groups")
+	}
+	refreshed := DiscoveryCache{
+		Groups: groups, Resources: resources, Filled: true,
+		CollectorForVersion: make(map[CollectorVersion]struct{}),
+	}
+	for _, list := range resources {
+		for _, resource := range list.APIResources {
+			refreshed.CollectorForVersion[CollectorVersion{GroupVersion: list.GroupVersion, Kind: resource.Name}] = struct{}{}
+		}
+	}
+	d.cache = refreshed
 	return nil
 }
 
