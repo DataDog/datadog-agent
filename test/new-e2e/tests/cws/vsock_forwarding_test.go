@@ -95,8 +95,10 @@ func TestVSockForwardingSuite(t *testing.T) {
 		e2e.WithStackName("cws-vsock-forwarding"),
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithRunOptions(
+				// No WithInternetAccess: every assertion reads a log file on
+				// the host, and the agent reports to the stack's fakeintake, so
+				// nothing here needs to reach the public Internet.
 				ec2.WithEC2InstanceOptions(
-					ec2.WithInternetAccess(),
 					ec2.WithUserData(vsockUserData),
 				),
 				ec2.WithAgentOptions(
