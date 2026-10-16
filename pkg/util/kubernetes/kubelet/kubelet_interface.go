@@ -27,4 +27,5 @@ type KubeUtilInterface interface {
 	StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error)
 	GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error)
 	GetDevicesList(ctx context.Context) ([]*Device, error)
+	GetAllocatableDeviceIDs(ctx context.Context) ([]string, error)
 }

@@ -19,6 +19,7 @@ import (
 
 type fakePodResourcesListerClient struct {
 	podResources []*podresourcesv1.PodResources
+	allocatable  *podresourcesv1.AllocatableResourcesResponse
 	err          error
 }
 
@@ -30,7 +31,13 @@ func (f fakePodResourcesListerClient) List(_ context.Context, _ *podresourcesv1.
 }
 
 func (f fakePodResourcesListerClient) GetAllocatableResources(context.Context, *podresourcesv1.AllocatableResourcesRequest, ...grpc.CallOption) (*podresourcesv1.AllocatableResourcesResponse, error) {
-	return nil, errors.New("not implemented")
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.allocatable == nil {
+		return nil, errors.New("not implemented")
+	}
+	return f.allocatable, nil
 }
 
 func (f fakePodResourcesListerClient) Get(context.Context, *podresourcesv1.GetPodResourcesRequest, ...grpc.CallOption) (*podresourcesv1.GetPodResourcesResponse, error) {
@@ -119,6 +126,34 @@ func TestGetContainerResourcesMap(t *testing.T) {
 		{Name: "example.com/device", ID: "device-1"},
 		{Name: "gpu.nvidia.com", ID: "gpu-1"},
 	}, mixed)
+}
+
+func TestGetAllocatableDeviceIDs(t *testing.T) {
+	ctx := context.Background()
+
+	client := &PodResourcesClient{
+		client: fakePodResourcesListerClient{allocatable: &podresourcesv1.AllocatableResourcesResponse{
+			Devices: []*podresourcesv1.ContainerDevices{
+				{ResourceName: "nvidia.com/gpu", DeviceIds: []string{"GPU-1", "GPU-2"}},
+				{ResourceName: "nvidia.com/gpu.shared", DeviceIds: []string{"GPU-3::0", "GPU-3::1"}},
+				{ResourceName: "example.com/device"},
+			},
+			// CPU IDs are not device IDs
+			CpuIds: []int64{0, 1},
+		}},
+	}
+	ids, err := client.GetAllocatableDeviceIDs(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []string{"GPU-1", "GPU-2", "GPU-3::0", "GPU-3::1"}, ids)
+
+	client = &PodResourcesClient{client: fakePodResourcesListerClient{err: errors.New("unimplemented")}}
+	ids, err = client.GetAllocatableDeviceIDs(ctx)
+	require.Error(t, err)
+	require.Nil(t, ids)
+
+	// no pod resources client: not an empty list, an error
+	_, err = (&KubeUtil{}).GetAllocatableDeviceIDs(ctx)
+	require.Error(t, err)
 }
 
 func TestAddResourcesToContainerList(t *testing.T) {

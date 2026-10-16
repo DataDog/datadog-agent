@@ -73,6 +73,7 @@ type Check struct {
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
+	allocatableIDsFn    allocatableIDsProvider           // allocatableIDsFn returns the device IDs the kubelet reports as allocatable (overridable in tests)
 }
 
 type checkTelemetry struct {
@@ -99,7 +100,7 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 }
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
-	return &Check{
+	c := &Check{
 		CheckBase:           core.NewCheckBase(CheckName),
 		tagger:              tagger,
 		telemetry:           newCheckTelemetry(telemetry),
@@ -111,6 +112,8 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
 		sysprobeNvmlState:   newSysprobeNvmlStateNotifier(),
 	}
+	c.allocatableIDsFn = c.kubeletAllocatableDeviceIDs
+	return c
 }
 
 // NewCheck creates a new GPU check instance. This is exported for integration testing.
@@ -614,6 +617,10 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		}
 	}
 
+	if err := c.emitNotAllocatable(snd, gpuToContainersMap, gpuToProcessesMap, currentExecutionTime); err != nil {
+		multiErr = append(multiErr, err)
+	}
+
 	return errors.Join(multiErr...)
 }
 
@@ -779,12 +786,7 @@ func isMigReconfigState(v string) bool {
 // fresh nvml.Init is benign (Init gets a clean error and retries).
 func (c *Check) shouldReleaseNVML() bool {
 	// A label read failure must only skip this signal, not the whole check.
-	if c.nodeInfo == nil {
-		if ni, err := hostinfo.NewNodeInfo(); err == nil {
-			c.nodeInfo = ni
-		} // init failure: fail open on this signal, retry on the next run
-	}
-	if c.nodeInfo != nil {
+	if c.getNodeInfo() != nil {
 		// Bounded: an API-server wait loop with context.Background() could
 		// stall Run indefinitely during startup or an API outage, defeating
 		// the fail-open intent of this signal read. The read is one cached
@@ -802,6 +804,17 @@ func (c *Check) shouldReleaseNVML() bool {
 	}
 
 	return false
+}
+
+// getNodeInfo returns the node metadata client, creating it on first use. It
+// returns nil on init failure, so callers fail open and retry on the next run.
+func (c *Check) getNodeInfo() *hostinfo.NodeInfo {
+	if c.nodeInfo == nil {
+		if ni, err := hostinfo.NewNodeInfo(); err == nil {
+			c.nodeInfo = ni
+		}
+	}
+	return c.nodeInfo
 }
 
 // releaseNVML tears down all NVML state so a GPU reset can proceed: the event

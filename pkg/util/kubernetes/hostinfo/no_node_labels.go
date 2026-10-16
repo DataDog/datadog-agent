@@ -7,7 +7,10 @@
 
 package hostinfo
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // NodeInfo is use to get Kubernetes Node metadata information
 type NodeInfo struct{}
@@ -28,4 +31,9 @@ func (n *NodeInfo) GetNodeLabels(_ context.Context) (map[string]string, error) {
 // GetNodeName returns the node name for this host
 func (n *NodeInfo) GetNodeName(_ context.Context) (string, error) {
 	return "", nil
+}
+
+// GetAllocatableDeviceIDs is not supported without the kubelet build tag
+func (n *NodeInfo) GetAllocatableDeviceIDs(_ context.Context) ([]string, error) {
+	return nil, errors.New("kubelet support is not compiled in")
 }
