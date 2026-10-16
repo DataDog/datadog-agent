@@ -99,7 +99,7 @@ _dd_cc_packaged_rule = rule(
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, data = [], executable = False, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, data = [], executable = False, libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     if executable and version:
         fail("{}: executable can't be combined with version".format(name))
     patched_name = "{}_patched".format(name)
@@ -153,7 +153,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
     _dd_cc_packaged_rule(
         name = name,
         input = input,
-        installed_files = extra_files + installed_files,
+        installed_files = extra_files,
         data = data,
         visibility = visibility,
         package_metadata = [],
@@ -164,10 +164,6 @@ dd_cc_packaged = macro(
     doc = """
     A macro used to prepare a cc_shared_library or cc_binary for packaging.
 
-    If installed_files is provided, these files will be installed with the
-    packaged object at installation time if the final artifact
-    depends, directly or indirectly, on the wrapped binary.
-
     installed_executables is deprecated and scheduled for removal: package each
     binary with its own dd_cc_packaged (executable = True) and list it in data.
     Each entry is rpath-patched and installed with mode 0755. Files and
@@ -176,8 +172,9 @@ dd_cc_packaged = macro(
     If executable is set, the input is installed with mode 0755. It can't be
     combined with version.
 
-    If data is provided, these runtime dependencies are collected by
-    dd_collect_dependencies along with the packaged object.
+    If data is provided, these files and targets are installed with the
+    packaged object if the final artifact depends, directly or indirectly, on
+    it: pkg_files as they are, and packaged targets with their own packaging.
 
     If a version is provided and the input is a cc_shared_library, the library
     will be installed along with the versioned symlink (see so_symlink).
@@ -197,11 +194,8 @@ dd_cc_packaged = macro(
             doc = "Deprecated, scheduled for removal: use an executable dd_cc_packaged in data instead. Dict mapping labels to installation prefixes. Each entry is rpath-patched and installed with mode 0755.",
             configurable = True,
         ),
-        "installed_files": attr.label_list(
-            configurable = True,
-        ),
         "data": attr.label_list(
-            doc = "Runtime dependencies that the input doesn't link against. dd_collect_dependencies collects them along with the packaged dependency.",
+            doc = "Files and targets installed with the packaged dependency, such as pkg_files or runtime dependencies that the input doesn't link against.",
             configurable = True,
         ),
         "executable": attr.bool(
