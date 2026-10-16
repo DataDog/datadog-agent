@@ -10,6 +10,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,7 @@ func testLogStorageKey(namespace string, metric observerdef.MetricOutput, host s
 func (*fixedLogCountExtractor) Name() string { return "fixed_log_count" }
 func (*fixedLogCountExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	return observerdef.LogMetricsExtractorOutput{Metrics: []observerdef.MetricOutput{{
+		MetricType: metrics.CountType,
 		Name:       "log.fixed.count",
 		Value:      1,
 		Tags:       tagset.CompositeTagsFromSlice(log.Tags()),
@@ -36,6 +38,7 @@ func TestMaterializedLogCountBucketizerCountsAndZeros(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 10})
 	metric := observerdef.MetricOutput{
+		MetricType: metrics.CountType,
 		Name:       "log.pattern.count",
 		Value:      1,
 		HasContext: true,
@@ -55,6 +58,7 @@ func TestMaterializedLogCountBucketizerCountsAndZeros(t *testing.T) {
 	}, series.Points)
 	meta := storage.ListSeries(observerdef.WorkloadSeriesFilter())
 	require.Len(t, meta, 1)
+	assert.Equal(t, metrics.CountType, meta[0].MetricType)
 	context, ok := storage.GetContext(meta[0].Ref)
 	require.True(t, ok)
 	assert.Equal(t, "request <*>", context.Pattern)
@@ -66,6 +70,7 @@ func TestMaterializedLogCountBucketizerKeepsLatestContext(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
 	metric := observerdef.MetricOutput{
+		MetricType: metrics.CountType,
 		Name:       "log.pattern.count",
 		Value:      1,
 		HasContext: true,
@@ -90,7 +95,7 @@ func TestMaterializedLogCountBucketizerKeepsLatestContext(t *testing.T) {
 func TestMaterializedLogCountBucketizerRetainsSeriesKey(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
-	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
+	metric := observerdef.MetricOutput{MetricType: metrics.CountType, Name: "log.pattern.count", Value: 1}
 
 	require.True(t, b.observe("logs", metric, "host-a", 1, tagset.CompositeTagsFromSlice([]string{"service:api"}), 42))
 	b.flush(storage, 5)
@@ -105,7 +110,7 @@ func TestMaterializedLogCountBucketizerRetainsSeriesKey(t *testing.T) {
 func TestMaterializedLogCountBucketizerStopsAtIdleTTLAndReactivates(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 10})
-	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
+	metric := observerdef.MetricOutput{MetricType: metrics.CountType, Name: "log.pattern.count", Value: 1}
 
 	require.True(t, b.observe("logs", metric, "", 1, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 20)
@@ -125,7 +130,7 @@ func TestMaterializedLogCountBucketizerStopsAtIdleTTLAndReactivates(t *testing.T
 func TestMaterializedLogCountBucketizerRejectsFlushedLateBucket(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
-	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
+	metric := observerdef.MetricOutput{MetricType: metrics.CountType, Name: "log.pattern.count", Value: 1}
 
 	require.True(t, b.observe("logs", metric, "", 1, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 5)
@@ -135,7 +140,7 @@ func TestMaterializedLogCountBucketizerRejectsFlushedLateBucket(t *testing.T) {
 func TestMaterializedLogCountBucketizerAcceptsLateObservationForOpenBucket(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
-	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
+	metric := observerdef.MetricOutput{MetricType: metrics.CountType, Name: "log.pattern.count", Value: 1}
 
 	require.True(t, b.observe("logs", metric, "", 1, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 4)
@@ -158,7 +163,7 @@ func TestMaterializedLogCountBucketizerOverridesRetentionForLogSeries(t *testing
 		IdleTTLSeconds:   0,
 		RetentionSeconds: 60,
 	})
-	metric := observerdef.MetricOutput{Name: "log.pattern.count", Value: 1}
+	metric := observerdef.MetricOutput{MetricType: metrics.CountType, Name: "log.pattern.count", Value: 1}
 
 	require.True(t, b.observe("logs", metric, "", 1, tagset.CompositeTags{}, testLogStorageKey("logs", metric, "", tagset.CompositeTags{})))
 	b.flush(storage, 5)
@@ -268,4 +273,36 @@ anomaly_detection:
 		IdleTTLSeconds:   120,
 		RetentionSeconds: 600,
 	}, got)
+}
+
+func TestLogDerivedMetricTypesReachStorage(t *testing.T) {
+	for _, bucketed := range []bool{false, true} {
+		name := "sparse"
+		if bucketed {
+			name = "bucketed"
+		}
+		t.Run(name, func(t *testing.T) {
+			pattern := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+			pattern.config.MinClusterSizeBeforeEmit = 1
+			storage := newTimeSeriesStorageWith(StorageConfig{})
+			e := newEngine(engineConfig{
+				storage:         storage,
+				extractors:      []observerdef.LogMetricsExtractor{NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()), pattern, &ConnectionErrorExtractor{}},
+				logCountBuckets: LogCountBucketConfig{Enabled: bucketed, BucketSeconds: 5, IdleTTLSeconds: 10},
+			})
+			// A numeric JSON field named count is still a gauge, despite the suffix.
+			e.IngestLog("logs", &logObs{timestampMs: 1000, content: `{"message":"connection refused","duration":42,"count":7}`})
+			e.Advance(15)
+			metas := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+			require.Len(t, metas, 5)
+			for _, meta := range metas {
+				want := metrics.CountType
+				if meta.Name == "log.field.duration" || meta.Name == "log.field.count" {
+					want = metrics.GaugeType
+				}
+				require.Equal(t, want, meta.MetricType, meta.Name)
+				require.Equal(t, want, storage.GetSeriesMeta(meta.Ref).MetricType, meta.Name)
+			}
+		})
+	}
 }
