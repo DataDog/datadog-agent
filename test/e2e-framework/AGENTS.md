@@ -51,6 +51,7 @@ An environment defines what infrastructure a test needs:
 | `environments.DockerHost` | VM + Docker + FakeIntake | `awsdocker.Provisioner()` | Container checks, Docker integrations |
 | `environments.Kubernetes` | K8s cluster + Agent + FakeIntake | `kindvm.Provisioner()` (kind; also `eks`, `kubeadm`) | K8s checks, DaemonSet, Cluster Agent |
 | `environments.ECS` | ECS cluster + Agent + FakeIntake | `ecs.Provisioner()` | ECS-specific tests |
+| `environments.BenchmarkEKS` | EKS cluster + two Agent installations (variants a and b) on node pools of their own, no FakeIntake | `aws/kubernetes/benchmarkeks.Provisioner()` | Comparing the resource usage of two Agent versions |
 | custom environment | user-defined struct | `e2e.WithPulumiProvisioner()` | Agent on host + workloads on docker, multi-VM, extra services |
 
 ### Provisioners
@@ -118,6 +119,14 @@ Key helpers on BaseSuite:
   DaemonSet pods to be ready without duplicating a `Test00UpAndRunning` loop. Call
   it from `SetupSuite` when readiness is a prerequisite for every test; use
   `WithAgentReadinessStableFor` when asynchronous Agent subsystems need warm-up time.
+  `environments.WaitForKubernetesAgentReady(ctx, cluster, agent, options...)` does the same
+  for an Agent installed in another namespace, e.g. one of the two installations of
+  `environments.BenchmarkEKS`; pair it with `WithLinuxNodeAgentNodeSelector` for an
+  installation pinned to a subset of the nodes. Auxiliary workloads that must be ready
+  alongside the Agent use `WithPodsReadyForNodes` (one pod per selected node, e.g. a
+  DaemonSet) or `WithPodsReady` (a minimum number of pods, e.g. a Deployment).
+  `WithAgentRestartsAllowed` accepts Agent pods that restarted, e.g. once at a node's cold
+  start, as long as they are ready; auxiliary workloads must still never restart.
 
 ## Agent configuration
 

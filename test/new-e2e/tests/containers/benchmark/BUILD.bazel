@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "benchmark",
+    srcs = [
+        "checks.go",
+        "compare.go",
+        "report.go",
+        "restarts.go",
+        "runs.go",
+        "stats.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/containers/benchmark",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "benchmark_test",
+    srcs = [
+        "checks_test.go",
+        "compare_test.go",
+        "report_test.go",
+        "restarts_test.go",
+        "runs_test.go",
+        "stats_test.go",
+    ],
+    embed = [":benchmark"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
