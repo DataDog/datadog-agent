@@ -200,7 +200,8 @@ type Config struct {
 	NetNSContainerAttributionOwnerImages []string
 
 	// NetNSContainerAttributionIgnoredContainers lists container names of helpers (for example
-	// vault-agent) that don't count toward a pod's containers when choosing the reattribution target.
+	// vault-agent or cloud-sql-proxy) that don't count toward a pod's containers when choosing the
+	// reattribution target, because any traffic they carry belongs to the pod's application.
 	NetNSContainerAttributionIgnoredContainers []string
 
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
