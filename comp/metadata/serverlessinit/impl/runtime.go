@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"strings"
 
-	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 )
 
 // runtimeUnknown is the value reported when no candidate identifies the
@@ -48,12 +48,12 @@ func commandRuntime(wrappedCommand []string) string {
 	// parse shell expressions, inspect files/processes, or infer runtime versions.
 	switch filepath.Base(wrappedCommand[0]) {
 	case "ddtrace-run":
-		if len(wrappedCommand) > 1 && executableRuntime(wrappedCommand[1]) == serverlessinit.RuntimePython {
-			return serverlessinit.RuntimePython
+		if len(wrappedCommand) > 1 && executableRuntime(wrappedCommand[1]) == serverlessdef.RuntimePython {
+			return serverlessdef.RuntimePython
 		}
 	case "bundle":
-		if len(wrappedCommand) > 2 && wrappedCommand[1] == "exec" && executableRuntime(wrappedCommand[2]) == serverlessinit.RuntimeRuby {
-			return serverlessinit.RuntimeRuby
+		if len(wrappedCommand) > 2 && wrappedCommand[1] == "exec" && executableRuntime(wrappedCommand[2]) == serverlessdef.RuntimeRuby {
+			return serverlessdef.RuntimeRuby
 		}
 	}
 	return executableRuntime(wrappedCommand[0])
@@ -63,20 +63,20 @@ func executableRuntime(executable string) string {
 	executable = filepath.Base(executable)
 	switch executable {
 	case "node", "nodejs", "npm":
-		return serverlessinit.RuntimeNodeJS
+		return serverlessdef.RuntimeNodeJS
 	case "java":
-		return serverlessinit.RuntimeJava
+		return serverlessdef.RuntimeJava
 	case "dotnet":
-		return serverlessinit.RuntimeDotNet
+		return serverlessdef.RuntimeDotNet
 	case "php":
-		return serverlessinit.RuntimePHP
+		return serverlessdef.RuntimePHP
 	case "ruby", "rails", "rake", "puma", "sidekiq":
-		return serverlessinit.RuntimeRuby
+		return serverlessdef.RuntimeRuby
 	case "gunicorn", "uvicorn", "flask", "celery":
-		return serverlessinit.RuntimePython
+		return serverlessdef.RuntimePython
 	}
 	if pythonExecutable.MatchString(executable) {
-		return serverlessinit.RuntimePython
+		return serverlessdef.RuntimePython
 	}
 	return runtimeUnknown
 }

@@ -3,22 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package serverlessinit implements the serverless-init inventory metadata
-// payload: it applies the platform's serverless fields to the inventoryagent
-// payload and submits the first payload as soon as resource identity is known.
+// Package serverlessinit defines the serverless-init inventory metadata provider.
 package serverlessinit
 
 // team: team/serverless-azure-and-gcp
 
 // Component is the component type.
-type Component interface {
-	// InventoryIdentityArrived applies the full serverless field set derived
-	// from the provider's current inventory data and submits a payload
-	// immediately. Platforms that learn resource identity only at runtime call
-	// it from their identity event path; construction-time identity submits
-	// without it.
-	InventoryIdentityArrived()
-}
+type Component interface{}
 
 // Params carries the process-level context the embedding binary resolves
 // before Fx starts.

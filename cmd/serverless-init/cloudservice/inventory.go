@@ -6,7 +6,7 @@
 package cloudservice
 
 import (
-	serverlessinit "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 )
 
 const (
@@ -15,26 +15,26 @@ const (
 )
 
 func (l *LocalService) CanCollectInventory() bool { return false }
-func (l *LocalService) GetInventoryData() serverlessinit.InventoryData {
-	return serverlessinit.InventoryData{}
+func (l *LocalService) GetInventoryData() serverlessdef.ServerlessInitData {
+	return serverlessdef.ServerlessInitData{}
 }
 
 func (c *CloudRun) CanCollectInventory() bool { return false }
-func (c *CloudRun) GetInventoryData() serverlessinit.InventoryData {
-	return serverlessinit.InventoryData{}
+func (c *CloudRun) GetInventoryData() serverlessdef.ServerlessInitData {
+	return serverlessdef.ServerlessInitData{}
 }
 
 func (c *CloudRunJobs) CanCollectInventory() bool { return false }
-func (c *CloudRunJobs) GetInventoryData() serverlessinit.InventoryData {
-	return serverlessinit.InventoryData{}
+func (c *CloudRunJobs) GetInventoryData() serverlessdef.ServerlessInitData {
+	return serverlessdef.ServerlessInitData{}
 }
 
 func (c *ContainerApp) CanCollectInventory() bool { return false }
-func (c *ContainerApp) GetInventoryData() serverlessinit.InventoryData {
-	return serverlessinit.InventoryData{}
+func (c *ContainerApp) GetInventoryData() serverlessdef.ServerlessInitData {
+	return serverlessdef.ServerlessInitData{}
 }
 
 func (m *MicroVM) CanCollectInventory() bool { return false }
-func (m *MicroVM) GetInventoryData() serverlessinit.InventoryData {
-	return serverlessinit.InventoryData{}
+func (m *MicroVM) GetInventoryData() serverlessdef.ServerlessInitData {
+	return serverlessdef.ServerlessInitData{}
 }
