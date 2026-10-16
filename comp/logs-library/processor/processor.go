@@ -195,10 +195,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 	}
 
-	if p.quotaEnforcer != nil {
-		if _, drop := p.quotaEnforcer.Check(msg); drop {
-			return
-		}
+	if p.quotaEnforcer != nil && p.quotaEnforcer.Check(msg) {
+		return
 	}
 
 	if toSend := p.applyRedactingRules(msg); toSend {

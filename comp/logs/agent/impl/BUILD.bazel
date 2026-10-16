@@ -48,7 +48,6 @@ go_library(
         "//comp/logs/auditor/impl-none",
         "//comp/logs/integrations/def",
         "//comp/logs/integrations/impl",
-        "//comp/metadata/host/impl/hosttags",
         "//comp/metadata/inventoryagent/def",
         "//comp/remote-config/rcclient/types",
         "//comp/serializer/logscompression/def",

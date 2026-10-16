@@ -170,9 +170,7 @@ func NewComponent(deps Requires) Provides {
 
 		var rcListener rctypes.ListenerProvider
 		if deps.Config.GetBool(quotaEnabledKey) {
-			qm := newQuotaManager(deps.Log, deps.Config)
-			deps.Lc.Append(compdef.Hook{OnStart: qm.start, OnStop: qm.stop})
-			rcListener = qm.rcListener()
+			rcListener = newQuotaManager(deps.Log, deps.Config).rcListener()
 		}
 
 		return Provides{

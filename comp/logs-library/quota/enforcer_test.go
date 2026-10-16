@@ -7,6 +7,8 @@ package quota
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-var t0 = time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)
+var t0 = time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
 
 func newTestEnforcer(now *time.Time) *Enforcer {
 	e := NewEnforcer()
@@ -27,96 +29,67 @@ func newTestEnforcer(now *time.Time) *Enforcer {
 	return e
 }
 
-func newMsg(source, service, status string, tags ...string) *message.Message {
-	src := sources.NewLogSource("", &config.LogsConfig{Source: source, Service: service, Tags: tags})
-	return message.NewMessageWithSource([]byte("hello"), status, src, 0)
+func newMsg(tags ...string) *message.Message {
+	src := sources.NewLogSource("", &config.LogsConfig{Source: "nginx", Service: "web", Tags: tags})
+	return message.NewMessageWithSource([]byte("hello"), "", src, 0)
 }
 
-func rule(id string, version int64, match string, extra string) []byte {
-	return fmt.Appendf(nil, `{"schema_version":1,"quota_id":%q,"version":%d,"action":"drop","match":%s,"max_ttl_seconds":3600%s}`,
-		id, version, match, extra)
+func snap(expiresAt time.Time, tagLists ...[]string) []byte {
+	entries := make([]string, len(tagLists))
+	for i, tags := range tagLists {
+		quoted := make([]string, len(tags))
+		for j, t := range tags {
+			quoted[j] = fmt.Sprintf("%q", t)
+		}
+		entries[i] = fmt.Sprintf(`{"tags":[%s],"expires_at":%d}`, strings.Join(quoted, ","), expiresAt.Unix())
+	}
+	return []byte(`{"quotas":[` + strings.Join(entries, ",") + `]}`)
 }
 
-func TestCheckNoRules(t *testing.T) {
+func TestCheckNoQuotas(t *testing.T) {
 	now := t0
 	e := newTestEnforcer(&now)
-	_, drop := e.Check(newMsg("nginx", "web", message.StatusInfo))
-	assert.False(t, drop)
+	assert.False(t, e.Check(newMsg("env:prod")))
+
+	e.Update(map[string][]byte{"c": []byte(`{"quotas":[]}`)})
+	assert.False(t, e.Check(newMsg("env:prod")))
 }
 
-func TestMatchFields(t *testing.T) {
+func TestMatchTags(t *testing.T) {
 	tests := []struct {
 		name  string
-		match string
+		quota []string
 		msg   *message.Message
 		drop  bool
 	}{
-		{"source eq", `{"all":[{"field":"source","op":"eq","value":"nginx"}]}`, newMsg("nginx", "web", ""), true},
-		{"source miss", `{"all":[{"field":"source","op":"eq","value":"nginx"}]}`, newMsg("redis", "web", ""), false},
-		{"service in", `{"all":[{"field":"service","op":"in","values":["a","web"]}]}`, newMsg("nginx", "web", ""), true},
-		{"status default info", `{"all":[{"field":"status","op":"eq","value":"info"}]}`, newMsg("nginx", "web", ""), true},
-		{"status miss", `{"all":[{"field":"status","op":"eq","value":"error"}]}`, newMsg("nginx", "web", message.StatusWarning), false},
-		{"tag", `{"all":[{"field":"tag","op":"eq","value":"team:payments"}]}`, newMsg("nginx", "web", "", "env:prod", "team:payments"), true},
-		{"tag miss", `{"all":[{"field":"tag","op":"eq","value":"team:payments"}]}`, newMsg("nginx", "web", "", "team:search"), false},
-		{"all requires every clause", `{"all":[{"field":"source","op":"eq","value":"nginx"},{"field":"service","op":"eq","value":"api"}]}`, newMsg("nginx", "web", ""), false},
-		{"any", `{"any":[{"field":"service","op":"eq","value":"api"},{"field":"source","op":"eq","value":"nginx"}]}`, newMsg("nginx", "web", ""), true},
-		{"all and any", `{"all":[{"field":"source","op":"eq","value":"nginx"}],"any":[{"field":"service","op":"eq","value":"api"}]}`, newMsg("nginx", "web", ""), false},
+		{"single tag", []string{"env:prod"}, newMsg("env:prod", "team:a"), true},
+		{"tag miss", []string{"env:prod"}, newMsg("env:dev"), false},
+		{"all tags required", []string{"env:prod", "team:a"}, newMsg("env:prod", "team:b"), false},
+		{"all tags present", []string{"team:a", "env:prod"}, newMsg("env:prod", "team:a"), true},
+		{"no tags drops everything", nil, newMsg(), true},
+		{"service is not a tag", []string{"service:web"}, newMsg("env:prod"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			now := t0
 			e := newTestEnforcer(&now)
-			res := e.Update("mock", map[string][]byte{"q": rule("q1", 1, tt.match, "")})
-			require.NoError(t, res["q"])
-			id, drop := e.Check(tt.msg)
-			assert.Equal(t, tt.drop, drop)
-			if drop {
-				assert.Equal(t, "q1", id)
-			}
+			require.NoError(t, e.Update(map[string][]byte{"c": snap(t0.Add(time.Hour), tt.quota)})["c"])
+			assert.Equal(t, tt.drop, e.Check(tt.msg))
 		})
 	}
-}
-
-func TestHostTags(t *testing.T) {
-	now := t0
-	e := newTestEnforcer(&now)
-	e.SetHostTagsProvider(func() []string { return []string{"team:payments", "env:prod"} })
-
-	e.Update("mock", map[string][]byte{
-		"hit":      rule("hit", 1, `{"all":[{"field":"host_tag","op":"eq","value":"team:payments"},{"field":"source","op":"eq","value":"nginx"}]}`, ""),
-		"miss":     rule("miss", 1, `{"all":[{"field":"host_tag","op":"eq","value":"team:search"}]}`, ""),
-		"any-hit":  rule("any-hit", 1, `{"any":[{"field":"host_tag","op":"eq","value":"env:prod"},{"field":"service","op":"eq","value":"nope"}]}`, ""),
-		"any-miss": rule("any-miss", 1, `{"any":[{"field":"host_tag","op":"eq","value":"env:dev"}]}`, ""),
-	})
-
-	_, states := e.Status()
-	got := map[string]string{}
-	for _, s := range states {
-		got[s.Path] = s.State
-	}
-	assert.Equal(t, map[string]string{
-		"hit": "enforcing", "miss": "not applicable (host tags)",
-		"any-hit": "enforcing", "any-miss": "not applicable (host tags)",
-	}, got)
-
-	id, drop := e.Check(newMsg("redis", "web", ""))
-	assert.True(t, drop)
-	assert.Equal(t, "any-hit", id)
 }
 
 func TestInvalidConfigs(t *testing.T) {
 	now := t0
 	e := newTestEnforcer(&now)
-	src := `{"all":[{"field":"source","op":"eq","value":"nginx"}]}`
-	res := e.Update("mock", map[string][]byte{
-		"json":    []byte(`{`),
-		"schema":  []byte(`{"schema_version":2,"quota_id":"a","action":"drop","match":` + src + `,"max_ttl_seconds":1}`),
-		"action":  []byte(`{"schema_version":1,"quota_id":"a","action":"sample","match":` + src + `,"max_ttl_seconds":1}`),
-		"noexp":   []byte(`{"schema_version":1,"quota_id":"a","action":"drop","match":` + src + `}`),
-		"nomatch": rule("a", 1, `{}`, ""),
-		"field":   rule("a", 1, `{"all":[{"field":"team","op":"eq","value":"x"}]}`, ""),
-		"op":      rule("a", 1, `{"all":[{"field":"source","op":"regex","value":"x"}]}`, ""),
-		"unknown": rule("ok", 1, src, `,"future_field":true`),
+	exp := strconv.FormatInt(t0.Add(time.Hour).Unix(), 10)
+	res := e.Update(map[string][]byte{
+		"json":      []byte(`{`),
+		"noquotas":  []byte(`{"hello":"world"}`),
+		"noexpiry":  []byte(`{"quotas":[{"tags":["env:prod"]}]}`),
+		"emptytag":  []byte(`{"quotas":[{"tags":[""],"expires_at":1}]}`),
+		"unknown":   []byte(`{"quotas":[{"tags":["env:prod"],"expires_at":` + exp + `,"future":1}],"other":true}`),
+		"oneBadAll": []byte(`{"quotas":[{"tags":["team:a"],"expires_at":` + exp + `},{"tags":["team:b"]}]}`),
 	})
 	for path, err := range res {
 		if path == "unknown" {
@@ -125,100 +98,70 @@ func TestInvalidConfigs(t *testing.T) {
 			assert.Error(t, err, path)
 		}
 	}
-	id, drop := e.Check(newMsg("nginx", "", ""))
-	assert.True(t, drop)
-	assert.Equal(t, "ok", id)
+	assert.True(t, e.Check(newMsg("env:prod")))
+	assert.False(t, e.Check(newMsg("team:a")))
 }
 
 func TestExpiry(t *testing.T) {
 	now := t0
 	e := newTestEnforcer(&now)
-	src := `{"all":[{"field":"source","op":"eq","value":"nginx"}]}`
-	until := t0.Add(10 * time.Minute).Format(time.RFC3339)
-	e.Update("mock", map[string][]byte{
-		"ttl":     rule("ttl", 1, src, ""),
-		"a-until": []byte(`{"schema_version":1,"quota_id":"until","version":1,"action":"drop","match":` + src + `,"enforce_until":"` + until + `","max_ttl_seconds":86400}`),
+	e.Update(map[string][]byte{
+		"past":   snap(t0.Add(-time.Minute), []string{"team:a"}),
+		"future": snap(t0.Add(10*time.Minute), []string{"team:b"}),
 	})
-	msg := newMsg("nginx", "", "")
 
-	id, drop := e.Check(msg)
-	assert.True(t, drop)
-	assert.Equal(t, "until", id)
+	assert.False(t, e.Check(newMsg("team:a")), "already expired on receipt")
+	assert.True(t, e.Check(newMsg("team:b")))
 
-	now = t0.Add(30 * time.Minute)
-	id, drop = e.Check(msg)
-	assert.True(t, drop)
-	assert.Equal(t, "ttl", id)
+	now = t0.Add(10 * time.Minute)
+	assert.False(t, e.Check(newMsg("team:b")), "stops at expires_at without a new config")
 
-	now = t0.Add(time.Hour)
-	_, drop = e.Check(msg)
-	assert.False(t, drop)
-
-	// Re-sending the same config must not restart the TTL.
-	e.Update("mock", map[string][]byte{"ttl": rule("ttl", 1, src, "")})
-	_, drop = e.Check(msg)
-	assert.False(t, drop)
-
-	// A new version does.
-	e.Update("mock", map[string][]byte{"ttl": rule("ttl", 2, src, "")})
-	_, drop = e.Check(msg)
-	assert.True(t, drop)
+	_, configs := e.Status()
+	require.Len(t, configs, 2)
+	assert.Equal(t, "expired", configs[0].Quotas[0].State)
+	assert.Equal(t, t0.Add(10*time.Minute).Format(time.RFC3339), configs[0].Quotas[0].ExpiresAt)
+	assert.Equal(t, "expired", configs[1].Quotas[0].State)
 }
 
-func TestVersions(t *testing.T) {
+func TestUpdateReplacesConfigs(t *testing.T) {
 	now := t0
 	e := newTestEnforcer(&now)
-	nginx := `{"all":[{"field":"source","op":"eq","value":"nginx"}]}`
-	redis := `{"all":[{"field":"source","op":"eq","value":"redis"}]}`
+	exp := t0.Add(time.Hour)
+	e.Update(map[string][]byte{"a": snap(exp, []string{"team:a"}), "b": snap(exp, []string{"team:b"})})
+	e.Update(map[string][]byte{"b": []byte(`{"quotas":[]}`)})
 
-	e.Update("mock", map[string][]byte{"q": rule("q", 5, nginx, "")})
-	res := e.Update("mock", map[string][]byte{"q": rule("q", 4, redis, "")})
-	assert.ErrorContains(t, res["q"], "stale version")
-	_, drop := e.Check(newMsg("redis", "", ""))
-	assert.False(t, drop)
-
-	// Same quota from two sources: the newer version wins.
-	e.Update("mock", map[string][]byte{"q": rule("q", 6, nginx, "")})
-	e.Update("rc", map[string][]byte{"q": rule("q", 7, redis, "")})
-	_, drop = e.Check(newMsg("redis", "", ""))
-	assert.True(t, drop)
-	_, drop = e.Check(newMsg("nginx", "", ""))
-	assert.False(t, drop)
-}
-
-func TestUpdateRemovesOnlyOwnSource(t *testing.T) {
-	now := t0
-	e := newTestEnforcer(&now)
-	e.Update("mock", map[string][]byte{"a": rule("a", 1, `{"all":[{"field":"source","op":"eq","value":"nginx"}]}`, "")})
-	e.Update("rc", map[string][]byte{"b": rule("b", 1, `{"all":[{"field":"source","op":"eq","value":"redis"}]}`, "")})
-
-	e.Update("rc", map[string][]byte{})
-	_, drop := e.Check(newMsg("redis", "", ""))
-	assert.False(t, drop)
-	_, drop = e.Check(newMsg("nginx", "", ""))
-	assert.True(t, drop)
+	assert.False(t, e.Check(newMsg("team:a")))
+	assert.False(t, e.Check(newMsg("team:b")))
+	_, configs := e.Status()
+	require.Len(t, configs, 1)
+	assert.Empty(t, configs[0].Quotas)
 }
 
 func TestStats(t *testing.T) {
 	now := t0
 	e := newTestEnforcer(&now)
-	e.Update("mock", map[string][]byte{"q": rule("q", 1, `{"all":[{"field":"source","op":"eq","value":"nginx"}]}`, "")})
+	cfg := map[string][]byte{"c": snap(t0.Add(time.Hour), []string{"team:a", "env:prod"})}
+	e.Update(cfg)
 	for range 3 {
-		e.Check(newMsg("nginx", "", ""))
+		e.Check(newMsg("env:prod", "team:a"))
 	}
-	e.Check(newMsg("redis", "", ""))
+	e.Check(newMsg("team:b"))
+	e.Update(cfg)
 
-	lastSync, states := e.Status()
+	lastSync, configs := e.Status()
 	assert.NotEmpty(t, lastSync)
-	require.Len(t, states, 1)
-	assert.EqualValues(t, 3, states[0].DroppedEvents)
-	assert.EqualValues(t, 15, states[0].DroppedBytes)
-	assert.Equal(t, "all(source in [nginx])", states[0].Match)
+	require.Len(t, configs, 1)
+	require.Len(t, configs[0].Quotas, 1)
+	q := configs[0].Quotas[0]
+	assert.Equal(t, "env:prod,team:a", q.Tags)
+	assert.Equal(t, "enforcing", q.State)
+	assert.EqualValues(t, 3, q.DroppedEvents, "counts survive a re-sent config")
+	assert.EqualValues(t, 15, q.DroppedBytes)
 }
 
 func TestConcurrentCheckAndUpdate(_ *testing.T) {
 	e := NewEnforcer()
-	msg := newMsg("nginx", "", "")
+	msg := newMsg("team:a")
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
 	for range 4 {
@@ -236,7 +179,7 @@ func TestConcurrentCheckAndUpdate(_ *testing.T) {
 		}()
 	}
 	for i := range 200 {
-		e.Update("rc", map[string][]byte{"q": rule("q", int64(i), `{"all":[{"field":"source","op":"eq","value":"nginx"}]}`, "")})
+		e.Update(map[string][]byte{"c": snap(time.Now().Add(time.Duration(i)*time.Second), []string{"team:a"})})
 		e.Status()
 	}
 	close(stop)
@@ -244,16 +187,16 @@ func TestConcurrentCheckAndUpdate(_ *testing.T) {
 }
 
 func BenchmarkCheck(b *testing.B) {
-	msg := newMsg("nginx", "web", "", "env:prod", "team:search")
-	b.Run("no rules", func(b *testing.B) {
+	msg := newMsg("env:prod", "team:search")
+	b.Run("no quotas", func(b *testing.B) {
 		e := NewEnforcer()
 		for b.Loop() {
 			e.Check(msg)
 		}
 	})
-	b.Run("tag rule miss", func(b *testing.B) {
+	b.Run("tag miss", func(b *testing.B) {
 		e := NewEnforcer()
-		e.Update("rc", map[string][]byte{"q": rule("q", 1, `{"all":[{"field":"tag","op":"eq","value":"team:payments"}]}`, "")})
+		e.Update(map[string][]byte{"c": snap(time.Now().Add(time.Hour), []string{"team:payments"})})
 		for b.Loop() {
 			e.Check(msg)
 		}

@@ -43,10 +43,10 @@ var (
 		[]string{"destination"}, "Total number of logs dropped per Destination")
 	// TlmQuotaDroppedEvents is the total number of logs dropped by quota enforcement
 	TlmQuotaDroppedEvents = telemetryimpl.GetCompatComponent().NewCounter("logs", "quota_dropped_events",
-		[]string{"quota_id"}, "Total number of logs dropped by quota enforcement")
+		[]string{"quota_tags"}, "Total number of logs dropped by quota enforcement")
 	// TlmQuotaDroppedBytes is the total number of bytes dropped by quota enforcement
 	TlmQuotaDroppedBytes = telemetryimpl.GetCompatComponent().NewCounter("logs", "quota_dropped_bytes",
-		[]string{"quota_id"}, "Total number of bytes dropped by quota enforcement")
+		[]string{"quota_tags"}, "Total number of bytes dropped by quota enforcement")
 	// BytesSent is the total number of sent bytes before encoding if any
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any

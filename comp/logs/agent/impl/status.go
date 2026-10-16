@@ -43,10 +43,10 @@ func (p StatusProvider) getStatusInfo(verbose bool) map[string]interface{} {
 
 func (p StatusProvider) populateStatus(verbose bool, stats map[string]interface{}) {
 	stats["logsStats"] = logsProvider(verbose)
-	lastSync, quotas := quota.Default().Status()
+	lastSync, configs := quota.Default().Status()
 	stats["quotaEnforcement"] = map[string]interface{}{
 		"LastSync": lastSync,
-		"Quotas":   quotas,
+		"Configs":  configs,
 	}
 }
 

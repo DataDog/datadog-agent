@@ -762,12 +762,12 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Subscribes to LOGS_QUOTA and drops logs matching active quota rules.
+        comment: Subscribes to Remote Config log quotas and drops logs carrying all of an active quota's tags.
       rc_product:
         node_type: setting
         type: string
         default: LOGS_QUOTA
-        comment: Prototype only. Remote Config product to subscribe to. Set to DEBUG to receive configs wrapped as {"logs_quota":{...}} from the staging rc-debug-api.
+        comment: Prototype only. Remote Config product to subscribe to. Set to DEBUG to receive configs from the staging rc-debug-api.
   run_path:
     node_type: setting
     type: string

@@ -6,8 +6,10 @@
 package processor
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -434,8 +436,8 @@ func TestQuotaDrop(t *testing.T) {
 	p.processMessage(newMessage([]byte("a"), nginx, ""))
 	assert.Len(t, out, 1)
 
-	res := e.Update("mock", map[string][]byte{"q": []byte(`{"schema_version":1,"quota_id":"q","version":1,"action":"drop",
-		"match":{"all":[{"field":"tag","op":"eq","value":"team:payments"}]},"max_ttl_seconds":60}`)})
+	res := e.Update(map[string][]byte{"q": fmt.Appendf(nil, `{"quotas":[{"tags":["team:payments"],"expires_at":%d}]}`,
+		time.Now().Add(time.Hour).Unix())})
 	assert.NoError(t, res["q"])
 
 	p.processMessage(newMessage([]byte("b"), nginx, ""))
