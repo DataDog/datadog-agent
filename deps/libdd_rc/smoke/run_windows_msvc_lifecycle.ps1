@@ -209,7 +209,10 @@ logs_enabled: false
 apm_config:
   enabled: false
 process_config:
-  enabled: disabled
+  process_collection:
+    enabled: false
+  container_collection:
+    enabled: false
 inventories_enabled: false
 inventories_diagnostics_enabled: false
 enable_metadata_collection: false
@@ -322,9 +325,19 @@ try {
         $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
         throw "Agent did not exit within 30 seconds of the graceful stop request`n$probeOutput"
     }
-    if ($agentProcess.ExitCode -ne 0) {
+    # Complete redirected-stream processing and refresh the Process object
+    # before reading ExitCode. Windows PowerShell can otherwise return $null
+    # here even though the timed wait observed the process exit.
+    $agentProcess.WaitForExit()
+    $agentProcess.Refresh()
+    $agentExitCode = $agentProcess.ExitCode
+    if ($null -eq $agentExitCode) {
         $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
-        throw "Agent x509 component probe exited with code $($agentProcess.ExitCode)`n$probeOutput"
+        throw "Agent exited but PowerShell did not report its exit code`n$probeOutput"
+    }
+    if ($agentExitCode -ne 0) {
+        $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
+        throw "Agent x509 component probe exited with code $agentExitCode`n$probeOutput"
     }
 
     $probeOutput = Get-AgentProbeOutput -Paths $probeLogPaths -SensitiveFilePaths @($authTokenPath)
