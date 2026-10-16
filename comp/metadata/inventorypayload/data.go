@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventoryagentimpl
+package inventorypayload
 
 import (
 	"context"
-	"encoding/json"
 	"maps"
+	"reflect"
 	"slices"
 	"time"
 
@@ -25,22 +25,6 @@ import (
 )
 
 var installinfoGet = installinfo.Get
-
-type agentMetadata map[string]interface{}
-
-// Payload handles the JSON unmarshalling of the metadata payload
-type Payload struct {
-	Hostname  string        `json:"hostname"`
-	Timestamp int64         `json:"timestamp"`
-	Metadata  agentMetadata `json:"agent_metadata"`
-	UUID      string        `json:"uuid"`
-}
-
-// MarshalJSON serialization a Payload to JSON
-func (p *Payload) MarshalJSON() ([]byte, error) {
-	type PayloadAlias Payload
-	return json.Marshal((*PayloadAlias)(p))
-}
 
 // Data builds the common inventory-agent fields and wire payload without a component lifecycle.
 // Callers serialize access and must not mutate values after adding them to a payload.
@@ -96,6 +80,30 @@ func (ia *Data) initData() {
 		infraMode = "full"
 	}
 	ia.data["infrastructure_mode"] = infraMode
+}
+
+// Set stores a metadata value in the payload. The given value will be stored in the cache without being copied. It is
+// up to the caller to make sure the given value will not be modified later. It returns whether the stored value changed.
+func (ia *Data) Set(name string, value interface{}) bool {
+	if reflect.DeepEqual(ia.data[name], value) {
+		return false
+	}
+	ia.data[name] = value
+	return true
+}
+
+// Get returns a copy of the metadata.
+func (ia *Data) Get() map[string]interface{} {
+	data := map[string]interface{}{}
+	maps.Copy(data, ia.data)
+	return data
+}
+
+func scrub(s string) string {
+	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
+	// are possible.
+	scrubString, _ := scrubber.ScrubString(s)
+	return scrubString
 }
 
 func (ia *Data) marshalAndScrub(data interface{}) (string, error) {
