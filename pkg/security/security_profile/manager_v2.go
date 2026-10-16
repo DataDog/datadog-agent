@@ -81,6 +81,9 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType) {
 		size += probes.OpenSamplesMaxEntries
 	}
+	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType) {
+		size += probes.BindSamplesMaxEntries
+	}
 	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
 		size += probes.ConnectSamplesMaxEntries
 	}
