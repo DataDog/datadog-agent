@@ -9,30 +9,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
-func TestValidatePayload(t *testing.T) {
-	assert.NoError(t, ValidatePayload(map[string]interface{}{
-		"resource_id": "/subscriptions/sub/resourcegroups/rg/providers/microsoft.web/sites/site",
-	}))
+type eligibleProvider bool
 
-	// Unrelated optional fields do not affect validity.
-	assert.NoError(t, ValidatePayload(map[string]interface{}{
-		"resource_id": "test-resource",
-		"runtime":     nil,
-		"region":      nil,
-	}))
+func (p eligibleProvider) CanCollectInventory() bool          { return bool(p) }
+func (eligibleProvider) GetInventoryData() ServerlessInitData { return ServerlessInitData{} }
 
-	for name, resourceID := range map[string]interface{}{
-		"absent":       nil,
-		"nil cleared":  nil,
-		"empty":        "",
-		"blank":        "  ",
-		"not a string": 123,
-	} {
-		t.Run(name, func(t *testing.T) {
-			err := ValidatePayload(map[string]interface{}{"resource_id": resourceID})
-			assert.EqualError(t, err, "resource id is missing or empty")
-		})
-	}
+func TestInventoryEligible(t *testing.T) {
+	assert.False(t, InventoryEligible(config.NewMock(t), eligibleProvider(true)), "default off")
+	conf := config.NewMockWithOverrides(t, map[string]any{"serverless.inventory_enabled": true})
+	assert.False(t, InventoryEligible(conf, eligibleProvider(false)))
+	assert.True(t, InventoryEligible(conf, eligibleProvider(true)))
 }

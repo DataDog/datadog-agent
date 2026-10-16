@@ -8,16 +8,12 @@ package inventoryagentimpl
 
 import (
 	"context"
-	"encoding/json"
 	"maps"
 	"net/http"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"time"
-
-	"go.yaml.in/yaml/v3"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -41,18 +37,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
 	// for testing
-	installinfoGet      = installinfo.Get
 	fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	fetchProcessConfig  = func(cfg model.Reader, client ipc.HTTPClient) (string, error) {
 		return configFetcher.ProcessAgentConfig(cfg, client, true)
@@ -61,38 +53,13 @@ var (
 	fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 )
 
-type agentMetadata map[string]interface{}
-
-// Payload handles the JSON unmarshalling of the metadata payload
-type Payload struct {
-	Hostname  string        `json:"hostname"`
-	Timestamp int64         `json:"timestamp"`
-	Metadata  agentMetadata `json:"agent_metadata"`
-	UUID      string        `json:"uuid"`
-}
-
-// MarshalJSON serialization a Payload to JSON
-func (p *Payload) MarshalJSON() ([]byte, error) {
-	type PayloadAlias Payload
-	return json.Marshal((*PayloadAlias)(p))
-}
-
 type inventoryagent struct {
 	util.InventoryPayload
 
-	log          log.Component
-	conf         config.Component
-	hostnameComp hostnameinterface.Component
+	*Data
 	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
-	data         agentMetadata
-	hostname     string
 	client       ipc.HTTPClient
-	// See iainterface.Capabilities for the meaning of these fields.
-	skipFullAgentMetadataRefresh bool
-	validatePayload              func(fields map[string]interface{}) error
-	// uuidOverride is the payload uuid supplied through SetBatch; guarded by m.
-	uuidOverride string
 }
 
 // Requires defines the dependencies for the inventoryagent component
@@ -105,9 +72,6 @@ type Requires struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
-	// Capabilities is optional; absent means standard full-agent behavior.
-	// See iainterface.Capabilities.
-	Capabilities *iainterface.Capabilities `optional:"true"`
 }
 
 // Provides defines the output of the inventoryagent component
@@ -123,27 +87,11 @@ type Provides struct {
 func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	ia := &inventoryagent{
-		conf:         deps.Config,
+		Data:         &Data{conf: deps.Config, log: deps.Log, hostnameComp: deps.Hostname, hostname: hname, data: make(agentMetadata)},
 		sysprobeConf: deps.SysProbeConfig,
-		log:          deps.Log,
-		hostnameComp: deps.Hostname,
-		hostname:     hname,
-		data:         make(agentMetadata),
 		client:       deps.IPCClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
-
-	// Without Capabilities the payload always submits.
-	if deps.Capabilities != nil {
-		if deps.Capabilities.Disabled {
-			ia.Enabled = false
-		}
-		ia.skipFullAgentMetadataRefresh = deps.Capabilities.SkipFullAgentMetadataRefresh
-		ia.validatePayload = deps.Capabilities.ValidatePayload
-		if ia.validatePayload != nil {
-			ia.InventoryPayload.SetSubmissionGate(ia.gateSubmission)
-		}
-	}
 
 	if ia.Enabled {
 		ia.initData()
@@ -165,44 +113,6 @@ func scrub(s string) string {
 	// are possible.
 	scrubString, _ := scrubber.ScrubString(s)
 	return scrubString
-}
-
-func (ia *inventoryagent) initData() {
-	tool := "undefined"
-	toolVersion := ""
-	installerVersion := ""
-
-	install, err := installinfoGet(ia.conf)
-	if err == nil {
-		tool = install.Tool
-		toolVersion = install.ToolVersion
-		installerVersion = install.InstallerVersion
-	}
-	ia.data["install_method_tool"] = tool
-	ia.data["install_method_tool_version"] = toolVersion
-	ia.data["install_method_installer_version"] = installerVersion
-
-	data, err := ia.hostnameComp.GetWithProvider(context.Background())
-	if err == nil {
-		if data.Provider != "" && !data.FromFargate() {
-			ia.data["hostname_source"] = data.Provider
-		}
-	} else {
-		ia.log.Warnf("could not fetch 'hostname_source': %v", err)
-	}
-
-	ia.data["agent_version"] = version.AgentVersion
-	ia.data["package_version"] = version.AgentPackageVersion
-	ia.data["agent_startup_time_ms"] = ia.conf.StartTime().UnixMilli()
-	ia.data["flavor"] = flavor.GetFlavor()
-
-	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
-	// fleet-automation: This validation should be done by the Config once we have such mechanism
-	if !slices.Contains([]string{"full", "end_user_device", "basic", "cloud_cost_only", "none"}, infraMode) {
-		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
-		infraMode = "full"
-	}
-	ia.data["infrastructure_mode"] = infraMode
 }
 
 type configGetter interface {
@@ -505,113 +415,12 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 	}
 }
 
-// SetBatch applies a complete field set and the payload uuid atomically, under
-// one lock: no reader observes the previous uuid or a partial batch once it
-// returns. An empty uuid keeps the host machine GUID. The given values are
-// stored without being copied.
-func (ia *inventoryagent) SetBatch(fields map[string]interface{}, uuid string) {
-	if !ia.Enabled {
-		return
-	}
-
-	ia.log.Debugf("setting inventory agent metadata batch of %d values", len(fields))
-
-	ia.m.Lock()
-	changed := uuid != ia.uuidOverride
-	ia.uuidOverride = uuid
-	for name, value := range fields {
-		if !reflect.DeepEqual(ia.data[name], value) {
-			ia.data[name] = value
-			changed = true
-		}
-	}
-	ia.m.Unlock()
-
-	if changed {
-		ia.Refresh()
-	}
-}
-
-// gateSubmission reports why the current payload may not be submitted; every
-// submission path consults it before building and sending.
-func (ia *inventoryagent) gateSubmission() error {
-	ia.m.Lock()
-	defer ia.m.Unlock()
-	return ia.validatePayload(ia.data)
-}
-
-func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
-	flareScrubber := scrubber.NewWithDefaults()
-
-	provided, err := yaml.Marshal(data)
-	if err != nil {
-		return "", ia.log.Errorf("could not marshal agent configuration: %s", err)
-	}
-
-	scrubbed, err := flareScrubber.ScrubYaml(provided)
-	if err != nil {
-		return "", ia.log.Errorf("could not scrubb agent configuration: %s", err)
-	}
-
-	return string(scrubbed), nil
-}
-
-func (ia *inventoryagent) getConfigs(data agentMetadata) {
-	if ia.conf.GetBool("inventories_configuration_enabled") {
-		layers := ia.conf.AllSettingsBySource()
-		layersName := map[model.Source]string{
-			model.SourceFile:               "file_configuration",
-			model.SourceEnvVar:             "environment_variable_configuration",
-			model.SourceAgentRuntime:       "agent_runtime_configuration",
-			model.SourceLocalConfigProcess: "source_local_configuration",
-			model.SourceRC:                 "remote_configuration",
-			model.SourceFleetPolicies:      "fleet_policies_configuration",
-			model.SourceCLI:                "cli_configuration",
-			model.SourceProvided:           "provided_configuration",
-		}
-
-		for source, conf := range layers {
-			if layer, ok := layersName[source]; ok {
-				if yaml, err := ia.marshalAndScrub(conf); err == nil {
-					data[layer] = yaml
-				}
-			}
-		}
-		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutSecrets()); err == nil {
-			data["full_configuration"] = yaml
-		}
-	}
-}
-
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
 
-	if !ia.skipFullAgentMetadataRefresh {
-		ia.refreshMetadata()
-	}
-
-	// Create a static copy of agentMetadata for the payload
-	data := make(agentMetadata)
-	maps.Copy(data, ia.data)
-
-	ia.getConfigs(data)
-
-	return &Payload{
-		Hostname:  ia.hostname,
-		Timestamp: time.Now().UnixNano(),
-		Metadata:  data,
-		UUID:      ia.getUUID(),
-	}
-}
-
-// getUUID resolves the uuid supplied through SetBatch, otherwise the host
-// machine GUID.
-func (ia *inventoryagent) getUUID() string {
-	if ia.uuidOverride != "" {
-		return ia.uuidOverride
-	}
-	return uuid.GetUUID()
+	ia.refreshMetadata()
+	return ia.Data.GetPayload(nil, uuid.GetUUID())
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
