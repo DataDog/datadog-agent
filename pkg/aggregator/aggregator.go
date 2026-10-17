@@ -562,23 +562,28 @@ func (agg *BufferedAggregator) SetObserverHandle(h observer.Handle) {
 func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
-	agg.getSeriesAndSketches(before, &series, &sketches)
+	agg.getSeriesAndSketches(before, &series, &sketches, false)
 	return series, sketches
 }
 
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
+// finalFlush retires every check sampler after emitting its remaining endpoints.
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	_ time.Time,
 	seriesSink metrics.SerieSink,
 	sketchesSink metrics.SketchesSink,
+	finalFlush bool,
 ) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
+		// Shutdown retires every remaining check sampler, forcing SDC to
+		// emit deferred endpoints regardless of its periodic close schedule.
+		checkSampler.deregistered = checkSampler.deregistered || finalFlush
 		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {
 			seriesSink.Append(s)
@@ -685,7 +690,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 }
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
-	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink, trigger.finalFlush)
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 }
 
