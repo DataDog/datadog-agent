@@ -34,6 +34,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -407,30 +408,47 @@ func (a *Agent) runXCCDFBenchmarks(ctx context.Context) {
 
 	checkInterval := a.opts.CheckIntervalLowPriority
 	runTicker := time.NewTicker(checkInterval)
-	throttler := time.NewTicker(defaultEvalThrottling)
 	defer runTicker.Stop()
-	defer throttler.Stop()
 
 	log.Debugf("will be executing %d XCCDF benchmarks every %s", len(benchmarks), checkInterval)
 	for runCount := uint64(0); ; runCount++ {
 		for _, benchmark := range benchmarks {
 			if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, benchmark.FrameworkID) {
-				FinishXCCDFBenchmark(ctx, benchmark)
 				return
 			}
-			for _, rule := range benchmark.Rules {
-				events := EvaluateXCCDFRule(ctx, a.opts.Hostname, a.opts.StatsdClient, benchmark, rule)
-				a.reportCheckEvents(checkInterval, events...)
-				if sleepAborted(ctx, throttler.C) {
-					FinishXCCDFBenchmark(ctx, benchmark)
-					return
-				}
+			start := time.Now()
+			events, err := EvaluateXCCDFRules(ctx, a.opts.Hostname, XCCDFProbeRoot(), benchmark, defaultEvalThrottling)
+			if ctx.Err() != nil {
+				return
 			}
-			FinishXCCDFBenchmark(ctx, benchmark)
+			if err != nil {
+				log.Warnf("could not evaluate xccdf benchmark: %v", err)
+			}
+			a.reportXCCDFInputs(len(benchmark.Rules), time.Since(start))
+			a.reportCheckEvents(checkInterval, events...)
 		}
 		if sleepAborted(ctx, runTicker.C) {
 			return
 		}
+	}
+}
+
+// reportXCCDFInputs sends the input metrics of an XCCDF benchmark run that
+// evaluated n rules in d.
+func (a *Agent) reportXCCDFInputs(n int, d time.Duration) {
+	client := a.opts.StatsdClient
+	if client == nil {
+		return
+	}
+	tags := []string{
+		"rule_input_type:xccdf",
+		"agent_version:" + version.AgentVersion,
+	}
+	if err := client.Count(metrics.MetricInputsHits, int64(n), tags, 1.0); err != nil {
+		log.Errorf("failed to send input metric: %v", err)
+	}
+	if err := client.Timing(metrics.MetricInputsDuration, d, tags, 1.0); err != nil {
+		log.Errorf("failed to send input metric: %v", err)
 	}
 }
 

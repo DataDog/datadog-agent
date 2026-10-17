@@ -3369,8 +3369,6 @@ github.com/goccy/go-yaml v1.9.8/go.mod h1:JubOolP3gh0HpiBc4BLRD4YmjEjHAmIIB2aaXK
 github.com/goccy/go-yaml v1.11.0/go.mod h1:H+mJrWtjPTJAHvRbV09MCK9xYwODM+wRTVFFTWckfng=
 github.com/goccy/go-yaml v1.19.2 h1:PmFC1S6h8ljIz6gMRBopkjP1TVT7xuwrButHID66PoM=
 github.com/goccy/go-yaml v1.19.2/go.mod h1:XBurs7gK8ATbW4ZPGKgcbrY1Br56PdM69F7LkFRi1kA=
-github.com/gocomply/scap v0.1.3 h1:QPadOSsvq2IJzENzHdmbDFefAN1GU4iCyfaKMDLWZ6A=
-github.com/gocomply/scap v0.1.3/go.mod h1:NF0cOw7BC3SibN3O5+oyIMMMKtQNYCRFIMuaW1u7R9c=
 github.com/gocql/gocql v1.6.0 h1:IdFdOTbnpbd0pDhl4REKQDM+Q0SzKXQ1Yh+YZZ8T/qU=
 github.com/gocql/gocql v1.6.0/go.mod h1:3gM2c4D3AnkISwBxGnMMsS8Oy4y2lhbPRsH4xnJrHG8=
 github.com/gocsaf/csaf/v3 v3.5.0 h1:tj8l1vK2V8GwjCh3axwKF/yJ9d28xuFn3NsZDdPSkJ8=
