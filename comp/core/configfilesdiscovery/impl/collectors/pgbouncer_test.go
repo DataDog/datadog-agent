@@ -23,6 +23,8 @@ func TestIncludePgbouncerEnvVar(t *testing.T) {
 		{"PGBOUNCER_PORT", true},
 		{"PGBOUNCER_DEFAULT_POOL_SIZE", true},
 		{"PGBOUNCER_AUTH_TYPE", true},
+		{"PGBOUNCER_CONF_DIR", true},
+		{"PGBOUNCER_CONF_FILE", true},
 		{"AUTH_TYPE", true},
 		{"POOL_MODE", true},
 		{"MAX_CLIENT_CONN", true},
@@ -86,9 +88,200 @@ func TestPgbouncerCollectorReturnsEnvReadError(t *testing.T) {
 	require.ErrorIs(t, err, expectedErr)
 }
 
+func TestPgbouncerGetConfigArgFromCommandline(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		wantPath string
+		wantOK   bool
+	}{
+		{name: "explicit config file", args: []string{"pgbouncer", "/etc/pgbouncer/pgbouncer.ini"}, wantPath: "/etc/pgbouncer/pgbouncer.ini", wantOK: true},
+		{name: "resolved binary path", args: []string{"/usr/bin/pgbouncer", "/etc/pgbouncer/pgbouncer.ini"}, wantPath: "/etc/pgbouncer/pgbouncer.ini", wantOK: true},
+		{name: "daemon flag before config", args: []string{"pgbouncer", "-d", "/etc/pgbouncer/pgbouncer.ini"}, wantPath: "/etc/pgbouncer/pgbouncer.ini", wantOK: true},
+		{name: "long daemon flag before config", args: []string{"pgbouncer", "--daemon", "/etc/pgbouncer/pgbouncer.ini"}, wantPath: "/etc/pgbouncer/pgbouncer.ini", wantOK: true},
+		{name: "user flag with separate value", args: []string{"pgbouncer", "-u", "postgres", "/etc/pgbouncer/pgbouncer.ini"}, wantPath: "/etc/pgbouncer/pgbouncer.ini", wantOK: true},
+		{name: "long user flag with inline value", args: []string{"pgbouncer", "--user=postgres", "/etc/pgbouncer/pgbouncer.ini"}, wantPath: "/etc/pgbouncer/pgbouncer.ini", wantOK: true},
+		{name: "shell wrapper", args: []string{"/bin/sh", "-c", "pgbouncer /etc/pgbouncer/pgbouncer.ini"}, wantPath: "/etc/pgbouncer/pgbouncer.ini", wantOK: true},
+		{name: "bitnami config path", args: []string{"pgbouncer", "/opt/bitnami/pgbouncer/conf/pgbouncer.ini"}, wantPath: "/opt/bitnami/pgbouncer/conf/pgbouncer.ini", wantOK: true},
+		{name: "no config file", args: []string{"pgbouncer"}},
+		{name: "version flag only", args: []string{"pgbouncer", "--version"}},
+		{name: "unrecognized flag is not guessed at", args: []string{"pgbouncer", "--unknown-flag", "/etc/pgbouncer/pgbouncer.ini"}},
+		{name: "non pgbouncer command", args: []string{"redis-server", "/etc/redis/redis.conf"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, ok := pgbouncerGetConfigArgFromCommandline(tt.args)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.wantPath, path)
+		})
+	}
+}
+
+func TestPgbouncerFallbackConfigArg(t *testing.T) {
+	assert.Equal(t, "/opt/bitnami/pgbouncer/conf/pgbouncer.ini", pgbouncerFallbackConfigArg([]configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "PGBOUNCER_CONF_DIR", Value: "/opt/bitnami/pgbouncer/conf"},
+	}))
+	assert.Equal(t, "/custom/pgbouncer.ini", pgbouncerFallbackConfigArg([]configfilesdiscoveryimpl.ConfigEnvVar{
+		{Name: "PGBOUNCER_CONF_DIR", Value: "/opt/bitnami/pgbouncer/conf"},
+		{Name: "PGBOUNCER_CONF_FILE", Value: "/custom/pgbouncer.ini"},
+	}))
+	assert.Equal(t, "", pgbouncerFallbackConfigArg(nil))
+}
+
+func TestPgbouncerCollectorReadsConfigFromExplicitCommandline(t *testing.T) {
+	const configPath = "/etc/pgbouncer/pgbouncer.ini"
+	reader := &pgbouncerCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"pgbouncer", configPath},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			configPath: {Path: configPath, Content: []byte("[databases]\nverifydb = host=postgres port=5432 auth_user=verifydb\n[pgbouncer]\npool_mode = transaction\n")},
+		},
+		env: map[string]string{"POOL_MODE": "transaction"},
+	}
+
+	collected, err := NewPgbouncer().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{configPath}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
+		Path:          configPath,
+		Content:       []byte("[databases]\nverifydb = host=postgres port=5432 auth_user=verifydb\n[pgbouncer]\npool_mode = transaction\n"),
+		PayloadFormat: pgbouncerConfigPayloadFormat,
+	}, collected.ConfigFiles[0])
+	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "POOL_MODE", Value: "transaction"}}, collected.EnvVars)
+}
+
+func TestPgbouncerCollectorSkipsDefaultsWhenCommandlineHasNoConfigFile(t *testing.T) {
+	reader := &pgbouncerCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{Args: []string{"pgbouncer"}},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/etc/pgbouncer/pgbouncer.ini": {Path: "/etc/pgbouncer/pgbouncer.ini", Content: []byte("pool_mode = transaction\n")},
+		},
+	}
+
+	collected, err := NewPgbouncer().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, reader.readFileCalls)
+	assert.Empty(t, collected.ConfigFiles)
+	assert.Empty(t, collected.EnvVars)
+}
+
+func TestPgbouncerCollectorReadsDefaultConfigWhenCommandlineIsOpaque(t *testing.T) {
+	reader := &pgbouncerCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/entrypoint.sh"},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/etc/pgbouncer/pgbouncer.ini": {Path: "/etc/pgbouncer/pgbouncer.ini", Content: []byte("pool_mode = transaction\n")},
+		},
+	}
+
+	collected, err := NewPgbouncer().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, pgbouncerDefaultConfigPaths, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, configfilesdiscoveryimpl.ConfigFile{
+		Path:          "/etc/pgbouncer/pgbouncer.ini",
+		Content:       []byte("pool_mode = transaction\n"),
+		PayloadFormat: pgbouncerConfigPayloadFormat,
+	}, collected.ConfigFiles[0])
+}
+
+func TestPgbouncerCollectorSkipsDefaultsWhenBothPathsExist(t *testing.T) {
+	reader := &pgbouncerCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/entrypoint.sh"},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			"/etc/pgbouncer/pgbouncer.ini":              {Path: "/etc/pgbouncer/pgbouncer.ini"},
+			"/opt/bitnami/pgbouncer/conf/pgbouncer.ini": {Path: "/opt/bitnami/pgbouncer/conf/pgbouncer.ini"},
+		},
+	}
+
+	collected, err := NewPgbouncer().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Empty(t, collected.ConfigFiles)
+}
+
+func TestPgbouncerCollectorUsesBitnamiConfDirFallback(t *testing.T) {
+	const configPath = "/opt/bitnami/pgbouncer/conf/pgbouncer.ini"
+	reader := &pgbouncerCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/opt/bitnami/scripts/pgbouncer/run.sh"},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			configPath: {Path: configPath, Content: []byte("pool_mode = transaction\n")},
+		},
+		env: map[string]string{"PGBOUNCER_CONF_DIR": "/opt/bitnami/pgbouncer/conf"},
+	}
+
+	collected, err := NewPgbouncer().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{configPath}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, configPath, collected.ConfigFiles[0].Path)
+}
+
+func TestPgbouncerCollectorUsesBitnamiConfFileFallback(t *testing.T) {
+	const configPath = "/custom/pgbouncer.ini"
+	reader := &pgbouncerCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"/opt/bitnami/scripts/pgbouncer/run.sh"},
+		},
+		files: map[string]configfilesdiscoveryimpl.ConfigFile{
+			configPath: {Path: configPath, Content: []byte("pool_mode = transaction\n")},
+		},
+		env: map[string]string{
+			"PGBOUNCER_CONF_DIR":  "/opt/bitnami/pgbouncer/conf",
+			"PGBOUNCER_CONF_FILE": configPath,
+		},
+	}
+
+	collected, err := NewPgbouncer().Collect(context.Background(), reader)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{configPath}, reader.readFileCalls)
+	require.Len(t, collected.ConfigFiles, 1)
+	assert.Equal(t, configPath, collected.ConfigFiles[0].Path)
+}
+
+func TestPgbouncerCollectorNeverReadsUserlistOrAuthFiles(t *testing.T) {
+	for _, p := range pgbouncerDefaultConfigPaths {
+		assert.NotContains(t, p, "userlist")
+	}
+}
+
+func TestPgbouncerCollectorReturnsReadFileErrors(t *testing.T) {
+	expectedErr := errors.New("read failed")
+	reader := &pgbouncerCollectorTestReader{
+		commandline: configfilesdiscoveryimpl.TargetCommandline{
+			Args: []string{"pgbouncer", "/etc/pgbouncer/pgbouncer.ini"},
+		},
+		readFileErr: expectedErr,
+	}
+
+	collected, err := NewPgbouncer().Collect(context.Background(), reader)
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
+}
+
 type pgbouncerCollectorTestReader struct {
-	env            map[string]string
-	readEnvVarsErr error
+	env                     map[string]string
+	readEnvVarsErr          error
+	commandline             configfilesdiscoveryimpl.TargetCommandline
+	commandlineErr          error
+	liveProcessCommandlines []configfilesdiscoveryimpl.TargetCommandline
+	files                   map[string]configfilesdiscoveryimpl.ConfigFile
+	readFileCalls           []string
+	readFileErr             error
 }
 
 func (r *pgbouncerCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeType {
@@ -97,8 +290,16 @@ func (r *pgbouncerCollectorTestReader) Runtime() configfilesdiscoveryimpl.Runtim
 
 func (r *pgbouncerCollectorTestReader) Close() {}
 
-func (r *pgbouncerCollectorTestReader) ReadFile(context.Context, configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
-	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not implemented")
+func (r *pgbouncerCollectorTestReader) ReadFile(_ context.Context, filePath configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
+	path := filePath.String()
+	r.readFileCalls = append(r.readFileCalls, path)
+	if r.readFileErr != nil {
+		return configfilesdiscoveryimpl.ConfigFile{}, r.readFileErr
+	}
+	if file, found := r.files[path]; found {
+		return file, nil
+	}
+	return configfilesdiscoveryimpl.ConfigFile{}, errors.New("not found")
 }
 
 // ReadMatchingFiles is not implemented by this test reader.
@@ -120,9 +321,12 @@ func (r *pgbouncerCollectorTestReader) ReadEnvVars(_ context.Context, predicate 
 }
 
 func (r *pgbouncerCollectorTestReader) ReadRuntimeCommandline(context.Context) (configfilesdiscoveryimpl.TargetCommandline, error) {
-	return configfilesdiscoveryimpl.TargetCommandline{}, errors.New("not implemented")
+	if r.commandlineErr != nil {
+		return configfilesdiscoveryimpl.TargetCommandline{}, r.commandlineErr
+	}
+	return r.commandline, nil
 }
 
 func (r *pgbouncerCollectorTestReader) ReadLiveProcessCommandlines(context.Context) []configfilesdiscoveryimpl.TargetCommandline {
-	return nil
+	return r.liveProcessCommandlines
 }
