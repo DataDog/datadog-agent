@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,21 +28,46 @@ func (client *Client) newRequest(method, uri string, body io.Reader, useSessionA
 	return http.NewRequestWithContext(context.Background(), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
 }
 
+// requestTarget renders the request target for logging: the path plus the query string
+// when there is one. Only the URL is rendered, never headers or the request body, so
+// that credentials sent by the authentication calls are not written to the log.
+func requestTarget(req *http.Request) string {
+	if req.URL.RawQuery == "" {
+		return req.URL.Path
+	}
+	return req.URL.Path + "?" + req.URL.RawQuery
+}
+
+// executeRequest performs an HTTP request and logs it at debug level. Every Versa API call
+// the Agent makes goes through here, so enabling debug logs yields one line per call with
+// the method, path, query parameters, response code, and how long it took.
+func (client *Client) executeRequest(req *http.Request) (*http.Response, error) {
+	start := timeNow()
+	resp, err := client.httpClient.Do(req)
+	elapsed := timeNow().Sub(start).Round(time.Millisecond)
+
+	if err != nil {
+		log.Debugf("Versa API call %s %s failed after %s: %v", req.Method, requestTarget(req), elapsed, err)
+		return nil, err
+	}
+
+	log.Debugf("Versa API call %s %s responded %d in %s", req.Method, requestTarget(req), resp.StatusCode, elapsed)
+	return resp, nil
+}
+
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // do exec a request with authentication
 func (client *Client) do(req *http.Request) ([]byte, int, error) {
-	log.Tracef("Executing Versa api request %s %s", req.Method, req.URL.Path)
-	resp, err := client.httpClient.Do(req)
+	resp, err := client.executeRequest(req)
 	if err != nil {
 		return nil, 0, err
 	}
-	log.Tracef("Executed Versa api request %d %s %s", resp.StatusCode, req.Method, req.URL.Path)
 
 	defer resp.Body.Close()
 
 	// TODO: should we bring this back with OAuth?
 	if !isAuthenticated(resp.Header) {
-		log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
+		log.Debugf("Versa API call %s %s returned an HTML response, treating it as unauthenticated", req.Method, requestTarget(req))
 		// clear auth to trigger re-authentication
 		client.clearAuth()
 		// Return 401 on auth errors
