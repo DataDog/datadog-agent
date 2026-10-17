@@ -4429,8 +4429,8 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 		event.LoadModule.File.FileFields.Inode = fileStats.Ino
 		event.LoadModule.File.FileFields.UID = fileStats.Uid
 		event.LoadModule.File.FileFields.GID = fileStats.Gid
-		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).UnixNano())
+		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).UnixNano())
 		event.LoadModule.File.Mode = fileStats.Mode
 		event.LoadModule.File.Inode = fileStats.Ino
 		event.LoadModule.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
