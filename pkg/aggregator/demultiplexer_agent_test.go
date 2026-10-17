@@ -27,6 +27,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
@@ -219,7 +220,7 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := fxutil.Test[TestDeps](t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwardermock.MockModule(),
+		fx.Provide(func() defaultforwarder.Component { return defaultforwardermock.New(t) }),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
@@ -758,7 +759,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 	return fxutil.Test[DemultiplexerAgentTestDeps](
 		t,
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwardermock.MockModule(),
+		fx.Provide(func() defaultforwarder.Component { return defaultforwardermock.New(t) }),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		orchestratormock.MockModule(),

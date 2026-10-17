@@ -30,6 +30,7 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatformmock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/mock"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
@@ -55,7 +56,7 @@ var testOptions = fx.Options(
 	Module(),
 	forwardermock.MockModule(),
 	demultiplexerimpl.MockModule(),
-	defaultforwardermock.MockModule(),
+	fx.Provide(func(t testing.TB) defaultforwarder.Component { return defaultforwardermock.New(t) }),
 	eventplatformmock.MockModule(),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),

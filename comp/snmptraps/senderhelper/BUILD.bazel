@@ -11,6 +11,7 @@ go_library(
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/mock",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
