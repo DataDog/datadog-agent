@@ -151,3 +151,19 @@ func BenchmarkNewFileQuerier(b *testing.B) {
 		newFileQuerier(report, backing, true)
 	}
 }
+
+// TestQueryFileMissesReplacedFile checks that the " (deleted)" name procfs gives
+// a file an upgrade replaced under a running process resolves to no package.
+func TestQueryFileMissesReplacedFile(t *testing.T) {
+	report := []sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "gzip"}, InstalledFiles: []string{"/usr/bin/gzip"}},
+	}
+	fq := newFileQuerier(report, []sbomtypes.Package{report[0].Package}, true)
+
+	if pkg := fq.queryFile("/usr/bin/gzip"); pkg == nil || pkg.Name != "gzip" {
+		t.Errorf("/usr/bin/gzip resolves to %+v, want gzip", pkg)
+	}
+	if pkg := fq.queryFile("/usr/bin/gzip (deleted)"); pkg != nil {
+		t.Errorf("the replaced gzip resolves to %+v", pkg)
+	}
+}
