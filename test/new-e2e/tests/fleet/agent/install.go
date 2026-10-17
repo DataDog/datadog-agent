@@ -179,7 +179,7 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["DD_OTELCOLLECTOR_ENABLED"] = "true"
 	}
 	if !params.stablePackages && params.stagingPackages == "" {
-		env["TESTING_KEYS_URL"] = "apttesting.datad0g.com/test-keys"
+		env["TESTING_KEYS_URL"] = "s3.amazonaws.com/apttesting.datad0g.com/test-keys"
 		env["TESTING_APT_URL"] = fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", params.pipelineID)
 		env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("stable-%s 7", a.host.RemoteHost.Architecture)
 		env["TESTING_YUM_URL"] = "s3.amazonaws.com/yumtesting.datad0g.com"

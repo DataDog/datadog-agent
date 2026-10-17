@@ -83,7 +83,12 @@ func TestDDOTInstallScript(t *testing.T) {
 			}
 
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
-			vmOpts = append(vmOpts, ec2.WithInternetAccess())
+			// CentOS 7 is EOL (base repos only on the public centos-vault mirrors) and
+			// RHEL needs the public RHUI mirrors; both are unreachable without
+			// internet access.
+			if osDesc.Flavor == e2eos.CentOS || osDesc.Flavor == e2eos.RedHat {
+				vmOpts = append(vmOpts, ec2.WithInternetAccess())
+			}
 
 			e2e.Run(tt,
 				&ddotInstallSuite{osVersion: version, osDesc: osDesc},
@@ -190,7 +195,7 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
 		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_C0962C7D.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
 		for _, key := range keys {
-			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://apttesting.datad0g.com/test-keys/%s\"", key, key)
+			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/%s\"", key, key)
 			ExecuteWithoutError(t, VMclient, "sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
 		}
 	})
@@ -245,10 +250,10 @@ func (is *ddotInstallSuite) ddotRhelTest(VMclient *common.TestClient) {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=%s\n"+
-		"gpgkey=https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"\thttps://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"\thttps://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"\thttps://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public",
+		"gpgkey=https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"\thttps://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"\thttps://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"\thttps://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public",
 		yumrepo, repogpgcheck)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
@@ -298,21 +303,21 @@ func (is *ddotInstallSuite) ddotSuseTest(VMclient *common.TestClient) {
 		"enabled=1\n"+
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=1\n"+
-		"gpgkey=https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"	    https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public\n"+
-		"	    https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"	    https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public\n",
+		"gpgkey=https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public\n"+
+		"	    https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public\n"+
+		"	    https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"	    https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public\n",
 		suseRepo)
 	_, err = fileManager.WriteFile("/etc/zypp/repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_CURRENT.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_CURRENT.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_B01082D3.public https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_B01082D3.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_B01082D3.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_FD4BF915.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_FD4BF915.public")
-	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public")
+	ExecuteWithoutError(nil, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://s3.amazonaws.com/apttesting.datad0g.com/test-keys/DATADOG_RPM_KEY_E09422B3.public")
 	ExecuteWithoutError(nil, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 
 	is.T().Run("install ddot", func(t *testing.T) {
