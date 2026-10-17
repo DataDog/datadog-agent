@@ -1067,6 +1067,95 @@ func TestResolveOpenCountsCodeFiles(t *testing.T) {
 	}
 }
 
+// TestReadsCode checks which processes read code without running it: the
+// indexers, builders, scanners and inspectors of codeReaders, the children of
+// a Python byte compiler, and the dynamic loader run as a program by ldd.
+func TestReadsCode(t *testing.T) {
+	for _, tc := range []struct {
+		comm   string
+		parent string
+		want   bool
+	}{
+		{comm: "ldconfig", want: true},
+		{comm: "ldconfig.real", want: true},
+		{comm: "depmod", want: true},
+		{comm: "cp", want: true},
+		{comm: "systemd-coredum", want: true},
+		{comm: "ld-linux-x86-64", want: true},
+		{comm: "ld-linux-aarch6", want: true},
+		{comm: "py3compile", want: true},
+		{comm: "python3.12", parent: "py3compile", want: true},
+		{comm: "python3.12", parent: "bash"},
+		{comm: "python3.12"},
+		{comm: "modprobe"},
+		{comm: "rpm"},
+		{comm: "sshd"},
+	} {
+		pc := &model.ProcessContext{}
+		pc.Comm = tc.comm
+		if tc.parent != "" {
+			pc.Parent = &model.Process{Comm: tc.parent}
+		}
+		if got := readsCode(pc); got != tc.want {
+			t.Errorf("readsCode(%q, parent %q) = %v, want %v", tc.comm, tc.parent, got, tc.want)
+		}
+	}
+}
+
+// TestResolveOpenLeavesReadsOfCode checks that the open of a shared library by a
+// process that reads code without running it leaves the usage of its package
+// as it is, on the host as in a container, while another process opening it
+// records usage.
+func TestResolveOpenLeavesReadsOfCode(t *testing.T) {
+	const lib = "/usr/lib/x86_64-linux-gnu/libc.so.6"
+	report := []sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "libc6", Version: "2.39"}, InstalledFiles: []string{lib}},
+	}
+	for _, tc := range []struct {
+		name      string
+		comm      string
+		container bool
+		records   bool
+	}{
+		{name: "ldconfig on the host", comm: "ldconfig"},
+		{name: "ldconfig in a container", comm: "ldconfig", container: true},
+		{name: "sshd on the host", comm: "sshd", records: true},
+		{name: "sshd in a container", comm: "sshd", container: true, records: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.hostSBOM.setReport(report)
+			sbom := r.hostSBOM
+
+			pc, _ := hostAccess()
+			pc.Comm = tc.comm
+			if tc.container {
+				sbom = NewSBOM("container-id", nil, "image:tag")
+				sbom.setReport(report)
+				sbom.state.Store(computedState)
+				t.Cleanup(sbom.stop)
+				sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+				if err != nil {
+					t.Fatalf("NewLRU: %v", err)
+				}
+				sboms.Add(sbom.ContainerID, sbom)
+				r.sboms = sboms
+				pc.ContainerContext.ContainerID = sbom.ContainerID
+			}
+
+			file := &model.FileEvent{}
+			file.SetPathnameStr(lib)
+			file.Mode = syscall.S_IFREG | 0644
+			r.ResolveOpen(pc, file)
+			r.recordSettled(time.Now().Add(settleDelay))
+
+			if got := !sbom.data.packages[0].LastAccess.IsZero(); got != tc.records {
+				t.Errorf("usage of libc6 recorded = %v, want %v", got, tc.records)
+			}
+		})
+	}
+}
+
 // removeFile deletes the file at path, as rpm deletes an executable it removes.
 func removeFile(t *testing.T, path string) {
 	t.Helper()
