@@ -40,6 +40,8 @@ dd_agent_go_test(
     deps = [
         "//comp/core/workloadmeta/collectors/sbomutil",
         "//comp/core/workloadmeta/def",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/proto/pbgo/sbom",
         "//pkg/sbom",
         "//pkg/util/pointer",
