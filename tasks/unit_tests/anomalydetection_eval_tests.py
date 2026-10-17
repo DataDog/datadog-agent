@@ -129,7 +129,6 @@ class TestPipelineResume(unittest.TestCase):
             scenarios="scenario-a",
             lock="",
             eval_backend="local",
-            ddeval_options=None,
         )
 
     def _write_report(self, output_dir, **overrides):
