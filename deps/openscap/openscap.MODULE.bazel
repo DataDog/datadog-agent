@@ -24,6 +24,7 @@ http_archive(
         "//deps:openscap/patches/dpkginfo-virtual-packages-revert.patch",
         "//deps:openscap/patches/sce-noexec-interpreter.patch",
         "//deps:openscap/patches/sce-probe-root.patch",
+        "//deps:openscap/patches/probe-root-paths.patch",
     ],
     sha256 = "96ebe697aafc83eb297a8f29596d57319278112467c46e6aaf3649b311cf8fba",
     strip_prefix = "openscap-{}".format(VERSION),
