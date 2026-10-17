@@ -1,0 +1,10 @@
+[ODBC Drivers]
+FreeTDS=Installed
+
+[FreeTDS]
+Driver={install_dir}/embedded/lib/libtdsodbc.so
+
+[ODBC Driver 18 for SQL Server]
+Description=Microsoft ODBC Driver 18 for SQL Server
+Driver={install_dir}/embedded/msodbcsql/lib64/{so_filename}
+UsageCount=1
