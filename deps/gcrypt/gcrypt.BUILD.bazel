@@ -771,9 +771,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "gcrypt_pkg",
+    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":gcrypt",
-    installed_files = [":hdr_files"],
     version = "20.7.2",
     visibility = ["//visibility:public"],
 )

@@ -98,9 +98,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "popt_pkg",
+    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":popt",
-    installed_files = [":hdr_files"],
     version = "0.0.2",
     visibility = ["//visibility:public"],
 )

@@ -143,9 +143,9 @@ def _test_so_collected_impl(env, target):
         matching.file_path_matches("*patched/*"),
     )
 
-# Test 3: dd_cc_packaged with installed_files → both the patched .so and the
+# Test 3: dd_cc_packaged with pkg_files in data → both the patched .so and the
 # extra installed files (headers) appear in the output.
-def _test_installed_files_collected(name):
+def _test_data_files_collected(name):
     util.helper_target(
         cc_library,
         name = name + "_lib",
@@ -165,7 +165,7 @@ def _test_installed_files_collected(name):
     dd_cc_packaged(
         name = name + "_packaged",
         input = ":" + name + "_so",
-        installed_files = [":" + name + "_hdrs"],
+        data = [":" + name + "_hdrs"],
     )
     util.helper_target(
         dd_collect_dependencies,
@@ -174,11 +174,11 @@ def _test_installed_files_collected(name):
     )
     analysis_test(
         name = name,
-        impl = _test_installed_files_collected_impl,
+        impl = _test_data_files_collected_impl,
         target = name + "_subject",
     )
 
-def _test_installed_files_collected_impl(env, target):
+def _test_data_files_collected_impl(env, target):
     outputs = _outputs_of(env, target)
     outputs.contains_predicate(matching.file_path_matches("*patched/*"))
     outputs.contains_predicate(matching.file_basename_contains("empty.h"))
@@ -187,7 +187,7 @@ def _test_installed_files_collected_impl(env, target):
 #
 # outer_so --[dynamic_deps]--> inner_so
 #
-# inner_so carries a header in its installed_files.  Collecting from outer_so
+# inner_so carries a header in its data.  Collecting from outer_so
 # must surface that header even though outer_so does not directly reference it.
 def _test_transitive_collected(name):
     util.helper_target(
@@ -209,7 +209,7 @@ def _test_transitive_collected(name):
     dd_cc_packaged(
         name = name + "_inner_packaged",
         input = ":" + name + "_inner_so",
-        installed_files = [":" + name + "_inner_hdrs"],
+        data = [":" + name + "_inner_hdrs"],
     )
     util.helper_target(
         cc_library,
@@ -413,7 +413,7 @@ def _test_diamond_no_duplicates(name):
     dd_cc_packaged(
         name = name + "_shared_packaged",
         input = ":" + name + "_shared_so",
-        installed_files = [":" + name + "_shared_hdrs"],
+        data = [":" + name + "_shared_hdrs"],
     )
 
     util.helper_target(
@@ -547,7 +547,7 @@ def _test_cc_import_reaches_packaged(name):
     dd_cc_packaged(
         name = name + "_packaged",
         input = ":" + name + "_so",
-        installed_files = [":" + name + "_hdrs"],
+        data = [":" + name + "_hdrs"],
     )
     util.helper_target(
         cc_import,
@@ -594,7 +594,7 @@ def _test_go_chain_reaches_packaged(name):
     dd_cc_packaged(
         name = name + "_packaged",
         input = ":" + name + "_so",
-        installed_files = [":" + name + "_hdrs"],
+        data = [":" + name + "_hdrs"],
     )
     util.helper_target(
         cc_import,
@@ -663,7 +663,7 @@ def _test_data_reaches_packaged(name):
     dd_cc_packaged(
         name = name + "_packaged",
         input = ":" + name + "_so",
-        installed_files = [":" + name + "_hdrs"],
+        data = [":" + name + "_hdrs"],
     )
     util.helper_target(
         cc_library,
@@ -684,6 +684,91 @@ def _test_data_reaches_packaged(name):
 def _test_data_reaches_packaged_impl(env, target):
     _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
 
+# Test 14: dd_cc_packaged's data attr reaches another dd_cc_packaged target the
+# input doesn't link against.
+def _test_packaged_data_collected(name):
+    util.helper_target(
+        cc_library,
+        name = name + "_plugin_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_plugin_so",
+        deps = [":" + name + "_plugin_lib"],
+    )
+    util.helper_target(
+        pkg_files,
+        name = name + "_plugin_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_plugin_packaged",
+        input = ":" + name + "_plugin_so",
+        data = [":" + name + "_plugin_hdrs"],
+    )
+    util.helper_target(
+        cc_library,
+        name = name + "_host_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_host_so",
+        deps = [":" + name + "_host_lib"],
+    )
+    dd_cc_packaged(
+        name = name + "_host_packaged",
+        input = ":" + name + "_host_so",
+        data = [":" + name + "_plugin_packaged"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_host_packaged"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_packaged_data_collected_impl,
+        target = name + "_subject",
+    )
+
+def _test_packaged_data_collected_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
+# Test 15: an executable dd_cc_packaged input is installed with mode 0755.
+def _test_executable_mode(name):
+    util.helper_target(
+        cc_binary,
+        name = name + "_bin",
+        srcs = ["testdata/main.c"],
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        dest_dir = "embedded/bin",
+        executable = True,
+        input = ":" + name + "_bin",
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_packaged"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_executable_mode_impl,
+        target = name + "_subject",
+    )
+
+def _test_executable_mode_impl(env, target):
+    modes = {
+        dest: files.attributes.get("mode")
+        for files, _ in target[PackageFilegroupInfo].pkg_files
+        for dest in files.dest_src_map
+    }
+    env.expect.that_dict(modes).contains_at_least({"embedded/bin/test_executable_mode_bin": "0755"})
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -692,7 +777,7 @@ def dd_packaging_test_suite(name):
         tests = [
             _test_no_packaging_info,
             _test_so_collected,
-            _test_installed_files_collected,
+            _test_data_files_collected,
             _test_transitive_collected,
             _test_packaged_default_outputs_are_unpatched,
             _test_packaged_forwards_unpatched_so,
@@ -703,5 +788,7 @@ def dd_packaging_test_suite(name):
             _test_cc_import_reaches_packaged,
             _test_go_chain_reaches_packaged,
             _test_data_reaches_packaged,
+            _test_packaged_data_collected,
+            _test_executable_mode,
         ],
     )
