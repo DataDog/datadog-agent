@@ -1,0 +1,5 @@
+fixes:
+  - |
+    APM: The Trace Agent's ``/v0.7/config`` endpoint now rejects requests unless
+    ``client.is_tracer`` is ``true``, preventing non-tracer clients from using
+    the tracer remote configuration endpoint.
