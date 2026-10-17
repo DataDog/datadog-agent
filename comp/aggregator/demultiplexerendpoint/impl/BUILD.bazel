@@ -20,7 +20,9 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["endpoint_test.go"],
+    srcs = [
+        "endpoint_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//pkg/zstd",
