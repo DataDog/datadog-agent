@@ -10,17 +10,28 @@
 package ssi
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"testing"
 	"time"
 
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	coreapi "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1api "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	kubeClient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
@@ -55,6 +66,9 @@ var registryAllowListHelmValues string
 //go:embed testdata/rc_policies.yaml
 var rcPoliciesHelmValues string
 
+//go:embed testdata/ddi.yaml
+var ddiHelmValues string
+
 //go:embed testdata/rc_host_linux_only_policy.json
 var rcHostLinuxOnlyPolicyJSON []byte
 
@@ -87,7 +101,17 @@ const (
 	rcNamespaceOtherPolicyName        = "namespace other: matches admission namespace fact"
 	rcDenyTargetedNamespacePolicyName = "deny SSI in targeted-namespace (overrides helm target)"
 	rcLastWinsOtherDenyPolicyName     = "deny SSI in namespace other (last TRUE wins)"
+	ddiNamespace                      = "ddi-ssi"
+	ddiApp                            = "ddi-python"
+	ddiAPMName                        = "ssi-python"
+	ddiAPMService                     = "ddi-backed-ssi"
 )
+
+var ddiAPMGVR = schema.GroupVersionResource{
+	Group:    "datadoghq.com",
+	Version:  "v1alpha1",
+	Resource: "datadoginstrumentations",
+}
 
 // ssiSuite runs all SSI test groups on a single cluster, calling UpdateEnv at the start of
 // each group to update the env (workloads, helm values).
@@ -573,11 +597,119 @@ func (v *ssiSuite) TestRegistryAllowList() {
 	})
 }
 
+func (v *ssiSuite) TestDatadogInstrumentation() {
+	v.UpdateEnv(Provisioner(ProvisionerOptions{
+		AgentOptions: []kubernetesagentparams.Option{
+			kubernetesagentparams.WithHelmValues(ddiHelmValues),
+			kubernetesagentparams.WithTimeout(600),
+		},
+		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
+			return singlestep.Scenario(e, kubeProvider, "ddi-ssi", []singlestep.Namespace{
+				{
+					Name: ddiNamespace,
+					Apps: []singlestep.App{
+						{
+							Name:    ddiApp,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+						},
+					},
+				},
+			}, dependsOnAgent)
+		},
+	}))
+	fi := v.Env().FakeIntake.Client()
+
+	k8s := v.Env().KubernetesCluster.Client()
+	WaitForAdmissionWebhookReady(v.T(), k8s)
+	baseline := RestartUntil(v.T(), k8s, ddiNamespace, ddiApp, noInjection(ddiApp))
+	testutils.NewPodValidator(baseline, testutils.InjectionModeAuto).RequireNoInjection(v.T())
+
+	dynamicClient, err := dynamic.NewForConfig(v.Env().KubernetesCluster.KubernetesClient.K8sConfig)
+	require.NoError(v.T(), err)
+	resourceClient := dynamicClient.Resource(ddiAPMGVR).Namespace(ddiNamespace)
+	ctx := context.Background()
+
+	ddi := &datadoghq.DatadogInstrumentation{
+		TypeMeta: metav1api.TypeMeta{
+			APIVersion: datadoghq.GroupVersion.String(),
+			Kind:       "DatadogInstrumentation",
+		},
+		ObjectMeta: metav1api.ObjectMeta{
+			Name:      ddiAPMName,
+			Namespace: ddiNamespace,
+		},
+		Spec: datadoghq.DatadogInstrumentationSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       ddiApp,
+			},
+			Config: datadoghq.DatadogInstrumentationConfig{
+				APM: &datadoghq.DatadogInstrumentationAPMConfig{
+					Enabled:        true,
+					TracerVersions: map[string]string{"python": "v3.18.1"},
+					TracerConfigs:  []coreapi.EnvVar{{Name: "DD_SERVICE", Value: ddiAPMService}},
+				},
+			},
+		},
+	}
+	object, err := runtime.DefaultUnstructuredConverter.ToUnstructured(ddi)
+	require.NoError(v.T(), err)
+	created, err := resourceClient.Create(ctx, &unstructured.Unstructured{Object: object}, metav1api.CreateOptions{})
+	require.NoError(v.T(), err)
+	defer func() {
+		err := resourceClient.Delete(ctx, ddiAPMName, metav1api.DeleteOptions{})
+		require.True(v.T(), err == nil || apierrors.IsNotFound(err), "delete DDI: %v", err)
+		pod := RestartUntil(v.T(), k8s, ddiNamespace, ddiApp, noInjection(ddiApp))
+		testutils.NewPodValidator(pod, testutils.InjectionModeAuto).RequireNoInjection(v.T())
+	}()
+
+	// Older chart CRDs silently prune spec.config.apm instead of rejecting the resource.
+	apm, found, err := unstructured.NestedMap(created.Object, "spec", "config", "apm")
+	require.NoError(v.T(), err)
+	require.True(v.T(), found, "Helm chart CRD stripped spec.config.apm")
+	require.Equal(v.T(), true, apm["enabled"])
+
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		resource, err := resourceClient.Get(ctx, ddiAPMName, metav1api.GetOptions{})
+		require.NoError(c, err)
+		conditions, found, err := unstructured.NestedSlice(resource.Object, "status", "conditions")
+		require.NoError(c, err)
+		if !assert.True(c, found, "DDI has no status conditions") {
+			return
+		}
+		ready := false
+		for _, raw := range conditions {
+			condition, ok := raw.(map[string]interface{})
+			if !ok || condition["type"] != "APMReady" || condition["status"] != "True" {
+				continue
+			}
+			generation, found, err := unstructured.NestedInt64(condition, "observedGeneration")
+			if err == nil && found && generation == created.GetGeneration() {
+				ready = true
+			}
+		}
+		assert.True(c, ready, "APMReady is not True for generation %d: %v", created.GetGeneration(), conditions)
+	}, 3*time.Minute, 5*time.Second)
+
+	pod := RestartUntil(v.T(), k8s, ddiNamespace, ddiApp, hasInstallType(ddiApp, "k8s_single_step"))
+	validator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+	validator.RequireInjection(v.T(), []string{ddiApp})
+	validator.RequireInstallType(v.T(), "k8s_single_step", []string{ddiApp})
+	validator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
+	validator.RequireEnvs(v.T(), map[string]string{"DD_SERVICE": ddiAPMService, "DD_TRACE_ENABLED": "true"}, []string{ddiApp})
+	validator.RequireAppliedTargetName(v.T(), "datadoginstrumentation:"+ddiNamespace+"/"+ddiAPMName)
+	validator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedPolicyAnnotation})
+	require.Eventually(v.T(), func() bool {
+		return FindTracesForService(v.T(), fi, ddiAPMService) != 0
+	}, time.Minute, 10*time.Second, "did not find traces for DDI-configured service %s", ddiAPMService)
+}
+
 func (v *ssiSuite) TestRemoteConfig() {
 	// rc_policies.yaml: helm SSI target (namespace injection=yes, pod language=python) plus two
 	// workloads in namespace "other", outside that target: annotated lib-injection and unannotated.
-	// RC uptake is asserted by pod mutation. RestartUntil re-admits until the
-	// expected outcome appears so we do not race the cluster-agent RC client.
 	agentOptions := []kubernetesagentparams.Option{
 		kubernetesagentparams.WithHelmValues(rcPoliciesHelmValues),
 		kubernetesagentparams.WithTimeout(600),
@@ -633,6 +765,8 @@ func (v *ssiSuite) TestRemoteConfig() {
 	v.UpdateEnv(Provisioner(provisionerOpts))
 
 	fi := v.Env().FakeIntake.Client()
+	// RestartUntil re-admits pods until the expected outcome appears so we do not race
+	// the cluster-agent RC client.
 
 	// Host-only RC cannot match K8s admission facts. A matching policy is published first so
 	// the annotated pod leaves the helm baseline; replacing that same RC document with the
