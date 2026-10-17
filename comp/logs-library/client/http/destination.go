@@ -64,6 +64,66 @@ var (
 	expVarInUseMsMapKey = "inUseMs"
 )
 
+// delegatedAuthMaxWait bounds how long a destination holds payloads waiting for a
+// delegated-auth key. Past it, payloads drop until a key arrives: the directive may never
+// resolve in this process. A var (not a const) so tests can shorten it.
+var delegatedAuthMaxWait = 5 * time.Minute
+
+// startDelegatedAuthWait records when the destination first held a payload for a
+// delegated-auth key, and clears any send backoff left over from a previous retry
+// episode so the credential recheck cadence is credentialWaitInterval, not the send
+// backoff (retryLock must not be held by the caller).
+func (d *Destination) startDelegatedAuthWait() {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
+	if d.pendingDelegatedAuthSince.IsZero() {
+		d.pendingDelegatedAuthSince = time.Now()
+	}
+	d.nbErrors = 0
+}
+
+// stopRetryingForDelegatedAuthDrop ends the retry episode on the delegated-auth timeout
+// drop so the worker resumes feeding this destination — otherwise a stuck retrying
+// state would keep rejecting it and a key that arrives later could never be sent.
+// The pending latch is deliberately kept, so later payloads still drop immediately
+// (retryLock must not be held by the caller).
+func (d *Destination) stopRetryingForDelegatedAuthDrop(isRetrying chan bool) {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
+	if isRetrying != nil && d.lastRetryError != nil {
+		isRetrying <- false
+	}
+	d.lastRetryError = nil
+}
+
+// delegatedAuthWaitExceeded reports whether the destination has been waiting for a
+// delegated-auth key longer than delegatedAuthMaxWait (retryLock must not be held).
+func (d *Destination) delegatedAuthWaitExceeded() bool {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
+	return !d.pendingDelegatedAuthSince.IsZero() && time.Since(d.pendingDelegatedAuthSince) > delegatedAuthMaxWait
+}
+
+// noteDelegatedAuthTimeout logs the first drop of a delegated-auth wait that exceeded the
+// bound (retryLock must not be held by the caller).
+func (d *Destination) noteDelegatedAuthTimeout() {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
+	if !d.pendingDelegatedAuthTimeoutSeen {
+		d.pendingDelegatedAuthTimeoutSeen = true
+		log.Warnf("%s: no delegated-auth API key within %s; dropping logs for this destination until the key arrives", d.url, delegatedAuthMaxWait)
+	}
+}
+
+// clearDelegatedAuthWait resets the pending-hold state; called when a key arrives or a
+// send stops retrying (retryLock must not be held by the caller).
+func (d *Destination) clearDelegatedAuthWait() {
+	d.retryLock.Lock()
+	defer d.retryLock.Unlock()
+	d.pendingDelegatedAuthSince = time.Time{}
+	d.pendingDelegatedAuthTimeoutSeen = false
+}
+
 // credentialWaitInterval is how often a reliable destination rechecks for a delegated-auth
 // credential while it holds a payload. Waiting for a key isn't a send failure, so it doesn't grow
 // the backoff. A var so tests can shorten it.
@@ -100,6 +160,13 @@ type Destination struct {
 	retryLock      sync.Mutex
 	shouldRetry    bool
 	lastRetryError error
+
+	// Delegated-auth pending hold (guarded by retryLock, like lastRetryError).
+	// pendingDelegatedAuthSince records when the destination first held a payload
+	// waiting for a delegated-auth key; once the wait exceeds delegatedAuthMaxWait,
+	// payloads drop until a key does arrive.
+	pendingDelegatedAuthSince       time.Time
+	pendingDelegatedAuthTimeoutSeen bool
 
 	// Secrets
 	secrets secrets.Component
@@ -172,6 +239,7 @@ func newDestination(endpoint config.Endpoint,
 	}
 
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
+	metrics.DestinationDelegatedAuthDropped.Set(endpoint.Host, &expvar.Int{})
 
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
 
@@ -302,15 +370,39 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			// so other reliable destinations keep sending.
 			started := d.markWaitingForCredential(err, isRetrying)
 			if d.endpoint.AwaitsDelegatedAuthKey() {
-				// A key is on its way: queue the payload and recheck.
+				// Start the clock on every awaited wait, not just retry-episode starts:
+				// a credential can turn pending mid-retry-episode (runtime config update
+				// re-marking the entry, or a racing write reverting it to the directive).
+				d.startDelegatedAuthWait()
 				if started {
 					log.Infof("%s: queuing logs until delegated auth provides an API key", d.url)
 				}
+				if d.delegatedAuthWaitExceeded() {
+					// The key may have landed since AwaitsDelegatedAuthKey checked: send it
+					// rather than drop a payload whose credential is ready.
+					if _, ready := d.endpoint.GetAPIKeyIfReady(); ready {
+						continue
+					}
+					// The key has not arrived within the bound: the directive cannot resolve in
+					// this process (malformed or unsupported provider, direct-send mode, config
+					// stream without a scan) or the credential fetch is persistently failing.
+					// Drop this copy without acking, with a dedicated metric so the stall is
+					// distinguishable from other drops, until a key does arrive.
+					d.noteDelegatedAuthTimeout()
+					d.stopRetryingForDelegatedAuthDrop(isRetrying)
+					metrics.DestinationLogsDropped.Add(d.host, payload.Count())
+					metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+					metrics.DestinationDelegatedAuthDropped.Add(d.host, payload.Count())
+					metrics.TlmDestinationDelegatedAuthDropped.Add(float64(payload.Count()), d.host)
+					return destinationResult{latency: latency}
+				}
+				// A key is on its way: queue the payload and recheck.
 				d.waitForBackoff(time.Now().Add(credentialWaitInterval))
 				continue
 			}
 			if _, ready := d.endpoint.GetAPIKeyIfReady(); ready {
 				// The key arrived since unconditionalSend checked: send now.
+				d.clearDelegatedAuthWait()
 				continue
 			}
 			// No key will arrive (disabled until restart, or a setting nothing writes back): drop
@@ -492,6 +584,11 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 			isRetrying <- true
 		}
 		d.lastRetryError = err
+		// A retryable send error means the credential was ready: the delegated-auth
+		// pending episode is over, so a later pending wait gets a fresh clock instead
+		// of dropping on a stale one.
+		d.pendingDelegatedAuthSince = time.Time{}
+		d.pendingDelegatedAuthTimeoutSeen = false
 
 		return true
 	}
@@ -500,6 +597,8 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 		isRetrying <- false
 	}
 	d.lastRetryError = nil
+	d.pendingDelegatedAuthSince = time.Time{}
+	d.pendingDelegatedAuthTimeoutSeen = false
 
 	return false
 }
