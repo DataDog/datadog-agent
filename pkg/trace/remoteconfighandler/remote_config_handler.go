@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 
@@ -65,7 +66,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		return nil
 	}
 
-	level, err := pkglog.GetLogLevel()
+	level, err := pkglog.GetLogLevelSpec()
 	if err != nil {
 		log.Errorf("couldn't get the default log level: %s", err)
 		return nil
@@ -79,7 +80,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		errorsSampler:   errorsSampler,
 		agentConfig:     conf,
 		configState: &state.AgentConfigState{
-			FallbackLogLevel: level.String(),
+			FallbackLogLevel: level,
 		},
 		configHTTPClient: &http.Client{
 			Transport: &http.Transport{
@@ -169,10 +170,10 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 
 	if len(mergedConfig.LogLevel) > 0 {
 		// Get the current log level
-		var newFallback pkglog.LogLevel
-		newFallback, err = pkglog.GetLogLevel()
+		var newFallback string
+		newFallback, err = pkglog.GetLogLevelSpec()
 		if err == nil {
-			h.configState.FallbackLogLevel = newFallback.String()
+			h.configState.FallbackLogLevel = newFallback
 			var resp *http.Response
 			var req *http.Request
 			req, err = h.buildLogLevelRequest(mergedConfig.LogLevel)
@@ -187,9 +188,9 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 			}
 		}
 	} else {
-		var currentLogLevel pkglog.LogLevel
-		currentLogLevel, err = pkglog.GetLogLevel()
-		if err == nil && currentLogLevel.String() == h.configState.LatestLogLevel {
+		var currentLogLevel string
+		currentLogLevel, err = pkglog.GetLogLevelSpec()
+		if err == nil && currentLogLevel == h.configState.LatestLogLevel {
 			pkglog.Infof("Removing remote-config log level override of the trace-agent, falling back to %s", h.configState.FallbackLogLevel)
 			var resp *http.Response
 			var req *http.Request
@@ -222,7 +223,7 @@ func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawCo
 }
 
 func (h *RemoteConfigHandler) buildLogLevelRequest(newLevel string) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, newLevel), nil)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf(h.configSetEndpointFormatString, url.QueryEscape(newLevel)), nil)
 	if err != nil {
 		pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", newLevel)
 		return nil, err
