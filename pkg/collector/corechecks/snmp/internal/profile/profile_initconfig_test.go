@@ -126,14 +126,19 @@ func Test_loadInitConfigProfiles_invalidDefinitionFile(t *testing.T) {
 	SetConfdPathAndCleanProfiles()
 
 	invalidFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "invalid_yaml_file.yaml"))
-	_, _, err := loadInitConfigProfiles(ProfileConfigMap{
-		"bad-profile": {
-			DefinitionFile: invalidFile,
-		},
-	})
-	require.NoError(t, err)
+	for _, profileName := range []string{"bad-profile", "f5-big-ip"} {
+		t.Run(profileName, func(t *testing.T) {
+			t.Cleanup(func() { profileExpVar.Delete(profileName) })
+			_, _, err := loadInitConfigProfiles(ProfileConfigMap{
+				profileName: {
+					DefinitionFile: invalidFile,
+				},
+			})
+			require.NoError(t, err)
 
-	expVarEntry := profileExpVar.Get("bad-profile")
-	require.NotNil(t, expVarEntry, "expected bad-profile error in snmpProfileErrors expvar")
-	assert.Contains(t, expVarEntry.String(), "parse error")
+			expVarEntry := profileExpVar.Get(profileName)
+			require.NotNil(t, expVarEntry, "expected %s error in snmpProfileErrors expvar", profileName)
+			assert.Contains(t, expVarEntry.String(), "parse error")
+		})
+	}
 }

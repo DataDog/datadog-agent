@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Clear stale SNMP profile errors from Agent status when a corrected profile
+    is successfully loaded through Remote Configuration, without requiring an
+    Agent restart.
