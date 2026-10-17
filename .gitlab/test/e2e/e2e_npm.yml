@@ -45,7 +45,7 @@ new-e2e-npm-eks-init:
   variables:
     TARGETS: ./tests/npm
     TEAM: cloud-network-monitoring
-    EXTRA_PARAMS: --run "TestEKSVMSuite"
+    EXTRA_PARAMS: --run "Test(EKSVM|EKSIstioAmbient)Suite"
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
     PRE_BUILT_BINARIES_FLAG: ""
@@ -67,7 +67,7 @@ new-e2e-npm-eks:
   variables:
     TARGETS: ./tests/npm
     TEAM: cloud-network-monitoring
-    EXTRA_PARAMS: --run "TestEKSVMSuite"
+    EXTRA_PARAMS: --run "Test(EKSVM|EKSIstioAmbient)Suite"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]

@@ -143,16 +143,20 @@ func (d *directSender) encodeContainerForPID(connsChunk []network.ConnectionStat
 			cidCount++
 		}
 	}
-	// cidCount will be an upper bound, only hit if:
-	// every connection with a ContainerID has a unique PID
+	// cidCount is an upper bound on the number of PIDs written
 	writtenPids := make(map[uint32]struct{}, cidCount)
 	for _, conn := range connsChunk {
-		if conn.ContainerID.Source != nil {
+		// the PID's own container, not the one a reattributed socket was moved to
+		cid := conn.ContainerID.Source
+		if conn.NetNSOriginalContainerID != nil {
+			cid = conn.NetNSOriginalContainerID
+		}
+		if cid != nil {
 			if _, ok := writtenPids[conn.Pid]; !ok {
 				writtenPids[conn.Pid] = struct{}{}
 				builder.AddContainerForPid(func(w *model.CollectorConnections_ContainerForPidEntryBuilder) {
 					w.SetKey(int32(conn.Pid))
-					w.SetValue(getInternedString(conn.ContainerID.Source))
+					w.SetValue(getInternedString(cid))
 				})
 			}
 		}

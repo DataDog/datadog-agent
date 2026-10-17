@@ -749,3 +749,12 @@ func TestDNSMonitoringPorts(t *testing.T) {
 		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})
 }
+
+func TestNetNSContainerAttributionDefaults(t *testing.T) {
+	mock.NewSystemProbe(t)
+	cfg := New()
+
+	assert.False(t, cfg.EnableNetNSContainerAttribution)
+	assert.Equal(t, []string{"ztunnel"}, cfg.NetNSContainerAttributionOwnerImages)
+	assert.Equal(t, []string{"vault-agent", "vault-agent-init", "cloud-sql-proxy"}, cfg.NetNSContainerAttributionIgnoredContainers)
+}
