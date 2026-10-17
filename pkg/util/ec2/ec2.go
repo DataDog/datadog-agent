@@ -23,6 +23,9 @@ var (
 	defaultPrefixes    = []string{"ip-", "domu", "ec2amaz-"}
 
 	imdsInstanceID = "/instance-id"
+
+	// TokenURL is the IMDSv2 token endpoint.
+	TokenURL = ec2internal.TokenURL
 )
 
 const (
@@ -30,6 +33,8 @@ const (
 	CloudProviderName = ec2internal.CloudProviderName
 	// DMIBoardVendor contains the DMI board vendor for EC2
 	DMIBoardVendor = ec2internal.DMIBoardVendor
+	// TokenTTLHeader requests the lifetime of an IMDSv2 token in seconds.
+	TokenTTLHeader = "X-aws-ec2-metadata-token-ttl-seconds"
 
 	ec2IMDSv2TransitionPayloadConfigFlag = "ec2_imdsv2_transition_payload_enabled"
 )
@@ -91,6 +96,11 @@ func GetHostID(ctx context.Context) string {
 		return instanceID
 	}
 	return ""
+}
+
+// IsRunningOnFromDMI detects AWS via DMI/UUID only and is safe to call when IMDS is unreachable.
+func IsRunningOnFromDMI() bool {
+	return isBoardVendorEC2() || isEC2UUID()
 }
 
 // IsRunningOn returns true if the agent is running on AWS
