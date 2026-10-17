@@ -361,7 +361,6 @@ func TestSharedDataConcurrentForwardingAndResolve(t *testing.T) {
 
 	sbomB := NewSBOM("container-b", nil, "image:tag")
 	sbomB.data = data
-	sbomB.status = workloadmeta.Success
 	sbomB.state.Store(computedState)
 
 	r := newPendingFileEventsResolver(t)
@@ -437,12 +436,9 @@ func TestForwardSkipsStoppedSBOM(t *testing.T) {
 		Package:        sbomtypes.Package{Name: "bash"},
 		InstalledFiles: []string{"/usr/bin/bash"},
 	}})
-	sbom.status = workloadmeta.Success
 	sbom.stop()
 
-	if r.forward(sbom) {
-		t.Errorf("the forward of a stopped SBOM asks for a retry")
-	}
+	r.forward(sbom)
 	if forwarded {
 		t.Errorf("a stopped SBOM was forwarded")
 	}
@@ -486,15 +482,6 @@ type failingWorkloadmeta struct {
 
 func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, error) {
 	return nil, fmt.Errorf("container %q not found", id)
-}
-
-// TestGetContainerSBOMWithoutWorkloadmeta checks that a resolver without
-// workloadmeta, as in the functional tests, reports an error for a container.
-func TestGetContainerSBOMWithoutWorkloadmeta(t *testing.T) {
-	r := &Resolver{}
-	if sbom, err := r.getContainerSBOM("container-id"); err == nil || sbom != nil {
-		t.Errorf("getContainerSBOM() = %v, %v, want an error", sbom, err)
-	}
 }
 
 // ownRoot returns the device and the inode of the root of the test process.
@@ -691,9 +678,7 @@ func TestHostForwardingSkipsImageSBOM(t *testing.T) {
 	pc, file := hostAccess()
 	r.ResolvePackage(pc, file)
 
-	if r.forward(r.hostSBOM) {
-		t.Errorf("the host report waits to be forwarded again")
-	}
+	r.forward(r.hostSBOM)
 	if len(reports) != 1 {
 		t.Fatalf("%d host reports forwarded, want 1", len(reports))
 	}
@@ -1861,5 +1846,32 @@ func TestScanHostForwardsChangesAlone(t *testing.T) {
 
 	if r.hostSBOM.forwarder != nil {
 		t.Errorf("the rescan of unchanged packages triggered forwarding")
+	}
+}
+
+// TestForwardBeforeImageSBOM checks that a container report goes out before
+// workloadmeta knows the SBOM of its image, which the core agent waits for.
+func TestForwardBeforeImageSBOM(t *testing.T) {
+	r := &Resolver{
+		Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		wmeta:    failingWorkloadmeta{},
+	}
+	var reports []*sbompkg.ScanResult
+	if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+		reports = append(reports, result)
+	}); err != nil {
+		t.Fatalf("RegisterListener: %v", err)
+	}
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "bash"},
+		InstalledFiles: []string{"/usr/bin/bash"},
+	}})
+	sbom.state.Store(computedState)
+
+	r.forward(sbom)
+	if len(reports) != 1 || reports[0].RequestID != "container-id" {
+		t.Errorf("reports = %v, want the report of container-id", reports)
 	}
 }

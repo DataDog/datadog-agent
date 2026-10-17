@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    The Agent streams its containers, pods, ECS tasks and processes to
+    system-probe, the security agent and the process agent, and keeps its
+    images and their SBOMs to itself.
+fixes:
+  - |
+    system-probe forwards the package usage of a container without waiting for
+    the SBOM of its image, which the Agent merges once that SBOM is ready. The
+    usage of a container whose image scan took more than 30 minutes waited for
+    its next package access.
