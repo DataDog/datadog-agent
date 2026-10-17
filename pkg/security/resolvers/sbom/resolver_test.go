@@ -673,6 +673,110 @@ func TestHostPackageVersionWithoutHostSBOM(t *testing.T) {
 	}
 }
 
+// newContainerSBOMs returns the SBOMs of the containers, with one for
+// container-id, computed, where shadow-utils owns /usr/bin/su.
+func newContainerSBOMs(t *testing.T) *simplelru.LRU[containerutils.ContainerID, *SBOM] {
+	t.Helper()
+
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "shadow-utils"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}})
+	sbom.state.Store(computedState)
+	t.Cleanup(sbom.stop)
+	sboms.Add(sbom.ContainerID, sbom)
+	return sboms
+}
+
+// TestResolvePackageRecordsRunOfDeletedFile checks that a file procfs names
+// with the suffix of a file replaced under a running process, as an upgrade
+// replaces it, counts for the package that owns its path, on the host and in
+// a container, and that ResolvePackage returns no package for it, as the
+// package may hold the build that replaced it.
+func TestResolvePackageRecordsRunOfDeletedFile(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		containerID containerutils.ContainerID
+		want        string
+	}{
+		{"host", "", "util-linux"},
+		{"container", "container-id", "shadow-utils"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sboms = newContainerSBOMs(t)
+
+			pc, file := hostAccess()
+			pc.ContainerContext.ContainerID = tt.containerID
+			file.SetPathnameStr("/usr/bin/su (deleted)")
+			if pkg := r.ResolvePackage(pc, file); pkg != nil {
+				t.Errorf("package = %+v, want none for a replaced file", pkg)
+			}
+			pkg := r.getSBOM(tt.containerID).data.packages[0]
+			if pkg.Name != tt.want || pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+				t.Errorf("package = %+v, want %s with last access and both sticky properties set", pkg, tt.want)
+			}
+		})
+	}
+}
+
+// TestPendingFileEventsRecordReplacedFile checks that a replaced file a
+// container accesses before its scan, which procfs names with a suffix, is
+// credited by the drain to the package that owns its path, whether the SBOM of
+// the container has yet to exist or waits for its scan.
+func TestPendingFileEventsRecordReplacedFile(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		pending bool
+	}{
+		{"no sbom", false},
+		{"pending sbom", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newPendingFileEventsResolver(t)
+			r.cfg = &config.RuntimeSecurityConfig{
+				SBOMResolverEnrichmentInterval: time.Minute,
+				SBOMResolverForwardInterval:    time.Hour,
+			}
+			sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+			if err != nil {
+				t.Fatalf("NewLRU: %v", err)
+			}
+			r.sboms = sboms
+
+			sbom := NewSBOM("container-id", nil, "image:tag")
+			t.Cleanup(sbom.stop)
+			if tt.pending {
+				r.sboms.Add(sbom.ContainerID, sbom)
+			}
+
+			pc, file := hostAccess()
+			pc.ContainerContext.ContainerID = "container-id"
+			file.SetPathnameStr("/usr/bin/su (deleted)")
+			if pkg := r.ResolvePackage(pc, file); pkg != nil {
+				t.Fatalf("package = %+v, want none before the scan", pkg)
+			}
+
+			sbom.Lock()
+			sbom.data = newData([]sbomtypes.PackageWithInstalledFiles{{
+				Package:        sbomtypes.Package{Name: "shadow-utils"},
+				InstalledFiles: []string{"/usr/bin/su"},
+			}}, false)
+			r.processPendingFileEvents(sbom)
+			sbom.Unlock()
+
+			if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+				t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+			}
+		})
+	}
+}
+
 // TestHostForwardingSkipsImageSBOM checks that the report of the host goes out
 // at once. A container report waits for the Trivy SBOM of its image, while the
 // core agent keeps the report of the host for its next host scan. Here every
@@ -1398,34 +1502,45 @@ func TestKeepUsage(t *testing.T) {
 
 // TestScanHostRecordsRunningProcesses checks that a rescan of the host packages
 // that finds a new package records the processes running on the host against
-// the new index, as the daemon of the package may have started before the scan.
+// the new index, as the daemon of the package may have started before the scan,
+// from a binary still in place or replaced since.
 func TestScanHostRecordsRunningProcesses(t *testing.T) {
-	r := newHostSBOMResolver(t)
-	r.sbomGenerations = atomic.NewUint64(0)
-	r.failedSBOMGenerations = atomic.NewUint64(0)
-	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
-		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
-		InstalledFiles: []string{"/usr/bin/gzip"},
-	}}}
+	for _, tt := range []struct {
+		name string
+		exe  string
+	}{
+		{"in place", "/usr/bin/gzip"},
+		{"replaced", "/usr/bin/gzip (deleted)"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sbomGenerations = atomic.NewUint64(0)
+			r.failedSBOMGenerations = atomic.NewUint64(0)
+			r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
+				Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+				InstalledFiles: []string{"/usr/bin/gzip"},
+			}}}
 
-	daemon := &model.ProcessCacheEntry{}
-	daemon.Pid = uint32(os.Getpid())
-	daemon.FileEvent.SetPathnameStr("/usr/bin/gzip")
-	daemon.FileEvent.Mode = 0755
-	r.SetProcessWalker(func(walk func(*model.ProcessCacheEntry)) {
-		walk(daemon)
-	})
+			daemon := &model.ProcessCacheEntry{}
+			daemon.Pid = uint32(os.Getpid())
+			daemon.FileEvent.SetPathnameStr(tt.exe)
+			daemon.FileEvent.Mode = 0755
+			r.SetProcessWalker(func(walk func(*model.ProcessCacheEntry)) {
+				walk(daemon)
+			})
 
-	if err := r.scanHost(); err != nil {
-		t.Fatalf("scanHost: %v", err)
-	}
+			if err := r.scanHost(); err != nil {
+				t.Fatalf("scanHost: %v", err)
+			}
 
-	pkgs := r.hostSBOM.data.packages
-	if len(pkgs) != 1 || pkgs[0].Name != "gzip" {
-		t.Fatalf("host packages = %+v, want gzip, from the new scan", pkgs)
-	}
-	if pkg := pkgs[0]; pkg.LastAccess.IsZero() || !pkg.AccessedByRoot {
-		t.Errorf("package = %+v, want gzip in use by its running daemon", pkg)
+			pkgs := r.hostSBOM.data.packages
+			if len(pkgs) != 1 || pkgs[0].Name != "gzip" {
+				t.Fatalf("host packages = %+v, want gzip, from the new scan", pkgs)
+			}
+			if pkg := pkgs[0]; pkg.LastAccess.IsZero() || !pkg.AccessedByRoot {
+				t.Errorf("package = %+v, want gzip in use by its running daemon", pkg)
+			}
+		})
 	}
 }
 
@@ -1676,9 +1791,10 @@ func TestScanHostFingerprintsBeforeScan(t *testing.T) {
 
 // TestScanHostCreditsMissedRuns checks that a scan finding a new package credits
 // it the runs of its files by host processes made before the scan, in the last
-// hostMissTTL, at the time of each run. Opens, processes on a root of their own
-// and processes of containers leave it as it is, and the run of a file no
-// package owns waits for a later scan.
+// hostMissTTL, at the time of each run. Opens, processes on a root of their
+// own, processes of containers and runs of a file procfs names as replaced
+// leave it as it is, and the run of a file no package owns waits for a later
+// scan.
 func TestScanHostCreditsMissedRuns(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1695,6 +1811,7 @@ func TestScanHostCreditsMissedRuns(t *testing.T) {
 		{name: "run", path: "/usr/bin/gzip", credited: true},
 		{name: "run of the file at its path", path: "/usr/bin/gzip", identity: true, credited: true},
 		{name: "run of a file replaced since", path: "/usr/bin/gzip", identity: true, replaced: true},
+		{name: "run of a file procfs names as replaced", path: "/usr/bin/gzip" + deletedSuffix},
 		{name: "open", path: "/usr/bin/gzip", open: true},
 		{name: "foreign root", path: "/usr/bin/gzip", foreign: true},
 		{name: "container", path: "/usr/bin/gzip", container: true},
