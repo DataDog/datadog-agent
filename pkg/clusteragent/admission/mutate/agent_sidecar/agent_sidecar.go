@@ -364,6 +364,15 @@ func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1
 			}
 			podUpdated = podUpdated || updated
 
+			// Apply per-pod annotation-based resource overrides (highest priority).
+			// Invalid annotations are logged and ignored, falling back to profile/default resources.
+			updated, err = applyAnnotationResourceOverrides(pod, &pod.Spec.Containers[i])
+			if err != nil {
+				log.Errorf("Failed to apply annotation resource overrides: %v", err)
+				return podUpdated, errors.New(metrics.InternalError)
+			}
+			podUpdated = podUpdated || updated
+
 			break
 		}
 	}
