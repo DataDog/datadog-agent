@@ -757,7 +757,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         // Deleting the entry for the original tuple.
         bpf_map_delete_elem(&http2_incomplete_frames, &dispatcher_args_copy.tup);
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
-        terminated_http2_batch_enqueue(&dispatcher_args_copy.tup);
+        terminated_http2_batch_enqueue_wrapper(skb, &dispatcher_args_copy.tup);
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
         // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
         flip_tuple(&dispatcher_args_copy.tup);
@@ -1190,7 +1190,7 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
         } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+        handle_end_of_stream(pktbuf_get_ctx(pkt), current_stream, &http2_ctx->http2_stream_key, http2_tel);
 
         // If we reached here, it means that we saw End Of Stream. If the End of Stream came from a request,
         // thus we except it to have a valid path and method. If the End of Stream came from a response, we except it to
