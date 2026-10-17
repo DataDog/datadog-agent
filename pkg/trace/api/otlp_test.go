@@ -7,8 +7,6 @@ package api
 
 import (
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -114,6 +112,25 @@ var otlpTestSpanConfig = &testutil.OTLPSpan{
 }
 
 var otlpTestSpan = testutil.NewOTLPSpan(otlpTestSpanConfig)
+
+// otlpTestDDSpanLinks are the Datadog span links expected from otlpTestSpanConfig's links.
+var otlpTestDDSpanLinks = []*pb.SpanLink{
+	{
+		TraceID:     0x0123456789abcdef,
+		TraceIDHigh: 0xfedcba9876543210,
+		SpanID:      0xabcdef0123456789,
+		Tracestate:  "dd=asdf256,ee=jkl;128",
+		Attributes:  map[string]string{"a1": "v1", "a2": "v2"},
+	},
+	{
+		TraceID:     0xabcdef0123456789,
+		TraceIDHigh: 0xabcdef0123456789,
+		SpanID:      0xfedcba9876543210,
+		Attributes:  map[string]string{"a3": "v2", "a4": "v4"},
+	},
+	{TraceID: 0xabcdef0123456789, TraceIDHigh: 0xabcdef0123456789, SpanID: 0xfedcba9876543210},
+	{TraceID: 0xabcdef0123456789, TraceIDHigh: 0xabcdef0123456789, SpanID: 0xfedcba9876543210},
+}
 
 var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 	{
@@ -1786,13 +1803,14 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "/path",
 			resourceNameV2:  "/path",
 			out: &pb.Span{
-				Service:  "pylons",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
+				Service:   "pylons",
+				TraceID:   2594128270069917171,
+				SpanID:    2594128270069917171,
+				ParentID:  0,
+				Start:     int64(now),
+				Duration:  200000000,
+				Error:     1,
+				SpanLinks: otlpTestDDSpanLinks,
 				Meta: map[string]string{
 					"name":                          "john",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
@@ -1807,7 +1825,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
 					"events":                        `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
-					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":                     "Error",
 					"span.kind":                     "server",
 					"_dd.span_events.has_exception": "true",
@@ -1913,13 +1930,14 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:  "myservice",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
+				Service:   "myservice",
+				TraceID:   2594128270069917171,
+				SpanID:    2594128270069917171,
+				ParentID:  0,
+				Start:     int64(now),
+				Duration:  200000000,
+				Error:     1,
+				SpanLinks: otlpTestDDSpanLinks,
 				Meta: map[string]string{
 					"name":                          "john",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
@@ -1933,7 +1951,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
@@ -2052,13 +2069,14 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:  "pylons",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
+				Service:   "pylons",
+				TraceID:   2594128270069917171,
+				SpanID:    2594128270069917171,
+				ParentID:  0,
+				Start:     int64(now),
+				Duration:  200000000,
+				Error:     1,
+				SpanLinks: otlpTestDDSpanLinks,
 				Meta: map[string]string{
 					"name":                          "john",
 					"env":                           "staging",
@@ -2073,7 +2091,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"version":                       "v1.2.3",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
@@ -2395,13 +2412,14 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:  "pylons",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
+				Service:   "pylons",
+				TraceID:   2594128270069917171,
+				SpanID:    2594128270069917171,
+				ParentID:  0,
+				Start:     int64(now),
+				Duration:  200000000,
+				Error:     1,
+				SpanLinks: otlpTestDDSpanLinks,
 				Meta: map[string]string{
 					"name":                          "john",
 					"otel.status_code":              "Error",
@@ -2414,7 +2432,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"w3c.tracestate":                "state",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"http.route":                    "/path",
 					"_dd.span_events.has_exception": "true",
 					"http.method":                   "GET",
@@ -2614,23 +2631,12 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
 					}
 					assert.Equal(wante, gote)
-				case "_dd.span_links":
-					// links contain maps with no guaranteed order of
-					// traversal; best to unpack to compare
-					var gotl, wantl []testutil.OTLPSpanLink
-					if err := json.Unmarshal([]byte(v), &wantl); err != nil {
-						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					}
-					if err := json.Unmarshal([]byte(got.Meta[k]), &gotl); err != nil {
-						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					}
-					assert.Equal(wantl, gotl)
 				default:
 					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 				}
 			}
 			for k, v := range got.Meta {
-				if k != "events" && k != "_dd.span_links" {
+				if k != "events" {
 					assert.Equal(want.Meta[k], v, fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 				}
 			}
@@ -2703,13 +2709,14 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "/path",
 			resourceNameV2:  "/path",
 			out: &pb.Span{
-				Service:  "pylons",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
+				Service:   "pylons",
+				TraceID:   2594128270069917171,
+				SpanID:    2594128270069917171,
+				ParentID:  0,
+				Start:     int64(now),
+				Duration:  200000000,
+				Error:     1,
+				SpanLinks: otlpTestDDSpanLinks,
 				Meta: map[string]string{
 					"name":                          "john",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
@@ -2722,7 +2729,6 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
 					"events":                        `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
-					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":                     "Error",
 					"span.kind":                     "server",
 					"_dd.span_events.has_exception": "true",
@@ -2829,13 +2835,14 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:  "myservice",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
+				Service:   "myservice",
+				TraceID:   2594128270069917171,
+				SpanID:    2594128270069917171,
+				ParentID:  0,
+				Start:     int64(now),
+				Duration:  200000000,
+				Error:     1,
+				SpanLinks: otlpTestDDSpanLinks,
 				Meta: map[string]string{
 					"name":                          "john",
 					"env":                           "prod",
@@ -2849,7 +2856,6 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"w3c.tracestate":                "state",
 					"version":                       "v1.2.3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
@@ -2958,13 +2964,14 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			resourceNameV1:  "GET /path",
 			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:  "pylons",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
+				Service:   "pylons",
+				TraceID:   2594128270069917171,
+				SpanID:    2594128270069917171,
+				ParentID:  0,
+				Start:     int64(now),
+				Duration:  200000000,
+				Error:     1,
+				SpanLinks: otlpTestDDSpanLinks,
 				Meta: map[string]string{
 					"name":                          "john",
 					"env":                           "staging",
@@ -2977,7 +2984,6 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"version":                       "v1.2.3",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
 					"error.msg":                     "Error",
 					"http.method":                   "GET",
 					"http.route":                    "/path",
@@ -3205,17 +3211,6 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
 					}
 					assert.Equal(wante, gote)
-				case "_dd.span_links":
-					// links contain maps with no guaranteed order of
-					// traversal; best to unpack to compare
-					var gotl, wantl []testutil.OTLPSpanLink
-					if err := json.Unmarshal([]byte(v), &wantl); err != nil {
-						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					}
-					if err := json.Unmarshal([]byte(got.Meta[k]), &gotl); err != nil {
-						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-					}
-					assert.Equal(wantl, gotl)
 				default:
 					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
 				}
@@ -4241,159 +4236,6 @@ func trimSpaces(str string) string {
 		}
 	}
 	return out.String()
-}
-
-//nolint:revive // TODO(OTEL) Fix revive linter
-func makeSpanLinkSlice(t *testing.T, traceId, spanId, traceState string, attrs map[string]string, dropped uint32) ptrace.SpanLinkSlice {
-	s := ptrace.NewSpanLinkSlice()
-	l := s.AppendEmpty()
-	buf, err := hex.DecodeString(traceId)
-	if err != nil {
-		t.Fatal(err)
-	}
-	l.SetTraceID(*(*pcommon.TraceID)(buf))
-	buf, err = hex.DecodeString(spanId)
-	if err != nil {
-		t.Fatal(err)
-	}
-	l.SetSpanID(*(*pcommon.SpanID)(buf))
-	l.TraceState().FromRaw(traceState)
-	keys := make([]string, 0, len(attrs))
-	for k := range attrs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		_, ok := l.Attributes().Get(k)
-		if !ok {
-			l.Attributes().PutStr(k, attrs[k])
-		}
-	}
-	l.SetDroppedAttributesCount(dropped)
-	return s
-}
-
-func TestMakeSpanLinkSlice(t *testing.T) {
-	in := makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef1234567890", "dd=asdf256", map[string]string{"k1": "v1", "k2": "v2"}, 42)
-
-	out := ptrace.NewSpanLinkSlice()
-	l := out.AppendEmpty()
-	bh := make([]byte, 8)
-	bl := make([]byte, 8)
-	binary.BigEndian.PutUint64(bh, 0xfedcba9876543210)
-	binary.BigEndian.PutUint64(bl, 0x0123456789abcdef)
-	l.SetTraceID(*(*pcommon.TraceID)(append(bh, bl...)))
-	binary.BigEndian.PutUint64(bl, 0xabcdef1234567890)
-	l.SetSpanID(*(*pcommon.SpanID)(bl))
-	l.TraceState().FromRaw("dd=asdf256")
-	l.Attributes().PutStr("k1", "v1")
-	l.Attributes().PutStr("k2", "v2")
-	l.SetDroppedAttributesCount(42)
-
-	assert.Equal(t, out, in)
-}
-
-func TestMarshalSpanLinks(t *testing.T) {
-	for _, tt := range []struct {
-		in  ptrace.SpanLinkSlice
-		out string
-	}{
-
-		{
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 0),
-			out: `[{
-					"trace_id": "fedcba98765432100123456789abcdef",
-					"span_id":  "abcdef0123456789"
-				}]`,
-		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 0),
-			out: `[{
-					"trace_id":    "fedcba98765432100123456789abcdef",
-					"span_id":     "abcdef0123456789",
-					"tracestate": "dd=asdf256"
-				}]`,
-		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 0),
-			out: `[{
-					"trace_id":    "fedcba98765432100123456789abcdef",
-					"span_id":     "abcdef0123456789",
-					"tracestate": "dd=asdf256",
-					"attributes":  {"k1": "v1"}
-				}]`,
-		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{}, 42),
-			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
-					"tracestate":              "dd=asdf256",
-					"dropped_attributes_count": 42
-				}]`,
-		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 42),
-			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
-					"tracestate":              "dd=asdf256",
-					"attributes":               {"k1": "v1"},
-					"dropped_attributes_count": 42
-				}]`,
-		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 0),
-			out: `[{
-					"trace_id":   "fedcba98765432100123456789abcdef",
-					"span_id":    "abcdef0123456789",
-					"attributes": {"k1": "v1"}
-				}]`,
-		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{"k1": "v1"}, 42),
-			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
-					"attributes":               {"k1": "v1"},
-					"dropped_attributes_count": 42
-				}]`,
-		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "", map[string]string{}, 42),
-			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
-					"dropped_attributes_count": 42
-				}]`,
-		}, {
-			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256,ee=jkl;128", map[string]string{
-				"k1": "v1",
-				"k2": "v2",
-			}, 57),
-			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "abcdef0123456789",
-					"tracestate":              "dd=asdf256,ee=jkl;128",
-					"attributes":               {"k1": "v1", "k2": "v2"},
-					"dropped_attributes_count": 57
-				}]`,
-		}, {
-
-			in: (func() ptrace.SpanLinkSlice {
-				s1 := makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "0123456789abcdef", "dd=asdf256,ee=jkl;128", map[string]string{"k1": "v1"}, 611187)
-				s2 := makeSpanLinkSlice(t, "abcdef01234567899876543210fedcba", "fedcba9876543210", "", map[string]string{"k1": "v10", "k2": "v20"}, 0)
-				s2.MoveAndAppendTo(s1)
-				return s1
-			})(),
-			out: `[{
-					"trace_id":                 "fedcba98765432100123456789abcdef",
-					"span_id":                  "0123456789abcdef",
-					"tracestate":              "dd=asdf256,ee=jkl;128",
-					"attributes":               {"k1": "v1"},
-					"dropped_attributes_count": 611187
-			       }, {
-					"trace_id":                 "abcdef01234567899876543210fedcba",
-					"span_id":                  "fedcba9876543210",
-					"attributes":               {"k1": "v10", "k2": "v20"}
-			       }]`,
-		},
-	} {
-		assert.Equal(t, trimSpaces(tt.out), transform.MarshalLinks(tt.in))
-	}
 }
 
 func TestComputeTopLevelAndMeasured(t *testing.T) {

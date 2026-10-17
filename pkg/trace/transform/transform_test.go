@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
@@ -1757,4 +1758,125 @@ func TestMarshalEventsReadOnly(t *testing.T) {
 	assert.Equal(t, uint32(5), events.At(0).DroppedAttributesCount())
 	assert.Equal(t, uint32(0), events.At(1).DroppedAttributesCount())
 	assert.Equal(t, uint32(1), events.At(2).DroppedAttributesCount())
+}
+
+func TestOTelSpanLinksToDD(t *testing.T) {
+	traceID := pcommon.TraceID([16]byte{0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef})
+	spanID := pcommon.SpanID([8]byte{0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89})
+	newLink := func(links ptrace.SpanLinkSlice) ptrace.SpanLink {
+		l := links.AppendEmpty()
+		l.SetTraceID(traceID)
+		l.SetSpanID(spanID)
+		return l
+	}
+	baseLink := func() *pb.SpanLink {
+		return &pb.SpanLink{TraceID: 0x0123456789abcdef, TraceIDHigh: 0xfedcba9876543210, SpanID: 0xabcdef0123456789}
+	}
+
+	for _, tt := range []struct {
+		name string
+		in   func(links ptrace.SpanLinkSlice)
+		want func() []*pb.SpanLink
+	}{
+		{
+			name: "ids only",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links) },
+			want: func() []*pb.SpanLink { return []*pb.SpanLink{baseLink()} },
+		},
+		{
+			name: "tracestate with special characters",
+			in: func(links ptrace.SpanLinkSlice) {
+				newLink(links).TraceState().FromRaw(`dd=s:1;o:"rum",other=a\b`)
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Tracestate = `dd=s:1;o:"rum",other=a\b`
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "sampled flag",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links).SetFlags(0x01) },
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Flags = 0x01 | 1<<31
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			// Bit 8 (has_is_remote) and bit 9 (is_remote) are OTLP-specific and dropped, but they
+			// show the sender set the flags, so a zero trace flags byte means "not sampled".
+			name: "unsampled flag with is_remote bits",
+			in:   func(links ptrace.SpanLinkSlice) { newLink(links).SetFlags(0x300) },
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Flags = 1 << 31
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "scalar attributes are stringified",
+			in: func(links ptrace.SpanLinkSlice) {
+				m := newLink(links).Attributes()
+				m.PutStr("str", `say "hi" \ there`)
+				m.PutInt("int", 42)
+				m.PutDouble("double", 2.5)
+				m.PutDouble("nan", math.NaN())
+				m.PutBool("bool", true)
+				m.PutEmptyBytes("bytes").FromRaw([]byte{0xde, 0xad})
+				m.PutEmpty("empty")
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{
+					"str": `say "hi" \ there`, "int": "42", "double": "2.5", "nan": "NaN", "bool": "true", "bytes": "3q0=", "empty": "",
+				}
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "slices and maps are flattened",
+			in: func(links ptrace.SpanLinkSlice) {
+				m := newLink(links).Attributes()
+				s := m.PutEmptySlice("slice")
+				s.AppendEmpty().SetStr("a")
+				s.AppendEmpty().SetInt(1)
+				s.AppendEmpty().SetEmptySlice().AppendEmpty().SetBool(false)
+				nested := m.PutEmptyMap("map")
+				nested.PutStr("inner", "v")
+				nested.PutEmptySlice("list").AppendEmpty().SetBool(true)
+				m.PutEmptySlice("empty_slice")
+				m.PutEmptyMap("empty_map")
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{
+					"slice.0": "a", "slice.1": "1", "slice.2.0": "false", "map.inner": "v", "map.list.0": "true",
+				}
+				return []*pb.SpanLink{l}
+			},
+		},
+		{
+			name: "multiple links",
+			in: func(links ptrace.SpanLinkSlice) {
+				newLink(links).Attributes().PutStr("k1", "v1")
+				l := links.AppendEmpty()
+				l.SetTraceID(pcommon.TraceID([16]byte{15: 1}))
+				l.SetSpanID(pcommon.SpanID([8]byte{7: 2}))
+				l.TraceState().FromRaw("dd=asdf256")
+				l.SetDroppedAttributesCount(3)
+			},
+			want: func() []*pb.SpanLink {
+				l := baseLink()
+				l.Attributes = map[string]string{"k1": "v1"}
+				return []*pb.SpanLink{l, {TraceID: 1, SpanID: 2, Tracestate: "dd=asdf256"}}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			links := ptrace.NewSpanLinkSlice()
+			tt.in(links)
+			assert.Equal(t, tt.want(), OTelSpanLinksToDD(links))
+		})
+	}
 }
