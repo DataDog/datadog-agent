@@ -20,6 +20,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/modifiers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -139,8 +140,13 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		}
 	}
 
+	mgrModifiers := []ddebpf.Modifier{&ebpftelemetry.ErrorsTelemetryModifier{}}
+	if c.ForceNoPreallocHash.USM {
+		mgrModifiers = append(mgrModifiers, &modifiers.HashMapNoPreallocModifier{})
+	}
+
 	program := &ebpfProgram{
-		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
+		Manager:               ddebpf.NewManager(mgr, "usm", mgrModifiers...),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}

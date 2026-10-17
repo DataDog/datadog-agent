@@ -218,6 +218,10 @@ func (e *EbpfProgram) setupManagerAndPerfHandlers() error {
 		PatchPerfEventOutput: perfOutputRedundant,
 	})
 
+	if e.cfg.ForceNoPreallocHash.USM {
+		managerMods = append(managerMods, &modifiers.HashMapNoPreallocModifier{})
+	}
+
 	e.Manager = ddebpf.NewManager(mgr, "shared-libraries", managerMods...)
 
 	return nil
