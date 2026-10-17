@@ -877,7 +877,9 @@ func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
 // started in the mount namespace of init, and returns its output. The unit runs
 // as root in a cgroup of the host, so its processes are host processes. Most
 // opens made in the first second of the unit never reach system-probe, so a
-// script whose opens a subtest checks makes them later.
+// script whose opens a subtest checks makes them later. systemd substitutes
+// ${NAME} in the script as in ExecStart=, so a script writes $${NAME} for the
+// shell.
 func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) string {
 	cmd := []string{"nsenter", "-t", "1", "-m", "--", "systemd-run", "--wait", "--pipe", "--quiet", "--collect", "/bin/sh", "-c", script}
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, cmd)
@@ -1514,21 +1516,119 @@ func (s *packageInUseSuite) nodeEpoch(d pkgInUseDistro) int64 {
 
 // podExec runs cmd in the given workload pod's container and returns stdout/stderr.
 func (s *packageInUseSuite) podExec(d pkgInUseDistro, cmd ...string) (string, string) {
+	return s.workloadExec(s.T(), d.workload, cmd...)
+}
+
+// workloadExec runs cmd in the container of the pod of workload and returns its
+// stdout and stderr.
+func (s *packageInUseSuite) workloadExec(t require.TestingT, workload string, cmd ...string) (string, string) {
 	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", d.workload).String(),
+		LabelSelector: fields.OneTermEqualSelector("app", workload).String(),
 	})
-	require.NoErrorf(s.T(), err, "failed to list %s workload pods", d.workload)
-	require.NotEmptyf(s.T(), pods.Items, "no %s workload pod found in namespace %s", d.workload, sbomtargets.Namespace)
+	require.NoErrorf(t, err, "failed to list %s workload pods", workload)
+	require.NotEmptyf(t, pods.Items, "no %s workload pod found in namespace %s", workload, sbomtargets.Namespace)
 
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(sbomtargets.Namespace, pods.Items[0].Name, "main", cmd)
-	require.NoErrorf(s.T(), err, "pod exec failed: %s", stderr)
+	require.NoErrorf(t, err, "pod exec failed: %s", stderr)
 	return stdout, stderr
 }
 
-// TestZZDumpAgentDiagnostics runs last (the ZZ prefix sorts it after the
-// package-in-use test) and dumps the Agent's SBOM/CWS state - the SBOM status
-// section and the system-probe/security logs - which otherwise live only in the
-// flare artifact, not the test trace. It is a debugging aid and always passes.
+// stopSystemProbe stops system-probe on the node, found by the name of its
+// process, and fails when no process has that name.
+const stopSystemProbe = "pkill -x system-probe"
+
+// idleWorkloads are the SBOM workloads that run tail alone, and in which the
+// suite runs nothing, with the package of their tail, and latch, a command of
+// another package, whose run makes system-probe send the SBOM of the workload
+// again.
+var idleWorkloads = []struct {
+	workload, repo, pkg string
+	latch               []string
+}{
+	{"sbom-python", "python", "coreutils", []string{"getent", "hosts", "localhost"}},
+	{"sbom-node", "node", "coreutils", []string{"getent", "hosts", "localhost"}},
+	{"sbom-ruby", "ruby", "coreutils", []string{"getent", "hosts", "localhost"}},
+	{"sbom-golang", "golang", "busybox", []string{"apk", "--version"}},
+}
+
+// TestZZRunningBeforeSystemProbe checks that system-probe credits the packages
+// of the containers running when it starts. It stops system-probe in the Agent
+// pod, which the kubelet restarts while the core agent keeps the SBOMs of the
+// images, and checks that the package of tail, the only process of the idle
+// workloads, reads in use from then on. The restart fails the restart count
+// check of WaitForAgentReady, so the test runs last, after
+// TestZZDumpAgentDiagnostics, and deletes the Agent pod when it ends, for a
+// later run on the same stack to start from a new pod.
+func (s *packageInUseSuite) TestZZRunningBeforeSystemProbe() {
+	t := s.T()
+	shell := s.startHostShell()
+	agent := s.nodeAgent(t)
+	restarts := systemProbeStatus(t, agent).RestartCount
+	t.Cleanup(func() {
+		if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(context.Background(), agent.Name, metav1.DeleteOptions{}); err != nil {
+			t.Logf("failed to delete the Agent pod %s: %v", agent.Name, err)
+		}
+	})
+
+	stoppedAt := s.hostEpoch(shell)
+	s.hostExec(t, shell, stopSystemProbe)
+
+	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		status := systemProbeStatus(c, s.nodeAgent(c))
+		assert.Greaterf(c, status.RestartCount, restarts, "system-probe restarted %d times", status.RestartCount)
+		assert.NotNilf(c, status.State.Running, "system-probe waits to run again")
+	}, 5*time.Minute, 5*time.Second, "the kubelet never restarted system-probe")
+
+	// The workloads share one deadline, so the test waits ten minutes at most
+	// for all of them.
+	deadline := time.Now().Add(10 * time.Minute)
+	for _, w := range idleWorkloads {
+		s.Run(w.repo, func() {
+			s.Require().Lessf(s.workloadStart(w.workload), stoppedAt, "%s started after system-probe stopped", w.workload)
+
+			s.EventuallyWithTf(func(collect *assert.CollectT) {
+				c := &myCollectT{CollectT: collect, errors: []error{}}
+				collect = nil //nolint:ineffassign
+
+				s.workloadExec(c, w.workload, w.latch...)
+				ts, present, _ := s.packageUsage(c, w.repo, w.pkg)
+				require.Truef(c, present, "%s carries no %s property", w.pkg, propLastSeenRunning)
+				s.T().Logf("PKG-IN-USE[%s] restart: %s LastSeenRunning=%d stoppedAt=%d", w.repo, w.pkg, ts, stoppedAt)
+				assert.GreaterOrEqualf(c, ts, stoppedAt, "%s LastSeenRunning %d predates the restart of system-probe at %d", w.pkg, ts, stoppedAt)
+			}, max(time.Until(deadline), 30*time.Second), 15*time.Second, "the %s SBOM never reported %s in use after the restart of system-probe", w.repo, w.pkg)
+		})
+	}
+}
+
+// systemProbeStatus returns the status of the system-probe container of agent.
+func systemProbeStatus(t require.TestingT, agent corev1.Pod) corev1.ContainerStatus {
+	status, ok := lo.Find(agent.Status.ContainerStatuses, func(status corev1.ContainerStatus) bool {
+		return status.Name == "system-probe"
+	})
+	require.Truef(t, ok, "the Agent pod %s runs no system-probe", agent.Name)
+	return status
+}
+
+// workloadStart returns the Unix time at which the container of workload
+// started.
+func (s *packageInUseSuite) workloadStart(workload string) int64 {
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(sbomtargets.Namespace).List(s.T().Context(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", workload).String(),
+	})
+	s.Require().NoErrorf(err, "failed to list the %s pods", workload)
+	s.Require().NotEmptyf(pods.Items, "no %s pod", workload)
+	status, ok := lo.Find(pods.Items[0].Status.ContainerStatuses, func(status corev1.ContainerStatus) bool {
+		return status.Name == "main"
+	})
+	s.Require().Truef(ok && status.State.Running != nil, "the %s container waits to run", workload)
+	return status.State.Running.StartedAt.Unix()
+}
+
+// TestZZDumpAgentDiagnostics runs after the package-in-use tests, the ZZ prefix
+// sorting it after them, and before TestZZRunningBeforeSystemProbe restarts
+// system-probe. It dumps the SBOM and CWS settings of the Agent and the sockets
+// of system-probe into the test trace, as they otherwise live in the flare
+// artifact alone. It is a debugging aid and always passes.
 func (s *packageInUseSuite) TestZZDumpAgentDiagnostics() {
 	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
