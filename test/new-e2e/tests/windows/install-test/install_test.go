@@ -318,7 +318,7 @@ func (s *testRepairSuite) TestRepair() {
 
 	// Run Repair through the MSI
 	if !s.Run("repair install", func() {
-		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(s.SessionOutputDir(), "repair.log"))
+		err = s.RepairAllAgent(t.host, "", filepath.Join(s.SessionOutputDir(), "repair.log"))
 		s.Require().NoError(err)
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
