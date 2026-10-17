@@ -80,9 +80,6 @@ func TestPrivilegedRshellSupported(t *testing.T) {
 
 func TestPrivilegedRshellEnabled(t *testing.T) {
 	configDir := t.TempDir()
-	originalConfigDir := privilegedRshellConfigDir
-	privilegedRshellConfigDir = func(HookContext) string { return configDir }
-	t.Cleanup(func() { privilegedRshellConfigDir = originalConfigDir })
 
 	originalEnv, envWasSet := os.LookupEnv(privilegedRshellEnabledEnv)
 	require.NoError(t, os.Unsetenv(privilegedRshellEnabledEnv))
@@ -94,8 +91,7 @@ func TestPrivilegedRshellEnabled(t *testing.T) {
 		}
 	})
 
-	ctx := HookContext{Context: context.Background()}
-	assert.False(t, privilegedRshellEnabled(ctx), "the helper must be disabled when config is absent")
+	assert.False(t, privilegedRshellEnabled(configDir), "the helper must be disabled when config is absent")
 
 	require.NoError(t, os.WriteFile(filepath.Join(configDir, "datadog.yaml"), []byte(`
 private_action_runner:
@@ -103,7 +99,7 @@ private_action_runner:
     privileged:
       enabled: true
 `), 0640))
-	assert.True(t, privilegedRshellEnabled(ctx))
+	assert.True(t, privilegedRshellEnabled(configDir))
 
 	managedDir := filepath.Join(configDir, "managed", agentPackage, "stable")
 	require.NoError(t, os.MkdirAll(managedDir, 0755))
@@ -113,26 +109,16 @@ private_action_runner:
     privileged:
       enabled: false
 `), 0640))
-	assert.False(t, privilegedRshellEnabled(ctx), "managed config must override the base config")
+	assert.False(t, privilegedRshellEnabled(configDir), "managed config must override the base config")
 
 	require.NoError(t, os.Setenv(privilegedRshellEnabledEnv, "true"))
-	assert.True(t, privilegedRshellEnabled(ctx), "the environment must override file config")
+	assert.True(t, privilegedRshellEnabled(configDir), "the environment must override file config")
+
+	require.NoError(t, os.Setenv(privilegedRshellEnabledEnv, "not-a-bool"))
+	assert.False(t, privilegedRshellEnabled(configDir), "an invalid environment value must fail closed")
 }
 
-func TestInstallableUnitsFiltersPrivilegedRshell(t *testing.T) {
-	units := []string{
-		"datadog-agent.service",
-		"datadog-agent-rshell-privileged.service",
-		privilegedRshellSocketStable,
-		"datadog-agent-action.service",
-	}
-
-	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
-	assert.Equal(t, []string{"datadog-agent.service", "datadog-agent-action.service"}, installableUnits(ctx, units))
-	assert.Len(t, units, 4, "filtering must not mutate the lifecycle cleanup list")
-}
-
-func TestExperimentStartUnits(t *testing.T) {
+func TestSyncPrivilegedRshellFlag(t *testing.T) {
 	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
 		t.Skip("privileged rshell is supported only on amd64 and arm64")
 	}
@@ -144,25 +130,26 @@ func TestExperimentStartUnits(t *testing.T) {
 
 	originalGetLandlockABIVersion := getLandlockABIVersion
 	t.Cleanup(func() { getLandlockABIVersion = originalGetLandlockABIVersion })
-
 	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI, nil }
+
+	configDir := t.TempDir()
+	flagPath := filepath.Join(t.TempDir(), "rshell", "enabled")
+
 	t.Setenv(privilegedRshellEnabledEnv, "true")
-	ctx := HookContext{Context: context.Background(), PackagePath: packagePath}
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service", privilegedRshellSocketExp},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
+	require.NoError(t, syncPrivilegedRshellFlag(configDir, packagePath, flagPath))
+	assert.FileExists(t, flagPath, "the flag must be created when the feature is enabled")
 
 	t.Setenv(privilegedRshellEnabledEnv, "false")
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service"},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
+	require.NoError(t, syncPrivilegedRshellFlag(configDir, packagePath, flagPath))
+	assert.NoFileExists(t, flagPath, "the flag must be removed when the feature is disabled")
+	require.NoError(t, syncPrivilegedRshellFlag(configDir, packagePath, flagPath), "removing a missing flag must succeed")
 
 	t.Setenv(privilegedRshellEnabledEnv, "true")
 	getLandlockABIVersion = func() (int, error) { return 0, errors.New("landlock unavailable") }
-	assert.Equal(t,
-		[]string{"datadog-agent-exp.service"},
-		experimentStartUnits(ctx, "datadog-agent-exp.service"),
-	)
+	require.NoError(t, syncPrivilegedRshellFlag(configDir, packagePath, flagPath))
+	assert.NoFileExists(t, flagPath, "the flag must not be created on unsupported hosts")
+}
+
+func TestRunDatadogAgentPackageCommandRejectsUnknownCommand(t *testing.T) {
+	require.ErrorContains(t, runDatadogAgentPackageCommand(context.Background(), "nope"), "unknown datadog-agent package command")
 }

@@ -32,8 +32,31 @@ func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T
 
 	stableSocket := string(units["datadog-agent-rshell-privileged.socket"])
 	experimentSocket := string(units["datadog-agent-rshell-privileged-exp.socket"])
-	assert.Contains(t, stableSocket, "WantedBy=sockets.target datadog-agent-action.service")
-	assert.Contains(t, experimentSocket, "WantedBy=sockets.target datadog-agent-action-exp.service")
+	assert.Contains(t, stableSocket, "WantedBy=datadog-agent-action.service")
+	assert.Contains(t, experimentSocket, "WantedBy=datadog-agent-action-exp.service")
+	for _, socket := range []string{stableSocket, experimentSocket} {
+		// Default dependencies order sockets before sockets.target, which
+		// cycles with the After=datadog-agent-action.service ordering at boot.
+		assert.Contains(t, socket, "DefaultDependencies=no")
+		assert.NotContains(t, socket, "WantedBy=sockets.target")
+	}
+
+	// The socket and service only start when the PAR unit's ExecStartPre
+	// found the feature enabled in the Agent configuration.
+	for name, flag := range map[string]string{
+		"datadog-agent-rshell-privileged.socket":      "/run/datadog-agent-rshell/enabled",
+		"datadog-agent-rshell-privileged.service":     "/run/datadog-agent-rshell/enabled",
+		"datadog-agent-rshell-privileged-exp.socket":  "/run/datadog-agent-rshell/enabled-exp",
+		"datadog-agent-rshell-privileged-exp.service": "/run/datadog-agent-rshell/enabled-exp",
+	} {
+		assert.Contains(t, string(units[name]), "ConditionPathExists="+flag+"\n", name)
+	}
+	action := string(mustReadUnit("datadog-agent-action.service", stableDataOCI, true, false))
+	actionExp := string(mustReadUnit("datadog-agent-action.service", expDataOCI, true, false))
+	assert.Contains(t, action, "ExecStartPre=+/bin/rm -f /run/datadog-agent-rshell/enabled\n")
+	assert.Contains(t, action, "ExecStartPre=-+/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer package-command --no-telemetry datadog-agent sync-rshell-privileged-flag\n")
+	assert.Contains(t, actionExp, "ExecStartPre=+/bin/rm -f /run/datadog-agent-rshell/enabled-exp\n")
+	assert.Contains(t, actionExp, "ExecStartPre=-+/opt/datadog-packages/datadog-agent/experiment/embedded/bin/installer package-command --no-telemetry datadog-agent sync-rshell-privileged-flag-exp\n")
 	assert.Equal(t, 1, strings.Count(stableSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
 	assert.Equal(t, 1, strings.Count(experimentSocket, "ListenStream=/run/datadog/rshell-privileged.sock"))
 	assert.NotContains(t, experimentSocket, "rshell-privileged-exp.sock")

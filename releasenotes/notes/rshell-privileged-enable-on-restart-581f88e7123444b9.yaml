@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    On Linux, the Agent package now always installs the systemd units for the
+    restricted shell privileged helper. Setting
+    ``private_action_runner.restricted_shell.privileged.enabled: true`` and
+    restarting the Agent is enough to start using the helper; reinstalling the
+    Agent is no longer required. The helper socket only listens while this
+    setting is enabled.
+fixes:
+  - |
+    On Linux, fix the restricted shell privileged helper socket not starting
+    after a host reboot.

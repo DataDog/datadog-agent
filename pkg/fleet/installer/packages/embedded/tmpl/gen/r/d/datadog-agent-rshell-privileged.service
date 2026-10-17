@@ -4,6 +4,7 @@ After=datadog-agent.service datadog-agent-action.service
 BindsTo=datadog-agent.service datadog-agent-action.service
 Conflicts=datadog-agent-rshell-privileged-exp.service
 ConditionPathExists=/opt/datadog-agent/embedded/bin/rshell
+ConditionPathExists=/run/datadog-agent-rshell/enabled
 
 [Service]
 Type=simple

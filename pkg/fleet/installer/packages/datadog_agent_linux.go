@@ -68,6 +68,13 @@ const (
 	privilegedRshellSocketStable   = "datadog-agent-rshell-privileged.socket"
 	privilegedRshellSocketExp      = "datadog-agent-rshell-privileged-exp.socket"
 	privilegedRshellEnabledEnv     = "DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_PRIVILEGED_ENABLED"
+	// The rshell socket and service units are conditioned on these flag files
+	// (see datadog-agent-rshell-privileged.socket.tmpl).
+	privilegedRshellFlagStable = "/run/datadog-agent-rshell/enabled"
+	privilegedRshellFlagExp    = "/run/datadog-agent-rshell/enabled-exp"
+
+	syncPrivilegedRshellFlagCommand    = "sync-rshell-privileged-flag"
+	syncPrivilegedRshellFlagExpCommand = "sync-rshell-privileged-flag-exp"
 )
 
 var (
@@ -711,18 +718,10 @@ type privilegedRshellConfig struct {
 	} `yaml:"private_action_runner"`
 }
 
-var privilegedRshellConfigDir = func(ctx HookContext) string {
-	if ctx.Hook == "postStartExperiment" || ctx.Hook == "postStartConfigExperiment" {
-		return "/etc/datadog-agent-exp"
-	}
-	return "/etc/datadog-agent"
-}
-
-// privilegedRshellEnabled reports whether the effective Agent configuration
+// privilegedRshellEnabled reports whether the Agent configuration in configDir
 // explicitly opts in to the privileged helper. It intentionally fails closed:
-// package hooks must not install or activate a root-capable service when the
-// configuration is absent or invalid.
-func privilegedRshellEnabled(ctx HookContext) bool {
+// the helper socket must not listen when the configuration is absent or invalid.
+func privilegedRshellEnabled(configDir string) bool {
 	if value, ok := os.LookupEnv(privilegedRshellEnabledEnv); ok {
 		enabled, err := strconv.ParseBool(value)
 		if err != nil {
@@ -732,7 +731,6 @@ func privilegedRshellEnabled(ctx HookContext) bool {
 		return enabled
 	}
 
-	configDir := privilegedRshellConfigDir(ctx)
 	configFiles := []string{
 		filepath.Join(configDir, "datadog.yaml"),
 		filepath.Join(configDir, "managed", agentPackage, "stable", "datadog.yaml"),
@@ -755,29 +753,86 @@ func privilegedRshellEnabled(ctx HookContext) bool {
 	return config.PrivateActionRunner.RestrictedShell.Privileged.Enabled
 }
 
-func privilegedRshellUsable(ctx HookContext) bool {
-	return privilegedRshellEnabled(ctx) && privilegedRshellSupported(ctx.PackagePath)
-}
-
-func withoutPrivilegedRshellUnits(units []string) []string {
-	return slices.DeleteFunc(slices.Clone(units), func(unit string) bool {
-		return strings.HasPrefix(unit, "datadog-agent-rshell-privileged")
-	})
-}
-
-func installableUnits(ctx HookContext, units []string) []string {
-	if privilegedRshellUsable(ctx) {
-		return units
+// runDatadogAgentPackageCommand handles `installer package-command datadog-agent <command>`.
+func runDatadogAgentPackageCommand(_ context.Context, command string) error {
+	switch command {
+	case syncPrivilegedRshellFlagCommand:
+		return syncPrivilegedRshellFlagFromExecutable("/etc/datadog-agent", privilegedRshellFlagStable)
+	case syncPrivilegedRshellFlagExpCommand:
+		return syncPrivilegedRshellFlagFromExecutable("/etc/datadog-agent-exp", privilegedRshellFlagExp)
+	default:
+		return fmt.Errorf("unknown datadog-agent package command: %s", command)
 	}
-	return withoutPrivilegedRshellUnits(units)
 }
 
-func experimentStartUnits(ctx HookContext, mainUnit string) []string {
-	units := []string{mainUnit}
-	if privilegedRshellUsable(ctx) {
-		units = append(units, privilegedRshellSocketExp)
+// syncPrivilegedRshellFlagFromExecutable syncs the flag for the package the
+// running installer binary belongs to (<package>/embedded/bin/installer).
+func syncPrivilegedRshellFlagFromExecutable(configDir, flagPath string) error {
+	executable, err := os.Executable()
+	if err != nil {
+		removeErr := os.Remove(flagPath)
+		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove privileged rshell flag: %w", removeErr)
+		}
+		return fmt.Errorf("failed to resolve installer executable: %w", err)
 	}
-	return units
+	packagePath := filepath.Dir(filepath.Dir(filepath.Dir(executable)))
+	return syncPrivilegedRshellFlag(configDir, packagePath, flagPath)
+}
+
+// syncPrivilegedRshellFlag creates flagPath when the Agent configuration in
+// configDir opts in to the privileged rshell helper and the host supports it,
+// and removes it otherwise. The helper socket and service units are
+// conditioned on this file, so the socket only listens when the feature is
+// enabled. It runs as root from an ExecStartPre of the PAR unit, which makes
+// the opt-in take effect on the next Agent restart.
+func syncPrivilegedRshellFlag(configDir, packagePath, flagPath string) error {
+	if !privilegedRshellEnabled(configDir) || !privilegedRshellSupported(packagePath) {
+		if err := os.Remove(flagPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove privileged rshell flag: %w", err)
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(flagPath), 0755); err != nil {
+		return fmt.Errorf("failed to create privileged rshell flag directory: %w", err)
+	}
+	if err := os.WriteFile(flagPath, nil, 0644); err != nil {
+		return fmt.Errorf("failed to write privileged rshell flag: %w", err)
+	}
+	return nil
+}
+
+// enablePrivilegedRshellSocket enables the helper socket on supported hosts.
+// It only listens when syncPrivilegedRshellFlag found the feature enabled.
+// It is best-effort: the feature is optional, so a failure (e.g. a masked PAR
+// unit) must not fail the install.
+func enablePrivilegedRshellSocket(ctx HookContext, socket string) {
+	if !privilegedRshellSupported(ctx.PackagePath) {
+		return
+	}
+	if err := systemd.EnableUnit(ctx, socket); err != nil {
+		log.Warnf("failed to enable %s: %v", socket, err)
+	}
+}
+
+// startExperimentUnits starts the main experiment unit, together with the
+// experiment helper socket on supported hosts. Both are started by a single
+// systemctl call: starting the main unit stops the stable units, including
+// the installer running this hook, so nothing may run after it. If the call
+// fails before that (e.g. the PAR experiment unit, which the socket binds to,
+// is masked), retry without the optional socket.
+func startExperimentUnits(ctx HookContext, mainUnit string) error {
+	if !privilegedRshellSupported(ctx.PackagePath) {
+		return systemd.StartUnit(ctx, mainUnit)
+	}
+	err := systemd.StartUnit(ctx, mainUnit, privilegedRshellSocketExp)
+	if err == nil || ctx.Err() != nil {
+		// A canceled context means the main unit started and is stopping us:
+		// don't retry.
+		return err
+	}
+	log.Warnf("failed to start %s with %s, retrying without the socket: %v", mainUnit, privilegedRshellSocketExp, err)
+	return systemd.StartUnit(ctx, mainUnit)
 }
 
 func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
@@ -808,17 +863,13 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 		if err := systemd.EnableUnit(ctx, s.SystemdMainUnitStable); err != nil {
 			return err
 		}
-		if privilegedRshellUsable(ctx) {
-			return systemd.EnableUnit(ctx, privilegedRshellSocketStable)
-		}
+		enablePrivilegedRshellSocket(ctx, privilegedRshellSocketStable)
 		return nil
 	case service.ProcmgrType:
 		if err := systemd.EnableUnit(ctx, s.ProcmgrMainUnitStable); err != nil {
 			return err
 		}
-		if privilegedRshellUsable(ctx) {
-			return systemd.EnableUnit(ctx, privilegedRshellSocketStable)
-		}
+		enablePrivilegedRshellSocket(ctx, privilegedRshellSocketStable)
 		return nil
 	case service.UpstartType:
 		return nil // Nothing to do, this is defined directly in the upstart job file
@@ -877,9 +928,8 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	default:
 		return errors.New("unsupported service manager")
 	}
-	if privilegedRshellUsable(ctx) {
-		return systemd.StartUnit(ctx, privilegedRshellSocketStable)
-	}
+	// The helper socket is not started here: when enabled, it is WantedBy the
+	// PAR unit, which the main unit pulls in.
 	return nil
 }
 
@@ -919,9 +969,9 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return writeEmbeddedSystemdUnitsAndReload(ctx, installableUnits(ctx, s.SystemdUnitsStable)...)
+		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsStable...)
 	case service.ProcmgrType:
-		return writeEmbeddedProcmgrUnitsAndReload(ctx, installableUnits(ctx, s.ProcmgrUnitsStable)...)
+		return writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsStable...)
 	case service.UpstartType, service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	default:
@@ -953,11 +1003,9 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		units := experimentStartUnits(ctx, s.SystemdMainUnitExp)
-		return systemd.StartUnit(ctx, units[0], units[1:]...)
+		return startExperimentUnits(ctx, s.SystemdMainUnitExp)
 	case service.ProcmgrType:
-		units := experimentStartUnits(ctx, s.ProcmgrMainUnitExp)
-		return systemd.StartUnit(ctx, units[0], units[1:]...)
+		return startExperimentUnits(ctx, s.ProcmgrMainUnitExp)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
@@ -991,9 +1039,9 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType(ctx.PackagePath) {
 	case service.SystemdType:
-		return writeEmbeddedSystemdUnitsAndReload(ctx, installableUnits(ctx, s.SystemdUnitsExp)...)
+		return writeEmbeddedSystemdUnitsAndReload(ctx, s.SystemdUnitsExp...)
 	case service.ProcmgrType:
-		return writeEmbeddedProcmgrUnitsAndReload(ctx, installableUnits(ctx, s.ProcmgrUnitsExp)...)
+		return writeEmbeddedProcmgrUnitsAndReload(ctx, s.ProcmgrUnitsExp...)
 	case service.UpstartType:
 		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
