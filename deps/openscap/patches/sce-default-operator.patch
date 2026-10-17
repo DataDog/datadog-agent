@@ -1,0 +1,10 @@
+--- a/src/SCE/sce_engine.c
++++ b/src/SCE/sce_engine.c
+@@ -603,6 +603,7 @@ xccdf_test_result_type_t sce_engine_eval_rule(struct xccdf_policy *policy, const
+ 		char* operator_str;
+ 		switch (operator)
+ 		{
++		case 0: /* no operator attribute: XCCDF defaults to equals */
+ 		case XCCDF_OPERATOR_EQUALS:
+ 			operator_str = "EQUALS";
+ 			break;
