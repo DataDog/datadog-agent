@@ -21,6 +21,8 @@ mod list;
 #[cfg(windows)]
 mod privileged_allowlist;
 mod process_control;
+#[cfg(target_os = "linux")]
+mod reaper;
 mod reload;
 mod restart_burst;
 mod skipped;

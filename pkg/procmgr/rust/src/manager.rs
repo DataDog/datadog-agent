@@ -84,6 +84,7 @@ impl ProcessManager {
     }
 
     pub async fn run(&self) -> Result<()> {
+        let _reaper = platform::start_reaper();
         let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(64);
         let (grpc_shutdown_tx, grpc_shutdown_rx) = oneshot::channel::<()>();
         let grpc_handle = tokio::spawn(grpc::server::run(self.clone(), cmd_tx, grpc_shutdown_rx));
