@@ -18,10 +18,12 @@ import (
 
 // Interfaces used by OS components
 type PackageManager interface {
-	// Ensure ensures that a package is installed
+	// RuntimeInstall installs a package at provisioning time; prefer pre-baked machine images instead.
 	// checkBinary is a binary that should be checked before running the install command, if it is not empty it will first run the `command -v checkBinary` command and if it fails it will run the installCmd,
 	// if it succeeds we consider the package is already installed
-	Ensure(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
+	RuntimeInstall(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
+	// InstallLocalPackage installs a package file already present on the host, allowing unsigned packages.
+	InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error)
 	EnsureUninstalled(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
 	AssertInstalled(checkBinary string, opts ...PackageManagerOption) (command.Command, error)
 }
@@ -35,6 +37,23 @@ func assertInstalledCommand(runner command.Runner, n namer.Namer, checkBinary st
 	)
 	cmdName := n.ResourceName("assert-"+checkBinary, utils.StrHash(cmdStr))
 	return runner.Command(cmdName, &command.Args{Create: pulumi.String(cmdStr)}, pulumiOpts...)
+}
+
+// isAWS reports whether env provisions resources on AWS.
+func isAWS(env any) bool {
+	awsEnv, ok := env.(interface{ IsAWS() bool })
+	return ok && awsEnv.IsAWS()
+}
+
+// warnIfAWS logs a Pulumi warning when runtime-installing packageRef on AWS, where pre-baked AMIs are available.
+func warnIfAWS(env config.Env, packageRef string) {
+	if !isAWS(env) {
+		return
+	}
+	env.Ctx().Log.Warn(fmt.Sprintf(
+		"Runtime-installing %q on AWS is strongly discouraged, use a pre-baked -e2e AMI instead, see https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/",
+		packageRef,
+	), nil)
 }
 
 func AllowUnsignedPackages(allow bool) PackageManagerOption {

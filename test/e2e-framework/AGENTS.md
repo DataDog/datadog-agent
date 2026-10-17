@@ -80,6 +80,7 @@ Prefer the `-e2e` descriptors (`Ubuntu2204E2E`, not `Ubuntu2204`): they resolve 
 Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked,
 so a test never installs them at runtime. They are already the Linux defaults
 (`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
+`PackageManager.RuntimeInstall` logs a Pulumi warning on AWS for that reason: add the dependency to the AMI instead.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.

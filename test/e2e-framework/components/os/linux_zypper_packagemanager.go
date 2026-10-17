@@ -29,7 +29,16 @@ type ZypperPackageManager struct {
 	pulumiOpts []pulumi.ResourceOption
 }
 
-func (m *ZypperPackageManager) Ensure(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+func (m *ZypperPackageManager) RuntimeInstall(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
+	warnIfAWS(m.runner.Environment(), packageRef)
+	return m.install(packageRef, transform, checkBinary, opts...)
+}
+
+func (m *ZypperPackageManager) InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error) {
+	return m.install(packagePath, nil, "", append([]PackageManagerOption{AllowUnsignedPackages(true)}, opts...)...)
+}
+
+func (m *ZypperPackageManager) install(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
 	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
 	if err != nil {
 		return nil, err
