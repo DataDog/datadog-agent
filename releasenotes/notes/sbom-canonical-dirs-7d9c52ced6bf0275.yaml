@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment matches the programs that packages list under
+    ``/usr/sbin`` on Fedora 42, RHEL 10 and the other systems that merge
+    ``/usr/sbin`` into ``/usr/bin``. They appeared unused.

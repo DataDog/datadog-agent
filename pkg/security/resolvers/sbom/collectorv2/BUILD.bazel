@@ -5,6 +5,7 @@ go_library(
     name = "collectorv2",
     srcs = [
         "apk.go",
+        "canonical.go",
         "collector.go",
         "dpkg.go",
         "rpm.go",
@@ -35,6 +36,7 @@ dd_agent_go_test(
     name = "collectorv2_test",
     srcs = [
         "apk_test.go",
+        "canonical_test.go",
         "collector_test.go",
         "rpmdb_test.go",
     ],
