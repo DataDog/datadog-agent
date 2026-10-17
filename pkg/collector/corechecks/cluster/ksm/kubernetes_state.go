@@ -329,6 +329,7 @@ type KSMCheck struct {
 	core.CheckBase
 	agentConfig                model.Config
 	instance                   *KSMConfig
+	tagCache                   map[string]map[string]string
 	allStores                  [][]cache.Store
 	telemetry                  *telemetryCache
 	tagger                     tagger.Component
@@ -936,6 +937,9 @@ func (k *KSMCheck) Run() error {
 		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
 	}
 
+	// Reset the tag cache at the start of each run
+	k.resetTagCache()
+
 	defer sender.Commit()
 
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
@@ -1199,16 +1203,27 @@ func (k *KSMCheck) buildTag(key, value string, lMapperOverride map[string]string
 		}
 	}
 
+	if key == "host" || key == "node" {
+		hostname = value
+	}
+
+	// Memoize the built tag per (resolved key, value)
+	valueCache, found := k.tagCache[key]
+	if !found {
+		valueCache = make(map[string]string)
+		k.tagCache[key] = valueCache
+	}
+	if tag, found = valueCache[value]; found {
+		return
+	}
+
 	var sb strings.Builder
 	sb.Grow(len(key) + 1 + len(value))
 	sb.WriteString(key)
 	sb.WriteByte(':')
 	sb.WriteString(value)
 	tag = sb.String()
-
-	if key == "host" || key == "node" {
-		hostname = value
-	}
+	valueCache[value] = tag
 	return
 }
 
@@ -1398,6 +1413,12 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 	}
 }
 
+// resetTagCache discards the tag cache so tag keys that are no longer in use
+// do not accumulate over the check's lifetime
+func (k *KSMCheck) resetTagCache() {
+	k.tagCache = make(map[string]map[string]string)
+}
+
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
 // during a check run then sendTelemetry should be called to forward the calculated values
 func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) {
@@ -1490,6 +1511,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		CheckBase:                  base,
 		agentConfig:                pkgconfigsetup.Datadog(),
 		instance:                   instance,
+		tagCache:                   make(map[string]map[string]string),
 		telemetry:                  newTelemetryCache(),
 		tagger:                     tagger,
 		isCLCRunner:                helper.IsCLCRunner(pkgconfigsetup.Datadog()),
