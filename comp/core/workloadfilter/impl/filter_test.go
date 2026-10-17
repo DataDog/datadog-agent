@@ -1399,6 +1399,61 @@ cel_workload_exclude:
 	})
 }
 
+func TestCELDogstatsdFiltering(t *testing.T) {
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["dogstatsd"]
+  rules:
+    containers:
+      - "container.pod.namespace == 'noisy'"
+      - "container.image.reference.startsWith('busybox')"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	dsdBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerCELDogstatsd}})
+	assert.Nil(t, dsdBundle.GetErrors())
+	sharedMetricsBundle := filterStore.GetContainerSharedMetricFilters()
+
+	noisyPodContainer := workloadmetafilter.CreateContainer(
+		&workloadmeta.Container{EntityMeta: workloadmeta.EntityMeta{Name: "app"}},
+		workloadmetafilter.CreatePod(&workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{Name: "pod", Namespace: "noisy"},
+		}),
+	)
+	busyboxContainer := workloadmetafilter.CreateContainer(
+		&workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{Name: "box"},
+			Image:      workloadmeta.ContainerImage{RawName: "busybox:latest"},
+		},
+		nil,
+	)
+	otherContainer := workloadmetafilter.CreateContainer(
+		&workloadmeta.Container{EntityMeta: workloadmeta.EntityMeta{Name: "app"}},
+		workloadmetafilter.CreatePod(&workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{Name: "pod", Namespace: "default"},
+		}),
+	)
+
+	t.Run("excluded by pod namespace", func(t *testing.T) {
+		assert.Equal(t, workloadfilter.Excluded, dsdBundle.GetResult(noisyPodContainer))
+	})
+
+	t.Run("excluded by image", func(t *testing.T) {
+		assert.Equal(t, workloadfilter.Excluded, dsdBundle.GetResult(busyboxContainer))
+	})
+
+	t.Run("not matching", func(t *testing.T) {
+		assert.Equal(t, workloadfilter.Unknown, dsdBundle.GetResult(otherContainer))
+	})
+
+	t.Run("dogstatsd rules do not affect metrics", func(t *testing.T) {
+		assert.False(t, sharedMetricsBundle.IsExcluded(noisyPodContainer))
+		assert.False(t, sharedMetricsBundle.IsExcluded(busyboxContainer))
+	})
+}
+
 func TestContainerRuntimeSecurityAndComplianceFilters(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockSystemProbe := configmock.NewSystemProbe(t)

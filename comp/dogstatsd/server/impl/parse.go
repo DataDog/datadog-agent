@@ -70,6 +70,9 @@ type parser struct {
 
 	// Generic Metric Provider
 	provider provider.Provider
+
+	// originFilter drops data based on its origin container, nil when disabled.
+	originFilter *originFilter
 }
 
 func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {

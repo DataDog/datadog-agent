@@ -48,10 +48,17 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator), s.tlmChannel)
 	}
 
+	parser := newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry)
+	if s.originFilterEnabled {
+		wm, _ := wmeta.Get()
+		filterStore, _ := s.workloadFilter.Get()
+		parser.originFilter = newOriginFilter(wm, filterStore, parser.provider.GetMetaCollector(), s.config.GetBool("dogstatsd_workload_filter_drop_unresolved"))
+	}
+
 	return &worker{
 		server:           s,
 		batcher:          batcher,
-		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		parser:           parser,
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
 		FilterListUpdate: make(chan metricname.Matcher),
@@ -86,6 +93,9 @@ func (w *worker) run() {
 func (w *worker) handlePackets(ps packets.Packets) {
 	w.packetsTelemetry.TelemetryUntrackPackets(ps)
 	w.samples = w.samples[0:0]
+	if w.parser.originFilter != nil {
+		w.parser.originFilter.refreshClock()
+	}
 	// we return the samples in case the slice was extended
 	// when parsing the packets
 	w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
