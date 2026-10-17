@@ -187,6 +187,10 @@ func (l *LogsConfigKeys) foldspaceTapChannelSize() int {
 	return l.getConfig().GetInt(l.getConfigKey("message_channel_size"))
 }
 
+func (l *LogsConfigKeys) foldspaceDualShip() bool {
+	return l.getConfig().GetBool(l.getConfigKey("foldspace.dual_ship"))
+}
+
 // FoldspaceEnabled reports logs_config.foldspace.enabled.
 func FoldspaceEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	return defaultLogsConfigKeys(coreConfig).foldspaceEnabled()
@@ -198,6 +202,11 @@ func FoldspaceEnabled(coreConfig pkgconfigmodel.Reader) bool {
 // destination before the two paths start affecting each other.
 func FoldspaceTapChannelSize(coreConfig pkgconfigmodel.Reader) int {
 	return defaultLogsConfigKeys(coreConfig).foldspaceTapChannelSize()
+}
+
+// FoldspaceDualShip reports logs_config.foldspace.dual_ship.
+func FoldspaceDualShip(coreConfig pkgconfigmodel.Reader) bool {
+	return defaultLogsConfigKeys(coreConfig).foldspaceDualShip()
 }
 
 // ValidateFoldspace returns a startup error when foldspace is requested with
