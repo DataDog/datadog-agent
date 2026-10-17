@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    The admission controller connectivity probe now distinguishes between the admission
+    webhook configuration not existing in the cluster (commonly caused by a missing or
+    unreadable certificate secret) and a network connectivity issue between the Kubernetes
+    API server and the Cluster Agent. Each case now surfaces its own targeted diagnostic
+    message and remediation steps in the Cluster Agent logs and health reporting.
