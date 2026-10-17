@@ -10,6 +10,8 @@ import (
 	"maps"
 	"os"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -100,6 +102,11 @@ func (a *AppService) GetSource() metrics.MetricSource {
 // Init is empty for AppService
 func (a *AppService) Init(_ *TracingContext) error {
 	return nil
+}
+
+// Run uses the default run behaviour for AppService.
+func (a *AppService) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
 }
 
 // Shutdown emits the shutdown metric for AppService

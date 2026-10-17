@@ -9,6 +9,7 @@ package kubernetesapiserver
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -17,7 +18,9 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 func TestParseComponentStatus(t *testing.T) {
@@ -90,6 +93,7 @@ func TestParseComponentStatus(t *testing.T) {
 
 	mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")
+	mocked.On("Gauge", "datadog.cluster_agent.Zookeeper.component_status", 1.0, "", []string{"component:Zookeeper"})
 	kubeASCheck.parseComponentStatus(mocked, expected)
 
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 1)
@@ -100,11 +104,13 @@ func TestParseComponentStatus(t *testing.T) {
 	mocked.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckCritical, "", []string{"component:ETCD"}, "Connection closed")
+	mocked.On("Gauge", "datadog.cluster_agent.ETCD.component_status", 0.0, "", []string{"component:ETCD"})
 	kubeASCheck.parseComponentStatus(mocked, unHealthy)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 2)
 	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", servicecheck.ServiceCheckCritical, "", []string{"component:ETCD"}, "Connection closed")
 
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckUnknown, "", []string{"component:DCA"}, "")
+	mocked.On("Gauge", "datadog.cluster_agent.DCA.component_status", 0.0, "", []string{"component:DCA"})
 	kubeASCheck.parseComponentStatus(mocked, unknown)
 	mocked.AssertNumberOfCalls(t, "ServiceCheck", 3)
 	mocked.AssertServiceCheck(t, "kube_apiserver_controlplane.up", servicecheck.ServiceCheckUnknown, "", []string{"component:DCA"}, "")
@@ -143,4 +149,57 @@ func TestConvertFilter(t *testing.T) {
 			assert.Equal(t, tc.output, output)
 		})
 	}
+}
+
+func TestSubmitStorageObjectsMetrics(t *testing.T) {
+	tests := []struct {
+		name   string
+		family *prometheus.MetricFamily
+	}{
+		{
+			name: "storage metric",
+			family: &prometheus.MetricFamily{
+				Name: storageObjectsMetricName,
+				Type: "GAUGE",
+				Samples: []prometheus.Sample{
+					{Metric: prometheus.Metric{"resource": "pods"}, Value: 42},
+					{Metric: prometheus.Metric{"resource": "widgets.example.com"}, Value: 3},
+				},
+			},
+		},
+		{
+			name: "legacy metric",
+			family: &prometheus.MetricFamily{
+				Name: legacyStorageObjectsMetricName,
+				Type: "GAUGE",
+				Samples: []prometheus.Sample{
+					{Metric: prometheus.Metric{"resource": "pods"}, Value: 42},
+					{Metric: prometheus.Metric{"resource": "widgets.example.com"}, Value: 3},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tagger := taggerfxmock.SetupFakeTagger(t)
+			kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
+			mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
+
+			mocked.On("Gauge", "kube_apiserver.storage_objects", 42.0, "", []string{"resource:pods"})
+			mocked.On("Gauge", "kube_apiserver.storage_objects", 3.0, "", []string{"resource:widgets.example.com"})
+
+			submitStorageObjectsMetrics(mocked, test.family)
+
+			mocked.AssertNumberOfCalls(t, "Gauge", 2)
+			mocked.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAPIServerClientTimeout(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("kubernetes_apiserver_client_timeout", 27)
+
+	assert.Equal(t, 27*time.Second, apiServerClientTimeout())
 }

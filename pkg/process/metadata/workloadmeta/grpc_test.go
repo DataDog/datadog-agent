@@ -39,7 +39,7 @@ func TestGetGRPCStreamPort(t *testing.T) {
 
 	t.Run("valid port", func(t *testing.T) {
 		cfg := configmock.New(t)
-		cfg.SetInTest("process_config.language_detection.grpc_port", "1234")
+		cfg.SetInTest("process_config.language_detection.grpc_port", 1234)
 
 		assert.Equal(t, 1234, getGRPCStreamPort(cfg))
 	})

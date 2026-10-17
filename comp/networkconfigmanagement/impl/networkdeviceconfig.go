@@ -31,7 +31,7 @@ func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, s
 		log:      log,
 		store:    store,
 		sender:   sender,
-		devices:  NewDeviceMap(deviceTimeout),
+		devices:  NewDeviceMap(),
 		hostname: hostname,
 		profiles: profiles,
 		connect:  connectFn,
@@ -139,7 +139,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		nonBlockingErrors = append(nonBlockingErrors, types.WrapErrorf(types.ErrMetadataSendFailed, "failed to send device metadata: %w", err))
 	}
 
-	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store)
+	configs, localStoreChanged, confErrs := retrieveAndStoreBothConfigs(ctx, dc, conn, n.store, sender)
 	nonBlockingErrors = append(nonBlockingErrors, confErrs...)
 
 	var inventoryEntries []ncmreport.InventoryEntry

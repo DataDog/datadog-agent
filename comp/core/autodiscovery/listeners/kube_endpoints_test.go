@@ -11,6 +11,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +27,73 @@ import (
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+func TestKubeEndpointServiceFilterTemplatesOverriddenChecks(t *testing.T) {
+	endpointID := "kube_endpoint_uid://default/myservice/10.0.0.1"
+	annotationRedis := integration.Config{
+		Name:          "redisdb",
+		Provider:      names.KubeEndpointSlices,
+		Source:        "kube_endpoints:kube_endpoint_uid://default/myservice/",
+		ADIdentifiers: []string{endpointID},
+		Instances:     []integration.Data{integration.Data(`{"host":"%%host%%"}`)},
+	}
+	legacyAnnotationRedis := annotationRedis
+	legacyAnnotationRedis.Provider = names.KubeEndpoints
+	crRedis := annotationRedis
+	crRedis.Provider = names.KubeEndpointSlicesCR
+	crRedis.Source = "datadoginstrumentation:default/redis"
+	crRedis.Instances = []integration.Data{integration.Data(`{"host":"%%host%%","source":"cr"}`)}
+	crHTTP := crRedis
+	crHTTP.Name = "http_check"
+
+	tests := []struct {
+		name    string
+		configs []integration.Config
+		want    []string
+	}{
+		{
+			name:    "CR check without annotation is preserved",
+			configs: []integration.Config{crRedis},
+			want:    []string{names.KubeEndpointSlicesCR + "/redisdb"},
+		},
+		{
+			name:    "EndpointSlice annotation overrides same CR integration",
+			configs: []integration.Config{crRedis, annotationRedis},
+			want:    []string{names.KubeEndpointSlices + "/redisdb"},
+		},
+		{
+			name:    "legacy Endpoints annotation overrides same CR integration",
+			configs: []integration.Config{crRedis, legacyAnnotationRedis},
+			want:    []string{names.KubeEndpoints + "/redisdb"},
+		},
+		{
+			name:    "different integrations coexist",
+			configs: []integration.Config{crHTTP, annotationRedis},
+			want: []string{
+				names.KubeEndpointSlicesCR + "/http_check",
+				names.KubeEndpointSlices + "/redisdb",
+			},
+		},
+	}
+
+	service := &KubeEndpointService{entity: endpointID}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			configs := make(map[string]integration.Config, len(tc.configs))
+			for _, config := range tc.configs {
+				configs[config.Digest()] = config
+			}
+
+			service.FilterTemplates(configs)
+
+			got := make([]string, 0, len(configs))
+			for _, config := range configs {
+				got = append(got, config.Provider+"/"+config.Name)
+			}
+			assert.ElementsMatch(t, tc.want, got)
+		})
+	}
+}
 
 func TestProcessEndpoints(t *testing.T) {
 	kep := &v1.Endpoints{

@@ -99,7 +99,7 @@ func (s *K8sSuite) TestProcessCheck() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		status := k8sAgentStatus(c, s.Env().KubernetesCluster)
 		// On Linux, process checks run in the core agent's process component
-		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -200,7 +200,7 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 	}()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
-		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 		assert.ElementsMatch(c, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
 

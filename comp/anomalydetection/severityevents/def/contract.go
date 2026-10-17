@@ -7,7 +7,7 @@
 // contract.
 package severityevents
 
-// team: q-branch
+// team: agent-anomaly-detection
 
 // Subscriber is the minimal severity event source exposed to consumers that
 // only care about severity transitions.

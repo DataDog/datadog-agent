@@ -15,6 +15,9 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	apiservercommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,10 +29,17 @@ const (
 
 	// defaultResolveRetries/defaultResolveRetryDelay bound how long DeploymentID
 	// waits for workloadmeta to observe the agent's own pod before giving up,
-	// and how long ClusterID retries the Cluster Agent in the background. Kept
-	// short (~1s) since DeploymentID can block a synchronous ReportIssue caller.
+	// and how long the ClusterID resolver retries the Cluster Agent/API server.
+	// Kept short (~1s) since both feed the synchronous ReportIssue path.
 	defaultResolveRetries    = 5
 	defaultResolveRetryDelay = 200 * time.Millisecond
+
+	// defaultClusterResolveTimeout bounds how long a ClusterID caller blocks on
+	// the resolver, independent of how long a lookup blocks (the node-agent HTTP
+	// client can take ~10s; the Cluster Agent's Kubernetes calls take no caller
+	// deadline). Without it, a Cluster Agent/API server outage could stall
+	// ReportIssue — and thus agent shutdown — for many seconds.
+	defaultClusterResolveTimeout = defaultResolveRetries * defaultResolveRetryDelay
 )
 
 // SelfIdent resolves and caches the agent's own DaemonSet UID (deployment_id)
@@ -43,8 +53,14 @@ type SelfIdent struct {
 	resolveRetries    int
 	resolveRetryDelay time.Duration
 
-	clusterIDResolveOnce sync.Once
-	clusterID            atomic.Pointer[string]
+	// clusterResolveTimeout bounds how long a ClusterID caller blocks waiting
+	// for the shared resolver; clusterResolveMu guards clusterResolving, the
+	// channel closed when the single in-flight resolution finishes (nil when
+	// none is running).
+	clusterResolveTimeout time.Duration
+	clusterResolveMu      sync.Mutex
+	clusterResolving      chan struct{}
+	clusterID             atomic.Pointer[string]
 }
 
 // New creates a SelfIdent. Outside Kubernetes it returns a no-op instance that
@@ -53,14 +69,14 @@ type SelfIdent struct {
 // deployment_id resolution, in which case DeploymentID resolves to empty.
 func New(wmeta workloadmeta.Component) *SelfIdent {
 	s := &SelfIdent{
-		wmeta:             wmeta,
-		resolveRetries:    defaultResolveRetries,
-		resolveRetryDelay: defaultResolveRetryDelay,
+		wmeta:                 wmeta,
+		resolveRetries:        defaultResolveRetries,
+		resolveRetryDelay:     defaultResolveRetryDelay,
+		clusterResolveTimeout: defaultClusterResolveTimeout,
 	}
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		empty := ""
 		s.deploymentID.Store(&empty)
-		s.clusterIDResolveOnce.Do(func() {})
 		s.clusterID.Store(&empty)
 	}
 	return s
@@ -109,47 +125,113 @@ func (s *SelfIdent) IssueDiscriminator() string {
 }
 
 // ClusterID returns the best-effort Kubernetes cluster id for payload
-// enrichment only — never part of the issue id. Resolution runs in the
-// background since clustername.GetClusterID() usually makes a synchronous
-// Cluster Agent HTTP call, but a caller made before resolution finishes
-// blocks up to resolveRetries*resolveRetryDelay for it — a startup-only
-// health check (e.g. invalidconfig) calls this exactly once and never
-// re-reports, so returning immediately would permanently miss the id.
-// Callers made after resolution settles return immediately from cache.
+// enrichment only — never part of the issue id. A caller blocks up to
+// clusterResolveTimeout while resolution is in flight: long enough to give a
+// one-shot startup check (e.g. invalidconfig) a chance at the id, but bounded
+// so it can't block forever when a lookup hangs. A successful result is cached
+// for the process lifetime; a failure is not, so a later call retries instead
+// of being stuck with an empty id after a transient startup outage — the same
+// guarantee DeploymentID gives a transient workloadmeta miss.
+//
+// lookup() takes no context and can't be cancelled, so the retry loop runs in
+// a single shared resolver goroutine that callers wait on with a deadline: a
+// caller past the deadline returns "" without waiting for a slow lookup, and
+// concurrent callers share one retry budget. The resolver self-terminates
+// after the budget, so a lookup outliving its caller is bounded, not leaked.
 func (s *SelfIdent) ClusterID() string {
-	s.clusterIDResolveOnce.Do(func() {
-		go s.resolveClusterID()
-	})
-	for attempt := 0; ; attempt++ {
-		if id := s.clusterID.Load(); id != nil {
-			return *id
-		}
-		if attempt >= s.resolveRetries {
-			return ""
-		}
-		time.Sleep(s.resolveRetryDelay)
+	if cached := s.clusterID.Load(); cached != nil {
+		return *cached
 	}
+
+	resolved := s.startClusterResolve()
+	select {
+	case <-resolved:
+	case <-time.After(s.clusterResolveTimeout):
+	}
+	if cached := s.clusterID.Load(); cached != nil {
+		return *cached
+	}
+	return ""
 }
 
-// resolveClusterID retries clustername.GetClusterID() a bounded number of
-// times (clustername caches a successful result process-wide, so retries
-// here only matter while the Cluster Agent hasn't answered yet) before
-// giving up and caching empty for the process lifetime.
+// startClusterResolve returns a channel closed when the current cluster id
+// resolution finishes, starting a single shared resolver goroutine if none is
+// already in flight so concurrent callers share one retry budget.
+func (s *SelfIdent) startClusterResolve() <-chan struct{} {
+	s.clusterResolveMu.Lock()
+	defer s.clusterResolveMu.Unlock()
+	if s.clusterResolving != nil {
+		return s.clusterResolving
+	}
+	done := make(chan struct{})
+	// Re-check under the lock: another resolver may have populated the cache
+	// since the caller's Load. Return an already-closed channel so the caller
+	// reads it immediately instead of waiting out the timeout behind a
+	// redundant lookup.
+	if s.clusterID.Load() != nil {
+		close(done)
+		return done
+	}
+	s.clusterResolving = done
+	go func() {
+		// Clear clusterResolving before closing done so a caller woken by the
+		// close sees no in-flight resolver and can start a fresh attempt after a
+		// failure.
+		defer close(done)
+		defer func() {
+			s.clusterResolveMu.Lock()
+			s.clusterResolving = nil
+			s.clusterResolveMu.Unlock()
+		}()
+		s.resolveClusterID()
+	}()
+	return done
+}
+
+// resolveClusterID retries the flavor-appropriate cluster id lookup a bounded
+// number of times, caching a successful result for the process lifetime and
+// leaving the cache untouched on failure so a later caller retries.
 func (s *SelfIdent) resolveClusterID() {
+	// clustername.GetClusterID() is node-agent-only: on the Cluster Agent it
+	// targets an endpoint meant for node→DCA calls, broken when the DCA calls
+	// itself, so the Cluster Agent resolves its own id like
+	// comp/metadata/clusteragent does.
+	lookup := nodeAgentClusterIDFunc
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		lookup = clusterAgentClusterIDFunc
+	}
+
 	for attempt := 0; ; attempt++ {
-		id, err := clustername.GetClusterID()
+		id, err := lookup()
 		if err == nil {
 			s.clusterID.Store(&id)
 			return
 		}
 		if attempt >= s.resolveRetries {
 			log.Debugf("selfident: cluster id unavailable after %d attempts: %v", attempt+1, err)
-			empty := ""
-			s.clusterID.Store(&empty)
 			return
 		}
 		time.Sleep(s.resolveRetryDelay)
 	}
+}
+
+// nodeAgentClusterIDFunc/clusterAgentClusterIDFunc are the per-flavor cluster
+// id lookups used by ClusterID, overridable in tests so dispatch can be
+// verified without a real Cluster Agent or Kubernetes API server.
+var (
+	nodeAgentClusterIDFunc    = clustername.GetClusterID
+	clusterAgentClusterIDFunc = clusterAgentOwnClusterID
+)
+
+// clusterAgentOwnClusterID resolves the cluster id from the Cluster Agent's
+// own Kubernetes API client, mirroring
+// comp/metadata/clusteragent/impl/cluster_agent.go's getClusterID.
+func clusterAgentOwnClusterID() (string, error) {
+	cl, err := apiserver.GetAPIClient()
+	if err != nil {
+		return "", err
+	}
+	return apiservercommon.GetOrCreateClusterID(cl.Cl.CoreV1())
 }
 
 // resolveDeploymentID makes one resolution attempt. definitive is true when

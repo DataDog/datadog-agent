@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    The runtime usage of the host SBOM counts the open of a host file three
+    seconds later, and leaves it out when the file is gone from its path or
+    replaced there by then. rpm opens each executable it removes or replaces
+    to clear its file capabilities, on RHEL 8 and later, Amazon Linux 2023
+    and Fedora, and a package that rpm upgraded or reinstalled read as run
+    by root at the time of the upgrade.
+  - |
+    The runtime usage of the host SBOM leaves out the files of containers
+    that a host process opens through ``/proc/<pid>/root``, which marked
+    the host package at the same path in use.

@@ -64,6 +64,8 @@ func OpenElfFileWithDwarf(path string) (*ElfFileWithDwarf, error) {
 	return newElfFileWithDwarf(mmf, anonymousMmapCompressedSectionLoader{})
 }
 
+// newElfFileWithDwarf takes ownership of mmf and releases it, along with any
+// sections already loaded, when the DWARF data will not load.
 func newElfFileWithDwarf(
 	mmf MMappingElfFile,
 	loader compressedSectionLoader,
@@ -75,6 +77,7 @@ func newElfFileWithDwarf(
 		},
 	}
 	if err := ret.dwarfData.init(&ret.decompressingMMappingElfFile); err != nil {
+		_ = ret.Close()
 		return nil, fmt.Errorf("failed to load dwarf data: %w", err)
 	}
 	return ret, nil

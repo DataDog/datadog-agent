@@ -26,6 +26,13 @@ rules:
       - list
       - watch
   - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - list
+      - watch
+  - apiGroups:
       - extensions
     resources:
       - daemonsets
@@ -86,6 +93,20 @@ rules:
       - apiextensions.k8s.io
     resources:
       - customresourcedefinitions
+    verbs:
+      - list
+      - watch
+  # Dynamic Resource Allocation, for the resourceclaims/resourceslices/devicetaintrules collectors.
+  # A rule naming an API group the server does not serve is inert, so this is
+  # safe on clusters without DRA. NOTE: this manifest is generated from the Helm
+  # chart -- the chart and the Operator must grant the same rule, or the check
+  # will be enabled with no permission to read the objects.
+  - apiGroups:
+      - resource.k8s.io
+    resources:
+      - resourceclaims
+      - resourceslices
+      - devicetaintrules
     verbs:
       - list
       - watch

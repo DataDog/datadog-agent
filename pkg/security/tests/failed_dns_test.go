@@ -57,6 +57,8 @@ func getPayloadBytes(customEvent *events.CustomEvent) (string, error) {
 	return hex.EncodeToString(decoded), nil
 }
 
+var _ = declare(TestFailedDNSFullResponse, testOpts{networkIngressEnabled: true})
+
 func TestFailedDNSFullResponse(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -72,11 +74,11 @@ func TestFailedDNSFullResponse(t *testing.T) {
 		}
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("failed-dns-full-dns-response", func(t *testing.T) {
 		payload := "0000000000000000000000000800450000a41fbd400001115b567f0000357f0000010035d7140090fed7deadb0ef11111111111111111111111111706c6503636f6d0000010001c00c00010001000000ea0004600780c6c00c00010001000000ea000417c0e454c00c00010001000000ea000417d7008ac00c00010001000000ea000417d70088c00c00010001000000ea000417c0e450c00c00010001000000ea0004600780af000029ffd6"
@@ -101,6 +103,9 @@ func TestFailedDNSFullResponse(t *testing.T) {
 		}
 	})
 }
+
+var _ = declare(TestFailedDNSRequest, testOpts{networkIngressEnabled: true})
+
 func TestFailedDNSRequest(t *testing.T) {
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
@@ -116,11 +121,11 @@ func TestFailedDNSRequest(t *testing.T) {
 		}
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("failed-dns-request", func(t *testing.T) {
 		payload := "00000000000000000000000008004500003c853c40004011b7727f0000017f000001b0e100350028fe3b7069636b207570207468652070686f6e6500776861616161617a61616161610a"

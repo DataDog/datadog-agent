@@ -6,6 +6,7 @@
 package invalidsysprobeconfig
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,6 +34,34 @@ func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 	reports, err := newChecker(sysprobeconfigmock.NewMock(t), testHostname("h"), testSelfIdent()).Run()
 	require.NoError(t, err)
 	assert.Empty(t, reports)
+}
+
+func TestCheck_SeparateIssuesRemainStable(t *testing.T) {
+	cfg := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.health_port":                "wrong",
+		"system_probe_config.internal_profiling.api_key": []string{"PRIVATE_KEY"},
+	})
+	c := newChecker(cfg, testHostname("h"), testSelfIdent())
+	reports, err := c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 2)
+	ids := map[string]string{}
+	for _, report := range reports {
+		issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(report.Context)
+		require.NoError(t, err)
+		errors := issue.Extra.GetFields()["errors"].GetStructValue().GetFields()
+		require.Len(t, errors, 1)
+		for path, messages := range errors {
+			ids[path] = report.IssueID
+			assert.Contains(t, messages.GetListValue().GetValues()[0].GetStringValue(), "The default value for this setting is")
+		}
+	}
+	assert.NotEqual(t, ids["/system_probe_config/health_port"], ids["/system_probe_config/internal_profiling/api_key"])
+	cfg.SetInTest("system_probe_config.health_port", 5558)
+	reports, err = c.Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, ids["/system_probe_config/internal_profiling/api_key"], reports[0].IssueID)
 }
 
 // A string in an integer-typed field violates the schema → one report.
@@ -79,17 +108,57 @@ func TestCustomerConfig_SkipsAgentRuntime(t *testing.T) {
 // Locks the dedup contract that distinguishes this issue from invalid-config.
 func TestBuildIssue_LocksContract(t *testing.T) {
 	issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(map[string]string{
-		contextKeyConfigPath: "/etc/datadog-agent/system-probe.yaml",
-		contextKeyErrorCount: "1",
-		contextErrorKey(0):   "at '/system_probe_config/health_port': got string, want integer",
+		"config_path":  "/etc/datadog-agent/system-probe.yaml",
+		"setting_path": "/system_probe_config/health_port",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, IssueName, issue.GetIssueName())
 	assert.Equal(t, IssueType, issue.GetIssueType())
 	assert.Equal(t, "system-probe", issue.GetLocation())
 	assert.Equal(t, []string{"config", "schema", "system-probe"}, issue.GetTags())
-	assert.Contains(t, issue.GetTitle(), "Datadog System-Probe Configuration")
-	assert.Contains(t, issue.GetTitle(), "system-probe.yaml")
+	assert.Equal(t, "Invalid configuration: `/system_probe_config/health_port`", issue.GetTitle())
+	assert.Equal(t, "Check this setting in `/etc/datadog-agent/system-probe.yaml` or environment variables.", issue.Remediation.Steps[0].Text)
+	assert.Equal(t, "Check the value and format of `/system_probe_config/health_port`.", issue.GetRemediation().GetSteps()[1].Text)
+}
+
+func TestCheck_ExplainsTypeAndDefault(t *testing.T) {
+	cfg := sysprobeconfigmock.NewMock(t)
+	cfg.Set("system_probe_config.health_port", "PRIVATE_INVALID_PORT", model.SourceFile)
+	cfg.Set("system_probe_config.health_port", 5558, model.SourceAgentRuntime)
+	reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(reports[0].Context)
+	require.NoError(t, err)
+	assert.Contains(t, issue.Description, "`/system_probe_config/health_port` expects a whole number, but received a string.")
+	assert.Equal(t, "Set `/system_probe_config/health_port` to a whole number. The default value for this setting is `0`.", issue.Remediation.Steps[1].Text)
+	assert.Equal(t, "Check this setting in your system-probe configuration file or environment variables.", issue.Remediation.Steps[0].Text)
+	assert.NotContains(t, issue.Title+issue.Description, "unknown path")
+	violations := issue.Extra.GetFields()["violations"].GetListValue().GetValues()
+	require.Len(t, violations, 1)
+	assert.Equal(t, map[string]any{
+		"path": "/system_probe_config/health_port", "actual_type": "string",
+		"expected_types": []any{"integer"}, "default_status": "known", "default_value": float64(0),
+	}, violations[0].GetStructValue().AsMap())
+	encoded, err := json.Marshal(issue)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "PRIVATE_INVALID_PORT")
+}
+
+func TestCheck_ReportsInvalidAPIKeyTypesWithoutValues(t *testing.T) {
+	for _, value := range []any{[]string{"PRIVATE_KEY"}, map[string]any{"value": "PRIVATE_KEY"}} {
+		cfg := sysprobeconfigmock.NewMock(t)
+		cfg.Set("system_probe_config.internal_profiling.api_key", value, model.SourceFile)
+		reports, err := newChecker(cfg, testHostname("h"), testSelfIdent()).Run()
+		require.NoError(t, err)
+		require.Len(t, reports, 1)
+		issue, err := InvalidSysprobeConfigIssue{}.BuildIssue(reports[0].Context)
+		require.NoError(t, err)
+		assert.Contains(t, issue.Description, "`/system_probe_config/internal_profiling/api_key` expects a string")
+		encoded, err := json.Marshal(issue)
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "PRIVATE_KEY")
+	}
 }
 
 // Without system-probe config the startup check must NOT register, or the bundle would

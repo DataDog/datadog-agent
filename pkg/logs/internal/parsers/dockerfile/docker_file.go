@@ -67,12 +67,14 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 		return msg, errors.New("cannot parse docker message, invalid format: got null")
 	}
 
-	var status string
+	var status, stream string
 	switch log.Stream {
-	case "stderr":
+	case message.StreamStderr:
 		status = message.StatusError
-	case "stdout":
+		stream = message.StreamStderr
+	case message.StreamStdout:
 		status = message.StatusInfo
+		stream = message.StreamStdout
 	default:
 		status = ""
 	}
@@ -91,10 +93,11 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = partial
 	msg.ParsingExtra.Timestamp = log.Time
+	msg.ParsingExtra.Stream = stream
 	// Tag the stream (stdout/stderr) for container logs parsed from docker JSON files
 	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
-		if log.Stream == "stdout" || log.Stream == "stderr" {
-			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(log.Stream))
+		if stream != "" {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
 		}
 	}
 	return msg, nil

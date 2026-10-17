@@ -27,6 +27,8 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // logDataView wraps a recorderdef.LogData and implements observerdef.LogView.
@@ -94,6 +96,9 @@ type Config struct {
 	// StreamParquet ingests globally ordered parquet data without retaining raw rows.
 	// It is intended for one-shot headless runs, which do not need interactive reruns.
 	StreamParquet bool
+	// IncludeDetectorAnomalies retains every detector return value before downstream
+	// filtering so headless output can compare detector behavior directly.
+	IncludeDetectorAnomalies bool
 }
 
 // ScenarioInfo describes an available scenario.
@@ -197,7 +202,8 @@ type Bench struct {
 	// API server
 	api *BenchAPI
 
-	replayStats *ReplayStats
+	replayStats        *ReplayStats
+	replayKeyGenerator *observerimpl.SliceKeyGenerator
 
 	streamInputMetricsCount int64
 	streamInputMetricSeries map[uint64]struct{}
@@ -235,6 +241,7 @@ func New(obs observerdef.Component, debug observerimpl.DebugView, sseAccess test
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 		sseStop:                stop,
+		replayKeyGenerator:     observerimpl.NewSliceKeyGenerator(),
 	}
 
 	if sseAccess != nil {
@@ -492,12 +499,8 @@ func (tb *Bench) loadParquetDir(dir string) error {
 				droppedCount++
 				continue
 			}
-			tb.rawMetrics = append(tb.rawMetrics, &parquetMetricView{
-				name:      m.Name,
-				value:     m.Value,
-				tags:      m.Tags,
-				timestamp: m.Timestamp,
-			})
+			view := newParquetMetricView(m.Name, m.Value, m.Tags, m.Timestamp, m.MetricType, m.SampleRate)
+			tb.rawMetrics = append(tb.rawMetrics, &view)
 		}
 		if droppedCount > 0 {
 			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
@@ -542,18 +545,13 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 				return nil
 			}
 
-			sort.Strings(metric.Tags)
-			tb.streamInputMetricSeries[metricSeriesHash(metric.Name, metric.Tags)] = struct{}{}
+			view := newParquetMetricView(metric.Name, metric.Value, metric.Tags, metric.Timestamp, metric.MetricType, metric.SampleRate)
+			sort.Strings(view.tags)
+			tb.streamInputMetricSeries[metricSeriesHash(view.name, view.host, view.tags)] = struct{}{}
 			tb.streamInputMetricsCount++
 			tb.extendStreamBounds(metric.Timestamp, metric.Timestamp)
 
-			view := parquetMetricView{
-				name:      metric.Name,
-				value:     metric.Value,
-				tags:      metric.Tags,
-				timestamp: metric.Timestamp,
-			}
-			tb.debug.IngestMetricSync("parquet", &view)
+			tb.debug.IngestMetricSync("parquet", &view, tb.parquetMetricContextKey(&view))
 			return nil
 		}
 
@@ -593,7 +591,7 @@ func (tb *Bench) extendStreamBounds(startSec, endSec int64) {
 // component toggle).
 func (tb *Bench) feedRawMetrics() {
 	for _, m := range tb.rawMetrics {
-		tb.debug.IngestMetricSync("parquet", m)
+		tb.debug.IngestMetricSync("parquet", m, tb.parquetMetricContextKey(m))
 	}
 
 	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace
@@ -632,13 +630,73 @@ func (tb *Bench) feedRawMetrics() {
 
 // parquetMetricView wraps a metric record to satisfy observerdef.MetricView.
 type parquetMetricView struct {
-	name      string
-	value     float64
-	tags      []string
-	timestamp int64
+	name       string
+	value      float64
+	metricType metrics.MetricType
+	host       string
+	tags       []string
+	timestamp  int64
+	sampleRate float64
 }
 
-func metricSeriesHash(name string, sortedTags []string) uint64 {
+// newParquetMetricView resolves the recorder's legacy host:* tag into the
+// separate host dimension. The remaining tags are the final tags from the replay input.
+func newParquetMetricView(name string, value float64, tags []string, timestamp int64, metricType string, sampleRate float64) parquetMetricView {
+	host, metricTags := resolveParquetMetricHostAndTags(tags)
+	return parquetMetricView{name: name, value: value, metricType: parseMetricType(metricType), host: host, tags: metricTags, timestamp: timestamp, sampleRate: sampleRate}
+}
+
+func parseMetricType(name string) metrics.MetricType {
+	switch name {
+	case "Gauge":
+		return metrics.GaugeType
+	case "Rate":
+		return metrics.RateType
+	case "Count":
+		return metrics.CountType
+	case "MonotonicCount":
+		return metrics.MonotonicCountType
+	case "Counter":
+		return metrics.CounterType
+	case "Histogram":
+		return metrics.HistogramType
+	case "Historate":
+		return metrics.HistorateType
+	case "Set":
+		return metrics.SetType
+	case "Distribution":
+		return metrics.DistributionType
+	case "GaugeWithTimestamp":
+		return metrics.GaugeWithTimestampType
+	case "CountWithTimestamp":
+		return metrics.CountWithTimestampType
+	default:
+		return observerdef.UnknownType
+	}
+}
+
+func resolveParquetMetricHostAndTags(tags []string) (string, []string) {
+	var host string
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "host:") {
+			host = strings.TrimPrefix(tag, "host:")
+			break
+		}
+	}
+	if host == "" {
+		return "", tags
+	}
+
+	metricTags := make([]string, 0, len(tags)-1)
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag, "host:") {
+			metricTags = append(metricTags, tag)
+		}
+	}
+	return host, metricTags
+}
+
+func metricSeriesHash(name, host string, sortedTags []string) uint64 {
 	const (
 		offset64 = 14695981039346656037
 		prime64  = 1099511628211
@@ -653,40 +711,53 @@ func metricSeriesHash(name string, sortedTags []string) uint64 {
 		hash *= prime64
 	}
 	add(name)
+	add(host)
 	for _, tag := range sortedTags {
 		add(tag)
 	}
 	return hash
 }
 
-func (m *parquetMetricView) GetName() string         { return m.name }
-func (m *parquetMetricView) GetValue() float64       { return m.value }
-func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
-func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
-func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
+func (tb *Bench) parquetMetricContextKey(metric *parquetMetricView) uint64 {
+	return uint64(tb.replayKeyGenerator.Generate(metric.name, metric.host, metric.tags))
+}
+
+func (m *parquetMetricView) GetName() string   { return m.name }
+func (m *parquetMetricView) GetValue() float64 { return m.value }
+func (m *parquetMetricView) GetTags() tagset.CompositeTags {
+	return tagset.CompositeTagsFromSlice(m.tags)
+}
+func (m *parquetMetricView) GetHost() string                  { return m.host }
+func (m *parquetMetricView) GetTimestampUnix() int64          { return m.timestamp }
+func (m *parquetMetricView) GetSampleRate() float64           { return m.sampleRate }
+func (m parquetMetricView) GetMetricType() metrics.MetricType { return m.metricType }
 
 // unboundedStorageCfg returns a StorageConfig for testbench replay:
 // no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full
-// correlation history accumulation enabled (disabled in live mode to avoid
-// per-Advance overhead that production reporters never read).
-func unboundedStorageCfg() observerimpl.StorageConfig {
+// anomaly and correlation history accumulation enabled (disabled in live mode
+// because production reporters consume advance-local events directly).
+func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
 	cfg.InactiveSeriesTTLSeconds = 0
 	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1           // unlimited — testbench must show all patterns
 	cfg.TrackCorrelationHistory = true // accumulate history for replay UI / output
+	cfg.TrackAnomalyHistory = true     // retain raw detector output for replay UI / output
+	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
 	return cfg
 }
 
 // streamingStorageCfg uses the production point-retention and series limits,
 // but disables inactivity eviction so headless output retains complete scenario state.
-func streamingStorageCfg() observerimpl.StorageConfig {
+func streamingStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.InactiveSeriesTTLSeconds = 0
 	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
+	cfg.TrackAnomalyHistory = true
+	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
 	return cfg
 }
 
@@ -697,9 +768,9 @@ func (tb *Bench) resetAllState() {
 	tb.baselineWindowEndSec = 0
 	tb.baselineMutedSeries = nil
 	tb.baselineMu.Unlock()
-	storageCfg := unboundedStorageCfg()
+	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
 	if tb.config.StreamParquet {
-		storageCfg = streamingStorageCfg()
+		storageCfg = streamingStorageCfg(tb.config.IncludeDetectorAnomalies)
 	}
 	tb.debug.Reset(tb.settings, storageCfg)
 }
@@ -829,7 +900,7 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 // Caller must hold lock.
 func (tb *Bench) rerunDetectorsLocked() {
 	// Reset engine with current settings (clears all storage).
-	tb.debug.Reset(tb.settings, unboundedStorageCfg())
+	tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies))
 
 	// Re-feed parquet metrics synchronously into the fresh storage.
 	tb.feedRawMetrics()
@@ -896,7 +967,7 @@ func (tb *Bench) collectReplayResultsLocked() {
 	for _, metric := range tb.rawMetrics {
 		tags := append([]string(nil), metric.tags...)
 		sort.Strings(tags)
-		inputMetricSeries[metricSeriesHash(metric.name, tags)] = struct{}{}
+		inputMetricSeries[metricSeriesHash(metric.name, metric.host, tags)] = struct{}{}
 	}
 	replayStats := &ReplayStats{
 		DetectorStats:           detectorStats,
@@ -1004,18 +1075,6 @@ func (tb *Bench) GetMetricsAnomaliesForSource(sd observerdef.SeriesDescriptor) [
 	for _, a := range all {
 		if a.Source.Key() == targetKey {
 			result = append(result, a)
-			continue
-		}
-		if a.Source.Namespace != sd.Namespace && a.Source.Name != "" {
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			telemetrySD := observerdef.SeriesDescriptor{
-				Namespace: "telemetry",
-				Name:      telemetryName,
-				Aggregate: observerdef.AggregateAverage,
-			}
-			if telemetrySD.Key() == targetKey {
-				result = append(result, a)
-			}
 		}
 	}
 	return result
@@ -1108,12 +1167,7 @@ func (tb *Bench) GetCompressedCorrelations(threshold float64) []observerimpl.Com
 		memberSources := make([]string, 0, len(corr.Anomalies))
 		seen := make(map[string]bool)
 		for _, a := range corr.Anomalies {
-			var src string
-			if a.SourceRef != nil {
-				src = a.SourceRef.CompactID()
-			} else {
-				src = a.Source.Key()
-			}
+			src := a.SourceRef.CompactID()
 			if !seen[src] {
 				seen[src] = true
 				memberSources = append(memberSources, src)
@@ -1374,12 +1428,8 @@ func (tb *Bench) loadDemoScenario() error {
 				{"connection.errors", getDemoConnectionErrorsValue(elapsed) * 0.6, []string{"service:worker"}},
 			}
 			for _, obs := range observations {
-				tb.rawMetrics = append(tb.rawMetrics, &parquetMetricView{
-					name:      obs.name,
-					value:     obs.value,
-					tags:      obs.tags,
-					timestamp: timestamp,
-				})
+				view := newParquetMetricView(obs.name, obs.value, obs.tags, timestamp, "", 1)
+				tb.rawMetrics = append(tb.rawMetrics, &view)
 			}
 		}
 		fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)

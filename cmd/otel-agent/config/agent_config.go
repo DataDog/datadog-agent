@@ -14,10 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
-	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
-	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -28,25 +24,18 @@ import (
 	"go.opentelemetry.io/collector/service"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
+	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	dogtelextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-)
-
-type logLevel int
-
-const (
-	trace logLevel = iota - 1
-	debug
-	info
-	warn
-	err
-	critical
-	off
+	logtypes "github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 // ddotZstdCompressionLevel is the default zstd compression level DDOT applies to
@@ -54,40 +43,8 @@ const (
 // overridable via the DD_*_ZSTD_*_LEVEL env vars; this is only the default.
 const ddotZstdCompressionLevel = 3
 
-// datadog agent log levels: trace, debug, info, warn, error, critical, and off
-// otel log levels: disabled, debug, info, warn, error
-var logLevelMap = map[string]logLevel{
-	"off":      off,
-	"disabled": off,
-	"trace":    trace,
-	"debug":    debug,
-	"info":     info,
-	"warn":     warn,
-	"error":    err,
-	"critical": critical,
-}
-
-var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
-	reverse := map[logLevel]string{}
-	for k, v := range src {
-		reverse[v] = k
-	}
-
-	return reverse
-}(logLevelMap)
-
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
 var ErrNoDDExporter = errors.New("no datadog exporter found")
-
-// otelAgentEnvVars lists DD_* environment variables that are consumed by the
-// otel-agent binary via CLI flags (envflag) rather than through the Datadog
-// config system. They are passed to LoadDatadog so findUnknownEnvVars does not
-// emit spurious "Unknown environment variable" warnings for them.
-var otelAgentEnvVars = []string{
-	"DD_SYNC_DELAY",
-	"DD_SYNC_TO",
-	"DD_CORE_CONFIG",
-}
 
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
@@ -119,7 +76,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, otelAgentEnvVars)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{})
 		if err != nil {
 			return nil, err
 		}
@@ -155,17 +112,16 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 
-	activeLogLevel := critical
+	activeLogLevel := logtypes.CriticalLvl
 	if pkgconfig.IsConfigured("log_level") {
-		var ok bool
 		logLevel := strings.ToLower(pkgconfig.GetString("log_level"))
-		activeLogLevel, ok = logLevelMap[logLevel]
-		if !ok {
+		activeLogLevel, err = logtypes.ValidateLogLevel(logLevel)
+		if err != nil {
 			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
 	}
 	// Set the right log level. The most verbose setting takes precedence.
-	telemetryLogLevel := "info"
+	telemetryLogLevel := logtypes.InfoStr
 	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
 		if stLogsCfg, ok := stCfgMap["logs"]; ok {
 			if stLogsCfgMap, ok := stLogsCfg.(map[string]any); ok {
@@ -175,15 +131,15 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			}
 		}
 	}
-	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel)]
-	if !ok {
+	telemetryLogMapping, err := logtypes.ValidateLogLevel(telemetryLogLevel)
+	if err != nil {
 		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel)
 	}
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
-	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
-	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
+	fmt.Printf("setting log level to: %v\n", activeLogLevel.String())
+	pkgconfig.Set("log_level", activeLogLevel.String(), pkgconfigmodel.SourceFile)
 
 	// Standalone mode runs without a core Datadog Agent on the same host, so
 	// every client that would otherwise contact it over IPC (trace-agent
@@ -318,7 +274,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		}
 	}
 
-	ddc, err := getDDExporterConfig(cfg)
+	ddc, err := getDDExporterConfig(cfg, pkgconfig)
 	if err == ErrNoDDExporter {
 		return pkgconfig, err
 	}
@@ -341,6 +297,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// (v3 rejects zlib); the v3 series opt-in is handled below (after proxy resolution).
 	pkgconfig.Set("serializer_compressor_kind", constants.DefaultCompressorKind, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("serializer_zstd_compressor_level", ddotZstdCompressionLevel, pkgconfigmodel.SourceDefault)
+
+	// The v3beta sketches shadow validates the upcoming v3 sketch payload against
+	// core Agent traffic; DDOT is out of scope for that validation, so opt out of
+	// the non-zero default sample rate.
+	pkgconfig.Set("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", float64(0), pkgconfigmodel.SourceAgentRuntime)
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
@@ -509,7 +470,7 @@ func getDogtelExtensionConfig(cfg *confmap.Conf) (*dogtelextensionimpl.Config, e
 	return nil, nil
 }
 
-func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
+func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*datadogconfig.Config, error) {
 	var configs []*datadogconfig.Config
 	for k, v := range cfg.ToStringMap() {
 		if k != "exporters" {
@@ -522,7 +483,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
 				ddcfg := datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
-				m, err := setSiteIfEmpty(v)
+				m, err := setSiteIfEmpty(v, pkgconfig)
 				if err != nil {
 					return nil, err
 				}
@@ -557,15 +518,21 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 		return nil, errors.New("multiple datadog exporters found")
 	}
 
-	datadogConfig := configs[0]
-	return datadogConfig, nil
+	return configs[0], nil
 }
 
-// setSiteIfEmpty sets datadog::api::site to datadoghq.com if it is an empty string (default in helm)
-// Returns an error if the input datadog exporter config is invalid
-func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
+// setSiteIfEmpty populates datadog::api::site from pkgconfig when it is absent or empty in the
+// OTel exporter config. This ensures Unmarshal constructs endpoint URLs with the correct site.
+// Returns an error if the input datadog exporter config is invalid.
+func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
+	// Validate that site is configured in pkgconfig
+	site := strings.TrimSpace(pkgconfig.GetString("site"))
+	if site == "" {
+		site = constants.DefaultSite
+	}
+
 	if ddcfg == nil {
-		return nil, nil // OK if datadog section is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+		return map[string]any{"api": map[string]any{"site": site}}, nil
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -573,15 +540,20 @@ func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		return ddcfgMap, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+		ddcfgMap["api"] = map[string]any{"site": site} // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		return ddcfgMap, nil
+
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
 		return nil, errors.New("invalid datadog exporter config")
 	}
 	apiSite, ok := apicfgMap["site"]
-	if !ok || apiSite == "" {
-		apicfgMap["site"] = "datadoghq.com"
+	apiSiteStr, isString := apiSite.(string)
+	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
+		apicfgMap["site"] = site
+	} else {
+		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	}
 	return ddcfgMap, nil
 }

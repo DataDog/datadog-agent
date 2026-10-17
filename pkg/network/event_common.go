@@ -34,7 +34,17 @@ const (
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
+
+	// ConnTagTCPErrorsIncomplete marks an NStat-owned TCP row whose interface
+	// was not covered by packet capture when the connection was created, so
+	// Retransmits and TCPFailures are not observed. Downstream must not treat
+	// those fields as "no errors". The tag is fixed for the lifetime of the
+	// connection because the backend aggregates by tags. Later tag enrichment
+	// must merge this tag, not replace ConnectionStats.Tags.
+	ConnTagTCPErrorsIncomplete = "tcp_errors_incomplete"
 )
+
+var tagTCPErrorsIncomplete = intern.GetByString(ConnTagTCPErrorsIncomplete)
 
 // ConnectionType will be either TCP or UDP
 type ConnectionType uint8
@@ -234,6 +244,14 @@ type StatCounters struct {
 	TCPProbe0Count   uint32 // zero-window probe events (tcp_send_probe0 invocations)
 }
 
+// TCP failure map keys use Linux/POSIX errno values on every platform because
+// they are part of the cross-platform NPM payload contract.
+const (
+	TCPFailureErrnoConnReset   uint16 = 104
+	TCPFailureErrnoTimedOut    uint16 = 110
+	TCPFailureErrnoConnRefused uint16 = 111
+)
+
 // IsZero returns whether all the stat counter values are zeroes
 func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
@@ -348,6 +366,61 @@ func (c ConnectionStats) IsEmpty() bool {
 // HasCertInfo returns whether the connection has a TLS cert associated
 func (c ConnectionStats) HasCertInfo() bool {
 	return c.CertInfo != unique.Handle[CertInfo]{}
+}
+
+// HasTag reports whether name is present on the connection tag list.
+func (c ConnectionStats) HasTag(name string) bool {
+	return c.hasInternedTag(internedConnTag(name))
+}
+
+// HasTCPErrorsIncomplete reports whether TCP error fields are unknown
+// because packet capture did not uniquely back this NStat row.
+func (c ConnectionStats) HasTCPErrorsIncomplete() bool {
+	return c.hasInternedTag(tagTCPErrorsIncomplete)
+}
+
+// AddTag appends name when it is not already present.
+func (c *ConnectionStats) AddTag(name string) {
+	c.addInternedTag(internedConnTag(name))
+}
+
+// CloneTags returns a copy of the tag slice so later mutators cannot
+// rewrite a published ConnectionStats.
+func (c ConnectionStats) CloneTags() []*intern.Value {
+	if len(c.Tags) == 0 {
+		return nil
+	}
+	cloned := make([]*intern.Value, len(c.Tags))
+	copy(cloned, c.Tags)
+	return cloned
+}
+
+func internedConnTag(name string) *intern.Value {
+	switch name {
+	case ConnTagTCPErrorsIncomplete:
+		return tagTCPErrorsIncomplete
+	default:
+		return intern.GetByString(name)
+	}
+}
+
+func (c *ConnectionStats) hasInternedTag(tag *intern.Value) bool {
+	if c == nil {
+		return false
+	}
+	for _, existing := range c.Tags {
+		if existing == tag {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ConnectionStats) addInternedTag(tag *intern.Value) {
+	if c == nil || c.hasInternedTag(tag) {
+		return
+	}
+	c.Tags = append(c.Tags, tag)
 }
 
 // ByteKey returns a unique key for this connection represented as a byte slice

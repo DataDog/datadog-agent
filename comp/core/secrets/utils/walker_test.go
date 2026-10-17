@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 var (
@@ -31,17 +31,17 @@ hash:
 `)
 
 	testYamlHashUpdated = []byte(`hash:
-  a: test3_verified
-  b: 2_verified
-  c: 456
-  slice:
-  - test4_verified
-  - test5_verified
+    a: test3_verified
+    b: 2_verified
+    c: 456
+    slice:
+        - test4_verified
+        - test5_verified
 slice:
-- 1_verified
-- - test1_verified
-  - test2_verified
-- 123
+    - 1_verified
+    - - test1_verified
+      - test2_verified
+    - 123
 `)
 )
 

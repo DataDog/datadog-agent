@@ -13,14 +13,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 // Run locally with `go test -fuzz=FuzzConsumerHandleEvent -run=FuzzConsumerHandleEvent`
 func FuzzConsumerHandleEvent(f *testing.F) {
-	ddnvml.WithMockNVML(f, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithNVLinkLinkCount(0)))
+	nvmlMock := nvmltestutil.SetupMockNVML(f, testutil.WithNVLinkLinkCount(0))
 
 	cfg := config.New()
 	ctx := getTestSystemContext(f, withFatbinParsingEnabled(false)) // Keep it simple, disable fatbin parsing
@@ -29,7 +28,7 @@ func FuzzConsumerHandleEvent(f *testing.F) {
 
 	// Set up visible devices cache for a test PID
 	testPID := 1234
-	ctx.visibleDevicesCache[testPID] = nvmltestutil.GetDDNVMLMocksWithIndexes(f, 0, 1)
+	ctx.visibleDevicesCache[testPID] = nvmltestutil.PhysicalDevices(f, nvmlMock, 0, 1)
 
 	// Add seed corpus with valid event types
 	// Seed with a minimal kernel launch event

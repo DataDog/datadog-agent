@@ -182,8 +182,28 @@ func (f *factory) createTracesExporter(
 		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0 * time.Second}),
 		// We don't do retries on traces because of deduping concerns on APM Events.
 		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
-		exporterhelper.WithQueue(cfg.QueueSettings),
+		exporterhelper.WithQueue(queueSettingsWithoutBatch(cfg.QueueSettings, set.Logger)),
 	)
+}
+
+// queueSettingsWithoutBatch returns a copy of qCfg with batching cleared.
+//
+// Batching gains traces nothing (the trace agent batches internally) and costs a copy:
+// exporterhelper marks the exporter MutatesData when sending_queue.batch is set, which
+// makes the fanout consumer deep-copy every ptrace.Traces for the datadog connector
+// sharing the pipeline. Metrics and logs keep theirs.
+//
+// Must not write through to cfg.QueueSettings, which backs all three signals;
+// configoptional.Optional holds its value inline, so qCfg is already a copy.
+func queueSettingsWithoutBatch(qCfg configoptional.Optional[exporterhelper.QueueBatchConfig], logger *zap.Logger) configoptional.Optional[exporterhelper.QueueBatchConfig] {
+	q := qCfg.Get()
+	if q == nil || !q.Batch.HasValue() {
+		return qCfg
+	}
+	logger.Info("sending_queue::batch is ignored for traces: the trace agent batches internally")
+	withoutBatch := *q
+	withoutBatch.Batch = configoptional.None[exporterhelper.BatchConfig]()
+	return configoptional.Some(withoutBatch)
 }
 
 // createMetricsExporter creates a metrics exporter based on this config.
@@ -220,7 +240,11 @@ func (f *factory) createMetricsExporter(
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
+	// otel.ddot_collector.metrics.running* billing metrics are only emitted when
+	// otel-agent runs standalone (DD_OTEL_STANDALONE=true); in connected mode the
+	// core/cluster Agent already reports its own running state.
+	standalone := f.coreCfg != nil && f.coreCfg.GetBool("otel_standalone")
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter, standalone)
 	ex := buildMetricsExporterConfig(cfg, func(context.Context) error {
 		cancel()  // first cancel context
 		wg.Wait() // then wait for shutdown

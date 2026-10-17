@@ -11,7 +11,8 @@ import "github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 
 func getTestPipelineConfig() PipelineConfig {
 	return PipelineConfig{
-		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
+		// :0 picks a free port, avoiding flaky binds on the production default ports.
+		OTLPReceiverConfig: testutil.OTLPConfigFromEndpoints("localhost:0", "localhost:0"),
 		TracePort:          5003,
 		MetricsEnabled:     true,
 		TracesEnabled:      true,

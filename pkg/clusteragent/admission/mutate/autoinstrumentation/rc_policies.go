@@ -12,15 +12,23 @@ import (
 	"sort"
 	"strconv"
 
-	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
+// RemoteConfigClient provides the RC operations needed for SSI policies.
+// Pass nil when remote config is unavailable.
+type RemoteConfigClient interface {
+	GetConfigs(product string) map[string]state.RawConfig
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
+	Subscribe(product string, cb func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
+}
+
 var (
-	apmPolicyIDPattern     = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
-	apmPolicyPrefixPattern = regexp.MustCompile(`^(\d+)\.`)
+	apmPolicyIDPattern           = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
+	apmPolicyPrefixPattern       = regexp.MustCompile(`^(\d+)\.`)
+	apmPolicyKubernetesIDPattern = regexp.MustCompile(`^\d+\.kubernetes(?:\.|$)`)
 )
 
 // sortRemotePolicyPaths preserves the numeric-prefix ordering used by the
@@ -55,13 +63,21 @@ func remotePolicyPathOrder(path string) int {
 	return order
 }
 
-// subscribeRemoteConfig wires the remote-config client to the mutator so that
-// SSI policies delivered over remote config are layered on top of the
-// configuration baseline. It is a no-op when remote config is not available,
-// in which case the mutator keeps matching against its configuration baseline
-// only. The wire format is the dd-wls policies document; targets do not appear
-// on this path.
-func (m *TargetMutator) subscribeRemoteConfig(client *rcclient.Client) {
+func isKubernetesRemotePolicyPath(path string) bool {
+	policyIDMatches := apmPolicyIDPattern.FindStringSubmatch(path)
+	if len(policyIDMatches) <= 1 {
+		return false
+	}
+	return apmPolicyKubernetesIDPattern.MatchString(policyIDMatches[1])
+}
+
+// subscribeRemoteConfig wires the remote-config client to the mutator. Matching
+// RC policies override static targets and are overridden by DDI and annotations.
+// RC policies are last-TRUE-wins on the wire order (default first, exceptions
+// after). It is a no-op when remote config is not available, in which case the
+// mutator keeps matching against its configuration baseline only. The wire
+// format is the dd-wls policies document; targets do not appear on this path.
+func (m *TargetMutator) subscribeRemoteConfig(client RemoteConfigClient) {
 	if client == nil {
 		return
 	}
@@ -86,20 +102,34 @@ func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig,
 		paths = append(paths, path)
 	}
 	sortRemotePolicyPaths(paths)
-	reportApplyError := func(err error) {
+
+	var kept []string
+	for _, path := range paths {
+		if isKubernetesRemotePolicyPath(path) {
+			kept = append(kept, path)
+			continue
+		}
+		log.Debugf("auto-instrumentation: ignoring remote config %q (not a kubernetes APM_POLICIES id)", path)
+	}
+
+	reportStatuses := func(err error) {
 		for _, path := range paths {
-			applyStateCallback(path, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
+			if err != nil && isKubernetesRemotePolicyPath(path) {
+				applyStateCallback(path, state.ApplyStatus{
+					State: state.ApplyStateError,
+					Error: err.Error(),
+				})
+				continue
+			}
+			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
 	}
 
 	var allPolicies []policies.Policy
-	for _, path := range paths {
+	for _, path := range kept {
 		parsed, err := policies.ParsePolicies(updates[path].Config)
 		if err != nil {
-			reportApplyError(err)
+			reportStatuses(err)
 			log.Errorf("failed to parse SSI policies from remote config %q: %v", path, err)
 			return
 		}
@@ -107,13 +137,11 @@ func (m *TargetMutator) onRemoteConfigUpdate(updates map[string]state.RawConfig,
 	}
 
 	if err := m.SetRemotePolicies(allPolicies); err != nil {
-		reportApplyError(err)
+		reportStatuses(err)
 		log.Errorf("failed to apply SSI remote policies: %v", err)
 		return
 	}
 
-	log.Infof("auto-instrumentation: applied %d SSI policies from %d remote config(s)", len(allPolicies), len(updates))
-	for path := range updates {
-		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-	}
+	log.Infof("auto-instrumentation: applied %d SSI policies from %d remote config(s)", len(allPolicies), len(kept))
+	reportStatuses(nil)
 }

@@ -28,8 +28,15 @@ import (
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
 
 type packageTestsWithSkippedFlavors struct {
-	t                          packageTests
-	skippedFlavors             []e2eos.Descriptor
+	t              packageTests
+	skippedFlavors []e2eos.Descriptor
+	// onlyFlavors, when non-empty, restricts the suite to these descriptors and
+	// skips every other one. Unlike skippedFlavors it also matches the
+	// architecture, so a suite that is only meaningful on one arch does not
+	// provision a VM for the other. Prefer it over listing every flavor to skip:
+	// a suite pinned to a couple of representative hosts should not silently
+	// spread to new flavors added to the matrix.
+	onlyFlavors                []e2eos.Descriptor
 	skippedInstallationMethods []InstallMethodOption
 }
 
@@ -39,7 +46,6 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -48,17 +54,51 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
+	// apmInjectMultilibFlavors are the hosts the multilib launcher suite runs on:
+	// one per glibc $LIB convention. Debian/Ubuntu resolve $LIB to the multiarch
+	// lib/<triplet> pair, RHEL and friends to lib64 (64-bit) and lib (32-bit), so
+	// a launcher layout that works on Ubuntu can still be unreachable on RHEL.
+	// amd64 only — $LIB has a single expansion on arm64 and there is no 32-bit
+	// injector for it. RedHat9 is deliberately absent from testApmInjectAgent's
+	// matrix (the rest of that suite needs Docker, which RHEL 9 does not ship),
+	// hence a dedicated suite rather than un-skipping the flavor there.
+	apmInjectMultilibFlavors = []e2eos.Descriptor{
+		withArch(e2eos.Ubuntu2404, e2eos.AMD64Arch),
+		withArch(e2eos.RedHat9, e2eos.AMD64Arch),
+	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.AmazonLinux2}},
+		{t: testApmInjectMultilib, onlyFlavors: apmInjectMultilibFlavors, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
 	}
 )
 
+// withArch returns a copy of d pinned to arch.
+func withArch(d e2eos.Descriptor, arch e2eos.Architecture) e2eos.Descriptor {
+	d.Architecture = arch
+	return d
+}
+
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldRunFlavor reports whether flavor passes an onlyFlavors restriction. An
+// empty list means "no restriction". Comparison is on the whole descriptor, so
+// the architecture set by the caller is part of the match.
+func shouldRunFlavor(onlyFlavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
+	if len(onlyFlavors) == 0 {
+		return true
+	}
+	for _, f := range onlyFlavors {
+		if f == flavor {
 			return true
 		}
 	}
@@ -94,6 +134,9 @@ func TestPackages(t *testing.T) {
 		for _, test := range packagesTestsWithSkippedFlavors {
 			flavor := f // capture range variable for parallel tests closure
 			if shouldSkipFlavor(test.skippedFlavors, flavor) {
+				continue
+			}
+			if !shouldRunFlavor(test.onlyFlavors, flavor) {
 				continue
 			}
 			if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
@@ -171,33 +214,12 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.host.ConfigureAptMirrors()
 	s.host.ConfigureYumMirrors()
 	s.disableUnattendedUpgrades()
-	s.updateCurlOnUbuntu()
-	s.updatePythonOnSuse()
-}
-
-func (s *packageBaseSuite) updatePythonOnSuse() {
-	// Suse15 comes with Python3.6 by default which is too old for injection
-	if s.os.Flavor != e2eos.Suse {
-		return
-	}
-	s.host.Run("sudo zypper --non-interactive ar http://download.opensuse.org/distribution/leap/15.5/repo/oss/ oss || true")
-	s.host.Run("sudo zypper --non-interactive --gpg-auto-import-keys in python311")
-	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
 		// Try to disable unattended-upgrades to avoid interfering with the tests, it can fail if it is not installed, we ignore errors
 		s.Env().RemoteHost.Execute("sudo apt remove -y unattended-upgrades") //nolint:errcheck
-	}
-}
-
-func (s *packageBaseSuite) updateCurlOnUbuntu() {
-	// There is an issue with the default cURL version on Ubuntu that causes sporadic
-	// SSL failures, and the fix is to update it.
-	// See https://stackoverflow.com/questions/72627218/openssl-error-messages-error0a000126ssl-routinesunexpected-eof-while-readin
-	if s.os.Flavor == e2eos.Ubuntu {
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt upgrade -y curl")
 	}
 }
 
@@ -227,20 +249,19 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 			(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
 			s.T().Skip("Ansible doesn't install support Python2 anymore")
 		}
-		// Install ansible then install the agent
-		var ansiblePrefix string
+		// Install the datadog.dd collection with the pre-baked ansible, then install the agent
+		ansiblePrefix := s.ansiblePathPrefix(s.os)
 		collectionVersion := os.Getenv("E2E_DATADOG_DD_COLLECTION_VERSION")
 		if collectionVersion == "" {
 			collectionVersion = "6.5.0"
 		}
 		for i := 0; i < 3; i++ {
-			ansiblePrefix = s.installAnsible(s.os)
 			collectionInstallCmd := fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:%s", ansiblePrefix, collectionVersion)
 			if _, err := s.Env().RemoteHost.Execute(collectionInstallCmd); err == nil {
 				break
 			}
 			if i == 2 {
-				s.T().Fatal("failed to install ansible-galaxy collection after 3 attempts")
+				s.Require().FailNow("failed to install ansible-galaxy collection after 3 attempts")
 			}
 			time.Sleep(time.Second)
 		}
@@ -261,7 +282,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
 		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stderr.log")
 	default:
-		s.T().Fatal("unsupported install method")
+		s.Require().FailNow("unsupported install method")
 	}
 }
 
@@ -283,7 +304,9 @@ func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
-	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent datadog-fips-agent || sudo yum remove -y datadog-installer datadog-agent datadog-fips-agent || sudo zypper remove -y datadog-installer datadog-agent datadog-fips-agent")
+	for _, pkg := range []string{"datadog-installer", "datadog-agent", "datadog-fips-agent", "datadog-apm-inject", "datadog-apm-library-python"} {
+		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge " + pkg + " || sudo yum remove -y " + pkg + " || sudo zypper remove -y " + pkg)
+	}
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
 
@@ -314,34 +337,29 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent.service.d")
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
-	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
+	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent.service.d/fake-intake.conf`)
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
 }
 
-func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
-	pathPrefix := ""
+// ansiblePathPrefix returns the directory holding the ansible console scripts
+// pre-baked into the flavor's e2e AMI. AmazonLinux2 and CentOS7 are absent:
+// RunInstallScript skips InstallMethodAnsible for them before this is called.
+func (s *packageBaseSuite) ansiblePathPrefix(flavor e2eos.Descriptor) string {
 	switch flavor.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
-	case e2eos.Fedora:
-		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
-	case e2eos.CentOS:
-		// Can't install ansible with yum install because the available package on centos is max ansible 2.9, EOL since May 2022
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 curl")
-		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
-		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
-		pathPrefix = "/home/centos/.local/bin/"
-	case e2eos.AmazonLinux, e2eos.RedHat:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python3.14 python3.14-pip && yes | pip3.14 install ansible")
-		pathPrefix = "/home/ec2-user/.local/bin/"
+		// apt-installed (ami-builder provision-e2e-apt.sh), on the default PATH.
+		return ""
+	case e2eos.RedHat:
+		// pip3.14-installed (ami-builder provision-e2e-rhel-centos.sh): RHEL 9's
+		// platform python3 is 3.9, which is EOL.
+		return "/usr/local/bin/"
 	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
+		// python3.11-pip-installed (ami-builder provision-e2e-suse.sh).
+		return "/usr/local/bin/"
 	default:
-		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx==1.11.1 && python3 -m pipx ensurepath")
-		pathPrefix = "/usr/bin/"
+		s.T().Fatalf("no ansible pre-baked into the %s e2e AMI", flavor)
+		return ""
 	}
-
-	return pathPrefix
 }
 
 func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ...string) string {

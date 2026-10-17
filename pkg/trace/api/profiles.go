@@ -29,9 +29,9 @@ import (
 
 const (
 	// profilingURLTemplate specifies the template for obtaining the profiling URL along with the site.
-	profilingURLTemplate = "https://intake.profile.%s/api/v2/profile"
+	profilingURLTemplate = config.ProfilingEndpointPrefix + "%s" + config.ProfilingEndpointPath
 	// profilingURLDefault specifies the default intake API URL.
-	profilingURLDefault = "https://intake.profile.datadoghq.com/api/v2/profile"
+	profilingURLDefault = config.ProfilingEndpointPrefix + "datadoghq.com" + config.ProfilingEndpointPath
 	// profilingV1EndpointSuffix suffix identifying a user-configured V1 endpoint
 	profilingV1EndpointSuffix = "v1/input"
 )
@@ -91,6 +91,8 @@ func mainProfilingURL(conf *config.AgentConfig) string {
 		}
 		return v
 	}
+	// The component config loader resolves DDURL. Keep the Site/default fallback
+	// for standalone pkg/trace callers that construct AgentConfig directly.
 	if conf.Site != "" {
 		return fmt.Sprintf(profilingURLTemplate, conf.Site)
 	}
@@ -164,21 +166,16 @@ func isRetryableBodyReadError(err error) bool {
 // For more details please see multiTransport.
 func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	cidProvider := NewContainerIDProviderFromConfig(conf)
-	director := func(req *http.Request) {
-		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
-		if _, ok := req.Header["User-Agent"]; !ok {
-			// explicitly disable User-Agent so it's not set to the default value
-			// that net/http gives it: Go-http-client/1.1
-			// See https://codereview.appspot.com/7532043
-			req.Header.Set("User-Agent", "")
-		}
-		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+	rewrite := func(req *httputil.ProxyRequest) {
+		req.SetXForwarded()
+		req.Out.Header.Set("Via", "trace-agent "+conf.AgentVersion)
+		containerID := cidProvider.GetContainerID(req.In.Context(), req.In.Header)
 		if ctags := getContainerTags(conf.ContainerTags, containerID); ctags != "" {
 			ctagsHeader := normalizeHTTPHeader(ctags)
-			req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+			req.Out.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
 			log.Debugf("Setting header X-Datadog-Container-Tags=%s for profiles proxy", ctagsHeader)
 		}
-		req.Header.Set("X-Datadog-Additional-Tags", tags)
+		req.Out.Header.Set("X-Datadog-Additional-Tags", tags)
 		log.Debugf("Setting header X-Datadog-Additional-Tags=%s for profiles proxy", tags)
 		_ = statsd.Count("datadog.trace_agent.profile", 1, nil, 1)
 		// URL, Host and key are set in the transport for each outbound request
@@ -194,7 +191,7 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	ptransport := newProfilingTransport(transport)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director:     director,
+		Rewrite:      rewrite,
 		ErrorLog:     stdlog.New(logger, "profiling.Proxy: ", 0),
 		Transport:    &multiTransport{rt: ptransport, targets: targets, keys: keys, maxRequestBytes: conf.ProfilingProxy.MaxRequestBytes},
 		ErrorHandler: handleProxyError,

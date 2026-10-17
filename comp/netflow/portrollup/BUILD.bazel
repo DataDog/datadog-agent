@@ -6,7 +6,6 @@ go_library(
     srcs = ["portrollup.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/portrollup",
     visibility = ["//visibility:public"],
-    deps = ["//comp/netflow/common"],
 )
 
 dd_agent_go_test(

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix container log corruption when partial records from stdout and stderr
+    are interleaved. The Agent now reconstructs partial CRI and Docker
+    JSON-file records independently for each stream.

@@ -55,6 +55,7 @@ dd_agent_go_test(
         "testfixtures/lighttpd.conf",
         "testfixtures/lighttpd_integration.conf.yaml",
     ],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/components/datadog/agent",

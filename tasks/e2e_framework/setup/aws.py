@@ -1,4 +1,3 @@
-import getpass
 import json
 import os
 import secrets
@@ -18,6 +17,7 @@ from tasks.e2e_framework.tool import (
     ask_yesno,
     error,
     get_aws_cmd,
+    get_resource_owner_id,
     info,
     warn,
     write_secret_file,
@@ -26,29 +26,41 @@ from tasks.e2e_framework.tool import (
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
 AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
 DEFAULT_AWS_ACCOUNT = "agent-sandbox"
+# Every resource the E2E framework relies on -- AMIs, subnets, ECR registries, KMS keys,
+# the fakeintake ECS cluster -- is pinned to this region.
+DEFAULT_AWS_REGION = "us-east-1"
 DEFAULT_KEY_TYPE = "rsa"
 # Accounts not listed here default to 'account-admin'. Keep in sync with the
 # `profile:` entries in test/e2e-framework/resources/aws/environmentDefaults.go.
 ACCOUNT_ADMIN_ROLE_BY_ACCOUNT = {"agent-sandbox": "account-admin-8h"}
+# The pull-through cache lives in agent-qa, so the ECR credential handed to container
+# runtimes is minted there whichever account the test itself deploys into. agent-dev is
+# the permission set that can populate the cache, and it grants no push actions: the
+# token is copied into every provisioned cluster, so it must not be able to reach the
+# repositories CI publishes to.
+AGENT_QA_ACCOUNT_ID = 669783387624
+AGENT_QA_ECR_SSO_ROLE = 'agent-dev'
+ECR_CACHE_PROFILE = f'sso-agent-qa-{AGENT_QA_ECR_SSO_ROLE}'
 
 
 def _default_keypair_name(account: str, user: str) -> str:
     return f"e2e-{account}-{user}".replace("_", "-")
 
 
-def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
+def setup_aws_config(ctx: Context, config: Config, account: str | None = None, team: str | None = None):
     """
     Configure AWS keypair, SSO profile and team tag with computed defaults.
 
     Idempotent: re-running on a fully configured machine prints "✓ already configured"
     lines and exits without prompts. The only interactive step is the team tag, asked
-    once on first setup.
+    once on first setup — and skipped entirely when `team` is passed explicitly
+    (e.g. `dda inv e2e.setup --team=agent-platform` for non-interactive runs).
     """
     if config.configParams.aws is None:
         config.configParams.aws = Config.Params.Aws(keyPairName=None, publicKeyPath=None, account=None, teamTag=None)
 
     aws = config.configParams.aws
-    user = getpass.getuser()
+    user = get_resource_owner_id()
 
     # Account
     if account:
@@ -68,20 +80,26 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     if not aws.publicKeyPath:
         aws.publicKeyPath = str(default_pub)
 
-    setup_aws_sso_config(config)
+    # The wizard path never prompts: the profile is a pure default, safe to append
+    # unconditionally. The interactive yes/no confirmations only live in the
+    # standalone `e2e.setup.aws-sso` task.
+    setup_aws_sso_config(config, interactive=False)
     # AWS authentication (SSO profile in ~/.aws/config + active aws-vault session) is
     # handled outside of this task — by your org tooling or manually. The keypair check
     # below uses aws-vault and will surface any auth errors with the standard aws-vault
     # output if the session is not valid.
     _ensure_aws_keypair(ctx, config)
 
-    # Team tag — single prompt, only on first setup.
+    # Team tag — passed explicitly via --team (non-interactive), else asked once on
+    # first setup only. Falls back to 'unspecified' when the user just hits enter.
+    if team:
+        aws.teamTag = team.strip()
     if not aws.teamTag:
-        team = ask(
+        team_answer = ask(
             "🔖 GitHub team (used to tag AWS resources, kebab-case e.g. agent-platform) " "[default: unspecified]: ",
             color="cyan",
         ).strip()
-        aws.teamTag = team or "unspecified"
+        aws.teamTag = team_answer or "unspecified"
         if aws.teamTag == "unspecified":
             warn(
                 "Team tag set to 'unspecified' — update aws.teamTag in ~/.test_infra_config.yaml later for cost attribution"
@@ -173,12 +191,61 @@ def _aws_keypair_exists(ctx: Context, keypair_name: str, aws_account: str | None
     return out is not None and out.exited == 0
 
 
+def _sso_profile_block(profile_name: str, account_id: int, role: str) -> str:
+    # https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html#cli-configure-sso-manual
+    return f"""
+[profile {profile_name}]
+sso_session = {profile_name}
+sso_account_id = {account_id}
+sso_role_name = {role}
+region = {DEFAULT_AWS_REGION}
+sso_region = {DEFAULT_AWS_REGION}
+sso_start_url = https://d-906757b57c.awsapps.com/start/#
+
+[profile exec-{profile_name}]
+credential_process = aws-vault exec {profile_name} --json
+"""
+
+
+def _append_aws_profile(profile_name: str, body: str, interactive: bool, prompt: str) -> None:
+    """
+    Append a block to ~/.aws/config, unless a profile of that name is already there.
+
+    When interactive is False no prompts are shown and the block is added
+    unconditionally; when True the user is asked to confirm.
+    """
+    aws_conf_path = Path.home().joinpath(".aws", "config")
+
+    if os.path.isfile(aws_conf_path):
+        with open(aws_conf_path) as f:
+            if profile_name in f.read():
+                info(f"✓ AWS profile '{profile_name}' already in {aws_conf_path}")
+                return
+
+    conf = f"\n# BEGIN Automatically added by e2e setup script\n{body}\n# END Automatically added by e2e setup script\n"
+
+    if interactive:
+        info(conf)
+        if not ask_yesno(f"Add the above config to {aws_conf_path}"):
+            return
+        if not ask_yesno(prompt):
+            return
+
+    aws_conf_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(aws_conf_path, "a") as f:
+        f.write(conf)
+    info(f"✓ Wrote AWS profile '{profile_name}' to {aws_conf_path}")
+
+
 def setup_aws_sso_config(config: Config, interactive: bool = True):
     """
-    Append the agent-sandbox SSO profile to ~/.aws/config if it isn't already there.
+    Append the SSO profiles the E2E framework needs to ~/.aws/config.
+
+    Two are written: one for the account tests deploy into, and one for agent-qa, which
+    hosts the ECR pull-through cache every account pulls images from.
 
     When interactive=False (called from the wizard), no yes/no prompts are shown — the
-    profile is added unconditionally. When interactive=True (used by the standalone
+    profiles are added unconditionally. When interactive=True (used by the standalone
     e2e.setup.aws-sso task), the user is asked to confirm.
     """
     if not config.configParams.aws:
@@ -187,51 +254,21 @@ def setup_aws_sso_config(config: Config, interactive: bool = True):
     aws = config.configParams.aws
 
     role = ACCOUNT_ADMIN_ROLE_BY_ACCOUNT.get(aws.account, 'account-admin')
-    acct_id = 376334461865
-    start_url = 'https://d-906757b57c.awsapps.com/start/#'
-    region = 'us-east-1'
-
-    aws_conf_path = Path.home().joinpath(".aws", "config")
     profile_name = f'sso-{aws.account}-{role}'
-    sso_session_name = profile_name
 
-    # skip if profile already exists
-    if os.path.isfile(aws_conf_path):
-        with open(aws_conf_path) as f:
-            conf = f.read()
-            if profile_name in conf:
-                info(f"✓ AWS SSO profile '{profile_name}' already in {aws_conf_path}")
-                return
+    _append_aws_profile(
+        profile_name,
+        _sso_profile_block(profile_name, 376334461865, role),
+        interactive,
+        f"Do you want to setup AWS SSO profile for {aws.account}?",
+    )
 
-    # https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html#cli-configure-sso-manual
-    conf = f"""
-# BEGIN Automatically added by e2e setup script
-
-[profile {profile_name}]
-sso_session = {sso_session_name}
-sso_account_id = {acct_id}
-sso_role_name = {role}
-region = {region}
-sso_region = {region}
-sso_start_url = {start_url}
-
-[profile exec-{profile_name}]
-credential_process = aws-vault exec {profile_name} --json
-
-# END Automatically added by e2e setup script
-"""
-
-    if interactive:
-        info(conf)
-        if not ask_yesno(f"Add the above config to {aws_conf_path}"):
-            return
-        if not ask_yesno(f"Do you want to setup AWS SSO profile for {aws.account}?"):
-            return
-
-    aws_conf_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(aws_conf_path, "a") as f:
-        f.write(conf)
-    info(f"✓ Wrote AWS SSO profile '{profile_name}' to {aws_conf_path}")
+    _append_aws_profile(
+        ECR_CACHE_PROFILE,
+        _sso_profile_block(ECR_CACHE_PROFILE, AGENT_QA_ACCOUNT_ID, AGENT_QA_ECR_SSO_ROLE),
+        interactive,
+        "Do you want to setup the agent-qa profile used to pull cached images?",
+    )
 
 
 def _aws_create_keypair(
@@ -401,7 +438,7 @@ def aws_resolve_keypair_opts(
     if awsConf.keyPairName:
         default_keypair_name = awsConf.keyPairName
     else:
-        default_keypair_name = getpass.getuser()
+        default_keypair_name = get_resource_owner_id()
     if awsConf.privateKeyPath:
         default_private_key_path = awsConf.privateKeyPath
     else:

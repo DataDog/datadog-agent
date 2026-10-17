@@ -1,0 +1,14 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+exporters:
+  datadog:
+    hostname: myhost
+processors:
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

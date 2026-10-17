@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -114,6 +115,11 @@ func (m *testPackageManager) RemoveConfigExperiment(ctx context.Context, pkg str
 
 func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) ResumeConfigExperiments(ctx context.Context) error {
+	args := m.Called(ctx)
 	return args.Error(0)
 }
 
@@ -255,11 +261,21 @@ type testInstaller struct {
 	bm  *testBoostrapper
 }
 
+// expectResumeOnStart registers the startup resume where Start makes it. Only macOS resumes
+// configuration experiments on start; elsewhere no expectation is registered, so a call fails the
+// test as unexpected.
+func expectResumeOnStart(pm *testPackageManager) {
+	if runtime.GOOS == "darwin" {
+		pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
+	}
+}
+
 func newTestInstaller(t *testing.T) *testInstaller {
 	bm := &testBoostrapper{}
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	expectResumeOnStart(pm)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       map[string]repository.State{},
 		ConfigStates: map[string]repository.State{},
@@ -505,6 +521,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	expectResumeOnStart(pm)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       testPackageStates,
 		ConfigStates: testConfigStates,
@@ -560,8 +577,92 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	assert.Equal(t, "config-stable-1", pkg.StableConfigVersion)
 	assert.Equal(t, "config-exp-1", pkg.ExperimentConfigVersion)
 	assert.Equal(t, version.AgentPackageVersion, pkg.RunningVersion, "RunningVersion should be set to AgentPackageVersion")
-	assert.Equal(t, "test-config-id-123", pkg.RunningConfigVersion, "RunningConfigVersion should be set to env.ConfigID")
+	if runtime.GOOS == "darwin" {
+		// The macOS daemon outlives config experiments, so it reports the experiment active on disk.
+		assert.Equal(t, "config-exp-1", pkg.RunningConfigVersion, "RunningConfigVersion should track the active experiment config, not the stale env.ConfigID snapshot")
+	} else {
+		// Linux and Windows restart the daemon with the experiment's config, so the startup config_id is accurate.
+		assert.Equal(t, "test-config-id-123", pkg.RunningConfigVersion, "RunningConfigVersion should be set to env.ConfigID")
+	}
+	assert.Equal(t, coat.ProcessStateUnknown, pkg.ProcessStates[coat.ServiceIDDDOT], "ddot process state should report unknown without a procmgr collector")
 	assert.Equal(t, state.SecretsPubKey, base64.StdEncoding.EncodeToString(secretsPubKey[:]))
+
+	pm.AssertExpectations(t)
+}
+
+func TestRefreshStateRunningConfigVersion(t *testing.T) {
+	// No experiment running. The second package has no config on disk.
+	testPackageStates := map[string]repository.State{
+		"datadog-agent":      {Stable: "7.50.0"},
+		"datadog-apm-inject": {Stable: "0.10.0"},
+	}
+	testConfigStates := map[string]repository.State{
+		"datadog-agent": {Stable: "config-stable-1"},
+	}
+
+	bm := &testBoostrapper{}
+	installExperimentFunc = bm.InstallExperiment
+	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	expectResumeOnStart(pm)
+	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
+		States:       testPackageStates,
+		ConfigStates: testConfigStates,
+	}, nil)
+	rcc := newTestRemoteConfigClient(t)
+	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	testEnv := &env.Env{
+		RemoteUpdates: true,
+		ConfigID:      "empty",
+	}
+	daemon := newDaemon(
+		rc,
+		func(_ *env.Env) installer.Installer { return pm },
+		testEnv,
+		taskDB,
+		30*time.Second,
+		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
+	)
+	i := &testInstaller{
+		daemonImpl: daemon,
+		rcc:        rcc,
+		pm:         pm,
+		bm:         bm,
+	}
+	i.Start(context.Background())
+	defer i.Stop()
+
+	daemon.refreshState(context.Background())
+
+	require.Eventually(t, func() bool {
+		state := i.rcc.GetInstallerState()
+		return state != nil && len(state.Packages) > 0
+	}, 1*time.Second, 10*time.Millisecond)
+
+	state := i.rcc.GetInstallerState()
+	require.NotNil(t, state)
+	require.Len(t, state.Packages, 2)
+	running := map[string]string{}
+	for _, p := range state.Packages {
+		running[p.Package] = p.RunningConfigVersion
+	}
+	if runtime.GOOS == "darwin" {
+		// The macOS daemon outlives config experiments, so it reports what is active on disk.
+		assert.Equal(t, "config-stable-1", running["datadog-agent"])
+		assert.Equal(t, "empty", running["datadog-apm-inject"], "no config on disk falls back to the startup config_id")
+	} else {
+		// Linux and Windows restart the daemon with the experiment's config, so the startup
+		// config_id is accurate; packages other than the Agent report none, as on main.
+		assert.Equal(t, "empty", running["datadog-agent"])
+		assert.Equal(t, "", running["datadog-apm-inject"])
+	}
 
 	pm.AssertExpectations(t)
 }
@@ -669,4 +770,65 @@ func TestDecryptSecrets(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "could not decrypt secret")
 	})
+}
+
+// TestStartResumesConfigExperimentsOnlyOnMacOS pins the startup resume. On macOS it runs before the
+// first state refresh: resuming may revert or re-establish a configuration experiment, so
+// refreshing first would report whatever the previous daemon left on disk rather than the
+// configuration the Agent is running. Elsewhere it is skipped, since no other platform has an
+// experiment to resume and the call would only spawn the installer to do nothing.
+func TestStartResumesConfigExperimentsOnlyOnMacOS(t *testing.T) {
+	var mu sync.Mutex
+	var order []string
+	record := func(call string) func(mock.Arguments) {
+		return func(mock.Arguments) {
+			mu.Lock()
+			defer mu.Unlock()
+			order = append(order, call)
+		}
+	}
+
+	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("ResumeConfigExperiments", mock.Anything).Run(record("resume")).Return(nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Run(record("refresh")).Return(&repository.PackageStates{
+		States:       map[string]repository.State{},
+		ConfigStates: map[string]repository.State{},
+	}, nil)
+
+	startTestDaemon(t, pm)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if runtime.GOOS == "darwin" {
+		require.GreaterOrEqual(t, len(order), 2)
+		assert.Equal(t, []string{"resume", "refresh"}, order[:2])
+		return
+	}
+	require.NotEmpty(t, order)
+	assert.NotContains(t, order, "resume")
+	assert.Equal(t, "refresh", order[0])
+}
+
+// startTestDaemon starts a daemon over pm with a test remote config client and stops it when the
+// test ends.
+func startTestDaemon(t *testing.T, pm *testPackageManager) {
+	t.Helper()
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	daemon := newDaemon(
+		&remoteConfig{client: newTestRemoteConfigClient(t)},
+		func(_ *env.Env) installer.Installer { return pm },
+		&env.Env{RemoteUpdates: true},
+		taskDB,
+		30*time.Second,
+		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
+	)
+	require.NoError(t, daemon.Start(context.Background()))
+	t.Cleanup(func() { daemon.Stop(context.Background()) })
 }

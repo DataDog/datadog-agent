@@ -35,7 +35,7 @@ go_library(
         "//pkg/version",
         "@com_github_fatih_color//:color",
         "@com_github_spf13_cobra//:cobra",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -51,8 +51,14 @@ dd_agent_go_test(
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/exec",
         "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/paths/testutil",
         "//pkg/fleet/installer/repository",
         "@com_github_spf13_cobra//:cobra",
         "@com_github_stretchr_testify//assert",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

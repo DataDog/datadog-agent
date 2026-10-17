@@ -88,7 +88,7 @@ func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log
 
 	// Mirror HTTPTransaction.internalProcess: a nil-error outcome counts the
 	// transaction's points as successfully sent. Tests of the worker rely on
-	// this to assert point.sent accounting.
+	// this to assert points.sent accounting.
 	if ret == nil && pointCountTelemetry != nil {
 		pointCountTelemetry.OnPointSuccessfullySent(t.pointCount)
 	}

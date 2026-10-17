@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -467,6 +467,11 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 // IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
 func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
+// IsCapabilitiesMonitoringEnabled returns whether capabilities monitoring is enabled
+func (p *Probe) IsCapabilitiesMonitoringEnabled() bool {
+	return p.Config.Probe.CapabilitiesMonitoringEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled
