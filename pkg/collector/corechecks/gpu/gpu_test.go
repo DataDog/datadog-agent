@@ -362,7 +362,7 @@ func TestContainerGPUMappingFailurePct(t *testing.T) {
 				wmetaMock.Set(container)
 			}
 
-			check.getGPUToContainersMap()
+			check.getGPUToContainersMap(time.Now())
 
 			telemetryMock, ok := check.telemetry.component.(telemetry.Mock)
 			require.True(t, ok)
