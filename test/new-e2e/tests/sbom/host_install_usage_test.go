@@ -68,17 +68,25 @@ const hostInstallUsageWindow = 3 * time.Minute
 // runs. Its binary of the same name is a copy of true.
 const installedPackage = "sbom-installed-test"
 
-// buildInstalledDeb returns the script that builds version of installedPackage
-// and prints the path of the package.
-func buildInstalledDeb(version string) string {
+// scannedPackage and readPackage are the dpkg packages the readers subtest
+// installs, each with a copy of libz in a directory of its own.
+const (
+	scannedPackage = "sbom-scanned-test"
+	readPackage    = "sbom-read-test"
+)
+
+// buildDeb returns the script that builds version of the dpkg package name,
+// which ships a copy of the file src as dst, and prints the path of the
+// package.
+func buildDeb(name, version, src, dst string) string {
 	return fmt.Sprintf(`set -e
 umask 022
 d=$(mktemp -d)
-mkdir -p "$d/pkg/DEBIAN" "$d/pkg/usr/bin"
+mkdir -p "$d/pkg/DEBIAN" "$d/pkg$(dirname %[4]s)"
 printf 'Package: %[1]s\nVersion: %[2]s\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/pkg/DEBIAN/control"
-cp /usr/bin/true "$d/pkg/usr/bin/%[1]s"
+cp %[3]s "$d/pkg%[4]s"
 dpkg-deb --root-owner-group --build "$d/pkg" "$d/%[1]s.deb" >/dev/null
-echo "$d/%[1]s.deb"`, installedPackage, version)
+echo "$d/%[1]s.deb"`, name, version, src, dst)
 }
 
 type hostInstallUsageSuite struct {
@@ -207,7 +215,7 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 	})
 	var ranAt int64
 	s.Run("installed", func() {
-		deb := strings.TrimSpace(host.MustExecute(buildInstalledDeb("1.0")))
+		deb := strings.TrimSpace(host.MustExecute(buildDeb(installedPackage, "1.0", "/usr/bin/true", "/usr/bin/"+installedPackage)))
 		var err error
 		ranAt, err = strconv.ParseInt(strings.TrimSpace(host.MustExecute("date +%s")), 10, 64)
 		s.Require().NoError(err, "date")
@@ -230,7 +238,7 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 	// which system-probe indexes within a minute.
 	s.Run("upgraded", func() {
 		s.Require().Positivef(ranAt, "%s never ran", installedPackage)
-		deb := strings.TrimSpace(host.MustExecute(buildInstalledDeb("2.0")))
+		deb := strings.TrimSpace(host.MustExecute(buildDeb(installedPackage, "2.0", "/usr/bin/true", "/usr/bin/"+installedPackage)))
 		s.EventuallyWithTf(func(c *assert.CollectT) {
 			_, err := host.Execute("sudo dpkg -i " + deb)
 			require.NoErrorf(c, err, "dpkg -i %s", deb)
@@ -297,5 +305,44 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 			require.NotNilf(c, osComp, "no OS component in the host SBOM")
 			assertNoRuntimeProperties(c, "host", osComp)
 		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported gzip, libc6 and sudo in use")
+	})
+
+	// ldconfig, run by every library install, opens each library of the
+	// directories it scans to read its soname, and leaves their packages
+	// unused. cat, the positive control, reads the library of a second
+	// package, which goes in use, and libc-bin, the package of ldconfig, runs.
+	s.Run("readers", func() {
+		s.T().Cleanup(func() {
+			_, _ = host.Execute("sudo dpkg --purge " + scannedPackage + " " + readPackage)
+		})
+		for _, name := range []string{scannedPackage, readPackage} {
+			deb := strings.TrimSpace(host.MustExecute(buildDeb(name, "1.0", "/usr/lib/x86_64-linux-gnu/libz.so.1", "/usr/lib/"+name+"/libz.so.1")))
+			s.EventuallyWithTf(func(c *assert.CollectT) {
+				_, err := host.Execute("sudo dpkg -i " + deb)
+				require.NoErrorf(c, err, "dpkg -i %s", deb)
+			}, 10*time.Minute, 10*time.Second, "dpkg never installed %s", deb)
+		}
+		startedAt, err := strconv.ParseInt(strings.TrimSpace(host.MustExecute("date +%s")), 10, 64)
+		s.Require().NoError(err, "date")
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			_, err := host.Execute("sudo ldconfig -n /usr/lib/" + scannedPackage + " && sudo cat /usr/lib/" + readPackage + "/libz.so.1 >/dev/null")
+			require.NoError(c, err, "ldconfig, then cat")
+
+			comps := newestHostSBOM(c, s.Fakeintake, time.Time{})
+			read := findComponent(comps, readPackage)
+			require.NotNilf(c, read, "no %s in the host SBOM", readPackage)
+			readTS, _ := lastSeenRunning(read)
+			require.GreaterOrEqualf(c, readTS, startedAt, "%s not reported in use since the read of its library yet", readPackage)
+			scanned := findComponent(comps, scannedPackage)
+			require.NotNilf(c, scanned, "no %s in the host SBOM", scannedPackage)
+			scannedTS, _ := lastSeenRunning(scanned)
+			libcBin := findComponent(comps, "libc-bin")
+			require.NotNilf(c, libcBin, "no libc-bin in the host SBOM")
+			libcBinTS, _ := lastSeenRunning(libcBin)
+			s.T().Logf("PKG-IN-USE[host] readers: %s LastSeenRunning=%d, %s LastSeenRunning=%d, libc-bin LastSeenRunning=%d, startedAt=%d", scannedPackage, scannedTS, readPackage, readTS, libcBinTS, startedAt)
+			assert.Lessf(c, scannedTS, startedAt, "the scan of ldconfig put %s in use", scannedPackage)
+			assert.GreaterOrEqualf(c, libcBinTS, startedAt, "libc-bin LastSeenRunning %d predates the run of ldconfig at %d", libcBinTS, startedAt)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s in use after the read of its library", readPackage)
 	})
 }
