@@ -12,8 +12,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
+	ddhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/jsonapi"
 )
 
@@ -86,7 +88,15 @@ func (d *datadogSymbolQuerier) QuerySymbols(ctx context.Context, buildIDs []stri
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("error while querying symbols from %s: %s, %s", d.symbolQueryURL, resp.Status, string(respBody))
+		slog.Debug("error while querying symbols",
+			slog.String("url", d.symbolQueryURL),
+			slog.Int("status_code", resp.StatusCode),
+			slog.String("response_body", string(respBody)))
+		return nil, &ddhttp.StatusCodeError{
+			StatusCode: resp.StatusCode,
+			Method:     http.MethodPost,
+			URL:        d.symbolQueryURL,
+		}
 	}
 
 	body, err = io.ReadAll(resp.Body)

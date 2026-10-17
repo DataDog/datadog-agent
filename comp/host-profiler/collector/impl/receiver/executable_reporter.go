@@ -24,9 +24,9 @@ type executableReporter struct {
 	symbolUploader *symboluploader.DatadogSymbolUploader
 }
 
-func newExecutableReporter(config *symboluploader.SymbolUploaderConfig, _ *zap.Logger) (*executableReporter, error) {
+func newExecutableReporter(config *symboluploader.SymbolUploaderConfig, logger *zap.Logger) (*executableReporter, error) {
 	ctx := context.Background()
-	symbolUploader, err := symboluploader.NewDatadogSymbolUploader(ctx, config)
+	symbolUploader, err := symboluploader.NewDatadogSymbolUploader(ctx, config, logger)
 	if err != nil {
 		return nil, err
 	}

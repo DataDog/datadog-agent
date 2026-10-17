@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -179,19 +180,33 @@ func TestBatchSymbolQuerier_Multiplexing(t *testing.T) {
 	})
 
 	t.Run("Errors on both endpoints", func(t *testing.T) {
-		elfs := []*symbol.Elf{
-			symbol.NewElfForTest("arch0", "buildid1", "", libpf.FileID{}),
+		elf, err := symbol.NewElfFromDisk("/bin/sh")
+		require.NoError(t, err)
+
+		queriers := []SymbolQuerier{
+			&mockSymbolQuerier{e: errorMap{runtime.GOARCH: errors.New("error")}},
+			&mockSymbolQuerier{e: errorMap{runtime.GOARCH: errors.New("error")}},
 		}
-		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
+
+		results := ExecuteSymbolQueryBatch(ctx, []*symbol.Elf{elf}, queriers)
 		require.Error(t, results[0].BackendSymbolSources[0].Err)
 		require.Error(t, results[0].BackendSymbolSources[1].Err)
 	})
 
 	t.Run("Errors on one endpoint", func(t *testing.T) {
-		elfs := []*symbol.Elf{
-			symbol.NewElfForTest("arch2", "buildid1", "", libpf.FileID{}),
+		elf, err := symbol.NewElfFromDisk("/bin/sh")
+		require.NoError(t, err)
+		buildID := elf.GnuBuildID()
+		require.NotEmpty(t, buildID)
+
+		queriers := []SymbolQuerier{
+			&mockSymbolQuerier{m: symbolMap{
+				{buildID: buildID, arch: runtime.GOARCH}: []value{{symbolSource: "debug_info", buildIDType: "gnu_build_id"}},
+			}},
+			&mockSymbolQuerier{e: errorMap{runtime.GOARCH: errors.New("error")}},
 		}
-		results := ExecuteSymbolQueryBatch(ctx, elfs, queriers)
+
+		results := ExecuteSymbolQueryBatch(ctx, []*symbol.Elf{elf}, queriers)
 		require.Error(t, results[0].BackendSymbolSources[1].Err)
 		require.NoError(t, results[0].BackendSymbolSources[0].Err)
 		require.Equal(t, symbol.SourceDebugInfo, results[0].BackendSymbolSources[0].SymbolSource)
