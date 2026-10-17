@@ -35,7 +35,7 @@
 -- Excludes:
 --   - The Sampler contract itself. It lives in sampler.allium and
 --     is imported here to declare fulfilment.
---   - Tokenization (lifted to tokenizer.allium and imported as
+--   - Tokenization (lifted to pkg/logs/tokenizer/tokenizer.allium and imported as
 --     `tokenizer/TokenSequence`).
 --   - Other Sampler implementations. NoopSampler is a trivial
 --     pass-through whose behaviour is described at the Sampler
@@ -57,7 +57,7 @@
 --     module. Spec coverage of the filter machinery is a known
 --     gap, tracked for a follow-up.
 
-use "./tokenizer.allium" as tokenizer
+use "../../../tokenizer/tokenizer.allium" as tokenizer
 use "./sampler.allium" as sampler
 
 ------------------------------------------------------------

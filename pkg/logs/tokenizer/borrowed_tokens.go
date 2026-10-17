@@ -3,22 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package preprocessor
+package tokenizer
 
 import "slices"
 
 // BorrowedTokens is a view over a Tokenizer's scratch buffers, valid only until
 // the next tokenization on that Tokenizer. The type enforces the borrow/copy
 // contract: a borrowed view cannot be assigned to an owned []Token field, so
-// retaining tokens must go through Clone (or retained). The zero value is a
+// retaining tokens must go through Clone (or Retained). The zero value is a
 // valid empty view.
 type BorrowedTokens struct {
 	tokens  []Token
 	indices []int
 }
 
-// newBorrowedTokens wraps token/index slices in a view without copying.
-func newBorrowedTokens(tokens []Token, indices []int) BorrowedTokens {
+// NewBorrowedTokens wraps token/index slices in a view without copying. The
+// caller keeps ownership of both slices and must not modify them while the view
+// is in use.
+func NewBorrowedTokens(tokens []Token, indices []int) BorrowedTokens {
 	return BorrowedTokens{tokens: tokens, indices: indices}
 }
 
@@ -37,16 +39,21 @@ func (b BorrowedTokens) Len() int { return len(b.tokens) }
 // Empty reports whether there are no tokens.
 func (b BorrowedTokens) Empty() bool { return len(b.tokens) == 0 }
 
-// retained returns a view backed by an owned copy, safe to store across calls.
+// Retained returns a view backed by an owned copy, safe to store across calls.
 // Indices are dropped; only the labeler window uses them, before any retention.
-func (b BorrowedTokens) retained() BorrowedTokens {
+func (b BorrowedTokens) Retained() BorrowedTokens {
 	return BorrowedTokens{tokens: slices.Clone(b.tokens)}
 }
 
-// limit returns the prefix of the view whose tokens start before maxBytes
+// Limit returns the prefix of the view whose tokens start before maxBytes
 // (maxBytes <= 0 means no limit), giving the labeler a narrower window than the
 // sampler. The result is a sub-view over the same backing.
-func (b BorrowedTokens) limit(maxBytes int) BorrowedTokens {
+//
+// Limit is not the same as tokenizing only the first maxBytes. A token that
+// starts before maxBytes keeps the shape it has in the full input: a run that
+// crosses the boundary keeps its full length bucket (D5, not D2), and an IPv4
+// address that crosses it stays one IPv4 token.
+func (b BorrowedTokens) Limit(maxBytes int) BorrowedTokens {
 	if maxBytes <= 0 {
 		return b
 	}

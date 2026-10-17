@@ -243,6 +243,25 @@ linters:
             - "**/pkg/**"
             - "!**/pkg/zstd/**"
             - "!$test"
+        logs-tokenizer-stdlib-only:
+          # pkg/logs/tokenizer is a shared library: its non-test code may import
+          # only the Go standard library.
+          list-mode: strict
+          files:
+            - "**/pkg/logs/tokenizer/**"
+            - "!**/pkg/logs/tokenizer/gentokentables/**" # package main code generator; imports pkg/template/text
+            - "!$test"
+          allow:
+            - $gostd
+        logs-tokenizer-tests:
+          # Tests may use testing libraries, but nothing from pkg/logs or comp.
+          files:
+            - "**/pkg/logs/tokenizer/**"
+          deny:
+            - pkg: "github.com/DataDog/datadog-agent/pkg/logs"
+              desc: "pkg/logs/tokenizer must stay stdlib-only; it cannot depend on pkg/logs."
+            - pkg: "github.com/DataDog/datadog-agent/comp"
+              desc: "pkg/logs/tokenizer must stay stdlib-only; it cannot depend on comp."
 
     errcheck:
       exclude-functions:
