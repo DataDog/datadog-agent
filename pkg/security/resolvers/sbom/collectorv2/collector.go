@@ -65,7 +65,7 @@ func (s *OSScanner) ScanInstalledPackages(ctx context.Context, root string) ([]s
 }
 
 // databases lists the files the scanners read packages from.
-var databases = append([]string{statusPath, statusDPath, apkInstalledPath}, rpmdbPaths...)
+var databases = append(append([]string{statusPath, statusDPath, apkInstalledPath}, rpmdbPaths...), rpmdbWALs...)
 
 // Fingerprint digests the size and modification time of the package databases in
 // root, which every package change updates. It returns "" for a root it cannot open.
