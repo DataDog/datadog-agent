@@ -9,13 +9,13 @@ import (
 	_ "embed"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/yaml"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
@@ -28,9 +28,7 @@ func deployKServeTestResource(e config.Env, kubeProvider *kubernetes.Provider) (
 		return nil, err
 	}
 
-	_, err := yaml.NewConfigGroup(e.Ctx(), "kserve-test-resource", &yaml.ConfigGroupArgs{
-		YAML: []string{kserveManifest},
-	}, pulumi.Provider(kubeProvider), pulumi.Parent(workload))
+	_, err := yaml.NewConfigGroup(e.Ctx(), "kserve-test-resource", pulumi.Map{"yaml": pulumi.String(kserveManifest)}, pulumi.Provider(kubeProvider), pulumi.Parent(workload))
 	if err != nil {
 		return nil, err
 	}

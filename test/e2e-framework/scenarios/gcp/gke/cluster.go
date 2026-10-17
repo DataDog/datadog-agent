@@ -15,9 +15,9 @@ import (
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp/gke"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/yaml"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -72,8 +72,8 @@ func NewGKECluster(env gcp.Environment, opts ...Option) (*kubeComp.Cluster, erro
 
 		// Apply allowlist if autopilot is enabled
 		if params.autopilot {
-			_, err = yaml.NewConfigGroup(env.Ctx(), env.Namer.ResourceName("autopilot-allowlist"), &yaml.ConfigGroupArgs{
-				YAML: []string{autopilotAllowListYAML, workloadCSIAllowListYAML},
+			_, err = yaml.NewConfigGroup(env.Ctx(), env.Namer.ResourceName("autopilot-allowlist"), pulumi.Map{
+				"yaml": pulumi.String(autopilotAllowListYAML + "\n---\n" + workloadCSIAllowListYAML),
 			}, pulumi.Provider(gkeKubeProvider), env.WithProviders(config.ProviderGCP))
 			if err != nil {
 				return err

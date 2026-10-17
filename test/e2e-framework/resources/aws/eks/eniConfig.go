@@ -9,8 +9,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/yaml"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -22,9 +22,9 @@ func NewENIConfigs(e aws.Environment, subnets []aws.DDInfraEKSPodSubnets, securi
 		return nil, fmt.Errorf("subnets must not be empty")
 	}
 
-	objects := make([]map[string]interface{}, 0, len(subnets))
+	objects := make(pulumi.Array, 0, len(subnets))
 	for _, subnet := range subnets {
-		objects = append(objects, map[string]interface{}{
+		objects = append(objects, pulumi.ToMap(map[string]interface{}{
 			"apiVersion": "crd.k8s.amazonaws.com/v1alpha1",
 			"kind":       "ENIConfig",
 			"metadata": map[string]interface{}{
@@ -34,8 +34,8 @@ func NewENIConfigs(e aws.Environment, subnets []aws.DDInfraEKSPodSubnets, securi
 				"securityGroups": securityGroups,
 				"subnet":         subnet.SubnetID,
 			},
-		})
+		}))
 	}
 
-	return yaml.NewConfigGroup(e.Ctx(), e.Namer.ResourceName("eks-eni-configs"), &yaml.ConfigGroupArgs{Objs: objects}, opts...)
+	return yaml.NewConfigGroup(e.Ctx(), e.Namer.ResourceName("eks-eni-configs"), pulumi.Map{"objs": objects}, opts...)
 }

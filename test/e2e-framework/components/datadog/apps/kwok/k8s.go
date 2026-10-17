@@ -11,12 +11,12 @@ import (
 	"fmt"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/yaml"
 )
 
 // kwokRepo is the GitHub repository hosting KWOK releases.
@@ -42,21 +42,16 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 
 	const releaseBaseURL = "https://github.com/" + kwokRepo + "/releases/latest/download/"
 
-	kwok, err := yaml.NewConfigFile(e.Ctx(), "kwok", &yaml.ConfigFileArgs{
-		File:            releaseBaseURL + "kwok.yaml",
-		Transformations: []yaml.Transformation{relaxExemptFlowSchema, setControllerResources},
-	}, opts...)
+	kwok, err := yaml.NewConfigGroup(e.Ctx(), "kwok", pulumi.Map{
+		"files": pulumi.ToStringArray([]string{releaseBaseURL + "kwok.yaml"}),
+	}, append(opts, yaml.Transforms(relaxExemptFlowSchema, setControllerResources))...)
 	if err != nil {
 		return nil, err
 	}
 
-	if res := kwok.GetResource("apiextensions.k8s.io/v1/CustomResourceDefinition", "stages.kwok.x-k8s.io", ""); res != nil {
-		opts = append(opts, utils.PulumiDependsOn(res))
-	}
-
-	if _, err := yaml.NewConfigFile(e.Ctx(), "kwok-stage", &yaml.ConfigFileArgs{
-		File: releaseBaseURL + "stage-fast.yaml",
-	}, opts...); err != nil {
+	if _, err := yaml.NewConfigGroup(e.Ctx(), "kwok-stage", pulumi.Map{
+		"files": pulumi.ToStringArray([]string{releaseBaseURL + "stage-fast.yaml"}),
+	}, append(opts, utils.PulumiDependsOn(kwok))...); err != nil {
 		return nil, err
 	}
 

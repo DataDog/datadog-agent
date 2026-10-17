@@ -32,9 +32,9 @@ go_library(
         "//test/e2e-framework/components/kubernetes/vpa",
         "//test/e2e-framework/resources/gcp",
         "//test/e2e-framework/resources/gcp/gke",
+        "//test/e2e-framework/resources/yaml",
         "//test/e2e-framework/scenarios/gcp/fakeintake",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
-        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/yaml",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
     ],
 )

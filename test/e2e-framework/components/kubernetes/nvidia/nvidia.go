@@ -15,7 +15,6 @@ import (
 
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/helm"
 
 	pulumik8s "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
@@ -279,15 +279,13 @@ func installGPUOperator(env config.Env, clusterOpts *KindClusterOptions, opts ..
 	}
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
-	helmInstall, err := helm.NewRelease(env.Ctx(), "gpu-operator", &helm.ReleaseArgs{
-		RepositoryOpts: helm.RepositoryOptsArgs{
-			Repo: pulumi.String("https://nvidia.github.io/gpu-operator"),
-		},
-		Chart:            pulumi.String("gpu-operator"),
-		Namespace:        pulumi.String(operatorNs),
-		Version:          pulumi.String(clusterOpts.gpuOperatorVersion),
-		CreateNamespace:  pulumi.Bool(true),
-		DependencyUpdate: pulumi.BoolPtr(true),
+	helmInstall, err := helm.NewRelease(env.Ctx(), "gpu-operator", pulumi.Map{
+		"repositoryOpts":   pulumi.Map{"repo": pulumi.String("https://nvidia.github.io/gpu-operator")},
+		"chart":            pulumi.String("gpu-operator"),
+		"namespace":        pulumi.String(operatorNs),
+		"version":          pulumi.String(clusterOpts.gpuOperatorVersion),
+		"createNamespace":  pulumi.Bool(true),
+		"dependencyUpdate": pulumi.Bool(true),
 	}, opts...)
 	if err != nil {
 		return nil, err

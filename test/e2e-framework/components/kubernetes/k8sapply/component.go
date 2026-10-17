@@ -10,8 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/yaml"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -28,8 +28,8 @@ func K8sAppDefinition(yamlWorkload YAMLWorkload) func(e config.Env, kubeProvider
 		if err := e.Ctx().RegisterComponentResource("dd:apps", fmt.Sprintf("k8s-apply-%s", yamlWorkload.Name), k8sComponent); err != nil {
 			return nil, err
 		}
-		_, err := yaml.NewConfigFile(e.Ctx(), yamlWorkload.Name, &yaml.ConfigFileArgs{
-			File: yamlWorkload.Path,
+		_, err := yaml.NewConfigGroup(e.Ctx(), yamlWorkload.Name, pulumi.Map{
+			"files": pulumi.ToStringArray([]string{yamlWorkload.Path}),
 		}, pulumi.Provider(kubeProvider), pulumi.Parent(k8sComponent))
 		if err != nil {
 			return nil, err

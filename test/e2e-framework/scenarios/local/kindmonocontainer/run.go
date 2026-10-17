@@ -17,7 +17,6 @@ import (
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
-	k8syaml "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/yaml"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -30,6 +29,7 @@ import (
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/yaml"
 )
 
 const (
@@ -190,16 +190,12 @@ func validateLocalAgentImageConfig(e config.Env) error {
 	)
 }
 
-func deployRBAC(ctx *pulumi.Context, opts ...pulumi.ResourceOption) (*k8syaml.ConfigGroup, error) {
-	return k8syaml.NewConfigGroup(ctx, "datadog-rbac", &k8syaml.ConfigGroupArgs{
-		YAML: []string{rbacYAML},
-	}, opts...)
+func deployRBAC(ctx *pulumi.Context, opts ...pulumi.ResourceOption) (*yaml.ConfigGroup, error) {
+	return yaml.NewConfigGroup(ctx, "datadog-rbac", pulumi.Map{"yaml": pulumi.String(rbacYAML)}, opts...)
 }
 
-func deployClusterAgentService(ctx *pulumi.Context, opts ...pulumi.ResourceOption) (*k8syaml.ConfigGroup, error) {
-	return k8syaml.NewConfigGroup(ctx, "datadog-ca-svc", &k8syaml.ConfigGroupArgs{
-		YAML: []string{clusterAgentServiceYAML},
-	}, opts...)
+func deployClusterAgentService(ctx *pulumi.Context, opts ...pulumi.ResourceOption) (*yaml.ConfigGroup, error) {
+	return yaml.NewConfigGroup(ctx, "datadog-ca-svc", pulumi.Map{"yaml": pulumi.String(clusterAgentServiceYAML)}, opts...)
 }
 
 func deployClusterAgent(ctx *pulumi.Context, clusterName, image string, authToken pulumi.StringOutput, fakeIntake *fakeintakeComp.Fakeintake, imgPullSecret *corev1.Secret, opts ...pulumi.ResourceOption) (*appsv1.Deployment, error) {

@@ -21,7 +21,6 @@ import (
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
-	kubeHelm "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v3"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -100,10 +99,10 @@ type HelmComponent struct {
 	pulumi.ResourceState
 
 	LinuxHelmReleaseName   pulumi.StringPtrOutput
-	LinuxHelmReleaseStatus kubeHelm.ReleaseStatusOutput
+	LinuxHelmReleaseStatus helm.ReleaseStatusOutput
 
 	WindowsHelmReleaseName   pulumi.StringPtrOutput
-	WindowsHelmReleaseStatus kubeHelm.ReleaseStatusOutput
+	WindowsHelmReleaseStatus helm.ReleaseStatusOutput
 
 	ClusterAgentToken pulumi.StringOutput
 }
