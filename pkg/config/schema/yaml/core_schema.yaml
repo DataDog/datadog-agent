@@ -2081,6 +2081,23 @@ properties:
             node_type: setting
             type: boolean
             default: false
+  network_pcap:
+    node_type: section
+    title: Network Pcap Configuration
+    type: object
+    description: Settings for the Private Action Runner's remote packet
+      capture action.
+    tags:
+    - full-agent-only:true
+    - platform_only:linux
+    properties:
+      logs_dd_url:
+        node_type: setting
+        type: string
+        default: ''
+        description: Overrides the intake host packet captures are uploaded
+          to, optionally with a port (e.g. "intake.example.com:443"). Empty
+          means "cnm-intake.<site>".
   synthetics:
     node_type: section
     title: 'Synthetics Configuration          '
