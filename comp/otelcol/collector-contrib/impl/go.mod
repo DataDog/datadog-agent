@@ -587,6 +587,11 @@ require (
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
 
+// Fix for VULN-100741 (https://datadoghq.atlassian.net/browse/VULN-100741): backport of upstream PR
+// https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/49295 onto v0.159.0.
+// Generated from manifest.yaml. Remove once on v0.162.0 or later.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver => github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (

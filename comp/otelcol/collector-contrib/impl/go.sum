@@ -45,6 +45,8 @@ github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJK
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee/go.mod h1:nTot/Iy0kW16bXgXr6blEc8gFeAS7vTqYlhAxh+dbc0=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
+github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d h1:kF4WFXPeCD4hJoSEhx7ofi0IkcP+Lt4niJ7QfnRDPJw=
+github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d/go.mod h1:BSLlxDNQ5Yn6gXzn9tYrUXnuh6HFTPhjLerdykT2tZo=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
 github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 h1:zDAogP70WYpLD6MiIjQ9tHZYmkfbFcsfGb26CMf99To=
@@ -714,8 +716,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsre
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver v0.159.0/go.mod h1:RdHR15IATaIcK27y6tqCJV0+yqc9X+DzMRmsbCBSJoY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.159.0 h1:/lYX40MOD7kvGFtR/jgV00wCCPqbufLnFTSYdBdoYfY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.159.0/go.mod h1:f9hfGbIkoc2q8zQzwp17jEotFFaIP4i0X/2MVTYXF88=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.159.0 h1:L5NcIxnprFW69ZqBlirDD7JJ9f6xqUdIlD5ydWGdwvs=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.159.0/go.mod h1:BSLlxDNQ5Yn6gXzn9tYrUXnuh6HFTPhjLerdykT2tZo=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.159.0 h1:L5zcKRlbIdfEKFlScBpqMlnTDWEmLRotqlgSNP54q2g=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver v0.159.0/go.mod h1:zlB3fH5uHaj/1IEFYG0fWIC228H17ttlcxE62zIb1uA=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver v0.159.0 h1:AEHCjt171EjLQx5gtTxg2mlHguwoubqJzOlvfl/eknQ=
