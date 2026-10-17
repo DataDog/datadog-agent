@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import requests
 from invoke import Context
 
+from tasks.libs.common.bits_code import require_host_authentication, running_in_bits_code
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 from tasks.libs.common.git import get_default_branch
@@ -451,6 +452,11 @@ class GithubAPI:
         """
         from tasks.libs.common.utils import running_in_ci
 
+        if running_in_bits_code():
+            if public_repo:
+                return None
+            require_host_authentication("Authenticated GitHub API access")
+
         if not running_in_ci():
             return Auth.Token(generate_local_github_token(Context()))
         if "GITHUB_TOKEN" in os.environ:
@@ -644,6 +650,8 @@ def generate_local_github_token(ctx):
     """
     Generates a github token locally.
     """
+
+    require_host_authentication("GitHub token generation")
 
     try:
         token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
