@@ -197,6 +197,11 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 func (c *GenericCollector) Run() {
 	recvWithoutTimeout := c.Config.GetBool("workloadmeta.remote.recv_without_timeout")
 
+	// A server may end each stream at once, as on an unknown service or an
+	// invalid token, so a new stream waits a delay that grows until a response.
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.MaxInterval = 5 * time.Minute
+
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -240,8 +245,14 @@ func (c *GenericCollector) Run() {
 				log.Warnf("error received from remote workloadmeta: %s", err)
 			}
 
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-time.After(expBackoff.NextBackOff()):
+			}
 			continue
 		}
+		expBackoff.Reset()
 
 		collectorEvents, err := c.StreamHandler.HandleResponse(c.store, response)
 		if err != nil {
