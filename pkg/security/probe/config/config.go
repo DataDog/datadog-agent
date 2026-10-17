@@ -112,6 +112,10 @@ type Config struct {
 	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
 	EventStreamKretprobeMaxActive int
 
+	// EventStreamUseBPFLSM specifies whether to use BPF LSM programs, when supported and active, instead of the
+	// kprobe/fentry flavor of the hooks that have a BPF LSM variant
+	EventStreamUseBPFLSM bool
+
 	// EventStreamUseSyscallTaskStorage specifies whether to use a task storage map to store syscall context
 	EventStreamUseSyscallTaskStorage bool
 
@@ -240,6 +244,7 @@ func NewConfig() (*Config, error) {
 		EventStreamUseKprobeFallback:          getBool("event_stream.use_kprobe_fallback"),
 		EventStreamKretprobeMaxActive:         getInt("event_stream.kretprobe_max_active"),
 		EventStreamUseSyscallTaskStorage:      getBool("event_stream.use_syscall_task_storage"),
+		EventStreamUseBPFLSM:                  getBool("event_stream.use_bpf_lsm"),
 
 		EnvsWithValue:                       getStringSlice("envs_with_value"),
 		NetworkEnabled:                      getBool("network.enabled"),

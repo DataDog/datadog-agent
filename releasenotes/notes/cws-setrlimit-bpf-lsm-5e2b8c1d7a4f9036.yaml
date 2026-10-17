@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    CWS: The ``setrlimit`` event now relies on a BPF LSM program instead of a
+    kprobe/fentry hook when the ``bpf`` LSM is active on the host. This
+    behavior can be disabled with the
+    ``event_monitoring_config.event_stream.use_bpf_lsm`` setting.

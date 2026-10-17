@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -356,4 +357,18 @@ func (k *Version) HaveLegacyPipeInodeInfoStruct() bool {
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
 func (k *Version) SupportBPFSendSignal() bool {
 	return k.Code != 0 && k.Code >= Kernel5_3
+}
+
+// IsBPFLSMActive returns whether the bpf LSM is part of the active LSMs. When it is not, BPF LSM programs
+// can still be loaded and attached on kernels built with CONFIG_BPF_LSM, but they are never called.
+func IsBPFLSMActive() (bool, error) {
+	data, err := os.ReadFile(kernel.HostSys("kernel", "security", "lsm"))
+	if err != nil {
+		return false, err
+	}
+	return isBPFInLSMList(string(data)), nil
+}
+
+func isBPFInLSMList(lsms string) bool {
+	return slices.Contains(strings.Split(strings.TrimSpace(lsms), ","), "bpf")
 }
