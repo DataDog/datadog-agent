@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -478,6 +479,10 @@ func testRunErrorReturn(t *testing.T) {
 
 func testRun(t *testing.T) {
 	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
+	sender.On("Commit").Run(func(mock.Arguments) {
+		require.Equal(t, C.int(1), C.gil_unlocked_calls, "Commit must not wait while holding the GIL")
+		require.Equal(t, C.int(1), C.get_checks_warnings_calls, "Python access must finish before Commit")
+	}).Return()
 	sender.SetupAcceptAll()
 
 	mockRtloader(t)

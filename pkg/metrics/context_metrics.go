@@ -85,10 +85,21 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 // Flush flushes every metrics in the ContextMetrics.
 // Returns the slice of Series and a map of errors by context key.
 func (m ContextMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
+	return m.flush(timestamp, false)
+}
+
+func (m ContextMetrics) flush(timestamp float64, intermediate bool) ([]*Serie, map[ckey.ContextKey]error) {
 	var series []*Serie
 	errors := make(map[ckey.ContextKey]error)
 
 	for contextKey, metric := range m {
+		if intermediate {
+			if h, ok := metric.(*Historate); ok {
+				// Drain observations, but keep the rate baseline and sampled flag
+				// until the end-of-run flush, even if that final batch is empty.
+				metric = &h.histogram
+			}
+		}
 		series = flushToSeries(
 			contextKey,
 			metric,
