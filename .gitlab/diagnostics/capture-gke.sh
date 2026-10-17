@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Diagnostic-only observer for PR 56549. Never writes Kubernetes resources.
 set -uo pipefail
+for tool in gcloud kubectl jq gke-gcloud-auth-plugin; do command -v "$tool" || exit 1; done
 umask 077
 out="${E2E_OUTPUT_DIR}/gke-diagnostics"
 mkdir -p "$out"
@@ -9,6 +10,7 @@ pods_tmp="$(mktemp)"
 trap 'rm -f "$KUBECONFIG" "$pods_tmp"' EXIT
 gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet || exit 1
 deadline=$((SECONDS + 5400))
+failures=0
 while (( SECONDS < deadline )); do
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
   # Only clusters belonging to this diagnostic pipeline; the preinitialized
@@ -26,14 +28,22 @@ while (( SECONDS < deadline )); do
       kubectl --request-timeout=15s get deployments,daemonsets,replicasets -n datadog -o wide > "$snapshot/controllers.txt" 2>&1 || true
       # Keep status and image names, excluding environment variables and secrets.
       if kubectl --request-timeout=15s get pods -A -o json > "$pods_tmp" 2> "$snapshot/pods-error.txt"; then
+        failures=0
+        echo "Cluster access verified: $cluster"
         jq '[.items[] | {namespace:.metadata.namespace,name:.metadata.name,node:.spec.nodeName,images:([.spec.initContainers[]?.image]+[.spec.containers[]?.image]),status:.status}]' "$pods_tmp" > "$snapshot/pods.json"
         while IFS=$'\t' read -r pod container; do
           kubectl --request-timeout=15s logs -n datadog "$pod" -c "$container" --tail=100 > "$snapshot/$pod-$container.log" 2>&1 || true
           kubectl --request-timeout=15s logs -n datadog "$pod" -c "$container" --previous --tail=100 > "$snapshot/$pod-$container-previous.log" 2>&1 || true
         done < <(jq -r '.items[] | select(.metadata.namespace=="datadog") | .metadata.name as $p | (.spec.initContainers[]?,.spec.containers[]?) | [$p,.name] | @tsv' "$pods_tmp")
+      else
+        failures=$((failures + 1))
+        cat "$snapshot/pods-error.txt"
+        if (( failures >= 6 )); then echo 'ERROR: repeated Kubernetes access failure'; exit 1; fi
       fi
       rm -f "$pods_tmp"
       echo "Captured GKE diagnostics: $snapshot"
+      cat "$snapshot/controllers.txt"
+      tail -20 "$snapshot/events.txt"
     done < <(jq -r --arg prefix "ci-init-${CI_PIPELINE_ID}-" '.[] | select(.name | startswith($prefix)) | [.name,.location] | @tsv' "$out/clusters.json")
   fi
   sleep 20
