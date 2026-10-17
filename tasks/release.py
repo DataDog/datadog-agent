@@ -687,7 +687,6 @@ def run_rc_pipeline(ctx, gitlab_tag):
         git_ref=gitlab_tag,
         repo_branch="beta",
         deploy=True,
-        rc_build=True,
     )
 
 
