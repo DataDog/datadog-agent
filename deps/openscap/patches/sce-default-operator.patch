@@ -1,0 +1,101 @@
+--- a/src/SCE/sce_engine.c
++++ b/src/SCE/sce_engine.c
+@@ -584,6 +584,9 @@
+ 			}
+ 		}
+ 		xccdf_operator_t operator = xccdf_value_binding_get_operator(binding);
++		/* no operator attribute: XCCDF defaults to equals */
++		if (operator == 0)
++			operator = XCCDF_OPERATOR_EQUALS;
+ 
+ 		char* type_str;
+ 		switch (type)
+--- a/tests/sce/CMakeLists.txt
++++ b/tests/sce/CMakeLists.txt
+@@ -3,6 +3,7 @@
+ 	add_oscap_test("test_sce.sh")
+ 	add_oscap_test("test_sce_interpreter.sh" LABELS freebsd linux)
+ 	add_oscap_test("test_passing_vars.sh")
++	add_oscap_test("test_sce_default_operator.sh")
+ 	add_oscap_test("test_check_engine_results.sh")
+ 	add_oscap_test("test_sce_in_ds.sh")
+ 	add_oscap_test("test_sce_in_report.sh")
+diff --git a/tests/sce/default_operator.sh b/tests/sce/default_operator.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/sce/default_operator.sh
+@@ -0,0 +1,11 @@
++#!/bin/sh
++#
++# This is an SCE script used to test the operators SCE passes. UNSET is a
++# value without an operator attribute, SET a value with the operator
++# "not equal".
++
++echo "UNSET=$XCCDF_OPERATOR_UNSET SET=$XCCDF_OPERATOR_SET"
++if [ "$XCCDF_OPERATOR_UNSET" = EQUALS ] && [ "$XCCDF_OPERATOR_SET" = NOT_EQUAL ]; then
++	exit "$XCCDF_RESULT_PASS"
++fi
++exit "$XCCDF_RESULT_FAIL"
+diff --git a/tests/sce/test_sce_default_operator.sh b/tests/sce/test_sce_default_operator.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/sce/test_sce_default_operator.sh
+@@ -0,0 +1,31 @@
++#!/usr/bin/env bash
++
++# Test that SCE passes EQUALS, the XCCDF default, as the operator of an
++# exported value without an operator attribute, and the operator of a value
++# that sets one.
++
++. "$builddir/tests/test_common.sh"
++
++set -e -o pipefail
++
++function test_sce_default_operator {
++
++	local xccdf="$1"
++	local xccdf_file="${srcdir}/${xccdf}"
++	local result
++	result=$(mktemp)
++
++	$OSCAP xccdf eval --results "$result" "$xccdf_file"
++
++	assert_exists 1 "//rule-result/result[text()='pass']"
++
++	rm "$result"
++	return 0
++}
++
++# Testing.
++test_init
++
++test_run "SCE default operator" test_sce_default_operator test_sce_default_operator.xccdf.xml
++
++test_exit
+diff --git a/tests/sce/test_sce_default_operator.xccdf.xml b/tests/sce/test_sce_default_operator.xccdf.xml
+new file mode 100644
+--- /dev/null
++++ b/tests/sce/test_sce_default_operator.xccdf.xml
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<Benchmark xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_moc.elpmaxe.www_benchmark_test">
++  <status>incomplete</status>
++  <version>1.0</version>
++  <model system="urn:xccdf:scoring:default"/>
++  <model system="urn:xccdf:scoring:flat"/>
++  <Value id="xccdf_moc.elpmaxe.www_value_unset" type="string">
++    <value>unset</value>
++  </Value>
++  <Value id="xccdf_moc.elpmaxe.www_value_set" type="string" operator="not equal">
++    <value>set</value>
++  </Value>
++  <Rule selected="true" id="xccdf_moc.elpmaxe.www_rule_1">
++    <title>Test SCE Rule</title>
++    <check system="http://open-scap.org/page/SCE">
++      <check-import import-name="stdout" />
++      <check-export value-id="xccdf_moc.elpmaxe.www_value_unset" export-name="UNSET" />
++      <check-export value-id="xccdf_moc.elpmaxe.www_value_set" export-name="SET" />
++      <check-content-ref href="default_operator.sh"/>
++    </check>
++  </Rule>
++</Benchmark>
