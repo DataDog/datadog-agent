@@ -124,14 +124,21 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 
 		return rresp, rerr
 	}
-	req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
-	slurp, err := io.ReadAll(req.Body)
-	if err != nil {
-		return nil, err
+	// ReverseProxy sets Body to nil for Content-Length: 0 requests. Leave it nil
+	// on the outgoing requests too: a non-nil empty Body would be sent chunked.
+	var slurp []byte
+	if req.Body != nil {
+		req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
+		var err error
+		if slurp, err = io.ReadAll(req.Body); err != nil {
+			return nil, err
+		}
 	}
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
-		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+		if req.Body != nil {
+			newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+		}
 		setTarget(newreq, u, m.keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
