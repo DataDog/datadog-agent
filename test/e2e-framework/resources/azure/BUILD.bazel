@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "azure",
@@ -14,5 +15,15 @@ go_library(
         "//test/e2e-framework/common/namer",
         "@com_github_pulumi_pulumi_azure_native_sdk_v3//:pulumi-azure-native-sdk",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+dd_agent_go_test(
+    name = "azure_test",
+    srcs = ["environment_test.go"],
+    embed = [":azure"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
