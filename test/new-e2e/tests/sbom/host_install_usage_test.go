@@ -6,6 +6,7 @@
 package sbom
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -63,19 +64,22 @@ instances:
 // scans hostInstallUsageSBOMCheck sets.
 const hostInstallUsageWindow = 3 * time.Minute
 
-// unindexedPackage is the dpkg package TestHostUsage installs once the Agent
-// runs, and buildUnindexedDeb the script that builds it and prints its path.
-const (
-	unindexedPackage  = "sbom-unindexed-test"
-	buildUnindexedDeb = `set -e
+// installedPackage is the dpkg package TestHostUsage installs once the Agent
+// runs. Its binary of the same name is a copy of true.
+const installedPackage = "sbom-installed-test"
+
+// buildInstalledDeb returns the script that builds version of installedPackage
+// and prints the path of the package.
+func buildInstalledDeb(version string) string {
+	return fmt.Sprintf(`set -e
 umask 022
 d=$(mktemp -d)
-mkdir -p "$d/pkg/DEBIAN" "$d/pkg/usr/share/sbom-unindexed-test"
-printf 'Package: sbom-unindexed-test\nVersion: 1.0\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/pkg/DEBIAN/control"
-echo sbom >"$d/pkg/usr/share/sbom-unindexed-test/README"
-dpkg-deb --root-owner-group --build "$d/pkg" "$d/sbom-unindexed-test.deb" >/dev/null
-echo "$d/sbom-unindexed-test.deb"`
-)
+mkdir -p "$d/pkg/DEBIAN" "$d/pkg/usr/bin"
+printf 'Package: %[1]s\nVersion: %[2]s\nArchitecture: all\nMaintainer: Datadog <package@datadoghq.com>\nDescription: package of the SBOM e2e tests\n' >"$d/pkg/DEBIAN/control"
+cp /usr/bin/true "$d/pkg/usr/bin/%[1]s"
+dpkg-deb --root-owner-group --build "$d/pkg" "$d/%[1]s.deb" >/dev/null
+echo "$d/%[1]s.deb"`, installedPackage, version)
+}
 
 type hostInstallUsageSuite struct {
 	baseSuite[environments.Host]
@@ -194,37 +198,53 @@ func (s *hostInstallUsageSuite) TestHostUsage() {
 		}, 10*time.Minute, 15*time.Second, "the host SBOMs never covered both sides of the usage window")
 	})
 
-	// dpkg installs a package once the Agent runs. system-probe indexes the
-	// host packages at start and every hour, so the package stays out of the
-	// usage reports of the run, and the host SBOMs list it without runtime
-	// properties, past the usage window too.
-	s.Run("unindexed", func() {
-		deb := strings.TrimSpace(host.MustExecute(buildUnindexedDeb))
-		s.T().Cleanup(func() {
-			_, _ = host.Execute("sudo dpkg --purge " + unindexedPackage)
-		})
+	// dpkg installs a package once the Agent runs, and root runs its binary
+	// right away, before system-probe indexes the package. system-probe
+	// checks the package databases every minute, and the scan that indexes
+	// the package credits it the run.
+	s.T().Cleanup(func() {
+		_, _ = host.Execute("sudo dpkg --purge " + installedPackage)
+	})
+	var ranAt int64
+	s.Run("installed", func() {
+		deb := strings.TrimSpace(host.MustExecute(buildInstalledDeb("1.0")))
+		var err error
+		ranAt, err = strconv.ParseInt(strings.TrimSpace(host.MustExecute("date +%s")), 10, 64)
+		s.Require().NoError(err, "date")
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			_, err := host.Execute("sudo dpkg -i " + deb + " && sudo " + installedPackage)
+			require.NoErrorf(c, err, "dpkg -i %s, then %s", deb, installedPackage)
+		}, 10*time.Minute, 10*time.Second, "dpkg never installed %s", deb)
+
+		s.EventuallyWithTf(func(c *assert.CollectT) {
+			comp := findComponent(newestHostSBOM(c, s.Fakeintake, time.Time{}), installedPackage)
+			require.NotNilf(c, comp, "no %s in the host SBOM", installedPackage)
+			ts, _ := lastSeenRunning(comp)
+			s.T().Logf("PKG-IN-USE[host] installed: %s LastSeenRunning=%d, ranAt=%d", installedPackage, ts, ranAt)
+			assert.GreaterOrEqualf(c, ts, ranAt, "%s LastSeenRunning %d predates its run at %d", installedPackage, ts, ranAt)
+			assert.Equalf(c, []string{"true"}, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s %s, root ran it", installedPackage, propRunningAsRoot)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s in use", installedPackage)
+	})
+
+	// The upgrade of the package carries its usage over to the new version,
+	// which system-probe indexes within a minute.
+	s.Run("upgraded", func() {
+		s.Require().Positivef(ranAt, "%s never ran", installedPackage)
+		deb := strings.TrimSpace(host.MustExecute(buildInstalledDeb("2.0")))
 		s.EventuallyWithTf(func(c *assert.CollectT) {
 			_, err := host.Execute("sudo dpkg -i " + deb)
 			require.NoErrorf(c, err, "dpkg -i %s", deb)
-		}, 3*time.Minute, 10*time.Second, "dpkg never installed %s", deb)
+		}, 10*time.Minute, 10*time.Second, "dpkg never upgraded %s", installedPackage)
 
 		s.EventuallyWithTf(func(c *assert.CollectT) {
-			past := 0
-			for _, sb := range hostUsageSBOMs(c, s.Fakeintake) {
-				comp := findComponent(sb.components, unindexedPackage)
-				if comp == nil {
-					continue
-				}
-				if _, pastWindow := usageWindowOf(sb, hostInstallUsageWindow); pastWindow {
-					past++
-				}
-				for _, name := range []string{propLastSeenRunning, propHasSetSuidBit, propRunningAsRoot} {
-					assert.Emptyf(c, propertyValues(comp.GetProperties(), name), "%s carries %s, in the SBOM of %s", unindexedPackage, name, sb.collected)
-				}
-			}
-			s.T().Logf("PKG-IN-USE[host] unindexed: %d host SBOMs past the usage window list %s", past, unindexedPackage)
-			require.Positivef(c, past, "no host SBOM past the usage window lists %s yet", unindexedPackage)
-		}, 10*time.Minute, 15*time.Second, "the host SBOMs never listed %s past the usage window", unindexedPackage)
+			comp := findComponent(newestHostSBOM(c, s.Fakeintake, time.Time{}), installedPackage)
+			require.NotNilf(c, comp, "no %s in the host SBOM", installedPackage)
+			require.Equalf(c, "2.0", comp.GetVersion(), "%s version in the host SBOM", installedPackage)
+			ts, _ := lastSeenRunning(comp)
+			s.T().Logf("PKG-IN-USE[host] upgraded: %s %s LastSeenRunning=%d, ranAt=%d", installedPackage, comp.GetVersion(), ts, ranAt)
+			assert.GreaterOrEqualf(c, ts, ranAt, "%s %s LastSeenRunning %d predates the run at %d", installedPackage, comp.GetVersion(), ts, ranAt)
+			assert.Equalf(c, []string{"true"}, propertyValues(comp.GetProperties(), propRunningAsRoot), "%s %s, root ran it", installedPackage, propRunningAsRoot)
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported %s 2.0 in use", installedPackage)
 	})
 
 	// cron starts before the Agent, so its use comes from the processes the
