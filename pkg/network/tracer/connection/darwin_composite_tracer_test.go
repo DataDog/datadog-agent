@@ -62,6 +62,33 @@ func TestDarwinCompositePrimaryFailureClosesGenerationAndSidecarsOnce(t *testing
 	require.Equal(t, 1, packetSource.closeCount())
 }
 
+func TestDarwinCompositeStatusReportsSidecarDegradation(t *testing.T) {
+	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	composite := newDarwinCompositeTracerWithComponents(primary, nil)
+	composite.packetRequested = true
+	composite.packetError = errors.New("BPF unavailable")
+
+	status := GetDarwinTracerStatus(composite)
+
+	require.Equal(t, "nstat", status.ActiveBackend)
+	require.Equal(t, nstat.ABIRevision, status.ABIRevision)
+	require.Equal(t, darwinSidecarDisabled, status.PacketEnrichment)
+	require.Equal(t, "BPF unavailable", status.LastError)
+}
+
+func TestDarwinCompositeStatusTracksRuntimeSidecarHealth(t *testing.T) {
+	primary := newNStatTracerWithControl(testNStatConfig(), newFakeNStatControl())
+	packet := newDarwinPacketSidecar(newBlockingDarwinPacketSource(), primary, 10)
+	composite := newDarwinCompositeTracerWithComponents(primary, packet)
+	composite.packetRequested = true
+
+	packet.onFailure(errors.New("capture stopped"))
+
+	status := GetDarwinTracerStatus(composite)
+	require.Equal(t, darwinSidecarStopped, status.PacketEnrichment)
+	require.Equal(t, "capture stopped", status.LastError)
+}
+
 func TestDarwinCompositeRejectsMissingPrimary(t *testing.T) {
 	composite := newDarwinCompositeTracerWithComponents(nil, nil)
 	require.ErrorContains(t, composite.Start(nil), "no authoritative NStat source")
