@@ -105,6 +105,28 @@ docker-compose logs host-profiler -f
 
 **Warning**: in this configuration, container attributes might be broken.
 
+### Running a Second Instance
+
+To run a second Host Profiler on the same host in Agent-integrated mode, choose unused ports for its flare diagnostics, health metrics, and self-profiling endpoints. For example, if the first instance uses the defaults:
+
+```bash
+DD_HOSTPROFILER_HPFLARE_PORT=7779 \
+DD_HOSTPROFILER_HEALTH_METRICS_TARGET=127.0.0.1:8890 \
+DD_HOSTPROFILER_DDPROFILING_PORT=7502 \
+./bin/host-profiler/host-profiler run \
+  --core-config ./dev/dist/datadog.yaml
+```
+
+These environment variables override the configuration for this process only:
+
+| Configuration setting | Default | Second instance example |
+| --- | --- | --- |
+| `hostprofiler.hpflare.port` | `7778` | `7779` |
+| `hostprofiler.health_metrics.target` | `127.0.0.1:8889` | `127.0.0.1:8890` |
+| `hostprofiler.ddprofiling.port` | `7501` | `7502` |
+
+The health metrics target must include both the host and port. The `ddprofiling` port is used only when self-profiling is enabled (`hostprofiler.ddprofiling.enabled: true`); setting the port does not enable it.
+
 ## Configuration
 
 The component is configured via an OpenTelemetry Collector YAML file. See [`dist/host-profiler-config.yaml`](dist/host-profiler-config.yaml) for the default configuration.
