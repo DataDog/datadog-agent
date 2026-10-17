@@ -9,7 +9,6 @@ package com_datadoghq_script
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -50,7 +49,7 @@ func (h *TestConnectionHandler) Run(
 	scriptConfig, err := parseCredentials(credentials)
 	if err != nil {
 		configurationValid = false
-		errors = append(errors, fmt.Sprintf("Failed to parse script configuration: %v", err))
+		errors = append(errors, "Failed to parse script configuration")
 		return &TestConnectionOutputs{
 			ConfigurationValid: configurationValid,
 			AvailableScripts:   availableScripts,

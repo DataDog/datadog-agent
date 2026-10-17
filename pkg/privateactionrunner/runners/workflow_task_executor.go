@@ -55,7 +55,7 @@ func NewWorkflowTaskExecutor(
 	ha helmactions.Component,
 	ka kubeactions.Component,
 ) (*WorkflowTaskExecutor, error) {
-	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig)
+	credentialResolver, err := resolver.NewPrivateCredentialResolver(coreConfig, configuration.ScriptCredentialFileAllowedRoots)
 	if err != nil {
 		return nil, err
 	}
