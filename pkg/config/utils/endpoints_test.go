@@ -659,3 +659,24 @@ func TestIsDatadogURL(t *testing.T) {
 		assert.Equal(t, tc.expected, IsDatadogURL(tc.url), "IsDatadogURL(%q)", tc.url)
 	}
 }
+
+func TestSchemeHostKey(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"https://process.datadoghq.eu", "https://process.datadoghq.eu"},
+		{"https://process.datadoghq.eu/", "https://process.datadoghq.eu"},
+		{"https://process.datadoghq.eu/api/v1", "https://process.datadoghq.eu"},
+		{"https://process.datadoghq.eu:8443/api", "https://process.datadoghq.eu:8443"},
+		{"https://process.datadoghq.eu?foo=bar", "https://process.datadoghq.eu"},
+		{"", ""},
+		{"not a url", ""},
+		{"/just/a/path", ""}, // no scheme or host
+		{"http://\x7f", ""},  // url.Parse error
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expected, SchemeHostKey(tc.input), "SchemeHostKey(%q)", tc.input)
+	}
+}

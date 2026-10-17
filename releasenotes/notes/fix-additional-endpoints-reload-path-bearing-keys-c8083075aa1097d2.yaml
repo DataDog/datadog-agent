@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fix API-key rotation being silently dropped for ``additional_endpoints`` entries whose
+    configured URL contains a path or trailing slash (for example
+    ``https://process.agent.datadoghq.com/``) on per-agent settings such as
+    ``process_config.additional_endpoints``. Resolvers for those settings key domains by
+    bare ``scheme://host`` while the config keeps the raw URL, so the rotated key never
+    reached the running forwarder and the destination could keep sending with an expired
+    key, or never start sending when the key was resolved through delegated authentication.
+    Reloads now match the normalized ``scheme://host`` form, and several keys that
+    normalize to the same destination all contribute their keys.

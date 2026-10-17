@@ -142,7 +142,11 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 func updateAdditionalEndpoints(resolver DomainResolver, setting string, config config.Component, log log.Component) {
 	oldKeys, newKeys, found, applied := resolver.reloadAdditionalEndpoints(setting, config)
 	if !applied {
-		log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetConfigName())
+		// Only non-infra settings can get here (infra always applies): the domain is absent
+		// from the setting, which is not a removal — its configured URL may simply never appear
+		// verbatim — so the existing keys are kept. This also fires for every resolver of the
+		// setting whose domain merely didn't change, so keep it informational.
+		log.Infof("no entry for '%s' in '%s' at runtime; keeping existing keys", resolver.GetConfigName(), setting)
 		return
 	}
 	if !found {
@@ -289,6 +293,12 @@ func (r *domainResolver) SetBaseDomain(domain string) {
 // delegated auth write-back. Other forwarders normalize to scheme://host, so a miss there isn't a
 // removal and nothing changes (applied=false).
 //
+// The lookup honors that split: infra resolvers match their raw configured URL, while
+// process-style resolvers match any configured URL that normalizes (scheme://host) to their
+// name — a trailing slash or path in the config key still delivers credential write-back and
+// refreshes, and several keys normalizing to the same resolver all contribute their keys instead
+// of all but the exactly-matched one being dropped.
+//
 // The OnUpdate callback and the startup reconcile in OnUpdateConfig can run concurrently, so the
 // config read and the replacement happen under r.mu: a stale snapshot can't overwrite a newer one.
 // Callers must update forwarder health after this returns, since health calls back into GetAPIKeys.
@@ -298,7 +308,22 @@ func (r *domainResolver) reloadAdditionalEndpoints(setting string, config config
 
 	// additional_endpoints is keyed by the configured URL; GetBaseDomain may have been rewritten
 	// with the agent version (see AddAgentVersionToDomain).
-	endpoints, found := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)[r.configName]
+	endpointsMap := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
+	var endpoints []utils.APIKeys
+	if setting == "additional_endpoints" {
+		endpoints, found = endpointsMap[r.configName]
+	} else {
+		// No break: several config keys (e.g. with and without a trailing slash) can
+		// normalize to this resolver, and all of their keys apply.
+		for key, keyset := range endpointsMap {
+			// configName is never empty today (constructors derive it from a URL), but guard
+			// locally so an empty name could never claim keys via SchemeHostKey("").
+			if r.configName != "" && (key == r.configName || utils.SchemeHostKey(key) == r.configName) {
+				endpoints = append(endpoints, keyset...)
+				found = true
+			}
+		}
+	}
 	if !found && setting != "additional_endpoints" {
 		return nil, nil, false, false
 	}

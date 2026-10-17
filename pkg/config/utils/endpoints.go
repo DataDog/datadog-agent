@@ -107,6 +107,19 @@ func PartitionRealAndPendingKeys(keys []string) (realKeys []string, hasPendingDe
 	return realKeys, hasPendingDelegatedAuth
 }
 
+// SchemeHostKey returns the scheme://host form of a configured endpoint URL, or "" when the
+// value does not parse to a URL with both a scheme and a host. Process-style resolvers key
+// domains this way (see pkg/process/util/api/config.removePathIfPresent), which is how a
+// configured URL written with a trailing slash or a path maps onto the same resolver as its
+// bare scheme://host spelling.
+func SchemeHostKey(endpointURL string) string {
+	u, err := url.Parse(endpointURL)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 // MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
 // a map of domain to Endpoint structs.
 func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIKeys {
