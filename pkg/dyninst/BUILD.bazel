@@ -12,6 +12,7 @@ go_library(
 dd_agent_go_test(
     name = "dyninst_test",
     srcs = [
+        "busy_drops_test.go",
         "circuit_breaker_test.go",
         "end_to_end_test.go",
         "integration_drop_test.go",

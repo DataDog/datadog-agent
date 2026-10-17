@@ -94,6 +94,12 @@ func TestDyninst(t *testing.T) {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
+		// TODO(andrei): fault expects a read of a never-touched mmap page to
+		// fail, but sleepable programs fault the page in and read it.
+		if svc == "fault" && loader.UsesSleepable() {
+			t.Logf("skipping %s: sleepable uprobes can read its page", svc)
+			continue
+		}
 		t.Run(svc, func(t *testing.T) {
 			t.Parallel()
 			runIntegrationTestSuite(
