@@ -784,3 +784,25 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	m.cleanupPendingProfiles()
 	assert.NotContains(t, m.profiles, testSelector, "the profile should be removed once the cleanup delay is over")
 }
+
+// TestManagerV2_ProcessEventWithoutCWS verifies that without CWS, whatever the profile flags,
+// ProcessEvent returns before it records the cgroup or queues the event.
+func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
+	m := &ManagerV2{
+		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileEnabled:      true,
+			SecurityProfileV2Enabled:    true,
+			SecurityProfileV2EventTypes: []model.EventType{model.ExecEventType},
+		}},
+		profilePendingEvents: make(map[containerutils.CGroupID]*pendingProfile),
+		resolvedCgroups:      make(map[containerutils.CGroupID]struct{}),
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.ExecEventType)
+	event.ProcessContext.Process.ContainerContext.ContainerID = "container"
+	m.ProcessEvent(event)
+
+	assert.Empty(t, m.profilePendingEvents)
+	assert.Empty(t, m.resolvedCgroups)
+}
