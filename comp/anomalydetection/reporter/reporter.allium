@@ -500,7 +500,9 @@ rule PublishCorrelatorEvents {
 --
 -- A compact human-readable summary listing the correlation header and
 -- one bullet per anomaly. Log-derived anomalies render with
--- pattern/example/rate annotations; numeric anomalies render with
+-- pattern/signature/rate annotations (plus an example only when supplied by
+-- another producer; the two log extractors no longer retain examples);
+-- numeric anomalies render with
 -- current value vs baseline mean and sigma. Anomaly bullets are
 -- deduplicated and sorted so two cycles that observe the same anomalies
 -- produce byte-identical messages; the header reports the deduplicated
