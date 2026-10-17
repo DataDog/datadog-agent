@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Keep the path of this file out of the request the form below makes. -->
+  <meta name="referrer" content="no-referrer">
+  <title>Datadog Agent</title>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 4rem auto; max-width: 30rem; color: #1a1a1a; }
+    button { font-size: 1rem; padding: 0.5rem 1rem; cursor: pointer; }
+  </style>
+</head>
+<body onload="document.getElementById('dd-gui-auth').submit()">
+  <h1>Datadog Agent</h1>
+  <p>Opening the Agent GUI&hellip;</p>
+  <form id="dd-gui-auth" method="POST" action="{{ .Action }}">
+    <input type="hidden" name="id" value="{{ .ID }}">
+    <input type="hidden" name="secret" value="{{ .Secret }}">
+    <noscript><p>JavaScript is disabled, so this page cannot continue on its own.</p></noscript>
+    <button type="submit">Open the Agent GUI</button>
+  </form>
+</body>
+</html>

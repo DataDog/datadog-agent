@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "bootstrap",
+    srcs = ["bootstrap.go"],
+    embedsrcs = ["launch.html.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gui/bootstrap",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/template/html"],
+)
+
+dd_agent_go_test(
+    name = "bootstrap_test",
+    srcs = ["bootstrap_test.go"],
+    embed = [":bootstrap"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
