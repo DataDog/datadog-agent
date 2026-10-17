@@ -9,10 +9,17 @@ on:
 permissions: {}
 
 jobs:
-  go_mod_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') }}
+  tidy:
+    if: >-
+      github.repository == 'DataDog/datadog-agent' &&
+      github.event.pull_request.user.login == 'renovate[bot]' &&
+      (contains(github.event.pull_request.labels.*.name, 'dependencies-go') ||
+       contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') ||
+       contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') ||
+       contains(github.event.pull_request.labels.*.name, 'dependencies-bazel'))
+    # One checkout and one writer for all generators prevents tidy jobs from feeding each other.
     concurrency:
-      group: deps-tidy-go-${{ github.event.pull_request.number }}
+      group: deps-tidy-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
       id-token: write # Required for dd-octo-sts OIDC token
@@ -21,17 +28,22 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+      - name: Test dependency publication guards
+        run: python3 -m unittest discover -s .github/actions/deps-tidy-push -p '*_tests.py' -v
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
       - name: Install dda
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-go') || contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native')
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
       - name: Go mod tidy
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-go')
         run: dda inv -- -e tidy
       - name: Close PR if root go directive was bumped
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-go')
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           GH_TOKEN: ${{ github.token }}
@@ -46,91 +58,37 @@ jobs:
             exit 1
           fi
       - name: Update LICENSE-3rdparty.csv
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-go') && !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools')
         run: dda inv -- -e generate-licenses
       - name: Update mocks
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-go') && !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools')
         run: dda inv -- -e security-agent.gen-mocks
-      - uses: ./.github/actions/deps-tidy-push
-        with:
-          token: ${{ steps.setup.outputs.token }}
-          commit-message: "[renovate skip] Auto-generate go.sum and LICENSE-3rdparty.csv changes"
-
-  cargo_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') }}
-    concurrency:
-      group: deps-tidy-cargo-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
-    permissions:
-      id-token: write # Required for dd-octo-sts OIDC token
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.head_ref }}
-      - uses: ./.github/actions/deps-tidy-setup
-        id: setup
       - name: Install Rust toolchain
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-cargo')
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
         with:
           toolchain: stable
       - name: Repin Bazel Rust lockfile
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-cargo')
         run: |
           bazel mod tidy
           bazel mod deps
       - name: Generate Rust licenses
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-cargo')
         run: |
           cargo install dd-rust-license-tool@1.0.6 --locked
           cd rust && dd-rust-license-tool --manifest-path ../Cargo.toml write
-      - uses: ./.github/actions/deps-tidy-push
-        with:
-          token: ${{ steps.setup.outputs.token }}
-          commit-message: "[renovate skip] Auto-repin Bazel Rust lockfile and regenerate Rust licenses"
-
-  bazel_native_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') }}
-    permissions:
-      id-token: write # Required for dd-octo-sts OIDC token
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - uses: ./.github/actions/deps-tidy-setup
-        id: setup
-      - name: Install dda
-        uses: ./.github/actions/install-dda
-        with:
-          features: legacy-tasks
       - name: Refresh http_archive sha256 for changed deps
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native')
         env:
           BRANCH: ${{ github.event.pull_request.base.ref }}
         run: dda inv -- renovate.refresh-archive-hashes --base-ref=origin/${BRANCH}
-      - uses: ./.github/actions/deps-tidy-push
-        with:
-          token: ${{ steps.setup.outputs.token }}
-          commit-message: "[renovate skip] Auto-refresh http_archive sha256"
-
-  bazel_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') }}
-    concurrency:
-      group: deps-tidy-bazel-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
-    permissions:
-      id-token: write # Required for dd-octo-sts OIDC token
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.head_ref }}
-      - uses: ./.github/actions/deps-tidy-setup
-        id: setup
       - name: Repin Bazel module lockfile
+        if: contains(github.event.pull_request.labels.*.name, 'dependencies-bazel')
         run: |
           bazel mod tidy
           bazel mod deps
       - uses: ./.github/actions/deps-tidy-push
         with:
           token: ${{ steps.setup.outputs.token }}
-          commit-message: "[renovate skip] Auto-repin Bazel module lockfile"
+          commit-message: "[renovate skip] Tidy generated dependency files"
