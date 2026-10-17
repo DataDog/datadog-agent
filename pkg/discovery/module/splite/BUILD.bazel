@@ -3,9 +3,25 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "splite",
-    srcs = ["args.go"],
+    srcs = [
+        "args.go",
+        "testbinary.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/discovery/module/splite",
     visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/util/kernel",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/util/kernel",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

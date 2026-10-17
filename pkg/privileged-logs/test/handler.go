@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -88,6 +89,27 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // changing it back to root in the privileged logs test server, and by creating
 // all log files with 000 permissions which only EUID root can override.
 func Setup(t *testing.T, callback func()) *Handler {
+	return setup(t, callback, setupTestServer)
+}
+
+// SetupSPLite is like Setup, but serves the privileged logs module from the
+// system-probe-lite binary.
+func SetupSPLite(t *testing.T, callback func()) *Handler {
+	socketDir, err := os.MkdirTemp("/tmp", "spltest") // Short socket path
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(socketDir) })
+	require.NoError(t, os.Chmod(socketDir, 0755))
+	socketPath := filepath.Join(socketDir, "sysprobe.sock")
+
+	// Started as root, like system-probe does in production.
+	splite.StartTestBinary(t, splite.Config{Socket: socketPath, PrivilegedLogs: true})
+	// Let the unprivileged test user connect.
+	require.NoError(t, os.Chmod(socketPath, 0777))
+
+	return setup(t, callback, func(*testing.T) *Handler { return &Handler{SocketPath: socketPath} })
+}
+
+func setup(t *testing.T, callback func(), startServer func(*testing.T) *Handler) *Handler {
 	unprivilegedUID := 0
 	sudoUID := os.Getenv("SUDO_UID")
 	if sudoUID != "" {
@@ -111,7 +133,7 @@ func Setup(t *testing.T, callback func()) *Handler {
 	})
 
 	// Set up privileged-logs server
-	handler := setupTestServer(t)
+	handler := startServer(t)
 
 	// Operations such as creating temp directories need to be done after the
 	// user change but before the umask change.
