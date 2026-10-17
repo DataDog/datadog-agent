@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
 // runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
@@ -64,21 +65,21 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return CombinedRunResult{}, nil
 	}
 
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
-	groupSize := len(chunkedStats)
-	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
-
-	messages := make([]model.MessageBody, 0, groupSize)
-	for i := 0; i < groupSize; i++ {
-		messages = append(messages, &model.CollectorRealTime{
-			HostName:          p.hostInfo.HostName,
-			Stats:             chunkedStats[i],
-			ContainerStats:    chunkedCtrStats[i],
-			GroupId:           groupID,
-			GroupSize:         int32(groupSize),
-			NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
-			TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
-			ContainerHostType: p.hostInfo.ContainerHostType,
+	result := CombinedRunResult{}
+	procStats := convertProcessStats(procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
+	if len(procStats) > 0 {
+		containerStats := ddslices.Map(containers, convertToContainerStat)
+		result.Realtime = chunkMessages2(procStats, containerStats, p.maxBatchSize, func(procChunk []*model.ProcessStat, ctrChunk []*model.ContainerStat, groupSize int32) model.MessageBody {
+			return &model.CollectorRealTime{
+				HostName:          p.hostInfo.HostName,
+				Stats:             procChunk,
+				ContainerStats:    ctrChunk,
+				GroupId:           groupID,
+				GroupSize:         groupSize,
+				NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+				TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+				ContainerHostType: p.hostInfo.ContainerHostType,
+			}
 		})
 	}
 
@@ -87,25 +88,18 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	p.realtimeLastProcs = procs
 	p.realtimeLastCPUTime = cpuTimes[0]
 
-	return CombinedRunResult{Realtime: messages}, nil
+	return result, nil
 }
 
-// fmtProcessStats formats and chunks a slice of ProcessStat into chunks.
-func fmtProcessStats(
-	maxBatchSize int,
+// convertProcessStats converts procutil.Stat into model.ProcessStat.
+func convertProcessStats(
 	procs, lastProcs map[int32]*procutil.Stats,
 	pidToCid map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	now time.Time,
-) [][]*model.ProcessStat {
-	chunked := make([][]*model.ProcessStat, 0)
-	chunkSize := len(procs)
-	if maxBatchSize > 0 && maxBatchSize < chunkSize {
-		chunkSize = maxBatchSize
-	}
-	chunk := make([]*model.ProcessStat, 0, chunkSize)
-
+) []*model.ProcessStat {
+	var procStats []*model.ProcessStat
 	for pid, fp := range procs {
 		if fp == nil {
 			continue
@@ -150,17 +144,9 @@ func fmtProcessStats(
 			ContainerId:            pidToCid[int(pid)],
 		}
 
-		chunk = append(chunk, stat)
-
-		if len(chunk) == maxBatchSize {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.ProcessStat, 0, maxBatchSize)
-		}
+		procStats = append(procStats, stat)
 	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
+	return procStats
 }
 
 // calculateRate returns the average counter growth per second, or zero when there is no valid baseline.
