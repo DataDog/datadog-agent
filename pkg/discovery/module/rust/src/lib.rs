@@ -31,6 +31,7 @@ mod language;
 mod netns;
 mod params;
 mod ports;
+pub mod privileged_logs;
 mod procfs;
 mod service_name;
 mod services;
