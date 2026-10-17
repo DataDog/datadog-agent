@@ -42,6 +42,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
 	npcollectormock "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/mock"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
@@ -76,7 +77,7 @@ func TestBundleDependencies(t *testing.T) {
 		),
 		fx.Provide(func() context.Context { return context.TODO() }),
 		rdnsquerier.MockModule(),
-		npcollectormock.MockModule(),
+		fx.Provide(func() npcollector.Component { return npcollectormock.New(t) }),
 		statsdimpl.MockModule(),
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}

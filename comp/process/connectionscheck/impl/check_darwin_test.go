@@ -19,6 +19,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npcollectormock "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/mock"
 	connectionscheck "github.com/DataDog/datadog-agent/comp/process/connectionscheck/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -34,7 +35,7 @@ func TestConnectionsCheckDisabledOnDarwin(t *testing.T) {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		npcollectormock.MockModule(),
+		fx.Provide(func() npcollector.Component { return npcollectormock.New(t) }),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fxutil.ProvideComponentConstructor(NewComponent),
 	))
