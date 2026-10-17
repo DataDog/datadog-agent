@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSPM: Host benchmark rules checked by an SCE script that reads an XCCDF
+    value no longer stop the evaluation: the bundled OpenSCAP aborted on a
+    value with no operator attribute, and the rules evaluated after it in the
+    same run reported no result.
