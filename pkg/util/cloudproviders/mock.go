@@ -11,6 +11,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 )
 
@@ -34,7 +35,10 @@ func Mock(t *testing.T, cloudProviderName string, accountIDCallback string, sour
 	origHostCCRIDDecectors := hostCCRIDDetectors
 	origInstanceTypeDetectors := hostInstanceTypeDetectors
 
+	// drop any cloud provider detected with other detectors
+	cache.Cache.Delete(cloudProviderCacheKey)
 	t.Cleanup(func() {
+		cache.Cache.Delete(cloudProviderCacheKey)
 		cloudProviderDetectors = origDetectors
 		cloudProviderDetectorResolutionOrder = origResolutionOrder
 		sourceDetectors = origGetSource
