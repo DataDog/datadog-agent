@@ -1,0 +1,313 @@
+--- a/src/OVAL/probes/independent/filehash58_probe.c
++++ b/src/OVAL/probes/independent/filehash58_probe.c
+@@ -162,8 +162,8 @@ static int filehash58_cb(const char *prefix, const char *p, const char *f, const
+ 	if (prefix == NULL) {
+ 		fd = open(pbuf, O_RDONLY);
+ 	} else {
+-		char *path_with_prefix = oscap_path_join(prefix, pbuf);
+-		fd = open(path_with_prefix, O_RDONLY);
++		char *path_with_prefix = oscap_path_in_root(prefix, pbuf, true);
++		fd = path_with_prefix != NULL ? open(path_with_prefix, O_RDONLY) : -1;
+ 		free(path_with_prefix);
+ 	}
+ 
+--- a/src/OVAL/probes/independent/filehash_probe.c
++++ b/src/OVAL/probes/independent/filehash_probe.c
+@@ -115,8 +115,8 @@ static int filehash_cb (const char *prefix, const char *p, const char *f, probe_
+ 	if (prefix == NULL) {
+ 		fd = open(pbuf, O_RDONLY);
+ 	} else {
+-		char *path_with_prefix = oscap_path_join(prefix, pbuf);
+-		fd = open(path_with_prefix, O_RDONLY);
++		char *path_with_prefix = oscap_path_in_root(prefix, pbuf, true);
++		fd = path_with_prefix != NULL ? open(path_with_prefix, O_RDONLY) : -1;
+ 		free(path_with_prefix);
+ 	}
+ 
+--- a/src/OVAL/probes/independent/textfilecontent54_probe.c
++++ b/src/OVAL/probes/independent/textfilecontent54_probe.c
+@@ -160,8 +160,8 @@ static int process_file(const char *prefix, const char *path, const char *file,
+ 	 * to return 'FTS_SL' and the presence of a valid target has to
+ 	 * be determined with stat().
+ 	 */
+-	whole_path_with_prefix = oscap_path_join(prefix, whole_path);
+-	if (stat(whole_path_with_prefix, &st) == -1)
++	whole_path_with_prefix = oscap_path_in_root(prefix, whole_path, true);
++	if (whole_path_with_prefix == NULL || stat(whole_path_with_prefix, &st) == -1)
+ 		goto cleanup;
+ 	if (!S_ISREG(st.st_mode))
+ 		goto cleanup;
+--- a/src/OVAL/probes/independent/textfilecontent_probe.c
++++ b/src/OVAL/probes/independent/textfilecontent_probe.c
+@@ -183,8 +183,8 @@ static int process_file(const char *prefix, const char *path, const char *filena
+ 	 * to return 'FTS_SL' and the presence of a valid target has to
+ 	 * be determined with stat().
+ 	 */
+-	whole_path_with_prefix = oscap_path_join(prefix, whole_path);
+-	if (stat(whole_path_with_prefix, &st) == -1)
++	whole_path_with_prefix = oscap_path_in_root(prefix, whole_path, true);
++	if (whole_path_with_prefix == NULL || stat(whole_path_with_prefix, &st) == -1)
+ 		goto cleanup;
+ 	if (!S_ISREG(st.st_mode))
+ 		goto cleanup;
+--- a/src/OVAL/probes/independent/xmlfilecontent_probe.c
++++ b/src/OVAL/probes/independent/xmlfilecontent_probe.c
+@@ -177,8 +177,8 @@ static int process_file(const char *prefix, const char *path, const char *filena
+ 	if (prefix == NULL) {
+ 		doc = xmlParseFile(whole_path);
+ 	} else {
+-		char *path_with_prefix = oscap_path_join(prefix, whole_path);
+-		doc = xmlParseFile(path_with_prefix);
++		char *path_with_prefix = oscap_path_in_root(prefix, whole_path, true);
++		doc = path_with_prefix != NULL ? xmlParseFile(path_with_prefix) : NULL;
+ 		free(path_with_prefix);
+ 	}
+ 
+--- a/src/OVAL/probes/independent/yamlfilecontent_probe.c
++++ b/src/OVAL/probes/independent/yamlfilecontent_probe.c
+@@ -401,11 +401,11 @@ static int process_yaml_file(const char *prefix, const char *path, const char *f
+ 	yaml_parser_t parser;
+ 	yaml_parser_initialize(&parser);
+ 
+-	char *filepath_with_prefix = oscap_path_join(prefix, filepath);
++	char *filepath_with_prefix = oscap_path_in_root(prefix, filepath, true);
+ 
+-	FILE *yaml_file = fopen(filepath_with_prefix, "r");
++	FILE *yaml_file = filepath_with_prefix != NULL ? fopen(filepath_with_prefix, "r") : NULL;
+ 	if (yaml_file == NULL) {
+-		result_error("Unable to open file '%s': %s", filepath_with_prefix, strerror(errno));
++		result_error("Unable to open file '%s': %s", filepath, strerror(errno));
+ 		goto cleanup;
+ 	}
+ 
+--- a/src/OVAL/probes/oval_fts.c
++++ b/src/OVAL/probes/oval_fts.c
+@@ -127,6 +127,26 @@ static OVAL_FTSENT *OVAL_FTSENT_new(OVAL_FTS *ofts, FTSENT *fts_ent)
+ 		ofts_ent->file = NULL;
+ 	}
+ 
++#if !defined(OS_WINDOWS)
++	/*
++	 * fts follows a symbolic link from the real root, so a link whose
++	 * target lies in the prefix alone looks dangling. Classify such an
++	 * entry by its target in the prefix.
++	 */
++	if (ofts->prefix != NULL && fts_ent->fts_info == FTS_SLNONE) {
++		char *target = oscap_path_in_root(ofts->prefix, fts_ent->fts_path + shift, true);
++		struct stat st;
++
++		if (target != NULL && stat(target, &st) == 0) {
++			if (S_ISREG(st.st_mode))
++				ofts_ent->fts_info = FTS_F;
++			else if (S_ISDIR(st.st_mode))
++				ofts_ent->fts_info = FTS_D;
++		}
++		free(target);
++	}
++#endif
++
+ #if defined(OSCAP_FTS_DEBUG)
+ 	dD("New OVAL_FTSENT: file: '%s', path: '%s'.", ofts_ent->file, ofts_ent->path);
+ #endif
+--- a/src/OVAL/probes/unix/file_probe.c
++++ b/src/OVAL/probes/unix/file_probe.c
+@@ -329,8 +329,8 @@ static int file_cb(const char *prefix, const char *p, const char *f, void *ptr,
+ 		return 0;
+ 	}
+ 
+-	char *st_path_with_prefix = oscap_path_join(prefix, st_path);
+-	if (lstat(st_path_with_prefix, &st) == -1) {
++	char *st_path_with_prefix = oscap_path_in_root(prefix, st_path, false);
++	if (st_path_with_prefix == NULL || lstat(st_path_with_prefix, &st) == -1) {
+                 dD("lstat failed when processing %s: errno=%u, %s.", st_path, errno, strerror (errno));
+ 		/*
+ 		 * Whatever the reason of this lstat error (for example the file may
+--- a/src/OVAL/probes/unix/fileextendedattribute_probe.c
++++ b/src/OVAL/probes/unix/fileextendedattribute_probe.c
+@@ -239,7 +239,10 @@ static int file_cb(const char *prefix, const char *p, const char *f, void *ptr,
+ 		return 0;
+ 	}
+ 
+-	char *st_path_with_prefix = oscap_path_join(prefix, st_path);
++	char *st_path_with_prefix = oscap_path_in_root(prefix, st_path, false);
++	if (st_path_with_prefix == NULL) {
++		goto exit;
++	}
+ 	do {
+ 		/* estimate the size of the buffer */
+ 		xattr_count = llistxattr(st_path_with_prefix, NULL, 0);
+--- a/src/OVAL/probes/unix/linux/partition_probe.c
++++ b/src/OVAL/probes/unix/linux/partition_probe.c
+@@ -273,6 +273,17 @@ int partition_probe_main(probe_ctx *ctx, void *probe_arg)
+ 
+         const char *prefix = getenv("OSCAP_PROBE_ROOT");
+         snprintf(mnt_path, PATH_MAX, "%s"MTAB_PATH, prefix ? prefix : "");
++        if (prefix != NULL) {
++                /*
++                 * MTAB_PATH lists the mounts of the reading process, which
++                 * for a probe in a container are those of the container.
++                 * The mounts of the root are those of its init process.
++                 */
++                char init_path[PATH_MAX];
++                snprintf(init_path, PATH_MAX, "%s/proc/1/mounts", prefix);
++                if (access(init_path, F_OK) == 0)
++                        strcpy(mnt_path, init_path);
++        }
+ 
+ 	if (access(mnt_path, F_OK) < 0) {
+ 		probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_NOT_APPLICABLE);
+--- a/src/OVAL/probes/unix/linux/selinuxsecuritycontext_probe.c
++++ b/src/OVAL/probes/unix/linux/selinuxsecuritycontext_probe.c
+@@ -268,8 +268,8 @@ static int selinuxsecuritycontext_file_cb(const char *prefix, const char *p, con
+ 
+ 	pbuf[plen+flen] = '\0';
+ 
+-	char *path_with_prefix = oscap_path_join(prefix, pbuf);
+-	if (access(path_with_prefix, F_OK) == -1 ) {
++	char *path_with_prefix = oscap_path_in_root(prefix, pbuf, true);
++	if (path_with_prefix == NULL || access(path_with_prefix, F_OK) == -1 ) {
+ 		dD("File does not exists anymore (could happen to /dev/fd/X)");
+ 		free(path_with_prefix);
+ 		return 0;
+--- a/src/common/util.c
++++ b/src/common/util.c
+@@ -45,8 +45,10 @@
+ #include <stdlib.h>
+ #include <windows.h>
+ #else
++#include <errno.h>
+ #include <libgen.h>
+ #include <strings.h>
++#include <unistd.h>
+ #endif
+ 
+ #define PATH_SEPARATOR '/'
+@@ -380,12 +382,100 @@ char *oscap_path_join(const char *path1, const char *path2)
+ }
+ 
+ #ifndef OS_WINDOWS
++/* The limit of symbolic links in one resolution, as on Linux. */
++#define MAX_SYMLINKS 40
++
++char *oscap_path_in_root(const char *root, const char *path, bool follow)
++{
++	char out[PATH_MAX], rest[PATH_MAX], full[PATH_MAX], target[PATH_MAX];
++	size_t rootlen, outlen = 0, len;
++	int links = 0;
++	struct stat st;
++	char *p, *end;
++	bool last;
++
++	if (root == NULL)
++		return oscap_strdup(path);
++	rootlen = strlen(root);
++	while (rootlen > 0 && root[rootlen - 1] == PATH_SEPARATOR)
++		rootlen--;
++	if (snprintf(rest, sizeof(rest), "%s", path) >= (int)sizeof(rest))
++		goto toolong;
++	out[0] = '\0';
++	p = rest;
++	for (;;) {
++		while (*p == PATH_SEPARATOR)
++			p++;
++		if (*p == '\0')
++			break;
++		end = strchr(p, PATH_SEPARATOR);
++		len = end != NULL ? (size_t)(end - p) : strlen(p);
++		end = p + len;
++		last = end[strspn(end, "/")] == '\0';
++		if (len == 1 && p[0] == '.') {
++			p = end;
++			continue;
++		}
++		if (len == 2 && p[0] == '.' && p[1] == '.') {
++			while (outlen > 0 && out[outlen - 1] != PATH_SEPARATOR)
++				outlen--;
++			if (outlen > 0)
++				outlen--;
++			out[outlen] = '\0';
++			p = end;
++			continue;
++		}
++		if (outlen + 1 + len >= sizeof(out))
++			goto toolong;
++		out[outlen] = PATH_SEPARATOR;
++		memcpy(out + outlen + 1, p, len);
++		out[outlen + 1 + len] = '\0';
++		if (last && !follow) {
++			outlen += 1 + len;
++			break;
++		}
++		if (snprintf(full, sizeof(full), "%.*s%s", (int)rootlen, root, out) >= (int)sizeof(full))
++			goto toolong;
++		ssize_t n = -1;
++		if (lstat(full, &st) == 0 && S_ISLNK(st.st_mode)) {
++			if (++links > MAX_SYMLINKS) {
++				errno = ELOOP;
++				return NULL;
++			}
++			n = readlink(full, target, sizeof(target) - 1);
++		}
++		if (n < 0) {
++			/* Not a symbolic link, or one that cannot be read:
++			   keep the component as it is. */
++			outlen += 1 + len;
++			p = end;
++			continue;
++		}
++		target[n] = '\0';
++		/* The target replaces the component, relative to the
++		   directory resolved so far, or to root when absolute. */
++		if (target[0] == PATH_SEPARATOR)
++			outlen = 0;
++		out[outlen] = '\0';
++		if (strlen(target) + strlen(end) >= sizeof(rest))
++			goto toolong;
++		memmove(rest + strlen(target), end, strlen(end) + 1);
++		memcpy(rest, target, strlen(target));
++		p = rest;
++	}
++	return oscap_sprintf("%.*s%s", (int)rootlen, root, outlen > 0 ? out : "/");
++
++toolong:
++	errno = ENAMETOOLONG;
++	return NULL;
++}
++
+ FILE *oscap_fopen_with_prefix(const char *prefix, const char *path)
+ {
+ 	FILE *fp;
+ 	if (prefix != NULL) {
+-		char *path_with_prefix = oscap_sprintf("%s%s", prefix, path);
+-		fp = fopen(path_with_prefix, "r");
++		char *path_with_prefix = oscap_path_in_root(prefix, path, true);
++		fp = path_with_prefix != NULL ? fopen(path_with_prefix, "r") : NULL;
+ 		free(path_with_prefix);
+ 	} else {
+ 		fp = fopen(path, "r");
+--- a/src/common/util.h
++++ b/src/common/util.h
+@@ -407,6 +407,23 @@ char *oscap_generate_random_string(size_t len, char *charset);
+  */
+ char *oscap_path_join(const char *path1, const char *path2);
+ 
++#ifndef OS_WINDOWS
++/**
++ * Find the file that a path names when another directory is the root.
++ * Symbolic links resolve inside root, an absolute target from root
++ * itself, and ".." stops at root. A component that does not exist or
++ * is not a symbolic link is kept as it is.
++ * Caller is responsible for freeing the returned pointer.
++ * @param root the root directory, or NULL for the real root
++ * @param path an absolute path in root
++ * @param follow whether a symbolic link in the last component resolves
++ * too, as for stat(2), or stays, as for lstat(2)
++ * @return the path of the file from the real root, or NULL with errno
++ * set to ELOOP or ENAMETOOLONG
++ */
++char *oscap_path_in_root(const char *root, const char *path, bool follow);
++#endif
++
+ /// In a list of key-value pairs (odd indicies are keys, even values), find a value for given key
+ const char *oscap_strlist_find_value(char ** const kvalues, const char *key);
+ /// Right trim @a ch characters (modifies its first argument!)
