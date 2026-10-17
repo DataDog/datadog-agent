@@ -24,6 +24,7 @@ import (
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/hardening"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -52,6 +53,7 @@ type ControllerContext struct {
 	CSIDriverWatcher             libraryinjection.CSIDriverWatcher
 	DDITargets                   autoinstrumentation.DDITargetProvider
 	RcClient                     *rcclient.Client
+	HardeningStore               *hardening.Store
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -111,6 +113,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		wmeta,
 		pp,
 		sh,
+		ctx.HardeningStore,
 		datadogConfig,
 		ctx.RcClient,
 		ctx.Demultiplexer,
