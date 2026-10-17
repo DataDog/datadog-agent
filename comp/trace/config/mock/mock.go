@@ -9,26 +9,47 @@
 package mock
 
 import (
-	"go.uber.org/fx"
+	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	traceconfig.Component
-}
+// New returns a mock trace config component.
+func New(t testing.TB) traceconfig.Component {
+	t.Helper()
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			traceconfigimpl.NewMock,
-		),
-		fx.Supply(traceconfig.Params{
-			FailIfAPIKeyMissing: true,
-		}),
-	)
+	cfg := coreconfig.NewMock(t)
+	ipcComp := ipcmock.New(t)
+	logComp := logmock.New(t)
+	workloadmetaComp := workloadmetaimpl.NewWorkloadMetaMock(workloadmetaimpl.Dependencies{
+		Lc:     &compdef.TestLifecycle{},
+		Config: cfg,
+		Log:    logComp,
+		Params: workloadmeta.NewParams(),
+	})
+	taggerComp := taggerimpl.NewMock(taggerimpl.MockRequires{
+		Config:       cfg,
+		WorkloadMeta: workloadmetaComp,
+		Log:          logComp,
+		Telemetry:    telemetrymock.New(t),
+	}).Comp
+	component, err := traceconfigimpl.NewMock(traceconfigimpl.Requires{
+		Params: traceconfig.Params{FailIfAPIKeyMissing: true},
+		Config: cfg,
+		Tagger: taggerComp,
+		IPC:    ipcComp,
+	})
+	require.NoError(t, err)
+	return component
 }
