@@ -684,6 +684,19 @@ func newRCBackendOrgUUIDProvider(http api.API) uptane.OrgUUIDProvider {
 	}
 }
 
+// GetOrgStatus returns a copy of the last successfully fetched org/key status,
+// or nil if none has been fetched. Failed polls retain the last status.
+func (s *CoreAgentService) GetOrgStatus() *pbgo.OrgStatusResponse {
+	status := s.orgStatusPoller.getPreviousStatus()
+	if status == nil {
+		return nil
+	}
+	return &pbgo.OrgStatusResponse{
+		Enabled:    status.Enabled,
+		Authorized: status.Authorized,
+	}
+}
+
 // Start the remote configuration management service
 func (s *CoreAgentService) Start() {
 	refreshBypassCh := make(chan chan<- struct{})

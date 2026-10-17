@@ -1227,37 +1227,45 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.AssertExpectations(t)
 }
 
-func TestOrgStatus(t *testing.T) {
+func TestGetOrgStatus(t *testing.T) {
 	api := &mockAPI{}
 	clock := clock.NewMock()
-	uptaneClient := &mockCoreAgentUptane{}
-	service := newTestService(t, api, uptaneClient, clock)
+	service := newTestService(t, api, &mockCoreAgentUptane{}, clock)
 
-	response := &pbgo.OrgStatusResponse{
-		Enabled:    true,
-		Authorized: true,
+	require.Nil(t, service.GetOrgStatus())
+	require.Nil(t, service.orgStatusPoller.getPreviousStatus())
+	api.On("FetchOrgStatus", mock.Anything).Return((*pbgo.OrgStatusResponse)(nil), errors.New("fetch failed")).Once()
+	service.orgStatusPoller.poll(service.api, service.rcType)
+	require.Nil(t, service.GetOrgStatus())
+	require.Nil(t, service.orgStatusPoller.getPreviousStatus())
+
+	for _, expected := range []*pbgo.OrgStatusResponse{
+		{Enabled: true, Authorized: true},
+		{Enabled: true, Authorized: false},
+		{Enabled: false, Authorized: false},
+		{Enabled: false, Authorized: true},
+		{Enabled: true, Authorized: true},
+	} {
+		api.On("FetchOrgStatus", mock.Anything).Return(expected, nil).Once()
+		service.orgStatusPoller.poll(service.api, service.rcType)
+		snapshot := service.GetOrgStatus()
+		require.Equal(t, expected, snapshot)
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus())
+
+		snapshot.Enabled = !snapshot.Enabled
+		snapshot.Authorized = !snapshot.Authorized
+		require.Equal(t, expected, service.GetOrgStatus(), "callers cannot modify the stored status")
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus(), "callers cannot modify the internal cache")
+
+		for range 6 {
+			api.On("FetchOrgStatus", mock.Anything).Return((*pbgo.OrgStatusResponse)(nil), httpapi.ErrServiceUnavailable).Once()
+			service.orgStatusPoller.poll(service.api, service.rcType)
+		}
+		clock.Add(time.Hour)
+		require.Equal(t, expected, service.GetOrgStatus(), "failed polls and elapsed time retain the last success")
+		require.Equal(t, expected, service.orgStatusPoller.getPreviousStatus(), "failed polls retain the internal cache")
 	}
-
-	assert.Nil(t, service.orgStatusPoller.getPreviousStatus())
-	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
-
-	service.orgStatusPoller.poll(service.api, service.rcType)
-	prev := service.orgStatusPoller.getPreviousStatus()
-	assert.True(t, prev.Enabled)
-	assert.True(t, prev.Authorized)
-
-	api.On("FetchOrgStatus", mock.Anything).Return(nil, errors.New("Error"))
-	service.orgStatusPoller.poll(service.api, service.rcType)
-	prev = service.orgStatusPoller.getPreviousStatus()
-	assert.True(t, prev.Enabled)
-	assert.True(t, prev.Authorized)
-
-	response.Authorized = false
-	api.On("FetchOrgStatus", mock.Anything).Return(response, nil)
-	service.orgStatusPoller.poll(service.api, service.rcType)
-	prev = service.orgStatusPoller.getPreviousStatus()
-	assert.True(t, prev.Enabled)
-	assert.False(t, prev.Authorized)
+	api.AssertExpectations(t)
 }
 
 func TestWithTraceAgentEnv(t *testing.T) {
