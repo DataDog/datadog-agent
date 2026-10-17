@@ -12,9 +12,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/ndmtmp",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/ndmtmp/forwarder/def",
         "//comp/ndmtmp/forwarder/fx",
         "//comp/ndmtmp/forwarder/mock",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -29,6 +31,8 @@ dd_agent_go_test(
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/forwarder/eventplatform/mock",
         "//comp/forwarder/orchestrator/mock",
+        "//comp/ndmtmp/forwarder/def",
+        "//comp/ndmtmp/forwarder/mock",
         "//pkg/aggregator",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
