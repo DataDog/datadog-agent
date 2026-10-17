@@ -1,0 +1,475 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && bpf
+
+package module
+
+import (
+	"fmt"
+	"math"
+	"reflect"
+	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// metricProbeNamePrefix is the prefix of the names of the metrics reported by
+// metric probes. The backend relies on it, and all tracers use it.
+const metricProbeNamePrefix = "dynamic.instrumentation.metric.probe."
+
+// defaultMetricsReportInterval is how often the state of metric probes is read
+// and reported.
+const defaultMetricsReportInterval = 2 * time.Second
+
+// metricsClient is the part of the DogStatsD client used to report the values
+// of metric probes.
+type metricsClient interface {
+	Count(name string, value int64, tags []string, rate float64) error
+	Gauge(name string, value float64, tags []string, rate float64) error
+}
+
+// metricsReporter periodically reads the state of the metric probes of the
+// loaded programs, as recorded by the BPF programs, and reports it to
+// DogStatsD.
+type metricsReporter struct {
+	client metricsClient
+	// onEmitting is called the first time a probe's metric is reported, with
+	// mu held.
+	onEmitting func(ir.ProgramID, ir.ProbeDefinition)
+	// lookupContainer looks up the Kubernetes pod that a container belongs
+	// to. It returns ok=false if the container is unknown, and an empty UID
+	// if the container is known but not part of a pod. It may be nil.
+	lookupContainer func(containerID string) (podUID string, ok bool)
+	// now returns the current time. Overridden by tests.
+	now func() time.Time
+
+	mu       sync.Mutex
+	programs map[ir.ProgramID]*metricsProgram
+
+	stop     chan struct{}
+	done     chan struct{}
+	stopOnce sync.Once
+}
+
+// metricsProgram holds the metric probes of one loaded program.
+type metricsProgram struct {
+	// readStates reads the probes' state from the program's metrics_buf.
+	readStates func() []loader.MetricState
+	probes     []*reportedMetricProbe
+	// last is the state read by the previous report, indexed by probe ID.
+	last []loader.MetricState
+	// containerID is the ID of the target process's container, if any.
+	containerID string
+	// containerResolved is set once the container has been found in
+	// workloadmeta and the probes' tags have been completed accordingly.
+	containerResolved bool
+	// errorEvents uploads the evaluation-error events of the program's
+	// probes. It may be nil.
+	errorEvents LogsUploader
+	service     string
+	processTags string
+}
+
+type reportedMetricProbe struct {
+	probeID uint32
+	def     ir.ProbeDefinition
+	kind    ir.MetricKind
+	name    string
+	tags    []string
+	// gaugeValue converts the bits of a gauge probe's value, as recorded by
+	// the BPF program, to the reported value.
+	gaugeValue func(bits uint64) float64
+	emitting   bool
+
+	// The DSL of the probe's value and condition, for evaluation errors.
+	valueDSL string
+	whenDSL  string
+	// pendingErrors is the number of hits skipped because of evaluation
+	// errors that haven't been reported in an evaluation-error event yet.
+	pendingErrors uint64
+	// lastError is the most recent evaluation error.
+	lastError loader.MetricError
+	// lastErrorEvent is when the probe's last evaluation-error event was
+	// sent.
+	lastErrorEvent time.Time
+}
+
+// metricErrorEventInterval is the minimum interval between two
+// evaluation-error events of a metric probe.
+const metricErrorEventInterval = 5 * time.Minute
+
+var metricsReportErrorLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
+
+// newMetricsReporter creates a metrics reporter that reports every interval
+// until close is called.
+func newMetricsReporter(
+	client metricsClient,
+	interval time.Duration,
+	onEmitting func(ir.ProgramID, ir.ProbeDefinition),
+	lookupContainer func(containerID string) (podUID string, ok bool),
+) *metricsReporter {
+	r := &metricsReporter{
+		client:          client,
+		onEmitting:      onEmitting,
+		lookupContainer: lookupContainer,
+		now:             time.Now,
+		programs:        make(map[ir.ProgramID]*metricsProgram),
+		stop:            make(chan struct{}),
+		done:            make(chan struct{}),
+	}
+	go r.run(interval)
+	return r
+}
+
+func (r *metricsReporter) run(interval time.Duration) {
+	defer close(r.done)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.stop:
+			return
+		case <-ticker.C:
+			r.reportAll()
+		}
+	}
+}
+
+// close stops the periodic reports. Programs that are still registered are
+// not reported again.
+func (r *metricsReporter) close() {
+	r.stopOnce.Do(func() { close(r.stop) })
+	<-r.done
+}
+
+// register starts reporting the metric probes of a program. It does nothing if
+// the program has no metric probes. readStates reads the program's metric
+// probe state; it is called until unregister returns. newErrorUploader returns
+// the uploader for the probes' evaluation-error events; it is only called if
+// the program has metric probes, and the uploader is closed by unregister. It
+// may be nil.
+func (r *metricsReporter) register(
+	programID ir.ProgramID,
+	program *ir.Program,
+	readStates func() []loader.MetricState,
+	runtimeID procRuntimeID,
+	newErrorUploader func() LogsUploader,
+) {
+	var probes []*reportedMetricProbe
+	for probeID, probe := range program.Probes {
+		mp, ok := probe.ProbeDefinition.(ir.MetricProbeDefinition)
+		if !ok || probe.GetKind() != ir.ProbeKindMetric {
+			continue
+		}
+		valueDSL, _ := mp.GetValue()
+		probes = append(probes, &reportedMetricProbe{
+			probeID:    uint32(probeID),
+			def:        probe.ProbeDefinition,
+			kind:       mp.GetMetricKind(),
+			name:       metricProbeNamePrefix + sanitizeMetricName(mp.GetMetricName()),
+			tags:       metricProbeTags(probe.ProbeDefinition, runtimeID),
+			gaugeValue: gaugeValueDecoder(probe),
+			valueDSL:   valueDSL,
+			whenDSL:    mp.GetWhenDSL(),
+		})
+	}
+	if len(probes) == 0 {
+		return
+	}
+	p := &metricsProgram{
+		readStates:  readStates,
+		probes:      probes,
+		service:     runtimeID.service,
+		processTags: strings.Join(runtimeID.processTags, ","),
+	}
+	if ci := runtimeID.containerInfo; ci != nil {
+		p.containerID = ci.ContainerID
+	}
+	if newErrorUploader != nil {
+		p.errorEvents = newErrorUploader()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.programs[programID] = p
+}
+
+// report reports the metric probes of a program that were hit since the
+// previous report. The runtime calls it when the program is detached, so that
+// the last hits aren't lost and the probes can still be marked as emitting.
+func (r *metricsReporter) report(programID ir.ProgramID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if p, ok := r.programs[programID]; ok {
+		r.notifyEmitting(programID, r.reportLocked(p))
+	}
+}
+
+// unregister stops reporting the metric probes of a program and closes their
+// evaluation-error uploader. It must be called before the program's BPF maps
+// are closed. Hits since the previous report aren't reported; call report
+// first.
+func (r *metricsReporter) unregister(programID ir.ProgramID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.programs[programID]
+	if !ok {
+		return
+	}
+	delete(r.programs, programID)
+	if p.errorEvents != nil {
+		p.errorEvents.Close()
+	}
+}
+
+func (r *metricsReporter) reportAll() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for programID, p := range r.programs {
+		r.notifyEmitting(programID, r.reportLocked(p))
+	}
+}
+
+// reportLocked reports the probes of a program that were hit since the
+// previous report. It returns the probes that were reported for the first
+// time.
+func (r *metricsReporter) reportLocked(p *metricsProgram) (newlyEmitting []*reportedMetricProbe) {
+	r.resolveContainerLocked(p)
+	states := p.readStates()
+	if len(p.last) < len(states) {
+		p.last = append(p.last, make([]loader.MetricState, len(states)-len(p.last))...)
+	}
+	for _, probe := range p.probes {
+		if int(probe.probeID) >= len(states) {
+			continue
+		}
+		cur, prev := states[probe.probeID], p.last[probe.probeID]
+		p.last[probe.probeID] = cur
+		r.reportEvalErrorsLocked(p, probe, cur, prev)
+		// The BPF program updates the sum or value and the update count
+		// separately, so a read can see one change without the other. A probe
+		// is reported when either changed, so that a change of its sum is
+		// never saved without being sent.
+		changed := cur.Updates != prev.Updates
+		switch probe.kind {
+		case ir.MetricKindCount:
+			changed = changed || cur.Sum != prev.Sum
+		case ir.MetricKindGauge:
+			changed = changed || cur.Value != prev.Value
+		}
+		if !changed {
+			continue
+		}
+		var err error
+		switch probe.kind {
+		case ir.MetricKindCount:
+			err = r.client.Count(probe.name, cur.Sum-prev.Sum, probe.tags, 1)
+		case ir.MetricKindGauge:
+			err = r.client.Gauge(probe.name, probe.gaugeValue(cur.Value), probe.tags, 1)
+		}
+		if err != nil && metricsReportErrorLogLimiter.Allow() {
+			log.Warnf("failed to report metric %s of probe %s: %v", probe.name, probe.def.GetID(), err)
+		}
+		if !probe.emitting {
+			probe.emitting = true
+			newlyEmitting = append(newlyEmitting, probe)
+		}
+	}
+	return newlyEmitting
+}
+
+// reportEvalErrorsLocked sends an evaluation-error event for a probe whose
+// hits were skipped because its condition or value couldn't be evaluated. To
+// avoid flooding the logs of probes that fail on every hit, it sends at most
+// one event per metricErrorEventInterval; the event counts all the hits
+// skipped since the previous one.
+func (r *metricsReporter) reportEvalErrorsLocked(
+	p *metricsProgram, probe *reportedMetricProbe, cur, prev loader.MetricState,
+) {
+	if cur.EvalErrors > prev.EvalErrors {
+		probe.pendingErrors += cur.EvalErrors - prev.EvalErrors
+		probe.lastError = cur.LastError
+	}
+	if probe.pendingErrors == 0 || p.errorEvents == nil {
+		return
+	}
+	now := r.now()
+	if !probe.lastErrorEvent.IsZero() && now.Sub(probe.lastErrorEvent) < metricErrorEventInterval {
+		return
+	}
+	event, err := decode.EncodeEvaluationErrors(
+		probe.def, p.service, p.processTags, now,
+		fmt.Sprintf(
+			"Evaluation errors for probe id %s: %d hits were skipped",
+			probe.def.GetID(), probe.pendingErrors,
+		),
+		[]decode.EvaluationError{metricEvaluationError(probe)},
+	)
+	if err != nil {
+		if metricsReportErrorLogLimiter.Allow() {
+			log.Warnf("failed to encode evaluation errors of probe %s: %v", probe.def.GetID(), err)
+		}
+		return
+	}
+	p.errorEvents.Enqueue(event)
+	probe.pendingErrors = 0
+	probe.lastErrorEvent = now
+}
+
+// metricEvaluationError describes the most recent evaluation error of a metric
+// probe. The messages match the ones the decoder uses for snapshots.
+func metricEvaluationError(probe *reportedMetricProbe) decode.EvaluationError {
+	whenDSL := probe.whenDSL
+	if whenDSL == "" {
+		whenDSL = "@when"
+	}
+	switch probe.lastError {
+	case loader.MetricErrorCondition:
+		return decode.EvaluationError{Expression: whenDSL, Message: "error evaluating condition"}
+	case loader.MetricErrorConditionNilDeref:
+		return decode.EvaluationError{Expression: whenDSL, Message: "nil pointer dereference"}
+	case loader.MetricErrorValueNilDeref:
+		return decode.EvaluationError{Expression: probe.valueDSL, Message: "nil pointer dereference"}
+	case loader.MetricErrorValueOutOfBounds:
+		return decode.EvaluationError{Expression: probe.valueDSL, Message: "index out of bounds"}
+	default:
+		return decode.EvaluationError{Expression: probe.valueDSL, Message: "value is not available"}
+	}
+}
+
+// resolveContainerLocked adds the pod of the target's container to the tags
+// of the program's probes, once workloadmeta knows about the container. The
+// container may not be known yet when the program is loaded, so this is
+// retried on every report until it succeeds.
+//
+// Until then, and always for targets that aren't in a pod, the probes have no
+// dd.internal.entity_id tag of their own. If system-probe's environment sets
+// DD_ENTITY_ID, datadog-go adds it to every metric as dd.internal.entity_id,
+// and DogStatsD then gives these metrics the tags of system-probe's pod. A tag
+// added here takes precedence over that one: datadog-go puts its own tags
+// first, and DogStatsD keeps the last dd.internal.entity_id it finds.
+//
+// TODO(andrei): this is the extent of container tagging for metric probes.
+// DogStatsD turns dd.internal.entity_id into the pod's tags, at the core
+// agent's dogstatsd_tag_cardinality. Per-container tags (kube_container_name,
+// image_name, image_tag, container_id, ...) are missing, and targets that run
+// in containers outside Kubernetes (plain Docker, ECS) get no container tags at
+// all. Doing better needs either DogStatsD to accept a container ID from
+// system-probe (today the |c: field is only honored with
+// dogstatsd_origin_detection_client), or looking up the container's tags with
+// the tagger in system-probe, which needs dogstatsd_tag_cardinality to be
+// synced from the core agent (it isn't part of config sync today).
+func (r *metricsReporter) resolveContainerLocked(p *metricsProgram) {
+	if p.containerResolved || p.containerID == "" || r.lookupContainer == nil {
+		return
+	}
+	podUID, ok := r.lookupContainer(p.containerID)
+	if !ok {
+		return
+	}
+	p.containerResolved = true
+	if podUID == "" {
+		return
+	}
+	for _, probe := range p.probes {
+		probe.tags = append(probe.tags, "dd.internal.entity_id:"+sanitizeMetricTag(podUID))
+	}
+}
+
+// notifyEmitting calls onEmitting for the probes of a program that a report
+// marked as emitting. It must be called with r.mu held, in the same critical
+// section as that report: the runtime unlinks a program from its process right
+// after the program's last report, onEmitting does nothing for an unlinked
+// program, and the probes are never notified again.
+func (r *metricsReporter) notifyEmitting(programID ir.ProgramID, probes []*reportedMetricProbe) {
+	if r.onEmitting == nil {
+		return
+	}
+	for _, probe := range probes {
+		r.onEmitting(programID, probe.def)
+	}
+}
+
+// metricProbeTags returns the tags of the metrics of a metric probe: the
+// probe's own tags, the probe ID, and the service, environment and version of
+// the target process.
+func metricProbeTags(def ir.ProbeDefinition, runtimeID procRuntimeID) []string {
+	tags := make([]string, 0, len(def.GetTags())+4)
+	for _, tag := range def.GetTags() {
+		tags = append(tags, sanitizeMetricTag(tag))
+	}
+	tags = append(tags, "debugger.probeid:"+sanitizeMetricTag(def.GetID()))
+	for _, t := range []struct{ key, value string }{
+		{"service", runtimeID.service},
+		{"env", runtimeID.environment},
+		{"version", runtimeID.version},
+	} {
+		if t.value != "" {
+			tags = append(tags, t.key+":"+sanitizeMetricTag(t.value))
+		}
+	}
+	return tags
+}
+
+// gaugeValueDecoder returns the function that converts the bits of a gauge
+// probe's value, as recorded by the BPF program, to the reported value. The
+// BPF program sign-extends signed integers to 64 bits and records floats as
+// their raw bits.
+//
+// All the instances of a probe record their values in the same metric state,
+// so the type of the first instance's value is used for all of them.
+func gaugeValueDecoder(probe *ir.Probe) func(bits uint64) float64 {
+	var goKind reflect.Kind
+	if len(probe.Instances) > 0 && len(probe.Instances[0].Events) > 0 {
+		if rootType := probe.Instances[0].Events[0].Type; rootType != nil &&
+			len(rootType.Expressions) > 0 {
+			goKind, _ = rootType.Expressions[0].Expression.Type.GetGoKind()
+		}
+	}
+	switch goKind {
+	case reflect.Float32:
+		return func(bits uint64) float64 { return float64(math.Float32frombits(uint32(bits))) }
+	case reflect.Float64:
+		return math.Float64frombits
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return func(bits uint64) float64 { return float64(int64(bits)) }
+	default:
+		return func(bits uint64) float64 { return float64(bits) }
+	}
+}
+
+// sanitizeMetricName replaces the characters that don't belong in metric
+// names with underscores. That includes all the characters that have a meaning
+// in DogStatsD datagrams.
+func sanitizeMetricName(name string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '.':
+			return r
+		default:
+			return '_'
+		}
+	}, name)
+}
+
+// sanitizeMetricTag replaces the characters that have a meaning in DogStatsD
+// datagrams with underscores.
+func sanitizeMetricTag(tag string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '|', ',', '\n', '\r':
+			return '_'
+		default:
+			return r
+		}
+	}, tag)
+}

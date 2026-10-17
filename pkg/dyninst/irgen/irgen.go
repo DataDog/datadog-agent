@@ -171,7 +171,7 @@ func generateIR(
 	}()
 
 	// Build the initial set of interests from the provided probe definitions.
-	interests, issues := makeInterests(probeDefs)
+	interests, issues := makeInterests(probeDefs, cfg.metricProbes)
 
 	cleanupCloser := func(c io.Closer, name string) func() {
 		return func() {
@@ -801,6 +801,11 @@ type analyzedProbe struct {
 	// a probe issue by populateProbeExpressions.
 	conditionIssue ir.Issue
 
+	// metricIssue is set when a metric probe's value expression can't be
+	// used (parse error, variable not found or not available where the probe
+	// fires, etc.). Reported as a probe issue by populateProbeExpressions.
+	metricIssue ir.Issue
+
 	// Budget for type exploration.
 	budget uint32
 
@@ -1294,6 +1299,49 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 // probes are created (so we have Events and InjectionPoints) but before type
 // expansion. Returns one analyzedProbe per instance and exploration roots for
 // type expansion.
+// isFloatType returns true if the variable has a float32 or float64 type.
+func isFloatType(v *ir.Variable) bool {
+	k, ok := v.Type.GetGoKind()
+	return ok && (k == reflect.Float32 || k == reflect.Float64)
+}
+
+// variableIsAvailable returns true if the variable has a location at any of
+// the injection points.
+func variableIsAvailable(ips []ir.InjectionPoint, v *ir.Variable) bool {
+	locIdx := 0
+	for _, ip := range ips {
+		for locIdx < len(v.Locations) &&
+			v.Locations[locIdx].Range[1] <= ip.PC {
+			locIdx++
+		}
+		if locIdx < len(v.Locations) &&
+			ip.PC >= v.Locations[locIdx].Range[0] {
+			return true
+		}
+	}
+	return false
+}
+
+// floatIsRegisterOnly returns true if a float variable's locations
+// at the given injection points consist exclusively of register pieces.
+// Such variables cannot be read by the eBPF runtime.
+func floatIsRegisterOnly(ips []ir.InjectionPoint, v *ir.Variable) bool {
+	locIdx := 0
+	for _, ip := range ips {
+		for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
+			locIdx++
+		}
+		if locIdx < len(v.Locations) && ip.PC >= v.Locations[locIdx].Range[0] {
+			for _, piece := range v.Locations[locIdx].Pieces {
+				if _, isReg := piece.Op.(ir.Register); !isReg {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 func analyzeAllProbes(
 	probes []*ir.Probe,
 	budgets map[ir.SubprogramID]uint32,
@@ -1376,48 +1424,6 @@ func analyzeAllProbes(
 			// resolve through the normal variable-matching paths.
 			if haveReturn {
 				varByName["@duration"] = durationVar
-			}
-
-			// isFloatType returns true if the variable has a float32 or float64 type.
-			isFloatType := func(v *ir.Variable) bool {
-				k, ok := v.Type.GetGoKind()
-				return ok && (k == reflect.Float32 || k == reflect.Float64)
-			}
-
-			// Check variable availability at injection points.
-			variableIsAvailable := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
-				locIdx := 0
-				for _, ip := range ips {
-					for locIdx < len(v.Locations) &&
-						v.Locations[locIdx].Range[1] <= ip.PC {
-						locIdx++
-					}
-					if locIdx < len(v.Locations) &&
-						ip.PC >= v.Locations[locIdx].Range[0] {
-						return true
-					}
-				}
-				return false
-			}
-
-			// floatIsRegisterOnly returns true if a float variable's locations
-			// at the given injection points consist exclusively of register pieces.
-			// Such variables cannot be read by the eBPF runtime.
-			floatIsRegisterOnly := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
-				locIdx := 0
-				for _, ip := range ips {
-					for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
-						locIdx++
-					}
-					if locIdx < len(v.Locations) && ip.PC >= v.Locations[locIdx].Range[0] {
-						for _, piece := range v.Locations[locIdx].Pieces {
-							if _, isReg := piece.Op.(ir.Register); !isReg {
-								return false
-							}
-						}
-					}
-				}
-				return true
 			}
 
 			// Build segment references for matching.
@@ -1717,6 +1723,21 @@ func analyzeAllProbes(
 					captureExprName: ce.GetName(),
 				})
 				addRoot(rootVar.Type.GetID(), budget)
+			}
+
+			// Process the value expression of metric probes. Unlike capture
+			// expressions, problems with it fail the probe: a metric that
+			// silently never moves is worse than an error status.
+			if mp, ok := probe.ProbeDefinition.(ir.MetricProbeDefinition); ok {
+				valueExpr, issue := analyzeMetricValue(
+					mp, inst, varByName, red, haveEntry, entryIPs,
+				)
+				if !issue.IsNone() {
+					ap.metricIssue = issue
+				} else if valueExpr != nil {
+					ap.expressions = append(ap.expressions, *valueExpr)
+					addRoot(valueExpr.rootVariable.Type.GetID(), budget)
+				}
 			}
 
 			// conditionEventKind determines which event kind a condition variable belongs
@@ -4402,6 +4423,18 @@ func exploreTypesForExpressions(
 					ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
 						Error: err.Error(),
 						DSL:   expr.dsl,
+					}
+				} else if expr.exprKind == ir.RootExpressionKindMetricValue {
+					// A metric probe can't do anything useful without its
+					// value, so fail the probe.
+					kind := ir.IssueKindInvalidProbeDefinition
+					var unsup *unsupportedFeatureError
+					if errors.As(err, &unsup) {
+						kind = ir.IssueKindUnsupportedFeature
+					}
+					ap.metricIssue = ir.Issue{
+						Kind:    kind,
+						Message: fmt.Sprintf("failed to resolve metric value %q: %v", expr.dsl, err),
 					}
 				} else {
 					// Capture (non-segment) expression failure. Surface
@@ -8002,10 +8035,13 @@ func populateInstanceExpressions(
 	ap *analyzedProbe,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
-	// Report condition analysis failures recorded during analyzeAllProbes
-	// or exploreTypesForExpressions.
+	// Report condition and metric value analysis failures recorded during
+	// analyzeAllProbes or exploreTypesForExpressions.
 	if !ap.conditionIssue.IsNone() {
 		return ap.conditionIssue
+	}
+	if !ap.metricIssue.IsNone() {
+		return ap.metricIssue
 	}
 
 	for _, event := range inst.Events {
@@ -8126,6 +8162,12 @@ func populateEventExpressions(
 					Message: unsup.message,
 				}
 			}
+			if expr.exprKind == ir.RootExpressionKindMetricValue {
+				return ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("failed to resolve metric value %q: %v", expr.dsl, err),
+				}
+			}
 			// For template segments, mark as invalid instead of failing probe.
 			if expr.segment != nil && ap.template != nil {
 				ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
@@ -8136,6 +8178,16 @@ func populateEventExpressions(
 			}
 			// For snapshot expressions (no segment), skip silently.
 			continue
+		}
+
+		if expr.exprKind == ir.RootExpressionKindMetricValue {
+			mp := ap.probe.ProbeDefinition.(ir.MetricProbeDefinition)
+			if err := checkMetricValueType(mp.GetMetricKind(), resolvedExpr.Type); err != nil {
+				return ir.Issue{
+					Kind:    ir.IssueKindInvalidProbeDefinition,
+					Message: fmt.Sprintf("metric value %q: %v", expr.dsl, err),
+				}
+			}
 		}
 
 		// Update segment with expression index after successful resolution.
@@ -8246,6 +8298,12 @@ func newProbeInstance(
 			Kind:    ir.IssueKindMalformedExecutable,
 			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
 		}, nil
+	}
+
+	// Metric probes are evaluated at function entry, so they don't need return
+	// events (and the entry/return pairing that comes with them).
+	if kind == ir.ProbeKindMetric {
+		skipReturnEvents = true
 	}
 
 	// runtime.recovery probe: skip the normal entry/return resolution
@@ -9045,7 +9103,9 @@ type interests struct {
 	genericPatterns []genericPattern // probes targeting pkg.Type[...].Method
 }
 
-func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
+func makeInterests(
+	cfg []ir.ProbeDefinition, metricProbesEnabled bool,
+) (interests, []ir.ProbeIssue) {
 	i := interests{
 		compileUnits: make(map[string]struct{}),
 		subprograms:  make(map[string][]ir.ProbeDefinition),
@@ -9056,6 +9116,18 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 		case ir.ProbeKindSnapshot, ir.ProbeKindCaptureExpression:
 		case ir.ProbeKindLog:
 		case ir.ProbeKindRuntimeRecovery:
+		case ir.ProbeKindMetric:
+			if metricProbesEnabled {
+				if issue := checkMetricProbeDefinition(probe); !issue.IsNone() {
+					issues = append(issues, ir.ProbeIssue{
+						ProbeDefinition: probe,
+						Issue:           issue,
+					})
+					continue
+				}
+				break
+			}
+			fallthrough
 		default:
 			issues = append(issues, ir.ProbeIssue{
 				ProbeDefinition: probe,
