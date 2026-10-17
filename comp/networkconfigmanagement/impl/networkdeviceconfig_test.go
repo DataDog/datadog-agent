@@ -103,6 +103,9 @@ func (m *MockConnection) RetrieveRunningConfig(_ context.Context) (*result, erro
 }
 
 func (m *MockConnection) RetrieveStartupConfig(_ context.Context) (*result, error) {
+	if m.Profile.Commands.GetStartup == nil {
+		return nil, fmt.Errorf("%w: no get_startup command for profile %q", types.ErrCommandNotSupported, m.Profile.Name)
+	}
 	return m.execute(m.Profile.Commands.GetStartup)
 }
 
@@ -452,6 +455,67 @@ func TestCheck_Run_MultipleNonBlockingErrors_CountsOnce(t *testing.T) {
 		}
 		return assert.Contains(t, tags, "error:config_retrieval_failed") && assert.Equal(t, 1, errorTags)
 	}))
+}
+
+func TestCheck_Run_NoStartupCommand_NoFailure(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	dc, err := comp.devices.Get(device.DeviceID())
+	require.NoError(t, err)
+	noStartup := *dc.profile
+	noStartup.Commands.GetStartup = nil
+	dc.profile = &noStartup
+
+	mockSender := reqs.sender
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	require.NoError(t, comp.ReportConfig(t.Context(), device.DeviceID(), reqs.sender))
+	mockSender.AssertNotCalled(t, "Count", "datadog.ncm.check_failure", mock.Anything, mock.Anything, mock.Anything)
+
+	// Only the running config should have been sent.
+	payload := findEventPlatformEventPayload(t, mockSender, eventplatform.EventTypeNetworkConfigManagement)
+	require.Len(t, payload.Configs, 1)
+	assert.Equal(t, types.RUNNING, payload.Configs[0].ConfigType)
+}
+
+func TestRetrieveAndStoreBothConfigs_StartupErrors(t *testing.T) {
+	setup := func(t *testing.T) (*DeviceContext, *MockConnection) {
+		comp, reqs := createTestComponent(t)
+		device := createTestDevice()
+		require.NoError(t, comp.RegisterDevice(device))
+		dc, err := comp.devices.Get(device.DeviceID())
+		require.NoError(t, err)
+		reqs.connFactory.conn.SetProfile(dc.profile)
+		return dc, reqs.connFactory.conn
+	}
+
+	t.Run("unsupported startup is skipped", func(t *testing.T) {
+		dc, conn := setup(t)
+		noStartup := *dc.profile
+		noStartup.Commands.GetStartup = nil
+		dc.profile = &noStartup
+		conn.SetProfile(dc.profile)
+
+		configs, _, errs := retrieveAndStoreBothConfigs(t.Context(), dc, conn, nil, nil)
+		assert.Empty(t, errs)
+		assert.Len(t, configs, 1)
+	})
+
+	t.Run("real startup error still fails", func(t *testing.T) {
+		dc, conn := setup(t)
+		conn.OutputMap["show startup-config"] = fail("startup config command failed")
+
+		configs, _, errs := retrieveAndStoreBothConfigs(t.Context(), dc, conn, nil, nil)
+		assert.Len(t, configs, 1)
+		require.Len(t, errs, 1)
+		var re types.RollbackError
+		require.ErrorAs(t, errs[0], &re)
+		assert.Equal(t, types.ErrConfigRetrievalFailed, re.Type())
+	})
 }
 
 func TestCheck_Run_ConfigRetrievalFailure_BadProfile(t *testing.T) {

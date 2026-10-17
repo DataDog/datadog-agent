@@ -7,6 +7,7 @@ package networkconfigmanagementimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
@@ -68,22 +69,25 @@ func retrieveAndStoreConfig(ctx context.Context, dc *DeviceContext, conn ncmremo
 // of errors that happened during processing. Note that if either the startup or
 // the running config fails, the other will still be attempted; thus, configs
 // may be nonempty and storeChanged may be true even if errors is also nonempty.
-func retrieveAndStoreBothConfigs(ctx context.Context, dc *DeviceContext, conn ncmremote.Connection, store ncmstore.ConfigStore, ncmSender *ncmsender.NCMSender) (configs []ncmreport.NetworkDeviceConfig, storeChanged bool, errors []error) {
+func retrieveAndStoreBothConfigs(ctx context.Context, dc *DeviceContext, conn ncmremote.Connection, store ncmstore.ConfigStore, ncmSender *ncmsender.NCMSender) (configs []ncmreport.NetworkDeviceConfig, storeChanged bool, errs []error) {
 	logger := LoggerFromContext(ctx)
 	if runningConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.RUNNING, ncmSender); err != nil {
 		logger.Warnf("unable to retrieve running config, will not send: %v", err)
-		errors = append(errors, ncmtypes.WrapErrorf(ncmtypes.ErrConfigRetrievalFailed, "failed to retrieve running config: %w", err))
+		errs = append(errs, ncmtypes.WrapErrorf(ncmtypes.ErrConfigRetrievalFailed, "failed to retrieve running config: %w", err))
 	} else {
 		storeChanged = storeChanged || stored
 		configs = append(configs, *runningConfig)
 	}
 
-	if startupConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.STARTUP, ncmSender); err != nil {
+	if startupConfig, stored, err := retrieveAndStoreConfig(ctx, dc, conn, store, ncmtypes.STARTUP, ncmSender); errors.Is(err, ncmtypes.ErrCommandNotSupported) {
+		// Some platforms have no separate startup config; this is not a failure.
+		logger.Debugf("skipping startup config, not supported by profile: %v", err)
+	} else if err != nil {
 		logger.Warnf("unable to retrieve startup config, will not send: %v", err)
-		errors = append(errors, ncmtypes.WrapErrorf(ncmtypes.ErrConfigRetrievalFailed, "failed to retrieve startup config: %w", err))
+		errs = append(errs, ncmtypes.WrapErrorf(ncmtypes.ErrConfigRetrievalFailed, "failed to retrieve startup config: %w", err))
 	} else {
 		storeChanged = storeChanged || stored
 		configs = append(configs, *startupConfig)
 	}
-	return configs, storeChanged, errors
+	return configs, storeChanged, errs
 }
