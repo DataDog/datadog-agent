@@ -90,6 +90,7 @@ type InitConfig struct {
 	GlobalMetrics         []profiledefinition.MetricsConfig `yaml:"global_metrics"`
 	OidBatchSize          Number                            `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
+	UseGetNext            Boolean                           `yaml:"use_snmp_getnext"`
 	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
 	CollectTopology       Boolean                           `yaml:"collect_topology"`
 	CollectVPN            Boolean                           `yaml:"collect_vpn"`
@@ -147,6 +148,9 @@ type InstanceConfig struct {
 	OidBatchSize Number `yaml:"oid_batch_size"`
 	// The bulk_max_repetitions config indicates how many rows of the table are to be retrieved in a single GetBulk call
 	BulkMaxRepetitions Number `yaml:"bulk_max_repetitions"`
+	// When true, use GETNEXT instead of GETBULK for column/table OID walks.
+	// Some devices become unresponsive when receiving GETBULK PDUs.
+	UseGetNext *Boolean `yaml:"use_snmp_getnext"`
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 	// To accept min collection interval from snmp_listener, we need to accept it as string.
@@ -187,6 +191,7 @@ type CheckConfig struct {
 	RequestedMetricTags   []profiledefinition.MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
+	UseGetNext            bool
 	ProfileProvider       profile.Provider
 	ProfileName           string
 	ExtraTags             []string
@@ -458,6 +463,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 	c.BulkMaxRepetitions = uint32(bulkMaxRepetitions)
 
+	if instance.UseGetNext != nil {
+		c.UseGetNext = bool(*instance.UseGetNext)
+	} else {
+		c.UseGetNext = bool(initConfig.UseGetNext)
+	}
+
 	if instance.Namespace != "" {
 		c.Namespace = instance.Namespace
 	} else if initConfig.Namespace != "" {
@@ -661,6 +672,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	copy(newConfig.RequestedMetricTags, c.RequestedMetricTags)
 	newConfig.OidBatchSize = c.OidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
+	newConfig.UseGetNext = c.UseGetNext
 	newConfig.ProfileProvider = c.ProfileProvider
 	newConfig.ProfileName = c.ProfileName
 	newConfig.ExtraTags = netutils.CopyStrings(c.ExtraTags)
