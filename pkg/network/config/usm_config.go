@@ -159,6 +159,9 @@ type USMConfig struct {
 	// Supported libraries: OpenSSL, GnuTLS, LibCrypto
 	EnableNativeTLSMonitoring bool
 
+	// ExcludedNativeTLSProcesses specifies processes which should be ignored for native TLS instrumentation
+	ExcludedNativeTLSProcesses []string
+
 	// ========================================
 	// Go TLS Configuration
 	// ========================================
@@ -234,12 +237,13 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 		MaxRedisStatsBuffered: cfg.GetInt(sysconfig.FullKeyPath(smNS, "redis", "max_stats_buffered")),
 
 		// TLS Configuration
-		EnableNativeTLSMonitoring: cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),
-		EnableGoTLSSupport:        cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
-		GoTLSExcludeSelf:          cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
-		EnableNodeJSMonitoring:    cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "nodejs", "enabled")),
-		EnableIstioMonitoring:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "istio", "enabled")),
-		EnvoyPath:                 cfg.GetString(sysconfig.FullKeyPath(smNS, "tls", "istio", "envoy_path")),
+		EnableNativeTLSMonitoring:  cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "native", "enabled")),
+		ExcludedNativeTLSProcesses: cfg.GetStringSlice(sysconfig.FullKeyPath(smNS, "tls", "native", "excluded_processes")),
+		EnableGoTLSSupport:         cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:           cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "go", "exclude_self")),
+		EnableNodeJSMonitoring:     cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "nodejs", "enabled")),
+		EnableIstioMonitoring:      cfg.GetBool(sysconfig.FullKeyPath(smNS, "tls", "istio", "enabled")),
+		EnvoyPath:                  cfg.GetString(sysconfig.FullKeyPath(smNS, "tls", "istio", "envoy_path")),
 	}
 
 	// Parse HTTP Replace Rules
