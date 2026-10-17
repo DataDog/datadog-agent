@@ -1,0 +1,164 @@
+--- a/src/SCE/sce_engine.c
++++ b/src/SCE/sce_engine.c
+@@ -39,6 +39,7 @@
+ #include "oscap_helpers.h"
+ 
+ #include <stdlib.h>
++#include <errno.h>
+ #include <string.h>
+ #include <stdio.h>
+ 
+@@ -366,10 +367,35 @@
+ 
+ 
+ /*
++ * parse_shebang reads the interpreter and its optional argument from the
++ * first line of a script, as the kernel does: "#!", the interpreter path,
++ * and at most one argument. It edits line in place, and leaves *interp and
++ * *arg as they are when line does not start with "#!".
++ */
++static void parse_shebang(char *line, char **interp, char **arg)
++{
++	if (strncmp(line, "#!", 2) != 0)
++		return;
++	char *p = line + 2;
++	p[strcspn(p, "\r\n")] = '\0';
++	p += strspn(p, " \t");
++	*interp = p;
++	p += strcspn(p, " \t");
++	if (*p != '\0') {
++		*p++ = '\0';
++		p += strspn(p, " \t");
++		char *end = p + strlen(p);
++		while (end > p && (end[-1] == ' ' || end[-1] == '\t'))
++			*--end = '\0';
++		if (*p != '\0')
++			*arg = p;
++	}
++}
++
++/*
+  * exec_script_interpreter runs script through the interpreter named on its
+- * first line, as the kernel does for an executable script: "#!", the
+- * interpreter path, and at most one argument. A script without that line
+- * runs under /bin/sh. It returns only if execve fails.
++ * first line, as the kernel does for an executable script. A script without
++ * that line runs under /bin/sh. It returns only if execve fails.
+  *
+  * It serves scripts that cannot be executed directly, such as those in an
+  * OSCAP_TEMP_DIR on a noexec mount, which the CIS benchmarks recommend for
+@@ -383,22 +409,8 @@
+ 	FILE *f = fopen(script, "r");
+ 
+ 	if (f != NULL) {
+-		if (fgets(line, sizeof(line), f) != NULL && strncmp(line, "#!", 2) == 0) {
+-			char *p = line + 2;
+-			p[strcspn(p, "\r\n")] = '\0';
+-			p += strspn(p, " \t");
+-			interp = p;
+-			p += strcspn(p, " \t");
+-			if (*p != '\0') {
+-				*p++ = '\0';
+-				p += strspn(p, " \t");
+-				char *end = p + strlen(p);
+-				while (end > p && (end[-1] == ' ' || end[-1] == '\t'))
+-					*--end = '\0';
+-				if (*p != '\0')
+-					arg = p;
+-			}
+-		}
++		if (fgets(line, sizeof(line), f) != NULL)
++			parse_shebang(line, &interp, &arg);
+ 		fclose(f);
+ 	}
+ 
+@@ -412,6 +424,78 @@
+ 	execve(interp, argv, env);
+ }
+ 
++/*
++ * exec_script_in_root runs script with root as its root directory, so that
++ * the script assesses the system mounted there, as the probes do when
++ * OSCAP_PROBE_ROOT is set. It reads the script before entering root and
++ * hands its text to the interpreter of its first line with -c, since root
++ * may be read-only and holds no copy of the script.
++ *
++ * It returns without entering root when chroot is refused, as for a process
++ * without CAP_SYS_CHROOT, so that the caller runs the script in place, as
++ * the probes then read the current root. Once in root, it returns only by
++ * exiting.
++ */
++static void exec_script_in_root(const char *script, const char *root, char **env)
++{
++	FILE *f = fopen(script, "r");
++	if (f == NULL)
++		return;
++	size_t size = 0, cap = 4096;
++	char *text = malloc(cap + 1);
++	size_t n;
++	while (text != NULL && (n = fread(text + size, 1, cap - size, f)) > 0) {
++		size += n;
++		if (size == cap) {
++			char *bigger = realloc(text, 2 * cap + 1);
++			if (bigger == NULL) {
++				free(text);
++				text = NULL;
++				break;
++			}
++			text = bigger;
++			cap *= 2;
++		}
++	}
++	fclose(f);
++	if (text == NULL)
++		return;
++	text[size] = '\0';
++
++	char line[PATH_MAX + 64];
++	snprintf(line, sizeof(line), "%.*s", (int)strcspn(text, "\n"), text);
++	char *interp = "/bin/sh";
++	char *arg = NULL;
++	parse_shebang(line, &interp, &arg);
++
++	if (chroot(root) != 0) {
++		if (errno == EPERM) {
++			free(text);
++			return;
++		}
++		printf("Cannot enter OSCAP_PROBE_ROOT '%s' to run script '%s': %s\n", root, script, strerror(errno));
++		exit(103);
++	}
++	if (chdir("/") != 0) {
++		printf("Cannot change to / in OSCAP_PROBE_ROOT '%s': %s\n", root, strerror(errno));
++		exit(103);
++	}
++
++	char *argv[6];
++	int i = 0;
++	argv[i++] = interp;
++	if (arg != NULL)
++		argv[i++] = arg;
++	argv[i++] = "-c";
++	argv[i++] = text;
++	argv[i++] = (char *)script;
++	argv[i] = NULL;
++	execve(interp, argv, env);
++	printf("Unexpected error when executing script '%s' in OSCAP_PROBE_ROOT '%s'. Error message follows.\n", script, root);
++	perror("execve");
++	exit(103);
++}
++
+ xccdf_test_result_type_t sce_engine_eval_rule(struct xccdf_policy *policy, const char *rule_id, const char *id, const char *href,
+ 		struct xccdf_value_binding_iterator *value_binding_it,
+ 		struct xccdf_check_import_iterator *check_import_it,
+@@ -612,6 +696,10 @@
+ #endif
+ 
+ 			// we are the child process
++			const char *probe_root = getenv("OSCAP_PROBE_ROOT");
++			if (probe_root != NULL && *probe_root != '\0' && strcmp(probe_root, "/") != 0)
++				exec_script_in_root(tmp_href, probe_root, env_values);
++
+ 			if(use_sce_wrapper) {
+ #if defined(OS_FREEBSD)
+ 				size_t k;

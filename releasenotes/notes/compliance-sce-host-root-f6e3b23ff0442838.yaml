@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CSPM: The containerized agent now runs the SCE scripts of host benchmark
+    rules in the host root mounted at ``HOST_ROOT``, so those rules report the
+    host state, where they reported the state of the agent container. Where
+    the agent lacks ``CAP_SYS_CHROOT``, the scripts run in the container as
+    before.
