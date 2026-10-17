@@ -2,6 +2,20 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.1:
+
+7.84.1
+======
+
+.. _Release Notes_7.84.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-02
+Pinned to datadog-agent v7.84.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7841>`_.
+
+
 .. _Release Notes_7.84.0:
 
 7.84.0
