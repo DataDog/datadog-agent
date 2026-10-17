@@ -19,6 +19,8 @@ dd_agent_go_test(
     srcs = ["endpoints_test.go"],
     embed = [":endpoint"],
     deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/process/util/api/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

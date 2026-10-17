@@ -8,6 +8,7 @@ package connectionsforwarderimpl
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -43,8 +44,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
 	}
 
-	processAPIEndpoints, err := endpoint.GetAPIEndpoints(reqs.Config)
-	if err != nil {
+	// This component is built in every flavor, including hosts that ship no connections at all, so a
+	// missing destination must not keep the Agent from starting. The producers that actually ship
+	// connections (the system-probe direct sender) reject the same config outright.
+	processAPIEndpoints, err := endpoint.GetConnectionsAPIEndpoints(reqs.Config)
+	if errors.Is(err, endpoint.ErrNoConnectionsEndpoint) {
+		reqs.Logger.Criticalf("Network connections will be dropped: %s", err)
+		processAPIEndpoints = nil
+	} else if err != nil {
 		return Provides{}, err
 	}
 
