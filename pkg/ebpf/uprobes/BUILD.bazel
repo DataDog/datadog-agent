@@ -39,6 +39,7 @@ go_library(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_time//rate",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry/def",
@@ -64,6 +65,7 @@ go_library(
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
+            "@org_golang_x_time//rate",
         ],
         "//conditions:default": [],
     }),
@@ -139,6 +141,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
+            "@org_golang_x_time//rate",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
@@ -154,6 +157,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//mock",
             "@com_github_stretchr_testify//require",
             "@com_github_stretchr_testify//suite",
+            "@org_golang_x_time//rate",
         ],
         "//conditions:default": [],
     }),

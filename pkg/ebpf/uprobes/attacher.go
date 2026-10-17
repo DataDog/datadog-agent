@@ -10,9 +10,11 @@ package uprobes
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -32,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/time/rate"
 )
 
 // ExcludeMode defines the different optiont to exclude processes from attachment
@@ -214,6 +217,14 @@ type AttacherConfig struct {
 	// ScanProcessesInterval defines the interval at which we scan for terminated processes and new processes we haven't seen
 	ScanProcessesInterval time.Duration
 
+	// SyncAttachRate limits process attachment attempts made by Sync per second.
+	// It defaults to 1,000. Set it to rate.Inf to disable rate limiting.
+	SyncAttachRate rate.Limit
+
+	// SyncAttachBurst is the maximum number of process attachment attempts Sync can perform at once.
+	// It defaults to 1.
+	SyncAttachBurst int
+
 	// EnablePeriodicScanNewProcesses defines whether the attacher should scan for new processes periodically (with ScanProcessesInterval)
 	EnablePeriodicScanNewProcesses bool
 
@@ -259,6 +270,14 @@ func (ac *AttacherConfig) SetDefaults() {
 		ac.ScanProcessesInterval = 30 * time.Second
 	}
 
+	if ac.SyncAttachRate == 0 {
+		ac.SyncAttachRate = defaultSyncAttachRate
+	}
+
+	if ac.SyncAttachBurst == 0 {
+		ac.SyncAttachBurst = defaultSyncAttachBurst
+	}
+
 	if ac.ProcRoot == "" {
 		ac.ProcRoot = kernel.HostProc()
 	}
@@ -285,6 +304,14 @@ func (ac *AttacherConfig) Validate() error {
 
 	if ac.ProcRoot == "" {
 		err = errors.Join(err, errors.New("missing proc root"))
+	}
+
+	if math.IsNaN(float64(ac.SyncAttachRate)) || ac.SyncAttachRate < 0 {
+		err = errors.Join(err, errors.New("sync attachment rate must be non-negative"))
+	}
+
+	if ac.SyncAttachBurst < 1 {
+		err = errors.Join(err, errors.New("sync attachment burst must be positive"))
 	}
 
 	targetsSharedLibs := false
@@ -356,6 +383,10 @@ type UprobeAttacher struct {
 	// done is a channel to signal the attacher to stop
 	done chan struct{}
 
+	// syncContext is canceled when the attacher stops, interrupting a rate-limited sync.
+	syncContext context.Context
+	syncCancel  context.CancelFunc
+
 	// wg is a wait group to wait for the attacher to stop
 	wg sync.WaitGroup
 
@@ -403,8 +434,16 @@ type UprobeAttacher struct {
 	// attachLimiter is used to limit the number of times we log warnings about attachment errors
 	attachLimiter *log.Limit
 
+	// syncAttachLimiter limits process attachment attempts performed by Sync.
+	syncAttachLimiter *rate.Limiter
+
 	telemetry *uprobeAttacherTelemetry
 }
+
+const (
+	defaultSyncAttachRate  rate.Limit = 1000
+	defaultSyncAttachBurst int        = 1
+)
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
 //   - The name of the attacher
@@ -427,6 +466,7 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		return nil, fmt.Errorf("invalid attacher configuration: %w", err)
 	}
 
+	syncContext, syncCancel := context.WithCancel(context.Background())
 	ua := &UprobeAttacher{
 		name:                   name,
 		config:                 config,
@@ -435,10 +475,13 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		onAttachCallback:       onAttachCallback,
 		fileIDToAttachedProbes: make(map[utils.PathIdentifier][]manager.ProbeIdentificationPair),
 		done:                   make(chan struct{}),
+		syncContext:            syncContext,
+		syncCancel:             syncCancel,
 		inspector:              deps.Inspector,
 		processMonitor:         deps.ProcessMonitor,
 		scansPerPid:            make(map[uint32]int),
 		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
+		syncAttachLimiter:      rate.NewLimiter(config.SyncAttachRate, config.SyncAttachBurst),
 		telemetry:              newUprobeAttacherTelemetry(deps.Telemetry, name),
 	}
 
@@ -572,11 +615,11 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 	}
 	thisPID, err := kernel.RootNSPID()
 	if err != nil {
-		return err
+		return fmt.Errorf("getting root namespace PID: %w", err)
 	}
 
 	alivePIDs := make(map[uint32]struct{})
-	_ = kernel.WithAllProcs(ua.config.ProcRoot, func(p int) error {
+	err = kernel.WithAllProcs(ua.config.ProcRoot, func(p int) error {
 		if p == thisPID { // don't scan ourselves
 			return nil
 		}
@@ -596,6 +639,9 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 
 		if trackCreations && ua.scansPerPid[pid] < ua.config.MaxPeriodicScansPerProcess {
 			// This is a new PID so we attempt to attach SSL probes to it
+			if err := ua.syncAttachLimiter.Wait(ua.syncContext); err != nil {
+				return fmt.Errorf("waiting for sync attachment permit: %w", err)
+			}
 			ua.scansPerPid[pid]++
 			err := ua.AttachPID(pid)
 			if err == nil {
@@ -613,6 +659,9 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("scanning processes: %w", err)
+	}
 
 	// Clean up the scansPerPid map, removing all PIDs that are no longer alive
 	for pid := range ua.scansPerPid {
@@ -638,6 +687,7 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 
 // Stop stops the attacher
 func (ua *UprobeAttacher) Stop() {
+	ua.syncCancel()
 	close(ua.done)
 	ua.wg.Wait()
 }
