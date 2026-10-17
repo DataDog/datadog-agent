@@ -8,6 +8,7 @@ go_library(
         "proc_mem.go",
         "snapshot_bound_sockets.go",
         "snapshot_mmapped_files.go",
+        "snapshot_script.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/procfs",
     visibility = ["//visibility:public"],
@@ -37,6 +38,7 @@ dd_agent_go_test(
     srcs = [
         "proc_mem_test.go",
         "snapshot_bound_sockets_test.go",
+        "snapshot_script_test.go",
     ],
     embed = [":procfs"],
     deps = select({

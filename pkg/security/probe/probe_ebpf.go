@@ -1085,6 +1085,9 @@ func (p *EBPFProbe) ReplayEvents() {
 type replayEntry struct {
 	event       *model.Event
 	mmapedFiles []procfs.MmapedFile
+	// script is the script the process runs through an interpreter, see
+	// procfsScript.
+	script string
 }
 
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
@@ -1103,16 +1106,18 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		event.AddToFlags(model.EventFlagsFromReplay)
 
 		var mmapedFiles []procfs.MmapedFile
+		var script string
 
-		// Replay mmaped files (only needed if SBOM resolver is enabled)
+		// Replay mmaped files and the script (only needed if SBOM resolver is enabled)
 		if p.config.RuntimeSecurity.SBOMResolverEnabled {
 			var err error
 			if mmapedFiles, err = procfs.GetMmapedFiles(entry.Pid); err != nil {
 				seclog.Debugf("mmaped files snapshot failed for (pid: %v): %s", entry.Pid, err)
 			}
+			script = procfsScript(entry)
 		}
 
-		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles})
+		entries = append(entries, replayEntry{event: event, mmapedFiles: mmapedFiles, script: script})
 	}
 
 	p.Walk(entryToEvent)
@@ -1139,6 +1144,10 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	for _, re := range entries {
 		p.DispatchEvent(re.event, notifyConsumers)
 
+		if re.script != "" {
+			p.creditScript(re.event.ProcessCacheEntry, re.script)
+		}
+
 		for _, file := range re.mmapedFiles {
 			openEvent := p.newOpenEventFromReplay(re.event.ProcessCacheEntry, file)
 			openEvent.Source = model.EventSourceReplay
@@ -1154,6 +1163,35 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	if !notifyConsumers {
 		p.removeFiltersNotUsedAndApplyPersistantOnes()
 	}
+}
+
+// procfsScript returns the path of the script that entry, a process read from
+// procfs, runs through an interpreter, or "". procfs gives the interpreter as
+// the executable of the process, where the exec event of a script names the
+// script.
+func procfsScript(entry *model.ProcessCacheEntry) string {
+	if (entry.Source != model.ProcessCacheEntryFromSnapshot && entry.Source != model.ProcessCacheEntryFromProcFS) || entry.ArgsEntry == nil {
+		return ""
+	}
+	// The scrubber of the arguments rewrites their values in place, under the
+	// lock.
+	entry.ArgsEntry.Lock()
+	defer entry.ArgsEntry.Unlock()
+	return procfs.ScriptPath(entry.Comm, entry.FileEvent.PathnameStr, entry.ArgsEntry.Values)
+}
+
+// creditScript records the run of script by entry, a process read from procfs,
+// as usage of the package that owns the script, behind the gate DispatchEvent
+// puts on the SBOM resolution of an event. The path is the name the process ran
+// the script by, from its arguments, so it goes to the SBOM resolver alone
+// rather than to the rule engine and its discarders, which take the paths the
+// kernel resolves.
+func (p *EBPFProbe) creditScript(entry *model.ProcessCacheEntry, script string) {
+	if p.Resolvers.SBOMResolver == nil || (entry.ContainerContext.IsNull() && !p.config.RuntimeSecurity.SBOMResolverHostEnabled) {
+		return
+	}
+	file := procfs.StatScript(entry.Pid, script)
+	p.Resolvers.SBOMResolver.ResolvePackage(&entry.ProcessContext, &file)
 }
 
 // newSyntheticUnknownLoaderEntry returns a transient PCE used as the anchor for
