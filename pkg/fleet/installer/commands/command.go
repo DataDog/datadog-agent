@@ -254,7 +254,7 @@ func applyDatadogYAMLRegistryConfig(env *env.Env) error {
 		return nil
 	}
 	r := config.Installer.Registry
-	if env.HasDefaultRegistryOverride() && r.Auth != "" {
+	if env.HasDefaultRegistryOverride() && r.URL != "" {
 		env.RegistryOverride = r.URL
 	}
 	if env.HasDefaultRegistryAuthOverride() && r.Auth != "" {
