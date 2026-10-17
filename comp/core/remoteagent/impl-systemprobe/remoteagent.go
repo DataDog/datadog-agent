@@ -44,8 +44,11 @@ type Provides struct {
 
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) (Provides, error) {
-	// Check if the remoteAgentRegistry is enabled
-	if !reqs.Config.GetBool("remote_agent.registry.enabled") {
+	// Check if the remoteAgentRegistry is enabled. It also requires reaching the core
+	// agent, so agents isolated from it by design (e.g. system-probe inside a microVM)
+	// never register.
+	if !reqs.Config.GetBool("remote_agent.registry.enabled") ||
+		!reqs.Config.GetBool("remote_agent.core_agent_ipc.enabled") {
 		return Provides{}, nil
 	}
 

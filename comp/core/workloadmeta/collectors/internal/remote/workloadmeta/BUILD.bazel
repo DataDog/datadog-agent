@@ -38,6 +38,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/proto",
         "//comp/core/workloadmeta/server",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",

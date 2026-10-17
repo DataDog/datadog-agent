@@ -3,6 +3,9 @@ load("@rules_go//go:def.bzl", "go_library")
 exports_files([
     "e2e-security-agent.yaml",
     "e2e-system-probe.yaml",
+    "e2e-vsock-forwarder-security-agent.yaml",
+    "e2e-vsock-forwarder-system-probe.yaml",
+    "e2e-vsock-guest.env",
 ])
 
 go_library(

@@ -9,6 +9,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func prepareRunCommandTest(t *testing.T) (string, *configstreamtestutil.FakeCoreAgent) {
+func prepareRunCommandTest(t *testing.T, coreAgentIPC bool) (string, *configstreamtestutil.FakeCoreAgent) {
 	t.Helper()
 
 	// Because fx.Invoke builds the ipc component, we need to ensure we
@@ -34,31 +35,67 @@ func prepareRunCommandTest(t *testing.T) (string, *configstreamtestutil.FakeCore
 	configstreambootstrap.UseDynamicSchema(t)
 	fakeCore := configstreamtestutil.StartFakeCoreAgent(t, testDir)
 
-	configPath := filepath.Join(testDir, "datadog.yaml")
 	config := "hostname: test\n" + fakeCore.ConfigYAML()
+	if !coreAgentIPC {
+		// Nest the toggle under the fake's remote_agent section: a second top-level
+		// remote_agent key would be rejected as a duplicate.
+		require.Contains(t, config, "\nremote_agent:\n")
+		config = strings.Replace(config, "\nremote_agent:\n",
+			"\nremote_agent:\n  core_agent_ipc:\n    enabled: false\n", 1)
+	}
+
+	configPath := filepath.Join(testDir, "datadog.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(config), 0644))
-
-	configComponent.NewMockFromYAMLFile(t, configPath)
-
-	fxutil.Test[ipc.Component](t,
-		ipcfx.ModuleReadWrite(),
-		core.MockBundle(),
-	)
 
 	return configPath, fakeCore
 }
 
 func TestRunCommand(t *testing.T) {
-	configPath, fakeCore := prepareRunCommandTest(t)
+	tests := []struct {
+		name         string
+		coreAgentIPC bool
+	}{
+		{
+			name:         "default",
+			coreAgentIPC: true,
+		},
+		{
+			// With core agent IPC disabled every component that would stream from
+			// the core agent falls back to a local or no-op implementation, and two
+			// of the gates hand fx a nil Comp. TestOneShotSubcommand validates the
+			// graph and then actually starts it, so this covers the whole fallback
+			// assembly rather than the gates individually. The fake core agent is
+			// still reachable, so a zero registration count proves the gates held.
+			name:         "core agent IPC disabled",
+			coreAgentIPC: false,
+		},
+	}
 
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{
-			ConfFilePath: configPath,
-		}),
-		[]string{"run"},
-		run,
-		func() {})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			configPath, fakeCore := prepareRunCommandTest(t, test.coreAgentIPC)
 
-	registers, _ := fakeCore.Counts()
-	require.NotZero(t, registers, "consumer never registered, so this test no longer covers configstream")
+			configComponent.NewMockFromYAMLFile(t, configPath)
+
+			fxutil.Test[ipc.Component](t,
+				ipcfx.ModuleReadWrite(),
+				core.MockBundle(),
+			)
+
+			fxutil.TestOneShotSubcommand(t,
+				Commands(&command.GlobalParams{
+					ConfFilePath: configPath,
+				}),
+				[]string{"run"},
+				run,
+				func() {})
+
+			registers, _ := fakeCore.Counts()
+			if test.coreAgentIPC {
+				require.NotZero(t, registers, "consumer never registered, so this test no longer covers configstream")
+			} else {
+				require.Zero(t, registers, "consumer registered with the core agent although core agent IPC is disabled")
+			}
+		})
+	}
 }

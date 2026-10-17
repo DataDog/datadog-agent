@@ -1,0 +1,5 @@
+# With direct_send_from_system_probe the security-agent does not run CWS
+# (RunAgent gates on cwsEnabled && !cwsDirectSendFromSystemProbe), it is enabled
+# here only so the deployed topology matches production.
+runtime_security_config:
+  enabled: true
