@@ -6,6 +6,7 @@
 package workloadselectionimpl
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
 // TestExtractPolicyID tests policy ID extraction from config paths
@@ -63,6 +65,85 @@ func TestExtractPolicyID(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestCompilePolicyCommandArgs(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupSchema func(t *testing.T, schemaPath string)
+		schemaErr   error
+		wantSchema  bool
+	}{
+		{
+			name: "injector schema exists",
+			setupSchema: func(t *testing.T, schemaPath string) {
+				require.NoError(t, os.WriteFile(schemaPath, []byte("schema"), 0644))
+			},
+			wantSchema: true,
+		},
+		{
+			name:       "injector schema does not exist",
+			wantSchema: false,
+		},
+		{
+			name: "injector schema is not a regular file",
+			setupSchema: func(t *testing.T, schemaPath string) {
+				require.NoError(t, os.Mkdir(schemaPath, 0755))
+			},
+			wantSchema: false,
+		},
+		{
+			name:       "injector package path cannot be resolved",
+			schemaErr:  assert.AnError,
+			wantSchema: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			schemaPath := filepath.Join(t.TempDir(), "policy.bfbs")
+			if tt.setupSchema != nil {
+				tt.setupSchema(t, schemaPath)
+			}
+
+			originalGetPolicySchemaPath := getPolicySchemaPath
+			getPolicySchemaPath = func() (string, error) { return schemaPath, tt.schemaErr }
+			t.Cleanup(func() {
+				getPolicySchemaPath = originalGetPolicySchemaPath
+			})
+
+			component := &workloadselectionComponent{log: logmock.New(t)}
+			args := component.compilePolicyCommandArgs([]byte(`{"policies":[]}`), "output.bin")
+
+			expected := []string{"--input-string", `{"policies":[]}`, "--output-file", "output.bin"}
+			if tt.wantSchema {
+				expected = append(expected, "--schema-file", schemaPath)
+			}
+			assert.Equal(t, expected, args)
+		})
+	}
+}
+
+func TestGetAPMInjectPackagePath(t *testing.T) {
+	packagesPath := t.TempDir()
+	repositories := repository.NewRepositories(packagesPath, nil)
+	repo := repositories.Get(apmInjectPackage)
+
+	stableSource := filepath.Join(t.TempDir(), "stable-source")
+	require.NoError(t, os.Mkdir(stableSource, 0755))
+	require.NoError(t, repo.Create(context.Background(), "1.0.0", stableSource))
+
+	packagePath, err := getAPMInjectPackagePath(packagesPath)
+	require.NoError(t, err)
+	assert.Equal(t, repo.StablePath(), packagePath)
+
+	experimentSource := filepath.Join(t.TempDir(), "experiment-source")
+	require.NoError(t, os.Mkdir(experimentSource, 0755))
+	require.NoError(t, repo.SetExperiment(context.Background(), "2.0.0", experimentSource))
+
+	packagePath, err = getAPMInjectPackagePath(packagesPath)
+	require.NoError(t, err)
+	assert.Equal(t, repo.ExperimentPath(), packagePath)
 }
 
 // TestExtractOrderFromPolicyID tests order extraction from policy IDs
