@@ -11,6 +11,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,4 +81,31 @@ func TestScanInstalledPackagesResolvesDirectories(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pkgs, 1)
 	assert.Equal(t, []string{"/usr/bin/bash"}, pkgs[0].InstalledFiles)
+}
+
+// TestScanInstalledPackagesLeavesOutDocs checks that the documentation of a
+// package stays out of its index, so that reading it leaves its usage as it is.
+func TestScanInstalledPackagesLeavesOutDocs(t *testing.T) {
+	dir := mergedRoot(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "usr/share/doc/bash-doc"), 0o755))
+	require.NoError(t, os.Symlink("bash-doc", filepath.Join(dir, "usr/share/doc/bash")))
+	status := filepath.Join(dir, "var/lib/dpkg/status")
+	require.NoError(t, os.MkdirAll(filepath.Dir(status), 0o755))
+	require.NoError(t, os.WriteFile(status, []byte("Package: bash\nStatus: install ok installed\nVersion: 5.2.15-2\n"), 0o644))
+	md5sums := filepath.Join(dir, "var/lib/dpkg/info/bash.md5sums")
+	require.NoError(t, os.MkdirAll(filepath.Dir(md5sums), 0o755))
+	require.NoError(t, os.WriteFile(md5sums, []byte(strings.Join([]string{
+		"0  bin/bash",
+		"0  usr/share/doc/bash/copyright",
+		"0  usr/share/info/bash.info.gz",
+		"0  usr/share/licenses/bash/COPYING",
+		"0  usr/share/locale/fr/LC_MESSAGES/bash.mo",
+		"0  usr/share/man/man1/bash.1.gz",
+		"0  usr/share/bash-completion/completions/bash",
+	}, "\n")+"\n"), 0o644))
+
+	pkgs, err := NewOSScanner().ScanInstalledPackages(context.Background(), dir)
+	require.NoError(t, err)
+	require.Len(t, pkgs, 1)
+	assert.Equal(t, []string{"/usr/bin/bash", "/usr/share/bash-completion/completions/bash"}, pkgs[0].InstalledFiles)
 }
