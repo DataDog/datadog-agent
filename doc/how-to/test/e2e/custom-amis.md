@@ -3,25 +3,25 @@
 Many E2E tests rely on extra dependencies being installed - instead of installing them at runtime (via an `apt install` or similar), we prefer to "bake" them into the underlying AMI that is used for provisioning the test VMs, as installing at runtime is a big source of flakiness (see [here](dependencies.md))
 These images are pinned by ID in this repo (`test/e2e-framework/resources/aws/platforms.json`) and always associated with a specific OS Descriptior in the E2E framework (see below.)
 
-The images themselves are built in [ami-builder](https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e). This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
+The images themselves are built in <!-- markdown-link-check-disable -->[ami-builder](https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e)<!-- markdown-link-check-disable -->. This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
 
 ## How an AMI is chosen
 
-1. `ec2.WithOS(e2eos.Ubuntu2204E2E)` resolves to a `Descriptor{Ubuntu, "22-04-e2e", x86_64}` — a `(flavor, version, architecture)` triple.
+1. `ec2.WithOS(e2eos.Ubuntu2204)` resolves to a `Descriptor{Ubuntu, "22-04", x86_64}` — a `(flavor, version, architecture)` triple.
 1. No `WithOS` at all? The descriptor comes from a flavor default instead (`LinuxDescriptorsDefault`, `WindowsDescriptorsDefault`, or `MacOSDescriptorsDefault`).
 1. Either way, `aws.GetAMI(descriptor)` looks that triple up as `platforms.json[flavor][arch][version]` and returns the pinned AMI ID.
 
 | Piece | File |
 |---|---|
-| Descriptors (`Ubuntu2204E2E`, `WindowsServer2025`, …) | `test/e2e-framework/components/os/{linux,windows,macos}_descriptors.go` |
+| Descriptors (`Ubuntu2204`, `WindowsServer2025`, …) | `test/e2e-framework/components/os/{linux,windows,macos}_descriptors.go` |
 | Flavor defaults (`UbuntuDefault`, `WindowsServerDefault`, …) | same files |
 | The AMI table | `test/e2e-framework/resources/aws/platforms.json` |
 | The lookup | `test/e2e-framework/resources/aws/platforms.go` (`GetAMI`) |
 | Resolution and fallbacks | `test/e2e-framework/scenarios/aws/ec2/os_resolver.go` |
 
-The `version` field is a literal `platforms.json` key — hence `"22-04-e2e"`, not `"22.04"`.
+The `version` field is a literal `platforms.json` key — hence `"22-04"`, not `"22.04"`.
 
-/// tip | Seeing `version '22-04-e2e' not found in platforms.json`?
+/// tip | Seeing `version '22-04' not found in platforms.json`?
 The descriptor exists but the table entry does not — check `platforms.json` for a typo'd or missing key.
 ///
 
@@ -34,31 +34,25 @@ Setting the `ddinfra:osImageIDUseLatest` Pulumi config bypasses `platforms.json`
 It is meant for manual QA through `dda inv aws.create-vm --latest-ami` (which sets `ddinfra:osImageIDUseLatest`). That is the right way to check whether a new upstream image breaks something, before bumping the pin.
 ///
 
-## The `-e2e` AMIs
+## Prebaked images and the ami-builder mapping
 
-Some OS types have an `-e2e` variant defined in `platforms.json`, distinct from the plain image:
+Every image in `platforms.json` is an E2E image, so its keys carry no `-e2e` suffix: `ubuntu/x86_64/22-04` or `windows-server/x86_64/2025` *is* the prebaked image, with common test dependencies and config already installed. See [Prebake into the machine image](dependencies.md#prebake-into-the-machine-image) for what that covers.
 
-```json
-"windows-server": {
-  "x86_64": {
-    "2022":     "ami-0fcc930391c87ec7b",
-    "2022-e2e": "ami-0979cd4acf7874ba9"
-  }
-}
+ami-builder is where the distinction lives. Its <!-- markdown-link-check-disable -->[`config.yaml`](https://github.com/ddoghq/ami-builder/blob/master/ami/images/e2e/config.yaml)<!-- markdown-link-check-disable --> builds a bare image (`"22-04"`) and a prebaked one (`"22-04-e2e"`) from the same upstream base, and maps the prebaked build to the `platforms.json` key it refreshes through `platforms_key`:
+
+```yaml
+ubuntu:
+  x86_64:
+    "22-04-e2e":
+      platforms_key: "22-04"   # refreshes platforms.json ubuntu/x86_64/22-04
+      packer:
+        provisioner_script: provision-e2e-apt
 ```
 
-Both derive from the same upstream base image, but the `-e2e` one contains extra stuff: common test dependencies, maybe some config files etc. See [Prebake into the machine image](dependencies.md#prebake-into-the-machine-image) for more details.
+Entries without `platforms_key` refresh the key with their own name, e.g. `redhat/x86_64/9-selinux-npm`. Purpose-built images keep a descriptive suffix (`24-04-kind`, `9-selinux-npm`, `22-04-gpu`), never `-e2e`.
 
-/// tip | Some flavors have been fully consolidated
-
-Debian 11/12 and Ubuntu 22.04/24.04 (x86_64) no longer have a real distinction: their plain and `-e2e` keys in `platforms.json` point at the *same* AMI ID, because the plain image is prebaked too. The `-e2e` descriptors are kept around only for code that still references them explicitly. Don't assume a version lacks prebaked dependencies just because it also has an `-e2e` sibling (or lacks one) — check the actual AMI IDs in `platforms.json` for the flavor/arch/version you care about.
-///
-
-/// danger | Prefer using the `-e2e` variant in new tests, where the two still differ.
-
-Unless overriden, this should be the default on both Linux and Windows — `UbuntuDefault` is `Ubuntu2204E2E` — so a test that passes no OS at all gets the prebaked image. On flavors where the plain and `-e2e` images still differ (e.g. Windows Server), a test that explicitly asks for the plain descriptor opts *out* of the prebaked image, usually by accident.
-
-If you need an extra dependency in your test, **prefer adding it to the existing `-e2e` variant (or, where consolidated, the plain image) over creating your own fully-custom AMI** if at all possible. Feel free to ask #agent-devx-help for help.
+/// tip
+If you need an extra dependency in your test, **prefer adding it to the existing prebaked image over creating your own fully-custom AMI** if at all possible. Feel free to ask #agent-devx-help for help.
 ///
 
 
@@ -75,21 +69,21 @@ The build lives in [ami-builder](https://github.com/ddoghq/ami-builder); this re
 1. Update `test/e2e-framework/resources/aws/platforms.json` in this repo with that ID. Trigger a full pipeline on that PR — an image change can affect any suite, not only the ones whose files you touched.
 
 /// warning
-The scheduled `[bot] Update E2E AMIs` PRs **only refresh keys that already exist** in `platforms.json`. A brand-new key — a new OS version, a new `-e2e` variant — is built and shared but then silently dropped until someone adds the key by hand. Add the key in the same PR that starts consuming it.
+The scheduled `[bot] Update E2E AMIs` PRs **only refresh keys that already exist** in `platforms.json`. A brand-new key — a new OS version or a purpose-built image — is built and shared but then silently dropped until someone adds the key by hand. Add the key in the same PR that starts consuming it, and set `platforms_key` on the ami-builder entry when its name differs from the key. The bot lists the keys no build refreshes in its PR description.
 ///
 
 ### Adding a new image
 
 To add a new custom AMI, you also need to tell the e2e framework about it: this is done by creating a new _OS descriptor_ alongside the `platforms.json` update
-1. Update `platforms.json`, adding your new key in the appropriate spot.
+1. Update `platforms.json`, adding your new key in the appropriate spot. Name it after the OS version (plus a descriptive suffix for a purpose-built image), without `-e2e`.
 
 1. Use that descriptor in your test: `ec2.WithOS(e2eos.yourNewDescriptor)`
-1. `components/os/<family>_descriptors.go` — create a matching descriptor (`Ubuntu2204E2E` style naming).
+1. `components/os/<family>_descriptors.go` — create a matching descriptor (`Ubuntu2404Kind` style naming, mirroring the key).
 
 ## Pinning one test to a specific AMI
 
 /// warning
-Avoid doing this if at all possible - prefer using the `-e2e` variants, adding your dependency to them if needed.
+Avoid doing this if at all possible - prefer the prebaked images from `platforms.json`, adding your dependency to them if needed.
 ///
 
 
