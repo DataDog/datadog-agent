@@ -7,8 +7,12 @@
 
 package common
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apminject"
+import (
+	"context"
 
-func apmInjectorRequiresReinstall() bool {
-	return apminject.RequiresReinstall()
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apminject"
+)
+
+func apmInjectorRequiresReinstall(ctx context.Context) bool {
+	return apminject.RequiresReinstall(ctx)
 }
