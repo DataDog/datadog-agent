@@ -780,7 +780,7 @@ func (r *Resolver) addHostMiss(pc *model.ProcessContext, file *model.FileEvent) 
 	run := sbomtypes.Package{
 		LastAccess:     time.Now(),
 		SuidBit:        fs.FileMode(file.Mode)&04000 != 0,
-		AccessedByRoot: pc.UID == 0,
+		AccessedByRoot: runsAsRoot(pc),
 	}
 	if miss, ok := r.hostMisses.Peek(file.PathnameStr); ok && miss.inode == inode {
 		run = combineUsage(miss.usage, run)
@@ -1361,7 +1361,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
 		seclog.Debugf("no sbom found for container '%s'", pc.ContainerContext.ContainerID)
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc))
 		return nil
 	}
 
@@ -1371,7 +1371,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 	// the scan finishes (processPendingFileEvents is called at the end of analyzeWorkload).
 	if !sbom.IsComputed() {
 		sbom.Unlock()
-		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, pc.UID)
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, file.PathnameStr, file.Mode, runsAsRoot(pc))
 		return nil
 	}
 
@@ -1400,7 +1400,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		// SBOM refresh, regardless of later accesses to its non-setuid files.
 		pkg.LastAccess = time.Now()
 		pkg.SuidBit = pkg.SuidBit || fs.FileMode(file.Mode)&04000 != 0
-		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
+		pkg.AccessedByRoot = pkg.AccessedByRoot || runsAsRoot(pc)
 
 		latch := r.latches(previous, pkg.LastAccess, sbom.data.forwardedAt) ||
 			pkg.SuidBit != suidBit || pkg.AccessedByRoot != accessedByRoot
@@ -1425,6 +1425,12 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 // to the package, is a gap away, or forwarded, the last forward of its data, is old.
 func (r *Resolver) latches(previous, now, forwarded time.Time) bool {
 	return now.Sub(previous) > r.cfg.SBOMResolverEnrichmentInterval || now.Sub(forwarded) > maxForwardedAge
+}
+
+// runsAsRoot reports whether a process runs as root, by its real or effective
+// UID, as a setuid-root binary run by another user does.
+func runsAsRoot(pc *model.ProcessContext) bool {
+	return pc.UID == 0 || pc.EUID == 0
 }
 
 // LookupPackage returns the package that owns file, as ResolvePackage does,
@@ -1550,7 +1556,7 @@ func (r *Resolver) recordSettled(now time.Time) {
 // deduplication the shared libraries mapped by every process of a workload crowd out
 // the distinct paths worth keeping. Directory opens, which leave the usage of their
 // package as it is, stay out of the queue.
-func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, uid uint32) {
+func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, root bool) {
 	if containerID == "" || isDir(fileMode) {
 		return
 	}
@@ -1558,7 +1564,7 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 	event := pendingFileEvent{
 		lastAccess:     time.Now(),
 		suidBit:        fs.FileMode(fileMode)&04000 != 0,
-		accessedByRoot: uid == 0,
+		accessedByRoot: root,
 	}
 	if alias := pathAlias(filePath); alias != "" {
 		event.alias = murmur3.StringSum64(alias)
