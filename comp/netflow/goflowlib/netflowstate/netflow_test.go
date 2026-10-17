@@ -111,6 +111,7 @@ func TestNetflowState_submitApplications(t *testing.T) {
 func TestNetflowState_DPIDisabled(t *testing.T) {
 	state := NewStateNetFlow(nil, false, "my-ns", nil)
 	assert.NotContains(t, state.mappedFieldsConfig, uint16(95))
+	assert.NotContains(t, state.mappedFieldsConfig, uint16(56701))
 	state.submitApplications(netflow.IPFIXPacket{}, []byte{10, 0, 0, 1}) // must not panic
 }
 
@@ -120,4 +121,5 @@ func TestMapFieldsConfig(t *testing.T) {
 
 	assert.Equal(t, userMapping, mapped[95], "user mappings override built-in mappings")
 	assert.Contains(t, mapped, uint16(231))
+	assert.Equal(t, config.Mapping{Field: 56701, Type: common.String, Destination: "datadog.application_name"}, mapped[56701], "Palo Alto App-ID is mapped to the application name")
 }
