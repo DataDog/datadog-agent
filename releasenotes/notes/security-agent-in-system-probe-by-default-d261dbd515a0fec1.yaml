@@ -1,0 +1,17 @@
+---
+enhancements:
+  - |
+    CSPM and CWS now run entirely inside ``system-probe`` by default:
+    ``compliance_config.run_in_system_probe`` and
+    ``runtime_security_config.direct_send_from_system_probe`` both default to
+    ``true``, so ``system-probe`` collects and ships those payloads directly.
+    Because CSPM and CWS are the only workloads it hosts, the ``security-agent``
+    process no longer has anything to run and exits at startup. Set either
+    setting back to ``false`` to keep running the corresponding feature in the
+    ``security-agent`` process.
+
+    When CSPM or CWS ships from ``system-probe``, the Agent now also enables its
+    IPC configuration endpoint automatically (``agent_ipc.port`` 5009 and
+    ``agent_ipc.config_refresh_interval`` 60 seconds). ``system-probe`` needs it
+    to retrieve resolved settings such as a secret-backed ``api_key`` from the
+    core Agent. Any explicit ``agent_ipc`` configuration is left untouched.
