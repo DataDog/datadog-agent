@@ -61,7 +61,7 @@ var (
 // HorizontalPodAutoscaler metric family generator factory.
 func NewHorizontalPodAutoscalerV2Beta2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &hpav2Factory{
-		client: client.Cl,
+		client: client.InformerCl,
 	}
 }
 
@@ -437,7 +437,7 @@ func wrapHPAFunc(f func(*autoscaling.HorizontalPodAutoscaler) *metric.Family) fu
 // enrichment.
 func NewExtendedHorizontalPodAutoscalerFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &extendedHPAFactory{
-		client: client.Cl,
+		client: client.InformerCl,
 	}
 }
 

@@ -33,14 +33,14 @@ func findGenerator(t *testing.T, generators []generator.FamilyGenerator, name st
 }
 
 func TestExtendedHorizontalPodAutoscalerFactory_Name(t *testing.T) {
-	client := &apiserver.APIClient{Cl: fake.NewSimpleClientset()}
+	client := &apiserver.APIClient{InformerCl: fake.NewSimpleClientset()}
 	factory := NewExtendedHorizontalPodAutoscalerFactory(client)
 
 	assert.Equal(t, "horizontalpodautoscalers_extended", factory.Name())
 }
 
 func TestExtendedHorizontalPodAutoscalerFactory_ExpectedType(t *testing.T) {
-	client := &apiserver.APIClient{Cl: fake.NewSimpleClientset()}
+	client := &apiserver.APIClient{InformerCl: fake.NewSimpleClientset()}
 	factory := NewExtendedHorizontalPodAutoscalerFactory(client)
 
 	_, ok := factory.ExpectedType().(*autoscalingv2.HorizontalPodAutoscaler)
@@ -48,7 +48,7 @@ func TestExtendedHorizontalPodAutoscalerFactory_ExpectedType(t *testing.T) {
 }
 
 func TestExtendedHorizontalPodAutoscalerFactory_MetricFamilyGenerators(t *testing.T) {
-	client := &apiserver.APIClient{Cl: fake.NewSimpleClientset()}
+	client := &apiserver.APIClient{InformerCl: fake.NewSimpleClientset()}
 	factory := NewExtendedHorizontalPodAutoscalerFactory(client)
 
 	generators := factory.MetricFamilyGenerators()
@@ -87,7 +87,7 @@ func TestExtendedHorizontalPodAutoscalerFactory_MetricFamilyGenerators(t *testin
 }
 
 func TestHPAV2Beta2Factory_OwnerRefGenerator(t *testing.T) {
-	client := &apiserver.APIClient{Cl: fake.NewSimpleClientset()}
+	client := &apiserver.APIClient{InformerCl: fake.NewSimpleClientset()}
 	factory := NewHorizontalPodAutoscalerV2Beta2Factory(client)
 
 	ownerRefGen := findGenerator(t, factory.MetricFamilyGenerators(), "kube_horizontalpodautoscaler_ownerref")
@@ -124,7 +124,7 @@ func TestHPAV2Beta2Factory_OwnerRefGenerator(t *testing.T) {
 }
 
 func TestHPAV2Beta2Factory_InfoGeneratorHasNoOwnerRefLabels(t *testing.T) {
-	client := &apiserver.APIClient{Cl: fake.NewSimpleClientset()}
+	client := &apiserver.APIClient{InformerCl: fake.NewSimpleClientset()}
 	factory := NewHorizontalPodAutoscalerV2Beta2Factory(client)
 
 	infoGen := findGenerator(t, factory.MetricFamilyGenerators(), "kube_horizontalpodautoscaler_info")
