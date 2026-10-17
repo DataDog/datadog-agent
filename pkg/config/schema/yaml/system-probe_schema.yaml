@@ -390,6 +390,9 @@ properties:
         node_type: setting
         type: string
         default: /var/tmp/datadog-agent/system-probe/kernel-headers
+        description: |-
+          Deprecated and ignored. Kernel headers are always downloaded to
+          /var/tmp/datadog-agent/system-probe/kernel-headers.
         env_vars:
         - DD_KERNEL_HEADER_DOWNLOAD_DIR
       log_level:

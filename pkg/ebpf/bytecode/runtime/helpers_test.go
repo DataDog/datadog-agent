@@ -38,7 +38,9 @@ func TestGetAvailableHelpers(t *testing.T) {
 		YumReposDir:     cfg.YumReposDir,
 		ZypperReposDir:  cfg.ZypperReposDir,
 	}
-	kernelHeaders := headers.GetKernelHeaders(opts)
+	kernelHeaders := headers.GetKernelHeaders(opts, func(dir string) error {
+		return secureDir(kernelHeaderDownloadDirPurpose, dir)
+	})
 	fns, err := getAvailableHelpers(kernelHeaders)
 	require.NoError(t, err)
 	assert.NotEmpty(t, fns, "number of available helpers")
