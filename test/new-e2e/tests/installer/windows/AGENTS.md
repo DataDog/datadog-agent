@@ -36,6 +36,10 @@ Shared code lives alongside the tests: `base_suite.go`, `installer.go`,
 `remote-host-assertions/` and `suite-assertions/` (fluent host/suite assertions),
 and `resources/` / `fixtures/` (test data). `doc.go` has a setup-env quick start.
 
+APM injection suites share configuration, installation, and system-probe query
+helpers in `apm_inject_base_suite.go`. It uses `!e2eunit`, like the process-manager
+helpers it calls, so unit-only builds do not include the E2E setup code.
+
 ## Base suite
 
 `BaseSuite` (in `base_suite.go`) extends `e2e.BaseSuite[environments.WindowsHost]`.
@@ -122,8 +126,8 @@ CI (when `CI` is set).
 
 ## Running tests
 
-See the `run-windows-e2e` skill references for environment setup and `go test`
-invocations: `.claude/skills/run-windows-e2e/references/setup.md` and
+See the `run-windows-e2e` skill references for environment setup and `dda inv new-e2e-tests.run`
+invocations: `.agents/skills/run-windows-e2e/references/setup.md` and
 `.../running.md` (or invoke the `/run-windows-e2e` skill). Also see `doc.go` in
 this package for installer-specific quick-start instructions.
 

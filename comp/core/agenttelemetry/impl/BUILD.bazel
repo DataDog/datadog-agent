@@ -7,6 +7,7 @@ go_library(
         "agenttelemetry.go",
         "config.go",
         "errortracking_sender.go",
+        "log_submission.go",
         "logs_payload.go",
         "remoteflag.go",
         "runner.go",
@@ -49,10 +50,12 @@ dd_agent_go_test(
     srcs = [
         "agenttelemetry_test.go",
         "errortracking_sender_test.go",
+        "log_submission_test.go",
         "utils_test.go",
     ],
     embed = [":impl"],
     deps = [
+        "//comp/core/agenttelemetry/def",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
