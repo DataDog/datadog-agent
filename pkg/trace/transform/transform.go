@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -198,6 +199,60 @@ func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span
 	if mappedKey != "" {
 		SetMetaOTLPIfEmpty(ddspan, mappedKey, value)
 	}
+}
+
+// MapAWSIdentityAttributes adds the Datadog tag names for AWS resource identity
+// carried by OpenTelemetry attributes (see attributes.AWSIdentitySpanMappings).
+// The OpenTelemetry keys have already been copied to Meta verbatim by the
+// attribute loops; this only adds the Datadog aliases and never overwrites a
+// value that is already present. Span attributes take precedence over resource
+// attributes, matching the rest of the conversion.
+func MapAWSIdentityAttributes(sattr, rattr pcommon.Map, ddspan *pb.Span) {
+	for otelKey, ddKey := range attributes.AWSIdentitySpanMappings {
+		if v := GetOTelAttrFromEitherMap(sattr, rattr, false, otelKey); v != "" {
+			setMetaIfAbsent(ddspan, ddKey, v)
+		}
+	}
+
+	// cloud.account.id is only an AWS account ID when the provider is AWS. Other
+	// providers use different Datadog tags (subscription_id, project_id) which are
+	// out of scope here.
+	if provider := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv127.CloudProviderKey)); provider == semconv127.CloudProviderAWS.Value.AsString() {
+		if account := GetOTelAttrFromEitherMap(sattr, rattr, false, string(semconv127.CloudAccountIDKey)); account != "" {
+			setMetaIfAbsent(ddspan, "aws_account", account)
+		}
+	}
+
+	// aws.dynamodb.table_names is an array. The Datadog tracers tag a single table
+	// as tablename (the peer.aws.dynamodb.table precursor), so only a single-element
+	// array is aliased; multi-table operations have no single target.
+	tableNames, ok := sattr.Get(string(semconv127.AWSDynamoDBTableNamesKey))
+	if !ok {
+		tableNames, ok = rattr.Get(string(semconv127.AWSDynamoDBTableNamesKey))
+	}
+	if ok {
+		switch tableNames.Type() {
+		case pcommon.ValueTypeSlice:
+			if s := tableNames.Slice(); s.Len() == 1 {
+				if name := s.At(0).AsString(); name != "" {
+					setMetaIfAbsent(ddspan, "tablename", name)
+				}
+			}
+		case pcommon.ValueTypeStr:
+			if name := tableNames.Str(); name != "" {
+				setMetaIfAbsent(ddspan, "tablename", name)
+			}
+		}
+	}
+}
+
+// setMetaIfAbsent sets a Meta tag only when the span does not already carry a
+// value for it, so an alias never overwrites a tag the producer set explicitly.
+func setMetaIfAbsent(ddspan *pb.Span, k, v string) {
+	if ddspan.Meta[k] != "" {
+		return
+	}
+	ddspan.Meta[k] = v
 }
 
 func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.Span) {
@@ -385,6 +440,8 @@ func OtelSpanToDDSpan(
 		conditionallyMapOTLPAttributeToMeta(k, value, ddspan)
 		return true
 	})
+
+	MapAWSIdentityAttributes(otelspan.Attributes(), otelres.Attributes(), ddspan)
 
 	for k, v := range lib.Attributes().Range {
 		ddspan.Meta[k] = v.AsString()

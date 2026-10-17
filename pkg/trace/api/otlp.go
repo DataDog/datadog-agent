@@ -746,6 +746,8 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 			span.Name = name
 		}
 	}
+	// Alias AWS resource identity attributes to the Datadog tag names, as the V2 path does.
+	transform.MapAWSIdentityAttributes(in.Attributes(), res.Attributes(), span)
 	if span.Service == "" {
 		span.Service = "OTLPResourceNoServiceName"
 	}

@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: OTLP spans that carry AWS resource identity through OpenTelemetry semantic
+    conventions now also receive the tag names used by the Datadog tracers and the
+    Agent tagger for the same information, so natively instrumented and
+    OpenTelemetry instrumented workloads can be queried with the same identity tags.
+    ``cloud.region`` is aliased to ``region``; ``cloud.account.id`` is aliased to
+    ``aws_account`` when ``cloud.provider`` is ``aws``; ``aws.lambda.invoked_arn`` to
+    ``function_arn``; ``aws.ecs.task.arn`` to ``task_arn``; ``aws.ecs.cluster.arn``
+    to ``cluster_arn``; ``aws.eks.cluster.arn`` to ``eks_cluster_arn``;
+    ``aws.s3.bucket`` to ``bucketname``; and a single-element
+    ``aws.dynamodb.table_names`` to ``tablename``. The OpenTelemetry attribute keys
+    are kept on the span, and an alias never overwrites a tag the producer set.
