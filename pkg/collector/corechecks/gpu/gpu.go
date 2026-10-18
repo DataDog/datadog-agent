@@ -88,6 +88,7 @@ type Check struct {
 	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
 	skipNVML            bool                             // skipNVML is set in Configure when gpu.amd.enabled is on and the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
+	nodeUnschedulable   *nodeUnschedulable               // nodeUnschedulable is the unschedulable state of the node, nil unless gpu.unschedulable_nodes.enabled; only touched from the Run goroutine
 }
 
 type checkTelemetry struct {
@@ -240,6 +241,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		}
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
+	c.configureNodeUnschedulable(pkgconfigsetup.Datadog())
 
 	return nil
 }
@@ -492,6 +494,7 @@ func (c *Check) Run() error {
 	if err := c.emitMetrics(snd, gpuToContainersMap, gpuToProcessesMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
 	}
+	c.emitNodeUnschedulable(snd, currentExecutionTime)
 
 	return nil
 }
