@@ -44,6 +44,7 @@ func installKubernetesMetadataEndpoints(r *http.ServeMux, wmeta workloadmeta.Com
 	r.HandleFunc("GET /metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) }))
 	r.HandleFunc("GET /cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID))
 	r.HandleFunc("GET /uid/node/{nodeName}", api.WithTelemetryWrapper("getNodeUID", func(w http.ResponseWriter, r *http.Request) { getNodeUID(w, r, wmeta) }))
+	r.HandleFunc("GET /info/node/{nodeName}/status", api.WithTelemetryWrapper("getNodeStatus", func(w http.ResponseWriter, r *http.Request) { getNodeStatus(w, r, wmeta) }))
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -148,6 +149,48 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 	}
 
 	getNodeMetadata(w, r, wmeta, func(n *workloadmeta.KubernetesNode) map[string]string { return n.Annotations }, "annotations", finalFilter)
+}
+
+// nodeStatusCondition is a node condition as served by getNodeStatus.
+type nodeStatusCondition struct {
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
+// nodeStatus is the node state served by getNodeStatus. Conditions are never null, so
+// a node agent can tell an empty list from a missing field.
+type nodeStatus struct {
+	Conditions    []nodeStatusCondition `json:"conditions"`
+	Unschedulable bool                  `json:"unschedulable"`
+}
+
+// getNodeStatus serves the conditions and the cordon state (spec.unschedulable) of a
+// node to node agents. It is separate from getNodeInfo, which node agents cannot read.
+func getNodeStatus(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	nodeName := r.PathValue("nodeName")
+	node, err := wmeta.GetKubernetesNode(nodeName)
+	if err != nil {
+		log.Debugf("getNodeStatus: unable to get node %s from cache: %v", nodeName, err)
+		api.SetSpanError(w, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res := nodeStatus{
+		Conditions:    make([]nodeStatusCondition, 0, len(node.Conditions)),
+		Unschedulable: node.Unschedulable,
+	}
+	for _, c := range node.Conditions {
+		res.Conditions = append(res.Conditions, nodeStatusCondition{Type: c.Type, Status: c.Status})
+	}
+	data, err := json.Marshal(res)
+	if err != nil {
+		api.SetSpanError(w, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func getNodeInfo(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {

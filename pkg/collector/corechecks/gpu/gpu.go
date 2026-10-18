@@ -73,6 +73,7 @@ type Check struct {
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
+	nodeUnschedulable   *nodeUnschedulable               // nodeUnschedulable is the unschedulable state of the node, nil unless gpu.unschedulable_nodes.enabled; only touched from the Run goroutine
 }
 
 type checkTelemetry struct {
@@ -212,6 +213,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		}
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
+	c.configureNodeUnschedulable(pkgconfigsetup.Datadog())
 
 	return nil
 }
@@ -438,6 +440,7 @@ func (c *Check) Run() error {
 	if err := c.emitMetrics(snd, gpuToContainersMap, gpuToProcessesMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
 	}
+	c.emitNodeUnschedulable(snd, currentExecutionTime)
 
 	return nil
 }

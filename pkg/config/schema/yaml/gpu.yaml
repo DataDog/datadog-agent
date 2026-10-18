@@ -233,6 +233,54 @@ properties:
         example: |2-
 
             c: "0.24.0"
+  unschedulable_nodes:
+    node_type: section
+    type: object
+    description: |-
+      Report the GPUs of an unschedulable Kubernetes node as gpu.device.unavailable
+      with unavailable_reason:unschedulable. A node is unschedulable when it is
+      cordoned or when one of its labels or conditions matches a rule below.
+      Requires the cluster agent.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      labels:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json
+        items:
+          type: object
+        description: |-
+          Node labels that make the node unschedulable, as a list of key and value,
+          for example [{"key": "example.com/drain", "value": "true"}]. Both are
+          required; the value is a string or a boolean, compared case-insensitively.
+          List a key several times to match several values. Reported as
+          unschedulable_reason:<key>:<value>.
+      conditions:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json
+        items:
+          type: object
+        description: |-
+          Node conditions that make the node unschedulable, as a list of type and
+          status (True, False or Unknown), for example
+          [{"type": "Maintenance", "status": "True"}]. Reported as
+          unschedulable_reason:<type>:<status>.
+      refresh_interval:
+        node_type: setting
+        type: string
+        default: 1m
+        format: duration
+        tags:
+        - golang_type:duration
+        description: |-
+          How often the node is read from the cluster agent. A failed read keeps the
+          last known state.
   use_sp_process_metrics:
     node_type: setting
     type: boolean
