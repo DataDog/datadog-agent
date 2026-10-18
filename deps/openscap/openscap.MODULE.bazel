@@ -29,6 +29,7 @@ http_archive(
         "//deps:openscap/patches/probe-root-paths.patch",
         "//deps:openscap/patches/inetlisteningservers-probe-root.patch",
         "//deps:openscap/patches/sce-default-operator.patch",
+        "//deps:openscap/patches/sce-stdin-null.patch",
     ],
     sha256 = "f4fc0a54b50441b3c6bb3527c292345cdb3bea16a9d23435292beb508eb96e47",
     strip_prefix = "openscap-{}".format(VERSION),
