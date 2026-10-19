@@ -25,6 +25,7 @@ dd_agent_go_test(
     name = "telemetry_test",
     srcs = [
         "cmd_wrapper_test.go",
+        "telemetry_options_test.go",
         "telemetry_test.go",
     ],
     embed = [":telemetry"],

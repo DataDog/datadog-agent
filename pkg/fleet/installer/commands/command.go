@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -169,8 +170,47 @@ func (i *installerCmd) stop(err error) {
 }
 
 type telemetryConfigFields struct {
-	APIKey string `yaml:"api_key"`
-	Site   string `yaml:"site"`
+	APIKey    string `yaml:"api_key"`
+	Site      string `yaml:"site"`
+	APMConfig struct {
+		Telemetry struct {
+			DDURL   string `yaml:"dd_url"`
+			Enabled *bool  `yaml:"enabled"`
+		} `yaml:"telemetry"`
+	} `yaml:"apm_config"`
+}
+
+// commandTelemetryStopFlushTimeout bounds the telemetry flush when an installer command exits.
+// The daemon waits on these commands, so an unreachable intake would otherwise add the full
+// send timeout to every command.
+const commandTelemetryStopFlushTimeout = 2 * time.Second
+
+// telemetryEndpoint resolves apm_config.telemetry.dd_url and apm_config.telemetry.enabled, with
+// their DD_APM_TELEMETRY_* environment variables taking precedence over datadog.yaml.
+func (c telemetryConfigFields) telemetryEndpoint() (url string, enabled bool) {
+	url = c.APMConfig.Telemetry.DDURL
+	if envURL, ok := os.LookupEnv("DD_APM_TELEMETRY_DD_URL"); ok {
+		url = envURL
+	}
+	enabled = c.APMConfig.Telemetry.Enabled == nil || *c.APMConfig.Telemetry.Enabled
+	if envEnabled, ok := os.LookupEnv("DD_APM_TELEMETRY_ENABLED"); ok {
+		if parsed, err := strconv.ParseBool(envEnabled); err == nil {
+			enabled = parsed
+		}
+	}
+	return url, enabled
+}
+
+func (c telemetryConfigFields) telemetryOptions() []telemetry.Option {
+	opts := []telemetry.Option{telemetry.WithStopFlushTimeout(commandTelemetryStopFlushTimeout)}
+	url, enabled := c.telemetryEndpoint()
+	if url != "" {
+		opts = append(opts, telemetry.WithEndpointURL(url))
+	}
+	if !enabled {
+		opts = append(opts, telemetry.WithDisabled())
+	}
+	return opts
 }
 
 type installerRegistryYAMLConfig struct {
@@ -227,7 +267,7 @@ func newTelemetry(env *env.Env) (*telemetry.Telemetry, error) {
 	env.APIKey = apiKey
 	env.Site = site
 
-	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
+	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer", config.telemetryOptions()...) // No sampling rules for commands
 	return t, nil
 }
 

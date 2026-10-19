@@ -394,6 +394,16 @@ func TestToEnvFIPSMode(t *testing.T) {
 	assert.Contains(t, (&Env{FIPSMode: true}).ToEnv(), "DD_FIPS_MODE=true")
 }
 
+func TestDeferAgentRestartRoundTrip(t *testing.T) {
+	assert.NotContains(t, (&Env{}).ToEnv(), "DD_INSTALLER_DEFER_AGENT_RESTART=true")
+	assert.Contains(t, (&Env{DeferAgentRestart: true}).ToEnv(), "DD_INSTALLER_DEFER_AGENT_RESTART=true")
+
+	t.Setenv("DD_INSTALLER_DEFER_AGENT_RESTART", "true")
+	assert.True(t, FromEnv().DeferAgentRestart)
+	t.Setenv("DD_INSTALLER_DEFER_AGENT_RESTART", "")
+	assert.False(t, FromEnv().DeferAgentRestart)
+}
+
 func TestAgentUserVars(t *testing.T) {
 	tests := []struct {
 		name     string

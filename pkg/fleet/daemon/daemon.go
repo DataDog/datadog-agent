@@ -514,10 +514,10 @@ func (d *daemonImpl) stopExperiment(ctx context.Context, pkg string) (err error)
 func (d *daemonImpl) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.startConfigExperiment(ctx, pkg, operations, encryptedSecrets)
+	return d.startConfigExperiment(ctx, d.installer(d.env), pkg, operations, encryptedSecrets)
 }
 
-func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) (err error) {
+func (d *daemonImpl) startConfigExperiment(ctx context.Context, inst installer.Installer, pkg string, operations config.Operations, encryptedSecrets map[string]string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "start_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
@@ -533,7 +533,7 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, oper
 
 	// Pass operations with placeholders and decrypted secrets to installer
 	// The installer will do the replacement
-	err = d.installer(d.env).InstallConfigExperiment(ctx, pkg, operations, decryptedSecrets)
+	err = inst.InstallConfigExperiment(ctx, pkg, operations, decryptedSecrets)
 	if err != nil {
 		return fmt.Errorf("could not start config experiment: %w", err)
 	}
@@ -545,17 +545,17 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, oper
 func (d *daemonImpl) PromoteConfigExperiment(ctx context.Context, pkg string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.promoteConfigExperiment(ctx, pkg)
+	return d.promoteConfigExperiment(ctx, d.installer(d.env), pkg)
 }
 
-func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (err error) {
+func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, inst installer.Installer, pkg string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "promote_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Promoting config experiment for package %s", pkg)
-	err = d.installer(d.env).PromoteConfigExperiment(ctx, pkg)
+	err = inst.PromoteConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote config experiment: %w", err)
 	}
@@ -567,17 +567,17 @@ func (d *daemonImpl) promoteConfigExperiment(ctx context.Context, pkg string) (e
 func (d *daemonImpl) StopConfigExperiment(ctx context.Context, pkg string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.stopConfigExperiment(ctx, pkg)
+	return d.stopConfigExperiment(ctx, d.installer(d.env), pkg)
 }
 
-func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err error) {
+func (d *daemonImpl) stopConfigExperiment(ctx context.Context, inst installer.Installer, pkg string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "stop_config_experiment")
 	defer func() { span.Finish(err) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Stopping config experiment for package %s", pkg)
-	err = d.installer(d.env).RemoveConfigExperiment(ctx, pkg)
+	err = inst.RemoveConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
@@ -613,11 +613,27 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	defer d.requestsWG.Done()
 	parentSpan, ctx := newRequestContext(request)
 	defer parentSpan.Finish(err)
+
+	// Registered before the final refreshState so it runs after the task result is persisted:
+	// on Windows the restart stops the service hosting this daemon.
+	restartCommand := deferredAgentRestartCommand(request.Method, request.Package)
+	defer func() {
+		if restartCommand == "" || err != nil {
+			return
+		}
+		if launchErr := d.launchDeferredAgentRestart(ctx, restartCommand); launchErr != nil {
+			err = launchErr
+			setRequestDone(ctx, err)
+			d.refreshState(ctx)
+		}
+	}()
+
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	err = d.verifyState(ctx, request)
 	if err != nil {
+		restartCommand = ""
 		if errors.Is(err, errStateDoesntMatch) {
 			return nil // Error already reported to RC
 		}
@@ -711,19 +727,67 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 		for _, secret := range params.EncryptedSecrets {
 			encryptedSecrets[secret.Key] = secret.EncryptedValue
 		}
-		return d.startConfigExperiment(ctx, request.Package, ops, encryptedSecrets)
+		return d.startConfigExperiment(ctx, d.configExperimentInstaller(restartCommand != ""), request.Package, ops, encryptedSecrets)
 
 	case methodStopConfigExperiment:
 		log.Infof("Installer: Received remote request %s to stop config experiment for package %s", request.ID, request.Package)
-		return d.stopConfigExperiment(ctx, request.Package)
+		return d.stopConfigExperiment(ctx, d.configExperimentInstaller(restartCommand != ""), request.Package)
 
 	case methodPromoteConfigExperiment:
 		log.Infof("Installer: Received remote request %s to promote config experiment for package %s", request.ID, request.Package)
-		return d.promoteConfigExperiment(ctx, request.Package)
+		return d.promoteConfigExperiment(ctx, d.configExperimentInstaller(restartCommand != ""), request.Package)
 
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
+}
+
+const datadogAgentPackage = "datadog-agent"
+
+// deferAgentRestartToDaemon is true where config experiment restarts stop the service hosting
+// the daemon without waiting for in-flight requests.
+var deferAgentRestartToDaemon = runtime.GOOS == "windows"
+
+// windowsDeferredAgentRestartCommands maps remote config experiment requests to the package
+// command that restarts the Agent services on Windows.
+var windowsDeferredAgentRestartCommands = map[string]string{
+	methodStartConfigExperiment:   exec.PostStartConfigExperimentBackgroundCommand,
+	methodStopConfigExperiment:    exec.PreStopConfigExperimentBackgroundCommand,
+	methodPromoteConfigExperiment: exec.PostPromoteConfigExperimentBackgroundCommand,
+}
+
+// deferredAgentRestartCommand returns the restart command the daemon launches itself after a
+// remote request, or "" when the installer hooks keep launching it.
+func deferredAgentRestartCommand(method string, pkg string) string {
+	if !deferAgentRestartToDaemon || pkg != datadogAgentPackage {
+		return ""
+	}
+	return windowsDeferredAgentRestartCommands[method]
+}
+
+func (d *daemonImpl) configExperimentInstaller(deferRestart bool) installer.Installer {
+	if !deferRestart {
+		return d.installer(d.env)
+	}
+	deferredEnv := *d.env
+	deferredEnv.DeferAgentRestart = true
+	return d.installer(&deferredEnv)
+}
+
+type detachedPackageCommandStarter interface {
+	StartPackageCommandDetached(ctx context.Context, packageName string, command string) error
+}
+
+func (d *daemonImpl) launchDeferredAgentRestart(ctx context.Context, command string) error {
+	starter, ok := d.installer(d.env).(detachedPackageCommandStarter)
+	if !ok {
+		return fmt.Errorf("installer cannot launch %s", command)
+	}
+	log.Infof("Daemon: Launching %s", command)
+	if err := starter.StartPackageCommandDetached(ctx, datadogAgentPackage, command); err != nil {
+		return fmt.Errorf("could not launch %s: %w", command, err)
+	}
+	return nil
 }
 
 func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) error {

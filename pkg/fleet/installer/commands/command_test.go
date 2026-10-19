@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -284,4 +285,69 @@ func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
 	cmd := setupCommand()
 	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
 		"setup command should have human-readable-errors annotation")
+}
+
+func unsetEnvForTest(t *testing.T, key string) {
+	t.Setenv(key, "")
+	require.NoError(t, os.Unsetenv(key))
+}
+
+func TestTelemetryEndpoint(t *testing.T) {
+	enabled, disabled := true, false
+	tests := []struct {
+		name            string
+		yamlURL         string
+		yamlEnabled     *bool
+		envURL          *string
+		envEnabled      *string
+		expectedURL     string
+		expectedEnabled bool
+	}{
+		{name: "defaults", expectedEnabled: true},
+		{name: "yaml url", yamlURL: "https://relay.example:3840", expectedURL: "https://relay.example:3840", expectedEnabled: true},
+		{name: "yaml disabled", yamlEnabled: &disabled, expectedEnabled: false},
+		{name: "yaml enabled", yamlEnabled: &enabled, expectedEnabled: true},
+		{name: "env url overrides yaml", yamlURL: "https://yaml.example", envURL: telemetryStrPtr("https://env.example"), expectedURL: "https://env.example", expectedEnabled: true},
+		{name: "env disabled overrides yaml", yamlEnabled: &enabled, envEnabled: telemetryStrPtr("false"), expectedEnabled: false},
+		{name: "invalid env enabled keeps yaml", yamlEnabled: &disabled, envEnabled: telemetryStrPtr("nope"), expectedEnabled: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			unsetEnvForTest(t, "DD_APM_TELEMETRY_DD_URL")
+			unsetEnvForTest(t, "DD_APM_TELEMETRY_ENABLED")
+			if tt.envURL != nil {
+				t.Setenv("DD_APM_TELEMETRY_DD_URL", *tt.envURL)
+			}
+			if tt.envEnabled != nil {
+				t.Setenv("DD_APM_TELEMETRY_ENABLED", *tt.envEnabled)
+			}
+			var config telemetryConfigFields
+			config.APMConfig.Telemetry.DDURL = tt.yamlURL
+			config.APMConfig.Telemetry.Enabled = tt.yamlEnabled
+
+			url, enabled := config.telemetryEndpoint()
+
+			assert.Equal(t, tt.expectedURL, url)
+			assert.Equal(t, tt.expectedEnabled, enabled)
+		})
+	}
+}
+
+func TestTelemetryConfigReadsAPMTelemetry(t *testing.T) {
+	originalConfigDir := agentConfigDir
+	t.Cleanup(func() { agentConfigDir = originalConfigDir })
+	agentConfigDir = testutil.TrustedDir(t)
+	require.NoError(t, os.WriteFile(filepath.Join(agentConfigDir, "datadog.yaml"),
+		[]byte("api_key: synthetic-key\napm_config:\n  telemetry:\n    dd_url: https://relay.example:3840\n    enabled: false\n"), 0600))
+
+	config, err := telemetryConfig()
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://relay.example:3840", config.APMConfig.Telemetry.DDURL)
+	require.NotNil(t, config.APMConfig.Telemetry.Enabled)
+	assert.False(t, *config.APMConfig.Telemetry.Enabled)
+}
+
+func telemetryStrPtr(s string) *string {
+	return &s
 }

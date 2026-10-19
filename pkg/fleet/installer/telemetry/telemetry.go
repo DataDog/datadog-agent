@@ -42,27 +42,62 @@ func normalizeSite(site string) string {
 
 // Telemetry handles the telemetry for fleet components.
 type Telemetry struct {
-	telemetryClient *client
-	done            chan struct{}
-	flushed         chan struct{}
+	telemetryClient  *client
+	done             chan struct{}
+	flushed          chan struct{}
+	stopFlushTimeout time.Duration
 
 	env     string
 	service string
 }
 
+type options struct {
+	endpointURL      string
+	disabled         bool
+	stopFlushTimeout time.Duration
+}
+
+// Option configures a Telemetry instance.
+type Option func(*options)
+
+// WithEndpointURL sends telemetry to url, e.g. apm_config.telemetry.dd_url, instead of the
+// site's instrumentation telemetry intake.
+func WithEndpointURL(url string) Option {
+	return func(o *options) { o.endpointURL = url }
+}
+
+// WithDisabled turns off sending telemetry.
+func WithDisabled() Option {
+	return func(o *options) { o.disabled = true }
+}
+
+// WithStopFlushTimeout bounds how long Stop waits for the final flush, so an unreachable
+// intake cannot hold up process shutdown for the full send timeout.
+func WithStopFlushTimeout(timeout time.Duration) Option {
+	return func(o *options) { o.stopFlushTimeout = timeout }
+}
+
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
-	t := newTelemetry(client, apiKey, site, service)
+func NewTelemetry(client *http.Client, apiKey string, site string, service string, opts ...Option) *Telemetry {
+	t := newTelemetry(client, apiKey, site, service, opts...)
 	t.Start()
 	return t
 }
 
-func newTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
+func newTelemetry(client *http.Client, apiKey string, site string, service string, opts ...Option) *Telemetry {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 	if site == "" {
 		site = "datadoghq.com"
 	}
+	host := fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site))
+	if url := strings.TrimSpace(o.endpointURL); url != "" {
+		host = strings.TrimSuffix(url, "/")
+	}
 	e := &endpoint{
-		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
+		Host:   host,
 		APIKey: apiKey,
 	}
 	env := "prod"
@@ -74,13 +109,17 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 	if !siteSupportsTelemetry {
 		log.Debugf("telemetry disabled: no instrumentation telemetry intake exists for GovCloud site %q", site)
 	}
+	if o.disabled {
+		log.Debugf("telemetry disabled by configuration")
+	}
 
 	return &Telemetry{
-		telemetryClient: newClient(client, []*endpoint{e}, service, site == "datad0g.com", siteSupportsTelemetry),
-		done:            make(chan struct{}),
-		flushed:         make(chan struct{}),
-		env:             env,
-		service:         service,
+		telemetryClient:  newClient(client, []*endpoint{e}, service, site == "datad0g.com", siteSupportsTelemetry && !o.disabled),
+		done:             make(chan struct{}),
+		flushed:          make(chan struct{}),
+		stopFlushTimeout: o.stopFlushTimeout,
+		env:              env,
+		service:          service,
 	}
 }
 
@@ -93,7 +132,7 @@ func (t *Telemetry) Start() {
 			case <-ticker:
 				t.sendCompletedSpans()
 			case <-t.done:
-				t.sendCompletedSpans()
+				t.sendCompletedSpansWithTimeout(t.stopFlushTimeout)
 				close(t.flushed)
 				return
 			}
@@ -132,11 +171,17 @@ func (t *Telemetry) extractCompletedSpans() traces {
 }
 
 func (t *Telemetry) sendCompletedSpans() {
+	t.sendCompletedSpansWithTimeout(0)
+}
+
+// sendCompletedSpansWithTimeout sends completed spans, bounding the send by timeout when it is
+// positive and by the client's default send timeout otherwise.
+func (t *Telemetry) sendCompletedSpansWithTimeout(timeout time.Duration) {
 	tracesArray := t.extractCompletedSpans()
 	if len(tracesArray) == 0 {
 		return
 	}
-	t.telemetryClient.SendTraces(tracesArray)
+	t.telemetryClient.sendTraces(tracesArray, timeout)
 }
 
 // SpanFromContext returns the span from the context if available.
