@@ -7,6 +7,7 @@ package remoteconfig
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,7 +71,7 @@ func TestStatusConfiguredAndHealthy(t *testing.T) {
 	endpointStatus := NewEndpointStatus()
 	endpointStatus.SetOrgEnabled(true)
 	endpointStatus.SetAPIKeyAuthorized(true)
-	endpointStatus.SetLastError("")
+	endpointStatus.SetLastError(nil)
 	endpointStatus.MarkStarted()
 
 	provider := NewProvider(newTestConfig(t, "https://config.datad0g.com", testAPIKey), endpointStatus)
@@ -94,7 +95,7 @@ func TestStatusConfiguredAndBroken(t *testing.T) {
 	endpointStatus := NewEndpointStatus()
 	endpointStatus.SetOrgEnabled(false)
 	endpointStatus.SetAPIKeyAuthorized(false)
-	endpointStatus.SetLastError("api: 403 Forbidden")
+	endpointStatus.SetLastError(errors.New("api: 403 Forbidden"))
 	endpointStatus.MarkStarted()
 
 	provider := NewProvider(newTestConfig(t, "https://config.datad0g.com", testAPIKey), endpointStatus)

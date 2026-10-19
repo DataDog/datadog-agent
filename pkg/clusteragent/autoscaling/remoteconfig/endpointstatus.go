@@ -58,8 +58,12 @@ func (s *EndpointStatus) SetAPIKeyAuthorized(authorized bool) {
 	s.state.apiKeyAuthorized = authorized
 }
 
-// SetLastError records the last configuration refresh error, or "" on success.
-func (s *EndpointStatus) SetLastError(message string) {
+// SetLastError records the last configuration refresh error, or nil on success.
+func (s *EndpointStatus) SetLastError(err error) {
+	var message string
+	if err != nil {
+		message = err.Error()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.state.lastError = message
