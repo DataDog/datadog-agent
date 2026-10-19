@@ -2,6 +2,7 @@ import subprocess
 import unittest
 from unittest.mock import MagicMock, patch
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.gotest import (
@@ -11,6 +12,7 @@ from tasks.gotest import (
     _run_bazel_tests,
     _target_to_bazel_pattern,
     find_impacted_packages,
+    get_go_modified_files,
     should_run_all_tests,
 )
 
@@ -85,6 +87,19 @@ class TestUtils(unittest.TestCase):
         trigger_files = ["pkgs/*"]
 
         self.assertFalse(should_run_all_tests(None, trigger_files))
+
+
+class TestGetGoModifiedFiles(unittest.TestCase):
+    @patch("tasks.gotest._get_release_json_value", new=MagicMock(return_value="main"))
+    @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/existing/foo.go", "docs/readme.md"]))
+    @patch(
+        "tasks.gotest.get_untracked_files",
+        new=MagicMock(return_value=["pkg/newpkg/foo.go", "pkg/existing/foo.go", "pkg/newpkg/notes.txt"]),
+    )
+    def test_untracked_files_are_included(self):
+        files = get_go_modified_files(Context())
+
+        self.assertEqual(files, ["pkg/existing/foo.go", "pkg/newpkg/foo.go"])
 
 
 class TestTargetToBazelPattern(unittest.TestCase):
