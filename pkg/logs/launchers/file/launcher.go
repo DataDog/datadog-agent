@@ -62,6 +62,7 @@ type Launcher struct {
 	scanPeriod              time.Duration
 	flarecontroller         *flareController.FlareController
 	tagger                  tagger.Component
+	skipMissedBytes         bool
 	filesChan               chan []*tailer.File
 	filesTailedBetweenScans []*tailer.File
 	// Scan keys of files that started being skipped for an unusable fingerprint while a scan was in
@@ -103,6 +104,7 @@ func NewLauncher(
 	tagger tagger.Component,
 	fileOpener opener.FileOpener,
 	fingerprinter tailer.Fingerprinter,
+	skipMissedBytes bool,
 ) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
@@ -135,6 +137,7 @@ func NewLauncher(
 		fingerprintSkips:       make(map[string]*fingerprintSkip),
 		fileOpener:             fileOpener,
 		fingerprinter:          fingerprinter,
+		skipMissedBytes:        skipMissedBytes,
 	}
 }
 
@@ -643,6 +646,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		Fingerprinter:   s.fingerprinter,
 		Rotated:         true,
 		FileOpener:      s.fileOpener,
+		SkipMissedBytes: s.skipMissedBytes,
 	}
 
 	if fingerprint != nil {
@@ -768,6 +772,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		Fingerprint:     fingerprint,
 		Fingerprinter:   s.fingerprinter,
 		FileOpener:      s.fileOpener,
+		SkipMissedBytes: s.skipMissedBytes,
 	}
 
 	if fingerprint != nil {

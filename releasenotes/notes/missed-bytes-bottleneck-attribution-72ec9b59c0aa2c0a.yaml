@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The ``log-data-lost-after-rotation`` Agent Health issue now names the
+    saturated logs pipeline component responsible for the loss. Each affected
+    source reports the pipeline stage that was saturated at the time the data
+    was lost, alongside a snapshot of every component's saturation when the
+    issue was reported. The first remediation step names that component
+    instead of asking you to find it with ``datadog-agent status``.

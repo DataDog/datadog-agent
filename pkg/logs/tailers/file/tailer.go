@@ -151,6 +151,7 @@ type Tailer struct {
 	CapacityMonitor *metrics.CapacityMonitor
 	fileOpener      opener.FileOpener
 	baseFileOpener  opener.FileOpener
+	skipMissedBytes bool
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -167,6 +168,7 @@ type TailerOptions struct {
 	Registry        auditor.Registry         // Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
 	FileOpener      opener.FileOpener        // Required
+	SkipMissedBytes bool                     // Optional: don't report rotation losses to the missed-bytes health issue
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -239,6 +241,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		registry:                     opts.Registry,
 		fileOpener:                   opener.ForSource(opts.FileOpener, opts.File.Source),
 		baseFileOpener:               opts.FileOpener,
+		skipMissedBytes:              opts.SkipMissedBytes,
 	}
 
 	if fileRotated {
@@ -280,6 +283,7 @@ func (t *Tailer) NewRotatedTailer(
 		Fingerprinter:   fingerprinter,
 		Registry:        registry,
 		FileOpener:      t.baseFileOpener,
+		SkipMissedBytes: t.skipMissedBytes,
 	}
 
 	return NewTailer(options)
@@ -353,6 +357,9 @@ func (t *Tailer) StopAfterFileRotationForHandoff() {
 func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 	t.handoffDrain = endWhenIdle
 	t.didFileRotate.Store(true)
+	// Starts before the rotation: the backlog that outran the close timeout accumulated
+	// while the tailer was still reading.
+	lossWindowStartedAt := time.Now().Add(-t.closeTimeout)
 	bytesReadAtRotationTime := t.bytesRead.Get()
 	// Resolved before the goroutine, which first waits out the rotation drain, to
 	// keep the source lock off that path.
@@ -383,7 +390,9 @@ func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 					if remainingBytes > 0 {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
-						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes)
+						if !t.skipMissedBytes {
+							metrics.RecordMissedBytes(missedSource, missedService, remainingBytes, lossWindowStartedAt)
+						}
 						log.Warnf("After the %s, there were %d bytes remaining unread for file %q. These unread logs are now lost.%s", limit, remainingBytes, t.file.Path, advice)
 					}
 				}
