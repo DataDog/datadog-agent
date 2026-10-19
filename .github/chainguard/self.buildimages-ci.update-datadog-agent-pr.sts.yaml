@@ -1,0 +1,17 @@
+---
+# Policy used by the `update_datadog_agent_pr_with_final_images` job
+# in `datadog-agent-buildimages` CI.
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:DataDog/datadog-agent-buildimages:.*"
+
+claim_pattern:
+  project_path: DataDog/datadog-agent-buildimages
+  ref_type: branch
+  ref: (main|[0-9]+\.[0-9]+\.x)
+  ref_path: refs/heads/(main|[0-9]+\.[0-9]+\.x)
+  ref_protected: "true"
+
+permissions:
+  contents: write
+  pull_requests: write
