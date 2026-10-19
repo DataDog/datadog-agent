@@ -57,6 +57,7 @@ pkg_filegroup(
         "//conditions:default": [],
     }) + select({
         "@platforms//os:windows": [
+            ":rc_x509_windows_runtime_files",
             "//deps/agent_data_plane:all_files",
             "//deps/compile_policy:all_files",
             "//deps/security_agent_policies:all_files",
@@ -68,9 +69,9 @@ pkg_filegroup(
 )
 
 # Windows loads both native DLLs through the normal executable-directory search
-# when the Agent starts. Keep this reusable package input separate from
-# :all_files until the optimized NASM-backed FIPS build replaces the temporary
-# debug/no-assembly diagnostic configuration.
+# when the Agent starts. :all_files includes this mapping only for Windows, so
+# both the transitional Omnibus install and the assembled Bazel package place
+# the DLLs beside agent.exe without affecting Unix package layouts.
 pkg_files(
     name = "rc_x509_windows_runtime_files",
     srcs = [
@@ -197,9 +198,25 @@ sh_test(
     target_compatible_with = ["@platforms//os:macos"],
 )
 
+sh_test(
+    name = "rc_x509_packaged_agent_lifecycle_test",
+    srcs = ["rc_x509_packaged_agent_lifecycle_test.sh"],
+    args = ["$(location :rc_x509_packaged_agent_archive)"],
+    data = [":rc_x509_packaged_agent_archive"],
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
 package_licenses(
     name = "license_files",
-    src = ":_collected_libs",
+    # Analyze what this platform actually installs. In particular, Windows
+    # does not use _collected_libs, and its rc-x509/AWS-LC DLLs enter through
+    # :all_files.
+    src = ":all_files",
 )
 
 # Temporary during migration, to call from omnibus build.

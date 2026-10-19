@@ -711,6 +711,8 @@ namespace WixSetup.Datadog_Agent
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.Procmgr));
 
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AgentDataPlane));
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.RcX509Ffi));
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.AwsLcFipsCrypto));
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
