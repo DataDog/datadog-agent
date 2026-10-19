@@ -14,27 +14,27 @@ const (
 	workloadTypeAzureFunction   = "azure_function"
 )
 
-func (l *LocalService) CanCollectInventory() bool { return false }
-func (l *LocalService) GetInventoryData() serverlessdef.ServerlessInitData {
-	return serverlessdef.ServerlessInitData{}
+func (l *LocalService) CanCollectMetadata() bool { return false }
+func (l *LocalService) GetMetadata() serverlessdef.CloudServiceMetadata {
+	return serverlessdef.CloudServiceMetadata{}
 }
 
-func (c *CloudRun) CanCollectInventory() bool { return false }
-func (c *CloudRun) GetInventoryData() serverlessdef.ServerlessInitData {
-	return serverlessdef.ServerlessInitData{}
+func (c *CloudRun) CanCollectMetadata() bool { return false }
+func (c *CloudRun) GetMetadata() serverlessdef.CloudServiceMetadata {
+	return serverlessdef.CloudServiceMetadata{}
 }
 
-func (c *CloudRunJobs) CanCollectInventory() bool { return false }
-func (c *CloudRunJobs) GetInventoryData() serverlessdef.ServerlessInitData {
-	return serverlessdef.ServerlessInitData{}
+func (c *CloudRunJobs) CanCollectMetadata() bool { return false }
+func (c *CloudRunJobs) GetMetadata() serverlessdef.CloudServiceMetadata {
+	return serverlessdef.CloudServiceMetadata{}
 }
 
-func (c *ContainerApp) CanCollectInventory() bool { return false }
-func (c *ContainerApp) GetInventoryData() serverlessdef.ServerlessInitData {
-	return serverlessdef.ServerlessInitData{}
+func (c *ContainerApp) CanCollectMetadata() bool { return false }
+func (c *ContainerApp) GetMetadata() serverlessdef.CloudServiceMetadata {
+	return serverlessdef.CloudServiceMetadata{}
 }
 
-func (m *MicroVM) CanCollectInventory() bool { return false }
-func (m *MicroVM) GetInventoryData() serverlessdef.ServerlessInitData {
-	return serverlessdef.ServerlessInitData{}
+func (m *MicroVM) CanCollectMetadata() bool { return false }
+func (m *MicroVM) GetMetadata() serverlessdef.CloudServiceMetadata {
+	return serverlessdef.CloudServiceMetadata{}
 }

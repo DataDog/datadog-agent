@@ -22,9 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorypayload"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -55,7 +55,7 @@ var (
 type inventoryagent struct {
 	util.InventoryPayload
 
-	*inventorypayload.Data
+	*agentmetadata.Data
 	log          log.Component
 	conf         config.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
@@ -87,7 +87,7 @@ type Provides struct {
 // NewComponent creates a new inventoryagent component
 func NewComponent(deps Requires) Provides {
 	ia := &inventoryagent{
-		Data:         inventorypayload.NewData(deps.Config, deps.Log, deps.Hostname),
+		Data:         agentmetadata.NewData(deps.Config, deps.Log, deps.Hostname),
 		conf:         deps.Config,
 		log:          deps.Log,
 		sysprobeConf: deps.SysProbeConfig,

@@ -77,7 +77,7 @@ func TestGetWindowsAppServiceTags(t *testing.T) {
 	}, tags)
 }
 
-func TestAppServiceGetInventoryData(t *testing.T) {
+func TestAppServiceGetMetadata(t *testing.T) {
 	service := &AppService{}
 
 	t.Setenv("WEBSITE_SITE_NAME", "Test_Site_Name")
@@ -89,9 +89,9 @@ func TestAppServiceGetInventoryData(t *testing.T) {
 	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
 	require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
 
-	inv := service.GetInventoryData()
+	inv := service.GetMetadata()
 
-	assert.Equal(t, serverlessdef.ServerlessInitData{
+	assert.Equal(t, serverlessdef.CloudServiceMetadata{
 		WorkloadType:        workloadTypeAzureAppService,
 		ResourceID:          "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.web/sites/test_site_name",
 		ResourceName:        "Test_Site_Name",
@@ -100,7 +100,7 @@ func TestAppServiceGetInventoryData(t *testing.T) {
 		AzureResourceGroup:  "Test_Resource_Group",
 		RuntimeCandidates:   []string{"", "Node.js"},
 	}, inv)
-	assert.True(t, service.CanCollectInventory())
+	assert.True(t, service.CanCollectMetadata())
 	assert.Empty(t, inv.ParentResourceID)
 
 	tags := service.GetTags()
@@ -111,7 +111,7 @@ func TestAppServiceGetInventoryData(t *testing.T) {
 	assert.Equal(t, "Test_Resource_Group", tags["aas.resource.group"])
 }
 
-func TestAppServiceGetInventoryDataFunctionApp(t *testing.T) {
+func TestAppServiceGetMetadataFunctionApp(t *testing.T) {
 	for _, worker := range []string{"node", ""} {
 		t.Run("worker="+worker, func(t *testing.T) {
 			service := &AppService{}
@@ -123,10 +123,10 @@ func TestAppServiceGetInventoryDataFunctionApp(t *testing.T) {
 			t.Setenv("WEBSITE_STACK", "NODE")
 			t.Setenv("FUNCTIONS_WORKER_RUNTIME", worker)
 
-			inv := service.GetInventoryData()
+			inv := service.GetMetadata()
 
-			assert.True(t, service.CanCollectInventory())
-			assert.Equal(t, serverlessdef.ServerlessInitData{
+			assert.True(t, service.CanCollectMetadata())
+			assert.Equal(t, serverlessdef.CloudServiceMetadata{
 				WorkloadType:        workloadTypeAzureFunction,
 				ResourceID:          "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.web/sites/Test_Site_Name",
 				ResourceName:        "Test_Site_Name",
@@ -186,9 +186,9 @@ func TestAppServiceInventoryRuntimeCandidates(t *testing.T) {
 			originalTags := service.GetTags()
 
 			expected := []string{tt.worker, tt.want}
-			assert.Equal(t, expected, service.GetInventoryData().RuntimeCandidates, "candidates retain raw values and precedence")
+			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "candidates retain raw values and precedence")
 			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "InventoryOnly")
-			assert.Equal(t, expected, service.GetInventoryData().RuntimeCandidates, "override belongs to the inventory builder")
+			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "override belongs to the inventory builder")
 			assert.Equal(t, originalTags, service.GetTags(), "inventory derivation and override must not change tracing tags")
 			if tt.worker != "" {
 				assert.Equal(t, tt.worker, service.GetTags()["aas.environment.runtime"], "tracing retains unmodified worker metadata")
@@ -197,7 +197,7 @@ func TestAppServiceInventoryRuntimeCandidates(t *testing.T) {
 	}
 }
 
-func TestAppServiceGetInventoryDataWithoutAzureIDs(t *testing.T) {
+func TestAppServiceGetMetadataWithoutAzureIDs(t *testing.T) {
 	service := &AppService{}
 
 	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
@@ -206,11 +206,11 @@ func TestAppServiceGetInventoryDataWithoutAzureIDs(t *testing.T) {
 	os.Unsetenv("WEBSITE_RESOURCE_GROUP")
 	os.Unsetenv("FUNCTIONS_WORKER_RUNTIME")
 
-	inv := service.GetInventoryData()
+	inv := service.GetMetadata()
 
 	assert.Equal(t, workloadTypeAzureAppService, inv.WorkloadType)
 	assert.Empty(t, inv.ResourceID)
-	assert.True(t, service.CanCollectInventory(), "identity readiness does not change platform eligibility")
+	assert.True(t, service.CanCollectMetadata(), "identity readiness does not change platform eligibility")
 	assert.Equal(t, "test_site_name", inv.ResourceName)
 	assert.Equal(t, "eastus", inv.Region)
 }
