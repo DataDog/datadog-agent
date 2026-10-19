@@ -107,11 +107,14 @@ type defaultResolver struct {
 }
 
 type fileMeta struct {
-	path  string
-	data  []byte
-	perms uint64
-	user  string
-	group string
+	path    string
+	regular bool
+	size    int64
+	data    []byte
+	loaded  bool // data holds the content of the regular file
+	perms   uint64
+	user    string
+	group   string
 }
 
 // NewResolver returns the default inputs resolver that is able to resolve any
@@ -293,10 +296,14 @@ func (r *defaultResolver) pathNormalizeToHostRoot(path string) string {
 	return r.pathNormalize(r.opts.HostRoot, path)
 }
 
-func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
+// getFileMeta returns the metadata of the file at path and, with load, the
+// content of a regular file. Other files give their metadata alone: opening
+// a socket fails with ENXIO, and reading a FIFO or a device can block or
+// never end.
+func (r *defaultResolver) getFileMeta(path string, load bool) (*fileMeta, error) {
 	const maxFilesCached = 8
 	for _, f := range r.filesCache {
-		if f.path == path {
+		if f.path == path && (f.loaded || !load || !f.regular) {
 			return &f, nil
 		}
 	}
@@ -304,22 +311,28 @@ func (r *defaultResolver) getFileMeta(path string) (*fileMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	perms := uint64(info.Mode() & os.ModePerm)
-	var data []byte
-	if !info.IsDir() {
-		data, err = os.ReadFile(path)
+	file := &fileMeta{
+		path:    path,
+		regular: info.Mode().IsRegular(),
+		size:    info.Size(),
+		perms:   uint64(info.Mode() & os.ModePerm),
+		user:    utils.GetFileUser(info),
+		group:   utils.GetFileGroup(info),
+	}
+	if load && file.regular {
+		file.data, err = os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
+		file.loaded = true
 	}
-	file := &fileMeta{
-		path:  path,
-		data:  data,
-		perms: perms,
-		user:  utils.GetFileUser(info),
-		group: utils.GetFileGroup(info),
+	cache := r.filesCache[:0]
+	for _, f := range r.filesCache {
+		if f.path != path {
+			cache = append(cache, f)
+		}
 	}
-	r.filesCache = append(r.filesCache, *file)
+	r.filesCache = append(cache, *file)
 	if len(r.filesCache) > maxFilesCached {
 		r.filesCache = r.filesCache[1:]
 	}
@@ -350,12 +363,19 @@ func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec
 
 func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, parser string) (interface{}, error) {
 	path = r.pathNormalize(rootPath, path)
-	file, err := r.getFileMeta(path)
+	parsed := parser == "yaml" || parser == "json" || parser == "raw"
+	file, err := r.getFileMeta(path, parsed)
 	if err != nil {
 		return nil, err
 	}
 	var content interface{}
-	if len(file.data) > 0 {
+	switch {
+	case !parsed:
+		// The file stays unread: its content tells only whether it holds data.
+		if file.regular && file.size > 0 {
+			content = ""
+		}
+	case len(file.data) > 0:
 		switch parser {
 		case "yaml":
 			err = yamlv3.Unmarshal(file.data, &content)
@@ -369,8 +389,6 @@ func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, par
 			err = json.Unmarshal(file.data, &content)
 		case "raw":
 			content = string(file.data)
-		default:
-			content = ""
 		}
 		if err != nil {
 			return nil, err
