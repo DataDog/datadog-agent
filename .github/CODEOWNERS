@@ -595,9 +595,9 @@
 /comp/core/remoteagent/impl-trace         @DataDog/agent-runtimes @DataDog/agent-apm
 /comp/core/remoteagent/impl-securityagent @DataDog/agent-runtimes @DataDog/agent-security
 
-# serverless-init inventory metadata shares these with serverless-azure-and-gcp
+# serverless-init metadata shares these with serverless-azure-and-gcp
 /comp/metadata/internal/util/              @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
-/comp/metadata/inventorypayload/           @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
+/comp/metadata/agentmetadata/           @DataDog/fleet-automation @DataDog/serverless-azure-and-gcp
 
 # pkg
 /pkg/                                                                 @DataDog/agent-runtimes

@@ -20,11 +20,11 @@ import (
 const reportReasonStartup = "startup"
 const reportReasonPeriodic = "periodic"
 
-// serverlessInitFlavor is the flavor reported in the inventory payload only;
+// serverlessInitFlavor is the flavor reported in the metadata payload only;
 // it is not the process-global flavor (flavor.SetFlavor).
 const serverlessInitFlavor = "serverless-init"
 
-// buildFields flattens the per-platform inventory data and process-level
+// buildFields flattens the per-platform metadata and process-level
 // serverless context into the (unprefixed) agent_metadata keys. env, service,
 // and version come from the tag map so they match the values this container
 // tags its telemetry with; site is not a tag, so it comes from the config.
@@ -63,7 +63,7 @@ func buildFields(inv serverlessdef.CloudServiceMetadata, params serverlessdef.Pa
 	// wrapped_command is opt-in because redaction is best effort; it is set to
 	// nil when disabled.
 	fields["wrapped_command"] = nil
-	if conf.GetBool("serverless.inventory_wrapped_command_enabled") && len(wrappedCommand) > 0 {
+	if conf.GetBool("serverless.metadata_wrapped_command_enabled") && len(wrappedCommand) > 0 {
 		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(wrappedCommand, " "))
 	}
 

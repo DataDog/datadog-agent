@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    Renames the serverless-init metadata settings before their first release:
+    ``serverless.inventory_enabled`` is now ``serverless.metadata_enabled``
+    (``DD_SERVERLESS_INIT_METADATA_ENABLED``), and
+    ``serverless.inventory_wrapped_command_enabled`` is now
+    ``serverless.metadata_wrapped_command_enabled``
+    (``DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED``).
+    The runtime override environment variable is renamed from
+    ``DD_SERVERLESS_INVENTORY_RUNTIME`` to ``DD_SERVERLESS_METADATA_RUNTIME``.
+    The previous names were never included in a release, so no configuration
+    changes are required.

@@ -49,14 +49,14 @@ func TestResolveRuntimePrecedence(t *testing.T) {
 		{name: "no evidence"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", tt.override)
+			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", tt.override)
 			assert.Equal(t, tt.want, resolveRuntime(tt.metadata, tt.command))
 		})
 	}
 }
 
 func TestResolveRuntimeLauncher(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 	for _, tt := range []struct {
 		name    string
 		command []string
@@ -110,7 +110,7 @@ func TestResolveRuntimeLauncher(t *testing.T) {
 }
 
 func TestResolveRuntimeWrappedExecutable(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 	for _, tt := range []struct {
 		executable string
 		want       string

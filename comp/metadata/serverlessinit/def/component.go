@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package serverlessinit defines the serverless-init inventory metadata provider.
+// Package serverlessinit defines the serverless-init metadata provider.
 package serverlessinit
 
 // team: serverless-azure-and-gcp fleet-automation

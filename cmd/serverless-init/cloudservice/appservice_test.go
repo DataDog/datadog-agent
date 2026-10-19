@@ -143,7 +143,7 @@ func TestAppServiceGetMetadataFunctionApp(t *testing.T) {
 	}
 }
 
-func TestAppServiceInventoryRuntimeCandidates(t *testing.T) {
+func TestAppServiceMetadataRuntimeCandidates(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		stack  string
@@ -181,15 +181,15 @@ func TestAppServiceInventoryRuntimeCandidates(t *testing.T) {
 			t.Setenv("DOCKER_SERVER_VERSION", "24.0.0")
 			t.Setenv("FUNCTIONS_EXTENSION_VERSION", "~4")
 			t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "")
-			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 			service := &AppService{}
 			originalTags := service.GetTags()
 
 			expected := []string{tt.worker, tt.want}
 			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "candidates retain raw values and precedence")
-			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "InventoryOnly")
-			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "override belongs to the inventory builder")
-			assert.Equal(t, originalTags, service.GetTags(), "inventory derivation and override must not change tracing tags")
+			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "InventoryOnly")
+			assert.Equal(t, expected, service.GetMetadata().RuntimeCandidates, "override belongs to the metadata builder")
+			assert.Equal(t, originalTags, service.GetTags(), "metadata derivation and override must not change tracing tags")
 			if tt.worker != "" {
 				assert.Equal(t, tt.worker, service.GetTags()["aas.environment.runtime"], "tracing retains unmodified worker metadata")
 			}

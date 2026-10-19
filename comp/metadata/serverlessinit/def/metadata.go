@@ -9,7 +9,7 @@ import (
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// Application-runtime names shared by every inventory derivation path. Platform
+// Application-runtime names shared by every metadata derivation path. Platform
 // metadata mapping and wrapped-command detection must select from the same
 // vocabulary, and these exact strings are what downstream consumers join on.
 const (
@@ -22,7 +22,7 @@ const (
 )
 
 // CloudServiceMetadata holds the per-platform serverless fields that feed the
-// serverless-init inventory metadata payload. Each CloudServiceMetadataProvider
+// serverless-init metadata payload. Each CloudServiceMetadataProvider
 // implementation derives these from its own environment so the payload builder
 // stays thin and the derivation lives next to the existing tag logic.
 //
@@ -47,7 +47,7 @@ type CloudServiceMetadata struct {
 	AzureResourceGroup  string
 
 	// RuntimeCandidates are raw application-runtime values in priority order.
-	// The inventory resolver normalizes them and selects the first usable value.
+	// The runtime resolver normalizes them and selects the first usable value.
 	// Platform-derived candidates use the runtime names declared above; values
 	// read verbatim from platform metadata keep their own naming and case.
 	RuntimeCandidates []string
@@ -65,12 +65,12 @@ type CloudServiceMetadataProvider interface {
 	// CanCollectMetadata reports platform support without collecting data or checking identity readiness.
 	CanCollectMetadata() bool
 	// GetMetadata returns the per-platform serverless fields for the
-	// inventory metadata payload.
+	// metadata payload.
 	GetMetadata() CloudServiceMetadata
 }
 
-// Eligible reports whether the serverless inventory payload may be
+// Eligible reports whether the serverless metadata payload may be
 // collected: the configuration opt-in and a provider that can collect.
 func Eligible(conf configmodel.Reader, provider CloudServiceMetadataProvider) bool {
-	return conf.GetBool("serverless.inventory_enabled") && provider.CanCollectMetadata()
+	return conf.GetBool("serverless.metadata_enabled") && provider.CanCollectMetadata()
 }

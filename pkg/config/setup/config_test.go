@@ -1677,12 +1677,12 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 
-	// inventory metadata collection is available in serverless-init, gated by
-	// the serverless-only serverless.inventory_enabled ramp key
+	// metadata collection is available in serverless-init, gated by
+	// the serverless-only serverless.metadata_enabled ramp key
 	assert.True(t, conf.IsKnown("inventories_enabled"))
 	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
-	assert.True(t, conf.IsKnown("serverless.inventory_enabled"))
-	assert.True(t, conf.IsKnown("serverless.inventory_wrapped_command_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_wrapped_command_enabled"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.
@@ -1692,9 +1692,9 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
 }
 
-func TestServerlessInventoryWrappedCommandEnabled(t *testing.T) {
-	const envVar = "DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED"
-	const key = "serverless.inventory_wrapped_command_enabled"
+func TestServerlessMetadataWrappedCommandEnabled(t *testing.T) {
+	const envVar = "DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED"
+	const key = "serverless.metadata_wrapped_command_enabled"
 	for _, tt := range []struct {
 		name string
 		env  string
