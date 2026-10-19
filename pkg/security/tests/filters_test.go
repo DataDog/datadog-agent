@@ -510,8 +510,6 @@ var _ = declareInlineConfig(TestFilterOpenApproverWorkloadProfile)
 // TestFilterOpenApproverWorkloadProfile checks that the opens rejected by the approvers of a rule are forwarded by
 // the workload profile sampler, so that each process opening the file is learned by the workload profile.
 func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
-	t.Skip("Skip until the fix is implemented")
-
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -553,8 +551,8 @@ func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
 
 	testFile := "/tmp/test/test-obc-2"
 
-	// The sampler deduplicates the opens on the parent pid, the executable and the file: run both busybox applets
-	// from the same shell so that they share their parent whatever the container runtime does on `docker exec`.
+	// The sampler deduplicates the opens on the parent pid, the executable, the comm and the file: run both busybox
+	// applets from the same shell so that only their comm differs, whatever the container runtime does on `docker exec`.
 	// The trailing builtin keeps the shell from exec'ing cat in place of itself, which would change its parent.
 	var lock sync.Mutex
 	ppids := make(map[string]any)

@@ -73,7 +73,7 @@ func NewWorker(
 	blocked *blockedEndpoints,
 	pointCountTelemetry PointCountTelemetry,
 	httpClient *SharedConnection,
-	concurrency concurrencyPolicy,
+	concurrency concurrencyDomain,
 ) *Worker {
 	workerCtx, cancel := context.WithCancel(context.Background())
 
