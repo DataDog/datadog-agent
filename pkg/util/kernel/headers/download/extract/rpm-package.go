@@ -9,6 +9,7 @@ package extract
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,21 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/types"
 )
 
-// ExtractRPMPackage extracts an RPM package at path `pkg` into `directory` with the kernel version `kernelUname`.
-func ExtractRPMPackage(pkg, directory, kernelUname string, l types.Logger) error {
-	pkgFile, err := os.Open(pkg)
+// ExtractRPMPackage extracts an RPM from reader into directory for kernelUname.
+func ExtractRPMPackage(reader io.Reader, directory, kernelUname string, l types.Logger) error {
+	rpm, err := rpmutils.ReadRpm(reader)
 	if err != nil {
-		return fmt.Errorf("open download package %s: %w", pkg, err)
+		return fmt.Errorf("parse RPM package: %w", err)
 	}
-	defer pkgFile.Close()
-
-	rpm, err := rpmutils.ReadRpm(pkgFile)
-	if err != nil {
-		return fmt.Errorf("parse RPM package %s: %w", pkg, err)
-	}
-
 	if err := rpm.ExpandPayload(directory); err != nil {
-		return fmt.Errorf("extract RPM package %s: %w", pkg, err)
+		return fmt.Errorf("extract RPM package: %w", err)
 	}
 
 	fixKernelModulesSymlinks(directory, kernelUname, l)
