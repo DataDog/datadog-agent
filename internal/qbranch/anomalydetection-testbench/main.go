@@ -396,7 +396,7 @@ func run(
 }
 
 func validateCLIParams(params CLIParams) error {
-	if _, err := observerimpl.ParseAllowedMetricTypes(params.AllowedTypes); err != nil {
+	if err := observerimpl.ValidateAllowedMetricTypes(params.AllowedTypes); err != nil {
 		return fmt.Errorf("invalid allowed_types: %w", err)
 	}
 	if params.RetainParquet && params.Headless == "" {
@@ -421,7 +421,7 @@ func parseAllowedTypesFlag(raw string) ([]string, error) {
 	if len(out) == 0 {
 		return nil, nil
 	}
-	if _, err := observerimpl.ParseAllowedMetricTypes(out); err != nil {
+	if err := observerimpl.ValidateAllowedMetricTypes(out); err != nil {
 		return nil, err
 	}
 	return out, nil

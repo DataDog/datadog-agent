@@ -106,9 +106,15 @@ func ParseMetricTypeName(raw string) (metrics.MetricType, error) {
 	)
 }
 
-// ParseAllowedMetricTypes validates and compiles a list of metric type names into a bitmask.
+// ValidateAllowedMetricTypes validates that every entry in raw is a supported metric type name.
+func ValidateAllowedMetricTypes(raw []string) error {
+	_, err := parseAllowedMetricTypes(raw)
+	return err
+}
+
+// parseAllowedMetricTypes validates and compiles a list of metric type names into a bitmask.
 // An empty slice produces a zero filter that allows all metric types.
-func ParseAllowedMetricTypes(raw []string) (metricTypeFilter, error) {
+func parseAllowedMetricTypes(raw []string) (metricTypeFilter, error) {
 	if len(raw) == 0 {
 		return 0, nil
 	}
@@ -252,7 +258,7 @@ func loadMetricFilter(cfg config.Component) (*metricsFilterRules, error) {
 			return nil, fmt.Errorf("%s: decode failed: %w", metricAllowedTypesConfigKey, err)
 		}
 		var err error
-		typeFilter, err = ParseAllowedMetricTypes(rawTypes)
+		typeFilter, err = parseAllowedMetricTypes(rawTypes)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", metricAllowedTypesConfigKey, err)
 		}

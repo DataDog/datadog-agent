@@ -1102,8 +1102,9 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 
 func TestParseAllowedMetricTypes(t *testing.T) {
 	t.Run("empty list allows all types including unknown", func(t *testing.T) {
-		filter, err := ParseAllowedMetricTypes(nil)
+		filter, err := parseAllowedMetricTypes(nil)
 		require.NoError(t, err)
+		require.NoError(t, ValidateAllowedMetricTypes(nil))
 		assert.True(t, filter.isTypeAllowed(observerdef.UnknownType))
 		for mt := metrics.MetricType(0); mt < metrics.NumMetricTypes; mt++ {
 			assert.True(t, filter.isTypeAllowed(mt), "expected %s to be allowed", mt)
@@ -1111,8 +1112,9 @@ func TestParseAllowedMetricTypes(t *testing.T) {
 	})
 
 	t.Run("configured list allows only specified types and rejects unknown when omitted", func(t *testing.T) {
-		filter, err := ParseAllowedMetricTypes([]string{"gauge", "Count", "monotonic_count", "GaugeWithTimestamp"})
+		filter, err := parseAllowedMetricTypes([]string{"gauge", "Count", "monotonic_count", "GaugeWithTimestamp"})
 		require.NoError(t, err)
+		require.NoError(t, ValidateAllowedMetricTypes([]string{"gauge", "Count", "monotonic_count", "GaugeWithTimestamp"}))
 
 		assert.True(t, filter.isTypeAllowed(metrics.GaugeType))
 		assert.True(t, filter.isTypeAllowed(metrics.CountType))
@@ -1129,7 +1131,7 @@ func TestParseAllowedMetricTypes(t *testing.T) {
 	})
 
 	t.Run("unknown can be explicitly allowed", func(t *testing.T) {
-		filter, err := ParseAllowedMetricTypes([]string{"unknown", "Count"})
+		filter, err := parseAllowedMetricTypes([]string{"unknown", "Count"})
 		require.NoError(t, err)
 
 		assert.True(t, filter.isTypeAllowed(observerdef.UnknownType))
@@ -1138,14 +1140,14 @@ func TestParseAllowedMetricTypes(t *testing.T) {
 	})
 
 	t.Run("invalid type returns error with all valid types", func(t *testing.T) {
-		_, err := ParseAllowedMetricTypes([]string{"Gauge", "not_a_type"})
+		err := ValidateAllowedMetricTypes([]string{"Gauge", "not_a_type"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `invalid metric type "not_a_type"`)
 		assert.Contains(t, err.Error(), "valid types: Unknown, Gauge, Rate, Count, MonotonicCount, Counter, Histogram, Historate, Set, Distribution, GaugeWithTimestamp, CountWithTimestamp")
 	})
 
 	t.Run("empty string entry returns error with all valid types", func(t *testing.T) {
-		_, err := ParseAllowedMetricTypes([]string{"  "})
+		err := ValidateAllowedMetricTypes([]string{"  "})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `invalid metric type ""`)
 		for _, name := range ValidMetricTypeNames() {
