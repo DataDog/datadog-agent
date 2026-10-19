@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 )
 
-const datadogPackagePrefix = "com.datadoghq."
+const authoredScriptPackagePrefix = "com.datadoghq.authoredscripts."
 
 // NewRemoteCatalog creates an empty authored-script catalog and subscribes it
 // to the requested Remote Config product.
@@ -49,7 +49,7 @@ func (c *remoteCatalog) replace(next fleetcatalog.Catalog) error {
 
 	compatiblePackages := make(map[string]fleetcatalog.Package)
 	for _, pkg := range next.Packages {
-		if !strings.HasPrefix(pkg.Name, datadogPackagePrefix) {
+		if !strings.HasPrefix(pkg.Name, authoredScriptPackagePrefix) {
 			continue
 		}
 		if err := validateRemotePackage(pkg); err != nil {
@@ -83,7 +83,7 @@ func (c *remoteCatalog) WaitForReady(ctx context.Context) error {
 }
 
 func (c *remoteCatalog) Lookup(fqn string) (Descriptor, error) {
-	if !strings.HasPrefix(fqn, datadogPackagePrefix) || len(fqn) == len(datadogPackagePrefix) {
+	if !strings.HasPrefix(fqn, authoredScriptPackagePrefix) || len(fqn) == len(authoredScriptPackagePrefix) {
 		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, fqn)
 	}
 

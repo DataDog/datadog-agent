@@ -141,10 +141,7 @@ func (e *WorkflowTaskExecutor) RunTask(
 	task := preparedTask.Task
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
-	executionFQN := task.Data.Attributes.ExecutionFQN
-	if executionFQN == "" {
-		executionFQN = fqn
-	}
+	executionFQN := task.GetExecutionFQN()
 	executionBundle, executionAction := actions.SplitFQN(executionFQN)
 	bundle := e.registry.GetBundle(executionBundle)
 	if bundle == nil {

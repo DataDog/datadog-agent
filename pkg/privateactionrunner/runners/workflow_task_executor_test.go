@@ -183,6 +183,7 @@ func TestWorkflowTaskExecutorRoutesByExecutionFQNAndAuthorizesPublicFQN(t *testi
 	const (
 		publicBundle   = "com.datadoghq.helm"
 		actionName     = "addRepo"
+		publicFQN      = publicBundle + "." + actionName
 		scriptBundle   = "com.datadoghq.authoredscripts"
 		scriptAliasFQN = scriptBundle + ".helm." + actionName
 	)
@@ -199,6 +200,13 @@ func TestWorkflowTaskExecutorRoutesByExecutionFQNAndAuthorizesPublicFQN(t *testi
 	}{
 		{
 			name:                 "native action uses public FQN when execution FQN is absent",
+			allowlist:            map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+			wantNative:           true,
+			wantNativeActionName: actionName,
+		},
+		{
+			name:                 "native action uses public FQN when execution FQN matches it",
+			executionFQN:         publicFQN,
 			allowlist:            map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
 			wantNative:           true,
 			wantNativeActionName: actionName,
