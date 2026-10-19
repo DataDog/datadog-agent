@@ -9,6 +9,8 @@ package gpu
 
 import (
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,9 +39,9 @@ func (f *fakeUnschedulableSource) NodeUnschedulable() (nodeunschedulable.Result,
 
 func (f *fakeUnschedulableSource) Probe() error { return errors.New("probe not expected") }
 
-func newNodeUnschedulableTestCheck(t *testing.T, src *fakeUnschedulableSource) (*Check, *mocksender.MockSender) {
+func newNodeUnschedulableTestCheck(t *testing.T, src *fakeUnschedulableSource, opts ...testutil.NvmlMockOption) (*Check, *mocksender.MockSender) {
 	t.Helper()
-	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
+	nvmltestutil.SetupMockNVML(t, append([]testutil.NvmlMockOption{testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2)}, opts...)...)
 	env.SetFeatures(t, env.Kubernetes)
 	configmock.New(t).SetInTest(nodeUnschedulableEnabledKey, true)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -79,6 +81,35 @@ func TestNodeUnschedulableEmitsAndCloses(t *testing.T) {
 	mockSender.ResetCalls()
 	check.emitNodeUnschedulable(mockSender, t1.Add(nodeunschedulable.ClosingWindow))
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
+}
+
+// MIG slices report the node state like gpu.device.total, with their own device tags.
+func TestNodeUnschedulableIncludesMIGSlices(t *testing.T) {
+	src := &fakeUnschedulableSource{result: nodeunschedulable.Result{Unschedulable: true, Reasons: []string{"cordoned"}}}
+	check, mockSender := newNodeUnschedulableTestCheck(t, src,
+		testutil.WithDeviceOptions(0,
+			testutil.WithMIGEnabled(),
+			testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]}),
+		),
+		testutil.WithMIGDeviceCountCallback(func(deviceIdx int) int {
+			if deviceIdx == 0 {
+				return 1
+			}
+			return 0
+		}),
+	)
+	sliceTags := []string{
+		"gpu_uuid:" + strings.ToLower(testutil.MIGUUIDs[0]),
+		"gpu_slicing_mode:mig",
+		"gpu_parent_uuid:" + strings.ToLower(testutil.GPUUUIDs[0]),
+	}
+	check.deviceTags = map[string][]string{testutil.MIGUUIDs[0]: sliceTags}
+
+	now := time.Now()
+	check.emitNodeUnschedulable(mockSender, now)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 3) // two physical GPUs and the MIG slice
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.unavailable", 1, "",
+		append(slices.Clone(sliceTags), "unavailable_reason:unschedulable", "unschedulable_reason:cordoned"), toTimestamp(now))
 }
 
 // A failed fetch keeps the last result with no time limit: the series keeps its 1.

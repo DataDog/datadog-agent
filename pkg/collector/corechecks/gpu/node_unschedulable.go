@@ -58,8 +58,8 @@ func (c *Check) configureNodeUnschedulable(cfg model.Reader) {
 	}
 }
 
-// emitNodeUnschedulable emits the node state on every device of gpu.device.total. Like
-// gpu.device.total, it pauses while NVML is released for a MIG reconfiguration.
+// emitNodeUnschedulable emits the node state on every device of gpu.device.total, MIG slices
+// included, with the same device tags. It pauses while NVML is released for a MIG reconfiguration.
 func (c *Check) emitNodeUnschedulable(snd sender.Sender, now time.Time) {
 	nu := c.nodeUnschedulable
 	if nu == nil || !env.IsFeaturePresent(env.Kubernetes) {

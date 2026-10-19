@@ -932,10 +932,10 @@ metrics:
         cordoned or matches a gpu.unschedulable_nodes label or condition rule; each
         cause is an unschedulable_reason tag (cordoned, <key>:<value> or
         <type>:<status>). These node-level series are reported for every device
-        that reports gpu.device.total (physical GPUs, MIG parents and MIG
-        slices), carry the device tags but never workload tags, and are sparse: 1
-        while the tagset applies, then 0 for 10 minutes after it stops applying,
-        then no data.
+        that reports gpu.device.total, MIG slices included (filter on
+        gpu_slicing_mode to count physical GPUs), carry the device tags but never
+        workload tags, and are sparse: 1 while the tagset applies, then 0 for 10
+        minutes after it stops applying, then no data.
       aggregation: absolute_usage
     tagsets:
       - device
