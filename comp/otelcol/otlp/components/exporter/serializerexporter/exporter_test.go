@@ -625,11 +625,9 @@ func TestAzureAppServiceRunningMetric(t *testing.T) {
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
 	require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
-		"cloud.platform":            "azure.app_service",
-		"service.name":              "my-app",
-		"cloud.account.id":          "sub-123",
-		"azure.resource_group.name": "my-rg",
-		"service.instance.id":       "instance-1",
+		"cloud.platform":    "azure.app_service",
+		"service.name":      "my-app",
+		"cloud.resource_id": "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
 	}))
 	metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
 	metric.SetName("my.metric")

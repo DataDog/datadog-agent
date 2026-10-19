@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix histogram buckets with a ``-Inf`` lower bound being dropped when sent as
+    distributions, which caused observations in the lowest bucket of OpenMetrics
+    histograms with a negative first bucket to be lost. These buckets are now
+    counted at their upper bound, as the ``+Inf`` top bucket is counted at its
+    lower bound.

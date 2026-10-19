@@ -386,7 +386,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
@@ -477,7 +477,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
-	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		if p.shutdowner != nil {
 			go func() {

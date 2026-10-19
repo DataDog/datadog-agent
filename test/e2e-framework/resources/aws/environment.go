@@ -47,6 +47,7 @@ const (
 	DDInfraDefaultDatadogPublicRegistry          = "aws/defaultDatadogPublicRegistry"
 	DDInfraUseMacosCompatibleSubnets             = "aws/useMacosCompatibleSubnets"
 	DDInfraDefaultLeaseBucket                    = "aws/defaultLeaseBucket"
+	DDInfraTrackSSHActivity                      = "aws/trackSSHActivity"
 
 	// AWS ECS
 	DDInfraEcsExecKMSKeyID                  = "aws/ecs/execKMSKeyID"
@@ -74,6 +75,7 @@ const (
 	DDInfraEksWindowsNodeGroup                     = "aws/eks/windowsNodeGroup"
 	DDInfraEksGPUNodeGroup                         = "aws/eks/gpuNodeGroup"
 	DDInfraEksGPUInstanceType                      = "aws/eks/gpuInstanceType"
+	DDInfraEksAutoMode                             = "aws/eks/autoMode"
 	DDInfraEksAccountAdminSSORole                  = "aws/eks/accountAdminSSORole"
 	DDInfraEksReadOnlySSORole                      = "aws/eks/readOnlySSORole"
 )
@@ -335,6 +337,14 @@ func (e *Environment) DefaultLeaseBucket() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultLeaseBucket, e.envDefault.ddInfra.leaseBucket)
 }
 
+// TrackSSHActivity returns whether Linux and Windows VMs should keep their "last-activity" tag up to
+// date while used over SSH, so that test-infra-cleaner does not delete them while they are in use.
+// Enabled by `dda inv aws.create-vm` and the agent-health demo lab, as test VMs do not outlive the
+// cleaner's threshold.
+func (e *Environment) TrackSSHActivity() bool {
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraTrackSSHActivity, e.envDefault.ddInfra.trackSSHActivity)
+}
+
 func (e *Environment) UseMacosCompatibleSubnets() bool {
 	return e.GetBoolWithDefault(e.InfraConfig, DDInfraUseMacosCompatibleSubnets, e.envDefault.ddInfra.useMacosCompatibleSubnets)
 }
@@ -452,6 +462,32 @@ func (e *Environment) EKSGPUNodeGroup() bool {
 
 func (e *Environment) EKSGPUInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraEksGPUInstanceType, e.envDefault.ddInfra.eks.gpuInstanceType)
+}
+
+func (e *Environment) EKSAutoMode() bool {
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraEksAutoMode, e.envDefault.ddInfra.eks.autoMode)
+}
+
+// EKSExplicitlyEnabledNodeGroups returns the configuration keys of the managed node
+// groups that are explicitly enabled in the Pulumi config, ignoring the ones that are
+// merely defaulted on. It lets callers reject a configuration that asks for both Auto
+// Mode and managed node groups, instead of silently dropping one of the two.
+func (e *Environment) EKSExplicitlyEnabledNodeGroups() []string {
+	var enabled []string
+	for _, key := range []string{
+		DDInfraEksLinuxNodeGroup,
+		DDInfraEksLinuxARMNodeGroup,
+		DDInfraEksLinuxBottlerocketNodeGroup,
+		DDInfraEksWindowsNodeGroup,
+		DDInfraEksGPUNodeGroup,
+	} {
+		// A missing key returns ErrMissingVar, which is how a default is told apart
+		// from a value someone actually set.
+		if val, err := e.InfraConfig.TryBool(key); err == nil && val {
+			enabled = append(enabled, key)
+		}
+	}
+	return enabled
 }
 
 func (e *Environment) EKSAccountAdminSSORole() string {

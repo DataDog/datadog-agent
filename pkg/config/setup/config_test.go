@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +46,69 @@ func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T)
 	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
 	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
 }
+
+func TestConfigureDelegatedAuthSharesStartupBudgetAndAllowsEndpointRecovery(t *testing.T) {
+	startupCtx := &expiringDeadlineContext{done: make(chan struct{})}
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	var sharedCtx context.Context
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
+		if sharedCtx == nil {
+			sharedCtx = ctx
+			startupCtx.expire()
+		} else {
+			assert.Same(t, sharedCtx, ctx)
+		}
+		paramsByKey[params.APIKeyConfigKey] = params
+		return ctx.Err()
+	}}
+	config := confFromYAML(t, `
+delegated_auth:
+  org_uuid: flat-org
+  startup_timeout_secs: 5
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA[map-org, aws]
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA[list-org, aws]
+`)
+	startedAt := time.Now()
+	require.ErrorIs(t, configureDelegatedAuth(startupCtx, config, comp), context.DeadlineExceeded)
+	require.NotNil(t, sharedCtx)
+	assert.NotSame(t, startupCtx, sharedCtx)
+	deadline, ok := sharedCtx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, startedAt.Add(5*time.Second), deadline, time.Second)
+
+	for _, key := range []string{
+		"api_key",
+		"additional_endpoints[https://metrics.datadoghq.com][0][map-org]",
+		"logs_config.additional_endpoints[0][list-org]",
+	} {
+		require.Contains(t, paramsByKey, key)
+		assert.True(t, paramsByKey[key].AllowAsyncStartup)
+	}
+}
+
+type expiringDeadlineContext struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func (c *expiringDeadlineContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c *expiringDeadlineContext) Done() <-chan struct{}       { return c.done }
+func (c *expiringDeadlineContext) Value(any) any               { return nil }
+func (c *expiringDeadlineContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+func (c *expiringDeadlineContext) expire() { c.once.Do(func() { close(c.done) }) }
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)
@@ -258,25 +322,25 @@ func TestUnexpectedWhitespace(t *testing.T) {
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
-	test := func(v string, unknown bool, additional []string) func(*testing.T) {
+	test := func(v string, unknown bool) func(*testing.T) {
 		return func(t *testing.T) {
 			env := []string{v + "=foo"}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(newTestConf(t), env, additional))
+			assert.Equal(t, exp, findUnknownEnvVars(env))
 		}
 	}
-	t.Run("DD_API_KEY", test("DD_API_KEY", false, nil))
-	t.Run("DD_SITE", test("DD_SITE", false, nil))
-	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true, nil))
-	t.Run("UNKNOWN", test("UNKNOWN", false, nil)) // no DD_ prefix
-	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false, nil))
-	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false, nil))
-	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false, nil))
-	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false, nil))
-	t.Run("DD_SYSTEM_PROBE_EXTRA", test("DD_SYSTEM_PROBE_EXTRA", false, []string{"DD_SYSTEM_PROBE_EXTRA"}))
+	t.Run("DD_API_KEY", test("DD_API_KEY", false))
+	t.Run("DD_SITE", test("DD_SITE", false))
+	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true))
+	t.Run("UNKNOWN", test("UNKNOWN", false)) // no DD_ prefix
+	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false))
+	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false))
+	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false))
+	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false))
+	t.Run("DD_SYSTEM_PROBE_EXTRA", test("DD_SYSTEM_PROBE_EXTRA", true))
 }
 
 func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
@@ -551,7 +615,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -668,7 +732,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1399,7 +1463,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1447,7 +1511,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1489,7 +1553,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1542,7 +1606,7 @@ use_proxy_for_cloud_metadata: true
 		"diff_url": "second_value",
 	})
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = resolveSecrets(config, resolver, "unit_test")
@@ -1589,7 +1653,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
@@ -1737,7 +1801,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), []string{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t))
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

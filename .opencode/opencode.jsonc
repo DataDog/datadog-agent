@@ -1,22 +1,22 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "dd-api": {
+    "api": {
       "type": "remote",
       "url": "https://mcp.datadoghq.com/v1/mcp?toolsets=all",
       "enabled": true
     },
-    "dd-ci": {
+    "ci": {
       "type": "remote",
       "url": "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp",
       "enabled": true
     },
-    "dd-google-workspace": {
+    "google-workspace": {
       "type": "remote",
       "url": "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp",
       "enabled": true
     },
-    "dd-atlassian": {
+    "atlassian": {
       "type": "remote",
       "url": "https://mcp.atlassian.com/v1/mcp/authv2",
       "enabled": true
