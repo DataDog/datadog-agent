@@ -20,7 +20,7 @@ func (eligibleProvider) GetMetadata() CloudServiceMetadata { return CloudService
 
 func TestEligible(t *testing.T) {
 	assert.False(t, Eligible(config.NewMock(t), eligibleProvider(true)), "default off")
-	conf := config.NewMockWithOverrides(t, map[string]any{"serverless.inventory_enabled": true})
+	conf := config.NewMockWithOverrides(t, map[string]any{"serverless.metadata_enabled": true})
 	assert.False(t, Eligible(conf, eligibleProvider(false)))
 	assert.True(t, Eligible(conf, eligibleProvider(true)))
 }

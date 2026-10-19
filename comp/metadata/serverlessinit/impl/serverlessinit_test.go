@@ -94,7 +94,7 @@ func newTestComponent(t *testing.T, overrides map[string]any, provider *fakeProv
 
 func enabledConfig() map[string]any {
 	return map[string]any{
-		"serverless.inventory_enabled":      true,
+		"serverless.metadata_enabled":       true,
 		"inventories_first_run_delay":       0,
 		"inventories_min_interval":          2,
 		"inventories_max_interval":          6,
@@ -208,11 +208,11 @@ func TestLateIdentityAndCanceledWait(t *testing.T) {
 }
 
 func TestCollectionDisabled(t *testing.T) {
-	for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection", "ineligible provider"} {
+	for _, key := range []string{"serverless.metadata_enabled", "inventories_enabled", "enable_metadata_collection", "ineligible provider"} {
 		t.Run(key, func(t *testing.T) {
 			conf := enabledConfig()
 			provider := &fakeProvider{eligible: key != "ineligible provider"}
-			if key == "serverless.inventory_enabled" {
+			if key == "serverless.metadata_enabled" {
 				delete(conf, key)
 			} else if key != "ineligible provider" {
 				conf[key] = false
@@ -422,7 +422,7 @@ func TestRunnerShutdownOrdering(t *testing.T) {
 func TestCollectionConfigurationAndWrappedCommand(t *testing.T) {
 	conf := enabledConfig()
 	conf["inventories_configuration_enabled"] = true
-	conf["serverless.inventory_wrapped_command_enabled"] = true
+	conf["serverless.metadata_wrapped_command_enabled"] = true
 	conf["api_key"] = "secret-api-key"
 	provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "resource"}}
 	p, s, _ := newTestComponent(t, conf, provider, serverlessdef.Params{WrappedCommand: []string{"python", "app.py"}})

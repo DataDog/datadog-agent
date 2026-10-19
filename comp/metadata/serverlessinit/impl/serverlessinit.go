@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-// Package serverlessinitimpl implements the serverless-init inventory metadata provider.
+// Package serverlessinitimpl implements the serverless-init metadata provider.
 package serverlessinitimpl
 
 import (
@@ -70,7 +70,7 @@ type Provides struct {
 	Provider runnerdef.Provider
 }
 
-// NewComponent registers collection without reading inventory data or submitting a payload.
+// NewComponent registers collection without reading metadata or submitting a payload.
 func NewComponent(deps Requires) Provides {
 	params := deps.Params
 	params.Tags = maps.Clone(params.Tags)
@@ -99,7 +99,7 @@ func NewComponent(deps Requires) Provides {
 }
 
 // collect is the runner callback: it waits for resource identity, records the
-// inventory snapshot, and returns the interval the payload reports.
+// metadata snapshot, and returns the interval the payload reports.
 func (c *serverlessinitComp) collect(ctx context.Context) time.Duration {
 	release, ok := c.enter(ctx)
 	if !ok {
@@ -110,7 +110,7 @@ func (c *serverlessinitComp) collect(ctx context.Context) time.Duration {
 	if !ok {
 		return c.payload.MinInterval
 	}
-	c.applyInventoryData(data)
+	c.applyMetadata(data)
 	return c.payload.Collect(ctx)
 }
 
@@ -150,11 +150,11 @@ func (c *serverlessinitComp) waitForIdentity(ctx context.Context) (serverlessdef
 	return serverlessdef.CloudServiceMetadata{}, false
 }
 
-// applyInventoryData records a newly observed inventory snapshot: it triggers
+// applyMetadata records a newly observed metadata snapshot: it triggers
 // a payload refresh when the wire fields changed, rotates the host UUID when
 // the resource identity changed, and constructs the base payload data on first
 // use (NewData reads install info, so the constructor stays free of file reads).
-func (c *serverlessinitComp) applyInventoryData(data serverlessdef.CloudServiceMetadata) {
+func (c *serverlessinitComp) applyMetadata(data serverlessdef.CloudServiceMetadata) {
 	fields := buildFields(data, c.params, c.conf)
 	if !reflect.DeepEqual(fields, c.fields) {
 		c.payload.Refresh()
@@ -223,13 +223,13 @@ func (c *serverlessinitComp) stop(ctx context.Context) error {
 	if !ok {
 		return nil
 	}
-	c.applyInventoryData(data)
+	c.applyMetadata(data)
 	// The identity did not change since its last submission.
 	if c.submittedCurrentIdentity {
 		return nil
 	}
 	if err := c.payload.Submit(); err != nil {
-		c.log.Errorf("unable to submit serverless-init inventory payload at shutdown: %s", err)
+		c.log.Errorf("unable to submit serverless-init metadata payload at shutdown: %s", err)
 	}
 	return nil
 }
