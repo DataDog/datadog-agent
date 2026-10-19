@@ -9,9 +9,11 @@
 package securityprofile
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -478,6 +480,10 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 		kernelVersion:          &kernel.Version{},
 		pathsReducer:           activity_tree.NewPathsReducer(),
 		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		profilePendingEvents:   make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:              atomic.NewUint64(0),
+		pendingProfiles:        atomic.NewUint64(0),
+		resolvedCgroups:        make(map[containerutils.CGroupID]struct{}),
 		localStorage:           localStorage,
 		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
@@ -506,6 +512,8 @@ func newTestEventV2(eventType model.EventType, imageTag string, variant string) 
 	entry := model.NewPlaceholderProcessCacheEntry(42, 42, false)
 	entry.ContainerContext.ContainerID = containerutils.ContainerID(testContainerID)
 	entry.ContainerContext.Tags = []string{"image_name:" + testImageName, "image_tag:" + imageTag}
+	entry.CGroup.CGroupID = containerutils.CGroupID("/docker/" + testContainerID)
+	entry.CGroup.CGroupPathKey = model.PathKey{Inode: 4242, MountID: 1}
 	entry.FileEvent.PathnameStr = "/usr/bin/proc"
 	entry.FileEvent.BasenameStr = "proc"
 	// a file with an inode but without mount ID would be seen as fileless
@@ -805,4 +813,278 @@ func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 
 	assert.Empty(t, m.profilePendingEvents)
 	assert.Empty(t, m.resolvedCgroups)
+}
+
+type lazyTimeFieldHandlers struct {
+	*model.FakeFieldHandlers
+}
+
+func (fh *lazyTimeFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
+	if ev.Timestamp.IsZero() {
+		ev.Timestamp = time.Now()
+	}
+	return ev.Timestamp
+}
+
+func TestManagerV2_queueAndResolvePendingEvents(t *testing.T) {
+	t.Run("queues event with unresolved timestamp and drains on periodic resolution", func(t *testing.T) {
+		m, anomalies := newInsertionTestManagerV2(t)
+		tagger := &fakeContainerTagger{}
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+		ev := newTestEventV2(model.ExecEventType, "v1", "known")
+		ev.Timestamp = time.Time{}
+		ev.FieldHandlers = &lazyTimeFieldHandlers{FakeFieldHandlers: &model.FakeFieldHandlers{}}
+		ev.ProcessContext.Process.ContainerContext.Tags = nil
+		ev.Rules = []*model.MatchedRule{
+			model.NewMatchedRule("rule_1", "1.0", nil, "pol", "1.0"),
+		}
+
+		m.queueEventForTagResolution(ev, nil)
+		require.Equal(t, uint64(1), m.queueSize.Load())
+		require.Equal(t, uint64(1), m.pendingProfiles.Load())
+
+		tagger.tags = []string{"image_name:" + testImageName, "image_tag:v1"}
+		m.resolvePendingEvents()
+
+		assert.Equal(t, uint64(0), m.queueSize.Load())
+		assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+		assert.Contains(t, m.resolvedCgroups, containerutils.CGroupID("/docker/"+testContainerID))
+
+		p := m.profiles[testSelector]
+		require.NotNil(t, p)
+		node := findTestEventNode(p, model.ExecEventType, "known")
+		require.NotNil(t, node)
+		require.NotEmpty(t, p.ActivityTree.ProcessNodes)
+		var matchedRules []*model.MatchedRule
+		for _, pn := range p.ActivityTree.ProcessNodes {
+			if pn.Process.FileEvent.PathnameStr == "/usr/bin/known" {
+				matchedRules = pn.MatchedRules
+			}
+		}
+		require.Len(t, matchedRules, 1)
+		assert.Equal(t, "rule_1", matchedRules[0].RuleID)
+		require.Len(t, *anomalies, 1)
+		require.Len(t, (*anomalies)[0].Rules, 1)
+		assert.Equal(t, "rule_1", (*anomalies)[0].Rules[0].RuleID)
+	})
+
+	t.Run("drains pending events even if short-lived container cgroup already exited", func(t *testing.T) {
+		m, anomalies := newInsertionTestManagerV2(t)
+		tagger := &fakeContainerTagger{}
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+		ev := newTestEventV2(model.ExecEventType, "v1", "known")
+		ev.Timestamp = time.Time{}
+		ev.FieldHandlers = &lazyTimeFieldHandlers{FakeFieldHandlers: &model.FakeFieldHandlers{}}
+		ev.ProcessContext.Process.ContainerContext.Tags = nil
+
+		m.queueEventForTagResolution(ev, nil)
+		require.Equal(t, uint64(1), m.queueSize.Load())
+
+		m.resolvers.CGroupResolver.Delete(4242)
+		require.Nil(t, m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID)))
+
+		tagger.tags = []string{"image_name:" + testImageName, "image_tag:v1"}
+		m.resolvePendingEvents()
+
+		p := m.profiles[testSelector]
+		require.NotNil(t, p)
+		assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
+		assert.Empty(t, p.Instances)
+		assert.Contains(t, m.pendingProfileRemovals, testSelector)
+		assert.Empty(t, m.resolvedCgroups)
+		require.Len(t, *anomalies, 1)
+		assert.Equal(t, p.Metadata.Name, (*anomalies)[0].SecurityProfileContext.Name)
+	})
+
+	t.Run("preserves 10s stale tombstone across periodic resolution until 60s purge", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		tagger := &fakeContainerTagger{}
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+		m.tagResolutionEventsDropped = atomic.NewUint64(0)
+		m.tagResolutionCgroupsExpired = atomic.NewUint64(0)
+
+		t0 := time.Now().Add(-30 * time.Second)
+		ev1 := newTestEventV2(model.ExecEventType, "v1", "known")
+		ev1.Timestamp = t0
+		ev1.ProcessContext.Process.ContainerContext.Tags = nil
+		m.queueEventForTagResolution(ev1, nil)
+		require.Equal(t, uint64(1), m.queueSize.Load())
+		require.Equal(t, uint64(1), m.pendingProfiles.Load())
+
+		ev2 := newTestEventV2(model.ExecEventType, "v1", "new")
+		ev2.Timestamp = t0.Add(15 * time.Second)
+		ev2.ProcessContext.Process.ContainerContext.Tags = nil
+		m.queueEventForTagResolution(ev2, nil)
+		require.Equal(t, uint64(0), m.queueSize.Load())
+		require.Equal(t, uint64(1), m.pendingProfiles.Load())
+
+		m.resolvePendingEvents()
+		assert.Equal(t, uint64(1), m.pendingProfiles.Load())
+
+		ev3 := newTestEventV2(model.ExecEventType, "v1", "new")
+		ev3.Timestamp = t0.Add(20 * time.Second)
+		ev3.ProcessContext.Process.ContainerContext.Tags = nil
+		m.queueEventForTagResolution(ev3, nil)
+		assert.Equal(t, uint64(0), m.queueSize.Load(), "events after the 10s cutoff must not restart the queue")
+
+		m.purgeStalePendingEvents(t0.Add(61 * time.Second))
+		assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+		assert.Equal(t, uint64(1), m.tagResolutionCgroupsExpired.Load())
+	})
+
+	t.Run("does not deadlock when draining pending events concurrently with cgroup deletion and hash resolution", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		tagger := &fakeContainerTagger{tags: []string{"image_name:" + testImageName, "image_tag:v1"}}
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+		hashResolver, err := hash.NewResolver(&config.RuntimeSecurityConfig{
+			HashResolverEnabled:        true,
+			HashResolverEventTypes:     []model.EventType{model.ExecEventType},
+			HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256},
+			HashResolverMaxFileSize:    10 << 20,
+		}, &statsd.NoOpClient{}, m.resolvers.CGroupResolver)
+		require.NoError(t, err)
+		m.resolvers.HashResolver = hashResolver
+		require.NoError(t, m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted))
+
+		_, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+
+		for i := 0; i < 25; i++ {
+			inode := uint64(5000 + i)
+			cgroupID := containerutils.CGroupID("/docker/" + testContainerID)
+			require.NotNil(t, m.resolvers.CGroupResolver.Add(model.CGroupContext{
+				CGroupID:      cgroupID,
+				CGroupPathKey: model.PathKey{Inode: inode, MountID: 1},
+			}))
+
+			ev := newTestEventV2(model.ExecEventType, fmt.Sprintf("v%d", i+2), "new")
+			ev.ProcessContext.Process.CGroup.CGroupID = cgroupID
+			ev.ProcessContext.Process.CGroup.CGroupPathKey = model.PathKey{Inode: inode, MountID: 1}
+			ev.ProcessContext.Process.ContainerContext.Tags = nil
+			m.queueEventForTagResolution(ev, nil)
+
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				m.resolvePendingEvents()
+			}()
+			go func(in uint64) {
+				defer wg.Done()
+				m.resolvers.CGroupResolver.Delete(in)
+			}(inode)
+			wg.Wait()
+		}
+	})
+}
+
+func TestManagerV2_concurrentInsertAndCleanup(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.SecurityProfileCleanupDelay = time.Nanosecond
+	storageDir := t.TempDir()
+	localStorage, err := storage.NewDirectory(storageDir, 100)
+	require.NoError(t, err)
+	m.localStorage = localStorage
+	m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+		config.NewStorageRequest(config.LocalStorage, config.Profile, false, storageDir),
+	})
+	require.NoError(t, m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted))
+
+	seeded, err := m.createNewProfile(testSelector, newTestEventV2(model.ExecEventType, "v0", "known"))
+	require.NoError(t, err)
+	m.profiles[testSelector] = seeded
+	m.pendingProfileRemovals[testSelector] = time.Now().Add(-time.Second)
+
+	for iter := 0; iter < 25; iter++ {
+		tag := fmt.Sprintf("v%d", iter+1)
+		inode := uint64(7000 + iter)
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/docker/" + testContainerID),
+			CGroupPathKey: model.PathKey{Inode: inode, MountID: 1},
+		}))
+
+		evKnown := newTestEventV2(model.ExecEventType, tag, "known")
+		evKnown.ProcessContext.Process.CGroup.CGroupPathKey.Inode = inode
+		evNew := newTestEventV2(model.ExecEventType, tag, "new")
+		evNew.ProcessContext.Process.CGroup.CGroupPathKey.Inode = inode
+
+		m.profilesLock.Lock()
+		var ready, wg sync.WaitGroup
+		ready.Add(3)
+		wg.Add(3)
+		start := make(chan struct{})
+
+		var p1, p2 *profile.Profile
+		go func() {
+			defer wg.Done()
+			ready.Done()
+			<-start
+			p1, _ = m.insertEventIntoProfile(evKnown)
+		}()
+		go func() {
+			defer wg.Done()
+			ready.Done()
+			<-start
+			p2, _ = m.insertEventIntoProfile(evNew)
+		}()
+		go func() {
+			defer wg.Done()
+			ready.Done()
+			<-start
+			m.cleanupPendingProfiles()
+		}()
+
+		ready.Wait()
+		close(start)
+		m.profilesLock.Unlock()
+		wg.Wait()
+
+		require.NotNil(t, p1)
+		require.NotNil(t, p2)
+
+		m.profilesLock.Lock()
+		prof := m.profiles[testSelector]
+		m.profilesLock.Unlock()
+		require.NotNil(t, prof, "live workload insertion must not leave the selector without an active profile in m.profiles")
+		assert.Same(t, prof, p1, "first insertion must return the mapped profile instance")
+		assert.Same(t, prof, p2, "second insertion must return the mapped profile instance")
+
+		knownNode := findTestEventNode(prof, model.ExecEventType, "known")
+		require.NotNil(t, knownNode)
+		_, _, ok := knownNode.GetSeenTimes(prof.ActivityTree.GetImageTagID(tag))
+		assert.True(t, ok)
+
+		newNode := findTestEventNode(prof, model.ExecEventType, "new")
+		require.NotNil(t, newNode)
+		_, _, ok = newNode.GetSeenTimes(prof.ActivityTree.GetImageTagID(tag))
+		assert.True(t, ok)
+
+		m.persistAllProfiles()
+		m.resolvers.CGroupResolver.Delete(inode)
+		m.pendingProfileRemovalsLock.Lock()
+		m.pendingProfileRemovals[testSelector] = time.Now().Add(-time.Second)
+		m.pendingProfileRemovalsLock.Unlock()
+		m.cleanupPendingProfiles()
+		require.NotContains(t, m.profiles, testSelector)
+
+		reloaded, loaded := m.loadProfileFromStorage(testSelector, evKnown)
+		require.True(t, loaded, "persisted profile should reload from local storage")
+		require.NotNil(t, reloaded)
+
+		reloadedKnown := findTestEventNode(reloaded, model.ExecEventType, "known")
+		require.NotNil(t, reloadedKnown, "known observation must survive persistence and reload")
+		_, _, ok = reloadedKnown.GetSeenTimes(reloaded.ActivityTree.GetImageTagID(tag))
+		assert.True(t, ok)
+
+		reloadedNew := findTestEventNode(reloaded, model.ExecEventType, "new")
+		require.NotNil(t, reloadedNew, "new observation must survive persistence and reload")
+		_, _, ok = reloadedNew.GetSeenTimes(reloaded.ActivityTree.GetImageTagID(tag))
+		assert.True(t, ok)
+
+		m.profiles[testSelector] = reloaded
+		m.pendingProfileRemovals[testSelector] = time.Now().Add(-time.Second)
+	}
 }
