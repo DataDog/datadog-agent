@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -184,6 +185,102 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMapNumberMetricsGaugeInterval(t *testing.T) {
+	const intervalKey = "datadog.metric.interval"
+	tests := []struct {
+		name     string
+		declared any
+		interval int64
+	}{
+		{name: "missing"},
+		{name: "ten seconds", declared: int64(10), interval: 10},
+		{name: "fifteen seconds", declared: int64(15), interval: 15},
+		{name: "zero", declared: int64(0)},
+		{name: "negative", declared: int64(-10)},
+		{name: "string", declared: "10"},
+		{name: "double", declared: float64(10)},
+		{name: "fractional", declared: 0.5},
+		{name: "boolean", declared: true},
+	}
+	for _, lossless := range []bool{false, true} {
+		for _, inferInterval := range []bool{false, true} {
+			for _, tt := range tests {
+				t.Run(fmt.Sprintf("lossless=%t/infer=%t/%s", lossless, inferInterval, tt.name), func(t *testing.T) {
+					cfg := translatorConfig{InferDeltaInterval: inferInterval}
+					m := newDefaultMapper(nil, zap.NewNop(), cfg)
+					if lossless {
+						m = newLossLessMapper(cfg, zap.NewNop())
+					}
+					slice := pmetric.NewNumberDataPointSlice()
+					for i, value := range []float64{-12.5, 42} {
+						dp := slice.AppendEmpty()
+						dp.SetStartTimestamp(pcommon.Timestamp(1e9))
+						dp.SetTimestamp(pcommon.Timestamp(11e9))
+						if i == 0 {
+							dp.SetDoubleValue(value)
+						} else {
+							dp.SetIntValue(int64(value))
+						}
+						attrs := map[string]any{"env": "test"}
+						if tt.declared != nil {
+							attrs[intervalKey] = tt.declared
+						}
+						require.NoError(t, dp.Attributes().FromRaw(attrs))
+					}
+					before := pmetric.NewNumberDataPointSlice()
+					slice.CopyTo(before)
+					consumer := newTestConsumer()
+					m.MapNumberMetrics(context.Background(), &consumer, &Dimensions{name: "test.gauge"}, Gauge, slice)
+					require.Len(t, consumer.data.Metrics.TimeSeries, 2)
+					for i, actual := range consumer.data.Metrics.TimeSeries {
+						assert.Equal(t, Gauge, actual.Type)
+						assert.Equal(t, "test.gauge", actual.Name)
+						assert.Equal(t, tt.interval, actual.Interval)
+						assert.Equal(t, uint64(11e9), actual.Timestamp)
+						assert.Equal(t, []float64{-12.5, 42}[i], actual.Value)
+						assert.Equal(t, []string{"env:test"}, actual.Tags)
+					}
+					assert.Equal(t, before, slice, "mapping must not mutate the input")
+				})
+			}
+		}
+	}
+}
+
+func TestMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T) {
+	for _, lossless := range []bool{false, true} {
+		for _, asRate := range []bool{false, true} {
+			t.Run(fmt.Sprintf("lossless=%t/rate=%t", lossless, asRate), func(t *testing.T) {
+				cfg := translatorConfig{InferDeltaInterval: true}
+				m := newDefaultMapper(nil, zap.NewNop(), cfg)
+				if lossless {
+					m = newLossLessMapper(cfg, zap.NewNop())
+				}
+				slice := pmetric.NewNumberDataPointSlice()
+				dp := slice.AppendEmpty()
+				dp.SetStartTimestamp(pcommon.Timestamp(1e9))
+				dp.SetTimestamp(pcommon.Timestamp(11e9))
+				dp.SetDoubleValue(50)
+				dp.Attributes().PutInt("datadog.metric.interval", 15)
+				expectedType, expectedValue := Count, float64(50)
+				if asRate {
+					dp.Attributes().PutStr(deltaSumRateAttributeKey, "rate")
+					expectedType, expectedValue = Rate, 5
+				}
+				consumer := newTestConsumer()
+				m.MapNumberMetrics(context.Background(), &consumer, &Dimensions{name: "test.count"}, Count, slice)
+				require.Len(t, consumer.data.Metrics.TimeSeries, 1)
+				actual := consumer.data.Metrics.TimeSeries[0]
+				assert.Equal(t, expectedType, actual.Type)
+				assert.Equal(t, expectedValue, actual.Value)
+				assert.Equal(t, int64(10), actual.Interval)
+				assert.Equal(t, uint64(11e9), actual.Timestamp)
+				assert.NotContains(t, actual.Tags, "datadog.metric.interval:15")
+			})
+		}
 	}
 }
 

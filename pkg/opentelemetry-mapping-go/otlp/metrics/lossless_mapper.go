@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 )
@@ -46,6 +47,10 @@ const (
 	// deltaSumRateAttributeKey is the datapoint-level attribute that signals
 	// a delta sum should be emitted as a Datadog rate instead of a count.
 	deltaSumRateAttributeKey = "datadog.metric.as_type"
+
+	// gaugeIntervalAttributeKey declares the reporting cadence in whole seconds.
+	// Gauge start timestamps do not describe a reporting interval.
+	gaugeIntervalAttributeKey = "datadog.metric.interval"
 )
 
 // metricWarnings tracks which one-shot errors have been emitted for a
@@ -93,6 +98,12 @@ func mapNumberMetrics(
 		var interval int64
 		if inferInterval && dt == Count {
 			interval = inferDeltaInterval(uint64(p.StartTimestamp()), uint64(p.Timestamp()))
+		}
+
+		if dt == Gauge {
+			if declared, ok := p.Attributes().Get(gaugeIntervalAttributeKey); ok && declared.Type() == pcommon.ValueTypeInt && declared.Int() > 0 {
+				interval = declared.Int()
+			}
 		}
 
 		pointDt := dt

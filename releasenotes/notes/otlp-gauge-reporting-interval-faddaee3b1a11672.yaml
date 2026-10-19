@@ -1,0 +1,7 @@
+enhancements:
+  - |
+    OTLP number metrics mapped to gauges can declare their reporting interval
+    using the datapoint attribute ``datadog.metric.interval``. A positive integer
+    specifies the interval in seconds without changing the gauge value. The
+    attribute is not emitted as a metric tag. Missing or invalid declarations
+    leave the gauge interval unset; count and rate interval inference is unchanged.
