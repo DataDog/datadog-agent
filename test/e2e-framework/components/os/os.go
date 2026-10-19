@@ -6,6 +6,7 @@
 package os
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -18,11 +19,8 @@ import (
 
 // Interfaces used by OS components
 type PackageManager interface {
-	// RuntimeInstall installs a package at provisioning time; prefer pre-baked machine images instead.
-	// checkBinary is a binary that should be checked before running the install command, if it is not empty it will first run the `command -v checkBinary` command and if it fails it will run the installCmd,
-	// if it succeeds we consider the package is already installed
-	RuntimeInstall(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
 	// RuntimeInstallDocker installs Docker at provisioning time, for clouds without pre-baked images (GCP, Azure, local VMs).
+	// It fails on AWS, where Docker comes from the pre-baked -e2e AMIs.
 	RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error)
 	// InstallLocalPackage installs a package file already present on the host, allowing unsigned packages.
 	InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error)
@@ -47,15 +45,12 @@ func isAWS(env any) bool {
 	return ok && awsEnv.IsAWS()
 }
 
-// warnIfAWS logs a Pulumi warning when runtime-installing packageRef on AWS, where pre-baked AMIs are available.
-func warnIfAWS(env config.Env, packageRef string) {
+// failIfAWS returns an error when runtime-installing on AWS, where pre-baked -e2e AMIs must be used instead.
+func failIfAWS(env any) error {
 	if !isAWS(env) {
-		return
+		return nil
 	}
-	env.Ctx().Log.Warn(fmt.Sprintf(
-		"Runtime-installing %q on AWS is strongly discouraged, use a pre-baked -e2e AMI instead, see https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/",
-		packageRef,
-	), nil)
+	return errors.New("RuntimeInstallDocker is only meant for clouds without pre-baked images (GCP, Azure, local VMs): on AWS, use a pre-baked -e2e AMI that ships Docker instead, see https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/")
 }
 
 func AllowUnsignedPackages(allow bool) PackageManagerOption {

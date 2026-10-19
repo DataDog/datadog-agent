@@ -85,13 +85,11 @@ func (m *GenericPackageManager) EnsureUninstalled(packageRef string, transform c
 
 	return cmd, nil
 }
-func (m *GenericPackageManager) RuntimeInstall(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error) {
-	warnIfAWS(m.runner.Environment(), packageRef)
-	return m.install(packageRef, transform, checkBinary, opts...)
-}
-
 func (m *GenericPackageManager) RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error) {
-	return m.RuntimeInstall("docker", nil, "docker", opts...)
+	if err := failIfAWS(m.runner.Environment()); err != nil {
+		return nil, err
+	}
+	return m.install("docker", nil, "docker", opts...)
 }
 
 func (m *GenericPackageManager) InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error) {

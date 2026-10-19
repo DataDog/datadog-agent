@@ -21,3 +21,12 @@ func TestIsAWS(t *testing.T) {
 		t.Fatal("an environment without IsAWS must not be detected as AWS")
 	}
 }
+
+func TestFailIfAWS(t *testing.T) {
+	if failIfAWS(awsMarkedEnv{}) == nil {
+		t.Fatal("runtime installs must fail on AWS")
+	}
+	if err := failIfAWS(unmarkedEnv{}); err != nil {
+		t.Fatalf("runtime installs must be allowed outside AWS, got %v", err)
+	}
+}
