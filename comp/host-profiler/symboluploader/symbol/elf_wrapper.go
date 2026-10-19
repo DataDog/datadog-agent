@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path"
@@ -48,11 +49,7 @@ func (p *ProcessFileHelper) ExtractAsFile(filePath string) (string, error) {
 type elfWrapper struct {
 	elfFile  *pfelf.File
 	filePath string
-	// Data for non-file backed ELF files (eg. vdso)
-	data []byte
-	// Reader for file backed ELF files (nil for vdso)
-	reader *os.File
-	helper FileHelper
+	helper   FileHelper
 }
 
 type SectionInfo struct {
@@ -61,7 +58,7 @@ type SectionInfo struct {
 }
 
 func (e *elfWrapper) Close() error {
-	// elfFile owns reader (if any) and closes it
+	// elfFile owns the underlying reader and closes it
 	return e.elfFile.Close()
 }
 
@@ -71,24 +68,13 @@ func newElfWrapperFromMapping(m *process.RawMapping, pr process.Process) (ef *el
 		return nil, fmt.Errorf("failed to open mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
 
-	// File backed mappings are kept open as *os.File, other mappings (eg. vdso)
-	// are in-memory files whose content is retained.
-	var reader *os.File
-	var data []byte
-	if f, ok := mf.(*os.File); ok {
-		reader = f
-	} else if data, err = io.ReadAll(mf); err != nil {
-		_ = mf.Close()
-		return nil, fmt.Errorf("failed to read mapping file %s for PID %d: %w", m.Path, pr.PID(), err)
-	}
-
 	// elfFile takes ownership of mf
 	elfFile, err := pfelf.NewFileFromFS(mf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open ELF file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
 
-	ef, err = newElfWrapper(elfFile, m.Path, reader, &ProcessFileHelper{pid: pr.PID()}, data)
+	ef, err = newElfWrapper(elfFile, m.Path, &ProcessFileHelper{pid: pr.PID()})
 	if err != nil {
 		_ = elfFile.Close()
 	}
@@ -111,33 +97,50 @@ func newElfWrapperFromFile(filePath string, helper FileHelper) (ef *elfWrapper, 
 		return nil, err
 	}
 
-	ef, err = newElfWrapper(elfFile, filePath, f, helper, nil)
+	ef, err = newElfWrapper(elfFile, filePath, helper)
 	if err != nil {
 		_ = elfFile.Close()
 	}
 	return ef, err
 }
 
-func newElfWrapper(elfFile *pfelf.File, filePath string, reader *os.File, helper FileHelper, data []byte) (*elfWrapper, error) {
+func newElfWrapper(elfFile *pfelf.File, filePath string, helper FileHelper) (*elfWrapper, error) {
 	err := elfFile.LoadSections()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load sections for %s: %w", filePath, err)
 	}
-	return &elfWrapper{elfFile: elfFile, filePath: filePath, data: data, reader: reader, helper: helper}, nil
+	return &elfWrapper{elfFile: elfFile, filePath: filePath, helper: helper}, nil
 }
 
+// GetPersistentPath returns a path to the ELF file that remains valid while the
+// wrapper is open, or "" if the ELF file is not backed by a file (eg. vdso).
 func (e *elfWrapper) GetPersistentPath() string {
-	if e.reader != nil {
-		return fmt.Sprintf("/proc/%v/fd/%v", selfPid, e.reader.Fd())
+	if f, ok := e.elfFile.Underlying().(*os.File); ok {
+		return fmt.Sprintf("/proc/%v/fd/%v", selfPid, f.Fd())
 	}
 	return ""
 }
 
-func (e *elfWrapper) ElfData() ([]byte, error) {
-	if e.reader != nil {
-		return nil, errors.New("elf data is not available for file backed ELF files")
+// GetSize returns the size of the ELF file.
+func (e *elfWrapper) GetSize() (int64, error) {
+	f, ok := e.elfFile.Underlying().(fs.File)
+	if !ok {
+		return 0, errors.New("underlying ELF reader is not a fs.File")
 	}
-	return e.data, nil
+	info, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}
+
+// ElfData returns the full content of the ELF file.
+func (e *elfWrapper) ElfData() ([]byte, error) {
+	size, err := e.GetSize()
+	if err != nil {
+		return nil, err
+	}
+	return io.ReadAll(io.NewSectionReader(e.elfFile.Underlying(), 0, size))
 }
 
 func (e *elfWrapper) GetSectionsRequiredForDynamicSymbols() []SectionInfo {

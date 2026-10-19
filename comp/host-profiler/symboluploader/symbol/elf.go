@@ -130,23 +130,12 @@ func (e *Elf) Close() {
 // GetSize returns the size of the elf file or data it contains.
 // It will return 0 if the size can't be retrieved.
 func (e *Elf) GetSize() int64 {
-	elfPath := e.SymbolPathOnDisk()
-	// vdso
-	if elfPath == "" {
-		data, err := e.wrapper.ElfData()
-		if err != nil {
-			slog.Warn("Failed to get elf data", slog.String("error", err.Error()))
-			return 0
-		}
-		return int64(len(data))
-	}
-
-	fi, err := os.Stat(elfPath)
+	size, err := e.symbolWrapper().GetSize()
 	if err != nil {
-		slog.Warn("Failed to get elf file", slog.String("error", err.Error()))
+		slog.Warn("Failed to get elf size", slog.String("error", err.Error()))
 		return 0
 	}
-	return fi.Size()
+	return size
 }
 
 func (e *Elf) SymbolSource() Source {
@@ -170,12 +159,16 @@ func (e *Elf) GoPCLnTab() (*pclntab.GoPCLnTabInfo, error) {
 	return e.goPCLnTabInfo, e.goPCLnTabInfoErr
 }
 
-func (e *Elf) SymbolPathOnDisk() string {
+// symbolWrapper returns the wrapper of the ELF file providing the best symbols.
+func (e *Elf) symbolWrapper() *elfWrapper {
 	if e.separateSymbols != nil && e.separateSymbols.symbolSource > e.symbolSource {
-		return e.separateSymbols.wrapper.GetPersistentPath()
+		return e.separateSymbols.wrapper
 	}
+	return e.wrapper
+}
 
-	return e.wrapper.GetPersistentPath()
+func (e *Elf) SymbolPathOnDisk() string {
+	return e.symbolWrapper().GetPersistentPath()
 }
 
 func (e *Elf) String() string {
