@@ -77,6 +77,9 @@ type Driver struct {
 	pending    *pendingTable
 	nextID     atomic.Uint64
 	startNanos int64
+	// misadmitLogged keeps an admission that signals a driver or configuration
+	// bug from logging once per record.
+	misadmitLogged atomic.Bool
 
 	wake       []chan struct{}
 	notifyWake chan struct{}
@@ -390,8 +393,8 @@ func (d *Driver) offer(item ingestItem) {
 		switch admission {
 		case Accepted:
 			return
-		case TooLarge:
-			d.ackTooLarge(id)
+		case TooLarge, Empty, Unrouted:
+			d.releaseUnsent(id)
 			return
 		case Refused:
 			d.pending.take(id)
@@ -405,6 +408,14 @@ func (d *Driver) offer(item ingestItem) {
 		case ShuttingDown:
 			d.pending.take(id)
 			return
+		default:
+			// Unroutable, or a code this package does not know. Neither can
+			// succeed on retry, and retrying would spin this goroutine forever.
+			if d.misadmitLogged.CompareAndSwap(false, true) {
+				log.Errorf("foldspace: record not admitted (%v); releasing it unsent", admission)
+			}
+			d.releaseUnsent(id)
+			return
 		}
 	}
 }
@@ -417,7 +428,9 @@ func (d *Driver) mrfEnabled() bool {
 		d.cfg.GetBool("multi_region_failover.failover_logs")
 }
 
-func (d *Driver) ackTooLarge(id uint64) {
+// releaseUnsent hands the metadata of a record the core will never carry to the
+// auditor, so the auditor's cursor does not wait on it.
+func (d *Driver) releaseUnsent(id uint64) {
 	meta := d.pending.take(id)
 	if meta == nil || d.dualShip || d.sink == nil || d.sink.Channel() == nil {
 		return

@@ -193,6 +193,15 @@ func (c *FakeCore) PushLog(record Record, nowNanos uint64, metadataID uint64, ro
 	if !c.hasCapacityLocked() {
 		return Refused, c.progressLocked(nil)
 	}
+	if route&^AllSenders(len(c.classes)) != 0 {
+		return Unroutable, c.progressLocked(nil)
+	}
+	if route == 0 {
+		return Unrouted, c.progressLocked(nil)
+	}
+	if len(record.Body) == 0 {
+		return Empty, c.progressLocked(nil)
+	}
 	c.inflight++
 	body := append([]byte(nil), record.Body...)
 	p := &fakePayload{

@@ -176,6 +176,60 @@ func TestTooLargeSkipsAuditor(t *testing.T) {
 	require.Len(t, payloads[0].MessageMetas, 1)
 }
 
+// fixedAdmissionCore answers one marker body with a fixed admission and hands
+// every other record to the core it wraps.
+type fixedAdmissionCore struct {
+	Core
+	marker    string
+	admission Admission
+}
+
+func (c *fixedAdmissionCore) PushLog(record Record, nowNanos uint64, metadataID uint64, route Route) (Admission, Progress) {
+	if string(record.Body) == c.marker {
+		return c.admission, Progress{HasCapacity: true}
+	}
+	return c.Core.PushLog(record, nowNanos, metadataID, route)
+}
+
+// An admission no retry can change must release the record to the auditor and
+// let ingest move on. One the driver does not recognize is treated the same,
+// because retrying it would spin the ingest goroutine forever.
+func TestUnadmittableRecordsReleaseToAuditor(t *testing.T) {
+	for _, admission := range []Admission{Empty, Unroutable, Unrouted, Admission(99)} {
+		t.Run(admission.String(), func(t *testing.T) {
+			core := &fixedAdmissionCore{
+				Core:      NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}}),
+				marker:    "unadmittable",
+				admission: admission,
+			}
+			transport := NewFakeTransport(1)
+			sink := newChannelSink()
+			d := startDriver(t, core, transport, sink, false)
+
+			d.Offer(testMessage("unadmittable"))
+			d.Offer(testMessage("after"))
+
+			for _, p := range waitPayloads(t, sink, 2) {
+				require.Len(t, p.MessageMetas, 1)
+			}
+			assert.Equal(t, [][]byte{[]byte("after")}, transport.Sent(0))
+		})
+	}
+}
+
+func TestEmptyBodyReleasesToAuditor(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	transport := NewFakeTransport(1)
+	sink := newChannelSink()
+	d := startDriver(t, core, transport, sink, false)
+
+	d.Offer(testMessage(""))
+	d.Offer(testMessage("after"))
+
+	waitPayloads(t, sink, 2)
+	assert.Equal(t, [][]byte{[]byte("after")}, transport.Sent(0))
+}
+
 func TestLeaseReleasedOnce(t *testing.T) {
 	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
 	transport := NewFakeTransport(1)

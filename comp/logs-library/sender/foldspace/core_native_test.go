@@ -147,6 +147,30 @@ func TestNativeCoresShareTokenizer(t *testing.T) {
 	require.Equal(t, Accepted, admission)
 }
 
+// TestNativeAdmissionCodes checks that the outcomes no retry can change cross
+// the ABI as their own codes, which the driver relies on to stop offering.
+func TestNativeAdmissionCodes(t *testing.T) {
+	core, err := NewNativeCore(nativeTestConfig())
+	require.NoError(t, err)
+	t.Cleanup(core.Close)
+	core.Start()
+
+	cases := []struct {
+		name   string
+		record Record
+		route  Route
+		want   Admission
+	}{
+		{"empty body", Record{}, AllSenders(1), Empty},
+		{"no sender", Record{Body: []byte("routed nowhere")}, 0, Unrouted},
+		{"unknown sender", Record{Body: []byte("routed past the senders")}, Route(1) << 1, Unroutable},
+	}
+	for i, c := range cases {
+		admission, _ := core.PushLog(c.record, uint64(i+1), uint64(i+1), c.route)
+		require.Equal(t, c.want, admission, c.name)
+	}
+}
+
 // nativeTestConfig is complete, because the library validates the config and
 // refuses a zero reconnect backoff.
 func nativeTestConfig() Config {

@@ -72,7 +72,7 @@ func NewNativeCore(cfg Config) (Core, error) {
 	if got, want := uint32(C.foldspace_abi_version()), uint32(C.FOLDSPACE_ABI_VERSION); got != want {
 		return nil, fmt.Errorf("foldspace: the linked library implements ABI %d and this package was built against %d", got, want)
 	}
-	assertEncodingNumbering()
+	assertABINumbering()
 	if len(cfg.Endpoints) == 0 {
 		return nil, errors.New("foldspace: at least one endpoint is required")
 	}
@@ -419,17 +419,26 @@ func goString(s C.foldspace_str) string {
 	return C.GoStringN((*C.char)(unsafe.Pointer(s.ptr)), C.int(s.len))
 }
 
-// assertEncodingNumbering panics if types.go's Compression or NotificationKind
-// constants have drifted from the linked header's own numbering. types.go
-// cannot import "C" and stay buildable without the foldspace tag, so its
-// constants are plain ints kept in sync by hand; this is what turns a drifted
-// value into a refusal rather than corruption, the same role the ABI version
-// check plays for the struct layout as a whole.
-func assertEncodingNumbering() {
+// assertABINumbering panics if types.go's Compression, Admission, or
+// NotificationKind constants have drifted from the linked header's own
+// numbering. types.go cannot import "C" and stay buildable without the
+// foldspace tag, so its constants are plain ints kept in sync by hand; this is
+// what turns a drifted value into a refusal rather than corruption, the same
+// role the ABI version check plays for the struct layout as a whole.
+func assertABINumbering() {
 	if Compression(C.FOLDSPACE_ENCODING_DEFAULT) != Default ||
 		Compression(C.FOLDSPACE_ENCODING_IDENTITY) != Identity ||
 		Compression(C.FOLDSPACE_ENCODING_ZSTD) != Zstd {
 		panic("foldspace: Compression constants in types.go do not match foldspace_go.h")
+	}
+	if Admission(C.FOLDSPACE_ADMISSION_ACCEPTED) != Accepted ||
+		Admission(C.FOLDSPACE_ADMISSION_REFUSED) != Refused ||
+		Admission(C.FOLDSPACE_ADMISSION_TOO_LARGE) != TooLarge ||
+		Admission(C.FOLDSPACE_ADMISSION_SHUTTING_DOWN) != ShuttingDown ||
+		Admission(C.FOLDSPACE_ADMISSION_EMPTY) != Empty ||
+		Admission(C.FOLDSPACE_ADMISSION_UNROUTABLE) != Unroutable ||
+		Admission(C.FOLDSPACE_ADMISSION_UNROUTED) != Unrouted {
+		panic("foldspace: Admission constants in types.go do not match foldspace_go.h")
 	}
 	if NotificationKind(C.FOLDSPACE_NOTIFICATION_PAYLOAD_DURABLE) != PayloadDurable ||
 		NotificationKind(C.FOLDSPACE_NOTIFICATION_PAYLOAD_ABANDONED) != PayloadAbandoned ||
