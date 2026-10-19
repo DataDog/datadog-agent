@@ -7,18 +7,10 @@ package docker
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	remoteComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
-
-// InstallDocker installs Docker on the host at provision time.
-// Call this explicitly for cloud environments that do not use pre-baked AMIs
-// (Azure, GCP). AWS e2e AMIs have Docker pre-baked.
-func InstallDocker(host *remoteComp.Host, opts ...pulumi.ResourceOption) (command.Command, error) {
-	return host.OS.PackageManager().RuntimeInstall("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
-}
 
 // InstallCompose installs docker-compose on the host at provision time.
 // Call this explicitly for cloud environments that do not use pre-baked AMIs

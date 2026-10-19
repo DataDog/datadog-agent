@@ -22,6 +22,8 @@ type PackageManager interface {
 	// checkBinary is a binary that should be checked before running the install command, if it is not empty it will first run the `command -v checkBinary` command and if it fails it will run the installCmd,
 	// if it succeeds we consider the package is already installed
 	RuntimeInstall(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
+	// RuntimeInstallDocker installs Docker at provisioning time, for clouds without pre-baked images (GCP, Azure, local VMs).
+	RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error)
 	// InstallLocalPackage installs a package file already present on the host, allowing unsigned packages.
 	InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error)
 	EnsureUninstalled(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)

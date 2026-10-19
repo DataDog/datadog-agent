@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 )
 
@@ -41,7 +42,7 @@ func Run(ctx *pulumi.Context, params *Params) error {
 		return err
 	}
 
-	dockerInstall, err := docker.InstallDocker(vm, pulumi.Parent(vm))
+	dockerInstall, err := vm.OS.PackageManager().RuntimeInstallDocker(os.WithPulumiResourceOptions(pulumi.Parent(vm)))
 	if err != nil {
 		return err
 	}

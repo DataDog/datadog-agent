@@ -90,6 +90,10 @@ func (m *GenericPackageManager) RuntimeInstall(packageRef string, transform comm
 	return m.install(packageRef, transform, checkBinary, opts...)
 }
 
+func (m *GenericPackageManager) RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error) {
+	return m.RuntimeInstall("docker", nil, "docker", opts...)
+}
+
 func (m *GenericPackageManager) InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error) {
 	return m.install(packagePath, nil, "", append([]PackageManagerOption{AllowUnsignedPackages(true)}, opts...)...)
 }

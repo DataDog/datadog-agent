@@ -34,6 +34,10 @@ func (m *ZypperPackageManager) RuntimeInstall(packageRef string, transform comma
 	return m.install(packageRef, transform, checkBinary, opts...)
 }
 
+func (m *ZypperPackageManager) RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error) {
+	return m.RuntimeInstall("docker", nil, "docker", opts...)
+}
+
 func (m *ZypperPackageManager) InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error) {
 	return m.install(packagePath, nil, "", append([]PackageManagerOption{AllowUnsignedPackages(true)}, opts...)...)
 }
