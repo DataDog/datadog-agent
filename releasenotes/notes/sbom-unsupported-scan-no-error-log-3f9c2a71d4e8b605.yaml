@@ -9,5 +9,4 @@
 fixes:
   - |
     The Agent no longer logs ``SBOM generation failed for image`` at ERROR level
-    for container images that cannot be scanned, such as nydus images. These
-    are now logged at DEBUG level.
+    for container images that cannot be scanned, such as nydus images.
