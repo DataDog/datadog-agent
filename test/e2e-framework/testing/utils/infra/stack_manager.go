@@ -36,7 +36,7 @@ import (
 )
 
 // StacksFileName is the file, in the runner output directory, listing the Pulumi stacks used by
-// the test process, one per line. CI reads it to clean up stacks left behind by canceled jobs.
+// the test process in GitLab CI, one per line. CI reads it to clean up stacks left behind by canceled jobs.
 const StacksFileName = "pulumi-stacks.txt"
 
 const (
@@ -482,11 +482,14 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		stack = &newStack
 		sm.stacks.Set(name, stack)
 
-		// Record the stack before it is provisioned, so it can be cleaned up even if the job is canceled during `up`
-		if outputDir, err := profile.GetOutputDir(); err != nil {
-			fmt.Printf("WARNING: unable to record stack %s, err: %v\n", stackName, err)
-		} else if err := recordStackName(outputDir, stackName); err != nil {
-			fmt.Printf("WARNING: unable to record stack %s, err: %v\n", stackName, err)
+		// Record the stack before it is provisioned, so the job after_script can clean it up even if the job is canceled
+		// during `up`. Only in GitLab CI: locally, `new-e2e-tests.clean` expects the output directory to only contain directories.
+		if os.Getenv("GITLAB_CI") == "true" {
+			if outputDir, err := profile.GetOutputDir(); err != nil {
+				fmt.Printf("WARNING: unable to record stack %s, err: %v\n", stackName, err)
+			} else if err := recordStackName(outputDir, stackName); err != nil {
+				fmt.Printf("WARNING: unable to record stack %s, err: %v\n", stackName, err)
+			}
 		}
 	} else {
 		stack.Workspace().SetProgram(deployFunc)
