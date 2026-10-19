@@ -103,6 +103,9 @@ static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
     set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     approve_syscall(syscall, open_approvers);
+    if (syscall->policy.mode == ACCEPT && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
+        syscall->resolver.flags |= RESOLVER_FLAG_SAMPLED;
+    }
 
     // the runtime itself opens cgroupfs paths during cgroup resolution; those reads
     // must not be promoted to INTERNAL events or they would feed the resolver in a loop.
