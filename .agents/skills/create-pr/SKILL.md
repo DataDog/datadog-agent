@@ -28,7 +28,13 @@ Create a pull request for the current branch following the Datadog Agent contrib
    ```bash
    dda review
    ```
-   The default provider (`codex`) must be installed. If `dda` or `codex` is missing (`command -v dda codex`), skip this step silently. `dda review` is an LLM-based review and can take several minutes. Don't give it a short Bash `timeout` and don't let it get killed mid-run: run it with `run_in_background: true` and wait for it to finish, or pass a generous `timeout` such as the Bash tool max of 600000ms. If it's still running when you check back, keep waiting, up to that 10-minute ceiling. If it still hasn't finished by then, tell the user and continue without it rather than stalling PR creation indefinitely. Show the review output to the user.
+   The default provider (`codex`) must be installed. Check each executable separately, since `command -v dda codex` succeeds in bash if either one exists:
+   ```bash
+   command -v dda >/dev/null && command -v codex >/dev/null
+   ```
+   If either is missing, skip this step silently. `dda review` is an LLM-based review and can take several minutes. Don't give it a short timeout and don't let it get killed mid-run: launch it asynchronously (e.g. `run_in_background: true` in Claude Code) and poll until it finishes, or give it a timeout of at least 10 minutes. If it hasn't finished after 10 minutes, tell the user and continue without it rather than stalling PR creation indefinitely. Outcomes:
+   - **Review completes**: show the findings to the user. They don't block PR creation; fix them first only if the user asks.
+   - **Review fails** (non-zero exit, e.g. provider auth error): tell the user it failed, with the error, and continue.
 6. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
