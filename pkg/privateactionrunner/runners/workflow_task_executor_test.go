@@ -47,19 +47,23 @@ type fakeCredentialResolver struct {
 }
 
 type fakeBundle struct {
-	action types.Action
+	action        types.Action
+	gotActionName string
 }
 
-func (b *fakeBundle) GetAction(string) types.Action {
+func (b *fakeBundle) GetAction(actionName string) types.Action {
+	b.gotActionName = actionName
 	return b.action
 }
 
 type recordingAction struct {
 	called bool
+	task   *types.Task
 }
 
-func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.PrivateCredentials) (interface{}, error) {
+func (a *recordingAction) Run(_ context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
 	a.called = true
+	a.task = task
 	return "executed", nil
 }
 
@@ -173,6 +177,99 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "executed", output)
 	assert.True(t, action.called)
+}
+
+func TestWorkflowTaskExecutorRoutesByExecutionFQNAndAuthorizesPublicFQN(t *testing.T) {
+	const (
+		publicBundle   = "com.datadoghq.helm"
+		actionName     = "addRepo"
+		publicFQN      = publicBundle + "." + actionName
+		scriptBundle   = "com.datadoghq.authoredscripts"
+		scriptAliasFQN = scriptBundle + ".helm." + actionName
+	)
+
+	tests := []struct {
+		name                 string
+		executionFQN         string
+		allowlist            map[string]sets.Set[string]
+		wantNative           bool
+		wantScript           bool
+		wantNativeActionName string
+		wantScriptActionName string
+		wantError            string
+	}{
+		{
+			name:                 "native action uses public FQN when execution FQN is absent",
+			allowlist:            map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+			wantNative:           true,
+			wantNativeActionName: actionName,
+		},
+		{
+			name:                 "native action uses public FQN when execution FQN matches it",
+			executionFQN:         publicFQN,
+			allowlist:            map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+			wantNative:           true,
+			wantNativeActionName: actionName,
+		},
+		{
+			name:                 "product action uses authored-script execution FQN",
+			executionFQN:         scriptAliasFQN,
+			allowlist:            map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+			wantScript:           true,
+			wantScriptActionName: actionName,
+		},
+		{
+			name:         "unknown execution FQN fails closed",
+			executionFQN: "com.datadoghq.unknown.action",
+			allowlist:    map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+			wantError:    "could not find bundle for com.datadoghq.unknown",
+		},
+		{
+			name:                 "execution FQN allowlist entry cannot authorize public action",
+			executionFQN:         scriptAliasFQN,
+			allowlist:            map[string]sets.Set[string]{scriptBundle + ".helm": sets.New(actionName)},
+			wantError:            "not allowlisted",
+			wantScriptActionName: actionName,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nativeAction := &recordingAction{}
+			scriptAction := &recordingAction{}
+			nativeBundle := &fakeBundle{action: nativeAction}
+			scriptBundleHandler := &fakeBundle{action: scriptAction}
+			executor := &WorkflowTaskExecutor{
+				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+					publicBundle: nativeBundle,
+					scriptBundle: scriptBundleHandler,
+				}},
+				config: &config.Config{
+					ActionsAllowlist: tt.allowlist,
+					MetricsClient:    &statsd.NoOpClient{},
+				},
+			}
+			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
+			task.Data.Attributes.ExecutionFQN = tt.executionFQN
+
+			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				assert.Nil(t, output)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, "executed", output)
+			}
+			assert.Equal(t, tt.wantNative, nativeAction.called)
+			assert.Equal(t, tt.wantScript, scriptAction.called)
+			assert.Equal(t, tt.wantNativeActionName, nativeBundle.gotActionName)
+			assert.Equal(t, tt.wantScriptActionName, scriptBundleHandler.gotActionName)
+			if tt.wantScript {
+				require.Same(t, task, scriptAction.task)
+				assert.Equal(t, publicBundle+"."+actionName, scriptAction.task.GetFQN())
+			}
+		})
+	}
 }
 
 func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {

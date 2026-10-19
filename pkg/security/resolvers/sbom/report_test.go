@@ -15,6 +15,33 @@ import (
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 )
 
+// metadataValue returns the value of the metadata property name of bom, or the
+// empty string.
+func metadataValue(bom *cyclonedx_v1_4.Bom, name string) string {
+	for _, p := range bom.GetMetadata().GetProperties() {
+		if p.GetName() == name {
+			return p.GetValue()
+		}
+	}
+	return ""
+}
+
+// TestToCycloneDXUsageObservedSince checks that a report holds, in its
+// metadata, when the usage of its packages started being recorded.
+func TestToCycloneDXUsageObservedSince(t *testing.T) {
+	packages := []sbomtypes.Package{{Name: "gzip", Version: "1.12"}}
+
+	report := NewPackagesReport(packages, "")
+	report.observedSince = time.Unix(1700000000, 0)
+	if got := metadataValue(report.ToCycloneDX(), UsageObservedSinceProperty); got != "1700000000" {
+		t.Errorf("%s = %q, want 1700000000", UsageObservedSinceProperty, got)
+	}
+
+	if metadata := NewPackagesReport(packages, "").ToCycloneDX().GetMetadata(); metadata != nil {
+		t.Errorf("metadata = %v, want none for a report with no observation start", metadata)
+	}
+}
+
 func propertyValue(comp *cyclonedx_v1_4.Component, name string) (string, bool) {
 	for _, p := range comp.Properties {
 		if p != nil && p.Name == name && p.Value != nil {
@@ -25,10 +52,10 @@ func propertyValue(comp *cyclonedx_v1_4.Component, name string) (string, bool) {
 }
 
 // TestToCycloneDXRuntimeProperties checks that all three runtime properties are
-// always emitted, including LastSeenRunning "0" for a package never seen
-// running. The merge in the core agent overwrites only properties present in
-// the forwarded report, so an omitted "0" would leave a stale timestamp behind
-// when a refresh resets a package's usage.
+// always emitted, including LastSeenRunning "0" for a package unseen since the
+// usage started being recorded. The merge in the core agent overwrites only
+// properties present in the forwarded report, so an omitted "0" would leave a
+// stale timestamp behind when a refresh resets a package's usage.
 func TestToCycloneDXRuntimeProperties(t *testing.T) {
 	seen := time.Unix(1700000000, 0)
 

@@ -51,6 +51,8 @@ message PrivateActionTask {
   google.protobuf.Timestamp expiration_time = 11;
   actionsclient.Client client = 12;
   SystemInputs system_inputs = 13;
+  // Optional runner execution FQN; when empty, use bundle_id and action_name.
+  string execution_fqn = 14;
 }
 
 message SystemInputs {

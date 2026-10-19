@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    On Windows, the Process Manager now starts a short-lived ``dd-procmgrd.exe``
+    helper process when gracefully stopping a managed process. The helper sends
+    the stop signal to the intended process without disrupting the Process
+    Manager's console, logging, or standard streams.

@@ -16,6 +16,7 @@ import (
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -109,7 +110,7 @@ func pickAutoProvider(cfg LibraryInjectionConfig) (LibraryInjectionProvider, str
 		// Pods injected through the CSI driver need extra privileges on OpenShift.
 		return NewInitContainerProvider(cfg), "the cluster runs OpenShift"
 	}
-	kubeVersion, ok := normalizeKubeSemver(cfg.KubeServerVersion)
+	kubeVersion, ok := common.NormalizeKubeSemver(cfg.KubeServerVersion)
 	if !ok {
 		return NewInitContainerProvider(cfg), "the Kubernetes version is unknown"
 	}

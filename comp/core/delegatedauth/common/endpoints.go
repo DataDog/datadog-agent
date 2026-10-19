@@ -6,10 +6,26 @@
 package common
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"strings"
 )
+
+// ListEntryIdentity fingerprints endpoint routing fields without retaining the API key.
+func ListEntryIdentity(entry map[string]any) (string, bool) {
+	identityFields := make(map[string]any, len(entry))
+	for key, value := range entry {
+		if !strings.EqualFold(key, "api_key") {
+			identityFields[key] = value
+		}
+	}
+	encoded, err := json.Marshal(identityFields)
+	if err != nil {
+		return "", false
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(encoded)), true
+}
 
 // NormalizeListShapeEntries normalizes a list-shape additional_endpoints config value into
 // []any, handling JSON strings, []any of map[any]any (YAML-sourced), and []map[string]any

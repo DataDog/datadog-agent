@@ -230,6 +230,7 @@
 /.gitlab/build/source_test/ebpf.yml                                       @DataDog/ebpf-platform @DataDog/agent-devx
 /.gitlab/windows/build/source_test/windows.yml                            @DataDog/agent-devx @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/go_generate_check.yml                          @DataDog/agent-security
+/.gitlab/build/source_test/trace_dupcheck.yml                             @DataDog/agent-apm
 /.gitlab/build/package_build/                                             @DataDog/agent-build
 /.gitlab/windows/build/package_build/windows.yml                          @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/package_build/installer.yml                                @DataDog/agent-build @DataDog/fleet
@@ -643,6 +644,8 @@
 /pkg/trace/api/otlp*.go                                               @DataDog/opentelemetry
 /pkg/trace/api/loader/                                                @DataDog/agent-runtimes
 /pkg/trace/api/loader/listeners.go                                    @DataDog/agent-apm
+/pkg/trace/api/container_tags_hash_test.go                            @DataDog/data-streams-monitoring
+/pkg/trace/api/container_tags_hash_dbm_test.go                        @DataDog/database-monitoring
 /pkg/trace/traceutil/                                                 @DataDog/agent-apm
 /pkg/trace/stats/                                                     @DataDog/agent-apm
 /pkg/trace/otel/                                                      @DataDog/opentelemetry
@@ -825,6 +828,8 @@
 /pkg/util/filesystem/rights_*.go                                      @DataDog/fleet-automation
 /pkg/util/funcs/                                                      @DataDog/ebpf-platform
 /pkg/util/gpu/                                                        @DataDog/accelerator-telemetry
+/pkg/util/log/                                                        @DataDog/agent-runtimes
+/pkg/util/log/observer/                                               @DataDog/agent-anomaly-detection @DataDog/agent-runtimes
 /pkg/util/installinfo/                                                @DataDog/fleet-automation
 /pkg/util/kernel/                                                     @DataDog/ebpf-platform
 /pkg/util/safeelf/                                                    @DataDog/ebpf-platform
@@ -993,6 +998,7 @@
 /tasks/quality_gates.py                                         @DataDog/agent-build
 /tasks/static_quality_gates/                                    @DataDog/agent-build
 /tasks/files_inventory.py                                       @DataDog/agent-build
+/tasks/unit_tests/files_inventory_check_tests.py                @DataDog/agent-build
 /tasks/rtloader.py                                              @DataDog/agent-runtimes
 /tasks/secret_generic_connector.py                              @DataDog/fleet-automation
 /tasks/security_agent.py                                        @DataDog/agent-security
@@ -1001,6 +1007,7 @@
 /tasks/libs/build/                                              @DataDog/agent-build
 /tasks/libs/cws/                                                @DataDog/agent-security
 /tasks/libs/gpu/                                                @DataDog/accelerator-telemetry
+/tasks/libs/trace_dupcheck.py                                   @DataDog/agent-apm
 /tasks/systray.py                                               @DataDog/windows-products
 /tasks/winbuildscripts/                                         @DataDog/windows-products
 /tasks/winbuild.py                                              @DataDog/windows-products
@@ -1020,6 +1027,7 @@
 /tasks/unit_tests/components_tests.py                           @DataDog/agent-runtimes
 /tasks/unit_tests/build_tags_tests.py                           @DataDog/agent-build
 /tasks/unit_tests/libs/build/                                   @DataDog/agent-build
+/tasks/unit_tests/libs/trace_dupcheck_tests.py                  @DataDog/agent-apm
 /tasks/unit_tests/omnibus_tests.py                              @DataDog/agent-build
 /tasks/unit_tests/schema_*                                      @DataDog/fleet-automation
 /tasks/unit_tests/testdata/components_src/                      @DataDog/agent-runtimes
