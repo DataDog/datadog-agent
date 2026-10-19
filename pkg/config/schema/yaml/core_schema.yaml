@@ -7493,6 +7493,49 @@ properties:
         node_type: setting
         type: integer
         default: 0
+  experimental:
+    node_type: section
+    type: object
+    properties:
+      metrics_endpoint_routing:
+        node_type: section
+        type: object
+        properties:
+          metric_allowlist:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: |-
+              Per-endpoint metric-name allowlists.
+              Keys must exactly match the effective primary URL (dd_url or site) or a key
+              in additional_endpoints. Unknown endpoints are rejected. A metric is sent
+              if its normalized name matches this list or metric_prefix_allowlist for
+              the endpoint. Applies to series and sketches. Requires use_v2_api.series
+              to be enabled. Endpoints absent from both
+              maps keep ordinary delivery. An endpoint with two empty lists receives
+              no metrics. Policies are independent of Multi-Region Failover and require
+              a restart to change. Experimental settings may change without compatibility.
+          metric_prefix_allowlist:
+            node_type: setting
+            type: object
+            default: {}
+            env_parser: json
+            additionalProperties:
+              type: array
+              items:
+                type: string
+            description: |-
+              Per-endpoint metric-name prefix allowlists, combined with metric_allowlist.
+              Keys follow the same endpoint validation and restart requirements.
+              Prefixes are case-sensitive literal strings, not wildcards or regular
+              expressions. An empty string prefix allows every valid metric name.
+              An empty list allows no names. Incoming names are normalized for matching.
+              Configured entries and transmitted names are unchanged.
   expected_tags_duration:
     node_type: setting
     type: string
