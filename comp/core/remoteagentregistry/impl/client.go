@@ -220,6 +220,16 @@ func callAgentsForService[PbType any, StructuredType any](
 	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
 	resultProcessor func(remoteagentregistry.RegisteredAgent, PbType, error) StructuredType,
 ) []StructuredType {
+	return callAgentsForServiceFiltered(registry, service, nil, grpcCall, resultProcessor)
+}
+
+func callAgentsForServiceFiltered[PbType any, StructuredType any](
+	registry *remoteAgentRegistry,
+	service remoteAgentServiceName,
+	agentFilter func(remoteagentregistry.RegisteredAgent) bool,
+	grpcCall func(context.Context, *remoteAgentClient, ...grpc.CallOption) (PbType, error),
+	resultProcessor func(remoteagentregistry.RegisteredAgent, PbType, error) StructuredType,
+) []StructuredType {
 	queryTimeout := registry.conf.GetDuration("remote_agent.registry.query_timeout")
 
 	var wg sync.WaitGroup
@@ -231,6 +241,9 @@ func callAgentsForService[PbType any, StructuredType any](
 	for _, remoteAgent := range registry.agentMap {
 		// Skip the remoteAgent if the service is not implemented.
 		if !slices.Contains(remoteAgent.services, service) {
+			continue
+		}
+		if agentFilter != nil && !agentFilter(remoteAgent.RegisteredAgent) {
 			continue
 		}
 		filteredAgents = append(filteredAgents, remoteAgent)
