@@ -159,3 +159,116 @@
  xmlNs *lookup_xsi_ns(xmlDoc *doc);
  
  #endif
+--- a/tests/API/XCCDF/unittests/CMakeLists.txt
++++ b/tests/API/XCCDF/unittests/CMakeLists.txt
+@@ -11,6 +11,10 @@
+ 	"test_xccdf_overrides.c"
+ )
+ 
++add_oscap_test_executable(test_xccdf_session_print_syschar
++	"test_xccdf_session_print_syschar.c"
++)
++
+ add_oscap_test_executable(test_xccdf_shall_pass
+ 	test_xccdf_shall_pass.c
+ 	unit_helper.c
+@@ -121,6 +125,7 @@
+ add_oscap_test("test_remediation_bootc.sh")
+ add_oscap_test("openscap_2289_regression.sh")
+ add_oscap_test("test_null_ptr_regression.sh")
++add_oscap_test("test_xccdf_session_print_syschar.sh")
+ 
+ set_tests_properties(
+      "API/XCCDF/unittests/test_deriving_xccdf_result_from_oval2.sh"
+diff --git a/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.c b/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.c
+new file mode 100644
+--- /dev/null
++++ b/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.c
+@@ -0,0 +1,61 @@
++// SPDX-License-Identifier: LGPL-2.1-or-later
++
++#ifdef HAVE_CONFIG_H
++#include <config.h>
++#endif
++
++#include <fcntl.h>
++#include <stdio.h>
++#include <unistd.h>
++
++#include <xccdf_session.h>
++
++/*
++ * Evaluate the XCCDF document of the first argument and write what
++ * xccdf_session_print_syschar prints on standard output to the file of
++ * the second.
++ */
++int main(int argc, char *argv[])
++{
++	struct xccdf_session *session;
++	int fd, saved, ret;
++
++	if (argc != 3) {
++		fprintf(stderr, "usage: %s xccdf out\n", argv[0]);
++		return 1;
++	}
++	session = xccdf_session_new(argv[1]);
++	if (session == NULL || xccdf_session_load(session) != 0 ||
++	    xccdf_session_evaluate(session) != 0) {
++		fprintf(stderr, "cannot evaluate %s\n", argv[1]);
++		xccdf_session_free(session);
++		return 1;
++	}
++	fd = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0644);
++	if (fd < 0) {
++		perror(argv[2]);
++		xccdf_session_free(session);
++		return 1;
++	}
++	fflush(stdout);
++	saved = dup(STDOUT_FILENO);
++	if (saved < 0 || dup2(fd, STDOUT_FILENO) < 0) {
++		perror("dup");
++		xccdf_session_free(session);
++		return 1;
++	}
++	close(fd);
++	ret = xccdf_session_print_syschar(session);
++	if (fflush(stdout) != 0 || dup2(saved, STDOUT_FILENO) < 0) {
++		perror(argv[2]);
++		xccdf_session_free(session);
++		return 1;
++	}
++	close(saved);
++	xccdf_session_free(session);
++	if (ret != 0) {
++		fprintf(stderr, "xccdf_session_print_syschar returned %d\n", ret);
++		return 1;
++	}
++	return 0;
++}
+diff --git a/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.sh b/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.sh
+new file mode 100755
+--- /dev/null
++++ b/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++
++. "$builddir/tests/test_common.sh"
++
++if [[ -n "${CUSTOM_OSCAP+x}" ]] ; then
++	exit 255
++fi
++
++set -e -o pipefail
++
++name=$(basename "$0" .sh)
++result=$(mktemp -t "${name}.out.XXXXXX")
++echo "Result file = $result"
++
++bash "$RUN_WRAPPER" "./${name}" "$srcdir/test_single_rule.xccdf.xml" "$result"
++
++assert_exists 1 '/oval_system_characteristics'
++assert_exists 1 '/oval_system_characteristics/collected_objects/object[@id="oval:x:obj:1"][@flag="complete"]'
++assert_exists 1 '/oval_system_characteristics/system_data/ind-sys:variable_item[ind-sys:value="100"]'
++
++rm -f "$result"
