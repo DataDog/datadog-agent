@@ -160,6 +160,28 @@ func NewTracingConfig(cfg model.Reader) TracingConfig {
 	}
 }
 
+// NVMLCollectorConfig configures the NVML workloadmeta collector of the core Agent.
+type NVMLCollectorConfig struct {
+	// GPUMonitoringEnabled indicates whether GPU monitoring is enabled in the core Agent. Not to be
+	// confused with Config.Enabled, which is the system-probe setting.
+	GPUMonitoringEnabled bool
+	// IntegrateWithWorkloadmetaProcesses indicates whether the collector should link GPUs to the
+	// processes reported by workloadmeta.
+	IntegrateWithWorkloadmetaProcesses bool
+	// KAISchedulerEnabled indicates whether the collector should map KAI Scheduler fractional GPU
+	// workloads to their device.
+	KAISchedulerEnabled bool
+}
+
+// NewNVMLCollectorConfig reads the NVML workloadmeta collector configuration from the agent configuration.
+func NewNVMLCollectorConfig(cfg model.Reader) NVMLCollectorConfig {
+	return NVMLCollectorConfig{
+		GPUMonitoringEnabled:               cfg.GetBool("gpu.enabled"),
+		IntegrateWithWorkloadmetaProcesses: cfg.GetBool("gpu.integrate_with_workloadmeta_processes"),
+		KAISchedulerEnabled:                cfg.GetBool("gpu.kai_scheduler.enabled"),
+	}
+}
+
 // New generates a new configuration for the GPU monitoring probe.
 func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()

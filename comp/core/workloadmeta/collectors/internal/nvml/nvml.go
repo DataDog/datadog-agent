@@ -28,6 +28,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -260,9 +261,10 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 	}
 
 	if config != nil {
-		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
-		collector.gpuMonitoringEnabled = config.GetBool("gpu.enabled")
-		collector.kaiSchedulerEnabled = config.GetBool("gpu.kai_scheduler.enabled")
+		cfg := gpuconfig.NewNVMLCollectorConfig(config)
+		collector.integrateWithWorkloadmetaProcesses = cfg.IntegrateWithWorkloadmetaProcesses
+		collector.gpuMonitoringEnabled = cfg.GPUMonitoringEnabled
+		collector.kaiSchedulerEnabled = cfg.KAISchedulerEnabled
 	}
 
 	return collector
