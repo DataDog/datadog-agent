@@ -133,6 +133,14 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 		if pod.Annotations[kaiReservationGPUAnnotation] != "" {
 			continue
 		}
+		// A finished workload no longer uses its fraction -- KAI only counts
+		// Running and Pending pods as holding one -- but the kubelet keeps
+		// reporting it for a while, with its container ID and group labels.
+		// Skipping it stops it from claiming, so that its mapping is retracted
+		// instead of keeping its tags on a GPU that others may still be using.
+		if pod.Phase == podPhaseSucceeded || pod.Phase == podPhaseFailed {
+			continue
+		}
 
 		groups := kaiGPUGroups(pod)
 		if len(groups) == 0 {

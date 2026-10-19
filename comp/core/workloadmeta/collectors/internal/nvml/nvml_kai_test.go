@@ -825,6 +825,42 @@ func TestCreateContainerGPUEventsRetractsKAIFraction(t *testing.T) {
 	assert.Empty(t, c.publishedContainerGPUs, "the publication record is dropped with the claim")
 }
 
+func TestCreateContainerGPUEventsRetractsATerminatedKAIFraction(t *testing.T) {
+	// A finished fractional pod stays visible through the kubelet for a while
+	// (kubernetes_pod_expiration_duration), with its container ID and group
+	// labels. KAI no longer counts it as using its fraction, so its mapping must
+	// be retracted rather than keep the pod's tags on a GPU others still use.
+	// frac-b keeps running on the same GPU, so the reservation pod stays: the
+	// retraction must come from the terminated workload itself.
+	for _, phase := range []string{podPhaseSucceeded, podPhaseFailed} {
+		t.Run(phase, func(t *testing.T) {
+			pods := allKAIFixturePods(t)
+			c := newKAICollector(storeWithPods(t, podSlice(pods)...))
+			require.NotEmpty(t, c.createContainerGPUEvents(kaiFixtureDeviceCache()))
+
+			fracAContainerID := podContainerID(t, pods["frac-a"])
+			fracBContainerID := podContainerID(t, pods["frac-b"])
+			require.Contains(t, c.seenContainerGPUs, fracAContainerID)
+			require.Contains(t, c.publishedContainerGPUs, fracAContainerID)
+
+			pods["frac-a"].Phase = phase
+			c.store = storeWithPods(t, podSlice(pods)...)
+
+			var unset []string
+			for _, event := range c.createContainerGPUEvents(kaiFixtureDeviceCache()) {
+				if event.Type == workloadmeta.EventTypeUnset {
+					unset = append(unset, event.Entity.GetID().ID)
+				}
+			}
+
+			assert.Equal(t, []string{fracAContainerID}, unset, "only the terminated container's mapping must be unset")
+			assert.NotContains(t, c.seenContainerGPUs, fracAContainerID)
+			assert.NotContains(t, c.publishedContainerGPUs, fracAContainerID)
+			assert.Contains(t, c.seenContainerGPUs, fracBContainerID, "the pod still sharing the GPU keeps its mapping")
+		})
+	}
+}
+
 func TestCreateContainerGPUEventsMergesKAIWithDRA(t *testing.T) {
 	// A container can hold both a DRA-allocated device and a KAI fraction of
 	// another GPU. Both must land in one event: workloadmeta replaces the
