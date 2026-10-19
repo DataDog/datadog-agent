@@ -59,6 +59,7 @@ needs_rpath() {
         return 0
     fi
 
+    # glibc and GCC runtime libraries, always found in the default search path.
     if [ -n "$needed" ] && printf '%s\n' "$needed" | grep -vE '^((libc|libm|libdl|libpthread|librt|libutil|libgcc_s)\.so\.[0-9]+|libstdc\+\+\.so\.[0-9]+|ld-linux.*)$' > /dev/null; then
         return 0
     fi
