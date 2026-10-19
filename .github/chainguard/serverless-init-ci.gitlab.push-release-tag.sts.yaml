@@ -1,0 +1,20 @@
+# Policy used by the prod release job in the ddoghq/serverless-init-ci GitLab
+# pipeline. After a public publish, it tags the datadog-agent commit it shipped
+# as `serverless-init-<version>`.
+# GitHub has no tags-only permission, so `contents: write` is limited to
+# protected `main` web pipelines that run `main`'s `.gitlab-ci.yml`. A
+# feature-branch pipeline with an edited CI file cannot get this token.
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:ddoghq/serverless-init-ci:ref_type:branch:ref:main"
+
+claim_pattern:
+  project_path: "^ddoghq/serverless-init-ci$"
+  ref: "^main$"
+  ref_type: "^branch$"
+  ref_protected: "^true$"
+  pipeline_source: "^web$"
+  ci_config_ref_uri: "^gitlab\\.ddbuild\\.io/ddoghq/serverless-init-ci//\\.gitlab-ci\\.yml@refs/heads/main$"
+
+permissions:
+  contents: write
