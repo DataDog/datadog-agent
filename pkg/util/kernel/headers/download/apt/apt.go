@@ -10,6 +10,7 @@ package apt
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"github.com/aptly-dev/aptly/deb"
 	"github.com/aptly-dev/aptly/http"
 	"github.com/aptly-dev/aptly/pgp"
+	"github.com/aptly-dev/aptly/utils"
 	"github.com/xor-gate/ar"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/extract"
@@ -66,6 +68,7 @@ func (b *Backend) extractPackage(pkg, directory string) error {
 func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Verifier, query *deb.FieldQuery, directory string) (*deb.PackageDependencies, error) {
 	var packageURL *url.URL
 	var packageDeps *deb.PackageDependencies
+	var checksums utils.ChecksumInfo
 
 	stanza := make(deb.Stanza, 32)
 
@@ -119,6 +122,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 		*/
 
 		packageList := repo.PackageList()
+		// A repository without a usable package must not prevent trying others.
 		_ = packageList.ForEach(func(pkg *deb.Package) error {
 			b.logger.Infof("Found package %s with version %s", pkg.Name, pkg.Version)
 
@@ -128,6 +132,7 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 			}
 
 			packageURL = repo.PackageURL(packageFiles[0].DownloadURL())
+			checksums = packageFiles[0].Checksums
 			packageDeps = pkg.Deps()
 			b.logger.Infof("Package URL: %s", packageURL)
 			return nil
@@ -144,14 +149,29 @@ func (b *Backend) downloadPackage(downloader aptly.Downloader, verifier pgp.Veri
 	}
 
 	b.logger.Info("Downloading package")
-	purl := packageURL.String()
-	outputFile := filepath.Join(directory, filepath.Base(purl))
-	if err := downloader.Download(context.Background(), purl, outputFile); err != nil {
-		return nil, fmt.Errorf("download %s to %s: %w", purl, directory, err)
-	}
-	defer os.Remove(outputFile)
+	return packageDeps, b.downloadAndExtract(downloader, packageURL.String(), checksums, directory)
+}
 
-	return packageDeps, b.extractPackage(outputFile, directory)
+// downloadAndExtract authenticates package bytes against the signed repository
+// metadata before allowing any archive content to reach the extraction directory.
+func (b *Backend) downloadAndExtract(downloader aptly.Downloader, purl string, checksums utils.ChecksumInfo, directory string) error {
+	validHash := func(value string, size int) bool {
+		decoded, err := hex.DecodeString(value)
+		return err == nil && len(decoded) == size
+	}
+	if checksums.Size < 0 || !(validHash(checksums.SHA256, 32) || validHash(checksums.SHA512, 64)) {
+		return fmt.Errorf("package %s has no valid authenticated size and SHA-256/SHA-512 checksum", purl)
+	}
+	tmp, err := os.MkdirTemp(directory, ".download-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	outputFile := filepath.Join(tmp, "package.deb")
+	if err := downloader.DownloadWithChecksum(context.Background(), purl, outputFile, &checksums, false); err != nil {
+		return fmt.Errorf("download %s to %s: %w", purl, directory, err)
+	}
+	return b.extractPackage(outputFile, directory)
 }
 
 func (b *Backend) createGpgVerifier() (*pgp.GoVerifier, error) {
@@ -212,7 +232,8 @@ func (b *Backend) GetKernelHeaders(directory string) error {
 
 				_, err = b.downloadPackage(downloader, gpgVerifier, query, directory)
 				if err != nil {
-					b.logger.Warnf("Failed to download dependent package %s", depName)
+					// Propagate verification and extraction failures so the download attempt cleans up partial headers.
+					return fmt.Errorf("download dependent package %s: %w", depName, err)
 				}
 			}
 		}
