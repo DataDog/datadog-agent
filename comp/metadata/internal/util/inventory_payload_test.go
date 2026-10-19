@@ -594,6 +594,15 @@ func TestSendNowBeforeFirstRunDelay(t *testing.T) {
 	i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata")
 }
 
+func TestSendNowNotReady(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+	i.createdAt = time.Now().Add(-2 * time.Minute)
+	i.SetReady(false)
+
+	assert.Error(t, i.SendNow())
+	i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata")
+}
+
 func TestSendNowDisabled(t *testing.T) {
 	i := getTestInventoryPayload(t, map[string]any{
 		"inventories_enabled": false,

@@ -42,6 +42,8 @@ type fakeInventoryAgent struct {
 
 func (f *fakeInventoryAgent) Set(string, interface{})     {}
 func (f *fakeInventoryAgent) Get() map[string]interface{} { return nil }
+func (f *fakeInventoryAgent) SetReady(bool)               {}
+func (f *fakeInventoryAgent) Submit()                     {}
 func (f *fakeInventoryAgent) SendNow() error              { return f.send(context.Background()) }
 
 type fakeInventoryHost struct {
