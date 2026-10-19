@@ -1,5 +1,5 @@
 ---
-name: anomalydetection-run-gensim-scenario-on-vm
+name: anomalydetection-run-gensim-scenario
 description: >-
   Record gensim episodes with the anomaly-detection recorder on either a remote Linux VM (--backend vm, default)
   or an AWS EKS cluster (--backend eks) and fetch validated Parquet recordings for the Agent Anomaly Detection

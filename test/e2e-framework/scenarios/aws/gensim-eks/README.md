@@ -93,7 +93,7 @@ uv run --with pyarrow dda inv aws.eks.gensim.fetch \
 
 `fetch` downloads the selected archive into a fresh local directory, verifies
 archive safety and manifest SHA-256 checksums, validates multi-pod Agent
-snapshots and Parquet `Time` overlap via `.agents/skills/anomalydetection-run-gensim-scenario-on-vm/scripts/recording.py`, and writes
+snapshots and Parquet `Time` overlap via `.agents/skills/anomalydetection-run-gensim-scenario/scripts/recording.py`, and writes
 `episode.json`, `validation.json`, `recording-manifest.json`, and `parquet/`.
 Replay in the testbench only after `validation.json` reports `"usable": true`:
 

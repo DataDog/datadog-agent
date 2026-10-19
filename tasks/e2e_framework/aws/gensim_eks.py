@@ -27,7 +27,7 @@ _VALIDATOR_SCRIPT = (
     Path(__file__).parent.parent.parent.parent
     / ".agents"
     / "skills"
-    / "anomalydetection-run-gensim-scenario-on-vm"
+    / "anomalydetection-run-gensim-scenario"
     / "scripts"
     / "recording.py"
 )
