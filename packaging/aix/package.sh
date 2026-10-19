@@ -36,9 +36,9 @@ trap cleanup EXIT
 
 # ─── Step 1: Pre-flight — verify staging tree is assembled ────────────────────
 #
-# The package must contain the main agent, ADP, ADP license artifacts, and the
-# postinst lifecycle script. If any are absent the staging tree is incomplete
-# and mkinstallp will produce a broken or empty BFF.
+# The package must contain the main agent, the process manager, ADP, ADP license
+# artifacts, and the postinst lifecycle script. If any are absent the staging
+# tree is incomplete and mkinstallp will produce a broken or empty BFF.
 
 AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent/agent"
 if [ ! -f "$AGENT_BIN" ]; then
@@ -47,6 +47,20 @@ if [ ! -f "$AGENT_BIN" ]; then
     exit 1
 fi
 log "Pre-flight: agent binary found at $AGENT_BIN"
+
+PROCMGR_BIN="$STAGING/opt/datadog-agent/embedded/bin/dd-procmgr"
+if [ ! -f "$PROCMGR_BIN" ]; then
+    log "ERROR: dd-procmgr binary not found at $PROCMGR_BIN"
+    log "       Did Stage 04 (04-agent) complete successfully?"
+    exit 1
+fi
+
+PROCMGRD_BIN="$STAGING/opt/datadog-agent/embedded/bin/dd-procmgrd"
+if [ ! -f "$PROCMGRD_BIN" ]; then
+    log "ERROR: dd-procmgrd binary not found at $PROCMGRD_BIN"
+    log "       Did Stage 04 (04-agent) complete successfully?"
+    exit 1
+fi
 
 ADP_BIN="$STAGING/opt/datadog-agent/embedded/bin/agent-data-plane"
 if [ ! -f "$ADP_BIN" ]; then

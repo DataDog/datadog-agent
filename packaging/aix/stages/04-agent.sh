@@ -28,6 +28,7 @@ log "=== Stage: $STAGE_NAME ==="
 : "${BUILD_DIR:?BUILD_DIR must be set}"
 : "${NPROC:?NPROC must be set}"
 : "${CC:?CC must be set}"
+: "${RUST_VERSION:?RUST_VERSION must be set}"
 : "${GOPATH:?GOPATH must be set}"
 : "${GOROOT:?GOROOT must be set}"
 : "${CGO_ENABLED:?CGO_ENABLED must be set}"
@@ -44,6 +45,8 @@ cleanup() {
         log "ERROR: $STAGE_NAME failed. Removing partial outputs."
         rm -rf "$STAGING/opt/datadog-agent/bin/agent"
         rm -f "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
+        rm -f "$STAGING/opt/datadog-agent/embedded/bin/dd-procmgrd"
+        rm -f "$STAGING/opt/datadog-agent/embedded/bin/dd-procmgr"
     fi
 }
 trap cleanup EXIT
@@ -144,29 +147,105 @@ cp "$SCRIPT_DIR/../trace-agent-wrapper.sh" "$STAGING/opt/datadog-agent/embedded/
 chmod 755 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 log "trace-agent wrapper installed at $STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 
-# ─── Step 6: Verify XCOFF64 magic bytes ───────────────────────────────────────
+# ─── Step 6: Build the process-manager binaries ───────────────────────────────
 #
-# Both binaries must be XCOFF64 (magic bytes 01 f7). A non-XCOFF64 result
+# pkg/procmgr/rust is a member of the repo-root Cargo workspace, so the build
+# runs from $AGENT_SRC against the checked-in Cargo.lock (--locked). Cargo
+# resolves the whole workspace — including its git-sourced dependencies — so the
+# first run needs network access; CARGO_HOME (env.sh) keeps the caches on the
+# build volume.
+
+log "Building dd-procmgrd and dd-procmgr via cargo"
+
+CARGO=${CARGO:-/opt/freeware/lib/RustSDK/$RUST_VERSION/bin/cargo}
+if [ ! -x "$CARGO" ]; then
+    log "ERROR: cargo not found at $CARGO"
+    exit 1
+fi
+# cargo resolves rustc from PATH, not from its own install directory.
+PATH="$(dirname "$CARGO"):$PATH"
+export PATH
+
+# AIX-specific Rust build flags — the same set Stages 06/07 use for the Rust
+# Python extensions, which is the recipe known to work with this SDK:
+#   CARGO_PROFILE_RELEASE_STRIP=none  — IBM Rust bug: stripping the .info section
+#                                       from proc-macro artifacts breaks rustc, and
+#                                       cargo strips debuginfo in release by default.
+#                                       Step 6 strips the shipped binaries with the
+#                                       AIX strip afterwards instead.
+#   CARGO_PROFILE_RELEASE_LTO=off     — the workspace release profile sets lto = "fat";
+#                                       LLVM fat LTO uses .ipa bitcode sections that do
+#                                       not exist in AIX XCOFF. Overriding from the
+#                                       environment keeps the shared workspace manifest
+#                                       platform-neutral.
+#   RUSTFLAGS="-C link-arg=-bbigtoc"  — lifts AIX ld's 64KB TOC limit, which a binary
+#                                       this size can exceed.
+#   ARFLAGS unset                     — env.sh sets ARFLAGS="-X64 -cru", which includes
+#                                       the ar operation code; cc-rs appends its own
+#                                       "cq", producing "ar -cru cq" that AIX ar rejects
+#                                       (two operation codes). OBJECT_MODE=64 already
+#                                       ensures 64-bit archives.
+
+RUSTFLAGS="-C link-arg=-bbigtoc${RUSTFLAGS:+ $RUSTFLAGS}"
+CARGO_PROFILE_RELEASE_STRIP=none
+CARGO_PROFILE_RELEASE_LTO=off
+export RUSTFLAGS CARGO_PROFILE_RELEASE_STRIP CARGO_PROFILE_RELEASE_LTO
+unset ARFLAGS
+
+# Keep cargo's output off the (transferred) agent source tree, alongside the
+# other build artefacts on the large build volume.
+CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$BUILD_DIR/procmgr-target}
+export CARGO_TARGET_DIR
+
+cd "$AGENT_SRC"
+# The crate inherits the workspace rust-version (1.94 today, tracking the rustc
+# MODULE.bazel pins for the Bazel builds). That is a floor, not a pin, so the
+# newer $RUST_VERSION SDK satisfies it; cargo only refuses to build if the SDK
+# ever falls below it.
+"$CARGO" build --release -p dd-procmgrd --bins
+
+mkdir -p "$STAGING/opt/datadog-agent/embedded/bin"
+for _bin in dd-procmgrd dd-procmgr; do
+    _src="$CARGO_TARGET_DIR/release/$_bin"
+    if [ ! -f "$_src" ]; then
+        log "ERROR: $_bin not found at $_src"
+        log "       cargo reported success but produced no binary — check the log above."
+        exit 1
+    fi
+    _dest="$STAGING/opt/datadog-agent/embedded/bin/$_bin"
+    rm -f "$_dest"
+    cp "$_src" "$_dest"
+    strip -X64 "$_dest"
+    chmod 755 "$_dest"
+    log "$_bin staged at $_dest"
+done
+
+# ─── Step 7: Verify XCOFF64 magic bytes ───────────────────────────────────────
+#
+# Every shipped binary must be XCOFF64 (magic bytes 01 f7). A non-XCOFF64 result
 # would indicate a cross-compile or wrong-format build.
 
-log "Verifying agent binary is XCOFF64"
-MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/bin/agent/agent-bin" | head -1 | awk '{print $2 $3}')
-if [ "$MAGIC" != "01f7" ]; then
-    log "ERROR: agent binary is not XCOFF64 (got: $MAGIC)"
-    log "       Expected magic bytes: 01 f7"
-    log "       Ensure CGO_ENABLED=1 and that GOROOT points to the AIX Go toolchain."
-    exit 1
-fi
-log "XCOFF64 magic verified for agent binary (magic: $MAGIC)"
+verify_xcoff64() {
+    _bin=$1
+    _hint=$2
+    _name=$(basename "$_bin")
+    log "Verifying $_name is XCOFF64"
+    _magic=$(od -A x -t x1 "$_bin" | head -1 | awk '{print $2 $3}')
+    if [ "$_magic" != "01f7" ]; then
+        log "ERROR: $_name is not XCOFF64 (got: $_magic)"
+        log "       Expected magic bytes: 01 f7"
+        log "       $_hint"
+        exit 1
+    fi
+    log "XCOFF64 magic verified for $_name (magic: $_magic)"
+}
 
-log "Verifying trace-agent binary is XCOFF64"
-MAGIC=$(od -A x -t x1 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin" | head -1 | awk '{print $2 $3}')
-if [ "$MAGIC" != "01f7" ]; then
-    log "ERROR: trace-agent binary is not XCOFF64 (got: $MAGIC)"
-    log "       Expected magic bytes: 01 f7"
-    log "       Ensure CGO_ENABLED=1 and that GOROOT points to the AIX Go toolchain."
-    exit 1
-fi
-log "XCOFF64 magic verified for trace-agent binary (magic: $MAGIC)"
+GO_HINT="Ensure CGO_ENABLED=1 and that GOROOT points to the AIX Go toolchain."
+RUST_HINT="Ensure cargo comes from the AIX Rust SDK at /opt/freeware/lib/RustSDK/$RUST_VERSION."
+
+verify_xcoff64 "$STAGING/opt/datadog-agent/bin/agent/agent-bin" "$GO_HINT"
+verify_xcoff64 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin" "$GO_HINT"
+verify_xcoff64 "$STAGING/opt/datadog-agent/embedded/bin/dd-procmgrd" "$RUST_HINT"
+verify_xcoff64 "$STAGING/opt/datadog-agent/embedded/bin/dd-procmgr" "$RUST_HINT"
 
 log "=== $STAGE_NAME complete ==="
