@@ -107,6 +107,17 @@ func (ci *CollectorInventory) CollectorForVersion(collectorName, collectorGroupV
 	return nil, fmt.Errorf("no collector found for name %s and version %s", collectorName, collectorGroupVersion)
 }
 
+// Groups returns the API groups of the collectors in the inventory.
+func (ci *CollectorInventory) Groups() map[string]struct{} {
+	groups := make(map[string]struct{})
+	for _, cv := range ci.collectors {
+		for _, c := range cv.Collectors {
+			groups[c.Metadata().Group] = struct{}{}
+		}
+	}
+	return groups
+}
+
 // StableCollectors get a list of all stable collectors in the inventory.
 func (ci *CollectorInventory) StableCollectors() []collectors.K8sCollector {
 	var stableCollectors []collectors.K8sCollector

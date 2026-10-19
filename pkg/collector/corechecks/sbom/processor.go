@@ -49,6 +49,16 @@ var /* const */ (
 	sourceAgent = "agent"
 )
 
+// usageGracePeriod bounds how long the first SBOM of a workload waits for the
+// runtime usage system-probe reports, so that the SBOM reaches the back end
+// once, already carrying its usage.
+const usageGracePeriod = 2 * time.Minute
+
+// scanRequester queues SBOM scan requests, as the global scanner does.
+type scanRequester interface {
+	Scan(sbom.ScanRequest) error
+}
+
 type processor struct {
 	cfg                   config.Component
 	queue                 chan *model.SBOMEntity
@@ -57,7 +67,7 @@ type processor struct {
 	tagger                tagger.Component
 	imageRepoDigests      map[string]string   // Map where keys are image repo digest and values are image ID
 	imagesInUse           map[string]struct{} // Set of image IDs the back end was last told are in use
-	sbomScanner           *sbomscanner.Scanner
+	sbomScanner           scanRequester
 	contImageSBOM         bool
 	hostSBOM              bool
 	procfsSBOM            bool
@@ -66,6 +76,32 @@ type processor struct {
 	hostLastFullSBOM      time.Time
 	hostHeartbeatValidity time.Duration
 	hostUsage             *cyclonedx_v1_4.Bom // Latest runtime usage report of the host, merged into the host scans
+
+	// The first SBOM of a workload waits for its runtime usage when
+	// usageEnrichment is on, for usageGracePeriod at most.
+	usageEnrichment      bool
+	heldImages           map[string]time.Time // Images whose first SBOM waits for usage, with the time it was first held
+	imagesWaited         map[string]struct{}  // Images whose SBOM went out in use, done waiting for usage
+	hostHeld             *sbom.ScanResult     // First host scan result, waiting for usage
+	hostHeldSince        time.Time
+	hostSentWithoutUsage bool // The host SBOM went out before the first usage report, which then triggers a scan
+
+	// While the usage of a workload was recorded for less than its window, the
+	// unseen packages go out stripped of their runtime properties, which leaves
+	// their usage unknown.
+	imageUsageWindow   time.Duration
+	hostUsageWindow    time.Duration
+	hostSentWindowOpen bool // The last full host SBOM went out while the window of the host was open
+
+	clock func() time.Time // Returns the current time, time.Now when nil
+}
+
+// now returns the current time, as clock tells it.
+func (p *processor) now() time.Time {
+	if p.clock == nil {
+		return time.Now()
+	}
+	return p.clock()
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workloadfilter.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
@@ -122,6 +158,9 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		procfsSBOM:            procfsSBOM,
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
+		usageEnrichment:       sbom.UsageEnrichmentEnabled(cfg),
+		heldImages:            make(map[string]time.Time),
+		imagesWaited:          make(map[string]struct{}),
 	}, nil
 }
 
@@ -231,6 +270,9 @@ func (p *processor) unregisterImage(img *workloadmeta.ContainerImageMetadata) {
 			delete(p.imageRepoDigests, repoDigest)
 		}
 	}
+
+	delete(p.heldImages, img.ID)
+	delete(p.imagesWaited, img.ID)
 }
 
 // runningImages returns the identifiers of the images that have at least one
@@ -297,6 +339,36 @@ func (p *processor) reportImage(imgID string, running, reported map[string]struc
 func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	log.Debugf("processing host scanresult: %v", result)
 
+	if p.hostWaitsForUsage(result, p.now()) {
+		log.Debugf("The host SBOM waits for the runtime usage of the host")
+		return
+	}
+
+	p.sendHostScanResult(result)
+}
+
+// hostWaitsForUsage reports whether the host scan result waits for the runtime
+// usage of the host before it goes out, as the first successful one does until
+// system-probe reports the usage, for usageGracePeriod at most. A newer result
+// replaces the one held and keeps its deadline.
+func (p *processor) hostWaitsForUsage(result sbom.ScanResult, now time.Time) bool {
+	if !p.usageEnrichment || result.Error != nil || p.hostUsage != nil || !p.hostLastFullSBOM.IsZero() {
+		return false
+	}
+
+	if p.hostHeld == nil {
+		p.hostHeldSince = now
+	} else if now.Sub(p.hostHeldSince) >= usageGracePeriod {
+		p.hostHeld = nil
+		return false
+	}
+
+	p.hostHeld = &result
+	return true
+}
+
+// sendHostScanResult sends the host SBOM of result, in full or as a heartbeat.
+func (p *processor) sendHostScanResult(result sbom.ScanResult) {
 	info, err := gopsutil.Info()
 	if err != nil {
 		log.Warnf("Failed to get host info: %v", err)
@@ -323,10 +395,18 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	} else {
 		log.Infof("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
 
-		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
+		// The SBOM the back end holds hides the unseen packages while the window
+		// is open, so the window closing makes it stale.
+		windowOpen := sbomutil.UsageWindowOpen(p.hostUsage, p.now(), p.hostUsageWindow)
+
+		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity && windowOpen == p.hostSentWindowOpen {
 			sbom.Heartbeat = true
 		} else {
 			report := sbomutil.MergeRuntimeProperties(result.Report.ToCycloneDX(), p.hostUsage)
+			sbomutil.HideUnreported(report, p.hostUsage)
+			if windowOpen {
+				sbomutil.HideUnobserved(report)
+			}
 			sbom.Sbom = &model.SBOMEntity_Cyclonedx{
 				Cyclonedx: report,
 			}
@@ -334,6 +414,8 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 			sbom.Hash = result.Report.ID()
 			p.hostCache = result.Report.ID()
 			p.hostLastFullSBOM = result.CreatedAt
+			p.hostSentWithoutUsage = p.usageEnrichment && p.hostUsage == nil
+			p.hostSentWindowOpen = windowOpen
 		}
 	}
 
@@ -341,13 +423,64 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 }
 
 // processHostUsage records usage, the runtime usage report system-probe
-// forwards for the host, for the next host scan to carry. The host SBOM the
-// back end holds predates usage, so that scan goes out in full.
+// forwards for the host, for the host scans to carry. The host SBOM the back
+// end holds predates usage, so the next scan goes out in full. A host SBOM
+// waiting for its first usage goes out now, and when the host SBOM went out
+// before the first report, a scan carries that report right away.
 func (p *processor) processHostUsage(usage *cyclonedx_v1_4.Bom) {
 	log.Debugf("processing host runtime usage report of %d packages", len(usage.GetComponents()))
 
 	p.hostUsage = usage
 	p.hostCache = ""
+
+	if held := p.hostHeld; held != nil {
+		p.hostHeld = nil
+		p.sendHostScanResult(*held)
+		return
+	}
+
+	if p.hostSentWithoutUsage {
+		p.hostSentWithoutUsage = false
+		p.triggerHostScan()
+	}
+}
+
+// releaseExpiredHolds sends the SBOMs that waited usageGracePeriod for their
+// runtime usage as they are.
+func (p *processor) releaseExpiredHolds(now time.Time) {
+	if p.hostHeld != nil && now.Sub(p.hostHeldSince) >= usageGracePeriod {
+		held := p.hostHeld
+		p.hostHeld = nil
+		log.Infof("The host SBOM goes out without runtime usage after waiting %s for it", usageGracePeriod)
+		p.sendHostScanResult(*held)
+	}
+
+	var expired []string
+	for imgID, since := range p.heldImages {
+		if now.Sub(since) >= usageGracePeriod {
+			expired = append(expired, imgID)
+		}
+	}
+	if len(expired) == 0 {
+		return
+	}
+
+	running := runningImages(p.workloadmetaStore)
+	for _, imgID := range expired {
+		delete(p.heldImages, imgID)
+
+		img, err := p.workloadmetaStore.GetImage(imgID)
+		if err != nil {
+			continue
+		}
+		// An image in use goes out past its wait. One left unused waits again
+		// for its next container.
+		if imageInUse(img, running) {
+			p.imagesWaited[imgID] = struct{}{}
+		}
+		log.Infof("The SBOM of image %s goes out without runtime usage after waiting %s for it", imgID, usageGracePeriod)
+		p.processImageSBOM(img, running)
+	}
 }
 
 func (p *processor) triggerHostScan() {
@@ -470,6 +603,16 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 		return
 	}
 
+	if p.imageWaitsForUsage(img.ID, cyclosbom, inUse, p.now()) {
+		log.Debugf("The SBOM of image %s waits for the runtime usage of the image", img.ID)
+		return
+	}
+
+	// UncompressSBOM returns a BOM of its own, which every repo entity shares.
+	if cyclosbom.Status == workloadmeta.Success && sbomutil.UsageWindowOpen(cyclosbom.CycloneDXBOM, p.now(), p.imageUsageWindow) {
+		sbomutil.HideUnobserved(cyclosbom.CycloneDXBOM)
+	}
+
 	for repo := range repos {
 		repoSplitted := strings.Split(repo, "/")
 		shortName := repoSplitted[len(repoSplitted)-1]
@@ -552,6 +695,42 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 		}
 		p.queue <- sbom
 	}
+
+	// An SBOM sent before the first container of the image runs leaves the
+	// image waiting, as the usage comes with that container.
+	if p.usageEnrichment && cyclosbom.Status == workloadmeta.Success {
+		delete(p.heldImages, img.ID)
+		if inUse {
+			p.imagesWaited[img.ID] = struct{}{}
+		}
+	}
+}
+
+// imageWaitsForUsage reports whether the SBOM of the image imgID waits for the
+// runtime usage of the image before it goes out, as the first successful SBOM
+// of an image in use does until its usage merges, for usageGracePeriod at most,
+// counted from the first time it waited. Usage covers the OS packages alone, so
+// the SBOM waits when it lists one.
+func (p *processor) imageWaitsForUsage(imgID string, s *workloadmeta.SBOM, inUse bool, now time.Time) bool {
+	if !p.usageEnrichment || !inUse || s.Status != workloadmeta.Success {
+		return false
+	}
+
+	if _, waited := p.imagesWaited[imgID]; waited {
+		return false
+	}
+
+	if sbom.IsEnriched(s.CycloneDXBOM) || !sbomutil.HasOSPackage(s.CycloneDXBOM) {
+		return false
+	}
+
+	since, held := p.heldImages[imgID]
+	if !held {
+		p.heldImages[imgID] = now
+		return true
+	}
+
+	return now.Sub(since) < usageGracePeriod
 }
 
 func (p *processor) stop() {

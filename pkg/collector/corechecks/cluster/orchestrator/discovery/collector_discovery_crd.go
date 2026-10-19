@@ -10,16 +10,17 @@ package discovery
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sDiscovery "k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DiscoveryCache is a cache for the discovery collector.
@@ -38,45 +39,81 @@ type CollectorVersion struct {
 
 // DiscoveryCollector stores all the discovered resources and their versions.
 type DiscoveryCollector struct {
-	cache DiscoveryCache
+	cache               DiscoveryCache
+	failedGroupVersions []schema.GroupVersion
+	fetch               ServerGroupsAndResourcesFunc
 }
 
-// NewDiscoveryCollectorForInventory returns a new DiscoveryCollector instance.
-func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
-	dc := &DiscoveryCollector{
+// NewDiscoveryCollector returns a new DiscoveryCollector instance that fetches groups and resources with fetch. The
+// cache is empty until [DiscoveryCollector.Refresh] is called.
+func NewDiscoveryCollector(fetch ServerGroupsAndResourcesFunc) *DiscoveryCollector {
+	return &DiscoveryCollector{
 		cache: DiscoveryCache{CollectorForVersion: map[CollectorVersion]struct{}{}},
+		fetch: fetch,
 	}
-	err := dc.fillCache()
-	if err != nil {
-		log.Errorc("Fail to init discovery collector : "+err.Error(), orchestrator.ExtraLogContext...)
-	}
-	return dc
 }
 
-// fillCache adds all the discovered resources and their versions to the cache.
-func (d *DiscoveryCollector) fillCache() error {
-	if !d.cache.Filled {
-		var err error
-		d.cache.Groups, d.cache.Resources, err = GetServerGroupsAndResources()
-		if err != nil {
-			return err
-		}
+// NewDiscoveryCollectorForInventory returns a new DiscoveryCollector instance backed by the API server.
+func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
+	return NewDiscoveryCollector(GetServerGroupsAndResources)
+}
 
-		if len(d.cache.Resources) == 0 {
-			return errors.New("failed to discover resources from API groups")
-		}
-		for _, list := range d.cache.Resources {
-			for _, resource := range list.APIResources {
-				cv := CollectorVersion{
-					GroupVersion: list.GroupVersion,
-					Kind:         resource.Name,
-				}
+// GroupsAndResources returns the groups and resources stored in the cache.
+func (d *DiscoveryCollector) GroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList) {
+	return d.cache.Groups, d.cache.Resources
+}
+
+// FailedGroupVersions returns the API group versions whose resources the last successful refresh could not discover.
+func (d *DiscoveryCollector) FailedGroupVersions() []schema.GroupVersion {
+	return d.failedGroupVersions
+}
+
+// IsNotEmpty reports whether resources have been discovered at least once, possibly partially.
+func (d *DiscoveryCollector) IsNotEmpty() bool {
+	return d.cache.Filled
+}
+
+// Refresh fetches groups and resources and adds them to the cache. Resources discovered before are kept, so a group
+// version failing on a later call does not remove its resources. It reports whether new resources were added.
+//
+// An error is returned when the discovery failed or when it only discovered part of the API group versions. The
+// resources discovered in the latter case are still added to the cache and the failed group versions are recorded.
+func (d *DiscoveryCollector) Refresh() (updated bool, err error) {
+	if d.fetch == nil {
+		return false, errors.New("no source configured to discover resources")
+	}
+
+	groups, resources, err := d.fetch()
+	partial := k8sDiscovery.IsGroupDiscoveryFailedError(err)
+	if err != nil && !partial {
+		return false, err
+	}
+	if len(resources) == 0 {
+		return false, errors.New("failed to discover resources from API groups")
+	}
+
+	if d.cache.CollectorForVersion == nil {
+		d.cache.CollectorForVersion = map[CollectorVersion]struct{}{}
+	}
+	for _, list := range resources {
+		for _, resource := range list.APIResources {
+			cv := CollectorVersion{
+				GroupVersion: list.GroupVersion,
+				Kind:         resource.Name,
+			}
+			if _, found := d.cache.CollectorForVersion[cv]; !found {
 				d.cache.CollectorForVersion[cv] = struct{}{}
+				updated = true
 			}
 		}
-		d.cache.Filled = true
 	}
-	return nil
+
+	d.cache.Groups = groups
+	d.cache.Resources = mergeResources(resources, d.cache.Resources)
+	d.cache.Filled = true
+	d.failedGroupVersions = failedGroupVersions(err)
+
+	return updated, err
 }
 
 // SetCache sets the cache for the DiscoveryCollector. This is useful for testing purposes
@@ -251,4 +288,41 @@ func (d *DiscoveryCollector) getSupportedVersions(groupName string) map[string]b
 		}
 	}
 	return nil
+}
+
+// failedGroupVersions returns the API group versions listed by a group discovery error, sorted for stable output.
+func failedGroupVersions(err error) []schema.GroupVersion {
+	var groupErr *k8sDiscovery.ErrGroupDiscoveryFailed
+	if !errors.As(err, &groupErr) {
+		return nil
+	}
+
+	failed := make([]schema.GroupVersion, 0, len(groupErr.Groups))
+	for gv := range groupErr.Groups {
+		failed = append(failed, gv)
+	}
+	slices.SortFunc(failed, func(a, b schema.GroupVersion) int {
+		return strings.Compare(a.String(), b.String())
+	})
+
+	return failed
+}
+
+// mergeResources returns the resource lists of current followed by the lists of previous whose group version is
+// missing from current.
+func mergeResources(current, previous []*v1.APIResourceList) []*v1.APIResourceList {
+	merged := make([]*v1.APIResourceList, 0, len(current)+len(previous))
+	seen := make(map[string]struct{}, len(current))
+
+	for _, list := range current {
+		merged = append(merged, list)
+		seen[list.GroupVersion] = struct{}{}
+	}
+	for _, list := range previous {
+		if _, found := seen[list.GroupVersion]; !found {
+			merged = append(merged, list)
+		}
+	}
+
+	return merged
 }
