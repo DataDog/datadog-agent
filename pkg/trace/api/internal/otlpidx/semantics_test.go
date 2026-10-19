@@ -101,6 +101,18 @@ var semanticsFixtures = []semanticsFixture{
 		name: "unknown kind", kind: ptrace.SpanKind(42), spanName: "noop",
 	},
 	{
+		name: "sampling.priority numeric", kind: ptrace.SpanKindServer, spanName: "s",
+		attrs: map[string]any{"sampling.priority": 2},
+	},
+	{
+		name: "sampling.priority string", kind: ptrace.SpanKindServer, spanName: "s",
+		attrs: map[string]any{"sampling.priority": "2"},
+	},
+	{
+		name: "sampling.priority from resource stays an attribute", kind: ptrace.SpanKindServer, spanName: "s",
+		res: map[string]any{"sampling.priority": 2},
+	},
+	{
 		name: "analytics.event string", kind: ptrace.SpanKindServer, spanName: "s",
 		attrs: map[string]any{"analytics.event": "true"},
 	},
@@ -315,6 +327,25 @@ func TestSemanticsMatchV04MultiSpan(t *testing.T) {
 			assertMatchesV04(t, want, tp, tp.Chunks[0].Spans[i])
 		})
 	}
+}
+
+// TestSamplingPriorityAttribute checks that a numeric sampling.priority span attribute sets the
+// chunk's user priority, as today's conversion does through the _sampling_priority_v1 metric.
+func TestSamplingPriorityAttribute(t *testing.T) {
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(traceA)
+	span.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 1})
+	span.Attributes().PutInt("sampling.priority", 2)
+	b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
+	require.NoError(t, err)
+	tps, err := decodeForTest(b)
+	require.NoError(t, err)
+	c := tps[0].Chunks[0]
+	assert.Equal(t, int32(2), c.Priority)
+	assert.Equal(t, uint32(samplingMechanismManual), c.SamplingMechanism())
 }
 
 // TestScopeAttributesNative checks that scope attributes keep their native type, apply to every

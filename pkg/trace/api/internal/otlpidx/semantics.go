@@ -368,6 +368,37 @@ func (d *decoder) applyScope(span *idx.Span, lib *scopeInfo) {
 	}
 }
 
+// samplingPriority mirrors SetMetricOTLPIfEmpty for a numeric sampling.priority span attribute, which
+// today's conversion stores as the _sampling_priority_v1 metric, the key the sampling priority concept
+// reads (the chunk priority, user-set sampling mechanism and span attribute all follow from it).
+// String values stay plain attributes, as today.
+func (d *decoder) samplingPriority(attrs map[uint32]*idx.AnyValue) {
+	const key, ddKey = "sampling.priority", "_sampling_priority_v1"
+	if !d.spanKeys.mayContain(keySig(key)) {
+		return
+	}
+	ref := d.strings.Lookup(key)
+	v, ok := attrs[ref]
+	if ref == 0 || !ok {
+		return
+	}
+	var p float64
+	switch x := v.Value.(type) {
+	case *idx.AnyValue_IntValue:
+		p = float64(x.IntValue)
+	case *idx.AnyValue_DoubleValue:
+		p = x.DoubleValue
+	default:
+		return
+	}
+	delete(attrs, ref)
+	ddRef := d.strings.Add(ddKey)
+	if _, exists := attrs[ddRef]; !exists {
+		attrs[ddRef] = d.doubleValue(p)
+		d.spanKeys.add(keySig(ddKey))
+	}
+}
+
 // keyAnalyticsEvent is the attribute that today's conversion (SetMetaOTLPIfEmpty) turns into the
 // event extraction rate metric.
 const keyAnalyticsEvent = "analytics.event"
@@ -473,6 +504,7 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 	// Resource attributes are only merged into the span after this, so lookups see the span's
 	// own attributes and the typed resource attributes, like transform.OtelSpanToDDSpan.
 	attrs := span.Attributes
+	d.samplingPriority(attrs)
 	for i := range d.lookupKeys {
 		d.lookupKeys[i] = d.spanKeys[i] | d.resKeys[i]
 	}
