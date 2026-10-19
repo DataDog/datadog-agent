@@ -14,7 +14,7 @@ The live sequence is specifically **`ddgl retry` → automatic retry through the
 
 The audience has already seen `ddgl`. Repeating pipeline browsing and log-reading demonstrations would displace the new features and the evidence that their feedback influenced the work. Slides should explain the mechanisms; the demo should make a few common workflows concrete.
 
-Full Agent builds and an exhaustive recovery demonstration cannot fit the slot. Use prepared failures in lightweight, explicitly synthetic CI. The previously selected transient fixture remains a stateless 50/50 failure; it does not guarantee recovery on the first retry.
+Full Agent builds and an exhaustive recovery demonstration cannot fit the slot. Use prepared failures in lightweight, explicitly synthetic CI. The transient fixture fails attempts owned by `codesync` and passes attempts owned by another user, making retries deterministic for the demo's push-triggered pipelines.
 
 ## Proposed solution
 
@@ -34,7 +34,7 @@ Use a simple flow on the final slide: **watch → diagnose → retry OR reproduc
 | Beat | On screen | Intended takeaway |
 |---|---|---|
 | 1. Manual retry, about 30 seconds | On a prepared failed pipeline, run `ddgl retry --pipeline <id> --failed` and confirm. Show the new attempt being accepted | Retry from the terminal without returning to the GitLab UI |
-| 2. Automatic retry, about 60–90 seconds | Start a new pipeline on the same branch and invoke `/follow-pr`; if the flaky job fails, show the skill's diagnosis, targeted retry, and resumed monitoring | The skill decides that a retry is appropriate and performs it |
+| 2. Automatic retry, about 60–90 seconds | Push a fresh commit on the same branch and invoke `/follow-pr`; show the skill's diagnosis, targeted retry, and resumed monitoring after the CodeSync-triggered attempt fails | The skill decides that a retry is appropriate and performs it |
 | 3. Automatic fix, remaining time | Once the flaky job passes, the downstream conversion check fails; the same `/follow-pr` invocation investigates, fixes, validates, pushes, and watches the replacement pipeline | One invocation handles a transient failure followed by a code regression |
 
 Keep the prompt/command for each beat visible, but do not read the entire agent transcript aloud. Highlight only the verdict, action, and result. No separate live log-browser tour, `attach --retry` demonstration, mode comparison, or allowed-failure filter comparison. An allowed-failure job may remain visible as background context; it does not need its own demo beat.
@@ -43,23 +43,23 @@ Reserve the final minute for where to get the updates, the command/skill to try,
 
 ### One branch, sequential failures
 
-Use only `pierrelouis.veyrenc/ddgl-forum-demo`. The pipeline has two stages: `retry` runs the 50/50 transient job and the allowed failure; `fix` runs the conversion check only after the transient job succeeds. The explicit `needs` dependency is an ordering constraint, not an artifact or infrastructure dependency.
+Use only `pierrelouis.veyrenc/ddgl-forum-demo`. The pipeline has two stages: `retry` runs the identity-controlled transient job and the allowed failure; `fix` runs the conversion check only after the transient job succeeds. The explicit `needs` dependency is an ordering constraint, not an artifact or infrastructure dependency.
 
 This makes the first failure visible to triage the flaky job alone. After its retry succeeds, GitLab can run the conversion check and expose the code regression. The skill's existing preference for fixing code before retrying does not conflict with the desired sequence because the two blocking failures are not exposed together.
 
-The CLI demonstration starts from an already-failed pipeline. After that command completes, start a new pipeline on the same ref and launch `/follow-pr` once. Keep the matching checkout clean and let the skill own subsequent retries and pushes. Starting a new pipeline is distinct from retrying the failed jobs of the old one.
+The CLI demonstration starts from an already-failed pipeline. After that command completes, push a fresh commit on the same ref and launch `/follow-pr` once. Keep the matching checkout clean and let the skill own subsequent retries and pushes. Starting a new pipeline is distinct from retrying the failed jobs of the old one.
 
-The transient job has an independent 50/50 outcome on every execution, including the initial attempt of the new pipeline and the pipeline created by an autofix push. If it passes immediately, the skill goes straight to investigating the conversion failure. Repeated failures can consume the shared budget before a push is possible. Neither the retry demonstration nor a green final pipeline is guaranteed by the random fixture.
+The transient job reads `GITLAB_USER_LOGIN` at execution time: `codesync` fails, and any other identity passes. CodeSync creates the initial pipeline and the pipeline after an autofix push; user-authenticated retries get the retrying user's identity. The expected recovery sequence is therefore retry → fix push → retry, using the default three shared cycles. A pipeline created directly through the GitLab UI or a user-authenticated API call would pass this job immediately; fresh demo pipelines must come from pushes through CodeSync. This identity check is a demo convention, not a general-purpose retry detector.
 
 The code regression has an unchanged, fast check and one obvious source correction, supported by a passing reference commit. Its fix must not weaken the check. The pipeline does not build the Agent, provision infrastructure, or require persistent retry state. Disable GitLab's automatic retries so they do not mask the demonstrated actions.
 
-The demo uses existing tools and runner infrastructure. `ddgl 0.4.0rc1` is installed. The authenticated GitLab version check returned `18.5.7`, which lacks the [native retry-count variable introduced in 19.3](https://docs.gitlab.com/ci/variables/predefined_variables/). This supports keeping the chosen random fixture rather than adding attempt-tracking infrastructure.
+The demo uses existing tools and runner infrastructure. `ddgl 0.4.0rc1` is installed. GitLab `18.5.7` lacks the [native retry-count variable introduced in 19.3](https://docs.gitlab.com/ci/variables/predefined_variables/), but its [retry implementation assigns the current user](https://github.com/gitlabhq/gitlabhq/blob/v18.5.7/app/services/ci/clone_job_service.rb) to the new attempt, and its [variable builder derives `GITLAB_USER_LOGIN` from the job's user](https://github.com/gitlabhq/gitlabhq/blob/v18.5.7/lib/gitlab/ci/variables/builder.rb). The identity-controlled fixture requires no persistent state or API calls from the job.
 
 ### Readiness and fallback
 
 Rehearse the complete sequence: a short job script does not guarantee short runner queues, triage, hooks, or pipeline propagation. The four-minute live segment is a target, not a verified duration. Keep an actual rehearsal recording available and label it explicitly if live operations run too slowly. Do not silently start the agent during the slides and present it as a fresh invocation afterward.
 
-Use the existing default autonomy and recovery limits without explaining their full configuration. A 50/50 retry scenario can exhaust its budget; show the actual outcome rather than adding retries beyond policy. Clearly identify synthetic failures. Do not fabricate production history or force a triage verdict; the unchanged skill's ability to justify a retry from this fixture must be established in rehearsal.
+Use the existing default autonomy and recovery limits without explaining their full configuration. Show the actual outcome rather than adding retries beyond policy if an unrelated failure consumes the budget. Clearly identify synthetic failures. Do not fabricate production history or force a triage verdict; the unchanged skill's ability to justify a retry from this fixture must be established in rehearsal.
 
 Scope mutations to the disposable demo branch and its pipelines. Keep credentials out of displayed output, preserve normal commit hooks and git safeguards, and never merge demo CI into production branches. No changes to the skills are proposed here.
 
@@ -73,7 +73,7 @@ retry stage:  forum_demo:retry ────────► fix stage: forum_demo
               (allowed failure)
 ```
 
-`pierrelouis.veyrenc/ddgl-forum-demo` contains both the random fixture and the seeded conversion regression. The working reference is commit `a7414c73d9e`; commit `1140df9003e` introduces the one-line defect. The unchanged check establishes the intended behavior.
+`pierrelouis.veyrenc/ddgl-forum-demo` contains both the identity-controlled fixture and the seeded conversion regression. The working conversion reference is commit `a7414c73d9e`; commit `1140df9003e` introduces the one-line defect. The unchanged check establishes the intended behavior.
 
 Publish the demo branch when ready:
 
@@ -81,17 +81,17 @@ Publish the demo branch when ready:
 git push origin pierrelouis.veyrenc/ddgl-forum-demo
 ```
 
-Prepare one pipeline where `forum_demo:retry` has failed, retaining its ID. If it passes during preparation, start another pipeline. Authenticate tools and open the clean checkout and relevant terminal/session tabs before presenting.
+Prepare one CodeSync-triggered pipeline where `forum_demo:retry` has failed, retaining its ID. Authenticate `ddgl` as your user and open the clean checkout and relevant terminal/session tabs before presenting. The fixture prints its triggering identity in the job log.
 
 ```text
 ddgl retry --pipeline <already-failed-pipeline-id> --failed
 ```
 
-Then start a fresh pipeline for the same ref in GitLab's Run pipeline UI, or with:
+Then start a fresh pipeline through CodeSync with an empty commit and push:
 
 ```bash
-glab api --hostname gitlab.ddbuild.io --method POST projects/4670/pipeline \
-  --field ref=pierrelouis.veyrenc/ddgl-forum-demo
+git commit --allow-empty -m "ci(demo): start recovery demonstration"
+git push origin pierrelouis.veyrenc/ddgl-forum-demo
 ```
 
 Launch the skill once and let it continue from the flaky failure to the regression:
@@ -100,7 +100,16 @@ Launch the skill once and let it continue from the flaky failure to the regressi
 /follow-pr pierrelouis.veyrenc/ddgl-forum-demo
 ```
 
-Introduce the random fixture as intentional demo behavior, not a code defect to repair. Its source and prior attempt logs provide evidence; there is no production flakiness baseline for these job names. The skill still needs to justify its retry decision.
+Introduce the identity-controlled fixture as intentional demo behavior, not a code defect to repair. Its source and prior attempt logs provide evidence; there is no production flakiness baseline for these job names. The skill still needs to justify its retry decision.
+
+Smoke-check the two fixture outcomes locally:
+
+```bash
+GITLAB_USER_LOGIN=codesync python3 -B .gitlab/forum-demo/flaky.py
+# Expected exit status: 1.
+GITLAB_USER_LOGIN=pierrelouis.veyrenc python3 -B .gitlab/forum-demo/flaky.py
+# Expected exit status: 0.
+```
 
 The local reproducer for the fix scenario is:
 
@@ -118,6 +127,7 @@ It fails on the seeded demo branch. The source to repair is `.gitlab/forum-demo/
 | Repeat the general `ddgl` feature tour | Rejected: already presented previously |
 | Expose the flaky job and code regression in parallel | Rejected: the skill prioritizes the code fix; sequential jobs preserve retry-before-fix ordering |
 | Separate retry and fix branches | Rejected: unnecessary switching; one branch and one skill invocation demonstrate the complete sequence |
+| Random 50/50 transient failures | Replaced by the job-identity check to make initial failures and user retries predictable |
 
 ## Open questions
 

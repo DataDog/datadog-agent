@@ -1,10 +1,13 @@
-"""Simulate an independently rerunnable job with a 50% failure probability."""
+"""Fail CodeSync-triggered attempts and pass user-triggered attempts."""
 
-import random
+import os
 import sys
 
-if random.getrandbits(1):
-    print("FAIL: synthetic transient failure (50% chance on each attempt).")
+trigger_user = os.environ["GITLAB_USER_LOGIN"]
+print(f"Job triggered by {trigger_user}.")
+
+if trigger_user == "codesync":
+    print("FAIL: synthetic transient failure on a CodeSync-triggered attempt.")
     sys.exit(1)
 
-print("PASS: synthetic transient check succeeded.")
+print("PASS: user-triggered attempt succeeded.")
