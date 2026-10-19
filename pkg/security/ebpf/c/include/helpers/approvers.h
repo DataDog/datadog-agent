@@ -609,6 +609,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
         .process_path_key = *process_path_key,
         .file_path_key = file->path_key,
     };
+    bpf_get_current_comm(&key.comm, sizeof(key.comm));
 
     u64 now = bpf_ktime_get_ns();
 
