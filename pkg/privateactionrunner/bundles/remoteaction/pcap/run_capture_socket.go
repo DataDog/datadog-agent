@@ -120,6 +120,18 @@ func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInput
 		return captureOutcome{}, fmt.Errorf("writing pcap data: %w", err)
 	}
 
+	// system-probe commits the HTTP 200 and starts streaming the PCAP body
+	// before capturer.Start runs, so a capture that failed to start, or that
+	// hit packet read/write errors mid-capture, is reported only through this
+	// trailer (populated once the body above has been fully read) rather than
+	// the status code. Treat any reported error as a failed capture instead of
+	// uploading a possibly-empty or partial artifact as if it succeeded.
+	if captureErrs := trailerInt(resp, "X-Capture-Errors"); captureErrs > 0 {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return captureOutcome{}, fmt.Errorf("packet_capture reported %d capture error(s)", captureErrs)
+	}
+
 	actualDuration := time.Since(startTime)
 
 	if err = tmpFile.Sync(); err != nil {

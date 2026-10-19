@@ -56,7 +56,7 @@ func TestSocketCaptureTrigger_Success(t *testing.T) {
 		w.Header().Set("X-Packet-Count", "42")
 		w.Header().Set("X-Packets-Dropped", "7")
 		w.Header().Set("X-Headers-Truncated", "3")
-		w.Header().Set("X-Capture-Errors", "1")
+		w.Header().Set("X-Capture-Errors", "0")
 	})
 
 	trigger := &socketCaptureTrigger{}
@@ -70,12 +70,44 @@ func TestSocketCaptureTrigger_Success(t *testing.T) {
 	assert.Equal(t, 42, out.PacketCount)
 	assert.Equal(t, 7, out.PacketsDropped)
 	assert.Equal(t, 3, out.HeadersTruncated)
-	assert.Equal(t, 1, out.Errors)
+	assert.Equal(t, 0, out.Errors)
 	assert.Equal(t, int64(len(pcapBody)), out.FileSizeBytes)
 
 	data, err := os.ReadFile(out.PcapPath)
 	require.NoError(t, err)
 	assert.Equal(t, pcapBody, string(data))
+}
+
+// TestSocketCaptureTrigger_CaptureErrorsTrailer covers the case where
+// system-probe has already committed HTTP 200 and streamed a (possibly
+// empty or partial) PCAP body before capturer.Start failed or hit per-packet
+// errors: the only signal for that is the X-Capture-Errors trailer, which
+// the client must reject on rather than treating as a successful capture.
+func TestSocketCaptureTrigger_CaptureErrorsTrailer(t *testing.T) {
+	const pcapBody = "fake-pcap-bytes"
+
+	startFakePacketCaptureServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Trailer", "X-Packet-Count, X-Packets-Dropped, X-Headers-Truncated, X-Capture-Errors")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(pcapBody))
+		w.Header().Set("X-Packet-Count", "0")
+		w.Header().Set("X-Packets-Dropped", "0")
+		w.Header().Set("X-Headers-Truncated", "0")
+		w.Header().Set("X-Capture-Errors", "1")
+	})
+
+	trigger := &socketCaptureTrigger{}
+	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
+		BPFFilter:    "tcp port 443",
+		DurationSecs: 1,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "capture error")
+	// No artifact should be left behind for a rejected capture.
+	assert.Empty(t, out.PcapPath)
+	if out.PcapPath != "" {
+		_ = os.Remove(out.PcapPath)
+	}
 }
 
 func TestSocketCaptureTrigger_ErrorStatus(t *testing.T) {
