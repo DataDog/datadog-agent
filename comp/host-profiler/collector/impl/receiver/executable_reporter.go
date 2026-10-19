@@ -10,8 +10,10 @@ package receiver
 
 import (
 	"context"
+	"log/slog"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/exp/zapslog"
 
 	ebpfreporter "go.opentelemetry.io/ebpf-profiler/reporter"
 
@@ -24,8 +26,11 @@ type executableReporter struct {
 	symbolUploader *symboluploader.DatadogSymbolUploader
 }
 
-func newExecutableReporter(config *symboluploader.SymbolUploaderConfig, _ *zap.Logger) (*executableReporter, error) {
+func newExecutableReporter(config *symboluploader.SymbolUploaderConfig, logger *zap.Logger) (*executableReporter, error) {
 	ctx := context.Background()
+	// Route the slog default logger through this receiver's logger, so the
+	// symbol upload reports keep the service and component fields.
+	slog.SetDefault(slog.New(zapslog.NewHandler(logger.Core())))
 	symbolUploader, err := symboluploader.NewDatadogSymbolUploader(ctx, config)
 	if err != nil {
 		return nil, err
