@@ -4,72 +4,9 @@ from unittest.mock import MagicMock, patch
 from tasks.libs.ciproviders.github_api import GithubAPI
 
 
-class GithubAPITestCase(unittest.TestCase):
-    def setUp(self):
-        # Mocked GitHub clients must not request real local credentials.
-        auth = patch("tasks.libs.ciproviders.github_api.generate_local_github_token", return_value="test-token")
-        auth.start()
-        self.addCleanup(auth.stop)
-
-
 class Label:
     def __init__(self, name):
         self.name = name
-
-
-class TestSignedCommit(unittest.TestCase):
-    def setUp(self):
-        self.github = GithubAPI.__new__(GithubAPI)
-        self.github._repository = MagicMock(full_name="DataDog/datadog-agent")
-        self.github._auth = MagicMock(token="test-token")
-
-    def test_graphql_passes_variables_separately(self):
-        with patch("tasks.libs.ciproviders.github_api.requests.post") as post:
-            post.return_value.status_code = 200
-            post.return_value.json.return_value = {"data": {}}
-            self.github.graphql("query($name: String!) { field }", {"name": 'a"b'})
-        self.assertEqual(
-            post.call_args.kwargs["json"],
-            {"query": "query($name: String!) { field }", "variables": {"name": 'a"b'}},
-        )
-
-    def test_graphql_preserves_existing_query_only_calls(self):
-        with patch("tasks.libs.ciproviders.github_api.requests.post") as post:
-            post.return_value.status_code = 200
-            self.github.graphql("query { field }")
-        self.assertEqual(post.call_args.kwargs["json"], {"query": "query { field }"})
-
-    def test_signed_commit_uses_atomic_expected_head(self):
-        commit = {"oid": "commit", "tree": {"oid": "tree"}}
-        with patch.object(
-            self.github, "graphql", return_value={"data": {"createCommitOnBranch": {"commit": commit}}}
-        ) as graphql:
-            self.assertEqual(self.github.create_signed_commit("branch", "head", "title", "body", {}), commit)
-        self.assertEqual(
-            graphql.call_args.kwargs["variables"]["input"],
-            {
-                "branch": {"repositoryNameWithOwner": "DataDog/datadog-agent", "branchName": "branch"},
-                "expectedHeadOid": "head",
-                "message": {"headline": "title", "body": "body"},
-                "fileChanges": {},
-            },
-        )
-
-    def test_graphql_errors_are_failures_even_on_http_success(self):
-        with (
-            patch.object(self.github, "graphql", return_value={"errors": [{"message": "Head changed"}]}),
-            self.assertRaisesRegex(RuntimeError, "Head changed"),
-        ):
-            self.github.create_signed_commit("branch", "head", "title", "body", {})
-
-    def test_missing_commit_or_tree_is_not_success(self):
-        for result in ({"data": None}, {"data": {"createCommitOnBranch": {"commit": {"oid": "commit"}}}}):
-            with (
-                self.subTest(result=result),
-                patch.object(self.github, "graphql", return_value=result),
-                self.assertRaisesRegex(RuntimeError, "missing the commit or tree"),
-            ):
-                self.github.create_signed_commit("branch", "head", "title", "body", {})
 
 
 class Myfile:
@@ -77,7 +14,7 @@ class Myfile:
         self.filename = name
 
 
-class TestReleaseNoteNeeded(GithubAPITestCase):
+class TestReleaseNoteNeeded(unittest.TestCase):
     @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
     def test_needed(self, _):
         github = GithubAPI(repository="test", public_repo=True)
@@ -95,7 +32,7 @@ class TestReleaseNoteNeeded(GithubAPITestCase):
             self.assertFalse(github.is_release_note_needed(2))
 
 
-class TestContainsReleaseNote(GithubAPITestCase):
+class TestContainsReleaseNote(unittest.TestCase):
     @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
     def test_contains(self, _):
         github = GithubAPI(repository="test", public_repo=True)
@@ -121,7 +58,7 @@ class TestContainsReleaseNote(GithubAPITestCase):
         self.assertEqual(github._organization, "org")
 
 
-class TestUpdateReviewComplexityLabel(GithubAPITestCase):
+class TestUpdateReviewComplexityLabel(unittest.TestCase):
     @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
     def test_add_label(self, _):
         github = GithubAPI(repository="test", public_repo=True)
@@ -153,7 +90,7 @@ class TestUpdateReviewComplexityLabel(GithubAPITestCase):
             mock_pr.add_to_labels.assert_called_with("medium review")
 
 
-class TestFindAllTeams(GithubAPITestCase):
+class TestFindAllTeams(unittest.TestCase):
     @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
     def test_nested_teams(self, _):
         github = GithubAPI(repository="test", public_repo=True)

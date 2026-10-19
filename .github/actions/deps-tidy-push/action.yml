@@ -1,0 +1,34 @@
+---
+name: Deps Tidy Push
+description: Commit any tidy changes and push signed commits
+inputs:
+  token:
+    description: octo-sts token from deps-tidy-setup
+    required: true
+  commit-message:
+    description: "Commit message; include the appropriate skip token ([renovate skip])"
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Create commit
+      id: commit
+      shell: bash
+      run: |
+        if git diff --quiet; then
+          echo "No changes to commit"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          git config --global user.name "Login will be determined by the Github API based on the creator of the token"
+          git config --global user.email ""
+          git commit -am "${{ inputs.commit-message }}"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
+    - name: Push signed commits
+      if: steps.commit.outputs.has_changes == 'true'
+      uses: chouetz/push-signed-commits@9b123e8898e6176af65b9427b434e07aebe7f72f
+      with:
+        github-token: ${{ inputs.token }}
+        local_branch_name: ${{ github.head_ref }}
+        remote_name: "origin"
+        remote_branch_name: ${{ github.head_ref }}

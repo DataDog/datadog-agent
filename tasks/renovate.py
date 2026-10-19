@@ -12,10 +12,10 @@ Renovate auto-bump flow for native deps pinned via ``http_archive(...)`` in
 ``deps/repos.MODULE.bazel``. Renovate updates the version literal but cannot
 recompute the ``sha256`` field; this task downloads the new tarball, hashes
 it, and rewrites the source. It is invoked from
-``.github/workflows/deps-tidy.yml``.
+``.github/workflows/bazel-native-tidy.yml``.
 
-``publish_tidy`` publishes generated dependency files through the shared GitHub
-client, with a one-update limit and an atomic branch-head check to prevent loops.
+Design mirrors ``tasks/python_version.py::_prepare_bazel_update``: regex-based
+edits with strict match-count validation so partial/silent failures abort the
 """
 
 from __future__ import annotations
@@ -32,47 +32,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.deps_tidy import prepare_tidy_update
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MODULE_FILE = REPO_ROOT / "deps" / "repos.MODULE.bazel"
-
-
-@task
-def publish_tidy(
-    ctx: Context,
-    source_sha: str = "",
-    branch: str = "",
-    repository: str = "",
-    commit_message: str = "[renovate skip] Tidy generated dependency files",
-):
-    """Publish at most one signed dependency update per pull-request input revision.
-
-    Source SHA, branch and repository default to SOURCE_SHA, HEAD_REF and
-    GITHUB_REPOSITORY in GitHub Actions. Authentication uses GithubAPI's existing
-    GITHUB_TOKEN support; pass the dd-octo-sts App token when running in CI.
-    """
-    source_sha = source_sha or os.environ.get("SOURCE_SHA", "")
-    branch = branch or os.environ.get("HEAD_REF", "")
-    repository = repository or os.environ.get("GITHUB_REPOSITORY", "DataDog/datadog-agent")
-    if not source_sha or not branch:
-        raise Exit("Pass --source-sha and --branch, or set SOURCE_SHA and HEAD_REF", code=1)
-    try:
-        update = prepare_tidy_update(ctx, source_sha, branch)
-        if update is None:
-            return
-        commit = GithubAPI(repository=repository).create_signed_commit(
-            branch, source_sha, commit_message, f"Deps-Tidy-Source: {source_sha}", update.file_changes
-        )
-        # Verify this exact commit, so a subsequent branch update cannot cause
-        # a false mismatch while checking the result of our publication.
-        if commit["tree"]["oid"] != update.expected_tree:
-            raise RuntimeError("Published dependency update differs from the generated tree")
-    except RuntimeError as error:
-        raise Exit(str(error), code=1) from error
-    print(f"Published dependency update {commit['oid']}")
-
 
 # Match each `http_archive(...)` block. Captures the block body so individual
 # fields can be extracted with separate regexes. Anchored on column-0 `)` —

@@ -3,7 +3,7 @@ name: Deps Tidy Setup
 description: Acquire push token and warm Bazel cache for dependency tidying
 outputs:
   token:
-    description: octo-sts token for publishing dependency updates
+    description: octo-sts token for use by deps-tidy-push
     value: ${{ steps.octo-sts.outputs.token }}
 runs:
   using: composite
