@@ -229,6 +229,9 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	if cfg.IsConfigured(basePrefix + "verbose") {
 		settings.Baseline.Verbose = cfg.GetBool(basePrefix + "verbose")
 	}
+	if cfg.IsConfigured(metricAllowedTypesConfigKey) {
+		settings.AllowedMetricTypes = cfg.GetStringSlice(metricAllowedTypesConfigKey)
+	}
 
 	return settings
 }

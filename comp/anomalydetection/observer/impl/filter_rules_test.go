@@ -1289,4 +1289,12 @@ anomaly_detection:
 	resetSeries := obs.engine.Storage().ListSeriesMetadata("parquet")
 	require.Len(t, resetSeries, 1)
 	assert.Equal(t, "after_reset.count", resetSeries[0].Name)
+
+	// settingsFromAgentConfig preserves anomaly_detection.metrics.allowed_types across Reset.
+	agentSettings := settingsFromAgentConfig(obs.catalog, cfg)
+	require.Equal(t, []string{"Gauge", "Unknown"}, agentSettings.AllowedMetricTypes)
+	obs.Reset(agentSettings, DefaultStorageConfig())
+	assert.True(t, obs.metricFilter.isMetricTypeAllowed(metrics.GaugeType))
+	assert.True(t, obs.metricFilter.isMetricTypeAllowed(observerdef.UnknownType))
+	assert.False(t, obs.metricFilter.isMetricTypeAllowed(metrics.CountType))
 }
