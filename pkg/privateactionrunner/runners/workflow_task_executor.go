@@ -141,20 +141,18 @@ func (e *WorkflowTaskExecutor) RunTask(
 	task := preparedTask.Task
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
-	executionFQN := task.GetExecutionFQN()
-	executionBundle, executionAction := actions.SplitFQN(executionFQN)
-	bundle := e.registry.GetBundle(executionBundle)
+	bundle := e.registry.GetBundle(bundleName)
 	if bundle == nil {
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find bundle for %s", executionBundle),
+			fmt.Errorf("could not find bundle for %s", bundleName),
 		)
 	}
-	action := bundle.GetAction(executionAction)
+	action := bundle.GetAction(actionName)
 	if action == nil {
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find action for %s", executionAction),
+			fmt.Errorf("could not find action for %s", actionName),
 		)
 	}
 	if !e.config.IsActionAllowed(bundleName, actionName) {
