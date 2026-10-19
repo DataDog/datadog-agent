@@ -64,6 +64,7 @@ type LinuxResolver struct {
 	cgroupResolver       *cgroup.Resolver
 	versionResolver      func(servicePath string) string
 	workloads            map[containerutils.CGroupID]*Workload
+	workloadsLock        sync.Mutex
 }
 
 // Start the resolver
@@ -78,9 +79,14 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 
 	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupDeleted, func(cgce *cgroupModel.CacheEntry) {
 		id := cgce.GetCGroupID()
-		if workload, ok := t.workloads[id]; ok {
-			t.NotifyListeners(WorkloadSelectorDeleted, workload)
+		t.workloadsLock.Lock()
+		workload, ok := t.workloads[id]
+		if ok {
 			delete(t.workloads, id)
+		}
+		t.workloadsLock.Unlock()
+		if ok {
+			t.NotifyListeners(WorkloadSelectorDeleted, workload)
 		}
 	}); err != nil {
 		return err
@@ -109,7 +115,9 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 // onCGroupCreated tracks the workload of a new cgroup and resolves its tags
 func (t *LinuxResolver) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
 	workload := &Workload{GCroupCacheEntry: cgce}
+	t.workloadsLock.Lock()
 	t.workloads[cgce.GetCGroupContext().CGroupID] = workload
+	t.workloadsLock.Unlock()
 	t.checkTags(workload)
 }
 

@@ -29,6 +29,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
@@ -87,8 +88,9 @@ type Profile struct {
 	LoadedInKernel *atomic.Bool
 	LoadedNano     *atomic.Uint64
 	// Instances is the list of workload instances to witch the profile should apply
-	InstancesLock sync.Mutex
-	Instances     []*tags.Workload
+	InstancesLock       sync.Mutex
+	Instances           []*tags.Workload
+	insertingWorkloadID containerutils.WorkloadID
 
 	// V2
 	// First has been sent
@@ -345,10 +347,37 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 	return ok, p.ActivityTree.Stats.ApproximateSize(), nil
 }
 
+func eventWorkloadID(event *model.Event) containerutils.WorkloadID {
+	if event == nil || event.ProcessCacheEntry == nil {
+		return nil
+	}
+	if id := event.ProcessCacheEntry.ContainerContext.ContainerID; id != "" {
+		return id
+	}
+	if id := event.ProcessCacheEntry.CGroup.CGroupID; id != "" {
+		return id
+	}
+	return nil
+}
+
 // Insert inserts an event in the profile and returns the matched/created process node and event node
 func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, *activity_tree.NodeBase, error) {
 	p.Lock()
 	defer p.Unlock()
+
+	if p.observedRollups {
+		workloadID := eventWorkloadID(event)
+		if workloadID != nil {
+			p.InstancesLock.Lock()
+			p.insertingWorkloadID = workloadID
+			p.InstancesLock.Unlock()
+			defer func() {
+				p.InstancesLock.Lock()
+				p.insertingWorkloadID = nil
+				p.InstancesLock.Unlock()
+			}()
+		}
+	}
 
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
@@ -710,6 +739,29 @@ func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
 	p.versionContexts[version] = ctx
 }
 
+// EnsureVersionContext returns the existing version context for version, or creates and stores a new one atomically.
+func (p *Profile) EnsureVersionContext(version string, workloadTags []string, nowNano uint64) (*VersionContext, bool) {
+	p.Lock()
+	defer p.Unlock()
+
+	if ctx, ok := p.versionContexts[version]; ok {
+		return ctx, false
+	}
+
+	tagsCopy := make([]string, len(workloadTags))
+	copy(tagsCopy, workloadTags)
+
+	ctx := &VersionContext{
+		FirstSeenNano:  nowNano,
+		LastSeenNano:   nowNano,
+		EventTypeState: make(map[model.EventType]*EventTypeState),
+		Syscalls:       unionSyscalls(p.ActivityTree.ComputeSyscallsList(), p.seededSyscalls),
+		Tags:           tagsCopy,
+	}
+	p.versionContexts[version] = ctx
+	return ctx, true
+}
+
 func (p *Profile) makeRoomForNewVersion(maxImageTags int) []string {
 	evictedVersions := []string{}
 	// if we reached the max number of versions, we should evict the surplus
@@ -818,6 +870,10 @@ func unionSyscalls(base, extra []uint32) []uint32 {
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	p.InstancesLock.Lock()
 	defer p.InstancesLock.Unlock()
+
+	if p.insertingWorkloadID != nil && (p.insertingWorkloadID == entry.ContainerContext.ContainerID || p.insertingWorkloadID == entry.CGroup.CGroupID) {
+		return true
+	}
 
 	for _, workload := range p.Instances {
 		// Check if the workload IDs match

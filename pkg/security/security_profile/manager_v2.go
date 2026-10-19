@@ -1051,31 +1051,25 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	// Cancel any pending removal for this selector (it's back!)
-	m.pendingProfileRemovalsLock.Lock()
-	if _, pending := m.pendingProfileRemovals[selector]; pending {
-		delete(m.pendingProfileRemovals, selector)
-		seclog.Debugf("cancelled pending removal for profile [%s] - selector reappeared", selector.String())
-	}
-	m.pendingProfileRemovalsLock.Unlock()
+	workloadID := getWorkloadIDFromEvent(event)
+	workload, exited := m.getOrCreateWorkload(event, selector, workloadID)
 
-	// Get or create the profile for this workload
-	secprof, err := m.getOrCreateProfile(selector, event)
+	secprof, err := m.getOrCreateProfile(selector, event, workload, &exited)
 	if err != nil {
 		return nil, false
 	}
+
 	if !secprof.IsEnabled() {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false
 	}
 
-	// Build workloadID for cache entry lookup
-	workloadID := getWorkloadIDFromEvent(event)
-
-	// Link this workload to the profile (tracks in profile.Instances)
-	workload := m.getOrCreateWorkload(event, selector, workloadID)
-	m.linkWorkloadToProfile(secprof, workload)
-	m.seedMountsForWorkload(secprof, workload, event)
+	if !exited && workload != nil && !workload.GCroupCacheEntry.IsDeleted() {
+		m.seedMountsForWorkload(secprof, workload, event)
+		if workload.GCroupCacheEntry.IsDeleted() {
+			secprof.RemoveBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode())
+		}
+	}
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
@@ -1149,31 +1143,25 @@ func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 }
 
 // getOrCreateWorkload creates a workload object from an event for tracking in profile Instances
-func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) *tags.Workload {
+func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) (*tags.Workload, bool) {
 	var cacheEntry *cgroupModel.CacheEntry
-
-	switch id := workloadID.(type) {
-	case containerutils.ContainerID:
-		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryContainerID(id)
-	case containerutils.CGroupID:
-		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(id)
+	if m.resolvers != nil {
+		cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryByWorkloadID(workloadID)
 	}
-
-	if cacheEntry == nil {
-		return nil
+	if cacheEntry == nil || cacheEntry.IsDeleted() {
+		return nil, true
 	}
 
 	return &tags.Workload{
 		GCroupCacheEntry: cacheEntry,
 		Selector:         selector,
 		Tags:             event.ProcessContext.Process.ContainerContext.Tags,
-	}
+	}, false
 }
 
-// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked.
-func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
+func (m *ManagerV2) linkWorkloadToProfileLocked(prof *profile.Profile, workload *tags.Workload) bool {
 	if workload == nil {
-		return
+		return false
 	}
 
 	prof.InstancesLock.Lock()
@@ -1183,13 +1171,12 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	workloadID := workload.GetWorkloadID()
 	for _, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
-			return
+			return false
 		}
 	}
 
 	prof.Instances = append(prof.Instances, workload)
-
-	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
+	return true
 }
 
 // baseMountNamespaceFromEvent returns the mount namespace to treat as the workload's base,
@@ -1213,7 +1200,7 @@ func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 // pre-existing mounts from its base mount namespace. Later changes come from
 // live mount events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
-	if workload == nil {
+	if workload == nil || m.resolvers == nil || m.resolvers.MountResolver == nil {
 		return
 	}
 
@@ -1283,42 +1270,72 @@ func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgrou
 
 // getOrCreateProfile retrieves an existing profile or creates a new one for the given selector.
 // It first tries to load the profile from local storage, and if not found, creates a new one.
-func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, error) {
+func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, event *model.Event, workload *tags.Workload, exited *bool) (*profile.Profile, error) {
 	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
-
 	secprof := m.profiles[selector]
-	if secprof != nil {
-		return secprof, nil
-	}
-
-	containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
-	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil, nil))) {
-		seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
-		return nil, errors.New("workload excluded")
-	}
-
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-	if m.imageExcluder.IsExcluded(imageName, imageTag) {
-		seclog.Debugf("workload %s excluded by image filter (image=%s tag=%s)", selector.String(), imageName, imageTag)
-		return nil, errors.New("workload excluded")
-	}
-
-	// Try to load from local storage first
-	secprof, loaded := m.loadProfileFromStorage(selector, event)
-	if !loaded {
-		// Create a new profile if not found in storage
-		var err error
-		secprof, err = m.createNewProfile(selector, event)
-		if err != nil {
-			return nil, err
+	var loaded bool
+	if secprof == nil {
+		containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
+		if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil, nil))) {
+			m.profilesLock.Unlock()
+			seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
+			return nil, errors.New("workload excluded")
 		}
-		seclog.Debugf("created new profile for selector %s", selector.String())
-	} else {
-		seclog.Debugf("loaded profile from storage for selector %s", selector.String())
+
+		imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+		if m.imageExcluder.IsExcluded(imageName, imageTag) {
+			m.profilesLock.Unlock()
+			seclog.Debugf("workload %s excluded by image filter (image=%s tag=%s)", selector.String(), imageName, imageTag)
+			return nil, errors.New("workload excluded")
+		}
+
+		// Try to load from local storage first
+		secprof, loaded = m.loadProfileFromStorage(selector, event)
+		if !loaded {
+			// Create a new profile if not found in storage
+			var err error
+			secprof, err = m.createNewProfile(selector, event)
+			if err != nil {
+				m.profilesLock.Unlock()
+				return nil, err
+			}
+			seclog.Debugf("created new profile for selector %s", selector.String())
+		} else {
+			seclog.Debugf("loaded profile from storage for selector %s", selector.String())
+		}
+
+		m.profiles[selector] = secprof
 	}
 
-	m.profiles[selector] = secprof
+	if !*exited && (workload == nil || workload.GCroupCacheEntry.IsDeleted()) {
+		*exited = true
+	}
+
+	var linked bool
+	if !*exited {
+		linked = m.linkWorkloadToProfileLocked(secprof, workload)
+		m.pendingProfileRemovalsLock.Lock()
+		if _, pending := m.pendingProfileRemovals[selector]; pending {
+			delete(m.pendingProfileRemovals, selector)
+			seclog.Debugf("cancelled pending removal for profile [%s] - selector reappeared", selector.String())
+		}
+		m.pendingProfileRemovalsLock.Unlock()
+	} else if !m.profileHasActiveInstances(secprof) {
+		m.pendingProfileRemovalsLock.Lock()
+		m.pendingProfileRemovals[selector] = time.Now()
+		m.pendingProfileRemovalsLock.Unlock()
+	}
+
+	m.profilesLock.Unlock()
+
+	if linked {
+		m.resolveAndSaveSecurityContext(secprof, workload.GCroupCacheEntry.GetContainerID())
+	}
+
+	if loaded && m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+		m.evictUnusedNodesOnLoad(secprof, selector, event)
+	}
+
 	return secprof, nil
 }
 
@@ -1356,25 +1373,28 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 
 	m.resolveAndSaveSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID)
 
-	// Apply eviction right away if configured
-	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
-		workloadID := getWorkloadIDFromEvent(event)
-		containersOnly := !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups
-		filepathsInProcessCache := m.GetNodesInProcessCache(workloadID, containersOnly)
-		evicted := secprof.ActivityTree.EvictUnusedNodes(
-			time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout),
-			filepathsInProcessCache,
-			selector.Image,
-		)
-		if evicted > 0 {
-			seclog.Debugf("evicted %d unused nodes from loaded profile [%s]", evicted, selector.String())
-			if purged := m.purgeOrphanedCookies(); purged > 0 {
-				seclog.Debugf("purged %d orphaned sample cookies after loading profile [%s]", purged, selector.String())
-			}
+	return secprof, true
+}
+
+func (m *ManagerV2) evictUnusedNodesOnLoad(secprof *profile.Profile, selector cgroupModel.WorkloadSelector, event *model.Event) {
+	workloadID := getWorkloadIDFromEvent(event)
+	containersOnly := !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups
+	filepathsInProcessCache := m.GetNodesInProcessCache(workloadID, containersOnly)
+
+	secprof.Lock()
+	evicted := secprof.ActivityTree.EvictUnusedNodes(
+		time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout),
+		filepathsInProcessCache,
+		selector.Image,
+	)
+	secprof.Unlock()
+
+	if evicted > 0 {
+		seclog.Debugf("evicted %d unused nodes from loaded profile [%s]", evicted, selector.String())
+		if purged := m.purgeOrphanedCookies(); purged > 0 {
+			seclog.Debugf("purged %d orphaned sample cookies after loading profile [%s]", purged, selector.String())
 		}
 	}
-
-	return secprof, true
 }
 
 // createNewProfile initializes a new profile with all required metadata and tags
@@ -1470,22 +1490,8 @@ func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
 // ensureVersionContext creates a version context for the given tag if it doesn't exist, with the tags of the
 // workload that introduced this tag
 func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string, workloadTags []string) {
-	if _, ok := secprof.GetVersionContext(tag); ok {
-		return
-	}
-
-	now := time.Now()
-	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-
-	vCtx := &profile.VersionContext{
-		FirstSeenNano:  nowNano,
-		LastSeenNano:   nowNano,
-		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       secprof.ComputeSyscallsList(),
-		Tags:           slices.Clone(workloadTags),
-	}
-
-	secprof.AddVersionContext(tag, vCtx)
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	secprof.EnsureVersionContext(tag, workloadTags, nowNano)
 }
 
 // seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
@@ -1512,21 +1518,25 @@ func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadI
 
 	// Iterate through profiles and their instances to find matching workload
 	for _, prof := range m.profiles {
+		matched := false
 		prof.InstancesLock.Lock()
 		for _, instance := range prof.Instances {
 			instance.Lock()
 			if instance.GetWorkloadID() == id {
-				ctx.Name = prof.Metadata.Name
-				if profileContext, ok := prof.GetVersionContext(imageTag); ok {
-					ctx.Tags = profileContext.Tags
-				}
+				matched = true
 				instance.Unlock()
-				prof.InstancesLock.Unlock()
-				return
+				break
 			}
 			instance.Unlock()
 		}
 		prof.InstancesLock.Unlock()
+		if matched {
+			ctx.Name = prof.Metadata.Name
+			if profileContext, ok := prof.GetVersionContext(imageTag); ok {
+				ctx.Tags = profileContext.Tags
+			}
+			return
+		}
 	}
 }
 

@@ -49,6 +49,11 @@ type FSInterface interface {
 	GetCGroupPids(cgroupID string) ([]uint32, error)
 }
 
+type cgroupNotification struct {
+	event      Event
+	cacheEntry *cgroupModel.CacheEntry
+}
+
 // Resolver defines a cgroup monitor
 type Resolver struct {
 	*utils.Notifier[Event, *cgroupModel.CacheEntry]
@@ -59,6 +64,7 @@ type Resolver struct {
 	hostCacheEntries      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
 	containerCacheEntries *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry]
 	dentryResolver        *dentry.Resolver
+	pendingNotifications  []cgroupNotification
 
 	// metrics
 	addedCgroups    atomic.Int64
@@ -66,6 +72,23 @@ type Resolver struct {
 	fallbackSucceed atomic.Int64
 	fallbackFailed  atomic.Int64
 	remainingPids   atomic.Int64
+}
+
+func (cr *Resolver) queueNotification(event Event, cacheEntry *cgroupModel.CacheEntry) {
+	cr.pendingNotifications = append(cr.pendingNotifications, cgroupNotification{
+		event:      event,
+		cacheEntry: cacheEntry,
+	})
+}
+
+func (cr *Resolver) unlockAndNotify() {
+	notifications := cr.pendingNotifications
+	cr.pendingNotifications = nil
+	cr.Unlock()
+
+	for _, n := range notifications {
+		cr.NotifyListeners(n.event, n.cacheEntry)
+	}
 }
 
 // NewResolver returns a new cgroups monitor
@@ -85,7 +108,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface, dent
 		cacheEntry.CallReleaseCallbacks()
 		cacheEntry.SetAsDeleted()
 
-		cr.NotifyListeners(CGroupDeleted, cacheEntry)
+		cr.queueNotification(CGroupDeleted, cacheEntry)
 	}
 
 	var err error
@@ -179,7 +202,7 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 	// Add() call was made. Entries pre-created with pid=0 (via Add()) will fire CGroupCreated
 	// later when AddPID transitions their count from 0 to 1.
 	if pid != 0 {
-		cr.NotifyListeners(CGroupCreated, cacheEntry)
+		cr.queueNotification(CGroupCreated, cacheEntry)
 	}
 
 	return cacheEntry
@@ -223,7 +246,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32) *cgroupModel.CacheEntry {
 			cr.fallbackSucceed.Inc()
 
 			if l := cacheEntry.AddPID(pid); l == 1 {
-				cr.NotifyListeners(CGroupCreated, cacheEntry)
+				cr.queueNotification(CGroupCreated, cacheEntry)
 			}
 
 			return cacheEntry
@@ -260,7 +283,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32) *cgroupModel.CacheEntry {
 // Add registers a new cgroup entry
 func (cr *Resolver) Add(cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
 	cr.Lock()
-	defer cr.Unlock()
+	defer cr.unlockAndNotify()
 
 	if cacheEntry, found := cr.cacheEntriesByPathKey.Get(cgroupContext.CGroupPathKey.Inode); found {
 		return cacheEntry
@@ -274,7 +297,7 @@ func (cr *Resolver) Add(cgroupContext model.CGroupContext) *cgroupModel.CacheEnt
 // Delete removes the cgroup associated with the given inode
 func (cr *Resolver) Delete(inode uint64) {
 	cr.Lock()
-	defer cr.Unlock()
+	defer cr.unlockAndNotify()
 
 	cacheEntry, ok := cr.cacheEntriesByPathKey.Get(inode)
 	if !ok {
@@ -300,7 +323,7 @@ func (cr *Resolver) Delete(inode uint64) {
 // the cgroup context doesn't have to be resolved, it will be resolved when the cgroup is created.
 func (cr *Resolver) AddPID(pid uint32, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
 	cr.Lock()
-	defer cr.Unlock()
+	defer cr.unlockAndNotify()
 
 	if !cgroupContext.IsNull() {
 		var cacheEntryFound *cgroupModel.CacheEntry
@@ -310,7 +333,7 @@ func (cr *Resolver) AddPID(pid uint32, cgroupContext model.CGroupContext) *cgrou
 			if cc := cacheEntry.GetCGroupContext(); cc.Equals(&cgroupContext) {
 				// if the cgroup context is the same, add the pid to the cache entry
 				if l := cacheEntry.AddPID(pid); l == 1 {
-					cr.NotifyListeners(CGroupCreated, cacheEntry)
+					cr.queueNotification(CGroupCreated, cacheEntry)
 				}
 
 				cacheEntryFound = cacheEntry
@@ -410,10 +433,26 @@ func (cr *Resolver) GetCacheEntryByInode(inode uint64) *cgroupModel.CacheEntry {
 	return cacheEntry
 }
 
+// GetCacheEntryByWorkloadID returns the cache entry referenced by the provided workload ID
+func (cr *Resolver) GetCacheEntryByWorkloadID(id containerutils.WorkloadID) *cgroupModel.CacheEntry {
+	if cr == nil || id == nil {
+		return nil
+	}
+
+	switch v := id.(type) {
+	case containerutils.ContainerID:
+		return cr.GetCacheEntryContainerID(v)
+	case containerutils.CGroupID:
+		return cr.GetCacheEntryByCgroupID(v)
+	default:
+		return nil
+	}
+}
+
 // DelPID removes a PID from the cgroup resolver
 func (cr *Resolver) DelPID(pid uint32) {
 	cr.Lock()
-	defer cr.Unlock()
+	defer cr.unlockAndNotify()
 
 	for _, cacheEntry := range cr.containerCacheEntries.Values() {
 		cr.deleteCacheEntryPID(pid, cacheEntry)

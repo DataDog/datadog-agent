@@ -280,3 +280,62 @@ func TestResolveForceFallbackIfCGroupIsNull(t *testing.T) {
 
 	mockFS.AssertExpectations(t)
 }
+
+func TestGetCacheEntryByWorkloadID(t *testing.T) {
+	resolver, _ := createTestResolver(t)
+
+	var nilResolver *Resolver
+	assert.Nil(t, nilResolver.GetCacheEntryByWorkloadID(containerutils.ContainerID("c1")))
+	assert.Nil(t, resolver.GetCacheEntryByWorkloadID(nil))
+
+	containerEntry := resolver.Add(model.CGroupContext{
+		CGroupID:      "/kubepods/besteffort/pod48d25824-cbe2-4fdc-9928-5bb49e05473d/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 1001},
+		CGroupSource:  model.CGroupSourceEvent,
+	})
+	require.NotNil(t, containerEntry)
+
+	hostEntry := resolver.Add(model.CGroupContext{
+		CGroupID:      "/system.slice/nginx.service",
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 1002},
+		CGroupSource:  model.CGroupSourceEvent,
+	})
+	require.NotNil(t, hostEntry)
+
+	assert.Same(t, containerEntry, resolver.GetCacheEntryByWorkloadID(containerEntry.GetContainerID()))
+	assert.Same(t, hostEntry, resolver.GetCacheEntryByWorkloadID(hostEntry.GetCGroupID()))
+	assert.Nil(t, resolver.GetCacheEntryByWorkloadID(containerutils.ContainerID("")))
+	assert.Nil(t, resolver.GetCacheEntryByWorkloadID(containerutils.CGroupID("")))
+}
+
+func TestListenersNotifiedOutsideResolverLock(t *testing.T) {
+	resolver, mockFS := createTestResolver(t)
+	mockFS.On("FindCGroupContext", uint32(4321), uint32(4321)).Return(
+		containerutils.ContainerID(""),
+		utils.CGroupContext{},
+		"",
+		errors.New("not found"),
+	)
+
+	var createdCalled, deletedCalled bool
+	require.NoError(t, resolver.RegisterListener(CGroupCreated, func(cgce *cgroupModel.CacheEntry) {
+		createdCalled = true
+		assert.Same(t, cgce, resolver.GetCacheEntryByCgroupID(cgce.GetCGroupID()))
+	}))
+	require.NoError(t, resolver.RegisterListener(CGroupDeleted, func(cgce *cgroupModel.CacheEntry) {
+		deletedCalled = true
+		assert.True(t, cgce.IsDeleted())
+		assert.Nil(t, resolver.GetCacheEntryByCgroupID(cgce.GetCGroupID()))
+	}))
+
+	entry := resolver.AddPID(4321, model.CGroupContext{
+		CGroupID:      "/system.slice/test.service",
+		CGroupPathKey: model.PathKey{MountID: 42, Inode: 2001},
+		CGroupSource:  model.CGroupSourceEvent,
+	})
+	require.NotNil(t, entry)
+	assert.True(t, createdCalled)
+
+	resolver.Delete(2001)
+	assert.True(t, deletedCalled)
+}
