@@ -23,6 +23,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 )
 
 // GRPCTransport dials one ClientConn per sender and opens stream generations
@@ -35,6 +37,9 @@ type GRPCTransport struct {
 	enc       string
 	method    string
 	keepalive keepalive.ClientParameters
+	// secrets is asked to refresh when the intake rejects a key resolved from
+	// a secret. Nil disables the refresh.
+	secrets secrets.Component
 }
 
 // NewGRPCTransport builds a transport for dest.
@@ -46,7 +51,10 @@ type GRPCTransport struct {
 // window the server grants; a client-side InitialWindowSize/InitialConnWindowSize
 // has no effect on it. There is accordingly no window worth configuring here,
 // and grpc-go's own dynamic (BDP-estimated) default applies.
-func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
+//
+// When secretsComp is backed by a real secrets backend, an intake rejecting a
+// key resolved from a secret triggers an async refresh, as an HTTP 403 does.
+func NewGRPCTransport(dest *DestinationConfig, secretsComp secrets.Component) *GRPCTransport {
 	enc := "identity"
 	if dest.Core.Compression == Zstd {
 		enc = "zstd"
@@ -67,6 +75,7 @@ func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
 			Time:    dest.KeepaliveTime,
 			Timeout: dest.KeepaliveTimeout,
 		},
+		secrets: secretsComp,
 	}
 }
 
@@ -80,8 +89,9 @@ func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 		return nil, err
 	}
 	spec := t.specs[sender]
+	apiKey := spec.APIKey()
 	md := metadata.Pairs(
-		"dd-api-key", spec.APIKey(),
+		"dd-api-key", apiKey,
 		"dd-content-encoding", t.enc,
 		"dd-state-request-bytes", strconv.Itoa(t.state),
 	)
@@ -98,9 +108,32 @@ func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 	}
 	if err != nil {
 		cancel()
+		t.refreshIfRejected(err, apiKey)
 		return nil, classifyGRPC(err)
 	}
-	return &grpcStream{stream: clientStream, cancel: cancel}, nil
+	return &grpcStream{
+		stream:     clientStream,
+		cancel:     cancel,
+		apiKey:     apiKey,
+		currentKey: spec.APIKey,
+		onError:    func(err error) { t.refreshIfRejected(err, apiKey) },
+	}, nil
+}
+
+// refreshIfRejected asks the secrets backend for a fresh key when the intake
+// rejected apiKey and apiKey came from a secret. The core reconnects with
+// backoff either way, and the next stream reads whatever key the endpoint
+// then holds.
+func (t *GRPCTransport) refreshIfRejected(err error, apiKey string) {
+	if t.secrets == nil {
+		return
+	}
+	switch status.Code(err) {
+	case codes.Unauthenticated, codes.PermissionDenied:
+		if t.secrets.IsValueFromSecret(apiKey) {
+			t.secrets.Refresh()
+		}
+	}
 }
 
 func (t *GRPCTransport) conn(ctx context.Context, sender SenderID) (*grpc.ClientConn, error) {
@@ -146,8 +179,11 @@ func (t *GRPCTransport) Close() {
 }
 
 type grpcStream struct {
-	stream grpc.ClientStream
-	cancel context.CancelFunc
+	stream     grpc.ClientStream
+	cancel     context.CancelFunc
+	apiKey     string
+	currentKey func() string
+	onError    func(error)
 }
 
 // Send gives up when ctx ends by cancelling the whole stream: SendMsg ignores
@@ -159,13 +195,13 @@ func (s *grpcStream) Send(ctx context.Context, batchID uint32, data []byte) erro
 	if !stop() {
 		return fmt.Errorf("send batch %d: %w", batchID, ctx.Err())
 	}
-	return classifyGRPC(err)
+	return s.classify(err)
 }
 
 func (s *grpcStream) Recv(_ context.Context) (uint32, int32, error) {
 	var statusMsg BatchStatus
 	if err := s.stream.RecvMsg(&statusMsg); err != nil {
-		return 0, 0, classifyGRPC(err)
+		return 0, 0, s.classify(err)
 	}
 	return statusMsg.BatchID, statusMsg.Status, nil
 }
@@ -175,6 +211,17 @@ func (s *grpcStream) Close() error {
 		s.cancel()
 	}
 	return s.stream.CloseSend()
+}
+
+func (s *grpcStream) CredentialsChanged() bool {
+	return s.currentKey != nil && s.currentKey() != s.apiKey
+}
+
+func (s *grpcStream) classify(err error) error {
+	if err != nil && s.onError != nil {
+		s.onError(err)
+	}
+	return classifyGRPC(err)
 }
 
 func classifyGRPC(err error) error {

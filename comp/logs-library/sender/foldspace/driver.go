@@ -546,6 +546,20 @@ func (d *Driver) senderLoop(sender SenderID) {
 		d.dispatch(progress)
 	}
 
+	// A rotated API key reaches the intake only on a new stream, so a stream
+	// whose key has gone stale is rotated rather than failed: rotation drains
+	// its outstanding acks and reopens without a backoff step. It runs before
+	// drainEffects because the core binds batches to a stream when polled,
+	// which puts queued batches on the new stream. The core ignores the timer
+	// for a stream already draining, so repeating it until the drain ends is
+	// harmless.
+	rotateIfCredentialsChanged := func() {
+		if current == nil || !current.CredentialsChanged() {
+			return
+		}
+		d.dispatch(d.core.HandleTimer(sender, currentID, RotateStream))
+	}
+
 	drainEffects := func() {
 		for {
 			effects := d.core.PollSender(sender)
@@ -630,9 +644,11 @@ func (d *Driver) senderLoop(sender SenderID) {
 		case <-d.stop:
 			return
 		case <-d.wake[sender]:
+			rotateIfCredentialsChanged()
 			drainEffects()
 		case a := <-acks:
 			handleAck(a)
+			rotateIfCredentialsChanged()
 			drainEffects()
 		case <-watchdog.C:
 			watchdogArmed = false
