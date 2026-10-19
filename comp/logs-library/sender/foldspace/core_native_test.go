@@ -8,11 +8,19 @@
 package foldspace
 
 import (
+	"context"
+	"net"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // TestNativeCoreRoundTrip drives one record all the way through the real
@@ -169,6 +177,64 @@ func TestNativeAdmissionCodes(t *testing.T) {
 		admission, _ := core.PushLog(c.record, uint64(i+1), uint64(i+1), c.route)
 		require.Equal(t, c.want, admission, c.name)
 	}
+}
+
+// TestNativeRotatesStreamOnAPIKeyRotation rotates the API key through the
+// config the endpoint was built from, as a secret refresh does, and checks
+// that the real library reopens the stream with the new key and that both
+// records still go durable.
+func TestNativeRotatesStreamOnAPIKeyRotation(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("api_key", "old-key")
+	endpoints, err := config.BuildHTTPEndpoints(cfg, "test-track", config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	require.NoError(t, err)
+	dest, err := BuildDestinationConfig(cfg, endpoints)
+	require.NoError(t, err)
+	require.Len(t, dest.Senders, 1)
+
+	intake, lis, _ := startBufIntake(t)
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), time.Second)
+	defer cancelDial()
+	conn, err := grpc.DialContext(dialCtx, "buf", //nolint:staticcheck
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(), //nolint:staticcheck
+		grpc.WithDefaultCallOptions(grpc.ForceCodec(statefulCodec{})),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	transport := &GRPCTransport{
+		specs:  dest.Senders,
+		conns:  []*grpc.ClientConn{conn},
+		state:  1024,
+		enc:    "identity",
+		method: statefulStreamFullMethod,
+	}
+
+	core, err := NewNativeCore(nativeTestConfig())
+	require.NoError(t, err)
+	sink := newChannelSink()
+	d := NewDriver(DriverOptions{
+		Core:            core,
+		Transport:       transport,
+		Sink:            sink,
+		BatchWait:       20 * time.Millisecond,
+		ShutdownTimeout: 2 * time.Second,
+	})
+	d.Start()
+	t.Cleanup(d.Stop)
+
+	d.Offer(testMessage("before rotation"))
+	waitPayloads(t, sink, 1)
+
+	cfg.SetInTest("api_key", "new-key")
+	require.Eventually(t, func() bool { return dest.Senders[0].APIKey() == "new-key" }, time.Second, 10*time.Millisecond)
+	d.Offer(testMessage("after rotation"))
+	waitPayloads(t, sink, 1)
+
+	intake.mu.Lock()
+	defer intake.mu.Unlock()
+	assert.Equal(t, []string{"old-key", "new-key"}, intake.keys)
 }
 
 // nativeTestConfig is complete, because the library validates the config and

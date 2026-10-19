@@ -86,7 +86,8 @@ type provider struct {
 
 // NewProvider returns a new Provider.
 // When secretsComp is backed by a real secrets backend, HTTP destinations will trigger an async API key refresh
-// on 403 responses and retry the payload instead of dropping it. Pass a SecretNoop when no secrets backend is available.
+// on 403 responses and retry the payload instead of dropping it, and foldspace senders trigger the same refresh
+// when the intake rejects a stream's key. Pass a SecretNoop when no secrets backend is available.
 func NewProvider(
 	numberOfPipelines int,
 	sink sender.Sink,
@@ -110,7 +111,7 @@ func NewProvider(
 	if config.FoldspaceEnabled(cfg) && !serverless {
 		if dest, err := foldspace.BuildDestinationConfig(cfg, endpoints); err != nil {
 			log.Errorf("foldspace configuration rejected: %v", err)
-		} else if drivers := foldspaceDrivers(numberOfPipelines, dest, cfg, sink, dualShip); len(drivers) > 0 {
+		} else if drivers := foldspaceDrivers(numberOfPipelines, dest, cfg, sink, dualShip, secretsComp); len(drivers) > 0 {
 			fsGroup = foldspace.NewDriverGroup(drivers)
 		}
 	}
@@ -158,6 +159,7 @@ func foldspaceDrivers(
 	cfg pkgconfigmodel.Reader,
 	sink sender.Sink,
 	dualShip bool,
+	secretsComp secrets.Component,
 ) []*foldspace.Driver {
 	// One monitor for the whole set, so the provider reports a single set of
 	// component snapshots however many drivers back it.
@@ -186,7 +188,7 @@ func foldspaceDrivers(
 	for _, core := range cores {
 		drivers = append(drivers, foldspace.NewDriver(foldspace.DriverOptions{
 			Core:              core,
-			Transport:         foldspace.NewGRPCTransport(dest),
+			Transport:         foldspace.NewGRPCTransport(dest, secretsComp),
 			Sink:              sink,
 			PipelineMonitor:   monitor,
 			InputSize:         config.FoldspaceTapChannelSize(cfg),
