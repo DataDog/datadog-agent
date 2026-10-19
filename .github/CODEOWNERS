@@ -25,6 +25,7 @@
 /.agents/skills/*                               @DataDog/agent-devx
 /.agents/skills/allium/                         @DataDog/single-machine-performance
 /.agents/skills/agent-supply-chain-newsletter/  @DataDog/agent-devx
+/.agents/skills/anomalydetection-run-gensim-scenario-on-vm/ @DataDog/agent-anomaly-detection
 /.agents/skills/auto-jira/                      @DataDog/agent-devx
 /.agents/skills/create-component/               @DataDog/agent-runtimes
 /.agents/skills/create-core-check/              @DataDog/agent-runtimes
@@ -828,6 +829,8 @@
 /pkg/util/filesystem/rights_*.go                                      @DataDog/fleet-automation
 /pkg/util/funcs/                                                      @DataDog/ebpf-platform
 /pkg/util/gpu/                                                        @DataDog/accelerator-telemetry
+/pkg/util/log/                                                        @DataDog/agent-runtimes
+/pkg/util/log/observer/                                               @DataDog/agent-anomaly-detection @DataDog/agent-runtimes
 /pkg/util/installinfo/                                                @DataDog/fleet-automation
 /pkg/util/kernel/                                                     @DataDog/ebpf-platform
 /pkg/util/safeelf/                                                    @DataDog/ebpf-platform
@@ -996,6 +999,7 @@
 /tasks/quality_gates.py                                         @DataDog/agent-build
 /tasks/static_quality_gates/                                    @DataDog/agent-build
 /tasks/files_inventory.py                                       @DataDog/agent-build
+/tasks/unit_tests/files_inventory_check_tests.py                @DataDog/agent-build
 /tasks/rtloader.py                                              @DataDog/agent-runtimes
 /tasks/secret_generic_connector.py                              @DataDog/fleet-automation
 /tasks/security_agent.py                                        @DataDog/agent-security

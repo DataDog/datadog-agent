@@ -8,6 +8,7 @@ package http
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -33,6 +35,7 @@ import (
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -557,6 +560,170 @@ func TestBackoffDelayDisabled(t *testing.T) {
 
 	assert.Equal(t, 0, server.Destination.nbErrors)
 	server.Stop()
+}
+
+func TestPendingDelegatedAuthDoesNotSend(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServer(http.StatusOK, cfg)
+	defer server.Stop()
+
+	server.Destination.endpoint = config.NewEndpoint(
+		"DELA[some-org-uuid, aws]",
+		"logs_config.additional_endpoints",
+		server.Endpoint.Host,
+		server.Endpoint.Port,
+		config.EmptyPathPrefix,
+		false,
+	)
+
+	err := server.Destination.unconditionalSend(&message.Payload{
+		MessageMetas: []*message.MessageMetadata{},
+		Encoded:      []byte("test log"),
+	})
+
+	assert.ErrorIs(t, err, errCredentialNotReady)
+	assert.Empty(t, server.request.Header)
+}
+
+func TestPendingDelegatedAuthHoldsPayloadWithoutAcking(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewDelegatedAuthPendingTestServer(cfg)
+	defer server.Stop()
+
+	prev := credentialWaitInterval
+	credentialWaitInterval = 10 * time.Millisecond
+	t.Cleanup(func() { credentialWaitInterval = prev })
+
+	errorsBefore := metrics.DestinationErrors.Value()
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
+	output := make(chan *message.Payload, 1)
+	isRetrying := make(chan bool, 1)
+	done := make(chan destinationResult, 1)
+	go func() { done <- server.Destination.sendAndRetry(payload, output, isRetrying) }()
+
+	// Reported as retrying so the worker skips it, but the payload is never acked.
+	select {
+	case retrying := <-isRetrying:
+		assert.True(t, retrying)
+	case <-time.After(5 * time.Second):
+		t.Fatal("destination never reported retrying")
+	}
+	select {
+	case <-output:
+		t.Fatal("payload acked without a credential")
+	case <-time.After(100 * time.Millisecond):
+	}
+	server.Destination.retryLock.Lock()
+	assert.Zero(t, server.Destination.nbErrors, "waiting for a credential must not grow the backoff")
+	server.Destination.retryLock.Unlock()
+	assert.Equal(t, errorsBefore, metrics.DestinationErrors.Value(), "waiting for a credential is not a network error")
+
+	// Shutdown ends the wait instead of retrying forever.
+	server.DestCtx.Stop()
+	select {
+	case result := <-done:
+		assert.ErrorIs(t, result.err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("sendAndRetry kept retrying after shutdown")
+	}
+	assert.Empty(t, output)
+	assert.Empty(t, server.request.Header)
+}
+
+func TestPendingDelegatedAuthSendsQueuedPayloadOnceKeyArrives(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServerWithOptions(http.StatusOK, 1, true, nil, cfg)
+	defer server.Stop()
+
+	prev := credentialWaitInterval
+	credentialWaitInterval = 10 * time.Millisecond
+	t.Cleanup(func() { credentialWaitInterval = prev })
+
+	entry := func(apiKey string) []map[string]interface{} {
+		return []map[string]interface{}{{
+			"api_key": apiKey, "host": server.Endpoint.Host, "port": server.Endpoint.Port, "use_ssl": false,
+		}}
+	}
+	cfg.SetInTest("logs_config.force_use_http", true)
+	cfg.SetInTest("logs_config.additional_endpoints", entry("DELA[some-org-uuid, aws]"))
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(cfg, config.NewLogsConfigKeys("logs_config.", cfg), "agent-http-intake.logs.", "", "", "")
+	require.NoError(t, err)
+	require.Len(t, endpoints.Endpoints, 2)
+	pending := endpoints.Endpoints[1]
+	require.True(t, pending.AwaitsDelegatedAuthKey())
+	// Shares the credential with the config-built endpoint, so the write-back below reaches it.
+	server.Destination.endpoint = pending
+
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
+	output := make(chan *message.Payload, 1)
+	isRetrying := make(chan bool, 2)
+	go server.Destination.sendAndRetry(payload, output, isRetrying)
+	require.True(t, <-isRetrying)
+
+	// Delegated auth writes the resolved key back into config.
+	cfg.Set("logs_config.additional_endpoints", entry("resolved-key"), pkgconfigmodel.SourceSecret)
+
+	select {
+	case sent := <-output:
+		assert.Same(t, payload, sent)
+	case <-time.After(5 * time.Second):
+		t.Fatal("queued payload not sent after the key arrived")
+	}
+	assert.False(t, <-isRetrying, "retry state clears once the queued payload is sent")
+	assert.Equal(t, "resolved-key", server.request.Header.Get("DD-API-KEY"))
+}
+
+func TestDelegatedAuthWithoutWriteBackDropsWithoutAcking(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewDelegatedAuthPendingTestServer(cfg)
+	defer server.Stop()
+	// A directive in a setting delegated auth never writes back: no key will ever arrive.
+	server.Destination.endpoint = config.NewEndpoint(
+		"DELA[some-org-uuid, aws]",
+		"database_monitoring.samples.additional_endpoints",
+		server.Endpoint.Host,
+		server.Endpoint.Port,
+		config.EmptyPathPrefix,
+		false,
+	)
+
+	errorsBefore := metrics.DestinationErrors.Value()
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
+	output := make(chan *message.Payload, 1)
+	isRetrying := make(chan bool, 1)
+	done := make(chan destinationResult, 1)
+	go func() { done <- server.Destination.sendAndRetry(payload, output, isRetrying) }()
+
+	// Returns promptly instead of holding the payload, reports retrying, and never acks.
+	select {
+	case result := <-done:
+		assert.NoError(t, result.err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("held a payload no key will ever be written back for")
+	}
+	assert.True(t, <-isRetrying)
+	assert.Empty(t, output)
+	assert.Equal(t, errorsBefore, metrics.DestinationErrors.Value())
+	assert.Empty(t, server.request.Header)
+}
+
+func TestPendingDelegatedAuthDropsUnreliableCopy(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewDelegatedAuthPendingTestServer(cfg)
+	defer server.Stop()
+	server.Destination.shouldRetry = false
+
+	errorsBefore := metrics.DestinationErrors.Value()
+	payload := &message.Payload{MessageMetas: []*message.MessageMetadata{}, Encoded: []byte("test log")}
+	output := make(chan *message.Payload, 1)
+
+	result := server.Destination.sendAndRetry(payload, output, make(chan bool, 1))
+
+	// An unreliable destination's output doesn't reach the auditor, so its copy is dropped.
+	assert.NoError(t, result.err)
+	assert.Same(t, payload, <-output)
+	assert.Equal(t, errorsBefore, metrics.DestinationErrors.Value())
+	assert.Empty(t, server.request.Header)
 }
 
 func TestDestinationHA(t *testing.T) {

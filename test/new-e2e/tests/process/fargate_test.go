@@ -67,7 +67,7 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 		assertContainerStates(c, payloads, map[string]agentmodel.ContainerState{
 			"stress-ng": agentmodel.ContainerState_running,
 		})
-		assertFargateHostname(t, payloads)
+		assertFargateHostname(c, payloads)
 	}, 5*time.Minute, 10*time.Second)
 }
 
