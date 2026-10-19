@@ -1806,7 +1806,7 @@ properties:
         default: false
         comment: |
           Equivalent to system_probe_config.enable_oom_kill; either one enables the OOM Kill
-          probe. When both are set, this one wins. They are kept in sync by Adjust.
+          probe.
       persist_monitoring:
         node_type: setting
         type: boolean
@@ -1814,8 +1814,7 @@ properties:
         comment: |
           Pins the OOM Kill eBPF probe to bpffs so it keeps recording OOM kills while
           system-probe is down (including when system-probe itself is OOM killed). The next
-          system-probe takes over the pins and reports what was missed. When false, any probe
-          left pinned by a previous system-probe is still drained and removed on startup.
+          system-probe takes over the pins and reports what was missed.
       use_fentry:
         node_type: setting
         type: boolean
