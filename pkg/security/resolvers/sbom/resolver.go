@@ -14,6 +14,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -26,6 +29,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
@@ -40,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -50,17 +55,39 @@ const (
 
 	maxSBOMGenerationRetries = 3
 	maxSBOMEntries           = 1024
-	scanQueueSize            = 100
-	maxPendingFileEvents     = 256
+	// scanQueueSize lets every SBOM entry wait for its scan.
+	scanQueueSize        = maxSBOMEntries
+	maxPendingFileEvents = 256
 	// maxForwardWait bounds how long forwarding keeps retrying while the image's
 	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
 	// re-arming when no image SBOM will ever be produced (for example when
 	// container image SBOM collection is disabled and the image stays pending).
 	maxForwardWait = 30 * time.Minute
-	// hostRescanInterval is the period of the scans of the host packages, the
-	// default period of the host scans of the core agent.
+	// hostRescanInterval is the longest time between two scans of the host
+	// packages, the default period of the host scans of the core agent.
 	hostRescanInterval = time.Hour
+	// settleDelay is how long the open of a host file waits before it counts
+	// as usage. rpm opens each executable it removes or replaces, to clear its
+	// file capabilities, right before it deletes the file or renames the new
+	// one over it, which a busy disk can hold up for a while.
+	settleDelay = 3 * time.Second
+	// maxOpened bounds the opens of host files waiting for settleDelay.
+	maxOpened = 4096
+	// hostCheckInterval is the period of the checks of the host package
+	// databases, which scan the host packages again once the databases changed.
+	hostCheckInterval = time.Minute
+	// maxHostMisses bounds the runs of host files the host index lacked that
+	// wait for the scan indexing them, and hostMissTTL how long one waits.
+	maxHostMisses = 1024
+	hostMissTTL   = 10 * time.Minute
 )
+
+// hostMiss is the run of a host file the host index lacked: the usage it
+// records, and the inode of the file that ran, zero when unknown.
+type hostMiss struct {
+	usage sbomtypes.Package
+	inode uint64
+}
 
 // pendingFileEvent holds the minimal information needed to re-process a file
 // access once the SBOM for its container becomes available. Accesses are indexed
@@ -69,6 +96,16 @@ const (
 type pendingFileEvent struct {
 	suidBit        bool
 	accessedByRoot bool
+}
+
+// openedFile is an open of a host file waiting for settleDelay, with the
+// fields of the opening process that usage reads.
+type openedFile struct {
+	pid  uint32
+	cred model.Credentials
+	comm string
+	file model.FileEvent
+	at   time.Time
 }
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
@@ -85,9 +122,10 @@ const (
 // container. A *Data is shared across SBOMs that run the same image (via the
 // dataCache), so it needs its own lock rather than relying on each SBOM's lock.
 type Data struct {
-	mu       sync.RWMutex
-	files    fileQuerier
-	packages []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
+	mu            sync.RWMutex
+	files         fileQuerier
+	packages      []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
+	observedSince time.Time           // when the usage of packages started being recorded
 }
 
 // newData builds the cached scan Data from a freshly generated report. It keeps
@@ -104,8 +142,9 @@ func newData(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) *Data
 	}
 
 	return &Data{
-		files:    newFileQuerier(report, packages, usrMerged),
-		packages: packages,
+		files:         newFileQuerier(report, packages, usrMerged),
+		packages:      packages,
+		observedSince: time.Now(),
 	}
 }
 
@@ -133,21 +172,30 @@ func (d *Data) holds(report []sbomtypes.PackageWithInstalledFiles) bool {
 	return true
 }
 
-// keepUsage copies onto the packages of d the usage recorded in prev. A
-// package keeps the usage of its build, combined with that of the builds of
-// its name only prev holds, the builds an upgrade replaced.
+// keepUsage copies onto the packages of d the usage recorded in prev, and the
+// time it started being recorded. A package keeps the usage of its build,
+// combined with that of the builds of its name only prev holds, the builds an
+// upgrade replaced, when d holds a single build of the name. Kernels install
+// side by side, and the usage of a removed kernel stays with it.
 func (d *Data) keepUsage(prev *Data) {
 	held := make(map[sbomtypes.Package]bool, len(d.packages))
+	builds := make(map[string]int)
 	for _, pkg := range d.packages {
-		held[packageBuild(pkg)] = true
+		if b := packageBuild(pkg); !held[b] {
+			held[b] = true
+			builds[pkg.Name]++
+		}
 	}
 
 	prev.mu.RLock()
-	builds := make(map[sbomtypes.Package]sbomtypes.Package, len(prev.packages))
+	if !prev.observedSince.IsZero() {
+		d.observedSince = prev.observedSince
+	}
+	kept := make(map[sbomtypes.Package]sbomtypes.Package, len(prev.packages))
 	replaced := make(map[string]sbomtypes.Package)
 	for _, pkg := range prev.packages {
 		if b := packageBuild(pkg); held[b] {
-			builds[b] = combineUsage(builds[b], pkg)
+			kept[b] = combineUsage(kept[b], pkg)
 		} else {
 			replaced[pkg.Name] = combineUsage(replaced[pkg.Name], pkg)
 		}
@@ -156,7 +204,10 @@ func (d *Data) keepUsage(prev *Data) {
 
 	for i := range d.packages {
 		pkg := &d.packages[i]
-		usage := combineUsage(builds[packageBuild(*pkg)], replaced[pkg.Name])
+		usage := kept[packageBuild(*pkg)]
+		if builds[pkg.Name] == 1 {
+			usage = combineUsage(usage, replaced[pkg.Name])
+		}
 		pkg.LastAccess, pkg.SuidBit, pkg.AccessedByRoot = usage.LastAccess, usage.SuidBit, usage.AccessedByRoot
 	}
 }
@@ -275,15 +326,32 @@ type Resolver struct {
 
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
+	hostRoot       string
 	hostRootDevice uint64
 	hostRootInode  uint64
-	hostSBOM       *SBOM
-	// hostScanLock serializes the scans of the host packages, the hourly ones
-	// and those a package database write triggers. A scan reads the databases
-	// before it swaps the index, so the scan that read them last swaps last.
-	hostScanLock sync.Mutex
+	// hostRootOverlay is set when the host root is an overlayfs.
+	hostRootOverlay bool
+	hostSBOM        *SBOM
+	// hostScanLock serializes the scans of the host packages. A scan reads the
+	// databases before it swaps the index, so the scan that read them last
+	// swaps last. It guards hostFingerprint, the fingerprint of the databases
+	// the last scan read, and hostScanned, the time of that scan.
+	hostScanLock    sync.Mutex
+	hostFingerprint string
+	hostScanned     time.Time
+	// hostMisses holds the runs of the host files the host index lacked, by
+	// path, for the scan indexing them. The lock of hostSBOM guards it.
+	hostMisses *simplelru.LRU[string, hostMiss]
 	// walkProcesses calls its argument on every process the probe knows of.
 	walkProcesses func(func(*model.ProcessCacheEntry))
+	// openedLock guards opened, the opens of host files waiting for
+	// settleDelay, oldest first.
+	openedLock sync.Mutex
+	opened     []openedFile
+	// kernelRelease returns the release of the running kernel, and
+	// loadedModules the names of its loaded modules.
+	kernelRelease func() (string, error)
+	loadedModules func() ([]string, error)
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -302,6 +370,7 @@ type Resolver struct {
 
 type sbomCollector interface {
 	ScanInstalledPackages(ctx context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error)
+	Fingerprint(root string) string
 }
 
 // NewSBOMResolver returns a new instance of Resolver
@@ -318,10 +387,19 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
 	}
 
+	hostMisses, err := simplelru.NewLRU[string, hostMiss](maxHostMisses, nil)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
+	}
+
 	hostProcRootPath := utils.ProcRootPath(1)
 	stat, err := utils.UnixStat(hostProcRootPath)
 	if err != nil {
 		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path: %w", hostProcRootPath, err)
+	}
+	var fsStat unix.Statfs_t
+	if err := unix.Statfs(hostProcRootPath, &fsStat); err != nil {
+		return nil, fmt.Errorf("statfs failed for `%s`: %w", hostProcRootPath, err)
 	}
 
 	resolver := &Resolver{
@@ -329,16 +407,21 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		cfg:                   c,
 		statsdClient:          statsdClient,
 		dataCache:             dataCache,
-		scanChan:              make(chan *SBOM, 100),
+		scanChan:              make(chan *SBOM, scanQueueSize),
 		sbomCollector:         sbomCollector,
+		hostRoot:              hostProcRootPath,
 		hostRootDevice:        stat.Dev,
 		hostRootInode:         stat.Ino,
+		hostRootOverlay:       fsStat.Type == unix.OVERLAYFS_SUPER_MAGIC,
+		kernelRelease:         kernel.Release,
+		loadedModules:         liveModules,
 		sbomGenerations:       atomic.NewUint64(0),
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
 		failedSBOMGenerations: atomic.NewUint64(0),
 		wmeta:                 wmeta,
 		pendingFileEvents:     pendingFileEvents,
+		hostMisses:            hostMisses,
 
 		enrichedSBOMForwarded:      atomic.NewUint64(0),
 		enrichedSBOMForwardDropped: atomic.NewUint64(0),
@@ -365,10 +448,16 @@ func (r *Resolver) Start(ctx context.Context) error {
 			return err
 		}
 
-		rescan := time.NewTicker(hostRescanInterval)
+		check := time.NewTicker(hostCheckInterval)
 		go func() {
-			defer rescan.Stop()
-			r.rescanHost(ctx, rescan.C)
+			defer check.Stop()
+			r.rescanHost(ctx, check.C)
+		}()
+
+		settle := time.NewTicker(settleDelay / 2)
+		go func() {
+			defer settle.Stop()
+			r.settleOpens(ctx, settle.C)
 		}()
 	}
 
@@ -456,16 +545,20 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 	r.triggerScan(sbom)
 }
 
-// rescanHost scans the host packages again on every tick until ctx is done, so
-// the host index follows the packages installed after it was built. With CWS
-// on, a write to the package databases rescans the host at once as well. Usage
-// enrichment alone relies on these rescans.
+// rescanHost checks the host package databases on every tick until ctx is
+// done, and scans the host packages again when they changed, so the host index
+// follows the packages installed after it was built. With CWS on, a write to
+// the package databases rescans the host at once as well. Usage enrichment
+// alone relies on these checks.
 func (r *Resolver) rescanHost(ctx context.Context, tick <-chan time.Time) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-tick:
+		case now := <-tick:
+			if !r.hostChanged(now) {
+				continue
+			}
 			if err := r.scanHost(); err != nil {
 				seclog.Warnf("Failed to rescan the host packages: %v", err)
 			}
@@ -473,12 +566,24 @@ func (r *Resolver) rescanHost(ctx context.Context, tick <-chan time.Time) {
 	}
 }
 
+// hostChanged reports whether the host packages may have changed at now since
+// the last scan: the fingerprint of their databases changed, or the scan is
+// hostRescanInterval old.
+func (r *Resolver) hostChanged(now time.Time) bool {
+	r.hostScanLock.Lock()
+	defer r.hostScanLock.Unlock()
+
+	return now.Sub(r.hostScanned) >= hostRescanInterval ||
+		r.sbomCollector.Fingerprint(utils.ProcRootPath(1)) != r.hostFingerprint
+}
+
 // scanHost indexes the packages installed on the host into the host SBOM, and
 // forwards the result when the packages changed. A package keeps the usage the
 // previous index recorded on its build, and on the builds of its name the scan
 // no longer finds, so a daemon seen running before the scan still counts, and
 // so does a daemon its upgrade restarted, whose start was recorded on the
-// build the upgrade replaced. The host resolves against the previous index
+// build the upgrade replaced. The runs of the files of a new package made
+// before the scan count as well. The host resolves against the previous index
 // until the scan is over.
 func (r *Resolver) scanHost() error {
 	r.hostScanLock.Lock()
@@ -488,10 +593,15 @@ func (r *Resolver) scanHost() error {
 	// container are read through the root of one of its processes.
 	hostRoot := utils.ProcRootPath(1)
 
+	// The databases are fingerprinted before the scan reads them, so that a
+	// write while it reads them makes the next check scan again. A scan that
+	// fails waits for the next write, or for hostRescanInterval.
+	r.hostFingerprint, r.hostScanned = r.sbomCollector.Fingerprint(hostRoot), time.Now()
 	report, err := r.generateSBOM(hostRoot)
 	if err != nil {
 		return err
 	}
+	kernelFiles := r.kernelFiles(hostRoot)
 
 	r.hostSBOM.Lock()
 	rescan := r.hostSBOM.IsComputed()
@@ -509,8 +619,10 @@ func (r *Resolver) scanHost() error {
 	r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
 	r.hostSBOM.setReport(report)
 	r.hostSBOM.data.keepUsage(previous)
+	markRunningKernel(r.hostSBOM.data, kernelFiles)
 	r.hostSBOM.state.Store(computedState)
 	if changed {
+		r.creditHostMisses()
 		r.triggerForwarding(r.hostSBOM)
 	}
 	r.hostSBOM.Unlock()
@@ -530,6 +642,187 @@ func (r *Resolver) scanHost() error {
 	return nil
 }
 
+// kernelFiles returns the paths of the files of the running kernel, those of
+// the host packages under root that run outside of any process: its image,
+// the list of the modules built into it, and its loaded modules.
+func (r *Resolver) kernelFiles(root string) []string {
+	if r.kernelRelease == nil {
+		return nil
+	}
+	release, err := r.kernelRelease()
+	if err != nil {
+		seclog.Debugf("Failed to read the release of the running kernel: %v", err)
+		return nil
+	}
+	dir := "/lib/modules/" + release
+	files := []string{"/boot/vmlinuz-" + release, dir + "/vmlinuz", dir + "/modules.builtin"}
+	if r.loadedModules == nil {
+		return files
+	}
+
+	loaded, err := r.loadedModules()
+	if err != nil {
+		seclog.Debugf("Failed to list the loaded kernel modules: %v", err)
+		return files
+	}
+	paths, err := modulePaths(root, release)
+	if err != nil {
+		seclog.Debugf("Failed to read the modules of kernel %s: %v", release, err)
+		return files
+	}
+	for _, name := range loaded {
+		if path, ok := paths[name]; ok {
+			files = append(files, path)
+		}
+	}
+	return files
+}
+
+// modulePaths returns the paths of the modules of kernel release under root,
+// by module name, from its modules.dep. The modules of weak-updates link to
+// the modules of another kernel, whose package owns them.
+func modulePaths(root, release string) (map[string]string, error) {
+	rootFS, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer rootFS.Close()
+
+	var dir string
+	var dep []byte
+	for _, dir = range []string{"usr/lib/modules/" + release, "lib/modules/" + release} {
+		if dep, err = rootFS.ReadFile(dir + "/modules.dep"); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	paths := make(map[string]string)
+	for line := range strings.Lines(string(dep)) {
+		module, _, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		path := module
+		if !filepath.IsAbs(path) {
+			path = "/lib/modules/" + release + "/" + module
+			if strings.HasPrefix(module, "weak-updates/") {
+				if target, err := rootFS.Readlink(dir + "/" + module); err == nil {
+					if !filepath.IsAbs(target) {
+						target = filepath.Join(filepath.Dir(path), target)
+					}
+					path = target
+				}
+			}
+		}
+		paths[moduleName(module)] = path
+	}
+	return paths, nil
+}
+
+// moduleName returns the name of the kernel module in the file at path, as
+// /proc/modules lists it.
+func moduleName(path string) string {
+	name := filepath.Base(path)
+	if i := strings.Index(name, ".ko"); i >= 0 {
+		name = name[:i]
+	}
+	return strings.ReplaceAll(name, "-", "_")
+}
+
+// liveModules returns the names of the loaded kernel modules.
+func liveModules() ([]string, error) {
+	modules, err := utils.FetchLoadedModules()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(modules))
+	for name, module := range modules {
+		if module.State == "Live" {
+			names = append(names, name)
+		}
+	}
+	return names, nil
+}
+
+// markRunningKernel records as run by root the packages of d that own files,
+// the files of the running kernel. The kernel runs outside of the processes
+// whose execs and opens record usage.
+func markRunningKernel(d *Data, files []string) {
+	now := time.Now()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, path := range files {
+		if pkg := d.files.queryFile(path); pkg != nil {
+			pkg.LastAccess = now
+			pkg.AccessedByRoot = true
+		}
+	}
+}
+
+// addHostMiss keeps the run of file by the process of pc, a host file the host
+// index lacks, for the scan indexing it. Must be called with hostSBOM.Lock()
+// already held.
+func (r *Resolver) addHostMiss(pc *model.ProcessContext, file *model.FileEvent) {
+	if !r.onHostRoot(pc.Pid) {
+		return
+	}
+	// An overlayfs file carries the inode of its layer, which can differ from
+	// the inode stat reports.
+	inode := file.Inode
+	if file.IsInLowerLayer() || file.IsInUpperLayer() {
+		inode = 0
+	}
+	run := sbomtypes.Package{
+		LastAccess:     time.Now(),
+		SuidBit:        fs.FileMode(file.Mode)&04000 != 0,
+		AccessedByRoot: pc.UID == 0,
+	}
+	if miss, ok := r.hostMisses.Peek(file.PathnameStr); ok && miss.inode == inode {
+		run = combineUsage(miss.usage, run)
+	}
+	r.hostMisses.Add(file.PathnameStr, hostMiss{usage: run, inode: inode})
+}
+
+// creditHostMisses records the runs of host files the host index lacked, made
+// in the last hostMissTTL, on the packages of the new index that own the files,
+// and forgets them. A run counts if the file that ran is still at its path.
+// Must be called with hostSBOM.Lock() already held.
+func (r *Resolver) creditHostMisses() {
+	data := r.hostSBOM.data
+	data.mu.Lock()
+	defer data.mu.Unlock()
+
+	now := time.Now()
+	for _, path := range r.hostMisses.Keys() {
+		miss, _ := r.hostMisses.Peek(path)
+		if now.Sub(miss.usage.LastAccess) > hostMissTTL {
+			r.hostMisses.Remove(path)
+			continue
+		}
+		pkg := data.files.queryFile(path)
+		if pkg == nil {
+			continue
+		}
+		if r.isFileAt(path, miss.inode) {
+			*pkg = combineUsage(*pkg, miss.usage)
+		}
+		r.hostMisses.Remove(path)
+	}
+}
+
+// isFileAt reports whether the host file of inode is at path. An unknown inode
+// counts as the file at path.
+func (r *Resolver) isFileAt(path string, inode uint64) bool {
+	if inode == 0 {
+		return true
+	}
+	var stat syscall.Stat_t
+	return syscall.Lstat(r.hostRoot+path, &stat) == nil && stat.Ino == inode
+}
+
 // SetProcessWalker sets walk, which calls its argument on every process the
 // probe knows of, for the scans of the host packages to record the processes
 // running on the host.
@@ -537,7 +830,12 @@ func (r *Resolver) SetProcessWalker(walk func(func(*model.ProcessCacheEntry))) {
 	r.walkProcesses = walk
 }
 
+// getContainerSBOM returns the SBOM workloadmeta holds for the image of the
+// container containerID. The functional tests run without workloadmeta.
 func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
+	if r.wmeta == nil {
+		return nil, fmt.Errorf("No workloadmeta to get the image of container '%s' from", containerID)
+	}
 	container, err := r.wmeta.GetContainer(string(containerID))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get container metadata for '%s': %v", containerID, err)
@@ -649,10 +947,12 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 	sbom.data.mu.RLock()
 	packages := make([]sbomtypes.Package, len(sbom.data.packages))
 	copy(packages, sbom.data.packages)
+	observedSince := sbom.data.observedSince
 	sbom.data.mu.RUnlock()
 
 	// Create SBOM report and notify listeners
 	packagesReport := NewPackagesReport(packages, sbom.ContainerID)
+	packagesReport.observedSince = observedSince
 	scanResult := &sbompkg.ScanResult{
 		Report:           packagesReport,
 		CreatedAt:        time.Now(),
@@ -773,6 +1073,95 @@ func (r *Resolver) onHostRoot(pid uint32) bool {
 		return true
 	}
 	return stat.Dev == r.hostRootDevice && stat.Ino == r.hostRootInode
+}
+
+// replaced reports whether the file of an event is other than the host file at
+// its path: gone from there, replaced there by another file, or a file of an
+// overlayfs over a host root of another filesystem, as a host process sees the
+// files of a container through /proc/<pid>/root. An overlayfs file carries the
+// inode of its layer, which can differ from the inode stat reports, so on an
+// overlayfs host root it counts as in place, as does a file of unknown path or
+// inode.
+func (r *Resolver) replaced(file *model.FileEvent) bool {
+	if !file.IsPathnameStrResolved || file.Inode == 0 {
+		return false
+	}
+	if file.IsInLowerLayer() || file.IsInUpperLayer() {
+		return !r.hostRootOverlay
+	}
+	var stat syscall.Stat_t
+	if err := syscall.Lstat(r.hostRoot+file.PathnameStr, &stat); err != nil {
+		return errors.Is(err, fs.ErrNotExist)
+	}
+	return stat.Ino != file.Inode
+}
+
+// codeSuffixes are the suffixes of the files that loaders and interpreters
+// run, beside executables and shared libraries.
+var codeSuffixes = []string{
+	".py", ".pyc", ".pyo", ".pl", ".pm", ".rb", ".js", ".mjs", ".cjs", ".node",
+	".jar", ".class", ".lua", ".php", ".phar", ".tcl", ".sh", ".beam", ".dll",
+	".wasm", ".ko", ".ko.gz", ".ko.xz", ".ko.zst",
+}
+
+// sharedLibrary matches the names of shared libraries: libfoo.so, and with a
+// version, libfoo.so.1 or libssl.so.1.0.2k.
+var sharedLibrary = regexp.MustCompile(`\.so(\.[0-9][0-9A-Za-z_]*)*$`)
+
+// holdsCode reports whether file can hold code that a process runs: an
+// executable, a shared library, a kernel module or a module of an interpreter.
+// Files under /etc hold configuration, the shell snippets of profile.d that
+// every login sources included.
+func holdsCode(file *model.FileEvent) bool {
+	if strings.HasPrefix(file.PathnameStr, "/etc/") {
+		return false
+	}
+	if file.Mode&0111 != 0 {
+		return true
+	}
+	name := path.Base(file.PathnameStr)
+	if sharedLibrary.MatchString(name) {
+		return true
+	}
+	return slices.ContainsFunc(codeSuffixes, func(suffix string) bool {
+		return strings.HasSuffix(name, suffix)
+	})
+}
+
+// codeReaders are the names of the processes that read code without running
+// it: the indexers of shared libraries and kernel modules, the builders of
+// initramfs images and archives, the verifiers and scanners of files, and the
+// tools that hash or inspect binaries. The kernel cuts a process name to 15
+// bytes.
+var codeReaders = []string{
+	"ldconfig", "ldconfig.real", "depmod", "modinfo", "weak-modules",
+	"dracut-install", "cpio", "cp", "install", "tar", "rsync",
+	"rpmverify", "debsums", "aide", "fapolicyd", "clamscan", "clamd",
+	"wazuh-syscheckd", "ossec-syscheckd", "oscap", "oscap-io",
+	"md5sum", "sha1sum", "sha224sum", "sha256sum", "sha384sum", "sha512sum",
+	"b2sum", "cksum", "file", "strings", "readelf", "objdump", "nm", "gdb",
+	"perf", "systemd-coredum",
+}
+
+// bytecodeCompilers are the names of the processes that compile the Python
+// modules of a package as it installs, in children that read its sources.
+var bytecodeCompilers = []string{"py3compile", "pycompile", "pypy3compile"}
+
+// loaderNames are the prefixes of the names of the dynamic loader run as a
+// program, as ldd runs it to list the libraries of a binary.
+var loaderNames = []string{"ld-linux", "ld-musl", "ld64.so"}
+
+// readsCode reports whether the process of pc reads code without running it.
+func readsCode(pc *model.ProcessContext) bool {
+	if slices.Contains(codeReaders, pc.Comm) || slices.Contains(bytecodeCompilers, pc.Comm) {
+		return true
+	}
+	if pc.Parent != nil && slices.Contains(bytecodeCompilers, pc.Parent.Comm) {
+		return true
+	}
+	return slices.ContainsFunc(loaderNames, func(prefix string) bool {
+		return strings.HasPrefix(pc.Comm, prefix)
+	})
 }
 
 // isDir reports whether mode, the mode of the file of an event, is that of a
@@ -963,8 +1352,9 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 	return sbom
 }
 
-// ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
-// resolved.
+// ResolvePackage returns the package that owns file, which the process of pc
+// runs or opens, and records the access as usage of the package. The path of
+// file must be resolved.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
 	if !file.IsPathnameStrResolved {
 		return nil
@@ -994,12 +1384,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
-	// A process on a root of its own opens the files of that root under the
-	// paths of host files, and its root is read once the path matches.
-	pkg := sbom.data.files.queryFile(file.PathnameStr)
-	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pc.Pid) {
-		pkg = nil
-	}
+	pkg := r.owner(sbom, pc.Pid, file.PathnameStr)
 
 	// rpm lists the directories a package owns among its files. A directory
 	// resolves to its package, and opening it, as a listing or a walk of the
@@ -1034,12 +1419,135 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		}
 	}
 
+	// The executable of a host process the host index lacks may belong to a
+	// package installed since the last scan. Its run waits for the scan
+	// indexing it.
+	if pkg == nil && sbom.ContainerID == "" && file.PathnameStr == pc.Process.FileEvent.PathnameStr {
+		r.addHostMiss(pc, file)
+	}
+
 	if sbom.invalidated {
 		r.triggerForwarding(sbom)
 		sbom.invalidated = false
 	}
 
 	return pkg
+}
+
+// LookupPackage returns the package that owns file, as ResolvePackage does,
+// and leaves the usage of the package as it is. The package fields of CWS
+// events read it, for the files a process runs or opens as well as for the
+// target of a chmod or an unlink.
+func (r *Resolver) LookupPackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
+	if !file.IsPathnameStrResolved {
+		return nil
+	}
+
+	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
+	if sbom == nil {
+		return nil
+	}
+
+	sbom.RLock()
+	defer sbom.RUnlock()
+
+	if !sbom.IsComputed() {
+		return nil
+	}
+	return r.owner(sbom, pc.Pid, file.PathnameStr)
+}
+
+// owner returns the package of sbom that owns the file at path, opened by the
+// process pid. A process on a root of its own opens the files of that root
+// under the paths of host files, and its root is read once the path matches.
+func (r *Resolver) owner(sbom *SBOM, pid uint32, path string) *sbomtypes.Package {
+	pkg := sbom.data.files.queryFile(path)
+	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pid) {
+		return nil
+	}
+	return pkg
+}
+
+// HostPackageVersion returns the version of the host package that owns path,
+// and the empty string for a path outside the host packages. The usage of the
+// package stays as it is.
+func (r *Resolver) HostPackageVersion(path string) string {
+	sbom := r.getSBOM("")
+	if sbom == nil {
+		return ""
+	}
+
+	sbom.RLock()
+	defer sbom.RUnlock()
+
+	if !sbom.IsComputed() {
+		return ""
+	}
+	if pkg := sbom.data.files.queryFile(path); pkg != nil {
+		return pkg.Version
+	}
+	return ""
+}
+
+// ResolveOpen records the open of file by the process of pc as usage of the
+// package that owns it, as ResolvePackage does, when file can hold code and
+// the process may run it. The open of a host package file counts once it has
+// waited settleDelay, and only if the file is still at its path then. An open
+// arriving while maxOpened opens wait is dropped.
+func (r *Resolver) ResolveOpen(pc *model.ProcessContext, file *model.FileEvent) {
+	if !holdsCode(file) || readsCode(pc) {
+		return
+	}
+	if pc.ContainerContext.ContainerID != "" {
+		r.ResolvePackage(pc, file)
+		return
+	}
+	// LookupPackage reads the root of the process while the process lives.
+	if isDir(file.Mode) || r.LookupPackage(pc, file) == nil {
+		return
+	}
+
+	r.openedLock.Lock()
+	defer r.openedLock.Unlock()
+	if len(r.opened) < maxOpened {
+		r.opened = append(r.opened, openedFile{pid: pc.Pid, cred: pc.Credentials, comm: pc.Comm, file: *file, at: time.Now()})
+	}
+}
+
+// settleOpens records the opens of host files that have waited settleDelay,
+// on every tick until ctx is done.
+func (r *Resolver) settleOpens(ctx context.Context, tick <-chan time.Time) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-tick:
+			r.recordSettled(now)
+		}
+	}
+}
+
+// recordSettled records as usage the opens of host files that have waited
+// settleDelay by now, those whose files are still at their paths.
+func (r *Resolver) recordSettled(now time.Time) {
+	r.openedLock.Lock()
+	n := 0
+	for n < len(r.opened) && now.Sub(r.opened[n].at) >= settleDelay {
+		n++
+	}
+	settled := slices.Clone(r.opened[:n])
+	r.opened = slices.Delete(r.opened, 0, n)
+	r.openedLock.Unlock()
+
+	for i := range settled {
+		o := &settled[i]
+		if r.replaced(&o.file) {
+			continue
+		}
+		var pc model.ProcessContext
+		pc.Pid, pc.Credentials, pc.Comm = o.pid, o.cred, o.comm
+		r.ResolvePackage(&pc, &o.file)
+	}
 }
 
 // queuePendingFileEvent stores a file access that arrived before the SBOM for the

@@ -1249,7 +1249,13 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 				}
 
 				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &file)
+				if event.IsEventFromReplay() {
+					// A replayed open stands for an executable mapping of a
+					// running process, which runs whatever becomes of the file.
+					p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &file)
+				} else {
+					p.Resolvers.SBOMResolver.ResolveOpen(event.ProcessContext, &file)
+				}
 			}
 		}
 	}
