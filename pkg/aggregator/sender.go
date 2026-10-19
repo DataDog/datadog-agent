@@ -48,7 +48,7 @@ type checkSender struct {
 	checkTags               []string
 	service                 string
 	noIndex                 bool
-	infraTagger             *infratags.Tagger // nil = no infra mode tagging
+	infraTagger             *infratags.MetricTagger // nil = no infra mode tagging
 	// infraModeEventTags is `infra_mode:<mode>` for marked modes, else nil.
 	// Resolved at construction and appended on Event only. Kept separate from
 	// infraTagger so event marking does not use the metrics allowlist.
@@ -140,8 +140,8 @@ func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
 }
 
-// SetInfraTagger sets the Tagger that appends infra_mode tags to every metric sample.
-func (s *checkSender) SetInfraTagger(tagger *infratags.Tagger) {
+// SetInfraTagger sets the MetricTagger that appends infra_mode tags to every metric sample.
+func (s *checkSender) SetInfraTagger(tagger *infratags.MetricTagger) {
 	s.infraTagger = tagger
 }
 
