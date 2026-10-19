@@ -40,6 +40,7 @@ go_library(
 dd_agent_go_test(
     name = "serializer_test",
     srcs = [
+        "metrics_endpoint_payloads_test.go",
         "metrics_endpoint_routing_test.go",
         "metrics_test.go",
         "serializer_test.go",

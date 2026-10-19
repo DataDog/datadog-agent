@@ -28,6 +28,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -76,6 +77,10 @@ type Provides struct {
 
 // NewComponent creates a new demultiplexer component.
 func NewComponent(deps Dependencies) (Provides, error) {
+	routing, err := configutils.ReadMetricsEndpointRouting(deps.Config)
+	if err != nil {
+		return Provides{}, err
+	}
 	hostnameDetected, err := deps.Hostname.Get(context.TODO())
 	if err != nil {
 		if deps.Params.continueOnMissingHostname {
@@ -86,6 +91,7 @@ func NewComponent(deps Dependencies) (Provides, error) {
 		}
 	}
 	options := createAgentDemultiplexerOptions(deps.Config, deps.Params, deps.DogStatsDLookbackFactory, deps.FinalDogStatsDSerieObservers, deps.ClientDropDetector)
+	options.MetricsEndpointRouting = routing
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,

@@ -312,12 +312,15 @@ func TestBuildPipelinesSketchShadowFires(t *testing.T) {
 
 	config.SetInTest("dd_url", "https://app.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
+	config.SetInTest(utils.MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{"https://app.datadoghq.com": {"kept"}})
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0.5)
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
+	routing, err := utils.ReadMetricsEndpointRouting(config)
+	require.NoError(t, err)
+	s := NewSerializerWithEndpointRouting(f, nil, compressor, config, logger, "", routing)
 
 	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0.4})
 
@@ -337,7 +340,7 @@ outer:
 		// v2 (authoritative) pipeline carries the batchID for correlation.
 		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
 			require.False(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+			require.Equal(t, s.endpointMetricFilters["https://app.datadoghq.com"], conf.Filter)
 			require.Len(t, ctx.Destinations, 1)
 			dest := ctx.Destinations[0]
 			require.Equal(t, "https://app.datadoghq.com", dest.Resolver.GetConfigName())
@@ -347,7 +350,7 @@ outer:
 		// v3beta sketches shadow pipeline carries the same batchID.
 		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
 			require.True(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+			require.Equal(t, s.endpointMetricFilters["https://app.datadoghq.com"], conf.Filter)
 			require.Len(t, ctx.Destinations, 1)
 			dest := ctx.Destinations[0]
 			require.Equal(t, "https://app.datadoghq.com", dest.Resolver.GetConfigName())
@@ -517,7 +520,9 @@ func newSeriesV3Serializer(t *testing.T, config model.BuildableConfig) *Serializ
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	return NewSerializer(f, nil, compressor, config, logger, "")
+	routing, err := utils.ReadMetricsEndpointRouting(config)
+	require.NoError(t, err)
+	return NewSerializerWithEndpointRouting(f, nil, compressor, config, logger, "", routing)
 }
 
 // TestSeriesV3ModeFalse covers the "fully opt out" case: setting enabled=false forces v2
