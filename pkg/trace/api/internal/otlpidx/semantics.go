@@ -239,11 +239,158 @@ type resourceInfo struct {
 	containerTags string
 	source        source.Source
 	statsComputed *bool
+	// promoted holds the resource attributes with a promoted key, which spans fall back to.
+	promoted promoted
 }
 
 type scopeInfo struct {
 	nameRef    uint32
 	versionRef uint32
+	// attrs are the scope attributes without a promoted key, in their native type.
+	attrs []resMerge
+	// promoted holds the scope attributes with a promoted key.
+	promoted promoted
+}
+
+// Bits of the attribute keys that ConvertToIdx moves onto span fields (isPromotedTag).
+const (
+	promotedEnv uint8 = 1 << iota
+	promotedVersion
+	promotedComponent
+	promotedKind
+)
+
+var promotedKeys = [...]struct {
+	name string
+	bit  uint8
+}{
+	{"env", promotedEnv},
+	{"version", promotedVersion},
+	{"component", promotedComponent},
+	{"span.kind", promotedKind},
+}
+
+// promotedKey returns the bit of a promoted attribute key, or 0.
+func promotedKey(k string) uint8 {
+	for _, p := range promotedKeys {
+		if p.name == k {
+			return p.bit
+		}
+	}
+	return 0
+}
+
+// promoted holds the values of promoted attribute keys, which set span fields instead of
+// attributes.
+type promoted struct {
+	set                     uint8
+	env, version, component uint32
+	kind                    idx.SpanKind
+}
+
+// put records the value ref, whose string is s, for the promoted key bit.
+func (p *promoted) put(bit uint8, ref uint32, s string) {
+	p.set |= bit
+	switch bit {
+	case promotedEnv:
+		p.env = ref
+	case promotedVersion:
+		p.version = ref
+	case promotedComponent:
+		p.component = ref
+	case promotedKind:
+		p.kind = spanKindFromName(s)
+	}
+}
+
+// spanKindFromName mirrors ConvertToIdx: unknown names map to internal, the OTel default.
+func spanKindFromName(s string) idx.SpanKind {
+	switch s {
+	case "server":
+		return idx.SpanKind_SPAN_KIND_SERVER
+	case "client":
+		return idx.SpanKind_SPAN_KIND_CLIENT
+	case "producer":
+		return idx.SpanKind_SPAN_KIND_PRODUCER
+	case "consumer":
+		return idx.SpanKind_SPAN_KIND_CONSUMER
+	}
+	return idx.SpanKind_SPAN_KIND_INTERNAL
+}
+
+// decodeScopeAttribute decodes the serialized KeyValue kv of an InstrumentationScope attribute.
+func (d *decoder) decodeScopeAttribute(lib *scopeInfo, kv []byte) error {
+	d.keys = &d.scopeKeys
+	k, v, err := d.decodeKeyValue(kv, 0)
+	if err != nil {
+		return err
+	}
+	bit := promotedKey(d.strings.Get(k))
+	if bit == 0 {
+		lib.attrs = append(lib.attrs, resMerge{key: k, val: v})
+		return nil
+	}
+	// Span fields are strings: use the string form today's conversion stores scope attributes in.
+	if sv, ok := v.Value.(*idx.AnyValue_StringValueRef); ok {
+		lib.promoted.put(bit, sv.StringValueRef, d.strings.Get(sv.StringValueRef))
+		return nil
+	}
+	s, err := attrAsString(kv)
+	if err != nil {
+		return err
+	}
+	lib.promoted.put(bit, d.strings.Add(s), s)
+	return nil
+}
+
+// applyScope copies the scope attributes onto a span. Like transform.OtelSpanToDDSpan, this runs
+// last and overwrites span, resource and computed attributes, without key mapping. Unlike it, the
+// values keep their native type rather than being stringified.
+func (d *decoder) applyScope(span *idx.Span, lib *scopeInfo) {
+	for _, a := range lib.attrs {
+		span.Attributes[a.key] = d.cloneValue(a.val)
+	}
+	p := &lib.promoted
+	if p.set&promotedEnv != 0 {
+		span.EnvRef = p.env
+	}
+	if p.set&promotedVersion != 0 {
+		span.VersionRef = p.version
+	}
+	if p.set&promotedComponent != 0 {
+		span.ComponentRef = p.component
+	}
+	if p.set&promotedKind != 0 {
+		span.Kind = p.kind
+	}
+}
+
+// takeSpanPromoted removes the span attributes with a promoted key and returns their values.
+// Like ConvertToIdx, numeric values (v04 Metrics) are dropped, and today's conversion ignores a
+// span.kind attribute in favour of the OTel span kind.
+func (d *decoder) takeSpanPromoted(attrs map[uint32]*idx.AnyValue) promoted {
+	var p promoted
+	for _, k := range promotedKeys {
+		if !d.spanKeys.mayContain(keySig(k.name)) {
+			continue
+		}
+		ref := d.strings.Lookup(k.name)
+		v, ok := attrs[ref]
+		if ref == 0 || !ok {
+			continue
+		}
+		delete(attrs, ref)
+		if k.bit == promotedKind {
+			continue
+		}
+		switch x := v.Value.(type) {
+		case *idx.AnyValue_StringValueRef:
+			p.put(k.bit, x.StringValueRef, "")
+		case *idx.AnyValue_BoolValue:
+			p.put(k.bit, d.strings.Add(strconv.FormatBool(x.BoolValue)), "")
+		}
+	}
+	return p
 }
 
 // resourceAccessor returns an accessor over the resource attributes alone.
@@ -327,6 +474,28 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 			d.priorities = make(map[[16]byte]int32)
 		}
 		d.priorities[raw.traceID] = int32(p)
+	}
+
+	// Promoted keys set span fields. Today's conversion lets the span's own env and version win
+	// over the semantic lookups, which win over the resource's.
+	sp, rp := d.takeSpanPromoted(attrs), &d.res.promoted
+	switch {
+	case sp.set&promotedEnv != 0:
+		env = d.strings.Get(sp.env)
+	case env == "" && rp.set&promotedEnv != 0:
+		env = d.strings.Get(rp.env)
+	}
+	switch {
+	case sp.set&promotedVersion != 0:
+		version = d.strings.Get(sp.version)
+	case version == "" && rp.set&promotedVersion != 0:
+		version = d.strings.Get(rp.version)
+	}
+	switch {
+	case sp.set&promotedComponent != 0:
+		span.ComponentRef = sp.component
+	case rp.set&promotedComponent != 0:
+		span.ComponentRef = rp.component
 	}
 
 	d.applyRenames(attrs, d.renames)

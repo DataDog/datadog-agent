@@ -89,19 +89,28 @@ func (d *decoder) resourceSource(ctx context.Context, resource []byte) error {
 			return true
 		})
 	}
-	if !d.opts.ResourceAttributesOnPayload {
-		// Like transform.OtelSpanToDDSpan, resource attributes are copied to spans under their
-		// Datadog key and in their string form, whatever their type.
-		filtered.Attributes().Range(func(k string, v pcommon.Value) bool {
-			if mapped := transform.GetDDKeyForOTLPAttribute(k); mapped != "" {
-				d.resMerge = append(d.resMerge, resMerge{
-					key: d.strings.Add(mapped),
-					val: d.stringValue(d.strings.Add(v.AsString())),
-				})
+	// Like transform.OtelSpanToDDSpan, resource attributes are copied to spans under their Datadog
+	// key and in their string form, whatever their type. Promoted keys set span fields instead
+	// (span.kind never does: today's conversion has already set it from the OTel span kind).
+	filtered.Attributes().Range(func(k string, v pcommon.Value) bool {
+		mapped := transform.GetDDKeyForOTLPAttribute(k)
+		if mapped == "" {
+			return true
+		}
+		if bit := promotedKey(mapped); bit != 0 {
+			if bit != promotedKind {
+				d.res.promoted.put(bit, d.strings.Add(v.AsString()), "")
 			}
 			return true
-		})
-	}
+		}
+		if !d.opts.ResourceAttributesOnPayload {
+			d.resMerge = append(d.resMerge, resMerge{
+				key: d.strings.Add(mapped),
+				val: d.stringValue(d.strings.Add(v.AsString())),
+			})
+		}
+		return true
+	})
 	return nil
 }
 

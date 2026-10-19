@@ -6,6 +6,7 @@
 package otlpidx
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,7 @@ var v04OnlyKeys = map[string]bool{
 	"span.kind":      true,
 	"env":            true,
 	"version":        true,
+	"component":      true,
 	"events":         true,
 	"_dd.span_links": true,
 	"_dd.p.dm":       true, // chunk sampling mechanism in V1
@@ -40,6 +42,7 @@ type semanticsFixture struct {
 	statusMsg string
 	res       map[string]any
 	attrs     map[string]any
+	scope     map[string]any
 }
 
 var semanticsFixtures = []semanticsFixture{
@@ -129,6 +132,44 @@ var semanticsFixtures = []semanticsFixture{
 		res:   map[string]any{"db.name": "res-db"},
 		attrs: map[string]any{"db.system": "postgresql", "db.namespace": "span-ns"},
 	},
+	{
+		name: "scope attributes overwrite", kind: ptrace.SpanKindServer, spanName: "s",
+		status: ptrace.StatusCodeError, statusMsg: "failed",
+		res:   map[string]any{"res.shared": "res"},
+		attrs: map[string]any{"shared": "span", "count": 3, "label": "span-label"},
+		scope: map[string]any{
+			"scope.attr": "v", "shared": "scope", "res.shared": "scope", "error.msg": "scope-err",
+			"count": 5, "label": 7, "ratio": 0.5, "flag": true, "list": []any{"a", 1},
+		},
+	},
+	{
+		name: "scope db.name wins over db.namespace", kind: ptrace.SpanKindClient, spanName: "q",
+		attrs: map[string]any{"db.system": "postgresql", "db.namespace": "span-ns"},
+		scope: map[string]any{"db.name": "scope-db"},
+	},
+	{
+		name: "scope promoted keys", kind: ptrace.SpanKindServer, spanName: "s",
+		res:   map[string]any{"deployment.environment.name": "res-env", "component": "res-comp"},
+		attrs: map[string]any{"env": "span-env", "component": "span-comp", "version": "span-ver"},
+		scope: map[string]any{"env": "scope-env", "version": 7, "component": "scope-comp", "span.kind": "weird"},
+	},
+	{
+		name: "scope span.kind", kind: ptrace.SpanKindServer, spanName: "s",
+		scope: map[string]any{"span.kind": "consumer"},
+	},
+	{
+		name: "span promoted keys", kind: ptrace.SpanKindServer, spanName: "s",
+		res: map[string]any{
+			"deployment.environment.name": "dep-env", "env": "res-env", "version": "res-ver", "component": "res-comp",
+		},
+		attrs: map[string]any{"env": "span-env", "component": "span-comp", "span.kind": "client", "version": 3},
+	},
+	{
+		name: "resource promoted keys", kind: ptrace.SpanKindClient, spanName: "s",
+		res: map[string]any{
+			"env": "res-env", "version": "res-ver", "service.version": "1.0", "component": "res-comp", "span.kind": "server",
+		},
+	},
 }
 
 func putAttrs(m pcommon.Map, from map[string]any) {
@@ -174,6 +215,7 @@ func TestSemanticsMatchV04(t *testing.T) {
 			ss := rs.ScopeSpans().AppendEmpty()
 			ss.Scope().SetName("my.lib")
 			ss.Scope().SetVersion("0.1")
+			putAttrs(ss.Scope().Attributes(), fx.scope)
 			span := ss.Spans().AppendEmpty()
 			span.SetTraceID(traceA)
 			span.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 7})
@@ -209,7 +251,7 @@ func TestSemanticsMatchV04MultiSpan(t *testing.T) {
 	ss.Scope().SetName("my.lib")
 	var names []string
 	for i, fx := range semanticsFixtures {
-		if fx.res != nil {
+		if fx.res != nil || fx.scope != nil {
 			continue
 		}
 		span := ss.Spans().AppendEmpty()
@@ -238,6 +280,57 @@ func TestSemanticsMatchV04MultiSpan(t *testing.T) {
 	}
 }
 
+// TestScopeAttributesNative checks that scope attributes keep their native type, apply to every
+// span of their scope only, and overwrite span attributes and promoted span fields.
+func TestScopeAttributesNative(t *testing.T) {
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	ss := rs.ScopeSpans().AppendEmpty()
+	putAttrs(ss.Scope().Attributes(), map[string]any{
+		"count": 5, "ratio": 0.5, "flag": true, "list": []any{"a"}, "component": "scope-comp",
+	})
+	span := ss.Spans().AppendEmpty()
+	span.SetTraceID(traceA)
+	span.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 1})
+	putAttrs(span.Attributes(), map[string]any{"count": "span", "component": "span-comp"})
+	other := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	other.SetTraceID(traceA)
+	other.SetSpanID(pcommon.SpanID{0, 0, 0, 0, 0, 0, 0, 2})
+
+	b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
+	require.NoError(t, err)
+	tps, err := decodeForTest(b)
+	require.NoError(t, err)
+	spans := tps[0].Chunks[0].Spans
+	require.Len(t, spans, 2)
+
+	// InternalSpan.GetAttribute reports any key in the string table as present, so read the map.
+	has := func(s *idx.InternalSpan, k string) (*idx.AnyValue, bool) {
+		v, ok := s.Attributes()[tps[0].Strings.Lookup(k)]
+		return v, ok
+	}
+	got := spans[0]
+	attr := func(k string) any {
+		v, ok := has(got, k)
+		require.True(t, ok, k)
+		return v.Value
+	}
+	assert.Equal(t, int64(5), attr("count").(*idx.AnyValue_IntValue).IntValue)
+	assert.Equal(t, 0.5, attr("ratio").(*idx.AnyValue_DoubleValue).DoubleValue)
+	assert.True(t, attr("flag").(*idx.AnyValue_BoolValue).BoolValue)
+	assert.Len(t, attr("list").(*idx.AnyValue_ArrayValue).ArrayValue.Values, 1)
+	assert.Equal(t, "scope-comp", got.Component())
+	_, ok := has(got, "component")
+	assert.False(t, ok, "promoted key kept as attribute")
+
+	for _, k := range []string{"count", "ratio", "flag", "list"} {
+		_, ok := has(spans[1], k)
+		assert.False(t, ok, "scope attribute %q leaked to another scope", k)
+	}
+	assert.Empty(t, spans[1].Component())
+}
+
 // assertMatchesV04 checks that a decoded span carries the same Datadog-visible values as want,
 // the result of today's conversion.
 func assertMatchesV04(t *testing.T, want *pb.Span, tp *idx.InternalTracerPayload, got *idx.InternalSpan) {
@@ -249,6 +342,11 @@ func assertMatchesV04(t *testing.T, want *pb.Span, tp *idx.InternalTracerPayload
 	assert.Equal(t, want.Error == 1, got.Error(), "error")
 	assert.Equal(t, want.Meta["env"], got.Env(), "env")
 	assert.Equal(t, want.Meta["version"], got.Version(), "version")
+	assert.Equal(t, want.Meta["component"], got.Component(), "component")
+	// ConvertToIdx maps "unspecified" to internal, while the decoder keeps the OTel kind.
+	if k := want.Meta["span.kind"]; k != "unspecified" {
+		assert.Equal(t, spanKindFromName(k), got.Kind(), "span.kind %q", k)
+	}
 
 	// Effective attributes: span first, then payload (resource) attributes.
 	effective := func(key string) (*idx.AnyValue, bool) {
@@ -262,6 +360,8 @@ func assertMatchesV04(t *testing.T, want *pb.Span, tp *idx.InternalTracerPayload
 		v, ok := tp.Attributes[ref]
 		return v, ok
 	}
+	// A scope attribute overwrites a span attribute of the same key in Meta, but v04 keeps the
+	// span's numeric value in Metrics too. V1 has one value, which must match one of them.
 	for k, wv := range want.Meta {
 		if v04OnlyKeys[k] {
 			continue
@@ -270,23 +370,29 @@ func assertMatchesV04(t *testing.T, want *pb.Span, tp *idx.InternalTracerPayload
 		if !assert.True(t, ok, "missing meta key %q", k) {
 			continue
 		}
-		if s, isStr := v.Value.(*idx.AnyValue_StringValueRef); isStr {
-			assert.Equal(t, wv, tp.Strings.Get(s.StringValueRef), "meta %q", k)
+		if wm, inMetrics := want.Metrics[k]; inMetrics && matchesMetric(v, wm) {
+			continue
+		}
+		// Arrays and maps from scope attributes stay native, while v04 has their JSON string.
+		if s, ok := scalarString(tp, v); ok {
+			assert.Equal(t, wv, s, "meta %q", k)
 		}
 	}
 	for k, wv := range want.Metrics {
+		// Like ConvertToIdx, numeric promoted keys are dropped.
+		if promotedKey(k) != 0 {
+			continue
+		}
 		v, ok := effective(k)
 		if !assert.True(t, ok, "missing metric key %q", k) {
 			continue
 		}
-		switch x := v.Value.(type) {
-		case *idx.AnyValue_IntValue:
-			assert.Equal(t, wv, float64(x.IntValue), "metric %q", k)
-		case *idx.AnyValue_DoubleValue:
-			assert.Equal(t, wv, x.DoubleValue, "metric %q", k)
-		default:
-			t.Errorf("metric %q has non-numeric type %T", k, v.Value)
+		if wm, inMeta := want.Meta[k]; inMeta {
+			if s, ok := scalarString(tp, v); ok && s == wm {
+				continue
+			}
 		}
+		assert.True(t, matchesMetric(v, wv), "metric %q: want %v, got %v", k, wv, v.Value)
 	}
 	// No extra keys beyond what today's conversion emits.
 	check := func(attrs map[uint32]*idx.AnyValue, level string) {
@@ -299,4 +405,31 @@ func assertMatchesV04(t *testing.T, want *pb.Span, tp *idx.InternalTracerPayload
 	}
 	check(got.Attributes(), "span")
 	check(tp.Attributes, "payload")
+}
+
+// matchesMetric reports whether v is numeric and equal to want.
+func matchesMetric(v *idx.AnyValue, want float64) bool {
+	switch x := v.Value.(type) {
+	case *idx.AnyValue_IntValue:
+		return float64(x.IntValue) == want
+	case *idx.AnyValue_DoubleValue:
+		return x.DoubleValue == want
+	}
+	return false
+}
+
+// scalarString formats a string, bool or numeric attribute like pcommon.Value.AsString, the form
+// v04 stores Meta values in.
+func scalarString(tp *idx.InternalTracerPayload, v *idx.AnyValue) (string, bool) {
+	switch x := v.Value.(type) {
+	case *idx.AnyValue_StringValueRef:
+		return tp.Strings.Get(x.StringValueRef), true
+	case *idx.AnyValue_BoolValue:
+		return strconv.FormatBool(x.BoolValue), true
+	case *idx.AnyValue_IntValue:
+		return strconv.FormatInt(x.IntValue, 10), true
+	case *idx.AnyValue_DoubleValue:
+		return strconv.FormatFloat(x.DoubleValue, 'f', -1, 64), true
+	}
+	return "", false
 }

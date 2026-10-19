@@ -43,8 +43,9 @@ const (
 	fScopeSpansScope = 1
 	fScopeSpansSpans = 2
 
-	fScopeName    = 1
-	fScopeVersion = 2
+	fScopeName       = 1
+	fScopeVersion    = 2
+	fScopeAttributes = 3
 
 	fSpanTraceID      = 1
 	fSpanSpanID       = 2
@@ -226,6 +227,8 @@ type decoder struct {
 	// keys points to the one being decoded into. Semantic lookups use their union, lookupKeys.
 	resKeys, spanKeys, lookupKeys keyFilter
 	keys                          *keyFilter
+	// scopeKeys receives the keys of scope attributes, which semantic lookups don't read.
+	scopeKeys keyFilter
 	// keptKeys is a bitset of string references known not to be renamed by the key mapping.
 	keptKeys []uint64
 	// lastAttrs is the previous span's final attribute count, used to size the next span's map.
@@ -398,6 +401,12 @@ func (d *decoder) decodeScopeSpans(b []byte) error {
 			lib.nameRef = d.strings.AddBytes(f.val)
 		case fScopeVersion:
 			lib.versionRef = d.strings.AddBytes(f.val)
+		case fScopeAttributes:
+			if !d.opts.SkipSemantics {
+				if err := d.decodeScopeAttribute(&lib, f.val); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	for len(b) > 0 {
@@ -421,6 +430,9 @@ func (d *decoder) decodeScopeSpans(b []byte) error {
 		}
 		if !d.opts.ResourceAttributesOnPayload {
 			d.mergeResource(span.Attributes)
+		}
+		if !d.opts.SkipSemantics {
+			d.applyScope(span, &lib)
 		}
 		d.spanCount++
 		d.lastAttrs = len(span.Attributes)
