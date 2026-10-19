@@ -36,6 +36,8 @@ python3 .agents/skills/follow-pr/scripts/config.py resolve \
 
 If the resolved mode is `ask`, or the script errors, ask the user directly to choose `autofix`, `retries`, or `no-autofix` for this invocation before doing anything else. A caller that already resolved `ask` passes its chosen mode through. For this PR-code handler, `retries` and `no-autofix` both permit local candidate edits but no automatic commits or pushes; job retries remain `/follow-pr`'s responsibility.
 
+`max_fix_cycles` is shared with `/follow-pr`'s retry batches. Honor the caller's consumed and remaining cycles rather than starting a fresh budget; report `Cycles consumed: 1` only for a successful push, otherwise `0`.
+
 Any resolved `policy` text is a classification override, applied on top of Step 2's default criteria — it can broaden them (e.g. "do whatever it takes to make the PR pass" authorizes larger, handwritten fixes the defaults would reject) or narrow them. It can never relax the safety floor in Step 5.
 
 ## Step 2 — Default safe-fix test
