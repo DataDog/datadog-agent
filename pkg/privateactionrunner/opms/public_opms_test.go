@@ -9,6 +9,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -16,8 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPhoneHomePOSTRefusesRedirectAndDoesNotRetry(t *testing.T) {
+func TestPhoneHomePOSTPolicy(t *testing.T) {
 	t.Setenv(app.PhoneHomePOCEnvVar, "true")
+	if runtime.GOOS == "windows" {
+		client := NewPublicClient(configmock.New(t), "https://api.datadoghq.com", nil).(*publicClient)
+		require.False(t, client.phoneHomePOC)
+		require.Nil(t, client.httpClient.CheckRedirect, "Windows opt-in leaves default enrollment unchanged")
+		return
+	}
 	target := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Error("enrollment credential forwarded across redirect")
 	}))

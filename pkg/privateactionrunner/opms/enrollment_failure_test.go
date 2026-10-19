@@ -17,8 +17,6 @@ import (
 	"testing"
 	"time"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,7 +68,6 @@ func TestEnrollmentFailureContract(t *testing.T) {
 }
 
 func TestThrottleRetainsRetryAfterWithoutReadingBody(t *testing.T) {
-	t.Setenv(app.PhoneHomePOCEnvVar, "true")
 	deadline := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
 	for _, oversized := range []bool{false, true} {
 		t.Run(fmt.Sprintf("oversized_%t", oversized), func(t *testing.T) {
@@ -87,7 +84,7 @@ func TestThrottleRetainsRetryAfterWithoutReadingBody(t *testing.T) {
 				_, _ = io.WriteString(w, body)
 			}))
 			defer srv.Close()
-			client := NewPublicClient(configmock.New(t), srv.URL, nil).(*publicClient)
+			client := &publicClient{httpClient: srv.Client(), phoneHomePOC: true}
 			_, _, err := client.doEnrollRequest(context.Background(), srv.URL, []byte(`{}`), "key", "")
 			var failure *EnrollmentFailure
 			require.ErrorAs(t, err, &failure)
@@ -100,7 +97,6 @@ func TestThrottleRetainsRetryAfterWithoutReadingBody(t *testing.T) {
 }
 
 func TestEnrollmentCancellationAfterSubmissionIsAmbiguous(t *testing.T) {
-	t.Setenv(app.PhoneHomePOCEnvVar, "true")
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -113,7 +109,7 @@ func TestEnrollmentCancellationAfterSubmissionIsAmbiguous(t *testing.T) {
 	}))
 	defer srv.Close()
 	defer close(release)
-	client := NewPublicClient(configmock.New(t), srv.URL, nil).(*publicClient)
+	client := &publicClient{httpClient: srv.Client(), phoneHomePOC: true}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { _, _, err := client.doEnrollRequest(ctx, srv.URL, []byte(`{}`), "key", ""); done <- err }()

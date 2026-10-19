@@ -9,6 +9,7 @@ package phonehomeimpl
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -42,6 +43,11 @@ func TestLifecycleDoesNotWaitForPrerequisites(t *testing.T) {
 	host := &waitingHostname{entered: make(chan struct{}), done: make(chan struct{})}
 	result := NewComponent(Requires{Config: cfg, Lifecycle: lc, Hostname: host, Log: logmock.New(t)})
 	require.NotNil(t, result.Comp)
+	if runtime.GOOS == "windows" {
+		require.Empty(t, lc.hooks)
+		require.Nil(t, result.Comp.Status())
+		return
+	}
 	require.Len(t, lc.hooks, 1)
 	require.NoError(t, lc.hooks[0].OnStart(context.Background()))
 	select {

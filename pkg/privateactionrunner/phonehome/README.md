@@ -37,7 +37,8 @@ path. Extra PAR config and OPMS headers are unsupported. Different RC API keys,
 legacy RC credentials and mismatched sites are rejected rather than treated as
 PAR authorization. Live rotation remains unsupported; reader key/endpoints are
 fixed for the lifetime of the component. Loopback overrides are only for the
-explicit internal mock mode.
+explicit internal mock mode. On Windows the opt-in is ignored, preserving normal
+PAR enrollment; POSIX journal/persistence tests run only on non-Windows platforms.
 
 Use absolute `DD_PM_SOCKET_PATH`. Register `datadog-agent-par-control` and
 `datadog-agent-action-executor` with `auto_start: false`, `restart: never`; include

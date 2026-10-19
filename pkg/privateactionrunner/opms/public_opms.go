@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -80,7 +81,7 @@ type publicClient struct {
 }
 
 func NewPublicClient(cfg model.Reader, ddBaseURL string, extraHeaders map[string]string) PublicClient {
-	poc := os.Getenv(app.PhoneHomePOCEnvVar) == "true"
+	poc := runtime.GOOS != "windows" && os.Getenv(app.PhoneHomePOCEnvVar) == "true"
 	client := &http.Client{Timeout: 30 * time.Second, Transport: httputils.CreateHTTPTransport(cfg)}
 	if poc {
 		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }

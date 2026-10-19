@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add an experimental, opt-in core-Agent controller for split-mode Private
+    Action Runner startup and enrollment recovery on Linux. New starts require
+    Remote Configuration readiness; the controller alone does not enable fresh
+    enrollment discovery. Default behavior is unchanged.

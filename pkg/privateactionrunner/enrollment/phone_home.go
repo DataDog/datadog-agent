@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -20,7 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 )
 
-func PhoneHomePOC() bool { return os.Getenv(app.PhoneHomePOCEnvVar) == "true" }
+func PhoneHomePOC() bool {
+	return runtime.GOOS != "windows" && os.Getenv(app.PhoneHomePOCEnvVar) == "true"
+}
 
 // PhoneHomeAttempt is core-owned scheduling metadata, not an enrollment identity.
 // Outcomes and exclusive POST claims are scoped to ID, never to a mutable slot.

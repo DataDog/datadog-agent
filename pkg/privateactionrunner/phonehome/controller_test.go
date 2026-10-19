@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build !windows
+
 package phonehome
 
 import (
@@ -13,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -253,7 +256,7 @@ func TestEnrolledStartupWaitsForRCButRunningPARIsNotStopped(t *testing.T) {
 
 func TestDispatchRechecksRCAndUnstartedReservationRecovers(t *testing.T) {
 	for _, existing := range []bool{false, true} {
-		t.Run(fmt.Sprint(existing), func(t *testing.T) {
+		t.Run(strconv.FormatBool(existing), func(t *testing.T) {
 			f := newFixture(t)
 			if existing {
 				f.identity(t)
