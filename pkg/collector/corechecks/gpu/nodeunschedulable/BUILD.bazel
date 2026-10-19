@@ -4,14 +4,19 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "nodeunschedulable",
     srcs = [
+        "dca.go",
         "rules.go",
         "state.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/config/structure",
+        "//pkg/errors",
+        "//pkg/util/clusteragent",
+        "//pkg/util/kubernetes/hostinfo",
         "//pkg/util/log",
     ],
 )
@@ -24,6 +29,7 @@ dd_agent_go_test(
     ],
     embed = [":nodeunschedulable"],
     deps = [
+        "//pkg/config/env",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

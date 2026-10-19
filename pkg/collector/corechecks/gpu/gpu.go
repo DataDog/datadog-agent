@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	gpumodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -88,7 +89,7 @@ type Check struct {
 	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
 	skipNVML            bool                             // skipNVML is set in Configure when gpu.amd.enabled is on and the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
-	nodeUnschedulable   *nodeUnschedulable               // nodeUnschedulable is the unschedulable state of the node, nil unless gpu.unschedulable_nodes.enabled; only touched from the Run goroutine
+	nodeUnschedulable   *nodeunschedulable.Cache         // nodeUnschedulable is the unschedulable state of the node, nil unless gpu.unschedulable_nodes.enabled; refreshed before the collectors run
 }
 
 type checkTelemetry struct {
@@ -241,7 +242,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		}
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
-	c.configureNodeUnschedulable(pkgconfigsetup.Datadog())
+	c.nodeUnschedulable = nodeunschedulable.New(pkgconfigsetup.Datadog())
 
 	return nil
 }
@@ -282,6 +283,7 @@ func (c *Check) ensureInitCollectors() error {
 		DeviceEventsGatherer: c.deviceEvtGatherer,
 		SystemProbeCache:     c.spCache,
 		PRMCache:             c.prmCache,
+		NodeUnschedulable:    c.nodeUnschedulable,
 		Telemetry:            c.telemetry.collectorTelemetry,
 		Workloadmeta:         c.wmeta,
 		Config:               *c.gpuConfig,
@@ -457,6 +459,10 @@ func (c *Check) Run() error {
 		}
 	}
 
+	if c.nodeUnschedulable != nil {
+		c.nodeUnschedulable.Refresh(currentExecutionTime)
+	}
+
 	// start device event gatherer if we have not already
 	if !c.deviceEvtGatherer.Started() {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
@@ -494,7 +500,6 @@ func (c *Check) Run() error {
 	if err := c.emitMetrics(snd, gpuToContainersMap, gpuToProcessesMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending gpu metrics: %s", err)
 	}
-	c.emitNodeUnschedulable(snd, currentExecutionTime)
 
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -184,4 +185,33 @@ func (s *Series) retire(tags []string, now time.Time) {
 
 func (s *Series) cancel(tags []string) {
 	s.retired = slices.DeleteFunc(s.retired, func(r retiredTags) bool { return slices.Equal(r.tags, tags) })
+}
+
+// Cache holds the points of the current check run. The GPU check refreshes it once
+// per run, then every device collector reads the same points.
+type Cache struct {
+	source  Source
+	tracker *Tracker
+	series  Series
+	points  []Point
+}
+
+// NewCache creates a cache that reads src at most once per refresh interval.
+func NewCache(src Source, refreshInterval time.Duration) *Cache {
+	return &Cache{source: src, tracker: NewTracker(refreshInterval)}
+}
+
+// Refresh reads the state if due and steps the series to now. Off Kubernetes there
+// is nothing to read.
+func (c *Cache) Refresh(now time.Time) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
+		return
+	}
+	c.tracker.Refresh(c.source, now)
+	c.points = c.series.Step(c.tracker.Outcome(), now)
+}
+
+// Points returns the points of the last refresh. Callers must not modify them.
+func (c *Cache) Points() []Point {
+	return c.points
 }

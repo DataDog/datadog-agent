@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
@@ -39,11 +40,11 @@ func (f *fakeUnschedulableSource) NodeUnschedulable() (nodeunschedulable.Result,
 
 func (f *fakeUnschedulableSource) Probe() error { return errors.New("probe not expected") }
 
-func newNodeUnschedulableTestCheck(t *testing.T, src *fakeUnschedulableSource, opts ...testutil.NvmlMockOption) (*Check, *mocksender.MockSender) {
+func newNodeUnschedulableTestCheck(t *testing.T, src *fakeUnschedulableSource, opts ...testutil.NvmlMockOption) (*Check, *mocksender.MockSender, taggermock.Mock) {
 	t.Helper()
 	nvmltestutil.SetupMockNVML(t, append([]testutil.NvmlMockOption{testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2)}, opts...)...)
 	env.SetFeatures(t, env.Kubernetes)
-	configmock.New(t).SetInTest(nodeUnschedulableEnabledKey, true)
+	configmock.New(t).SetInTest(nodeunschedulable.EnabledConfigKey, true)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	wmeta := testutil.GetWorkloadMetaMock(t)
 	senderManager := mocksender.CreateDefaultDemultiplexer(t)
@@ -53,40 +54,57 @@ func newNodeUnschedulableTestCheck(t *testing.T, src *fakeUnschedulableSource, o
 	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, map[int]string{})
 	require.NoError(t, check.deviceCache.Refresh())
 	require.NotNil(t, check.nodeUnschedulable)
-	check.nodeUnschedulable.source = src
-	return check, mockSender
+	check.nodeUnschedulable = nodeunschedulable.NewCache(src, time.Minute)
+	return check, mockSender, fakeTagger
+}
+
+// runNodeUnschedulable does what one check run does: refresh the node state, then run the collectors.
+func runNodeUnschedulable(check *Check, snd *mocksender.MockSender, now time.Time) {
+	snd.ResetCalls()
+	check.nodeUnschedulable.Refresh(now)
+	_ = check.emitMetrics(snd, nil, nil, now)
+}
+
+// unschedulableCalls counts the gpu.device.unavailable{unavailable_reason:unschedulable} series.
+func unschedulableCalls(snd *mocksender.MockSender) int {
+	n := 0
+	for _, call := range snd.Calls {
+		if call.Method == "GaugeWithTimestamp" && call.Arguments.String(0) == "gpu.device.unavailable" &&
+			slices.Contains(call.Arguments.Get(3).([]string), "unavailable_reason:unschedulable") {
+			n++
+		}
+	}
+	return n
 }
 
 func toTimestamp(t time.Time) float64 { return float64(t.UnixNano()) / float64(time.Second) }
 
 func TestNodeUnschedulableEmitsAndCloses(t *testing.T) {
 	src := &fakeUnschedulableSource{result: nodeunschedulable.Result{Unschedulable: true, Reasons: []string{"cordoned", "example.com/drain:true"}}}
-	check, mockSender := newNodeUnschedulableTestCheck(t, src)
+	check, mockSender, _ := newNodeUnschedulableTestCheck(t, src)
 	tags := []string{"unavailable_reason:unschedulable", "unschedulable_reason:cordoned", "unschedulable_reason:example.com/drain:true"}
 
 	t0 := time.Now()
-	check.emitNodeUnschedulable(mockSender, t0)
+	runNodeUnschedulable(check, mockSender, t0)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.unavailable", 1, "", tags, toTimestamp(t0))
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2) // one series per device
+	require.Equal(t, 2, unschedulableCalls(mockSender)) // one series per device
 
 	// The node is schedulable again: the same tagset gets a closing zero, nothing gets a 1.
 	src.result = nodeunschedulable.Result{Reasons: []string{}}
-	mockSender.ResetCalls()
 	t1 := t0.Add(time.Minute)
-	check.emitNodeUnschedulable(mockSender, t1)
+	runNodeUnschedulable(check, mockSender, t1)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.unavailable", 0, "", tags, toTimestamp(t1))
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2)
+	require.Equal(t, 2, unschedulableCalls(mockSender))
 
 	// After the closing window nothing is emitted.
-	mockSender.ResetCalls()
-	check.emitNodeUnschedulable(mockSender, t1.Add(nodeunschedulable.ClosingWindow))
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
+	runNodeUnschedulable(check, mockSender, t1.Add(nodeunschedulable.ClosingWindow))
+	require.Zero(t, unschedulableCalls(mockSender))
 }
 
 // MIG slices report the node state like gpu.device.total, with their own device tags.
 func TestNodeUnschedulableIncludesMIGSlices(t *testing.T) {
 	src := &fakeUnschedulableSource{result: nodeunschedulable.Result{Unschedulable: true, Reasons: []string{"cordoned"}}}
-	check, mockSender := newNodeUnschedulableTestCheck(t, src,
+	check, mockSender, fakeTagger := newNodeUnschedulableTestCheck(t, src,
 		testutil.WithDeviceOptions(0,
 			testutil.WithMIGEnabled(),
 			testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]}),
@@ -103,11 +121,11 @@ func TestNodeUnschedulableIncludesMIGSlices(t *testing.T) {
 		"gpu_slicing_mode:mig",
 		"gpu_parent_uuid:" + strings.ToLower(testutil.GPUUUIDs[0]),
 	}
-	check.deviceTags = map[string][]string{testutil.MIGUUIDs[0]: sliceTags}
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, testutil.MIGUUIDs[0]), "foo", sliceTags, nil, nil, nil)
 
 	now := time.Now()
-	check.emitNodeUnschedulable(mockSender, now)
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 3) // two physical GPUs and the MIG slice
+	runNodeUnschedulable(check, mockSender, now)
+	require.Equal(t, 3, unschedulableCalls(mockSender)) // two physical GPUs and the MIG slice
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.unavailable", 1, "",
 		append(slices.Clone(sliceTags), "unavailable_reason:unschedulable", "unschedulable_reason:cordoned"), toTimestamp(now))
 }
@@ -115,39 +133,38 @@ func TestNodeUnschedulableIncludesMIGSlices(t *testing.T) {
 // A failed fetch keeps the last result with no time limit: the series keeps its 1.
 func TestNodeUnschedulableKeepsLastResultOnFailure(t *testing.T) {
 	src := &fakeUnschedulableSource{result: nodeunschedulable.Result{Unschedulable: true, Reasons: []string{"cordoned"}}}
-	check, mockSender := newNodeUnschedulableTestCheck(t, src)
+	check, mockSender, _ := newNodeUnschedulableTestCheck(t, src)
 	tags := []string{"unavailable_reason:unschedulable", "unschedulable_reason:cordoned"}
 
 	t0 := time.Now()
-	check.emitNodeUnschedulable(mockSender, t0)
+	runNodeUnschedulable(check, mockSender, t0)
 
 	src.err = errors.New("connection refused")
-	mockSender.ResetCalls()
 	t1 := t0.Add(6 * time.Hour)
-	check.emitNodeUnschedulable(mockSender, t1)
+	runNodeUnschedulable(check, mockSender, t1)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "gpu.device.unavailable", 1, "", tags, toTimestamp(t1))
 }
 
 func TestNodeUnschedulableNeverReadEmitsNothing(t *testing.T) {
-	check, mockSender := newNodeUnschedulableTestCheck(t, &fakeUnschedulableSource{err: errors.New("connection refused")})
+	check, mockSender, _ := newNodeUnschedulableTestCheck(t, &fakeUnschedulableSource{err: errors.New("connection refused")})
 
-	check.emitNodeUnschedulable(mockSender, time.Now())
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
+	runNodeUnschedulable(check, mockSender, time.Now())
+	require.Zero(t, unschedulableCalls(mockSender))
 }
 
 func TestNodeUnschedulableSupportedAnswerThatIsSchedulableEmitsNothing(t *testing.T) {
-	check, mockSender := newNodeUnschedulableTestCheck(t, &fakeUnschedulableSource{result: nodeunschedulable.Result{Reasons: []string{}}})
+	check, mockSender, _ := newNodeUnschedulableTestCheck(t, &fakeUnschedulableSource{result: nodeunschedulable.Result{Reasons: []string{}}})
 
-	check.emitNodeUnschedulable(mockSender, time.Now())
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
+	runNodeUnschedulable(check, mockSender, time.Now())
+	require.Zero(t, unschedulableCalls(mockSender))
 }
 
 func TestNodeUnschedulableNotOnKubernetes(t *testing.T) {
-	check, mockSender := newNodeUnschedulableTestCheck(t, &fakeUnschedulableSource{result: nodeunschedulable.Result{Unschedulable: true, Reasons: []string{"cordoned"}}})
+	check, mockSender, _ := newNodeUnschedulableTestCheck(t, &fakeUnschedulableSource{result: nodeunschedulable.Result{Unschedulable: true, Reasons: []string{"cordoned"}}})
 	env.SetFeatures(t)
 
-	check.emitNodeUnschedulable(mockSender, time.Now())
-	mockSender.AssertNotCalled(t, "GaugeWithTimestamp", "gpu.device.unavailable", mock.Anything, "", mock.Anything, mock.Anything)
+	runNodeUnschedulable(check, mockSender, time.Now())
+	require.Zero(t, unschedulableCalls(mockSender))
 }
 
 // The node-level tags are declared in the metric spec, so the spec validator accepts them.
@@ -178,18 +195,4 @@ func TestNodeUnschedulableDisabledByDefault(t *testing.T) {
 	configmock.New(t)
 	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), map[int]string{})
 	require.Nil(t, check.nodeUnschedulable)
-}
-
-// Invalid rules are ignored: only a cordoned node is still reported.
-func TestNodeUnschedulableInvalidRulesFallBackToCordon(t *testing.T) {
-	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(2))
-	cfg := configmock.New(t)
-	cfg.SetInTest(nodeUnschedulableEnabledKey, true)
-	cfg.SetInTest(nodeunschedulable.LabelsConfigKey, []map[string]interface{}{{"key": "example.com/drain"}})
-	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), map[int]string{})
-	require.NotNil(t, check.nodeUnschedulable)
-
-	rules := check.nodeUnschedulable.source.(*dcaUnschedulableSource).rules
-	require.False(t, rules.HasLabelRules())
-	require.Equal(t, []string{"cordoned"}, rules.Evaluate(map[string]string{"example.com/drain": "true"}, nil, true))
 }
