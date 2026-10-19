@@ -55,6 +55,8 @@ properties:
     - DD_PROCESS_AGENT_EXPVAR_PORT
     visibility: public
     description: Port for the debug endpoints for the process Agent.
+    minimum: 1
+    maximum: 65535
   cmd_port:
     node_type: setting
     type: integer

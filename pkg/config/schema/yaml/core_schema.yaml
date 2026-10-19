@@ -1260,6 +1260,8 @@ properties:
     - template_section:Agent
     - full-agent-only:true
     comment: Go_expvar server port
+    minimum: 1
+    maximum: 65535
   cmd_port:
     node_type: setting
     type: integer
@@ -1268,6 +1270,8 @@ properties:
     description: The port on which the IPC api listens.
     tags:
     - template_section:Agent
+    minimum: 1
+    maximum: 65535
   GUI_port:
     node_type: setting
     type: integer
@@ -1326,6 +1330,8 @@ properties:
     tags:
     - golang_type:int64
     - template_section:Agent
+    minimum: 1
+    maximum: 1000
   enable_metadata_collection:
     node_type: setting
     type: boolean
@@ -2112,6 +2118,7 @@ properties:
             visibility: public
             description: The `workers` refers to the number of concurrent workers
               available for synthetics tests execution.
+            minimum: 1
           flush_interval:
             node_type: setting
             type: string
@@ -2235,6 +2242,8 @@ properties:
     tags:
     - template_section:Dogstatsd
     comment: 'Notice: 0 means UDP port closed'
+    minimum: 1
+    maximum: 65535
   dogstatsd_require_listener:
     node_type: setting
     type: boolean
@@ -2394,6 +2403,8 @@ properties:
     description: The port for the go_expvar server.
     tags:
     - template_section:Dogstatsd
+    minimum: 1
+    maximum: 65535
   dogstatsd_so_rcvbuf:
     node_type: setting
     type: integer
@@ -3022,6 +3033,8 @@ properties:
       Set to 0 to not limit the number of files to create.
     tags:
     - template_section:Logging
+    minimum: 0
+    maximum: 1000
   log_to_syslog:
     node_type: setting
     type: boolean
@@ -7605,6 +7618,7 @@ properties:
     type: integer
     default: 0
     comment: in seconds, 0 means disabled
+    minimum: 0
   forwarder_flush_to_disk_mem_ratio:
     node_type: setting
     type: number
