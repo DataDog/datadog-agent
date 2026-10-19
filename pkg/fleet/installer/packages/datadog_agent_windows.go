@@ -858,7 +858,7 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStartConfigExperimentBackground")
+	return launchConfigExperimentRestart(ctx.Context, exec.PostStartConfigExperimentBackgroundCommand)
 }
 
 // postStartConfigExperimentDatadogAgentBackground restarts the Agent services and then
@@ -944,7 +944,7 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "preStopConfigExperimentBackground")
+	return launchConfigExperimentRestart(ctx.Context, exec.PreStopConfigExperimentBackgroundCommand)
 }
 
 // preStopConfigExperimentDatadogAgentBackground restarts the Agent services.
@@ -975,7 +975,7 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "postPromoteConfigExperimentBackground")
+	return launchConfigExperimentRestart(ctx.Context, exec.PostPromoteConfigExperimentBackgroundCommand)
 }
 
 // postPromoteConfigExperimentDatadogAgentBackground restarts the Agent services.
@@ -1016,11 +1016,11 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 		return postStartExperimentDatadogAgentBackground(ctx)
 	case "postStopExperimentBackground":
 		return postStopExperimentDatadogAgentBackground(ctx)
-	case "postStartConfigExperimentBackground":
+	case exec.PostStartConfigExperimentBackgroundCommand:
 		return postStartConfigExperimentDatadogAgentBackground(ctx)
-	case "preStopConfigExperimentBackground":
+	case exec.PreStopConfigExperimentBackgroundCommand:
 		return preStopConfigExperimentDatadogAgentBackground(ctx)
-	case "postPromoteConfigExperimentBackground":
+	case exec.PostPromoteConfigExperimentBackgroundCommand:
 		return postPromoteConfigExperimentDatadogAgentBackground(ctx)
 	case "updateRegistryInstallSource":
 		return updateRegistryInstallSource()
@@ -1030,6 +1030,17 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 }
 
 // launchPackageCommandInBackground launches a package command in the background using the installer.
+// launchConfigExperimentRestart launches the background Agent restart for a config experiment
+// step, unless the daemon asked to launch it itself once the task result is recorded.
+func launchConfigExperimentRestart(ctx context.Context, command string) error {
+	e := getenv()
+	if e.DeferAgentRestart {
+		log.Infof("Deferring %s to the daemon", command)
+		return nil
+	}
+	return launchPackageCommandInBackground(ctx, e, command)
+}
+
 func launchPackageCommandInBackground(ctx context.Context, env *env.Env, command string) error {
 	installer, err := newInstallerExec(env)
 	if err != nil {

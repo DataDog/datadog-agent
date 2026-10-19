@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    On Windows, Fleet Automation configuration deployments no longer wait about an hour per host
+    when the Agent restart interrupts the installer before it reports the task result. The installer
+    now records the result before restarting the Agent services.
+  - |
+    Fleet installer telemetry now honors ``apm_config.telemetry.dd_url`` and ``apm_config.telemetry.enabled``,
+    and no longer delays installer commands and shutdown by up to 10 seconds when the telemetry intake is unreachable.

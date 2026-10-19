@@ -9,6 +9,7 @@ package telemetryimpl
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -30,12 +31,23 @@ type Provides struct {
 	Comp telemetry.Component
 }
 
+// daemonTelemetryStopFlushTimeout bounds the telemetry flush on shutdown so an unreachable
+// intake does not delay stopping the installer service.
+const daemonTelemetryStopFlushTimeout = 2 * time.Second
+
 // NewComponent creates a new telemetry component.
 func NewComponent(reqs Requires) (Provides, error) {
 	client := &http.Client{
 		Transport: httputils.CreateHTTPTransport(reqs.Config),
 	}
-	tel := fleettelemetry.NewTelemetry(client, utils.SanitizeAPIKey(reqs.Config.GetString("api_key")), reqs.Config.GetString("site"), "datadog-installer-daemon")
+	opts := []fleettelemetry.Option{fleettelemetry.WithStopFlushTimeout(daemonTelemetryStopFlushTimeout)}
+	if url := reqs.Config.GetString("apm_config.telemetry.dd_url"); url != "" {
+		opts = append(opts, fleettelemetry.WithEndpointURL(url))
+	}
+	if !reqs.Config.GetBool("apm_config.telemetry.enabled") {
+		opts = append(opts, fleettelemetry.WithDisabled())
+	}
+	tel := fleettelemetry.NewTelemetry(client, utils.SanitizeAPIKey(reqs.Config.GetString("api_key")), reqs.Config.GetString("site"), "datadog-installer-daemon", opts...)
 	reqs.Lifecycle.Append(compdef.Hook{OnStop: func(context.Context) error { tel.Stop(); return nil }})
 	return Provides{Comp: tel}, nil
 }
