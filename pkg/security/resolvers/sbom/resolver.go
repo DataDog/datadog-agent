@@ -63,6 +63,9 @@ const (
 	// re-arming when no image SBOM will ever be produced (for example when
 	// container image SBOM collection is disabled and the image stays pending).
 	maxForwardWait = 30 * time.Minute
+	// maxForwardedAge bounds the age of the usage the core agent holds for a
+	// package in steady use, at the period of the SBOM check.
+	maxForwardedAge = time.Hour
 	// hostRescanInterval is the longest time between two scans of the host
 	// packages, the default period of the host scans of the core agent.
 	hostRescanInterval = time.Hour
@@ -89,11 +92,10 @@ type hostMiss struct {
 	inode uint64
 }
 
-// pendingFileEvent holds the minimal information needed to re-process a file
-// access once the SBOM for its container becomes available. Accesses are indexed
-// by file path, and the drain stamps every entry with the same timestamp, so only
-// the sticky properties have to be kept.
+// pendingFileEvent holds the accesses to a file made before the SBOM of its container
+// was ready: the time of the latest, and the sticky properties.
 type pendingFileEvent struct {
+	lastAccess     time.Time
 	suidBit        bool
 	accessedByRoot bool
 }
@@ -125,6 +127,7 @@ type Data struct {
 	mu            sync.RWMutex
 	files         fileQuerier
 	packages      []sbomtypes.Package // per-package metadata (without the plain-text installed-file lists) kept for forwarding
+	forwardedAt   time.Time           // when a forward last claimed or copied the packages
 	observedSince time.Time           // when the usage of packages started being recorded
 }
 
@@ -173,10 +176,10 @@ func (d *Data) holds(report []sbomtypes.PackageWithInstalledFiles) bool {
 }
 
 // keepUsage copies onto the packages of d the usage recorded in prev, and the
-// time it started being recorded. A package keeps the usage of its build,
-// combined with that of the builds of its name only prev holds, the builds an
-// upgrade replaced, when d holds a single build of the name. Kernels install
-// side by side, and the usage of a removed kernel stays with it.
+// times it started being recorded and was last forwarded. A package keeps the
+// usage of its build, combined with that of the builds of its name only prev
+// holds, the builds an upgrade replaced, when d holds a single build of the
+// name. Kernels install side by side, and a removed kernel keeps its usage.
 func (d *Data) keepUsage(prev *Data) {
 	held := make(map[sbomtypes.Package]bool, len(d.packages))
 	builds := make(map[string]int)
@@ -191,6 +194,7 @@ func (d *Data) keepUsage(prev *Data) {
 	if !prev.observedSince.IsZero() {
 		d.observedSince = prev.observedSince
 	}
+	d.forwardedAt = prev.forwardedAt
 	kept := make(map[sbomtypes.Package]sbomtypes.Package, len(prev.packages))
 	replaced := make(map[string]sbomtypes.Package)
 	for _, pkg := range prev.packages {
@@ -247,8 +251,6 @@ type SBOM struct {
 	refresher         *debouncer.Debouncer
 	forwarder         *debouncer.Debouncer // Debouncer for forwarding SBOM updates
 	forwardRetryCount int
-
-	invalidated bool
 
 	usrMerged bool
 }
@@ -892,7 +894,7 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 		sbom.forwarder = forwarder
 	}
 
-	// Trigger the debouncer (will execute after 5 seconds of inactivity)
+	// forward on the next tick of the debouncer
 	sbom.forwarder.Call()
 }
 
@@ -944,11 +946,12 @@ func (r *Resolver) forward(sbom *SBOM) bool {
 	// lock and the backing slice keeps being mutated (LastAccess) at runtime.
 	// Take the Data lock because *Data is shared across SBOMs via the data
 	// cache, so the SBOM lock alone does not protect the packages slice.
-	sbom.data.mu.RLock()
+	sbom.data.mu.Lock()
 	packages := make([]sbomtypes.Package, len(sbom.data.packages))
 	copy(packages, sbom.data.packages)
 	observedSince := sbom.data.observedSince
-	sbom.data.mu.RUnlock()
+	sbom.data.forwardedAt = time.Now()
+	sbom.data.mu.Unlock()
 
 	// Create SBOM report and notify listeners
 	packagesReport := NewPackagesReport(packages, sbom.ContainerID)
@@ -1394,9 +1397,8 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		seclog.Tracef("file '%s' found in sbom for container '%s'", file.PathnameStr, sbom.ContainerID)
 
 		sbom.data.mu.Lock()
-		oldLastAccess := pkg.LastAccess
-		oldSuidBit := pkg.SuidBit
-		oldAccessedByRoot := pkg.AccessedByRoot
+		previous := pkg.LastAccess
+		suidBit, accessedByRoot := pkg.SuidBit, pkg.AccessedByRoot
 
 		// Update LastAccess timestamp, SuidBit and AccessedByRoot fields. SuidBit
 		// and AccessedByRoot are sticky within a scan generation: once a package's
@@ -1405,18 +1407,13 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		pkg.LastAccess = time.Now()
 		pkg.SuidBit = pkg.SuidBit || fs.FileMode(file.Mode)&04000 != 0
 		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
-		// Snapshot the updated values before unlocking so the invalidation
-		// comparison below doesn't race with concurrent writers on the shared
-		// *Data (another container resolving a file from the same package).
-		newLastAccess := pkg.LastAccess
-		newSuidBit := pkg.SuidBit
-		newAccessedByRoot := pkg.AccessedByRoot
+
+		latch := r.latches(sbom.data, previous, pkg.LastAccess) ||
+			pkg.SuidBit != suidBit || pkg.AccessedByRoot != accessedByRoot
 		sbom.data.mu.Unlock()
 
-		// Trigger forwarding debouncer to send updated SBOM to remote collector
-		if newLastAccess.Sub(oldLastAccess) > r.cfg.SBOMResolverEnrichmentInterval ||
-			newSuidBit != oldSuidBit || newAccessedByRoot != oldAccessedByRoot {
-			sbom.invalidated = true
+		if latch {
+			r.triggerForwarding(sbom)
 		}
 	}
 
@@ -1427,12 +1424,20 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		r.addHostMiss(pc, file)
 	}
 
-	if sbom.invalidated {
-		r.triggerForwarding(sbom)
-		sbom.invalidated = false
-	}
-
 	return pkg
+}
+
+// latches reports whether an access at now latches a forward of d: after a gap
+// since previous or on old forwarded usage, which it claims. d.mu must be held.
+func (r *Resolver) latches(d *Data, previous, now time.Time) bool {
+	if now.Sub(previous) > r.cfg.SBOMResolverEnrichmentInterval {
+		return true
+	}
+	if now.Sub(d.forwardedAt) > maxForwardedAge {
+		d.forwardedAt = now
+		return true
+	}
+	return false
 }
 
 // LookupPackage returns the package that owns file, as ResolvePackage does,
@@ -1564,6 +1569,7 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 	}
 
 	event := pendingFileEvent{
+		lastAccess:     time.Now(),
 		suidBit:        fs.FileMode(fileMode)&04000 != 0,
 		accessedByRoot: uid == 0,
 	}
@@ -1588,9 +1594,8 @@ func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID,
 	events[filePath] = event
 }
 
-// processPendingFileEvents drains the pending file-event queue for the given
-// SBOM and applies the file accesses against the now-available data.
-// Must be called with sbom.Lock() already held.
+// processPendingFileEvents applies the accesses queued for sbom to its data and
+// latches a forward when one matched. Must be called with sbom.Lock() already held.
 func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 	r.pendingFileEventsLock.Lock()
 	events, ok := r.pendingFileEvents.Peek(sbom.ContainerID)
@@ -1603,19 +1608,24 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 
 	seclog.Debugf("processing %d pending file events for container '%s'", len(events), sbom.ContainerID)
 
-	now := time.Now()
+	recorded := false
 	sbom.data.mu.Lock()
-	defer sbom.data.mu.Unlock()
 	for filePath, event := range events {
 		pkg := sbom.data.files.queryFile(filePath)
 		if pkg == nil {
 			continue
 		}
-		pkg.LastAccess = now
+		if event.lastAccess.After(pkg.LastAccess) {
+			pkg.LastAccess = event.lastAccess
+		}
 		pkg.SuidBit = pkg.SuidBit || event.suidBit
 		pkg.AccessedByRoot = pkg.AccessedByRoot || event.accessedByRoot
+		recorded = true
+	}
+	sbom.data.mu.Unlock()
 
-		sbom.invalidated = true
+	if recorded {
+		r.triggerForwarding(sbom)
 	}
 }
 
