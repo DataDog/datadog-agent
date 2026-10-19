@@ -265,10 +265,143 @@ func TestDeviceEventsCollectorSupportsDriverEventsAfterNVMLCapabilityQueryFailur
 	})
 	require.NoError(t, err)
 
+	// NVML registration fails and is reported, but driver events are still collected
 	samples, err := collector.Collect()
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Empty(t, gatherer.GetRegisteredDeviceUUIDs())
 	assert.Len(t, eventSamples(samples), 1)
+}
+
+func TestDeviceEventsCollectorRegistersNVMLEventsAfterCapabilityQueryRecovers(t *testing.T) {
+	queryFails := true
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
+			if queryFails {
+				return 0, nvml.ERROR_NO_PERMISSION
+			}
+			return eventSetMask, nvml.SUCCESS
+		}
+		device.RegisterEventsFunc = func(uint64, nvml.EventSet) nvml.Return {
+			return nvml.SUCCESS
+		}
+	}))
+	uuid := device.GetDeviceInfo().UUID
+	gatherer := NewDeviceEventsGatherer(nil)
+	gatherer.evtSet = &mock.EventSet{}
+
+	collector, err := newDeviceEventsCollector(device, &CollectorDependencies{
+		DeviceEventsGatherer: gatherer,
+		Config: gpuconfig.Config{
+			Enabled:             true,
+			DriverEventsEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+	now := time.Now()
+	collector.(*deviceEventsCollector).now = func() time.Time { return now }
+
+	_, err = collector.Collect()
+	require.Error(t, err)
+	require.Empty(t, gatherer.GetRegisteredDeviceUUIDs())
+
+	// a failed capability query must not disable NVML events permanently
+	queryFails = false
+	now = now.Add(minRetryBackoff)
+	_, err = collector.Collect()
+	require.NoError(t, err)
+	require.Equal(t, []string{uuid}, gatherer.GetRegisteredDeviceUUIDs())
+}
+
+func TestDeviceEventsCollectorRetriesRegistrationUntilItSucceeds(t *testing.T) {
+	const registrationFailures = 6
+	registrationCalls := 0
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.RegisterEventsFunc = func(uint64, nvml.EventSet) nvml.Return {
+			registrationCalls++
+			if registrationCalls <= registrationFailures {
+				return nvml.ERROR_NO_PERMISSION
+			}
+			return nvml.SUCCESS
+		}
+	}))
+	uuid := device.GetDeviceInfo().UUID
+	gatherer := NewDeviceEventsGatherer(nil)
+	gatherer.evtSet = &mock.EventSet{}
+
+	collector, err := newDeviceEventsCollector(device, &CollectorDependencies{DeviceEventsGatherer: gatherer})
+	require.NoError(t, err)
+	now := time.Now()
+	collector.(*deviceEventsCollector).now = func() time.Time { return now }
+
+	for i := range registrationFailures {
+		samples, err := collector.Collect()
+		require.ErrorContains(t, err, "could not register device", "collect %d", i+1)
+		require.Empty(t, samples)
+		require.Empty(t, gatherer.GetRegisteredDeviceUUIDs())
+
+		// no registration attempts until the backoff expires, but the collector keeps failing
+		samples, err = collector.Collect()
+		require.ErrorContains(t, err, "next attempt in")
+		require.Empty(t, samples)
+		require.Equal(t, i+1, registrationCalls)
+
+		now = now.Add(maxRetryBackoff)
+	}
+
+	_, err = collector.Collect()
+	require.NoError(t, err)
+	require.Equal(t, []string{uuid}, gatherer.GetRegisteredDeviceUUIDs())
+	require.Equal(t, registrationFailures+1, registrationCalls)
+
+	// once registered, it does not try to register again
+	_, err = collector.Collect()
+	require.NoError(t, err)
+	require.Equal(t, registrationFailures+1, registrationCalls)
+}
+
+func TestDeviceEventsCollectorSkipsRegistrationWhenNVMLEventsUnsupported(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		hook func(*testutil.MockDevice)
+	}{
+		{
+			name: "SupportedEventTypes",
+			hook: func(device *testutil.MockDevice) {
+				device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+			},
+		},
+		{
+			name: "RegisterEvents",
+			hook: func(device *testutil.MockDevice) {
+				device.RegisterEventsFunc = func(uint64, nvml.EventSet) nvml.Return {
+					return nvml.ERROR_NOT_SUPPORTED
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithCustomHook(tc.hook))
+			gatherer := NewDeviceEventsGatherer(nil)
+			gatherer.evtSet = &mock.EventSet{}
+
+			collector, err := newDeviceEventsCollector(device, &CollectorDependencies{
+				DeviceEventsGatherer: gatherer,
+				Config: gpuconfig.Config{
+					Enabled:             true,
+					DriverEventsEnabled: true,
+				},
+			})
+			require.NoError(t, err)
+
+			// registration is attempted after a gatherer restart, and an unsupported device is not an error
+			ResetEventRegistrations([]Collector{collector})
+			_, err = collector.Collect()
+			require.NoError(t, err)
+			require.Empty(t, gatherer.GetRegisteredDeviceUUIDs())
+		})
+	}
 }
 
 func TestDeviceEventsCollectorContinuesAfterNVMLRegistrationFailureWhenDriverEventsEnabled(t *testing.T) {
@@ -289,8 +422,9 @@ func TestDeviceEventsCollectorContinuesAfterNVMLRegistrationFailureWhenDriverEve
 	})
 	require.NoError(t, err)
 
+	// the gatherer is not started, so registration fails and is reported, but driver events are still collected
 	samples, err := collector.Collect()
-	require.NoError(t, err)
+	require.Error(t, err)
 	require.Empty(t, gatherer.GetRegisteredDeviceUUIDs())
 	require.Len(t, eventSamples(samples), 1)
 }

@@ -253,10 +253,13 @@ func portIsAlwaysSupported(_ int) ([]Sample, error) {
 
 // getSupportedNvlinkPorts probes each NVLink port with sampleCollector and returns
 // the ports that succeeded. sampleCollector must return errUnsupportedDevice when
-// a port has no supported metrics (e.g. inactive NVLink). Transient NVML failures
-// during discovery must be logged and not returned as errors, so enrollment can
-// continue on other ports. Any other error is treated as fatal and returned
-// (joined across ports), even when some ports succeeded.
+// a port has no supported metrics (e.g. inactive NVLink). Per-metric NVML failures
+// that should not prevent enrollment must be logged by sampleCollector and not returned
+// as errors, so enrollment can continue on other ports. Any other error is treated as fatal and returned
+// (joined across ports), even when some ports succeeded. If no port succeeded, the
+// device is reported as unsupported with errUnsupportedDevice, unless a port failed
+// with a permission error: permissions can be recovered later, so in that case the
+// error is returned without errUnsupportedDevice to let the collector creation be retried.
 func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]Sample, error)) ([]int, error) {
 	totalPorts := device.GetDeviceInfo().NVLinkLinkCount
 	if totalPorts <= 0 {
@@ -265,12 +268,14 @@ func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]
 
 	var ports []int
 	var fatalErrors []error
+	permissionDenied := false
 	for port := 1; port <= totalPorts; port++ {
 		_, err := sampleCollector(port)
 		if err != nil {
 			if !ddnvml.IsAPIUnsupportedOnDevice(err, device) && !errors.Is(err, errUnsupportedDevice) {
 				// Genuine NVML failures (e.g. unexpected field IDs) must propagate.
 				fatalErrors = append(fatalErrors, fmt.Errorf("collect samples for port %d: %w", port, err))
+				permissionDenied = permissionDenied || ddnvml.IsNoPermission(err)
 			}
 
 			// Inactive or unsupported NVLink ports are expected on some devices and are skipped below.
@@ -280,7 +285,7 @@ func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]
 		ports = append(ports, port)
 	}
 
-	if len(ports) == 0 {
+	if len(ports) == 0 && !permissionDenied {
 		fatalErrors = append(fatalErrors, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice))
 	}
 

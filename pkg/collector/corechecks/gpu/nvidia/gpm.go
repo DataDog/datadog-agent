@@ -127,6 +127,10 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 	for i := 0; i < sampleBufferSize; i++ {
 		sample, err := collector.lib.GpmSampleAlloc()
 		if err != nil {
+			// the driver does not support GPM, retrying cannot help
+			if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+				return nil, errUnsupportedDevice
+			}
 			return nil, fmt.Errorf("failed to allocate GPM sample: %w", err)
 		}
 		collector.samples[i] = sample
@@ -152,7 +156,6 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 	for i := 0; i < 2; i++ {
 		err := c.collectSample()
 		if err != nil {
-			fmt.Printf("failed to collect GPM sample: %s\n", err)
 			return err
 		}
 	}
@@ -162,11 +165,18 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 		return err
 	}
 
+	permissionDenied := false
 	for i := uint32(0); i < metrics.NumMetrics; i++ {
 		if metrics.Metrics[i].NvmlReturn != uint32(nvml.SUCCESS) {
 			log.Warnf("failed to get GPM metric %d on device %s: %s\n", metrics.Metrics[i].MetricId, c.device.GetDeviceInfo().UUID, nvml.ErrorString(nvml.Return(metrics.Metrics[i].NvmlReturn)))
 			delete(c.metricsToCollect, nvml.GpmMetricId(metrics.Metrics[i].MetricId))
+			permissionDenied = permissionDenied || metrics.Metrics[i].NvmlReturn == uint32(nvml.ERROR_NO_PERMISSION)
 		}
+	}
+
+	// without any metric left, a permission error must be returned so that the collector is not considered unsupported
+	if len(c.metricsToCollect) == 0 && permissionDenied {
+		return &ddnvml.NvmlAPIError{APIName: "GpmMetricsGet", NvmlErrorCode: nvml.ERROR_NO_PERMISSION}
 	}
 
 	return nil

@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -464,6 +465,76 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	curDeviceCount.Add(-1)
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
+}
+
+func TestCollectorsRetriedAfterCreationFailure(t *testing.T) {
+	// simulate the agent not having permissions to the GPM API when the collectors are created, so that the
+	// GPM-based collectors fail while the rest of collectors work, and permissions being recovered later
+	var gpmPermissionDenied atomic.Bool
+	gpmPermissionDenied.Store(true)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessData(nil, nvml.SUCCESS),
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkGenerationSupported: 6, NvLinkLinkCount: 2}),
+		testutil.WithArchitecture("blackwell"),
+		testutil.WithNvLinkErrorCounters(),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			gpmSampleGet := device.GpmSampleGetFunc
+			device.GpmSampleGetFunc = func(sample nvml.GpmSample) nvml.Return {
+				if gpmPermissionDenied.Load() {
+					return nvml.ERROR_NO_PERMISSION
+				}
+				return gpmSampleGet(sample)
+			}
+		}),
+	)
+
+	newTestCheck := func() *Check {
+		return newConfiguredGPUCheck(
+			t,
+			taggerfxmock.SetupFakeTagger(t),
+			testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+			mocksender.CreateDefaultDemultiplexer(t),
+			nil,
+		)
+	}
+	collectorCounts := func(check *Check) map[nvidia.CollectorName]int {
+		counts := map[nvidia.CollectorName]int{}
+		for _, c := range check.collectors {
+			counts[c.Name()]++
+		}
+		return counts
+	}
+
+	check := newTestCheck()
+	now := time.Now()
+	check.collectorBuilder.SetClockForTest(func() time.Time { return now })
+
+	require.NoError(t, check.Run())
+	failedCounts := collectorCounts(check)
+
+	// permissions are recovered, but the collectors are only retried once their backoff expires
+	gpmPermissionDenied.Store(false)
+	require.NoError(t, check.Run())
+	require.Equal(t, failedCounts, collectorCounts(check))
+
+	// a check created with permissions available is the reference of the collectors that should exist
+	expectedCounts := collectorCounts(func() *Check {
+		reference := newTestCheck()
+		require.NoError(t, reference.Run())
+		return reference
+	}())
+	require.Greater(t, expectedCounts["gpm"], failedCounts["gpm"])
+	require.Greater(t, expectedCounts["nvlink_gpm"], failedCounts["nvlink_gpm"])
+
+	now = now.Add(5 * time.Minute)
+	require.NoError(t, check.Run())
+	require.Equal(t, expectedCounts, collectorCounts(check))
+
+	// no duplicate collectors are created afterwards
+	now = now.Add(time.Hour)
+	require.NoError(t, check.Run())
+	require.Equal(t, expectedCounts, collectorCounts(check))
 }
 
 func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
@@ -973,6 +1044,9 @@ func TestLostGPUStillReportsDeviceTotal(t *testing.T) {
 	})
 
 	check := newConfiguredGPUCheck(t, fakeTagger, wmeta, senderManager, map[int]string{})
+	// emitMetrics is called directly, so start the device events gatherer as Run does: otherwise the device
+	// events collector reports that it cannot register the device.
+	require.NoError(t, check.deviceEvtGatherer.Start())
 
 	runCheck := func(runTime time.Time) float64 {
 		mockSender.ResetCalls()
@@ -1355,8 +1429,7 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 	}
 
 	// Only keep stateless + ebpf; disable everything else.
-	collectors, err := nvidia.BuildCollectors(devices, deps)
-	require.NoError(t, err)
+	collectors := nvidia.BuildCollectors(devices, deps)
 
 	processData := []testutil.MockProcessInfoList{
 		// Round 1: active process
@@ -1476,8 +1549,7 @@ func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
 		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 		Config:       gpuconfig.Config{DisabledCollectors: disabled},
 	}
-	collectors, err := nvidia.BuildCollectors(devices, deps)
-	require.NoError(t, err)
+	collectors := nvidia.BuildCollectors(devices, deps)
 	require.Len(t, collectors, 2)
 
 	collectorSamples := make(map[nvidia.CollectorName][]nvidia.Sample)
@@ -1602,7 +1674,7 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 	)
 
 	var createdCollectorUUIDs []string
-	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.CollectorBuilder{
+	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.SubsystemBuilder{
 		"mock": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
 			deviceUUID := device.GetDeviceInfo().UUID
 			createdCollectorUUIDs = append(createdCollectorUUIDs, deviceUUID)
@@ -1615,6 +1687,135 @@ func TestExcludedDevicesConfiguration(t *testing.T) {
 	assert.Equal(t, []string{includedDeviceUUID}, createdCollectorUUIDs)
 	require.Len(t, check.collectors, 1)
 	assert.Equal(t, includedDeviceUUID, check.collectors[0].Device().GetDeviceInfo().UUID)
+}
+
+func TestEnsureInitCollectorsRetriesDevicesWithoutCollectorsWithBackoff(t *testing.T) {
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+	)
+	now := time.Now()
+	check.collectorBuilder.SetClockForTest(func() time.Time { return now })
+
+	calls := 0
+	failing := true
+	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.SubsystemBuilder{
+		"mock": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
+			calls++
+			if failing {
+				return nil, errors.New("insufficient permissions")
+			}
+			return &mockCollector{name: "mock", deviceUUID: device.GetDeviceInfo().UUID}, nil
+		},
+	})
+
+	require.NoError(t, check.ensureInitCollectors())
+	require.Empty(t, check.collectors)
+	require.Equal(t, 1, calls)
+
+	// the device has no collectors, but they are not built again on every run, only once the backoff expires
+	require.NoError(t, check.ensureInitCollectors())
+	require.Equal(t, 1, calls)
+
+	failing = false
+	now = now.Add(time.Minute)
+	require.NoError(t, check.ensureInitCollectors())
+	require.Len(t, check.collectors, 1)
+	require.Equal(t, 2, calls)
+
+	require.NoError(t, check.ensureInitCollectors())
+	require.Len(t, check.collectors, 1)
+	require.Equal(t, 2, calls)
+}
+
+func TestDeviceEventsRegisteredOnceGathererStarts(t *testing.T) {
+	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
+
+	// the event set cannot be created on the first run, e.g. because of a transient permission error
+	var eventSetCreateFails atomic.Bool
+	eventSetCreateFails.Store(true)
+	var eventTypeQueries atomic.Int32
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessData(nil, nvml.SUCCESS),
+		testutil.WithDeviceCount(1),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			getSupportedEventTypes := device.GetSupportedEventTypesFunc
+			device.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
+				eventTypeQueries.Inc()
+				return getSupportedEventTypes()
+			}
+		}),
+		testutil.WithEventSetCreate(func() (nvml.EventSet, nvml.Return) {
+			if eventSetCreateFails.Load() {
+				return nil, nvml.ERROR_NO_PERMISSION
+			}
+			return &nvmlmock.EventSet{
+				FreeFunc: func() nvml.Return { return nvml.SUCCESS },
+				WaitFunc: func(v uint32) (nvml.EventData, nvml.Return) {
+					time.Sleep(time.Duration(v) * time.Millisecond)
+					return nvml.EventData{}, nvml.ERROR_TIMEOUT
+				},
+			}, nvml.SUCCESS
+		}),
+	)
+
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+
+	require.NoError(t, check.Run())
+	require.False(t, check.deviceEvtGatherer.Started())
+	require.Empty(t, check.deviceEvtGatherer.GetRegisteredDeviceUUIDs())
+
+	// while the gatherer cannot start, registration is only attempted once the backoff expires
+	queries := eventTypeQueries.Load()
+	require.NoError(t, check.Run())
+	require.Equal(t, queries, eventTypeQueries.Load())
+
+	// once the gatherer starts, the devices are registered right away, without waiting for the registration backoff
+	eventSetCreateFails.Store(false)
+	require.NoError(t, check.Run())
+	require.True(t, check.deviceEvtGatherer.Started())
+	require.Equal(t, []string{testutil.GPUUUIDs[0]}, check.deviceEvtGatherer.GetRegisteredDeviceUUIDs())
+}
+
+func TestReleaseNVMLRebuildsCollectorsOfDevicesPendingRetry(t *testing.T) {
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+	check.sysprobeNvmlState = func(model.NvmlState, time.Duration) error { return nil }
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+	)
+
+	okCalls := 0
+	nvidia.WithCollectorFactoryForTest(t, map[nvidia.CollectorName]nvidia.SubsystemBuilder{
+		"ok": func(device ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
+			okCalls++
+			return &mockCollector{name: "ok", deviceUUID: device.GetDeviceInfo().UUID}, nil
+		},
+		"failing": func(_ ddnvml.Device, _ *nvidia.CollectorDependencies) (nvidia.Collector, error) {
+			return nil, errors.New("insufficient permissions")
+		},
+	})
+
+	require.NoError(t, check.ensureInitCollectors())
+	require.Len(t, check.collectors, 1)
+
+	check.releaseNVML()
+	require.True(t, ddnvml.IsNVMLReleased())
+	require.Empty(t, check.collectors)
+	check.reacquireNVML(true)
+	// releaseNVML shut the library down, so set up the NVML mock again
+	nvmltestutil.SetupMockNVML(t,
+		testutil.WithMockAllFunctions(),
+		testutil.WithDeviceCount(1),
+	)
+
+	// the device still has a collector pending a retry, but the ones that worked must be built again
+	require.NoError(t, check.deviceCache.Refresh())
+	require.NoError(t, check.ensureInitCollectors())
+	require.Len(t, check.collectors, 1)
+	require.Equal(t, 2, okCalls)
 }
 
 func TestMetricsFollowSpec(t *testing.T) {

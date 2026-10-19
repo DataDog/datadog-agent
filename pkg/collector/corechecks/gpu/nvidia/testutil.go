@@ -16,17 +16,27 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
-// CollectorBuilder creates a collector for a device. It is exposed only in test builds.
-type CollectorBuilder = subsystemBuilder
+// SubsystemBuilder creates a collector for a device. It is exposed only in test builds.
+type SubsystemBuilder = subsystemBuilder
 
 // WithCollectorFactoryForTest temporarily replaces the collector factory.
-func WithCollectorFactoryForTest(t testing.TB, testFactory map[CollectorName]CollectorBuilder) {
+func WithCollectorFactoryForTest(t testing.TB, testFactory map[CollectorName]SubsystemBuilder) {
 	t.Helper()
 	previousFactory := factory
 	factory = testFactory
 	t.Cleanup(func() {
 		factory = previousFactory
 	})
+}
+
+// BuildCollectors builds all the collectors for the given devices, without retrying the ones that fail.
+func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies) []Collector {
+	return NewCollectorBuilder().Build(devices, deps)
+}
+
+// SetClockForTest replaces the clock used to schedule the retries of collectors that failed to be created.
+func (b *CollectorBuilder) SetClockForTest(now func() time.Time) {
+	b.now = now
 }
 
 // SetStatsForTest replaces the cached stats. Intended for testing only.

@@ -6,7 +6,7 @@
 //go:build linux && nvml
 
 // Package nvidia holds the logic to collect metrics from the NVIDIA Management Library (NVML).
-// The main entry point is the BuildCollectors functions, which returns a set of collectors that will
+// The main entry point is CollectorBuilder, whose Build method returns a set of collectors that will
 // gather metrics from the available NVIDIA devices on the system. Each collector is responsible for
 // a specific subsystem of metrics, such as device metrics, GPM metrics, etc. The collected metrics will
 // be returned with the associated tags for each device.
@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -86,17 +87,81 @@ type CollectorDependencies struct {
 	Config gpuconfig.Config
 }
 
-// BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies) ([]Collector, error) {
-	return buildCollectors(devices, deps, factory)
+const (
+	// minRetryBackoff is the time to wait before retrying an operation that failed for the first time
+	minRetryBackoff = 30 * time.Second
+	// maxRetryBackoff is the maximum time to wait between attempts of an operation that keeps failing
+	maxRetryBackoff = 5 * time.Minute
+)
+
+// retryBackoff schedules the retries of an operation that keeps failing, such as creating a collector, doubling
+// the time between attempts after each failure, from minRetryBackoff up to maxRetryBackoff.
+type retryBackoff struct {
+	failures    int
+	nextAttempt time.Time
 }
 
-func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder) ([]Collector, error) {
+// canRetry returns true if the backoff period after the last failure has expired
+func (r *retryBackoff) canRetry(now time.Time) bool {
+	return !now.Before(r.nextAttempt)
+}
+
+// recordFailure records a new failure, returning the time to wait before the next attempt
+func (r *retryBackoff) recordFailure(now time.Time) time.Duration {
+	r.failures++
+	backoff := maxRetryBackoff
+	// cap the shift to avoid overflowing for operations that keep failing
+	if shift := r.failures - 1; shift < 10 {
+		backoff = min(minRetryBackoff<<shift, maxRetryBackoff)
+	}
+	r.nextAttempt = now.Add(backoff)
+	return backoff
+}
+
+// CollectorBuilder builds the NVML collectors for each device, and remembers the ones that failed to be created
+// so that they are retried later. Creation can fail due to transient conditions, such as the agent temporarily
+// lacking permissions to access the device.
+// Collectors that are disabled or unsupported by the device are not retried.
+type CollectorBuilder struct {
+	builders map[CollectorName]subsystemBuilder         // if nil, the package-level factory is used
+	failed   map[string]map[CollectorName]*retryBackoff // device UUID -> collector name -> retry state
+	now      func() time.Time
+}
+
+// NewCollectorBuilder creates a new CollectorBuilder with all the available collectors
+func NewCollectorBuilder() *CollectorBuilder {
+	// builders are resolved on each build, as the factory can be replaced in tests
+	return newCollectorBuilder(nil)
+}
+
+func newCollectorBuilder(builders map[CollectorName]subsystemBuilder) *CollectorBuilder {
+	return &CollectorBuilder{
+		builders: builders,
+		failed:   make(map[string]map[CollectorName]*retryBackoff),
+		now:      time.Now,
+	}
+}
+
+// Reset discards all the recorded failures, e.g. when all collectors are discarded and must be built again
+func (b *CollectorBuilder) Reset() {
+	clear(b.failed)
+}
+
+func (b *CollectorBuilder) subsystemBuilders() map[CollectorName]subsystemBuilder {
+	if b.builders == nil {
+		return factory
+	}
+	return b.builders
+}
+
+// Build builds all the collectors for the given devices. Devices with collectors pending a retry are skipped,
+// as those collectors are retried with RetryFailed.
+func (b *CollectorBuilder) Build(devices []ddnvml.Device, deps *CollectorDependencies) []Collector {
 	if len(devices) == 0 {
-		return nil, nil
+		return nil
 	}
 
-	var collectors []Collector
+	builders := b.subsystemBuilders()
 
 	// Check that the disabled collectors are valid
 	for _, disabled := range deps.Config.DisabledCollectors {
@@ -106,9 +171,15 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 		}
 	}
 
+	var collectors []Collector
+
 	// Step 1: Build NVML collectors for physical devices only,
 	// (since most of NVML API doesn't support MIG devices)
 	for _, dev := range devices {
+		if len(b.failed[dev.GetDeviceInfo().UUID]) > 0 {
+			continue
+		}
+
 		for name, builder := range builders {
 			if collectorDisabled(name, deps.Config) {
 				log.Debugf("Skipping disabled collector %s for device %s", name, dev.GetDeviceInfo().UUID)
@@ -116,23 +187,101 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 				continue
 			}
 
-			c, err := builder(dev, deps)
-			if errors.Is(err, errUnsupportedDevice) {
-				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
-				deps.Telemetry.addCollectorCreation(name, "unsupported", dev)
-				continue
-			} else if err != nil {
-				log.Warnf("failed to create collector %s for device %s: %s", name, dev.GetDeviceInfo().UUID, err)
-				deps.Telemetry.addCollectorCreation(name, "error", dev)
-				continue
+			if c := b.buildCollector(name, builder, dev, deps); c != nil {
+				collectors = append(collectors, c)
 			}
-
-			deps.Telemetry.addCollectorCreation(name, "success", dev)
-			collectors = append(collectors, c)
 		}
 	}
 
-	return collectors, nil
+	return collectors
+}
+
+// RetryFailed attempts again to build the collectors that previously failed to be created for the given devices,
+// if their backoff period has expired. Failures recorded for devices that are not in the list are discarded.
+func (b *CollectorBuilder) RetryFailed(devices []ddnvml.Device, deps *CollectorDependencies) []Collector {
+	currentDevices := make(map[string]ddnvml.Device, len(devices))
+	for _, dev := range devices {
+		currentDevices[dev.GetDeviceInfo().UUID] = dev
+	}
+
+	builders := b.subsystemBuilders()
+	var collectors []Collector
+	for deviceUUID, failedCollectors := range b.failed {
+		dev, ok := currentDevices[deviceUUID]
+		if !ok {
+			delete(b.failed, deviceUUID)
+			continue
+		}
+
+		for name, failure := range failedCollectors {
+			builder, ok := builders[name]
+			if !ok {
+				b.clearFailure(deviceUUID, name)
+				continue
+			}
+			if !failure.canRetry(b.now()) {
+				continue
+			}
+
+			if c := b.buildCollector(name, builder, dev, deps); c != nil {
+				log.Infof("created collector %s for device %s after %d failed attempts", name, deviceUUID, failure.failures)
+				collectors = append(collectors, c)
+			}
+		}
+	}
+
+	return collectors
+}
+
+// buildCollector builds a single collector for the given device, recording the creation outcome. If creation fails with
+// an error other than errUnsupportedDevice, the failure is recorded so that it can be retried later. It returns nil if the
+// collector could not be created.
+func (b *CollectorBuilder) buildCollector(name CollectorName, builder subsystemBuilder, dev ddnvml.Device, deps *CollectorDependencies) Collector {
+	deviceUUID := dev.GetDeviceInfo().UUID
+
+	c, err := builder(dev, deps)
+	if errors.Is(err, errUnsupportedDevice) {
+		log.Warnf("device %s does not support collector %s", deviceUUID, name)
+		deps.Telemetry.addCollectorCreation(name, "unsupported", dev)
+		b.clearFailure(deviceUUID, name)
+		return nil
+	} else if err != nil {
+		failures, retryIn := b.recordFailure(deviceUUID, name)
+		if failures == 1 {
+			log.Warnf("failed to create collector %s for device %s, will retry in %s: %s", name, deviceUUID, retryIn, err)
+		} else {
+			log.Debugf("failed to create collector %s for device %s after %d attempts, will retry in %s: %s", name, deviceUUID, failures, retryIn, err)
+		}
+		deps.Telemetry.addCollectorCreation(name, "error", dev)
+		return nil
+	}
+
+	deps.Telemetry.addCollectorCreation(name, "success", dev)
+	b.clearFailure(deviceUUID, name)
+	return c
+}
+
+// recordFailure records a failure to create the given collector, returning the number of consecutive failures and
+// the time to wait before retrying it.
+func (b *CollectorBuilder) recordFailure(deviceUUID string, name CollectorName) (int, time.Duration) {
+	if b.failed[deviceUUID] == nil {
+		b.failed[deviceUUID] = make(map[CollectorName]*retryBackoff)
+	}
+	failure := b.failed[deviceUUID][name]
+	if failure == nil {
+		failure = &retryBackoff{}
+		b.failed[deviceUUID][name] = failure
+	}
+
+	retryIn := failure.recordFailure(b.now())
+	return failure.failures, retryIn
+}
+
+func (b *CollectorBuilder) clearFailure(deviceUUID string, name CollectorName) {
+	delete(b.failed[deviceUUID], name)
+	if len(b.failed[deviceUUID]) == 0 {
+		delete(b.failed, deviceUUID)
+	}
 }
 
 func collectorDisabled(name CollectorName, config gpuconfig.Config) bool {
@@ -151,7 +300,7 @@ func collectorDisabled(name CollectorName, config gpuconfig.Config) bool {
 }
 
 // CollectorTelemetry holds telemetry metrics for NVIDIA collector creation and execution.
-// It belongs in this package because BuildCollectors records creation outcomes, including
+// It belongs in this package because CollectorBuilder records creation outcomes, including
 // failures that occur before a collector instance exists.
 type CollectorTelemetry struct {
 	CollectionRuns   telemetry.Counter

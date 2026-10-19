@@ -73,6 +73,12 @@ func IsInvalidArgument(err error) bool {
 	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_INVALID_ARGUMENT)
 }
 
+// IsNoPermission reports whether err is NVML_ERROR_NO_PERMISSION, including when it is wrapped.
+func IsNoPermission(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NO_PERMISSION)
+}
+
 // IsGPULost reports whether err is NVML_ERROR_GPU_IS_LOST, including when it is wrapped.
 func IsGPULost(err error) bool {
 	var nvmlErr *NvmlAPIError

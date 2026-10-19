@@ -223,3 +223,31 @@ func TestNVLinkGPMCollectorCollectReturnsPartialMetricsAndErrors(t *testing.T) {
 	metric := collectedMetrics[0]
 	require.Equal(t, "nvlink.throughput.data.rx", metric.Name)
 }
+
+func TestNVLinkGPMCollectorFreesSamplesWhenCreationFails(t *testing.T) {
+	port2RxMetricID := uint32(int(baseNvlinkRxGpm) + 2)
+	port2TxMetricID := uint32(int(baseNvlinkTxGpm) + 2)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkLinkCount: 2}),
+		testutil.WithGpmMetricsGetCallback(func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+			// the first port works, while the second one fails with a permission error
+			for i := range metrics.Metrics[:metrics.NumMetrics] {
+				if metrics.Metrics[i].MetricId == port2RxMetricID || metrics.Metrics[i].MetricId == port2TxMetricID {
+					return nvml.ERROR_NO_PERMISSION
+				}
+				metrics.Metrics[i].NvmlReturn = uint32(nvml.SUCCESS)
+			}
+			return nvml.SUCCESS
+		}),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
+
+	collector, err := newNVLinkGPMCollector(mockDevice, nil)
+	require.Nil(t, collector)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+
+	// the samples allocated for the first port must be freed
+	require.Positive(t, mockLib.GpmSampleAllocCount())
+	require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
+}
