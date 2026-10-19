@@ -21,6 +21,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.bazel import bazel_build_with_bindir
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
@@ -1053,8 +1054,7 @@ def bazel_build_ebpf(
     subcommand = "test" if verify else "build"
 
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
-    bazel(subcommand, *extra_flags, *all_build_targets)
-    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
+    bazel_bin = bazel_build_with_bindir(subcommand, *extra_flags, *all_build_targets)
 
     co_re_dir = os.path.join(build_dir, "co-re")
     os.makedirs(build_dir, exist_ok=True)
@@ -1170,8 +1170,7 @@ def bazel_build_windows_resources(
     if verify:
         targets.append("//pkg/ebpf:verify_generated_files")
     subcommand = "test" if verify else "build"
-    bazel(subcommand, *extra_flags, *targets)
-    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
+    bazel_bin = bazel_build_with_bindir(subcommand, *extra_flags, *targets)
 
     copies = [(os.path.join(bazel_bin, bazel_rel), dst) for bazel_rel, dst in _BAZEL_WINDOWS_RESOURCE_COPIES]
     for src, dst in copies:
