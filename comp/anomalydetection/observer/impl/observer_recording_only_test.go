@@ -30,6 +30,10 @@ func (r *recordingOnlyTestRecorder) GetHandle(inner observerdef.HandleFunc) obse
 	}
 }
 
+func (r *recordingOnlyTestRecorder) RecordLog(_ string, _ observerdef.LogView) {
+	r.logs++
+}
+
 type recordingOnlyTestHandle struct {
 	inner    observerdef.Handle
 	recorder *recordingOnlyTestRecorder

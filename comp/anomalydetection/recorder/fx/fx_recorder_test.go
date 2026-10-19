@@ -172,6 +172,7 @@ func TestTaggedModuleFlushesRealWritersOnStop(t *testing.T) {
 	handle := component.GetHandle(func(string) observer.Handle { return &fxTestHandle{} })("check")
 	handle.ObserveMetric(&fxTestMetric{}, 17)
 	handle.ObserveLog(&fxTestLog{})
+	component.RecordLog("logs", &fxTestLog{})
 	files, err := filepath.Glob(filepath.Join(dir, "*.parquet"))
 	require.NoError(t, err)
 	require.Empty(t, files)
