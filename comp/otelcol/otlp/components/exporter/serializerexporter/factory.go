@@ -271,7 +271,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		}
 		if domains := agentSerializer.SketchesV2Domains(); len(domains) > 0 {
 			return nil, fmt.Errorf("feature gate %s needs the v3 sketches intake for every metrics destination, but these use v2: %s; "+
-				"list them in serializer_experimental_use_v3_api.sketches.endpoints and keep zstd compression",
+				"list them in serializer_experimental_use_v3_api.sketches.endpoints and do not use zlib compression",
 				nativeOTelHistogramsGate.ID(), strings.Join(domains, ", "))
 		}
 		newTranslator = minimalTranslatorFromConfig

@@ -45,5 +45,4 @@ var nativeOTelHistogramsGate = featuregate.GlobalRegistry().MustRegister(
 	"datadog.serializerexporter.NativeOTelHistograms",
 	featuregate.StageAlpha,
 	featuregate.WithRegisterDescription("Send OTel histograms from DDOT in the native V3 format instead of converting them to DDSketch."),
-	featuregate.WithRegisterReferenceURL("https://datadoghq.atlassian.net/browse/OTAGENT-1079"),
 )
