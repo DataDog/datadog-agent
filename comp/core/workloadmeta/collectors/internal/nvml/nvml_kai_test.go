@@ -670,7 +670,7 @@ func TestKAIFractionContainerID(t *testing.T) {
 
 func TestNewCollectorReadsKAISchedulerSetting(t *testing.T) {
 	// Goes through the real config key end to end, so that the schema node,
-	// NewNVMLCollectorConfig and the collector field cannot drift apart.
+	// gpuconfig.New and the collector field cannot drift apart.
 	store := testutil.GetWorkloadMetaMock(t)
 
 	cfg := config.NewMock(t)

@@ -47,14 +47,20 @@ func TestNewJobsConfig(t *testing.T) {
 	assert.Equal(t, IdentifierConfig{Key: "example/job-group-annotation", Type: IdentifierTypeAnnotation}, got.JobsConfig.Group)
 }
 
-func TestNewNVMLCollectorConfig(t *testing.T) {
+func TestNewNVMLCollectorSettings(t *testing.T) {
 	cfg := configmock.New(t)
-	assert.Equal(t, NVMLCollectorConfig{IntegrateWithWorkloadmetaProcesses: true}, NewNVMLCollectorConfig(cfg))
+	got := New()
+	assert.False(t, got.GPUMonitoringEnabled)
+	assert.True(t, got.IntegrateWithWorkloadmetaProcesses)
+	assert.False(t, got.KAISchedulerEnabled)
 
 	cfg.SetInTest("gpu.enabled", true)
 	cfg.SetInTest("gpu.integrate_with_workloadmeta_processes", false)
 	cfg.SetInTest("gpu.kai_scheduler.enabled", true)
-	assert.Equal(t, NVMLCollectorConfig{GPUMonitoringEnabled: true, KAISchedulerEnabled: true}, NewNVMLCollectorConfig(cfg))
+	got = New()
+	assert.True(t, got.GPUMonitoringEnabled)
+	assert.False(t, got.IntegrateWithWorkloadmetaProcesses)
+	assert.True(t, got.KAISchedulerEnabled)
 }
 
 func TestNewJobsConfigDefaults(t *testing.T) {

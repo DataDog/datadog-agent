@@ -261,10 +261,10 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 	}
 
 	if config != nil {
-		cfg := gpuconfig.NewNVMLCollectorConfig(config)
-		collector.integrateWithWorkloadmetaProcesses = cfg.IntegrateWithWorkloadmetaProcesses
-		collector.gpuMonitoringEnabled = cfg.GPUMonitoringEnabled
-		collector.kaiSchedulerEnabled = cfg.KAISchedulerEnabled
+		gpuCfg := gpuconfig.New()
+		collector.integrateWithWorkloadmetaProcesses = gpuCfg.IntegrateWithWorkloadmetaProcesses
+		collector.gpuMonitoringEnabled = gpuCfg.GPUMonitoringEnabled
+		collector.kaiSchedulerEnabled = gpuCfg.KAISchedulerEnabled
 	}
 
 	return collector
