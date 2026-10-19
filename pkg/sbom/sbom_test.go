@@ -6,11 +6,14 @@
 package sbom
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func component(name string, properties ...*cyclonedx_v1_4.Property) *cyclonedx_v1_4.Component {
@@ -54,6 +57,16 @@ func TestIsEnriched(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "observation start alone",
+			bom: &cyclonedx_v1_4.Bom{
+				Metadata: &cyclonedx_v1_4.Metadata{Properties: []*cyclonedx_v1_4.Property{
+					property(UsageObservedSinceProperty, "1700000000"),
+				}},
+				Components: []*cyclonedx_v1_4.Component{component("bash")},
+			},
+			want: true,
+		},
+		{
 			name: "enriched, nil component first",
 			bom: &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
 				nil,
@@ -91,5 +104,16 @@ func TestSetHostUsageKeepsLatest(t *testing.T) {
 	case got := <-HostUsage():
 		t.Errorf("host report %v left behind", got)
 	default:
+	}
+}
+
+func TestUsageEnrichmentEnabled(t *testing.T) {
+	for _, usage := range []bool{false, true} {
+		agentConfig := configmock.New(t)
+		agentConfig.SetInTest("sbom.enrichment.usage.enabled", usage)
+
+		// system-probe reports usage on Linux alone.
+		want := usage && runtime.GOOS == "linux"
+		assert.Equal(t, want, UsageEnrichmentEnabled(agentConfig), "sbom.enrichment.usage.enabled: %t", usage)
 	}
 }
