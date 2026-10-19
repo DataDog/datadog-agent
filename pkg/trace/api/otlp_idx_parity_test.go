@@ -160,7 +160,7 @@ func TestOTLPIdxParity(t *testing.T) {
 
 				req := buildParityRequest(res)
 				out := make(chan *Payload, 1)
-				rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+				rcv := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 				wantSrc, err := rcv.ReceiveResourceSpans(context.Background(), req.Traces().ResourceSpans().At(0), http.Header{}, nil)
 				require.NoError(t, err)
 				want := <-out
@@ -237,7 +237,7 @@ func TestOTLPIdxSampleMatchesReceiver(t *testing.T) {
 	for _, rate := range []float64{0, 10, 50, 99, 100} {
 		cfg := NewTestConfig(t)
 		cfg.OTLPReceiver.ProbabilisticSampling = rate
-		rcv := NewOTLPReceiver(make(chan *Payload), cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		rcv := NewOTLPReceiver(make(chan *Payload), nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		assert.Equal(t, rcv.samplingRate(), otlpidx.SamplingRate(cfg))
 		for tid := uint64(1); tid < 1<<62; tid = tid*3 + 7 {
 			assert.Equal(t, rcv.sample(tid), otlpidx.Sample(tid, otlpidx.SamplingRate(cfg)), "rate %v tid %d", rate, tid)

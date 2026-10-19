@@ -126,7 +126,7 @@ func newDrainingOTLPReceiver(b *testing.B) (*OTLPReceiver, func()) {
 			}
 		}
 	}()
-	r := NewOTLPReceiver(out, NewBenchmarkTestConfig(b), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewOTLPReceiver(out, nil, NewBenchmarkTestConfig(b), &statsd.NoOpClient{}, &timing.NoopReporter{})
 	return r, func() { close(done) }
 }
 
@@ -174,7 +174,7 @@ func BenchmarkOTLPIngest(b *testing.B) {
 
 		b.Run(p.name+"/pdata_v04_to_idx", func(b *testing.B) {
 			out := make(chan *Payload, 1)
-			r := NewOTLPReceiver(out, NewBenchmarkTestConfig(b), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			r := NewOTLPReceiver(out, nil, NewBenchmarkTestConfig(b), &statsd.NoOpClient{}, &timing.NoopReporter{})
 			b.SetBytes(int64(len(raw)))
 			b.ReportAllocs()
 			b.ResetTimer()

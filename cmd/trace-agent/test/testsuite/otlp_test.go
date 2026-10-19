@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -76,6 +78,102 @@ var (
 	}
 )
 
+// otlpIngestMode is a trace-agent OTLP ingest path: the direct decoder into the V1 (idx)
+// representation, which is the default, or the pdata / v04 path behind the disable_otlp_idx kill
+// switch.
+type otlpIngestMode struct {
+	name     string
+	features []string
+	idx      bool
+}
+
+var otlpIngestModes = []otlpIngestMode{
+	{name: "idx", idx: true},
+	{name: "v04", features: []string{"disable_otlp_idx"}},
+}
+
+// otlpAgentConfig returns the agent configuration for an OTLP test on the given internal port,
+// with the mode's features and extra apm_config lines.
+func otlpAgentConfig(mode otlpIngestMode, port int, features []string, apmConfig string) []byte {
+	var quoted []string
+	for _, f := range append(append([]string(nil), mode.features...), features...) {
+		quoted = append(quoted, strconv.Quote(f))
+	}
+	return []byte(fmt.Sprintf(`
+otlp_config:
+  traces:
+    internal_port: %d
+  receiver:
+    grpc:
+      endpoint: 0.0.0.0:5111
+apm_config:
+  env: my-env
+  features: [%s]
+%s`, port, strings.Join(quoted, ", "), apmConfig))
+}
+
+// otlpPayloadSpans returns the "name" attribute of every span, grouped by chunk, of the agent
+// payload's single tracer payload, checking it was written in the mode's format.
+func otlpPayloadSpans(t *testing.T, mode otlpIngestMode, p *pb.AgentPayload) [][]string {
+	t.Helper()
+	var chunks [][]string
+	if mode.idx {
+		assert.Empty(t, p.TracerPayloads, "v04 tracer payloads in idx mode")
+		if !assert.Len(t, p.IdxTracerPayloads, 1) {
+			return nil
+		}
+		tp := p.IdxTracerPayloads[0]
+		for _, c := range tp.Chunks {
+			var names []string
+			for _, s := range c.Spans {
+				name, _ := idxStrAttr(tp.Strings, s.Attributes, "name")
+				names = append(names, name)
+			}
+			chunks = append(chunks, names)
+		}
+		return chunks
+	}
+	assert.Empty(t, p.IdxTracerPayloads, "idx tracer payloads in v04 mode")
+	if !assert.Len(t, p.TracerPayloads, 1) {
+		return nil
+	}
+	for _, c := range p.TracerPayloads[0].Chunks {
+		var names []string
+		for _, s := range c.Spans {
+			names = append(names, s.Meta["name"])
+		}
+		chunks = append(chunks, names)
+	}
+	return chunks
+}
+
+// duplicateSpanIDLogged reports whether the agent log has the normalizer's duplicate span ID
+// warning for the pylons service. The v04 and V1 normalizers format the span differently.
+func duplicateSpanIDLogged(mode otlpIngestMode, agentLog string) bool {
+	const prefix = "Found malformed trace with duplicate span ID (reason:duplicate_span_id): "
+	for _, line := range strings.Split(agentLog, "\n") {
+		i := strings.Index(line, prefix)
+		if i < 0 {
+			continue
+		}
+		rest := line[i+len(prefix):]
+		if mode.idx && strings.Contains(rest, "Service: pylons,") || !mode.idx && strings.HasPrefix(rest, `service:"pylons"`) {
+			return true
+		}
+	}
+	return false
+}
+
+func otlpClient(t *testing.T, port int) ptraceotlp.GRPCClient {
+	t.Helper()
+	conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	if err != nil {
+		log.Fatal("Error dialing: ", err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	return ptraceotlp.NewGRPCClient(conn)
+}
+
 func TestOTLPIngest(t *testing.T) {
 	var r test.Runner
 	if err := r.Start(); err != nil {
@@ -86,29 +184,22 @@ func TestOTLPIngest(t *testing.T) {
 			t.Log("shutdown: ", err)
 		}
 	}()
+	for _, mode := range otlpIngestModes {
+		t.Run(mode.name, func(t *testing.T) {
+			testOTLPIngest(t, &r, mode)
+		})
+	}
+}
 
+func testOTLPIngest(t *testing.T, r *test.Runner, mode otlpIngestMode) {
 	t.Run("passthrough", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		c := fmt.Sprintf(`
-otlp_config:
-  traces:
-    internal_port: %d
-  receiver:
-    grpc:
-      endpoint: 0.0.0.0:5111
-apm_config:
-  env: my-env
-`, port)
-		if err := r.RunAgent([]byte(c)); err != nil {
+		if err := r.RunAgent(otlpAgentConfig(mode, port, nil, "")); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
-		if err != nil {
-			log.Fatal("Error dialing: ", err)
-		}
-		client := ptraceotlp.NewGRPCClient(conn)
+		client := otlpClient(t, port)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -126,43 +217,25 @@ apm_config:
 				},
 			},
 		})
-		_, err = client.Export(context.Background(), pack)
+		_, err := client.Export(context.Background(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
-		waitForTrace(t, &r, func(p *pb.AgentPayload) {
-			assert := assert.New(t)
-			assert.Equal(p.Env, "my-env")
-			assert.Len(p.TracerPayloads, 1)
-			assert.Len(p.TracerPayloads[0].Chunks, 1)
-			assert.Len(p.TracerPayloads[0].Chunks[0].Spans, 1)
-			assert.Equal(p.TracerPayloads[0].Chunks[0].Spans[0].Meta["name"], "john")
+		waitForTrace(t, r, func(p *pb.AgentPayload) {
+			assert.Equal(t, "my-env", p.Env)
+			assert.Equal(t, [][]string{{"john"}}, otlpPayloadSpans(t, mode, p))
 		})
 	})
 
 	// regression test for DataDog/datadog-agent#11297
 	t.Run("duplicate-spanID", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		c := fmt.Sprintf(`
-otlp_config:
-  traces:
-    internal_port: %d
-  receiver:
-    grpc:
-      endpoint: 0.0.0.0:5111
-apm_config:
-  env: my-env
-`, port)
-		if err := r.RunAgent([]byte(c)); err != nil {
+		if err := r.RunAgent(otlpAgentConfig(mode, port, nil, "")); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
-		if err != nil {
-			log.Fatal("Error dialing: ", err)
-		}
-		client := ptraceotlp.NewGRPCClient(conn)
+		client := otlpClient(t, port)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -189,7 +262,7 @@ apm_config:
 				},
 			},
 		})
-		_, err = client.Export(context.Background(), pack)
+		_, err := client.Export(context.Background(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
@@ -198,10 +271,10 @@ apm_config:
 		for {
 			select {
 			case <-timeout:
-				t.Fatal("Timed out waiting for duplicate SpanID warning.")
+				t.Fatalf("Timed out waiting for duplicate SpanID warning, log was:\n%s", r.AgentLog())
 			default:
 				time.Sleep(10 * time.Millisecond)
-				if strings.Contains(r.AgentLog(), `Found malformed trace with duplicate span ID (reason:duplicate_span_id): service:"pylons"`) {
+				if duplicateSpanIDLogged(mode, r.AgentLog()) {
 					break loop
 				}
 			}
@@ -210,55 +283,23 @@ apm_config:
 
 	// topLevelSpansAgentFn checks that the given agent payload matches with the testSpans input
 	topLevelSpansAgentFn := func(v *pb.AgentPayload) {
-		var serverSpan, internalSpan, clientSpan, producerSpan *pb.Span
-		for _, chunk := range v.TracerPayloads[0].Chunks {
-			for _, span := range chunk.Spans {
-				switch span.Meta["name"] {
-				case "server":
-					assert.Len(t, chunk.Spans, 3)
-					serverSpan = span
-				case "internal":
-					assert.Len(t, chunk.Spans, 3)
-					internalSpan = span
-				case "client":
-					assert.Len(t, chunk.Spans, 3)
-					clientSpan = span
-				case "producer":
-					assert.Len(t, chunk.Spans, 1)
-					producerSpan = span
-				}
-			}
-		}
 		assert.Equal(t, "my-env", v.Env)
-		assert.Len(t, v.TracerPayloads, 1)
-		assert.Len(t, v.TracerPayloads[0].Chunks, 2)
-		assert.True(t, serverSpan != nil && internalSpan != nil && clientSpan != nil && producerSpan != nil)
+		chunks := otlpPayloadSpans(t, mode, v)
+		for _, c := range chunks {
+			sort.Strings(c)
+		}
+		sort.Slice(chunks, func(i, j int) bool { return len(chunks[i]) < len(chunks[j]) })
+		assert.Equal(t, [][]string{{"producer"}, {"client", "internal", "server"}}, chunks)
 	}
 
 	t.Run("top-level-by-span-kind", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		c := fmt.Sprintf(`
-otlp_config:
-  traces:
-    internal_port: %d
-  receiver:
-    grpc:
-      endpoint: 0.0.0.0:5111
-apm_config:
-  env: my-env
-  features: ["enable_otlp_compute_top_level_by_span_kind"]
-`, port)
-		if err := r.RunAgent([]byte(c)); err != nil {
+		if err := r.RunAgent(otlpAgentConfig(mode, port, []string{"enable_otlp_compute_top_level_by_span_kind"}, "")); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
-		if err != nil {
-			log.Fatal("Error dialing: ", err)
-		}
-		client := ptraceotlp.NewGRPCClient(conn)
-
+		client := otlpClient(t, port)
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "test",
@@ -267,12 +308,12 @@ apm_config:
 				Spans:      testSpans,
 			},
 		})
-		_, err = client.Export(context.Background(), pack)
+		_, err := client.Export(context.Background(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
 
-		waitForStatsAndTraces(t, &r, 30*time.Second, func(v *pb.StatsPayload) {
+		waitForStatsAndTraces(t, r, 30*time.Second, func(v *pb.StatsPayload) {
 			assert.Len(t, v.Stats, 1)
 			assert.Len(t, v.Stats[0].Stats, 1)
 			assert.Len(t, v.Stats[0].Stats[0].Stats, 3)
@@ -304,27 +345,12 @@ apm_config:
 
 	t.Run("disable-top-level-by-span-kind", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		c := fmt.Sprintf(`
-otlp_config:
-  traces:
-    internal_port: %d
-  receiver:
-    grpc:
-      endpoint: 0.0.0.0:5111
-apm_config:
-  env: my-env
-  compute_stats_by_span_kind: false
-`, port)
-		if err := r.RunAgent([]byte(c)); err != nil {
+		if err := r.RunAgent(otlpAgentConfig(mode, port, nil, "  compute_stats_by_span_kind: false\n")); err != nil {
 			t.Fatal(err)
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
-		if err != nil {
-			log.Fatal("Error dialing: ", err)
-		}
-		client := ptraceotlp.NewGRPCClient(conn)
+		client := otlpClient(t, port)
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
 				LibName:    "test",
@@ -333,12 +359,12 @@ apm_config:
 				Spans:      testSpans,
 			},
 		})
-		_, err = client.Export(context.Background(), pack)
+		_, err := client.Export(context.Background(), pack)
 		if err != nil {
 			log.Fatal("Error calling: ", err)
 		}
 
-		waitForStatsAndTraces(t, &r, 30*time.Second, func(v *pb.StatsPayload) {
+		waitForStatsAndTraces(t, r, 30*time.Second, func(v *pb.StatsPayload) {
 			assert.Len(t, v.Stats, 1)
 			assert.Len(t, v.Stats[0].Stats, 1)
 			assert.Len(t, v.Stats[0].Stats[0].Stats, 2)

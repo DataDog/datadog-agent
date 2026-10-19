@@ -46,6 +46,7 @@ dd_agent_go_test(
         "fuzz_test.go",
         "normalizer_test.go",
         "obfuscate_test.go",
+        "otlp_idx_test.go",
         "truncator_test.go",
     ],
     data = glob(["testdata/**"]),
@@ -53,6 +54,7 @@ dd_agent_go_test(
     deps = [
         "//comp/trace/compression/impl-gzip",
         "//pkg/obfuscate",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/api",
@@ -79,6 +81,11 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_atomic//:atomic",
     ] + select({
