@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 	"syscall"
 	"testing"
@@ -75,6 +77,14 @@ func newPendingFileEvents(t *testing.T) *simplelru.LRU[containerutils.ContainerI
 		t.Fatalf("NewLRU: %v", err)
 	}
 	return events
+}
+
+func newHostMisses(t *testing.T) *simplelru.LRU[string, hostMiss] {
+	misses, err := simplelru.NewLRU[string, hostMiss](maxHostMisses, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	return misses
 }
 
 func newPendingFileEventsResolver(t *testing.T) *Resolver {
@@ -478,6 +488,15 @@ func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, err
 	return nil, fmt.Errorf("container %q not found", id)
 }
 
+// TestGetContainerSBOMWithoutWorkloadmeta checks that a resolver without
+// workloadmeta, as in the functional tests, reports an error for a container.
+func TestGetContainerSBOMWithoutWorkloadmeta(t *testing.T) {
+	r := &Resolver{}
+	if sbom, err := r.getContainerSBOM("container-id"); err == nil || sbom != nil {
+		t.Errorf("getContainerSBOM() = %v, %v, want an error", sbom, err)
+	}
+}
+
 // ownRoot returns the device and the inode of the root of the test process.
 func ownRoot(t *testing.T) (dev, ino uint64) {
 	t.Helper()
@@ -515,6 +534,7 @@ func newHostSBOMResolver(t *testing.T) *Resolver {
 			SBOMResolverForwardInterval:    time.Hour,
 		},
 		pendingFileEvents: newPendingFileEvents(t),
+		hostMisses:        newHostMisses(t),
 		wmeta:             failingWorkloadmeta{},
 	}
 
@@ -574,6 +594,85 @@ func TestResolvePackageWithoutHostSBOM(t *testing.T) {
 	}
 }
 
+// TestLookupPackageRecordsNoUsage checks that a lookup, as the package fields of
+// a CWS event make, returns the package of a host file, leaves its usage as it
+// is and leaves the forwarder of the host report idle.
+func TestLookupPackageRecordsNoUsage(t *testing.T) {
+	r := newHostSBOMResolver(t)
+
+	pc, file := hostAccess()
+	pkg := r.LookupPackage(pc, file)
+	if pkg == nil || pkg.Name != "util-linux" {
+		t.Fatalf("package = %+v, want util-linux", pkg)
+	}
+	if !pkg.LastAccess.IsZero() || pkg.SuidBit || pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want its usage as it was", pkg)
+	}
+	if r.hostSBOM.forwarder != nil {
+		t.Errorf("the lookup armed the forwarding of the host report")
+	}
+}
+
+// TestLookupPackageQueuesNoAccess checks that a lookup for a container leaves
+// the queue of pending accesses empty, before the SBOM of the container exists
+// and while its scan runs. The queue replays its accesses as usage.
+func TestLookupPackageQueuesNoAccess(t *testing.T) {
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](2, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := newPendingFileEventsResolver(t)
+	r.sboms = sboms
+
+	pc, file := hostAccess()
+	pc.ContainerContext.ContainerID = "container-id"
+	if pkg := r.LookupPackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v before the SBOM of the container, want none", pkg)
+	}
+
+	r.sboms.Add("container-id", NewSBOM("container-id", nil, "workload"))
+	if pkg := r.LookupPackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v while the scan runs, want none", pkg)
+	}
+
+	if n := r.pendingFileEvents.Len(); n != 0 {
+		t.Errorf("%d containers hold queued accesses, want 0", n)
+	}
+}
+
+// TestHostPackageVersion checks that a systemd service takes the version of the
+// host package of its unit file. dpkg lists the units of Debian under /lib,
+// which a merged /usr makes an alias of the path the tags resolver asks for.
+func TestHostPackageVersion(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.hostSBOM.usrMerged = true
+	r.hostSBOM.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "openssh-server", Epoch: 1, Version: "9.9p1", Release: "3"},
+		InstalledFiles: []string{"/lib/systemd/system/ssh.service"},
+	}})
+
+	for path, want := range map[string]string{
+		"/usr/lib/systemd/system/ssh.service":       "9.9p1",
+		"/usr/lib/systemd/system/transient.service": "",
+	} {
+		if got := r.HostPackageVersion(path); got != want {
+			t.Errorf("version of %s = %q, want %q", path, got, want)
+		}
+	}
+	if pkg := r.hostSBOM.data.packages[0]; !pkg.LastAccess.IsZero() || pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want its usage as it was", pkg)
+	}
+}
+
+// TestHostPackageVersionWithoutHostSBOM checks that the version is empty while
+// the host index is off, which the tags resolver turns into version:latest.
+func TestHostPackageVersionWithoutHostSBOM(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	if got := r.HostPackageVersion("/usr/lib/systemd/system/ssh.service"); got != "" {
+		t.Errorf("version = %q without a host SBOM, want empty", got)
+	}
+}
+
 // TestHostForwardingSkipsImageSBOM checks that the report of the host goes out
 // at once. A container report waits for the Trivy SBOM of its image, while the
 // core agent keeps the report of the host for its next host scan. Here every
@@ -608,11 +707,22 @@ func TestHostForwardingSkipsImageSBOM(t *testing.T) {
 	if seen, _ := propertyValue(components[0], LastAccessProperty); seen == "0" || seen == "" {
 		t.Errorf("%s = %q, want util-linux seen running", LastAccessProperty, seen)
 	}
+	want := strconv.FormatInt(r.hostSBOM.data.observedSince.Unix(), 10)
+	if got := metadataValue(reports[0].Report.ToCycloneDX(), UsageObservedSinceProperty); got != want {
+		t.Errorf("%s = %q, want %s, the start of the host usage", UsageObservedSinceProperty, got, want)
+	}
 }
+
+// noFingerprint gives a test package scanner the fingerprint of a root whose
+// package databases are unknown.
+type noFingerprint struct{}
+
+func (noFingerprint) Fingerprint(string) string { return "" }
 
 // rootRecorder is a package scanner that records the root it was given and
 // finds the packages of report there.
 type rootRecorder struct {
+	noFingerprint
 	root   string
 	report []sbomtypes.PackageWithInstalledFiles
 }
@@ -636,6 +746,7 @@ func TestStartIndexesHostThroughInitRoot(t *testing.T) {
 			SBOMResolverForwardInterval: time.Hour,
 		},
 		sbomCollector:         scanner,
+		hostMisses:            newHostMisses(t),
 		sbomGenerations:       atomic.NewUint64(0),
 		failedSBOMGenerations: atomic.NewUint64(0),
 	}
@@ -714,6 +825,396 @@ func TestResolvePackageRecordsNoUsageOnDirectory(t *testing.T) {
 	}
 }
 
+// TestResolveOpen checks that the open of a host file records usage once it
+// has waited settleDelay, if the file is still at its path then, and leaves
+// the usage as it is when the file is gone or replaced there, as rpm leaves
+// each executable it opens to clear its file capabilities. An overlayfs file
+// counts on an overlayfs host root alone: elsewhere it is the file of a
+// container, seen through /proc/<pid>/root.
+func TestResolveOpen(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		after        func(t *testing.T, path string)
+		flags        int32
+		overlayRoot  bool
+		unknownInode bool
+		records      bool
+	}{
+		{name: "open", records: true},
+		{name: "open of a removed file", after: removeFile},
+		{name: "open of a replaced file", after: replaceFile},
+		{name: "open of an overlayfs file", flags: model.LowerLayer},
+		{name: "open of an overlayfs file on an overlayfs host root", flags: model.LowerLayer, overlayRoot: true, records: true},
+		{name: "open of a replaced overlayfs file on an overlayfs host root", after: replaceFile, flags: model.UpperLayer, overlayRoot: true, records: true},
+		{name: "open of a removed file of unknown inode", after: removeFile, unknownInode: true, records: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.hostRoot = t.TempDir()
+			r.hostRootOverlay = tc.overlayRoot
+
+			pc, file := hostAccess()
+			path := createFile(t, r.hostRoot+file.PathnameStr)
+			if !tc.unknownInode {
+				file.Inode = inode(t, path)
+			}
+			file.Flags = tc.flags
+
+			r.ResolveOpen(pc, file)
+			if len(r.opened) != 1 {
+				t.Fatalf("%d opens wait, want the open of %s", len(r.opened), file.PathnameStr)
+			}
+			opened := r.opened[0].at
+			if tc.after != nil {
+				tc.after(t, path)
+			}
+
+			pkg := &r.hostSBOM.data.packages[0]
+			r.recordSettled(opened)
+			if !pkg.LastAccess.IsZero() {
+				t.Errorf("usage recorded before the open waited %v", settleDelay)
+			}
+			r.recordSettled(opened.Add(settleDelay))
+			if got := !pkg.LastAccess.IsZero(); got != tc.records {
+				t.Errorf("usage recorded = %v, want %v", got, tc.records)
+			}
+		})
+	}
+}
+
+// TestResolvePackageRecordsRunOfReplacedFile checks that a process running a
+// file an upgrade replaced records usage, as it keeps running the build the
+// upgrade replaced.
+func TestResolvePackageRecordsRunOfReplacedFile(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.hostRoot = t.TempDir()
+
+	pc, file := hostAccess()
+	path := createFile(t, r.hostRoot+file.PathnameStr)
+	file.Inode = inode(t, path)
+	replaceFile(t, path)
+
+	if pkg := r.ResolvePackage(pc, file); pkg == nil || pkg.LastAccess.IsZero() {
+		t.Errorf("package = %+v, want util-linux with its usage recorded", pkg)
+	}
+}
+
+// TestResolveOpenWithFullQueue checks that the open of a host file arriving
+// while maxOpened opens wait for settleDelay is dropped, and leaves the usage
+// of its package as it is.
+func TestResolveOpenWithFullQueue(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.opened = make([]openedFile, maxOpened)
+
+	pc, file := hostAccess()
+	r.ResolveOpen(pc, file)
+
+	if pkg := r.hostSBOM.data.packages[0]; !pkg.LastAccess.IsZero() {
+		t.Errorf("package = %+v, want util-linux with its usage as it was", pkg)
+	}
+	if len(r.opened) != maxOpened {
+		t.Errorf("%d opens wait, want %d", len(r.opened), maxOpened)
+	}
+}
+
+// TestResolveOpenWaitsForPackageFiles checks that the opens of host files
+// outside the host packages, and of directories, stay out of the opens waiting
+// for settleDelay, while the open of a host package file waits.
+func TestResolveOpenWaitsForPackageFiles(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	pc, _ := hostAccess()
+
+	other := &model.FileEvent{}
+	other.SetPathnameStr("/tmp/report.txt")
+	r.ResolveOpen(pc, other)
+
+	dir := &model.FileEvent{}
+	dir.SetPathnameStr("/usr/share/doc/util-linux")
+	dir.Mode = syscall.S_IFDIR | 0755
+	r.ResolveOpen(pc, dir)
+
+	if len(r.opened) != 0 {
+		t.Fatalf("%d opens wait, want none", len(r.opened))
+	}
+
+	_, file := hostAccess()
+	r.ResolveOpen(pc, file)
+	if len(r.opened) != 1 {
+		t.Errorf("%d opens wait, want the open of /usr/bin/su", len(r.opened))
+	}
+}
+
+// TestResolveOpenOfContainerFile checks that the open of a file of a container
+// records usage at once, whatever stands at the same path on the host.
+func TestResolveOpenOfContainerFile(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.hostRoot = t.TempDir()
+
+	sbom := NewSBOM("container-id", nil, "image:tag")
+	sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}})
+	sbom.state.Store(computedState)
+	t.Cleanup(sbom.stop)
+	sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	sboms.Add(sbom.ContainerID, sbom)
+	r.sboms = sboms
+
+	pc, file := hostAccess()
+	pc.ContainerContext.ContainerID = sbom.ContainerID
+	file.Inode = 1
+
+	r.ResolveOpen(pc, file)
+	if pkg := sbom.data.packages[0]; pkg.LastAccess.IsZero() {
+		t.Errorf("package = %+v, want util-linux with its usage recorded", pkg)
+	}
+}
+
+// createFile creates an empty executable file at path and its directories,
+// and returns path.
+func createFile(t *testing.T, path string) string {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, nil, 0755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestHoldsCode checks which files of a package can hold code that a process
+// runs: executables, shared libraries, kernel modules and interpreter modules.
+func TestHoldsCode(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		perm uint16
+		want bool
+	}{
+		{"/usr/share/zoneinfo/Europe/Paris", 0644, false},
+		{"/usr/share/ca-certificates/mozilla/ISRG_Root_X1.crt", 0644, false},
+		{"/usr/lib/os-release", 0644, false},
+		{"/usr/lib/modprobe.d/blacklist_linux_6.8.0-111-generic.conf", 0644, false},
+		{"/usr/share/crypto-policies/DEFAULT/openssl.txt", 0644, false},
+		{"/usr/bin/tcpdump", 0755, true},
+		{"/usr/lib/x86_64-linux-gnu/libc.so.6", 0644, true},
+		{"/usr/lib/x86_64-linux-gnu/libpcap.so", 0644, true},
+		{"/usr/lib/python3/dist-packages/requests/api.py", 0644, true},
+		{"/usr/lib/python3/dist-packages/requests/__pycache__/api.cpython-312.pyc", 0644, true},
+		{"/usr/lib/modules/6.8.0-139-generic/kernel/fs/xfs/xfs.ko.zst", 0644, true},
+		{"/usr/share/java/commons-io.jar", 0644, true},
+		{"/usr/lib64/libssl.so.1.0.2k", 0644, true},
+		{"/usr/lib/python3/dist-packages/_cffi_backend.cpython-312-x86_64-linux-gnu.so", 0644, true},
+		{"/usr/lib/erlang/lib/ssl-11.1/ebin/ssl.beam", 0644, true},
+		{"/usr/lib/mono/4.5/mscorlib.dll", 0644, true},
+		{"/usr/lib/modules/5.14.0-503.el9.x86_64/kernel/fs/xfs/xfs.ko.gz", 0644, true},
+		{"/etc/profile.d/which2.sh", 0644, false},
+		{"/etc/init.d/ssh", 0755, false},
+		{"/etc/ld.so.cache", 0644, false},
+		{"/usr/share/man/man8/ld.so.8.gz", 0644, false},
+		{"/usr/lib64/.libgcrypt.so.20.hmac", 0644, false},
+		{"/usr/lib/debug/usr/lib64/libc.so.6-2.39-22.el10.x86_64.debug", 0644, false},
+		{"/usr/lib/python3/dist-packages/requests-2.31.0.dist-info/METADATA", 0644, false},
+		{"/usr/lib/python3/dist-packages/requests-2.31.0.dist-info/RECORD", 0644, false},
+	} {
+		file := &model.FileEvent{}
+		file.SetPathnameStr(tc.path)
+		file.Mode = syscall.S_IFREG | tc.perm
+		if got := holdsCode(file); got != tc.want {
+			t.Errorf("holdsCode(%s, %o) = %v, want %v", tc.path, tc.perm, got, tc.want)
+		}
+	}
+}
+
+// TestResolveOpenCountsCodeFiles checks that the open of a package file records
+// usage when the file can hold code, on the host as in a container, and that a
+// run records usage whatever the file.
+func TestResolveOpenCountsCodeFiles(t *testing.T) {
+	report := []sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "tzdata", Version: "2026c"}, InstalledFiles: []string{"/usr/share/zoneinfo/UTC"}},
+		{Package: sbomtypes.Package{Name: "libc6", Version: "2.39"}, InstalledFiles: []string{"/usr/lib/x86_64-linux-gnu/libc.so.6"}},
+	}
+	for _, tc := range []struct {
+		name      string
+		container bool
+		run       bool
+		path      string
+		records   bool
+	}{
+		{name: "open of a host data file", path: "/usr/share/zoneinfo/UTC"},
+		{name: "open of a host shared library", path: "/usr/lib/x86_64-linux-gnu/libc.so.6", records: true},
+		{name: "open of a container data file", container: true, path: "/usr/share/zoneinfo/UTC"},
+		{name: "open of a container shared library", container: true, path: "/usr/lib/x86_64-linux-gnu/libc.so.6", records: true},
+		{name: "run of a host data file", run: true, path: "/usr/share/zoneinfo/UTC", records: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.hostSBOM.setReport(report)
+			sbom := r.hostSBOM
+
+			pc, _ := hostAccess()
+			if tc.container {
+				sbom = NewSBOM("container-id", nil, "image:tag")
+				sbom.setReport(report)
+				sbom.state.Store(computedState)
+				t.Cleanup(sbom.stop)
+				sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+				if err != nil {
+					t.Fatalf("NewLRU: %v", err)
+				}
+				sboms.Add(sbom.ContainerID, sbom)
+				r.sboms = sboms
+				pc.ContainerContext.ContainerID = sbom.ContainerID
+			}
+
+			file := &model.FileEvent{}
+			file.SetPathnameStr(tc.path)
+			file.Mode = syscall.S_IFREG | 0644
+			if tc.run {
+				r.ResolvePackage(pc, file)
+			} else {
+				r.ResolveOpen(pc, file)
+				r.recordSettled(time.Now().Add(settleDelay))
+			}
+
+			pkg := sbom.data.files.queryFile(tc.path)
+			if pkg == nil {
+				t.Fatalf("no package owns %s", tc.path)
+			}
+			if got := !pkg.LastAccess.IsZero(); got != tc.records {
+				t.Errorf("usage of %s recorded = %v, want %v", pkg.Name, got, tc.records)
+			}
+		})
+	}
+}
+
+// TestReadsCode checks which processes read code without running it: the
+// indexers, builders, scanners and inspectors of codeReaders, the children of
+// a Python byte compiler, and the dynamic loader run as a program by ldd.
+func TestReadsCode(t *testing.T) {
+	for _, tc := range []struct {
+		comm   string
+		parent string
+		want   bool
+	}{
+		{comm: "ldconfig", want: true},
+		{comm: "ldconfig.real", want: true},
+		{comm: "depmod", want: true},
+		{comm: "cp", want: true},
+		{comm: "systemd-coredum", want: true},
+		{comm: "ld-linux-x86-64", want: true},
+		{comm: "ld-linux-aarch6", want: true},
+		{comm: "py3compile", want: true},
+		{comm: "python3.12", parent: "py3compile", want: true},
+		{comm: "python3.12", parent: "bash"},
+		{comm: "python3.12"},
+		{comm: "modprobe"},
+		{comm: "rpm"},
+		{comm: "sshd"},
+	} {
+		pc := &model.ProcessContext{}
+		pc.Comm = tc.comm
+		if tc.parent != "" {
+			pc.Parent = &model.Process{Comm: tc.parent}
+		}
+		if got := readsCode(pc); got != tc.want {
+			t.Errorf("readsCode(%q, parent %q) = %v, want %v", tc.comm, tc.parent, got, tc.want)
+		}
+	}
+}
+
+// TestResolveOpenLeavesReadsOfCode checks that the open of a shared library by a
+// process that reads code without running it leaves the usage of its package
+// as it is, on the host as in a container, while another process opening it
+// records usage.
+func TestResolveOpenLeavesReadsOfCode(t *testing.T) {
+	const lib = "/usr/lib/x86_64-linux-gnu/libc.so.6"
+	report := []sbomtypes.PackageWithInstalledFiles{
+		{Package: sbomtypes.Package{Name: "libc6", Version: "2.39"}, InstalledFiles: []string{lib}},
+	}
+	for _, tc := range []struct {
+		name      string
+		comm      string
+		container bool
+		records   bool
+	}{
+		{name: "ldconfig on the host", comm: "ldconfig"},
+		{name: "ldconfig in a container", comm: "ldconfig", container: true},
+		{name: "sshd on the host", comm: "sshd", records: true},
+		{name: "sshd in a container", comm: "sshd", container: true, records: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.hostSBOM.setReport(report)
+			sbom := r.hostSBOM
+
+			pc, _ := hostAccess()
+			pc.Comm = tc.comm
+			if tc.container {
+				sbom = NewSBOM("container-id", nil, "image:tag")
+				sbom.setReport(report)
+				sbom.state.Store(computedState)
+				t.Cleanup(sbom.stop)
+				sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+				if err != nil {
+					t.Fatalf("NewLRU: %v", err)
+				}
+				sboms.Add(sbom.ContainerID, sbom)
+				r.sboms = sboms
+				pc.ContainerContext.ContainerID = sbom.ContainerID
+			}
+
+			file := &model.FileEvent{}
+			file.SetPathnameStr(lib)
+			file.Mode = syscall.S_IFREG | 0644
+			r.ResolveOpen(pc, file)
+			r.recordSettled(time.Now().Add(settleDelay))
+
+			if got := !sbom.data.packages[0].LastAccess.IsZero(); got != tc.records {
+				t.Errorf("usage of libc6 recorded = %v, want %v", got, tc.records)
+			}
+		})
+	}
+}
+
+// removeFile deletes the file at path, as rpm deletes an executable it removes.
+func removeFile(t *testing.T, path string) {
+	t.Helper()
+
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// replaceFile renames a new file over the file at path, as rpm installs each
+// file of a package it upgrades or reinstalls.
+func replaceFile(t *testing.T, path string) {
+	t.Helper()
+
+	if err := os.WriteFile(path+".new", nil, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(path+".new", path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// inode returns the inode of the file at path.
+func inode(t *testing.T, path string) uint64 {
+	t.Helper()
+
+	stat, err := utils.UnixStat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stat.Ino
+}
+
 // TestPendingFileEventsSkipDirectories checks that a directory open waiting on
 // the SBOM of its container stays out of the queue, as a directory open leaves
 // the usage of its package as it is.
@@ -756,6 +1257,8 @@ func TestRefreshScanRescansHost(t *testing.T) {
 	file.Mode = 0755
 	r.ResolvePackage(pc, file)
 
+	since := r.hostSBOM.data.observedSince
+
 	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{utilLinux, {
 		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
 		InstalledFiles: []string{"/usr/bin/gzip"},
@@ -772,6 +1275,9 @@ func TestRefreshScanRescansHost(t *testing.T) {
 	if pkg := pkgs[1]; pkg.LastAccess.IsZero() || pkg.SuidBit || !pkg.AccessedByRoot {
 		t.Errorf("package = %+v, want the upgraded gzip in use, run as root", pkg)
 	}
+	if got := r.hostSBOM.data.observedSince; !got.Equal(since) {
+		t.Errorf("observation start = %v, want %v, kept with the usage", got, since)
+	}
 	if !r.hostSBOM.IsComputed() {
 		t.Errorf("state = %d, want computedState (%d)", r.hostSBOM.state.Load(), computedState)
 	}
@@ -780,6 +1286,27 @@ func TestRefreshScanRescansHost(t *testing.T) {
 	}
 	if dataCache.Len() != 0 {
 		t.Errorf("the host entered the workload cache")
+	}
+}
+
+// TestKeepUsageKeepsObservationStart checks that the usage a rescan keeps keeps
+// the time it started being recorded, and that the data of a first scan starts
+// recording its own.
+func TestKeepUsageKeepsObservationStart(t *testing.T) {
+	since := time.Unix(1700000000, 0)
+	report := []sbomtypes.PackageWithInstalledFiles{{Package: sbomtypes.Package{Name: "bash", Version: "5.2"}}}
+
+	rescan := newData(report, false)
+	rescan.keepUsage(&Data{packages: []sbomtypes.Package{{Name: "bash", Version: "5.1"}}, observedSince: since})
+	if !rescan.observedSince.Equal(since) {
+		t.Errorf("observation start = %v, want %v, that of the usage kept", rescan.observedSince, since)
+	}
+
+	first := newData(report, false)
+	start := first.observedSince
+	first.keepUsage(&Data{})
+	if start.IsZero() || !first.observedSince.Equal(start) {
+		t.Errorf("observation start = %v, want %v, that of the first scan", first.observedSince, start)
 	}
 }
 
@@ -834,6 +1361,18 @@ func TestKeepUsage(t *testing.T) {
 			prev: []sbomtypes.Package{used(gzip("1.12"), seen, false, true), used(gzip("1.12"), seen.Add(-time.Minute), true, false)},
 			scan: []sbomtypes.Package{gzip("1.12"), gzip("1.12")},
 			want: []sbomtypes.Package{used(gzip("1.12"), seen, true, true), used(gzip("1.12"), seen, true, true)},
+		},
+		{
+			name: "build removed beside others",
+			prev: []sbomtypes.Package{used(kernel("55.el10"), seen, false, true), kernel("53.el10"), kernel("57.el10")},
+			scan: []sbomtypes.Package{kernel("53.el10"), kernel("57.el10")},
+			want: []sbomtypes.Package{kernel("53.el10"), kernel("57.el10")},
+		},
+		{
+			name: "upgrade of a build listed twice",
+			prev: []sbomtypes.Package{used(gzip("1.12"), seen, false, true), gzip("1.12")},
+			scan: []sbomtypes.Package{gzip("1.13"), gzip("1.13")},
+			want: []sbomtypes.Package{used(gzip("1.13"), seen, false, true), used(gzip("1.13"), seen, false, true)},
 		},
 	}
 
@@ -890,10 +1429,114 @@ func TestScanHostRecordsRunningProcesses(t *testing.T) {
 	}
 }
 
+// TestScanHostMarksRunningKernel checks that a scan of the host records the
+// packages of the running kernel as run by root, its image and the list of its
+// built-in modules, and leaves another installed kernel as it is.
+func TestScanHostMarksRunningKernel(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		release string
+		report  []sbomtypes.PackageWithInstalledFiles
+		running []string
+	}{
+		{
+			name:    "dpkg",
+			release: "6.8.0-139-generic",
+			report: []sbomtypes.PackageWithInstalledFiles{
+				{Package: sbomtypes.Package{Name: "linux-image-6.8.0-139-generic", Version: "6.8.0-139.139"}, InstalledFiles: []string{"/boot/vmlinuz-6.8.0-139-generic"}},
+				{Package: sbomtypes.Package{Name: "linux-modules-6.8.0-139-generic", Version: "6.8.0-139.139"}, InstalledFiles: []string{"/lib/modules/6.8.0-139-generic/modules.builtin"}},
+				{Package: sbomtypes.Package{Name: "linux-image-6.8.0-111-generic", Version: "6.8.0-111.111"}, InstalledFiles: []string{"/boot/vmlinuz-6.8.0-111-generic"}},
+			},
+			running: []string{"linux-image-6.8.0-139-generic", "linux-modules-6.8.0-139-generic"},
+		},
+		{
+			name:    "rpm",
+			release: "6.12.0-211.61.1.el10_2.x86_64",
+			report: []sbomtypes.PackageWithInstalledFiles{
+				{Package: sbomtypes.Package{Name: "kernel-core", Version: "6.12.0", Release: "211.61.1.el10_2"}, InstalledFiles: []string{"/lib/modules/6.12.0-211.61.1.el10_2.x86_64/vmlinuz"}},
+				{Package: sbomtypes.Package{Name: "kernel-core", Version: "6.12.0", Release: "55.9.1.el10_0"}, InstalledFiles: []string{"/lib/modules/6.12.0-55.9.1.el10_0.x86_64/vmlinuz"}},
+			},
+			running: []string{"kernel-core@211.61.1.el10_2"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sbomGenerations = atomic.NewUint64(0)
+			r.failedSBOMGenerations = atomic.NewUint64(0)
+			r.sbomCollector = &rootRecorder{report: tc.report}
+			r.kernelRelease = func() (string, error) { return tc.release, nil }
+
+			if err := r.scanHost(); err != nil {
+				t.Fatalf("scanHost: %v", err)
+			}
+
+			for _, pkg := range r.hostSBOM.data.packages {
+				want := slices.Contains(tc.running, pkg.Name) || slices.Contains(tc.running, pkg.Name+"@"+pkg.Release)
+				if got := !pkg.LastAccess.IsZero() && pkg.AccessedByRoot; got != want {
+					t.Errorf("%s %s run by root = %v, want %v", pkg.Name, pkg.Release, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestKernelFilesListsLoadedModules checks that the files of the running kernel
+// hold its loaded modules, found through its modules.dep under either module
+// directory, a module of weak-updates at the file it links to, and that
+// marking them records the packages owning them, and those alone, as run by
+// root.
+func TestKernelFilesListsLoadedModules(t *testing.T) {
+	const release = "6.12.0-211.61.1.el10_2.x86_64"
+	const other = "6.12.0-55.9.1.el10_0.x86_64"
+	modules := "/lib/modules/" + release
+
+	for _, dir := range []string{"usr/lib/modules", "lib/modules"} {
+		t.Run(dir, func(t *testing.T) {
+			root := t.TempDir()
+			moduleDir := filepath.Join(root, dir, release)
+			if err := os.MkdirAll(filepath.Join(moduleDir, "weak-updates"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			dep := "kernel/fs/xfs/xfs.ko.xz: kernel/lib/libcrc32c.ko.xz\n" +
+				"kernel/lib/libcrc32c.ko.xz:\n" +
+				"kernel/drivers/net/ena/ena.ko.xz:\n" +
+				"weak-updates/nvidia-uvm.ko.xz:\n"
+			if err := os.WriteFile(filepath.Join(moduleDir, "modules.dep"), []byte(dep), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("../../"+other+"/extra/nvidia-uvm.ko.xz", filepath.Join(moduleDir, "weak-updates/nvidia-uvm.ko.xz")); err != nil {
+				t.Fatal(err)
+			}
+
+			r := &Resolver{
+				kernelRelease: func() (string, error) { return release, nil },
+				loadedModules: func() ([]string, error) { return []string{"xfs", "libcrc32c", "nvidia_uvm", "vfat"}, nil },
+			}
+			d := newData([]sbomtypes.PackageWithInstalledFiles{
+				{Package: sbomtypes.Package{Name: "kernel-core", Release: "211"}, InstalledFiles: []string{modules + "/vmlinuz"}},
+				{Package: sbomtypes.Package{Name: "kernel-modules-core", Release: "211"}, InstalledFiles: []string{modules + "/kernel/fs/xfs/xfs.ko.xz", modules + "/kernel/lib/libcrc32c.ko.xz"}},
+				{Package: sbomtypes.Package{Name: "kernel-modules", Release: "211"}, InstalledFiles: []string{modules + "/kernel/drivers/net/ena/ena.ko.xz"}},
+				{Package: sbomtypes.Package{Name: "kmod-nvidia", Release: "565"}, InstalledFiles: []string{"/lib/modules/" + other + "/extra/nvidia-uvm.ko.xz"}},
+				{Package: sbomtypes.Package{Name: "kernel-modules-core", Release: "55"}, InstalledFiles: []string{"/lib/modules/" + other + "/kernel/fs/xfs/xfs.ko.xz"}},
+			}, false)
+			markRunningKernel(d, r.kernelFiles(root))
+
+			running := []string{"kernel-core@211", "kernel-modules-core@211", "kmod-nvidia@565"}
+			for _, pkg := range d.packages {
+				want := slices.Contains(running, pkg.Name+"@"+pkg.Release)
+				if got := !pkg.LastAccess.IsZero() && pkg.AccessedByRoot; got != want {
+					t.Errorf("%s %s run by root = %v, want %v", pkg.Name, pkg.Release, got, want)
+				}
+			}
+		})
+	}
+}
+
 // TestScanHostOnEmptyScan checks a rescan that finds no package. Over an index
 // holding packages it fails, as a package scanner that fails finds none, and
 // leaves the index as it was. Over the empty index of a host without package
-// databases it succeeds.
+// databases it succeeds. Either way, the next check leaves the host packages
+// until their databases change.
 func TestScanHostOnEmptyScan(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -927,47 +1570,234 @@ func TestScanHostOnEmptyScan(t *testing.T) {
 			if tt.wantErr && r.hostSBOM.data != data {
 				t.Errorf("the scan replaced the index with an empty one")
 			}
+			if r.hostChanged(time.Now()) {
+				t.Errorf("the next check scans again, with the package databases unchanged")
+			}
 		})
 	}
 }
 
-// TestRescanHostOnTick checks that the host packages are scanned again on every
-// tick until the context is done. Usage enrichment alone relies on these scans
-// to keep the host index current.
-func TestRescanHostOnTick(t *testing.T) {
+// fingerprinted is a package scanner finding the packages of report in a root
+// whose package databases have fingerprint.
+type fingerprinted struct {
+	rootRecorder
+	fingerprint string
+}
+
+func (s *fingerprinted) Fingerprint(string) string { return s.fingerprint }
+
+// TestRescanHostOnCheck checks that a check of the host package databases scans
+// the host packages again when the fingerprint of the databases changed since
+// the last scan, or when that scan is an hour old, and leaves them otherwise.
+// Usage enrichment alone relies on these checks to keep the host index current.
+func TestRescanHostOnCheck(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name        string
+		fingerprint string    // fingerprint of the databases the last scan read
+		scanned     time.Time // time of the last scan
+		wantScans   uint64
+	}{
+		{name: "unchanged", fingerprint: "dbs", scanned: now.Add(-time.Minute)},
+		{name: "databases changed", fingerprint: "old", scanned: now.Add(-time.Minute), wantScans: 1},
+		{name: "hour old", fingerprint: "dbs", scanned: now.Add(-hostRescanInterval), wantScans: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sbomGenerations = atomic.NewUint64(0)
+			r.failedSBOMGenerations = atomic.NewUint64(0)
+			r.sbomCollector = &fingerprinted{
+				rootRecorder: rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
+					Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+					InstalledFiles: []string{"/usr/bin/gzip"},
+				}}},
+				fingerprint: "dbs",
+			}
+			r.hostFingerprint, r.hostScanned = tt.fingerprint, tt.scanned
+
+			ctx, cancel := context.WithCancel(context.Background())
+			tick := make(chan time.Time)
+			done := make(chan struct{})
+			go func() {
+				r.rescanHost(ctx, tick)
+				close(done)
+			}()
+			tick <- now
+			cancel()
+			<-done
+
+			if n := r.sbomGenerations.Load(); n != tt.wantScans {
+				t.Errorf("%d scans of the host packages, want %d", n, tt.wantScans)
+			}
+			if r.hostFingerprint != "dbs" {
+				t.Errorf("fingerprint = %q, want %q, that of the databases", r.hostFingerprint, "dbs")
+			}
+		})
+	}
+}
+
+// writingScanner is a package scanner finding gzip in a root whose package
+// databases change while it reads them.
+type writingScanner struct {
+	fingerprint string
+}
+
+func (s *writingScanner) Fingerprint(string) string { return s.fingerprint }
+
+func (s *writingScanner) ScanInstalledPackages(context.Context, string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+	s.fingerprint = "written"
+	return []sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+		InstalledFiles: []string{"/usr/bin/gzip"},
+	}}, nil
+}
+
+// TestScanHostFingerprintsBeforeScan checks that a scan of the host packages
+// keeps the fingerprint the package databases had before it read them, so that
+// a write while it reads them makes the next check scan again.
+func TestScanHostFingerprintsBeforeScan(t *testing.T) {
 	r := newHostSBOMResolver(t)
 	r.sbomGenerations = atomic.NewUint64(0)
 	r.failedSBOMGenerations = atomic.NewUint64(0)
-	r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
-		Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
-		InstalledFiles: []string{"/usr/bin/gzip"},
-	}}}
+	r.sbomCollector = &writingScanner{fingerprint: "read"}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	tick := make(chan time.Time)
-	done := make(chan struct{})
-	go func() {
-		r.rescanHost(ctx, tick)
-		close(done)
-	}()
-
-	// The second tick goes through once the scan of the first is over.
-	tick <- time.Now()
-	tick <- time.Now()
-	cancel()
-	<-done
-
-	if n := r.sbomGenerations.Load(); n != 2 {
-		t.Errorf("%d scans of the host packages, want 2", n)
+	if err := r.scanHost(); err != nil {
+		t.Fatalf("scanHost: %v", err)
 	}
-	if pkgs := r.hostSBOM.data.packages; len(pkgs) != 1 || pkgs[0].Name != "gzip" {
-		t.Errorf("host packages = %+v, want gzip, from the new scans", pkgs)
+	if r.hostFingerprint != "read" {
+		t.Errorf("fingerprint = %q, want %q, from before the scan read the databases", r.hostFingerprint, "read")
+	}
+	if !r.hostChanged(time.Now()) {
+		t.Errorf("the check missed the write made while the scan read the databases")
+	}
+}
+
+// TestScanHostCreditsMissedRuns checks that a scan finding a new package credits
+// it the runs of its files by host processes made before the scan, in the last
+// hostMissTTL, at the time of each run. Opens, processes on a root of their own
+// and processes of containers leave it as it is, and the run of a file no
+// package owns waits for a later scan.
+func TestScanHostCreditsMissedRuns(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string        // path of the file the process accesses
+		open      bool          // the process opens the file instead of running it
+		foreign   bool          // the process runs on a root of its own
+		container bool          // the process runs in a container
+		age       time.Duration // age of the run at the scan
+		identity  bool          // the run carries the inode of a file under the host root
+		replaced  bool          // a new file takes the path of the file before the scan
+		credited  bool          // the scan credits the run to gzip
+		kept      bool          // the run waits for a later scan
+	}{
+		{name: "run", path: "/usr/bin/gzip", credited: true},
+		{name: "run of the file at its path", path: "/usr/bin/gzip", identity: true, credited: true},
+		{name: "run of a file replaced since", path: "/usr/bin/gzip", identity: true, replaced: true},
+		{name: "open", path: "/usr/bin/gzip", open: true},
+		{name: "foreign root", path: "/usr/bin/gzip", foreign: true},
+		{name: "container", path: "/usr/bin/gzip", container: true},
+		{name: "expired", path: "/usr/bin/gzip", age: hostMissTTL + time.Minute},
+		{name: "unowned", path: "/usr/local/bin/gzip", kept: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newHostSBOMResolver(t)
+			r.sbomGenerations = atomic.NewUint64(0)
+			r.failedSBOMGenerations = atomic.NewUint64(0)
+			r.sbomCollector = &rootRecorder{report: []sbomtypes.PackageWithInstalledFiles{{
+				Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+				InstalledFiles: []string{"/usr/bin/su"},
+			}, {
+				Package:        sbomtypes.Package{Name: "gzip", Version: "1.13"},
+				InstalledFiles: []string{"/usr/bin/gzip"},
+			}}}
+
+			pc := &model.ProcessContext{}
+			pc.Pid = uint32(os.Getpid())
+			pc.Process.FileEvent.SetPathnameStr(tt.path)
+			pc.Process.FileEvent.Mode = 04755
+			file := &pc.Process.FileEvent
+			if tt.open {
+				pc.Process.FileEvent.SetPathnameStr("/usr/bin/zcat")
+				file = &model.FileEvent{}
+				file.SetPathnameStr(tt.path)
+				file.Mode = 04755
+			}
+			if tt.foreign {
+				r.hostRootDevice, r.hostRootInode = tempRoot(t)
+			}
+			if tt.container {
+				sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](maxSBOMEntries, nil)
+				if err != nil {
+					t.Fatalf("NewLRU: %v", err)
+				}
+				r.sboms = sboms
+				sbom := r.newSBOM("container-id", nil, "image")
+				t.Cleanup(sbom.stop)
+				sbom.state.Store(computedState)
+				pc.ContainerContext.ContainerID = "container-id"
+			}
+
+			hostPath := ""
+			if tt.identity {
+				r.hostRoot = t.TempDir()
+				hostPath = filepath.Join(r.hostRoot, tt.path)
+				if err := os.MkdirAll(filepath.Dir(hostPath), 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(hostPath, nil, 0755); err != nil {
+					t.Fatal(err)
+				}
+				stat, err := utils.UnixStat(hostPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				file.Inode = stat.Ino
+			}
+
+			before := time.Now()
+			r.ResolvePackage(pc, file)
+			after := time.Now()
+			if tt.replaced {
+				if err := os.WriteFile(hostPath+".new", nil, 0755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Rename(hostPath+".new", hostPath); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tt.age > 0 {
+				miss, _ := r.hostMisses.Peek(tt.path)
+				miss.usage.LastAccess = miss.usage.LastAccess.Add(-tt.age)
+				r.hostMisses.Add(tt.path, miss)
+			}
+			r.hostRootDevice, r.hostRootInode = ownRoot(t)
+
+			if err := r.scanHost(); err != nil {
+				t.Fatalf("scanHost: %v", err)
+			}
+
+			gzip := r.hostSBOM.data.packages[1]
+			if credited := !gzip.LastAccess.IsZero(); credited != tt.credited {
+				t.Errorf("gzip = %+v, want the run credited: %t", gzip, tt.credited)
+			}
+			if tt.credited && (gzip.LastAccess.Before(before) || gzip.LastAccess.After(after) || !gzip.SuidBit || !gzip.AccessedByRoot) {
+				t.Errorf("gzip = %+v, want the setuid run as root, between %v and %v", gzip, before, after)
+			}
+			if kept := r.hostMisses.Len() > 0; kept != tt.kept {
+				t.Errorf("%d runs wait for a later scan, want some: %t", r.hostMisses.Len(), tt.kept)
+			}
+		})
 	}
 }
 
 // blockingScanner is a package scanner that signals each scan it starts and
 // finishes it, finding gzip, once release is closed.
 type blockingScanner struct {
+	noFingerprint
 	started chan struct{}
 	release chan struct{}
 }

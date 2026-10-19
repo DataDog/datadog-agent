@@ -296,8 +296,7 @@ func buildPostgresConnection(instance map[string]any, e entity, enforceSSL bool)
 // postgresSSLMode returns the ssl mode to scan with. When enforcing, anything weaker than
 // `require` (including unset or invalid) is elevated to it, and Unix sockets (no TLS) are rejected.
 func postgresSSLMode(instance map[string]any, host string, enforceSSL bool) (string, error) {
-	// TODO(DATASEC-428): an invalid `ssl` is forwarded as is and the Rust check rejects the whole task.
-	// Either fall back to a valid mode (`allow`) here, or fail per sub task in the Rust check.
+	// An invalid `ssl` is forwarded as is: like the postgres integration, the Rust check falls back to `allow`.
 	mode := instanceString(instance, "ssl")
 	if !enforceSSL {
 		return mode, nil

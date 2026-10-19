@@ -827,20 +827,19 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 // EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
 // and returns the total number of process nodes evicted and the total bytes freed.
 // A node is only evicted if all its children are evictable.
-// profileImageTagID is the pre-resolved internal ID for the profile's image tag (0 means unknown/no tag).
-func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string, profileImageTagID uint64) (int, int64) {
+// imageTags maps the internal image tag IDs of the tree to their image tags.
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, imageTags map[uint64]string) (int, int64) {
 	totalEvicted := 0
 	var removedBytes int64
 
 	key := ImageProcessKey{
 		ImageName: profileImageName,
-		ImageTag:  profileImageTag,
 	}
 
 	// First, recursively evict unused nodes from children
 	for i := len(pn.Children) - 1; i >= 0; i-- {
 		child := pn.Children[i]
-		evicted, childRemoved := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
+		evicted, childRemoved := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		removedBytes += childRemoved
 
@@ -853,16 +852,24 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	}
 
 	// Try a fallback if the node is in the process cache
-	// Check if this specific image/tag/filepath combination exists in the cache
+	// For each image tag the node was seen with, check if this specific image/tag/filepath combination exists in the cache
 	// The filepath might not be sufficient to uniquely identify the node, but it's a good enough approximation for now
 	// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
 	key.Filepath = pn.Process.FileEvent.PathnameStr
 
-	if filepathsInProcessCache[key] && profileImageTagID != 0 {
-		// check if the node was supposed to be removed, then update the last seen to now
-		if _, lastSeen, ok := pn.GetSeenTimes(profileImageTagID); ok && lastSeen < timeToNanos(before) {
-			pn.NodeBase.AppendImageTagID(profileImageTagID, time.Now())
+	var refreshed []uint64
+	pn.EachSeen(func(imageTagID uint64, _, lastSeen int64) {
+		// check if the entry was supposed to be removed
+		if lastSeen >= timeToNanos(before) {
+			return
 		}
+		key.ImageTag = imageTags[imageTagID]
+		if key.ImageTag != "" && filepathsInProcessCache[key] {
+			refreshed = append(refreshed, imageTagID)
+		}
+	})
+	for _, imageTagID := range refreshed {
+		pn.NodeBase.AppendImageTagID(imageTagID, time.Now())
 	}
 
 	_ = pn.NodeBase.EvictBeforeTimestamp(before)

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add delegated authentication for dual shipping through ``additional_endpoints`` and HTTP
+    ``logs_config.additional_endpoints``. Logs support requires HTTP transport.
+    Resolved credentials use the existing API key rotation path without provider integration in
+    individual senders. The ``fallback`` directive parameter is not yet supported.
