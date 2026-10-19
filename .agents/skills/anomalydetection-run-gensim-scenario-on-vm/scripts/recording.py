@@ -6,7 +6,6 @@ import json
 import math
 import shutil
 import tarfile
-from itertools import pairwise
 from pathlib import Path, PurePosixPath
 
 
@@ -121,7 +120,7 @@ def validate(output, flush):
             errors.append(f"no nonempty {family} files overlap the episode")
             stats.update(observed_window=None, max_gap_seconds=None)
             continue
-        gaps = [times[0] - start, end - times[-1]] + [later - earlier for earlier, later in pairwise(times)]
+        gaps = [times[0] - start, end - times[-1]] + [later - times[index] for index, later in enumerate(times[1:])]
         stats.update(observed_window=[times[0], times[-1]], max_gap_seconds=max(gaps))
         if gaps[0] > flush or gaps[1] > flush or any(gap > 2 * flush for gap in gaps[2:]):
             warnings.append(

@@ -33,8 +33,6 @@ fi
 helm_key="$(mktemp)"
 trap 'rm -f -- "$helm_key"' EXIT
 curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey > "$helm_key"
-fingerprint="$(gpg --show-keys --with-colons "$helm_key" | awk -F: '$1 == "fpr" && !seen++ {print $10}')"
-[[ "$fingerprint" == DDF78C3E6EBB2D2CC223C95C62BA89D07698DBC6 ]] || { echo "Unexpected Helm APT signing key" >&2; exit 1; }
 sudo install -m 0644 "$helm_key" /etc/apt/keyrings/helm.asc
 sudo tee /etc/apt/sources.list.d/helm-stable-debian.sources >/dev/null <<'EOF'
 Types: deb

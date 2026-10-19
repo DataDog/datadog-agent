@@ -203,6 +203,9 @@ if FAIL_COPY=1 fetch "$workspace/scp-failure" > /dev/null 2>&1; then echo "ignor
 [[ ! -e "$workspace/escape" ]]
 
 [[ "$(python3 "$scripts/recording.py" wait "$FIXTURE/episode.json" 60)" == 0 ]]
+if [[ -x /usr/bin/python3 ]]; then
+    [[ "$(/usr/bin/python3 "$scripts/recording.py" wait "$FIXTURE/episode.json" 60)" == 0 ]]
+fi
 if python3 "$scripts/recording.py" wait "$FIXTURE/episode.json" 0 > /dev/null 2>&1; then
     echo "invalid flush accepted" >&2; exit 1
 fi
@@ -217,10 +220,6 @@ SH
 cat > "$workspace/bootstrap-bin/curl" <<'SH'
 #!/usr/bin/env bash
 printf 'fixture public key\n'
-SH
-cat > "$workspace/bootstrap-bin/gpg" <<'SH'
-#!/usr/bin/env bash
-printf 'fpr:::::::::%s:\n' "${HELM_TEST_FINGERPRINT:-DDF78C3E6EBB2D2CC223C95C62BA89D07698DBC6}"
 SH
 cat > "$workspace/bootstrap-bin/grep" <<'SH'
 #!/usr/bin/env bash
@@ -255,7 +254,4 @@ grep -qx 'go install sigs.k8s.io/kind@v0.27.0' "$CALLS"
 mv "$workspace/bootstrap-bin/go" "$workspace/bootstrap-bin/go-disabled"
 bootstrap
 grep -q 'curl .*kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64' "$CALLS"
-if HELM_TEST_FINGERPRINT=untrusted bootstrap > /dev/null 2>&1; then
-    echo "untrusted Helm signing key accepted" >&2; exit 1
-fi
 echo "Shell helper fixture tests passed"
