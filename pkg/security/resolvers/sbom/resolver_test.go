@@ -28,6 +28,7 @@ import (
 	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -68,6 +69,103 @@ func TestRefreshScanResetsStateForRescan(t *testing.T) {
 		}
 	default:
 		t.Errorf("workload was not re-queued for a scan")
+	}
+}
+
+// newScanResolver returns a resolver that queues the scans of its workloads
+// for the tests to run, and forwards on their call alone.
+func newScanResolver(t *testing.T) *Resolver {
+	t.Helper()
+	dataCache, err := simplelru.NewLRU[workloadKey, *Data](10, nil)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r := &Resolver{
+		Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		cfg: &config.RuntimeSecurityConfig{
+			SBOMResolverEnrichmentInterval: time.Minute,
+			SBOMResolverForwardInterval:    time.Hour,
+		},
+		dataCache:         dataCache,
+		scanChan:          make(chan *SBOM, 10),
+		pendingFileEvents: newPendingFileEvents(t),
+		sbomsCacheHit:     atomic.NewUint64(0),
+		sbomsCacheMiss:    atomic.NewUint64(0),
+	}
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	return r
+}
+
+// TestRefreshScanKeepsQueuedWorkload checks that refreshing a container whose
+// scan waits in the queue keeps the container, its scan and its accesses.
+func TestRefreshScanKeepsQueuedWorkload(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		queue func(*Resolver, *SBOM)
+	}{
+		{"first scan", func(r *Resolver, sbom *SBOM) { r.queueWorkload(sbom) }},
+		{"rescan", func(r *Resolver, sbom *SBOM) {
+			sbom.state.Store(computedState)
+			r.refreshScan(sbom)
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newScanResolver(t)
+			sbom := r.newSBOM("container-id", nil, "image:tag")
+			t.Cleanup(sbom.stop)
+			tt.queue(r, sbom)
+			r.queuePendingFileEvent("container-id", "/usr/bin/gzip", 0o755, 0)
+
+			r.refreshScan(sbom)
+
+			if got := sbom.state.Load(); got != pendingState {
+				t.Errorf("state = %d, want pendingState (%d)", got, pendingState)
+			}
+			if _, ok := r.sboms.Peek("container-id"); !ok {
+				t.Errorf("the refresh dropped the queued container")
+			}
+			if n := len(r.scanChan); n != 1 {
+				t.Errorf("%d scans queued, want 1", n)
+			}
+			if want := []containerutils.ContainerID{"container-id"}; !slices.Equal(r.pendingScan, want) {
+				t.Errorf("pending scans = %v, want %v", r.pendingScan, want)
+			}
+			if _, ok := r.pendingFileEvents.Peek("container-id"); !ok {
+				t.Errorf("the refresh released the queued file accesses")
+			}
+		})
+	}
+}
+
+// TestTriggerScanOnFullQueue checks that a container already queued keeps its
+// place when the queue is full, while a container the queue cannot take goes.
+func TestTriggerScanOnFullQueue(t *testing.T) {
+	r := newScanResolver(t)
+	for i := range scanQueueSize - 1 {
+		r.pendingScan = append(r.pendingScan, containerutils.ContainerID(fmt.Sprintf("other-%d", i)))
+	}
+	queued := r.newSBOM("container-id", nil, "image:tag")
+	late := r.newSBOM("late-container-id", nil, "image:tag")
+	t.Cleanup(queued.stop)
+
+	for _, sbom := range []*SBOM{queued, queued, late} {
+		sbom.Lock()
+		r.triggerScan(sbom)
+		sbom.Unlock()
+	}
+
+	if _, ok := r.sboms.Peek("container-id"); !ok {
+		t.Errorf("a full queue dropped the container it held")
+	}
+	if _, ok := r.sboms.Peek("late-container-id"); ok {
+		t.Errorf("a full queue kept a container it could not take")
+	}
+	if n := len(r.scanChan); n != 1 {
+		t.Errorf("%d scans queued, want 1", n)
 	}
 }
 
@@ -136,6 +234,34 @@ func TestEvictedSBOMReleasesPendingFileEvents(t *testing.T) {
 
 	if r.pendingFileEvents.Len() != 0 {
 		t.Errorf("queued file accesses of the removed SBOM were not released")
+	}
+}
+
+// TestTriggerScanQueuesEveryWorkload checks that every SBOM entry the resolver
+// holds can wait for its scan, as at a start on a host of many containers.
+func TestTriggerScanQueuesEveryWorkload(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+	sboms, err := simplelru.NewLRU(maxSBOMEntries, r.onSBOMEvicted)
+	if err != nil {
+		t.Fatalf("NewLRU: %v", err)
+	}
+	r.sboms = sboms
+	r.scanChan = make(chan *SBOM, scanQueueSize)
+
+	for i := range maxSBOMEntries {
+		id := containerutils.ContainerID(fmt.Sprintf("container-%d", i))
+		sbom := NewSBOM(id, nil, "image:tag")
+		sboms.Add(id, sbom)
+		sbom.Lock()
+		r.triggerScan(sbom)
+		sbom.Unlock()
+	}
+
+	if n := len(r.scanChan); n != maxSBOMEntries {
+		t.Errorf("%d workloads queued for a scan, want %d", n, maxSBOMEntries)
+	}
+	if n := sboms.Len(); n != maxSBOMEntries {
+		t.Errorf("%d SBOM entries left, want %d", n, maxSBOMEntries)
 	}
 }
 
@@ -495,6 +621,49 @@ func TestGetContainerSBOMWithoutWorkloadmeta(t *testing.T) {
 	if sbom, err := r.getContainerSBOM("container-id"); err == nil || sbom != nil {
 		t.Errorf("getContainerSBOM() = %v, %v, want an error", sbom, err)
 	}
+}
+
+// imageWorkloadmeta knows the image ID of the containers in images.
+type imageWorkloadmeta struct {
+	workloadmeta.Component
+	images map[string]string
+}
+
+func (w imageWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, error) {
+	if image, ok := w.images[id]; ok {
+		return &workloadmeta.Container{Image: workloadmeta.ContainerImage{ID: image}}, nil
+	}
+	return nil, fmt.Errorf("container %q not found", id)
+}
+
+// TestWorkloadKeyOf checks that containers share a scan by image ID, and that a
+// container of an unknown image keeps its scan to itself.
+func TestWorkloadKeyOf(t *testing.T) {
+	r := &Resolver{wmeta: imageWorkloadmeta{images: map[string]string{"from-wmeta": "sha256:wmeta"}}}
+	byName := []string{"image_name:nginx", "image_tag:latest"}
+
+	for _, tc := range []struct {
+		name string
+		id   containerutils.ContainerID
+		tags []string
+		want workloadKey
+	}{
+		{"image ID tag", "tagged", append([]string{"image_id:sha256:tag"}, byName...), "sha256:tag"},
+		{"image ID from workloadmeta", "from-wmeta", byName, "sha256:wmeta"},
+		{"unknown image", "unknown", byName, "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := r.workloadKeyOf(tc.id, &tags.Workload{Tags: tc.tags}); got != tc.want {
+				t.Errorf("workloadKeyOf = %q, want %q", got, tc.want)
+			}
+		})
+	}
+	t.Run("no workloadmeta", func(t *testing.T) {
+		r := &Resolver{}
+		if got := r.workloadKeyOf("unknown", &tags.Workload{Tags: byName}); got != "unknown" {
+			t.Errorf("workloadKeyOf = %q, want %q", got, "unknown")
+		}
+	})
 }
 
 // ownRoot returns the device and the inode of the root of the test process.

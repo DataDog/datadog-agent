@@ -97,7 +97,8 @@ func (s *dpkgScanner) listInstalledPkgs(root *os.Root) ([]sbomtypes.Package, err
 			fullPath := filepath.Join(statusDPath, statusFile.Name())
 			pkg, err := s.parseStatusFile(root, fullPath)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse dpkg status file (%s): %w", fullPath, err)
+				seclog.Warnf("failed to parse dpkg status file (%s): %v", fullPath, err)
+				continue
 			}
 			pkgs = append(pkgs, pkg...)
 		}
@@ -187,11 +188,11 @@ func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error
 		// https: //man7.org/linux/man-pages/man5/deb-md5sums.5.html
 		// but some files have a single space, especially mongodb-database-tools
 		// so we cut on the first space and then trim the path
-		_, installedPath, ok := strings.Cut(scanner.Text(), " ")
-		if !ok {
-			return nil, errors.New("failed to parse installed file line, bad format")
-		}
+		_, installedPath, _ := strings.Cut(scanner.Text(), " ")
 		installedPath = strings.TrimSpace(installedPath)
+		if installedPath == "" {
+			continue
+		}
 		installedFiles = append(installedFiles, "/"+installedPath)
 	}
 	if err := scanner.Err(); err != nil {
@@ -267,7 +268,7 @@ func (s *dpkgScanner) parseStatusFile(root *os.Root, path string) ([]sbomtypes.P
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("failed to scan %s: %w", path, err)
+		seclog.Warnf("failed to scan %s past %d packages: %v", path, len(pkgs), err)
 	}
 
 	return pkgs, nil
@@ -280,10 +281,9 @@ type dpkgStatusScanner struct {
 // newDPKGStatusScanner returns a new scanner that splits on empty lines.
 func newDPKGStatusScanner(r io.Reader) *dpkgStatusScanner {
 	s := bufio.NewScanner(r)
-	// Package data may exceed default buffer size
-	// Increase the buffer default size by 2 times
-	buf := make([]byte, 0, 128*1024)
-	s.Buffer(buf, 128*1024)
+	// A stanza lists every conffile of its package, and Trivy reads stanzas of
+	// up to 256 KiB, so the index lists the packages the image SBOM lists.
+	s.Buffer(make([]byte, 0, 64*1024), 1<<20)
 
 	s.Split(emptyLineSplit)
 	return &dpkgStatusScanner{Scanner: s}

@@ -55,8 +55,9 @@ const (
 
 	maxSBOMGenerationRetries = 3
 	maxSBOMEntries           = 1024
-	scanQueueSize            = 100
-	maxPendingFileEvents     = 256
+	// scanQueueSize lets every SBOM entry wait for its scan.
+	scanQueueSize        = maxSBOMEntries
+	maxPendingFileEvents = 256
 	// maxForwardWait bounds how long forwarding keeps retrying while the image's
 	// Trivy SBOM is still pending. It must outlast a slow overlayfs scan, yet stop
 	// re-arming when no image SBOM will ever be produced (for example when
@@ -254,10 +255,6 @@ type SBOM struct {
 
 type workloadKey string
 
-func getWorkloadKey(selector *cgroupModel.WorkloadSelector) workloadKey {
-	return workloadKey(selector.Image + ":" + selector.Tag)
-}
-
 // IsComputed returns true if SBOM was successfully generated
 func (s *SBOM) IsComputed() bool {
 	return s.state.Load() == computedState
@@ -406,7 +403,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		cfg:                   c,
 		statsdClient:          statsdClient,
 		dataCache:             dataCache,
-		scanChan:              make(chan *SBOM, 100),
+		scanChan:              make(chan *SBOM, scanQueueSize),
 		sbomCollector:         sbomCollector,
 		hostRoot:              hostProcRootPath,
 		hostRootDevice:        stat.Dev,
@@ -1232,20 +1229,21 @@ func (r *Resolver) removeSBOMData(key workloadKey) {
 	r.dataCacheLock.Unlock()
 }
 
-func (r *Resolver) addPendingScan(containerID containerutils.ContainerID) bool {
+// addPendingScan records that the workload of containerID waits for a scan. It
+// reports whether the workload waited already, and false for ok on a full queue.
+func (r *Resolver) addPendingScan(containerID containerutils.ContainerID) (waiting, ok bool) {
 	r.pendingScanLock.Lock()
 	defer r.pendingScanLock.Unlock()
 
-	if len(r.pendingScan) >= scanQueueSize {
-		return false
-	}
-
 	if slices.Contains(r.pendingScan, containerID) {
-		return false
+		return true, true
+	}
+	if len(r.pendingScan) >= scanQueueSize {
+		return false, false
 	}
 	r.pendingScan = append(r.pendingScan, containerID)
 
-	return true
+	return false, true
 }
 
 func (r *Resolver) removePendingScan(containerID containerutils.ContainerID) {
@@ -1661,8 +1659,13 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 }
 
 func (r *Resolver) triggerScan(sbom *SBOM) {
-	if !r.addPendingScan(sbom.ContainerID) {
+	waiting, ok := r.addPendingScan(sbom.ContainerID)
+	if !ok {
 		r.deleteSBOM(sbom)
+		return
+	}
+	// the scan of a waiting workload reads its package databases when it runs
+	if waiting {
 		return
 	}
 
@@ -1690,19 +1693,29 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
-	workloadKey := workloadKey(utils.GetTagValue("image_id", workload.Tags))
-	if workloadKey == "" {
-		workloadKey = getWorkloadKey(workload.Selector.Copy())
-	}
-
 	_, ok := r.sboms.Get(id)
 	if !ok {
-		sbom := r.newSBOM(id, workload.GCroupCacheEntry, workloadKey)
+		sbom := r.newSBOM(id, workload.GCroupCacheEntry, r.workloadKeyOf(id, workload))
 		if imageSBOM, err := r.getContainerSBOM(id); err == nil && imageSBOM != nil {
 			sbom.status = imageSBOM.Status
 		}
 		r.queueWorkload(sbom)
 	}
+}
+
+// workloadKeyOf returns the key under which containers share a scan: the image
+// ID from the tags or from workloadmeta, or else the container ID.
+func (r *Resolver) workloadKeyOf(id containerutils.ContainerID, workload *tags.Workload) workloadKey {
+	if imageID := utils.GetTagValue("image_id", workload.Tags); imageID != "" {
+		return workloadKey(imageID)
+	}
+	if r.wmeta == nil {
+		return workloadKey(id)
+	}
+	if container, err := r.wmeta.GetContainer(string(id)); err == nil && container.Image.ID != "" {
+		return workloadKey(container.Image.ID)
+	}
+	return workloadKey(id)
 }
 
 // GetWorkload returns the sbom of a provided ID

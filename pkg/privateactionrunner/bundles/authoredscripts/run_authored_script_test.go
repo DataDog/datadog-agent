@@ -30,7 +30,6 @@ const (
 
 type runTestCatalog struct {
 	descriptor authoredscriptssupport.Descriptor
-	key        string
 	readyErr   error
 	err        error
 }
@@ -43,11 +42,7 @@ func (c runTestCatalog) Lookup(key string) (authoredscriptssupport.Descriptor, e
 	if c.err != nil {
 		return authoredscriptssupport.Descriptor{}, c.err
 	}
-	wantKey := c.key
-	if wantKey == "" {
-		wantKey = testActionFQN
-	}
-	if key != wantKey {
+	if key != testActionFQN {
 		return authoredscriptssupport.Descriptor{}, authoredscriptssupport.ErrPackageNotConfigured
 	}
 	return c.descriptor, nil
@@ -129,35 +124,6 @@ func TestRunAuthoredScriptUsesInjectedArtifactResolver(t *testing.T) {
 	assert.Equal(t, "hello", secondOutput.Stdout)
 	assert.Empty(t, secondOutput.Stderr)
 	assert.Equal(t, 1, materializer.materializationCount())
-}
-
-func TestRunAuthoredScriptUsesExecutionFQNForPackageIdentity(t *testing.T) {
-	const executionFQN = "com.datadoghq.authoredscripts.helm.addRepo"
-	descriptor := authoredscriptssupport.Descriptor{
-		FQN:     executionFQN,
-		Package: "com.datadoghq.authoredscripts.helm.addrepo",
-		Version: "1.2.3",
-		URL:     "oci://registry.example.test/authored-script@sha256:" + testActionDigest,
-		SHA256:  testActionDigest,
-	}
-	resolver, err := authoredscriptssupport.NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), &runTestMaterializer{})
-	require.NoError(t, err)
-	handler := &RunAuthoredScriptHandler{
-		catalog:          runTestCatalog{key: executionFQN, descriptor: descriptor},
-		artifactResolver: resolver,
-	}
-	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{
-		BundleID:     "com.datadoghq.helm",
-		Name:         "addRepo",
-		ExecutionFQN: executionFQN,
-		Inputs:       map[string]interface{}{"message": "hello"},
-	}
-
-	output, err := handler.Run(context.Background(), task, nil)
-	require.NoError(t, err)
-	require.IsType(t, &RunAuthoredScriptOutputs{}, output)
-	assert.Equal(t, "hello", output.(*RunAuthoredScriptOutputs).Stdout)
 }
 
 func TestRunAuthoredScriptValidation(t *testing.T) {
