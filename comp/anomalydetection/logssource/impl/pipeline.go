@@ -132,6 +132,12 @@ type messageLogView struct {
 	msg *message.Message
 }
 
+func (v *messageLogView) GetSource() string {
+	if v.msg == nil || v.msg.Origin == nil {
+		return ""
+	}
+	return v.msg.Origin.Source()
+}
 func (v *messageLogView) GetContent() string           { return string(v.msg.GetContent()) }
 func (v *messageLogView) GetStatus() string            { return v.msg.GetStatus() }
 func (v *messageLogView) Tags() []string               { return v.msg.Tags() }

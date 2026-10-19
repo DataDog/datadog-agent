@@ -140,15 +140,22 @@ func (m *metricObs) GetMetricType() metrics.MetricType { return m.metricType }
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
-	content     string
-	status      string
-	tags        []string
-	hostname    string
-	timestampMs int64
+	source        string
+	logSource     string
+	content       string
+	status        string
+	tags          []string
+	hostname      string
+	timestampMs   int64
+	admissionTime time.Time
 }
 
 // Ensure logObs implements observerdef.LogView
 var _ observerdef.LogView = (*logObs)(nil)
+
+func (l *logObs) GetSource() string {
+	return l.source
+}
 
 func (l *logObs) GetContent() string {
 	return l.content
@@ -1118,6 +1125,7 @@ func (o *observerImpl) FinishReplayStream() {
 
 func logObsFromView(msg observerdef.LogView) *logObs {
 	return &logObs{
+		source:      msg.GetSource(),
 		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
 		tags:        copyTags(msg.Tags()),
@@ -1346,11 +1354,14 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	obs := observation{
 		source: h.source,
 		log: &logObs{
-			content:     content,
-			status:      msg.GetStatus(),
-			tags:        tags,
-			hostname:    msg.GetHostname(),
-			timestampMs: timestampMs,
+			source:        msg.GetSource(),
+			logSource:     logSource,
+			content:       content,
+			status:        msg.GetStatus(),
+			tags:          tags,
+			hostname:      msg.GetHostname(),
+			timestampMs:   timestampMs,
+			admissionTime: time.Now(),
 		},
 	}
 
@@ -1369,14 +1380,3 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		}
 	}
 }
-
-// logView wraps logObs to implement LogView interface.
-type logView struct {
-	obs *logObs
-}
-
-func (v *logView) GetContent() string           { return v.obs.content }
-func (v *logView) GetStatus() string            { return v.obs.status }
-func (v *logView) Tags() []string               { return v.obs.tags }
-func (v *logView) GetHostname() string          { return v.obs.hostname }
-func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
