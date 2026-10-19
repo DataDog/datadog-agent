@@ -144,7 +144,7 @@ func (a *logAgent) setupAgentForRestart() error {
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipeline() {
 	pipelineMonitor := a.pipelineProvider.GetPipelineMonitor()
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, pipelineMonitor)
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars, pipelineMonitor, a.config)
 	// The transport switch built a new pipeline; the old monitor's snapshots are stale.
 	logsmetrics.RegisterPipelineMonitor(pipelineMonitor)
 

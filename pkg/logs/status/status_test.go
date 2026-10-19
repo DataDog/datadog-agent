@@ -6,6 +6,7 @@
 package status
 
 import (
+	"expvar"
 	"math"
 	"strconv"
 	"testing"
@@ -17,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
@@ -172,6 +175,41 @@ func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
 	assert.ElementsMatch(t, []string{"Identical Warning", "Unique Warning"}, status.Warnings)
 }
 
+func TestStatusPerformanceProfileOffByDefault(t *testing.T) {
+	defer Clear()
+	initStatus(t)
+
+	status := Get(false)
+	assert.Nil(t, status.PerformanceProfile, "no profile section when profiles are off")
+}
+
+func TestStatusPerformanceProfile(t *testing.T) {
+	defer Clear()
+
+	mockConfig := configmock.New(t)
+	mockConfig.Set("logs_config.profile", "high-throughput", model.SourceFile)
+	InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{
+		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
+	}))
+
+	status := Get(false)
+
+	require.NotNil(t, status.PerformanceProfile)
+	assert.Equal(t, "high-throughput", status.PerformanceProfile.Name)
+	assert.Equal(t, 1, status.PerformanceProfile.Version)
+	require.NotEmpty(t, status.PerformanceProfile.Settings)
+
+	var foundPipelines bool
+	for _, s := range status.PerformanceProfile.Settings {
+		assert.NotEmpty(t, s.Key)
+		assert.NotEmpty(t, s.Source, "each touched setting must report its config source")
+		if s.Key == "logs_config.pipelines" {
+			foundPipelines = true
+		}
+	}
+	assert.True(t, foundPipelines, "high-throughput must report the pipelines setting it touches")
+}
+
 func TestMetrics(t *testing.T) {
 	defer Clear()
 	Clear()
@@ -190,11 +228,14 @@ func TestStatusMetrics(t *testing.T) {
 	initStatus(t)
 
 	status := Get(false)
-	assert.Len(t, status.StatusMetrics, 4)
+	assert.Len(t, status.StatusMetrics, 6)
 	assert.Equal(t, "0", status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, "0", status.StatusMetrics["LogsSent"])
+	assert.Equal(t, "0", status.StatusMetrics["LogsDropped"])
+	assert.Equal(t, "0", status.StatusMetrics["BytesMissed"])
 	assert.Equal(t, "0", status.StatusMetrics["BytesSent"])
 	assert.Equal(t, "0", status.StatusMetrics["RetryCount"])
+	assert.NotContains(t, status.StatusMetrics, "SenderLatency")
 	assert.NotContains(t, status.StatusMetrics, "EncodedBytesSent")
 	assert.NotContains(t, status.StatusMetrics, "RetryTimeSpent")
 	assert.NotContains(t, status.StatusMetrics, "LogsTruncated")
@@ -208,6 +249,7 @@ func TestStatusMetrics(t *testing.T) {
 	assert.Equal(t, "0", status.StatusMetrics["RetryCount"])
 	assert.Equal(t, "0s", status.StatusMetrics["RetryTimeSpent"])
 	assert.Equal(t, "0", status.StatusMetrics["LogsTruncated"])
+	assert.Equal(t, "0s", status.StatusMetrics["SenderLatency"])
 
 	metrics.LogsProcessed.Set(5)
 	metrics.LogsSent.Set(3)
@@ -217,7 +259,7 @@ func TestStatusMetrics(t *testing.T) {
 	metrics.RetryTimeSpent.Set(int64(time.Hour * 2))
 	metrics.LogsTruncated.Set(64)
 	status = Get(false)
-	assert.Len(t, status.StatusMetrics, 4)
+	assert.Len(t, status.StatusMetrics, 6)
 	assert.Equal(t, "5", status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, "3", status.StatusMetrics["LogsSent"])
 	assert.Equal(t, "42", status.StatusMetrics["BytesSent"])
@@ -336,6 +378,197 @@ func TestGetBackpressureStatus_SaturatedPicksHighestRatio(t *testing.T) {
 	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "SATURATED", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "highest AvgRatio component must appear in reason")
+}
+
+// getProfileRecommendation signature: (utils, activeProfile, latencyMs, missed, delivering).
+// Missed bytes are the gate; saturation only localizes the bottleneck.
+
+func TestProfileRecommendation_ProcessorBottleneckIsCPUBound(t *testing.T) {
+	b := &Builder{}
+	// Read-side loss is occurring; processor saturated, downstream keeping up: CPU-bound.
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
+		{Name: "strategy", Instance: "0", AvgRatio: 0.20},
+		{Name: "worker", Instance: "0", AvgRatio: 0.15},
+	}
+
+	rec := b.getProfileRecommendation(utils, "", 0, true, true)
+
+	require.NotNil(t, rec)
+	assert.Equal(t, "high-throughput", rec.Profile)
+	assert.True(t, pkgconfigsetup.LogsPerformanceProfileExists(rec.Profile))
+	assert.Contains(t, rec.Reason, "processor")
+}
+
+func TestProfileRecommendation_DownstreamBottleneckIsNetworkBound(t *testing.T) {
+	b := &Builder{}
+	// Destination saturated; upstream also lights up from propagation. The
+	// most-downstream saturated stage (destination) is the true bottleneck.
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.92, CurrentlySaturated: true, Saturated30mSeconds: 100},
+		{Name: "strategy", Instance: "0", AvgRatio: 0.93, CurrentlySaturated: true, Saturated30mSeconds: 100},
+		{Name: "worker", Instance: "0", AvgRatio: 0.95, CurrentlySaturated: true, Saturated30mSeconds: 110},
+		{Name: "destination_reliable_0", Instance: "q0s0", AvgRatio: 0.98, CurrentlySaturated: true, Saturated30mSeconds: 120},
+	}
+
+	rec := b.getProfileRecommendation(utils, "", 0, true, true)
+
+	require.NotNil(t, rec)
+	assert.Equal(t, "high-concurrency", rec.Profile, "downstream bottleneck must map to high-concurrency, not high-throughput")
+	assert.True(t, pkgconfigsetup.LogsPerformanceProfileExists(rec.Profile))
+	assert.NotEmpty(t, rec.Reason)
+}
+
+func TestProfileRecommendation_DownstreamHighLatencyCitesLatency(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "destination_reliable_0", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
+	}
+
+	// High intake latency: the recommendation should cite it.
+	rec := b.getProfileRecommendation(utils, "", 400, true, true)
+
+	require.NotNil(t, rec)
+	assert.Equal(t, "high-concurrency", rec.Profile)
+	assert.Contains(t, rec.Reason, "latency")
+	assert.Contains(t, rec.Reason, "400")
+}
+
+func TestProfileRecommendation_DownstreamLowLatencyNoLatencyMention(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "destination_reliable_0", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
+	}
+
+	// Normal latency: still high-concurrency, but no latency claim in the reason.
+	rec := b.getProfileRecommendation(utils, "", 10, true, true)
+
+	require.NotNil(t, rec)
+	assert.Equal(t, "high-concurrency", rec.Profile)
+	assert.NotContains(t, rec.Reason, "latency")
+}
+
+func TestProfileRecommendation_StrategyBottleneckIsCPUBound(t *testing.T) {
+	b := &Builder{}
+	// Strategy and processor saturated (propagation), worker keeping up:
+	// compression/batching is the bottleneck.
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.93, CurrentlySaturated: true, Saturated30mSeconds: 100},
+		{Name: "strategy", Instance: "0", AvgRatio: 0.96, CurrentlySaturated: true, Saturated30mSeconds: 110},
+		{Name: "worker", Instance: "0", AvgRatio: 0.20},
+	}
+
+	rec := b.getProfileRecommendation(utils, "", 0, true, true)
+
+	require.NotNil(t, rec)
+	assert.Equal(t, "high-throughput", rec.Profile)
+	assert.Contains(t, rec.Reason, "compression")
+}
+
+func TestProfileRecommendation_LossStatedInReason(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
+	}
+
+	rec := b.getProfileRecommendation(utils, "", 0, true, true)
+
+	require.NotNil(t, rec)
+	assert.Contains(t, rec.Reason, "lost", "reason should make clear logs are actually being lost")
+}
+
+func TestProfileRecommendation_NoLossIsSilent(t *testing.T) {
+	b := &Builder{}
+	// Send stage saturated, but no logs lost: saturation alone must NOT recommend.
+	utils := []ComponentUtilization{
+		{Name: "strategy", Instance: "0", AvgRatio: 0.96, CurrentlySaturated: true, Saturated30mSeconds: 110},
+		{Name: "worker", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 110},
+	}
+
+	assert.Nil(t, b.getProfileRecommendation(utils, "", 0, false, true))
+}
+
+func TestProfileRecommendation_MissedButNothingSaturatedIsSilent(t *testing.T) {
+	b := &Builder{}
+	// Bytes missed (rotation outran an idle reader) but no stage is saturated:
+	// the fix is close_timeout, not a performance profile.
+	utils := []ComponentUtilization{
+		{Name: "processor", Instance: "0", AvgRatio: 0.10},
+		{Name: "worker", Instance: "q0s0", AvgRatio: 0.05},
+	}
+
+	assert.Nil(t, b.getProfileRecommendation(utils, "", 0, true, true))
+}
+
+func TestProfileRecommendation_SendStageNotDeliveringIsSilent(t *testing.T) {
+	b := &Builder{}
+	// Loss is occurring and the send stage is saturated, but the intake is not
+	// delivering (rejecting/unreachable): high-concurrency would be misleading.
+	utils := []ComponentUtilization{
+		{Name: "strategy", Instance: "0", AvgRatio: 0.96, CurrentlySaturated: true, Saturated30mSeconds: 110},
+		{Name: "worker", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 110},
+	}
+
+	assert.Nil(t, b.getProfileRecommendation(utils, "", 0, true, false))
+}
+
+func TestProfileRecommendation_AlreadyOnRecommendedProfile(t *testing.T) {
+	b := &Builder{}
+	utils := []ComponentUtilization{
+		{Name: "destination_reliable_0", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 120},
+	}
+
+	// Already running the profile we'd recommend (high-concurrency for a
+	// downstream bottleneck): no point recommending it again.
+	assert.Nil(t, b.getProfileRecommendation(utils, "high-concurrency", 0, true, true))
+}
+
+func TestProfileRecommendation_RecentSaturationLocalizes(t *testing.T) {
+	b := &Builder{}
+	// No stage is currently saturated, but strategy was saturated recently and
+	// loss occurred: fall back to recent saturation to localize the bottleneck.
+	utils := []ComponentUtilization{
+		{Name: "strategy", Instance: "0", AvgRatio: 0.6, Saturated1mSeconds: 30, Saturated30mSeconds: 90},
+	}
+
+	rec := b.getProfileRecommendation(utils, "", 0, true, true)
+	require.NotNil(t, rec)
+	assert.Equal(t, "high-throughput", rec.Profile)
+}
+
+func TestProfileRecommendation_ActiveProfileCoversRecommendedIsSilent(t *testing.T) {
+	b := &Builder{}
+	// A send-stage bottleneck maps to high-concurrency, but the agent is already
+	// on high-throughput, which is a superset of high-concurrency. Switching would
+	// only lower pipeline/buffer settings, so suppress the recommendation.
+	utils := []ComponentUtilization{
+		{Name: "worker", Instance: "q0s0", AvgRatio: 0.97, CurrentlySaturated: true, Saturated30mSeconds: 110},
+	}
+
+	assert.Nil(t, b.getProfileRecommendation(utils, "high-throughput", 0, true, true),
+		"must not recommend a profile the active one already covers")
+}
+
+func TestStatusMetricsIncludesLoss(t *testing.T) {
+	defer Clear()
+	initStatus(t)
+
+	defer func() {
+		metrics.BytesMissed.Set(0)
+		metrics.DestinationLogsDropped.Init()
+	}()
+
+	metrics.BytesMissed.Set(4096)
+	dropped := &expvar.Int{}
+	dropped.Set(7)
+	metrics.DestinationLogsDropped.Set("host-a", dropped)
+	dropped2 := &expvar.Int{}
+	dropped2.Set(3)
+	metrics.DestinationLogsDropped.Set("host-b", dropped2)
+
+	status := Get(false)
+	assert.Equal(t, "4096", status.StatusMetrics["BytesMissed"])
+	assert.Equal(t, "10", status.StatusMetrics["LogsDropped"], "LogsDropped must sum drops across all destinations")
 }
 
 func TestGetBackpressureStatus_SaturatedNonblockingDestination(t *testing.T) {
