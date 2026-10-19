@@ -65,6 +65,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/startstop",
         "//pkg/version",
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_distribution_reference//:reference",
         "@com_github_knqyf263_go_rpmdb//pkg",
