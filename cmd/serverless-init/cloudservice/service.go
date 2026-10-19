@@ -100,13 +100,13 @@ type CloudService interface {
 	// MicroVM overrides this to pass its child handle so /ready reflects liveness.
 	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
 
-	// GetInventoryData returns the per-platform serverless fields for the
+	// GetMetadata returns the per-platform serverless fields for the
 	// inventory metadata payload. Implementations must not deadlock with the
 	// rest of the CloudService interface.
-	GetInventoryData() serverlessdef.ServerlessInitData
+	GetMetadata() serverlessdef.CloudServiceMetadata
 
-	// CanCollectInventory reports whether the platform permits inventory collection.
-	CanCollectInventory() bool
+	// CanCollectMetadata reports whether the platform permits inventory metadata collection.
+	CanCollectMetadata() bool
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter

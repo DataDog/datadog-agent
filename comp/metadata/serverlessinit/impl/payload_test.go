@@ -21,7 +21,7 @@ func TestBuildFieldsMissingValues(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "", model.SourceAgentRuntime)
-	inv := serverlessdef.ServerlessInitData{
+	inv := serverlessdef.CloudServiceMetadata{
 		ResourceID:   "test-resource",
 		ResourceName: "test-app",
 		WorkloadType: "azure_app_service",
@@ -49,7 +49,7 @@ func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "datadoghq.eu", model.SourceAgentRuntime)
-	inv := serverlessdef.ServerlessInitData{
+	inv := serverlessdef.CloudServiceMetadata{
 		ResourceID:          "test-resource",
 		ResourceName:        "test-app",
 		WorkloadType:        "azure_app_service",
@@ -85,7 +85,7 @@ func TestBuildFieldsPreservesNonemptyStrings(t *testing.T) {
 		t.Run(value, func(t *testing.T) {
 			// Generic missing-value normalization only changes empty strings. Runtime has its
 			// own semantics; unrelated fields must still preserve these values.
-			inv := serverlessdef.ServerlessInitData{Region: value}
+			inv := serverlessdef.CloudServiceMetadata{Region: value}
 			fields := buildFields(inv, serverlessdef.Params{Sidecar: true}, conf)
 			assert.Equal(t, value, fields["region"])
 		})
@@ -131,7 +131,7 @@ func TestBuildFieldsRuntime(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", tt.override)
-			inv := serverlessdef.ServerlessInitData{RuntimeCandidates: []string{tt.metadata}}
+			inv := serverlessdef.CloudServiceMetadata{RuntimeCandidates: []string{tt.metadata}}
 			fields := buildFields(inv, serverlessdef.Params{
 				Sidecar:        tt.sidecar,
 				WrappedCommand: tt.command,
@@ -159,7 +159,7 @@ func TestBuildFieldsWrappedCommand(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			conf := configmock.New(t)
-			inv := serverlessdef.ServerlessInitData{ResourceID: "test-resource"}
+			inv := serverlessdef.CloudServiceMetadata{ResourceID: "test-resource"}
 			tags := map[string]string{"service": "test-service", "env": "test-env", "version": "1.2.3"}
 			var defaultFields map[string]interface{}
 			for _, enabled := range []string{"unset", "false", "true"} {

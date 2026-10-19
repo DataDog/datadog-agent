@@ -25,7 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorypayload"
+	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
@@ -38,13 +38,13 @@ import (
 
 type recordingSerializer struct {
 	serializer.MetricSerializer
-	payloads []*inventorypayload.Payload
+	payloads []*agentmetadata.Payload
 	err      error
 	onSend   func()
 }
 
 func (s *recordingSerializer) SendMetadata(p marshaler.JSONMarshaler) error {
-	s.payloads = append(s.payloads, p.(*inventorypayload.Payload))
+	s.payloads = append(s.payloads, p.(*agentmetadata.Payload))
 	if s.onSend != nil {
 		s.onSend()
 	}
@@ -53,20 +53,20 @@ func (s *recordingSerializer) SendMetadata(p marshaler.JSONMarshaler) error {
 
 type fakeProvider struct {
 	mu       sync.Mutex
-	data     serverlessdef.ServerlessInitData
+	data     serverlessdef.CloudServiceMetadata
 	eligible bool
 	reads    int
 }
 
-func (p *fakeProvider) CanCollectInventory() bool { return p.eligible }
-func (p *fakeProvider) GetInventoryData() serverlessdef.ServerlessInitData {
+func (p *fakeProvider) CanCollectMetadata() bool { return p.eligible }
+func (p *fakeProvider) GetMetadata() serverlessdef.CloudServiceMetadata {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.reads++
 	return p.data
 }
 
-func (p *fakeProvider) setData(data serverlessdef.ServerlessInitData) {
+func (p *fakeProvider) setData(data serverlessdef.CloudServiceMetadata) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.data = data
@@ -104,7 +104,7 @@ func enabledConfig() map[string]any {
 
 func TestFirstCollectionAndPayloadCompatibility(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "resource", WorkloadType: "azure_app_service"}}
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "resource", WorkloadType: "azure_app_service"}}
 		tags := map[string]string{"env": "test-env", "service": "test-service"}
 		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{Tags: tags, WrappedCommand: []string{"python", "app.py"}})
 		require.Zero(t, provider.reads, "construction must not collect")
@@ -144,7 +144,7 @@ func TestFirstCollectionAndPayloadCompatibility(t *testing.T) {
 
 func TestCollectionIntervalsAndIdentityUUID(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "instance-a"}}
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "instance-a"}}
 		p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 		interval := p.Provider.Callback(t.Context())
 		require.Len(t, s.payloads, 1)
@@ -165,7 +165,7 @@ func TestCollectionIntervalsAndIdentityUUID(t *testing.T) {
 		require.Len(t, s.payloads, 3)
 		assert.Equal(t, firstUUID, s.payloads[2].UUID)
 		assert.Equal(t, "updated", s.payloads[2].Metadata["resource_name"])
-		provider.data = serverlessdef.ServerlessInitData{ResourceID: "instance-b"}
+		provider.data = serverlessdef.CloudServiceMetadata{ResourceID: "instance-b"}
 		time.Sleep(interval)
 		p.Provider.Callback(t.Context())
 		require.Len(t, s.payloads, 4)
@@ -180,7 +180,7 @@ func TestLateIdentityAndCanceledWait(t *testing.T) {
 	for _, late := range []bool{false, true} {
 		t.Run(map[bool]string{false: "canceled", true: "late identity"}[late], func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: " \t"}}
+				provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: " \t"}}
 				p, s, _ := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
@@ -190,7 +190,7 @@ func TestLateIdentityAndCanceledWait(t *testing.T) {
 				assert.Empty(t, s.payloads)
 				assert.Positive(t, provider.reads)
 				if late {
-					provider.setData(serverlessdef.ServerlessInitData{ResourceID: "late-resource"})
+					provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "late-resource"})
 					time.Sleep(identityRetryInterval)
 				} else {
 					cancel()
@@ -230,7 +230,7 @@ func TestCollectionDisabled(t *testing.T) {
 
 func TestShutdownBeforeFirstCallback(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "ready"}}
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "ready"}}
 		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 		start := time.Now()
 		require.NoError(t, lc.hooks[0].OnStop(t.Context()))
@@ -246,10 +246,10 @@ func TestShutdownBeforeFirstCallback(t *testing.T) {
 func TestShutdownSkipsSubmittedIdentity(t *testing.T) {
 	for _, shutdownResourceID := range []string{"ready", ""} {
 		synctest.Test(t, func(t *testing.T) {
-			provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "ready"}}
+			provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "ready"}}
 			p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 			p.Provider.Callback(t.Context())
-			provider.setData(serverlessdef.ServerlessInitData{ResourceID: shutdownResourceID})
+			provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: shutdownResourceID})
 			start := time.Now()
 			require.NoError(t, lc.hooks[0].OnStop(t.Context()))
 			assert.Equal(t, start, time.Now())
@@ -260,11 +260,11 @@ func TestShutdownSkipsSubmittedIdentity(t *testing.T) {
 
 func TestShutdownSubmitsChangedIdentity(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "first"}}
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "first"}}
 		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 		p.Provider.Callback(t.Context())
 		require.Len(t, s.payloads, 1)
-		provider.setData(serverlessdef.ServerlessInitData{ResourceID: "second"})
+		provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "second"})
 		require.NoError(t, lc.hooks[0].OnStop(t.Context()))
 		require.Len(t, s.payloads, 2)
 		assert.Equal(t, "second", s.payloads[1].Metadata["resource_id"])
@@ -295,7 +295,7 @@ func TestShutdownGraceAndDeadline(t *testing.T) {
 					done := make(chan struct{})
 					go func() { assert.NoError(t, lc.hooks[0].OnStop(ctx)); close(done) }()
 					synctest.Wait()
-					provider.setData(serverlessdef.ServerlessInitData{ResourceID: "late"})
+					provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "late"})
 					<-done
 					require.Len(t, s.payloads, 1)
 					assert.Equal(t, identityRetryInterval, time.Since(start))
@@ -312,7 +312,7 @@ func TestShutdownGraceAndDeadline(t *testing.T) {
 func TestShutdownSerializerError(t *testing.T) {
 	for _, finalError := range []error{nil, errors.New("still unavailable")} {
 		synctest.Test(t, func(t *testing.T) {
-			provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "ready"}}
+			provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "ready"}}
 			p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 			s.err = errors.New("enqueue failed")
 			p.Provider.Callback(t.Context())
@@ -330,7 +330,7 @@ func TestShutdownSerializerError(t *testing.T) {
 
 func TestShutdownConcurrentSubmission(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "ready"}}
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "ready"}}
 		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 		entered, release := make(chan struct{}), make(chan struct{})
 		s.onSend = func() { close(entered); <-release }
@@ -349,7 +349,7 @@ func TestShutdownConcurrentSubmission(t *testing.T) {
 
 func TestShutdownDoesNotWaitIndefinitelyForSerializer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "ready"}}
+		provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "ready"}}
 		p, s, lc := newTestComponent(t, enabledConfig(), provider, serverlessdef.Params{})
 		entered, release := make(chan struct{}), make(chan struct{})
 		s.onSend = func() { close(entered); <-release }
@@ -384,7 +384,7 @@ func TestRunnerShutdownOrdering(t *testing.T) {
 			fx.Provide(func() config.Component { return conf }),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() hostnameinterface.Component { return fakeHostname{} }),
-			fx.Provide(func() serverlessdef.InventoryProvider { return provider }),
+			fx.Provide(func() serverlessdef.CloudServiceMetadataProvider { return provider }),
 			fx.Provide(func(lc fx.Lifecycle) forwarderDrain {
 				lc.Append(fx.Hook{OnStop: func(context.Context) error { order = append(order, "forwarder drain"); return nil }})
 				return forwarderDrain{}
@@ -411,7 +411,7 @@ func TestRunnerShutdownOrdering(t *testing.T) {
 		go func() { stopped <- app.Stop(t.Context()) }()
 		synctest.Wait()
 		require.True(t, comp.(*serverlessinitComp).stopped)
-		provider.setData(serverlessdef.ServerlessInitData{ResourceID: "shutdown-identity"})
+		provider.setData(serverlessdef.CloudServiceMetadata{ResourceID: "shutdown-identity"})
 		require.NoError(t, <-stopped)
 		assert.Equal(t, []string{"enqueue", "demux drain", "forwarder drain"}, order)
 		require.Len(t, s.payloads, 1)
@@ -424,7 +424,7 @@ func TestCollectionConfigurationAndWrappedCommand(t *testing.T) {
 	conf["inventories_configuration_enabled"] = true
 	conf["serverless.inventory_wrapped_command_enabled"] = true
 	conf["api_key"] = "secret-api-key"
-	provider := &fakeProvider{eligible: true, data: serverlessdef.ServerlessInitData{ResourceID: "resource"}}
+	provider := &fakeProvider{eligible: true, data: serverlessdef.CloudServiceMetadata{ResourceID: "resource"}}
 	p, s, _ := newTestComponent(t, conf, provider, serverlessdef.Params{WrappedCommand: []string{"python", "app.py"}})
 	p.Provider.Callback(t.Context())
 	require.Len(t, s.payloads, 1)

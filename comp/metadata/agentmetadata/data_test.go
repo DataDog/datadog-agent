@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventorypayload
+package agentmetadata
 
 import (
 	"errors"
+	"fmt"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,6 +45,46 @@ func TestGet(t *testing.T) {
 
 	data["test"] = 4321
 	assert.Equal(t, 1234, d.Get()["test"])
+}
+
+// TestDataConcurrentAccess pins the internal locking: Set, Get, and GetPayload
+// are safe to call concurrently without external serialization.
+func TestDataConcurrentAccess(t *testing.T) {
+	hostname, _ := hostnamemock.NewMock("data-hostname")
+	d := NewData(config.NewMockWithOverrides(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}), logmock.New(t), hostname)
+
+	const writers = 4
+	const readers = 2
+	const iterations = 100
+
+	var wg sync.WaitGroup
+	for g := 0; g < writers; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				d.Set(fmt.Sprintf("writer-%d", g), i)
+			}
+		}(g)
+	}
+	for g := 0; g < readers; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				_ = d.Get()["writer-0"]
+				payload := d.GetPayload(map[string]interface{}{"reader": g}, "uuid")
+				_ = payload.Metadata["writer-0"]
+			}
+		}(g)
+	}
+	wg.Wait()
+
+	for g := 0; g < writers; g++ {
+		assert.Equal(t, iterations-1, d.Get()[fmt.Sprintf("writer-%d", g)])
+	}
 }
 
 func TestDataGetPayloadOverlaysFieldsWithoutMutatingBase(t *testing.T) {

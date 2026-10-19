@@ -21,15 +21,15 @@ const (
 	RuntimeRuby   = "Ruby"
 )
 
-// ServerlessInitData holds the per-platform serverless fields that feed the
-// serverless-init inventory metadata payload. Each InventoryProvider
+// CloudServiceMetadata holds the per-platform serverless fields that feed the
+// serverless-init inventory metadata payload. Each CloudServiceMetadataProvider
 // implementation derives these from its own environment so the payload builder
 // stays thin and the derivation lives next to the existing tag logic.
 //
 // Empty strings represent unavailable values. The serverless-init payload builder
 // converts them to nil, allowing optional fields to be omitted or serialized as
 // JSON null. Payloads without resource identity are withheld.
-type ServerlessInitData struct {
+type CloudServiceMetadata struct {
 	WorkloadType string
 
 	// ResourceID is the Canonical Cloud Resource ID (CCRID), the first component
@@ -58,19 +58,19 @@ type ServerlessInitData struct {
 	ParentResourceID string
 }
 
-// InventoryProvider is the platform contract this component consumes. The
-// embedding binary's cloud-service detection implements it. GetInventoryData
+// CloudServiceMetadataProvider is the platform contract this component consumes.
+// The embedding binary's cloud-service detection implements it. GetMetadata
 // must not perform I/O and must support concurrent reads while identity changes.
-type InventoryProvider interface {
-	// CanCollectInventory reports platform support without collecting data or checking identity readiness.
-	CanCollectInventory() bool
-	// GetInventoryData returns the per-platform serverless fields for the
+type CloudServiceMetadataProvider interface {
+	// CanCollectMetadata reports platform support without collecting data or checking identity readiness.
+	CanCollectMetadata() bool
+	// GetMetadata returns the per-platform serverless fields for the
 	// inventory metadata payload.
-	GetInventoryData() ServerlessInitData
+	GetMetadata() CloudServiceMetadata
 }
 
-// InventoryEligible reports whether the serverless inventory payload may be
+// Eligible reports whether the serverless inventory payload may be
 // collected: the configuration opt-in and a provider that can collect.
-func InventoryEligible(conf configmodel.Reader, provider InventoryProvider) bool {
-	return conf.GetBool("serverless.inventory_enabled") && provider.CanCollectInventory()
+func Eligible(conf configmodel.Reader, provider CloudServiceMetadataProvider) bool {
+	return conf.GetBool("serverless.inventory_enabled") && provider.CanCollectMetadata()
 }

@@ -28,7 +28,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorypayload"
+	"github.com/DataDog/datadog-agent/comp/metadata/agentmetadata"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -106,7 +106,7 @@ func TestGetPayload(t *testing.T) {
 	startTime := time.Now().UnixNano()
 
 	p := ia.getPayload()
-	payload := p.(*inventorypayload.Payload)
+	payload := p.(*agentmetadata.Payload)
 
 	assert.True(t, payload.Timestamp > startTime)
 	assert.Equal(t, "my-hostname", payload.Hostname)
@@ -158,7 +158,7 @@ func TestFullAgentMetadataRefresh(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		payload := ia.getPayload().(*inventorypayload.Payload)
+		payload := ia.getPayload().(*agentmetadata.Payload)
 
 		assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
 		assert.Equal(t, version.AgentPackageVersion, payload.Metadata["package_version"])
@@ -804,7 +804,7 @@ func TestGetProvidedConfigurationDisable(t *testing.T) {
 		"inventories_configuration_enabled": false,
 	}, nil)
 
-	payload := ia.getPayload().(*inventorypayload.Payload)
+	payload := ia.getPayload().(*agentmetadata.Payload)
 
 	// No configuration should be in the payload
 	assert.NotContains(t, payload.Metadata, "full_configuration")
@@ -822,7 +822,7 @@ func TestGetProvidedConfiguration(t *testing.T) {
 		"inventories_configuration_enabled": true,
 	}, nil)
 
-	payload := ia.getPayload().(*inventorypayload.Payload)
+	payload := ia.getPayload().(*agentmetadata.Payload)
 
 	// All configuration level should be in the payload
 	assert.Contains(t, payload.Metadata, "full_configuration")

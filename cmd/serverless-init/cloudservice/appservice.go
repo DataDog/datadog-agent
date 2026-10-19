@@ -62,12 +62,12 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
-func (a *AppService) CanCollectInventory() bool { return true }
+func (a *AppService) CanCollectMetadata() bool { return true }
 
-// GetInventoryData derives the inventory metadata from
+// GetMetadata derives the inventory metadata from
 // traceutil.GetAppServicesTags. Web apps lowercase the ARM ID for inventory
 // only; function apps keep its casing.
-func (a *AppService) GetInventoryData() serverlessdef.ServerlessInitData {
+func (a *AppService) GetMetadata() serverlessdef.CloudServiceMetadata {
 	aasTags := traceutil.GetAppServicesTags()
 
 	workloadType := workloadTypeAzureAppService
@@ -78,7 +78,7 @@ func (a *AppService) GetInventoryData() serverlessdef.ServerlessInitData {
 		resourceID = strings.ToLower(resourceID)
 	}
 
-	return serverlessdef.ServerlessInitData{
+	return serverlessdef.CloudServiceMetadata{
 		WorkloadType:        workloadType,
 		ResourceID:          resourceID,
 		ResourceName:        os.Getenv(WebsiteName),

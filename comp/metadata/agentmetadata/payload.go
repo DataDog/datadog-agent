@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventorypayload builds the inventory metadata payload shared by the
-// inventory agent and serverless-init.
-package inventorypayload
+// Package agentmetadata builds the inventory metadata payload shared by the
+// inventory agent and serverless-init: the common `agent_metadata` fields and
+// the wire payload type.
+package agentmetadata
 
 import "encoding/json"
 
