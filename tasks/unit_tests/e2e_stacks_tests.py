@@ -9,6 +9,7 @@ from invoke.context import Context
 from tasks.new_e2e_tests import cleanup_orphaned_stacks
 from tasks.tools.e2e_stacks import (
     RECORDED_STACKS_FILE,
+    destroy_remote_stack_api,
     init_job_consumers,
     read_recorded_stacks,
     stacks_cleanup_reason,
@@ -100,6 +101,7 @@ class TestCleanupOrphanedStacks(unittest.TestCase):
         destroy = self.run_task("success", [job("new-e2e-containers-eks", "canceled")])
         destroy.assert_called_once()
         self.assertEqual(destroy.call_args[0][0], "organization/e2eci/ci-init-1-14-e2e-eks")
+        self.assertTrue(destroy.call_args.kwargs["cancel_first"])
 
     def test_init_job_with_pending_consumer(self):
         destroy = self.run_task("success", [job("new-e2e-containers-eks", "created")])
@@ -108,3 +110,17 @@ class TestCleanupOrphanedStacks(unittest.TestCase):
     def test_canceled_job(self):
         destroy = self.run_task("canceled", [job("new-e2e-containers-eks", "created")])
         destroy.assert_called_once()
+
+
+@patch.dict(os.environ, {"CI_JOB_NAME": "job", "CI_JOB_ID": "2", "CI_PIPELINE_ID": "1", "CI_COMMIT_REF_NAME": "branch"})
+class TestDestroyRemoteStackApi(unittest.TestCase):
+    @patch("tasks.tools.e2e_stacks.run")
+    def test_default(self, run):
+        destroy_remote_stack_api("organization/e2eci/stack", Context())
+        self.assertNotIn("cancel_first", run.call_args.kwargs["attrs"])
+
+    @patch("tasks.tools.e2e_stacks.run")
+    def test_cancel_first(self, run):
+        destroy_remote_stack_api("organization/e2eci/stack", Context(), cancel_first=True)
+        self.assertIn("stack_name=organization/e2eci/stack,", run.call_args.kwargs["attrs"])
+        self.assertTrue(run.call_args.kwargs["attrs"].endswith(",cancel_first=bool:true"))

@@ -970,7 +970,8 @@ def cleanup_orphaned_stacks(ctx):
 
     print(f"Requesting the cleanup of stacks {', '.join(stacks)}, {reason}")
     for stack in stacks:
-        exit_code, stdout, stderr, _ = destroy_remote_stack_api(CI_STACK_PREFIX + stack, ctx)
+        # The job may have been interrupted during a Pulumi operation, leaving the stack locked
+        exit_code, stdout, stderr, _ = destroy_remote_stack_api(CI_STACK_PREFIX + stack, ctx, cancel_first=True)
         print(f"Stack {stack}: {stdout} {stderr}")
         if exit_code != 0:
             print(color_message(f"Failed to request the cleanup of stack {stack}", Color.RED))
