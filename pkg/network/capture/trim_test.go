@@ -296,9 +296,10 @@ func TestHeaderLen(t *testing.T) {
 			wantLen: 14 + 20,
 		},
 		{
+			// A 60-byte data offset over a 26-byte segment points past the end.
 			name:       "TCP data offset beyond the packet fails closed at the IP header",
 			linkType:   layers.LinkTypeEthernet,
-			packet:     serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolTCP), gopacket.Payload(append(tcpRawHeader(15), testSecret...))),
+			packet:     serialize(t, eth(layers.EthernetTypeIPv4), ipv4(layers.IPProtocolTCP), gopacket.Payload(append(tcpRawHeader(15), "secret"...))),
 			wantLen:    14 + 20,
 			wantFailed: true,
 		},
