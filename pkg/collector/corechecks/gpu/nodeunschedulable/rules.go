@@ -55,8 +55,8 @@ type LabelRule struct {
 	Value any    `mapstructure:"value"`
 }
 
-// ConditionRule matches a node condition with the given status (True, False or
-// Unknown, case-insensitive). The type is compared case-insensitively.
+// ConditionRule matches a node condition with the given status: True, False or Unknown,
+// or a bool. The type is compared case-insensitively.
 type ConditionRule struct {
 	Type   string `mapstructure:"type"`
 	Status any    `mapstructure:"status"`
@@ -124,13 +124,9 @@ func Compile(labels []LabelRule, conditions []ConditionRule) (*Rules, error) {
 	}
 	for i, c := range conditions {
 		where := fmt.Sprintf("%s[%d]", ConditionsConfigKey, i)
-		status, err := operand(c.Status)
+		status, err := conditionStatus(c.Status)
 		if c.Type == "" || err != nil {
-			errs = append(errs, fmt.Errorf("%s: type and status are required (status: %v)", where, err))
-			continue
-		}
-		if status != "true" && status != "false" && status != "unknown" {
-			errs = append(errs, fmt.Errorf("%s: status must be True, False or Unknown, got %q", where, status))
+			errs = append(errs, fmt.Errorf("%s: type is required and status must be True, False or Unknown (%v)", where, err))
 			continue
 		}
 		add(r.conditions, where, strings.ToLower(c.Type), status)
@@ -145,6 +141,27 @@ func Compile(labels []LabelRule, conditions []ConditionRule) (*Rules, error) {
 // HasLabelRules tells whether the node labels are needed to evaluate the rules.
 func (r *Rules) HasLabelRules() bool {
 	return len(r.labels) > 0
+}
+
+// conditionStatus returns the lowercased status of a condition rule: True, False or
+// Unknown as in Kubernetes, or a bool (an unquoted YAML True).
+func conditionStatus(v any) (string, error) {
+	switch t := v.(type) {
+	case bool:
+		if t {
+			return "true", nil
+		}
+		return "false", nil
+	case string:
+		if t == "True" || t == "False" || t == "Unknown" {
+			return strings.ToLower(t), nil
+		}
+		return "", fmt.Errorf("got %q", t)
+	case nil:
+		return "", errors.New("missing")
+	default:
+		return "", fmt.Errorf("got %T (%v)", v, v)
+	}
 }
 
 // operand converts a configured value to its lowercase string form: a non-empty
