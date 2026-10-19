@@ -82,6 +82,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.83.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.83.0 // indirect
@@ -306,6 +307,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/schema => ../../../../../../pkg/config/schema
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/setup/constants => ../../../../../../pkg/config/setup/constants
+	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings => ../../../../../../pkg/config/setup/generatedsettings_local
 	github.com/DataDog/datadog-agent/pkg/config/structure => ../../../../../../pkg/config/structure
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model => ../../../../../../pkg/discovery/tracermetadata/model

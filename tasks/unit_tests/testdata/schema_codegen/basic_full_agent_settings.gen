@@ -5,15 +5,17 @@
 
 // NOTE! This is a generated file, do not modify it. Created by `dda inv schema.codegen`
 
-package setup
+package generatedsettings
 
 import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func initCoreAgentFull(config pkgconfigmodel.Setup) {
+// InitCoreAgentFull registers the settings used only by the full core Agent.
+func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("my_setting", "abc")
 }
 
-func initCommonBase(config pkgconfigmodel.Setup) {
+// InitCommonBase registers the settings shared by every Agent binary.
+func InitCommonBase(config pkgconfigmodel.Setup) {
 }
