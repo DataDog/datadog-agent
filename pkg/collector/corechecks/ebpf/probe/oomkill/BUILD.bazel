@@ -104,7 +104,6 @@ dd_agent_go_test(
         "//pkg/ebpf/bytecode",
         "//pkg/ebpf/bytecode/runtime",
         "//pkg/ebpf/ebpftest",
-        "//pkg/ebpf/features",
         "//pkg/util/kernel",
         "@com_github_cilium_ebpf//:ebpf",
         "@com_github_cilium_ebpf//btf",

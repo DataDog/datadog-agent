@@ -151,7 +151,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, collOpts bpflib.CollectionOptio
 
 	// Pins left by a previous system-probe are taken over and cleaned up below even when this one
 	// does not pin, so that they are not left running forever.
-	pinning := pinningSupported(cfg, progSpec)
+	pinning := pinningFeaturesSupported(cfg, progSpec)
 
 	// Reuse the map of the previous probe, so that the OOM kills recorded while no system-probe
 	// was running are reported by the next check run.
@@ -356,8 +356,10 @@ func selectProgram(spec *bpflib.CollectionSpec, useFentry bool) (*bpflib.Program
 	progName, unused := oomKprobeName, oomFentryName
 	if err := supportsFentry(oomHookName); err == nil && useFentry {
 		progName, unused = oomFentryName, oomKprobeName
-	} else {
+	} else if err != nil {
 		log.Debugf("fentry is not supported on %s, using kprobe: %s", oomHookName, err)
+	} else {
+		log.Debugf("fentry disallowed %s, using kprobe: %s", oomHookName, err)
 	}
 
 	if s, ok := spec.Programs[progName]; ok {
@@ -411,7 +413,7 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	return results
 }
 
-// convertStats converts a map value according to the version of its layout. It returns false for
+// convertStats converts a map value according to the version of its layout. It returns an error for
 // an unknown version, whose value cannot be decoded.
 func convertStats(in oomStats) (model.OOMKillStats, error) {
 	switch v := any(in.Oom_stats_version).(type) {
@@ -435,13 +437,14 @@ func convertStatsV1(in oomStatsV1Layout) (out model.OOMKillStats) {
 	return
 }
 
-// pinningSupported reports whether the probe should be pinned to bpffs. All of the following must hold:
+// pinningFeaturesSupported reports whether the probe should be pinned to bpffs. All of the following must hold:
 //   - oom_kill.persist_monitoring is enabled;
 //   - bpffs is mounted at bpffsRoot;
-//   - the fentry program is in use, and its link can be pinned on this kernel.
+//   - the fentry program is in use, its link can be pinned on this kernel, and the info of a
+//     pinned link can be read from its fd.
 //
 // The kprobe program is never pinned: its perf event link can only be pinned from 5.15
-func pinningSupported(cfg *Config, progSpec *bpflib.ProgramSpec) bool {
+func pinningFeaturesSupported(cfg *Config, progSpec *bpflib.ProgramSpec) bool {
 	if !cfg.PersistMonitoring {
 		return false
 	}
@@ -450,7 +453,7 @@ func pinningSupported(cfg *Config, progSpec *bpflib.ProgramSpec) bool {
 		return false
 	}
 	if progSpec.Type != bpflib.Tracing {
-		log.Warnf("oom-kill probe is using a kprobe, which is not pinned")
+		log.Debugf("oom-kill probe is using a kprobe, which is not pinned")
 		return false
 	}
 	if err := fentryPinningSupported(); err != nil {
@@ -460,8 +463,8 @@ func pinningSupported(cfg *Config, progSpec *bpflib.ProgramSpec) bool {
 	return true
 }
 
-// fentryPinningSupported attaches a dummy fentry program to oom_kill_process and pins its link in a
-// temporary bpffs directory, then removes everything.
+// fentryPinningSupported attaches a dummy fentry program to oom_kill_process, pins its link in a
+// temporary bpffs directory and reads the info of the link through the pin, then removes everything.
 func fentryPinningSupported() error {
 	prog, err := bpflib.NewProgramWithOptions(&bpflib.ProgramSpec{
 		Type:       bpflib.Tracing,
@@ -490,8 +493,21 @@ func fentryPinningSupported() error {
 	}
 	defer os.RemoveAll(dir)
 
-	if err := l.Pin(filepath.Join(dir, "link")); err != nil {
+	path := filepath.Join(dir, "link")
+	if err := l.Pin(path); err != nil {
 		return fmt.Errorf("pin test link: %w", err)
+	}
+
+	// The next system-probe opens the pinned link and reads its info from the fd to take it over,
+	// and Close does the same to check that it owns the pin. Without link info (before 5.8), a
+	// pinned probe could neither be taken over nor unpinned.
+	pinned, err := link.LoadPinnedLink(path, nil)
+	if err != nil {
+		return fmt.Errorf("load pinned test link: %w", err)
+	}
+	defer pinned.Close()
+	if _, err := pinned.Info(); err != nil {
+		return fmt.Errorf("read info of pinned test link: %w", err)
 	}
 	return l.Unpin()
 }
@@ -533,7 +549,7 @@ func samePinnedProgram(pinned link.Link, prog *bpflib.Program, maps ...*bpflib.M
 	return nil
 }
 
-// usesMap reports whether the program described by info references m
+// usesSameMaps reports whether the program described by info references m
 func usesSameMaps(info *bpflib.ProgramInfo, maps []*bpflib.Map) bool {
 	ids, ok := info.MapIDs()
 	if !ok {

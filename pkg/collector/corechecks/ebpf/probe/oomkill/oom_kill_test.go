@@ -41,6 +41,9 @@ import (
 
 var kv = kernel.MustHostVersion()
 
+// oomFillFile is the tmpfs file written to exhaust the memory of the cgroup in triggerOOMKill
+const oomFillFile = "/dev/shm/asdf"
+
 func TestOOMKillCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
 		if kv < kernel.VersionCode(4, 9, 0) {
@@ -126,6 +129,11 @@ func triggerOOMKill(t *testing.T) int {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
+	t.Cleanup(func() {
+		if err := os.Remove(oomFillFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Logf("failed to remove %s: %s", oomFillFile, err)
+		}
+	})
 
 	err := os.WriteFile("/proc/self/oom_score_adj", []byte("42"), 0644)
 	require.NoError(t, err)
@@ -136,7 +144,7 @@ func triggerOOMKill(t *testing.T) int {
 	memoryProperty := memoryLimitProperty(t)
 	var cmd *exec.Cmd
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		cmd = exec.CommandContext(ctx, "systemd-run", "--scope", "-p", memoryProperty+"=1M", "dd", "if=/dev/zero", "of=/dev/shm/asdf", "bs=1K", "count=2K")
+		cmd = exec.CommandContext(ctx, "systemd-run", "--scope", "-p", memoryProperty+"=1M", "dd", "if=/dev/zero", "of="+oomFillFile, "bs=1K", "count=2K")
 		obytes, err := cmd.CombinedOutput()
 		output := string(obytes)
 		require.Error(c, err)
@@ -372,9 +380,12 @@ func assertNoPins(t *testing.T, msg string) {
 
 func setTestPinDir(t *testing.T) {
 	prev := pinDir
-	pinDir = filepath.Join(bpffsRoot, "datadog-agent-test", strings.ReplaceAll(t.Name(), "/", "_"))
+	testRoot := filepath.Join(bpffsRoot, "datadog-agent-test")
+	pinDir = filepath.Join(testRoot, strings.ReplaceAll(t.Name(), "/", "_"))
 	t.Cleanup(func() {
 		_ = os.RemoveAll(pinDir)
+		// Only removed once empty, so that the pins of other tests are left alone
+		_ = os.Remove(testRoot)
 		pinDir = prev
 	})
 }
