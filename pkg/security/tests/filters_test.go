@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -685,6 +686,83 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 		count := countSavedEvents(t, model.ConnectEventType, eventKeyValueFilter{key: "connect.addr.port", value: 4254}, "connect", "AF_INET", "any", "udp", "4254", "2")
 		assert.Equal(t, 1, count, "the first connect should be saved by the sampler, the second one rejected")
 	})
+}
+
+var _ = declareInlineConfig(TestFilterOpenSampleRefreshWorkloadProfile)
+
+// TestFilterOpenSampleRefreshWorkloadProfile checks that a deduplicated open refreshes the last seen timestamp of the
+// file in the workload profile.
+func TestFilterOpenSampleRefreshWorkloadProfile(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	// deny mode: the approver rejects the opened file, so its opens go through the sampler
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path == "/tmp/wp-open-approved"`,
+	}
+
+	const (
+		refreshPeriod = time.Second
+		openInterval  = 3 * time.Second
+	)
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.securityProfileSampleRefreshPeriod = refreshPeriod
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
+
+	// the sample cookie is only registered if the profile exists when the first open is inserted
+	execType := workloadProfileEventTypeByName(t, "exec")
+	execType.trigger(t, dockerInstance, "known")
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return execType.hasNode(p, "known")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// node eviction is disabled so the sample never goes stale: only the refresh of the second open can update the profile
+	testFile := "/tmp/wp-open-refresh"
+	args := []string{"open", testFile, ";", "sleep", strconv.Itoa(int(openInterval.Seconds())), ";", "open", testFile}
+	if out, err := dockerInstance.Command(workloadProfileSyscallTester, args, []string{}).CombinedOutput(); err != nil {
+		t.Fatalf("%s: %v", string(out), err)
+	}
+
+	execBasename, fileBasename := filepath.Base(workloadProfileSyscallTester), filepath.Base(testFile)
+	p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		firstSeen, lastSeen, found := profileFileSeenTimes(p, execBasename, fileBasename, "v1")
+		return found && lastSeen.Sub(firstSeen) >= openInterval-refreshPeriod
+	})
+	if err != nil {
+		if p == nil {
+			t.Fatal(err)
+		}
+		firstSeen, lastSeen, found := profileFileSeenTimes(p, execBasename, fileBasename, "v1")
+		t.Fatalf("the second open should refresh the last seen timestamp of the file (found: %v, first seen: %s, last seen: %s): %v", found, firstSeen, lastSeen, err)
+	}
 }
 
 func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
