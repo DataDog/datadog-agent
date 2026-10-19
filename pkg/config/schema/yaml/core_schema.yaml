@@ -62,6 +62,13 @@ properties:
       Infrastructure mode
       The infrastructure mode is used to determine the features that are available to the agent.
       The possible values are: full, basic, end_user_device, cloud_cost_only, none.
+    enum:
+    - basic
+    - full
+    - end_user_device
+    - cloud_cost_only
+    - none
+    - null
   dd_url:
     node_type: setting
     type: string
@@ -78,6 +85,7 @@ properties:
       If DD_DD_URL and DD_URL are both set, DD_DD_URL is used in priority.
     tags:
     - template_section:Common
+    pattern: ^(https?://)?([a-zA-Z0-9-]+\.)*datadoghq\.com(:[0-9]{1,5})?/?$
   proxy:
     node_type: section
     type: object
@@ -2977,6 +2985,15 @@ properties:
       Note: When using the 'off' log level, quotes are mandatory.
     tags:
     - template_section:Logging
+    enum:
+    - 'off'
+    - critical
+    - error
+    - warn
+    - info
+    - debug
+    - trace
+    - null
   log_file:
     node_type: setting
     type: string

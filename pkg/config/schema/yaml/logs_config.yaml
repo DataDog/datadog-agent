@@ -38,6 +38,7 @@ properties:
       As of agent version 7.70.0, proxy paths are supported. To forward logs to a
       specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
     example: <ENDPOINT>:<PORT>
+    pattern: ^(https?://)?([a-zA-Z0-9-]+\.)*datadoghq\.com(:[0-9]{1,5})?/?$
   logs_no_ssl:
     node_type: setting
     type: boolean
@@ -199,6 +200,10 @@ properties:
 
       WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
       more disk I/O at the wildcard log paths
+    enum:
+    - by_name
+    - by_modification_time
+    - null
   max_message_size_bytes:
     node_type: setting
     type: integer

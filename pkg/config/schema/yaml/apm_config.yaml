@@ -81,6 +81,7 @@ properties:
       Define the endpoint and port to hit when using a proxy for APM. The traces are forwarded in TCP
       therefore the proxy must be able to handle TCP connections.
     example: <ENDPOINT>:<PORT>
+    pattern: ^(https?://)?([a-zA-Z0-9-]+\.)*datadoghq\.com(:[0-9]{1,5})?/?$
   max_traces_per_second:
     node_type: setting
     type: number
