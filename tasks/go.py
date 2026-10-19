@@ -343,6 +343,8 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     time: report how long each of tidy's subtasks took.
     """
     _check_valid_mods()
+    # the in-repo generatedsettings module only holds go.mod until its code is generated, and `go mod tidy` needs it
+    schema_codegen(ctx)
     timings = []
     (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose, timings if time else None)
     for result in sorted(timings, reverse=True):
@@ -376,7 +378,8 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
     def _tidy_all_modules():
         promises = []
         for mod in get_default_modules().values():
-            with ctx.cd(mod.full_path()):
+            # tidy the go.mod go.work uses, as `go mod tidy` in Bazel's //:go_mod_tidy_all does
+            with ctx.cd(os.path.abspath(mod.workspace_dir())):
                 # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
                 promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
 

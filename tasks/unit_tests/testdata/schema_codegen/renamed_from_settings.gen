@@ -5,17 +5,19 @@
 
 // NOTE! This is a generated file, do not modify it. Created by `dda inv schema.codegen`
 
-package setup
+package generatedsettings
 
 import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func initCoreAgentFull(config pkgconfigmodel.Setup) {
+// InitCoreAgentFull registers the settings used only by the full core Agent.
+func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefaultWithDeprecation("full_agent_renamed_setting", false, []string{"old_full_agent_setting"})
 }
 
-func initCommonBase(config pkgconfigmodel.Setup) {
+// InitCommonBase registers the settings shared by every Agent binary.
+func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("plain_setting", "abc")
 	config.BindEnvAndSetDefaultWithDeprecation("renamed_setting", "abc", []string{"old_setting"}, "DD_RENAMED_SETTING")
 	config.BindEnvAndSetDefaultWithDeprecation("my_section.renamed_twice", 10.0, []string{"oldest_section.oldest_name", "my_section.old_name"})

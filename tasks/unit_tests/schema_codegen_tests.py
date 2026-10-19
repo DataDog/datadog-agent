@@ -75,6 +75,23 @@ class TestCodegenInitSettings(unittest.TestCase):
         self.assertIn('config.BindEnvAndSetDefault("my_section.child", "abc")', generated)
         self.assertNotIn('old_section', generated)
 
+    def test_platform_default(self):
+        # Settings with a 'platform_default' resolve it at runtime through pkg/config/env, which must be imported
+        schema = {
+            'properties': {
+                'my_setting': {
+                    'node_type': 'setting',
+                    'type': 'string',
+                    'platform_default': {'windows': 'w', 'other': 'o'},
+                }
+            }
+        }
+        codegen.run_codegen(schema, self.tmpdir)
+        with open(os.path.join(self.tmpdir, 'all_settings.go')) as f:
+            generated = f.read()
+        self.assertIn('\tpkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"\n', generated)
+        self.assertIn('config.BindEnvAndSetDefault("my_setting", pkgconfigenv.GetPlatformDefault(', generated)
+
     def test_as_go_value(self):
         cases = [
             {
