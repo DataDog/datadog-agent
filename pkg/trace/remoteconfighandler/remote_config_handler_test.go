@@ -376,7 +376,12 @@ func TestLogLevelSpec(t *testing.T) {
 	errorsSampler := NewMockerrorsSampler(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
-	pkglog.SetupLogger(pkglog.Default(), "debug")
+	// start from a per-package spec, so the removal below proves that the
+	// fallback restores the full spec and not just a level name
+	originalSpec := "info,./pkg/trace/...=debug"
+	originalRules, err := logtypes.ParseLevelRules(originalSpec, "github.com/DataDog/datadog-agent")
+	require.NoError(t, err)
+	pkglog.SetupLoggerWithLevelRules(pkglog.Default(), logtypes.NewRulesSync(originalRules))
 
 	var queries []string
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -430,9 +435,9 @@ func TestLogLevelSpec(t *testing.T) {
 	require.NoError(t, pkglog.ChangeLogLevelRules(rules))
 	update(`{"name": "layer1", "config": {}}`)
 
-	// the override removal must fall back to the level active before it
+	// the override removal must fall back to the full spec active before it
 	require.Len(t, queries, 2)
-	assert.Equal(t, "log_level="+url.QueryEscape("debug"), queries[1])
+	assert.Equal(t, "log_level="+url.QueryEscape(originalSpec), queries[1])
 }
 
 func TestStartWithMRF(t *testing.T) {

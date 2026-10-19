@@ -15,6 +15,8 @@ dd_agent_go_test(
     embed = [":seclog"],
     deps = [
         "//pkg/util/log",
+        "//pkg/util/log/types",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
