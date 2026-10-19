@@ -46,6 +46,21 @@ func configureCommand(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Setpgid = true
 	cmd.SysProcAttr.Pgid = 0
 	cmd.WaitDelay = processWaitDelay
+	if cmd.Cancel == nil {
+		return
+	}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return os.ErrProcessDone
+		}
+		if err := killProcessGroup(cmd.Process.Pid); err != nil {
+			if errors.Is(err, syscall.ESRCH) {
+				return os.ErrProcessDone
+			}
+			return err
+		}
+		return nil
+	}
 }
 
 func killProcessGroup(pid int) error {
