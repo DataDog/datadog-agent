@@ -76,16 +76,17 @@ func TestCompileErrors(t *testing.T) {
 		labels     []LabelRule
 		conditions []ConditionRule
 	}{
-		"label without key":           {labels: []LabelRule{{Value: "true"}}},
-		"label without value":         {labels: []LabelRule{{Key: "example.com/drain"}}},
-		"label with an empty value":   {labels: []LabelRule{{Key: "example.com/drain", Value: ""}}},
-		"label with a number value":   {labels: []LabelRule{{Key: "example.com/drain", Value: 1}}},
-		"label with a space":          {labels: []LabelRule{{Key: "example drain", Value: "true"}}},
-		"label value with a slash":    {labels: []LabelRule{{Key: "example.com/drain", Value: "a/b"}}},
-		"reason too long":             {labels: []LabelRule{{Key: strings.Repeat("a", maxReasonLen), Value: "true"}}},
-		"condition without type":      {conditions: []ConditionRule{{Status: "True"}}},
-		"condition without status":    {conditions: []ConditionRule{{Type: "Maintenance"}}},
-		"condition with a bad status": {conditions: []ConditionRule{{Type: "Maintenance", Status: "maybe"}}},
+		"label without key":                 {labels: []LabelRule{{Value: "true"}}},
+		"label without value":               {labels: []LabelRule{{Key: "example.com/drain"}}},
+		"label with an empty value":         {labels: []LabelRule{{Key: "example.com/drain", Value: ""}}},
+		"label with a number value":         {labels: []LabelRule{{Key: "example.com/drain", Value: 1}}},
+		"label with a space":                {labels: []LabelRule{{Key: "example drain", Value: "true"}}},
+		"label value with a slash":          {labels: []LabelRule{{Key: "example.com/drain", Value: "a/b"}}},
+		"reason too long":                   {labels: []LabelRule{{Key: strings.Repeat("a", maxReasonLen), Value: "true"}}},
+		"condition without type":            {conditions: []ConditionRule{{Status: "True"}}},
+		"condition without status":          {conditions: []ConditionRule{{Type: "Maintenance"}}},
+		"condition with a bad status":       {conditions: []ConditionRule{{Type: "Maintenance", Status: "maybe"}}},
+		"condition with a lowercase status": {conditions: []ConditionRule{{Type: "Maintenance", Status: "true"}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

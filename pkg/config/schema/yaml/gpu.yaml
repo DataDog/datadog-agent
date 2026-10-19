@@ -253,6 +253,18 @@ properties:
         env_parser: json
         items:
           type: object
+          properties:
+            key:
+              type: string
+              minLength: 1
+            value:
+              type:
+              - string
+              - boolean
+              minLength: 1
+          required:
+          - key
+          - value
         description: |-
           Node labels that make the node unschedulable, as a list of key and value,
           for example [{"key": "example.com/drain", "value": "true"}]. Both are
@@ -266,6 +278,20 @@ properties:
         env_parser: json
         items:
           type: object
+          properties:
+            type:
+              type: string
+              minLength: 1
+            status:
+              enum:
+              - 'True'
+              - 'False'
+              - Unknown
+              - true
+              - false
+          required:
+          - type
+          - status
         description: |-
           Node conditions that make the node unschedulable, as a list of type and
           status (True, False or Unknown), for example
