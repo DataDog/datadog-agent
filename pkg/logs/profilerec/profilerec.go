@@ -207,49 +207,110 @@ func droppedTotal(m *expvar.Map) int64 {
 	return total
 }
 
-// LossWindow turns the monotonic dropped / missed / processed / sent counters into recent-activity signals.
-// Each Observe records when a counter last increased, so a stale historical loss ages out instead of keeping a
-// recommendation pinned on, and delivery is judged on the latest interval rather than lifetime totals.
+// LossWindow turns the monotonic counters into recent-loss and delivery signals.
 type LossWindow struct {
 	mu                      sync.Mutex
 	seeded                  bool
-	lastDropped, lastMissed int64
+	lastMissed              int64
 	lastProcessed, lastSent int64
 	lastErrors              int64
-	droppedAt, missedAt     time.Time
+	missedAt                time.Time
 	delivering              bool
 }
 
-// Observe records the counters at time now and reports whether each kind of loss occurred within
-// LossRecencyWindow, plus whether the intake is currently delivering. The first call only seeds the
-// baseline, reporting no loss and assuming delivery.
-//
-// A send in the latest interval means delivering; processing or send errors without a send mean not;
-// an interval where nothing moved keeps the previous answer, since a stalled pipeline and an idle one look alike.
-func (w *LossWindow) Observe(c Counters, now time.Time) (droppedRecently, missedRecently, delivering bool) {
+// Observe reports whether bytes were missed within LossRecencyWindow and whether the intake is delivering.
+// The first call only seeds the baseline.
+func (w *LossWindow) Observe(c Counters, now time.Time) (missedRecently, delivering bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if !w.seeded {
 		w.seeded, w.delivering = true, true
-		w.lastDropped, w.lastMissed = c.Dropped, c.Missed
+		w.lastMissed = c.Missed
 		w.lastProcessed, w.lastSent, w.lastErrors = c.Processed, c.Sent, c.Errors
-		return false, false, true
-	}
-	if c.Dropped > w.lastDropped {
-		w.droppedAt = now
+		return false, true
 	}
 	if c.Missed > w.lastMissed {
 		w.missedAt = now
 	}
+	// An interval where nothing moved keeps the previous answer: a stalled pipeline and an idle one look alike.
 	switch {
 	case c.Sent > w.lastSent:
 		w.delivering = true
 	case c.Processed > w.lastProcessed || c.Errors > w.lastErrors:
 		w.delivering = false
 	}
-	w.lastDropped, w.lastMissed = c.Dropped, c.Missed
+	w.lastMissed = c.Missed
 	w.lastProcessed, w.lastSent, w.lastErrors = c.Processed, c.Sent, c.Errors
-	droppedRecently = !w.droppedAt.IsZero() && now.Sub(w.droppedAt) <= LossRecencyWindow
 	missedRecently = !w.missedAt.IsZero() && now.Sub(w.missedAt) <= LossRecencyWindow
-	return droppedRecently, missedRecently, w.delivering
+	return missedRecently, w.delivering
+}
+
+// SampleInterval is how often a Sampler observes the counters.
+const SampleInterval = 15 * time.Second
+
+// Sampler observes the counters on a fixed interval so reading the signals does not change them.
+type Sampler struct {
+	read   func() Counters
+	window LossWindow
+
+	mu                 sync.RWMutex
+	missed, delivering bool
+
+	ticker   *time.Ticker
+	stop     chan struct{}
+	done     chan struct{}
+	stopOnce sync.Once
+}
+
+func newSampler(read func() Counters, now time.Time) *Sampler {
+	s := &Sampler{read: read, delivering: true, stop: make(chan struct{}), done: make(chan struct{})}
+	s.window.Observe(read(), now)
+	return s
+}
+
+// StartSampler observes read every SampleInterval until Stop.
+func StartSampler(read func() Counters) *Sampler {
+	s := newSampler(read, time.Now())
+	s.ticker = time.NewTicker(SampleInterval)
+	go func() {
+		defer close(s.done)
+		for {
+			select {
+			case now := <-s.ticker.C:
+				s.observe(now)
+			case <-s.stop:
+				return
+			}
+		}
+	}()
+	return s
+}
+
+func (s *Sampler) observe(now time.Time) {
+	missed, delivering := s.window.Observe(s.read(), now)
+	s.mu.Lock()
+	s.missed, s.delivering = missed, delivering
+	s.mu.Unlock()
+}
+
+// Signals returns the latest observation; a nil Sampler reports no loss and delivery.
+func (s *Sampler) Signals() (missedRecently, delivering bool) {
+	if s == nil {
+		return false, true
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.missed, s.delivering
+}
+
+// Stop ends sampling. It is safe to call on a nil or already stopped Sampler.
+func (s *Sampler) Stop() {
+	if s == nil || s.ticker == nil {
+		return
+	}
+	s.stopOnce.Do(func() {
+		s.ticker.Stop()
+		close(s.stop)
+		<-s.done
+	})
 }

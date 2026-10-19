@@ -39,7 +39,7 @@ type Builder struct {
 	logsExpVars     *expvar.Map
 	pipelineMonitor logsMetrics.PipelineMonitor
 	config          model.Reader
-	loss            profilerec.LossWindow
+	lossSignals     func() (missedRecently, delivering bool)
 }
 
 // NewBuilder returns a new builder. pipelineMonitor and cfg may be nil (e.g. in
@@ -58,9 +58,8 @@ func NewBuilder(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *
 	}
 }
 
-// getPerformanceProfile returns the active profile with each setting's effective
-// value and source, or nil when no profile is active or no config is available.
-func (b *Builder) getPerformanceProfile() *PerformanceProfile {
+// getPerformanceProfile returns the active profile, with each setting's effective value and source when verbose.
+func (b *Builder) getPerformanceProfile(verbose bool) *PerformanceProfile {
 	if b.config == nil {
 		return nil
 	}
@@ -69,6 +68,9 @@ func (b *Builder) getPerformanceProfile() *PerformanceProfile {
 		return nil
 	}
 	pp := &PerformanceProfile{Name: name, Version: version}
+	if !verbose {
+		return pp
+	}
 	for _, s := range settings {
 		pp.Settings = append(pp.Settings, PerformanceProfileSetting{
 			Key:    s.Key,
@@ -98,13 +100,16 @@ func (b *Builder) BuildStatus(verbose bool) Status {
 	if verbose {
 		componentUtilization = utils
 	}
-	profile := b.getPerformanceProfile()
+	profile := b.getPerformanceProfile(verbose)
 	activeProfile := ""
 	if profile != nil {
 		activeProfile = profile.Name
 	}
 	counters := profilerec.ReadCounters(b.logsExpVars)
-	_, missedRecently, delivering := b.loss.Observe(counters, time.Now())
+	missedRecently, delivering := false, true
+	if b.lossSignals != nil {
+		missedRecently, delivering = b.lossSignals()
+	}
 	return Status{
 		IsRunning:             b.getIsRunning(),
 		Endpoints:             b.getEndpoints(),
@@ -472,11 +477,11 @@ func (b *Builder) getMetricsStatus(verbose bool) map[string]string {
 	counters := profilerec.ReadCounters(b.logsExpVars)
 	metrics["LogsProcessed"] = strconv.FormatInt(b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value(), 10)
 	metrics["LogsSent"] = strconv.FormatInt(b.logsExpVars.Get("LogsSent").(*expvar.Int).Value(), 10)
-	metrics["LogsDropped"] = strconv.FormatInt(counters.Dropped, 10)
-	metrics["BytesMissed"] = strconv.FormatInt(counters.Missed, 10)
 	metrics["BytesSent"] = strconv.FormatInt(b.logsExpVars.Get("BytesSent").(*expvar.Int).Value(), 10)
 	metrics["RetryCount"] = strconv.FormatInt(b.logsExpVars.Get("RetryCount").(*expvar.Int).Value(), 10)
 	if verbose {
+		metrics["LogsDropped"] = strconv.FormatInt(counters.Dropped, 10)
+		metrics["BytesMissed"] = strconv.FormatInt(counters.Missed, 10)
 		metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
 		metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
 		metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
@@ -193,7 +195,11 @@ func TestStatusPerformanceProfile(t *testing.T) {
 	}))
 
 	status := Get(false)
+	require.NotNil(t, status.PerformanceProfile)
+	assert.Equal(t, "high-throughput", status.PerformanceProfile.Name)
+	assert.Empty(t, status.PerformanceProfile.Settings, "settings are verbose only")
 
+	status = Get(true)
 	require.NotNil(t, status.PerformanceProfile)
 	assert.Equal(t, "high-throughput", status.PerformanceProfile.Name)
 	assert.Equal(t, 1, status.PerformanceProfile.Version)
@@ -228,13 +234,13 @@ func TestStatusMetrics(t *testing.T) {
 	initStatus(t)
 
 	status := Get(false)
-	assert.Len(t, status.StatusMetrics, 6)
+	assert.Len(t, status.StatusMetrics, 4)
 	assert.Equal(t, "0", status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, "0", status.StatusMetrics["LogsSent"])
-	assert.Equal(t, "0", status.StatusMetrics["LogsDropped"])
-	assert.Equal(t, "0", status.StatusMetrics["BytesMissed"])
 	assert.Equal(t, "0", status.StatusMetrics["BytesSent"])
 	assert.Equal(t, "0", status.StatusMetrics["RetryCount"])
+	assert.NotContains(t, status.StatusMetrics, "LogsDropped")
+	assert.NotContains(t, status.StatusMetrics, "BytesMissed")
 	assert.NotContains(t, status.StatusMetrics, "SenderLatency")
 	assert.NotContains(t, status.StatusMetrics, "EncodedBytesSent")
 	assert.NotContains(t, status.StatusMetrics, "RetryTimeSpent")
@@ -259,7 +265,7 @@ func TestStatusMetrics(t *testing.T) {
 	metrics.RetryTimeSpent.Set(int64(time.Hour * 2))
 	metrics.LogsTruncated.Set(64)
 	status = Get(false)
-	assert.Len(t, status.StatusMetrics, 6)
+	assert.Len(t, status.StatusMetrics, 4)
 	assert.Equal(t, "5", status.StatusMetrics["LogsProcessed"])
 	assert.Equal(t, "3", status.StatusMetrics["LogsSent"])
 	assert.Equal(t, "42", status.StatusMetrics["BytesSent"])
@@ -379,9 +385,6 @@ func TestGetBackpressureStatus_SaturatedPicksHighestRatio(t *testing.T) {
 	assert.Equal(t, "SATURATED", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "highest AvgRatio component must appear in reason")
 }
-
-// getProfileRecommendation signature: (utils, activeProfile, latencyMs, missed, delivering).
-// Missed bytes are the gate; saturation only localizes the bottleneck.
 
 func TestProfileRecommendation_ProcessorBottleneckIsCPUBound(t *testing.T) {
 	b := &Builder{}
@@ -566,7 +569,7 @@ func TestStatusMetricsIncludesLoss(t *testing.T) {
 	dropped2.Set(3)
 	metrics.DestinationLogsDropped.Set("host-b", dropped2)
 
-	status := Get(false)
+	status := Get(true)
 	assert.Equal(t, "4096", status.StatusMetrics["BytesMissed"])
 	assert.Equal(t, "10", status.StatusMetrics["LogsDropped"], "LogsDropped must sum drops across all destinations")
 }
@@ -591,4 +594,31 @@ func TestGetBackpressureStatus_WarningPicksHighestSat1m(t *testing.T) {
 	bp := b.getBackpressureStatus(snaps)
 	assert.Equal(t, "WARNING", bp.State)
 	assert.Contains(t, bp.Reason, "sender", "component with highest Saturated1mSeconds must appear in reason")
+}
+
+type snapshotMonitor struct {
+	*metrics.NoopPipelineMonitor
+	snaps []metrics.ComponentSnapshot
+}
+
+func (m snapshotMonitor) Snapshots() []metrics.ComponentSnapshot { return m.snaps }
+
+func TestBuildStatusUsesLossSignals(t *testing.T) {
+	mockConfig := configmock.New(t)
+	endpoints, _ := config.BuildEndpoints(mockConfig, config.HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	monitor := snapshotMonitor{
+		NoopPipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+		snaps:               []metrics.ComponentSnapshot{metrics.SaturatedSnapshotForTest("processor", "0", 0.97, 2*time.Minute, true)},
+	}
+	b := NewBuilder(atomic.NewUint32(StatusRunning), endpoints, sources.NewLogSources(), tailers.NewTailerTracker(),
+		config.NewMessages(), config.NewMessages(), metrics.LogsExpvars, monitor, mockConfig)
+
+	assert.Nil(t, b.BuildStatus(false).ProfileRecommendation, "no loss signal, no recommendation")
+
+	b.lossSignals = func() (bool, bool) { return true, true }
+	for range 2 {
+		rec := b.BuildStatus(false).ProfileRecommendation
+		require.NotNil(t, rec, "building status must not consume the signal")
+		assert.Equal(t, "high-throughput", rec.Profile)
+	}
 }

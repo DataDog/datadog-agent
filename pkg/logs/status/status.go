@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/profilerec"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
@@ -44,6 +45,7 @@ var (
 	builder  *Builder
 	warnings *config.Messages
 	errors   *config.Messages
+	sampler  *profilerec.Sampler
 
 	// currentTransport is the current transport used by logs-agent, i.e TCP or HTTP
 	currentTransport Transport
@@ -172,6 +174,9 @@ func Init(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *source
 	warnings = config.NewMessages()
 	errors = config.NewMessages()
 	builder = NewBuilder(isRunning, endpoints, sources, tracker, warnings, errors, logExpVars, pipelineMonitor, coreConfig)
+	sampler.Stop()
+	sampler = profilerec.StartSampler(func() profilerec.Counters { return profilerec.ReadCounters(logExpVars) })
+	builder.lossSignals = sampler.Signals
 }
 
 // Clear clears the status which means it needs to be initialized again to be used.
@@ -182,6 +187,8 @@ func Clear() {
 	builder = nil
 	warnings = nil
 	errors = nil
+	sampler.Stop()
+	sampler = nil
 }
 
 // Get returns the status of the logs-agent computed on the fly.

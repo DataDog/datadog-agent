@@ -197,37 +197,20 @@ func TestLossWindowRecency(t *testing.T) {
 	var w LossWindow
 	base := time.Unix(1000, 0)
 
-	// First observation only seeds the baseline.
-	dr, mr, _ := w.Observe(Counters{Dropped: 5}, base)
-	assert.False(t, dr)
-	assert.False(t, mr)
+	missed, _ := w.Observe(Counters{Missed: 5}, base)
+	assert.False(t, missed, "the first observation only seeds the baseline")
 
-	// A subsequent increase counts as recent loss (recorded at base+1s).
-	dr, mr, _ = w.Observe(Counters{Dropped: 7}, base.Add(time.Second))
-	assert.True(t, dr)
-	assert.False(t, mr)
+	missed, _ = w.Observe(Counters{Missed: 7}, base.Add(time.Second))
+	assert.True(t, missed)
 
-	// No further increase: still recent within the window.
-	dr, _, _ = w.Observe(Counters{Dropped: 7}, base.Add(2*time.Minute))
-	assert.True(t, dr)
+	missed, _ = w.Observe(Counters{Missed: 7}, base.Add(2*time.Minute))
+	assert.True(t, missed)
 
-	// Past the window with no new loss: ages out.
-	dr, _, _ = w.Observe(Counters{Dropped: 7}, base.Add(time.Second+LossRecencyWindow+time.Second))
-	assert.False(t, dr, "stale loss must age out of the recency window")
+	missed, _ = w.Observe(Counters{Missed: 7}, base.Add(time.Second+LossRecencyWindow+time.Second))
+	assert.False(t, missed, "stale loss must age out of the recency window")
 
-	// A fresh increase makes it recent again.
-	dr, _, _ = w.Observe(Counters{Dropped: 8}, base.Add(time.Second+LossRecencyWindow+2*time.Second))
-	assert.True(t, dr)
-}
-
-func TestLossWindowMissed(t *testing.T) {
-	var w LossWindow
-	base := time.Unix(1000, 0)
-
-	w.Observe(Counters{}, base)
-	dr, mr, _ := w.Observe(Counters{Missed: 100}, base.Add(time.Second))
-	assert.False(t, dr)
-	assert.True(t, mr)
+	missed, _ = w.Observe(Counters{Missed: 8}, base.Add(time.Second+LossRecencyWindow+2*time.Second))
+	assert.True(t, missed)
 }
 
 func TestLossWindowDelivering(t *testing.T) {
@@ -235,27 +218,61 @@ func TestLossWindowDelivering(t *testing.T) {
 	base := time.Unix(1000, 0)
 	at := func(sec int) time.Time { return base.Add(time.Duration(sec) * time.Second) }
 
-	_, _, delivering := w.Observe(Counters{}, at(0))
+	_, delivering := w.Observe(Counters{}, at(0))
 	assert.True(t, delivering, "the seed assumes delivery")
 
-	_, _, delivering = w.Observe(Counters{Processed: 100}, at(1))
+	_, delivering = w.Observe(Counters{Processed: 100}, at(1))
 	assert.False(t, delivering, "processing without a send")
 
-	_, _, delivering = w.Observe(Counters{Processed: 100, Sent: 50}, at(2))
+	_, delivering = w.Observe(Counters{Processed: 100, Sent: 50}, at(2))
 	assert.True(t, delivering)
-	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 50}, at(3))
+	_, delivering = w.Observe(Counters{Processed: 200, Sent: 50}, at(3))
 	assert.False(t, delivering, "a warm outage is detected despite lifetime sends")
 
-	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 150}, at(4))
+	_, delivering = w.Observe(Counters{Processed: 200, Sent: 150}, at(4))
 	assert.True(t, delivering)
-	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 150}, at(5))
+	_, delivering = w.Observe(Counters{Processed: 200, Sent: 150}, at(5))
 	assert.True(t, delivering, "an idle pipeline keeps delivering")
 
-	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 150, Errors: 3}, at(6))
+	_, delivering = w.Observe(Counters{Processed: 200, Sent: 150, Errors: 3}, at(6))
 	assert.False(t, delivering, "send errors without a send, with processing stalled behind them")
-	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 150, Errors: 3}, at(7))
+	_, delivering = w.Observe(Counters{Processed: 200, Sent: 150, Errors: 3}, at(7))
 	assert.False(t, delivering, "a stalled pipeline during backoff stays not delivering")
 
-	_, _, delivering = w.Observe(Counters{Processed: 200, Sent: 160, Errors: 5}, at(8))
+	_, delivering = w.Observe(Counters{Processed: 200, Sent: 160, Errors: 5}, at(8))
 	assert.True(t, delivering, "a send in the interval wins over errors from another destination")
+}
+
+func TestSamplerSignalsDoNotDependOnReads(t *testing.T) {
+	counters := Counters{Missed: 10, Processed: 100, Sent: 100}
+	base := time.Unix(1000, 0)
+	s := newSampler(func() Counters { return counters }, base)
+
+	missed, delivering := s.Signals()
+	assert.False(t, missed)
+	assert.True(t, delivering)
+
+	counters.Missed, counters.Processed = 20, 200
+	s.observe(base.Add(SampleInterval))
+	for range 3 {
+		missed, delivering = s.Signals()
+		assert.True(t, missed, "repeated reads return the same observation")
+		assert.False(t, delivering)
+	}
+
+	s.observe(base.Add(SampleInterval + LossRecencyWindow + time.Second))
+	missed, _ = s.Signals()
+	assert.False(t, missed, "loss ages out on the sampling clock")
+}
+
+func TestSamplerStop(t *testing.T) {
+	s := StartSampler(func() Counters { return Counters{} })
+	s.Stop()
+	s.Stop()
+
+	var nilSampler *Sampler
+	nilSampler.Stop()
+	missed, delivering := nilSampler.Signals()
+	assert.False(t, missed)
+	assert.True(t, delivering)
 }
