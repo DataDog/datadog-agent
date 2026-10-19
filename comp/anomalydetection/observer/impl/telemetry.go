@@ -282,6 +282,21 @@ func classifyLogSource(source string, tags []string) string {
 	return "containers"
 }
 
+// classifyLogSourceByOrigin resolves the log source category without inspecting
+// tags when either the handle source or the log's origin source is known.
+func classifyLogSourceByOrigin(handleSource, rawSource string) string {
+	if handleSource == "agent_logs" || rawSource == agentLogSource {
+		return "internal"
+	}
+	if rawSource == "kubelet" {
+		return "kubelet"
+	}
+	if rawSource != "" {
+		return "containers"
+	}
+	return ""
+}
+
 func (t *observerTelemetry) recordProcessingTime(detectorTag string, durationNs float64) {
 	t.processingTime.Set(durationNs, detectorTag)
 }

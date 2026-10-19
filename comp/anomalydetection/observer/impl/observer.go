@@ -400,7 +400,6 @@ func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
 type disabledObserver struct{}
 
 func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
-func (*disabledObserver) RecordSamplerDropped(_, _ string)      {}
 func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
 
 func (*disabledObserver) SubscribeSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.SeverityEventListener) (severityeventsdef.SeverityEventsSubscription, error) {
@@ -1041,13 +1040,6 @@ func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView,
 	return false
 }
 
-// RecordSamplerDropped increments the observer input-rate-limiter drop counter.
-func (o *observerImpl) RecordSamplerDropped(source, priority string) {
-	if o.telemetry != nil {
-		o.telemetry.recordInputRateLimiterDropped(source, priority)
-	}
-}
-
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
 	// For simplicity, just dump directly (storage access is single-threaded from run loop,
@@ -1541,11 +1533,24 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		return
 	}
 
-	rawTags := msg.Tags()
-	logSource := classifyLogSource(h.source, rawTags)
 	status := msg.GetStatus()
-	if h.logFilter != nil && logsfilter.BucketForStatus(status) < h.logFilter.minBucketForSource(logSource) {
+	bucket := logsfilter.BucketForStatus(status)
+	var rawTags []string
+	hasRawTags := false
+	logSource := classifyLogSourceByOrigin(h.source, rawSource)
+	if logSource == "" {
+		if h.logFilter != nil && h.logFilter.kubelet.minBucket == h.logFilter.containers.minBucket && bucket < h.logFilter.containers.minBucket {
+			return
+		}
+		rawTags = msg.Tags()
+		hasRawTags = true
+		logSource = classifyLogSource(h.source, rawTags)
+	}
+	if h.logFilter != nil && bucket < h.logFilter.minBucketForSource(logSource) {
 		return
+	}
+	if !hasRawTags {
+		rawTags = msg.Tags()
 	}
 
 	admissionTime := time.Now()

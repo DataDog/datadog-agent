@@ -23,12 +23,11 @@ import (
 type precheckOnlyLogView struct {
 	source string
 	status string
-	tags   []string
 }
 
 func (l *precheckOnlyLogView) GetSource() string          { return l.source }
 func (l *precheckOnlyLogView) GetStatus() string          { return l.status }
-func (l *precheckOnlyLogView) Tags() []string             { return l.tags }
+func (*precheckOnlyLogView) Tags() []string               { panic("tags must not be read") }
 func (*precheckOnlyLogView) GetContent() string           { panic("content must not be read") }
 func (*precheckOnlyLogView) GetHostname() string          { panic("hostname must not be read") }
 func (*precheckOnlyLogView) GetTimestampUnixMilli() int64 { panic("timestamp must not be read") }
@@ -66,7 +65,7 @@ func TestLogHandoffRejectsSourceOnlyAndMinSeverityBeforeSnapshot(t *testing.T) {
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryFilteredLogs, nil).GetCounter().GetValue())
 
 	// Below min_severity rejects before copying tags or reading content.
-	h.ObserveLog(&precheckOnlyLogView{source: "docker", status: "info", tags: []string{"env:prod"}})
+	h.ObserveLog(&precheckOnlyLogView{source: "docker", status: "info"})
 	assert.Empty(t, ch)
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryFilteredLogs, nil).GetCounter().GetValue())
 }

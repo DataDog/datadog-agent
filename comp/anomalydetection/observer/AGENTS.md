@@ -36,7 +36,7 @@ and the testbench use the same engine.
 
 | File | Purpose |
 |------|---------|
-| `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
+| `def/component.go` | Component interface (GetHandle, DumpMetrics, SubscribeSeverityEvents) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
 | `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |
