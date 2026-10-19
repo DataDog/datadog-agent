@@ -1026,7 +1026,7 @@ type fakeStatusInstance struct {
 	mu               sync.Mutex
 	orgEnabled       bool
 	apiKeyAuthorized bool
-	lastError        string
+	lastError        error
 }
 
 var _ StatusInstance = (*fakeStatusInstance)(nil)
@@ -1043,10 +1043,10 @@ func (f *fakeStatusInstance) SetAPIKeyAuthorized(authorized bool) {
 	f.apiKeyAuthorized = authorized
 }
 
-func (f *fakeStatusInstance) SetLastError(message string) {
+func (f *fakeStatusInstance) SetLastError(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.lastError = message
+	f.lastError = err
 }
 
 func (f *fakeStatusInstance) get() fakeStatusInstance {
@@ -1072,7 +1072,7 @@ func TestDefaultStatusInstancePublishesLegacyKeys(t *testing.T) {
 	instance := expvarStatusInstance{}
 	instance.SetOrgEnabled(true)
 	instance.SetAPIKeyAuthorized(true)
-	instance.SetLastError("boom")
+	instance.SetLastError(errors.New("boom"))
 
 	// map[string]string also fails loudly on a nested object.
 	var state map[string]string

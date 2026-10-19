@@ -244,8 +244,8 @@ type RcTelemetryReporter interface {
 type StatusInstance interface {
 	SetOrgEnabled(enabled bool)
 	SetAPIKeyAuthorized(authorized bool)
-	// SetLastError reports the last refresh error, or "" on success
-	SetLastError(message string)
+	// SetLastError reports the last refresh error, or nil on success
+	SetLastError(err error)
 }
 
 // expvarStatusInstance reports to the process-wide "remoteConfigStatus" expvars
@@ -259,8 +259,12 @@ func (expvarStatusInstance) SetAPIKeyAuthorized(authorized bool) {
 	exportedStatusKeyAuthorized.Set(strconv.FormatBool(authorized))
 }
 
-func (expvarStatusInstance) SetLastError(message string) {
-	exportedLastUpdateErr.Set(message)
+func (expvarStatusInstance) SetLastError(err error) {
+	if err == nil {
+		exportedLastUpdateErr.Set("")
+		return
+	}
+	exportedLastUpdateErr.Set(err.Error())
 }
 
 // orgStatusPoller handles periodic polling of the organization status from the remote config backend
@@ -803,7 +807,7 @@ func (s *CoreAgentService) logRefreshError(err error) {
 			defer s.mu.Unlock()
 			return s.mu.fetchConfigs503And504ErrCount
 		}()
-		s.status.SetLastError(err.Error())
+		s.status.SetLastError(err)
 		if fetchConfigs503And504ErrCount < maxFetchConfigsUntilLogLevelErrors {
 			log.Warnf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		} else {
@@ -943,7 +947,7 @@ func (s *CoreAgentService) refresh() error {
 
 	s.mu.backoffErrorCount = s.backoffPolicy.DecError(s.mu.backoffErrorCount)
 
-	s.status.SetLastError("")
+	s.status.SetLastError(nil)
 
 	return nil
 }
