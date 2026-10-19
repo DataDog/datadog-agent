@@ -12,6 +12,7 @@
 package otlpidx
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -19,7 +20,10 @@ import (
 
 	"google.golang.org/protobuf/encoding/protowire"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 // maxAnyValueDepth bounds recursion through nested ArrayValue / KeyValueList attributes.
@@ -153,8 +157,13 @@ func shortBytesField(b []byte) (num protowire.Number, val, rest []byte, ok bool)
 	return protowire.Number(b[0] >> 3), b[hdr : hdr+n], b[hdr+n:], true
 }
 
-// Options controls decoding variants.
+// Options controls decoding.
 type Options struct {
+	// Conf is the trace-agent configuration: fallback hostname, attributes translator, OTLP
+	// sampling and feature flags. Required. Check Supported(Conf) before decoding.
+	Conf *config.AgentConfig
+	// HostFromAttributesHandler is passed to the attributes translator when resolving the source.
+	HostFromAttributesHandler attributes.HostFromAttributesHandler
 	// ResourceAttributesOnPayload stores resource attributes once in the payload's Attributes
 	// instead of copying them into every span. The V1 intake doesn't yet propagate payload
 	// attributes to spans (see otlp-to-v1-plan.md), so this is off by default.
@@ -164,17 +173,23 @@ type Options struct {
 	SkipSemantics bool
 }
 
-// DecodeExportRequest decodes a serialized ExportTraceServiceRequest into one
-// InternalTracerPayload per ResourceSpans, mirroring the existing receiver which treats each
-// ResourceSpans as a separate payload. Strings are copied into each payload's StringTable, so
-// the result does not alias b.
-func DecodeExportRequest(b []byte) ([]*idx.InternalTracerPayload, error) {
-	return DecodeExportRequestWithOptions(b, Options{})
+// Payload is the decoded form of one ResourceSpans.
+type Payload struct {
+	TracerPayload *idx.InternalTracerPayload
+	// Source is the host or serverless source resolved from the resource.
+	Source source.Source
+	// StatsComputed is the value of the _dd.stats_computed resource attribute, or nil when it is
+	// absent and the request header decides.
+	StatsComputed *bool
+	// SpanCount is the number of spans decoded.
+	SpanCount int
 }
 
-// DecodeExportRequestWithOptions is DecodeExportRequest with explicit Options.
-func DecodeExportRequestWithOptions(b []byte, opts Options) ([]*idx.InternalTracerPayload, error) {
-	var out []*idx.InternalTracerPayload
+// Decode decodes a serialized ExportTraceServiceRequest into one Payload per ResourceSpans,
+// mirroring the existing receiver which treats each ResourceSpans as a separate payload. Strings
+// are copied into each payload's StringTable, so the result does not alias b.
+func Decode(ctx context.Context, b []byte, opts Options) ([]Payload, error) {
+	var out []Payload
 	for len(b) > 0 {
 		f, rest, err := next(b)
 		if err != nil {
@@ -184,11 +199,11 @@ func DecodeExportRequestWithOptions(b []byte, opts Options) ([]*idx.InternalTrac
 		if f.num != fExportResourceSpans || f.typ != protowire.BytesType {
 			continue
 		}
-		tp, err := decodeResourceSpans(f.val, opts)
+		p, err := decodeResourceSpans(ctx, f.val, opts)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, tp)
+		out = append(out, p)
 	}
 	return out, nil
 }
@@ -200,8 +215,10 @@ type decoder struct {
 	// resAttrs are the resource attributes. Span attributes take precedence over them.
 	resAttrs map[uint32]*idx.AnyValue
 	// resRenames are the resource attribute keys that the Datadog key mapping renames or drops,
-	// replayed onto each span when resource attributes are copied into spans.
+	// applied to the payload attributes when resource attributes are stored on the payload.
 	resRenames []rename
+	// resMerge are the resource attributes copied onto spans that don't have the key.
+	resMerge []resMerge
 	// renames collects the current span's attribute keys to rename or drop once semantic
 	// lookups, which use the original OTel keys, are done.
 	renames []rename
@@ -222,6 +239,15 @@ type decoder struct {
 	// lastTraceID is the previous span's trace ID, and lastTraceIDRef its hex string reference.
 	lastTraceID    [16]byte
 	lastTraceIDRef uint32
+	spanCount      int
+	// topLevelByKind and scopeConvention cache the enable_otlp_compute_top_level_by_span_kind and
+	// (inverted) disable_otel_scope_convention feature flags.
+	topLevelByKind, scopeConvention bool
+	// lastTracestate is the previous span's raw tracestate, and lastSampleRate the sampling
+	// probability decoded from it (ok false if none).
+	lastTracestate   string
+	lastSampleRate   float64
+	lastSampleRateOK bool
 	// priorities are user-set sampling priorities by trace ID.
 	priorities map[[16]byte]int32
 	chunks     map[[16]byte]*idx.InternalTraceChunk
@@ -230,10 +256,11 @@ type decoder struct {
 
 // rawSpan carries the OTLP fields that don't map onto idx.Span directly.
 type rawSpan struct {
-	traceID      [16]byte
-	statusCode   uint64
-	statusMsgRef uint32
-	hasException bool
+	traceID       [16]byte
+	statusCode    uint64
+	statusMsgRef  uint32
+	tracestateRef uint32
+	hasException  bool
 }
 
 // stringTableHint estimates the number of distinct strings in a ResourceSpans of n bytes, so the
@@ -243,7 +270,7 @@ func stringTableHint(n int) int {
 	return min(max(n/32, 32), 128)
 }
 
-func decodeResourceSpans(b []byte, opts Options) (*idx.InternalTracerPayload, error) {
+func decodeResourceSpans(ctx context.Context, b []byte, opts Options) (Payload, error) {
 	d := &decoder{
 		opts:    opts,
 		strings: idx.NewStringTableWithCapacity(stringTableHint(len(b))),
@@ -252,27 +279,31 @@ func decodeResourceSpans(b []byte, opts Options) (*idx.InternalTracerPayload, er
 	d.resRenames = d.resRenamesBuf[:0]
 	d.renames = d.renamesBuf[:0]
 	d.keptKeys = d.keptKeysBuf[:0]
+	if opts.Conf != nil {
+		d.topLevelByKind = opts.Conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
+		d.scopeConvention = !opts.Conf.HasFeature("disable_otel_scope_convention")
+	}
 	// Pass 1: protobuf permits fields in any order, so locate the resource before decoding
 	// spans, which need the resource attributes.
 	resource, err := lastBytesField(b, fResourceSpansResource)
 	if err != nil {
-		return nil, err
+		return Payload{}, err
 	}
-	if err := d.decodeResource(resource); err != nil {
-		return nil, err
+	if err := d.decodeResource(ctx, resource); err != nil {
+		return Payload{}, err
 	}
 	// Pass 2: scope spans.
 	for len(b) > 0 {
 		f, rest, err := next(b)
 		if err != nil {
-			return nil, err
+			return Payload{}, err
 		}
 		b = rest
 		if f.num != fResourceSpansScopeSpans || f.typ != protowire.BytesType {
 			continue
 		}
 		if err := d.decodeScopeSpans(f.val); err != nil {
-			return nil, err
+			return Payload{}, err
 		}
 	}
 	tp := &idx.InternalTracerPayload{
@@ -283,10 +314,16 @@ func decodeResourceSpans(b []byte, opts Options) (*idx.InternalTracerPayload, er
 		tp.Attributes = d.resAttrs
 	}
 	d.finishPayload(tp)
-	return tp, nil
+	return Payload{
+		TracerPayload: tp,
+		Source:        d.res.source,
+		StatsComputed: d.res.statsComputed,
+		SpanCount:     d.spanCount,
+	}, nil
 }
 
-func (d *decoder) decodeResource(b []byte) error {
+func (d *decoder) decodeResource(ctx context.Context, resource []byte) error {
+	b := resource
 	d.resAttrs = make(map[uint32]*idx.AnyValue)
 	d.keys = &d.resKeys
 	for len(b) > 0 {
@@ -307,7 +344,20 @@ func (d *decoder) decodeResource(b []byte) error {
 			d.resRenames = append(d.resRenames, r)
 		}
 	}
-	d.resourceSemantics()
+	if d.opts.SkipSemantics {
+		d.spanDefaults()
+		for k, v := range d.resAttrs {
+			d.resMerge = append(d.resMerge, resMerge{key: k, val: v})
+		}
+		return nil
+	}
+	// Like receiveResourceSpansV2, payload-level values are read from the full resource, and
+	// span-level defaults from the resource minus the attributes consumed as container tags.
+	d.payloadSemantics()
+	if err := d.resourceSource(ctx, resource); err != nil {
+		return err
+	}
+	d.spanDefaults()
 	return nil
 }
 
@@ -369,6 +419,10 @@ func (d *decoder) decodeScopeSpans(b []byte) error {
 		} else {
 			d.spanSemantics(span, &raw, lib)
 		}
+		if !d.opts.ResourceAttributesOnPayload {
+			d.mergeResource(span.Attributes)
+		}
+		d.spanCount++
 		d.lastAttrs = len(span.Attributes)
 		d.addSpan(raw.traceID, idx.NewInternalSpan(d.strings, span))
 	}
@@ -490,6 +544,31 @@ func (d *decoder) cloneValue(v *idx.AnyValue) *idx.AnyValue {
 	return d.stringValue(0)
 }
 
+// resMerge is a resource attribute copied onto spans under key, as a copy of val.
+type resMerge struct {
+	key uint32
+	val *idx.AnyValue
+}
+
+// mergeResource copies the resource attributes onto a span's attributes where the span doesn't
+// have the key. Like today's conversion, this runs after the span's semantic mapping.
+func (d *decoder) mergeResource(attrs map[uint32]*idx.AnyValue) {
+	for _, m := range d.resMerge {
+		if _, ok := attrs[m.key]; !ok {
+			attrs[m.key] = d.cloneValue(m.val)
+		}
+	}
+}
+
+// isComposite reports whether v is an array, map or bytes value.
+func isComposite(v *idx.AnyValue) bool {
+	switch v.Value.(type) {
+	case *idx.AnyValue_ArrayValue, *idx.AnyValue_KeyValueList, *idx.AnyValue_BytesValue:
+		return true
+	}
+	return false
+}
+
 // minAttrsHint is the attribute map size hint for the first span of a payload.
 const minAttrsHint = 16
 
@@ -545,7 +624,8 @@ func (d *decoder) decodeSpan(b []byte) (*idx.Span, rawSpan, error) {
 		case fSpanTraceState:
 			if len(f.val) > 0 {
 				d.keys.add(keySig("w3c.tracestate"))
-				span.Attributes[d.strings.Add("w3c.tracestate")] = d.stringValue(d.strings.AddBytes(f.val))
+				raw.tracestateRef = d.strings.AddBytes(f.val)
+				span.Attributes[d.strings.Add("w3c.tracestate")] = d.stringValue(raw.tracestateRef)
 			}
 		case fSpanName:
 			span.NameRef = d.strings.AddBytes(f.val)
@@ -559,6 +639,14 @@ func (d *decoder) decodeSpan(b []byte) (*idx.Span, rawSpan, error) {
 			k, v, err := d.decodeKeyValue(f.val, 0)
 			if err != nil {
 				return nil, raw, err
+			}
+			if !d.opts.SkipSemantics && isComposite(v) {
+				// Like today's conversion, store arrays, maps and bytes as their string form.
+				s, err := attrAsString(f.val)
+				if err != nil {
+					return nil, raw, err
+				}
+				v = d.stringValue(d.strings.Add(s))
 			}
 			span.Attributes[k] = v
 			if r, ok := d.renameFor(k); ok {
@@ -595,15 +683,6 @@ func (d *decoder) decodeSpan(b []byte) (*idx.Span, rawSpan, error) {
 				}
 			}
 		}
-	}
-	if !d.opts.ResourceAttributesOnPayload {
-		// Resource attributes have lower precedence than span attributes.
-		for k, v := range d.resAttrs {
-			if _, ok := span.Attributes[k]; !ok {
-				span.Attributes[k] = d.cloneValue(v)
-			}
-		}
-		d.renames = append(d.renames, d.resRenames...)
 	}
 	span.Start = start
 	if end > start {

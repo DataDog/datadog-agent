@@ -202,10 +202,13 @@ func BenchmarkOTLPIngest(b *testing.B) {
 			{"direct_idx_res_on_payload", otlpidx.Options{ResourceAttributesOnPayload: true}},
 		} {
 			b.Run(p.name+"/"+v.name, func(b *testing.B) {
+				opts := v.opts
+				opts.Conf = NewBenchmarkTestConfig(b)
 				b.SetBytes(int64(len(raw)))
 				b.ReportAllocs()
+				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					if _, err := otlpidx.DecodeExportRequestWithOptions(raw, v.opts); err != nil {
+					if _, err := otlpidx.Decode(context.Background(), raw, opts); err != nil {
 						b.Fatal(err)
 					}
 				}

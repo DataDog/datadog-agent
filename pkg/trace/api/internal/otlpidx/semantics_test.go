@@ -105,20 +105,57 @@ var semanticsFixtures = []semanticsFixture{
 		res:   map[string]any{"shared": "res", "deployment.environment.name": "res-env"},
 		attrs: map[string]any{"shared": "span", "deployment.environment.name": "span-env", "count": 3, "ratio": 0.25, "ok": true},
 	},
+	{
+		name: "composite span attributes", kind: ptrace.SpanKindServer, spanName: "s",
+		attrs: map[string]any{
+			"process.command_args": []any{"/app", "--port=8080", 3},
+			"nested":               map[string]any{"inner": "v", "n": 1, "deeper": map[string]any{"x": true}},
+			"payload":              []byte{0xde, 0xad, 0xbe, 0xef},
+			"empty.list":           []any{},
+			"flag":                 false,
+		},
+	},
+	{
+		name: "typed resource attributes", kind: ptrace.SpanKindServer, spanName: "s",
+		res: map[string]any{
+			"process.pid": 42, "host.cpu.ratio": 0.5, "res.flag": true,
+			"process.command_args": []any{"/app", "-v"}, "res.map": map[string]any{"a": "b"},
+			"http.request.method": "GET",
+		},
+		attrs: map[string]any{"count": 3},
+	},
+	{
+		name: "db.name from resource wins over db.namespace", kind: ptrace.SpanKindClient, spanName: "q",
+		res:   map[string]any{"db.name": "res-db"},
+		attrs: map[string]any{"db.system": "postgresql", "db.namespace": "span-ns"},
+	},
 }
 
 func putAttrs(m pcommon.Map, from map[string]any) {
 	for k, v := range from {
-		switch x := v.(type) {
-		case string:
-			m.PutStr(k, x)
-		case int:
-			m.PutInt(k, int64(x))
-		case float64:
-			m.PutDouble(k, x)
-		case bool:
-			m.PutBool(k, x)
+		putValue(m.PutEmpty(k), v)
+	}
+}
+
+func putValue(dst pcommon.Value, v any) {
+	switch x := v.(type) {
+	case string:
+		dst.SetStr(x)
+	case int:
+		dst.SetInt(int64(x))
+	case float64:
+		dst.SetDouble(x)
+	case bool:
+		dst.SetBool(x)
+	case []byte:
+		dst.SetEmptyBytes().FromRaw(x)
+	case []any:
+		s := dst.SetEmptySlice()
+		for _, e := range x {
+			putValue(s.AppendEmpty(), e)
 		}
+	case map[string]any:
+		putAttrs(dst.SetEmptyMap(), x)
 	}
 }
 
@@ -153,7 +190,7 @@ func TestSemanticsMatchV04(t *testing.T) {
 			b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
 			require.NoError(t, err)
 			for _, opts := range []Options{{}, {ResourceAttributesOnPayload: true}} {
-				tps, err := DecodeExportRequestWithOptions(b, opts)
+				tps, err := decodeForTest(b, opts)
 				require.NoError(t, err)
 				assertMatchesV04(t, want, tps[0], tps[0].Chunks[0].Spans[0])
 			}
@@ -189,7 +226,7 @@ func TestSemanticsMatchV04MultiSpan(t *testing.T) {
 	}
 	b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
 	require.NoError(t, err)
-	tps, err := DecodeExportRequest(b)
+	tps, err := decodeForTest(b)
 	require.NoError(t, err)
 	tp := tps[0]
 	require.Len(t, tp.Chunks[0].Spans, len(names))

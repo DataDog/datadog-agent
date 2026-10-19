@@ -6,24 +6,64 @@
 package otlpidx
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/protobuf/encoding/protowire"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 var (
 	traceA = pcommon.TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	traceB = pcommon.TraceID{16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1}
 )
+
+// newTestConf returns a default trace-agent config with an attributes translator, as the OTLP
+// receiver has.
+func newTestConf() *config.AgentConfig {
+	conf := config.New()
+	tr, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	if err != nil {
+		panic(err)
+	}
+	conf.OTLPReceiver.AttributesTranslator = tr
+	return conf
+}
+
+var testConf = sync.OnceValue(newTestConf)
+
+// decodeForTest decodes b with opts (the default test config unless opts sets Conf) and returns
+// the tracer payloads.
+func decodeForTest(b []byte, opts ...Options) ([]*idx.InternalTracerPayload, error) {
+	var o Options
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	if o.Conf == nil {
+		o.Conf = testConf()
+	}
+	ps, err := Decode(context.Background(), b, o)
+	if err != nil {
+		return nil, err
+	}
+	tps := make([]*idx.InternalTracerPayload, len(ps))
+	for i, p := range ps {
+		tps[i] = p.TracerPayload
+	}
+	return tps, nil
+}
 
 func buildRequest(t *testing.T) []byte {
 	td := ptrace.NewTraces()
@@ -108,7 +148,7 @@ func str(tp *idx.InternalTracerPayload, v *idx.AnyValue) string {
 }
 
 func TestDecodeExportRequest(t *testing.T) {
-	tps, err := DecodeExportRequest(buildRequest(t))
+	tps, err := decodeForTest(buildRequest(t))
 	require.NoError(t, err)
 	require.Len(t, tps, 1)
 	tp := tps[0]
@@ -151,15 +191,10 @@ func TestDecodeExportRequest(t *testing.T) {
 	assert.False(t, hasAttr(tp, ps, "http.response.status_code"), "OTel key is renamed to the DD key")
 	assert.Equal(t, 0.5, attr(t, tp, ps, "ratio").GetDoubleValue())
 	assert.True(t, attr(t, tp, ps, "flag").GetBoolValue())
-	assert.Equal(t, []byte{0xde, 0xad}, attr(t, tp, ps, "raw").GetBytesValue())
-	list := attr(t, tp, ps, "list").GetArrayValue().GetValues()
-	require.Len(t, list, 2)
-	assert.Equal(t, "a", str(tp, list[0]))
-	assert.Equal(t, int64(7), list[1].GetIntValue())
-	kvs := attr(t, tp, ps, "nested").GetKeyValueList().GetKeyValues()
-	require.Len(t, kvs, 1)
-	assert.Equal(t, "inner", tp.Strings.Get(kvs[0].Key))
-	assert.Equal(t, "v", str(tp, kvs[0].Value))
+	// Bytes, arrays and maps are stored as strings, like today's conversion (pcommon AsString).
+	assert.Equal(t, "3q0=", str(tp, attr(t, tp, ps, "raw")))
+	assert.Equal(t, `["a",7]`, str(tp, attr(t, tp, ps, "list")))
+	assert.Equal(t, `{"inner":"v"}`, str(tp, attr(t, tp, ps, "nested")))
 	assert.Equal(t, "dd=s:1", str(tp, attr(t, tp, ps, "w3c.tracestate")))
 	assert.Equal(t, "Error", str(tp, attr(t, tp, ps, "otel.status_code")))
 	assert.Equal(t, "boom", str(tp, attr(t, tp, ps, "otel.status_description")))
@@ -191,7 +226,7 @@ func TestDecodeExportRequest(t *testing.T) {
 }
 
 func TestDecodeSkipSemantics(t *testing.T) {
-	tps, err := DecodeExportRequestWithOptions(buildRequest(t), Options{SkipSemantics: true})
+	tps, err := decodeForTest(buildRequest(t), Options{SkipSemantics: true})
 	require.NoError(t, err)
 	s1 := tps[0].Chunks[0].Spans[0]
 	assert.Equal(t, "svc", s1.Service())
@@ -228,7 +263,7 @@ func TestDecodeOutOfOrderFields(t *testing.T) {
 	req := protowire.AppendTag(nil, fExportResourceSpans, protowire.BytesType)
 	req = protowire.AppendBytes(req, reversed)
 
-	tps, err := DecodeExportRequest(req)
+	tps, err := decodeForTest(req)
 	require.NoError(t, err)
 	require.Len(t, tps, 1)
 	require.Len(t, tps[0].Chunks, 1)
@@ -249,7 +284,7 @@ func TestDecodeLengthBoundaries(t *testing.T) {
 	}
 	b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
 	require.NoError(t, err)
-	tps, err := DecodeExportRequest(b)
+	tps, err := decodeForTest(b)
 	require.NoError(t, err)
 	tp := tps[0]
 	attrs := tp.Chunks[0].Spans[0].Attributes()
@@ -263,9 +298,9 @@ func TestDecodeMalformed(t *testing.T) {
 	b := buildRequest(t)
 	for i := 1; i < len(b); i++ {
 		// Truncated input must error or decode cleanly, never panic.
-		_, _ = DecodeExportRequest(b[:i])
+		_, _ = decodeForTest(b[:i])
 	}
-	_, err := DecodeExportRequest([]byte{0x0a, 0xff})
+	_, err := decodeForTest([]byte{0x0a, 0xff})
 	assert.Error(t, err)
 }
 
@@ -273,7 +308,7 @@ func TestDecodeMalformed(t *testing.T) {
 // handing the same *AnyValue to several spans: string table compaction and attribute mapping
 // mutate values in place.
 func TestResourceAttributesCopiedToSpans(t *testing.T) {
-	tps, err := DecodeExportRequest(buildRequest(t))
+	tps, err := decodeForTest(buildRequest(t))
 	require.NoError(t, err)
 	tp := tps[0]
 	assert.Empty(t, tp.Attributes)
@@ -290,7 +325,7 @@ func TestResourceAttributesCopiedToSpans(t *testing.T) {
 }
 
 func TestResourceAttributesOnPayload(t *testing.T) {
-	tps, err := DecodeExportRequestWithOptions(buildRequest(t), Options{ResourceAttributesOnPayload: true})
+	tps, err := decodeForTest(buildRequest(t), Options{ResourceAttributesOnPayload: true})
 	require.NoError(t, err)
 	tp := tps[0]
 	assert.Equal(t, "from-resource", str(tp, attr(t, tp, tp.Attributes, "shared")))
@@ -306,6 +341,6 @@ func TestResourceAttributesOnPayload(t *testing.T) {
 func FuzzDecodeExportRequest(f *testing.F) {
 	f.Add([]byte{})
 	f.Fuzz(func(_ *testing.T, b []byte) {
-		_, _ = DecodeExportRequest(b)
+		_, _ = decodeForTest(b)
 	})
 }

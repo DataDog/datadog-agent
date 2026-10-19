@@ -78,6 +78,12 @@ func samplingProbFromTracestate(raw string) (float64, bool) {
 	return 0, false
 }
 
+// SampleRateFromTracestate returns the head-based sampling probability encoded in a raw W3C
+// tracestate, for callers that don't build a pb.Span. See SetSampleRateFromTracestate.
+func SampleRateFromTracestate(rawTracestate string) (float64, bool) {
+	return samplingProbFromTracestate(rawTracestate)
+}
+
 // SetSampleRateFromTracestate decodes the head-based sampling probability from
 // the raw W3C tracestate and sets it as _sample_rate on the span's Metrics —
 // but only when a valid probability is decoded and _sample_rate is not already

@@ -7,13 +7,16 @@ package otlpidx
 
 import (
 	"encoding/hex"
+	"math"
 	"net/http"
 	"strconv"
 	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -224,12 +227,18 @@ type resourceInfo struct {
 	serviceRef uint32
 	// service, env and version are the span-level values when the span itself has none of the
 	// attributes they are looked up from.
-	service     string
-	env         string
-	version     string
-	containerID string
-	lang        string
-	sdkVersion  string
+	service string
+	env     string
+	version string
+	// payloadEnv is the payload-level env, read from the full resource.
+	payloadEnv    string
+	containerID   string
+	lang          string
+	sdkVersion    string
+	hostname      string
+	containerTags string
+	source        source.Source
+	statsComputed *bool
 }
 
 type scopeInfo struct {
@@ -237,34 +246,42 @@ type scopeInfo struct {
 	versionRef uint32
 }
 
-// resourceSemantics computes the payload-level values derived from resource attributes.
-func (d *decoder) resourceSemantics() {
+// resourceAccessor returns an accessor over the resource attributes alone.
+func (d *decoder) resourceAccessor() attrAccessor {
 	d.lookupKeys = d.resKeys
-	acc := attrAccessor{strings: d.strings, keys: &d.lookupKeys, res: d.resAttrs}
+	return attrAccessor{strings: d.strings, keys: &d.lookupKeys, res: d.resAttrs}
+}
+
+// payloadSemantics computes the payload-level values derived from resource attributes.
+func (d *decoder) payloadSemantics() {
+	acc := d.resourceAccessor()
+	d.res.payloadEnv = transform.LookupSemanticStringWithAccessor(acc, semantics.ConceptDeploymentEnv, true)
+	d.res.containerID = transform.LookupSemanticStringWithAccessor(acc, semantics.ConceptContainerID, true)
+	d.res.lang = normalizeutil.NormalizeTagValue(acc.GetString("telemetry.sdk.language"))
+	d.res.sdkVersion = normalizeutil.NormalizeTagValue(acc.GetString("telemetry.sdk.version"))
+}
+
+// spanDefaults computes the resource-level values spans fall back to.
+func (d *decoder) spanDefaults() {
+	acc := d.resourceAccessor()
 	if v, ok := d.resAttrs[d.strings.Lookup("service.name")].GetValue().(*idx.AnyValue_StringValueRef); ok {
 		d.res.serviceRef = v.StringValueRef
 	}
 	d.res.service = transform.GetOTelServiceWithAccessor(acc, true)
 	d.res.env = transform.LookupSemanticStringWithAccessor(acc, semantics.ConceptDeploymentEnv, true)
 	d.res.version = transform.LookupSemanticStringWithAccessor(acc, semantics.ConceptServiceVersion, true)
-	d.res.containerID = transform.LookupSemanticStringWithAccessor(acc, semantics.ConceptContainerID, true)
-	d.res.lang = normalizeutil.NormalizeTagValue(acc.GetString("telemetry.sdk.language"))
-	d.res.sdkVersion = normalizeutil.NormalizeTagValue(acc.GetString("telemetry.sdk.version"))
 }
 
 // spanSemantics maps an OTel span onto Datadog conventions, mirroring transform.OtelSpanToDDSpan
-// under the default configuration (operation and resource name logic v2, receive resource spans
-// v2, scope convention enabled).
+// on the ReceiveResourceSpansV2 path (see Supported).
 func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
-	res := d.resAttrs
-	if !d.opts.ResourceAttributesOnPayload {
-		res = nil // already merged into the span
-	}
+	// Resource attributes are only merged into the span after this, so lookups see the span's
+	// own attributes and the typed resource attributes, like transform.OtelSpanToDDSpan.
 	attrs := span.Attributes
 	for i := range d.lookupKeys {
 		d.lookupKeys[i] = d.spanKeys[i] | d.resKeys[i]
 	}
-	acc := attrAccessor{strings: d.strings, keys: &d.lookupKeys, span: attrs, res: res}
+	acc := attrAccessor{strings: d.strings, keys: &d.lookupKeys, span: attrs, res: d.resAttrs}
 	view := spanView{kind: ptrace.SpanKind(span.Kind), name: d.strings.Get(span.NameRef)}
 	reg := semantics.DefaultRegistry()
 	cf := conceptFiltersFor(reg)
@@ -296,8 +313,13 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 		grpcCode = semantics.LookupString(reg, acc, semantics.ConceptGRPCStatusCode)
 	}
 	measured, _ := semantics.LookupInt64(reg, acc, semantics.ConceptDDMeasured)
+	// db.name falls back to db.namespace unless the span or the resource (copied to the span
+	// first by today's conversion) has it.
 	var dbName string
-	if _, ok := attrs[d.strings.Lookup("db.name")]; !ok {
+	dbNameRef := d.strings.Lookup("db.name")
+	_, spanHas := attrs[dbNameRef]
+	_, resHas := d.resAttrs[dbNameRef]
+	if dbNameRef == 0 || !spanHas && !resHas {
 		dbName = transform.LookupSemanticStringWithAccessor(acc, semantics.ConceptDBNamespace, false)
 	}
 	if p, ok := semantics.LookupFloat64(reg, acc, semantics.ConceptSamplingPriority); ok {
@@ -332,18 +354,45 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 			attrs[k] = d.stringValue(d.strings.Add(grpcCode))
 		}
 	}
-	if measured == 1 {
+	// Mirrors the top-level and measured logic of transform.OtelSpanToDDSpan.
+	if d.topLevelByKind {
+		if span.ParentID == 0 || view.kind == ptrace.SpanKindServer || view.kind == ptrace.SpanKindConsumer {
+			attrs[d.strings.Add("_top_level")] = d.doubleValue(1)
+		}
+	}
+	if measured == 1 || d.topLevelByKind && (view.kind == ptrace.SpanKindClient || view.kind == ptrace.SpanKindProducer) {
 		attrs[d.strings.Add("_dd.measured")] = d.doubleValue(1)
+	}
+	// Mirrors transform.SetSampleRateFromAttribute and SetSampleRateFromTracestate: a numeric
+	// _sample_rate attribute wins, otherwise the head-sampling probability from the tracestate.
+	if raw.tracestateRef != 0 {
+		rateKey := d.strings.Add("_sample_rate")
+		switch attrs[rateKey].GetValue().(type) {
+		case *idx.AnyValue_IntValue, *idx.AnyValue_DoubleValue:
+		default:
+			// Spans of a trace usually share a tracestate, so reuse the previous decode.
+			if ts := d.strings.Get(raw.tracestateRef); ts != d.lastTracestate || d.lastTracestate == "" {
+				d.lastTracestate = ts
+				d.lastSampleRate, d.lastSampleRateOK = transform.SampleRateFromTracestate(ts)
+			}
+			if d.lastSampleRateOK {
+				attrs[rateKey] = d.doubleValue(d.lastSampleRate)
+			}
+		}
 	}
 	if raw.hasException {
 		attrs[d.strings.Add("_dd.span_events.has_exception")] = d.stringValue(d.strings.Add("true"))
 	}
 	if lib.nameRef != 0 {
-		attrs[d.constRef(&d.refs.scopeName, "otel.scope.name")] = d.stringValue(lib.nameRef)
+		if d.scopeConvention {
+			attrs[d.constRef(&d.refs.scopeName, "otel.scope.name")] = d.stringValue(lib.nameRef)
+		}
 		attrs[d.constRef(&d.refs.libraryName, "otel.library.name")] = d.stringValue(lib.nameRef)
 	}
 	if lib.versionRef != 0 {
-		attrs[d.constRef(&d.refs.scopeVersion, "otel.scope.version")] = d.stringValue(lib.versionRef)
+		if d.scopeConvention {
+			attrs[d.constRef(&d.refs.scopeVersion, "otel.scope.version")] = d.stringValue(lib.versionRef)
+		}
 		attrs[d.constRef(&d.refs.libraryVersion, "otel.library.version")] = d.stringValue(lib.versionRef)
 	}
 	status := ptrace.StatusCode(raw.statusCode)
@@ -375,9 +424,38 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 	}
 }
 
-// otlpSampleRate is the _dd.otlp_sr chunk tag value for the default probabilistic sampling rate
-// (100%).
-const otlpSampleRate = "1.00"
+// knuthFactor is the multiplier of the OTLP receiver's probabilistic sampler. It must not
+// change: it is shared with other probabilistic samplers in the agent, the Datadog libraries and
+// OpenTelemetry, which keeps sampling decisions consistent across a distributed system.
+const knuthFactor = uint64(1111111111111111111)
+
+// SamplingRate returns the OTLP receiver's probabilistic sampling rate in [0, 1]. Like
+// OTLPReceiver.samplingRate, rates outside (0, 1) keep every trace.
+func SamplingRate(conf *config.AgentConfig) float64 {
+	rate := conf.OTLPReceiver.ProbabilisticSampling / 100
+	if rate <= 0 || rate >= 1 {
+		return 1
+	}
+	return rate
+}
+
+// Sample returns the sampling priority the OTLP receiver applies to the trace whose lower 64 trace
+// ID bits are tid, at the given rate. It must match OTLPReceiver.sample.
+func Sample(tid uint64, rate float64) sampler.SamplingPriority {
+	if rate == 1 {
+		return sampler.PriorityAutoKeep
+	}
+	if tid*knuthFactor < uint64(rate*math.MaxUint64) {
+		return sampler.PriorityAutoKeep
+	}
+	return sampler.PriorityAutoDrop
+}
+
+// Decision maker values the OTLP receiver records for a kept trace.
+const (
+	samplingMechanismManual        = 4 // a user-set sampling priority
+	samplingMechanismProbabilistic = 9 // the OTLP receiver's probabilistic sampler
+)
 
 // finishPayload sets payload- and chunk-level fields once all spans are decoded.
 func (d *decoder) finishPayload(tp *idx.InternalTracerPayload) {
@@ -387,26 +465,39 @@ func (d *decoder) finishPayload(tp *idx.InternalTracerPayload) {
 	if d.opts.SkipSemantics {
 		return
 	}
-	if d.res.env != "" {
-		tp.SetEnv(d.res.env)
+	tp.SetHostname(d.res.hostname)
+	if d.res.payloadEnv != "" {
+		tp.SetEnv(d.res.payloadEnv)
 	}
 	if d.res.containerID != "" {
 		tp.SetContainerID(d.res.containerID)
 	}
 	tp.SetLanguageName(d.res.lang)
 	tp.SetTracerVersion("otlp-" + d.res.sdkVersion)
-	// Mirrors OTLPReceiver.createChunks with the default sampling configuration (100% rate,
-	// probabilistic sampler disabled).
+	if d.res.containerTags != "" {
+		tp.SetStringAttribute("_dd.tags.container", d.res.containerTags)
+	}
+	// Mirrors OTLPReceiver.createChunks.
+	rate := SamplingRate(d.opts.Conf)
+	rateTag := strconv.FormatFloat(rate, 'f', 2, 64)
 	for traceID, c := range d.chunks {
-		c.SetStringAttribute("_dd.otlp_sr", otlpSampleRate)
+		c.SetStringAttribute("_dd.otlp_sr", rateTag)
+		if d.opts.Conf.ProbabilisticSamplerEnabled {
+			// The probabilistic and errors samplers decide later.
+			c.Priority = int32(sampler.PriorityNone)
+			continue
+		}
+		var priority sampler.SamplingPriority
+		mechanism := uint32(samplingMechanismProbabilistic)
 		if p, ok := d.priorities[traceID]; ok {
-			c.Priority = p
-			if sampler.SamplingPriority(p).IsKeep() {
-				c.SetSamplingMechanism(4)
-			}
+			priority, mechanism = sampler.SamplingPriority(p), samplingMechanismManual
 		} else {
-			c.Priority = int32(sampler.PriorityAutoKeep)
-			c.SetSamplingMechanism(9)
+			priority = Sample(transform.OTelTraceIDToUint64(traceID), rate)
+		}
+		c.Priority = int32(priority)
+		// Like _dd.p.dm, the decision maker is only recorded for a keep decision.
+		if priority.IsKeep() {
+			c.SetSamplingMechanism(mechanism)
 		}
 	}
 }

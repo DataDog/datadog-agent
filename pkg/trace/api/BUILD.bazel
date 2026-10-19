@@ -154,6 +154,7 @@ dd_agent_go_test(
         "openlineage_test.go",
         "opm_test.go",
         "otlp_idx_bench_test.go",
+        "otlp_idx_parity_test.go",
         "otlp_test.go",
         "pipeline_stats_test.go",
         "profiles_bodyclose_test.go",
