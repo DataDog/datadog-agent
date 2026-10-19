@@ -42,6 +42,7 @@ type CLIParams struct {
 	ScenariosDir      string
 	HTTPAddr          string
 	ComponentSettings observerimpl.ComponentSettings
+	AllowedTypes      []string
 
 	// Headless mode: run a scenario and exit (no HTTP server)
 	Headless                 string // scenario name to run (empty = interactive mode)
@@ -155,13 +156,14 @@ func main() {
 			MuteNoisyMetrics: *muteNoisyMetrics,
 		}
 	}
+	var parsedAllowedTypes []string
 	if *allowedTypes != "" {
-		parsedTypes, err := parseAllowedTypesFlag(*allowedTypes)
+		var err error
+		parsedAllowedTypes, err = parseAllowedTypesFlag(*allowedTypes)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Invalid --allowed_types: %v\n", err)
 			os.Exit(1)
 		}
-		componentSettings.AllowedMetricTypes = parsedTypes
 	}
 	componentSettings = observerimpl.ApplyTestbenchDefaults(componentSettings)
 
@@ -204,8 +206,8 @@ func main() {
 		fx.Decorate(func(c config.Component) config.Component {
 			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-			if len(componentSettings.AllowedMetricTypes) > 0 {
-				c.Set("anomaly_detection.metrics.allowed_types", componentSettings.AllowedMetricTypes, pkgconfigmodel.SourceAgentRuntime)
+			if len(parsedAllowedTypes) > 0 {
+				c.Set("anomaly_detection.metrics.allowed_types", parsedAllowedTypes, pkgconfigmodel.SourceAgentRuntime)
 			}
 			return c
 		}),
@@ -217,6 +219,7 @@ func main() {
 			ScenariosDir:             *scenariosDir,
 			HTTPAddr:                 *httpAddr,
 			ComponentSettings:        componentSettings,
+			AllowedTypes:             parsedAllowedTypes,
 			Headless:                 *headless,
 			Output:                   *output,
 			Verbose:                  *verbose,
@@ -393,7 +396,7 @@ func run(
 }
 
 func validateCLIParams(params CLIParams) error {
-	if _, err := observerimpl.ParseAllowedMetricTypes(params.ComponentSettings.AllowedMetricTypes); err != nil {
+	if _, err := observerimpl.ParseAllowedMetricTypes(params.AllowedTypes); err != nil {
 		return fmt.Errorf("invalid allowed_types: %w", err)
 	}
 	if params.RetainParquet && params.Headless == "" {

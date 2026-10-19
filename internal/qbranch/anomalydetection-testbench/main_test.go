@@ -11,7 +11,6 @@ import (
 	"go.uber.org/fx"
 
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
-	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	recordernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
 	reportertestbenchfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -58,8 +57,8 @@ func testbenchFXOptions(params CLIParams) []fx.Option {
 		fx.Decorate(func(c config.Component) config.Component {
 			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-			if len(params.ComponentSettings.AllowedMetricTypes) > 0 {
-				c.Set("anomaly_detection.metrics.allowed_types", params.ComponentSettings.AllowedMetricTypes, pkgconfigmodel.SourceAgentRuntime)
+			if len(params.AllowedTypes) > 0 {
+				c.Set("anomaly_detection.metrics.allowed_types", params.AllowedTypes, pkgconfigmodel.SourceAgentRuntime)
 			}
 			return c
 		}),
@@ -97,7 +96,7 @@ func TestValidateCLIParams(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []string{"Gauge", "Count", "Unknown"}, types)
 		require.NoError(t, validateCLIParams(CLIParams{
-			ComponentSettings: observerimpl.ComponentSettings{AllowedMetricTypes: types},
+			AllowedTypes: types,
 		}))
 	})
 

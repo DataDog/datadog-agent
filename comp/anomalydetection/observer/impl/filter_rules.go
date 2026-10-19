@@ -175,14 +175,6 @@ func (f *metricsFilterRules) isMetricTypeAllowed(mt metrics.MetricType) bool {
 	return f.typeFilter.isTypeAllowed(mt)
 }
 
-// setAllowedMetricTypes updates the active metric-type bitmask filter.
-func (f *metricsFilterRules) setAllowedMetricTypes(typeFilter metricTypeFilter) {
-	if f == nil {
-		return
-	}
-	f.typeFilter = typeFilter
-}
-
 type metricsCompiledRule struct {
 	exclude    bool
 	name       string

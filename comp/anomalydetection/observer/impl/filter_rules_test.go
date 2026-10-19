@@ -1264,37 +1264,4 @@ anomaly_detection:
 	assert.Empty(t, storage.ListSeriesMetadata(connErrExtractor.Name()))
 
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
-
-	// Reset with AllowedMetricTypes=["Count"] flips the filter to allow Count and reject Gauge.
-	obs.catalog = defaultCatalog()
-	obs.Reset(ComponentSettings{
-		AllowedMetricTypes: []string{"Count"},
-	}, DefaultStorageConfig())
-
-	obs.IngestMetricSync("parquet", &metricObs{
-		name:       "after_reset.gauge",
-		value:      1,
-		metricType: metrics.GaugeType,
-		host:       "host-a",
-		timestamp:  2000,
-	}, 333)
-	obs.IngestMetricSync("parquet", &metricObs{
-		name:       "after_reset.count",
-		value:      2,
-		metricType: metrics.CountType,
-		host:       "host-a",
-		timestamp:  2000,
-	}, 444)
-
-	resetSeries := obs.engine.Storage().ListSeriesMetadata("parquet")
-	require.Len(t, resetSeries, 1)
-	assert.Equal(t, "after_reset.count", resetSeries[0].Name)
-
-	// settingsFromAgentConfig preserves anomaly_detection.metrics.allowed_types across Reset.
-	agentSettings := settingsFromAgentConfig(obs.catalog, cfg)
-	require.Equal(t, []string{"Gauge", "Unknown"}, agentSettings.AllowedMetricTypes)
-	obs.Reset(agentSettings, DefaultStorageConfig())
-	assert.True(t, obs.metricFilter.isMetricTypeAllowed(metrics.GaugeType))
-	assert.True(t, obs.metricFilter.isMetricTypeAllowed(observerdef.UnknownType))
-	assert.False(t, obs.metricFilter.isMetricTypeAllowed(metrics.CountType))
 }
