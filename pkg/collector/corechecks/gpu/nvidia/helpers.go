@@ -256,10 +256,9 @@ func portIsAlwaysSupported(_ int) ([]Sample, error) {
 // a port has no supported metrics (e.g. inactive NVLink). Per-metric NVML failures
 // that should not prevent enrollment must be logged by sampleCollector and not returned
 // as errors, so enrollment can continue on other ports. Any other error is treated as fatal and returned
-// (joined across ports), even when some ports succeeded. If no port succeeded, the
-// device is reported as unsupported with errUnsupportedDevice, unless a port failed
-// with a permission error: permissions can be recovered later, so in that case the
-// error is returned without errUnsupportedDevice to let the collector creation be retried.
+// (joined across ports), even when some ports succeeded. If no port succeeded,
+// errUnsupportedDevice is returned too, unless a port failed with a permission error,
+// as permissions can be recovered.
 func getSupportedNvlinkPorts(device ddnvml.Device, sampleCollector func(int) ([]Sample, error)) ([]int, error) {
 	totalPorts := device.GetDeviceInfo().NVLinkLinkCount
 	if totalPorts <= 0 {

@@ -174,7 +174,7 @@ func (c *gpmCollector) removeUnsupportedMetrics() error {
 		}
 	}
 
-	// without any metric left, a permission error must be returned so that the collector is not considered unsupported
+	// permissions can be recovered, so the collector is not reported as unsupported
 	if len(c.metricsToCollect) == 0 && permissionDenied {
 		return &ddnvml.NvmlAPIError{APIName: "GpmMetricsGet", NvmlErrorCode: nvml.ERROR_NO_PERMISSION}
 	}

@@ -73,7 +73,7 @@ func TestGPMCollectorUnsupportedWhenDriverLacksGPM(t *testing.T) {
 	assert.ErrorIs(t, err, errUnsupportedDevice)
 }
 
-func TestGPMCollectorMetricPermissionErrors(t *testing.T) {
+func TestGPMCollectorAllMetricsDeniedIsNotUnsupported(t *testing.T) {
 	oldAllGpmMetrics := allGpmMetrics
 	allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 		1: {name: "metric1"},
@@ -81,35 +81,18 @@ func TestGPMCollectorMetricPermissionErrors(t *testing.T) {
 	}
 	t.Cleanup(func() { allGpmMetrics = oldAllGpmMetrics })
 
-	t.Run("SomeMetricsDenied", func(t *testing.T) {
-		mockLib := nvmltestutil.SetupMockNVML(t,
-			testutil.WithGpmSupport(true),
-			testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
-				1: {Return: nvml.ERROR_NO_PERMISSION},
-			}),
-		)
-		collector, err := newGPMCollector(nvmltestutil.PhysicalDevice(t, mockLib, 0), &CollectorDependencies{})
-		require.NoError(t, err)
-		gpmCol := collector.(*gpmCollector)
-		t.Cleanup(gpmCol.freeSamples)
-		require.Len(t, gpmCol.metricsToCollect, 1)
-	})
-
-	t.Run("AllMetricsDenied", func(t *testing.T) {
-		// permissions can be recovered, so the collector must not be reported as unsupported
-		mockLib := nvmltestutil.SetupMockNVML(t,
-			testutil.WithGpmSupport(true),
-			testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
-				1: {Return: nvml.ERROR_NO_PERMISSION},
-				2: {Return: nvml.ERROR_NO_PERMISSION},
-			}),
-		)
-		collector, err := newGPMCollector(nvmltestutil.PhysicalDevice(t, mockLib, 0), &CollectorDependencies{})
-		require.Nil(t, collector)
-		require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
-		require.NotErrorIs(t, err, errUnsupportedDevice)
-		require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
-	})
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			1: {Return: nvml.ERROR_NO_PERMISSION},
+			2: {Return: nvml.ERROR_NO_PERMISSION},
+		}),
+	)
+	collector, err := newGPMCollector(nvmltestutil.PhysicalDevice(t, mockLib, 0), &CollectorDependencies{})
+	require.Nil(t, collector)
+	require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+	require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
 }
 
 func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {

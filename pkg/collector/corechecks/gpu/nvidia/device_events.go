@@ -146,11 +146,10 @@ func (c *deviceEventsCollector) Collect() ([]Sample, error) {
 
 // note: watching device events seems to require specific permission/status with the NVIDIA driver,
 // which leads to data races at initialization/node-setup time that give us error when registering
-// devices. Permissions might also be lost and recovered at runtime. As such, this collector performs a
-// lazy registration of the device to the events gatherer, retrying with a backoff at subsequent runs of
-// the GPU check until it succeeds. The last registration error is returned on every run until then, so
-// that the collector is reported as failing. The backoff only spaces the registration attempts, to avoid
-// blocking every run on the event set lock, which the async worker holds while waiting for events.
+// devices, and permissions might also be lost and recovered at runtime. As such, this collector registers
+// the device lazily, retrying with a backoff until it succeeds and returning the last registration error
+// meanwhile. The backoff avoids blocking every run on the event set lock, held by the async worker while
+// waiting for events.
 func (c *deviceEventsCollector) ensureDeviceRegistered() error {
 	if c.registered {
 		return nil

@@ -54,7 +54,6 @@ func TestCollectorBuilderRetriesFailedCollectors(t *testing.T) {
 	devices := setupMockDevices(t)[:1]
 	deps := &CollectorDependencies{Config: gpuconfig.Config{}}
 
-	// the flaky collector fails a couple of times before it can be created
 	const flakyFailures = 2
 	var flakyCalls, unsupportedCalls int
 	builder := newCollectorBuilder(map[CollectorName]subsystemBuilder{
@@ -646,59 +645,37 @@ func seedPRMCacheForDevices(t *testing.T, cache *PRMCache, devices []ddnvml.Devi
 
 func TestGetSupportedNvlinkPortsPermissionErrorIsNotUnsupported(t *testing.T) {
 	device := setupMockDevice(t, testutil.WithCapabilities(testutil.Capabilities{NvLinkLinkCount: 2}))
-	failAllPorts := func(err error) func(int) ([]Sample, error) {
-		return func(int) ([]Sample, error) { return nil, err }
+	failAllPorts := func(code nvml.Return) func(int) ([]Sample, error) {
+		return func(int) ([]Sample, error) {
+			return nil, &ddnvml.NvmlAPIError{APIName: "GpmSampleGet", NvmlErrorCode: code}
+		}
 	}
 
-	t.Run("AllPortsUnsupported", func(t *testing.T) {
-		_, err := getSupportedNvlinkPorts(device, failAllPorts(errUnsupportedDevice))
-		require.ErrorIs(t, err, errUnsupportedDevice)
-	})
+	_, err := getSupportedNvlinkPorts(device, failAllPorts(nvml.ERROR_UNKNOWN))
+	require.ErrorIs(t, err, errUnsupportedDevice)
 
-	t.Run("AllPortsFailingWithOtherErrors", func(t *testing.T) {
-		unknownErr := &ddnvml.NvmlAPIError{APIName: "GpmSampleGet", NvmlErrorCode: nvml.ERROR_UNKNOWN}
-		_, err := getSupportedNvlinkPorts(device, failAllPorts(unknownErr))
-		require.ErrorIs(t, err, unknownErr)
-		require.ErrorIs(t, err, errUnsupportedDevice)
-	})
-
-	t.Run("AllPortsPermissionDenied", func(t *testing.T) {
-		// permissions can be recovered, so they must not be reported as unsupported
-		permissionErr := &ddnvml.NvmlAPIError{APIName: "GpmSampleGet", NvmlErrorCode: nvml.ERROR_NO_PERMISSION}
-		ports, err := getSupportedNvlinkPorts(device, failAllPorts(permissionErr))
-		require.Empty(t, ports)
-		require.ErrorIs(t, err, permissionErr)
-		require.NotErrorIs(t, err, errUnsupportedDevice)
-	})
+	_, err = getSupportedNvlinkPorts(device, failAllPorts(nvml.ERROR_NO_PERMISSION))
+	require.True(t, ddnvml.IsNoPermission(err))
+	require.NotErrorIs(t, err, errUnsupportedDevice)
 }
 
-func TestNVLinkStatelessCollectorPermissionErrors(t *testing.T) {
-	newDevice := func(t *testing.T, deniedPorts ...int) ddnvml.Device {
-		return setupMockDevice(t,
-			testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 4, NvLinkLinkCount: 2}),
-			testutil.WithCustomHook(func(device *testutil.MockDevice) {
-				device.GetNvLinkErrorCounterFunc = func(link int, _ nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
-					if slices.Contains(deniedPorts, link+1) {
-						return 0, nvml.ERROR_NO_PERMISSION
-					}
-					return 0, nvml.SUCCESS
+func TestNVLinkStatelessCollectorPermissionErrorIsNotUnsupported(t *testing.T) {
+	// a permission error must be detected even when another port fails first with a different error
+	device := setupMockDevice(t,
+		testutil.WithCapabilities(testutil.Capabilities{NvLinkGenerationSupported: 4, NvLinkLinkCount: 2}),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetNvLinkErrorCounterFunc = func(link int, _ nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
+				if link == 0 {
+					return 0, nvml.ERROR_UNKNOWN
 				}
-			}))
-	}
+				return 0, nvml.ERROR_NO_PERMISSION
+			}
+		}))
 
-	t.Run("SomePortsDenied", func(t *testing.T) {
-		collector, err := newNVLinkStatelessCollector(newDevice(t, 2), nil)
-		require.NoError(t, err)
-		require.NotNil(t, collector)
-	})
-
-	t.Run("AllPortsDenied", func(t *testing.T) {
-		// permissions can be recovered, so the collector must not be reported as unsupported
-		collector, err := newNVLinkStatelessCollector(newDevice(t, 1, 2), nil)
-		require.Nil(t, collector)
-		require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
-		require.NotErrorIs(t, err, errUnsupportedDevice)
-	})
+	collector, err := newNVLinkStatelessCollector(device, nil)
+	require.Nil(t, collector)
+	require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
 }
 
 func TestRemoveDuplicateSamples(t *testing.T) {

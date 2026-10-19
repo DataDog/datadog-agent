@@ -270,7 +270,6 @@ func (c *Check) ensureInitCollectors() error {
 		collectors = append(collectors, c.collectorBuilder.Build(missingDevices, deps)...)
 	}
 
-	// retry the collectors that failed to be created in previous runs
 	collectors = append(collectors, c.collectorBuilder.RetryFailed(includedDevices, deps)...)
 
 	c.collectors = collectors

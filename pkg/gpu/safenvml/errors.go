@@ -10,6 +10,7 @@ package safenvml
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
@@ -73,10 +74,18 @@ func IsInvalidArgument(err error) bool {
 	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_INVALID_ARGUMENT)
 }
 
-// IsNoPermission reports whether err is NVML_ERROR_NO_PERMISSION, including when it is wrapped.
+// IsNoPermission reports whether err, or any error it wraps or joins, is NVML_ERROR_NO_PERMISSION.
+// Unlike errors.As, it does not stop at the first NvmlAPIError of a joined error.
 func IsNoPermission(err error) bool {
-	var nvmlErr *NvmlAPIError
-	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NO_PERMISSION)
+	switch e := err.(type) {
+	case *NvmlAPIError:
+		return errors.Is(e.NvmlErrorCode, nvml.ERROR_NO_PERMISSION)
+	case interface{ Unwrap() []error }:
+		return slices.ContainsFunc(e.Unwrap(), IsNoPermission)
+	case interface{ Unwrap() error }:
+		return IsNoPermission(e.Unwrap())
+	}
+	return false
 }
 
 // IsGPULost reports whether err is NVML_ERROR_GPU_IS_LOST, including when it is wrapped.

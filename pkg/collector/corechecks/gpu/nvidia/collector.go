@@ -88,9 +88,7 @@ type CollectorDependencies struct {
 }
 
 const (
-	// minRetryBackoff is the time to wait before retrying an operation that failed for the first time
 	minRetryBackoff = 30 * time.Second
-	// maxRetryBackoff is the maximum time to wait between attempts of an operation that keeps failing
 	maxRetryBackoff = 5 * time.Minute
 )
 
@@ -101,7 +99,6 @@ type retryBackoff struct {
 	nextAttempt time.Time
 }
 
-// canRetry returns true if the backoff period after the last failure has expired
 func (r *retryBackoff) canRetry(now time.Time) bool {
 	return !now.Before(r.nextAttempt)
 }
@@ -118,10 +115,8 @@ func (r *retryBackoff) recordFailure(now time.Time) time.Duration {
 	return backoff
 }
 
-// CollectorBuilder builds the NVML collectors for each device, and remembers the ones that failed to be created
-// so that they are retried later. Creation can fail due to transient conditions, such as the agent temporarily
-// lacking permissions to access the device.
-// Collectors that are disabled or unsupported by the device are not retried.
+// CollectorBuilder builds the NVML collectors for each device, and retries with a backoff the ones that failed to be
+// created (e.g. due to a permission error). Collectors that are disabled or unsupported by the device are not retried.
 type CollectorBuilder struct {
 	builders map[CollectorName]subsystemBuilder         // if nil, the package-level factory is used
 	failed   map[string]map[CollectorName]*retryBackoff // device UUID -> collector name -> retry state
@@ -142,7 +137,7 @@ func newCollectorBuilder(builders map[CollectorName]subsystemBuilder) *Collector
 	}
 }
 
-// Reset discards all the recorded failures, e.g. when all collectors are discarded and must be built again
+// Reset discards all the recorded failures
 func (b *CollectorBuilder) Reset() {
 	clear(b.failed)
 }
@@ -233,9 +228,8 @@ func (b *CollectorBuilder) RetryFailed(devices []ddnvml.Device, deps *CollectorD
 	return collectors
 }
 
-// buildCollector builds a single collector for the given device, recording the creation outcome. If creation fails with
-// an error other than errUnsupportedDevice, the failure is recorded so that it can be retried later. It returns nil if the
-// collector could not be created.
+// buildCollector builds a collector for the given device, recording failures other than errUnsupportedDevice to retry
+// them later. It returns nil if the collector could not be created.
 func (b *CollectorBuilder) buildCollector(name CollectorName, builder subsystemBuilder, dev ddnvml.Device, deps *CollectorDependencies) Collector {
 	deviceUUID := dev.GetDeviceInfo().UUID
 
