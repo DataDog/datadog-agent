@@ -7,7 +7,7 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 )
 
@@ -37,6 +37,9 @@ var (
 	// workloadmeta store to its subscribers. Note that each notification can
 	// include multiple events.
 	NotificationsSent telemetry.Counter
+	// NotificationWait measures the time from an event bundle being sent to
+	// a subscriber channel until the subscriber acknowledges it.
+	NotificationWait telemetry.Histogram
 	// RemoteClientErrors tracks the number of errors on the remote workloadmeta
 	// client while receiving events.
 	RemoteClientErrors telemetry.Counter
@@ -93,6 +96,14 @@ func init() {
 		"notifications_sent",
 		[]string{"subscriber_name", "status"},
 		"Number of notifications sent by workloadmeta to its subscribers",
+		opts,
+	)
+	NotificationWait = comp.NewHistogramWithOpts(
+		subsystem,
+		"notification_wait",
+		[]string{"subscriber_name"},
+		"Time from an event bundle being sent to a subscriber until the subscriber acknowledges it (in seconds)",
+		[]float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 5, 10},
 		opts,
 	)
 	RemoteClientErrors = comp.NewCounterWithOpts(

@@ -1078,6 +1078,10 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 	// There are two timeouts here:
 	// 1. closeEventBundleChTimeout: time to wait to send the bundle to the subscriber channel.
 	// 2. eventBundleChTimeout: time to wait for the subscriber to acknowledge the bundle.
+	// Start the clock before the send so the wait includes time blocked on a
+	// full subscriber channel
+	start := time.Now()
+
 	select {
 	case ch <- bundle:
 		// Successfully sent
@@ -1094,6 +1098,7 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 		select {
 		case <-bundle.Ch:
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
+			telemetry.NotificationWait.Observe(time.Since(start).Seconds(), name)
 		case <-time.After(eventBundleChTimeout):
 			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
