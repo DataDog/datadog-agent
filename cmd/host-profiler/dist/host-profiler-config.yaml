@@ -1,3 +1,8 @@
+extensions:
+  ddprofiling:
+    profiler_options:
+      service: host-profiler-docker-attrs
+
 receivers:
   otlp:
     protocols:
@@ -34,6 +39,10 @@ exporters:
       dd-api-key: ${env:DD_API_KEY}
       dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 service:
+  telemetry:
+    logs:
+      level: debug
+  extensions: [ddprofiling]
   pipelines:
     profiles:
       receivers: [profiling]
