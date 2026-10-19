@@ -25,7 +25,11 @@ func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]int
 		return nil, errors.New("authored-script session is required")
 	}
 
-	envVars, err := platformEnvironment(session, pkg.ExecutableDirectories)
+	executablePath, err := buildExecutablePath(pkg.ExecutableDirectories)
+	if err != nil {
+		return nil, err
+	}
+	envVars, err := platformEnvironment(session, executablePath)
 	if err != nil {
 		return nil, err
 	}

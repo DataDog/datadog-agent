@@ -9,7 +9,7 @@ package authoredscripts
 
 import "errors"
 
-func platformEnvironment(_ *Session, _ []string) (map[string]string, error) {
+func platformEnvironment(_ *Session, _ string) (map[string]string, error) {
 	return nil, errors.New("authored-script environments are not supported on Windows")
 }
 

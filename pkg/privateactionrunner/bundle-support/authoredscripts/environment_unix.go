@@ -9,11 +9,7 @@ package authoredscripts
 
 const defaultExecutablePath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-func platformEnvironment(session *Session, executableDirectories []string) (map[string]string, error) {
-	executablePath, err := buildExecutablePath(executableDirectories)
-	if err != nil {
-		return nil, err
-	}
+func platformEnvironment(session *Session, executablePath string) (map[string]string, error) {
 	return map[string]string{
 		"HOME":   session.HomeDirectory,
 		"PATH":   executablePath,
