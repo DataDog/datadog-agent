@@ -410,6 +410,8 @@ type UprobeAttacher struct {
 
 	telemetry *uprobeAttacherTelemetry
 
+	rootPID int
+
 	excludeProcessMap map[string]struct{}
 }
 
@@ -433,6 +435,10 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid attacher configuration: %w", err)
 	}
+	rootPID, err := kernel.RootNSPID()
+	if err != nil {
+		return nil, fmt.Errorf("read root ns PID: %w", err)
+	}
 
 	ua := &UprobeAttacher{
 		name:                   name,
@@ -447,6 +453,7 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		scansPerPid:            make(map[uint32]int),
 		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 		telemetry:              newUprobeAttacherTelemetry(deps.Telemetry, name),
+		rootPID:                rootPID,
 	}
 	if len(config.ExternalExcludes) > 0 {
 		ua.excludeProcessMap = make(map[string]struct{})
@@ -759,7 +766,7 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
 		}
 	}()
 
-	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == os.Getpid() {
+	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(procInfo.PID) == ua.rootPID {
 		return ErrSelfExcluded
 	}
 
@@ -818,7 +825,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (e
 			ua.telemetry.processAttachmentsSuccess.Inc()
 		}
 	}()
-	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == os.Getpid() {
+	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == ua.rootPID {
 		return ErrSelfExcluded
 	}
 
