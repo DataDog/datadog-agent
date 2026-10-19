@@ -9,7 +9,7 @@ Worktree-local TOML lives at `<repo-root>/.agents/skills/follow-pr/config.toml`
 (gitignored, so each worktree/checkout can carry its own preference).
 
 Usage:
-    config.py resolve [--mode autofix|no-autofix|ask]
+    config.py resolve [--mode autofix|retries|no-autofix|ask]
                        [--max-fix-cycles N]
                        [--policy TEXT]
 
@@ -41,6 +41,7 @@ ENV_VARS = {
 
 class FixMode(str, Enum):
     AUTOFIX = "autofix"
+    RETRIES = "retries"
     NO_AUTOFIX = "no-autofix"
     ASK = "ask"
 

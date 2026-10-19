@@ -6,7 +6,7 @@ description: >-
   - "handle this PR-caused CI failure"
   - "fix the CI regression"
   - "continue investigating this PR failure"
-argument-hint: "[--mode autofix|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]"
+argument-hint: "[--mode autofix|retries|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]"
 model: sonnet
 ---
 
@@ -31,10 +31,10 @@ Run the helper script:
 
 ```bash
 python3 .agents/skills/follow-pr/scripts/config.py resolve \
-  [--mode autofix|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]
+  [--mode autofix|retries|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]
 ```
 
-If the resolved mode is `ask`, or the script errors, ask the user directly whether this run is `autofix` or `no-autofix` before doing anything else.
+If the resolved mode is `ask`, or the script errors, ask the user directly to choose `autofix`, `retries`, or `no-autofix` for this invocation before doing anything else. A caller that already resolved `ask` passes its chosen mode through. For this PR-code handler, `retries` and `no-autofix` both permit local candidate edits but no automatic commits or pushes; job retries remain `/follow-pr`'s responsibility.
 
 Any resolved `policy` text is a classification override, applied on top of Step 2's default criteria — it can broaden them (e.g. "do whatever it takes to make the PR pass" authorizes larger, handwritten fixes the defaults would reject) or narrow them. It can never relax the safety floor in Step 5.
 
@@ -70,7 +70,7 @@ If your harness supports switching to a stronger model mid-task (e.g. an "adviso
 
 ## Step 4 — Handle `safe` root causes
 
-Under `no-autofix` (or when Step 1 told you the push budget is already exhausted), treat every `safe` root cause as investigate-only: work through steps 1-6 below to produce and verify a candidate fix, then stop there — leave it uncommitted and describe it in the report exactly like a `complex` root cause's candidate in Step 5. Steps 7 and the final push only apply under `autofix` with budget remaining.
+Under `retries` or `no-autofix` (or when Step 1 told you the push budget is already exhausted), treat every `safe` root cause as investigate-only: work through steps 1-6 below to produce and verify a candidate fix, then stop there — leave it uncommitted and describe it in the report exactly like a `complex` root cause's candidate in Step 5. Steps 7 and the final push only apply under `autofix` with budget remaining.
 
 For each `safe` root cause, in this order:
 
@@ -82,13 +82,13 @@ For each `safe` root cause, in this order:
 6. Review the complete diff for this fix. Every changed hunk must map to this root cause; unexplained churn disqualifies it — move it to `complex`.
 7. Under `autofix`: stage only the explicit paths for this fix, inspect the cached diff, let hooks run normally, and commit with a message describing the actual fix (never "fix CI").
 
-Once every `safe` root cause has been through the steps above, push **once**, in one combined push, never once per root cause — and only under `autofix`, only if every one of them stayed `safe` and got committed. If any root cause turned out `complex`, or mode is `no-autofix`, or the budget was already exhausted, don't push at all: whatever got committed stays local, and Step 5 handles the `complex` root causes.
+Once every `safe` root cause has been through the steps above, push **once**, in one combined push, never once per root cause — and only under `autofix`, only if every one of them stayed `safe` and got committed. If any root cause turned out `complex`, or mode is `retries` or `no-autofix`, or the budget was already exhausted, don't push at all: whatever got committed stays local, and Step 5 handles the `complex` root causes.
 
 ## Step 5 — Handle `complex` root causes
 
 Only edit the working tree here if it was clean before Step 4 touched anything (or clean from the start, if there were no `safe` fixes this round). If it's dirty from unrelated user work, investigate read-only and say so.
 
-Investigate materially distinct hypotheses: read logs/diffs, run the nearest local checks, and reproduce with the real command where possible. Under `autofix` mode you may launch the smallest relevant provisioned E2E/KMT environment for a hypothesis without asking again; under `no-autofix`, ask before provisioning anything.
+Investigate materially distinct hypotheses: read logs/diffs, run the nearest local checks, and reproduce with the real command where possible. Under `autofix` mode you may launch the smallest relevant provisioned E2E/KMT environment for a hypothesis without asking again; under `retries` or `no-autofix`, ask before provisioning anything.
 
 If the environment can't reach the failing behavior at all (missing credentials, broken local setup), that's not an immediate stop — keep reasoning from the logs, the diff, and the code itself; you can often still form a well-supported hypothesis without running anything. Note the limitation plainly in the report rather than presenting an unverified guess as a confirmed fix.
 
@@ -146,4 +146,4 @@ Regardless of mode or any resolved custom policy text, this skill never:
 - prints or forwards secrets;
 - force-pushes, bypasses commit hooks (`--no-verify`), or uses destructive git recovery (`reset --hard`, `clean -fd`, etc.);
 - pushes when any `pr-code` root cause in the current batch is still `complex` or `blocked`;
-- pushes under `no-autofix`, when the caller reported the budget already exhausted, or more than once per invocation.
+- commits or pushes under `retries` or `no-autofix`;
