@@ -165,11 +165,6 @@ func preloadEarly() {
 	// forwarder timeout above.
 	setOverride("aggregator_stop_timeout", metricsAggregatorStopTimeoutSeconds)
 
-	// Prevent any UDP packets from being stuck in the buffer and not parsed:
-	// with this option set to 1ms, all packets received are immediately sent
-	// to the parser.
-	setOverride("dogstatsd_packet_buffer_flush_timeout", 1*time.Millisecond)
-
 	// DogStatsD in serverless-init listens on UDP only — suppress the default
 	// UDS listener, which requires a filesystem socket that has no use here.
 	setOverride("dogstatsd_socket", "")
