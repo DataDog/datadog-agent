@@ -5,7 +5,7 @@ go_library(
     name = "def",
     srcs = [
         "component.go",
-        "inventory.go",
+        "metadata.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def",
     visibility = ["//visibility:public"],
@@ -14,7 +14,7 @@ go_library(
 
 dd_agent_go_test(
     name = "def_test",
-    srcs = ["inventory_test.go"],
+    srcs = ["metadata_test.go"],
     embed = [":def"],
     deps = [
         "//comp/core/config",

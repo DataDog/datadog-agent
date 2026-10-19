@@ -64,9 +64,9 @@ func (a *AppService) GetTags() map[string]string {
 
 func (a *AppService) CanCollectMetadata() bool { return true }
 
-// GetMetadata derives the inventory metadata from
-// traceutil.GetAppServicesTags. Web apps lowercase the ARM ID for inventory
-// only; function apps keep its casing.
+// GetMetadata derives the metadata from
+// traceutil.GetAppServicesTags. Web apps lowercase the ARM ID for the
+// metadata payload only; function apps keep its casing.
 func (a *AppService) GetMetadata() serverlessdef.CloudServiceMetadata {
 	aasTags := traceutil.GetAppServicesTags()
 

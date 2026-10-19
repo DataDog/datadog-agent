@@ -101,11 +101,11 @@ type CloudService interface {
 	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
 
 	// GetMetadata returns the per-platform serverless fields for the
-	// inventory metadata payload. Implementations must not deadlock with the
+	// metadata payload. Implementations must not deadlock with the
 	// rest of the CloudService interface.
 	GetMetadata() serverlessdef.CloudServiceMetadata
 
-	// CanCollectMetadata reports whether the platform permits inventory metadata collection.
+	// CanCollectMetadata reports whether the platform permits metadata collection.
 	CanCollectMetadata() bool
 }
 

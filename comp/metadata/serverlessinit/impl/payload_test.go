@@ -18,7 +18,7 @@ import (
 )
 
 func TestBuildFieldsMissingValues(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "", model.SourceAgentRuntime)
 	inv := serverlessdef.CloudServiceMetadata{
@@ -46,7 +46,7 @@ func TestBuildFieldsMissingValues(t *testing.T) {
 }
 
 func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "datadoghq.eu", model.SourceAgentRuntime)
 	inv := serverlessdef.CloudServiceMetadata{
@@ -130,7 +130,7 @@ func TestBuildFieldsRuntime(t *testing.T) {
 		{name: "invalid override still detects", override: "null", command: []string{"ruby"}, want: "Ruby"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", tt.override)
+			t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", tt.override)
 			inv := serverlessdef.CloudServiceMetadata{RuntimeCandidates: []string{tt.metadata}}
 			fields := buildFields(inv, serverlessdef.Params{
 				Sidecar:        tt.sidecar,
@@ -143,8 +143,8 @@ func TestBuildFieldsRuntime(t *testing.T) {
 }
 
 func TestBuildFieldsWrappedCommand(t *testing.T) {
-	t.Setenv("DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED", "")
-	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+	t.Setenv("DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED", "")
+	t.Setenv("DD_SERVERLESS_METADATA_RUNTIME", "")
 
 	for _, scenario := range []struct {
 		name    string
@@ -165,7 +165,7 @@ func TestBuildFieldsWrappedCommand(t *testing.T) {
 			for _, enabled := range []string{"unset", "false", "true"} {
 				t.Run(enabled, func(t *testing.T) {
 					if enabled != "unset" {
-						conf.Set("serverless.inventory_wrapped_command_enabled", enabled == "true", model.SourceAgentRuntime)
+						conf.Set("serverless.metadata_wrapped_command_enabled", enabled == "true", model.SourceAgentRuntime)
 					}
 					fields := buildFields(inv, serverlessdef.Params{
 						Sidecar:        scenario.sidecar,
