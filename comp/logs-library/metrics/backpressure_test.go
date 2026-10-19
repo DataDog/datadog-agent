@@ -306,7 +306,8 @@ func TestCurrentBottleneckComponentScopedToPipeline(t *testing.T) {
 
 	assert.Equal(t, NoBottleneck, currentBottleneckComponent("0", windowStart), "another pipeline's processor")
 	assert.Equal(t, "processor", currentBottleneckComponent("1", windowStart))
-	assert.Equal(t, "processor", currentBottleneckComponent("", windowStart), "unknown pipeline")
+	var failoverMonitor *CapacityMonitor
+	assert.Equal(t, "processor", currentBottleneckComponent(failoverMonitor.Instance(), windowStart), "failover tailers scan every pipeline")
 
 	snaps = append(snaps, inPipeline(saturatedSnapshot("destination_reliable_0", 0.97, 0, time.Minute, true), "q0s0"))
 	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: snaps})

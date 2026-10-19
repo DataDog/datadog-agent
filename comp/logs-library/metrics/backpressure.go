@@ -281,6 +281,7 @@ func currentBottleneckComponent(pipeline string, lossWindowStartedAt time.Time) 
 
 // pipelineSnapshots drops other pipelines' processor and strategy; downstream stages are shared.
 func pipelineSnapshots(snaps []ComponentSnapshot, pipeline string) []ComponentSnapshot {
+	// Failover tailers have no fixed pipeline, so any pipeline can explain their loss.
 	if pipeline == "" {
 		return snaps
 	}
