@@ -68,15 +68,15 @@ bazel:test:linux-amd64:
 bazel:test:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
-# Deliberately manual to validate the pinned libdd-rc source through both its
-# native build and public Go client lifecycle on each supported native runner.
-# Keep native outputs on failures so CI runs provide enough evidence to refine
+# Merge-gating validation for the pinned libdd-rc source through both its
+# native build and public Go client lifecycle on each supported Unix runner.
+# Keep native outputs on failures so CI provides enough evidence to diagnose
+# a native or packaging regression.
 .bazel:rc-x509-ffi:
   stage: source_test
   needs: []
   rules:
-    - when: manual
-      allow_failure: true
+    - when: on_success
   variables:
     RC_X509_BAZEL_JOBS: 8
     RC_X509_ARTIFACTS_DIR: $CI_PROJECT_DIR/rc-x509-artifacts
@@ -91,7 +91,7 @@ bazel:test:linux-arm64:
     - command -v perl && perl --version
     - bazel cquery -c opt --output=files @libdd_rc_source//:rc_x509_ffi | tee rc-x509-declared-outputs.txt
     - bazel build -c opt --jobs=$RC_X509_BAZEL_JOBS --verbose_failures --remote_download_outputs=all @libdd_rc_source//:rc_x509_ffi
-    - bazel test -c opt --jobs=$RC_X509_BAZEL_JOBS --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test $RC_X509_ADDITIONAL_TEST_TARGETS
+    - bazel test -c opt --jobs=$RC_X509_BAZEL_JOBS --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test //deps/libdd_rc/smoke:log_sink_test $RC_X509_ADDITIONAL_TEST_TARGETS
   after_script:
     - mkdir -p "$RC_X509_ARTIFACTS_DIR"
     - mv rc-x509-declared-outputs.txt "$RC_X509_ARTIFACTS_DIR/" 2>/dev/null || true
@@ -122,30 +122,30 @@ bazel:test:linux-arm64:
 bazel:rc-x509-ffi:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:rc-x509-ffi]
   variables:
-    RC_X509_ADDITIONAL_TEST_TARGETS: //packages/agent/dependencies:rc_x509_packaged_agent_linux_test
+    RC_X509_ADDITIONAL_TEST_TARGETS: //packages/agent/dependencies:rc_x509_packaged_agent_linux_test //packages/agent/dependencies:rc_x509_packaged_agent_lifecycle_test
 
 bazel:rc-x509-ffi:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:rc-x509-ffi]
   variables:
-    RC_X509_ADDITIONAL_TEST_TARGETS: //packages/agent/dependencies:rc_x509_packaged_agent_linux_test
+    RC_X509_ADDITIONAL_TEST_TARGETS: //packages/agent/dependencies:rc_x509_packaged_agent_linux_test //packages/agent/dependencies:rc_x509_packaged_agent_lifecycle_test
 
 bazel:rc-x509-ffi:macos-amd64:
   extends: [.bazel:runner:macos-amd64, .bazel:rc-x509-ffi]
   variables:
-    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test //packages/agent/dependencies:rc_x509_packaged_agent_macos_test
+    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test //packages/agent/dependencies:rc_x509_packaged_agent_macos_test //packages/agent/dependencies:rc_x509_packaged_agent_lifecycle_test
 
 bazel:rc-x509-ffi:macos-arm64:
   extends: [.bazel:runner:macos-arm64, .bazel:rc-x509-ffi]
   variables:
-    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test //packages/agent/dependencies:rc_x509_packaged_agent_macos_test
+    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test //packages/agent/dependencies:rc_x509_packaged_agent_macos_test //packages/agent/dependencies:rc_x509_packaged_agent_lifecycle_test
 
 # The shipping Windows Agent uses MinGW, while AWS-LC supports Windows FIPS
-# only through the MSVC ABI. This temporary debug job disables assembly so it
-# can probe the isolated native, DLL/import-library, and staged runtime
-# boundaries while NASM's official archive is onboarded into the CI dependency
-# mirror. It is not a production acceptance test; AWS-LC permits NO_ASM only in
-# debug builds.
-bazel:rc-x509-ffi:windows-amd64-noasm-debug:
+# only through the MSVC ABI. Build the optimized, assembly-enabled native DLLs
+# behind that boundary, then validate their FFI and packaged-Agent lifecycle.
+# Keep this lane optional until Depot allow-lists the checksum-pinned NASM
+# archive; restore it as an on-success merge gate once that external blocker is
+# removed. The Linux and macOS rc-x509 lanes remain blocking.
+bazel:rc-x509-ffi:windows-amd64:
   extends: [.bazel:runner:windows-amd64, .bazel:test]
   stage: source_test
   needs: []

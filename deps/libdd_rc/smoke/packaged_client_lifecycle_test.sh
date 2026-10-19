@@ -21,6 +21,22 @@ for file in "$binary" "$dylib"; do
     fi
 done
 
+case "$(uname -m)" in
+    arm64) expected_arch="arm64" ;;
+    x86_64) expected_arch="x86_64" ;;
+    *)
+        echo "unsupported macOS runner architecture: $(uname -m)" >&2
+        exit 1
+        ;;
+esac
+for file in "$binary" "$dylib"; do
+    if ! /usr/bin/lipo -archs "$file" | tr ' ' '\n' | grep -Fxq "$expected_arch"; then
+        echo "staged Mach-O does not contain expected architecture $expected_arch: $file" >&2
+        /usr/bin/lipo -archs "$file" >&2
+        exit 1
+    fi
+done
+
 packaged_dylibs="$(find "$stage/embedded/lib" -type f -name 'libaws_lc_fips*.dylib' -print)"
 dylib_count="$(find "$stage/embedded/lib" -type f -name 'libaws_lc_fips*.dylib' -print | wc -l | tr -d ' ')"
 if [[ "$dylib_count" -ne 1 ]]; then

@@ -5,7 +5,7 @@ Set-StrictMode -Version 3.0
 [Environment]::SetEnvironmentVariable('RC_X509_LIFECYCLE_SUCCEEDED', $null, 'Process')
 
 $PlatformArgs = @(
-    '-c', 'dbg',
+    '-c', 'opt',
     '--platforms=//bazel/platforms:windows_x86_64',
     '--extra_toolchains=@rust_toolchains//:rw-395021384',
     '--extra_toolchains=@winlibs_mingw64//:mingw_cc_toolchain',
@@ -13,6 +13,7 @@ $PlatformArgs = @(
     '--@rules_rust//cargo/settings:debug_std_streams_output_group=true'
 )
 $PackageTarget = '//packages/agent/dependencies:rc_x509_packaged_agent_windows_archive'
+$LicenseManifestTarget = '//packages/agent/dependencies:license_files_licenses_'
 
 $executionRoots = @(bazel info @PlatformArgs execution_root)
 if ($LASTEXITCODE -ne 0 -or $executionRoots.Count -ne 1) {
@@ -21,6 +22,23 @@ if ($LASTEXITCODE -ne 0 -or $executionRoots.Count -ne 1) {
 $executionRoot = $executionRoots[0]
 $env:RC_X509_BAZEL_EXECUTION_ROOT = $executionRoot
 Write-Host "Bazel execution root: $executionRoot"
+
+$ProductionPackageTarget = '//packages/agent/dependencies:all_files'
+$ProductionRuntimeTargets = @(
+    '//deps/libdd_rc:rc_x509_ffi_windows_dll',
+    '//deps/libdd_rc:aws_lc_fips_crypto_windows_dll'
+)
+foreach ($runtimeTarget in $ProductionRuntimeTargets) {
+    $packagePath = @(bazel cquery @PlatformArgs "somepath($ProductionPackageTarget, $runtimeTarget)" --output=label)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not analyze the production package path to $runtimeTarget; Bazel exited with code $LASTEXITCODE"
+    }
+    if ($packagePath.Count -eq 0) {
+        throw "Production package $ProductionPackageTarget does not include $runtimeTarget"
+    }
+    Write-Host "Production Windows package path to ${runtimeTarget}:"
+    $packagePath | ForEach-Object { Write-Host "  $_" }
+}
 
 function Resolve-BazelOutputPath {
     param([Parameter(Mandatory = $true)][string]$OutputPath)
@@ -31,9 +49,29 @@ function Resolve-BazelOutputPath {
     return (Join-Path $executionRoot $OutputPath)
 }
 
-bazel build @PlatformArgs --jobs=8 --verbose_failures --remote_download_outputs=all $PackageTarget
+bazel build @PlatformArgs --jobs=8 --verbose_failures --remote_download_outputs=all $PackageTarget '@winlibs_mingw64//:objdump'
 if ($LASTEXITCODE -ne 0) {
     throw "Bazel build failed with exit code $LASTEXITCODE"
+}
+
+bazel build @PlatformArgs --jobs=8 --verbose_failures --remote_download_outputs=all $LicenseManifestTarget
+if ($LASTEXITCODE -ne 0) {
+    throw "Windows dependency license manifest failed with exit code $LASTEXITCODE"
+}
+$licenseOutputs = @(bazel cquery @PlatformArgs --output=files $LicenseManifestTarget)
+if ($LASTEXITCODE -ne 0) {
+    throw "Windows dependency license manifest cquery failed with exit code $LASTEXITCODE"
+}
+$licenseCsvOutputs = @($licenseOutputs | Where-Object { $_ -match '\.csv$' })
+if ($licenseCsvOutputs.Count -ne 1) {
+    throw "Expected one Windows dependency license CSV, found $($licenseCsvOutputs.Count): $licenseOutputs"
+}
+$licenseCsvPath = Resolve-BazelOutputPath ($licenseCsvOutputs[0])
+$licenseCsv = Get-Content -LiteralPath $licenseCsvPath -Raw
+foreach ($packageName in @('libdd-rc', 'aws-lc-fips-sys')) {
+    if ($licenseCsv -notmatch [Regex]::Escape($packageName)) {
+        throw "Windows dependency license manifest does not contain $packageName`: $licenseCsvPath"
+    }
 }
 
 $packageOutputs = @(bazel cquery @PlatformArgs --output=files $PackageTarget)
@@ -72,6 +110,48 @@ $missingFiles = @($expectedFiles | Where-Object { -not (Test-Path -LiteralPath $
 if ($missingFiles.Count -ne 0) {
     throw "Windows package archive is missing expected files: $missingFiles"
 }
+
+$objdumpOutputs = @(bazel cquery @PlatformArgs --output=files '@winlibs_mingw64//:objdump')
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not resolve the declared MinGW objdump tool; Bazel exited with code $LASTEXITCODE"
+}
+if ($objdumpOutputs.Count -ne 1) {
+    throw "Expected one declared MinGW objdump output, found $($objdumpOutputs.Count): $objdumpOutputs"
+}
+$objdumpPath = Resolve-BazelOutputPath ($objdumpOutputs[0])
+if (-not (Test-Path -LiteralPath $objdumpPath -PathType Leaf)) {
+    throw "Declared MinGW objdump does not exist: $objdumpPath"
+}
+
+function Assert-PackagedPeFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string[]]$ExpectedImports = @()
+    )
+
+    $headers = (& $objdumpPath -p $Path 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not inspect packaged PE file ${Path}:`n$headers"
+    }
+    if ($headers -notmatch '(?m)file format pei-x86-64\s*$') {
+        throw "Packaged PE file is not x86-64: ${Path}`n$headers"
+    }
+    foreach ($expectedImport in $ExpectedImports) {
+        if ($headers -notmatch ("(?im)^\s*DLL Name:\s*" + [Regex]::Escape($expectedImport) + "\s*$")) {
+            throw "Packaged PE file $Path does not import ${expectedImport}:`n$headers"
+        }
+    }
+
+    $binaryText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($Path))
+    if ($binaryText -match '(?i)(bazel-out|execroot|[\\/]sandbox[\\/]|C:\\gitlab-ci\\builds\\)') {
+        throw "Packaged PE file contains a build-tree path marker: $Path"
+    }
+}
+
+Assert-PackagedPeFile -Path (Join-Path $agentBinDir 'agent.exe') -ExpectedImports @('rc_x509_ffi.dll')
+Assert-PackagedPeFile -Path (Join-Path $agentBinDir 'windows_msvc_lifecycle.exe') -ExpectedImports @('rc_x509_ffi.dll')
+Assert-PackagedPeFile -Path (Join-Path $agentBinDir 'rc_x509_ffi.dll') -ExpectedImports @('aws_lc_fips_0_14_2_crypto.dll')
+Assert-PackagedPeFile -Path (Join-Path $agentBinDir 'aws_lc_fips_0_14_2_crypto.dll')
 
 Write-Host 'Packaged Windows lifecycle probe:'
 Get-ChildItem -LiteralPath $agentBinDir | Format-Table -AutoSize
