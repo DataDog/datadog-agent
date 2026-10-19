@@ -485,11 +485,6 @@ func TestKAIGPUGroups(t *testing.T) {
 			want: []string{"group-a", "group-b"},
 		},
 		{
-			name:   "per-GPU label with an empty value falls back to the key",
-			labels: map[string]string{kaiGPUGroupLabelPrefix + "group-a": ""},
-			want:   []string{"group-a"},
-		},
-		{
 			name: "both forms are deduplicated",
 			labels: map[string]string{
 				kaiGPUGroupLabel:                   "group-a",

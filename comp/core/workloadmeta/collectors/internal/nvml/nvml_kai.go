@@ -51,12 +51,6 @@ const (
 	podPhaseFailed    = "Failed"
 )
 
-// kaiLogLimiter is deliberately separate from the collector-wide logLimiter.
-// Limit.ShouldLog consumes its budget before the level is consulted, so sharing
-// one limiter would let these per-pod debug lines starve the driver, device and
-// MIG warnings that the rest of this collector depends on.
-var kaiLogLimiter = log.NewLogLimit(20, 10*time.Minute)
-
 // kaiFractions is what one pull could establish about the KAI Scheduler
 // fractional GPUs on this node.
 type kaiFractions struct {
@@ -221,9 +215,7 @@ func kaiGPUGroupReservations(pods []*workloadmeta.KubernetesPod, deviceCache ddn
 		// GPU, so the per-GPU form never applies to them.
 		group := pod.Labels[kaiGPUGroupLabel]
 		if group == "" {
-			if kaiLogLimiter.ShouldLog() {
-				log.Debugf("KAI: reservation pod %s/%s reserves GPU %s but carries no %s label, so no workload can be matched to it", pod.Namespace, pod.Name, uuid, kaiGPUGroupLabel)
-			}
+			log.Debugf("KAI: reservation pod %s/%s reserves GPU %s but carries no %s label, so no workload can be matched to it", pod.Namespace, pod.Name, uuid, kaiGPUGroupLabel)
 			continue
 		}
 		candidates = append(candidates, reservationCandidate{
@@ -254,9 +246,7 @@ func kaiGPUGroupReservations(pods []*workloadmeta.KubernetesPod, deviceCache ddn
 		// Debug rather than warn: Pull lists the devices before reaching this
 		// collector and fails the whole pull if it cannot, so this is defensive
 		// against a future caller rather than a condition that occurs today.
-		if kaiLogLimiter.ShouldLog() {
-			log.Debugf("KAI: cannot list GPU devices to validate %d reservation pod(s): %v", len(candidates), err)
-		}
+		log.Debugf("KAI: cannot list GPU devices to validate %d reservation pod(s): %v", len(candidates), err)
 		return nil
 	}
 
@@ -268,9 +258,7 @@ func kaiGPUGroupReservations(pods []*workloadmeta.KubernetesPod, deviceCache ddn
 			// pod's binding and this pull. Debug rather than warn, because the
 			// excluded-device case is a supported configuration that would
 			// otherwise log on every pull forever.
-			if kaiLogLimiter.ShouldLog() {
-				log.Debugf("KAI: ignoring the reservation of GPU %s for group %s: NVML does not report that device on this node", winner.uuid, group)
-			}
+			log.Debugf("KAI: ignoring the reservation of GPU %s for group %s: NVML does not report that device on this node", winner.uuid, group)
 			reservations[group] = kaiReservation{}
 			continue
 		}
@@ -322,14 +310,13 @@ func kaiGPUGroups(pod *workloadmeta.KubernetesPod) []string {
 		if !strings.HasPrefix(key, kaiGPUGroupLabelPrefix) {
 			continue
 		}
-		// KAI writes the group as both the key suffix and the value; fall back
-		// to the suffix so a label written with an empty value still resolves.
-		group := value
-		if group == "" {
-			group = strings.TrimPrefix(key, kaiGPUGroupLabelPrefix)
-		}
-		if group != "" && !slices.Contains(groups, group) {
-			groups = append(groups, group)
+		// KAI writes the group as both the key suffix and the value, one label per
+		// shared GPU:
+		//
+		//	runai-gpu-group/<group-a>=<group-a>
+		//	runai-gpu-group/<group-b>=<group-b>
+		if value != "" && !slices.Contains(groups, value) {
+			groups = append(groups, value)
 		}
 	}
 
@@ -381,7 +368,7 @@ func kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
 	if len(pod.Containers) == 1 {
 		return pod.Containers[0].ID
 	}
-	if len(pod.Containers) > 1 && kaiLogLimiter.ShouldLog() {
+	if len(pod.Containers) > 1 {
 		log.Debugf("KAI: pod %s/%s shares a GPU but no annotation says which of its %d containers uses it", pod.Namespace, pod.Name, len(pod.Containers))
 	}
 	return ""
