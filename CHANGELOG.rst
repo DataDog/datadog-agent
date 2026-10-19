@@ -2,6 +2,84 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.4:
+
+7.84.4
+======
+
+.. _Release Notes_7.84.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-19
+
+- Please refer to the `7.84.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7844>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.4_New Features:
+
+New Features
+------------
+
+- Add ``logs_config.unreliable_mount.enabled`` for log files on mounts with
+  stale page-cache or file-handle behavior during rotation, such as CIFS/SMB
+  and Azure Files. The profile applies to all file log sources on the Agent
+  and requires an Agent restart when changed. On Linux, fingerprint reads use
+  ``O_DIRECT``, including sources with their own checksum settings. Other
+  platforms keep buffered fingerprint reads. Normal log tailing is unchanged.
+  
+  The profile defaults the global fingerprint strategy to ``line_checksum``
+  with one line and a 4096-byte window. Explicit checksum settings, including
+  ``disabled``, are preserved. ``logs_config.unreliable_mount.rotation_drain_timeout``
+  replaces ``close_timeout`` for rotated files and defaults to 60 seconds.
+  Scan frequency is unchanged. Consider raising ``logs_config.file_scan_period``
+  to reduce uncached reads, which fetch the whole fingerprint window each scan.
+  
+  Failed fingerprints prevent new tailers from starting. Active tailers keep
+  collecting, but cannot check fingerprint rotation until a later read succeeds.
+  Failures appear in the Agent log and status; status clears on recovery. Linux
+  does not silently retry failed direct reads using buffered I/O.
+
+
+.. _Release Notes_7.84.4_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- CWS: the default values of the SBOM usage enrichment intervals have been
+  increased. ``runtime_security_config.sbom.enrichment_interval`` is now
+  ``30m`` (previously ``1m``) and ``runtime_security_config.sbom.forward_interval``
+  is now ``1m`` (previously ``20s``), reducing how often SBOMs enriched with
+  runtime usage information are updated and forwarded.
+
+
+.. _Release Notes_7.84.4_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Logs: Prevent registry corruption after an abrupt system shutdown by
+  making atomic registry updates durable before replacing the previous file.
+
+- With ``logs_config.unreliable_mount.enabled``, file log sources that detect
+  rotation by fingerprint now wait for the rotated tailer to release its
+  descriptor before reopening the same path. On CIFS/SMB shares, opening a
+  path while a previous descriptor on it is still open can return a stale
+  handle, which duplicated or lost log lines across a rotation. Sources with
+  fingerprinting disabled, and all sources without the profile, keep tailing
+  the rotated and the new file in parallel as before.
+  
+  The handoff ends once the rotated file has gone 30 seconds without new
+  reads, rather than always waiting out
+  ``logs_config.unreliable_mount.rotation_drain_timeout``, which remains
+  the upper bound. The new file is collected from its beginning once the
+  handoff ends, so a file rotated away sooner than that is not read.
+
+- Updated the ``gopsutil`` library to v4.26.9 to fix a crash of the Agent
+  when running on Apple M6 hosts.
+
+
 .. _Release Notes_7.84.3:
 
 7.84.3
