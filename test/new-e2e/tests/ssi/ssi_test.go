@@ -66,9 +66,6 @@ var registryAllowListHelmValues string
 //go:embed testdata/rc_policies.yaml
 var rcPoliciesHelmValues string
 
-//go:embed testdata/ddi.yaml
-var ddiHelmValues string
-
 //go:embed testdata/rc_host_linux_only_policy.json
 var rcHostLinuxOnlyPolicyJSON []byte
 
@@ -280,6 +277,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 	v.UpdateEnv(Provisioner(ProvisionerOptions{
 		AgentOptions: []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(localSDKInjectionHelmValues),
+			kubernetesagentparams.WithTimeout(600),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
 			return singlestep.Scenario(e, kubeProvider, "local-sdk-injection", []singlestep.Namespace{
@@ -301,6 +299,17 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 						},
 						{
 							Name:    "local-sdk-expect-no-injection",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+						},
+					},
+				},
+				{
+					Name: ddiNamespace,
+					Apps: []singlestep.App{
+						{
+							Name:    ddiApp,
 							Image:   "gcr.io/datadoghq/injector-dev/python",
 							Version: "d425e7df",
 							Port:    8080,
@@ -344,6 +353,8 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 		podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 		podValidator.RequireNoInjection(v.T())
 	})
+
+	v.Run("DatadogInstrumentation", v.testDatadogInstrumentation)
 }
 
 func (v *ssiSuite) TestNamespaceSelection() {
@@ -597,28 +608,7 @@ func (v *ssiSuite) TestRegistryAllowList() {
 	})
 }
 
-func (v *ssiSuite) TestDatadogInstrumentation() {
-	v.UpdateEnv(Provisioner(ProvisionerOptions{
-		AgentOptions: []kubernetesagentparams.Option{
-			kubernetesagentparams.WithHelmValues(ddiHelmValues),
-			kubernetesagentparams.WithTimeout(600),
-		},
-		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
-			return singlestep.Scenario(e, kubeProvider, "ddi-ssi", []singlestep.Namespace{
-				{
-					Name: ddiNamespace,
-					Apps: []singlestep.App{
-						{
-							Name:    ddiApp,
-							Image:   "gcr.io/datadoghq/injector-dev/python",
-							Version: "d425e7df",
-							Port:    8080,
-						},
-					},
-				},
-			}, dependsOnAgent)
-		},
-	}))
+func (v *ssiSuite) testDatadogInstrumentation() {
 	fi := v.Env().FakeIntake.Client()
 
 	k8s := v.Env().KubernetesCluster.Client()
