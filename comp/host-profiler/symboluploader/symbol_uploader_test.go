@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/jsonapi"
@@ -434,9 +435,45 @@ func registerResponders(t *testing.T, buildID string) []chan *http.Request {
 	return channels
 }
 
-//nolint:tparallel
+func captureUploadReports(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("logs:\n%s", buf.String())
+		}
+	})
+	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	infoReporter = newSymbolReporter(slog.LevelInfo)
+	errorReporter = newSymbolReporter(slog.LevelError)
+	return buf
+}
+
+func uploadReportCounts(t *testing.T, buf *bytes.Buffer) map[string]int {
+	t.Helper()
+	counts := make(map[string]int)
+	for line := range bytes.Lines(buf.Bytes()) {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal(line, &record))
+		if record["msg"] != "Symbol Upload Report" {
+			continue
+		}
+		for key, value := range record {
+			reason, ok := strings.CutPrefix(key, "status_by_reason.")
+			if !ok {
+				continue
+			}
+			if reason, ok = strings.CutSuffix(reason, ".count"); ok {
+				count, isNumber := value.(float64)
+				require.True(t, isNumber, "non-numeric count for %s", key)
+				counts[reason] += int(count)
+			}
+		}
+	}
+	return counts
+}
+
 func TestSymbolUpload(t *testing.T) {
-	t.Parallel()
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
@@ -474,6 +511,7 @@ func TestSymbolUpload(t *testing.T) {
 	goExeDebugInfosCorruptGoPCLnTab := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: true, symtab: true, debugInfos: true, corruptGoPCLnTab: true})
 
 	t.Run("No symbol upload if no symbols", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
 		require.NoError(t, err)
@@ -483,21 +521,31 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		assert.Equal(t, 0, httpmock.GetTotalCallCount())
+		require.Equal(t, map[string]int{reasonNoDebugSymbols: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload if symtab", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
-		uploader.UploadSymbols(newExecutableMetadata(t, goExeSymtab))
+		execMeta := newExecutableMetadata(t, goExeSymtab)
+		uploader.UploadSymbols(execMeta)
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceSymbolTable, false, []bool{true, true, false, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
+
+		uploader.UploadSymbols(execMeta)
+		flushReports()
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1, reasonAlreadyUploaded: 1},
+			uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload if debug info", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
 		require.NoError(t, err)
@@ -507,9 +555,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("No upload if dynamic symbols", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
 		require.NoError(t, err)
@@ -519,9 +569,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		assert.Equal(t, 0, httpmock.GetTotalCallCount())
+		require.Equal(t, map[string]int{reasonNoDebugSymbols: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload if dynamic symbols when enabled", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadDynamicSymbols: true})
 		require.NoError(t, err)
@@ -531,9 +583,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceDynamicSymbolTable, false, []bool{true, false, false, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload pclntab when enabled", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
@@ -543,9 +597,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceGoPCLnTab, true, []bool{true, true, true, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload debug infos if pclntab is corrupted", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
@@ -555,9 +611,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload dynamic symbols if pclntab is corrupted and only dyn sym when enabled", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadDynamicSymbols: true, uploadGoPCLnTab: true})
 		require.NoError(t, err)
@@ -567,9 +625,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceDynamicSymbolTable, false, []bool{true, false, false, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("No symbol upload if pclntab is corrupted and only dynsym", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
@@ -579,9 +639,37 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceNone, false, []bool{false, false, false, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonGoPCLnTabError: 1}, uploadReportCounts(t, reports))
+	})
+
+	t.Run("Report skipped upload when no endpoint needs symbols", func(t *testing.T) {
+		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+		require.NoError(t, err)
+
+		tests := []struct {
+			name       string
+			backend    SymbolQueryResult
+			wantCounts map[string]int
+		}{
+			{"existing symbols", SymbolQueryResult{SymbolSource: symbol.SourceDebugInfo}, map[string]int{reasonExistingSymbols: 1}},
+			{"query error", SymbolQueryResult{Err: errors.New("query failed")}, map[string]int{}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				reports := captureUploadReports(t)
+				e, err := symbol.NewElfFromDisk(goExeSymtab)
+				require.NoError(t, err)
+
+				uploader.uploadWorker(t.Context(), ElfWithBackendSources{Elf: e, BackendSymbolSources: []SymbolQueryResult{tt.backend}})
+				flushReports()
+
+				require.Equal(t, tt.wantCounts, uploadReportCounts(t, reports))
+			})
+		}
 	})
 
 	t.Run("Upload compressed request when debug section compression is disabled", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{disableDebugSectionCompression: true})
 		require.NoError(t, err)
@@ -591,6 +679,7 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploadsWithEncoding(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false}, "zstd")
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 }
 
