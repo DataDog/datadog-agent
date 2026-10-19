@@ -2480,7 +2480,7 @@ func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				fx.Provide(func() config.Component { return config.NewMock(t) }),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 			store.Set(&workloadmeta.Container{
@@ -2490,7 +2490,7 @@ func TestKServeInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 				},
 			})
 
-			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+			collector := NewWorkloadMetaCollector(t.Context(), configmock.New(t), store, nil)
 			labels := map[string]string{
 				kubernetes.KubeAppPartOfLabelKey:             tt.partOf,
 				kubernetes.KubeAppNameLabelKey:               tt.workload,
