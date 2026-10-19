@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,8 +25,10 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/consumer/consumererror"
+	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
@@ -39,7 +42,10 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -51,6 +57,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	zstdimpl "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 )
@@ -61,17 +68,20 @@ type metricRecorder struct {
 	serializer.Serializer // embed for implementing serializer.MetricSerializer
 
 	sketchSeriesList metrics.SketchSeriesList
+	distributions    []metrics.Distribution // non-DDSketch distributions
 	series           []*metrics.Serie
 }
 
 // SendSketch implements the MetricSerializer interface
 func (r *metricRecorder) SendSketch(s metrics.SketchesSource) error {
 	for s.MoveNext() {
-		c := s.Current()
-		if c == nil {
-			continue
+		switch c := s.Current().(type) {
+		case nil:
+		case *metrics.SketchSeries:
+			r.sketchSeriesList = append(r.sketchSeriesList, c)
+		default:
+			r.distributions = append(r.distributions, c)
 		}
-		r.sketchSeriesList = append(r.sketchSeriesList, c.(*metrics.SketchSeries))
 	}
 	return nil
 }
@@ -508,7 +518,7 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 			}
 
 			rec := &metricRecorder{}
-			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
 			require.NoError(t, err)
 
 			md := pmetric.NewMetrics()
@@ -572,14 +582,13 @@ func TestDDOTRunningMetricForPayloadContents(t *testing.T) {
 					apmReceiverAddr: apmReceiverAddr,
 					ipath:           ddot,
 					hosts:           make(map[string]struct{}),
-					fargateTagSets:  make(map[tagSetKey][]string),
 					buildInfo:       buildInfo,
 					standalone:      true,
 				}
 			}
 
 			rec := &metricRecorder{}
-			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ddot)
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ddot, true)
 			require.NoError(t, err)
 
 			md := pmetric.NewMetrics()
@@ -620,17 +629,15 @@ func TestAzureAppServiceRunningMetric(t *testing.T) {
 	}
 
 	rec := &metricRecorder{}
-	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
 	require.NoError(t, err)
 
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
 	require.NoError(t, rm.Resource().Attributes().FromRaw(map[string]any{
-		"cloud.platform":            "azure.app_service",
-		"service.name":              "my-app",
-		"cloud.account.id":          "sub-123",
-		"azure.resource_group.name": "my-rg",
-		"service.instance.id":       "instance-1",
+		"cloud.platform":    "azure.app_service",
+		"service.name":      "my-app",
+		"cloud.resource_id": "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
 	}))
 	metric := rm.ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
 	metric.SetName("my.metric")
@@ -672,7 +679,7 @@ func newCollectorRunningMetricTestExporter(t *testing.T) (*Exporter, *metricReco
 		}
 	}
 	rec := &metricRecorder{}
-	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector)
+	exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ossCollector, false)
 	require.NoError(t, err)
 	return exp, rec
 }
@@ -1521,4 +1528,157 @@ func initSyncSerializerForTest(t testing.TB, logger *zap.Logger, cfg *ExporterCo
 		return nil, nil, errors.New("failed to cast forwarder to *defaultforwarderimpl.OTelSyncForwarder")
 	}
 	return s, sf, nil
+}
+
+func newHistogramsMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	rm.Resource().Attributes().PutStr("host.name", "test-host")
+	ms := rm.ScopeMetrics().AppendEmpty().Metrics()
+
+	m := ms.AppendEmpty()
+	m.SetName("delta.explicit")
+	m.SetEmptyHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	dp := m.Histogram().DataPoints().AppendEmpty()
+	dp.SetTimestamp(pcommon.Timestamp(42 * time.Second))
+	dp.Attributes().PutStr("k", "v")
+	dp.SetCount(3)
+	dp.SetSum(3)
+	dp.ExplicitBounds().FromRaw([]float64{1})
+	dp.BucketCounts().FromRaw([]uint64{1, 2})
+
+	m = ms.AppendEmpty()
+	m.SetName("cumulative.explicit")
+	m.SetEmptyHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	dp = m.Histogram().DataPoints().AppendEmpty()
+	dp.SetCount(3)
+	dp.ExplicitBounds().FromRaw([]float64{1})
+	dp.BucketCounts().FromRaw([]uint64{1, 2})
+
+	m = ms.AppendEmpty()
+	m.SetName("delta.exponential")
+	m.SetEmptyExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+	edp := m.ExponentialHistogram().DataPoints().AppendEmpty()
+	edp.SetTimestamp(pcommon.Timestamp(42 * time.Second))
+	edp.SetCount(2)
+	edp.Positive().BucketCounts().FromRaw([]uint64{2})
+
+	m = ms.AppendEmpty()
+	m.SetName("test.gauge")
+	m.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+	return md
+}
+
+func setNativeHistogramsGate(t *testing.T, enabled bool) {
+	reg := featuregate.GlobalRegistry()
+	prev := nativeOTelHistogramsGate.IsEnabled()
+	require.NoError(t, reg.Set(nativeOTelHistogramsGate.ID(), enabled))
+	t.Cleanup(func() { require.NoError(t, reg.Set(nativeOTelHistogramsGate.ID(), prev)) })
+}
+
+// capturingForwarder records the transactions instead of sending them.
+type capturingForwarder struct {
+	defaultforwarder.Forwarder
+	mu   sync.Mutex
+	txns []*transaction.HTTPTransaction
+}
+
+func (f *capturingForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.txns = append(f.txns, t)
+	return nil
+}
+
+// pointsTo returns the number of points sent to the endpoint.
+func (f *capturingForwarder) pointsTo(endpoint transaction.Endpoint) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var n int
+	for _, t := range f.txns {
+		if t.Endpoint == endpoint {
+			n += t.Payload.GetPointCount()
+		}
+	}
+	return n
+}
+
+// newTestAgentSerializer returns an agent serializer for dd_url http://intake.example.test,
+// with zstd compression and the given settings, sending through a capturing forwarder.
+func newTestAgentSerializer(t *testing.T, settings map[string]any) (*serializer.Serializer, *capturingForwarder) {
+	config := configmock.New(t)
+	config.SetInTest("dd_url", "http://intake.example.test")
+	config.SetInTest("api_key", "test_key")
+	for k, v := range settings {
+		config.SetInTest(k, v)
+	}
+	logger := &datadog.Zaplogger{Logger: zap.NewNop()}
+	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	fwd := &capturingForwarder{Forwarder: f}
+	s := serializer.NewSerializer(fwd, nil, zstdimpl.New(zstdimpl.Requires{Level: 1}), config, logger, "")
+	return s, fwd
+}
+
+func createDDOTMetricsExporter(s serializer.MetricSerializer, histogramsMode datadogconfig.HistogramMode) (exporter.Metrics, error) {
+	f := NewFactoryForOTelAgent(s, func(context.Context) (string, error) {
+		return "", nil
+	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
+	cfg := f.CreateDefaultConfig().(*ExporterConfig)
+	if histogramsMode != "" {
+		cfg.Metrics.Metrics.HistConfig.Mode = histogramsMode
+	}
+	return f.CreateMetrics(context.Background(), exportertest.NewNopSettings(component.MustNewType("datadog")), cfg)
+}
+
+// v3SketchPointsWithGate sends newHistogramsMetrics through DDOT, with histograms in counters
+// mode, and returns the number of points sent to the v3 sketches intake.
+func v3SketchPointsWithGate(t *testing.T, enabled bool) int {
+	setNativeHistogramsGate(t, enabled)
+	s, fwd := newTestAgentSerializer(t, map[string]any{
+		"serializer_experimental_use_v3_api.sketches.endpoints": []string{"http://intake.example.test"},
+	})
+	ctx := context.Background()
+	exp, err := createDDOTMetricsExporter(s, datadogconfig.HistogramModeCounters)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
+	require.NoError(t, exp.ConsumeMetrics(ctx, newHistogramsMetrics()))
+	require.NoError(t, exp.Shutdown(ctx))
+	return fwd.pointsTo(endpoints.V3SketchSeriesEndpoint)
+}
+
+func TestNativeOTelHistogramsGate(t *testing.T) {
+	// Without the gate, counters mode turns the explicit histogram into .bucket series and
+	// only the exponential one becomes a sketch. With the gate, both delta histograms are
+	// sent as is and the cumulative one is dropped.
+	assert.Equal(t, 1, v3SketchPointsWithGate(t, false))
+	assert.Equal(t, 2, v3SketchPointsWithGate(t, true))
+}
+
+func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
+	setNativeHistogramsGate(t, true)
+
+	t.Run("v2 destinations", func(t *testing.T) {
+		s, _ := newTestAgentSerializer(t, map[string]any{
+			"serializer_experimental_use_v3_api.sketches.endpoints": []string{"http://intake.example.test"},
+			"additional_endpoints": map[string][]string{"http://proxy.example.test": {"alt_key"}},
+		})
+		_, err := createDDOTMetricsExporter(s, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "these use v2: http://proxy.example.test;")
+		assert.Contains(t, err.Error(), "serializer_experimental_use_v3_api.sketches.endpoints")
+	})
+
+	t.Run("not the agent serializer", func(t *testing.T) {
+		_, err := createDDOTMetricsExporter(&MockSerializer{}, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "needs the agent serializer")
+	})
+
+	t.Run("agent OTLP ingest is not checked", func(t *testing.T) {
+		f := NewFactoryForAgent(&MockSerializer{}, func(context.Context) (string, error) { return "", nil }, TelemetryStore{})
+		cfg := f.CreateDefaultConfig().(*ExporterConfig)
+		_, err := f.CreateMetrics(context.Background(), exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
+		require.NoError(t, err)
+	})
 }

@@ -30,6 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
+const stringInternerSize = 4096
+
+var stringInterner = utils.NewLRUStringInterner(stringInternerSize)
+
 // NodeDroppedReason is used to list the reasons to drop a node
 type NodeDroppedReason byte
 
@@ -191,6 +195,11 @@ type ActivityTree struct {
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
 
+	Mounts     []*MountNode
+	mountIndex map[mountNodeKey]*MountNode
+
+	baseMountNamespaceIDs map[uint32]int
+
 	imageTagIDs []imageTagEntry
 }
 
@@ -209,13 +218,15 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
 
 	return &ActivityTree{
-		treeType:            treeType,
-		validator:           validator,
-		pathsReducer:        pathsReducer,
-		Stats:               NewActivityTreeNodeStats(),
-		CookieToProcessNode: cache,
-		SyscallsMask:        make(map[int]int),
-		DNSNames:            utils.NewStringKeys(nil),
+		treeType:              treeType,
+		validator:             validator,
+		pathsReducer:          pathsReducer,
+		Stats:                 NewActivityTreeNodeStats(),
+		CookieToProcessNode:   cache,
+		SyscallsMask:          make(map[int]int),
+		DNSNames:              utils.NewStringKeys(nil),
+		baseMountNamespaceIDs: make(map[uint32]int),
+		mountIndex:            make(map[mountNodeKey]*MountNode),
 	}
 }
 
@@ -574,6 +585,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
 	case model.CapabilitiesEventType:
 		return node.InsertCapabilitiesUsageEvent(event, imageTagID, at.Stats, dryRun), node, nil, nil
+	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
+		return at.insertMountEvent(event, imageTagID, generationType, resolvers, dryRun), node, nil, nil
 	case model.ExitEventType:
 		node.Process.ExitTime = event.Timestamp
 	}
@@ -583,6 +596,38 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 func isContainerRuntimePrefix(basename string) bool {
 	return strings.HasPrefix(basename, "runc") || strings.HasPrefix(basename, "containerd-shim")
+}
+
+// FindRootProcess returns the process this entry would be rooted on in the tree
+// (walking ancestors with GetNextAncestorBinaryOrArgv0 and skipping container
+// runtime processes via isValidRootNode), or nil if there is none.
+//
+// The walk stops at the workload boundary: ancestors outside the entry's
+// container (e.g. the host container runtime) are not eligible as the root.
+// Without this, an ancestry like systemd -> containerd -> containerd-shim ->
+// app could select the host containerd and pin its host mount namespace.
+func FindRootProcess(entry *model.ProcessContext) *model.ProcessContext {
+	containerID := entry.ContainerContext.ContainerID
+
+	var branch []*model.ProcessContext
+	for cur := entry; cur != nil; {
+		if cur.ContainerContext.ContainerID != containerID {
+			break
+		}
+		branch = append(branch, cur)
+		ancestor := GetNextAncestorBinaryOrArgv0(cur)
+		if ancestor == nil {
+			break
+		}
+		cur = &ancestor.ProcessContext
+	}
+
+	for i := len(branch) - 1; i >= 0; i-- {
+		if isValidRootNode(branch[i]) {
+			return branch[i]
+		}
+	}
+	return nil
 }
 
 // isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
@@ -1035,6 +1080,9 @@ func (at *ActivityTree) recomputeSizeBytes() {
 		total += pn.size() + processNodeOwnActivitySize(pn)
 		openList = append(openList, pn.Children...)
 	}
+	for _, mn := range at.Mounts {
+		total += mn.size()
+	}
 	at.Stats.SizeBytes = total
 }
 
@@ -1113,6 +1161,18 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 		removedBytes += nodeRemoved
 	}
 	at.ProcessNodes = newProcessNodes
+
+	newMounts := at.Mounts[:0]
+	for _, mn := range at.Mounts {
+		if mn.EvictImageTag(imageTagID) {
+			removedBytes += mn.size()
+			delete(at.mountIndex, mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags})
+			continue
+		}
+		newMounts = append(newMounts, mn)
+	}
+	at.Mounts = newMounts
+
 	at.removeImageTag(imageTag)
 	at.Stats.SizeBytes -= removedBytes
 }
@@ -1219,7 +1279,7 @@ func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
 				continue
 			}
 			syscall := uint32(syscallNode.Syscall)
-			syscallNode.EachSeen(func(imageTagID uint64, _ ImageTagTimes) {
+			syscallNode.EachSeen(func(imageTagID uint64, _, _ int64) {
 				set, ok := sets[imageTagID]
 				if !ok {
 					set = make(map[uint32]struct{})
@@ -1251,13 +1311,17 @@ type ImageProcessKey struct {
 
 // EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
 // and returns the total number of nodes evicted
-func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string) int {
 	totalEvicted := 0
 
-	// Resolve once here so every node uses the same ID without querying the registry repeatedly.
-	// If the tag is not registered (e.g. no events have been seen for it), ID is 0 and the
-	// process-cache protection path is a no-op — consistent with nodes having no entry for that tag.
-	profileImageTagID := at.GetImageTagID(profileImageTag)
+	// A profile is shared by all the tags of an image: the process cache is looked up with the tag of each
+	// seen entry of a node, so map the IDs back to their tags once for the whole tree.
+	imageTags := make(map[uint64]string, len(at.imageTagIDs))
+	for i, entry := range at.imageTagIDs {
+		if entry.inUse {
+			imageTags[uint64(i)+1] = entry.tag
+		}
+	}
 
 	// Iterate through all process nodes and evict unused nodes
 	for i := len(at.ProcessNodes) - 1; i >= 0; i-- {
@@ -1266,7 +1330,7 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			continue
 		}
 
-		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
+		evicted, removedBytes := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		at.Stats.SizeBytes -= removedBytes
 

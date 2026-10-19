@@ -45,6 +45,7 @@ type ListenerConfig struct {
 	Namespace           string          `mapstructure:"namespace"`
 	Mapping             []Mapping       `mapstructure:"mapping"`
 	EnableBiflowParsing bool            `mapstructure:"enable_biflow_parsing"`
+	EnableDPI           bool            `mapstructure:"enable_dpi"`
 }
 
 // Mapping contains configuration for a Netflow/IPFIX field mapping

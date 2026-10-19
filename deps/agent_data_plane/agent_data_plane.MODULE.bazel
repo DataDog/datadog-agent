@@ -1,18 +1,18 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "1.6.2"
+VERSION = "1.7.1"
 
 SOURCE_URL_BASE = "https://binaries.ddbuild.io/saluki"
 
 HASHES = {
-    "linux-amd64": "1dfa3ccde44d676a5ed66bfd082bbf034d3f332c4b93f89aa228f6f282719aea",
-    "linux-arm64": "b633e0929767adfea6da5f0d38ed3c559d201def232fc00dd1c95bcb81579aca",
-    "fips-linux-amd64": "ec36af1d2c709f2b357c254ac1a57a32749b35d8d391a341f18b27375de9f53b",
-    "fips-linux-arm64": "0ea40b5d66d18cd05938664c758703ff81b251f159763b88ef9dc7b0d6615a41",
-    "darwin-amd64": "88569042f247a6de6d128511d3f8e641c7c0d837502b55676d306d42aa4fcb7f",
-    "darwin-arm64": "bc9ec86f0d2efce9561cd9c14acbef238c1bb95af8732de1e5909ad005c3e8d6",
-    "windows-amd64": "1500335221169a1fba2258b5dca037fc76e15c022fb918305730aa8f5c7cd414",
-    "windows-amd64-fips": "e27e48ef33e4e36138ed18471cb7b6932515e0d14333ecc674bdf34e4c16050f",
+    "linux-amd64": "2f4ae8aae4452473db9332e8695b43e55eb15ac50c9acab13da8d25f942b3f17",
+    "linux-arm64": "6444ee057ab969b930f952fb2c9b99471c62fe01804a69ec722d555fa1ab3568",
+    "fips-linux-amd64": "ef2dcd25be058cd3463ef656e7a2ff34a331272e43df908eccb14ba9c451e800",
+    "fips-linux-arm64": "a8f33b6dcc782d21714de07ff8a0ec803622e9297572d888fa9b2ddf957860dc",
+    "darwin-amd64": "aca6fad7d4b5202e61de814af5f2dc64c9ea486d8b31a9a2824cae6370488897",
+    "darwin-arm64": "cb77bb97c16f4da8345c711032d0d7913caacc5812284e3018d4286230afcc01",
+    "windows-amd64": "eec98fa2ed7bc983714679aadfc85da5f14d1b7f3b9294826c4d3e76c6859bc8",
+    "windows-amd64-fips": "e321da13f1f6776b0916e68a8e5cabce40175b467772d2c36414e0d3123d25ac",
 }
 
 _BUILD_FILE_CONTENT = """\
@@ -35,25 +35,6 @@ filegroup(
 )
 """
 
-# The Windows zip's entries use a literal "\" in the filename rather than "/"
-# as a path separator (e.g. "bin\agent-data-plane.exe" is one flat file, not
-# a "bin" directory). Bazel's label syntax forbids "\" outright, so no
-# glob()/filegroup can ever reference it as-is: convert those into real
-# nested paths before _BUILD_FILE_CONTENT's glob patterns see them.
-# FIXME(agent-build) remove this once https://github.com/DataDog/saluki/pull/2122
-# is part of a release
-_WINDOWS_PATCH_CMDS = ["""\
-for f in *; do
-  case "$f" in
-    *\\\\*)
-      new=$(printf '%s' "$f" | tr '\\\\' '/')
-      mkdir -p "$(dirname "$new")"
-      mv -- "$f" "$new"
-      ;;
-  esac
-done
-"""]
-
 # hash key -> os; the repo name suffix is the hash key with "-" replaced by "_"
 _ARTIFACTS = {
     "linux-amd64": "linux",
@@ -72,7 +53,6 @@ _ARTIFACTS = {
         build_file_content = _BUILD_FILE_CONTENT.format(
             binary_name = "agent-data-plane.exe" if os == "windows" else "agent-data-plane",
         ),
-        patch_cmds = _WINDOWS_PATCH_CMDS if os == "windows" else [],
         sha256 = HASHES[hash_key],
         url = "{base}/agent-data-plane-{version}-{target}.{ext}".format(
             base = SOURCE_URL_BASE,

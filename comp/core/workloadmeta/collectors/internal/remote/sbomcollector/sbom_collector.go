@@ -88,6 +88,14 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
+	// The host SBOM stays out of workloadmeta, so the sbom check merges the
+	// report of the host itself.
+	if event.Kind == sbompkg.HostKind {
+		log.Debug("Received forwarded SBOM for the host")
+		sbompkg.SetHostUsage(&newBom)
+		return workloadmeta.Event{}, nil
+	}
+
 	if event.Kind != string(workloadmeta.KindContainer) {
 		return workloadmeta.Event{}, fmt.Errorf("expected KindContainer, got %s", event.Kind)
 	}
@@ -139,9 +147,11 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("existing image %s has no SBOM to merge with", imageID)
 	}
 
-	if existingImage.SBOM.Status == workloadmeta.Pending || existingImage.SBOM.Status == "" {
-		log.Debugf("Image %s SBOM is still in state '%s', skipping merge for now", imageID, existingImage.SBOM.Status)
-		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is still pending", imageID)
+	// A failed scan merged here would outlive the retry that replaces it, since
+	// this collector's source takes precedence in the store.
+	if existingImage.SBOM.Status != workloadmeta.Success {
+		log.Debugf("Image %s SBOM is in state '%s', skipping merge", imageID, existingImage.SBOM.Status)
+		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is in state '%s'", imageID, existingImage.SBOM.Status)
 	}
 
 	// Decompress existing image SBOM to get CycloneDXBOM
@@ -187,16 +197,71 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 	}, nil
 }
 
+// collector merges the reports of system-probe into image SBOMs, and forgets
+// them once the runtime removes their image.
+type collector struct {
+	*remote.GenericCollector
+}
+
+// Start starts the stream of reports and the watch of removed images
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+	if err := c.GenericCollector.Start(ctx, store); err != nil {
+		return err
+	}
+	forgetRemovedImages(ctx, store)
+	return nil
+}
+
+// forgetRemovedImages unsets the image entities of this collector once the
+// runtime removes their image.
+func forgetRemovedImages(ctx context.Context, store workloadmeta.Component) {
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		SetSource(workloadmeta.SourceRuntime).
+		SetEventType(workloadmeta.EventTypeUnset).
+		Build()
+	ch := store.Subscribe(collectorID, workloadmeta.NormalPriority, filter)
+
+	go func() {
+		defer store.Unsubscribe(ch)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case bundle, ok := <-ch:
+				if !ok {
+					return
+				}
+				bundle.Acknowledge()
+				if len(bundle.Events) == 0 {
+					continue
+				}
+				events := make([]workloadmeta.CollectorEvent, 0, len(bundle.Events))
+				for _, ev := range bundle.Events {
+					events = append(events, workloadmeta.CollectorEvent{
+						Type:   workloadmeta.EventTypeUnset,
+						Source: workloadmeta.SourceRemoteSBOMCollector,
+						Entity: &workloadmeta.ContainerImageMetadata{EntityID: ev.Entity.GetID()},
+					})
+				}
+				store.Notify(events)
+			}
+		}
+	}()
+}
+
 // NewCollector returns a remote process collector for workloadmeta if any
 func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: &remote.GenericCollector{
-			CollectorID: collectorID,
-			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
-			Config:        pkgconfigsetup.Datadog(), //nolint:depguard
-			Catalog:       workloadmeta.NodeAgent,
-			IPC:           ipc,
+		Collector: &collector{
+			GenericCollector: &remote.GenericCollector{
+				CollectorID: collectorID,
+				// TODO(components): make sure StreamHandler uses the config component not pkg/config
+				StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
+				Config:        pkgconfigsetup.Datadog(), //nolint:depguard
+				Catalog:       workloadmeta.NodeAgent,
+				IPC:           ipc,
+			},
 		},
 	}, nil
 }
@@ -300,5 +365,9 @@ func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
 	return true
 }
 
-func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {
+// HandleResync notifies the events of the first response after a reconnect, as
+// Run does for any other response. The SBOM stream sends each report as it
+// comes, so the first one after a reconnect is one update among the others.
+func (s *streamHandler) HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent) {
+	store.Notify(events)
 }

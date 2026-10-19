@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -27,6 +28,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,7 +53,12 @@ type collector struct {
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
+	kaiSchedulerEnabled                bool
 	lastCollectionTimestamp            time.Time
+	deviceCache                        ddnvml.DeviceCache
+	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
+	// lost GPUs keep the attributes that can no longer be queried from NVML.
+	lastPublishedGPUs map[string]*workloadmeta.GPU
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -103,12 +110,16 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 	}
 
 	c.fillNVMLAttributes(&gpuDeviceInfo, device)
-	c.fillProcesses(&gpuDeviceInfo, device)
+	if !gpuDeviceInfo.Lost {
+		c.fillProcesses(&gpuDeviceInfo, device)
+	}
 
 	return &gpuDeviceInfo, nil
 }
 
-// fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
+// fillNVMLAttributes fills the attributes of the GPU device by querying NVML API.
+// If NVML reports the GPU as lost, it marks it as such and keeps the attributes
+// last published for it.
 func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	migDevice, isMig := device.(*ddnvml.MIGDevice)
 	physicalDevice := device
@@ -116,7 +127,20 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		physicalDevice = migDevice.Parent
 	}
 
+	gpuDeviceInfo.PCIBusID = physicalDevice.GetDeviceInfo().PCIBusID
+
 	virtMode, err := physicalDevice.GetVirtualizationMode()
+	if ddnvml.IsGPULost(err) {
+		gpuDeviceInfo.Lost = true
+		if prev, ok := c.lastPublishedGPUs[gpuDeviceInfo.EntityID.ID]; ok {
+			gpuDeviceInfo.VirtualizationMode = prev.VirtualizationMode
+			gpuDeviceInfo.MemoryBusWidth = prev.MemoryBusWidth
+			gpuDeviceInfo.FabricClusterUUID = prev.FabricClusterUUID
+			gpuDeviceInfo.FabricCliqueID = prev.FabricCliqueID
+			gpuDeviceInfo.MaxClockRates = prev.MaxClockRates
+		}
+		return
+	}
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
@@ -132,15 +156,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		}
 	} else {
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
-	}
-
-	pciInfo, err := physicalDevice.GetPciInfo()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
 	}
 
 	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
@@ -239,14 +254,17 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		seenPIDsToGPUs:          make(map[int][]string),
 		seenContainerGPUs:       make(map[string]struct{}),
 		publishedContainerGPUs:  make(map[string][]string),
+		lastPublishedGPUs:       make(map[string]*workloadmeta.GPU),
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
 	}
 
 	if config != nil {
-		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
-		collector.gpuMonitoringEnabled = config.GetBool("gpu.enabled")
+		gpuCfg := gpuconfig.New()
+		collector.integrateWithWorkloadmetaProcesses = gpuCfg.IntegrateWithWorkloadmetaProcesses
+		collector.gpuMonitoringEnabled = gpuCfg.GPUMonitoringEnabled
+		collector.kaiSchedulerEnabled = gpuCfg.KAISchedulerEnabled
 	}
 
 	return collector
@@ -288,8 +306,10 @@ func (c *collector) Pull(ctx context.Context) error {
 	// the in-flight pull to finish instead of racing it. The gated helper
 	// keeps the library wrapper from escaping.
 	err := ddnvml.WithNVML(func(lib ddnvml.SafeNVML) error {
-		deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
-		if err := deviceCache.Refresh(); err != nil {
+		if c.deviceCache == nil {
+			c.deviceCache = ddnvml.NewDeviceCache()
+		}
+		if err := c.deviceCache.Refresh(); err != nil {
 			return fmt.Errorf("failed to initialize device cache: %w", err)
 		}
 
@@ -311,7 +331,7 @@ func (c *collector) Pull(ctx context.Context) error {
 		}
 
 		// note: the device list can change over time so we need to set/unset for reconciliation
-		allDevices, err := deviceCache.All()
+		allDevices, err := c.deviceCache.All()
 		if err != nil {
 			// Should not happen as we check the last init error for the library
 			return fmt.Errorf("failed to get all devices: %w", err)
@@ -335,6 +355,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 			uuid := dev.GetDeviceInfo().UUID
 			currentUUIDs[uuid] = struct{}{}
+			c.lastPublishedGPUs[uuid] = gpu
 			events = append(events, workloadmeta.CollectorEvent{
 				Source: workloadmeta.SourceNVML,
 				Type:   workloadmeta.EventTypeSet,
@@ -354,6 +375,7 @@ func (c *collector) Pull(ctx context.Context) error {
 				continue
 			}
 
+			delete(c.lastPublishedGPUs, uuid)
 			events = append(events, workloadmeta.CollectorEvent{
 				Source: workloadmeta.SourceNVML,
 				Type:   workloadmeta.EventTypeUnset,
@@ -372,7 +394,7 @@ func (c *collector) Pull(ctx context.Context) error {
 			events = append(events, c.createProcessEvents(pidToGPUs)...)
 		}
 
-		events = append(events, c.createContainerGPUEvents(deviceCache)...)
+		events = append(events, c.createContainerGPUEvents(c.deviceCache)...)
 
 		c.store.Notify(events)
 		c.lastCollectionTimestamp = timestamp
@@ -381,8 +403,13 @@ func (c *collector) Pull(ctx context.Context) error {
 	})
 	if err != nil {
 		// While NVML is deliberately released, skip quietly: the pull is
-		// retried on the next cycle.
+		// retried on the next cycle. Invalidate while new users are still
+		// rejected so the next successful pull cannot reuse pre-shutdown
+		// device handles.
 		if errors.Is(err, ddnvml.ErrNVMLReleased) {
+			if c.deviceCache != nil {
+				c.deviceCache.Invalidate()
+			}
 			return nil
 		}
 		// Do not consider an unloaded driver as an error more than once.
@@ -471,19 +498,33 @@ var (
 	migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
 )
 
-// createContainerGPUEvents publishes the Container<->GPU edge for DRA-allocated
-// devices, resolving each container's CDI device nodes to NVML UUIDs. It
+// createContainerGPUEvents publishes the Container<->GPU edge for the
+// allocations the kubelet PodResources API does not describe: DRA-allocated
+// devices, resolved from each container's CDI device nodes to NVML UUIDs, and
+// KAI Scheduler fractional GPUs, resolved through KAI's reservation pods. It
 // repairs the container->device edge that the regex guess in
 // pkg/gpu/containers cannot make on a DRA node, where the allocated device name
-// is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID.
+// is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID,
+// and that it cannot make at all for a KAI fraction, which never appears as an
+// allocation.
 func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
 	var events []workloadmeta.CollectorEvent
-	// Containers that still claim a DRA device, whether or not this pull could
+	// Containers that still claim a device, whether or not this pull could
 	// resolve it. Retraction keys off this rather than off resolution success:
 	// a transient read failure would otherwise unset the mapping and set it
 	// again on the next pull, flapping the pod tags on the device's metrics.
 	claiming := make(map[string]struct{})
 	published := make(map[string][]string)
+
+	// KAI resolution is pod-driven rather than container-driven -- the GPU UUID
+	// lives on a different pod than the workload -- so it is resolved up front
+	// and merged into each container's UUIDs below, rather than inside the
+	// loop.
+	var kai kaiFractions
+	if c.kaiSchedulerEnabled {
+		kai = c.kaiFractionalGPUs(deviceCache)
+		maps.Copy(claiming, kai.claiming)
+	}
 
 	for _, container := range c.store.ListContainers() {
 		// One event per container, not per device: workloadmeta replaces the
@@ -525,6 +566,24 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []w
 		if hasCDIDevices {
 			claiming[container.ID] = struct{}{}
 		}
+
+		// Merge the KAI fractions into the same slice rather than emitting a
+		// second event: workloadmeta replaces the per-source entity on each
+		// Set, so two events for one container would leave only the last one's
+		// UUIDs. A container can legitimately hold both, a DRA-allocated
+		// device and a KAI fraction of another GPU.
+		for _, uuid := range kai.uuidsByContainer[container.ID] {
+			if !slices.Contains(uuids, uuid) {
+				uuids = append(uuids, uuid)
+			}
+		}
+		if _, incomplete := kai.partial[container.ID]; incomplete {
+			// The pod shares more GPUs than this pull could resolve. Fall into
+			// the same guard the DRA path uses below, so that the smaller set
+			// cannot replace a mapping published when all of them resolved.
+			allResolved = false
+		}
+
 		if len(uuids) == 0 {
 			continue
 		}

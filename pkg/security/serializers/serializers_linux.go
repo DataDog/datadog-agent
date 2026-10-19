@@ -575,13 +575,15 @@ type MountEventSerializer struct {
 	// Mount source path
 	MountSourcePath string `json:"source.path,omitempty"`
 	// Mount point path error
-	MountRootPathResolutionError string `json:"mountpoint.path_error,omitempty"`
+	MountPointPathResolutionError string `json:"mountpoint.path_error,omitempty"`
 	// Mount source path error
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 	// Mount is not attached to the VFS tree
 	Detached bool `json:"detached,omitempty"`
-	// Mount is not visible in the VFS tree
+	// Mount is visible in the VFS tree
 	Visible bool `json:"visible,omitempty"`
+	// Per-mount attribute flags expressed as MOUNT_ATTR_* names
+	Flags []string `json:"flags,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -1337,12 +1339,12 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
-			Path:    e.GetMountRootPath(),
+			Path:    mountPointPath,
 			MountID: createNumPointer(e.Mount.ParentPathKey.MountID),
 			Inode:   createNumPointer(e.Mount.ParentPathKey.Inode),
 		},
 		Root: &FileSerializer{
-			Path:    e.GetMountMountpointPath(),
+			Path:    fh.ResolveMountRootPath(e, &e.Mount),
 			MountID: createNumPointer(e.Mount.RootPathKey.MountID),
 			Inode:   createNumPointer(e.Mount.RootPathKey.Inode),
 		},
@@ -1355,11 +1357,15 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		MountSourcePath: mountSourcePath,
 		Detached:        e.Mount.Detached,
 		Visible:         e.Mount.Visible,
+		Flags:           model.MountFlagsStrings(e.Mount.MountFlags),
 	}
 
-	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
+	// potential errors retrieved from ResolveMountPointPath, ResolveMountRootPath and ResolveMountSourcePath
+	if e.Mount.MountPointPathResolutionError != nil {
+		mountSerializer.MountPointPathResolutionError = e.Mount.MountPointPathResolutionError.Error()
+	}
 	if e.Mount.MountRootPathResolutionError != nil {
-		mountSerializer.MountRootPathResolutionError = e.Mount.MountRootPathResolutionError.Error()
+		mountSerializer.Root.PathResolutionError = e.Mount.MountRootPathResolutionError.Error()
 	}
 	if e.Mount.MountSourcePathResolutionError != nil {
 		mountSerializer.MountSourcePathResolutionError = e.Mount.MountSourcePathResolutionError.Error()

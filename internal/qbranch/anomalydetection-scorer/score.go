@@ -12,31 +12,56 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
+const scoringVersion = "high-severity-onset-recovery-v2"
+
+// RecoveryWindow is the half-open cooldown interval from episode.json.
+type RecoveryWindow struct {
+	Start int64
+	End   int64
+}
+
+func (w RecoveryWindow) quietStart() int64 {
+	// Round the half-duration down: integer-second episode starts then select
+	// exactly the timestamps in the final half, including for odd durations.
+	return w.End - (w.End-w.Start)/2
+}
+
 // ScoreInput contains the inputs for Gaussian F1 scoring.
 type ScoreInput struct {
-	PredictionTimestamps  []int64 // period_start from each anomaly period
-	GroundTruthTimestamps []int64 // disruption onset timestamp(s)
-	Sigma                 float64 // Gaussian width in seconds
+	PredictionTimestamps  []int64         // period_start from each anomaly period
+	GroundTruthTimestamps []int64         // disruption onset timestamp(s)
+	Sigma                 float64         // Gaussian width in seconds
+	Recovery              *RecoveryWindow // nil for explicit timestamp-only scoring
 }
 
 // ScoreResult contains the Gaussian F1 scoring output.
 type ScoreResult struct {
-	F1                      float64 `json:"f1"`
-	Precision               float64 `json:"precision"`
-	Recall                  float64 `json:"recall"`
-	TP                      float64 `json:"tp"`
-	FP                      float64 `json:"fp"`
-	FN                      float64 `json:"fn"`
-	NumPredictions          int     `json:"num_predictions"`
-	NumGroundTruths         int     `json:"num_ground_truths"`
-	NumFilteredWarmup       int     `json:"num_filtered_warmup"`
-	NumFilteredCascading    int     `json:"num_filtered_cascading"`
-	NumBaselineFPs          int     `json:"num_baseline_fps"`
-	Sigma                   float64 `json:"sigma"`
-	BaselineDurationSeconds int64   `json:"baseline_duration_seconds"`
+	ScoringVersion               string  `json:"scoring_version"`
+	F1                           float64 `json:"f1"`
+	Precision                    float64 `json:"precision"`
+	Recall                       float64 `json:"recall"`
+	TP                           float64 `json:"tp"`
+	FP                           float64 `json:"fp"`
+	FN                           float64 `json:"fn"`
+	NumPredictions               int     `json:"num_predictions"`
+	NumGroundTruths              int     `json:"num_ground_truths"`
+	NumFilteredWarmup            int     `json:"num_filtered_warmup"`
+	NumFilteredCascading         int     `json:"num_filtered_cascading"`
+	NumBaselineFPs               int     `json:"num_baseline_fps"`
+	NumRecoveryFPs               int     `json:"num_recovery_fps"`
+	NumFilteredRecovery          int     `json:"num_filtered_recovery"`
+	NumFilteredNonHigh           int     `json:"num_filtered_non_high"`
+	NumFilteredOutsideScenario   int     `json:"num_filtered_outside_scenario"`
+	RecoveryStart                int64   `json:"recovery_start"`
+	RecoveryEnd                  int64   `json:"recovery_end"`
+	RecoveryQuietStart           int64   `json:"recovery_quiet_start"`
+	RecoveryQuietDurationSeconds int64   `json:"recovery_quiet_duration_seconds"`
+	Sigma                        float64 `json:"sigma"`
+	BaselineDurationSeconds      int64   `json:"baseline_duration_seconds"`
 	// Alpha is the false positive rate during the baseline phase:
 	// num_baseline_fps / baseline_duration_seconds. -1 if baseline duration unavailable.
 	Alpha float64 `json:"alpha"`
@@ -46,15 +71,23 @@ type ScoreResult struct {
 // using Gaussian overlap with right-sided half-Gaussians.
 //
 // For each ground truth event, the first (earliest) post-onset prediction is
-// matched and scored via halfGaussianOverlap. Predictions before any GT onset
-// are counted as FP (baseline noise). Other post-onset predictions that aren't
-// the first match are ignored entirely (expected during an active incident).
+// matched before recovery and scored via halfGaussianOverlap. Baseline starts
+// and starts in the final half of recovery count as FP. Other
+// incident starts and early recovery starts are ignored. Period ends are never
+// used: an already-open episode does not become an FP by overlapping recovery.
 func ComputeGaussianF1(input ScoreInput) ScoreResult {
 	result := ScoreResult{
+		ScoringVersion:  scoringVersion,
 		NumPredictions:  len(input.PredictionTimestamps),
 		NumGroundTruths: len(input.GroundTruthTimestamps),
 		Sigma:           input.Sigma,
 		Alpha:           -1, // not computable without baseline duration; set by ScoreOutputFile
+	}
+	if input.Recovery != nil {
+		result.RecoveryStart = input.Recovery.Start
+		result.RecoveryEnd = input.Recovery.End
+		result.RecoveryQuietStart = input.Recovery.quietStart()
+		result.RecoveryQuietDurationSeconds = input.Recovery.End - result.RecoveryQuietStart
 	}
 
 	if len(input.PredictionTimestamps) == 0 && len(input.GroundTruthTimestamps) == 0 {
@@ -91,7 +124,7 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 		var firstTS int64
 
 		for i, p := range input.PredictionTimestamps {
-			if matchedPred[i] || p < gt {
+			if matchedPred[i] || p < gt || (input.Recovery != nil && p >= input.Recovery.Start) {
 				continue
 			}
 			if firstIdx == -1 || p < firstTS {
@@ -110,16 +143,24 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 		}
 	}
 
-	// FP = predictions before any GT onset (baseline noise).
-	// Post-onset predictions that aren't the first match are ignored.
+	// Recovery starts never earn onset credit, even if onset was missed or sigma
+	// is large. Only new starts inside the quiet tail are false positives.
 	var fp float64
 	var numIgnored int
 	for i, p := range input.PredictionTimestamps {
 		if matchedPred[i] {
 			continue
 		}
-		if p < minGT {
+		if input.Recovery != nil && p >= input.Recovery.End {
+			result.NumFilteredOutsideScenario++
+		} else if input.Recovery != nil && p >= result.RecoveryQuietStart {
 			fp += 1.0
+			result.NumRecoveryFPs++
+		} else if input.Recovery != nil && p >= input.Recovery.Start {
+			result.NumFilteredRecovery++
+		} else if p < minGT {
+			fp += 1.0
+			result.NumBaselineFPs++
 		} else {
 			numIgnored++
 		}
@@ -207,6 +248,10 @@ type scenarioMetadata struct {
 	Disruption struct {
 		Start string `json:"start"`
 	} `json:"disruption"`
+	Cooldown struct {
+		Start string `json:"start"`
+		End   string `json:"end"`
+	} `json:"cooldown"`
 }
 
 // scoringMetadata holds timestamps extracted from a scenario's episode.json.
@@ -214,9 +259,10 @@ type scoringMetadata struct {
 	groundTruthTimestamps []int64
 	baselineStart         int64 // 0 if not available
 	baselineEnd           int64 // 0 if not available
+	recovery              *RecoveryWindow
 }
 
-// loadScoringMetadata reads disruption.start and baseline.start from a scenario's episode.json.
+// loadScoringMetadata reads onset, baseline and recovery from episode.json.
 func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, error) {
 	path := filepath.Join(scenariosDir, scenarioName, "episode.json")
 	data, err := os.ReadFile(path)
@@ -257,6 +303,21 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 		}
 		result.baselineEnd = et.Unix()
 	}
+	if meta.Cooldown.Start == "" || meta.Cooldown.End == "" {
+		return nil, errors.New("episode.json requires cooldown.start and cooldown.end for recovery scoring")
+	}
+	start, err := time.Parse(time.RFC3339, meta.Cooldown.Start)
+	if err != nil {
+		return nil, fmt.Errorf("parsing cooldown.start %q: %w", meta.Cooldown.Start, err)
+	}
+	end, err := time.Parse(time.RFC3339, meta.Cooldown.End)
+	if err != nil {
+		return nil, fmt.Errorf("parsing cooldown.end %q: %w", meta.Cooldown.End, err)
+	}
+	if !start.After(dt) || end.Unix() <= start.Unix() {
+		return nil, errors.New("episode.json requires disruption.start < cooldown.start < cooldown.end")
+	}
+	result.recovery = &RecoveryWindow{Start: start.Unix(), End: end.Unix()}
 
 	return result, nil
 }
@@ -264,7 +325,7 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 // ScoreOutputFile loads a headless output JSON file, extracts prediction timestamps,
 // and scores them against the given ground truth.
 func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenariosDir string, sigma float64) (*ScoreResult, error) {
-	if sigma <= 0 {
+	if sigma <= 0 || math.IsNaN(sigma) || math.IsInf(sigma, 0) {
 		return nil, fmt.Errorf("sigma must be positive, got %f", sigma)
 	}
 	data, err := os.ReadFile(outputPath)
@@ -278,28 +339,41 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	}
 
 	var baselineStart, baselineEnd int64
+	var recovery *RecoveryWindow
 	if scenariosDir != "" && output.Metadata.Scenario != "" {
 		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
 		if err != nil {
-			if len(groundTruthTimestamps) == 0 {
-				return nil, fmt.Errorf("inferring ground truth: %w", err)
-			}
+			return nil, fmt.Errorf("loading scoring metadata: %w", err)
 		} else {
 			if len(groundTruthTimestamps) == 0 {
 				groundTruthTimestamps = sm.groundTruthTimestamps
 			}
 			baselineStart = sm.baselineStart
 			baselineEnd = sm.baselineEnd
+			recovery = sm.recovery
 		}
 	}
 
 	if len(groundTruthTimestamps) == 0 {
 		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with episode.json")
 	}
+	for _, gt := range groundTruthTimestamps {
+		if recovery != nil && gt >= recovery.Start {
+			return nil, errors.New("ground truth onset must be before cooldown.start")
+		}
+	}
 
 	var predictions []int64
 	var numFilteredWarmup int
+	var numFilteredNonHigh int
 	for _, period := range output.AnomalyPeriods {
+		// The scorer writes the configured episode threshold into this stable
+		// pattern even in non-verbose output. Medium episodes and time_cluster
+		// correlations cannot stand in for high-severity episode starts.
+		if !strings.HasPrefix(period.Pattern, "anomaly_scorer_high:") {
+			numFilteredNonHigh++
+			continue
+		}
 		if baselineStart > 0 && period.PeriodStart < baselineStart {
 			numFilteredWarmup++
 			continue
@@ -307,30 +381,18 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		predictions = append(predictions, period.PeriodStart)
 	}
 
-	minGT := groundTruthTimestamps[0]
-	for _, gt := range groundTruthTimestamps[1:] {
-		if gt < minGT {
-			minGT = gt
-		}
-	}
-	var numBaselineFPs int
-	for _, p := range predictions {
-		if p < minGT {
-			numBaselineFPs++
-		}
-	}
-
 	result := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  predictions,
 		GroundTruthTimestamps: groundTruthTimestamps,
 		Sigma:                 sigma,
+		Recovery:              recovery,
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
-	result.NumBaselineFPs = numBaselineFPs
+	result.NumFilteredNonHigh = numFilteredNonHigh
 
 	if baselineStart > 0 && baselineEnd > baselineStart {
 		result.BaselineDurationSeconds = baselineEnd - baselineStart
-		result.Alpha = float64(numBaselineFPs) / float64(result.BaselineDurationSeconds)
+		result.Alpha = float64(result.NumBaselineFPs) / float64(result.BaselineDurationSeconds)
 	} else {
 		result.Alpha = -1
 	}

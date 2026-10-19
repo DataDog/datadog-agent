@@ -1,0 +1,7 @@
+---
+security:
+  - |
+    Data Security PostgreSQL scans now verify the server certificate chain
+    when the matching ``postgres`` integration instance uses ``ssl: require``
+    together with ``ssl_root_cert``, as the ``postgres`` integration does.
+    Previously the certificate was not verified in this configuration.

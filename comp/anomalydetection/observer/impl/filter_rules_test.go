@@ -13,6 +13,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,11 +78,12 @@ type tagsTrackingMetric struct {
 	tagsRead  int
 }
 
-func (m *tagsTrackingMetric) GetName() string         { return m.name }
-func (m *tagsTrackingMetric) GetValue() float64       { return m.value }
-func (m *tagsTrackingMetric) GetHost() string         { return "" }
-func (m *tagsTrackingMetric) GetTimestampUnix() int64 { return m.timestamp }
-func (m *tagsTrackingMetric) GetSampleRate() float64  { return 1.0 }
+func (m *tagsTrackingMetric) GetName() string                   { return m.name }
+func (m *tagsTrackingMetric) GetValue() float64                 { return m.value }
+func (m *tagsTrackingMetric) GetHost() string                   { return "" }
+func (m *tagsTrackingMetric) GetTimestampUnix() int64           { return m.timestamp }
+func (m *tagsTrackingMetric) GetSampleRate() float64            { return 1.0 }
+func (m *tagsTrackingMetric) GetMetricType() metrics.MetricType { return observerdef.UnknownType }
 func (m *tagsTrackingMetric) GetTags() tagset.CompositeTags {
 	m.tagsRead++
 	return tagset.CompositeTagsFromSlice(m.tags)
@@ -1028,12 +1030,12 @@ func TestNameOnlyFilteredMetricDoesNotConsumeFullChannel(t *testing.T) {
 
 	h, ok := obs.GetHandle("dogstatsd").(*handle)
 	require.True(t, ok)
-	require.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	require.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.mem.used",
 		value:     1,
 		timestamp: 1000,
 	}))
-	require.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	require.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.cpu.user",
 		value:     2,
 		timestamp: 1000,
@@ -1064,12 +1066,12 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 
 	h, ok := obs.GetHandle("dogstatsd").(*handle)
 	require.True(t, ok)
-	assert.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	assert.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.mem.used",
 		value:     1,
 		timestamp: 1000,
 	}))
-	assert.True(t, h.ObserveMetricAndReportDrop(&metricObs{
+	assert.True(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "kubernetes.cpu.usage",
 		value:     2,
 		timestamp: 1000,
@@ -1086,7 +1088,7 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	})
 	obs.Flush()
 
-	assert.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+	assert.False(t, testObserveMetricAndReportDrop(h, &metricObs{
 		name:      "system.cpu.user",
 		value:     3,
 		timestamp: 1000,

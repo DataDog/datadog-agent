@@ -128,6 +128,7 @@ struct syscall_cache_t {
             int source;
             u64 ns_inum;
             u64 unshare_flags;
+            u32 mnt_flags;
         } mount;
 
         struct {
@@ -301,6 +302,7 @@ struct syscall_cache_t {
             int option;
             u32 name_size_to_send;
             u32 name_truncated;
+            u32 flags;
             char name[MAX_PRCTL_NAME_LEN + 1];
         } prctl;
 
@@ -308,6 +310,12 @@ struct syscall_cache_t {
             char suffix[TRACER_MEMFD_SUFFIX_LEN];
         } tracer_memfd_create;
     };
+};
+
+// Recovers the syscall cache key of a task whose pid numbers changed mid-execve.
+struct exec_pid_transfer_t {
+    u64 pid_tgid;
+    u64 task; // de_thread swaps the pid numbers, not the task
 };
 
 #endif
