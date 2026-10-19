@@ -2,6 +2,7 @@ import subprocess
 import unittest
 from unittest.mock import MagicMock, patch
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.gotest import (
@@ -11,8 +12,10 @@ from tasks.gotest import (
     _run_bazel_tests,
     _target_to_bazel_pattern,
     find_impacted_packages,
+    get_modified_packages,
     should_run_all_tests,
 )
+from tasks.modules import GoModule
 
 
 class TestUtils(unittest.TestCase):
@@ -85,6 +88,34 @@ class TestUtils(unittest.TestCase):
         trigger_files = ["pkgs/*"]
 
         self.assertFalse(should_run_all_tests(None, trigger_files))
+
+
+class TestGetModifiedPackages(unittest.TestCase):
+    """Tests for the package selection used by `linter.go -o` and `test -o`."""
+
+    @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["pkg/aggregator/foo.go"]))
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
+    @patch(
+        "tasks.gotest.get_module_by_path",
+        new=MagicMock(return_value=GoModule(".", test_targets=["./pkg", "./cmd", "./comp"])),
+    )
+    def test_file_in_package_under_target_dir(self):
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules[0].test_targets, ["./pkg/aggregator"])
+
+    @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["internal/somepkg/foo.go"]))
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
+    @patch(
+        "tasks.gotest.get_module_by_path",
+        new=MagicMock(return_value=GoModule(".", test_targets=["./pkg", "./cmd", "./comp"])),
+    )
+    def test_not_targeted_when_directory_name_contains_target(self):
+        # `internal/somepkg` must not match the `./pkg` target.
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(modules, [])
 
 
 class TestTargetToBazelPattern(unittest.TestCase):
