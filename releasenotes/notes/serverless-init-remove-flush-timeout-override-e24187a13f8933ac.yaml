@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    serverless-init no longer overrides ``dogstatsd_packet_buffer_flush_timeout``
+    to 1ms. The default of 100ms now applies, and the setting can be changed with
+    ``DD_DOGSTATSD_PACKET_BUFFER_FLUSH_TIMEOUT``.
