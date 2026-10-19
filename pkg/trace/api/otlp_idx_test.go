@@ -254,6 +254,27 @@ func TestOTLPIdxFallback(t *testing.T) {
 	assert.Equal(t, int64(1), countSum(h.stats, "datadog.trace_agent.otlp.idx_fallback"))
 }
 
+func TestPow2BufferPool(t *testing.T) {
+	p := newPow2BufferPool(12, 14)
+	for _, tt := range []struct{ length, wantCap int }{
+		{0, 1 << 12},
+		{1, 1 << 12},
+		{1 << 12, 1 << 12},
+		{1<<12 + 1, 1 << 13},
+		{1 << 14, 1 << 14},
+		{1<<14 + 1, 1<<14 + 1}, // larger than the largest tier: exact, not pooled
+	} {
+		b := p.Get(tt.length)
+		assert.Len(t, *b, tt.length)
+		assert.Equal(t, tt.wantCap, cap(*b), "length %d", tt.length)
+		p.Put(b)
+	}
+	// Buffers of other capacities are not pooled, so Get never returns one that is too small.
+	odd := make([]byte, 5000)
+	p.Put(&odd)
+	assert.GreaterOrEqual(t, cap(*p.Get(8000)), 8000)
+}
+
 // TestOTLPIdxInvalidRequest checks that bytes neither decoder accepts fail the RPC, as they do
 // with the pdata codec, and emit nothing.
 func TestOTLPIdxInvalidRequest(t *testing.T) {

@@ -8,6 +8,7 @@ package api
 import (
 	"context"
 	"encoding/binary"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,9 +19,14 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/mem"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/otlpidx"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 )
 
@@ -209,6 +215,100 @@ func BenchmarkOTLPIngest(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
 					if _, err := otlpidx.Decode(context.Background(), raw, opts); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+}
+
+// newDrainingOTLPExportReceiver returns a receiver on the v04 path (idx false) or the direct V1
+// path, whose output channels are drained, optionally serving gRPC on a local port.
+func newDrainingOTLPExportReceiver(b *testing.B, idx, serve bool) *OTLPReceiver {
+	out := make(chan *Payload, 100)
+	outV1 := make(chan *PayloadV1, 100)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-out:
+			case <-outV1:
+			case <-done:
+				return
+			}
+		}
+	}()
+	b.Cleanup(func() { close(done) })
+	cfg := NewBenchmarkTestConfig(b)
+	if !idx {
+		cfg.Features["disable_otlp_idx"] = struct{}{}
+	}
+	if serve {
+		cfg.OTLPReceiver.BindHost = "localhost"
+		port, err := testutil.FindTCPPort()
+		require.NoError(b, err)
+		cfg.OTLPReceiver.GRPCPort = port
+		// The attr_heavy request exceeds the default 10 MiB limit.
+		cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib = 64
+	}
+	r := NewOTLPReceiver(out, outV1, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	require.Equal(b, idx, r.idxEnabled)
+	if serve {
+		r.Start()
+		b.Cleanup(r.Stop)
+	}
+	return r
+}
+
+// BenchmarkOTLPExport compares the whole receiver path from identical serialized request bytes to
+// payloads on the output channel, for today's pdata / v04 path (v04) and the direct V1 path (idx):
+//   - handler: the gRPC handlers called in-process (pdata unmarshal + Export, vs exportRaw)
+//   - grpc: a loopback gRPC client against a started receiver, including transport and codec. The
+//     client marshals the request on every call, on both paths.
+func BenchmarkOTLPExport(b *testing.B) {
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("datadog-meta-lang", "go"))
+	for _, p := range otlpBenchProfiles {
+		req := buildOTLPBenchRequest(p)
+		raw, err := req.MarshalProto()
+		require.NoError(b, err)
+		for _, idx := range []bool{false, true} {
+			path := "v04"
+			if idx {
+				path = "idx"
+			}
+			b.Run(p.name+"/handler/"+path, func(b *testing.B) {
+				r := newDrainingOTLPExportReceiver(b, idx, false)
+				b.SetBytes(int64(len(raw)))
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					if idx {
+						if _, err := r.exportRaw(ctx, &rawExportRequest{buf: mem.SliceBuffer(raw)}); err != nil {
+							b.Fatal(err)
+						}
+						continue
+					}
+					in := ptraceotlp.NewExportRequest()
+					if err := in.UnmarshalProto(raw); err != nil {
+						b.Fatal(err)
+					}
+					if _, err := r.Export(ctx, in); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+			b.Run(p.name+"/grpc/"+path, func(b *testing.B) {
+				r := newDrainingOTLPExportReceiver(b, idx, true)
+				conn, err := grpc.NewClient(net.JoinHostPort("localhost", strconv.Itoa(r.conf.OTLPReceiver.GRPCPort)), grpc.WithTransportCredentials(insecure.NewCredentials()))
+				require.NoError(b, err)
+				b.Cleanup(func() { conn.Close() })
+				client := ptraceotlp.NewGRPCClient(conn)
+				b.SetBytes(int64(len(raw)))
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					if _, err := client.Export(context.Background(), req); err != nil {
 						b.Fatal(err)
 					}
 				}

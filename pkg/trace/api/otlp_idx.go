@@ -7,7 +7,9 @@ package api
 
 import (
 	"context"
+	"math/bits"
 	"net/http"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -62,10 +64,57 @@ func (c otlpCodec) Marshal(v any) (mem.BufferSlice, error) {
 func (c otlpCodec) Unmarshal(data mem.BufferSlice, v any) error {
 	if r, ok := v.(*rawExportRequest); ok {
 		// gRPC frees data once Unmarshal returns, so keep a reference until the handler is done.
-		r.buf = data.MaterializeToBuffer(mem.DefaultBufferPool())
+		// A request received in several frames is copied into one pooled buffer.
+		r.buf = data.MaterializeToBuffer(otlpRequestPool)
 		return nil
 	}
 	return c.delegate.Unmarshal(data, v)
+}
+
+// otlpRequestPool holds the buffers that multi-frame requests are copied into. Unlike gRPC's default
+// pool, buffers aren't zeroed (the decoder reads only the request bytes, and copies what it keeps)
+// and tiers are powers of two, so a request doesn't take, and clear, a buffer many times its size.
+var otlpRequestPool = newPow2BufferPool(12, 24) // 4 KiB to 16 MiB
+
+// pow2BufferPool is a mem.BufferPool of non-zeroed buffers whose capacities are powers of two
+// between 1<<minExp and 1<<maxExp. Larger buffers aren't pooled.
+type pow2BufferPool struct {
+	minExp, maxExp int
+	pools          []sync.Pool
+}
+
+func newPow2BufferPool(minExp, maxExp int) *pow2BufferPool {
+	return &pow2BufferPool{minExp: minExp, maxExp: maxExp, pools: make([]sync.Pool, maxExp-minExp+1)}
+}
+
+// tier returns the index of the pool for buffers of capacity at least n.
+func (p *pow2BufferPool) tier(n int) (int, bool) {
+	e := max(bits.Len(uint(max(n, 1)-1)), p.minExp)
+	if e > p.maxExp {
+		return 0, false
+	}
+	return e - p.minExp, true
+}
+
+func (p *pow2BufferPool) Get(length int) *[]byte {
+	t, ok := p.tier(length)
+	if !ok {
+		b := make([]byte, length)
+		return &b
+	}
+	if b, _ := p.pools[t].Get().(*[]byte); b != nil {
+		*b = (*b)[:length]
+		return b
+	}
+	b := make([]byte, length, 1<<(t+p.minExp))
+	return &b
+}
+
+func (p *pow2BufferPool) Put(b *[]byte) {
+	c := cap(*b)
+	if t, ok := p.tier(c); ok && c == 1<<(t+p.minExp) {
+		p.pools[t].Put(b)
+	}
 }
 
 func (otlpCodec) Name() string { return "proto" }
