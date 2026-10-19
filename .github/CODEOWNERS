@@ -1196,3 +1196,8 @@
 # CWS syscall tester Bazel build logic is test tooling maintained by agent-security
 /pkg/security/tests/syscall_tester/c/*.bzl           @DataDog/agent-security
 /pkg/security/tests/syscall_tester/c/BUILD.bazel     @DataDog/agent-security
+
+# Device hostname resolution is shared by runtimes and Windows/macOS products.
+/pkg/util/hostname/eudm/                                             @DataDog/agent-runtimes @DataDog/windows-products
+/pkg/util/hostname/eudm.go                                           @DataDog/agent-runtimes @DataDog/windows-products
+/pkg/util/hostname/eudm_test.go                                      @DataDog/agent-runtimes @DataDog/windows-products
