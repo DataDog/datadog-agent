@@ -8,8 +8,8 @@ features:
     DDOT translates metrics with the minimal translator: only delta histograms and sums are
     sent. Cumulative ones are converted by the ``cumulativetodelta`` processor that DDOT adds
     automatically, or dropped where the converter or its ``cumulativetodelta`` feature is
-    disabled, as in the Helm and Operator gateway setups. Metric remapping is not applied.
-    These histograms need the v3 sketches intake: every metrics destination, including the
+    disabled, as in the Helm and Operator gateway setups. These histograms need the v3
+    sketches intake: every metrics destination, including the
     multi-region failover one even while failover is off, must be listed in
     ``serializer_experimental_use_v3_api.sketches.endpoints`` and not use zlib compression,
     otherwise DDOT refuses to start.
