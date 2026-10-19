@@ -94,6 +94,12 @@ behavior across two runs without being affected by the correlator output.
 | `holt_residual` | disabled | Holt forecasting residual detector |
 | `tukey_biweight` | disabled | Robust location and scale detector using Tukey biweight |
 
+Headless streaming derives bounded point retention from the enabled detectors,
+using the Agent's detector-window policy. A fixed two-minute window is too short
+for slowly sampled metrics to complete warmup. Retained replay remains unbounded.
+For JSON eval configs, set `bocpd.warmup_points` explicitly to `40` to match the
+replay profile; an explicit component config otherwise uses production defaults.
+
 ### Correlators
 
 | Name | Default | Description |

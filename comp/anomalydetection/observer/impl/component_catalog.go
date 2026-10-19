@@ -455,6 +455,14 @@ type CatalogEntry struct {
 // the production component catalog.
 const TestbenchPassthroughComponentName = "passthrough"
 
+// StorageConfigForComponents returns bounded storage defaults derived from the
+// enabled, configured detectors, using the same retention policy as the Agent.
+// Replay callers should apply their testbench component defaults first.
+func StorageConfigForComponents(settings ComponentSettings) StorageConfig {
+	detectors, _, _, _, _ := defaultCatalog().Instantiate(settings)
+	return storageConfigFromAgentConfig(nil, detectors)
+}
+
 // ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded
 // per-component overrides (e.g. from a testbench --config params file). Each
 // value may contain an optional "enabled" bool plus component-specific
