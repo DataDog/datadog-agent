@@ -44,6 +44,7 @@ type FakeCore struct {
 	pending       map[uint64]*fakePayload // keyed by the single metadata id
 	order         []uint64
 	notifications []Notification
+	timers        []TimerCall
 
 	clockNanos uint64
 }
@@ -474,16 +475,60 @@ func (c *FakeCore) HandleStreamError(sender SenderID, stream StreamID, message s
 	return c.progressLocked([]SenderID{sender})
 }
 
-// HandleTimer feeds back a timer the library asked for.
-func (c *FakeCore) HandleTimer(sender SenderID, stream StreamID, _ TimerKind) Progress {
+// HandleTimer feeds back a timer. RotateStream on the current stream reopens
+// it at once and moves sends not yet polled onto the new stream, as the
+// library does once a rotating stream has drained. It does not drain: a batch
+// still unacked on the rotated stream is never resolved.
+func (c *FakeCore) HandleTimer(sender SenderID, stream StreamID, kind TimerKind) Progress {
 	c.enterSender(sender)
 	defer c.leaveSender(sender)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.streams[sender] != stream {
+	c.timers = append(c.timers, TimerCall{Sender: sender, Stream: stream, Kind: kind})
+	if c.streams[sender] != stream || kind != RotateStream {
 		return c.progressLocked(nil)
 	}
-	return c.progressLocked(nil)
+	kept := make([]Effect, 0, len(c.effects[sender]))
+	for _, effect := range c.effects[sender] {
+		if effect.Kind != SendBatch || effect.Stream != stream {
+			kept = append(kept, effect)
+			continue
+		}
+		for _, id := range c.order {
+			if p := c.pending[id]; p != nil && !p.resolved && p.batchOn[sender] == effect.BatchID {
+				c.queued[sender] = append(c.queued[sender], queuedSend{id: id, payload: p.body})
+				break
+			}
+		}
+		effect.Batch.Release()
+	}
+	c.streamGen[sender] = 0
+	c.streams[sender] = 0
+	c.nextStream++
+	c.effects[sender] = append(kept, Effect{
+		Kind:   CloseStream,
+		Sender: sender,
+		Stream: stream,
+	}, Effect{
+		Kind:   OpenStream,
+		Sender: sender,
+		Stream: StreamID(c.nextStream),
+	})
+	return c.progressLocked([]SenderID{sender})
+}
+
+// TimerCall is one HandleTimer call.
+type TimerCall struct {
+	Sender SenderID
+	Stream StreamID
+	Kind   TimerKind
+}
+
+// Timers returns every HandleTimer call, in call order.
+func (c *FakeCore) Timers() []TimerCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]TimerCall(nil), c.timers...)
 }
 
 // PollNotifications drains the outcomes waiting for the consumer.

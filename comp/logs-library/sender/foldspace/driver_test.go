@@ -139,6 +139,31 @@ func TestOfferOrderDurable(t *testing.T) {
 	assert.Equal(t, []string{"one", "two", "three"}, got)
 }
 
+// A stream authenticates only when it opens, so a rotated API key has to reach
+// the intake on a new stream. The driver rotates the stream rather than failing
+// it, once, and the record offered after the rotation goes out on the new one.
+func TestDriverRotatesStreamWhenAPIKeyChanges(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	transport := NewFakeTransport(1)
+	transport.SetAPIKey("old-key")
+	sink := newChannelSink()
+	d := startDriver(t, core, transport, sink, false)
+
+	d.Offer(testMessage("before rotation"))
+	waitPayloads(t, sink, 1)
+	assert.Empty(t, core.Timers(), "a stream whose key is current is left alone")
+
+	transport.SetAPIKey("new-key")
+	d.Offer(testMessage("after rotation"))
+	waitPayloads(t, sink, 1)
+
+	assert.Equal(t, []TimerCall{{Sender: 0, Stream: 1, Kind: RotateStream}}, core.Timers())
+	assert.Equal(t, []string{"old-key", "new-key"}, transport.OpenedKeys())
+	sent := transport.Sent(0)
+	require.Len(t, sent, 2)
+	assert.Equal(t, "after rotation", string(sent[1]))
+}
+
 func TestRefuseThenRetry(t *testing.T) {
 	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}, MaxInflight: 1})
 	progress := core.Start()

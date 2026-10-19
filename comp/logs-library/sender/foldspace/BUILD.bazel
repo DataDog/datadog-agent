@@ -19,6 +19,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/sender/foldspace",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/secrets/def",
         "//comp/logs-library/metrics",
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
@@ -46,6 +47,8 @@ dd_agent_go_test(
     ],
     embed = [":foldspace"],
     deps = [
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/noop-impl",
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
@@ -55,7 +58,9 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//status",
         "@org_golang_google_grpc//test/bufconn",
     ],
 )

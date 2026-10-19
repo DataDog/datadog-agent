@@ -28,6 +28,10 @@ type Stream interface {
 	Send(ctx context.Context, batchID uint32, data []byte) error
 	Recv(ctx context.Context) (batchID uint32, status int32, err error)
 	Close() error
+	// CredentialsChanged reports whether the sender's API key differs from
+	// the one this stream opened with. A stream authenticates only when it
+	// opens, so a rotated key reaches the intake only on a new stream.
+	CredentialsChanged() bool
 }
 
 // FakeTransport records sealed bytes per sender and acks OK in send order.
@@ -50,6 +54,10 @@ type FakeTransport struct {
 	// blockOpen makes every OpenStream wait until its ctx ends, as a dial to an
 	// intake that never answers does.
 	blockOpen bool
+	// apiKey is the key every new stream opens with, and openedKeys the key
+	// each stream opened with, in open order.
+	apiKey     string
+	openedKeys []string
 }
 
 // NewFakeTransport returns a transport with n senders that acks OK.
@@ -90,9 +98,11 @@ func (t *FakeTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 		return nil, err
 	}
 	t.opens++
+	t.openedKeys = append(t.openedKeys, t.apiKey)
 	return &FakeStream{
 		transport: t,
 		sender:    sender,
+		apiKey:    t.apiKey,
 		acks:      make(chan ack, 64),
 		blockRecv: t.blockRecv,
 		stallSend: t.opens <= t.stallStreams,
@@ -108,6 +118,21 @@ func (t *FakeTransport) Opens() int {
 	return t.opens
 }
 
+// SetAPIKey sets the key streams opened from here on carry, which makes every
+// stream opened with another key report CredentialsChanged.
+func (t *FakeTransport) SetAPIKey(key string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.apiKey = key
+}
+
+// OpenedKeys returns the key each stream opened with, in open order.
+func (t *FakeTransport) OpenedKeys() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]string(nil), t.openedKeys...)
+}
+
 type ack struct {
 	id     uint32
 	status int32
@@ -117,6 +142,7 @@ type ack struct {
 type FakeStream struct {
 	transport *FakeTransport
 	sender    SenderID
+	apiKey    string
 	acks      chan ack
 	blockRecv bool
 	stallSend bool
@@ -169,6 +195,14 @@ func (s *FakeStream) Recv(ctx context.Context) (uint32, int32, error) {
 
 // Close is a no-op.
 func (s *FakeStream) Close() error { return nil }
+
+// CredentialsChanged reports whether the transport's key has moved off the
+// one this stream opened with.
+func (s *FakeStream) CredentialsChanged() bool {
+	s.transport.mu.Lock()
+	defer s.transport.mu.Unlock()
+	return s.transport.apiKey != s.apiKey
+}
 
 // recordFromMessage maps a processed message onto a foldspace Record.
 func recordFromMessage(msg *message.Message) Record {
