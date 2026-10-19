@@ -107,7 +107,6 @@ class TestGensimEksTasks(unittest.TestCase):
                 stack_name="custom-stack",
                 flush_interval="30s",
                 retention="120m",
-                recording_only=True,
                 cluster_name="gensim-custom",
             )
 

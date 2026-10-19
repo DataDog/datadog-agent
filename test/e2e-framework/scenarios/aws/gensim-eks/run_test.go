@@ -38,7 +38,6 @@ func TestRenderAgentValuesSemanticMatchWithVMRecorder(t *testing.T) {
 		Mode:          "record-parquet",
 		FlushInterval: "1m",
 		Retention:     "90m",
-		RecordingOnly: "true",
 		ClusterName:   "gensim-bench",
 	})
 	require.NoError(t, err)

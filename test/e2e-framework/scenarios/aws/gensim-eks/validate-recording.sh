@@ -15,15 +15,8 @@ backend=""
 run_id=""
 scenario_dir=""
 episode_name=""
-gensim_sha=""
-episode_sha=""
-requested_image=""
 cluster_name=""
 namespace=""
-flush_interval=""
-retention=""
-recording_only=""
-mode=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -31,15 +24,8 @@ while [[ $# -gt 0 ]]; do
         --run-id) run_id="${2:-}"; shift 2 ;;
         --scenario-dir) scenario_dir="${2:-}"; shift 2 ;;
         --episode) episode_name="${2:-}"; shift 2 ;;
-        --gensim-sha) gensim_sha="${2:-}"; shift 2 ;;
-        --episode-sha) episode_sha="${2:-}"; shift 2 ;;
-        --agent-image) requested_image="${2:-}"; shift 2 ;;
         --cluster-name) cluster_name="${2:-}"; shift 2 ;;
         --namespace) namespace="${2:-}"; shift 2 ;;
-        --flush-interval) flush_interval="${2:-}"; shift 2 ;;
-        --retention) retention="${2:-}"; shift 2 ;;
-        --recording-only) recording_only="${2:-}"; shift 2 ;;
-        --mode) mode="${2:-}"; shift 2 ;;
         *) fail "Unknown option: $1" ;;
     esac
 done
@@ -49,8 +35,7 @@ if [[ -n "$flush" ]]; then
     [[ "$flush" =~ ^[1-9][0-9]*$ ]] || fail "Flush interval must be positive seconds"
 fi
 
-python3 - "$OUT" "$flush" "$backend" "$run_id" "$scenario_dir" "$episode_name" "$gensim_sha" "$episode_sha" \
-    "$requested_image" "$cluster_name" "$namespace" "$flush_interval" "$retention" "$recording_only" "$mode" <<'PY'
+python3 - "$OUT" "$flush" "$backend" "$run_id" "$scenario_dir" "$episode_name" "$cluster_name" "$namespace" <<'PY'
 import datetime as dt
 import hashlib
 import json
@@ -72,16 +57,9 @@ import pyarrow.parquet as pq
     run_id_arg,
     scenario_dir_arg,
     episode_arg,
-    gensim_sha_arg,
-    episode_sha_arg,
-    requested_image_arg,
     cluster_name_arg,
     namespace_arg,
-    flush_interval_arg,
-    retention_arg,
-    recording_only_arg,
-    mode_arg,
-) = sys.argv[1:16]
+) = sys.argv[1:9]
 
 output = Path(out_arg)
 parquet_dir = output / "parquet"
@@ -190,8 +168,8 @@ if flush_arg:
     flush = int(flush_arg)
 elif recorder_settings.get("flush_seconds"):
     flush = int(recorder_settings["flush_seconds"])
-elif flush_interval_arg or recorder_settings.get("flush_interval"):
-    flush = parse_duration_seconds(flush_interval_arg or recorder_settings["flush_interval"])
+elif recorder_settings.get("flush_interval"):
+    flush = parse_duration_seconds(recorder_settings["flush_interval"])
 else:
     flush = 60
 
@@ -435,11 +413,10 @@ manifest = {
     "scenario_dir": scenario_dir_arg or existing_manifest.get("scenario_dir") or episode.get("episode") or "unknown",
     "episode": episode_arg or existing_manifest.get("episode") or episode.get("scenario") or "unknown",
     "cycle": int(existing_manifest.get("cycle") or episode.get("cycle") or 1),
-    "gensim_sha": gensim_sha_arg or existing_manifest.get("gensim_sha") or "unknown",
-    "episode_sha": episode_sha_arg or existing_manifest.get("episode_sha") or "unknown",
+    "gensim_sha": existing_manifest.get("gensim_sha") or "unknown",
+    "episode_sha": existing_manifest.get("episode_sha") or "unknown",
     "requested_agent_image": (
-        requested_image_arg
-        or existing_manifest.get("requested_agent_image")
+        existing_manifest.get("requested_agent_image")
         or (pod_records[0]["image"] if pod_records else "unknown")
     ),
     "observed_agent_image_ids": observed_images or existing_manifest.get("observed_agent_image_ids") or [],
@@ -447,15 +424,11 @@ manifest = {
     "recorder_settings": {
         "enabled": bool(recorder_settings.get("enabled", True)),
         "output_dir": recorder_settings.get("output_dir") or "/tmp/observer-metrics",
-        "flush_interval": flush_interval_arg or recorder_settings.get("flush_interval") or f"{flush}s",
+        "flush_interval": recorder_settings.get("flush_interval") or f"{flush}s",
         "flush_seconds": flush,
-        "retention": retention_arg or recorder_settings.get("retention") or "unknown",
-        "recording_only": (
-            recording_only_arg.lower() == "true"
-            if recording_only_arg
-            else recorder_settings.get("recording_only", "unknown")
-        ),
-        "mode": mode_arg or recorder_settings.get("mode") or "record-parquet",
+        "retention": recorder_settings.get("retention") or "unknown",
+        "recording_only": recorder_settings.get("recording_only", True),
+        "mode": recorder_settings.get("mode") or "record-parquet",
     },
     "cluster_name": (
         cluster_name_arg

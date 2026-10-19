@@ -126,7 +126,7 @@ def _generate_run_id(gensim_sha: str) -> str:
         "mode": f"Observer mode: {' or '.join(_VALID_MODES)} (default: record-parquet)",
         "flush_interval": "Recorder Parquet flush interval (default: 1m)",
         "retention": "Recorder Parquet retention duration (default: 90m)",
-        "recording_only": "Set DD_ANOMALY_DETECTION_RECORDING_ONLY=true (only valid with record-parquet)",
+        "recording_only": "Set DD_ANOMALY_DETECTION_RECORDING_ONLY (default: true for record-parquet, false for live modes)",
         "cluster_name": "Datadog clusterName configured on the Agent (default: gensim)",
         "run_id": "Optional explicit run ID (default: generated with UTC timestamp, SHA, and random suffix)",
         "config_path": doc.config_path,
@@ -146,7 +146,7 @@ def submit_gensim_eks(
     mode: str = "record-parquet",
     flush_interval: str = "1m",
     retention: str = "90m",
-    recording_only: bool = False,
+    recording_only: bool | None = None,
     cluster_name: str = "gensim",
     run_id: str = "",
     debug: bool = False,
@@ -175,12 +175,13 @@ def submit_gensim_eks(
         raise Exit("--episodes and --episode-manifest are mutually exclusive.")
     if not episodes and not episode_manifest:
         raise Exit("One of --episodes or --episode-manifest is required.")
+    effective_recording_only = (mode == "record-parquet") if recording_only is None else bool(recording_only)
     _validate_submit_settings(
         image=image,
         mode=mode,
         flush_interval=flush_interval,
         retention=retention,
-        recording_only=recording_only,
+        recording_only=effective_recording_only,
         cluster_name=cluster_name,
         namespace=namespace,
     )
@@ -380,7 +381,7 @@ def submit_gensim_eks(
         "gensim:mode": mode,
         "gensim:flushInterval": flush_interval,
         "gensim:retention": retention,
-        "gensim:recordingOnly": "true" if recording_only else "false",
+        "gensim:recordingOnly": "true" if effective_recording_only else "false",
         "gensim:clusterName": cluster_name,
         "gensim:runId": run_id,
         # Datadog keys -- must be explicit since install_agent=False
@@ -419,7 +420,9 @@ def submit_gensim_eks(
     tool.info(f"  Image:    {image}")
     tool.info(f"  Episodes: {episodes}")
     tool.info(f"  SHA:      {gensim_sha}")
-    tool.info(f"  Mode:     {mode} (flush={flush_interval}, retention={retention}, recording_only={recording_only})")
+    tool.info(
+        f"  Mode:     {mode} (flush={flush_interval}, retention={retention}, recording_only={effective_recording_only})"
+    )
     tool.info("\nMonitor orchestrator:")
     tool.info(f"  {kube}kubectl logs -f job/gensim-orchestrator -n {namespace}")
     tool.info("\nCheck run status:")

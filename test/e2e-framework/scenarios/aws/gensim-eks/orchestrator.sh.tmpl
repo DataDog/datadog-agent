@@ -21,7 +21,13 @@ RECORDING_OUTPUT_DIR="${RECORDING_OUTPUT_DIR:-/tmp/observer-metrics}"
 RECORDING_FLUSH_INTERVAL="${RECORDING_FLUSH_INTERVAL:-1m}"
 RECORDING_FLUSH_SECONDS="${RECORDING_FLUSH_SECONDS:-60}"
 RECORDING_RETENTION="${RECORDING_RETENTION:-90m}"
-RECORDING_ONLY="${RECORDING_ONLY:-false}"
+if [ -z "${RECORDING_ONLY:-}" ]; then
+  if [ "$GENSIM_MODE" = "record-parquet" ]; then
+    RECORDING_ONLY="true"
+  else
+    RECORDING_ONLY="false"
+  fi
+fi
 CLUSTER_NAME="${CLUSTER_NAME:-gensim}"
 mkdir -p "$WORKSPACE_ROOT"
 
@@ -359,7 +365,7 @@ EOF
     fi
 
     mkdir -p "$WORKSPACE_ROOT/results/parquet" "$WORKSPACE_ROOT/results/pods"
-    FILES_MANIFEST="[]"
+    : > "$WORKSPACE_ROOT/results/files.jsonl"
     while IFS= read -r POD_NAME; do
       [ -z "$POD_NAME" ] && continue
       SANITIZED_POD=$(printf '%s' "$POD_NAME" | tr -c 'a-zA-Z0-9_.-' '-')
@@ -407,16 +413,17 @@ EOF
         cp "$SRC_FILE" "$DEST_PATH"
         FILE_SIZE=$(wc -c < "$DEST_PATH" | tr -d ' ')
         FILE_SHA=$(sha256sum "$DEST_PATH" | awk '{print $1}')
-        FILES_MANIFEST=$(printf '%s' "$FILES_MANIFEST" | jq -c \
+        jq -n -c \
           --arg fn "$DEST_NAME" \
           --arg orig "$ORIG_NAME" \
           --arg pod "$POD_NAME" \
           --arg fam "$FAMILY" \
           --argjson sz "$FILE_SIZE" \
           --arg sha "$FILE_SHA" \
-          '. + [{filename:$fn,original_filename:$orig,source_pod:$pod,family:$fam,size_bytes:$sz,sha256:$sha,retained:null}]')
+          '{filename:$fn,original_filename:$orig,source_pod:$pod,family:$fam,size_bytes:$sz,sha256:$sha,retained:null}' >> "$WORKSPACE_ROOT/results/files.jsonl"
       done < <(find "$POD_DIR" -maxdepth 1 -type f | sort)
     done < <(jq -r '.items[].metadata.name' "$WORKSPACE_ROOT/results/agent-before.json")
+    FILES_MANIFEST=$(jq -s -c '.' "$WORKSPACE_ROOT/results/files.jsonl")
 
     PARQUET_COUNT=$(find "$WORKSPACE_ROOT/results/parquet" -maxdepth 1 -type f -name '*.parquet' | wc -l | tr -d ' ')
     COLLECTION_COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)

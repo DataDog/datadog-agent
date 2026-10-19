@@ -124,7 +124,11 @@ func Run(ctx *pulumi.Context) error {
 	}
 	recordingOnly := cfg.Get("recordingOnly")
 	if recordingOnly == "" {
-		recordingOnly = "false"
+		if mode == "record-parquet" {
+			recordingOnly = "true"
+		} else {
+			recordingOnly = "false"
+		}
 	}
 	clusterName := cfg.Get("clusterName")
 	if clusterName == "" {
@@ -613,12 +617,16 @@ type agentValuesConfig struct {
 // renderAgentValues renders the agent Helm values template with the given image and mode.
 // mode is one of "record-parquet", "live-anomaly-detection", or "live-and-record".
 func renderAgentValues(agentImage, mode string) (string, error) {
+	recOnly := "false"
+	if mode == "record-parquet" {
+		recOnly = "true"
+	}
 	return renderAgentValuesWithConfig(agentValuesConfig{
 		AgentImage:    agentImage,
 		Mode:          mode,
 		FlushInterval: "1m",
 		Retention:     "90m",
-		RecordingOnly: "false",
+		RecordingOnly: recOnly,
 		ClusterName:   "gensim",
 	})
 }
@@ -681,7 +689,11 @@ func renderAgentValuesWithConfig(cfg agentValuesConfig) (string, error) {
 
 	recordingOnly := strings.TrimSpace(cfg.RecordingOnly)
 	if recordingOnly == "" {
-		recordingOnly = "false"
+		if cfg.Mode == "record-parquet" {
+			recordingOnly = "true"
+		} else {
+			recordingOnly = "false"
+		}
 	}
 	if recordingOnly != "true" && recordingOnly != "false" {
 		return "", fmt.Errorf("invalid recordingOnly %q: expected true or false", cfg.RecordingOnly)

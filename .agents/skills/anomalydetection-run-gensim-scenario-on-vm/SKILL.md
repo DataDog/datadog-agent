@@ -36,7 +36,7 @@ Ask for missing inputs and resolve ambiguity before changing resources:
 | Scenario | Directory in the `gensim-episodes` repo containing `play-episode.sh` and `chart/`; episode from `episodes/*.yaml` |
 | Credentials | For `vm`, local env file defining `DD_API_KEY` and `DD_APP_KEY` for dddev; for `eks`, configured e2e AWS sandbox profile and dddev keys. Do not read, echo, or print secret values |
 | Recorder image | `datadog/agent-dev:<tag>` from CI job `dev_branch-recorder-full`; confirm pipeline and amd64 platform |
-| Run settings | Flush interval (default `1m`), retention (default `90m`), optional recording-only mode (`true`/`false`), VM full/shortened mode or EKS mode (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
+| Run settings | Flush interval (default `1m`), retention (default `90m`), recording-only mode (default `true` for recording), VM full/shortened mode or EKS mode (`record-parquet`, `live-anomaly-detection`, `live-and-record`) |
 | Output | Fresh local absolute directory per episode (e.g. `/tmp/vm-scenarios/<episode>` or `/tmp/eks-scenarios/<episode>`); never overwrite an existing directory. If the user gives a custom name (e.g. `kafka-partition-saturation2`), use it as the directory name; `--episode`/`--scenario` on `fetch` still use the real names |
 | Batch / teardown | Episodes to run and resources to remove afterwards; retain reusable infrastructure until the batch finishes |
 
@@ -69,7 +69,7 @@ deploy the recorder (`assets/recorder-values.yaml`):
 
 ```bash
 bash "$SKILL/scripts/vm.sh" create-cluster --disposable-vm "$VM"
-bash "$SKILL/scripts/vm.sh" deploy-recorder --disposable-vm "$VM" "$ENV_FILE" "$TAG" "$CLUSTER_NAME" 1m 90m false
+bash "$SKILL/scripts/vm.sh" deploy-recorder --disposable-vm "$VM" "$ENV_FILE" "$TAG" "$CLUSTER_NAME" 1m 90m true
 ```
 
 If `gadget-dev` already exists on the authorized disposable VM and its nodes are Ready, run

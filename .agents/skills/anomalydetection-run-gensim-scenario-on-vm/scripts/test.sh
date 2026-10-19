@@ -120,7 +120,7 @@ fi
 
 printf 'DD_API_KEY=dummy-key\nDD_APP_KEY=dummy-app\n' > "$workspace/env"
 bash "$scripts/vm.sh" create-cluster --disposable-vm user@vm
-bash "$scripts/vm.sh" deploy-recorder --disposable-vm user@vm "$workspace/env" test-tag skill-test 1m 90m true
+bash "$scripts/vm.sh" deploy-recorder --disposable-vm user@vm "$workspace/env" test-tag skill-test 1m 90m
 python3 - "$FIXTURE/upload-recorder-values.yaml" <<'PY'
 import sys
 import yaml

@@ -22,7 +22,7 @@ datadog:
   clusterChecks:
     enabled: true
   env:
-{{- if eq .Mode "record-parquet"}}
+{{- if or (eq .Mode "record-parquet") (eq .Mode "live-and-record")}}
     - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
       value: "true"
     - name: DD_ANOMALY_DETECTION_RECORDING_OUTPUT_DIR
@@ -33,28 +33,16 @@ datadog:
       value: "{{.Retention}}"
     - name: DD_ANOMALY_DETECTION_RECORDING_ONLY
       value: "{{.RecordingOnly}}"
-    - name: DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED
-      value: "false"
-{{- end}}
-{{- if eq .Mode "live-anomaly-detection"}}
+{{- else}}
     - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
       value: "false"
-    - name: DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED
-      value: "true"
 {{- end}}
-{{- if eq .Mode "live-and-record"}}
-    - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
-      value: "true"
-    - name: DD_ANOMALY_DETECTION_RECORDING_OUTPUT_DIR
-      value: /tmp/observer-metrics
-    - name: DD_ANOMALY_DETECTION_RECORDING_FLUSH_INTERVAL
-      value: "{{.FlushInterval}}"
-    - name: DD_ANOMALY_DETECTION_RECORDING_RETENTION
-      value: "{{.Retention}}"
-    - name: DD_ANOMALY_DETECTION_RECORDING_ONLY
-      value: "false"
+{{- if or (eq .Mode "live-anomaly-detection") (eq .Mode "live-and-record")}}
     - name: DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED
       value: "true"
+{{- else}}
+    - name: DD_ANOMALY_DETECTION_REPORTING_EVENTS_ENABLED
+      value: "false"
 {{- end}}
 
 agents:
@@ -67,32 +55,22 @@ agents:
   useConfigMap: true
   customAgentConfig:
     anomaly_detection:
-{{- if eq .Mode "record-parquet"}}
+{{- if or (eq .Mode "record-parquet") (eq .Mode "live-and-record")}}
       recording:
         enabled: true
         output_dir: /tmp/observer-metrics
         flush_interval: "{{.FlushInterval}}"
         retention: "{{.Retention}}"
-      reporting:
-        events:
-          enabled: false
-{{- end}}
-{{- if eq .Mode "live-anomaly-detection"}}
+{{- else}}
       recording:
         enabled: false
-      reporting:
-        events:
-          enabled: true
 {{- end}}
-{{- if eq .Mode "live-and-record"}}
-      recording:
-        enabled: true
-        output_dir: /tmp/observer-metrics
-        flush_interval: "{{.FlushInterval}}"
-        retention: "{{.Retention}}"
       reporting:
         events:
+{{- if or (eq .Mode "live-anomaly-detection") (eq .Mode "live-and-record")}}
           enabled: true
+{{- else}}
+          enabled: false
 {{- end}}
   containers:
     agent:
