@@ -15,6 +15,8 @@ package stackbudget
 import (
 	"encoding/binary"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -58,11 +60,7 @@ type Report struct {
 // WorstChain returns the single most expensive chain across all entry points.
 func (r Report) WorstChain() Chain {
 	var worst Chain
-	names := make([]string, 0, len(r.Worst))
-	for name := range r.Worst {
-		names = append(names, name)
-	}
-	sort.Strings(names) // deterministic tie-breaking
+	names := slices.Sorted(maps.Keys(r.Worst)) // deterministic tie-breaking
 	for _, name := range names {
 		if c := r.Worst[name]; c.Total > worst.Total {
 			worst = c
