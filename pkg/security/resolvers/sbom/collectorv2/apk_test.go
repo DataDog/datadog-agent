@@ -8,6 +8,7 @@
 package collectorv2
 
 import (
+	"bufio"
 	"strings"
 	"testing"
 
@@ -62,8 +63,7 @@ Z:Q1yyy
 `
 
 func TestParseAPKDatabase(t *testing.T) {
-	pkgs, err := parseAPKDatabase(strings.NewReader(sampleAPKDatabase))
-	require.NoError(t, err)
+	pkgs := parseAPKDatabase(strings.NewReader(sampleAPKDatabase))
 	require.Len(t, pkgs, 2)
 
 	musl := pkgs[0]
@@ -94,14 +94,18 @@ func TestParseAPKDatabase(t *testing.T) {
 func TestParseAPKDatabaseNoTrailingNewline(t *testing.T) {
 	// File that doesn't end with an empty line — last package must still be captured
 	db := strings.TrimRight(sampleAPKDatabase, "\n")
-	pkgs, err := parseAPKDatabase(strings.NewReader(db))
-	require.NoError(t, err)
+	pkgs := parseAPKDatabase(strings.NewReader(db))
+	assert.Len(t, pkgs, 2)
+}
+
+func TestParseAPKDatabaseScanError(t *testing.T) {
+	db := sampleAPKDatabase + "\nP:huge\nT:" + strings.Repeat("x", bufio.MaxScanTokenSize) + "\n"
+	pkgs := parseAPKDatabase(strings.NewReader(db))
 	assert.Len(t, pkgs, 2)
 }
 
 func TestParseAPKDatabaseEmpty(t *testing.T) {
-	pkgs, err := parseAPKDatabase(strings.NewReader(""))
-	require.NoError(t, err)
+	pkgs := parseAPKDatabase(strings.NewReader(""))
 	assert.Empty(t, pkgs)
 }
 
