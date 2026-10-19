@@ -647,32 +647,11 @@ func newParquetMetricView(name string, value float64, tags []string, timestamp i
 }
 
 func parseMetricType(name string) metrics.MetricType {
-	switch name {
-	case "Gauge":
-		return metrics.GaugeType
-	case "Rate":
-		return metrics.RateType
-	case "Count":
-		return metrics.CountType
-	case "MonotonicCount":
-		return metrics.MonotonicCountType
-	case "Counter":
-		return metrics.CounterType
-	case "Histogram":
-		return metrics.HistogramType
-	case "Historate":
-		return metrics.HistorateType
-	case "Set":
-		return metrics.SetType
-	case "Distribution":
-		return metrics.DistributionType
-	case "GaugeWithTimestamp":
-		return metrics.GaugeWithTimestampType
-	case "CountWithTimestamp":
-		return metrics.CountWithTimestampType
-	default:
+	mt, err := observerimpl.ParseMetricTypeName(name)
+	if err != nil {
 		return observerdef.UnknownType
 	}
+	return mt
 }
 
 func resolveParquetMetricHostAndTags(tags []string) (string, []string) {

@@ -11,6 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	recordernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
 	reportertestbenchfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -57,6 +58,9 @@ func testbenchFXOptions(params CLIParams) []fx.Option {
 		fx.Decorate(func(c config.Component) config.Component {
 			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			if len(params.ComponentSettings.AllowedMetricTypes) > 0 {
+				c.Set("anomaly_detection.metrics.allowed_types", params.ComponentSettings.AllowedMetricTypes, pkgconfigmodel.SourceAgentRuntime)
+			}
 			return c
 		}),
 		fx.Supply(core.BundleParams{
@@ -86,5 +90,21 @@ func TestValidateCLIParams(t *testing.T) {
 	t.Run("detector output is accepted in headless mode", func(t *testing.T) {
 		err := validateCLIParams(CLIParams{IncludeDetectorAnomalies: true, Headless: "scenario"})
 		require.NoError(t, err)
+	})
+
+	t.Run("allowed_types flag parses valid comma-separated types", func(t *testing.T) {
+		types, err := parseAllowedTypesFlag("Gauge, Count, Unknown")
+		require.NoError(t, err)
+		require.Equal(t, []string{"Gauge", "Count", "Unknown"}, types)
+		require.NoError(t, validateCLIParams(CLIParams{
+			ComponentSettings: observerimpl.ComponentSettings{AllowedMetricTypes: types},
+		}))
+	})
+
+	t.Run("allowed_types flag rejects invalid type and lists valid types", func(t *testing.T) {
+		_, err := parseAllowedTypesFlag("Gauge,BadType")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `invalid metric type "BadType"`)
+		require.Contains(t, err.Error(), "valid types: Unknown, Gauge, Rate, Count")
 	})
 }

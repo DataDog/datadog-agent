@@ -934,8 +934,13 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 	if scorer != nil {
 		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
 	}
+	typeFilter, err := ParseAllowedMetricTypes(settings.AllowedMetricTypes)
+	if err != nil {
+		logging.Warnf("invalid allowed metric types on Reset: %v", err)
+	}
 	o.replayMu.Lock()
 	o.metricFilter.muted.Store(nil)
+	o.metricFilter.setAllowedMetricTypes(typeFilter)
 	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
 	o.publishSeriesCount()
 	o.replayMu.Unlock()

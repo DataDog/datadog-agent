@@ -83,6 +83,10 @@ type ComponentSettings struct {
 	// Baseline controls the baseline analysis window.
 	Baseline BaselineConfig
 
+	// AllowedMetricTypes restricts ingested metrics (external and log-derived)
+	// to the named metric types. An empty slice allows all metric types.
+	AllowedMetricTypes []string
+
 	// configs is populated internally by readConfig functions on catalog
 	// entries (e.g. from agent config). It is not exported because the
 	// values must match the typed config expected by each component's
