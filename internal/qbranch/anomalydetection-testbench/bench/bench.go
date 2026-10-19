@@ -506,7 +506,6 @@ func (tb *Bench) loadParquetDir(dir string) error {
 			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
 		}
 
-		tb.feedRawMetrics()
 	}
 
 	var (
@@ -584,19 +583,11 @@ func (tb *Bench) extendStreamBounds(startSec, endSec int64) {
 	}
 }
 
-// feedRawMetrics feeds tb.rawMetrics synchronously into the engine and re-adds
-// per-timestamp telemetry counters. Uses IngestMetricSync to bypass the
-// dispatch channel, so no data is lost regardless of volume. Called from both
-// loadParquetDir (initial load) and rerunDetectorsLocked (after engine reset on
-// component toggle).
-func (tb *Bench) feedRawMetrics() {
-	for _, m := range tb.rawMetrics {
-		tb.debug.IngestMetricSync("parquet", m, tb.parquetMetricContextKey(m))
-	}
-
+// addRawMetricTelemetry restores input counters after a retained replay.
+func (tb *Bench) addRawMetricTelemetry() {
 	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace
 	// which is also cleared by debug.Reset(), so they must be restored on every
-	// call to feedRawMetrics (not just the initial load).
+	// retained replay.
 	type byTimestampEntry struct {
 		Timestamp int64
 		Count     int64
@@ -752,6 +743,11 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 // but disables inactivity eviction so headless output retains complete scenario state.
 func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.StorageConfigForComponents(settings)
+	// Bound by required point count, not an assumed sampling cadence: recorded
+	// series can be slower than the Agent's 15-second retention estimate.
+	if cfg.MaxPointsPerSeries > 0 {
+		cfg.PointRetentionSecs = 0
+	}
 	cfg.InactiveSeriesTTLSeconds = 0
 	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1
@@ -902,30 +898,34 @@ func (tb *Bench) rerunDetectorsLocked() {
 	// Reset engine with current settings (clears all storage).
 	tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies))
 
-	// Re-feed parquet metrics synchronously into the fresh storage.
-	tb.feedRawMetrics()
-
-	// Pre-load logs without driving advances so extractor state and log metrics
-	// are written to storage. Detectors and correlators are deferred to the
-	// subsequent ReplayStoredData call, matching the original single-pass approach.
-	for _, logEntry := range tb.rawLogs {
-		tb.debug.IngestLogForReplay("parquet", logEntry)
-		ts := logEntry.GetTimestampUnixMilli() / 1000
-		tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, ts, nil)
-	}
-
-	tb.finishReplayLocked()
+	tb.feedRawObservations()
+	tb.addRawMetricTelemetry()
+	tb.finishStreamLocked()
 }
 
-// finishReplayLocked runs analysis over data already loaded into observer storage
-// and refreshes all derived testbench output. Caller must hold tb.mu.
-func (tb *Bench) finishReplayLocked() {
-	// Run the full batch replay: reset analysis state (not storage), advance
-	// through every stored timestamp so detectors see the full accumulated
-	// dataset at each step. This matches what the old testbench achieved via
-	// engine.ReplayStoredData() after pre-loading all data into storage.
-	tb.debug.ReplayStoredData()
-	tb.collectReplayResultsLocked()
+func (tb *Bench) feedRawObservations() {
+	// Preserve the same observation order as streaming, including extractor GC
+	// and baseline decisions. Pre-extracting all logs can delete earlier series
+	// before detectors ever see them.
+	sort.SliceStable(tb.rawMetrics, func(i, j int) bool {
+		return tb.rawMetrics[i].timestamp < tb.rawMetrics[j].timestamp
+	})
+	sort.SliceStable(tb.rawLogs, func(i, j int) bool {
+		return tb.rawLogs[i].GetTimestampUnixMilli() < tb.rawLogs[j].GetTimestampUnixMilli()
+	})
+	metricIndex, logIndex := 0, 0
+	for metricIndex < len(tb.rawMetrics) || logIndex < len(tb.rawLogs) {
+		if metricIndex < len(tb.rawMetrics) && (logIndex == len(tb.rawLogs) ||
+			tb.rawMetrics[metricIndex].timestamp <= tb.rawLogs[logIndex].GetTimestampUnixMilli()/1000) {
+			tb.debug.IngestMetricSync("parquet", tb.rawMetrics[metricIndex], tb.parquetMetricContextKey(tb.rawMetrics[metricIndex]))
+			metricIndex++
+		} else {
+			entry := tb.rawLogs[logIndex]
+			tb.debug.IngestLogAndAdvance("parquet", entry)
+			tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, entry.GetTimestampUnixMilli()/1000, nil)
+			logIndex++
+		}
+	}
 }
 
 // finishStreamLocked flushes the last timestamp and collects output from the

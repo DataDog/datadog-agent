@@ -94,9 +94,9 @@ behavior across two runs without being affected by the correlator output.
 | `holt_residual` | disabled | Holt forecasting residual detector |
 | `tukey_biweight` | disabled | Robust location and scale detector using Tukey biweight |
 
-Headless streaming derives bounded point retention from the enabled detectors,
-using the Agent's detector-window policy. A fixed two-minute window is too short
-for slowly sampled metrics to complete warmup. Retained replay remains unbounded.
+Headless streaming bounds stored points by the enabled detectors' window sizes,
+without a time cutoff based on an assumed sampling cadence. This preserves the
+required history for slowly sampled metrics. Retained replay remains unbounded.
 For JSON eval configs, set `bocpd.warmup_points` explicitly to `40` to match the
 replay profile; an explicit component config otherwise uses production defaults.
 
@@ -327,9 +327,10 @@ Headless runs stream by default. Metric and log parquet readers are merged into
 one timestamp-ordered observation stream. Each observation is ingested
 synchronously, detector/correlator analysis advances with the same scheduler as
 the live Observer, and an end-of-input flush analyzes the final timestamp. The
-stream uses the production storage limits, including the default 120-second
-point-retention window, so observation memory is bounded by the active window
-and series cardinality rather than total scenario length.
+stream derives a point-count limit from the enabled detectors, retaining one
+additional pending scheduler bucket. Native metric history has no fixed time
+cutoff: slow series need the same number of points as fast series. Observation
+memory remains bounded by detector windows and series cardinality.
 
 Headless output still retains anomaly and correlation history because the
 evaluator consumes the complete result set. Pathological runs that emit an
@@ -344,8 +345,12 @@ late points.
 Interactive runs, and headless runs with `--retain-parquet`, use the retained
 replay pipeline:
 
-1. **Pre-load** — parquet rows build extractor state and unbounded time-series storage.
-2. **Replay** — `ReplayStoredData` resets analysis state and walks every stored timestamp.
+1. **Load** — retain and sort the raw parquet rows in memory.
+2. **Replay** — merge metrics and logs chronologically, advancing the same scheduler as streaming while retaining unbounded metric history. Extractor cleanup and baseline qualification happen during replay, so future logs cannot delete series before detectors analyze them.
+
+ScanMW and ScanWelch schedule scans from newly visible completed buckets, not
+storage-write counters or retained point counts. Their counters survive point
+eviction, and preloaded future observations do not advance the scan schedule.
 
 The retained path supports interactive component toggles and remains available
 as a compatibility fallback, but its memory scales with the full scenario.

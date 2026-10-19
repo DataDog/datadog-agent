@@ -120,7 +120,13 @@ current level is already known, bootstrap emits `Low -> current level` for
 ### Data-driven scheduling ("complete seconds" rule)
 
 Detection is NOT on a timer. When data at time T arrives, the engine advances
-analysis to T-1. This ensures deterministic replay: same data → same anomalies.
+analysis to T-1. Replay must expose the same completed buckets at each step.
+Scan scheduling must use newly visible observations, not storage-write generations
+(which already include future points in preloaded replay) or retained point counts
+(which stop growing under eviction). Retained replay must feed raw metrics and
+logs chronologically through the same scheduler as streaming. Pre-extracting all
+logs can evict earlier patterns before detection; analyzing metrics separately
+can make baseline qualification remove data before the actual replay.
 
 ### Read-time aggregation
 
