@@ -206,11 +206,69 @@ func stackAccessDepths(t *testing.T, path string) (direct, derived map[string]in
 					}
 				}
 			case opLDDW:
+				invalidateStackPointers(&base, op, dst)
 				off += insnSize
+			default:
+				invalidateStackPointers(&base, op, dst)
 			}
 		}
 	}
 	return direct, derived
+}
+
+func invalidateStackPointers(base *[11]bool, op, dst byte) {
+	if op == 0x85 { // Calls overwrite r0 through r5.
+		for r := 0; r <= 5; r++ {
+			base[r] = false
+		}
+		return
+	}
+	switch op & 0x07 {
+	case 0x00, 0x01, 0x04, 0x07: // Loads and arithmetic overwrite their destination.
+		if dst < 10 {
+			base[dst] = false
+		}
+	}
+}
+
+func TestInvalidateStackPointers(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		op   byte
+		want bool
+	}{
+		{"load immediate", 0x18, false},
+		{"load memory", 0x79, false},
+		{"move immediate", 0xb7, false},
+		{"32-bit move", 0xbc, false},
+		{"32-bit arithmetic", 0x04, false},
+		{"64-bit arithmetic", 0x0f, false},
+		{"store immediate", 0x7a, true},
+		{"store register", 0x7b, true},
+		{"conditional jump", 0x15, true},
+		{"32-bit conditional jump", 0x16, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var base [11]bool
+			base[2], base[6] = true, true
+			invalidateStackPointers(&base, tc.op, 2)
+			if base[2] != tc.want || !base[6] {
+				t.Fatalf("pointer aliases: got %v, want r2=%t and r6=true", base, tc.want)
+			}
+		})
+	}
+	t.Run("call", func(t *testing.T) {
+		var base [11]bool
+		for r := range base {
+			base[r] = true
+		}
+		invalidateStackPointers(&base, 0x85, 0)
+		for r, alias := range base {
+			if alias != (r > 5) {
+				t.Errorf("r%d: got alias=%t, want %t", r, alias, r > 5)
+			}
+		}
+	})
 }
 
 // locate resolves a data dependency's path: absolute as-is, otherwise try the
