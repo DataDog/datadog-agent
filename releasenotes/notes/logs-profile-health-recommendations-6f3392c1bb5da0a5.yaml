@@ -7,7 +7,3 @@ features:
     issue (low severity) when a stage stays saturated without losing logs. Each
     issue carries the recommended ``logs_config.profile``, the settings it would
     change, and the supporting evidence.
-fixes:
-  - |
-    Resolved Agent Health issues are now reported with their full content so
-    that the backend can resolve them.

@@ -109,7 +109,8 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 
 	now := c.now()
 	counters := c.counters()
-	dropped, missed, delivering := c.window.Observe(counters, now)
+	missed, delivering := c.window.Observe(counters, now)
+	dropped := c.window.DroppedRecently(now)
 	obs := observation{
 		stages:        profilerec.StagesFromBackpressure(summary.Components),
 		state:         summary.State,
