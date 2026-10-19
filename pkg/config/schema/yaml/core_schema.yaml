@@ -5691,63 +5691,6 @@ properties:
                 node_type: setting
                 type: string
                 default: 1m
-      endpoint:
-        node_type: section
-        type: object
-        properties:
-          api_key:
-            node_type: setting
-            type: string
-            default: ''
-            comment: |-
-              Internal. API key for the organization serving the autoscaling
-              configuration endpoint. Only read when autoscaling.endpoint.url is set.
-          config_root:
-            node_type: setting
-            type: string
-            default: ''
-            comment: |-
-              Internal. Trusted root metadata for the config repository of the
-              autoscaling configuration endpoint, overriding the root embedded for
-              its site. Needed when the target backend signs with its own keys.
-              Equivalent to remote_configuration.config_root for the default
-              endpoint.
-          director_root:
-            node_type: setting
-            type: string
-            default: ''
-            comment: |-
-              Internal. Trusted root metadata for the director repository of the
-              autoscaling configuration endpoint, overriding the root embedded for
-              its site. Equivalent to remote_configuration.director_root for the
-              default endpoint.
-          key:
-            node_type: setting
-            type: string
-            default: ''
-            comment: |-
-              Internal. Remote configuration key for the autoscaling configuration
-              endpoint, for backends using the legacy per-organization key instead
-              of an API key alone. Equivalent to remote_configuration.key for the
-              default endpoint.
-          site:
-            node_type: setting
-            type: string
-            default: ''
-            comment: |-
-              Internal. Datadog site of the autoscaling configuration endpoint,
-              which selects the trusted roots to use. Empty means derive it from
-              autoscaling.endpoint.url, which is correct for every endpoint we
-              target; set it only to pin a different site's roots.
-          url:
-            node_type: setting
-            type: string
-            default: ''
-            comment: |-
-              Internal. Datadog endpoint the autoscaling product reads its
-              configuration from, instead of the Cluster Agent default remote
-              configuration endpoint. Empty means use the default. Reserved for
-              Datadog staging clusters; not supported for customer use.
       failover:
         node_type: section
         type: object
