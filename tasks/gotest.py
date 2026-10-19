@@ -34,7 +34,7 @@ from tasks.libs.build.bazel import bazel
 from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
-from tasks.libs.common.git import get_modified_files
+from tasks.libs.common.git import get_modified_files, get_untracked_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
@@ -1413,6 +1413,10 @@ def should_run_all_tests(ctx, trigger_files):
 def get_go_modified_files(ctx):
     base_branch = _get_release_json_value("base_branch")
     files = get_modified_files(ctx, base_branch=base_branch)
+    # git diff only sees files known to git; include untracked files so that
+    # brand-new packages are detected before being staged (no-op in CI).
+    untracked = list(get_untracked_files(ctx))
+    files.extend(file for file in untracked if file not in files)
     return [
         file
         for file in files

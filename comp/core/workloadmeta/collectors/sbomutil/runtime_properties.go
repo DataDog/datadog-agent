@@ -96,7 +96,11 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
 	for _, comp := range newBom.Components {
 		if comp != nil {
-			newComponentsMap[usageKey(comp)] = comp
+			key := usageKey(comp)
+			if prev, ok := newComponentsMap[key]; ok {
+				comp = foldUsage(prev, comp)
+			}
+			newComponentsMap[key] = comp
 		}
 	}
 
@@ -212,6 +216,56 @@ func MergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_
 	}
 
 	return mergedBom
+}
+
+// foldUsage combines the usage of two report entries of one name and version,
+// as dpkg builds for two architectures: the latest time, each flag either set.
+func foldUsage(a, b *cyclonedx_v1_4.Component) *cyclonedx_v1_4.Component {
+	folded := &cyclonedx_v1_4.Component{Name: a.Name, Version: a.Version}
+	fold := func(name string, pick func(x, y string) string) {
+		x, xok := propertyValue(a, name)
+		y, yok := propertyValue(b, name)
+		var v string
+		switch {
+		case xok && yok:
+			v = pick(x, y)
+		case xok:
+			v = x
+		case yok:
+			v = y
+		default:
+			return
+		}
+		folded.Properties = append(folded.Properties, &cyclonedx_v1_4.Property{Name: name, Value: &v})
+	}
+	fold(LastAccessProperty, func(x, y string) string {
+		if xs, err := strconv.ParseInt(x, 10, 64); err == nil {
+			if ys, err := strconv.ParseInt(y, 10, 64); err == nil && ys > xs {
+				return y
+			}
+			return x
+		}
+		return y
+	})
+	either := func(x, y string) string {
+		if x == "true" || y == "true" {
+			return "true"
+		}
+		return "false"
+	}
+	fold(HasSetSuidBitProperty, either)
+	fold(RunningAsRootProperty, either)
+	return folded
+}
+
+// propertyValue returns the value of the property name of comp, if it has one.
+func propertyValue(comp *cyclonedx_v1_4.Component, name string) (string, bool) {
+	for _, p := range comp.Properties {
+		if p != nil && p.Name == name {
+			return p.GetValue(), true
+		}
+	}
+	return "", false
 }
 
 // usageObservedSince returns the property of metadata holding the start of usage

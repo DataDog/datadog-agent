@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -510,8 +511,6 @@ var _ = declareInlineConfig(TestFilterOpenApproverWorkloadProfile)
 // TestFilterOpenApproverWorkloadProfile checks that the opens rejected by the approvers of a rule are forwarded by
 // the workload profile sampler, so that each process opening the file is learned by the workload profile.
 func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
-	t.Skip("Skip until the fix is implemented")
-
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -553,8 +552,8 @@ func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
 
 	testFile := "/tmp/test/test-obc-2"
 
-	// The sampler deduplicates the opens on the parent pid, the executable and the file: run both busybox applets
-	// from the same shell so that they share their parent whatever the container runtime does on `docker exec`.
+	// The sampler deduplicates the opens on the parent pid, the executable, the comm and the file: run both busybox
+	// applets from the same shell so that only their comm differs, whatever the container runtime does on `docker exec`.
 	// The trailing builtin keeps the shell from exec'ing cat in place of itself, which would change its parent.
 	var lock sync.Mutex
 	ppids := make(map[string]any)
@@ -687,6 +686,83 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 		count := countSavedEvents(t, model.ConnectEventType, eventKeyValueFilter{key: "connect.addr.port", value: 4254}, "connect", "AF_INET", "any", "udp", "4254", "2")
 		assert.Equal(t, 1, count, "the first connect should be saved by the sampler, the second one rejected")
 	})
+}
+
+var _ = declareInlineConfig(TestFilterOpenSampleRefreshWorkloadProfile)
+
+// TestFilterOpenSampleRefreshWorkloadProfile checks that a deduplicated open refreshes the last seen timestamp of the
+// file in the workload profile.
+func TestFilterOpenSampleRefreshWorkloadProfile(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	// deny mode: the approver rejects the opened file, so its opens go through the sampler
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path == "/tmp/wp-open-approved"`,
+	}
+
+	const (
+		refreshPeriod = time.Second
+		openInterval  = 3 * time.Second
+	)
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.securityProfileSampleRefreshPeriod = refreshPeriod
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
+
+	// the sample cookie is only registered if the profile exists when the first open is inserted
+	execType := workloadProfileEventTypeByName(t, "exec")
+	execType.trigger(t, dockerInstance, "known")
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return execType.hasNode(p, "known")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// node eviction is disabled so the sample never goes stale: only the refresh of the second open can update the profile
+	testFile := "/tmp/wp-open-refresh"
+	args := []string{"open", testFile, ";", "sleep", strconv.Itoa(int(openInterval.Seconds())), ";", "open", testFile}
+	if out, err := dockerInstance.Command(workloadProfileSyscallTester, args, []string{}).CombinedOutput(); err != nil {
+		t.Fatalf("%s: %v", string(out), err)
+	}
+
+	execBasename, fileBasename := filepath.Base(workloadProfileSyscallTester), filepath.Base(testFile)
+	p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		firstSeen, lastSeen, found := profileFileSeenTimes(p, execBasename, fileBasename, "v1")
+		return found && lastSeen.Sub(firstSeen) >= openInterval-refreshPeriod
+	})
+	if err != nil {
+		if p == nil {
+			t.Fatal(err)
+		}
+		firstSeen, lastSeen, found := profileFileSeenTimes(p, execBasename, fileBasename, "v1")
+		t.Fatalf("the second open should refresh the last seen timestamp of the file (found: %v, first seen: %s, last seen: %s): %v", found, firstSeen, lastSeen, err)
+	}
 }
 
 func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
