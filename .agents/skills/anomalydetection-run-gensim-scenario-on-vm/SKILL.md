@@ -18,8 +18,8 @@ controlled, repeatable multi-episode benchmark batches, and `--backend vm` for i
 single-node experiments.
 
 Run the bundled helpers one at a time and check their exit status. They do not automatically tear down infrastructure so
-you can reuse a healthy VM or EKS cluster across a batch. The helpers and Invoke tasks have local fixture and unit tests;
-do not claim a live AWS or VM run unless the user explicitly authorized one and you actually performed it.
+you can reuse a healthy VM or EKS cluster across a batch. Do not claim a live AWS or VM run unless the user explicitly
+authorized one and you actually performed it.
 
 ## 1. Collect inputs, authorization, and backend choice
 
@@ -42,16 +42,16 @@ Ask for missing inputs and resolve ambiguity before changing resources:
 
 Retention must exceed the episode duration plus the final flush wait (and the full batch on VM). Do not operate on
 production machines or clusters: these steps deploy workloads and create dddev monitors/events. Confirm disposable
-host/stack authorization and dddev credentials before mutating resources.
+host/stack authorization and dddev credentials before mutating resources. The VM helpers require `--disposable-vm` to
+record that authorization; the flag is not a substitute for obtaining it.
 
 Set `SKILL` to this skill's absolute directory. Local validation requires Bash, Python 3, and PyArrow
 (`uv run --with pyarrow ...`).
 
 ## 2A. VM happy path (`--backend vm`)
 
-Use at least 4 vCPU / 16 GiB and 20 GB free disk (a 2 vCPU / 3.7 GiB VM saturated and degraded recordings). The VM
-helpers require `--disposable-vm` to record user authorization; set `VM` to the confirmed `user@host` (and `SSH_PORT`
-if non-default).
+Use at least 4 vCPU / 16 GiB and about 20 GB free disk. Set `VM` to the confirmed `user@host` (and `SSH_PORT` if
+non-default).
 
 1. Provision or probe the VM (run `dda inv e2e.setup --team=<team>` first if AWS e2e setup is missing):
 
@@ -75,6 +75,9 @@ bash "$SKILL/scripts/vm.sh" deploy-recorder --disposable-vm "$VM" "$ENV_FILE" "$
 If `gadget-dev` already exists on the authorized disposable VM and its nodes are Ready, run
 `bash "$SKILL/scripts/vm.sh" reuse-cluster --disposable-vm "$VM"` instead of `create-cluster`. Helpers use
 `~/gensim/kubeconfig` and require `kind-gadget-dev`.
+Expected outcome: the recorder runs in the intended cluster with [the configured values](assets/recorder-values.yaml)
+and a mode-600 env file. Credentials must not appear in command arguments or output. Confirm one Ready recorder Agent
+pod with zero restarts and metrics/log Parquet files after a flush interval.
 
 3. Prepare the scenario, run the episode, and fetch/validate into a fresh local directory:
 
@@ -84,9 +87,13 @@ bash "$SKILL/scripts/scenario.sh" run --disposable-vm "$VM" "$SCENARIO_ID" "$EPI
 uv run --with pyarrow bash "$SKILL/scripts/fetch.sh" "$VM" "$SCENARIO_ID" "$EPISODE" "$OUT" 60
 ```
 
-`prepare` removes the scenario's bundled Agent template and loads any Compose images into kind. Reuse the prepared copy
-across episodes of the same scenario; only recopy into a fresh scenario id when switching from `shortened` back to
-`full`. Uninstall the previous scenario release before switching scenarios.
+Expected outcome from `prepare`: a fresh scenario copy ready to run on the VM, without a competing Agent or stale
+results. Reuse the prepared copy across episodes of the same scenario; uninstall the previous scenario release before
+switching scenarios.
+Expected outcome from `run`: `results/<episode>-1.json`, `results/<episode>.log`, and Agent status snapshots for
+recording validation. Retain the tool session and wait for completion; episodes survive SSH disconnections, so inspect
+the log and running workloads before retrying. Use `shortened` instead of `full` only when requested (recopy before a
+full run).
 
 ## 2B. EKS happy path (`--backend eks`)
 
@@ -154,7 +161,7 @@ uv run --with pyarrow dda inv aws.eks.gensim.fetch \
 ## 3. Shared validation contract and testbench replay
 
 Both `scripts/fetch.sh` (VM) and `dda inv aws.eks.gensim.fetch` (EKS) run
-`test/e2e-framework/scenarios/aws/gensim-eks/validate-recording.sh`:
+`test/e2e-framework/scenarios/aws/gensim-eks/validate-recording.sh` (backed by `scripts/recording.py`):
 
 - Creates `$OUT` exclusively so existing data is never overwritten.
 - Verifies safe archive paths, Agent pod readiness and zero restarts (`agent-before.json` / `agent-after.json`), and
@@ -217,6 +224,10 @@ Read only for a failed or unfamiliar step:
 - Original setup in the `gensim-episodes` repo: `q_branch/setup-k8s-host.sh`, `q_branch/gadget-k8s-host.lima.yaml`.
 - [VM Ubuntu bootstrap](references/bootstrap.md) — load only when `vm.sh probe` fails on missing tools or sysctl limits.
 - [EKS multi-pod recording & live acceptance checklist](references/eks.md) — load only for EKS troubleshooting or live acceptance handoff.
+- Docker permission denied after bootstrap: close the multiplexed SSH connection and reconnect to pick up group membership.
+- Exec format errors: confirm an amd64 image for the x86_64 VM.
+- Docker 29 image-load errors: use a single-platform image archive instead of `kind load docker-image`.
+- Multiple recorder pods or restarting containers: stop, fix topology/resources, and start a new recording.
 
 To validate helper changes without provisioning resources, run
 `uv run --no-project --with pyarrow --with pyyaml bash "$SKILL/scripts/test.sh"` and ShellCheck on `scripts/*.sh`.

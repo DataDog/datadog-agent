@@ -25,20 +25,7 @@ if [[ "$snapshots" == present ]]; then
     scp -P "$SSH_PORT" "$VM:~/gensim/$scenario/results/$episode-agent-after.json" "$OUT/agent-after.json"
 fi
 
-wait_seconds="$(python3 - "$OUT/episode.json" "$flush" <<'PY'
-import datetime as dt
-import json
-import math
-import sys
-
-with open(sys.argv[1]) as source:
-    episode = json.load(source)
-end = dt.datetime.fromisoformat(episode["end_time"].replace("Z", "+00:00"))
-if end.tzinfo is None or end > dt.datetime.now(dt.timezone.utc):
-    raise SystemExit("episode end_time must be in the past and timezone-aware")
-print(max(0, math.ceil(end.timestamp() + int(sys.argv[2]) - dt.datetime.now(dt.timezone.utc).timestamp())))
-PY
-)"
+wait_seconds="$(python3 "$SKILL_ROOT/scripts/recording.py" wait "$OUT/episode.json" "$flush")"
 sleep "$wait_seconds"
 remote <<'EOF' > "$OUT/agent-fetch.json"
 kubectl --context kind-gadget-dev --namespace default get pods -l app.kubernetes.io/component=agent -o json

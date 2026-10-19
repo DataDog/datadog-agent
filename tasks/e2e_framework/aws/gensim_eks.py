@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import glob
 import json
 import os
@@ -115,6 +117,7 @@ def _generate_run_id(gensim_sha: str) -> str:
 
 
 @task(
+    optional=["recording_only"],
     help={
         "image": "Full agent Docker image path (e.g. docker.io/datadog/agent-dev:my-tag)",
         "episodes": "Comma-separated episode:scenario pairs (e.g. authcore-pgbouncer:pool-saturation,ep2:scen-a)",
@@ -132,7 +135,7 @@ def _generate_run_id(gensim_sha: str) -> str:
         "config_path": doc.config_path,
         "debug": "Enable Pulumi debug logging",
         "skip_build": "Skip episode image building (use cached ECR images from a previous run)",
-    }
+    },
 )
 def submit_gensim_eks(
     ctx: Context,
@@ -146,7 +149,7 @@ def submit_gensim_eks(
     mode: str = "record-parquet",
     flush_interval: str = "1m",
     retention: str = "90m",
-    recording_only: bool | None = None,
+    recording_only: bool | str | None = None,
     cluster_name: str = "gensim",
     run_id: str = "",
     debug: bool = False,
@@ -175,7 +178,16 @@ def submit_gensim_eks(
         raise Exit("--episodes and --episode-manifest are mutually exclusive.")
     if not episodes and not episode_manifest:
         raise Exit("One of --episodes or --episode-manifest is required.")
-    effective_recording_only = (mode == "record-parquet") if recording_only is None else bool(recording_only)
+    if recording_only is None:
+        effective_recording_only = mode == "record-parquet"
+    elif isinstance(recording_only, bool):
+        effective_recording_only = recording_only
+    elif str(recording_only).strip().lower() in ("true", "1", "yes"):
+        effective_recording_only = True
+    elif str(recording_only).strip().lower() in ("false", "0", "no"):
+        effective_recording_only = False
+    else:
+        raise Exit(f"Invalid --recording-only={recording_only!r}: expected true or false.")
     _validate_submit_settings(
         image=image,
         mode=mode,
