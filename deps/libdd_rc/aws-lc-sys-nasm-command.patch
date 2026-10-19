@@ -1,11 +1,17 @@
 diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 --- a/builder/cmake_builder.rs
 +++ b/builder/cmake_builder.rs
-@@ -321,6 +321,9 @@ impl CmakeBuilder {
+@@ -321,6 +321,15 @@ impl CmakeBuilder {
          Self::preserve_cflag_optimization_flags(&mut cmake_cfg);
  
          if target_os() == "windows" {
 +            if let Some(nasm) = env::var_os("NASM") {
++                let nasm = PathBuf::from(nasm);
++                let nasm = if nasm.is_absolute() {
++                    nasm
++                } else {
++                    bazel_execroot().join(nasm)
++                };
 +                cmake_cfg.define("CMAKE_ASM_NASM_COMPILER", nasm);
 +            }
              if is_fips_build() {

@@ -1,12 +1,63 @@
 load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@//bazel/rules:platform_transition.bzl", "platform_transition_wrapper")
 load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_go//go:def.bzl", "go_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_static_library")
+
+package(
+    default_package_metadata = [
+        ":aws_lc_fips_package_metadata",
+        ":libdd_rc_package_metadata",
+    ],
+)
+
+exports_files(["LICENSE"])
+
+package_metadata(
+    name = "libdd_rc_package_metadata",
+    attributes = [":libdd_rc_license"],
+    purl = purl_for_generic(
+        download_url = "https://github.com/DataDog/libdd-rc/archive/{version}.tar.gz",
+        package = "libdd-rc",
+        version = "795fc703c6bceb113a572b01dd57227efe71bdcf",
+    ),
+)
+
+license(
+    name = "libdd_rc_license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+)
+
+# aws-lc-fips-sys builds and packages the native AWS-LC FIPS runtime. Cargo's
+# generated BUILD file does not carry package_metadata, so attach its upstream
+# license to the libdd-rc wrapper targets that introduce it into the Agent.
+package_metadata(
+    name = "aws_lc_fips_package_metadata",
+    attributes = [":aws_lc_fips_license"],
+    purl = purl_for_generic(
+        download_url = "https://crates.io/api/v1/crates/aws-lc-fips-sys/{version}/download",
+        package = "aws-lc-fips-sys",
+        version = "0.14.2",
+    ),
+)
+
+license(
+    name = "aws_lc_fips_license",
+    license_kinds = [
+        "@rules_license//licenses/spdx:Apache-2.0",
+        "@rules_license//licenses/spdx:ISC",
+        "@rules_license//licenses/spdx:OpenSSL",
+    ],
+    license_text = "@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:LICENSE",
+)
 
 proto_library(
     name = "signature_proto",
@@ -190,6 +241,7 @@ foreign_cc_shared_wrapper(
 # C++/cgo linking and runfiles behavior.
 dd_cc_packaged(
     name = "_aws_lc_fips_crypto_dylib_packaged",
+    dest_dir = "embedded/lib",
     input = ":_aws_lc_fips_crypto_dylib_shared",
 )
 

@@ -10,11 +10,9 @@ load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 go_binary(
     name = "windows_msvc_lifecycle",
     srcs = ["windows_msvc_lifecycle.go"],
-    cdeps = ["@libdd_rc_source//:rc_x509_ffi_cc"],
-    cgo = True,
     # rules_go's auto mode disables cgo when it sees a non-host platform.
-    # This target deliberately supplies the MinGW C++ toolchain, so require
-    # cgo instead of silently compiling an empty pure-Go package.
+    # The public rcx509 dependency crosses cgo using the supplied MinGW C++
+    # toolchain, so require cgo instead of silently compiling a pure-Go host.
     pure = "off",
     tags = ["manual"],
     target_compatible_with = [
@@ -22,6 +20,7 @@ go_binary(
         "@platforms//os:windows",
     ],
     visibility = ["//packages/agent/dependencies:__pkg__"],
+    deps = ["@libdd_rc_source//:rcx509"],
 )
 
 copy_file(
@@ -30,12 +29,38 @@ copy_file(
     out = "client_lifecycle_generated_test.go",
 )
 
+copy_file(
+    name = "log_sink_test_src",
+    src = "log_sink_test.go.in",
+    out = "log_sink_generated_test.go",
+)
+
 go_test(
     name = "client_lifecycle_test",
     srcs = [":client_lifecycle_test_src"],
     # External Go links invoke dsymutil unless DWARF is disabled. The macOS
     # amd64 runner's bundled dsymutil cannot execute under its host dyld; this
     # smoke does not consume debug data, and release Agent binaries use -w too.
+    gc_linkopts = select({
+        "@platforms//os:macos": ["-w"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@libdd_rc_source//:rcx509"],
+)
+
+# The upstream log sink accepts a Unix file descriptor. Keep that assertion
+# separate from the portable public-client lifecycle so Windows can exercise
+# NewClient/Close without pretending a HANDLE fits in the fd-based API.
+go_test(
+    name = "log_sink_test",
+    srcs = [":log_sink_test_src"],
     gc_linkopts = select({
         "@platforms//os:macos": ["-w"],
         "//conditions:default": [],
@@ -80,7 +105,6 @@ pkg_filegroup(
     name = "packaged_client_lifecycle_native_files",
     testonly = True,
     srcs = [":packaged_client_lifecycle_native_dependencies"],
-    prefix = "embedded",
 )
 
 pkg_filegroup(

@@ -73,17 +73,18 @@ alias(
     actual = ":aws-lc-fips-sys_build_script",
     visibility = ["//visibility:public"],
 )
+
+# The Agent's package metadata rule references the exact upstream license text.
+exports_files(["LICENSE"], visibility = ["//visibility:public"])
 """,
     build_script_env_select = {
         "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
-        # Keep Go hermetic, but avoid a NASM action input only for this
-        # temporary debug/no-assembly build.
-        # Perl comes from the MSYS2 toolset already installed in the Windows
-        # build image; production should replace this host path with a declared
-        # Bazel tool input.
-        "x86_64-pc-windows-msvc": "{\"AWS_LC_FIPS_SYS_NO_ASM\":\"1\",\"CMAKE_RS_FORWARD_FAILED_OUTPUT\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"NUM_JOBS\":\"8\",\"PERL_EXECUTABLE\":\"C:/tools/msys64/usr/bin/perl.exe\"}",
+        # Keep Go, libclang, and NASM action-scoped. Perl intentionally follows
+        # the existing Windows OpenSSL/OpenSSL-FIPS build convention and is
+        # resolved from the CI image PATH exposed by --action_env=PATH.
+        "x86_64-pc-windows-msvc": "{\"CMAKE_RS_FORWARD_FAILED_OUTPUT\":\"1\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go.exe)\",\"LIBCLANG_PATH\":\"$(execpath @libclang_windows//:clang/native/libclang.dll)\",\"NASM\":\"$(execpath @nasm_windows//:nasm.exe)\",\"NUM_JOBS\":\"8\",\"PERL_EXECUTABLE\":\"perl\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GO_EXECUTABLE\":\"$(execpath @go_work_sdk//:bin/go)\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     build_script_tools = ["@go_work_sdk//:files"],
@@ -94,6 +95,7 @@ alias(
         "x86_64-pc-windows-msvc": [
             "@go_work_sdk//:bin/go.exe",
             "@libclang_windows//:clang/native/libclang.dll",
+            "@nasm_windows//:nasm.exe",
         ],
         "x86_64-unknown-linux-gnu": ["@go_work_sdk//:bin/go"],
     },

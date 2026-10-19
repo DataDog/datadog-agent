@@ -1,27 +1,18 @@
 package main
 
-/*
-#include "libdd_rc.h"
-*/
-import "C"
-
 import (
 	"fmt"
-	"unsafe"
+
+	"github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509"
 )
 
 func main() {
-	appName := []byte("datadog-agent")
-	version := []byte("bazel-windows-msvc-smoke")
-	ctx := C.rc_init(
-		(*C.uint8_t)(unsafe.Pointer(&appName[0])),
-		C.uint32_t(len(appName)),
-		(*C.uint8_t)(unsafe.Pointer(&version[0])),
-		C.uint32_t(len(version)),
-	)
-	if ctx == nil {
-		panic("rc_init returned a nil context")
+	client, err := rcx509.NewClient("ws://127.0.0.1:1", "datadog-agent", "bazel-windows-msvc-smoke")
+	if err != nil {
+		panic(fmt.Sprintf("initialize public rcx509 client: %v", err))
 	}
-	C.rc_free(ctx)
-	fmt.Println("MinGW cgo host completed the MSVC rc-x509 FFI lifecycle")
+	if err := client.Close(); err != nil {
+		panic(fmt.Sprintf("close public rcx509 client: %v", err))
+	}
+	fmt.Println("MinGW host completed the public rcx509 lifecycle through the MSVC FFI")
 }
