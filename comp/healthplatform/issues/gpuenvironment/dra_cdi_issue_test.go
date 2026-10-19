@@ -24,27 +24,24 @@ func TestBuildDRACDIIssue(t *testing.T) {
 		{
 			name: "full context",
 			context: map[string]string{
-				DRACDIContextKeySearchedPaths:  "/host/var/run/cdi,/var/run/cdi",
-				DRACDIContextKeyError:          "no such file or directory",
-				DRACDIContextKeyContainerCount: "3",
+				DRACDIContextKeySearchedPaths: "/host/var/run/cdi,/var/run/cdi",
+				DRACDIContextKeyError:         "no such file or directory",
 			},
 			expectedTitle: "GPU monitoring cannot find the CDI specs of NVIDIA DRA claims (searched /host/var/run/cdi,/var/run/cdi)",
-			expectedDesc:  "3 container(s) use NVIDIA DRA GPU claims",
+			expectedDesc:  "Error: no such file or directory",
 			expectedExtra: map[string]string{
-				DRACDIContextKeySearchedPaths:  "/host/var/run/cdi,/var/run/cdi",
-				DRACDIContextKeyError:          "no such file or directory",
-				DRACDIContextKeyContainerCount: "3",
+				DRACDIContextKeySearchedPaths: "/host/var/run/cdi,/var/run/cdi",
+				DRACDIContextKeyError:         "no such file or directory",
 			},
 		},
 		{
 			name:          "nil context uses defaults",
 			context:       nil,
 			expectedTitle: "GPU monitoring cannot find the CDI specs of NVIDIA DRA claims (searched unknown)",
-			expectedDesc:  "unknown container(s)",
+			expectedDesc:  "Error: unknown error",
 			expectedExtra: map[string]string{
-				DRACDIContextKeySearchedPaths:  "unknown",
-				DRACDIContextKeyError:          "unknown error",
-				DRACDIContextKeyContainerCount: "unknown",
+				DRACDIContextKeySearchedPaths: "unknown",
+				DRACDIContextKeyError:         "unknown error",
 			},
 		},
 	}

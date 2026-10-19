@@ -19,15 +19,15 @@ const (
 	// DRACDIIssueType is the snake_case type key: DRACDIIssueName lowercased with
 	// spaces replaced by underscores.
 	DRACDIIssueType = "gpu_dra_cdi_specs_unavailable"
-	// DRACDIIssueID is the issue ID for this issue. There is at most one instance per agent.
+	// DRACDIIssueID is the issue ID prefix for this issue. Reporters append a
+	// suffix identifying the Agent deployment, as the backend deduplicates issues
+	// by ID.
 	DRACDIIssueID = "gpu-dra-cdi-specs-unavailable"
 
 	// DRACDIContextKeySearchedPaths is the context key holding the comma-separated CDI spec directories that were checked.
 	DRACDIContextKeySearchedPaths = "searched_paths"
 	// DRACDIContextKeyError is the context key holding why no CDI spec could be found in the searched directories.
 	DRACDIContextKeyError = "error"
-	// DRACDIContextKeyContainerCount is the context key holding the number of running containers with NVIDIA DRA GPU claims.
-	DRACDIContextKeyContainerCount = "container_count"
 
 	draCDIIssueName = DRACDIIssueName
 	draCDIIssueType = DRACDIIssueType
@@ -52,16 +52,10 @@ func (t *DRACDIIssue) BuildIssue(context map[string]string) (*healthplatform.Iss
 	if errMsg == "" {
 		errMsg = "unknown error"
 	}
-	containerCount := context[DRACDIContextKeyContainerCount]
-	if containerCount == "" {
-		containerCount = "unknown"
-	}
-
 	extra, err := structpb.NewStruct(map[string]any{
-		DRACDIContextKeySearchedPaths:  searchedPaths,
-		DRACDIContextKeyError:          errMsg,
-		DRACDIContextKeyContainerCount: containerCount,
-		"impact":                       draCDIImpactMsg,
+		DRACDIContextKeySearchedPaths: searchedPaths,
+		DRACDIContextKeyError:         errMsg,
+		"impact":                      draCDIImpactMsg,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create extra: %w", err)
@@ -71,7 +65,7 @@ func (t *DRACDIIssue) BuildIssue(context map[string]string) (*healthplatform.Iss
 		IssueName:   draCDIIssueName,
 		IssueType:   draCDIIssueType,
 		Title:       fmt.Sprintf("GPU monitoring cannot find the CDI specs of NVIDIA DRA claims (searched %s)", searchedPaths),
-		Description: fmt.Sprintf("%s container(s) use NVIDIA DRA GPU claims, but the Agent cannot find or read the CDI specs written by the NVIDIA DRA driver to map them to GPU devices. Error: %s", containerCount, errMsg),
+		Description: fmt.Sprintf("Containers use NVIDIA DRA GPU claims, but the Agent cannot find or read the CDI specs written by the NVIDIA DRA driver to map them to GPU devices. Error: %s", errMsg),
 		Category:    category,
 		Location:    location,
 		Severity:    severity,

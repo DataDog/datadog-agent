@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,26 +87,44 @@ func TestClassifySysprobeError(t *testing.T) {
 	}
 }
 
+const testHostname = "test-host"
+
+func TestScopedIssueID(t *testing.T) {
+	id := scopedIssueID(gpuenvironment.DRACDIIssueID, "host-a")
+	assert.Regexp(t, "^"+gpuenvironment.DRACDIIssueID+":[0-9a-f]{16}$", id)
+	assert.Equal(t, id, scopedIssueID(gpuenvironment.DRACDIIssueID, "host-a"))
+	assert.NotEqual(t, id, scopedIssueID(gpuenvironment.DRACDIIssueID, "host-b"))
+}
+
+// reportStaleIssue reports an issue named issueName under an ID with a
+// different scope, as reported before a restart or a scope change.
+func reportStaleIssue(t *testing.T, healthStore *healthplatformmock.Mock, issueName, issueID string) {
+	require.NoError(t, healthStore.ReportIssue(&healthplatform.Issue{Id: issueID, IssueName: issueName}))
+}
+
 func TestSyncSysprobeDataHealthIssue(t *testing.T) {
 	healthStore := healthplatformmock.New(t)
-	check := &Check{sysprobeData: newSysprobeDataTracker()}
+	check := &Check{sysprobeData: newSysprobeDataTracker(), hostname: testHostname}
 	check.SetIssueReporter(healthStore)
+	issueID := scopedIssueID(gpuenvironment.SystemProbeDataIssueID, testHostname)
+	staleID := scopedIssueID(gpuenvironment.SystemProbeDataIssueID, "previous-host")
+	reportStaleIssue(t, healthStore, gpuenvironment.SystemProbeDataIssueName, staleID)
 	start := time.Now()
 
 	check.sysprobeData.record(gpuenvironment.SystemProbeSourceDriverEvents, &sysprobeclient.StatusCodeError{StatusCode: http.StatusNotFound}, start)
 	check.syncSysprobeDataHealthIssue(start)
-	assert.Nil(t, healthStore.GetIssue(gpuenvironment.SystemProbeDataIssueID))
+	assert.Nil(t, healthStore.GetIssue(issueID))
 
 	check.syncSysprobeDataHealthIssue(start.Add(sysprobeDataUnavailableThreshold))
-	issue := healthStore.GetIssue(gpuenvironment.SystemProbeDataIssueID)
+	issue := healthStore.GetIssue(issueID)
 	require.NotNil(t, issue)
 	assert.Equal(t, gpuenvironment.SystemProbeDataIssueName, issue.IssueName)
-	assert.Equal(t, gpuenvironment.SystemProbeDataIssueID, issue.Id)
 	assert.Contains(t, issue.Title, gpuenvironment.SystemProbeSourceDriverEvents)
+	assert.Nil(t, healthStore.GetIssue(staleID), "issues with a different scope must be resolved")
 
 	check.sysprobeData.record(gpuenvironment.SystemProbeSourceDriverEvents, nil, start.Add(sysprobeDataUnavailableThreshold+time.Minute))
 	check.syncSysprobeDataHealthIssue(start.Add(sysprobeDataUnavailableThreshold + time.Minute))
-	assert.Nil(t, healthStore.GetIssue(gpuenvironment.SystemProbeDataIssueID))
+	assert.Nil(t, healthStore.GetIssue(issueID))
 }
 
 func TestSyncDRACDIHealthIssue(t *testing.T) {
@@ -115,31 +134,36 @@ func TestSyncDRACDIHealthIssue(t *testing.T) {
 	containers.CDISpecDirs = []string{specDir}
 
 	healthStore := healthplatformmock.New(t)
-	check := &Check{}
+	check := &Check{hostname: testHostname}
 	check.SetIssueReporter(healthStore)
+	// The mock store uses the hostname as the issue discriminator.
+	issueID := scopedIssueID(gpuenvironment.DRACDIIssueID, testHostname)
 	start := time.Now()
 
 	// No DRA claims: a directory without specs is not an issue.
-	check.syncDRACDIHealthIssue(0, start.Add(draCDISpecsMissingThreshold))
-	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
+	check.syncDRACDIHealthIssue(false, start.Add(draCDISpecsMissingThreshold))
+	assert.Nil(t, healthStore.GetIssue(issueID))
 
 	// Below the threshold nothing is reported.
-	check.syncDRACDIHealthIssue(2, start)
-	check.syncDRACDIHealthIssue(2, start.Add(draCDISpecsMissingThreshold-time.Second))
-	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
+	check.syncDRACDIHealthIssue(true, start)
+	check.syncDRACDIHealthIssue(true, start.Add(draCDISpecsMissingThreshold-time.Second))
+	assert.Nil(t, healthStore.GetIssue(issueID))
 
-	check.syncDRACDIHealthIssue(2, start.Add(draCDISpecsMissingThreshold))
-	issue := healthStore.GetIssue(gpuenvironment.DRACDIIssueID)
+	check.syncDRACDIHealthIssue(true, start.Add(draCDISpecsMissingThreshold))
+	issue := healthStore.GetIssue(issueID)
 	require.NotNil(t, issue)
 	assert.Equal(t, gpuenvironment.DRACDIIssueName, issue.IssueName)
-	assert.Equal(t, gpuenvironment.DRACDIIssueID, issue.Id)
 	assert.Contains(t, issue.Title, specDir)
-	assert.Equal(t, "2", issue.GetExtra().GetFields()[gpuenvironment.DRACDIContextKeyContainerCount].GetStringValue())
+
+	// An issue reported before a restart under another scope is resolved too.
+	staleID := scopedIssueID(gpuenvironment.DRACDIIssueID, "previous-deployment")
+	reportStaleIssue(t, healthStore, gpuenvironment.DRACDIIssueName, staleID)
 
 	// NVIDIA DRA claim specs appearing resolve the issue.
 	require.NoError(t, os.WriteFile(filepath.Join(specDir, containers.NvidiaDRAClaimSpecFileName("other")), []byte("{}"), 0o644))
-	check.syncDRACDIHealthIssue(2, start.Add(2*draCDISpecsMissingThreshold))
-	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
+	check.syncDRACDIHealthIssue(true, start.Add(2*draCDISpecsMissingThreshold))
+	assert.Nil(t, healthStore.GetIssue(issueID))
+	assert.Nil(t, healthStore.GetIssue(staleID))
 }
 
 type failingDeviceCache struct {
@@ -172,10 +196,10 @@ func TestGetGPUToContainersMapSyncsDRACDIHealthIssue(t *testing.T) {
 	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), wmetaMock, mocksender.CreateDefaultDemultiplexer(t), nil)
 	healthStore := healthplatformmock.New(t)
 	check.SetIssueReporter(healthStore)
+	check.hostname = testHostname
+	issueID := scopedIssueID(gpuenvironment.DRACDIIssueID, testHostname)
 
-	workloadContainer := newDRAContainer("workload")
 	agentContainer := newDRAContainer("agent")
-	wmetaMock.Set(workloadContainer)
 	wmetaMock.Set(agentContainer)
 	wmetaMock.Set(&workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: strconv.Itoa(os.Getpid())},
@@ -183,22 +207,25 @@ func TestGetGPUToContainersMapSyncsDRACDIHealthIssue(t *testing.T) {
 		Owner:    &agentContainer.EntityID,
 	})
 
+	// The Agent's own container does not count as a DRA claim.
 	start := time.Now()
 	check.getGPUToContainersMap(start)
-	assert.Nil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
-
 	check.getGPUToContainersMap(start.Add(draCDISpecsMissingThreshold))
-	issue := healthStore.GetIssue(gpuenvironment.DRACDIIssueID)
-	require.NotNil(t, issue)
-	// The Agent's own container is not counted.
-	assert.Equal(t, "1", issue.GetExtra().GetFields()[gpuenvironment.DRACDIContextKeyContainerCount].GetStringValue())
+	assert.Nil(t, healthStore.GetIssue(issueID))
+
+	workloadContainer := newDRAContainer("workload")
+	wmetaMock.Set(workloadContainer)
+	check.getGPUToContainersMap(start.Add(draCDISpecsMissingThreshold))
+	assert.Nil(t, healthStore.GetIssue(issueID))
+	check.getGPUToContainersMap(start.Add(2 * draCDISpecsMissingThreshold))
+	assert.NotNil(t, healthStore.GetIssue(issueID))
 
 	// Without the device list the containers are not inspected, so the issue
 	// must not be resolved even though no DRA claims remain.
 	wmetaMock.Unset(workloadContainer)
 	check.deviceCache = failingDeviceCache{DeviceCache: check.deviceCache}
-	check.getGPUToContainersMap(start.Add(2 * draCDISpecsMissingThreshold))
-	assert.NotNil(t, healthStore.GetIssue(gpuenvironment.DRACDIIssueID))
+	check.getGPUToContainersMap(start.Add(3 * draCDISpecsMissingThreshold))
+	assert.NotNil(t, healthStore.GetIssue(issueID))
 }
 
 func TestRunRecordsSysprobeDataSources(t *testing.T) {
@@ -258,6 +285,6 @@ func TestHealthIssueSyncWithNilReporter(t *testing.T) {
 
 	require.NotPanics(t, func() {
 		check.syncSysprobeDataHealthIssue(time.Now())
-		check.syncDRACDIHealthIssue(1, time.Now())
+		check.syncDRACDIHealthIssue(true, time.Now())
 	})
 }

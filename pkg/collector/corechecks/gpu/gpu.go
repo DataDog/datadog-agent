@@ -12,7 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"math"
+	"os"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -33,13 +38,10 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (
@@ -80,6 +82,7 @@ type Check struct {
 	driverEventsEnabled bool                             // driverEventsEnabled is true when driver events are requested from system-probe
 	sysprobeData        *sysprobeDataTracker             // sysprobeData tracks failures of the system-probe data sources; only touched from the Run goroutine
 	draCDIMissingSince  time.Time                        // draCDIMissingSince is when running DRA claims without readable CDI specs were first seen; only touched from the Run goroutine
+	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
 }
 
 type checkTelemetry struct {
@@ -504,7 +507,7 @@ func (c *Check) syncSysprobeDataHealthIssue(now time.Time) {
 
 	failures := c.sysprobeData.failures(now)
 	if len(failures) == 0 {
-		c.issueReporter.ResolveIssue(gpuenvironment.SystemProbeDataIssueID)
+		c.resolveIssuesByName(gpuenvironment.SystemProbeDataIssueName, "")
 		return
 	}
 
@@ -515,10 +518,51 @@ func (c *Check) syncSysprobeDataHealthIssue(now time.Time) {
 		}
 		return
 	}
-	issue.Id = gpuenvironment.SystemProbeDataIssueID
+	// The failures can be specific to this host, such as NVML errors, so the
+	// issue is scoped per host and not per Agent deployment.
+	issue.Id = scopedIssueID(gpuenvironment.SystemProbeDataIssueID, c.agentHostname())
+	c.resolveIssuesByName(gpuenvironment.SystemProbeDataIssueName, issue.Id)
 
 	if err := c.issueReporter.ReportIssue(issue); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("failed to report GPU system-probe data health issue: %v", err)
+	}
+}
+
+// scopedIssueID returns base suffixed with a hash of scope. The backend
+// deduplicates Agent Health issues by ID alone, so the ID must include the host
+// or Agent deployment the issue applies to.
+func scopedIssueID(base, scope string) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(scope))
+	return fmt.Sprintf("%s:%016x", base, h.Sum64())
+}
+
+// agentHostname returns the Agent hostname, or the OS hostname if it cannot be
+// resolved.
+func (c *Check) agentHostname() string {
+	if c.hostname != "" {
+		return c.hostname
+	}
+
+	name, err := hostname.Get(context.TODO())
+	if err != nil {
+		if logLimitCheck.ShouldLog() {
+			log.Warnf("failed to get the Agent hostname for GPU health issue IDs, using the OS hostname: %v", err)
+		}
+		name, _ = os.Hostname()
+	}
+	c.hostname = name
+	return name
+}
+
+// resolveIssuesByName resolves all active issues named issueName except keepID.
+// Resolving by name also clears issues reported with a different scope, such
+// as before the Agent deployment was identified or before a restart.
+func (c *Check) resolveIssuesByName(issueName, keepID string) {
+	for _, id := range c.issueReporter.GetActiveIssueIDsByIssueName(issueName) {
+		if id != keepID {
+			c.issueReporter.ResolveIssue(id)
+		}
 	}
 }
 
@@ -535,7 +579,8 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 		return nil
 	}
 	gpuToContainers := make(map[string][]*workloadmeta.Container, len(allPhysicalDevices))
-	var gpuContainers, unmatchedContainers, draContainers int
+	var gpuContainers, unmatchedContainers int
+	hasDRAClaims := false
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		if containers.IsDatadogAgentContainer(c.wmeta, container) {
@@ -545,7 +590,7 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 
 		gpuContainers++
 		if containers.HasRunningNvidiaDRAGPUClaim(container) {
-			draContainers++
+			hasDRAClaims = true
 		}
 
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
@@ -568,14 +613,14 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 	}
 	c.telemetry.metrics.containerMappingFailurePct.Set(failurePct)
 
-	c.syncDRACDIHealthIssue(draContainers, now)
+	c.syncDRACDIHealthIssue(hasDRAClaims, now)
 
 	return gpuToContainers
 }
 
-// syncDRACDIHealthIssue reports an issue when draContainers running containers
-// hold NVIDIA DRA GPU claims and no CDI spec directory contains readable NVIDIA
-// DRA claim specs, for at least draCDISpecsMissingThreshold.
+// syncDRACDIHealthIssue reports an issue when running containers hold NVIDIA
+// DRA GPU claims and no CDI spec directory contains readable NVIDIA DRA claim
+// specs, for at least draCDISpecsMissingThreshold.
 //
 // Both conditions are needed. The CDI spec directory alone is not a signal: on
 // nodes that do not use DRA it is empty or not mounted at all. A running claim
@@ -587,18 +632,24 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 //
 // The threshold avoids reporting the window in which the last claim spec has
 // been removed but its container is still listed as running.
-func (c *Check) syncDRACDIHealthIssue(draContainers int, now time.Time) {
+//
+// The issue is scoped to the Agent deployment, not the host: the CDI spec
+// directory is mounted by the Agent DaemonSet and the CDI root is set by the
+// NVIDIA DRA driver deployment, so all affected nodes share the cause and the
+// fix. As a consequence, an affected node that stops having DRA claims resolves
+// the issue for all nodes until another affected node reports it again.
+func (c *Check) syncDRACDIHealthIssue(hasDRAClaims bool, now time.Time) {
 	if c.issueReporter == nil {
 		return
 	}
 
 	var specsErr error
-	if draContainers > 0 {
+	if hasDRAClaims {
 		specsErr = containers.CheckNvidiaDRACDISpecs()
 	}
 	if specsErr == nil {
 		c.draCDIMissingSince = time.Time{}
-		c.issueReporter.ResolveIssue(gpuenvironment.DRACDIIssueID)
+		c.resolveIssuesByName(gpuenvironment.DRACDIIssueName, "")
 		return
 	}
 
@@ -610,9 +661,8 @@ func (c *Check) syncDRACDIHealthIssue(draContainers int, now time.Time) {
 	}
 
 	issue, err := gpuenvironment.NewDRACDIIssue().BuildIssue(map[string]string{
-		gpuenvironment.DRACDIContextKeySearchedPaths:  strings.Join(containers.CDISpecDirs, ","),
-		gpuenvironment.DRACDIContextKeyError:          specsErr.Error(),
-		gpuenvironment.DRACDIContextKeyContainerCount: strconv.Itoa(draContainers),
+		gpuenvironment.DRACDIContextKeySearchedPaths: strings.Join(containers.CDISpecDirs, ","),
+		gpuenvironment.DRACDIContextKeyError:         specsErr.Error(),
 	})
 	if err != nil {
 		if logLimitCheck.ShouldLog() {
@@ -620,7 +670,8 @@ func (c *Check) syncDRACDIHealthIssue(draContainers int, now time.Time) {
 		}
 		return
 	}
-	issue.Id = gpuenvironment.DRACDIIssueID
+	issue.Id = scopedIssueID(gpuenvironment.DRACDIIssueID, c.issueReporter.IssueDiscriminator(c.agentHostname()))
+	c.resolveIssuesByName(gpuenvironment.DRACDIIssueName, issue.Id)
 
 	if err := c.issueReporter.ReportIssue(issue); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("failed to report GPU DRA CDI health issue: %v", err)

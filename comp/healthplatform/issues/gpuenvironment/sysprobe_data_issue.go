@@ -22,7 +22,9 @@ const (
 	// SystemProbeDataIssueType is the snake_case type key: SystemProbeDataIssueName
 	// lowercased with spaces replaced by underscores.
 	SystemProbeDataIssueType = "gpu_system-probe_data_unavailable"
-	// SystemProbeDataIssueID is the issue ID for this issue. There is at most one instance per agent.
+	// SystemProbeDataIssueID is the issue ID prefix for this issue. Reporters
+	// append a suffix identifying the host, as the backend deduplicates issues by
+	// ID.
 	SystemProbeDataIssueID = "gpu-system-probe-data-unavailable"
 
 	sysprobeDataIssueName = SystemProbeDataIssueName
