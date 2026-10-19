@@ -203,6 +203,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		issueBID      = "test-lifecycle-B"
 		testIssueName = "Docker Socket Permission"
 		testIssueType = "docker_socket_permission"
+		testCategory  = "permissions"
 		testSource    = "test-lifecycle"
 	)
 
@@ -235,6 +236,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		Id:        issueAID,
 		IssueName: testIssueName,
 		IssueType: testIssueType,
+		Category:  testCategory,
 		Source:    testSource,
 	}
 
@@ -242,6 +244,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		Id:        issueBID,
 		IssueName: testIssueName,
 		IssueType: testIssueType,
+		Category:  testCategory,
 		Source:    testSource,
 	}
 
@@ -252,10 +255,11 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 			latestHasIssueState(issueBID, healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE)
 	}, waitTimeout, waitInterval, "issueA and issueB never appeared as ACTIVE in forwarded reports")
 
-	// IssueType is caller-set (never overwritten by the store) and must survive
+	// IssueType and Category are caller-set (never overwritten by the store) and must survive
 	// the full store -> egress -> forwarder -> fakeintake round-trip unchanged.
 	if iss := latestIssue(issueAID); assert.NotNil(t, iss) {
 		assert.Equal(t, testIssueType, iss.IssueType)
+		assert.Equal(t, testCategory, iss.Category)
 	}
 
 	deps.HP.ReportIssue(issueA)
@@ -297,10 +301,12 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		if iss, ok := p.Issues[issueAID]; ok && iss != nil && iss.PersistedIssue != nil &&
 			iss.PersistedIssue.State == healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED {
 			resolvedCountA++
+			assert.Equal(t, testCategory, iss.Category)
 		}
 		if iss, ok := p.Issues[issueBID]; ok && iss != nil && iss.PersistedIssue != nil &&
 			iss.PersistedIssue.State == healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED {
 			resolvedCountB++
+			assert.Equal(t, testCategory, iss.Category)
 		}
 	}
 	require.Equal(t, 1, resolvedCountA, "issueA RESOLVED forwarded more than once")

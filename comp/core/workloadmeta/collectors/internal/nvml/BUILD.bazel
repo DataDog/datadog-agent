@@ -88,6 +88,7 @@ go_library(
 dd_agent_go_test(
     name = "nvml_test",
     srcs = ["nvml_test.go"],
+    data = glob(["testdata/**"]),
     embed = [":nvml"],
     gotags_sets = [["nvml"]],
     include_default = False,

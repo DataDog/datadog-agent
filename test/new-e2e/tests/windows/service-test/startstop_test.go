@@ -207,11 +207,10 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
-		// dd-procmgr supervises process-agent, system-probe, and trace-agent, so those
-		// legacy services are already Stopped. Stopping dd-procmgr-service is what stops
-		// those workloads, including the system-probe shutdown that unloads the kernel drivers.
+		// dd-procmgr supervises process-agent, system-probe, trace-agent, and security-agent,
+		// so those legacy services are already Stopped. Stopping dd-procmgr-service is what
+		// stops those workloads, including the system-probe shutdown that unloads the drivers.
 		"dd-procmgr-service",
-		"datadog-security-agent",
 		// stop core agent last since it will trigger stop of other services
 		"datadogagent",
 	}
@@ -385,7 +384,7 @@ func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderP
 
 	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
 	s.Require().NoError(err)
-	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+	s.Require().Equal("Skipped", procmgrDescribeField(out, "State"),
 		"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
 
 	out, err = host.Execute(
@@ -447,7 +446,7 @@ func (s *agentServiceDisabledTraceAgentSuite) TestTraceAgentNotRunningUnderProcm
 
 	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-trace"))
 	s.Require().NoError(err)
-	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+	s.Require().Equal("Skipped", procmgrDescribeField(out, "State"),
 		"dd-procmgr should leave a disabled trace-agent unspawned: %s", out)
 
 	out, err = host.Execute(
@@ -1067,6 +1066,7 @@ func (s *baseStartStopSuite) legacySCMServices() []string {
 		"datadog-process-agent",
 		"datadog-system-probe",
 		"datadog-trace-agent",
+		"datadog-security-agent",
 	}
 }
 

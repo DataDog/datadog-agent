@@ -15,13 +15,20 @@ import (
 
 // ScrubCRManifest scrubs sensitive information from a Custom Resource Manifest
 func ScrubCRManifest(r *unstructured.Unstructured, scrubber *DataScrubber) {
-	// Scrub spec fields
-	if spec, ok := r.Object["spec"]; ok {
-		if specMap, ok := spec.(map[string]interface{}); ok {
-			shouldRedact := false
-			scrubMap(specMap, scrubber, shouldRedact)
-			r.Object["spec"] = specMap
+	// Custom resources can store configuration outside spec, such as Kong's config.
+	// Metadata is processed separately. Preserve resource identity fields.
+	fields := make(map[string]interface{}, len(r.Object))
+	for key, value := range r.Object {
+		switch key {
+		case "apiVersion", "kind", "metadata":
+			continue
+		default:
+			fields[key] = value
 		}
+	}
+	scrubMap(fields, scrubber, false)
+	for key, value := range fields {
+		r.Object[key] = value
 	}
 }
 
