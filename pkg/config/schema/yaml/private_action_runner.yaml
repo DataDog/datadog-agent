@@ -61,6 +61,24 @@ properties:
 
         - com.datadoghq.script.runPredefinedPowershellScript   # on Windows
         - com.datadoghq.script.runPredefinedScript             # on Linux and Darwin
+  allowed_registries:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: comma_separated
+    items:
+      type: string
+    visibility: public
+    description: |-
+      OCI registries from which runRegistryScript may download authored scripts
+      anonymously. Entries allow an entire host (optionally with a port) or a
+      repository path and its descendants, for example registry.example.com or
+      registry.example.com/team/scripts. Paths match whole segments; wildcards
+      are not supported. An unset or empty list denies all registries, including
+      execution of cached scripts. This policy applies to every connection.
+      Script URIs may use tags or immutable digests. Tags are resolved on every
+      run, and extracted packages are cached by digest. Registry script execution
+      is not supported on Windows.
   default_actions_enabled:
     node_type: setting
     type: boolean

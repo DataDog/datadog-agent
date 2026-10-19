@@ -25,6 +25,7 @@ type Config struct {
 	Allowlist                          []string
 	AllowIMDSEndpoint                  bool
 	KubernetesAllowedCustomResources   []string
+	AllowedRegistries                  []string
 	RShellAllowedPaths                 []string
 	RShellAllowedCommands              []string
 	RShellAllowedSystemServices        map[string][]string

@@ -29,7 +29,23 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 	if err := validatePackageIdentity(fqn, descriptor, manifest); err != nil {
 		return nil, err
 	}
+	return preparePackage(manifest, artifact)
+}
 
+// LoadRegistryPackage loads a package whose identity comes from an authorized OCI
+// artifact rather than an RC catalog entry. Its version must match the OCI metadata.
+func LoadRegistryPackage(version string, artifact LocalArtifact) (*Package, error) {
+	manifest, err := loadManifest(artifact.ScriptDirectory())
+	if err != nil {
+		return nil, err
+	}
+	if manifest.Version != version {
+		return nil, fmt.Errorf("authored-script manifest version %q does not match artifact version %q", manifest.Version, version)
+	}
+	return preparePackage(manifest, artifact)
+}
+
+func preparePackage(manifest *Manifest, artifact LocalArtifact) (*Package, error) {
 	manifestCommand := manifest.Command.Entrypoint
 	commandPath, err := resolvePackageFile(artifact.ScriptDirectory(), manifestCommand)
 	if err != nil {
