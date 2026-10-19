@@ -391,7 +391,7 @@ func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
 						if !t.skipMissedBytes {
-							metrics.RecordMissedBytes(missedSource, missedService, remainingBytes, lossWindowStartedAt)
+							metrics.RecordMissedBytes(missedSource, missedService, t.CapacityMonitor.Instance(), remainingBytes, lossWindowStartedAt)
 						}
 						log.Warnf("After the %s, there were %d bytes remaining unread for file %q. These unread logs are now lost.%s", limit, remainingBytes, t.file.Path, advice)
 					}

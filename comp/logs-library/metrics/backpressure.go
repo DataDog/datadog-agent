@@ -266,14 +266,30 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 // currentBottleneckComponent names a stage saturated during the loss window, NoBottleneck
 // when no blocking component was observed saturated in it, or "" when attribution is unknown.
 // A window that began before the monitor can be blamed on a stage but never cleared.
-func currentBottleneckComponent(lossWindowStartedAt time.Time) string {
+func currentBottleneckComponent(pipeline string, lossWindowStartedAt time.Time) string {
 	pm, since := registeredPipelineMonitorSince()
 	if pm == nil {
 		return ""
 	}
-	component := bottleneckDuringLoss(DeriveBackpressure(pm.Snapshots()), lossWindowStartedAt, monitorClock.Now())
+	snaps := pipelineSnapshots(pm.Snapshots(), pipeline)
+	component := bottleneckDuringLoss(DeriveBackpressure(snaps), lossWindowStartedAt, monitorClock.Now())
 	if component == NoBottleneck && lossWindowStartedAt.Before(since) {
 		return ""
 	}
 	return component
+}
+
+// pipelineSnapshots drops other pipelines' processor and strategy; downstream stages are shared.
+func pipelineSnapshots(snaps []ComponentSnapshot, pipeline string) []ComponentSnapshot {
+	if pipeline == "" {
+		return snaps
+	}
+	filtered := make([]ComponentSnapshot, 0, len(snaps))
+	for _, s := range snaps {
+		if (s.Name == ProcessorTlmName || s.Name == StrategyTlmName) && s.Instance != pipeline {
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+	return filtered
 }

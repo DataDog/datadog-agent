@@ -283,9 +283,35 @@ func TestCurrentBottleneckComponent(t *testing.T) {
 			t.Cleanup(ResetPipelineMonitorForTest)
 			clk.Add(time.Minute)
 			assert.Equal(t, tc.state, BackpressureSnapshot().State)
-			assert.Equal(t, tc.component, currentBottleneckComponent(clk.Now().Add(-time.Minute)))
+			assert.Equal(t, tc.component, currentBottleneckComponent("", clk.Now().Add(-time.Minute)))
 		})
 	}
+}
+
+func TestCurrentBottleneckComponentScopedToPipeline(t *testing.T) {
+	clk := useMockBottleneckClock(t)
+	t.Cleanup(ResetPipelineMonitorForTest)
+	inPipeline := func(s ComponentSnapshot, instance string) ComponentSnapshot {
+		s.Instance = instance
+		return s
+	}
+	snaps := []ComponentSnapshot{
+		inPipeline(saturatedSnapshot("processor", 0.2, 0, 0, false), "0"),
+		inPipeline(saturatedSnapshot("processor", 0.97, 0, time.Minute, true), "1"),
+		inPipeline(saturatedSnapshot("strategy", 0.2, 0, 0, false), "0"),
+	}
+	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: snaps})
+	clk.Add(time.Minute)
+	windowStart := clk.Now().Add(-time.Minute)
+
+	assert.Equal(t, NoBottleneck, currentBottleneckComponent("0", windowStart), "another pipeline's processor")
+	assert.Equal(t, "processor", currentBottleneckComponent("1", windowStart))
+	assert.Equal(t, "processor", currentBottleneckComponent("", windowStart), "unknown pipeline")
+
+	snaps = append(snaps, inPipeline(saturatedSnapshot("destination_reliable_0", 0.97, 0, time.Minute, true), "q0s0"))
+	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: snaps})
+	clk.Add(time.Minute)
+	assert.Equal(t, "destination_reliable_0", currentBottleneckComponent("0", clk.Now().Add(-time.Minute)), "shared stages are kept")
 }
 
 // Only saturation inside the loss window is attributed, even when both samples are inside the
@@ -307,18 +333,18 @@ func TestCurrentBottleneckComponentUsesActualLossWindow(t *testing.T) {
 	snapshot.Windows.LastSaturatedAt = now.Add(-30 * time.Second)
 	register()
 	require.Equal(t, BackpressureWarning, BackpressureSnapshot().State, "the snapshot still carries the history")
-	assert.Equal(t, NoBottleneck, currentBottleneckComponent(now.Add(-5*time.Second)),
+	assert.Equal(t, NoBottleneck, currentBottleneckComponent("", now.Add(-5*time.Second)),
 		"saturation that ended before the loss did not cause it")
 
 	// CurrentlySaturated is debounced and may remain true after the last saturated sample.
 	// The timestamp still wins when that sample predates the rotation.
 	snapshot.Windows.CurrentlySaturated = true
 	register()
-	assert.Empty(t, currentBottleneckComponent(now.Add(-5*time.Second)))
+	assert.Empty(t, currentBottleneckComponent("", now.Add(-5*time.Second)))
 
 	snapshot.Windows.LastSaturatedAt = now.Add(-2 * time.Second)
 	register()
-	assert.Equal(t, "strategy", currentBottleneckComponent(now.Add(-5*time.Second)),
+	assert.Equal(t, "strategy", currentBottleneckComponent("", now.Add(-5*time.Second)),
 		"recovered saturation inside the post-rotation window remains attributable")
 }
 
@@ -382,14 +408,14 @@ func TestRegisterPipelineMonitorReplacesAttribution(t *testing.T) {
 	})
 	clk.Add(2 * time.Minute)
 	oldWindow := clk.Now().Add(-time.Minute)
-	require.Equal(t, "strategy", currentBottleneckComponent(oldWindow))
+	require.Equal(t, "strategy", currentBottleneckComponent("", oldWindow))
 
 	RegisterPipelineMonitor(&stubPipelineMonitor{
 		snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.99, 0, time.Minute, true)},
 	})
 	clk.Add(2 * time.Minute)
-	assert.Equal(t, "processor", currentBottleneckComponent(clk.Now().Add(-time.Minute)))
-	assert.Equal(t, "processor", currentBottleneckComponent(oldWindow), "saturation the new pipeline observed inside the older window")
+	assert.Equal(t, "processor", currentBottleneckComponent("", clk.Now().Add(-time.Minute)))
+	assert.Equal(t, "processor", currentBottleneckComponent("", oldWindow), "saturation the new pipeline observed inside the older window")
 }
 
 func TestCurrentBottleneckComponentPartiallyObservedWindow(t *testing.T) {
@@ -403,11 +429,11 @@ func TestCurrentBottleneckComponentPartiallyObservedWindow(t *testing.T) {
 	snapshot.Windows.LastSaturatedAt = clk.Now().Add(30 * time.Second)
 	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{snapshot}})
 	clk.Add(time.Minute)
-	assert.Equal(t, "strategy", currentBottleneckComponent(windowStart), "saturated while the monitor was observing")
+	assert.Equal(t, "strategy", currentBottleneckComponent("", windowStart), "saturated while the monitor was observing")
 
 	RegisterPipelineMonitor(&stubPipelineMonitor{snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.2, 0, 0, false)}})
 	clk.Add(time.Minute)
-	assert.Empty(t, currentBottleneckComponent(windowStart), "no saturation seen, but the start of the window was not observed")
+	assert.Empty(t, currentBottleneckComponent("", windowStart), "no saturation seen, but the start of the window was not observed")
 }
 
 func TestCurrentBottleneckComponentRequiresMonitorBeforeWindow(t *testing.T) {
@@ -417,14 +443,14 @@ func TestCurrentBottleneckComponentRequiresMonitorBeforeWindow(t *testing.T) {
 	healthy := &stubPipelineMonitor{snaps: []ComponentSnapshot{saturatedSnapshot("processor", 0.2, 0, 0, false)}}
 
 	windowStart := clk.Now().Add(time.Minute)
-	assert.Empty(t, currentBottleneckComponent(windowStart), "no monitor registered")
+	assert.Empty(t, currentBottleneckComponent("", windowStart), "no monitor registered")
 
 	clk.Add(2 * time.Minute)
 	RegisterPipelineMonitor(healthy)
-	assert.Empty(t, currentBottleneckComponent(windowStart), "registered after the window started")
+	assert.Empty(t, currentBottleneckComponent("", windowStart), "registered after the window started")
 
 	clk.Add(2 * time.Minute)
-	assert.Equal(t, NoBottleneck, currentBottleneckComponent(clk.Now().Add(-time.Minute)), "registered before the window")
+	assert.Equal(t, NoBottleneck, currentBottleneckComponent("", clk.Now().Add(-time.Minute)), "registered before the window")
 }
 
 func TestCanBackpressureMatchesDestinationMonitorTag(t *testing.T) {

@@ -227,10 +227,10 @@ var missedBytes = newMissedBytesTracker(clock.New())
 var logsAgentRunning atomic.Bool
 
 // RecordMissedBytes records bytes lost when a rotation closed a file early and correlates the
-// loss with saturation observed since lossWindowStartedAt. Never reached on Windows, where the
-// tailer holds no os.File to size the loss with.
-func RecordMissedBytes(source, service string, bytes int64, lossWindowStartedAt time.Time) {
-	missedBytes.record(source, service, bytes, currentBottleneckComponent(lossWindowStartedAt))
+// loss with saturation observed since lossWindowStartedAt in the tailer's pipeline ("" if unknown).
+// Never reached on Windows, where the tailer holds no os.File to size the loss with.
+func RecordMissedBytes(source, service, pipeline string, bytes int64, lossWindowStartedAt time.Time) {
+	missedBytes.record(source, service, bytes, currentBottleneckComponent(pipeline, lossWindowStartedAt))
 }
 
 // MissedBytesSnapshot returns in-window losses, sorted by source then service.

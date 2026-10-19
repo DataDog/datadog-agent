@@ -52,6 +52,14 @@ func newCapacityMonitorWithTick(name, instance string, tickChan <-chan time.Time
 	}
 }
 
+// Instance returns the monitored component's instance ID, or "" for a nil monitor.
+func (i *CapacityMonitor) Instance() string {
+	if i == nil {
+		return ""
+	}
+	return i.instance
+}
+
 // AddIngress records the ingress of a payload
 func (i *CapacityMonitor) AddIngress(pl MeasurablePayload) {
 	if i == nil {
