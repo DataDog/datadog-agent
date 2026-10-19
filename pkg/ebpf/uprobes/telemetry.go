@@ -62,7 +62,7 @@ func (td *telemetryDefinitions) init(tm telemetryComponent.Component) {
 			uprobeAttacherTelemetrySubsystem,
 			"attachments",
 			[]string{"attacher", "type", "result"},
-			"Number of uprobe attachment attempts, by type (process/library) and result (success/failure).",
+			"Number of uprobe attachment attempts, by type (process/library) and result (success/failure/ignore_external/ignore_internal/no_match).",
 		)
 		td.binaryInspectionNs = tm.NewHistogram(
 			uprobeAttacherTelemetrySubsystem,
@@ -99,10 +99,16 @@ type uprobeAttacherTelemetry struct {
 	eventsHandledLibrary telemetryComponent.SimpleCounter
 	exitsHandled         telemetryComponent.SimpleCounter
 
-	libraryAttachmentsSuccess telemetryComponent.SimpleCounter
-	processAttachmentsSuccess telemetryComponent.SimpleCounter
-	libraryAttachmentsFailure telemetryComponent.SimpleCounter
-	processAttachmentsFailure telemetryComponent.SimpleCounter
+	libraryAttachmentsSuccess         telemetryComponent.SimpleCounter
+	processAttachmentsSuccess         telemetryComponent.SimpleCounter
+	libraryAttachmentsFailure         telemetryComponent.SimpleCounter
+	processAttachmentsFailure         telemetryComponent.SimpleCounter
+	libraryAttachmentsIgnoredInternal telemetryComponent.SimpleCounter
+	processAttachmentsIgnoredInternal telemetryComponent.SimpleCounter
+	libraryAttachmentsIgnoredExternal telemetryComponent.SimpleCounter
+	processAttachmentsIgnoredExternal telemetryComponent.SimpleCounter
+	libraryAttachmentsNoMatch         telemetryComponent.SimpleCounter
+	processAttachmentsNoMatch         telemetryComponent.SimpleCounter
 
 	binaryInspectionNs telemetryComponent.SimpleHistogram
 
@@ -134,10 +140,16 @@ func newUprobeAttacherTelemetry(tm telemetryComponent.Component, attacherName st
 		eventsHandledLibrary: definitions.eventsHandled.WithValues(attacherName, "library"),
 		exitsHandled:         definitions.exitsHandled.WithValues(attacherName),
 
-		libraryAttachmentsSuccess: definitions.attachments.WithValues(attacherName, "library", "success"),
-		processAttachmentsSuccess: definitions.attachments.WithValues(attacherName, "process", "success"),
-		libraryAttachmentsFailure: definitions.attachments.WithValues(attacherName, "library", "failure"),
-		processAttachmentsFailure: definitions.attachments.WithValues(attacherName, "process", "failure"),
+		libraryAttachmentsSuccess:         definitions.attachments.WithValues(attacherName, "library", "success"),
+		processAttachmentsSuccess:         definitions.attachments.WithValues(attacherName, "process", "success"),
+		libraryAttachmentsFailure:         definitions.attachments.WithValues(attacherName, "library", "failure"),
+		processAttachmentsFailure:         definitions.attachments.WithValues(attacherName, "process", "failure"),
+		libraryAttachmentsIgnoredInternal: definitions.attachments.WithValues(attacherName, "library", "ignored_internal"),
+		processAttachmentsIgnoredInternal: definitions.attachments.WithValues(attacherName, "process", "ignored_internal"),
+		libraryAttachmentsIgnoredExternal: definitions.attachments.WithValues(attacherName, "library", "ignored_external"),
+		processAttachmentsIgnoredExternal: definitions.attachments.WithValues(attacherName, "process", "ignored_external"),
+		libraryAttachmentsNoMatch:         definitions.attachments.WithValues(attacherName, "library", "no_match"),
+		processAttachmentsNoMatch:         definitions.attachments.WithValues(attacherName, "process", "no_match"),
 
 		binaryInspectionNs: definitions.binaryInspectionNs.WithValues(attacherName),
 

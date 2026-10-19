@@ -764,10 +764,17 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
 
 func (ua *UprobeAttacher) attachLibrary(path string, procInfo *ProcInfo) (err error) {
 	defer func() {
-		if err != nil {
-			ua.telemetry.libraryAttachmentsFailure.Inc()
-		} else {
+		switch {
+		case err == nil:
 			ua.telemetry.libraryAttachmentsSuccess.Inc()
+		case errors.Is(err, ErrSelfExcluded), errors.Is(err, ErrInternalDDogProcessRejected):
+			ua.telemetry.libraryAttachmentsIgnoredInternal.Inc()
+		case errors.Is(err, ErrExternalProcessRejected):
+			ua.telemetry.libraryAttachmentsIgnoredExternal.Inc()
+		case errors.Is(err, ErrNoMatchingRule):
+			ua.telemetry.libraryAttachmentsNoMatch.Inc()
+		default:
+			ua.telemetry.libraryAttachmentsFailure.Inc()
 		}
 	}()
 
@@ -823,10 +830,17 @@ func (ua *UprobeAttacher) AttachPID(pid uint32) error {
 // AttachPIDWithOptions attaches the corresponding probes to a given pid
 func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (err error) {
 	defer func() {
-		if err != nil {
-			ua.telemetry.processAttachmentsFailure.Inc()
-		} else {
+		switch {
+		case err == nil:
 			ua.telemetry.processAttachmentsSuccess.Inc()
+		case errors.Is(err, ErrSelfExcluded), errors.Is(err, ErrExternalProcessRejected):
+			ua.telemetry.processAttachmentsIgnoredInternal.Inc()
+		case errors.Is(err, ErrExternalProcessRejected):
+			ua.telemetry.processAttachmentsIgnoredExternal.Inc()
+		case errors.Is(err, ErrNoMatchingRule):
+			ua.telemetry.processAttachmentsNoMatch.Inc()
+		default:
+			ua.telemetry.processAttachmentsFailure.Inc()
 		}
 	}()
 	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == ua.rootPID {
@@ -1153,11 +1167,17 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(procInfo *ProcInfo) error {
 	}
 
 	for _, libpath := range libs {
-
-		if err == nil {
 		err := ua.attachLibrary(libpath, procInfo)
+		switch {
+		case err == nil:
 			successfulMatches = append(successfulMatches, libpath)
-		} else if !errors.Is(err, ErrNoMatchingRule) && !errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
+		case errors.Is(err, ErrNoMatchingRule),
+			errors.Is(err, ErrSelfExcluded),
+			errors.Is(err, ErrInternalDDogProcessRejected),
+			errors.Is(err, ErrExternalProcessRejected),
+			errors.Is(err, utils.ErrPathIsAlreadyRegistered):
+			// nothing
+		default:
 			registerErrors = append(registerErrors, err)
 		}
 	}
