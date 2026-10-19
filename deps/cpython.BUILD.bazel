@@ -196,23 +196,6 @@ cc_library(
     deps = [":_python_dll"],
 )
 
-# Exposes the packaged libpython with the headers to cc consumers (rtloader).
-cc_import(
-    name = "libpython_import",
-    shared_library = ":python_pkg",
-    target_compatible_with = UNIX_ONLY,
-)
-
-cc_library(
-    name = "python_unix_shared",
-    target_compatible_with = UNIX_ONLY,
-    visibility = ["//visibility:public"],
-    deps = [
-        ":headers",
-        ":libpython_import",
-    ],
-)
-
 # TODO(ABLD-392): temporary workaround -- remove once the agent build runs the
 # Python we ship instead of the host Python for extension module compilation.
 # Python extension modules link against these shared libs and need them present
