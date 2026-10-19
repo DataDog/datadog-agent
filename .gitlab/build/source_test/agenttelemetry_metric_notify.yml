@@ -11,12 +11,13 @@
 # skipped for a PR that doesn't touch Windows/bazel-related paths — gating on it with
 # needs:optional would silently degrade to needs:[] and fire before any build exists, see
 # https://github.com/DataDog/datadog-agent/pull/53565#discussion_r3569124204). No optional:
-# true on the need — deploy_deb_testing-a7_x64 is absent from the pipeline only on
-# mergequeue, which .on_dev_branches already excludes, so this job never runs while that
-# need would be missing.
+# true on the need — deploy_deb_testing-a7_x64 is absent from the pipeline on the light
+# pipeline, so .agenttelemetry_metric_vm_notify_rules explicitly excludes it too, keeping
+# the two in sync.
 
 .agenttelemetry_metric_vm_notify_rules:
   - !reference [.on_dev_branches]
+  - !reference [.except_light_pipeline]
   - changes:
       paths:
         - comp/core/agenttelemetry/impl/defaultProfiles.yaml

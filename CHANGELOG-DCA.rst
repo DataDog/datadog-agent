@@ -2,6 +2,359 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.0:
+
+7.84.0
+======
+
+.. _Release Notes_7.84.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-30
+Pinned to datadog-agent v7.84.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7840>`_.
+
+
+.. _Release Notes_7.84.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- ``DD_INSTRUMENTATION_INSTALL_TYPE=k8s_single_step`` and SSI defaults (for
+  example ``DD_TRACE_ENABLED``) apply only when a target or policy matches
+  the pod, not merely because the namespace could match some rule. Pods that
+  only have library annotations and do not match a target or policy use
+  ``k8s_lib_injection``.
+
+
+.. _Release Notes_7.84.0_New Features:
+
+New Features
+------------
+
+- ``DatadogInstrumentation`` checks and logs configurations can now target
+  Strimzi ``StrimziPodSet`` workloads.
+
+- Add AppSec injection support for GKE managed Gateways (EXTERNAL mode only). The Cluster
+  Agent now detects GKE managed Gateways whose ``spec.gatewayClassName`` is in an
+  allowlist of external-managed GatewayClass names (``gke-l7-global-external-managed``,
+  ``gke-l7-regional-external-managed``) and creates one
+  ``GCPTrafficExtension`` (``networking.gke.io/v1``) per Gateway to route edge traffic
+  through a user-deployed Datadog AppSec callout service. SIDECAR mode is not supported
+  because managed GKE has no in-cluster Envoy data plane. The callout
+  Deployment, Service, and HealthCheckPolicy must be deployed by the user following the
+  public GKE service-extensions documentation. Cluster-agent RBAC for
+  ``gcptrafficextensions.networking.gke.io`` (get/list/watch/create/delete) is required.
+  The GatewayClass allowlist is configurable via ``appsec.proxy.gke.gateway_classes``.
+  Multi-cluster GatewayClasses (names ending in ``-mc``) are always skipped, including
+  when added to that allowlist, because they require a ``net.gke.io`` ``ServiceImport``
+  callout backend that the Cluster Agent does not create. Each
+  ``GCPTrafficExtension`` is owned by its Gateway via an owner reference, so Kubernetes
+  garbage-collects it even if the Cluster Agent misses the Gateway deletion event.
+
+
+.. _Release Notes_7.84.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds Cluster Agent telemetry for the ``DatadogInstrumentation`` controller,
+  including the number of resources it tracks and reconciliation outcomes for
+  checks and logs.
+
+- Added the ``datadog.cluster_agent.autoscaling.workload.objective.target``
+  gauge, which exposes the target value configured in a
+  ``DatadogPodAutoscaler`` ``spec.objectives``. The metric is tagged with
+  ``objective_type`` (``pod_resource``, ``container_resource`` or
+  ``custom_query``), ``value_type`` (``utilization`` or ``absolute_value``),
+  ``objective_index`` (the 0-based position in ``spec.objectives`` that keeps
+  each objective a distinct timeseries), and, for resource objectives,
+  ``resource_name`` and ``kube_container_name``.
+
+- Collect NVIDIA Dynamo custom resources by default.
+
+- Collect KubeRay ``RayCluster``, ``RayCronJob``, ``RayJob``, and ``RayService`` custom resources by default.
+
+- Single Step Instrumentation now evaluates local targeting (Helm, Operator,
+  or ``datadog.yaml``) before Remote Config policies. Local targets keep
+  first-match-wins order. Remote Config policies use last-match-wins: the
+  last matching policy applies, so a catch-all can be listed first and
+  exceptions after. A workload that matches a local target is not overridden
+  by a remote deny.
+
+- Single Step Instrumentation now decides SSI versus local library injection
+  from whether a configuration target or remote-config policy matched the
+  pod, instead of a namespace-level eligibility approximation. Library
+  annotations still short-circuit target selection for library versions and
+  tracer configs (existing GA precedence).
+
+
+.. _Release Notes_7.84.0_Security Notes:
+
+Security Notes
+--------------
+
+- The Cluster Agent's admission controller webhook now enforces a size limit on incoming request bodies and validates the request content type before reading the body.
+
+- The Cluster Agent no longer exposes the Go ``pprof`` profiling and
+  ``expvar`` debug endpoints on its metrics port (``metrics_port``, default
+  ``5000``) to remote callers. These ``/debug/`` endpoints were previously
+  served on all network interfaces without authentication; they are now
+  restricted to loopback callers, and requests originating from any other
+  address receive a ``404``. The ``/metrics`` endpoint is unchanged and
+  remains reachable off-host so the node Agent can continue to scrape
+  Cluster Agent telemetry. Local tooling such as the Cluster Agent flare,
+  which connects over loopback, is unaffected.
+
+
+.. _Release Notes_7.84.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed an issue where the ``DatadogPodAutoscaler`` controller could silently drop a
+  status update after an HTTP 409 (Conflict) caused by a stale ``resourceVersion``
+  read from the informer cache. The reconcile now requeues on such a conflict so a
+  subsequent pass retries the update with a refreshed object.
+
+- Ensure Kubernetes endpoint check annotations take precedence over
+  ``DatadogInstrumentation`` configurations that target the same Service and
+  integration. This prevents duplicate endpoint checks and restores the
+  CR-backed check when the overriding annotation is removed.
+
+- Fix an issue on AKS clusters where the Cluster Agent and the AKS admission
+  enforcer would repeatedly overwrite each other's changes to the
+  ``datadog-webhook`` ``MutatingWebhookConfiguration``/``ValidatingWebhookConfiguration``
+  objects, causing ``the object has been modified`` errors to be logged in a
+  loop. This affected admission controller features whose webhook rule did
+  not otherwise restrict which namespaces it applies to (for example the
+  ``DatadogInstrumentation`` CRD validating webhook), even when
+  ``admission_controller.add_aks_selectors`` (``DD_ADMISSION_CONTROLLER_ADD_AKS_SELECTORS``)
+  was enabled.
+
+- Fix a crash in the ``kubernetes_state_core`` check (Cluster Agent or Cluster Check Runner)
+  that occurred when using a wildcard entry (``"*"``) in ``kubernetes_namespace_annotations_as_tags``
+  or the equivalent ``kubernetes_resources_annotations_as_tags`` namespace configuration, on any
+  namespace without annotations.
+
+- Fixed an issue where the Cluster Agent could schedule Prometheus Scrape OpenMetrics checks against Kubernetes services even when the autodiscovery configuration included ``kubernetes_container_names``. The Cluster Agent now skips service and endpoint Prometheus Scrape scheduling for configurations that set ``kubernetes_container_names``; scraping discovered by node Agents remains as is.
+
+- Fix a Cluster Agent API bug that could log spurious
+  ``superfluous response.WriteHeader call`` warnings. The internal telemetry
+  wrapper now correctly tracks the response status when a handler writes the
+  response body before explicitly setting the status code.
+
+- Restore continuous ``kubernetes_state.endpoint.address_available`` and
+  ``kubernetes_state.endpoint.address_not_ready`` reporting (including
+  ``0`` for the opposite ready state). After the kube-state-metrics v2.18
+  bump, each metric was only emitted for addresses in that state, so
+  healthy endpoints no longer reported ``address_not_ready=0`` and fully
+  unready endpoints no longer reported ``address_available=0``.
+
+
+.. _Release Notes_7.83.3:
+
+7.83.3
+======
+
+.. _Release Notes_7.83.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-24
+Pinned to datadog-agent v7.83.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7833>`_.
+
+
+.. _Release Notes_7.83.2:
+
+7.83.2
+======
+
+.. _Release Notes_7.83.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-16
+Pinned to datadog-agent v7.83.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7832>`_.
+
+
+.. _Release Notes_7.83.1:
+
+7.83.1
+======
+
+.. _Release Notes_7.83.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-09
+Pinned to datadog-agent v7.83.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7831>`_.
+
+
+.. _Release Notes_7.83.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix Cluster Agent graceful shutdown to release the Kubernetes
+  leader-election lock before exiting, allowing another replica to take over
+  without waiting for the lease to expire.
+
+
+.. _Release Notes_7.83.0:
+
+7.83.0
+======
+
+.. _Release Notes_7.83.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-03
+Pinned to datadog-agent v7.83.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7830>`_.
+
+
+.. _Release Notes_7.83.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The ``<namespace>`` part of a ``datadogmetric@<namespace>:<name>`` external metric
+  reference is now ignored. The referenced ``DatadogMetric`` is always looked up in the
+  namespace of the ``HorizontalPodAutoscaler`` or ``WatermarkPodAutoscaler`` that holds
+  the reference, so referencing a ``DatadogMetric`` owned by another namespace is no
+  longer supported. Such a reference now resolves to a ``DatadogMetric`` that does not
+  exist, which leaves the autoscaler without a metric value and unable to scale.
+  
+  To find out whether you are affected, list every external metric reference that carries
+  an explicit namespace:
+  
+  .. code-block:: shell
+  
+    kubectl get hpa --all-namespaces -o yaml | grep -E 'datadogmetric@[a-z0-9-]+:'
+    kubectl get wpa --all-namespaces -o yaml | grep -E 'datadogmetric@[a-z0-9-]+:'
+  
+  References whose namespace is the namespace of the autoscaler holding them keep working
+  unchanged. For every reference pointing at another namespace, create a ``DatadogMetric``
+  with the same query in the autoscaler's own namespace and point the autoscaler at it.
+  The namespace can now be left out entirely, ``datadogmetric@<name>`` is a valid
+  reference that resolves in the autoscaler's namespace.
+
+
+.. _Release Notes_7.83.0_New Features:
+
+New Features
+------------
+
+- Add the ``kubernetes_state.pod.terminating`` gauge to the Kubernetes State
+  Core check. The metric reports a value of 1 for each pod from the moment
+  its deletion timestamp is set until the pod leaves the informer.
+
+- ``DatadogInstrumentation`` checks and logs configurations can now target Argo
+  ``Rollout`` workloads.
+
+
+.. _Release Notes_7.83.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the ``kube_argo_rollout`` tag to pod metrics emitted by the Kubernetes
+  State Core check for pods managed by Argo Rollouts.
+
+- Add the ``-l`` and ``--list`` options to ``datadog-cluster-agent status``
+  to list available status sections. A section name can now be passed to the
+  command to display only that section.
+
+- The Cluster Agent's Prometheus HTTP Service Discovery provider now applies
+  the OpenMetrics check template's ``rename_labels`` mapping to the tags
+  derived from the SD target labels, in addition to the labels scraped from
+  each target. Previously ``rename_labels`` only affected scraped metric
+  labels, so a label supplied by the SD endpoint could not be renamed.
+  No configuration change is required: the existing
+  ``rename_labels`` in the ``check_template`` now covers both sources.
+
+- The cluster-agent KSM auto-sharding dispatcher
+  (``cluster_checks.ksm_sharding_enabled``) now supports a single
+  ``kubernetes_state_core`` config that combines a shardable
+  ``cluster_unassigned`` instance with a ``cluster_aggregates_only`` instance.
+  The ``cluster_unassigned`` instance is sharded by resource type
+  (pods/nodes/others) as before, and the ``cluster_aggregates_only`` instance
+  (which does a full-pod watch and cannot be sharded) is dispatched alongside
+  the pods shard. Previously such a multi-instance config disabled sharding.
+  This lets KSM auto-sharding and the cluster-aggregate ``.total`` fix be
+  enabled together from one config.
+
+- The Cluster Agent now uses a single ``ListWatch`` call to track Kubernetes
+  Node metadata, instead of one call per node.
+
+- Karpenter ``NodePool`` autoscaling now tries to automatically resolve
+  which ``EC2NodeClass``/``NodeClass`` to use when more than one exists for
+  a given provider, based on the ``NodePool``'s ``kubernetes.io/os`` and
+  ``kubernetes.io/arch`` requirements. Each NodeClass's own
+  ``kubernetes.io/os``/``kubernetes.io/arch`` labels are preferred when
+  present, falling back to matching tokens in the NodeClass name (e.g.
+  ``linux-amd64``) otherwise; if neither signal uniquely identifies a
+  NodeClass, or the label- and name-based signals disagree, the ambiguity
+  is left unresolved. Previously, having more than one NodeClass of the
+  same provider type always caused NodePool creation/update to fail with a
+  "too many NodeClasses found" error; this is still the outcome when the
+  disambiguation above can't resolve to a single NodeClass.
+  Additionally, when both a manual Karpenter ``EC2NodeClass`` and an EKS
+  Auto Mode ``NodeClass`` exist in the cluster, the EKS Auto Mode
+  ``NodeClass`` is now preferred; previously the ``EC2NodeClass`` was
+  always preferred.
+
+
+.. _Release Notes_7.83.0_Security Notes:
+
+Security Notes
+--------------
+
+- The Cluster Agent external metrics provider now resolves ``datadogmetric@`` references
+  in the namespace of the requesting object rather than the namespace embedded in the
+  metric name. Previously, a workload could read the value of a ``DatadogMetric`` owned by
+  another namespace, and keep that ``DatadogMetric`` active so that its Datadog queries
+  kept running.
+
+
+.. _Release Notes_7.83.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix ``kubernetes_state.container.cpu_requested`` and
+  ``kubernetes_state.container.memory_requested`` to use the effective
+  requests reported by Kubernetes after an in-place vertical resize. Pod
+  spec requests remain the fallback when status resources are unavailable.
+
+- The Cluster Agent no longer opens a second, redundant cluster-wide
+  ``ListWatch`` for Kubernetes Nodes. Setting ``kubernetes_node_labels_as_tags``
+  or ``kubernetes_node_annotations_as_tags`` used to start an extra
+  Node metadata watch in addition to the one already used to populate the
+  Node cache; that extra watch has been removed and label/annotation-as-tags
+  extraction now relies solely on the existing Node cache.
+
+
+.. _Release Notes_7.82.3:
+
+7.82.3
+======
+
+.. _Release Notes_7.82.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-08-26
+Pinned to datadog-agent v7.82.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7823>`_.
+
+
 .. _Release Notes_7.82.2:
 
 7.82.2

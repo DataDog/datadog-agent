@@ -6,6 +6,10 @@ fullnameOverride: host-profiler-collector
 # and provide a cluster-wide view.
 mode: daemonset
 
+# The host-profiler is only supported on Linux nodes
+nodeSelector:
+  kubernetes.io/os: linux
+
 # Host Profiler preview image. Update the tag when using a newer preview build.
 image:
   repository: registry.datadoghq.com/ddot-ebpf

@@ -7,31 +7,75 @@
 
 #include "constants/macros.h"
 
+#include "span_ctx_event.h"
+
+// --- OTel thread local context record helpers (separate file) ---
+#include "span_otel.h"
+
+// --- Node.js async-context helpers (separate file) ---
+#include "span_nodejs.h"
+
 // --- Go pprof labels helpers (separate file) ---
 #include "span_go.h"
 
 
+// Reads the thread context of the current thread with the reader its runtime
+// calls for, and reports the outcome. Returns 1 when the span was filled.
+static int __attribute__((always_inline)) fill_span_context_thread_ctx(struct span_context_t *span) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 tgid = pid_tgid >> 32;
+
+    struct otel_tls_t *otls = bpf_map_lookup_elem(&otel_tls, &tgid);
+    if (!otls) {
+        return 0;
+    }
+
+    u32 status;
+    switch (otls->runtime) {
+    case OTEL_RUNTIME_NATIVE:
+        status = fill_span_context_otel(span, otls);
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_OTEL, status);
+        return status == SPAN_CTX_EVENT_OK;
+    case OTEL_RUNTIME_NODEJS:
+        status = fill_span_context_nodejs(span, otls);
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_NODEJS, status);
+        return status == SPAN_CTX_EVENT_OK;
+    }
+
+    // Go publishes through pprof labels instead, and an unknown runtime is one
+    // this agent is too old to read.
+    return 0;
+}
+
 // --- Unified span context fill ---
 //
 // fill_span_context is the single entry point every hook calls to attach a span
-// context to an event. It leaves span_context_t empty (reserved for another
-// APM-correlation reader, e.g. OTEP 4947) and, when span tracking is enabled
-// (is_span_tracking_enabled(), backed by span_tracking.enabled), snapshots the
-// current goroutine's Go pprof labels into the go_labels_ctx ring via
-// collect_go_labels(). Only the resulting id is stored (in go_labels); user
-// space resolves it.
-void __attribute__((always_inline)) fill_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
-    // No span context available yet from this path.
+// context to an event. is_span_tracking_enabled() is backed by a load-time
+// constant, so the verifier folds the branch below and drops both readers
+// entirely when the feature is off.
+static __always_inline void fill_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
     span->span_id = 0;
     span->trace_id[0] = span->trace_id[1] = 0;
     span->extra_attrs_id = 0;
+    if (go_labels) {
+        go_labels->id = 0;
+    }
+
+    if (!is_span_tracking_enabled()) {
+        return;
+    }
+
+    if (fill_span_context_thread_ctx(span)) {
+        return;
+    }
 
     if (go_labels) {
-        go_labels->id = is_span_tracking_enabled() ? collect_go_labels() : 0;
+        u32 status = collect_go_labels(&go_labels->id);
+        monitor_span_ctx_event(SPAN_CTX_EVENT_READER_GO_LABELS, status);
     }
 }
 
-void __attribute__((always_inline)) reset_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
+static __always_inline void reset_span_context(struct span_context_t *span, struct go_labels_context_t *go_labels) {
     span->span_id = 0;
     span->trace_id[0] = 0;
     span->trace_id[1] = 0;
@@ -39,7 +83,23 @@ void __attribute__((always_inline)) reset_span_context(struct span_context_t *sp
     go_labels->id = 0;
 }
 
-void __attribute__((always_inline)) copy_span_context(
+// Hand the thread-context registrations of a forking process down to the child,
+// which inherits both the address space they describe and the records in it.
+static __always_inline void inherit_span_context(u32 ppid, u32 pid) {
+    if (!is_span_tracking_enabled()) {
+        return;
+    }
+
+    inherit_otel_tls(ppid, pid);
+    inherit_go_labels(ppid, pid);
+}
+
+static __always_inline void unregister_span_context() {
+    unregister_otel_tls();
+    unregister_go_labels();
+}
+
+static __always_inline void copy_span_context(
     struct span_context_t *src, struct span_context_t *dst,
     struct go_labels_context_t *go_labels_src, struct go_labels_context_t *go_labels_dst)
 {

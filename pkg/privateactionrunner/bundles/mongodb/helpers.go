@@ -55,7 +55,6 @@ func createMongoClientOptions(ctx context.Context, credentialTokens map[string]s
 func getConnectionUri(credentialTokens map[string]string) (string, error) {
 	username, userOk := credentialTokens["username"]
 	password, passOk := credentialTokens["password"]
-	srvHost, srvHostOk := credentialTokens["srvHost"]
 	host, hostOk := credentialTokens["host"]
 	port, portOk := credentialTokens["port"]
 	database := credentialTokens["database"]
@@ -73,13 +72,6 @@ func getConnectionUri(credentialTokens map[string]string) (string, error) {
 		return "", errors.New("invalid password: Password cannot be empty")
 	}
 
-	if srvHostOk {
-		if srvHost == "" {
-			return "", errors.New("invalid SRV host: SRV host cannot be empty")
-		}
-		return buildSRVConnectionURI(username, password, srvHost, database, authSource, tls)
-	}
-
 	if !hostOk || host == "" {
 		return "", errors.New("invalid host: Host cannot be empty")
 	}
@@ -88,32 +80,6 @@ func getConnectionUri(credentialTokens map[string]string) (string, error) {
 	}
 
 	return buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism, tls)
-}
-
-func buildSRVConnectionURI(username, password, srvHost, database, authSource, tls string) (string, error) {
-	escapedUsername := url.QueryEscape(username)
-	escapedPassword := url.QueryEscape(password)
-	escapedSrvHost := url.QueryEscape(srvHost)
-	escapedDatabase := url.QueryEscape(database)
-
-	connectionUri := fmt.Sprintf("mongodb+srv://%v:%v@%v", escapedUsername, escapedPassword, escapedSrvHost)
-	params := []string{}
-	if database != "" {
-		connectionUri = fmt.Sprintf("%s/%s", connectionUri, escapedDatabase)
-	}
-	if authSource != "" {
-		params = append(params, "authSource="+url.QueryEscape(authSource))
-	}
-	if tls != "" {
-		params = append(params, "tls="+url.QueryEscape(tls))
-	}
-	if len(params) > 0 {
-		if database == "" {
-			connectionUri += "/"
-		}
-		connectionUri = fmt.Sprintf("%s?%s", connectionUri, strings.Join(params, "&"))
-	}
-	return connectionUri, nil
 }
 
 func buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism, tls string) (string, error) {

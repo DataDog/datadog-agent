@@ -21,15 +21,68 @@ const (
 	maxIndex = math.MaxInt16
 )
 
+// checkBucketBoundaries returns an error if the populated buckets of inputSketch
+// cannot be remapped onto another index mapping.
+//
+// Remapping reads every populated bucket's boundaries through the input mapping
+// and looks each one up in the target mapping. Neither direction validates its
+// argument: a LogarithmicMapping derives a boundary as exp(index/multiplier) and
+// an index as log(value)*multiplier, then converts that index to an int. A
+// boundary of +Inf or NaN therefore produces an int with no defined value —
+// amd64 yields math.MinInt64, arm64 saturates — which the dense store uses as a
+// slice offset and panics on. Callers get an error instead so they can drop the
+// offending point.
+//
+// Only the extreme populated buckets are inspected, and remapping reads index+1
+// as the upper boundary of the highest one. For a finite gamma that is exhaustive,
+// since a boundary then grows monotonically with the index. A gamma of +Inf leaves
+// the mapping with a multiplier of zero, whose boundaries are not monotone at all
+// — zero below index 0, NaN at it, +Inf above — but a bucket range reaching index
+// 0 or beyond always has a NaN or +Inf end, and one lying entirely below it has
+// none but zero boundaries, which is the underflow case below.
+//
+// Boundaries that underflow to zero are accepted: they are ordinary float64
+// values, and remapping silently skips such a bucket rather than panicking, as it
+// always has. Those observations are lost, which the duration conversion in
+// pkg/opentelemetry-mapping-go/otlp/metrics avoids by keeping them in the sketch's
+// zero bin; doing the same here would be a separate change. Buckets holding no
+// observation are ignored, since the store does not keep them, and a half with
+// no observation at all is skipped outright: it has no boundary to check, which
+// is what lets a data point carrying only a zero count convert at any scale.
+func checkBucketBoundaries(inputSketch *ddsketch.DDSketch) error {
+	for _, valueStore := range [2]store.Store{inputSketch.GetPositiveValueStore(), inputSketch.GetNegativeValueStore()} {
+		if valueStore.IsEmpty() {
+			// Nothing is remapped out of this half, so it has no boundary to check.
+			continue
+		}
+		// Emptiness is the only reason either of these fails today. Should that
+		// ever change, reject the point rather than skipping the check on it.
+		lowest, err := valueStore.MinIndex()
+		if err != nil {
+			return fmt.Errorf("couldn't read the lowest populated bucket: %w", err)
+		}
+		highest, err := valueStore.MaxIndex()
+		if err != nil {
+			return fmt.Errorf("couldn't read the highest populated bucket: %w", err)
+		}
+		// Remapping reads the boundary of highest+1 as that bucket's upper bound.
+		if highest < math.MaxInt {
+			highest++
+		}
+
+		for _, index := range [2]int{lowest, highest} {
+			boundary := inputSketch.LowerBound(index)
+			if math.IsInf(boundary, 0) || math.IsNaN(boundary) {
+				return fmt.Errorf("bucket index %d has a boundary of %g, which cannot be remapped", index, boundary)
+			}
+		}
+	}
+	return nil
+}
+
 // createDDSketchWithSketchMapping takes a DDSketch and returns a new DDSketch
 // with a logarithmic mapping that matches the Sketch parameters.
 func createDDSketchWithSketchMapping(c *Config, inputSketch *ddsketch.DDSketch) (*ddsketch.DDSketch, error) {
-	// Create positive store for the new DDSketch
-	positiveStore := getDenseStore()
-
-	// Create negative store for the new DDSketch
-	negativeStore := getDenseStore()
-
 	// Take parameters that match the Sketch mapping, and create a LogarithmicMapping out of them
 	gamma := c.gamma.v
 	// Note: there's a 0.5 shift here because we take the floor value on DDSketch, vs. rounding to
@@ -37,12 +90,23 @@ func createDDSketchWithSketchMapping(c *Config, inputSketch *ddsketch.DDSketch) 
 	offset := float64(c.norm.bias) + 0.5
 	newMapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, offset)
 	if err != nil {
-		// We don't use defer here because in the normal path
-		// we pass ownership of the stores to ConvertDDSketchIntoSketch.
-		putDenseStore(positiveStore)
-		putDenseStore(negativeStore)
 		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
 	}
+
+	// ChangeMapping below only reads bucket boundaries when the mapping really
+	// changes; it copies the sketch as it is otherwise. Validate exactly when it
+	// would read them.
+	if !inputSketch.IndexMapping.Equals(newMapping) {
+		if err := checkBucketBoundaries(inputSketch); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create positive store for the new DDSketch
+	positiveStore := getDenseStore()
+
+	// Create negative store for the new DDSketch
+	negativeStore := getDenseStore()
 
 	if inputSketch.GetCount() == 1.0 {
 		// We know the exact value of this one point: it is the sum.

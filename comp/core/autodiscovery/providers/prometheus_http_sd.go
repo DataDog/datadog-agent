@@ -25,9 +25,9 @@ import (
 
 	"reflect"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/ext"
-	yaml "go.yaml.in/yaml/v2"
+	"cel.dev/cel-go/cel"
+	"cel.dev/cel-go/ext"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"

@@ -221,9 +221,11 @@ func TestInstallerSupportsTmpfs(t *testing.T) {
 
 func TestRequiresReinstallForPreload(t *testing.T) {
 	tmpfsLauncher := filepath.Join(defaultTmpfsInjectDir, "launcher.preload.so")
+	multilibTmpfsLauncher := filepath.Join(defaultTmpfsInjectDir, "$LIB", "launcher.preload.so")
 	persistentLauncher := filepath.Join(injectorPath, "inject", "launcher.preload.so")
 
 	assert.True(t, requiresReinstallForPreload(tmpfsLauncher+"\n", false))
+	assert.True(t, requiresReinstallForPreload(multilibTmpfsLauncher+"\n", false))
 	assert.False(t, requiresReinstallForPreload(tmpfsLauncher+"\n", true))
 	assert.False(t, requiresReinstallForPreload(persistentLauncher+"\n", false))
 	assert.False(t, requiresReinstallForPreload("", false))

@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+var _ = declare(TestDentryPathERPC, testOpts{disableMapDentryResolution: true})
+
 func TestDentryPathERPC(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -35,11 +37,11 @@ func TestDentryPathERPC(t *testing.T) {
 		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -87,6 +89,8 @@ func TestDentryPathERPC(t *testing.T) {
 	}, "test_erpc_path_rule")
 }
 
+var _ = declare(TestDentryPathMap, testOpts{disableERPCDentryResolution: true})
+
 func TestDentryPathMap(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -97,11 +101,11 @@ func TestDentryPathMap(t *testing.T) {
 		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -163,7 +167,7 @@ func TestDentryName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -202,6 +206,8 @@ func TestDentryName(t *testing.T) {
 	}, "test_dentry_name_rule")
 }
 
+var _ = declare(TestDentryInvalidation, testOpts{disableMapDentryResolution: true})
+
 func TestDentryInvalidation(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -212,11 +218,11 @@ func TestDentryInvalidation(t *testing.T) {
 		Expression: `open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -291,17 +297,19 @@ func TestDentryInvalidation(t *testing.T) {
 	}, "test_erpc_path_rule")
 }
 
+var _ = declare(BenchmarkERPCDentryResolutionPath, testOpts{disableMapDentryResolution: true})
+
 func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -337,7 +345,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Get()); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromERPC(pathKey, true)
@@ -357,8 +365,10 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }
+
+var _ = declare(BenchmarkMapDentryResolutionSegment, testOpts{disableERPCDentryResolution: true})
 
 func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	rule := &rules.RuleDefinition{
@@ -366,11 +376,11 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -406,7 +416,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Get()); err != nil {
 		b.Fatal(err)
 	}
 	name, err := resolver.ResolveNameFromMap(pathKey, true)
@@ -426,8 +436,10 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }
+
+var _ = declare(BenchmarkMapDentryResolutionPath, testOpts{disableERPCDentryResolution: true})
 
 func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	rule := &rules.RuleDefinition{
@@ -435,11 +447,11 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -474,7 +486,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(p.Manager); err != nil {
+	if err := resolver.Start(p.Manager.Get()); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromMap(pathKey, true)
@@ -494,5 +506,5 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }

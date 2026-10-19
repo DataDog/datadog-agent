@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 var (
@@ -994,7 +994,7 @@ func TestConvertNamespaceBlacklist(t *testing.T) {
 
 func TestMetricFilterListShouldBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	filter := utilstrings.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
+	filter := metricname.NewMatcher([]string{"custom.metric.a", "custom.metric.b"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1008,6 +1008,35 @@ func TestMetricFilterListShouldBlock(t *testing.T) {
 	samples = enrichMetricSample(samples, parsed, "", 0, "", conf, &filter)
 
 	assert.Equal(t, 0, len(samples))
+}
+
+func TestMetricFilterListPrefixEntry(t *testing.T) {
+	filter, dropped := metricname.NewMatcherWithPrefixRules(
+		[]string{"other.metric"},
+		false,
+		[]metricname.PrefixRule{{Prefix: "custom.metric."}},
+	)
+	assert.Empty(t, dropped)
+	conf := enrichConfig{
+		defaultHostname: "default",
+	}
+
+	deps := newServerDeps(t)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+
+	enrich := func(t *testing.T, message string) []metrics.MetricSample {
+		t.Helper()
+		parsed, err := parser.parseMetricSample([]byte(message))
+		assert.NoError(t, err)
+		return enrichMetricSample([]metrics.MetricSample{}, parsed, "", 0, "", conf, &filter)
+	}
+
+	assert.Empty(t, enrich(t, "custom.metric.a:21|ms"), "prefix entry should block")
+	assert.Empty(t, enrich(t, "custom.metric.:21|ms"), "prefix entry should block the prefix itself")
+	assert.Empty(t, enrich(t, "other.metric:21|ms"), "exact entry should block")
+	assert.Len(t, enrich(t, "custom.metric:21|ms"), 1, "shorter than the prefix, should not block")
+	assert.Len(t, enrich(t, "other.metric.a:21|ms"), 1, "exact entry should not block by prefix")
 }
 
 func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
@@ -1031,7 +1060,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 func TestMetricFilterListShouldNotBlock(t *testing.T) {
 	message := []byte("custom.metric.a:21|ms")
-	filterList := utilstrings.NewMatcher([]string{"custom.metric.b", "custom.metric.c"}, false)
+	filterList := metricname.NewMatcher([]string{"custom.metric.b", "custom.metric.c"}, false)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
@@ -1559,48 +1588,44 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 
 func enrichConfigWithInfraTags(t *testing.T, cfg pkgconfigmodel.Reader) enrichConfig {
 	t.Helper()
-	return enrichConfig{defaultHostname: "h", infraTagger: infratags.NewTagger(cfg)}
+	return enrichConfig{defaultHostname: "h", infraTagger: infratags.NewMetricTagger(cfg)}
 }
 
 func TestEnrichMetricSampleJMXInfraTag(t *testing.T) {
-	t.Run("tag JMX check when tagged list is empty", func(t *testing.T) {
+	t.Run("tag JMX check in cloud_cost_only mode", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-		cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
 		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka,env:prod"), enrichConfigWithInfraTags(t, cfg))
 		require.NoError(t, err)
 		assert.Contains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
-	t.Run("tag for eligible JMX check", func(t *testing.T) {
+	t.Run("no tag for plain DogStatsD in cloud_cost_only mode", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
-		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka,env:prod"), enrichConfigWithInfraTags(t, cfg))
-		require.NoError(t, err)
-		assert.Contains(t, s.Tags, "infra_mode:cloud_cost_only")
-	})
-	t.Run("no tag when JMX check not in tagged list", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-		cfg.Set("integration.cloud_cost_only.tagged", []string{"kafka"}, pkgconfigmodel.SourceFile)
-		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:tomcat"), enrichConfigWithInfraTags(t, cfg))
-		require.NoError(t, err)
-		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
-	})
-	t.Run("no tag with a non-JMX check when tagged list is empty", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
-		cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
 		s, err := parseAndEnrichSingleMetricMessage(t, []byte("app.custom:1|g|#env:prod"), enrichConfigWithInfraTags(t, cfg))
 		require.NoError(t, err)
 		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
 	})
-	t.Run("no tag when not in cloud_cost_only mode", func(t *testing.T) {
+	t.Run("no tag when not in a marked mode", func(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
 		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka"), enrichConfigWithInfraTags(t, cfg))
 		require.NoError(t, err)
 		assert.NotContains(t, s.Tags, "infra_mode:cloud_cost_only")
+	})
+	t.Run("tag eligible JMX check in end_user_device mode", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "end_user_device", pkgconfigmodel.SourceFile)
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("jmx.test:1|g|#dd.internal.jmx_check_name:kafka,env:prod"), enrichConfigWithInfraTags(t, cfg))
+		require.NoError(t, err)
+		assert.Contains(t, s.Tags, "infra_mode:end_user_device")
+	})
+	t.Run("no tag for plain DogStatsD in end_user_device mode", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set("infrastructure_mode", "end_user_device", pkgconfigmodel.SourceFile)
+		s, err := parseAndEnrichSingleMetricMessage(t, []byte("app.custom:1|g|#env:prod"), enrichConfigWithInfraTags(t, cfg))
+		require.NoError(t, err)
+		assert.NotContains(t, s.Tags, "infra_mode:end_user_device")
 	})
 }
 

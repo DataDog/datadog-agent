@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // newTestForwarder returns a TelemetryForwarder with just enough state
@@ -647,5 +648,74 @@ func TestTelemetryProxy_ScrubsInjectionMetadataField(t *testing.T) {
 		assert.Contains(t, string(decodeMetadata(t, got)), "********")
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received forwarded request")
+	}
+}
+
+// TestTelemetryProxy_InflightBytesAccountingWithScrubbing pins the invariant
+// that inflightCount returns to zero once forwarding completes, for every way
+// scrubbing can change a body's length. The handler reserves inflight bytes
+// before scrubbing (so a burst of unscrubbed payloads can't blow past the
+// limit), which means the reservation and the release are made against
+// different lengths unless the reserved amount is tracked explicitly: a body
+// that shrinks would leak bytes until the proxy answered 429 forever, and one
+// that grows would silently loosen the limit.
+func TestTelemetryProxy_InflightBytesAccountingWithScrubbing(t *testing.T) {
+	cases := []struct {
+		name string
+		body []byte
+	}{
+		{
+			// "hunter2" -> "********" makes the body one byte longer.
+			name: "redaction grows the body",
+			body: makeInjectionMetadataBody(t, "/usr/bin/python --password=hunter2 app.py"),
+		},
+		{
+			// A body that cannot be decoded is replaced by "{}".
+			name: "fail-closed shrinks the body",
+			body: []byte("not json at all, but long enough for the drift to be visible"),
+		},
+		{
+			name: "clean body is forwarded unchanged",
+			body: makeInjectionMetadataBody(t, "/usr/bin/python app.py --port 8080"),
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			const requests = 10
+
+			// Signalled once per payload the upstream intake receives, so the
+			// test can wait for every forward to have happened instead of
+			// sleeping.
+			forwarded := make(chan struct{}, requests)
+			srv := assertingServer(t, func(_ *http.Request, _ []byte) error {
+				forwarded <- struct{}{}
+				return nil
+			})
+			recv := newTestReceiverFromConfig(getTestConfig(srv.URL))
+			recv.telemetryForwarder.start()
+			recv.telemetryForwarder.containerIDProvider = getTestContainerIDProvider()
+			mux := recv.buildMux()
+
+			for i := 0; i < requests; i++ {
+				req, err := http.NewRequest("POST", "/telemetry/proxy"+apmTelemetryProxyPath, bytes.NewReader(c.body))
+				require.NoError(t, err)
+				req.Header.Set(telemetryRequestTypeHeader, apmTelemetryRequestType)
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, req)
+				require.Equal(t, http.StatusOK, recordedStatusCode(rec), "request %d", i)
+			}
+
+			// Every payload has reached the intake, so every forward is
+			// underway; Stop then waits for the workers to finish, which is
+			// what releases the reserved bytes.
+			for i := 0; i < requests; i++ {
+				<-forwarded
+			}
+			recv.telemetryForwarder.Stop()
+
+			assert.Zero(t, recv.telemetryForwarder.inflightCount.Load(),
+				"inflight bytes must be released exactly as reserved, whatever scrubbing does to the body's length")
+		})
 	}
 }

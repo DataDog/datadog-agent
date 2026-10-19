@@ -17,11 +17,9 @@ import (
 )
 
 func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
-	tel := newObserverTelemetry(noopsimpl.GetCompatComponent())
+	tel := newObserverTelemetry(noopsimpl.NewComponent())
 	tel.recordObservationAccepted("logs", "containers")
 	tel.recordObservationDropped("logs", "containers")
-	tel.recordRRCFScore("rrcf", 0.7)
-	tel.recordRRCFThreshold("rrcf", 0.9)
 	tel.setLogPatternCount(1)
 	tel.recordLogAccepted("internal", 256)
 	tel.recordMetricAccepted("dogstatsd")
@@ -32,6 +30,8 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.setSeriesCount(42)
 	tel.recordStorageSeriesEvicted("capacity", 3)
 	tel.recordStorageCapacityHit()
+	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonCapacity, 2)
+	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 1)
 	tel.recordAdvanceSkipped("input")
 	tel.recordInputRateLimiterDropped("internal", "high")
 	tel.recordDetectorEmission("bocpd", "medium")
@@ -39,9 +39,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 }
 
 func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	tel := newObserverTelemetry(telComp)
 	tel.recordLogAccepted("kubelet", 128)
@@ -50,6 +48,9 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordInputRateLimiterDropped("internal", "high")
 	tel.recordDetectorEmission("bocpd", "medium")
 	tel.recordDetectorEmission("bocpd", "medium")
+	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonCapacity, 3)
+	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonSeries, 4)
+	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 5)
 	tel.setLogPatternCount(3)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 
@@ -59,6 +60,9 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	assert.Equal(t, 128.0, observerMetric(t, telComp, telemetryLogsAcceptedBytes, map[string]string{"source": "kubelet"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryLogsInputRateLimiterDropped, map[string]string{"source": "internal", "priority": "high"}).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryDetectorEmissions, map[string]string{"detector": "bocpd", "severity": "medium"}).GetCounter().GetValue())
+	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonCapacity}).GetCounter().GetValue())
+	assert.Equal(t, 4.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonSeries}).GetCounter().GetValue())
+	assert.Equal(t, 5.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonRetention}).GetCounter().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 }
@@ -66,7 +70,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 func observerMetric(t *testing.T, telemetryComp telemetry.Component, metricName string, wantLabels map[string]string) *dto.Metric {
 	t.Helper()
 
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	fullMetricName := "observer__" + metricName

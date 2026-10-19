@@ -227,27 +227,60 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	c.set(key, newValue, source, nil)
+}
+
+// SetWithLock computes and writes a setting while holding the config write lock.
+func (c *ntmConfig) SetWithLock(key string, source model.Source, update func(interface{}, model.Source) (interface{}, bool)) bool {
+	if update == nil {
+		panicInTest("SetWithLock callback must not be nil")
+		return false
+	}
+	return c.set(key, nil, source, update)
+}
+
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, update func(interface{}, model.Source) (interface{}, bool)) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
 	c.maybeRebuild()
 
 	c.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			c.Unlock()
+		}
+	}()
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
 			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
 		} else {
 			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
-			c.Unlock()
-			return
+			return false
 		}
 	}
 	declaredNode := c.nodeAtPathFromNode(key, c.defaults)
 	if declaredNode.IsInnerNode() {
 		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
-		c.Unlock()
-		return
+		return false
+	}
+	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
+	if update != nil {
+		// Walk down from source to the first layer holding the key, so the callback never
+		// receives a value from a higher-priority layer.
+		lookupSource := source
+		current, inLayer := c.valueInSource(strings.ToLower(key), lookupSource)
+		for !inLayer && lookupSource.IsGreaterThan(model.SourceDefault) {
+			lookupSource = lookupSource.PreviousSource()
+			current, inLayer = c.valueInSource(strings.ToLower(key), lookupSource)
+		}
+		var apply bool
+		newValue, apply = update(copyIfNeeded(current), lookupSource)
+		if !apply {
+			return false
+		}
 	}
 
 	// convert the value to the type of the default
@@ -273,13 +306,10 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
-	previousValue := c.leafAtPathFromNode(key, c.root).Get()
-
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
 		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
-		c.Unlock()
-		return
+		return false
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
 		c.root, _ = c.root.Merge(newTree)
@@ -287,10 +317,16 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	receivers := slices.Clone(c.notificationReceivers)
 
+	// Read back rather than trusting newValue: a write to a layer that loses the merge changes
+	// nothing that resolves, and receivers are told what the setting is, not what was stored.
+	resolved := c.leafAtPathFromNode(key, c.root)
+	resolvedValue := resolved.Get()
+	resolvedSource := resolved.Source()
+	updateApplied := resolvedSource == source
+
 	// if no value has changed we don't notify
-	if reflect.DeepEqual(previousValue, newValue) {
-		c.Unlock()
-		return
+	if reflect.DeepEqual(previousValue, resolvedValue) {
+		return updateApplied
 	}
 
 	c.sequenceID++
@@ -298,11 +334,13 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// after unlocking.
 	sequenceID := c.sequenceID
 	c.Unlock()
+	locked = false
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, sequenceID)
+		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
+	return updateApplied
 }
 
 func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (*nodeImpl, error) {
@@ -315,11 +353,18 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	return tree, err
 }
 
-// DirectBulkSet implements model.Writer. Keys are assumed already lowercased, which holds for
-// anything enumerated from another config.
-func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
+// DirectBulkSet implements model.Writer. shouldNotify if true will send notifications for settings that
+// change values.
+func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting, shouldNotify bool) {
 	c.Lock()
-	defer c.Unlock()
+
+	// Previous values are read before any merge, so they all reflect the pre-snapshot state.
+	type change struct {
+		key      string
+		source   model.Source
+		previous interface{}
+	}
+	var changes []change
 
 	for _, setting := range settings {
 		key := setting.Key
@@ -344,6 +389,10 @@ func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
 			value = converted
 		}
 
+		if shouldNotify {
+			changes = append(changes, change{key: key, source: setting.Source, previous: c.leafAtPathFromNode(key, c.root).Get()})
+		}
+
 		if _, err := c.insertValueIntoTree(key, value, setting.Source); err != nil {
 			log.Errorf("could not insert value for '%s': %s", key, err)
 		}
@@ -353,6 +402,34 @@ func (c *ntmConfig) DirectBulkSet(settings []model.DirectSetting) {
 	// ranks conflicting leaves by source, not by merge order.
 	if err := c.mergeAllLayers(); err != nil {
 		log.Errorf("could not merge config layers: %s", err)
+	}
+
+	if !shouldNotify {
+		c.Unlock()
+		return
+	}
+
+	receivers := slices.Clone(c.notificationReceivers)
+	type notification struct {
+		change
+		newValue   interface{}
+		sequenceID uint64
+	}
+	pending := make([]notification, 0, len(changes))
+	for _, ch := range changes {
+		newValue := c.leafAtPathFromNode(ch.key, c.root).Get()
+		if reflect.DeepEqual(ch.previous, newValue) {
+			continue
+		}
+		c.sequenceID++
+		pending = append(pending, notification{change: ch, newValue: newValue, sequenceID: c.sequenceID})
+	}
+	c.Unlock()
+
+	for _, n := range pending {
+		for _, receiver := range receivers {
+			receiver(n.key, n.source, n.previous, n.newValue, n.sequenceID, "")
+		}
 	}
 }
 
@@ -408,18 +485,34 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 	return nil, ErrNotFound
 }
 
+// valueInSource returns source's own value for key and whether that layer sets it. Must be called
+// with the lock held.
+func (c *ntmConfig) valueInSource(key string, source model.Source) (interface{}, bool) {
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		// Not a writable layer (e.g. SourceSchema); the write fails later anyway.
+		return nil, false
+	}
+	leaf := c.leafAtPathFromNode(key, tree)
+	if leaf == missingLeaf {
+		return nil, false
+	}
+	return leaf.Get(), true
+}
+
 // UnsetForSource unsets a config entry for a given source
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.maybeRebuild()
 
 	var (
-		previousValue interface{}
-		newValue      interface{}
-		receivers     []model.NotificationReceiver
-		sequenceID    uint64
+		previousValue  interface{}
+		resolvedValue  interface{}
+		resolvedSource model.Source
+		receivers      []model.NotificationReceiver
+		sequenceID     uint64
 	)
 
-	ok := func() bool {
+	func() {
 		c.Lock()
 		defer c.Unlock()
 
@@ -430,69 +523,64 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 		tree, err := c.getTreeBySource(source)
 		if err != nil {
 			log.Errorf("%s", err)
-			return false
+			return
 		}
 		parentNode, childName, err := c.parentOfNode(tree, key)
 		if err != nil {
-			return false
+			return
 		}
 		// Only remove if the setting is a leaf
+		removed := false
 		if child, err := parentNode.GetChild(childName); err == nil {
 			if child.IsLeafNode() {
 				parentNode.RemoveChild(childName)
+				removed = true
 			} else {
 				log.Errorf("cannot remove setting %q, not a leaf", key)
-				return false
+				return
+			}
+		}
+		// Nothing left the layer, so root cannot name this source as its winner either.
+		if !removed {
+			return
+		}
+
+		// Allocated on removal, not on value change: a mirror drops the entry either way.
+		c.sequenceID++
+		sequenceID = c.sequenceID
+		receivers = slices.Clone(c.notificationReceivers)
+
+		// The merged tree only needs mending when the layer we cleared was the one winning in it.
+		if c.leafAtPathFromNode(key, c.root).Source() == source {
+			prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
+			if rootParent, rootChild, err := c.parentOfNode(c.root, key); err == nil {
+				if findPreviousSourceError != nil {
+					// No lower layer holds this key, so it leaves the merged tree entirely.
+					rootParent.RemoveChild(rootChild)
+				} else {
+					rootParent.InsertChildNode(rootChild, prevNode)
+				}
 			}
 		}
 
-		// If the node in the merged tree doesn't match the source we expect, we're done
-		if c.leafAtPathFromNode(key, c.root).Source() != source {
-			return false
-		}
-
-		// Find what the previous value used to be, based upon the previous source
-		prevNode, findPreviousSourceError := c.findPreviousSourceNode(key, source)
-
-		// Get the parent node of the leaf we're unsetting
-		parentNode, childName, err = c.parentOfNode(c.root, key)
-		if err != nil {
-			return false
-		}
-
-		// If there was no previous source with a node of this name, simply remove it from the parent
-		if findPreviousSourceError != nil {
-			parentNode.RemoveChild(childName)
-			return false
-		}
-
-		// Replace the child with the node from the previous layer
-		parentNode.InsertChildNode(childName, prevNode)
-
-		newValue = c.leafAtPathFromNode(key, c.root).Get()
-
-		// Value has not changed, do not notify
-		if reflect.DeepEqual(previousValue, newValue) {
-			return false
-		}
-
-		c.sequenceID++
-		receivers = slices.Clone(c.notificationReceivers)
-		// Capture the sequenceID here whilst locked to send to the receivers
-		// after unlocking.
-		sequenceID = c.sequenceID
-		return true
+		// Read once the merged tree has settled, so every removal path reports the same thing: what
+		// the key resolves to now. missingLeaf reports SourceUnknown, meaning nothing is left.
+		resolved := c.leafAtPathFromNode(key, c.root)
+		resolvedValue = resolved.Get()
+		resolvedSource = resolved.Source()
 	}()
 
-	if !ok {
+	if receivers == nil {
 		return
 	}
 
 	// Notify receivers outside the lock. Subscribers commonly read the
 	// config from within their callback, and doing so while the write
 	// lock is still held deadlocks them against this goroutine.
+	// Unlike Set, every removal notifies: a config mirroring the layers has to drop the entry even
+	// when a lower layer resolves to the same value.
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, sequenceID)
+		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, source)
 	}
 }
 
@@ -741,7 +829,9 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envvar stri
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envvar)
 	} else if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
-		if converted, err := basic.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
+		if decoded, ok := decodeJSONEnv(envvar, defaultNode.Get()); ok {
+			actualValue = decoded
+		} else if converted, err := basic.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
 			actualValue = converted
 		}
 	}
@@ -1335,4 +1425,28 @@ func (c *ntmConfig) GetSequenceID() uint64 {
 	c.RLock()
 	defer c.RUnlock()
 	return c.sequenceID
+}
+
+// decodeJSONEnv decodes a JSON env value for a map- or list-of-maps-typed setting, so it is stored in the
+// same shape as when read from a config file; ok is false when the value isn't JSON of that shape.
+func decodeJSONEnv(envvar string, defaultValue interface{}) (interface{}, bool) {
+	switch defaultValue.(type) {
+	case map[string]interface{}, map[string]string, map[string][]string:
+		var decoded map[string]interface{}
+		if err := json.Unmarshal([]byte(envvar), &decoded); err != nil {
+			return nil, false
+		}
+		converted, err := basic.ConvertToDefaultType(decoded, defaultValue, true)
+		if err != nil {
+			return nil, false
+		}
+		return converted, true
+	case []map[string]interface{}, []map[string]string, []interface{}:
+		var decoded []interface{}
+		if err := json.Unmarshal([]byte(envvar), &decoded); err != nil {
+			return nil, false
+		}
+		return decoded, true
+	}
+	return nil, false
 }

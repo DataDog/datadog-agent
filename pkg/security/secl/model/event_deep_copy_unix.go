@@ -79,6 +79,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Umount = deepCopyUmountEvent(e.Umount)
 	copied.Unlink = deepCopyUnlinkEvent(e.Unlink)
 	copied.UnloadModule = deepCopyUnloadModuleEvent(e.UnloadModule)
+	copied.Unshare = deepCopyUnshareEvent(e.Unshare)
 	copied.UnshareMountNS = deepCopyUnshareMountNSEvent(e.UnshareMountNS)
 	copied.Utimes = deepCopyUtimesEvent(e.Utimes)
 	copied.VethPair = deepCopyVethPairEvent(e.VethPair)
@@ -193,6 +194,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
+	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
@@ -230,7 +232,9 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.ArgvScrubbed = deepCopystringArr(fieldToCopy.ArgvScrubbed)
 	copied.CGroup = deepCopyCGroupContext(fieldToCopy.CGroup)
 	copied.CapsAttempted = fieldToCopy.CapsAttempted
+	copied.CapsAttemptedHostUserNS = fieldToCopy.CapsAttemptedHostUserNS
 	copied.CapsUsed = fieldToCopy.CapsUsed
+	copied.CapsUsedHostUserNS = fieldToCopy.CapsUsedHostUserNS
 	copied.Comm = fieldToCopy.Comm
 	copied.ContainerContext = deepCopyContainerContext(fieldToCopy.ContainerContext)
 	copied.Cookie = fieldToCopy.Cookie
@@ -253,8 +257,8 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
@@ -321,6 +325,7 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.ContainerSource = fieldToCopy.ContainerSource
 	copied.CreatedAt = fieldToCopy.CreatedAt
+	copied.PodUID = fieldToCopy.PodUID
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	return copied
@@ -403,6 +408,7 @@ func deepCopyLinuxBinprm(fieldToCopy LinuxBinprm) LinuxBinprm {
 func deepCopyTracer(fieldToCopy Tracer) Tracer {
 	copied := Tracer{}
 	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
 	return copied
 }
@@ -417,7 +423,6 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 	copied.ServiceEnv = fieldToCopy.ServiceEnv
 	copied.ServiceName = fieldToCopy.ServiceName
 	copied.ServiceVersion = fieldToCopy.ServiceVersion
-	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.TracerLanguage = fieldToCopy.TracerLanguage
 	copied.TracerVersion = fieldToCopy.TracerVersion
 	return copied
@@ -499,7 +504,9 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.ArgvScrubbed = deepCopystringArr(fieldToCopy.ArgvScrubbed)
 	copied.CGroup = deepCopyCGroupContext(fieldToCopy.CGroup)
 	copied.CapsAttempted = fieldToCopy.CapsAttempted
+	copied.CapsAttemptedHostUserNS = fieldToCopy.CapsAttemptedHostUserNS
 	copied.CapsUsed = fieldToCopy.CapsUsed
+	copied.CapsUsedHostUserNS = fieldToCopy.CapsUsedHostUserNS
 	copied.Comm = fieldToCopy.Comm
 	copied.ContainerContext = deepCopyContainerContext(fieldToCopy.ContainerContext)
 	copied.Cookie = fieldToCopy.Cookie
@@ -522,8 +529,8 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
@@ -597,6 +604,7 @@ func deepCopySecurityProfileContext(fieldToCopy SecurityProfileContext) Security
 	copied.EventTypeState = fieldToCopy.EventTypeState
 	copied.EventTypes = deepCopyEventTypeArr(fieldToCopy.EventTypes)
 	copied.Name = fieldToCopy.Name
+	copied.ProfileAlreadySent = fieldToCopy.ProfileAlreadySent
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	copied.Version = fieldToCopy.Version
 	return copied
@@ -623,7 +631,10 @@ func deepCopyBindEvent(fieldToCopy BindEvent) BindEvent {
 func deepCopyCapabilitiesEvent(fieldToCopy CapabilitiesEvent) CapabilitiesEvent {
 	copied := CapabilitiesEvent{}
 	copied.Attempted = fieldToCopy.Attempted
+	copied.AttemptedHostUserNS = fieldToCopy.AttemptedHostUserNS
+	copied.Cookie = fieldToCopy.Cookie
 	copied.Used = fieldToCopy.Used
+	copied.UsedHostUserNS = fieldToCopy.UsedHostUserNS
 	return copied
 }
 func deepCopyCapsetEvent(fieldToCopy CapsetEvent) CapsetEvent {
@@ -804,6 +815,7 @@ func deepCopyIMDSEvent(fieldToCopy IMDSEvent) IMDSEvent {
 	copied := IMDSEvent{}
 	copied.AWS = deepCopyAWSIMDSEvent(fieldToCopy.AWS)
 	copied.CloudProvider = fieldToCopy.CloudProvider
+	copied.CredentialSource = fieldToCopy.CredentialSource
 	copied.Host = fieldToCopy.Host
 	copied.Server = fieldToCopy.Server
 	copied.Type = fieldToCopy.Type
@@ -900,6 +912,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 	copied.Detached = fieldToCopy.Detached
 	copied.Device = fieldToCopy.Device
 	copied.FSType = fieldToCopy.FSType
+	copied.MountFlags = fieldToCopy.MountFlags
 	copied.MountID = fieldToCopy.MountID
 	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	copied.MountPointStr = fieldToCopy.MountPointStr
@@ -1186,6 +1199,8 @@ func deepCopySysCtlEvent(fieldToCopy SysCtlEvent) SysCtlEvent {
 func deepCopySyscallsEvent(fieldToCopy SyscallsEvent) SyscallsEvent {
 	copied := SyscallsEvent{}
 	copied.EventReason = fieldToCopy.EventReason
+	copied.SampleCookie = fieldToCopy.SampleCookie
+	copied.SyscallID = fieldToCopy.SyscallID
 	return copied
 }
 func deepCopyTracerMemfdSealEvent(fieldToCopy TracerMemfdSealEvent) TracerMemfdSealEvent {
@@ -1214,6 +1229,12 @@ func deepCopyUnlinkEvent(fieldToCopy UnlinkEvent) UnlinkEvent {
 func deepCopyUnloadModuleEvent(fieldToCopy UnloadModuleEvent) UnloadModuleEvent {
 	copied := UnloadModuleEvent{}
 	copied.Name = fieldToCopy.Name
+	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
+	return copied
+}
+func deepCopyUnshareEvent(fieldToCopy UnshareEvent) UnshareEvent {
+	copied := UnshareEvent{}
+	copied.Flags = fieldToCopy.Flags
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
 	return copied
 }

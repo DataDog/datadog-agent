@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // seriesTestPayload builds a payload holding the count `foo` (1 point), the
@@ -68,7 +68,7 @@ func seriesTestOrigin(t *testing.T) origin {
 }
 
 func TestIterator(t *testing.T) {
-	it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default", utilstrings.Matcher{})
+	it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default", metricname.Matcher{})
 	require.NoError(t, err)
 	require.NotNil(t, it)
 
@@ -109,7 +109,7 @@ func TestIterator(t *testing.T) {
 func TestIteratorFilterList(t *testing.T) {
 	t.Run("exact match skips the metric", func(t *testing.T) {
 		it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default",
-			utilstrings.NewMatcher([]string{"bar"}, false))
+			metricname.NewMatcher([]string{"bar"}, false))
 		require.NoError(t, err)
 
 		require.True(t, it.MoveNext())
@@ -134,7 +134,7 @@ func TestIteratorFilterList(t *testing.T) {
 
 	t.Run("prefix match skips every matching metric", func(t *testing.T) {
 		it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default",
-			utilstrings.NewMatcher([]string{"ba"}, true))
+			metricname.NewMatcher([]string{"ba"}, true))
 		require.NoError(t, err)
 
 		require.True(t, it.MoveNext())
@@ -147,7 +147,7 @@ func TestIteratorFilterList(t *testing.T) {
 
 	t.Run("everything filtered", func(t *testing.T) {
 		it, err := newSeriesIterator(seriesTestPayload(), seriesTestOrigin(t), "default",
-			utilstrings.NewMatcher([]string{"foo", "bar", "baz"}, false))
+			metricname.NewMatcher([]string{"foo", "bar", "baz"}, false))
 		require.NoError(t, err)
 
 		require.False(t, it.MoveNext())
@@ -198,7 +198,7 @@ func TestIteratorTagCardinality(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			it, err := newSeriesIterator(payload([]uint64{tc.packedType}), seriesTestOrigin(t), "default",
-				utilstrings.Matcher{})
+				metricname.Matcher{})
 			require.NoError(t, err)
 
 			require.True(t, it.MoveNext())
@@ -215,7 +215,7 @@ func TestIteratorTagCardinality(t *testing.T) {
 		p.MetricData.DictTagStr = []byte("\x03ook\x15dd.internal.card:high")
 		p.MetricData.DictTagsets = []int64{2, 1, 1}
 
-		it, err := newSeriesIterator(p, seriesTestOrigin(t), "default", utilstrings.Matcher{})
+		it, err := newSeriesIterator(p, seriesTestOrigin(t), "default", metricname.Matcher{})
 		require.NoError(t, err)
 
 		require.True(t, it.MoveNext())
@@ -231,7 +231,7 @@ func TestIteratorTagCardinality(t *testing.T) {
 		p.MetricData.DictTagStr = []byte("\x03ook\x15dd.internal.card:high")
 		p.MetricData.DictTagsets = []int64{2, 1, 1}
 
-		it, err := newSeriesIterator(p, seriesTestOrigin(t), "default", utilstrings.Matcher{})
+		it, err := newSeriesIterator(p, seriesTestOrigin(t), "default", metricname.Matcher{})
 		require.NoError(t, err)
 
 		// Both metrics reference the same filtered dictionary entry.
@@ -248,7 +248,7 @@ func TestIteratorTagCardinality(t *testing.T) {
 		p.MetricData.DictTagStr = []byte("\x15dd.internal.card:high\x14dd.internal.card:low")
 		p.MetricData.DictTagsets = []int64{2, 1, 1}
 
-		it, err := newSeriesIterator(p, seriesTestOrigin(t), "default", utilstrings.Matcher{})
+		it, err := newSeriesIterator(p, seriesTestOrigin(t), "default", metricname.Matcher{})
 		require.NoError(t, err)
 
 		require.True(t, it.MoveNext())
@@ -260,7 +260,7 @@ func TestIteratorTagCardinality(t *testing.T) {
 	t.Run("origin tags are resolved once per cardinality", func(t *testing.T) {
 		it, err := newSeriesIterator(
 			payload([]uint64{0x13, 0x13 | uint64(pb.TagCardinality_High), 0x13}),
-			seriesTestOrigin(t), "default", utilstrings.Matcher{})
+			seriesTestOrigin(t), "default", metricname.Matcher{})
 		require.NoError(t, err)
 
 		for range 3 {

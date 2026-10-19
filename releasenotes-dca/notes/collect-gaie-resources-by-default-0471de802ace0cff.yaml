@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Collect Gateway API Inference Extension InferencePool resources
+    (``inference.networking.k8s.io/v1``) by default in Orchestrator Explorer
+    when out-of-the-box custom resource collection is enabled.

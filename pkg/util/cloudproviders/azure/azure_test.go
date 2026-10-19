@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 )
 
 var expectedAPIVersion = GetMetadataAPIVersion()
@@ -339,4 +340,26 @@ func TestInstanceType(t *testing.T) {
 	assert.Equal(t, expected, instanceType)
 	assert.Equal(t, "/metadata/instance/compute/vmSize", lastRequest.URL.Path)
 	assert.Equal(t, expectedAPIVersion+"&format=text", lastRequest.URL.RawQuery)
+}
+
+func TestIsRunningOnFallsBackToDMI(t *testing.T) {
+	vmIDFetcher.Reset()
+	defer vmIDFetcher.Reset()
+	ctx := context.Background()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("azure_use_dmi", true)
+
+	dmi.SetupMockChassisAssetTag(t, "")
+	assert.False(t, IsRunningOn(ctx))
+
+	vmIDFetcher.Reset()
+	dmi.SetupMockChassisAssetTag(t, DMIChassisAssetTag)
+	assert.True(t, IsRunningOn(ctx))
 }

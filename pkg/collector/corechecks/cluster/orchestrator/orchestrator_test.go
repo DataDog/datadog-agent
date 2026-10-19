@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator && test
+//go:build kubeapiserver && test
 
 package orchestrator
 
@@ -13,10 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/fx"
-	kscheme "k8s.io/client-go/kubernetes/scheme"
-
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	crd "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +22,7 @@ import (
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/fake"
 	cr "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -66,9 +65,11 @@ func newCollectorBundle(t *testing.T, chk *OrchestratorCheck) *CollectorBundle {
 			Config:      chk.orchestratorConfig,
 			MsgGroupRef: chk.groupID,
 		},
-		stopCh:              chk.stopCh,
-		manifestBuffer:      NewManifestBuffer(chk),
-		activatedCollectors: map[string]struct{}{},
+		stopCh:                chk.stopCh,
+		manifestBuffer:        NewManifestBuffer(chk),
+		activatedCollectors:   map[string]struct{}{},
+		initializedCollectors: map[string]struct{}{},
+		startedInformers:      map[cache.SharedInformer]struct{}{},
 	}
 	bundle.importCollectorsFromInventory()
 	bundle.prepareExtraSyncTimeout()
@@ -110,7 +111,8 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 
 	bundle.runCfg.OrchestratorInformerFactory = getOrchestratorInformerFactory(cl)
 	bundle.stopCh = make(chan struct{})
-	bundle.initializeOnce = sync.Once{}
+	bundle.initializedCollectors = map[string]struct{}{}
+	bundle.startedInformers = map[cache.SharedInformer]struct{}{}
 	bundle.Initialize()
 
 	_, err := bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
@@ -196,6 +198,42 @@ func TestOrchCheckExtraTags(t *testing.T) {
 		assert.ElementsMatch(t, []string{"init_tag1:value1", "init_tag2:value2", "instance_tag1:value1", "instance_tag2:value2"}, orchCheck.orchestratorConfig.ExtraTags)
 	})
 
+	t.Run("with a marked infrastructure mode", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "cloud_cost_only",
+		})
+		fakeTagger.SetGlobalTags([]string{"tag1:value1"}, nil, nil, nil)
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
+		assert.ElementsMatch(t, []string{"tag1:value1", "infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
+	// On a Cluster Check Runner the dispatched check configuration can already
+	// carry the mark, because the Cluster Agent writes its global tags into it.
+	t.Run("with a mark already present in the check configuration", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "cloud_cost_only",
+		})
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		initConfigData := integration.Data(`{}`)
+		err := initConfigData.MergeAdditionalTags([]string{"infra_mode:cloud_cost_only"})
+		assert.NoError(t, err)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), initConfigData, integration.Data{}, "test", "provider")
+		assert.Equal(t, []string{"infra_mode:cloud_cost_only"}, orchCheck.orchestratorConfig.ExtraTags)
+	})
+
+	t.Run("with an unmarked infrastructure mode", func(t *testing.T) {
+		fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+			"infrastructure_mode": "full",
+		})
+		orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+
+		_ = orchCheck.Configure(mockSenderManager, uint64(1), integration.Data{}, integration.Data{}, "test", "provider")
+		assert.Empty(t, orchCheck.orchestratorConfig.ExtraTags)
+	})
 }
 
 func TestOrchestratorCheckConfigure(t *testing.T) {

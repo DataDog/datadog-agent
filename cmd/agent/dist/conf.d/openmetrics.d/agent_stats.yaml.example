@@ -1,0 +1,92 @@
+# Collect the Agent's own internal telemetry from its OpenMetrics telemetry endpoint.
+#
+# Drop this file in place as `conf.d/openmetrics.d/agent_stats.yaml`. Requires
+# `telemetry.enabled: true` in `datadog.yaml`. The endpoint is served on `expvar_port`
+# (5000 by default), so change the port below if you changed that setting.
+#
+# The configuration below contains a default set of metrics that provide a high-level
+# view of the Agent's behavior and health across some of the more prominent internal
+# components, but a number of other metrics exist and can be viewed by querying
+# `/telemetry` directly.
+
+init_config:
+instances:
+  - openmetrics_endpoint: http://localhost:5000/telemetry
+    namespace: datadog.agent
+    metrics:
+      # Forwarder telemetry: successful/failed requests, retry queue size, etc.
+      - transactions__dropped:
+          name: forwarder.transactions.dropped
+          type: rate
+      - transactions__retry_queue_size: forwarder.transactions.retry_queue_size
+      - transactions__success:
+          name: forwarder.transactions.success
+          type: rate
+      - transactions__errors:
+          name: forwarder.transactions.errors
+          type: rate
+      - transactions__http_errors:
+          name: forwarder.transactions.http_errors
+          type: rate
+
+      # DogStatsD telemetry: number of packets processed by type and transport, origin
+      # detection errors, etc.
+      - dogstatsd__udp_packets:
+          name: dogstatsd_udp.packets
+          type: rate
+      - dogstatsd__uds_packets:
+          name: dogstatsd_uds.packets
+          type: rate
+      - dogstatsd__uds_origin_detection_error:
+          name: dogstatsd_uds.origin_detection_errors
+          type: rate
+      - dogstatsd__processed:
+          name: dogstatsd.processed
+          type: rate
+
+      # Aggregator telemetry: active context count, flush count, etc.
+      - aggregator__flush_time: aggregator.flush_time
+      - aggregator__flush_count: aggregator.flush_count
+      - aggregator__dogstatsd_contexts: aggregator.dogstatsd_contexts
+      - aggregator__flush:
+          name: aggregator.flush
+          type: rate
+      - aggregator__number_of_flush:
+          name: aggregator.number_of_flush
+          type: rate
+      - aggregator__processed:
+          name: aggregator.processed
+          type: rate
+
+      # Check telemetry: queue sizes, number of checks scheduled, etc.
+      - scheduler__checks_entered: scheduler.checks_entered
+      - scheduler__queue_size: scheduler.queues.size
+      - scheduler__queues_count:
+          name: scheduler.queues_count
+          type: rate
+
+      # Logs telemetry: number of logs decoded, processed, sent, error telemetry, etc.
+      - logs__decoded:
+          name: logs_agent.logs_decoded
+          type: rate
+      - logs__processed:
+          name: logs_agent.logs_processed
+          type: rate
+      - logs__sent:
+          name: logs_agent.logs_sent
+          type: rate
+      - logs__network_errors:
+          name: logs_agent.destination_errors
+          type: rate
+      - logs__bytes_sent:
+          name: logs_agent.bytes_sent
+          type: rate
+      - logs__encoded_bytes_sent:
+          name: logs_agent.encoded_bytes_sent
+          type: rate
+      - logs_client_http_destination__idle_ms:
+          name: batch_strategy.idle_time
+          type: rate
+      - logs_client_http_destination__in_use_ms:
+          name: batch_strategy.in_use_time
+          type: rate

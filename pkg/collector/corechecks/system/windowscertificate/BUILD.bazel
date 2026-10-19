@@ -83,7 +83,7 @@ go_library(
             "//pkg/util/winutil",
             "@com_github_swaggest_jsonschema_go//:jsonschema-go",
             "@com_github_xeipuuv_gojsonschema//:gojsonschema",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@io_k8s_sigs_yaml//:yaml",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",

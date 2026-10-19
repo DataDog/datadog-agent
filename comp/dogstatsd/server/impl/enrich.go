@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/infratags"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 var (
@@ -40,7 +40,7 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
-	infraTagger               *infratags.Tagger
+	infraTagger               *infratags.MetricTagger
 }
 
 // extractTagsMetadata returns tags (client tags + host tag), information needed to query the tagger
@@ -64,17 +64,17 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 
 	n := 0
 	for _, tag := range tags {
-		if strings.HasPrefix(tag, hostTagPrefix) {
-			host = tag[len(hostTagPrefix):]
+		if after, ok := strings.CutPrefix(tag, hostTagPrefix); ok {
+			host = after
 			continue
-		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
-			origin.LocalData.PodUID = tag[len(entityIDTagPrefix):]
+		} else if after, ok := strings.CutPrefix(tag, entityIDTagPrefix); ok {
+			origin.LocalData.PodUID = after
 			continue
-		} else if strings.HasPrefix(tag, CardinalityTagPrefix) && origin.Cardinality == "" {
-			origin.Cardinality = tag[len(CardinalityTagPrefix):]
+		} else if after, ok := strings.CutPrefix(tag, CardinalityTagPrefix); ok && origin.Cardinality == "" {
+			origin.Cardinality = after
 			continue
-		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
-			jmxCheckName = tag[len(jmxCheckNamePrefix):]
+		} else if after, ok := strings.CutPrefix(tag, jmxCheckNamePrefix); ok {
+			jmxCheckName = after
 			metricSource = metrics.JMXCheckNameToMetricSource(jmxCheckName)
 			continue
 		}
@@ -149,7 +149,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *utilstrings.Matcher) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, filterList *metricname.Matcher) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource, jmxCheckName := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 	if conf.infraTagger.IsCheckEligible(jmxCheckName) {

@@ -32,9 +32,24 @@ function getDetectorComponent(anomaly: { detectorName: string; detectorComponent
   return anomaly.detectorComponent ?? anomaly.detectorName;
 }
 
-function formatSeriesLabel(tags: string[]): string {
-  if (!tags || tags.length === 0) return 'untagged';
-  return tags.join(', ');
+function effectiveSeriesTags(tags: string[] | null | undefined, host?: string): string[] {
+	const baseTags = tags ?? [];
+	return host ? [`host:${host}`, ...baseTags] : baseTags;
+}
+
+function formatSeriesLabel(tags: string[] | null | undefined, host?: string): string {
+	const displayTags = effectiveSeriesTags(tags, host);
+	if (displayTags.length === 0) return 'untagged';
+	return displayTags.join(', ');
+}
+
+function formatMetricTypes(members: SeriesInfo[]): string[] {
+  return [...new Set(members.flatMap((member) => member.metricTypes ?? []))].sort();
+}
+
+function filterCachedSeriesData(dataList: SeriesData[], group: MetricGroup): SeriesData[] {
+  const currentSeriesIDs = new Set(group.members.map((member) => member.id));
+  return dataList.filter((data) => currentSeriesIDs.has(data.id));
 }
 
 /** Prefix sum of per-bucket deltas (time-ordered) — total from scenario start. */
@@ -83,6 +98,7 @@ export function MetricsView({
   onJumpToPattern,
 }: MetricsViewProps) {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+  const [selectedMetricTypes, setSelectedMetricTypes] = useState<Set<string>>(new Set());
   const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
@@ -214,13 +230,30 @@ export function MetricsView({
   }, [allAnomalies]);
 
   const tagGroups = useMemo(() => {
-    const all = extractTagGroups(allSeries.map((s) => s.tags));
+	const all = extractTagGroups(allSeries.map((s) => effectiveSeriesTags(s.tags, s.host)));
     return new Map([...all.entries()].filter(([k]) => MAIN_TAG_FILTER_KEYS.has(k)));
   }, [allSeries]);
+
+  const metricTypeOptions = useMemo(
+    () => [...new Set(allSeries.flatMap((series) => series.metricTypes ?? []))].sort(),
+    [allSeries]
+  );
+
+  const toggleMetricType = (metricType: string) => {
+    setSelectedMetricTypes((current) => {
+      const next = new Set(current);
+      if (next.has(metricType)) next.delete(metricType);
+      else next.add(metricType);
+      return next;
+    });
+  };
 
   const filteredSeries = useMemo(
     () =>
       allSeries.filter((s) => {
+        if (selectedMetricTypes.size > 0 && !(s.metricTypes ?? []).some((type) => selectedMetricTypes.has(type))) {
+          return false;
+        }
         const agg = getAggregationType(s.name);
         const baseName = getBaseMetricName(s.name);
         if (s.metricKind === 'counter') {
@@ -231,12 +264,12 @@ export function MetricsView({
         }
         return agg === aggregationType;
       }),
-    [allSeries, aggregationType]
+    [allSeries, aggregationType, selectedMetricTypes]
   );
 
-  const metricGroups = useMemo(() => {
+  const allMetricGroups = useMemo(() => {
     const groups = new Map<string, MetricGroup>();
-    filteredSeries.forEach((s) => {
+    allSeries.forEach((s) => {
       const baseName = getBaseMetricName(s.name);
       const key = `${s.namespace}/${baseName}`;
       if (!groups.has(key)) {
@@ -252,7 +285,20 @@ export function MetricsView({
     });
 
     return Array.from(groups.values()).sort((a, b) => a.baseName.localeCompare(b.baseName));
-  }, [filteredSeries]);
+  }, [allSeries]);
+
+  const allGroupByKey = useMemo(() => {
+    const map = new Map<string, MetricGroup>();
+    allMetricGroups.forEach((g) => map.set(g.key, g));
+    return map;
+  }, [allMetricGroups]);
+
+  const metricGroups = useMemo(() => {
+    const filteredSeriesIDs = new Set(filteredSeries.map((series) => series.id));
+    return allMetricGroups
+      .map((group) => ({ ...group, members: group.members.filter((member) => filteredSeriesIDs.has(member.id)) }))
+      .filter((group) => group.members.length > 0);
+  }, [allMetricGroups, filteredSeries]);
 
   const groupByKey = useMemo(() => {
     const map = new Map<string, MetricGroup>();
@@ -301,6 +347,7 @@ export function MetricsView({
         name: g.baseName,
         displayName: g.baseName,
         virtual: g.virtual,
+        metricTypes: formatMetricTypes(g.members),
       })),
     [visibleGroups]
   );
@@ -312,6 +359,7 @@ export function MetricsView({
     if (state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
       setTagFilterInput('');
+      setSelectedMetricTypes(new Set());
     }
   }, [state.activeScenario]);
 
@@ -374,7 +422,7 @@ export function MetricsView({
     const fetchSeriesData = async () => {
       const next = new Map<string, SeriesData[]>();
       for (const groupKey of selectedGroups) {
-        const group = groupByKey.get(groupKey);
+        const group = allGroupByKey.get(groupKey);
         if (!group) continue;
         const seriesList: SeriesData[] = [];
         for (const s of group.members) {
@@ -396,7 +444,7 @@ export function MetricsView({
     return () => {
       cancelled = true;
     };
-  }, [selectedGroups, state.connectionState, state.activeScenario, groupByKey, groupSeriesData.size]);
+  }, [selectedGroups, state.connectionState, state.activeScenario, allGroupByKey, groupSeriesData.size]);
 
   const toggleDetector = (name: string) => {
     actions.toggleComponent(name);
@@ -538,6 +586,40 @@ export function MetricsView({
               ))}
             </div>
           </div>
+          {metricTypeOptions.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-slate-400">Metric type</h3>
+                {selectedMetricTypes.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMetricTypes(new Set())}
+                    className="text-[10px] text-slate-500 hover:text-slate-300"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-1 flex-wrap">
+                {metricTypeOptions.map((type) => {
+                  const active = selectedMetricTypes.has(type);
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => toggleMetricType(type)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                        active ? 'bg-indigo-600/50 text-indigo-200 ring-1 ring-indigo-400/60' : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <label className="flex items-center justify-between text-xs text-slate-300 bg-slate-700/40 rounded px-2 py-1.5 cursor-pointer">
             <span>Show only groups with anomalies</span>
             <input
@@ -641,7 +723,9 @@ export function MetricsView({
           <SeriesTree
             series={displayGroups}
             selectedSeries={selectedGroups}
+            selectedMetricTypes={selectedMetricTypes}
             anomalousSources={anomalousGroupKeys}
+            onToggleMetricType={toggleMetricType}
             onSelectionChange={setSelectedGroups}
           />
         </div>
@@ -721,10 +805,12 @@ export function MetricsView({
                       return g && g.namespace !== 'telemetry' && !g.virtual;
                     })
                     .map((groupKey) => {
-                      const dataList = groupSeriesData.get(groupKey) ?? [];
+                      const group = groupByKey.get(groupKey);
+                      if (!group) return null;
+                      const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                       if (dataList.length === 0) return null;
                       const tagFiltered = (tagFilter.include.size > 0 || tagFilter.exclude.size > 0)
-                        ? dataList.filter((d) => matchesTagFilter(d.tags ?? [], tagFilter))
+						? dataList.filter((d) => matchesTagFilter(effectiveSeriesTags(d.tags ?? [], d.host), tagFilter))
                         : dataList;
                       const chartSeries = showAnomalyOnlySeriesLines
                         ? tagFiltered.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
@@ -733,8 +819,30 @@ export function MetricsView({
                       const seriesIDs = new Set(chartSeries.map((d) => d.id));
                       const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
                       const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+                      const metricTypes = formatMetricTypes(group.members.filter((member) => seriesIDs.has(member.id)));
+                      const metricTypeSubtitle = metricTypes.length > 0 ? (
+                        <div className="flex items-center gap-1.5 flex-wrap text-xs text-slate-500">
+                          <span>{metricTypes.length === 1 ? 'Metric type:' : 'Metric types:'}</span>
+                          {metricTypes.map((type) => {
+                            const active = selectedMetricTypes.has(type);
+                            return (
+                              <button
+                                key={type}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => toggleMetricType(type)}
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                                  active ? 'bg-indigo-600/50 text-indigo-200 ring-1 ring-indigo-400/60' : 'bg-slate-700 text-slate-300 hover:bg-indigo-600/40 hover:text-indigo-200'
+                                }`}
+                              >
+                                {type}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : undefined;
                       const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                        label: formatSeriesLabel(d.tags),
+							label: formatSeriesLabel(d.tags, d.host),
                         points: d.points,
                         seriesId: d.id,
                       }));
@@ -753,6 +861,7 @@ export function MetricsView({
                           smoothLines={smoothLines}
                           seriesVariants={seriesVariants}
                           phaseMarkers={phaseMarkers}
+                          subtitle={metricTypeSubtitle}
                         />
                       );
                     })
@@ -780,7 +889,9 @@ export function MetricsView({
                           return g && g.virtual;
                         })
                         .map((groupKey) => {
-                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          const group = groupByKey.get(groupKey);
+                          if (!group) return null;
+                          const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
                             ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
@@ -797,7 +908,7 @@ export function MetricsView({
                             viewMode === 'rate-min' ? toRatePerMinSeries :
                             (pts: Point[]) => pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                            label: formatSeriesLabel(d.tags),
+								label: formatSeriesLabel(d.tags, d.host),
                             points: transformPoints(d.points),
                             seriesId: d.id,
                           }));
@@ -896,8 +1007,9 @@ export function MetricsView({
                         })
                         .map((groupKey) => {
                           const group = groupByKey.get(groupKey);
-                          const isCounterTelemetry = group?.members.some((m) => m.metricKind === 'counter');
-                          const dataList = groupSeriesData.get(groupKey) ?? [];
+                          if (!group) return null;
+                          const isCounterTelemetry = group.members.some((m) => m.metricKind === 'counter');
+                          const dataList = filterCachedSeriesData(groupSeriesData.get(groupKey) ?? [], group);
                           if (dataList.length === 0) return null;
                           const chartSeries = showAnomalyOnlySeriesLines
                             ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
@@ -909,7 +1021,7 @@ export function MetricsView({
                           const mapPoints = (pts: Point[]) =>
                             isCounterTelemetry ? cumulativeFromStart(pts) : pts;
                           const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
-                            label: formatSeriesLabel(d.tags),
+								label: formatSeriesLabel(d.tags, d.host),
                             points: mapPoints(d.points),
                             seriesId: d.id,
                           }));

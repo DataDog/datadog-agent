@@ -24,14 +24,14 @@ type basicHostTrafficDynamicPathSuite struct {
 	hostTrafficDynamicPathSuite
 }
 
-// TestBasicHostTrafficDynamicPathSuite verifies basic tests from packaged Agent configuration through fakeintake.
+// TestBasicHostTrafficDynamicPathSuite verifies a CNM host gets a basic path
+// without setting basic_tests_enabled, through fakeintake.
 func TestBasicHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &basicHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("basicHostTrafficDynamicPath", basicHostTrafficDynamicPathAgentConfig)))
+	e2e.Run(t, &basicHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("basicHostTrafficDynamicPath", basicHostTrafficDynamicPathAgentConfig, hostTrafficSystemProbeConfig)))
 }
 
 func (s *basicHostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
@@ -64,6 +64,7 @@ func (s *basicHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
 		assert.Equal(c, payload.DynamicTestProfileBasic, match.DynamicTestProfile)
+		assert.Equal(c, payload.DynamicTestClassCore, match.DynamicTestClass)
 		assert.Equal(c, payload.CollectorTypeAgent, match.CollectorType)
 		require.NotEmpty(c, match.Traceroute.Runs, "matched network path has no traceroute runs")
 		assert.True(c, hasTracerouteDestinationIP(match), "matched network path has no traceroute destination IP")

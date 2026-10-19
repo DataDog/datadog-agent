@@ -12,14 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 func TestNewKeysManagerProvidesRCListener(t *testing.T) {
-	t.Setenv("DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION", "false")
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-		privateactionrunner.PAREnabled: true,
+		par.Enabled: true,
 	})
 
 	provides := newKeysManager(cfg)
@@ -31,7 +30,6 @@ func TestNewKeysManagerProvidesRCListener(t *testing.T) {
 }
 
 func TestNewKeysManagerDoesNotRegisterWhenPARIsDisabled(t *testing.T) {
-	t.Setenv("DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION", "false")
 	cfg := coreconfig.NewMock(t)
 
 	provides := newKeysManager(cfg)

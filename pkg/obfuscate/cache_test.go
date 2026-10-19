@@ -19,3 +19,9 @@ func TestMeasuredCacheNoPanic(t *testing.T) {
 	_, ok = c.Get("a")
 	assert.False(t, ok)
 }
+
+func TestNewObfuscatorCacheDefaultsStatsd(t *testing.T) {
+	o := NewObfuscator(Config{Cache: CacheConfig{Enabled: true, MaxSize: 1024 * 1024}})
+	defer o.Stop()
+	assert.NotNil(t, o.queryCache.statsd)
+}

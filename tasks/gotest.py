@@ -27,7 +27,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.collector import OTEL_CONTRIB_VERSION
-from tasks.coverage import PROFILE_COV, CodecovWorkaround
+from tasks.coverage import PROFILE_COV, GotestsumCoverageWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
@@ -78,6 +78,7 @@ TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/bu
 MODULE_PREFIX = "github.com/DataDog/datadog-agent"
 BAZEL_TEST_JOBS_ENV = "DD_BAZEL_TEST_JOBS"
 DEFAULT_WINDOWS_CI_BAZEL_TEST_JOBS = 4
+BAZEL_EXIT_NO_TESTS_FOUND = 4  # https://bazel.build/run/scripts#exit-codes
 # TODO(OTAGENT-1305): point back to a tagged release once one ships with the go.mod
 # bump upstream currently only has on main.
 OTEL_UPSTREAM_GO_MOD_PATH = (
@@ -471,7 +472,7 @@ def test_flavor(
     res = None
     for batch in batches:
         batch_packages = ' '.join(batch)
-        with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
+        with GotestsumCoverageWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
             formatted_cmd = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
             if sys.platform == "aix":
                 # AIX has no Bazel yet. ctx.run goes through a shell, so build the
@@ -621,7 +622,7 @@ def process_test_result(
 
 @task
 @run_on_devcontainer
-def test(
+def test_legacy(
     ctx,
     module=None,
     targets=None,
@@ -885,7 +886,7 @@ def test(
         "bazel_args": "Additional flags passed directly to bazel test. Quote the value when passing multiple flags.",
     },
 )
-def test_new(
+def test(
     ctx,
     module=None,
     targets=None,
@@ -897,8 +898,7 @@ def test_new(
     """
     Run go tests.
 
-    This task uses Bazel to run the tests and will soon replace the existing `test` task, which
-    will be renamed to `legacy` and eventually be dropped.
+    This task is a thin wrapper around Bazel.
     """
 
     if only_modified_packages:
@@ -907,6 +907,9 @@ def test_new(
         modules, _ = process_input_args(ctx, module, targets, input_flavor=None)
 
     if not modules:
+        if only_modified_packages:
+            print("No modified Go packages to test")
+            return
         raise Exit("No targets selected for testing!")
 
     bazel_flags = [
@@ -927,11 +930,17 @@ def test_new(
         for target in module.test_targets
     ]
 
-    bazel(
+    result = bazel(
         "test",
         *bazel_flags,
         *_minimize_bazel_patterns(bazel_targets),
+        ignore_errors=True,
     )
+    if result.returncode == BAZEL_EXIT_NO_TESTS_FOUND and only_modified_packages:
+        print("No test targets in modified packages")
+        return
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
 
 
 @task
@@ -1546,7 +1555,14 @@ def check_otel_module_versions(ctx, fix=False):
                     continue
 
                 actual_local_version = local_matches[0]
-                if actual_local_version != expected_local_version:
+                # A local module's go directive can legitimately be higher than the version derived
+                # from the contrib repo root's go.mod: contrib is a multi-module repo, and MVS can
+                # force a higher version when one of our actual dependencies (e.g. pkg/datadog) declares
+                # a newer `go` directive than the repo root does. Only flag/fix versions that are lower
+                # than expected, since those would fail to build against such a dependency.
+                actual_tuple = tuple(int(part) for part in actual_local_version.split('.'))
+                expected_tuple = tuple(int(part) for part in expected_local_version.split('.'))
+                if actual_tuple < expected_tuple:
                     if fix:
                         update_file(
                             True,
@@ -1556,7 +1572,7 @@ def check_otel_module_versions(ctx, fix=False):
                         )
                     else:
                         version_errors.append(
-                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
+                            f"{mod_file} version {actual_local_version} is lower than expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
                         )
 
     # Report all errors at once if any were found

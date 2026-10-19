@@ -102,7 +102,7 @@ jobs:
             This PR changes \`${targetFile}\`, which reports metrics via Cross-Org Agent Telemetry (COAT). Per the [COAT: Report a telemetry metric](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Report-a-telemetry-metric) guide, please confirm before merging:
 
             - [ ] Validated the metric via e2e tests or a dev VM, and checked it appears correctly in ddcoat (see [Observing telemetry](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/6904120021/COAT+-+Cross-Org+Agent+Telemetry#Observing-telemetry) — a ready-to-run VM command will be posted in a separate comment once this pipeline's build finishes)
-            - [ ] Updated the public docs in [DataDog/documentation](https://github.com/DataDog/documentation/blob/master/content/en/data_security/agent.md)
+            - [ ] Updated the public docs in [DataDog/documentation](https://github.com/DataDog/documentation/blob/14f6e3456d17496ad5439270ea7bc16285d8722e/hugo/content/en/data_security/agent.md)
             ${ticketLine}
             - [ ] After merge: noted the target Agent release and will confirm GA before considering the metric live
 

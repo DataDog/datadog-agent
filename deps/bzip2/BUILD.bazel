@@ -32,9 +32,9 @@ _test_cases = [
         ],
         outs = ["_%s" % case[1]],
         cmd = " ".join([
-            "$(location :bzip2)",
+            "$(execpath :bzip2)",
             case[2],
-            "<$(location @bzip2//:%s)" % case[1],
+            "<$(execpath @bzip2//:%s)" % case[1],
             ">$@",
         ]),
         tools = [":bzip2"],

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pulumi/pulumi-azure-native-sdk/compute/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/compute/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

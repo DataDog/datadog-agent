@@ -211,7 +211,7 @@ func TestSetDefinitionCapture(t *testing.T) {
 func TestNetworkFilterDefinitionEmptyScopeDefault(t *testing.T) {
 	n := &NetworkFilterDefinition{
 		BPFFilter: "tcp port 80",
-		Policy:    "drop",
+		Policy:    NetworkFilterPolicyDrop,
 	}
 	opts := PolicyLoaderOpts{
 		ValidateBPFFilter: func(_ string) error { return nil },
@@ -225,7 +225,7 @@ func TestNetworkFilterDefinitionEmptyScopeDefaultOnRuleLoad(t *testing.T) {
 	actionDef := &ActionDefinition{
 		NetworkFilter: &NetworkFilterDefinition{
 			BPFFilter: "tcp port 80",
-			Policy:    "drop",
+			Policy:    NetworkFilterPolicyDrop,
 		},
 	}
 

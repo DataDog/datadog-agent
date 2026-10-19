@@ -11,7 +11,7 @@ from invoke import task
 from invoke.context import Context
 
 from tasks.libs.build.bazel import bazel
-from tasks.schema.codegen_init_settings import run_codegen, run_constant_codegen
+from tasks.schema.codegen_init_settings import run_codegen, run_constants_codegen, run_core_constant_codegen
 from tasks.schema.merge_schema import resolve_schema
 from tasks.schema.produce_byproduct import produce_byproduct
 
@@ -156,7 +156,8 @@ def schema_codegen(ctx):
 
     run_codegen(core_schema, SETUP_INIT_DIR)
     run_codegen(system_probe_schema, SETUP_INIT_DIR, sysprobe=True)
-    run_constant_codegen(core_schema, system_probe_schema, SETUP_INIT_DIR)
+    run_core_constant_codegen(core_schema, SETUP_INIT_DIR)
+    run_constants_codegen(core_schema, system_probe_schema, os.path.join(SETUP_INIT_DIR, "constants"))
 
 
 @task

@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "filterlist.go",
         "noop_filterlist.go",
+        "prefixlist.go",
         "rc.go",
         "tagfilterlist.go",
     ],
@@ -21,7 +22,7 @@ go_library(
         "//pkg/config/structure",
         "//pkg/metrics",
         "//pkg/remoteconfig/state",
-        "//pkg/util/strings",
+        "//pkg/util/metricname",
         "@com_github_twmb_murmur3//:murmur3",
     ],
 )

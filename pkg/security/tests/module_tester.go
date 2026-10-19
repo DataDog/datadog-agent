@@ -70,10 +70,6 @@ var (
 	errSkipEvent = errors.New("skip event")
 )
 
-const (
-	testActivityDumpDuration = time.Second * 30
-)
-
 var testMod *testModule
 
 func (s *stringSlice) String() string {
@@ -444,6 +440,36 @@ func (tm *testModule) RegisterSendEventHandler(cb onSendEventHandler) {
 	tm.eventHandlers.Unlock()
 }
 
+// DrainProbeEvents discards the probe events already delivered to userspace, so that
+// events caused by a previous action are not mistaken for the result of the next one.
+// It returns once the stream has been quiet for drainQuietPeriod, or after drainMaxWait.
+func (tm *testModule) DrainProbeEvents() {
+	const (
+		drainQuietPeriod = 250 * time.Millisecond
+		drainMaxWait     = time.Second
+	)
+
+	seen := make(chan struct{}, 1)
+	tm.RegisterProbeEventHandler(func(_ *model.Event) {
+		select {
+		case seen <- struct{}{}:
+		default:
+		}
+	})
+	defer tm.RegisterProbeEventHandler(nil)
+
+	deadline := time.After(drainMaxWait)
+	for {
+		select {
+		case <-seen:
+		case <-time.After(drainQuietPeriod):
+			return
+		case <-deadline:
+			return
+		}
+	}
+}
+
 func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -750,34 +776,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		return nil, nil, err
 	}
 
-	if opts.activityDumpRateLimiter == 0 {
-		opts.activityDumpRateLimiter = 500
-	}
-
-	if opts.activityDumpTracedCgroupsCount == 0 {
-		opts.activityDumpTracedCgroupsCount = 5
-	}
-
-	if opts.activityDumpDuration == 0 {
-		opts.activityDumpDuration = testActivityDumpDuration
-	}
-
-	if len(opts.activityDumpTracedEventTypes) == 0 {
-		opts.activityDumpTracedEventTypes = []string{"exec", "open", "bind", "dns", "syscalls"}
-	}
-
-	if opts.activityDumpLocalStorageDirectory == "" {
-		opts.activityDumpLocalStorageDirectory = "/tmp/activity_dumps"
-	}
-
-	if opts.securityProfileDir == "" {
-		opts.securityProfileDir = "/tmp/activity_dumps/profiles"
-	}
-
-	if opts.securityProfileMaxImageTags <= 0 {
-		opts.securityProfileMaxImageTags = 3
-	}
-
 	erpcDentryResolutionEnabled := true
 	if opts.disableERPCDentryResolution {
 		erpcDentryResolutionEnabled = false
@@ -793,64 +791,49 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		runtimeSecurityEnabled = false
 	}
 
-	if opts.activityDumpSyscallMonitorPeriod == time.Duration(0) {
-		opts.activityDumpSyscallMonitorPeriod = 60 * time.Second
-	}
-
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":                            cfgDir,
-		"DisableApprovers":                           opts.disableApprovers,
-		"DisableDiscarders":                          opts.disableDiscarders,
-		"EnableActivityDump":                         opts.enableActivityDump,
-		"ActivityDumpRateLimiter":                    opts.activityDumpRateLimiter,
-		"ActivityDumpTagRules":                       opts.activityDumpTagRules,
-		"ActivityDumpDuration":                       opts.activityDumpDuration,
-		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
-		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
-		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
-		"TraceSystemdCgroups":                        opts.traceSystemdCgroups,
-		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
-		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
-		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
-		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
-		"ActivityDumpSyscallMonitorPeriod":           opts.activityDumpSyscallMonitorPeriod,
-		"EnableSecurityProfile":                      opts.enableSecurityProfile,
-		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
-		"SecurityProfileDir":                         opts.securityProfileDir,
-		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
-		"SecurityProfileNodeEvictionTimeout":         opts.securityProfileNodeEvictionTimeout,
-		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
-		"AnomalyDetectionEventTypes":                 opts.anomalyDetectionEventTypes,
-		"AnomalyDetectionDefaultMinimumStablePeriod": opts.anomalyDetectionDefaultMinimumStablePeriod,
-		"AnomalyDetectionMinimumStablePeriodExec":    opts.anomalyDetectionMinimumStablePeriodExec,
-		"AnomalyDetectionMinimumStablePeriodDNS":     opts.anomalyDetectionMinimumStablePeriodDNS,
-		"AnomalyDetectionWarmupPeriod":               opts.anomalyDetectionWarmupPeriod,
-		"ErpcDentryResolutionEnabled":                erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":                 mapDentryResolutionEnabled,
-		"LogPatterns":                                logPatterns,
-		"LogTags":                                    logTags,
-		"EnvsWithValue":                              opts.envsWithValue,
-		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
-		"SBOMEnabled":                                opts.enableSBOM,
-		"HostSBOMEnabled":                            opts.enableHostSBOM,
-		"EBPFLessEnabled":                            ebpfLessEnabled,
-		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
-		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
-		"NetworkRawPacketEnabled":                    opts.networkRawPacketEnabled,
-		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
-		"EnforcementExcludeBinary":                   opts.enforcementExcludeBinary,
-		"EnforcementDisarmerContainerEnabled":        opts.enforcementDisarmerContainerEnabled,
-		"EnforcementDisarmerContainerMaxAllowed":     opts.enforcementDisarmerContainerMaxAllowed,
-		"EnforcementDisarmerContainerPeriod":         opts.enforcementDisarmerContainerPeriod,
-		"EnforcementDisarmerExecutableEnabled":       opts.enforcementDisarmerExecutableEnabled,
-		"EnforcementDisarmerExecutableMaxAllowed":    opts.enforcementDisarmerExecutableMaxAllowed,
-		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
-		"EventServerRetention":                       opts.eventServerRetention,
-		"EnableSelfTests":                            opts.enableSelfTests,
-		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
-		"CapabilitiesMonitoringEnabled":              opts.capabilitiesMonitoringEnabled,
-		"CaptureAllSyscallErrorsEnabled":             opts.captureAllSyscallErrorsEnabled,
+		"TestPoliciesDir":                         cfgDir,
+		"DisableApprovers":                        opts.disableApprovers,
+		"DisableDiscarders":                       opts.disableDiscarders,
+		"EnableSecurityProfile":                   opts.enableSecurityProfile,
+		"EnableSecurityProfileV2":                 true,
+		"SecurityProfileNodeEvictionTimeout":      opts.securityProfileNodeEvictionTimeout,
+		"EnableAnomalyDetection":                  opts.enableAnomalyDetection,
+		"WorkloadProfileStorageDir":               opts.workloadProfileStorageDir,
+		"WorkloadProfilePersistencePeriod":        opts.workloadProfilePersistencePeriod,
+		"WorkloadProfileEventTypes":               opts.workloadProfileEventTypes,
+		"WorkloadProfileDifferentiateArgs":        opts.workloadProfileDifferentiateArgs,
+		"ProfilingStartupDelay":                   opts.profilingStartupDelay,
+		"ProfileReportingWaitPersistence":         opts.profileReportingWaitPersistence,
+		"EventSamplingSyscallsEnabled":            opts.eventSamplingSyscallsEnabled,
+		"EventSamplingOpenRateUnlimited":          opts.eventSamplingOpenRateUnlimited,
+		"ErpcDentryResolutionEnabled":             erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":              mapDentryResolutionEnabled,
+		"LogPatterns":                             logPatterns,
+		"LogTags":                                 logTags,
+		"EnvsWithValue":                           opts.envsWithValue,
+		"RuntimeSecurityEnabled":                  runtimeSecurityEnabled,
+		"SBOMEnabled":                             opts.enableSBOM,
+		"HostSBOMEnabled":                         opts.enableHostSBOM,
+		"EBPFLessEnabled":                         ebpfLessEnabled,
+		"FIMEnabled":                              opts.enableFIM, // should only be enabled/disabled on windows
+		"NetworkIngressEnabled":                   opts.networkIngressEnabled,
+		"NetworkRawPacketEnabled":                 opts.networkRawPacketEnabled,
+		"OnDemandRateLimiterEnabled":              !opts.disableOnDemandRateLimiter,
+		"EnforcementExcludeBinary":                opts.enforcementExcludeBinary,
+		"EnforcementDisarmerContainerEnabled":     opts.enforcementDisarmerContainerEnabled,
+		"EnforcementDisarmerContainerMaxAllowed":  opts.enforcementDisarmerContainerMaxAllowed,
+		"EnforcementDisarmerContainerPeriod":      opts.enforcementDisarmerContainerPeriod,
+		"EnforcementDisarmerExecutableEnabled":    opts.enforcementDisarmerExecutableEnabled,
+		"EnforcementDisarmerExecutableMaxAllowed": opts.enforcementDisarmerExecutableMaxAllowed,
+		"EnforcementDisarmerExecutablePeriod":     opts.enforcementDisarmerExecutablePeriod,
+		"EventServerRetention":                    opts.eventServerRetention,
+		"EnableSelfTests":                         opts.enableSelfTests,
+		"NetworkFlowMonitorEnabled":               opts.networkFlowMonitorEnabled,
+		"CapabilitiesMonitoringEnabled":           opts.capabilitiesMonitoringEnabled,
+		"CapabilitiesMonitoringPeriod":            opts.capabilitiesMonitoringPeriod,
+		"CaptureAllSyscallErrorsEnabled":          opts.captureAllSyscallErrorsEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -910,7 +893,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 		cfg.SetConfigFile(configFile)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t))
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
 		// special-case permission-denied with a clearer error message

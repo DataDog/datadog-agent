@@ -1,0 +1,6 @@
+# gazelle:ignore
+
+exports_files(
+    ["ConfigureUserCustomActions.cs"],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)

@@ -7,6 +7,7 @@
 package runcmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -25,6 +26,10 @@ func Run(cmd *cobra.Command) int {
 
 	err := cmd.Execute()
 	if err != nil {
+		var exitCoder interface{ ExitCode() int }
+		if errors.As(err, &exitCoder) {
+			return exitCoder.ExitCode()
+		}
 		displayError(err, cmd.ErrOrStderr())
 		return -1
 	}

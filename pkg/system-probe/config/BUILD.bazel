@@ -52,12 +52,14 @@ dd_agent_go_test(
         "config_bpf_test.go",
         "config_darwin_test.go",
         "config_test.go",
+        "config_traceroute_test.go",
     ],
     embed = [":config"],
     gotags_sets = [["bpf"]],
     deps = [
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({

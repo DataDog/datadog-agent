@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/fsuid.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -20,8 +21,16 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
+#include <netinet/ip_icmp.h>
+#include <netinet/icmp6.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <linux/un.h>
+#include <linux/audit.h>
+#include <linux/netlink.h>
 #include <linux/prctl.h>
 #include <linux/sched.h>
 #include <err.h>
@@ -306,6 +315,47 @@ int test_process_set(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// test_snapshot_credentials configures all four Uid/Gid values, then waits
+// to be collected by the process snapshot. The test runs it with effective
+// UID/GID zero so the filesystem IDs can be distinct from the other three.
+int test_snapshot_credentials(int argc, char **argv) {
+    if (argc != 9) {
+        fprintf(stderr, "%s: Please pass real, effective, saved and filesystem UID and GID.\n", __FUNCTION__);
+        return EXIT_FAILURE;
+    }
+
+    uid_t uid = (uid_t)atoi(argv[1]);
+    uid_t euid = (uid_t)atoi(argv[2]);
+    uid_t suid = (uid_t)atoi(argv[3]);
+    uid_t fsuid = (uid_t)atoi(argv[4]);
+    gid_t gid = (gid_t)atoi(argv[5]);
+    gid_t egid = (gid_t)atoi(argv[6]);
+    gid_t sgid = (gid_t)atoi(argv[7]);
+    gid_t fsgid = (gid_t)atoi(argv[8]);
+
+    if (setresgid(gid, egid, sgid) != 0) {
+        perror("setresgid");
+        return EXIT_FAILURE;
+    }
+    (void)setfsgid(fsgid);
+    if (setfsgid(fsgid) != fsgid) {
+        fprintf(stderr, "setfsgid failed\n");
+        return EXIT_FAILURE;
+    }
+    if (setresuid(uid, euid, suid) != 0) {
+        perror("setresuid");
+        return EXIT_FAILURE;
+    }
+    (void)setfsuid(fsuid);
+    if (setfsuid(fsuid) != fsuid) {
+        fprintf(stderr, "setfsuid failed\n");
+        return EXIT_FAILURE;
+    }
+
+    pause();
+    return EXIT_SUCCESS;
+}
+
 int self_exec(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Please pass a command name\n");
@@ -315,6 +365,18 @@ int self_exec(int argc, char **argv) {
     execv("/proc/self/exe", argv + 1);
 
     return EXIT_SUCCESS;
+}
+
+int test_exec(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please pass an executable path\n");
+        return EXIT_FAILURE;
+    }
+
+    execv(argv[1], argv + 1);
+    fprintf(stderr, "execv failed: %s\n", argv[1]);
+
+    return EXIT_FAILURE;
 }
 
 void* connect_thread_ipv4(void *arg) {
@@ -708,15 +770,31 @@ int test_bind(int argc, char** argv) {
 
 int test_connect_af_inet(int argc, char** argv) {
 
-    if (argc != 4) {
+    if (argc != 4 && argc != 5) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
         fprintf(stderr, "Arg3: the port number to connect to\n");
+        fprintf(stderr, "Arg4 (optional, udp only): the number of times the socket connects (default: 1)\n");
         return EXIT_FAILURE;
     }
 
     char* proto = argv[2];
+
+    int count = 1;
+    if (argc == 5) {
+        count = atoi(argv[4]);
+        if (count <= 0) {
+            fprintf(stderr, "Invalid connect count: %s\n", argv[4]);
+            return EXIT_FAILURE;
+        }
+        // connecting an already connected TCP socket fails with EISCONN
+        if (count > 1 && strcmp(proto, "udp")) {
+            fprintf(stderr, "A connect count is only supported with udp\n");
+            return EXIT_FAILURE;
+        }
+    }
+
     int s;
 
     if (!strcmp(proto, "udp"))
@@ -750,10 +828,12 @@ int test_connect_af_inet(int argc, char** argv) {
 
     addr.sin_port = htons(atoi(argv[3]));
 
-    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        close(s);
-        perror("Failed to connect to port");
-        return EXIT_FAILURE;
+    for (int i = 0; i < count; i++) {
+        if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            close(s);
+            perror("Failed to connect to port");
+            return EXIT_FAILURE;
+        }
     }
 
     close (s);
@@ -1149,45 +1229,19 @@ int test_tracer_memfd(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-int test_tracer_memfd_with_keys(int argc, char **argv) {
-    // TracerMetadata with threadlocal_attribute_keys=["http.method", "http.target", "http.user"]
-    const char tracer_data[] =
-        "\x89"                                    // fixmap with 9 entries
-        "\xae" "schema_version" "\x02"            // "schema_version": 2
-        "\xaf" "tracer_language" "\xa3" "cpp"     // "tracer_language": "cpp"
-        "\xae" "tracer_version" "\xa5" "0.0.1"   // "tracer_version": "0.0.1"
-        "\xa8" "hostname" "\xa4" "test"           // "hostname": "test"
-        "\xac" "service_name"
-        "\xac" "test-service"
-        "\xab" "service_env"
-        "\xa8" "test-env"
-        "\xaf" "service_version"
-        "\xa5" "1.0.0"
-        "\xac" "process_tags"
-        "\xb0" "custom.tag:value"
-        "\xba" "threadlocal_attribute_keys"       // key (26 chars)
-        "\x93"                                    // fixarray with 3 elements
-        "\xab" "http.method"                      // str (11 chars)
-        "\xab" "http.target"                      // str (11 chars)
-        "\xa9" "http.user";                       // str (9 chars)
-
-    int fd = memfd_create("datadog-tracer-info-keytest0", MFD_ALLOW_SEALING);
-    if (fd < 0) {
-        err(1, "%s failed", "memfd_create");
+int test_unshare_flags(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify the unshare flags as an integer\n");
+        return EXIT_FAILURE;
     }
 
-    ssize_t written = write(fd, tracer_data, sizeof(tracer_data) - 1);
-    if (written != (ssize_t)(sizeof(tracer_data) - 1)) {
-        err(1, "%s failed: wrote %zd bytes, expected %lu", "write", written, sizeof(tracer_data) - 1);
+    long flags = strtol(argv[1], NULL, 0);
+
+    if (syscall(SYS_unshare, (int)flags) < 0) {
+        perror("unshare");
+        return EXIT_FAILURE;
     }
 
-    if (fcntl(fd, F_ADD_SEALS, F_SEAL_WRITE | F_SEAL_SHRINK | F_SEAL_GROW) < 0) {
-        err(1, "%s failed", "fcntl F_ADD_SEALS");
-    }
-
-    sleep(3);
-
-    close(fd);
     return EXIT_SUCCESS;
 }
 
@@ -1205,6 +1259,82 @@ int test_new_netns_exec(int argc, char **argv) {
     execv(argv[1], argv + 1);
     fprintf(stderr, "execv failed: %s\n", argv[1]);
     return EXIT_FAILURE;
+}
+
+// send_fd sends the file descriptor payload_fd over the unix socket sock_fd using SCM_RIGHTS.
+static int send_fd(int sock_fd, int payload_fd) {
+    char data = 'x';
+    struct iovec io = {.iov_base = &data, .iov_len = 1};
+    union {
+        char buf[CMSG_SPACE(sizeof(int))];
+        struct cmsghdr align;
+    } u;
+    memset(&u, 0, sizeof(u));
+
+    struct msghdr msg = {0};
+    msg.msg_iov = &io;
+    msg.msg_iovlen = 1;
+    msg.msg_control = u.buf;
+    msg.msg_controllen = sizeof(u.buf);
+
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+    memcpy(CMSG_DATA(cmsg), &payload_fd, sizeof(int));
+
+    if (sendmsg(sock_fd, &msg, 0) < 0) {
+        perror("sendmsg");
+        return -1;
+    }
+    return 0;
+}
+
+// test_create_socket_send_fd creates a socket of the requested domain/type and sends it back to the
+// parent over the unix socket inherited as fd 3 (via SCM_RIGHTS). The socket is created by this
+// (child) process, so the cgroup/sock_create hook records this process's pid in sk_storage_pid.
+int test_create_socket_send_fd(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Please specify a socket domain (ipv4/ipv6/unix) and type (tcp/udp)\n");
+        return EXIT_FAILURE;
+    }
+
+    int domain;
+    if (strcmp(argv[1], "ipv4") == 0) {
+        domain = AF_INET;
+    } else if (strcmp(argv[1], "ipv6") == 0) {
+        domain = AF_INET6;
+    } else if (strcmp(argv[1], "unix") == 0) {
+        domain = AF_UNIX;
+    } else {
+        fprintf(stderr, "invalid domain: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    int type;
+    if (strcmp(argv[2], "tcp") == 0) {
+        type = SOCK_STREAM;
+    } else if (strcmp(argv[2], "udp") == 0) {
+        type = SOCK_DGRAM;
+    } else {
+        fprintf(stderr, "invalid type: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    int fd = socket(domain, type, 0);
+    if (fd < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    // fd 3 is the unix socket passed by the parent through which we send our socket fd
+    if (send_fd(3, fd) < 0) {
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    close(fd);
+    return EXIT_SUCCESS;
 }
 
 int test_network_flow_send_udp4(int argc, char **argv) {
@@ -1710,6 +1840,51 @@ int test_acct(int argc, char **argv) {
     return err;
 }
 
+// vfs_mknod gates character devices on capable(CAP_MKNOD), which targets the initial user namespace
+int test_mknod_chardev(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a path for the character device\n");
+        return EXIT_FAILURE;
+    }
+
+    unlink(argv[1]);
+    if (mknod(argv[1], S_IFCHR | 0600, makedev(1, 3))) {
+        perror("mknod");
+    }
+    unlink(argv[1]);
+
+    return EXIT_SUCCESS;
+}
+
+// an AUDIT_USER message reaches netlink_capable(CAP_AUDIT_WRITE), which also targets the initial user namespace
+int test_netlink_audit_user(int argc, char **argv) {
+    int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_AUDIT);
+    if (sock < 0) {
+        perror("socket(NETLINK_AUDIT)");
+        return EXIT_FAILURE;
+    }
+
+    struct {
+        struct nlmsghdr hdr;
+        char payload[8];
+    } request = {0};
+    request.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(request.payload));
+    request.hdr.nlmsg_type = AUDIT_USER;
+    request.hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+    request.hdr.nlmsg_seq = 1;
+
+    struct sockaddr_nl dest = {0};
+    dest.nl_family = AF_NETLINK;
+
+    if (sendto(sock, &request, request.hdr.nlmsg_len, 0, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
+        perror("sendto(AUDIT_USER)");
+    }
+
+    close(sock);
+
+    return EXIT_SUCCESS;
+}
+
 int test_pause(int argc, char **argv) {
     if (argc != 1) {
         fprintf(stderr, "Usage: %s\n", argv[0]);
@@ -1821,6 +1996,171 @@ void *udp_client_thread(void *arg) {
     return NULL;
 }
 
+#define NETWORK_PROBE_ECHO_ID 0x4242
+
+static u_int16_t icmp_checksum(void *data, int len) {
+    u_int32_t sum = 0;
+    u_int16_t *p = data;
+
+    for (; len > 1; len -= 2) {
+        sum += *p++;
+    }
+    if (len == 1) {
+        sum += *(u_int8_t *)p;
+    }
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum += (sum >> 16);
+
+    return ~sum;
+}
+
+static int set_recv_timeout(int fd) {
+    struct timeval tv = { .tv_sec = 1 };
+    return setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+}
+
+// network_probe_icmp_echo sends an ICMP echo request to the loopback address and returns 1 if the reply is received
+static int network_probe_icmp_echo(int family) {
+    int fd = socket(family, SOCK_RAW, family == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6);
+    if (fd < 0) {
+        return -1;
+    }
+
+    if (set_recv_timeout(fd) < 0) {
+	close(fd);
+	return -1;
+    }
+
+    struct sockaddr_storage addr = {};
+    socklen_t addr_len;
+    char req[64] = {};
+    if (family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)&addr;
+        sin->sin_family = AF_INET;
+        sin->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr_len = sizeof(*sin);
+
+        struct icmphdr *icmp = (struct icmphdr *)req;
+        icmp->type = ICMP_ECHO;
+        icmp->un.echo.id = htons(NETWORK_PROBE_ECHO_ID);
+        icmp->un.echo.sequence = htons(1);
+        icmp->checksum = icmp_checksum(req, sizeof(req));
+    } else {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&addr;
+        sin6->sin6_family = AF_INET6;
+        sin6->sin6_addr = in6addr_loopback;
+        addr_len = sizeof(*sin6);
+
+        // the checksum of ICMPv6 raw sockets is computed by the kernel
+        struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)req;
+        icmp6->icmp6_type = ICMP6_ECHO_REQUEST;
+        icmp6->icmp6_id = htons(NETWORK_PROBE_ECHO_ID);
+        icmp6->icmp6_seq = htons(1);
+    }
+
+    if (sendto(fd, req, sizeof(req), 0, (struct sockaddr *)&addr, addr_len) < 0) {
+        int ret = errno == ENOBUFS || errno == EPERM ? 0 : -1;
+        close(fd);
+        return ret;
+    }
+
+    // raw sockets also receive the echo requests looped back, skip them
+    char buf[1500];
+    for (int i = 0; i < 16; i++) {
+        ssize_t n = recv(fd, buf, sizeof(buf), 0);
+        if (n < 0) {
+            break;
+        }
+
+        if (family == AF_INET) {
+            struct iphdr *ip = (struct iphdr *)buf;
+            size_t ip_len = ip->ihl * 4;
+            struct icmphdr *icmp = (struct icmphdr *)(buf + ip_len);
+            if ((size_t)n >= ip_len + sizeof(*icmp) && icmp->type == ICMP_ECHOREPLY && icmp->un.echo.id == htons(NETWORK_PROBE_ECHO_ID)) {
+                close(fd);
+                return 1;
+            }
+        } else {
+            struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)buf;
+            if ((size_t)n >= sizeof(*icmp6) && icmp6->icmp6_type == ICMP6_ECHO_REPLY && icmp6->icmp6_id == htons(NETWORK_PROBE_ECHO_ID)) {
+                close(fd);
+                return 1;
+            }
+        }
+    }
+
+    close(fd);
+    return 0;
+}
+
+// network_probe_udp6_dstopts sends an UDP datagram with an IPv6 Destination Options extension header
+// to the loopback address and returns 1 if it is received
+static int network_probe_udp6_dstopts() {
+    int ret = -1;
+    struct sockaddr_in6 addr = { .sin6_family = AF_INET6, .sin6_addr = in6addr_loopback };
+    socklen_t addr_len = sizeof(addr);
+
+    int rfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    int sfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (rfd < 0 || sfd < 0 || set_recv_timeout(rfd) < 0) {
+        goto out;
+    }
+
+    if (bind(rfd, (struct sockaddr *)&addr, addr_len) < 0 || getsockname(rfd, (struct sockaddr *)&addr, &addr_len) < 0) {
+        goto out;
+    }
+
+    // a single PadN option filling the 8 bytes of the header
+    unsigned char dstopts[8] = { 0, 0, IP6OPT_PADN, 4, 0, 0, 0, 0 };
+    if (setsockopt(sfd, IPPROTO_IPV6, IPV6_DSTOPTS, dstopts, sizeof(dstopts)) < 0) {
+        goto out;
+    }
+
+    if (sendto(sfd, "DATA", 4, 0, (struct sockaddr *)&addr, addr_len) < 0) {
+        ret = errno == ENOBUFS || errno == EPERM ? 0 : -1;
+        goto out;
+    }
+
+    char buf[16];
+    ret = recv(rfd, buf, sizeof(buf), 0) > 0 ? 1 : 0;
+
+out:
+    if (rfd >= 0) {
+        close(rfd);
+    }
+    if (sfd >= 0) {
+        close(sfd);
+    }
+    return ret;
+}
+
+int test_network_probe(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: network-probe <icmp4|icmp6|udp6-dstopts>\n");
+        return EXIT_FAILURE;
+    }
+
+    int ret;
+    if (strcmp(argv[1], "icmp4") == 0) {
+        ret = network_probe_icmp_echo(AF_INET);
+    } else if (strcmp(argv[1], "icmp6") == 0) {
+        ret = network_probe_icmp_echo(AF_INET6);
+    } else if (strcmp(argv[1], "udp6-dstopts") == 0) {
+        ret = network_probe_udp6_dstopts();
+    } else {
+        fprintf(stderr, "Unknown network probe: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    if (ret < 0) {
+        printf("%s: error: %s\n", argv[1], strerror(errno));
+    } else {
+        printf("%s: %s\n", argv[1], ret ? "delivered" : "blocked");
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int test_udploop(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "Usage: udploop <port>\n");
@@ -1900,6 +2240,143 @@ int test_dnsloop(int argc, char **argv) {
         fflush(stdout);
         sleep(1);
     }
+
+    return EXIT_SUCCESS;
+}
+
+// subreaper test: sets the current process as a subreaper, forks a child that
+// forks a grandchild and immediately exits. The grandchild is reparented to the
+// subreaper, performs 50 fork/exit cycles to stress the process cache, then
+// opens the file given as argument.
+// Usage: syscall_tester subreaper <filepath>
+int test_subreaper(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: subreaper <filepath>\n");
+        return EXIT_FAILURE;
+    }
+    char *filepath = argv[1];
+
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0) {
+        perror("prctl PR_SET_CHILD_SUBREAPER");
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork (child)");
+        return EXIT_FAILURE;
+    }
+
+    if (child == 0) {
+        // child: fork a grandchild and exit immediately
+        pid_t grandchild = fork();
+        if (grandchild < 0) {
+            perror("fork (grandchild)");
+            _exit(EXIT_FAILURE);
+        }
+        if (grandchild == 0) {
+            // Build a chain of 50 fork/exit: each process forks a child,
+            // the parent exits, and the last child in the chain opens the file.
+            // Every intermediate process is reparented to the subreaper.
+            for (int i = 0; i < 50; i++) {
+                pid_t p = fork();
+                if (p < 0) {
+                    // fork failed: this process opens the file instead
+                    break;
+                }
+                if (p > 0) {
+                    // parent: exit, child will be reparented to subreaper
+                    _exit(EXIT_SUCCESS);
+                }
+                // child: continue the loop to fork the next level
+            }
+
+            // Wait for the previous process in the chain to exit and for
+            // the kernel to complete reparenting before opening the file.
+            sleep(1);
+
+            int fd = open(filepath, O_RDONLY | O_CREAT, 0400);
+            if (fd > 0)
+                close(fd);
+
+            _exit(EXIT_SUCCESS);
+        }
+        // child exits, grandchild will be reparented to the subreaper
+        _exit(EXIT_SUCCESS);
+    }
+
+    // subreaper: wait for child, then wait for all reparented descendants.
+    // With the fork/exit chain, every intermediate process is reparented to
+    // this subreaper. We must stay alive and reap them all so that the last
+    // child in the chain still has us as its parent when it opens the file.
+    waitpid(child, NULL, 0);
+    while (waitpid(-1, NULL, 0) > 0) {}
+
+    return EXIT_SUCCESS;
+}
+
+// subreaper-with-var: sets the current process as a subreaper, forks an
+// intermediate child which opens <trigger_file> (to fire a rule that sets an
+// inherited process-scoped SECL variable), then forks a grandchild and exits.
+// The grandchild waits for the kernel to complete reparenting onto the
+// subreaper, then opens <check_file>. The intermediate is now gone from the
+// grandchild's parent chain, so a rule reading the inherited variable on the
+// <check_file> event must rely on a pre-reparent snapshot to still see the
+// value set on the intermediate.
+// Usage: syscall_tester subreaper-with-var <trigger_file> <check_file>
+int test_subreaper_with_var(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: subreaper-with-var <trigger_file> <check_file>\n");
+        return EXIT_FAILURE;
+    }
+    char *trigger_file = argv[1];
+    char *check_file = argv[2];
+
+    if (prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0) {
+        perror("prctl PR_SET_CHILD_SUBREAPER");
+        return EXIT_FAILURE;
+    }
+
+    pid_t child = fork();
+    if (child < 0) {
+        perror("fork (child)");
+        return EXIT_FAILURE;
+    }
+
+    if (child == 0) {
+        // intermediate: open trigger_file so the set-variable rule fires on
+        // this process scope, then fork a grandchild and exit.
+        int fd = open(trigger_file, O_RDONLY | O_CREAT, 0400);
+        if (fd > 0)
+            close(fd);
+
+        // give the agent a moment to process the trigger event before we exit
+        sleep(1);
+
+        pid_t grandchild = fork();
+        if (grandchild < 0) {
+            perror("fork (grandchild)");
+            _exit(EXIT_FAILURE);
+        }
+        if (grandchild == 0) {
+            // grandchild: wait for the kernel reparenting to settle, then open
+            // check_file so the inheritance-check rule evaluates against the
+            // post-reparent process context.
+            sleep(2);
+
+            int gfd = open(check_file, O_RDONLY | O_CREAT, 0400);
+            if (gfd > 0)
+                close(gfd);
+
+            _exit(EXIT_SUCCESS);
+        }
+        // intermediate exits; the kernel reparents grandchild onto the subreaper
+        _exit(EXIT_SUCCESS);
+    }
+
+    // subreaper: wait for the intermediate, then reap the reparented grandchild
+    waitpid(child, NULL, 0);
+    while (waitpid(-1, NULL, 0) > 0) {}
 
     return EXIT_SUCCESS;
 }
@@ -2028,6 +2505,8 @@ int main(int argc, char **argv) {
             exit_code = test_mkdirat_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "process-credentials") == 0) {
             exit_code = test_process_set(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "snapshot-credentials") == 0) {
+            exit_code = test_snapshot_credentials(sub_argc, sub_argv);
         } else if (strcmp(cmd, "self-exec") == 0) {
             exit_code = self_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "accept") == 0) {
@@ -2054,6 +2533,8 @@ int main(int argc, char **argv) {
             exit_code = test_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unlink") == 0) {
             exit_code = test_unlink(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "exec") == 0) {
+            exit_code = test_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {
@@ -2062,16 +2543,20 @@ int main(int argc, char **argv) {
             exit_code = test_memfd_create(sub_argc, sub_argv);
         } else if (strcmp(cmd, "tracer-memfd") == 0) {
             exit_code = test_tracer_memfd(sub_argc, sub_argv);
-        } else if (strcmp(cmd, "tracer-memfd-with-keys") == 0) {
-            exit_code = test_tracer_memfd_with_keys(sub_argc, sub_argv);
         } else if (strcmp(cmd, "new_netns_exec") == 0) {
             exit_code = test_new_netns_exec(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "create_socket_send_fd") == 0) {
+            exit_code = test_create_socket_send_fd(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "unshare-flags") == 0) {
+            exit_code = test_unshare_flags(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "network-probe") == 0) {
+            exit_code = test_network_probe(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod-error") == 0) {
             exit_code = test_chmod_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod") == 0) {
@@ -2090,6 +2575,10 @@ int main(int argc, char **argv) {
             exit_code = test_connect_and_send(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chroot") == 0) {
             exit_code = test_chroot(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "mknod-chardev") == 0) {
+            exit_code = test_mknod_chardev(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "netlink-audit-user") == 0) {
+            exit_code = test_netlink_audit_user(sub_argc, sub_argv);
         } else if (strcmp(cmd, "acct") == 0) {
             exit_code = test_acct(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pause") == 0) {
@@ -2100,6 +2589,10 @@ int main(int argc, char **argv) {
             exit_code = test_udploop(sub_argc, sub_argv);
         } else if (strcmp(cmd, "dnsloop") == 0) {
             exit_code = test_dnsloop(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "subreaper") == 0) {
+            exit_code = test_subreaper(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "subreaper-with-var") == 0) {
+            exit_code = test_subreaper_with_var(sub_argc, sub_argv);
         } else if (strcmp(cmd, "process-clone-into-cgroup") == 0) {
             exit_code = test_clone_into_cgroup(sub_argc, sub_argv);
         } else {

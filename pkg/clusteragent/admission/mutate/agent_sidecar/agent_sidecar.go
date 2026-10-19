@@ -21,6 +21,7 @@ import (
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
@@ -167,9 +168,13 @@ func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
 // WebhookFunc returns the function that mutates the resources
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
+		requestContext := request.Context
+		if requestContext == nil {
+			requestContext = context.Background()
+		}
 		// Create a wrapper function that includes the request context (DryRun and APIClient)
 		injectFunc := func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
-			return w.injectAgentSidecar(pod, ns, dc, request.APIClient, request.DryRun)
+			return w.injectAgentSidecar(requestContext, pod, ns, dc, request.APIClient, request.DryRun)
 		}
 		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), injectFunc, request.DynamicClient))
 	}
@@ -209,7 +214,7 @@ func mountVolume(c *corev1.Container, vm corev1.VolumeMount) error {
 	return nil
 }
 
-func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynamic.Interface, apiClient kubernetes.Interface, dryRun *bool) (bool, error) {
+func (w *Webhook) injectAgentSidecar(requestContext context.Context, pod *corev1.Pod, namespace string, _ dynamic.Interface, apiClient kubernetes.Interface, dryRun *bool) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
@@ -221,6 +226,29 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 	podUpdated := false
 
 	if !agentSidecarExists {
+		if err := w.validateAgentSidecarSecret(requestContext, namespace, apiClient); err != nil {
+			if reason := agentSidecarSecretSkipReason(err); reason != "" {
+				log.Warnf("Skipping Agent sidecar injection for pod %s/%s: %v", namespace, pod.GetName(), err)
+				if pod.Annotations == nil {
+					pod.Annotations = map[string]string{}
+				}
+				pod.Annotations[agentSidecarInjectionStatusAnnotation] = agentSidecarInjectionStatusSkipped
+				pod.Annotations[agentSidecarInjectionErrorAnnotation] = err.Error()
+				metrics.AgentSidecarInjectionSkipped.Inc(reason)
+				if w.provider == providerFargate {
+					deleteConfigWebhookVolumesAndMounts(pod)
+				}
+
+				// The pod was annotated, but the sidecar itself was not injected.
+				return false, nil
+			}
+
+			// Secret validation is best effort so that this Agent change can be rolled out
+			// before deployment tools grant the Cluster Agent permission to read the Secret.
+			// Preserve the existing injection behavior when the check cannot be performed.
+			log.Debugf("Unable to validate Agent sidecar Secret for pod %s/%s, proceeding with injection: %v", namespace, pod.GetName(), err)
+		}
+
 		// 1. Create the agent sidecar container
 		agentSidecarContainer := w.getDefaultSidecarTemplate()
 
@@ -341,6 +369,62 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, namespace string, _ dynami
 	}
 
 	return podUpdated, nil
+}
+
+func (w *Webhook) validateAgentSidecarSecret(ctx context.Context, namespace string, apiClient kubernetes.Interface) error {
+	apiKeyOverridden := w.isAgentSidecarCredentialOverridden("DD_API_KEY")
+	tokenOverridden := w.isAgentSidecarCredentialOverridden("DD_CLUSTER_AGENT_AUTH_TOKEN")
+	if apiKeyOverridden && (!w.isClusterAgentEnabled || tokenOverridden) {
+		return nil
+	}
+
+	if apiClient == nil {
+		return errors.New("Kubernetes API client is unavailable")
+	}
+
+	secret, err := apiClient.CoreV1().Secrets(namespace).Get(ctx, agentSidecarSecretName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return errAgentSidecarSecretNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get Agent sidecar Secret: %w", err)
+	}
+
+	if !apiKeyOverridden {
+		if _, found := secret.Data["api-key"]; !found {
+			return errAgentSidecarAPIKeyNotFound
+		}
+	}
+	if w.isClusterAgentEnabled && !tokenOverridden {
+		if _, found := secret.Data["token"]; !found {
+			return errAgentSidecarTokenNotFound
+		}
+	}
+
+	return nil
+}
+
+func (w *Webhook) isAgentSidecarCredentialOverridden(envName string) bool {
+	if len(w.profileOverrides) == 0 {
+		return false
+	}
+
+	return slices.ContainsFunc(w.profileOverrides[0].EnvVars, func(envVar corev1.EnvVar) bool {
+		return envVar.Name == envName
+	})
+}
+
+func agentSidecarSecretSkipReason(err error) string {
+	switch {
+	case errors.Is(err, errAgentSidecarSecretNotFound):
+		return agentSidecarSkipReasonSecretNotFound
+	case errors.Is(err, errAgentSidecarAPIKeyNotFound):
+		return agentSidecarSkipReasonAPIKeyNotFound
+	case errors.Is(err, errAgentSidecarTokenNotFound):
+		return agentSidecarSkipReasonTokenNotFound
+	default:
+		return ""
+	}
 }
 
 func (w *Webhook) getSecurityInitTemplate() *corev1.Container {

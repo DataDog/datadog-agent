@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/semaphore"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -50,7 +48,7 @@ type Worker struct {
 	waitForInflight bool
 
 	// The maximum number of HTTP requests we can have inflight at any one time.
-	maxConcurrentRequests *semaphore.Weighted
+	maxConcurrentRequests weightedSemaphore
 	workerCtx             context.Context
 	cancel                context.CancelFunc
 	requestWg             sync.WaitGroup
@@ -75,13 +73,8 @@ func NewWorker(
 	blocked *blockedEndpoints,
 	pointCountTelemetry PointCountTelemetry,
 	httpClient *SharedConnection,
+	concurrency concurrencyPolicy,
 ) *Worker {
-	maxConcurrentRequests := config.GetInt64("forwarder_max_concurrent_requests")
-	if maxConcurrentRequests <= 0 {
-		log.Warnf("Invalid forwarder_max_concurrent_requests '%d', setting to 1", maxConcurrentRequests)
-		maxConcurrentRequests = 1
-	}
-
 	workerCtx, cancel := context.WithCancel(context.Background())
 
 	worker := &Worker{
@@ -97,7 +90,7 @@ func NewWorker(
 		blockedList:           blocked,
 		pointCountTelemetry:   pointCountTelemetry,
 		waitForInflight:       config.GetBool("forwarder_stop_wait_for_inflight"),
-		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
+		maxConcurrentRequests: concurrency.newRequestSemaphore(),
 		workerCtx:             workerCtx,
 		cancel:                cancel,
 	}
