@@ -15,12 +15,12 @@ import (
 
 type eligibleProvider bool
 
-func (p eligibleProvider) CanCollectInventory() bool          { return bool(p) }
-func (eligibleProvider) GetInventoryData() ServerlessInitData { return ServerlessInitData{} }
+func (p eligibleProvider) CanCollectMetadata() bool        { return bool(p) }
+func (eligibleProvider) GetMetadata() CloudServiceMetadata { return CloudServiceMetadata{} }
 
-func TestInventoryEligible(t *testing.T) {
-	assert.False(t, InventoryEligible(config.NewMock(t), eligibleProvider(true)), "default off")
+func TestEligible(t *testing.T) {
+	assert.False(t, Eligible(config.NewMock(t), eligibleProvider(true)), "default off")
 	conf := config.NewMockWithOverrides(t, map[string]any{"serverless.inventory_enabled": true})
-	assert.False(t, InventoryEligible(conf, eligibleProvider(false)))
-	assert.True(t, InventoryEligible(conf, eligibleProvider(true)))
+	assert.False(t, Eligible(conf, eligibleProvider(false)))
+	assert.True(t, Eligible(conf, eligibleProvider(true)))
 }

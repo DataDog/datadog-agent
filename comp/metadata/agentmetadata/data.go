@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventorypayload
+package agentmetadata
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"go.yaml.in/yaml/v3"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -27,13 +28,14 @@ import (
 var installinfoGet = installinfo.Get
 
 // Data builds the common inventory-agent fields and wire payload without a component lifecycle.
-// Callers serialize access and must not mutate values after adding them to a payload.
+// Values added to the payload must not be mutated afterwards.
 type Data struct {
 	conf         config.Component
 	log          log.Component
 	hostnameComp hostnameinterface.Component
 	hostname     string
 	data         agentMetadata
+	mu           sync.Mutex
 }
 
 // NewData collects the common metadata. It does not run the full-Agent collectors.
@@ -85,6 +87,8 @@ func (ia *Data) initData() {
 // Set stores a metadata value in the payload. The given value will be stored in the cache without being copied. It is
 // up to the caller to make sure the given value will not be modified later. It returns whether the stored value changed.
 func (ia *Data) Set(name string, value interface{}) bool {
+	ia.mu.Lock()
+	defer ia.mu.Unlock()
 	if reflect.DeepEqual(ia.data[name], value) {
 		return false
 	}
@@ -94,6 +98,8 @@ func (ia *Data) Set(name string, value interface{}) bool {
 
 // Get returns a copy of the metadata.
 func (ia *Data) Get() map[string]interface{} {
+	ia.mu.Lock()
+	defer ia.mu.Unlock()
 	data := map[string]interface{}{}
 	maps.Copy(data, ia.data)
 	return data
@@ -151,6 +157,8 @@ func (ia *Data) getConfigs(data agentMetadata) {
 
 // GetPayload snapshots the common fields, overlays fields, and includes the configured scrubbed configuration.
 func (ia *Data) GetPayload(fields map[string]interface{}, id string) *Payload {
+	ia.mu.Lock()
+	defer ia.mu.Unlock()
 	data := maps.Clone(ia.data)
 	maps.Copy(data, fields)
 	ia.getConfigs(data)

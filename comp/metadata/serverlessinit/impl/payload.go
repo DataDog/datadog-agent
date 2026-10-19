@@ -28,7 +28,7 @@ const serverlessInitFlavor = "serverless-init"
 // serverless context into the (unprefixed) agent_metadata keys. env, service,
 // and version come from the tag map so they match the values this container
 // tags its telemetry with; site is not a tag, so it comes from the config.
-func buildFields(inv serverlessdef.ServerlessInitData, params serverlessdef.Params, conf configmodel.Reader) map[string]interface{} {
+func buildFields(inv serverlessdef.CloudServiceMetadata, params serverlessdef.Params, conf configmodel.Reader) map[string]interface{} {
 	wrappedCommand := params.WrappedCommand
 	if params.Sidecar {
 		wrappedCommand = nil

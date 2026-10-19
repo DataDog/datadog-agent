@@ -318,7 +318,7 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
-		fx.Provide(func() serverlessdef.InventoryProvider { return cloudService }),
+		fx.Provide(func() serverlessdef.CloudServiceMetadataProvider { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
 		fx.Supply(serverlessdef.Params{
