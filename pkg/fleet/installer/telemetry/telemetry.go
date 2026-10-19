@@ -45,7 +45,10 @@ type Telemetry struct {
 	telemetryClient  *client
 	done             chan struct{}
 	flushed          chan struct{}
+	flushInterval    time.Duration
 	stopFlushTimeout time.Duration
+	sendCtx          context.Context
+	cancelSends      context.CancelFunc
 
 	env     string
 	service string
@@ -71,8 +74,9 @@ func WithDisabled() Option {
 	return func(o *options) { o.disabled = true }
 }
 
-// WithStopFlushTimeout bounds how long Stop waits for the final flush, so an unreachable
-// intake cannot hold up process shutdown for the full send timeout.
+// WithStopFlushTimeout bounds how long Stop waits for sends to finish, both a periodic send
+// already in flight and the final flush, so an unreachable intake cannot hold up process
+// shutdown for the full send timeout.
 func WithStopFlushTimeout(timeout time.Duration) Option {
 	return func(o *options) { o.stopFlushTimeout = timeout }
 }
@@ -113,11 +117,15 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 		log.Debugf("telemetry disabled by configuration")
 	}
 
+	sendCtx, cancelSends := context.WithCancel(context.Background())
 	return &Telemetry{
 		telemetryClient:  newClient(client, []*endpoint{e}, service, site == "datad0g.com", siteSupportsTelemetry && !o.disabled),
 		done:             make(chan struct{}),
 		flushed:          make(chan struct{}),
+		flushInterval:    time.Minute,
 		stopFlushTimeout: o.stopFlushTimeout,
+		sendCtx:          sendCtx,
+		cancelSends:      cancelSends,
 		env:              env,
 		service:          service,
 	}
@@ -125,14 +133,14 @@ func newTelemetry(client *http.Client, apiKey string, site string, service strin
 
 // Start starts the telemetry
 func (t *Telemetry) Start() {
-	ticker := time.Tick(1 * time.Minute)
+	ticker := time.Tick(t.flushInterval)
 	go func() {
 		for {
 			select {
 			case <-ticker:
-				t.sendCompletedSpans()
+				t.sendCompletedSpans(t.sendCtx)
 			case <-t.done:
-				t.sendCompletedSpansWithTimeout(t.stopFlushTimeout)
+				t.sendCompletedSpans(t.sendCtx)
 				close(t.flushed)
 				return
 			}
@@ -142,8 +150,13 @@ func (t *Telemetry) Start() {
 
 // Stop stops the telemetry
 func (t *Telemetry) Stop() {
+	if t.stopFlushTimeout > 0 {
+		deadline := time.AfterFunc(t.stopFlushTimeout, t.cancelSends)
+		defer deadline.Stop()
+	}
 	close(t.done)
 	<-t.flushed
+	t.cancelSends()
 }
 
 func (t *Telemetry) extractCompletedSpans() traces {
@@ -170,18 +183,12 @@ func (t *Telemetry) extractCompletedSpans() traces {
 	return traces(tracesArray)
 }
 
-func (t *Telemetry) sendCompletedSpans() {
-	t.sendCompletedSpansWithTimeout(0)
-}
-
-// sendCompletedSpansWithTimeout sends completed spans, bounding the send by timeout when it is
-// positive and by the client's default send timeout otherwise.
-func (t *Telemetry) sendCompletedSpansWithTimeout(timeout time.Duration) {
+func (t *Telemetry) sendCompletedSpans(ctx context.Context) {
 	tracesArray := t.extractCompletedSpans()
 	if len(tracesArray) == 0 {
 		return
 	}
-	t.telemetryClient.sendTraces(tracesArray, timeout)
+	t.telemetryClient.sendTraces(ctx, tracesArray)
 }
 
 // SpanFromContext returns the span from the context if available.

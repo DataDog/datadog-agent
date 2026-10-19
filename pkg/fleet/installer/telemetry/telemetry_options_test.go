@@ -100,15 +100,52 @@ func TestStopFlushTimeoutBoundsShutdown(t *testing.T) {
 		"Stop must not wait for the full send timeout when the intake does not answer")
 }
 
-func TestSendPayloadWithTimeoutNeverExceedsDefault(t *testing.T) {
-	c := newClient(&recordingHTTPClient{}, nil, "test-service", false, true)
-	c.sendPayloadTimeout = 50 * time.Millisecond
-	server := newUnresponsiveServer(t)
-	c.client = server.Client()
-	c.endpoints = []*endpoint{{Host: server.URL, APIKey: "api"}}
+func TestStopBoundsInFlightPeriodicSend(t *testing.T) {
+	requestStarted := make(chan struct{}, 1)
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case requestStarted <- struct{}{}:
+		default:
+		}
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	t.Cleanup(func() {
+		close(release)
+		server.Close()
+	})
+
+	const stopFlushTimeout = 100 * time.Millisecond
+	telem := newTelemetry(server.Client(), "api", "datadoghq.com", "test-service",
+		WithEndpointURL(server.URL), WithStopFlushTimeout(stopFlushTimeout))
+	telem.flushInterval = 10 * time.Millisecond
+	telem.Start()
+	finishTestSpan()
+
+	select {
+	case <-requestStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the periodic flush never reached the intake")
+	}
 
 	start := time.Now()
-	c.sendPayloadWithTimeout(requestTypeLogs, LogPayload{}, time.Hour)
+	telem.Stop()
 
-	assert.Less(t, time.Since(start), 5*time.Second, "a longer per-call timeout must not extend past the client's send timeout")
+	assert.Less(t, time.Since(start), defaultSendPayloadTimeout/2,
+		"Stop must cancel a periodic send that is already waiting on the intake")
+}
+
+func TestSendPayloadStopsWhenContextCanceled(t *testing.T) {
+	server := newUnresponsiveServer(t)
+	c := newClient(server.Client(), []*endpoint{{Host: server.URL, APIKey: "api"}}, "test-service", false, true)
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(50*time.Millisecond, cancel)
+
+	start := time.Now()
+	c.sendPayloadWithContext(ctx, requestTypeLogs, LogPayload{})
+
+	assert.Less(t, time.Since(start), defaultSendPayloadTimeout/2, "canceling the context must end the send")
 }
