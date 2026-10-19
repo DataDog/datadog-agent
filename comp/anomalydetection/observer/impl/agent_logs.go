@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -179,9 +178,6 @@ func (t *agentLogTap) process(entry queuedAgentLog) {
 		tags = append(tags, "component:"+entry.component)
 	}
 	tags = append(tags, "level:"+status)
-	if t.rules.NeedsSortedTags() {
-		slices.Sort(tags)
-	}
 	if !t.rules.IsAllowed(agentLogSource, tags) {
 		return
 	}

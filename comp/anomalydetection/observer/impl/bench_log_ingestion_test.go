@@ -249,11 +249,7 @@ func BenchmarkLogProducer_Handoff(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				msgTags := sample.Tags()
-				if tc.rules.NeedsSortedTags() {
-					msgTags = slices.Sorted(slices.Values(msgTags))
-				}
-				if !tc.rules.IsAllowed(tc.source, msgTags) {
+				if !tc.rules.IsAllowed(tc.source, sample.Tags()) {
 					continue
 				}
 				if !rateW.Allow(-1) {
@@ -320,11 +316,7 @@ anomaly_detection:
 		metricHandle.ObserveMetric(metricSample, contextKey)
 
 		logSample.timestampMs = tsSec * 1000
-		msgTags := logSample.Tags()
-		if rules.NeedsSortedTags() {
-			msgTags = slices.Sorted(slices.Values(msgTags))
-		}
-		if rules.IsAllowed("containerd", msgTags) {
+		if rules.IsAllowed("containerd", logSample.Tags()) {
 			logHandle.ObserveLog(logSample)
 		}
 	}
