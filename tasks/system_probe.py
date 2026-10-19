@@ -1015,63 +1015,6 @@ def ebpf_bazel_flags(arch: Arch) -> list[str]:
     return []
 
 
-def _bazel_with_bep(subcommand: str, *args: str) -> tuple[str, dict[str, str]]:
-    with tempfile.NamedTemporaryFile(prefix="bazel-bep-", suffix=".json", delete=False) as tmp:
-        bep_path = tmp.name
-    try:
-        bazel(subcommand, f"--build_event_json_file={bep_path}", *args)
-        local_exec_root = ""
-        bindir = ""
-        file_sets: dict[str, list[dict]] = {}
-        target_sets: dict[str, list[str]] = {}
-        with open(bep_path, encoding="utf-8") as f:
-            for line in f:
-                event = json.loads(line)
-                if "workspaceInfo" in event:
-                    local_exec_root = event["workspaceInfo"].get("localExecRoot", "")
-                elif "configuration" in event and not bindir:
-                    bindir = event["configuration"].get("makeVariable", {}).get("BINDIR", "")
-                elif "namedSetOfFiles" in event:
-                    set_id = event["id"]["namedSet"]["id"]
-                    file_sets[set_id] = event["namedSetOfFiles"].get("files", [])
-                elif "completed" in event and "targetCompleted" in event.get("id", {}):
-                    label = event["id"]["targetCompleted"]["label"]
-                    for group in event["completed"].get("outputGroup", []):
-                        if group.get("name") == "default":
-                            target_sets[label] = [fs["id"] for fs in group.get("fileSets", [])]
-        bazel_bin = (
-            os.path.join(local_exec_root, bindir)
-            if (local_exec_root and bindir)
-            else bazel("info", "bazel-bin", capture_output=True).strip()
-        )
-        executables: dict[str, str] = {}
-        for label, set_ids in target_sets.items():
-            for sid in set_ids:
-                if files := file_sets.get(sid):
-                    f0 = files[0]
-                    rel = os.path.join(*f0.get("pathPrefix", []), f0["name"])
-                    full = (
-                        os.path.join(local_exec_root, rel) if local_exec_root else os.path.join(bazel_bin, f0["name"])
-                    )
-                    executables[label] = full
-                    if label.startswith("@@"):
-                        repo, rest = label[2:].split("//", 1)
-                        short_repo = repo.rsplit("+", 1)[-1]
-                        executables[f"@{short_repo}//{rest}"] = full
-                    break
-        return bazel_bin, executables
-    finally:
-        if os.path.exists(bep_path):
-            os.unlink(bep_path)
-
-
-def _run_pkg_install(ctx: Context, installer: str, destdir: str | Path, *, sudo: bool = False) -> None:
-    prefix = "sudo env PYTHONDONTWRITEBYTECODE=1" if sudo else "env"
-    quoted_installer = shlex.quote(installer)
-    quoted_destdir = shlex.quote(f"--destdir={os.path.abspath(destdir)}")
-    ctx.run(f"{prefix} RULES_PYTHON_ADDITIONAL_INTERPRETER_ARGS=-I {quoted_installer} {quoted_destdir}")
-
-
 def bazel_build_ebpf(
     ctx: Context,
     arch: Arch,
@@ -1080,7 +1023,7 @@ def bazel_build_ebpf(
     *,
     verify: bool = False,
     extra_targets: list[str] | tuple[str, ...] = (),
-) -> tuple[str, dict[str, str]]:
+) -> str:
     """Build all eBPF artifacts via a single Bazel invocation.
 
     Builds eBPF .o objects (prebuilt, CO-RE, inplace), runtime flattened .c
@@ -1110,7 +1053,8 @@ def bazel_build_ebpf(
     subcommand = "test" if verify else "build"
 
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
-    bazel_bin, executables = _bazel_with_bep(subcommand, *extra_flags, *all_build_targets)
+    bazel(subcommand, *extra_flags, *all_build_targets)
+    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
 
     co_re_dir = os.path.join(build_dir, "co-re")
     os.makedirs(build_dir, exist_ok=True)
@@ -1193,7 +1137,7 @@ def bazel_build_ebpf(
             print(f"Warning: expected runtime hash output {src} not found")
 
     print(f"Copied runtime hash files to {go_dest}")
-    return bazel_bin, executables
+    return bazel_bin
 
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
@@ -1226,7 +1170,8 @@ def bazel_build_windows_resources(
     if verify:
         targets.append("//pkg/ebpf:verify_generated_files")
     subcommand = "test" if verify else "build"
-    bazel_bin, _ = _bazel_with_bep(subcommand, *extra_flags, *targets)
+    bazel(subcommand, *extra_flags, *targets)
+    bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
 
     copies = [(os.path.join(bazel_bin, bazel_rel), dst) for bazel_rel, dst in _BAZEL_WINDOWS_RESOURCE_COPIES]
     for src, dst in copies:
@@ -1262,7 +1207,6 @@ def build_object_files(
     runtime_dir = get_ebpf_runtime_dir()
 
     arch_flags = ebpf_bazel_flags(arch_obj)
-    executables: dict[str, str] | None = None
 
     if not is_windows:
         check_for_inline(ctx)
@@ -1273,9 +1217,7 @@ def build_object_files(
         if not arch_obj.is_cross_compiling():
             extra_targets.extend(t for t, _ in _rust_install_targets())
 
-        _, executables = bazel_build_ebpf(
-            ctx, arch_obj, build_dir, runtime_dir, verify=True, extra_targets=extra_targets
-        )
+        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir, verify=True, extra_targets=extra_targets)
 
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         # Keep Bazel unprivileged: its sandbox needs access to the caller's repository cache.
@@ -1284,14 +1226,22 @@ def build_object_files(
         needs_sudo = not is_root()
         sudo = "sudo" if needs_sudo else ""
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        _run_pkg_install(ctx, executables["@llvm_bpf//:install"], "/opt/datadog-agent", sudo=needs_sudo)
+        with tempfile.NamedTemporaryFile(prefix="llvm-bpf-install-", suffix=".sh", delete=False) as tmp:
+            script = tmp.name
+        try:
+            bazel("run", f"--script_path={script}", *arch_flags, "@llvm_bpf//:install")
+            prefix = "sudo env PYTHONDONTWRITEBYTECODE=1" if needs_sudo else "env"
+            ctx.run(f"{prefix} {shlex.quote(script)} --destdir=/opt/datadog-agent")
+        finally:
+            if os.path.exists(script):
+                os.unlink(script)
 
     if is_windows:
         bazel_build_windows_resources(ctx, verify=True, extra_flags=arch_flags)
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
-    build_rust_binaries(ctx, arch=arch_obj, executables=executables)
+    build_rust_binaries(ctx, arch=arch_obj)
 
     if not is_windows:
         sudo = "" if is_root() else "sudo"
@@ -1327,31 +1277,22 @@ def build_object_files(
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
-def build_rust_binaries(
-    ctx: Context,
-    arch: Arch,
-    output_dir: Path | None = None,
-    packages: list[str] | None = None,
-    executables: dict[str, str] | None = None,
-):
+def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None, packages: list[str] | None = None):
     rust_targets = _rust_install_targets(output_dir=output_dir, packages=packages)
     if not rust_targets:
         return
 
-    if executables is None or any(t not in executables for t, _ in rust_targets):
-        platform_map = {
-            "x86_64": "//bazel/platforms:linux_x86_64",
-            "arm64": "//bazel/platforms:linux_arm64",
-        }
+    platform_map = {
+        "x86_64": "//bazel/platforms:linux_x86_64",
+        "arm64": "//bazel/platforms:linux_arm64",
+    }
 
-        platform_flags = []
-        if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
-            platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
-
-        _, executables = _bazel_with_bep("build", *platform_flags, *(t for t, _ in rust_targets))
+    platform_flags = []
+    if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
+        platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for target, dest in rust_targets:
-        _run_pkg_install(ctx, executables[target], dest)
+        bazel("run", *platform_flags, "--", f"@{target}", f"--destdir={dest}")
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
@@ -1372,7 +1313,7 @@ def build_cws_object_files(
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
     extra_targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys()) if with_unit_test else []
-    bazel_bin, _ = bazel_build_ebpf(
+    bazel_bin = bazel_build_ebpf(
         ctx, arch_obj, str(build_dir), str(runtime_dir), verify=True, extra_targets=extra_targets
     )
 
