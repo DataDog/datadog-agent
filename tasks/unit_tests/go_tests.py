@@ -2,6 +2,7 @@ import subprocess
 import unittest
 from unittest.mock import MagicMock, patch
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.gotest import (
@@ -11,8 +12,10 @@ from tasks.gotest import (
     _run_bazel_tests,
     _target_to_bazel_pattern,
     find_impacted_packages,
+    get_modified_packages,
     should_run_all_tests,
 )
+from tasks.modules import GoModule
 
 
 class TestUtils(unittest.TestCase):
@@ -85,6 +88,25 @@ class TestUtils(unittest.TestCase):
         trigger_files = ["pkgs/*"]
 
         self.assertFalse(should_run_all_tests(None, trigger_files))
+
+
+class TestGetModifiedPackages(unittest.TestCase):
+    """Tests for the package selection used by `linter.go -o` and `test -o`."""
+
+    @patch(
+        "tasks.gotest.get_go_modified_files",
+        new=MagicMock(return_value=["comp/api/api/def/foo.go", "comp/api/api/def/bar.go"]),
+    )
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="comp/api/api/def"))
+    @patch("tasks.gotest.get_module_by_path", new=MagicMock(return_value=GoModule("comp/api/api/def")))
+    def test_no_duplicate_target_for_files_in_same_package(self):
+        # Several files in the same package of a nested module must yield a single
+        # target, in both `test_targets` and `lint_targets`.
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules[0].test_targets, ["./."])
+        self.assertEqual(modules[0].lint_targets, ["./."])
 
 
 class TestTargetToBazelPattern(unittest.TestCase):

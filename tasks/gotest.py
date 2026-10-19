@@ -1024,10 +1024,8 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
 
         if best_module_path in modules_to_test:
-            if (
-                modules_to_test[best_module_path].test_targets is not None
-                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].test_targets
-            ):
+            # Both sides of the comparison are module-relative paths.
+            if relative_target not in modules_to_test[best_module_path].test_targets:
                 modules_to_test[best_module_path].test_targets.append(relative_target)
         else:
             modules_to_test[best_module_path] = GoModule(best_module_path, test_targets=[relative_target])
@@ -1035,11 +1033,15 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     # Clean up duplicated paths to reduce Go test cmd length
     default_modules = get_default_modules()
     for module in modules_to_test:
-        modules_to_test[module].test_targets = clean_nested_paths(modules_to_test[module].test_targets)
+        cleaned_targets = clean_nested_paths(modules_to_test[module].test_targets)
+        modules_to_test[module].test_targets = cleaned_targets
+        modules_to_test[module].lint_targets = cleaned_targets
         if (
-            len(modules_to_test[module].test_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
+            len(cleaned_targets) >= WINDOWS_MAX_PACKAGES_NUMBER
         ):  # With more packages we can reach the limit of the command line length on Windows
-            modules_to_test[module].test_targets = default_modules[module].test_targets
+            default_module = default_modules[str(module)]
+            modules_to_test[module].test_targets = default_module.test_targets
+            modules_to_test[module].lint_targets = default_module.lint_targets
 
     if not modules_to_test:
         print("No modules to test")
