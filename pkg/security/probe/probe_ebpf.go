@@ -2669,8 +2669,6 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		activatedProbes = append(activatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: probes.SecurityAgentUID, EBPFFuncName: "sys_exit"}})
 	}
 
-	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
-
 	// on-demand probes
 	if p.config.RuntimeSecurity.OnDemandEnabled {
 		p.onDemandManager.updateProbes()
@@ -2722,7 +2720,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	if err = p.Manager.Get().UpdateActivatedProbes(activatedProbes); err != nil {
+	if err = p.Resolvers.TCResolver.UpdateActivatedProbes(p.Manager.Get(), activatedProbes); err != nil {
 		return err
 	}
 
@@ -2888,13 +2886,9 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 	}
 }
 
-// FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
-// flushes the network namespace in the network namespace resolver as well.
+// FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace
 func (p *EBPFProbe) FlushNetworkNamespace(namespace *netns.NetworkNamespace) {
 	p.Resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
-
-	// cleanup internal structures
-	p.Resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager.Get())
 }
 
 func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
