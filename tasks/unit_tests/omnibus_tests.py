@@ -266,6 +266,21 @@ class TestOmnibusEnvPassthrough(unittest.TestCase):
 
         self.assertNotIn('OMNIBUS_BASE_DIR', env)
 
+    def test_optional_variables_are_forwarded_when_set(self):
+        with mock.patch('tasks.omnibus.warnings.warn'):
+            env = omnibus._passthrough_env_for_os({'DD_FOLDSPACE_BUILD': 'true'}, 'linux')
+
+        self.assertEqual(env['DD_FOLDSPACE_BUILD'], 'true')
+
+    def test_optional_variables_are_not_reported_missing(self):
+        complete_env = {key: 'x' for key in omnibus.ENV_PASSHTROUGH}
+        complete_env.update({key: 'x' for key in omnibus.OS_SPECIFIC_ENV_PASSTHROUGH['linux']})
+        with mock.patch('tasks.omnibus.warnings.warn') as warn:
+            env = omnibus._passthrough_env_for_os(complete_env, 'linux')
+
+        warn.assert_not_called()
+        self.assertNotIn('DD_FOLDSPACE_BUILD', env)
+
 
 class TestInstallDirForProject(unittest.TestCase):
     def test_install_dir_for_project(self):

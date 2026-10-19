@@ -30,11 +30,14 @@ dd_agent_go_test(
     name = "processor_test",
     srcs = [
         "encoder_test.go",
+        "hostname_tap_test.go",
         "processor_test.go",
     ],
     embed = [":processor"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/logs-library/diagnostic",
+        "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
