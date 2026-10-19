@@ -758,6 +758,11 @@ func (ua *UprobeAttacher) rejectProcess(procInfo *ProcInfo) error {
 
 // AttachLibrary attaches the probes to the given library, opened by a given PID
 func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
+	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
+	return ua.attachLibrary(path, procInfo)
+}
+
+func (ua *UprobeAttacher) attachLibrary(path string, procInfo *ProcInfo) (err error) {
 	defer func() {
 		if err != nil {
 			ua.telemetry.libraryAttachmentsFailure.Inc()
@@ -775,14 +780,13 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) (err error) {
 		return ErrNoMatchingRule
 	}
 
-	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
 	if err := ua.rejectProcess(procInfo); err != nil {
 		return err
 	}
 
 	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
 
-	return ua.fileRegistry.Register(path, pid, registerCB, unregisterCB, utils.IgnoreCB)
+	return ua.fileRegistry.Register(path, procInfo.PID, registerCB, unregisterCB, utils.IgnoreCB)
 }
 
 // getRulesForLibrary returns the rules that match the given library path
@@ -850,7 +854,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) (e
 	}
 
 	if attachToLibs && ua.handlesLibraries() {
-		err = errors.Join(err, ua.attachToLibrariesOfPID(pid))
+		err = errors.Join(err, ua.attachToLibrariesOfPID(procInfo))
 	}
 
 	return err
@@ -1140,18 +1144,18 @@ func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
 	return slices.Collect(maps.Keys(libs)), nil
 }
 
-func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
+func (ua *UprobeAttacher) attachToLibrariesOfPID(procInfo *ProcInfo) error {
 	registerErrors := make([]error, 0)
 	successfulMatches := make([]string, 0)
-	libs, err := ua.getLibrariesFromMapsFile(int(pid))
+	libs, err := ua.getLibrariesFromMapsFile(int(procInfo.PID))
 	if err != nil {
 		return utils.NewUnknownAttachmentError(err)
 	}
 
 	for _, libpath := range libs {
-		err := ua.AttachLibrary(libpath, pid)
 
 		if err == nil {
+		err := ua.attachLibrary(libpath, procInfo)
 			successfulMatches = append(successfulMatches, libpath)
 		} else if !errors.Is(err, ErrNoMatchingRule) && !errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
 			registerErrors = append(registerErrors, err)
@@ -1162,10 +1166,10 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 		if len(registerErrors) == 0 {
 			return nil // No libraries found to attach
 		}
-		return fmt.Errorf("no rules matched for pid %d: %w", pid, errors.Join(registerErrors...))
+		return fmt.Errorf("no rules matched for pid %d: %w", procInfo.PID, errors.Join(registerErrors...))
 	}
 	if len(registerErrors) > 0 {
-		return fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %w", successfulMatches, pid, errors.Join(registerErrors...))
+		return fmt.Errorf("partially hooked (%v), errors while attaching pid %d: %w", successfulMatches, procInfo.PID, errors.Join(registerErrors...))
 	}
 	return nil
 }

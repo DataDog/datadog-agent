@@ -1157,7 +1157,8 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	// if this function calls the manager adding a probe with a different name than the one we requested, the test
 	// will fail
-	err = ua.attachToLibrariesOfPID(proc.Pid)
+	procInfo := NewProcInfo(procFS, proc.Pid)
+	err = ua.attachToLibrariesOfPID(procInfo)
 	require.NoError(t, err)
 
 	// We need to retrieve the calls from the registry and manually call the callback
