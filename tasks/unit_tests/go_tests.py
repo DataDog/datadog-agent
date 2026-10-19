@@ -118,6 +118,7 @@ class TestGetModifiedPackages(unittest.TestCase):
 
         self.assertEqual(modules, [])
 
+
 class TestGetGoModifiedFiles(unittest.TestCase):
     @patch("tasks.gotest._get_release_json_value", new=MagicMock(return_value="main"))
     @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/existing/foo.go", "docs/readme.md"]))
