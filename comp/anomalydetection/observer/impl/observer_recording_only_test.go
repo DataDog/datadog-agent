@@ -46,7 +46,6 @@ func (h *recordingOnlyTestHandle) ObserveMetric(metric observerdef.MetricView, c
 
 func (h *recordingOnlyTestHandle) ObserveLog(log observerdef.LogView) {
 	h.inner.ObserveLog(log)
-	h.recorder.logs++
 }
 
 func TestRecordingOnlyHandleRouting(t *testing.T) {
@@ -107,7 +106,7 @@ anomaly_detection:
 
 			h := obs.GetHandle("check")
 			h.ObserveMetric(&metricObs{name: "system.cpu", value: 2.5, timestamp: 1000}, 1)
-			h.ObserveLog(&logObs{content: "hello", status: "info", timestampMs: 1_000_000})
+			h.ObserveLog(&logObs{content: "hello", status: "warn", timestampMs: 1_000_000})
 			obs.Flush()
 
 			series := obs.engine.storage.ListSeries(observerdef.SeriesFilter{Namespace: "check"})
