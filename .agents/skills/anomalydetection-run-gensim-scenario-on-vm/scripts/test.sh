@@ -205,7 +205,6 @@ if FAIL_COPY=1 fetch "$workspace/scp-failure" > /dev/null 2>&1; then echo "ignor
 # ── EKS orchestrator and multi-pod validation tests ──────────────────────────
 repo_root="$(cd "$scripts/../../../.." && pwd)"
 orchestrator_script="$repo_root/test/e2e-framework/scenarios/aws/gensim-eks/orchestrator.sh.tmpl"
-validator_script="$repo_root/test/e2e-framework/scenarios/aws/gensim-eks/validate-recording.sh"
 
 eks_root="$workspace/eks"
 mkdir -p "$eks_root/bin" "$eks_root/s3" "$eks_root/k8s" "$eks_root/pods" "$eks_root/episodes/authcore-pgbouncer" "$eks_root/config"
@@ -450,11 +449,11 @@ assert {r["scenario"] for r in runs} == {"pool-saturation", "conn-spike"}
 assert len({r["zip"] for r in runs}) == 2
 PY
 
-# Validate the uploaded zip archive locally via validate-recording.sh
+# Validate the uploaded zip archive locally via recording.py
 eks_out="$workspace/eks-fetched-pool-saturation"
 mkdir -p "$eks_out/parquet"
 cp "$eks_root/s3/gensim-results-eval-20261015T120000Z-abcdef1-112233-authcore-pgbouncer-pool-saturation.zip" "$eks_out/artifact.zip"
-bash "$validator_script" "$eks_out" 60 --backend eks > /dev/null
+python3 "$scripts/recording.py" validate "$eks_out" 60 --backend eks > /dev/null
 
 python3 - "$eks_out" <<'PY'
 import json
@@ -523,7 +522,7 @@ assert st["episodes"][0]["status"] == "failed"
 assert st["episodes"][0]["uploadStatus"] == "failed"
 PY
 
-# 3. Checksum mismatch and missing second-pod logs in validate-recording.sh --backend eks
+# 3. Checksum mismatch and missing second-pod logs in recording.py validate --backend eks
 bad_eks="$workspace/eks-bad-checksum"
 mkdir -p "$bad_eks/parquet"
 cp "$eks_root/s3/gensim-results-eval-20261015T120000Z-abcdef1-112233-authcore-pgbouncer-pool-saturation.zip" "$bad_eks/artifact.zip"
@@ -540,7 +539,7 @@ with zipfile.ZipFile(zp, "w") as zout:
     for name, content in items.items():
         zout.writestr(name, content)
 PY
-if bash "$validator_script" "$bad_eks" 60 --backend eks > /dev/null 2>&1; then
+if python3 "$scripts/recording.py" validate "$bad_eks" 60 --backend eks > /dev/null 2>&1; then
     echo "validator accepted checksum mismatch" >&2
     exit 1
 fi

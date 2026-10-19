@@ -25,12 +25,11 @@ _DEFAULT_STACK_NAME = "gensim-eks"
 _DEFAULT_S3_BUCKET = "qbranch-gensim-recordings"
 _VALIDATOR_SCRIPT = (
     Path(__file__).parent.parent.parent.parent
-    / "test"
-    / "e2e-framework"
-    / "scenarios"
-    / "aws"
-    / "gensim-eks"
-    / "validate-recording.sh"
+    / ".agents"
+    / "skills"
+    / "anomalydetection-run-gensim-scenario-on-vm"
+    / "scripts"
+    / "recording.py"
 )
 
 
@@ -684,20 +683,26 @@ def fetch_gensim_eks(
     if not dl_res or not dl_res.ok or not archive_dest.exists():
         raise Exit(f"Failed to download {s3_uri}")
 
-    cmd_parts = ["bash", shlex.quote(str(_VALIDATOR_SCRIPT)), shlex.quote(str(output_path))]
+    args_parts = [shlex.quote(str(_VALIDATOR_SCRIPT)), "validate", shlex.quote(str(output_path))]
     if flush_secs_arg:
-        cmd_parts.append(shlex.quote(flush_secs_arg))
-    cmd_parts.extend(["--backend", "eks"])
+        args_parts.append(shlex.quote(flush_secs_arg))
+    args_parts.extend(["--backend", "eks"])
     if run_id:
-        cmd_parts.extend(["--run-id", shlex.quote(run_id)])
+        args_parts.extend(["--run-id", shlex.quote(run_id)])
     if episode:
-        cmd_parts.extend(["--scenario-dir", shlex.quote(episode)])
+        args_parts.extend(["--scenario-dir", shlex.quote(episode)])
     if scenario:
-        cmd_parts.extend(["--episode", shlex.quote(scenario)])
+        args_parts.extend(["--episode", shlex.quote(scenario)])
     if namespace:
-        cmd_parts.extend(["--namespace", shlex.quote(namespace)])
+        args_parts.extend(["--namespace", shlex.quote(namespace)])
 
-    val_res = ctx.run(" ".join(cmd_parts), warn=True)
+    args_str = " ".join(args_parts)
+    val_cmd = (
+        f"if python3 -c 'import pyarrow' >/dev/null 2>&1; then python3 {args_str}; "
+        f"elif command -v uv >/dev/null 2>&1; then uv run --no-project --with pyarrow python3 {args_str}; "
+        f"else python3 {args_str}; fi"
+    )
+    val_res = ctx.run(val_cmd, warn=True)
     if not val_res or not val_res.ok:
         raise Exit(
             f"Recording validation failed for {artifact_key}. "

@@ -489,11 +489,13 @@ def main():
     parser.add_argument("--namespace", default="")
     arguments = parser.parse_args()
     if arguments.command == "wait":
-        if arguments.flush == "" or int(arguments.flush) <= 0:
+        if not re.fullmatch(r"[1-9][0-9]*", str(arguments.flush)):
             parser.error("flush interval must be positive seconds")
         print(wait_seconds(arguments.path, int(arguments.flush)))
     else:
-        if arguments.flush != "" and int(arguments.flush) <= 0:
+        if not arguments.path.is_dir():
+            parser.error(f"output directory does not exist: {arguments.path}")
+        if arguments.flush != "" and not re.fullmatch(r"[1-9][0-9]*", str(arguments.flush)):
             parser.error("flush interval must be positive seconds")
         validate(
             arguments.path,

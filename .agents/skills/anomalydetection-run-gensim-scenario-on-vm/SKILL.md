@@ -146,7 +146,7 @@ validated benchmark recording**.
 validator's `python3` fails with `No module named 'pyarrow'` and leaves a partial `$OUT`). If that happens, the artifact is
 already downloaded in `$OUT`: create a venv (`uv venv /tmp/pyarrow-venv && uv pip install --python /tmp/pyarrow-venv/bin/python pyarrow`)
 and run the validator directly with it first on `PATH`:
-`PATH=/tmp/pyarrow-venv/bin:$PATH bash test/e2e-framework/scenarios/aws/gensim-eks/validate-recording.sh "$OUT" 60 --backend eks --run-id "$RUN_ID" --scenario-dir "$SCENARIO_ID" --episode "$EPISODE" --namespace default`.
+`PATH=/tmp/pyarrow-venv/bin:$PATH python3 "$SKILL/scripts/recording.py" validate "$OUT" 60 --backend eks --run-id "$RUN_ID" --scenario-dir "$SCENARIO_ID" --episode "$EPISODE" --namespace default`.
 
 ```bash
 uv run --with pyarrow dda inv aws.eks.gensim.fetch \
@@ -161,7 +161,7 @@ uv run --with pyarrow dda inv aws.eks.gensim.fetch \
 ## 3. Shared validation contract and testbench replay
 
 Both `scripts/fetch.sh` (VM) and `dda inv aws.eks.gensim.fetch` (EKS) run
-`test/e2e-framework/scenarios/aws/gensim-eks/validate-recording.sh` (backed by `scripts/recording.py`):
+`scripts/recording.py validate`:
 
 - Creates `$OUT` exclusively so existing data is never overwritten.
 - Verifies safe archive paths, Agent pod readiness and zero restarts (`agent-before.json` / `agent-after.json`), and

@@ -36,10 +36,7 @@ pod="$(kubectl --context kind-gadget-dev --namespace default get pod -l app.kube
 kubectl --context kind-gadget-dev --namespace default exec "$pod" -c agent -- tar cf - -C /tmp/observer-metrics .
 EOF
 
-VALIDATOR="$SKILL_ROOT/../../../test/e2e-framework/scenarios/aws/gensim-eks/validate-recording.sh"
-[[ -f "$VALIDATOR" ]] || fail "Validator helper not found: $VALIDATOR"
-
-bash "$VALIDATOR" "$OUT" "$flush" \
+python3 "$SKILL_ROOT/scripts/recording.py" validate "$OUT" "$flush" \
     --backend vm \
     --scenario-dir "$scenario" \
     --episode "$episode" \
