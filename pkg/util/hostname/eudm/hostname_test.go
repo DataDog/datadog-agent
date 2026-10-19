@@ -18,6 +18,8 @@ func TestFormatHostname(t *testing.T) {
 		{"MacBook Pro", "C02ABC456", "macbook-pro-c02abc456"},
 		{"  Alice’s MacBook  ", " abc-123 ", "alice-s-macbook-abc-123"},
 		{"EC2AMAZ-TEST", "VMware-56 4d ab", "ec2amaz-test-vmware-56-4d-ab"},
+		// Long VM serials must not shorten the name, so host:<name>* still matches.
+		{"DESKTOP-4F7K2LQ", "VMware-56 4d ab 12 34 56 78 90-ab cd ef 12 34 56 78 90", "desktop-4f7k2lq-vmware-56-4d-ab-12-34-56-78-90-ab-cd-ef-12-34-56-78-90"},
 		{"ip-10-0-0-1", "ABC123", "ip-10-0-0-1-abc123"},
 		{strings.Repeat("a", 300), "ABC123", strings.Repeat("a", 246) + "-abc123"},
 	} {

@@ -13,6 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
+// formatHostname returns "<name>-<serial>": lowercase ASCII letters, digits and
+// single hyphens, with no leading or trailing hyphen, at most 253 characters,
+// and accepted by validate.ValidHostname (the Agent's RFC 1123 check). Only the
+// name is truncated; the full serial is kept so truncation cannot collide.
 func formatHostname(name, serial string) (string, error) {
 	serial = normalize(serial)
 	switch serial {
