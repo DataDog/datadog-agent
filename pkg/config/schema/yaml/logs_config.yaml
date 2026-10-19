@@ -400,6 +400,7 @@ properties:
     - generate_const:DefaultBatchMaxSize
     minimum: 1
     maximum: 10000
+    description: Maximum number of log events per HTTP batch.
   compression_kind:
     node_type: setting
     type: string
@@ -411,6 +412,8 @@ properties:
     type: integer
     default: 0
     minimum: 0
+    description: Interval in seconds after which the logs forwarder connection to Datadog
+      is reset. 0 disables the reset.
   container_runtime_waiting_timeout:
     node_type: setting
     type: string
@@ -511,6 +514,8 @@ properties:
     type: boolean
     default: false
     comment: Opt-in recursive glob for file log paths (supports **). Default false
+      to preserve current behavior.
+    description: Opt-in recursive glob for file log paths (supports **). Default false
       to preserve current behavior.
   expected_tags_duration:
     node_type: setting
@@ -704,6 +709,7 @@ properties:
     comment: 'increase the read buffer size of the UDP sockets:'
     minimum: 1024
     maximum: 2097152
+    description: Maximum size in bytes for log frames.
   http_connectivity_retry_interval_max:
     node_type: setting
     type: string
@@ -883,6 +889,7 @@ properties:
     type: boolean
     default: false
     comment: DEPRECATED in favor of `logs_config.force_use_http`.
+    description: Flag to use HTTP transport for sending logs.
   use_podman_logs:
     node_type: setting
     type: boolean
@@ -901,6 +908,8 @@ properties:
     type: boolean
     default: true
     comment: If true, then a source_host tag (IP Address) will be added to TCP/UDP
+      logs.
+    description: If true, then a source_host tag (IP Address) will be added to TCP/UDP
       logs.
   use_tcp:
     node_type: setting

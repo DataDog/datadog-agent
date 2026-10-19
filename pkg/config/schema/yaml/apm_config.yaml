@@ -1083,6 +1083,8 @@ properties:
     env_vars:
     - DD_APM_CONNECTION_RESET_INTERVAL
     minimum: 0
+    description: Interval in seconds after which the trace agent connection to Datadog
+      is reset. 0 disables the reset.
   dd_agent_bin:
     node_type: setting
     type: string
@@ -1180,6 +1182,7 @@ properties:
     default: 0
     minimum: 0
     maximum: 100
+    description: Additional sampling rate multiplier for trace collection.
   install_id:
     node_type: setting
     type: string

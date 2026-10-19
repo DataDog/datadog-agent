@@ -343,6 +343,8 @@ properties:
       or container_collection.enabled and process_collection.enabled.
 
       It's a string as the possible values are "disabled", "false", "true"...
+    description: Flag to enable or disable process monitoring. Prefer using `process_collection.enabled`
+      or `container_collection.enabled` instead
   grpc_connection_timeout_secs:
     node_type: setting
     type: integer
@@ -425,6 +427,7 @@ properties:
     - DD_STRIP_PROCESS_ARGS
     - DD_PROCESS_CONFIG_STRIP_PROC_ARGUMENTS
     - DD_PROCESS_AGENT_STRIP_PROC_ARGUMENTS
+    description: Flag to enable scrubbing of process arguments.
   windows:
     node_type: section
     type: object

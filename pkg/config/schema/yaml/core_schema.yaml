@@ -1156,6 +1156,7 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                description: Flag to use the v3 API for the metrics series payload.
       logs:
         node_type: section
         type: object
@@ -6504,6 +6505,7 @@ properties:
           Data Security: when true, the Agent can run Data Security scans scheduled from Datadog
           and send their results back as `sds-result` events. Requires `shared_library_check.enabled`
           to also be true.
+        description: Flag to enable or disable Data Security.
       enforce_ssl:
         node_type: setting
         type: boolean
@@ -7327,6 +7329,7 @@ properties:
         type: boolean
         default: true
         comment: 'Serializer: allow user to blacklist any kind of payload to be sent'
+        description: Flag to enable or disable events payloads.
       json_to_v1_intake:
         node_type: setting
         type: boolean
@@ -7335,14 +7338,17 @@ properties:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable series payloads.
       service_checks:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable service checks payloads.
       sketches:
         node_type: setting
         type: boolean
         default: true
+        description: Flag to enable or disable sketches payloads.
   enabled_rfc1123_compliant_cluster_name_tag:
     node_type: setting
     type: boolean
@@ -7636,6 +7642,8 @@ properties:
     default: 0
     comment: in seconds, 0 means disabled
     minimum: 0
+    description: Interval in seconds after which forwarder connections to Datadog are
+      reset. 0 disables the reset.
   forwarder_flush_to_disk_mem_ratio:
     node_type: setting
     type: number
@@ -9336,6 +9344,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        description: Flag to enable or disable shared library checks.
       library_folder_path:
         node_type: setting
         type: string
@@ -9589,6 +9598,8 @@ properties:
     comment: |-
       If true, then new version of disk v2 check will be used.
       Otherwise, the python version of disk check will be used.
+    description: Flag to enable or disable the Go core disk check. When disabled, the
+      Python disk check is used instead.
   use_improved_cgroup_parser:
     node_type: setting
     type: boolean
@@ -9607,6 +9618,8 @@ properties:
       the darwin and bsd network check has not been ported from python
       If true, then new version of network v2 check will be used.
       Otherwise, the python version of network check will be used.
+    description: Flag to enable or disable the Go core network check. When disabled, the
+      Python network check is used instead.
   use_v2_api:
     node_type: section
     type: object

@@ -51,6 +51,7 @@ properties:
     node_type: setting
     type: boolean
     default: true
+    description: Flag to enable or disable container image scanning.
   input_chan_size:
     node_type: setting
     type: integer
