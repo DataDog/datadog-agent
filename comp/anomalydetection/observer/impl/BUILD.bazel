@@ -89,6 +89,7 @@ dd_agent_go_test(
         "ingest_metrics_disabled_test.go",
         "log_count_bucketizer_test.go",
         "log_detector_connection_errors_test.go",
+        "log_handoff_test.go",
         "log_metrics_extractor_test.go",
         "log_pattern_extractor_test.go",
         "log_tagged_pattern_clusterer_test.go",

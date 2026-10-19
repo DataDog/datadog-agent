@@ -232,13 +232,18 @@ func BenchmarkLogProducer_Handoff(b *testing.B) {
 				b.Cleanup(func() { close(stopDrain) })
 			}
 
+			logFilter := &logAdmissionFilter{
+				rules:      tc.rules,
+				containers: newLogSourceRateState("info", -1, -1, -1),
+			}
 			h := &handle{
 				ch:        ch,
 				source:    "logs",
 				telemetry: newObserverTelemetry(telemetryComp),
+				logFilter: logFilter,
 			}
-			var rateW logsfilter.RateWindow
 			sample := &logObs{
+				source:      tc.source,
 				content:     `{"msg":"request completed","status":200}`,
 				status:      "warn",
 				tags:        tc.tags,
@@ -249,12 +254,6 @@ func BenchmarkLogProducer_Handoff(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if !tc.rules.IsAllowed(tc.source, sample.Tags()) {
-					continue
-				}
-				if !rateW.Allow(-1) {
-					continue
-				}
 				h.ObserveLog(sample)
 			}
 		})
@@ -293,14 +292,11 @@ anomaly_detection:
 
 	metricHandle := obs.GetHandle("check")
 	logHandle := obs.GetHandle("logs")
-	rules := newBenchLogRules(b, []logsfilter.ProcessingRule{
-		{Name: "keep_staging_api", Type: "include_at_match", Source: "containerd", Tags: []string{"env:staging", "service:api"}},
-		{Name: "drop_all", Type: "exclude_at_match"},
-	})
 
 	metricSample := highLoadMetric("system.cpu.user")
 	contextKey := testContextKeyFor(metricSample)
 	logSample := &logObs{
+		source:      "containerd",
 		content:     `{"msg":"request failed","status":500}`,
 		status:      "error",
 		tags:        highLoadLogTags(),
@@ -316,9 +312,7 @@ anomaly_detection:
 		metricHandle.ObserveMetric(metricSample, contextKey)
 
 		logSample.timestampMs = tsSec * 1000
-		if rules.IsAllowed("containerd", logSample.Tags()) {
-			logHandle.ObserveLog(logSample)
-		}
+		logHandle.ObserveLog(logSample)
 	}
 	obs.Flush()
 	totalDrops := metricHandle.(*handle).dropCount.Load() + logHandle.(*handle).dropCount.Load()
