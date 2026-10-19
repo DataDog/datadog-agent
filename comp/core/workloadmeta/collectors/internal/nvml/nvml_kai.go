@@ -51,6 +51,11 @@ const (
 	podPhaseFailed    = "Failed"
 )
 
+// kaiWarnLimiter is separate from the collector-wide logLimiter so that a pod
+// warned about on every pull cannot starve the driver, device and MIG warnings
+// that the rest of this collector depends on.
+var kaiWarnLimiter = log.NewLogLimit(20, 10*time.Minute)
+
 // kaiFractions is what one pull could establish about the KAI Scheduler
 // fractional GPUs on this node.
 type kaiFractions struct {
@@ -363,13 +368,19 @@ func kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
 	// Nothing names a container. KAI falls back to the pod's first regular
 	// container, which is only identifiable here when there is exactly one: a
 	// pod's container list is built from the kubelet's status array, which is
-	// not kept in spec order. In practice KAI's binder writes a per-container
-	// annotation on every bound fractional pod, so this is a defensive path.
+	// not kept in spec order. Since v0.18, KAI's binder writes a per-container
+	// annotation before it binds a fractional pod to the node, so reaching this
+	// with several containers is an anomaly there; older KAI versions do not
+	// write it, so a pod with a sidecar and no gpu-fraction-container-name ends
+	// up here routinely. Either way the GPU stays unattributed, hence the
+	// warning, which says how to fix it.
 	if len(pod.Containers) == 1 {
 		return pod.Containers[0].ID
 	}
 	if len(pod.Containers) > 1 {
-		log.Debugf("KAI: pod %s/%s shares a GPU but no annotation says which of its %d containers uses it", pod.Namespace, pod.Name, len(pod.Containers))
+		if kaiWarnLimiter.ShouldLog() {
+			log.Warnf("KAI: pod %s/%s shares a GPU but no annotation says which of its %d containers uses it, so its GPU cannot be attributed; set the %s annotation to the name of that container in the pod spec, before the pod is scheduled", pod.Namespace, pod.Name, len(pod.Containers), kaiFractionContainerNameAnnotation)
+		}
 	}
 	return ""
 }
