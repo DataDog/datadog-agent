@@ -97,6 +97,12 @@ func (d *decoder) resourceSource(ctx context.Context, resource []byte) error {
 		if mapped == "" {
 			return true
 		}
+		if mapped == keyAnalyticsEvent {
+			// Consumed into the event extraction rate metric, as today.
+			d.res.analyticsRate, d.res.hasAnalyticsRate = analyticsRate(v.AsString())
+			delete(d.resAttrs, d.strings.Lookup(k))
+			return true
+		}
 		if bit := promotedKey(mapped); bit != 0 {
 			if bit != promotedKind {
 				d.res.promoted.put(bit, d.strings.Add(v.AsString()), "")

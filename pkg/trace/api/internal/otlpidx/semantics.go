@@ -241,6 +241,9 @@ type resourceInfo struct {
 	statsComputed *bool
 	// promoted holds the resource attributes with a promoted key, which spans fall back to.
 	promoted promoted
+	// analyticsRate is the event extraction rate from the resource's analytics.event attribute.
+	analyticsRate    float64
+	hasAnalyticsRate bool
 }
 
 type scopeInfo struct {
@@ -362,6 +365,51 @@ func (d *decoder) applyScope(span *idx.Span, lib *scopeInfo) {
 	}
 	if p.set&promotedKind != 0 {
 		span.Kind = p.kind
+	}
+}
+
+// keyAnalyticsEvent is the attribute that today's conversion (SetMetaOTLPIfEmpty) turns into the
+// event extraction rate metric.
+const keyAnalyticsEvent = "analytics.event"
+
+// analyticsRate parses an analytics.event value into the event extraction rate, like
+// SetMetaOTLPIfEmpty.
+func analyticsRate(s string) (float64, bool) {
+	v, err := strconv.ParseBool(s)
+	if err != nil {
+		return 0, false
+	}
+	if v {
+		return 1, true
+	}
+	return 0, true
+}
+
+// analyticsEvent mirrors SetMetaOTLPIfEmpty for analytics.event: a non-numeric span attribute is
+// replaced by the event extraction rate metric when it parses as a bool, and dropped otherwise.
+// Without one, the resource's value applies. Numeric span attributes stay as they are, as today.
+func (d *decoder) analyticsEvent(attrs map[uint32]*idx.AnyValue) {
+	rate, ok := d.res.analyticsRate, d.res.hasAnalyticsRate
+	if d.spanKeys.mayContain(keySig(keyAnalyticsEvent)) {
+		ref := d.strings.Lookup(keyAnalyticsEvent)
+		if v, has := attrs[ref]; ref != 0 && has {
+			var s string
+			switch x := v.Value.(type) {
+			case *idx.AnyValue_IntValue, *idx.AnyValue_DoubleValue:
+				return
+			case *idx.AnyValue_StringValueRef:
+				s = d.strings.Get(x.StringValueRef)
+			case *idx.AnyValue_BoolValue:
+				s = strconv.FormatBool(x.BoolValue)
+			}
+			delete(attrs, ref)
+			if r, parsed := analyticsRate(s); parsed {
+				rate, ok = r, true
+			}
+		}
+	}
+	if ok {
+		attrs[d.strings.Add(sampler.KeySamplingRateEventExtraction)] = d.doubleValue(rate)
 	}
 }
 
@@ -499,6 +547,7 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 	}
 
 	d.applyRenames(attrs, d.renames)
+	d.analyticsEvent(attrs)
 
 	span.ServiceRef = d.strings.Add(service)
 	span.NameRef = d.strings.Add(name)
@@ -590,6 +639,11 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 	}
 	if dbName != "" {
 		attrs[d.strings.Add("db.name")] = d.stringValue(d.strings.Add(dbName))
+	}
+	// Today's span.kind tag is "unspecified" for unspecified and unknown kinds, which ConvertToIdx maps
+	// to internal, the OTel default. The lookups above still see the original kind, as they do today.
+	if span.Kind < idx.SpanKind_SPAN_KIND_INTERNAL || span.Kind > idx.SpanKind_SPAN_KIND_CONSUMER {
+		span.Kind = idx.SpanKind_SPAN_KIND_INTERNAL
 	}
 }
 

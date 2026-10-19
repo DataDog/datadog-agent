@@ -98,6 +98,43 @@ var semanticsFixtures = []semanticsFixture{
 		name: "unspecified kind", kind: ptrace.SpanKindUnspecified, spanName: "noop",
 	},
 	{
+		name: "unknown kind", kind: ptrace.SpanKind(42), spanName: "noop",
+	},
+	{
+		name: "analytics.event string", kind: ptrace.SpanKindServer, spanName: "s",
+		attrs: map[string]any{"analytics.event": "true"},
+	},
+	{
+		name: "analytics.event bool false", kind: ptrace.SpanKindServer, spanName: "s",
+		attrs: map[string]any{"analytics.event": false},
+	},
+	{
+		name: "analytics.event invalid", kind: ptrace.SpanKindServer, spanName: "s",
+		attrs: map[string]any{"analytics.event": "maybe"},
+	},
+	{
+		name: "analytics.event numeric", kind: ptrace.SpanKindServer, spanName: "s",
+		attrs: map[string]any{"analytics.event": 1},
+	},
+	{
+		name: "analytics.event from resource", kind: ptrace.SpanKindServer, spanName: "s",
+		res: map[string]any{"analytics.event": "true"},
+	},
+	{
+		name: "analytics.event span wins over resource", kind: ptrace.SpanKindServer, spanName: "s",
+		res:   map[string]any{"analytics.event": "true"},
+		attrs: map[string]any{"analytics.event": "false"},
+	},
+	{
+		name: "analytics.event invalid span falls back to resource", kind: ptrace.SpanKindServer, spanName: "s",
+		res:   map[string]any{"analytics.event": "false"},
+		attrs: map[string]any{"analytics.event": "maybe"},
+	},
+	{
+		name: "analytics.event from scope stays an attribute", kind: ptrace.SpanKindServer, spanName: "s",
+		scope: map[string]any{"analytics.event": "true"},
+	},
+	{
 		name: "legacy resource keys", kind: ptrace.SpanKindServer, spanName: "handler",
 		status: ptrace.StatusCodeError, statusMsg: "failed",
 		res:   map[string]any{"deployment.environment": "Staging", "service.version": "2.0"},
@@ -343,10 +380,8 @@ func assertMatchesV04(t *testing.T, want *pb.Span, tp *idx.InternalTracerPayload
 	assert.Equal(t, want.Meta["env"], got.Env(), "env")
 	assert.Equal(t, want.Meta["version"], got.Version(), "version")
 	assert.Equal(t, want.Meta["component"], got.Component(), "component")
-	// ConvertToIdx maps "unspecified" to internal, while the decoder keeps the OTel kind.
-	if k := want.Meta["span.kind"]; k != "unspecified" {
-		assert.Equal(t, spanKindFromName(k), got.Kind(), "span.kind %q", k)
-	}
+	// Like ConvertToIdx, "unspecified" (and any unknown name) maps to internal.
+	assert.Equal(t, spanKindFromName(want.Meta["span.kind"]), got.Kind(), "span.kind %q", want.Meta["span.kind"])
 
 	// Effective attributes: span first, then payload (resource) attributes.
 	effective := func(key string) (*idx.AnyValue, bool) {
