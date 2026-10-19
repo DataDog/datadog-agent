@@ -31,6 +31,7 @@ import (
 	lib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
@@ -64,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -127,6 +129,7 @@ type EBPFProbe struct {
 	// internals
 	event           *model.Event
 	dnsLayer        *layers.DNS
+	dnsRequests     *dns.RequestTracker
 	monitors        *EBPFMonitors
 	profileManager  securityprofile.ProfileManager
 	fieldHandlers   *EBPFFieldHandlers
@@ -677,7 +680,7 @@ func (p *EBPFProbe) Init() error {
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
-	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled {
+	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled || p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
@@ -1230,15 +1233,29 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle sbom resolution
 	if p.Resolvers.SBOMResolver != nil {
-		if !event.ProcessContext.Process.ContainerContext.IsNull() {
+		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
 			} else if event.GetEventType() == model.FileOpenEventType {
-				// force resolution of the file path
-				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
+				// Resolve the path on a copy of the file, which keeps the error of a
+				// path the SBOM resolver fails to resolve off the event: the v1
+				// profiles skip an event carrying an error, and the probe monitor
+				// reports it as an abnormal path.
+				file := event.Open.File
+				if !file.IsPathnameStrResolved && len(file.PathnameStr) == 0 {
+					if path, _, _, _, err := p.Resolvers.PathResolver.ResolveFullFilePath(&file.FileFields, &event.PIDContext); err == nil {
+						file.SetPathnameStr(path)
+					}
+				}
 
 				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
+				if event.IsEventFromReplay() {
+					// A replayed open stands for an executable mapping of a
+					// running process, which runs whatever becomes of the file.
+					p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &file)
+				} else {
+					p.Resolvers.SBOMResolver.ResolveOpen(event.ProcessContext, &file)
+				}
 			}
 		}
 	}
@@ -1302,6 +1319,12 @@ func (p *EBPFProbe) SendStats() error {
 
 	if executableMismatchCount := p.capabilitiesExecutableMismatch.Swap(0); executableMismatchCount > 0 {
 		_ = p.statsdClient.Count(metrics.MetricCapabilitiesExecutableMismatch, int64(executableMismatchCount), []string{}, 1.0)
+	}
+
+	if p.dnsRequests != nil {
+		if err := p.dnsRequests.SendStats(p.statsdClient); err != nil {
+			return err
+		}
 	}
 
 	if err := p.eventStream.SendStats(); err != nil {
@@ -1602,13 +1625,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	netNS := event.PIDContext.NetNS
-	pid := event.PIDContext.Pid
-	go func() {
-		_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
-			return utils.NewNSPathFromPid(pid, utils.NetNsType)
-		})
-	}()
+	p.Resolvers.NamespaceResolver.PushNetworkNamespaceHandleRequest(event.PIDContext.NetNS, event.PIDContext.Pid)
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext) {
@@ -1964,6 +1981,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 		}
 
+		// remember who sent the request, so that the response can be attributed to it. Security
+		// profiles only cover containers.
+		if event.Error == nil && !event.ProcessContext.Process.ContainerContext.IsNull() && p.dnsRequests != nil {
+			p.dnsRequests.RecordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
+		}
+
 	case model.FullDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
 			if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
@@ -1996,6 +2019,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 						Type:  uint16(p.dnsLayer.Questions[0].Type),
 						Size:  uint16(len(data[offset:])),
 					}
+				}
+
+				// a rule needing the response sends it here instead of the short path. A response already
+				// attributed to a container reaches the profile with its own process context.
+				if event.ProcessContext.Process.ContainerContext.IsNull() {
+					p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				}
 			}
 		}
@@ -2274,12 +2303,14 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		return false
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
-			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err == nil {
-				p.addToDNSResolver(p.dnsLayer)
+			decodeErr := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback)
+			if decodeErr == nil {
+				ips, cnames := p.addToDNSResolver(p.dnsLayer)
+				p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				return false
 			}
 
-			seclog.Warnf("failed to decode the short DNS response: %s", err)
+			seclog.Warnf("failed to decode the short DNS response: %s", decodeErr)
 			event.Error = model.ErrFailedDNSPacketDecoding
 			event.FailedDNS = model.FailedDNSEvent{
 				Payload: trimRightZeros(data[offset:]),
@@ -2558,6 +2589,8 @@ func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)
 	case model.ConnectEventType.String():
 		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType)
+	case model.BindEventType.String():
+		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType)
 	}
 	return false
 }
@@ -3356,6 +3389,18 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingConnectThreshold),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_bind_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType)),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_bind_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingBindThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "sample_refresh_period_ns",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
@@ -3486,6 +3531,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType),
+		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType),
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType),
 		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType),
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
@@ -3592,6 +3638,13 @@ func (p *EBPFProbe) initManagerOptions() error {
 
 // NewEBPFProbe instantiates a new runtime security agent probe
 func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*EBPFProbe, error) {
+	// kernels < 5.11 account BPF memory against RLIMIT_MEMLOCK; the kernel
+	// feature checks below fail with EPERM unless the limit is raised, and
+	// CWS would then report those features as unsupported
+	if err := rlimit.RemoveMemlock(); err != nil {
+		seclog.Warnf("failed to remove the memlock limit: %v", err)
+	}
+
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -3605,6 +3658,14 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	}
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
+
+	var dnsRequests *dns.RequestTracker
+	if config.RuntimeSecurity.SecurityProfileV2Enabled {
+		if dnsRequests, err = dns.NewRequestTracker(); err != nil {
+			cancelFnc()
+			return nil, fmt.Errorf("couldn't create the DNS request tracker: %w", err)
+		}
+	}
 
 	p := &EBPFProbe{
 		probe:                probe,
@@ -3621,6 +3682,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		replayEventsState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
+		dnsRequests:          dnsRequests,
 		hostname:             hostname,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
@@ -4205,7 +4267,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ProcessContext.Process.ContainerContext.ContainerID)
 
-		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0:
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && (len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0 || p.config.RuntimeSecurity.SBOMResolverHostEnabled):
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ProcessContext.Process.ContainerContext.ContainerID); err != nil {
 				seclog.Infof("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}

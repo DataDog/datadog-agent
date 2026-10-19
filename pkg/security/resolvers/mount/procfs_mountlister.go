@@ -60,6 +60,7 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		Origin:        model.MountOriginProcfs,
 		Visible:       true,
 		Detached:      false,
+		MountFlags:    model.NormalizeMountFlagsFromOptions(mnt.Options),
 	}
 }
 

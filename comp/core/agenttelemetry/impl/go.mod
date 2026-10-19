@@ -11,6 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.75.4
 	github.com/DataDog/datadog-agent/comp/def v0.75.4
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4
+	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.77.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.75.4
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
@@ -26,7 +27,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.77.0
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
-	github.com/prometheus/client_golang v1.24.1
+	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.12.1
@@ -51,7 +52,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.77.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.77.0 // indirect
@@ -72,10 +72,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.77.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/Microsoft/go-winio v0.6.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/ebitengine/purego v0.10.2 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
@@ -90,9 +90,9 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
-	github.com/prometheus/common v0.72.0 // indirect
+	github.com/prometheus/common v0.72.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.9 // indirect
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
@@ -106,11 +106,11 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/time v0.16.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

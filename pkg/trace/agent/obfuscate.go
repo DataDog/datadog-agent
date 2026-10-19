@@ -25,6 +25,15 @@ const (
 	tagSQLQuery         = transform.TagSQLQuery
 	tagHTTPURL          = transform.TagHTTPURL
 	tagDBMS             = transform.TagDBMS
+
+	tagSQLTables = "sql.tables"
+)
+
+// OTel semantic convention attributes carrying the raw database query, which
+// must be obfuscated like the resource of SQL spans.
+const (
+	tagDBStatement = "db.statement"  // semconv v1.6.1 DBStatementKey
+	tagDBQueryText = "db.query.text" // semconv v1.26.0 DBQueryTextKey
 )
 
 const (
@@ -35,6 +44,7 @@ const (
 type obfuscateSpan interface {
 	GetAttributeAsString(key string) (string, bool)
 	SetStringAttribute(key string, value string)
+	DeleteAttribute(key string)
 	Type() string
 	Resource() string
 	SetResource(resource string)
@@ -57,6 +67,10 @@ func (o *obfuscateSpanV0) SetStringAttribute(key string, value string) {
 		o.span.Meta = make(map[string]string)
 	}
 	o.span.Meta[key] = value
+}
+
+func (o *obfuscateSpanV0) DeleteAttribute(key string) {
+	delete(o.span.Meta, key)
 }
 
 func (o *obfuscateSpanV0) Type() string {
@@ -92,24 +106,65 @@ func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.Obfusc
 	return obfuscateSQLSpan(o, &obfuscateSpanV0{span: span})
 }
 
+// sqlQueryAttributes are the span attributes that may carry the raw SQL query
+// and are obfuscated along with the resource of SQL spans, when present.
+var sqlQueryAttributes = [...]string{tagSQLQuery, tagDBStatement, tagDBQueryText}
+
+// obfuscateSQLSpan obfuscates the resource of a SQL span along with the
+// attributes that carry the raw SQL query (if sent by the client).
 func obfuscateSQLSpan(o *obfuscate.Obfuscator, span obfuscateSpan) (*obfuscate.ObfuscatedQuery, error) {
-	if span.Resource() == "" {
+	dbms, _ := span.GetAttributeAsString(tagDBMS)
+	rawResource := span.Resource()
+	if rawResource == "" {
+		obfuscateSQLAttributes(o, span, dbms, "", "")
 		return nil, nil
 	}
-	dbms, _ := span.GetAttributeAsString(tagDBMS)
-	oq, err := o.ObfuscateSQLStringForDBMS(span.Resource(), dbms)
+	oq, err := o.ObfuscateSQLStringForDBMS(rawResource, dbms)
 	if err != nil {
 		// we have an error, discard the SQL to avoid polluting user resources.
 		span.SetResource(textNonParsable)
-		span.SetStringAttribute(tagSQLQuery, textNonParsable)
+		obfuscateSQLAttributes(o, span, dbms, rawResource, textNonParsable)
 		return nil, err
 	}
 	span.SetResource(oq.Query)
+	obfuscateSQLAttributes(o, span, dbms, rawResource, oq.Query)
 	if len(oq.Metadata.TablesCSV) > 0 {
-		span.SetStringAttribute("sql.tables", oq.Metadata.TablesCSV)
+		span.SetStringAttribute(tagSQLTables, oq.Metadata.TablesCSV)
 	}
-	span.SetStringAttribute(tagSQLQuery, oq.Query)
 	return oq, nil
+}
+
+// obfuscateSQLAttributes runs obfuscateSQLAttribute for each of sqlQueryAttributes.
+func obfuscateSQLAttributes(o *obfuscate.Obfuscator, span obfuscateSpan, dbms, rawResource, obfuscatedResource string) {
+	for _, key := range sqlQueryAttributes {
+		obfuscateSQLAttribute(o, span, key, dbms, rawResource, obfuscatedResource)
+	}
+}
+
+// obfuscateSQLAttribute obfuscates the SQL query stored under key, if present
+// and non-empty. A value equal to the raw resource reuses obfuscatedResource;
+// any other value is obfuscated separately and replaced by textNonParsable if
+// that fails, so the raw value is never kept.
+func obfuscateSQLAttribute(o *obfuscate.Obfuscator, span obfuscateSpan, key, dbms, rawResource, obfuscatedResource string) {
+	v, ok := span.GetAttributeAsString(key)
+	if ok && v == "" && key == tagSQLQuery {
+		// An empty sql.query carries no query. Drop it so the intake derives
+		// db.statement from the resource, as it did when the agent overwrote it.
+		span.DeleteAttribute(key)
+		return
+	}
+	if !ok || v == "" {
+		return
+	}
+	if v == rawResource {
+		span.SetStringAttribute(key, obfuscatedResource)
+		return
+	}
+	obfuscated := textNonParsable
+	if oq, err := o.ObfuscateSQLStringForDBMS(v, dbms); err == nil {
+		obfuscated = oq.Query
+	}
+	span.SetStringAttribute(key, obfuscated)
 }
 
 // ObfuscateRedisSpan obfuscates a Redis span
@@ -161,18 +216,8 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 
 	switch span.Type() {
 	case "sql", "cassandra":
-		if span.Resource() == "" {
-			return
-		}
-		oq, err := obfuscateSQLSpan(o, span)
-		if err != nil {
-			// we have an error, discard the SQL to avoid polluting user resources.
-			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource())
-			return
-		}
-		if oq == nil {
-			// no error was thrown but no query was found/sanitized either
-			return
+		if _, err := obfuscateSQLSpan(o, span); err != nil {
+			log.Debugf("Error parsing SQL query: %v", err)
 		}
 	case "redis", "valkey":
 		// if a span is redis/valkey type, it should be quantized regardless of obfuscation setting.
@@ -307,9 +352,7 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	}
 }
 
-var (
-	obfuscatorLock sync.Mutex
-)
+var obfuscatorLock sync.Mutex
 
 func (a *Agent) lazyInitObfuscator() *obfuscate.Obfuscator {
 	// Ensure thread safe initialization

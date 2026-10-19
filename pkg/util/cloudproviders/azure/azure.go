@@ -47,6 +47,9 @@ func GetMetadataAPIVersion() string {
 
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn(ctx context.Context) bool {
+	if isChassisAssetTagAzure() {
+		return true
+	}
 	if _, err := GetHostAliases(ctx); err == nil {
 		return true
 	}

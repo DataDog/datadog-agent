@@ -3,6 +3,9 @@ receivers:
     symbol_uploader:
       enabled: false
 service:
+  telemetry:
+    metrics:
+      level: normal
   pipelines:
     metrics/profiler-internal-health:
       receivers: []

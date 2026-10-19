@@ -31,7 +31,7 @@ func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, s
 		log:      log,
 		store:    store,
 		sender:   sender,
-		devices:  NewDeviceMap(deviceTimeout),
+		devices:  NewDeviceMap(),
 		hostname: hostname,
 		profiles: profiles,
 		connect:  connectFn,

@@ -34,7 +34,7 @@ func TestNewWorker(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.GetClient().Timeout, mockConfig.GetDuration("forwarder_timeout")*time.Second)
 }
@@ -48,7 +48,7 @@ func TestNewNoSSLWorker(t *testing.T) {
 	mockConfig.SetInTest("skip_ssl_validation", true)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 	assert.True(t, w.Client.GetClient().Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
 
@@ -60,7 +60,7 @@ func TestWorkerStart(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(log, false, 1, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	mock := newTestTransaction()
 	mock.pointCount = 1
@@ -98,7 +98,7 @@ func TestWorkerRetry(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client.GetClient()).Return(errors.New("some kind of error")).Times(1)
@@ -122,7 +122,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	mock := newTestTransaction()
 	mock.On("GetTarget").Return("error_url").Times(1)
@@ -147,7 +147,7 @@ func TestWorkerResetConnections(t *testing.T) {
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	connection := NewSharedConnection(log, false, 1, mockConfig, nil)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, connection)
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, connection, concurrencyPolicyFromConfig(mockConfig, log))
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client.GetClient()).Return(nil).Times(1)
@@ -201,7 +201,7 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	go func() {
 		w.Start()
@@ -260,7 +260,7 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 
 	mockConfig.SetInTest("forwarder_max_concurrent_requests", requests)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, requests, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, requests, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	go func() {
 		w.Start()
@@ -349,7 +349,7 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 		mockConfig := mock.New(t)
 		log := logmock.New(t)
 		secrets := secretsmock.New(t)
-		w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
+		w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 		close(w.stopped)
 		return w, highPrio, lowPrio
 	}
@@ -400,7 +400,7 @@ func TestWorkerRequeueDropsTracksPointsDropped(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(log, false, 1, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	// Fill the requeue channel so the next requeue call falls into the default branch and drops.
 	filler := newTestTransaction()
@@ -433,7 +433,7 @@ func TestWorkerStopDoesNotCancelInFlight(t *testing.T) {
 	mockConfig.SetInTest("forwarder_stop_wait_for_inflight", true)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	var processedwg sync.WaitGroup
 	processedwg.Add(1)
@@ -508,7 +508,7 @@ func TestWorkerStopWaitsForSemaphoreBlockedTransactions(t *testing.T) {
 
 	mockConfig.SetInTest("forwarder_max_concurrent_requests", requests)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, requests, mockConfig, nil))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, requests, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	var inFlightWg sync.WaitGroup
 	inFlightWg.Add(requests)
@@ -608,7 +608,7 @@ func TestWorkerStopWaitsForInFlightHTTPRequest(t *testing.T) {
 	secrets := secretsmock.New(t)
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
 		newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
-		NewSharedConnection(log, false, 1, mockConfig, nil))
+		NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	txn := newTestTransaction()
 	txn.On("GetTarget").Return("")
@@ -667,7 +667,7 @@ func TestWorkerStopCancelsContextRequeuesSemaphoreBlocked(t *testing.T) {
 	secrets := secretsmock.New(t)
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
 		newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
-		NewSharedConnection(log, false, 1, mockConfig, nil))
+		NewSharedConnection(log, false, 1, mockConfig, nil), concurrencyPolicyFromConfig(mockConfig, log))
 
 	// firstTxn holds the single semaphore slot until release is closed.
 	firstEntered := make(chan struct{})

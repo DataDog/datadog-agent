@@ -488,6 +488,135 @@ func TestApproversConnect(t *testing.T) {
 	}
 }
 
+func TestApproversBind(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	testCases := []struct {
+		name            string
+		ruleExpressions []string
+		assertionsCb    func(_ *testing.T, _ *rules.RuleSet, _ rules.Approvers)
+	}{
+		{
+			name:            "addr-family-af-inet",
+			ruleExpressions: []string{`bind.addr.family == AF_INET`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				values, exists := approvers["bind.addr.family"]
+				if !exists || len(values) != 1 {
+					t.Fatal("expected approver values not found")
+				}
+
+				if values[0].Value != unix.AF_INET {
+					t.Fatalf("expected AF_INET, got %v", values[0].Value)
+				}
+			},
+		},
+		{
+			name:            "addr-port-implies-af-inet",
+			ruleExpressions: []string{`bind.addr.port == 8080`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if _, exists := approvers["bind.addr.port"]; !exists {
+					t.Fatal("expected bind.addr.port approver")
+				}
+
+				kfilters, fieldHandled, err := bindKFiltersGetter(approvers)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(fieldHandled) != 1 || fieldHandled[0] != "bind.addr.port" {
+					t.Fatalf("expected bind.addr.port to be handled, got %v", fieldHandled)
+				}
+				if len(kfilters) != 1 {
+					t.Fatalf("expected a single address family kfilter, got %d", len(kfilters))
+				}
+			},
+		},
+		{
+			name:            "zero-port-matches-non-inet",
+			ruleExpressions: []string{`bind.addr.port in [0, 8080]`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if len(approvers) != 0 {
+					t.Fatalf("expected no approver, got %v", approvers)
+				}
+			},
+		},
+		{
+			name:            "public-addr-matches-non-inet",
+			ruleExpressions: []string{`bind.addr.is_public == true`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if len(approvers) != 0 {
+					t.Fatalf("expected no approver, got %v", approvers)
+				}
+			},
+		},
+		{
+			name:            "private-addr-implies-af-inet",
+			ruleExpressions: []string{`bind.addr.is_public == false`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if _, exists := approvers["bind.addr.is_public"]; !exists {
+					t.Fatal("expected bind.addr.is_public approver")
+				}
+			},
+		},
+		{
+			name:            "zero-port-with-family",
+			ruleExpressions: []string{`bind.addr.family == AF_UNIX && bind.addr.port == 0`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if _, exists := approvers["bind.addr.port"]; exists {
+					t.Fatal("unexpected bind.addr.port approver")
+				}
+				values, exists := approvers["bind.addr.family"]
+				if !exists || len(values) != 1 || values[0].Value != unix.AF_UNIX {
+					t.Fatalf("expected AF_UNIX family approver, got %v", approvers)
+				}
+			},
+		},
+		{
+			name:            "no-approver",
+			ruleExpressions: []string{`bind.protocol == 6`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if len(approvers) != 0 {
+					t.Fatalf("expected no approver, got %v", approvers)
+				}
+			},
+		},
+		{
+			name: "one-rule-without-approver",
+			ruleExpressions: []string{
+				`bind.addr.family == AF_INET`,
+				`bind.protocol == 6`,
+			},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				if len(approvers) != 0 {
+					t.Fatalf("expected no approver, got %v", approvers)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+			for _, expr := range tc.ruleExpressions {
+				rules.AddTestRuleExpr(t, rs, expr)
+			}
+
+			capabilities, exists := allCapabilities["bind"]
+			if !exists {
+				t.Fatal("no capabilities for bind")
+			}
+
+			approvers, _, _, err := rs.GetEventTypeApprovers("bind", capabilities)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tc.assertionsCb(t, rs, approvers)
+		})
+	}
+}
+
 func TestApproversSetSockOpt(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 

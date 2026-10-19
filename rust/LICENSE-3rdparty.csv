@@ -307,7 +307,6 @@ ryu,https://github.com/dtolnay/ryu,Apache-2.0 OR BSL-1.0,David Tolnay <dtolnay@g
 saluki-antithesis,https://github.com/DataDog/saluki,Apache-2.0,The saluki-antithesis Authors
 saluki-api,https://github.com/DataDog/saluki,Apache-2.0,The saluki-api Authors
 saluki-common,https://github.com/DataDog/saluki,Apache-2.0,The saluki-common Authors
-saluki-context,https://github.com/DataDog/saluki,Apache-2.0,The saluki-context Authors
 saluki-core,https://github.com/DataDog/saluki,Apache-2.0,The saluki-core Authors
 saluki-error,https://github.com/DataDog/saluki,Apache-2.0,The saluki-error Authors
 saluki-io,https://github.com/DataDog/saluki,Apache-2.0,The saluki-io Authors
@@ -333,7 +332,7 @@ serde_bytes,https://github.com/serde-rs/bytes,MIT OR Apache-2.0,David Tolnay <dt
 serde_core,https://github.com/serde-rs/serde,MIT OR Apache-2.0,"Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>"
 serde_derive,https://github.com/serde-rs/serde,MIT OR Apache-2.0,"Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>"
 serde_html_form,https://github.com/jplatte/serde_html_form,MIT,The serde_html_form Authors
-serde_json,https://github.com/serde-rs/json,MIT OR Apache-2.0,"Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com>"
+serde_json,https://github.com/serde-rs/json,MIT OR Apache-2.0,The serde_json Authors
 serde_path_to_error,https://github.com/dtolnay/path-to-error,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 serde_urlencoded,https://github.com/nox/serde_urlencoded,MIT OR Apache-2.0,Anthony Ramine <n.oxyde@gmail.com>
 serde_with,https://github.com/jonasbb/serde_with,MIT OR Apache-2.0,"Jonas Bushart, Marcin Kaźmierczak"
@@ -400,6 +399,7 @@ tower-service,https://github.com/tower-rs/tower,MIT,Tower Maintainers <team@towe
 tracing,https://github.com/tokio-rs/tracing,MIT,"Eliza Weisman <eliza@buoyant.io>, Tokio Contributors <team@tokio.rs>"
 tracing-attributes,https://github.com/tokio-rs/tracing,MIT,"Tokio Contributors <team@tokio.rs>, Eliza Weisman <eliza@buoyant.io>, David Barsky <dbarsky@amazon.com>"
 tracing-core,https://github.com/tokio-rs/tracing,MIT,Tokio Contributors <team@tokio.rs>
+tracing-subscriber,https://github.com/tokio-rs/tracing,MIT,"Eliza Weisman <eliza@buoyant.io>, David Barsky <me@davidbarsky.com>, Tokio Contributors <team@tokio.rs>"
 triomphe,https://github.com/Manishearth/triomphe,MIT OR Apache-2.0,"Manish Goregaokar <manishsmail@gmail.com>, The Servo Project Developers"
 try-lock,https://github.com/seanmonstar/try-lock,MIT,Sean McArthur <sean@seanmonstar.com>
 typed-path,https://github.com/chipsenkbeil/typed-path,MIT OR Apache-2.0,Chip Senkbeil <chip@senkbeil.org>
