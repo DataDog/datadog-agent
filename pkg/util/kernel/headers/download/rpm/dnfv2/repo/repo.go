@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/sassoftware/go-rpmutils"
 	"gopkg.in/ini.v1"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/rpm/dnfv2/internal/utils"
@@ -224,7 +223,7 @@ func (r *Repo) FetchPackage(ctx context.Context, pkgMatcher PkgMatchFunc) (*PkgI
 	}
 
 	if r.GpgCheck {
-		_, _, err = rpmutils.Verify(bytes.NewReader(pkgRpmData), entityList)
+		err = verifyPackage(pkgRpmData, entityList)
 		if err != nil {
 			return nil, nil, err
 		}
