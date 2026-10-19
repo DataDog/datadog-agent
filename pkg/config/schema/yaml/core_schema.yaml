@@ -5010,6 +5010,13 @@ properties:
       items:
         type: string
       type: array
+  agent_checks_metadata_message_truncation_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    comment: |-
+      Truncates check error and warning messages in the agent_checks metadata payload to 4096 bytes.
+      Safeguard to disable the truncation in case it causes a regression; to be removed in a future version.
   agent_ipc:
     node_type: section
     type: object
