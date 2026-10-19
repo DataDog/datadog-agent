@@ -6,6 +6,7 @@
 package foldspace
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -238,6 +239,54 @@ func TestLeaseReleasedOnce(t *testing.T) {
 
 	d.Offer(testMessage("lease"))
 	waitPayloads(t, sink, 1)
+	require.Eventually(t, func() bool { return core.ReleasedLeases() == 1 }, time.Second, 10*time.Millisecond)
+}
+
+// leaseProbeTransport records how many leases the core has seen released at
+// the moment each Send starts.
+type leaseProbeTransport struct {
+	*FakeTransport
+	core *FakeCore
+
+	mu             sync.Mutex
+	releasedAtSend []int64
+}
+
+func (t *leaseProbeTransport) OpenStream(ctx context.Context, sender SenderID, stream StreamID) (Stream, error) {
+	s, err := t.FakeTransport.OpenStream(ctx, sender, stream)
+	if err != nil {
+		return nil, err
+	}
+	return &leaseProbeStream{Stream: s, transport: t}, nil
+}
+
+type leaseProbeStream struct {
+	Stream
+	transport *leaseProbeTransport
+}
+
+func (s *leaseProbeStream) Send(ctx context.Context, batchID uint32, data []byte) error {
+	s.transport.mu.Lock()
+	s.transport.releasedAtSend = append(s.transport.releasedAtSend, s.transport.core.ReleasedLeases())
+	s.transport.mu.Unlock()
+	return s.Stream.Send(ctx, batchID, data)
+}
+
+// The sender hands the lease's own bytes to Send, so the lease must stay held
+// until Send returns and be released once it has.
+func TestLeaseHeldAcrossSend(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	transport := &leaseProbeTransport{FakeTransport: NewFakeTransport(1), core: core}
+	sink := newChannelSink()
+	d := startDriver(t, core, transport, sink, false)
+
+	d.Offer(testMessage("leased"))
+	waitPayloads(t, sink, 1)
+
+	assert.Equal(t, [][]byte{[]byte("leased")}, transport.Sent(0))
+	transport.mu.Lock()
+	assert.Equal(t, []int64{0}, transport.releasedAtSend, "the lease must be held while Send runs")
+	transport.mu.Unlock()
 	require.Eventually(t, func() bool { return core.ReleasedLeases() == 1 }, time.Second, 10*time.Millisecond)
 }
 

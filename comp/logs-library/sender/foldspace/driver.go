@@ -555,11 +555,10 @@ func (d *Driver) senderLoop(sender SenderID) {
 						}
 						continue
 					}
-					data := append([]byte(nil), effect.Batch.Bytes()...)
-					effect.Batch.Release()
 					ctx, cancel := context.WithTimeout(stopCtx, d.sendTimeout)
-					err := current.Send(ctx, effect.BatchID, data)
+					err := current.Send(ctx, effect.BatchID, effect.Batch.Bytes())
 					cancel()
+					effect.Batch.Release()
 					if err != nil {
 						progress := d.core.HandleStreamError(sender, effect.Stream, err.Error())
 						d.dispatch(progress)
