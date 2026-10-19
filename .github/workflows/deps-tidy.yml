@@ -30,15 +30,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-      - name: Test dependency publication guards
-        run: python3 -m unittest discover -s .github/actions/deps-tidy-push -p '*_tests.py' -v
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
       - name: Install dda
-        if: contains(github.event.pull_request.labels.*.name, 'dependencies-go') || contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native')
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
+      - name: Test dependency publication guards
+        run: dda inv -- -e invoke-unit-tests --tests=deps_tidy,github_api --directory=tasks/unit_tests
       - name: Go mod tidy
         if: contains(github.event.pull_request.labels.*.name, 'dependencies-go')
         run: dda inv -- -e tidy
@@ -88,7 +87,9 @@ jobs:
         run: |
           bazel mod tidy
           bazel mod deps
-      - uses: ./.github/actions/deps-tidy-push
-        with:
-          token: ${{ steps.setup.outputs.token }}
-          commit-message: "[renovate skip] Tidy generated dependency files"
+      - name: Publish dependency update
+        env:
+          GITHUB_TOKEN: ${{ steps.setup.outputs.token }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: dda inv -- -e renovate.publish-tidy

@@ -57,21 +57,46 @@ class GithubAPI:
 
         return self._repository
 
-    def graphql(self, query):
+    def graphql(self, query, variables=None):
         """
         Perform a GraphQL query against the Github API.
         """
 
         headers = {"Authorization": "Bearer " + self._auth.token, "Content-Type": "application/json"}
+        payload = {"query": query}
+        if variables is not None:
+            payload["variables"] = variables
         res = requests.post(
             "https://api.github.com/graphql",
             headers=headers,
-            json={"query": query},
+            json=payload,
             timeout=10,
         )
         if res.status_code == 200:
             return res.json()
         raise RuntimeError(f"Failed to query Github: {res.text}")
+
+    def create_signed_commit(self, branch_name, expected_head_sha, headline, body, file_changes):
+        """Publish a GitHub-signed commit only if the branch still has the expected head."""
+        result = self.graphql(
+            """mutation($input: CreateCommitOnBranchInput!) {
+              createCommitOnBranch(input: $input) { commit { oid tree { oid } } }
+            }""",
+            variables={
+                "input": {
+                    "branch": {"repositoryNameWithOwner": self._repository.full_name, "branchName": branch_name},
+                    "expectedHeadOid": expected_head_sha,
+                    "message": {"headline": headline, "body": body},
+                    "fileChanges": file_changes,
+                }
+            },
+        )
+        if result.get("errors"):
+            raise RuntimeError(f"Failed to publish signed commit: {result['errors']}")
+        commit = ((result.get("data") or {}).get("createCommitOnBranch") or {}).get("commit")
+        if not commit or not commit.get("oid") or not (commit.get("tree") or {}).get("oid"):
+            raise RuntimeError("Signed-commit response is missing the commit or tree")
+        return commit
 
     def get_branch(self, branch_name):
         """
