@@ -39,7 +39,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"analyze-logs", "-t", "5s", "path/to/log/config.yaml"},
 		runAnalyzeLogs,
 		func(_ core.BundleParams, cliParams *CliParams) {

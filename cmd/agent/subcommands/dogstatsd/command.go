@@ -42,7 +42,7 @@ type topFlags struct {
 }
 
 // Commands initializes dogstatsd sub-command tree.
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams, _ command.ProductComposition) []*cobra.Command {
 	c := &cobra.Command{
 		Use:   "dogstatsd",
 		Short: "Inspect dogstatsd pipeline status",

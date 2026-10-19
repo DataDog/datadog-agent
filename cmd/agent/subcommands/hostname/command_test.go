@@ -24,7 +24,7 @@ import (
 
 func TestCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
+		Commands(&command.GlobalParams{}, command.ProductComposition{}),
 		[]string{"hostname"},
 		printHostname,
 		func(_ *cliParams, _ core.BundleParams) {})

@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-sharedlibrary",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/collector/sharedlibrary/fx-sharedlibrary",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/collector/sharedlibrary",
+        "//pkg/collector/sharedlibrary/sharedlibraryimpl",
+        "@org_uber_go_fx//:fx",
+    ],
+)

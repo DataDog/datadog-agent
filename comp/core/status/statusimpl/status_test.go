@@ -130,9 +130,7 @@ var (
 	testTitle           = fmt.Sprintf("%s (v%s)", humanReadbaleFlavor, agentVersion)
 )
 
-var agentParams = status.Params{
-	PythonVersionGetFunc: func() string { return "n/a" },
-}
+var agentParams = status.Params{}
 
 var testTextHeader = fmt.Sprintf(`%s
 %s

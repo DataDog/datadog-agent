@@ -7,8 +7,8 @@
 
 package aggregator
 
+import "github.com/DataDog/datadog-agent/pkg/collector/checkcontext"
+
 func releaseCheckContext() {
-	checkContextMutex.Lock()
-	checkCtx = nil
-	checkContextMutex.Unlock()
+	checkcontext.ReleaseCheckContext()
 }

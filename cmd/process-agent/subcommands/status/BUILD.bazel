@@ -16,7 +16,6 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/status",
         "//comp/process",
-        "//pkg/collector/python",
         "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/process/util/status",

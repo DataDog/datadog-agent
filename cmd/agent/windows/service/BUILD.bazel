@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//cmd/agent/command",
             "//cmd/agent/common",
             "//cmd/agent/subcommands/run",
             "//pkg/util/winutil/servicemain",

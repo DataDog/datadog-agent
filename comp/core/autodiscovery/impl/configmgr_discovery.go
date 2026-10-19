@@ -3,27 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build python
-
 package autodiscoveryimpl
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
+	discovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// discoveryState holds the fields that are only present in python builds.
+// discoveryState holds the fields used when a discovery factory is provided.
 type discoveryState struct {
 	// discoveryWorker is the workqueue-backed driver that probes integrations
 	// to fill in instance configs for Discovery templates.
-	discoveryWorker *discoverer.Worker
+	discoveryWorker discovery.Worker
 
 	// discoveredCh carries ConfigChanges produced by the discoveryWorker
 	// back to AutoConfig.
@@ -35,38 +30,33 @@ type discoveryState struct {
 // of completions without blocking the worker goroutine on a busy scheduler.
 const discoveredChangesBuffer = 128
 
-// configDiscoveryTag is added to every instance of a check scheduled via
-// configuration discovery. Configuration discovery has no way of knowing
-// about a manually-configured, differently-named check (e.g. a generic
-// `openmetrics` check) that a user has pointed at the same service from
-// elsewhere, so the two can end up scraping the same target and duplicating
-// (or, for additive metric types, doubling) submitted metrics. This tag lets
-// users spot and exclude the autodiscovered side of such a duplication.
-//
-// Uses a plain `dd_`-prefixed key (not `dd.internal.*`, which is reserved for
-// tags consumed and stripped internally before reaching the backend, e.g.
-// dd.internal.resource in pkg/metrics/series.go) so it survives to the
-// backend and stays queryable, following the precedent of other
-// agent-added, customer-visible marker tags such as dd_remote_config_id /
-// dd_remote_config_rev (comp/core/tagger/tags/tags.go) and
-// dd_enable_check_intake (pkg/collector/worker/worker.go).
-const configDiscoveryTag = "dd_config_discovery:true"
-
 // initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
-func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {
+func initDiscoveryWorker(cm *reconcilingConfigManager, factory discovery.Factory) {
+	if factory == nil {
+		return
+	}
 	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
-	cm.discoveryWorker = discoverer.NewWorker(disco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{}, cm.telemetryStore)
+	cm.discoveryWorker = factory.NewWorker(cmServiceLookup{cm}, cm.onDiscoveryResult, cm.telemetryStore)
 }
 
 func (cm *reconcilingConfigManager) scheduleDiscovery(svcID, tplDigest, integrationName string) {
+	if cm.discoveryWorker == nil {
+		return
+	}
 	cm.discoveryWorker.Enqueue(svcID, tplDigest, integrationName)
 }
 
 func (cm *reconcilingConfigManager) start() {
+	if cm.discoveryWorker == nil {
+		return
+	}
 	cm.discoveryWorker.Start()
 }
 
 func (cm *reconcilingConfigManager) stop() {
+	if cm.discoveryWorker == nil {
+		return
+	}
 	cm.discoveryWorker.Stop()
 }
 
@@ -75,14 +65,14 @@ func (cm *reconcilingConfigManager) discoveredChanges() <-chan integration.Confi
 }
 
 // cmServiceLookup adapts *reconcilingConfigManager to the
-// discoverer.ServiceLookup interface without exposing the rest of the manager
-// to the discoverer package.
+// discovery.ServiceLookup interface without exposing the rest of the manager
+// to the discovery engine.
 type cmServiceLookup struct {
 	cm *reconcilingConfigManager
 }
 
-// LookupService implements discoverer.ServiceLookup.
-func (l cmServiceLookup) LookupService(svcID string) (discoverer.ServiceInfo, bool) {
+// LookupService implements discovery.ServiceLookup.
+func (l cmServiceLookup) LookupService(svcID string) (discovery.ServiceInfo, bool) {
 	l.cm.m.Lock()
 	defer l.cm.m.Unlock()
 	svcAndADIDs, ok := l.cm.activeServices[svcID]
@@ -144,35 +134,18 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 		return changes
 	}
 
-	if len(configs) == 0 {
+	if len(configs) == 0 || cm.discoveryWorker == nil {
 		return changes
 	}
-	discovered := configs[0]
-
-	merged := tpl
-	merged.Discovery = nil // IMPORTANT: make sure resolveTemplateForService doesn't loop on the discovered/resolved result
-	merged.InitConfig = discovered.InitConfig
-	merged.Instances = discovered.Instances
-	merged.MetricConfig = discovered.MetricConfig
-	merged.LogsConfig = discovered.LogsConfig
-	merged.IgnoreAutodiscoveryTags = discovered.IgnoreAutodiscoveryTags
-	merged.CheckTagCardinality = discovered.CheckTagCardinality
-
-	resolved, err := configresolver.Resolve(merged, svcAndADIDs.svc)
+	resolved, err := cm.discoveryWorker.ResolveConfig(tpl, configs[0], svcAndADIDs.svc)
 	if err != nil {
 		if errors.Is(err, configresolver.ErrServiceNotReady) {
-			log.Debugf("autodiscovery: discovered config %s for service %s not resolved yet, service not ready", merged.Name, svcID)
+			log.Debugf("autodiscovery: discovered config %s for service %s not resolved yet, service not ready", tpl.Name, svcID)
 			return changes
 		}
-		log.Errorf("error resolving discovered config %s for service %s: %v", merged.Name, svcID, err)
+		log.Errorf("error resolving discovered config %s for service %s: %v", tpl.Name, svcID, err)
 		errorStats.setResolveWarning(tpl.Name, err.Error())
 		return changes
-	}
-	resolved.Source = rewriteSource(resolved.Source, svcAndADIDs.svc)
-	for i := range resolved.Instances {
-		if err := resolved.Instances[i].MergeAdditionalTags([]string{configDiscoveryTag}); err != nil {
-			log.Errorf("error adding configuration-discovery tag to config %s for service %s: %v", resolved.Name, svcID, err)
-		}
 	}
 	decrypted, err := decryptConfig(resolved, cm.secretResolver, tplDigest)
 	if err != nil {
@@ -196,24 +169,4 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 	changes.ScheduleConfig(decrypted)
 	errorStats.removeResolveWarnings(tpl.Name)
 	return cm.applyChanges(changes)
-}
-
-// rewriteSource rewrites a resolved config's file-based Source to encode that
-// it was applied via a configuration-discovery probe result, and whether the
-// target service is a process or a container. Only the "file" provider is
-// rewritten since that's where we expect discovery configs to come from.
-//
-// This rewritten source is included in the configuration metadata sent to the
-// backend.
-//
-// Config.Provider is intentionally left unchanged — it is used by the secret
-// resolver security mechanism and must not vary with the service type.
-func rewriteSource(source string, svc listeners.Service) string {
-	if !strings.HasPrefix(source, names.File+":") {
-		return source
-	}
-	if strings.HasPrefix(svc.GetServiceID(), "process://") {
-		return names.ADProcessDiscovery + source[len(names.File):]
-	}
-	return names.ADContainerDiscovery + source[len(names.File):]
 }

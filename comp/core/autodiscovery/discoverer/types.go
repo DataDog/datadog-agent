@@ -10,8 +10,7 @@
 package discoverer
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	discovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer/def"
 )
 
 // PermFail wraps an error to signal the worker that retrying will never
@@ -27,18 +26,11 @@ type ConfigDiscoverer interface {
 	DiscoverConfig(integrationName, serviceJSON string) (string, error)
 }
 
-// ServiceInfo is the subset of listeners.Service that the discoverer needs.
-type ServiceInfo interface {
-	GetServiceID() string
-	GetHosts() (map[string]string, error)
-	GetPorts() ([]workloadmeta.ContainerPort, error)
-}
+// ServiceInfo is the service boundary shared with the config manager.
+type ServiceInfo = discovery.ServiceInfo
 
-// ServiceLookup hands the worker a live ServiceInfo for a given service ID.
-type ServiceLookup interface {
-	LookupService(svcID string) (ServiceInfo, bool)
-}
+// ServiceLookup retrieves the current service before a probe runs.
+type ServiceLookup = discovery.ServiceLookup
 
-// ResultCallback receives the discovered configs after a successful probe.
-// svcID and tplDigest identify the template-and-service pair the result is for.
-type ResultCallback func(svcID, tplDigest string, configs []integration.Config)
+// ResultCallback delivers probe results to the config manager.
+type ResultCallback = discovery.ResultCallback
