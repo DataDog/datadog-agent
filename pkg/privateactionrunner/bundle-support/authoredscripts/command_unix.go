@@ -32,7 +32,6 @@ func executionDeniedError(err error) error {
 }
 
 func startCommand(cmd *exec.Cmd) (commandController, error) {
-	configureCommand(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}

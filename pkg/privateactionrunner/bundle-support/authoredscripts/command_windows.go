@@ -21,6 +21,8 @@ func executionDeniedError(err error) error {
 	return err
 }
 
+func configureCommand(_ *exec.Cmd) {}
+
 func startCommand(_ *exec.Cmd) (commandController, error) {
 	return nil, errors.New("authored-script execution is not supported on Windows")
 }
