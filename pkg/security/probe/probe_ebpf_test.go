@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -33,6 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
@@ -675,4 +678,111 @@ func TestProcfsScript(t *testing.T) {
 			assert.Equal(t, tt.want, procfsScript(entry))
 		})
 	}
+}
+
+type recordingProfileManager struct {
+	securityprofile.ProfileManager
+	events []*model.Event
+}
+
+func (r *recordingProfileManager) ProcessEvent(event *model.Event) {
+	r.events = append(r.events, event)
+}
+
+type failingMountFSFieldHandlers struct {
+	*model.FakeFieldHandlers
+	failingMountID uint32
+}
+
+func (fh *failingMountFSFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) string {
+	if f.MountID == fh.failingMountID {
+		ev.SetPathResolutionError(f, assert.AnError)
+		return ""
+	}
+	return fh.FakeFieldHandlers.ResolveFileFilesystem(ev, f)
+}
+
+type serializingWildcardHandler struct{}
+
+func (serializingWildcardHandler) HandleEvent(ev *model.Event) {
+	ev.Rules = append(ev.Rules, model.NewMatchedRule("rule_1", "1.0", nil, "pol", "1.0"))
+	_ = serializers.NewEventSerializer(ev, nil, nil)
+}
+
+func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
+	cfg := &config.Config{
+		RuntimeSecurity: &config.RuntimeSecurityConfig{
+			SecurityProfileEnabled:   true,
+			SecurityProfileV2Enabled: true,
+		},
+	}
+	pm := &recordingProfileManager{}
+	baseProbe := &Probe{Config: cfg}
+	require.NoError(t, baseProbe.AddEventHandler(serializingWildcardHandler{}))
+
+	p := &EBPFProbe{
+		probe:          baseProbe,
+		config:         cfg,
+		Resolvers:      &resolvers.EBPFResolvers{},
+		profileManager: pm,
+	}
+	p.monitors = &EBPFMonitors{ebpfProbe: p}
+
+	fh := &failingMountFSFieldHandlers{
+		FakeFieldHandlers: &model.FakeFieldHandlers{},
+		failingMountID:    999,
+	}
+
+	ev := model.NewFakeEvent()
+	ev.Type = uint32(model.FileOpenEventType)
+	ev.FieldHandlers = fh
+
+	child := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+	child.FileEvent.PathnameStr = "/usr/bin/app"
+	child.FileEvent.Inode = 42
+	child.FileEvent.MountID = 1
+
+	parent := model.NewPlaceholderProcessCacheEntry(2, 2, false)
+	parent.FileEvent.PathnameStr = "/bin/sh"
+	parent.FileEvent.Inode = 2
+	parent.FileEvent.MountID = 1
+
+	grandparent := model.NewPlaceholderProcessCacheEntry(1, 1, false)
+	grandparent.FileEvent.PathnameStr = "/sbin/init"
+	grandparent.FileEvent.Inode = 1
+	grandparent.FileEvent.MountID = 1
+	grandparent.LinuxBinprm.FileEvent.PathnameStr = "/lib64/ld-linux.so.2"
+	grandparent.LinuxBinprm.FileEvent.Inode = 99
+	grandparent.LinuxBinprm.FileEvent.MountID = 999
+
+	parent.Ancestor = grandparent
+	parent.Parent = &grandparent.Process
+	child.Ancestor = parent
+	child.Parent = &parent.Process
+	ev.ProcessCacheEntry = child
+	ev.ProcessContext = &child.ProcessContext
+	ev.Open.File.PathnameStr = "/tmp/ok"
+	ev.Open.File.Inode = 100
+	ev.Open.File.MountID = 1
+
+	p.DispatchEvent(ev, false)
+
+	require.NoError(t, ev.Error)
+	require.ErrorIs(t, grandparent.LinuxBinprm.FileEvent.PathResolutionError, assert.AnError)
+	require.Len(t, pm.events, 1)
+	require.Len(t, pm.events[0].Rules, 1)
+	assert.Equal(t, "rule_1", pm.events[0].Rules[0].RuleID)
+
+	badEv := model.NewFakeEvent()
+	badEv.Type = uint32(model.FileOpenEventType)
+	badEv.FieldHandlers = fh
+	badEv.ProcessCacheEntry = child
+	badEv.ProcessContext = &child.ProcessContext
+	badEv.Open.File.Inode = 101
+	badEv.Open.File.MountID = 999
+
+	p.DispatchEvent(badEv, false)
+
+	require.ErrorIs(t, badEv.Error, assert.AnError)
+	assert.Len(t, pm.events, 1)
 }

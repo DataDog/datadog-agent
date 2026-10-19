@@ -186,9 +186,9 @@ type workloadProfileAnomaly struct {
 var sentinelCounter atomic.Uint64
 
 // runUntilSentinel runs action, then executes a sentinel command in the container and returns once the sentinel
-// exec event has been dispatched. Events are dispatched in order and the workload profile manager processes each
-// event, and sends the anomaly it triggers, before the event reaches the probe event handlers: once the sentinel
-// is seen, every event of the action and every anomaly it triggered has already been delivered.
+// exec event reaches the probe event handlers. Events are dispatched sequentially, so once the sentinel is seen,
+// every event of the action (along with its workload profile processing and any anomaly it triggered) has already
+// been processed.
 // onProbeEvent, if not nil, is called for each dispatched event until the sentinel.
 func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdWrapper, action func() error, onProbeEvent func(event *model.Event)) {
 	t.Helper()
