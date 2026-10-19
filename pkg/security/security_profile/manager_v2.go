@@ -777,6 +777,8 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventTypeMetrics) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
+	event.ResolveEventTime()
+
 	m.profilePendingEventsLock.Lock()
 	defer m.profilePendingEventsLock.Unlock()
 
@@ -794,7 +796,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 
 	// Check if event is too old (>10s since first event for this cgroup)
 	// If so, drop this event and clear the queue - stale events won't be processed
-	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
 		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
 			// Decrement queue size BEFORE clearing the list
