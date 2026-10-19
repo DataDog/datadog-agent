@@ -256,15 +256,14 @@ static __always_inline int _sys_open_ret_impl(void *ctx, struct syscall_cache_t 
         goto pop_and_exit;
     }
 
-    // emit a sample refresh if the dedup map flagged one
-    if (syscall->state == DISCARDED && (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED)) {
-        struct sample_refresh_event_t ev = {};
-        ev.cookie = syscall->sample_cookie;
-        send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
-    }
-
     apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
     if (syscall->state == DISCARDED) {
+        // emit a sample refresh if the dedup map flagged one
+        if (syscall->resolver.flags & SAMPLE_REFRESH_NEEDED) {
+            struct sample_refresh_event_t ev = {};
+            ev.cookie = syscall->sample_cookie;
+            send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
+        }
         goto pop_and_exit;
     }
 
