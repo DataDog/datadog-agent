@@ -356,8 +356,6 @@ var _ = declareInlineConfig(TestFilterOpenLeafDiscarderWorkloadProfile)
 // TestFilterOpenLeafDiscarderWorkloadProfile checks that an open hidden by a leaf discarder (rule without approver)
 // is still forwarded to user space, so that the workload profile learns it for each process opening the file.
 func TestFilterOpenLeafDiscarderWorkloadProfile(t *testing.T) {
-	t.Skip("Skip until the fix is implemented")
-
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -424,8 +422,9 @@ func TestFilterOpenLeafDiscarderWorkloadProfile(t *testing.T) {
 		t.Fatalf("the open of touch should be in the workload profile: %v", err)
 	}
 
-	// another process opening the discarded file should be learned too, under its own process node
-	cmd = dockerInstance.Command("cat", []string{testFile}, []string{})
+	// another process opening the discarded file should be learned too, under its own process node. cat runs from a
+	// shell ("; true" keeps it from being exec'd in place) so that its parent, and so its sampler key, differs from touch.
+	cmd = dockerInstance.Command("sh", []string{"-c", "cat " + testFile + "; true"}, []string{})
 	if _, err := cmd.CombinedOutput(); err != nil {
 		t.Fatal(err)
 	}
