@@ -3,23 +3,53 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "eudm",
-    srcs = ["hostname.go"],
+    srcs = [
+        "hostname.go",
+        "hostname_darwin.go",
+        "hostname_others.go",
+        "hostname_supported.go",
+        "hostname_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/hostname/eudm",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/model",
-        "//pkg/inventory/systeminfo",
         "//pkg/util/hostname/validate",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/inventory/systeminfo",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/inventory/systeminfo",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/inventory/systeminfo",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(
     name = "eudm_test",
-    srcs = ["hostname_test.go"],
+    srcs = [
+        "hostname_darwin_test.go",
+        "hostname_others_test.go",
+        "hostname_supported_test.go",
+        "hostname_test.go",
+        "hostname_windows_test.go",
+    ],
     embed = [":eudm"],
     deps = [
-        "//pkg/config/mock",
-        "//pkg/inventory/systeminfo",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/inventory/systeminfo",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/inventory/systeminfo",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/inventory/systeminfo",
+        ],
+        "//conditions:default": [],
+    }),
 )

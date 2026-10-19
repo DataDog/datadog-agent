@@ -8,53 +8,10 @@ package eudm
 
 import (
 	"errors"
-	"fmt"
-	"os"
-	"runtime"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
-
-var (
-	collectSystemInfo = systeminfo.Collect
-	osHostname        = os.Hostname
-)
-
-// Supported reports whether this platform provides EUDM device identity.
-func Supported() bool {
-	return runtime.GOOS == "darwin" || runtime.GOOS == "windows"
-}
-
-// Enabled reports whether device hostname resolution is enabled on this host.
-func Enabled(config model.Reader) bool {
-	return config.GetString("infrastructure_mode") == "end_user_device" && Supported()
-}
-
-// Get returns the normalized device name suffixed with its hardware serial.
-// Missing identity is an error so callers can retain legacy hostname resolution.
-func Get() (string, error) {
-	if !Supported() {
-		return "", errors.New("EUDM hostname is only supported on macOS and Windows")
-	}
-	info, err := collectSystemInfo()
-	if err != nil {
-		return "", fmt.Errorf("collecting device identity: %w", err)
-	}
-	if info == nil {
-		return "", errors.New("device identity is unavailable")
-	}
-	name := info.ComputerName
-	if runtime.GOOS == "windows" {
-		name, err = osHostname()
-		if err != nil {
-			return "", err
-		}
-	}
-	return formatHostname(name, info.SerialNumber)
-}
 
 func formatHostname(name, serial string) (string, error) {
 	serial = normalize(serial)

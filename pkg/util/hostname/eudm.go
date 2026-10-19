@@ -10,19 +10,19 @@ import (
 	"errors"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/eudm"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var getEUDMHostname = eudm.Get
-var eudmEnabled = eudm.Enabled
 
 func fromEUDM(_ context.Context, _ string) (string, error) {
-	if !eudmEnabled(pkgconfigsetup.Datadog()) {
-		return "", errors.New("EUDM hostname resolution is not enabled on this host")
+	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") != constants.InfraModeEndUserDevice {
+		return "", errors.New("EUDM hostname resolution only applies in end_user_device infrastructure mode")
 	}
 	name, err := getEUDMHostname()
-	if err != nil {
+	if err != nil && !errors.Is(err, errors.ErrUnsupported) {
 		log.Warnf("Unable to determine EUDM device hostname; falling back to existing hostname resolution: %v", err)
 	}
 	return name, err

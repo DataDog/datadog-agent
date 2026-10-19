@@ -14,15 +14,13 @@ import (
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEUDMResolution(t *testing.T) {
-	oldGet, oldEnabled := getEUDMHostname, eudmEnabled
-	t.Cleanup(func() { getEUDMHostname, eudmEnabled = oldGet, oldEnabled })
-	eudmEnabled = func(cfg model.Reader) bool { return cfg.GetString("infrastructure_mode") == "end_user_device" }
+	oldGet := getEUDMHostname
+	t.Cleanup(func() { getEUDMHostname = oldGet })
 	for _, tc := range []struct {
 		name, mode, override string
 		file, sidecar, fail  bool
@@ -76,12 +74,25 @@ func TestEUDMResolution(t *testing.T) {
 	}
 }
 
+func TestEUDMSkippedOutsideEUDMMode(t *testing.T) {
+	old := getEUDMHostname
+	t.Cleanup(func() { getEUDMHostname = old })
+	getEUDMHostname = func() (string, error) {
+		t.Fatal("device identity was collected outside end_user_device mode")
+		return "", nil
+	}
+	cfg := configmock.New(t)
+	cfg.SetInTest("infrastructure_mode", "full")
+	_, err := fromEUDM(context.Background(), "")
+	require.Error(t, err)
+}
+
 func TestEUDMUnsupportedPlatform(t *testing.T) {
-	old := eudmEnabled
-	t.Cleanup(func() { eudmEnabled = old })
-	eudmEnabled = func(model.Reader) bool { return false }
+	old := getEUDMHostname
+	t.Cleanup(func() { getEUDMHostname = old })
+	getEUDMHostname = func() (string, error) { return "", errors.ErrUnsupported }
 	cfg := configmock.New(t)
 	cfg.SetInTest("infrastructure_mode", "end_user_device")
 	_, err := fromEUDM(context.Background(), "")
-	require.Error(t, err)
+	require.ErrorIs(t, err, errors.ErrUnsupported)
 }

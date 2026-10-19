@@ -6,13 +6,9 @@
 package eudm
 
 import (
-	"errors"
-	"runtime"
 	"strings"
 	"testing"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,48 +39,5 @@ func TestInvalidIdentity(t *testing.T) {
 	for _, name := range []string{"", "---", "你好"} {
 		_, err := formatHostname(name, "ABC123")
 		require.Error(t, err)
-	}
-}
-
-func TestGetDeviceIdentity(t *testing.T) {
-	if !Supported() {
-		t.Skip("device identity requires macOS or Windows")
-	}
-	oldCollect, oldHostname := collectSystemInfo, osHostname
-	t.Cleanup(func() { collectSystemInfo, osHostname = oldCollect, oldHostname })
-	info := &systeminfo.SystemInfo{ComputerName: "My Mac", SerialNumber: "ABC123"}
-	collectSystemInfo = func() (*systeminfo.SystemInfo, error) { return info, nil }
-	osHostname = func() (string, error) { return "MY-PC", nil }
-	got, err := Get()
-	require.NoError(t, err)
-	if runtime.GOOS == "darwin" {
-		require.Equal(t, "my-mac-abc123", got)
-		// Network-derived names must never influence the macOS device name.
-		osHostname = func() (string, error) { return "network-assigned-name", nil }
-		same, err := Get()
-		require.NoError(t, err)
-		require.Equal(t, got, same)
-		info.ComputerName = "Renamed Mac"
-		renamed, err := Get()
-		require.NoError(t, err)
-		require.Equal(t, "renamed-mac-abc123", renamed)
-	} else {
-		require.Equal(t, "my-pc-abc123", got)
-	}
-	collectSystemInfo = func() (*systeminfo.SystemInfo, error) { return nil, errors.New("unavailable") }
-	_, err = Get()
-	require.Error(t, err)
-	collectSystemInfo = func() (*systeminfo.SystemInfo, error) { return nil, nil }
-	_, err = Get()
-	require.Error(t, err)
-}
-
-func TestEnabled(t *testing.T) {
-	for _, mode := range []string{"", "host", "end_user_device"} {
-		t.Run(mode, func(t *testing.T) {
-			cfg := configmock.New(t)
-			cfg.SetInTest("infrastructure_mode", mode)
-			require.Equal(t, mode == "end_user_device" && (runtime.GOOS == "darwin" || runtime.GOOS == "windows"), Enabled(cfg))
-		})
 	}
 }
