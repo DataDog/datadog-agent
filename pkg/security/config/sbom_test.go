@@ -80,3 +80,15 @@ func TestSBOMResolverGates(t *testing.T) {
 		})
 	}
 }
+
+func TestAnomalyDetectionSilentRuleEventsDisabledOnV2(t *testing.T) {
+	configmock.New(t)
+	sysprobe := configmock.NewSystemProbe(t)
+	sysprobe.SetInTest("runtime_security_config.security_profile.v2.enabled", true)
+	sysprobe.SetInTest("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled", true)
+
+	cfg, err := NewRuntimeSecurityConfig()
+	require.NoError(t, err)
+	assert.True(t, cfg.SecurityProfileV2Enabled)
+	assert.False(t, cfg.AnomalyDetectionSilentRuleEventsEnabled)
+}
