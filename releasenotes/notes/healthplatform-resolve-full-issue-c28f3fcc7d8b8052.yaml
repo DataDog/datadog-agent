@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Agent health issue resolution reports now carry the issue's full content,
+    including when replayed after an Agent restart.
