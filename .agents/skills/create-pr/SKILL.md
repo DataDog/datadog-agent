@@ -24,12 +24,11 @@ Create a pull request for the current branch following the Datadog Agent contrib
 2. **Get the commits** on this branch compared to `main` using `git log main..HEAD`
 3. **Get the diff** using `git diff main..HEAD` to understand all changes
 4. **Read the PR template** from `.github/PULL_REQUEST_TEMPLATE.md`
-5. **Codex review** (optional): Check if `codex` is installed (`command -v codex`). If it is, run a review against the default branch:
+5. **Local code review** (optional): Run `dda review`, which builds the same prompt (from the `codereview_guideline.md` files relevant to the diff) and uses the same default provider as the PR `Code review` workflow (`.github/workflows/code-review.yml`), so local findings match what CI will post. It reviews against the repository default branch by default:
    ```bash
-   DEFAULT_BRANCH=$(git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||')
-   codex review --base "$DEFAULT_BRANCH"
+   dda review
    ```
-   `codex review` is an LLM-based review and can take several minutes — do not bound it with a short Bash `timeout`, and do not let it get killed mid-run. Run it with `run_in_background: true` and wait for completion (or pass a generous `timeout`, e.g. the Bash tool max of 600000ms). If it's still running when you check back, keep waiting rather than treating it as done or skipping it, up to that 10-minute ceiling — if it still hasn't finished by then, note that to the user and proceed without it rather than stalling PR creation indefinitely. Show the review output to the user. If codex is not installed, skip this step silently.
+   The default provider (`codex`) must be installed. If `dda` or `codex` is missing (`command -v dda codex`), skip this step silently. `dda review` is an LLM-based review and can take several minutes. Don't give it a short Bash `timeout` and don't let it get killed mid-run: run it with `run_in_background: true` and wait for it to finish, or pass a generous `timeout` such as the Bash tool max of 600000ms. If it's still running when you check back, keep waiting, up to that 10-minute ceiling. If it still hasn't finished by then, tell the user and continue without it rather than stalling PR creation indefinitely. Show the review output to the user.
 6. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
