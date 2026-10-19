@@ -129,30 +129,26 @@ func TestActionsController(t *testing.T) {
 	assert.Equal(t, kafkaActionsIntegrationName, scheduledCfg.Name)
 	require.Len(t, scheduledCfg.Instances, 1)
 
-	// Verify the instance has auth merged in
-	var instance map[string]any
-	err = yaml.Unmarshal(scheduledCfg.Instances[0], &instance)
-	require.NoError(t, err)
-
-	// Check that auth fields are present
-	assert.Equal(t, "localhost:9092", instance["kafka_connect_str"])
-	assert.Equal(t, "PLAIN", instance["sasl_mechanism"])
-	assert.Equal(t, "user", instance["sasl_plain_username"])
-	assert.Equal(t, "pass", instance["sasl_plain_password"])
-	assert.Equal(t, "SASL_SSL", instance["security_protocol"])
-
-	// Check that schema registry fields are copied
-	assert.Equal(t, "http://localhost:8081", instance["schema_registry_url"])
-	assert.Equal(t, "sr-user", instance["schema_registry_username"])
-	assert.Equal(t, "sr-pass", instance["schema_registry_password"])
-
-	assert.Equal(t, true, instance["run_once"])
-
-	// Check that remote_config_id was injected
-	assert.Equal(t, "test_remote_config_id", instance["remote_config_id"])
-
-	// Check that actions are present
-	assert.NotNil(t, instance["read_messages"])
+	// Compared as text so any change in serialization fails here, including
+	// style the Python check would tolerate. consumer_groups and topics are
+	// absent because they are not on the auth allowlist.
+	expected := `kafka_connect_str: localhost:9092
+read_messages:
+    n_messages: 10
+    offset: 100
+    partition: 0
+    topic: test-topic
+remote_config_id: test_remote_config_id
+run_once: true
+sasl_mechanism: PLAIN
+sasl_plain_password: pass
+sasl_plain_username: user
+schema_registry_password: sr-pass
+schema_registry_url: http://localhost:8081
+schema_registry_username: sr-user
+security_protocol: SASL_SSL
+`
+	assert.Equal(t, expected, string(scheduledCfg.Instances[0]))
 }
 
 func TestActionsControllerNoBootstrapServers(t *testing.T) {
