@@ -201,4 +201,61 @@ PY
 if FAIL_ARCHIVE=1 fetch "$workspace/ssh-failure" > /dev/null 2>&1; then echo "ignored SSH failure" >&2; exit 1; fi
 if FAIL_COPY=1 fetch "$workspace/scp-failure" > /dev/null 2>&1; then echo "ignored SCP failure" >&2; exit 1; fi
 [[ ! -e "$workspace/escape" ]]
+
+[[ "$(python3 "$scripts/recording.py" wait "$FIXTURE/episode.json" 60)" == 0 ]]
+if python3 "$scripts/recording.py" wait "$FIXTURE/episode.json" 0 > /dev/null 2>&1; then
+    echo "invalid flush accepted" >&2; exit 1
+fi
+
+mkdir "$workspace/bootstrap-bin"
+cat > "$workspace/bootstrap-bin/sudo" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$CALLS"
+case "$1" in gpg|tee) cat >/dev/null ;; esac
+SH
+cat > "$workspace/bootstrap-bin/curl" <<'SH'
+#!/usr/bin/env bash
+printf 'fixture public key\n'
+SH
+cat > "$workspace/bootstrap-bin/gpg" <<'SH'
+#!/usr/bin/env bash
+printf 'fpr:::::::::%s:\n' "${HELM_TEST_FINGERPRINT:-DDF78C3E6EBB2D2CC223C95C62BA89D07698DBC6}"
+SH
+cat > "$workspace/bootstrap-bin/grep" <<'SH'
+#!/usr/bin/env bash
+if [[ "${@: -1}" == /etc/os-release ]]; then exit 0; fi
+exec /usr/bin/grep "$@"
+SH
+cat > "$workspace/bootstrap-bin/uname" <<'SH'
+#!/usr/bin/env bash
+echo x86_64
+SH
+cat > "$workspace/bootstrap-bin/lsb_release" <<'SH'
+#!/usr/bin/env bash
+echo jammy
+SH
+cat > "$workspace/bootstrap-bin/go" <<'SH'
+#!/usr/bin/env bash
+printf 'go %s\n' "$*" >> "$CALLS"
+SH
+cat > "$workspace/bootstrap-bin/docker" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "$workspace/bootstrap-bin/"*
+mkdir "$workspace/bootstrap-home"
+bootstrap() {
+    HOME="$workspace/bootstrap-home" PATH="$workspace/bootstrap-bin:/usr/bin:/bin" bash "$scripts/bootstrap.sh" --disposable-vm
+}
+bootstrap
+grep -q 'apt-get install .*docker-compose-plugin' "$CALLS"
+grep -q 'apt-get install .*helm=3.20.2-1' "$CALLS"
+grep -qx 'go install sigs.k8s.io/kind@v0.27.0' "$CALLS"
+mv "$workspace/bootstrap-bin/go" "$workspace/bootstrap-bin/go-disabled"
+bootstrap
+grep -q 'curl .*kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64' "$CALLS"
+if HELM_TEST_FINGERPRINT=untrusted bootstrap > /dev/null 2>&1; then
+    echo "untrusted Helm signing key accepted" >&2; exit 1
+fi
 echo "Shell helper fixture tests passed"
