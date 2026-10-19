@@ -109,3 +109,23 @@ func TestBoundRequest(t *testing.T) {
 		})
 	}
 }
+
+type deadlineWriter struct {
+	http.ResponseWriter
+	deadline time.Time
+}
+
+func (d *deadlineWriter) SetWriteDeadline(t time.Time) error {
+	d.deadline = t
+	return nil
+}
+
+func TestSetWriteDeadline(t *testing.T) {
+	w := &deadlineWriter{ResponseWriter: httptest.NewRecorder()}
+	deadline := time.Now().Add(time.Minute)
+	setWriteDeadline(w, deadline)
+	assert.Equal(t, deadline, w.deadline)
+
+	// A writer without deadline support is left as is.
+	setWriteDeadline(httptest.NewRecorder(), deadline)
+}

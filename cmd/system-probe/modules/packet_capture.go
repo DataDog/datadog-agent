@@ -10,6 +10,7 @@ package modules
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -39,6 +40,10 @@ type captureRequest struct {
 // stopGracePeriod bounds how long the handler waits, beyond the requested
 // duration, for the capturer's drain loop to exit before forcing Stop().
 const stopGracePeriod = 5 * time.Second
+
+// trailerGracePeriod is the extra time after stopGracePeriod for the trailers
+// to be written before the response write deadline.
+const trailerGracePeriod = 5 * time.Second
 
 // Limits enforced here, where the capture runs, whatever the caller sends.
 // They match the Private Action Runner's, which validates first.
@@ -165,6 +170,10 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/vnd.tcpdump.pcap")
 	w.Header().Set("Trailer", "X-Packet-Count, X-Bytes-Captured, X-Packets-Dropped, X-Headers-Truncated, X-Capture-Errors")
 
+	// A caller that stops reading without closing the socket would otherwise
+	// block the drain loop's writes forever, and Stop waits for the drain loop.
+	setWriteDeadline(w, time.Now().Add(duration+stopGracePeriod+trailerGracePeriod))
+
 	startedAt := time.Now()
 	if err := capturer.Start(ctx); err != nil {
 		log.Errorf("packet_capture: starting capture: %s", err)
@@ -199,4 +208,12 @@ func handleCapture(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("X-Packets-Dropped", strconv.FormatUint(stats.PacketsDropped, 10))
 	w.Header().Set("X-Headers-Truncated", strconv.FormatUint(stats.HeadersTruncated, 10))
 	w.Header().Set("X-Capture-Errors", strconv.FormatUint(stats.Errors, 10))
+}
+
+// setWriteDeadline bounds every write to the response. Writers that cannot
+// set a deadline are left unbounded.
+func setWriteDeadline(w http.ResponseWriter, deadline time.Time) {
+	if err := http.NewResponseController(w).SetWriteDeadline(deadline); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		log.Warnf("packet_capture: setting write deadline: %s", err)
+	}
 }
