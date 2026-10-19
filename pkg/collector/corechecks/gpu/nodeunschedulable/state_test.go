@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 type fakeSource struct {
@@ -225,4 +227,28 @@ func TestUncordonClosesOnlyTheCordonedTagset(t *testing.T) {
 	require.Len(t, points, 2)
 	assert.Equal(t, Point{Tags: []string{"unavailable_reason:unschedulable", "unschedulable_reason:drain"}, Value: 1}, points[0])
 	assert.Equal(t, Point{Tags: []string{"unavailable_reason:unschedulable", "unschedulable_reason:cordoned", "unschedulable_reason:drain"}, Value: 0}, points[1])
+}
+
+func TestCacheRefresh(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+	src := &fakeSource{result: Result{Unschedulable: true, Reasons: []string{"cordoned"}}}
+	c := NewCache(src, time.Minute)
+	assert.Empty(t, c.Points())
+
+	t0 := time.Now()
+	c.Refresh(t0)
+	assert.Equal(t, []Point{{Tags: []string{"unavailable_reason:unschedulable", "unschedulable_reason:cordoned"}, Value: 1}}, c.Points())
+
+	src.result = Result{}
+	c.Refresh(t0.Add(time.Minute))
+	assert.Equal(t, []Point{{Tags: []string{"unavailable_reason:unschedulable", "unschedulable_reason:cordoned"}, Value: 0}}, c.Points())
+}
+
+func TestCacheRefreshOffKubernetes(t *testing.T) {
+	env.SetFeatures(t)
+	src := &fakeSource{result: Result{Unschedulable: true, Reasons: []string{"cordoned"}}}
+	c := NewCache(src, time.Minute)
+	c.Refresh(time.Now())
+	assert.Empty(t, c.Points())
+	assert.Zero(t, src.calls)
 }

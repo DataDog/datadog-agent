@@ -183,3 +183,17 @@ gpu:
 `))
 	assert.Error(t, err)
 }
+
+// Invalid rules are ignored: only a cordoned node is still reported.
+func TestLoadRulesFallsBackToCordon(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest(LabelsConfigKey, []map[string]interface{}{{"key": "example.com/drain"}})
+
+	rules := loadRules(cfg)
+	require.False(t, rules.HasLabelRules())
+	require.Equal(t, []string{"cordoned"}, rules.Evaluate(map[string]string{"example.com/drain": "true"}, nil, true))
+}
+
+func TestNewDisabledByDefault(t *testing.T) {
+	require.Nil(t, New(configmock.New(t)))
+}

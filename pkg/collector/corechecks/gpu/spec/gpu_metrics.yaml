@@ -933,8 +933,9 @@ metrics:
         cause is an unschedulable_reason tag (cordoned, <key>:<value> or
         <type>:<status>). These node-level series are reported for every device
         that reports gpu.device.total, MIG slices included (filter on
-        gpu_slicing_mode to count physical GPUs), carry the device tags but never
-        workload tags, and are sparse: 1 while the tagset applies, then 0 for 10
+        gpu_slicing_mode to count physical GPUs), carry the device tags and, like
+        gpu.device.total, the tags of the workloads on the device (count GPUs per
+        gpu_uuid), and are sparse: 1 while the tagset applies, then 0 for 10
         minutes after it stops applying, then no data.
       aggregation: absolute_usage
     tagsets:

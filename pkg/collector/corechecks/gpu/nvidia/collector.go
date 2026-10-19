@@ -20,6 +20,7 @@ import (
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -78,6 +79,8 @@ type CollectorDependencies struct {
 	SystemProbeCache *SystemProbeCache
 	// PRMCache is a cache of privileged PRM metrics obtained from system-probe
 	PRMCache *PRMCache
+	// NodeUnschedulable is an (optional) cache of the node unschedulable state, refreshed by the check
+	NodeUnschedulable *nodeunschedulable.Cache
 	// Telemetry is the telemetry component to use for collecting metrics
 	Telemetry *CollectorTelemetry
 	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
