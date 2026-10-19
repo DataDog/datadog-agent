@@ -6,7 +6,6 @@
 package cspm
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,12 +52,9 @@ func (s *dockerHostCSPMSuite) TestDockerRulesFireOnDockerHost() {
 	require.NoError(s.T(), err)
 
 	seenDockerRule := false
-	for rule, results := range findings {
-		if !strings.HasPrefix(rule, "cis-docker-1.2.0-") {
-			continue
-		}
+	for _, results := range findings {
 		for _, r := range results {
-			if r["result"] == "passed" || r["result"] == "failed" {
+			if r["agent_framework_id"] == "cis-docker" && (r["result"] == "passed" || r["result"] == "failed") {
 				seenDockerRule = true
 				break
 			}
@@ -68,5 +64,5 @@ func (s *dockerHostCSPMSuite) TestDockerRulesFireOnDockerHost() {
 		}
 	}
 	assert.True(s.T(), seenDockerRule,
-		"expected at least one cis-docker-1.2.0-* finding with result passed or failed on a non-K8s Docker host; the filter must not suppress rules outside Kubernetes")
+		"expected at least one cis-docker finding with result passed or failed on a non-K8s Docker host; the filter must not suppress rules outside Kubernetes")
 }
