@@ -3,11 +3,15 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "profilerec",
-    srcs = ["profilerec.go"],
+    srcs = [
+        "plan.go",
+        "profilerec.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/profilerec",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/metrics",
+        "//pkg/config/model",
         "//pkg/config/setup",
     ],
 )

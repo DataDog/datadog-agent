@@ -8,7 +8,6 @@ package missedbytes
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -21,7 +20,7 @@ import (
 	logsmetrics "github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
-var errLogsAgentNotRunning = errors.New("missedbytes: logs agent not running")
+var errLogsAgentNotRunning = fmt.Errorf("missedbytes: logs agent not running: %w", runnerdef.ErrStateUnknown)
 
 // maxBreakdownSources caps the tuples listed individually; totals cover them all.
 const maxBreakdownSources = 10
