@@ -2,6 +2,219 @@
 Release Notes
 =============
 
+.. _Release Notes_7.84.4:
+
+7.84.4
+======
+
+.. _Release Notes_7.84.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-19
+
+- Please refer to the `7.84.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7844>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.4_New Features:
+
+New Features
+------------
+
+- Add ``logs_config.unreliable_mount.enabled`` for log files on mounts with
+  stale page-cache or file-handle behavior during rotation, such as CIFS/SMB
+  and Azure Files. The profile applies to all file log sources on the Agent
+  and requires an Agent restart when changed. On Linux, fingerprint reads use
+  ``O_DIRECT``, including sources with their own checksum settings. Other
+  platforms keep buffered fingerprint reads. Normal log tailing is unchanged.
+
+  The profile defaults the global fingerprint strategy to ``line_checksum``
+  with one line and a 4096-byte window. Explicit checksum settings, including
+  ``disabled``, are preserved. ``logs_config.unreliable_mount.rotation_drain_timeout``
+  replaces ``close_timeout`` for rotated files and defaults to 60 seconds.
+  Scan frequency is unchanged. Consider raising ``logs_config.file_scan_period``
+  to reduce uncached reads, which fetch the whole fingerprint window each scan.
+
+  Failed fingerprints prevent new tailers from starting. Active tailers keep
+  collecting, but cannot check fingerprint rotation until a later read succeeds.
+  Failures appear in the Agent log and status; status clears on recovery. Linux
+  does not silently retry failed direct reads using buffered I/O.
+
+
+.. _Release Notes_7.84.4_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- CWS: the default values of the SBOM usage enrichment intervals have been
+  increased. ``runtime_security_config.sbom.enrichment_interval`` is now
+  ``30m`` (previously ``1m``) and ``runtime_security_config.sbom.forward_interval``
+  is now ``1m`` (previously ``20s``), reducing how often SBOMs enriched with
+  runtime usage information are updated and forwarded.
+
+
+.. _Release Notes_7.84.4_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Logs: Prevent registry corruption after an abrupt system shutdown by
+  making atomic registry updates durable before replacing the previous file.
+
+- With ``logs_config.unreliable_mount.enabled``, file log sources that detect
+  rotation by fingerprint now wait for the rotated tailer to release its
+  descriptor before reopening the same path. On CIFS/SMB shares, opening a
+  path while a previous descriptor on it is still open can return a stale
+  handle, which duplicated or lost log lines across a rotation. Sources with
+  fingerprinting disabled, and all sources without the profile, keep tailing
+  the rotated and the new file in parallel as before.
+
+  The handoff ends once the rotated file has gone 30 seconds without new
+  reads, rather than always waiting out
+  ``logs_config.unreliable_mount.rotation_drain_timeout``, which remains
+  the upper bound. The new file is collected from its beginning once the
+  handoff ends, so a file rotated away sooner than that is not read.
+
+- Updated the ``gopsutil`` library to v4.26.9 to fix a crash of the Agent
+  when running on Apple M6 hosts.
+
+
+.. _Release Notes_7.84.3:
+
+7.84.3
+======
+
+.. _Release Notes_7.84.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-14
+
+- Please refer to the `7.84.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7843>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.3_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The Agent now ships Private Action Runner script configuration as a template
+  instead of replacing the live file on subsequent upgrades. If you customized
+  the Agent-installed ``private-action-runner/script-config.yaml`` on a Linux
+  host or ``private-action-runner/powershell-script-config.yaml`` on a Windows
+  host, backup that file to a safe location outside the Agent configuration
+  directory **before your first upgrade to this release**. Copy it back after
+  the upgrade, and again after any rollback, downgrade, or Fleet Automation
+  experiment cancellation.
+
+
+.. _Release Notes_7.84.3_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the ``submit_histogram_bucket_multi`` function to the ``aggregator`` module
+  that Python checks use. It takes the same arguments as ``submit_histogram_bucket``,
+  but the Agent tracks each bucket by its bounds as well as its tags, so the buckets
+  of a histogram can share the same tags. This lets OpenMetrics checks send histogram
+  buckets as distributions without the ``upper_bound`` and ``lower_bound`` tags.
+
+
+.. _Release Notes_7.84.3_Security Notes:
+
+Security Notes
+--------------
+
+- Restrict Private Action Runner Kubernetes custom resource actions from
+  accessing core and native Kubernetes APIs by default. Existing workflows
+  using non-native custom resource groups remain compatible. Operators can
+  configure the new
+  ``private_action_runner.kubernetes_allowed_custom_resources`` setting
+  to restrict access to an exact list of resources.
+
+
+.. _Release Notes_7.84.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a bug in the automatic TCP socket offset guessing used by network
+  monitoring on Linux: on kernels without BTF, the guesser could lock onto
+  a false-positive offset for the round-trip time, causing the RTT
+  reported for TCP connections to be read from an unrelated kernel
+  field while the RTT variance scan still finds the correct field.
+  The guesser now rejects such false matches and re-scans until it
+  finds the correct fields.
+
+- Fixed the ``gpu.nvlink.ber.effective`` and ``gpu.nvlink.ber.symbol``
+  metrics reporting NVML's packed bit error rate encoding instead of the
+  actual rate. The Agent now decodes the value (mantissa × 10^-exponent), so a
+  healthy link reports a value close to zero instead of 4095. Monitors and
+  dashboards that use these metrics need their thresholds updated.
+
+- Prevent Windows installer telemetry from reading settings from an Agent configuration directory with an unexpected owner.
+
+
+.. _Release Notes_7.84.2:
+
+7.84.2
+======
+
+.. _Release Notes_7.84.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-10-07
+
+- Please refer to the `7.84.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7842>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.84.2_New Features:
+
+New Features
+------------
+
+- Add Fleet-managed upgrades and rollback for Windows FIPS Agents.
+
+
+.. _Release Notes_7.84.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Allow enabling Private Action Runner split mode during a Windows Agent
+  installation with the ``DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED`` MSI
+  property.
+
+
+.. _Release Notes_7.84.2_Security Notes:
+
+Security Notes
+--------------
+
+- Bumped pip to 26.2.1 in the embedded Python distribution.
+
+- Patch the embedded MIT krb5 library so NegoEx GSS token parsing rejects
+  truncated headers and missing extension vectors instead of reading past the
+  buffer.
+
+
+.. _Release Notes_7.84.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix Kueue pods sometimes missing the ``kueue_workload``,
+  ``kueue_workload_uid`` and ``kueue_resource_flavor`` tags after an Agent
+  restart.
+
+- Windows Fleet installer setup now rejects standard/FIPS Agent mismatches
+  before stopping the installed Agent, with a message to use the matching installer.
+
+
 .. _Release Notes_7.84.1:
 
 7.84.1
