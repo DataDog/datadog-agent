@@ -570,7 +570,7 @@ func TestKAIFractionContainerID(t *testing.T) {
 			want: "gpu-id",
 		},
 		{
-			name: "several annotated containers resolve to the same one every time",
+			name: "annotations naming several containers attribute none of them",
 			annotations: map[string]string{
 				kaiContainerAnnotationPrefix + "beta.gpu-memory.request":  "7680Mi",
 				kaiContainerAnnotationPrefix + "alpha.gpu-memory.request": "7680Mi",
@@ -579,7 +579,9 @@ func TestKAIFractionContainerID(t *testing.T) {
 				{ID: "beta-id", Name: "beta"},
 				{ID: "alpha-id", Name: "alpha"},
 			},
-			want: "alpha-id",
+			// Since v0.18 KAI rejects such a pod at admission and binding, so
+			// there is no container it would have picked.
+			want: "",
 		},
 		{
 			name:        "the only container needs no annotation",

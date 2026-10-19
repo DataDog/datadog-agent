@@ -142,8 +142,10 @@ func (c *collector) kaiFractionalGPUs(deviceCache ddnvml.DeviceCache) kaiFractio
 		containerID := kaiFractionContainerID(pod)
 		if containerID == "" {
 			// The container that gets the GPU is not in the store yet, or the
-			// pod does not say which one it is. Nothing to key a mapping on,
-			// and nothing to retract either -- the next pull picks it up.
+			// pod does not say which one it is, or names several. Nothing to
+			// key a mapping on, and nothing to retract either. A container that
+			// is not in the store yet is picked up on a later pull; the other
+			// two cases are warned about by kaiFractionContainerID.
 			continue
 		}
 
@@ -336,12 +338,26 @@ func kaiGPUGroups(pod *workloadmeta.KubernetesPod) []string {
 // when nothing names one. The GPU container can be an init container, so both
 // lists are searched.
 //
-// Returns "" when a named container is not in the store yet, and when a pod
-// with several containers says nothing about which of them uses the GPU.
+// Returns "" when a named container is not in the store yet, when a pod with
+// several containers says nothing about which of them uses the GPU, and when
+// the per-container annotations name more than one container.
 func kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
 	containers := slices.Concat(pod.Containers, pod.InitContainers)
 
 	names := kaiAnnotatedContainerNames(pod.Annotations)
+	if len(names) > 1 {
+		// KAI does not support several fractional containers in one pod: since
+		// v0.18 its admission webhook rejects such a pod and its binder fails to
+		// bind it (GetNvFractionsContainerName), so a pod seen on this node
+		// cannot be in this state unless something is wrong. Older versions do
+		// not use these annotations at all, so only another tool could have
+		// written them. Picking one would be a guess KAI never makes, so warn
+		// instead of attributing the GPU.
+		if kaiWarnLimiter.ShouldLog() {
+			log.Warnf("KAI: pod %s/%s has fractional GPU annotations for several containers %v, which KAI does not support, so its GPU cannot be attributed", pod.Namespace, pod.Name, names)
+		}
+		return ""
+	}
 	if len(names) == 0 {
 		// Reached only when no per-container annotation exists at all. KAI's
 		// rule is "the annotated container, else this one", so a per-container
@@ -385,10 +401,9 @@ func kaiFractionContainerID(pod *workloadmeta.KubernetesPod) string {
 	return ""
 }
 
-// kaiAnnotatedContainerNames returns the container names KAI marked with a
-// per-container annotation, sorted. Sorting rather than taking them in map
-// order is what makes a pod carrying annotations for more than one container
-// resolve to the same container on every pull.
+// kaiAnnotatedContainerNames returns the distinct container names KAI marked
+// with a per-container annotation, sorted so that logs list them in a stable
+// order.
 func kaiAnnotatedContainerNames(annotations map[string]string) []string {
 	var names []string
 	for key := range annotations {
