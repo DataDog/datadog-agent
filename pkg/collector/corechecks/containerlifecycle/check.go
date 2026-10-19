@@ -173,6 +173,7 @@ func (c *Check) Run() error {
 		stopProcessor()
 	}()
 	for {
+		sampleChannels(contEventsCh, contCreateEventsCh, contNodeOrchestratorDeleteEventsCh, podEventsCh, taskEventsCh)
 		select {
 		case eventBundle, ok := <-contEventsCh:
 			if !ok {
@@ -226,6 +227,25 @@ func Factory(store workloadmeta.Component, tagger tagger.Component) option.Optio
 			stopCh:            make(chan struct{}),
 		})
 	})
+}
+
+// sampleChannels records the number of event bundles waiting in each
+// workloadmeta subscription channel, to gauge whether the processor keeps up.
+func sampleChannels(contEventsCh, contCreateEventsCh, contNodeOrchestratorDeleteEventsCh, podEventsCh, taskEventsCh chan workloadmeta.EventBundle) {
+	sampleChannel(contEventsCh, "container-delete")
+	sampleChannel(contCreateEventsCh, "container-create")
+	sampleChannel(contNodeOrchestratorDeleteEventsCh, "container-node-orchestrator-delete")
+	sampleChannel(podEventsCh, "pod")
+	sampleChannel(taskEventsCh, "task")
+}
+
+// sampleChannel records the number of event bundles waiting in one channel.
+// It does nothing if the channel is not subscribed.
+func sampleChannel(ch chan workloadmeta.EventBundle, name string) {
+	if ch == nil {
+		return
+	}
+	queuedEvents.Set(float64(len(ch)), name)
 }
 
 // sendFargateTaskEvent sends Fargate task lifecycle event at the end of the check

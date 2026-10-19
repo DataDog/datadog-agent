@@ -17,3 +17,11 @@ var emittedEvents = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 	"Number of events emitted by the check",
 	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
+
+var queuedEvents = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+	CheckName,
+	"queue_length",
+	[]string{"channel"},
+	"Number of event bundles waiting in each workloadmeta subscription channel",
+	telemetry.Options{NoDoubleUnderscoreSep: true},
+)

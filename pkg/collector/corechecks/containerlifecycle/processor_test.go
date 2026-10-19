@@ -137,6 +137,8 @@ func TestProcessContainer(t *testing.T) {
 
 	p := &processor{
 		containersQueue: &queue{},
+		podsQueue:       &queue{},
+		tasksQueue:      &queue{},
 		handlers:        []Handler{NewContainerTerminationHandler(&fakeStore{})},
 		tagger:          taggerfxmock.SetupFakeTagger(t),
 	}
