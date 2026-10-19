@@ -1,0 +1,13 @@
+{
+  "repository": "DataDog/saluki",
+  "pull_request": "https://github.com/DataDog/saluki/pull/2653",
+  "branch": "rayz/metric-endpoint-allowlist-scaling",
+  "commit": "a6027879262175933f5c358f1b5f33bf2cca35cb",
+  "lading_path": "test/smp/regression/adp/full/cases/matched_control_cpu/lading/lading.yaml",
+  "lading_sha256": "f6560a8137502f6ea16beebad850adc9a46ab881928e84a0f46ebb0a56847c5e",
+  "experiment_definitions": "test/smp/regression/adp/experiments.yaml",
+  "policy_templates": [
+    "test/smp/regression/adp/shared/metric-routing.yaml.j2",
+    "test/smp/regression/adp/shared/metric-routing-prefix-scaling.yaml.j2"
+  ]
+}
