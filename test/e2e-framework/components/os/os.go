@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -19,7 +20,7 @@ import (
 
 // Interfaces used by OS components
 type PackageManager interface {
-	// RuntimeInstallDocker installs Docker at provisioning time, for clouds without pre-baked images (GCP, Azure, local VMs).
+	// RuntimeInstallDocker installs Docker and docker-compose at provisioning time, for clouds without pre-baked images (GCP, Azure, local VMs).
 	// It fails on AWS, where Docker comes from the pre-baked -e2e AMIs.
 	RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error)
 	// InstallLocalPackage installs a package file already present on the host, allowing unsigned packages.
@@ -37,6 +38,22 @@ func assertInstalledCommand(runner command.Runner, n namer.Namer, checkBinary st
 	)
 	cmdName := n.ResourceName("assert-"+checkBinary, utils.StrHash(cmdStr))
 	return runner.Command(cmdName, &command.Args{Create: pulumi.String(cmdStr)}, pulumiOpts...)
+}
+
+// ComposeVersion is the docker-compose version pre-baked in AWS e2e AMIs and runtime-installed elsewhere.
+const ComposeVersion = "v2.27.0"
+
+// runtimeInstallCompose downloads the pinned docker-compose release once dockerInstall has completed.
+func runtimeInstallCompose(runner command.Runner, dockerInstall command.Command, opts ...PackageManagerOption) (command.Command, error) {
+	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	installCompose := pulumi.Sprintf(
+		"curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -m) && sudo chmod 755 /usr/local/bin/docker-compose",
+		ComposeVersion,
+	)
+	return runner.Command("install-compose", &command.Args{Create: installCompose, Sudo: true}, utils.MergeOptions(params.PulumiResourceOptions, utils.PulumiDependsOn(dockerInstall))...)
 }
 
 // isAWS reports whether env provisions resources on AWS.

@@ -89,7 +89,11 @@ func (m *GenericPackageManager) RuntimeInstallDocker(opts ...PackageManagerOptio
 	if err := failIfAWS(m.runner.Environment()); err != nil {
 		return nil, err
 	}
-	return m.install("docker", nil, "docker", opts...)
+	dockerInstall, err := m.install("docker", nil, "docker", opts...)
+	if err != nil {
+		return nil, err
+	}
+	return runtimeInstallCompose(m.runner, dockerInstall, opts...)
 }
 
 func (m *GenericPackageManager) InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error) {

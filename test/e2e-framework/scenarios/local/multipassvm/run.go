@@ -46,11 +46,7 @@ func Run(ctx *pulumi.Context, params *Params) error {
 	if err != nil {
 		return err
 	}
-	composeInstall, err := docker.InstallCompose(vm, pulumi.Parent(vm))
-	if err != nil {
-		return err
-	}
-	dockerManager, err := docker.NewManager(&env, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall, composeInstall))
+	dockerManager, err := docker.NewManager(&env, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall))
 	if err != nil {
 		return err
 	}

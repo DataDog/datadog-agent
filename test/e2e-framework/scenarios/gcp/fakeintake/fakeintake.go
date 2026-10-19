@@ -36,11 +36,7 @@ func NewVMInstance(e gcp.Environment, option ...Option) (*fakeintake.Fakeintake,
 		if err != nil {
 			return err
 		}
-		composeInstall, err := docker.InstallCompose(vm, pulumi.Parent(vm))
-		if err != nil {
-			return err
-		}
-		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall, composeInstall))
+		manager, err := docker.NewManager(&e, vm, pulumi.Parent(vm), utils.PulumiDependsOn(dockerInstall))
 		if err != nil {
 			return err
 		}
