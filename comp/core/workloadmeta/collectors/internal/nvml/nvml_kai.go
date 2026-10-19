@@ -252,22 +252,22 @@ func kaiGPUGroupReservations(pods []*workloadmeta.KubernetesPod, deviceCache ddn
 		winners[candidate.group] = candidate
 	}
 
-	knownUUIDs, err := knownGPUUUIDs(deviceCache)
-	if err != nil {
+	// GetByUUID below cannot tell a device NVML does not report from a device
+	// list that cannot be read, so check the latter first.
+	if _, err := deviceCache.All(); err != nil {
 		// Without the device list nothing can be validated, and guessing would
 		// publish device IDs that no GPU entity matches. Resolving nothing
 		// leaves the mappings from earlier pulls in place: every fractional
 		// container stays in the claim set, so none of them is retracted.
-		// Debug rather than warn: Pull lists the devices before reaching this
-		// collector and fails the whole pull if it cannot, so this is defensive
-		// against a future caller rather than a condition that occurs today.
-		log.Debugf("KAI: cannot list GPU devices to validate %d reservation pod(s): %v", len(candidates), err)
+		// Pull lists the devices before reaching this collector and fails the
+		// whole pull if it cannot, so reaching this means something is wrong.
+		log.Errorf("KAI: cannot list GPU devices to validate %d reservation pod(s): %v", len(candidates), err)
 		return nil
 	}
 
 	reservations := make(map[string]kaiReservation, len(winners))
 	for group, winner := range winners {
-		if _, known := knownUUIDs[winner.uuid]; !known {
+		if _, err := deviceCache.GetByUUID(winner.uuid); err != nil {
 			// The reservation names a GPU this node's NVML does not report: the
 			// device is in gpu.excluded_devices, or it disappeared between the
 			// pod's binding and this pull. Debug rather than warn, because the
@@ -293,22 +293,6 @@ func kaiReservationSupersedes(candidate, current kaiReservation) bool {
 		return candidate.createdAt.After(current.createdAt)
 	}
 	return candidate.uuid < current.uuid
-}
-
-// knownGPUUUIDs returns the set of GPU UUIDs NVML reports on this node,
-// including MIG children. These are exactly the UUIDs the collector publishes
-// GPU entities for, so a device ID outside this set would match no entity.
-func knownGPUUUIDs(deviceCache ddnvml.DeviceCache) (map[string]struct{}, error) {
-	devices, err := deviceCache.All()
-	if err != nil {
-		return nil, err
-	}
-
-	uuids := make(map[string]struct{}, len(devices))
-	for _, device := range devices {
-		uuids[device.GetDeviceInfo().UUID] = struct{}{}
-	}
-	return uuids, nil
 }
 
 // kaiGPUGroups returns the KAI GPU groups a pod belongs to, sorted so that the
