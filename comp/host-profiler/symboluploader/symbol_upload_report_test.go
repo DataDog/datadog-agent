@@ -23,25 +23,18 @@ import (
 
 	ddhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/jarcoal/httpmock"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 )
 
-func setupReportFixture(t *testing.T) (*bytes.Buffer, *clockwork.FakeClock) {
+func setupReportFixture(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	buf := &bytes.Buffer{}
-	fc := clockwork.NewFakeClock()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, nil)))
 	infoReporter = newSymbolReporter(slog.LevelInfo)
-	infoReporter.clock = fc
-	infoReporter.current.start = fc.Now()
-
 	errorReporter = newSymbolReporter(slog.LevelError)
-	errorReporter.clock = fc
-	errorReporter.current.start = fc.Now()
-	return buf, fc
+	return buf
 }
 
 // decodeReports returns the symbol upload reports logged to buf.
@@ -135,127 +128,133 @@ func TestQuerySymbolsRateLimited(t *testing.T) {
 }
 
 func TestSymbolReportSamePathAcrossReasonsLevelsAndPeriods(t *testing.T) {
-	buf, fc := setupReportFixture(t)
-	ref := fc.Now()
+	synctest.Test(t, func(t *testing.T) {
+		buf := setupReportFixture(t)
+		ref := time.Now()
 
-	reportError(reasonRateLimited, 2, "/usr/bin/baz")
-	reportError(reasonRequestError, 1, "/usr/bin/baz")
-	fc.Advance(time.Minute + time.Nanosecond)
-	end1 := fc.Now()
-	infoReporter.flush()
-	errorReporter.flush()
+		reportError(reasonRateLimited, 2, "/usr/bin/baz")
+		reportError(reasonRequestError, 1, "/usr/bin/baz")
+		time.Sleep(time.Minute + time.Nanosecond)
+		end1 := time.Now()
+		infoReporter.flush()
+		errorReporter.flush()
 
-	reports := decodeReports(t, buf)
-	require.Len(t, reports, 1)
-	requireWindow(t, reports[0], ref, ref.Add(time.Minute+time.Nanosecond))
-	require.Equal(t, 2, reasonCount(t, reports[0], reasonRateLimited))
-	require.Equal(t, []string{"/usr/bin/baz"}, reasonPaths(t, reports[0], reasonRateLimited))
-	require.Equal(t, 1, reasonCount(t, reports[0], reasonRequestError))
-	require.Equal(t, []string{"/usr/bin/baz"}, reasonPaths(t, reports[0], reasonRequestError))
+		reports := decodeReports(t, buf)
+		require.Len(t, reports, 1)
+		requireWindow(t, reports[0], ref, ref.Add(time.Minute+time.Nanosecond))
+		require.Equal(t, 2, reasonCount(t, reports[0], reasonRateLimited))
+		require.Equal(t, []string{"/usr/bin/baz"}, reasonPaths(t, reports[0], reasonRateLimited))
+		require.Equal(t, 1, reasonCount(t, reports[0], reasonRequestError))
+		require.Equal(t, []string{"/usr/bin/baz"}, reasonPaths(t, reports[0], reasonRequestError))
 
-	reportInfo(reasonUploaded, 1, "/usr/bin/cross")
-	reportError(reasonRateLimited, 1, "/usr/bin/cross")
-	fc.Advance(2 * time.Minute)
-	infoReporter.flush()
-	errorReporter.flush()
+		reportInfo(reasonUploaded, 1, "/usr/bin/cross")
+		reportError(reasonRateLimited, 1, "/usr/bin/cross")
+		time.Sleep(2 * time.Minute)
+		infoReporter.flush()
+		errorReporter.flush()
 
-	reports = decodeReports(t, buf)
-	require.Len(t, reports, 3)
-	requireWindow(t, reports[1], end1, end1.Add(2*time.Minute))
-	requireWindow(t, reports[2], end1, end1.Add(2*time.Minute))
-	require.Equal(t, 1, reasonCount(t, reports[1], reasonUploaded))
-	require.Equal(t, []string{"/usr/bin/cross"}, reasonPaths(t, reports[1], reasonUploaded))
-	require.Equal(t, 1, reasonCount(t, reports[2], reasonRateLimited))
-	require.Equal(t, []string{"/usr/bin/cross"}, reasonPaths(t, reports[2], reasonRateLimited))
-	require.NotContains(t, reports[2], reasonPrefix(reasonRequestError)+".count")
+		reports = decodeReports(t, buf)
+		require.Len(t, reports, 3)
+		requireWindow(t, reports[1], end1, end1.Add(2*time.Minute))
+		requireWindow(t, reports[2], end1, end1.Add(2*time.Minute))
+		require.Equal(t, 1, reasonCount(t, reports[1], reasonUploaded))
+		require.Equal(t, []string{"/usr/bin/cross"}, reasonPaths(t, reports[1], reasonUploaded))
+		require.Equal(t, 1, reasonCount(t, reports[2], reasonRateLimited))
+		require.Equal(t, []string{"/usr/bin/cross"}, reasonPaths(t, reports[2], reasonRateLimited))
+		require.NotContains(t, reports[2], reasonPrefix(reasonRequestError)+".count")
+	})
 }
 
 func TestSymbolReportPeriodAggregatesByLevel(t *testing.T) {
-	buf, fc := setupReportFixture(t)
-	ref := fc.Now()
+	synctest.Test(t, func(t *testing.T) {
+		buf := setupReportFixture(t)
+		ref := time.Now()
 
-	reportInfo(reasonAlreadyUploaded, 420)
-	reportInfo(reasonQueried, 42)
-	reportInfo(reasonNoDebugSymbols, 33, "/usr/bin/stripped")
-	reportInfo(reasonExistingSymbols, 35, "/usr/bin/baz")
-	reportInfo(reasonUploaded, 6, "/usr/bin/foo", "/usr/bin/bar")
-	reportError(reasonRateLimited, 5, "/usr/bin/baz", "/usr/bin/foo")
-	reportError(reasonQueueFull, 1, "/usr/lib/ld.so")
-	reportError(reasonInvalidBuildID, 2)
-	fc.Advance(time.Minute)
-	infoReporter.flush()
-	errorReporter.flush()
+		reportInfo(reasonAlreadyUploaded, 420)
+		reportInfo(reasonQueried, 42)
+		reportInfo(reasonNoDebugSymbols, 33, "/usr/bin/stripped")
+		reportInfo(reasonExistingSymbols, 35, "/usr/bin/baz")
+		reportInfo(reasonUploaded, 6, "/usr/bin/foo", "/usr/bin/bar")
+		reportError(reasonRateLimited, 5, "/usr/bin/baz", "/usr/bin/foo")
+		reportError(reasonQueueFull, 1, "/usr/lib/ld.so")
+		reportError(reasonInvalidBuildID, 2)
+		time.Sleep(time.Minute)
+		infoReporter.flush()
+		errorReporter.flush()
 
-	reports := decodeReports(t, buf)
-	require.Len(t, reports, 2)
-	info, failure := reports[0], reports[1]
+		reports := decodeReports(t, buf)
+		require.Len(t, reports, 2)
+		info, failure := reports[0], reports[1]
 
-	require.Equal(t, "INFO", info["level"])
-	requireWindow(t, info, ref, ref.Add(time.Minute))
-	require.Equal(t, 420, reasonCount(t, info, reasonAlreadyUploaded))
-	require.Equal(t, 42, reasonCount(t, info, reasonQueried))
-	require.Equal(t, 33, reasonCount(t, info, reasonNoDebugSymbols))
-	require.Equal(t, 35, reasonCount(t, info, reasonExistingSymbols))
-	require.Equal(t, 6, reasonCount(t, info, reasonUploaded))
-	require.Equal(t, []string{"/usr/bin/stripped"}, reasonPaths(t, info, reasonNoDebugSymbols))
-	require.Equal(t, []string{"/usr/bin/baz"}, reasonPaths(t, info, reasonExistingSymbols))
-	require.Equal(t, []string{"/usr/bin/bar", "/usr/bin/foo"}, reasonPaths(t, info, reasonUploaded))
-	require.NotContains(t, info, reasonPrefix(reasonAlreadyUploaded)+".paths")
-	require.NotContains(t, info, reasonPrefix(reasonRateLimited)+".count")
+		require.Equal(t, "INFO", info["level"])
+		requireWindow(t, info, ref, ref.Add(time.Minute))
+		require.Equal(t, 420, reasonCount(t, info, reasonAlreadyUploaded))
+		require.Equal(t, 42, reasonCount(t, info, reasonQueried))
+		require.Equal(t, 33, reasonCount(t, info, reasonNoDebugSymbols))
+		require.Equal(t, 35, reasonCount(t, info, reasonExistingSymbols))
+		require.Equal(t, 6, reasonCount(t, info, reasonUploaded))
+		require.Equal(t, []string{"/usr/bin/stripped"}, reasonPaths(t, info, reasonNoDebugSymbols))
+		require.Equal(t, []string{"/usr/bin/baz"}, reasonPaths(t, info, reasonExistingSymbols))
+		require.Equal(t, []string{"/usr/bin/bar", "/usr/bin/foo"}, reasonPaths(t, info, reasonUploaded))
+		require.NotContains(t, info, reasonPrefix(reasonAlreadyUploaded)+".paths")
+		require.NotContains(t, info, reasonPrefix(reasonRateLimited)+".count")
 
-	require.Equal(t, "ERROR", failure["level"])
-	requireWindow(t, failure, ref, ref.Add(time.Minute))
-	require.Equal(t, 5, reasonCount(t, failure, reasonRateLimited))
-	require.Equal(t, 1, reasonCount(t, failure, reasonQueueFull))
-	require.Equal(t, 2, reasonCount(t, failure, reasonInvalidBuildID))
-	require.Equal(t, []string{"/usr/bin/baz", "/usr/bin/foo"}, reasonPaths(t, failure, reasonRateLimited))
-	require.Equal(t, []string{"/usr/lib/ld.so"}, reasonPaths(t, failure, reasonQueueFull))
-	require.NotContains(t, failure, reasonPrefix(reasonInvalidBuildID)+".paths")
+		require.Equal(t, "ERROR", failure["level"])
+		requireWindow(t, failure, ref, ref.Add(time.Minute))
+		require.Equal(t, 5, reasonCount(t, failure, reasonRateLimited))
+		require.Equal(t, 1, reasonCount(t, failure, reasonQueueFull))
+		require.Equal(t, 2, reasonCount(t, failure, reasonInvalidBuildID))
+		require.Equal(t, []string{"/usr/bin/baz", "/usr/bin/foo"}, reasonPaths(t, failure, reasonRateLimited))
+		require.Equal(t, []string{"/usr/lib/ld.so"}, reasonPaths(t, failure, reasonQueueFull))
+		require.NotContains(t, failure, reasonPrefix(reasonInvalidBuildID)+".paths")
 
-	fc.Advance(2 * reportInterval)
-	infoReporter.flush()
-	errorReporter.flush()
-	require.Len(t, decodeReports(t, buf), 2)
+		time.Sleep(2 * reportInterval)
+		infoReporter.flush()
+		errorReporter.flush()
+		require.Len(t, decodeReports(t, buf), 2)
+	})
 }
 
 func TestSymbolReportPartialOnCap(t *testing.T) {
-	buf, fc := setupReportFixture(t)
-	ref := fc.Now()
+	synctest.Test(t, func(t *testing.T) {
+		buf := setupReportFixture(t)
+		ref := time.Now()
 
-	paths := make([]string, 0, maxReportPaths)
-	for i := range maxReportPaths {
-		paths = append(paths, fmt.Sprintf("/usr/bin/bin-%03d", i))
-	}
-	reportError(reasonRateLimited, maxReportPaths, paths...)
-	require.Zero(t, buf.Len())
+		paths := make([]string, 0, maxReportPaths)
+		for i := range maxReportPaths {
+			paths = append(paths, fmt.Sprintf("/usr/bin/bin-%03d", i))
+		}
+		reportError(reasonRateLimited, maxReportPaths, paths...)
+		require.Zero(t, buf.Len())
 
-	fc.Advance(time.Minute)
-	burst := make([]string, 0, 150)
-	for i := range 150 {
-		burst = append(burst, fmt.Sprintf("/usr/bin/ovf-%03d", i))
-	}
-	reportError(reasonRateLimited, 150, burst...)
-	reports := decodeReports(t, buf)
-	require.Len(t, reports, 2)
-	require.Equal(t, maxReportPaths, reasonCount(t, reports[0], reasonRateLimited))
-	require.Len(t, reasonPaths(t, reports[0], reasonRateLimited), maxReportPaths)
-	require.Equal(t, maxReportPaths, reasonCount(t, reports[1], reasonRateLimited))
-	require.Len(t, reasonPaths(t, reports[1], reasonRateLimited), maxReportPaths)
+		time.Sleep(time.Minute)
+		burst := make([]string, 0, 150)
+		for i := range 150 {
+			burst = append(burst, fmt.Sprintf("/usr/bin/ovf-%03d", i))
+		}
+		reportError(reasonRateLimited, 150, burst...)
+		reports := decodeReports(t, buf)
+		require.Len(t, reports, 2)
+		require.Equal(t, maxReportPaths, reasonCount(t, reports[0], reasonRateLimited))
+		require.Len(t, reasonPaths(t, reports[0], reasonRateLimited), maxReportPaths)
+		require.Equal(t, maxReportPaths, reasonCount(t, reports[1], reasonRateLimited))
+		require.Len(t, reasonPaths(t, reports[1], reasonRateLimited), maxReportPaths)
 
-	fc.Advance(time.Minute)
-	errorReporter.flush()
-	reports = decodeReports(t, buf)
-	require.Len(t, reports, 3)
-	require.Equal(t, 50, reasonCount(t, reports[2], reasonRateLimited))
-	require.Len(t, reasonPaths(t, reports[2], reasonRateLimited), 50)
+		time.Sleep(time.Minute)
+		errorReporter.flush()
+		reports = decodeReports(t, buf)
+		require.Len(t, reports, 3)
+		require.Equal(t, 50, reasonCount(t, reports[2], reasonRateLimited))
+		require.Len(t, reasonPaths(t, reports[2], reasonRateLimited), 50)
 
-	requireWindow(t, reports[0], ref, ref.Add(time.Minute))
-	requireWindow(t, reports[1], ref.Add(time.Minute), ref.Add(time.Minute))
-	requireWindow(t, reports[2], ref.Add(time.Minute), ref.Add(2*time.Minute))
+		requireWindow(t, reports[0], ref, ref.Add(time.Minute))
+		requireWindow(t, reports[1], ref.Add(time.Minute), ref.Add(time.Minute))
+		requireWindow(t, reports[2], ref.Add(time.Minute), ref.Add(2*time.Minute))
+	})
 }
 
 func TestSymbolReportCapTriggeredByAnotherReason(t *testing.T) {
-	buf, _ := setupReportFixture(t)
+	buf := setupReportFixture(t)
 	paths := make([]string, 0, maxReportPaths)
 	for i := range maxReportPaths {
 		paths = append(paths, fmt.Sprintf("/usr/bin/bin-%03d", i))
@@ -269,22 +268,24 @@ func TestSymbolReportCapTriggeredByAnotherReason(t *testing.T) {
 }
 
 func TestFlushReportsEmitsPending(t *testing.T) {
-	buf, fc := setupReportFixture(t)
-	ref := fc.Now()
+	synctest.Test(t, func(t *testing.T) {
+		buf := setupReportFixture(t)
+		ref := time.Now()
 
-	reportError(reasonRequestError, 3, "/usr/bin/baz")
-	require.Zero(t, buf.Len())
+		reportError(reasonRequestError, 3, "/usr/bin/baz")
+		require.Zero(t, buf.Len())
 
-	fc.Advance(time.Minute)
-	flushReports()
-	reports := decodeReports(t, buf)
-	require.Len(t, reports, 1)
-	require.Equal(t, 3, reasonCount(t, reports[0], reasonRequestError))
-	requireWindow(t, reports[0], ref, ref.Add(time.Minute))
+		time.Sleep(time.Minute)
+		flushReports()
+		reports := decodeReports(t, buf)
+		require.Len(t, reports, 1)
+		require.Equal(t, 3, reasonCount(t, reports[0], reasonRequestError))
+		requireWindow(t, reports[0], ref, ref.Add(time.Minute))
+	})
 }
 
 func TestSymbolReportRepeatedPathOccurrences(t *testing.T) {
-	buf, _ := setupReportFixture(t)
+	buf := setupReportFixture(t)
 
 	reportError(reasonRateLimited, 1, "/usr/bin/baz")
 	reportError(reasonRateLimited, 1, "/usr/bin/baz")
@@ -298,19 +299,17 @@ func TestSymbolReportRepeatedPathOccurrences(t *testing.T) {
 
 func TestSymbolReportTickerFlushesPeriods(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		buf, fc := setupReportFixture(t)
-		ref := fc.Now()
-		stop := startReportFlushTicker(fc)
-		t.Cleanup(stop)
-		require.NoError(t, fc.BlockUntilContext(t.Context(), 1))
+		buf := setupReportFixture(t)
+		ref := time.Now()
+
 		reportInfo(reasonQueried, 1)
 		reportError(reasonRateLimited, 1)
-
-		fc.Advance(reportInterval - time.Nanosecond)
-		synctest.Wait()
+		// Nothing is emitted until the ticker flushes.
 		require.Zero(t, buf.Len())
 
-		fc.Advance(time.Nanosecond)
+		stop := startReportFlushTicker()
+		t.Cleanup(stop)
+		time.Sleep(reportInterval)
 		synctest.Wait()
 		reports := decodeReports(t, buf)
 		require.Len(t, reports, 2)
@@ -321,8 +320,7 @@ func TestSymbolReportTickerFlushesPeriods(t *testing.T) {
 
 		stop()
 		reportInfo(reasonQueried, 1)
-		fc.Advance(reportInterval)
-		synctest.Wait()
+		time.Sleep(reportInterval)
 		require.Len(t, decodeReports(t, buf), 2)
 	})
 }
@@ -357,7 +355,7 @@ func TestExecuteSymbolQueryBatchReportsQueryError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			buf, _ := setupReportFixture(t)
+			buf := setupReportFixture(t)
 
 			ExecuteSymbolQueryBatch(t.Context(), elfs, []SymbolQuerier{&failingQuerier{err: tt.err}})
 			flushReports()

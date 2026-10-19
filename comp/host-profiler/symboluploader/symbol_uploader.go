@@ -165,7 +165,7 @@ func (d *DatadogSymbolUploader) Start(ctx context.Context) {
 	if d.stopFlushTicker != nil {
 		d.stopFlushTicker()
 	}
-	d.stopFlushTicker = startReportFlushTicker(infoReporter.clock)
+	d.stopFlushTicker = startReportFlushTicker()
 	symbolRetrievalQueue := make(chan *reporter.ExecutableMetadata, defaultSymbolRetrievalQueueSize)
 
 	queryWorkerCount := defaultQueryWorkerCount

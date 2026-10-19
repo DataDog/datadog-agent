@@ -12,8 +12,6 @@ import (
 	"log/slog"
 	"sync"
 	"time"
-
-	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -71,18 +69,15 @@ func (p *pendingReport) emit(level slog.Level) {
 // pendingReport.
 type symbolReporter struct {
 	mu      sync.Mutex
-	clock   clockwork.Clock
 	level   slog.Level
 	current pendingReport
 }
 
 func newSymbolReporter(level slog.Level) *symbolReporter {
-	clock := clockwork.NewRealClock()
 	return &symbolReporter{
-		clock: clock,
 		level: level,
 		current: pendingReport{
-			start:   clock.Now(),
+			start:   time.Now(),
 			reasons: make(map[string]reasonStats),
 		},
 	}
@@ -90,7 +85,7 @@ func newSymbolReporter(level slog.Level) *symbolReporter {
 
 // takePendingReportLocked returns the current pending report and installs a fresh one.
 func (r *symbolReporter) takePendingReportLocked() *pendingReport {
-	now := r.clock.Now()
+	now := time.Now()
 	pending := r.current
 	pending.end = now
 	r.current = pendingReport{
@@ -174,10 +169,10 @@ func flushReports() {
 }
 
 // startReportFlushTicker flushes the pending reports of the package-level
-// reporters every reportInterval of clock, until the returned stop function
+// reporters every reportInterval, until the returned stop function
 // is called.
-func startReportFlushTicker(clock clockwork.Clock) (stop func()) {
-	ticker := clock.NewTicker(reportInterval)
+func startReportFlushTicker() (stop func()) {
+	ticker := time.NewTicker(reportInterval)
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -186,7 +181,7 @@ func startReportFlushTicker(clock clockwork.Clock) (stop func()) {
 			select {
 			case <-done:
 				return
-			case <-ticker.Chan():
+			case <-ticker.C:
 				flushReports()
 			}
 		}
