@@ -10,8 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // sketchData holds one sketch point's reader-provided columns and summary.

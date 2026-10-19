@@ -7,7 +7,7 @@ package filterlistimpl
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
 
 // MetricPrefixListEntry is a metric_filterlist_prefix entry.
