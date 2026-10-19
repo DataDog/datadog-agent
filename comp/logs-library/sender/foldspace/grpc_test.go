@@ -16,7 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 type recordingIntake struct {
@@ -231,6 +235,83 @@ func TestGRPCOpenStreamUsesConfiguredMethod(t *testing.T) {
 	assert.Equal(t, uint32(7), batchID)
 	assert.Equal(t, AckOK, status)
 	assert.Equal(t, method, <-opened)
+}
+
+// Check incoming metadata at a real gRPC server after building senders from
+// logs config. Only the primary sender may select the stateful intake.
+func TestGRPCRoutingHeaders(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+		want    []string
+	}{
+		{name: "disabled"},
+		{name: "enabled", enabled: true, want: []string{"grpc"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			transport, headers := newRoutingHeaderTransport(t, tc.enabled)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			for i, spec := range transport.specs {
+				stream, err := transport.OpenStream(ctx, spec.ID, 1)
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, stream.Close()) })
+				require.NoError(t, stream.Send(ctx, 7, []byte("ping")))
+				_, _, err = stream.Recv(ctx)
+				require.NoError(t, err)
+				var md metadata.MD
+				select {
+				case md = <-headers:
+				case <-ctx.Done():
+					t.Fatal("server did not receive stream metadata")
+				}
+				want := []string(nil)
+				if i == 0 {
+					want = tc.want
+				}
+				assert.Equal(t, want, md.Get(config.FoldspaceRoutingHeader))
+				assert.Equal(t, []string{spec.APIKey()}, md.Get("dd-api-key"))
+				assert.Equal(t, []string{"identity"}, md.Get("dd-content-encoding"))
+				assert.Equal(t, []string{"5242880"}, md.Get("dd-state-request-bytes"))
+			}
+		})
+	}
+}
+
+func newRoutingHeaderTransport(t *testing.T, enabled bool) (*GRPCTransport, <-chan metadata.MD) {
+	t.Helper()
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	// Stop normally closes the listener; also close it if Serve never started.
+	t.Cleanup(func() { _ = lis.Close() })
+	headers := make(chan metadata.MD, 2)
+	srv := NewStatefulIntakeServer(&recordingIntake{}, grpc.StreamInterceptor(
+		func(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+			md, _ := metadata.FromIncomingContext(stream.Context())
+			headers <- md.Copy()
+			return handler(srv, stream)
+		}))
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.Stop)
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("api_key", "primary-key")
+	cfg.SetInTest("logs_config.logs_dd_url", lis.Addr().String())
+	cfg.SetInTest("logs_config.logs_no_ssl", true)
+	cfg.SetInTest("logs_config.foldspace.enabled", true)
+	cfg.SetInTest("logs_config.foldspace.dual_ship", true)
+	cfg.SetInTest("logs_config.foldspace.routing_headers", enabled)
+	cfg.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{
+		{"host": "127.0.0.1", "port": lis.Addr().(*net.TCPAddr).Port, "api_key": "additional-key"},
+	})
+	endpoints, err := config.BuildHTTPEndpoints(cfg, "logs", "", "")
+	require.NoError(t, err)
+	dest, err := BuildDestinationConfig(cfg, endpoints)
+	require.NoError(t, err)
+	require.Len(t, dest.Senders, 2)
+	transport := NewGRPCTransport(dest)
+	t.Cleanup(transport.Close)
+	return transport, headers
 }
 
 func TestGRPCStreamRoundTrip(t *testing.T) {

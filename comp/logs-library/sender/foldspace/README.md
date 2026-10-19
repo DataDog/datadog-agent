@@ -24,3 +24,23 @@ rounding). This approximately preserves dictionary reset cadence per corpus
 second; it does not virtualize connection timers, CPU scheduling, retries,
 backpressure or message timestamps. Record the actual settings and validate
 complete faithful delivery before comparing bytes with a 1x reference.
+
+## Dual-ship ingress routing
+
+For an ingress that routes the two transports to different backends using
+`x-dd-logs-routing`, enable the opt-in `routing_headers` setting:
+
+```yaml
+logs_config:
+  foldspace:
+    enabled: true
+    dual_ship: true
+    routing_headers: true
+```
+
+The environment override is `DD_LOGS_CONFIG_FOLDSPACE_ROUTING_HEADERS=true`.
+When all three settings are enabled, the primary HTTP endpoint sends
+`x-dd-logs-routing: http` and its Foldspace gRPC sender sends metadata
+`x-dd-logs-routing: grpc`, including when `foldspace.dd_url` overrides its address.
+Additional and MRF endpoints retain their existing behavior without these headers.
+The setting defaults to false and is read at startup, not dynamically.

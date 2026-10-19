@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -410,6 +411,54 @@ func TestDestinationSendsTimestampHeaders(t *testing.T) {
 	ddCurrentTimestamp, err := strconv.ParseInt(server.request.Header.Get("dd-current-timestamp"), 10, 64)
 	assert.Nil(t, err)
 	assert.GreaterOrEqual(t, ddCurrentTimestamp, currentTimestamp)
+}
+
+// Exercise real HTTP requests from the primary, OPW, additional and MRF
+// endpoints, so a header stored in config but not sent on the wire cannot pass.
+func TestDestinationFoldspaceRoutingHeaders(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+		want    string
+	}{
+		{name: "disabled"},
+		{name: "enabled", enabled: true, want: "http"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("api_key", "primary-key")
+			cfg.SetInTest("logs_config.foldspace.enabled", true)
+			cfg.SetInTest("logs_config.foldspace.dual_ship", true)
+			cfg.SetInTest("logs_config.foldspace.routing_headers", tc.enabled)
+			cfg.SetInTest("observability_pipelines_worker.logs.enabled", true)
+			cfg.SetInTest("observability_pipelines_worker.logs.dual_ship", true)
+			cfg.SetInTest("observability_pipelines_worker.logs.url", "https://opw.example")
+			cfg.SetInTest("multi_region_failover.enabled", true)
+			cfg.SetInTest("multi_region_failover.site", "mrf.example")
+			cfg.SetInTest("multi_region_failover.api_key", "mrf-key")
+			cfg.SetInTest("logs_config.additional_endpoints", []map[string]interface{}{
+				{"host": "additional.example", "port": 443, "api_key": "additional-key", "is_reliable": false},
+			})
+			endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(cfg, "logs", "", "")
+			require.NoError(t, err)
+			require.Len(t, endpoints.Endpoints, 4)
+			for i, endpoint := range endpoints.Endpoints {
+				server := NewTestServer(200, cfg)
+				t.Cleanup(server.Stop)
+				// Keep the local test URL, but use the actual configured endpoint
+				// for credentials and headers.
+				server.Destination.endpoint = endpoint
+				require.NoError(t, server.Destination.unconditionalSend(
+					&message.Payload{Encoded: []byte("payload")}))
+				want := ""
+				if i == 0 {
+					want = tc.want
+				}
+				assert.Equal(t, want, server.request.Header.Get(config.FoldspaceRoutingHeader))
+				assert.Equal(t, endpoint.GetAPIKey(), server.request.Header.Get("DD-API-KEY"))
+			}
+		})
+	}
 }
 
 func TestDestinationSendsUserAgent(t *testing.T) {

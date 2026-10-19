@@ -23,6 +23,8 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // GRPCTransport dials one ClientConn per sender and opens stream generations
@@ -85,6 +87,9 @@ func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 		"dd-content-encoding", t.enc,
 		"dd-state-request-bytes", strconv.Itoa(t.state),
 	)
+	if spec.RoutingHeaders {
+		md.Set(config.FoldspaceRoutingHeader, "grpc")
+	}
 	streamCtx, cancel := context.WithCancel(metadata.NewOutgoingContext(context.Background(), md))
 	stop := context.AfterFunc(ctx, cancel)
 	clientStream, err := conn.NewStream(streamCtx, &grpc.StreamDesc{

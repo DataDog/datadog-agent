@@ -41,6 +41,10 @@ const (
 // EmptyPathPrefix is the default path prefix for the endpoint.
 const EmptyPathPrefix = ""
 
+// FoldspaceRoutingHeader selects the HTTP comparison or stateful gRPC intake
+// when primary-endpoint routing headers are enabled for Foldspace dual shipping.
+const FoldspaceRoutingHeader = "x-dd-logs-routing"
+
 // DiagnosticProtocol specifies which protocol to use for diagnostic endpoints.
 type DiagnosticProtocol int
 

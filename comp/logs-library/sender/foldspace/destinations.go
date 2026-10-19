@@ -45,6 +45,8 @@ type SenderSpec struct {
 	UseTLS   bool
 	IsMRF    bool
 	Endpoint config.Endpoint
+	// RoutingHeaders selects the stateful intake for the primary sender only.
+	RoutingHeaders bool
 }
 
 // DestinationConfig is the driver-facing view of logs_config.foldspace plus
@@ -160,13 +162,14 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 		}
 		endpoint := ep
 		senders = append(senders, SenderSpec{
-			ID:       SenderID(len(senders)),
-			Address:  net.JoinHostPort(host, strconv.Itoa(port)),
-			Class:    class,
-			APIKey:   func() string { return endpoint.GetAPIKey() },
-			UseTLS:   endpoint.UseSSL(),
-			IsMRF:    ep.IsMRF,
-			Endpoint: endpoint,
+			ID:             SenderID(len(senders)),
+			Address:        net.JoinHostPort(host, strconv.Itoa(port)),
+			Class:          class,
+			APIKey:         func() string { return endpoint.GetAPIKey() },
+			UseTLS:         endpoint.UseSSL(),
+			IsMRF:          ep.IsMRF,
+			Endpoint:       endpoint,
+			RoutingHeaders: i == 0 && config.FoldspaceRoutingHeaders(cfg),
 		})
 	}
 	if len(senders) == 0 {

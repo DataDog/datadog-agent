@@ -94,6 +94,41 @@ func TestFoldspaceDefaults(t *testing.T) {
 	_, l := getLogsConfigKeys(t)
 	assert.False(t, l.foldspaceEnabled())
 	assert.False(t, l.foldspaceDualShip())
+	assert.False(t, l.foldspaceRoutingHeaders())
+}
+
+func TestFoldspaceRoutingHeadersRequiresDualShip(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		enabled  bool
+		dualShip bool
+		routing  bool
+		want     bool
+	}{
+		{name: "default"},
+		{name: "not opted in", enabled: true, dualShip: true},
+		{name: "foldspace disabled", dualShip: true, routing: true},
+		{name: "dual ship disabled", enabled: true, routing: true},
+		{name: "enabled", enabled: true, dualShip: true, routing: true, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, keys := getLogsConfigKeys(t)
+			cfg.SetInTest("logs_config.foldspace.enabled", tc.enabled)
+			cfg.SetInTest("logs_config.foldspace.dual_ship", tc.dualShip)
+			cfg.SetInTest("logs_config.foldspace.routing_headers", tc.routing)
+			assert.Equal(t, tc.want, keys.foldspaceRoutingHeaders())
+			assert.Equal(t, tc.want, FoldspaceRoutingHeaders(cfg))
+		})
+	}
+}
+
+func TestFoldspaceRoutingHeadersEnv(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_FOLDSPACE_ENABLED", "true")
+	t.Setenv("DD_LOGS_CONFIG_FOLDSPACE_DUAL_SHIP", "true")
+	t.Setenv("DD_LOGS_CONFIG_FOLDSPACE_ROUTING_HEADERS", "true")
+	cfg, keys := getLogsConfigKeys(t)
+	assert.True(t, keys.foldspaceRoutingHeaders())
+	assert.True(t, FoldspaceRoutingHeaders(cfg))
 }
 
 // TestFoldspaceTapChannelSize asserts the ingest buffer falls back to the shared

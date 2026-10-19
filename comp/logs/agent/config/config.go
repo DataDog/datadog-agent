@@ -509,6 +509,12 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		}
 	}
 
+	// Only the primary endpoint participates in the ingress comparison; OPW,
+	// additional and MRF endpoints must retain their existing routing.
+	if logsConfig.foldspaceRoutingHeaders() {
+		main.ExtraHTTPHeaders = map[string]string{FoldspaceRoutingHeader: "http"}
+	}
+
 	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin, registerCallback)
 
 	// Prepend OPW dual-ship endpoints so they appear before user-configured additional_endpoints.

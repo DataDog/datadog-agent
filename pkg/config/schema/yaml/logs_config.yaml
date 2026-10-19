@@ -151,6 +151,15 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      routing_headers:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          Opt in to header-based intake routing for the primary endpoint during
+          Foldspace dual shipping. Sets x-dd-logs-routing to http for HTTP requests
+          and grpc for gRPC streams. Requires foldspace.enabled and dual_ship.
+          Additional and MRF endpoints do not receive these headers.
       max_inflight_payloads:
         node_type: setting
         type: integer

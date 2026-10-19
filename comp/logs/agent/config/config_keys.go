@@ -191,6 +191,11 @@ func (l *LogsConfigKeys) foldspaceDualShip() bool {
 	return l.getConfig().GetBool(l.getConfigKey("foldspace.dual_ship"))
 }
 
+func (l *LogsConfigKeys) foldspaceRoutingHeaders() bool {
+	return l.foldspaceEnabled() && l.foldspaceDualShip() &&
+		l.getConfig().GetBool(l.getConfigKey("foldspace.routing_headers"))
+}
+
 // FoldspaceEnabled reports logs_config.foldspace.enabled.
 func FoldspaceEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	return defaultLogsConfigKeys(coreConfig).foldspaceEnabled()
@@ -207,6 +212,12 @@ func FoldspaceTapChannelSize(coreConfig pkgconfigmodel.Reader) int {
 // FoldspaceDualShip reports logs_config.foldspace.dual_ship.
 func FoldspaceDualShip(coreConfig pkgconfigmodel.Reader) bool {
 	return defaultLogsConfigKeys(coreConfig).foldspaceDualShip()
+}
+
+// FoldspaceRoutingHeaders reports whether primary-endpoint routing headers are
+// explicitly enabled for Foldspace dual shipping.
+func FoldspaceRoutingHeaders(coreConfig pkgconfigmodel.Reader) bool {
+	return defaultLogsConfigKeys(coreConfig).foldspaceRoutingHeaders()
 }
 
 // ValidateFoldspace returns a startup error when foldspace is requested with
