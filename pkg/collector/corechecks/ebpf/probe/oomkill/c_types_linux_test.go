@@ -11,3 +11,7 @@ import (
 func TestCgoAlignment_oomStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[oomStats](t)
 }
+
+func TestCgoAlignment_oomStatsV1(t *testing.T) {
+	ebpftest.TestCgoAlignment[oomStatsV1](t)
+}

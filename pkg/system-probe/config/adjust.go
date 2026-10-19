@@ -48,6 +48,7 @@ func Adjust(cfg model.Config) {
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
+	adjustOOMKill(cfg)
 
 	// Re-read the USM/NPM flags here: adjustDiscovery, adjustNetwork, and
 	// adjustUSM may all have flipped them since the locals at the top of

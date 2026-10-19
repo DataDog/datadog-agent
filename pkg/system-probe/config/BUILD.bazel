@@ -7,6 +7,7 @@ go_library(
         "adjust.go",
         "adjust_discovery.go",
         "adjust_npm.go",
+        "adjust_oom_kill.go",
         "adjust_security.go",
         "adjust_usm.go",
         "config.go",
@@ -49,6 +50,7 @@ dd_agent_go_test(
     srcs = [
         "adjust_discovery_test.go",
         "adjust_npm_test.go",
+        "adjust_oom_kill_test.go",
         "config_bpf_test.go",
         "config_darwin_test.go",
         "config_test.go",

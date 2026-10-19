@@ -141,7 +141,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
 		c.EnabledModules[TCPQueueLengthTracerModule] = struct{}{}
 	}
-	if cfg.GetBool(spNS("enable_oom_kill")) {
+	if cfg.GetBool(oomKillNS("enabled")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
 	if csmEnabled ||
