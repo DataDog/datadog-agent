@@ -22,6 +22,9 @@ type Transport interface {
 type Stream interface {
 	// Send must return once ctx is done, even while blocked on flow control.
 	// The stream is unusable afterwards.
+	//
+	// Send must not retain data after it returns: data is a batch lease's
+	// bytes, which the caller releases as soon as Send is done with them.
 	Send(ctx context.Context, batchID uint32, data []byte) error
 	Recv(ctx context.Context) (batchID uint32, status int32, err error)
 	Close() error
