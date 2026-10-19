@@ -65,7 +65,7 @@ func (t *DRACDIIssue) BuildIssue(context map[string]string) (*healthplatform.Iss
 		IssueName:   draCDIIssueName,
 		IssueType:   draCDIIssueType,
 		Title:       fmt.Sprintf("GPU monitoring cannot find the CDI specs of NVIDIA DRA claims (searched %s)", searchedPaths),
-		Description: fmt.Sprintf("Containers use NVIDIA DRA GPU claims, but the Agent cannot find or read the CDI specs written by the NVIDIA DRA driver to map them to GPU devices. Error: %s", errMsg),
+		Description: "Containers use NVIDIA DRA GPU claims, but the Agent cannot find or read the CDI specs written by the NVIDIA DRA driver to map them to GPU devices. Error: " + errMsg,
 		Category:    category,
 		Location:    location,
 		Severity:    severity,
