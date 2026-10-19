@@ -3,7 +3,7 @@
 Many E2E tests rely on extra dependencies being installed - instead of installing them at runtime (via an `apt install` or similar), we prefer to "bake" them into the underlying AMI that is used for provisioning the test VMs, as installing at runtime is a big source of flakiness (see [here](dependencies.md))
 These images are pinned by ID in this repo (`test/e2e-framework/resources/aws/platforms.json`) and always associated with a specific OS Descriptior in the E2E framework (see below.)
 
-The images themselves are built in <!-- markdown-link-check-disable -->[ami-builder](https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e)<!-- markdown-link-check-disable -->. This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
+The images themselves are built in <!-- markdown-link-check-disable -->[ami-builder](https://github.com/ddoghq/ami-builder/tree/master/ami/images/e2e)<!-- markdown-link-check-enable -->. This page covers the consumer side — how an image is chosen, how to add or bump one, and how to pin or inspect one.
 
 ## How an AMI is chosen
 
@@ -36,9 +36,9 @@ It is meant for manual QA through `dda inv aws.create-vm --latest-ami` (which se
 
 ## Prebaked images and the ami-builder mapping
 
-Every image in `platforms.json` is an E2E image, so its keys carry no `-e2e` suffix: `ubuntu/x86_64/22-04` or `windows-server/x86_64/2025` *is* the prebaked image, with common test dependencies and config already installed. See [Prebake into the machine image](dependencies.md#prebake-into-the-machine-image) for what that covers.
+Every image in `platforms.json` is prebaked: `ubuntu/x86_64/22-04` or `windows-server/x86_64/2025` already ships common test dependencies and config. See [Prebake into the machine image](dependencies.md#prebake-into-the-machine-image) for what that covers.
 
-ami-builder is where the distinction lives. Its <!-- markdown-link-check-disable -->[`config.yaml`](https://github.com/ddoghq/ami-builder/blob/master/ami/images/e2e/config.yaml)<!-- markdown-link-check-disable --> builds a bare image (`"22-04"`) and a prebaked one (`"22-04-e2e"`) from the same upstream base, and maps the prebaked build to the `platforms.json` key it refreshes through `platforms_key`:
+ami-builder is where the distinction lives. Its <!-- markdown-link-check-disable -->[`config.yaml`](https://github.com/ddoghq/ami-builder/blob/master/ami/images/e2e/config.yaml)<!-- markdown-link-check-enable --> builds a bare image (`"22-04"`) and a prebaked one (`"22-04-e2e"`) from the same upstream base, and maps the prebaked build to the `platforms.json` key it refreshes through `platforms_key`:
 
 ```yaml
 ubuntu:
@@ -49,7 +49,7 @@ ubuntu:
         provisioner_script: provision-e2e-apt
 ```
 
-Entries without `platforms_key` refresh the key with their own name, e.g. `redhat/x86_64/9-selinux-npm`. Purpose-built images keep a descriptive suffix (`24-04-kind`, `9-selinux-npm`, `22-04-gpu`), never `-e2e`.
+Entries without `platforms_key` refresh the key with their own name, e.g. `redhat/x86_64/9-selinux-npm`. Purpose-built images keep a descriptive suffix (`24-04-kind`, `9-selinux-npm`, `22-04-gpu`).
 
 /// tip
 If you need an extra dependency in your test, **prefer adding it to the existing prebaked image over creating your own fully-custom AMI** if at all possible. Feel free to ask #agent-devx-help for help.
@@ -58,7 +58,7 @@ If you need an extra dependency in your test, **prefer adding it to the existing
 
 ## Adding or bumping an image
 
-The build lives in [ami-builder](https://github.com/ddoghq/ami-builder); this repo only holds the resulting ID.
+The build lives in <!-- markdown-link-check-disable -->[ami-builder](https://github.com/ddoghq/ami-builder)<!-- markdown-link-check-enable -->; this repo only holds the resulting ID.
 
 1. Make the image change in ami-builder under `ami/images/e2e/` and open a PR there.
 1. Run the manual `build:<os>-<arch>-<version>` job in that branch's child pipeline. The build jobs are manual-only, and a feature branch produces a real usable AMI even without merging.
@@ -75,7 +75,7 @@ The scheduled `[bot] Update E2E AMIs` PRs **only refresh keys that already exist
 ### Adding a new image
 
 To add a new custom AMI, you also need to tell the e2e framework about it: this is done by creating a new _OS descriptor_ alongside the `platforms.json` update
-1. Update `platforms.json`, adding your new key in the appropriate spot. Name it after the OS version (plus a descriptive suffix for a purpose-built image), without `-e2e`.
+1. Update `platforms.json`, adding your new key in the appropriate spot. Name it after the OS version (plus a descriptive suffix for a purpose-built image).
 
 1. Use that descriptor in your test: `ec2.WithOS(e2eos.yourNewDescriptor)`
 1. `components/os/<family>_descriptors.go` — create a matching descriptor (`Ubuntu2404Kind` style naming, mirroring the key).
