@@ -967,10 +967,10 @@ os.close(os.open("/usr/bin/crictl", os.O_RDONLY | os.O_NOFOLLOW))
 // Agent image and with the image pull secrets of the Agent, and returns its
 // name. Kubernetes checks the credentials of a pod even for an image the node
 // holds (KEP-2535). The pod goes away with the test.
-func (s *packageInUseSuite) startHostShell() string {
-	ctx := s.T().Context()
-	client := s.Env().KubernetesCluster.Client()
-	agent := s.nodeAgent(s.T())
+func startHostShell(t *testing.T, env *environments.Kubernetes) string {
+	ctx := t.Context()
+	client := env.KubernetesCluster.Client()
+	agent := nodeAgent(ctx, t, env)
 
 	privileged := true
 	pod, err := client.CoreV1().Pods(hostShellNamespace).Create(ctx, &corev1.Pod{
@@ -989,12 +989,12 @@ func (s *packageInUseSuite) startHostShell() string {
 			Tolerations:   []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
 		},
 	}, metav1.CreateOptions{})
-	s.Require().NoError(err, "failed to create the host shell pod")
-	s.T().Cleanup(func() {
+	require.NoError(t, err, "failed to create the host shell pod")
+	t.Cleanup(func() {
 		_ = client.CoreV1().Pods(hostShellNamespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{})
 	})
 
-	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
+	require.EventuallyWithTf(t, func(c *assert.CollectT) {
 		p, err := client.CoreV1().Pods(hostShellNamespace).Get(ctx, pod.Name, metav1.GetOptions{})
 		require.NoError(c, err)
 		assert.Equal(c, corev1.PodRunning, p.Status.Phase)
@@ -1003,14 +1003,22 @@ func (s *packageInUseSuite) startHostShell() string {
 	return pod.Name
 }
 
+func (s *packageInUseSuite) startHostShell() string {
+	return startHostShell(s.T(), s.Env())
+}
+
 // nodeAgent returns the Agent pod of the node.
-func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
-	agents, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(s.T().Context(), metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+func nodeAgent(ctx context.Context, t require.TestingT, env *environments.Kubernetes) corev1.Pod {
+	agents, err := env.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", env.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
 	require.NoError(t, err, "failed to list the Agent pods")
 	require.NotEmpty(t, agents.Items, "no Agent pod on the node")
 	return agents.Items[0]
+}
+
+func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
+	return nodeAgent(s.T().Context(), t, s.Env())
 }
 
 // hostExec runs script on the node from shell, as a transient systemd unit
@@ -1018,24 +1026,33 @@ func (s *packageInUseSuite) nodeAgent(t require.TestingT) corev1.Pod {
 // as root in a cgroup of the host, so its processes are host processes. Most
 // opens made in the first second of the unit never reach system-probe, so a
 // script whose opens a subtest checks makes them later.
-func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) string {
+func hostExec(t require.TestingT, env *environments.Kubernetes, shell, script string) string {
 	cmd := []string{"nsenter", "-t", "1", "-m", "--", "systemd-run", "--wait", "--pipe", "--quiet", "--collect", "/bin/sh", "-c", script}
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, cmd)
+	stdout, stderr, err := env.KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, cmd)
 	require.NoErrorf(t, err, "host exec %q failed: %s", script, stderr)
 	return stdout
 }
 
-// systemProbeLog returns the log of system-probe since since, a Unix time of
-// the node, with the timestamps of the kubelet.
-func (s *packageInUseSuite) systemProbeLog(t require.TestingT, since int64) string {
+func (s *packageInUseSuite) hostExec(t require.TestingT, shell, script string) string {
+	return hostExec(t, s.Env(), shell, script)
+}
+
+// containerLog returns the log of container, a container of the Agent pod,
+// since since, a Unix time of the node, with the timestamps of the kubelet.
+func containerLog(ctx context.Context, t require.TestingT, env *environments.Kubernetes, container string, since int64) string {
 	sinceTime := metav1.NewTime(time.Unix(since, 0))
-	logs, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").GetLogs(s.nodeAgent(t).Name, &corev1.PodLogOptions{
-		Container:  "system-probe",
+	logs, err := env.KubernetesCluster.Client().CoreV1().Pods("datadog").GetLogs(nodeAgent(ctx, t, env).Name, &corev1.PodLogOptions{
+		Container:  container,
 		SinceTime:  &sinceTime,
 		Timestamps: true,
-	}).DoRaw(s.T().Context())
-	require.NoError(t, err, "failed to read the system-probe log")
+	}).DoRaw(ctx)
+	require.NoErrorf(t, err, "failed to read the %s log", container)
 	return string(logs)
+}
+
+// systemProbeLog returns the log of system-probe since since.
+func (s *packageInUseSuite) systemProbeLog(t require.TestingT, since int64) string {
+	return containerLog(s.T().Context(), t, s.Env(), "system-probe", since)
 }
 
 // hostScans returns, in order, the times at which log, the system-probe log
@@ -1055,13 +1072,17 @@ func hostScans(t require.TestingT, log string) []time.Time {
 }
 
 // hostEpoch returns the wall clock of the node (Unix seconds), the clock that
-// stamps LastSeenRunning.
-func (s *packageInUseSuite) hostEpoch(shell string) int64 {
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, []string{"date", "+%s"})
-	s.Require().NoErrorf(err, "date failed: %s", stderr)
+// stamps LastSeenRunning and the kubelet logs.
+func hostEpoch(t require.TestingT, env *environments.Kubernetes, shell string) int64 {
+	stdout, stderr, err := env.KubernetesCluster.KubernetesClient.PodExec(hostShellNamespace, shell, hostShellContainer, []string{"date", "+%s"})
+	require.NoErrorf(t, err, "date failed: %s", stderr)
 	n, err := strconv.ParseInt(strings.TrimSpace(stdout), 10, 64)
-	s.Require().NoError(err, "date printed %q", stdout)
+	require.NoError(t, err, "date printed %q", stdout)
 	return n
+}
+
+func (s *packageInUseSuite) hostEpoch(shell string) int64 {
+	return hostEpoch(s.T(), s.Env(), shell)
 }
 
 // fetchSBOMs returns the SBOMs intake holds, parsed from one fetch of its SBOM

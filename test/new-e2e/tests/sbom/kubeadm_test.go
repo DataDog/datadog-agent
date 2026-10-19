@@ -8,6 +8,7 @@ package sbom
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -96,6 +97,8 @@ agents:
 
 type kubeadmSuite struct {
 	sbomTargetsSuite[environments.Kubernetes]
+
+	runtime kubeComp.ContainerRuntime
 }
 
 // sbomHostRetentionPeriod overrides fakeintake's 15m default: the host SBOM
@@ -123,7 +126,10 @@ func TestSBOMKubeadmSuite(t *testing.T) {
 			),
 		),
 	)
-	e2e.Run(t, &kubeadmSuite{sbomTargetsSuite[environments.Kubernetes]{expectLayerDigests: true}}, e2e.WithProvisioner(prov))
+	e2e.Run(t, &kubeadmSuite{
+		sbomTargetsSuite: sbomTargetsSuite[environments.Kubernetes]{expectLayerDigests: true},
+		runtime:          kubeComp.Containerd,
+	}, e2e.WithProvisioner(prov))
 }
 
 // TestSBOMKubeadmCrioSuite is the CRI-O counterpart of TestSBOMKubeadmSuite: the
@@ -147,7 +153,10 @@ func TestSBOMKubeadmCrioSuite(t *testing.T) {
 			),
 		),
 	)
-	e2e.Run(t, &kubeadmSuite{sbomTargetsSuite[environments.Kubernetes]{expectLayerDigests: true}}, e2e.WithProvisioner(prov))
+	e2e.Run(t, &kubeadmSuite{
+		sbomTargetsSuite: sbomTargetsSuite[environments.Kubernetes]{expectLayerDigests: true},
+		runtime:          kubeComp.CRIO,
+	}, e2e.WithProvisioner(prov))
 }
 
 func (s *kubeadmSuite) SetupSuite() {
@@ -196,6 +205,102 @@ func (s *kubeadmSuite) TestContainerImageLayerCreated() {
 		}
 		assert.NotZerof(c, checked, "No container image payload has a layer with history yet")
 	}, 8*time.Minute, 15*time.Second, "Failed validating the layer created times of the container image payloads")
+}
+
+// TestContainerImageEventsKeepSBOM names an image the Agent has scanned, then
+// removes that name, and checks that every SBOM the Agent sends for the image
+// afterwards comes from the scan it had: no PENDING SBOM and no new scan.
+func (s *kubeadmSuite) TestContainerImageEventsKeepSBOM() {
+	if s.runtime != kubeComp.Containerd {
+		s.T().Skip("names images with ctr, the containerd client")
+	}
+
+	// CoreDNS runs on every kubeadm cluster, and no other test checks its SBOM.
+	const repo = "registry.k8s.io/coredns/coredns"
+	const alias = "sbom-e2e-alias"
+	name := repo + ":" + alias
+	payloads := func(c require.TestingT) []*aggregator.SBOMPayload {
+		ids, err := s.Fakeintake.GetSBOMIDs()
+		require.NoError(c, err, "failed to query the fake intake")
+		var all []*aggregator.SBOMPayload
+		for _, id := range ids {
+			if !strings.HasPrefix(id, repo+"@") {
+				continue
+			}
+			ps, err := s.Fakeintake.FilterSBOMs(id)
+			require.NoError(c, err, "failed to query the fake intake")
+			all = append(all, ps...)
+		}
+		return all
+	}
+
+	var scanned *aggregator.SBOMPayload
+	if !s.EventuallyWithTf(func(c *assert.CollectT) {
+		scanned = nil
+		for _, p := range payloads(c) {
+			if p.Status == sbom.SBOMStatus_SUCCESS && len(p.GetRepoDigests()) > 0 &&
+				(scanned == nil || p.GetCollectedTime().After(scanned.GetCollectedTime())) {
+				scanned = p
+			}
+		}
+		assert.NotNilf(c, scanned, "no successful SBOM of %s yet", repo)
+	}, 10*time.Minute, 15*time.Second, "no successful SBOM of %s", repo) {
+		return
+	}
+	generated := scanned.GetGeneratedAt().AsTime()
+	_, imageID, _ := strings.Cut(scanned.GetId(), "@")
+	s.T().Logf("%s: image %s scanned at %s", repo, imageID, generated)
+
+	// sameScan returns the SBOMs of the image received after scanned, and
+	// checks that they all come from the scan of scanned.
+	sameScan := func(c *assert.CollectT) []*aggregator.SBOMPayload {
+		var later []*aggregator.SBOMPayload
+		for _, p := range payloads(c) {
+			if !p.GetCollectedTime().After(scanned.GetCollectedTime()) {
+				continue
+			}
+			later = append(later, p)
+			assert.Equalf(c, sbom.SBOMStatus_SUCCESS, p.Status, "%s sent a %v SBOM with tags %v", repo, p.Status, p.GetRepoTags())
+			assert.Truef(c, p.GetGeneratedAt().AsTime().Equal(generated), "%s sent an SBOM generated at %s, want %s", repo, p.GetGeneratedAt().AsTime(), generated)
+		}
+		return later
+	}
+
+	t := s.T()
+	shell := startHostShell(t, s.Env())
+	since := hostEpoch(t, s.Env(), shell)
+	t.Cleanup(func() {
+		hostExec(t, s.Env(), shell, "ctr -n k8s.io images rm "+name+" >/dev/null 2>&1 || true")
+	})
+
+	hostExec(t, s.Env(), shell, "ctr -n k8s.io images tag "+scanned.GetRepoDigests()[0]+" "+name)
+	if !s.EventuallyWithTf(func(c *assert.CollectT) {
+		named := lo.Filter(sameScan(c), func(p *aggregator.SBOMPayload, _ int) bool {
+			return slices.Contains(p.GetRepoTags(), alias)
+		})
+		assert.NotEmptyf(c, named, "no SBOM of %s yet", name)
+	}, 5*time.Minute, 10*time.Second, "naming %s changed the SBOM of %s", name, repo) {
+		return
+	}
+
+	hostExec(t, s.Env(), shell, "ctr -n k8s.io images rm "+name)
+	// The image carried the name until its removal, so an SBOM without the
+	// name received after the newest one fakeintake holds now reflects it.
+	var removed time.Time
+	for _, p := range payloads(t) {
+		if p.GetCollectedTime().After(removed) {
+			removed = p.GetCollectedTime()
+		}
+	}
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		unnamed := lo.Filter(sameScan(c), func(p *aggregator.SBOMPayload, _ int) bool {
+			return p.GetCollectedTime().After(removed) && !slices.Contains(p.GetRepoTags(), alias)
+		})
+		assert.NotEmptyf(c, unnamed, "no SBOM of %s since the removal of %s yet", repo, name)
+	}, 5*time.Minute, 10*time.Second, "removing %s changed the SBOM of %s", name, repo)
+
+	log := containerLog(t.Context(), t, s.Env(), "agent", since)
+	assert.NotContainsf(t, log, "containerd scan request ["+imageID+"]", "the Agent scanned %s again", repo)
 }
 
 // expectedComponent describes a meaningful SBOM component to assert on. When name
