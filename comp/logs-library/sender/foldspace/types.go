@@ -58,6 +58,9 @@ const (
 )
 
 // Admission is what the library did with an offered record, or with a flush.
+//
+// Numbering matches enum foldspace_admission in foldspace_go.h exactly;
+// core_native.go asserts that at construction.
 type Admission int
 
 const (
@@ -71,6 +74,16 @@ const (
 	TooLarge Admission = 3
 	// ShuttingDown means admission is closed and the retained set is draining.
 	ShuttingDown Admission = 4
+	// Empty means the record has an empty body, which the wire cannot express,
+	// so it was not taken and offering it again unchanged cannot succeed.
+	Empty Admission = 5
+	// Unroutable means the record's route names a sender that does not exist:
+	// the routing policy and the endpoint configuration disagree. Offering it
+	// again unchanged cannot succeed.
+	Unroutable Admission = 6
+	// Unrouted means the record's route names no sender at all, so there is
+	// nowhere to carry it. Offering it again unchanged cannot succeed.
+	Unrouted Admission = 7
 )
 
 func (a Admission) String() string {
@@ -83,6 +96,12 @@ func (a Admission) String() string {
 		return "too large"
 	case ShuttingDown:
 		return "shutting down"
+	case Empty:
+		return "empty"
+	case Unroutable:
+		return "unroutable"
+	case Unrouted:
+		return "unrouted"
 	default:
 		return fmt.Sprintf("admission(%d)", int(a))
 	}
