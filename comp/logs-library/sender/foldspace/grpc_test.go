@@ -9,14 +9,20 @@ import (
 	"context"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 )
 
 type recordingIntake struct {
@@ -161,7 +167,7 @@ func TestGRPCOpenStreamHonorsContextWhenIntakeIsMute(t *testing.T) {
 
 	transport := NewGRPCTransport(&DestinationConfig{
 		Senders: []SenderSpec{{ID: 0, Address: lis.Addr().String(), Class: Reliable, APIKey: func() string { return "key" }}},
-	})
+	}, secretsnoopimpl.NewComponent().Comp)
 	t.Cleanup(transport.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -186,7 +192,7 @@ func TestGRPCTransportKeepalive(t *testing.T) {
 	transport := NewGRPCTransport(&DestinationConfig{
 		KeepaliveTime:    5 * time.Minute,
 		KeepaliveTimeout: 20 * time.Second,
-	})
+	}, secretsnoopimpl.NewComponent().Comp)
 	assert.Equal(t, 5*time.Minute, transport.keepalive.Time)
 	assert.Equal(t, 20*time.Second, transport.keepalive.Timeout)
 	assert.False(t, transport.keepalive.PermitWithoutStream)
@@ -217,7 +223,7 @@ func TestGRPCOpenStreamUsesConfiguredMethod(t *testing.T) {
 	transport := NewGRPCTransport(&DestinationConfig{
 		Senders:      []SenderSpec{{ID: 0, Address: lis.Addr().String(), Class: Reliable, APIKey: func() string { return "key" }}},
 		StreamMethod: method,
-	})
+	}, secretsnoopimpl.NewComponent().Comp)
 	t.Cleanup(transport.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -231,6 +237,105 @@ func TestGRPCOpenStreamUsesConfiguredMethod(t *testing.T) {
 	assert.Equal(t, uint32(7), batchID)
 	assert.Equal(t, AckOK, status)
 	assert.Equal(t, method, <-opened)
+}
+
+// rejectingIntake fails every stream with code before reading from it, as an
+// intake that refuses the stream's API key does.
+type rejectingIntake struct {
+	UnimplementedStatefulIntakeServer
+	code codes.Code
+}
+
+func (r rejectingIntake) StatefulStream(grpc.BidiStreamingServer[StatefulBatch, BatchStatus]) error {
+	return status.Error(r.code, "rejected")
+}
+
+// refreshRecorder counts Refresh calls and reports every value as secret-backed
+// or none of them.
+type refreshRecorder struct {
+	secrets.Component
+	fromSecret bool
+	refreshes  atomic.Int32
+}
+
+func (r *refreshRecorder) IsValueFromSecret(string) bool { return r.fromSecret }
+
+func (r *refreshRecorder) Refresh() bool {
+	r.refreshes.Add(1)
+	return true
+}
+
+// An intake rejecting a secret-backed key is answered with a secrets refresh,
+// as an HTTP 403 is, so the stream the core reopens can carry a fresh key.
+// Other failures, and keys that did not come from a secret, refresh nothing.
+func TestGRPCRefreshesSecretsWhenIntakeRejectsKey(t *testing.T) {
+	cases := []struct {
+		name        string
+		code        codes.Code
+		fromSecret  bool
+		wantRefresh int32
+	}{
+		{"unauthenticated secret key", codes.Unauthenticated, true, 1},
+		{"permission denied secret key", codes.PermissionDenied, true, 1},
+		{"permission denied plain key", codes.PermissionDenied, false, 0},
+		{"unavailable secret key", codes.Unavailable, true, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			lis, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			srv := NewStatefulIntakeServer(rejectingIntake{code: c.code})
+			go func() { _ = srv.Serve(lis) }()
+			t.Cleanup(srv.Stop)
+
+			recorder := &refreshRecorder{fromSecret: c.fromSecret}
+			transport := NewGRPCTransport(&DestinationConfig{
+				Senders: []SenderSpec{{ID: 0, Address: lis.Addr().String(), Class: Reliable, APIKey: func() string { return "key" }}},
+			}, recorder)
+			t.Cleanup(transport.Close)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			stream, err := transport.OpenStream(ctx, 0, 1)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = stream.Close() })
+			_ = stream.Send(ctx, 1, []byte("ping"))
+			_, _, err = stream.Recv(ctx)
+			require.Equal(t, c.code, status.Code(err))
+			assert.Equal(t, c.wantRefresh, recorder.refreshes.Load())
+		})
+	}
+}
+
+func TestGRPCStreamReportsChangedCredentials(t *testing.T) {
+	_, lis, _ := startBufIntake(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, "buf", //nolint:staticcheck
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(), //nolint:staticcheck
+		grpc.WithDefaultCallOptions(grpc.ForceCodec(statefulCodec{})),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+
+	var key atomic.Value
+	key.Store("old-key")
+	transport := &GRPCTransport{
+		specs:  []SenderSpec{{ID: 0, Address: "buf:1", Class: Reliable, APIKey: func() string { return key.Load().(string) }}},
+		conns:  []*grpc.ClientConn{conn},
+		state:  1024,
+		enc:    "identity",
+		method: statefulStreamFullMethod,
+	}
+	stream, err := transport.OpenStream(ctx, 0, 1)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = stream.Close() })
+
+	assert.False(t, stream.CredentialsChanged())
+	key.Store("new-key")
+	assert.True(t, stream.CredentialsChanged())
 }
 
 func TestGRPCStreamRoundTrip(t *testing.T) {
