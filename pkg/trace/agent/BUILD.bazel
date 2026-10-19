@@ -1,6 +1,13 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# Parsed by //pkg/trace/testutil/dupcheck to check that its corpus covers every
+# span type obfuscateSpanInternal branches on.
+exports_files(
+    ["obfuscate.go"],
+    visibility = ["//pkg/trace/testutil/dupcheck:__pkg__"],
+)
+
 go_library(
     name = "agent",
     srcs = [

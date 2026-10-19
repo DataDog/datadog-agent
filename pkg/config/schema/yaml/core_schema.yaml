@@ -312,6 +312,7 @@ properties:
       On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
       On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
       This setting is ignored on Linux and does not enable or disable the systemd unit.
+      On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
     tags:
     - template_section:Common
     properties:
@@ -323,9 +324,11 @@ properties:
         description: |-
           When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
           On Linux, the process manager daemon is started by systemd; this option is ignored.
+          On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
         comment: |-
           Process manager (dd-procmgrd): on Windows the core agent starts dd-procmgr-service when enabled.
           On Linux, dd-procmgrd is managed by systemd (datadog-agent-procmgr.service); this setting is ignored there.
+          On macOS, dd-procmgrd always runs (com.datadoghq.procmgr). This setting is not yet supported there.
   tag_value_split_separator:
     node_type: setting
     type: object
@@ -5485,6 +5488,12 @@ properties:
             default: false
             comment: Recording of raw ingested signals for offline analysis
               when a writer backend is registered.
+          only:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: With an active recorder, record observations without
+              feeding them into anomaly detection analysis.
           flush_interval:
             node_type: setting
             type: string
@@ -7491,7 +7500,9 @@ properties:
     format: duration
     tags:
     - golang_type:duration
-    comment: Duration during which the host tags will be submitted with metrics.
+    comment: |-
+      Duration during which host tags are submitted with metrics.
+      The ``infra_mode`` host tag is never copied onto metrics this way.
   external_metrics:
     node_type: section
     type: object
