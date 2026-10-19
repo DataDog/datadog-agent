@@ -18,7 +18,6 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/otlpidx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -128,7 +127,7 @@ func (o *OTLPReceiver) exportRaw(ctx context.Context, in *rawExportRequest) (*ex
 	}
 	payloads, err := otlpidx.Decode(ctx, b, otlpidx.Options{Conf: o.conf})
 	if err == nil {
-		o.receiveIdx(hdr, payloads)
+		o.receiveIdx(payloads)
 		return &exportResponse{}, nil
 	}
 	log.Debugf("OTLP direct decoder rejected a request, falling back to pdata: %v", err)
@@ -144,7 +143,7 @@ func (o *OTLPReceiver) exportRaw(ctx context.Context, in *rawExportRequest) (*ex
 
 // receiveIdx sends decoded payloads to ProcessV1, mirroring processRequest and
 // receiveResourceSpansV2 for the request metrics, source tags and client-computed flags.
-func (o *OTLPReceiver) receiveIdx(hdr http.Header, payloads []otlpidx.Payload) {
+func (o *OTLPReceiver) receiveIdx(payloads []otlpidx.Payload) {
 	OTLPIngestAgentTracesRequests.Inc()
 	var spans int
 	for _, p := range payloads {
@@ -158,7 +157,6 @@ func (o *OTLPReceiver) receiveIdx(hdr http.Header, payloads []otlpidx.Payload) {
 		log.Warn(errOTLPReceiverStopped)
 		return
 	}
-	computedStats := isHeaderTrue(header.ComputedStats, hdr.Get(header.ComputedStats))
 	computedTopLevel := o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 	for _, p := range payloads {
 		tp := p.TracerPayload
@@ -173,15 +171,12 @@ func (o *OTLPReceiver) receiveIdx(hdr http.Header, payloads []otlpidx.Payload) {
 		tags := tagstats.AsTags()
 		_ = o.statsd.Count("datadog.trace_agent.otlp.spans", int64(p.SpanCount), tags, 1)
 		_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tp.Chunks)), tags, 1)
-		// The _dd.stats_computed resource attribute takes precedence over the header.
-		stats := computedStats
-		if p.StatsComputed != nil {
-			stats = *p.StatsComputed
-		}
+		// Only the _dd.stats_computed resource attribute applies: the Datadog-Client-Computed-Stats
+		// header is set by Datadog tracers and the DDOT exporter, never on OTLP gRPC requests.
 		o.outV1 <- &PayloadV1{
 			Source:                 tagstats,
 			TracerPayload:          tp,
-			ClientComputedStats:    stats,
+			ClientComputedStats:    p.StatsComputed != nil && *p.StatsComputed,
 			ClientComputedTopLevel: computedTopLevel,
 		}
 	}
