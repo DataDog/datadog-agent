@@ -22,6 +22,7 @@ new-e2e-discovery:
     - agent_deb-x64-a7
     - qa_agent_linux
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_discovery_or_e2e_changes]
     - !reference [.manual]
   variables:

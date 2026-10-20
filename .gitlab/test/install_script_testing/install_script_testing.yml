@@ -22,4 +22,5 @@ test_install_script:
       "deploy_suse_rpm_testing_x64-a7",
     ]
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_deploy]

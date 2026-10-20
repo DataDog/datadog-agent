@@ -50,6 +50,7 @@ new-e2e-amp:
     - qa_agent_fips_linux_jmx
     - qa_dca
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_amp_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
@@ -83,6 +84,7 @@ new-e2e-amp-adp:
     - job: qa_dca
       optional: true
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-metric-pipelines
@@ -98,6 +100,7 @@ new-e2e-amp-adp:
 new-e2e-adp-preflight-mode:
   extends: .new_e2e_template_needs_deb_x64
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_adp_preflight_mode_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -114,6 +117,7 @@ new-e2e-alp:
     - qa_agent_fips_linux_jmx
     - qa_dca
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_alp_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -137,6 +141,7 @@ new-e2e-alp:
 new-e2e-anomalydetection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_anomalydetection_or_e2e_changes]
     - !reference [.manual]
   variables:

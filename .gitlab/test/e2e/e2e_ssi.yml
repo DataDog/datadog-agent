@@ -21,6 +21,7 @@
 .new-e2e_ssi:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_ssi_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -38,6 +39,7 @@
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -57,6 +59,7 @@
 .new-e2e_ssi_extra_distribution:
   extends: .new-e2e_ssi
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -173,6 +176,7 @@ new-e2e-ssi-aks:
 new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_ssi_or_e2e_changes]
     - changes:
         paths:

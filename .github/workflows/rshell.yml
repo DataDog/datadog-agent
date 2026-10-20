@@ -8,6 +8,13 @@ on:
       - ".github/workflows/rshell.yml"
       - "tasks/fuzz.py"
       - "go.mod"
+      - "go.sum"
+      - ".bazelrc"
+      - ".bazelversion"
+      - "MODULE.bazel*"
+      - "bazel/**"
+      - ".github/actions/bazel-cache/**"
+      - ".github/actions/install-dda/**"
       - "go.work"
       - ".go-version"
   pull_request:
@@ -16,6 +23,13 @@ on:
       - ".github/workflows/rshell.yml"
       - "tasks/fuzz.py"
       - "go.mod"
+      - "go.sum"
+      - ".bazelrc"
+      - ".bazelversion"
+      - "MODULE.bazel*"
+      - "bazel/**"
+      - ".github/actions/bazel-cache/**"
+      - ".github/actions/install-dda/**"
       - "go.work"
       - ".go-version"
 
@@ -23,7 +37,7 @@ permissions:
   contents: read
 
 jobs:
-  # The regular Agent Bazel jobs run unit tests and race tests on all platforms.
+  # Dedicated GitLab rshell jobs run unit tests and race coverage on all platforms.
   integration:
     name: Bash comparison and Linux sandbox
     runs-on: ubuntu-latest

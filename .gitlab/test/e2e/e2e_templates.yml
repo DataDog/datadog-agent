@@ -3,6 +3,9 @@
 # Owned by: agent-devx (all infrastructure templates live here)
 
 .new_e2e_template:
+  rules:
+    - !reference [.except_rshell_only]
+    - when: on_success
   extends: .bazel:defs:cache:progressive
   stage: e2e
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

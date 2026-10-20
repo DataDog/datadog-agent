@@ -17,6 +17,7 @@ new-e2e-agent-health:
     - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
     - agent_deb-x64-a7
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_healthplatform_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -45,6 +46,7 @@ new-e2e-agent-telemetry:
     - qa_agent_full
     - qa_dca
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_agenttelemetry_or_e2e_changes]
     - !reference [.manual]
   variables:

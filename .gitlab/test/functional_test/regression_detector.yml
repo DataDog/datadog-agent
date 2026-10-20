@@ -2,6 +2,7 @@ single_machine_performance-regression_detector-merge_base_check:
   stage: functional_test
   timeout: 10m
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     # On main: wait for the agent image to land in ECR before checking for baselines.
@@ -203,6 +204,9 @@ single_machine_performance-regression_detector-merge_base_check:
 # The parent pipeline does NOT wait for this child pipeline (no strategy: depend),
 # so the main pipeline completes without blocking on the ~1h SMP run.
 .trigger-single-machine-performance-regression_detector:
+  rules:
+    - !reference [.except_rshell_only]
+    - when: on_success
   stage: functional_test
   needs:
     - job: single_machine_performance-regression_detector-merge_base_check
@@ -224,6 +228,7 @@ trigger-single-machine-performance-regression_detector:
   extends:
     - .trigger-single-machine-performance-regression_detector
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
@@ -236,6 +241,7 @@ trigger-single-machine-performance-regression_detector-main:
   extends:
     - .trigger-single-machine-performance-regression_detector
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_coverage_pipeline]
     - !reference [.on_main]  # Run on every main commit
   trigger:

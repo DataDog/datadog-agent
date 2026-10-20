@@ -15,6 +15,7 @@
 new-e2e-agent-runtimes:
   extends: .new_e2e_template_needs_deb_x64
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -31,6 +32,7 @@ new-e2e-fips-compliance-test:
     - qa_agent_fips_linux
     - qa_dca_fips
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]

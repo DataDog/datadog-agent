@@ -21,6 +21,7 @@ integration_tests_otel:
     # TODO: remove once Bazel is used to build the Agent
     - dda inv -- -e schema.codegen
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - when: on_success
 
@@ -84,6 +85,7 @@ docker_image_build_otel:
     - python3 /tmp/otel-ci/otel_agent_build_tests.py
 
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - when: on_success
 
@@ -91,6 +93,9 @@ docker_image_build_otel:
 # Expects BUILD_ARGS and IMAGE to be set before referencing.
 # Defines CACHE_FROM and CACHE_TO for use in subsequent build steps.
 .ddot_byoc_build_cache_setup:
+  rules:
+    - !reference [.except_rshell_only]
+    - when: on_success
   script:
     # These jobs run on docker-in-docker:amd64 runners rather than the standard arch:amd64 runners
     # used by .docker_build_job_definition, for two reasons:
@@ -188,6 +193,7 @@ docker_image_build_otel:
         { echo "ERROR: ${DDOT_BYOC_BINARY_NAME} not found in ddot extension layer"; exit 1; }
       echo "${DDOT_BYOC_BINARY_NAME} verified in ddot extension layer"
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - when: on_success
 
@@ -260,5 +266,6 @@ ddot_byoc_binary_build_test_ubuntu2004:
         fi
       fi
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - when: on_success

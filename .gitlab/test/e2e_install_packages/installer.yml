@@ -3,6 +3,7 @@ qa_installer_script_main:
   stage: e2e_install_packages
   tags: ["arch:amd64", "specific:true"]
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.only_main] # Disable non-main branch. Must be first.
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]

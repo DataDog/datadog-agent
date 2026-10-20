@@ -115,6 +115,8 @@
 
 # Windows-specific e2e tests
 .windows_path_3: &windows_path_3
+  - pkg/rshell/**/*
+  - test/new-e2e/tests/privateactionrunner/**/*
   - test/new-e2e/tests/fleet/**/* # cross platform tests
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*
@@ -137,6 +139,35 @@
   - Cargo.lock
 
 include:
+  - local: .gitlab/rshell-only.yml
+    rules:
+      # Keep full validation for integration, scheduled, release and forced pipelines.
+      - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/ || $CI_COMMIT_BRANCH =~ /^mq-working-branch-/ || $CI_COMMIT_TAG
+        when: never
+      - if: $CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline" || $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID
+        when: never
+      - if: $RUN_E2E_TESTS == "on" || $RUN_UNIT_TESTS == "on" || $RUN_KMT_TESTS == "on" || $RUN_ALL_BUILDS == "true"
+        when: never
+      - if: $GIT_BASE_BRANCH != null && $GIT_BASE_BRANCH != "main"
+        when: never
+      - changes:
+          compare_to: main
+          # fnmatch has no path exclusion: match prefixes outside rshell and its PAR e2e tests.
+          paths:
+            - "*"
+            - "{[^pt]*,p,p[^k]*,pk,pk[^g]*,pkg?*,t,t[^e]*,te,te[^s]*,tes,tes[^t]*,test?*}/**/*"
+            - "pkg/*"
+            - "pkg/{[^r]*,r,r[^s]*,rs,rs[^h]*,rsh,rsh[^e]*,rshe,rshe[^l]*,rshel,rshel[^l]*,rshell?*}/**/*"
+            - "test/*"
+            - "test/{[^n]*,n,n[^e]*,ne,ne[^w]*,new,new[^-]*,new-,new-[^e]*,new-e,new-e[^2]*,new-e2,new-e2[^e]*,new-e2e?*}/**/*"
+            - "test/new-e2e/*"
+            - "test/new-e2e/{[^t]*,t,t[^e]*,te,te[^s]*,tes,tes[^t]*,test,test[^s]*,tests?*}/**/*"
+            - "test/new-e2e/tests/*"
+            - "test/new-e2e/tests/{[^p]*,p,p[^r]*,pr,pr[^i]*,pri,pri[^v]*,priv,priv[^a]*,priva,priva[^t]*,privat,privat[^e]*,private,private[^a]*,privatea,privatea[^c]*,privateac,privateac[^t]*,privateact,privateact[^i]*,privateacti,privateacti[^o]*,privateactio,privateactio[^n]*,privateaction,privateaction[^r]*,privateactionr,privateactionr[^u]*,privateactionru,privateactionru[^n]*,privateactionrun,privateactionrun[^n]*,privateactionrunn,privateactionrunn[^e]*,privateactionrunne,privateactionrunne[^r]*,privateactionrunner?*}/**/*"
+        when: never
+      - changes:
+          paths: [pkg/rshell/**/*, test/new-e2e/tests/privateactionrunner/**/*]
+          compare_to: main
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
@@ -604,6 +635,10 @@ workflow:
 # List of rule blocks used in the pipeline
 # Any job in the pipeline either runs (with when: on_success) in all pipelines, or follows one of the below rule blocks.
 #
+
+.except_rshell_only:
+  - if: $RSHELL_ONLY == "true" && $RSHELL_TESTS != "true"
+    when: never
 
 .except_light_pipeline:
   - <<: *if_light_pipeline

@@ -129,6 +129,9 @@
 # -- Test dependencies
 
 .package_dependencies:
+  rules:
+    - !reference [.except_rshell_only]
+    - when: on_success
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   before_script:
@@ -153,6 +156,9 @@
 
 # -- Environment setup
 .kmt_setup_env:
+  rules:
+    - !reference [.except_rshell_only]
+    - when: on_success
   extends:
     - .kmt_ec2_location_us_east_1
     - .bazel:defs:cache:progressive
@@ -225,6 +231,9 @@
         - $EXTERNAL_LINKS_PATH
 
 .kmt_cleanup:
+  rules:
+    - !reference [.except_rshell_only]
+    - when: on_success
   stage: kernel_matrix_testing_cleanup
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
@@ -254,6 +263,9 @@
 
 # -- Test runners
 .kmt_run_tests:
+  rules:
+    - !reference [.except_rshell_only]
+    - when: on_success
   retry:
     max: 2
     exit_codes: 42
@@ -325,6 +337,9 @@
     fi
 
 .notify_ebpf_complexity_changes:
+  rules:
+    - !reference [.except_rshell_only]
+    - when: on_success
   extends:
     - .notify-job
     - .dd_octo_sts
@@ -371,6 +386,7 @@
 notify_ebpf_complexity_changes:
   extends: .notify_ebpf_complexity_changes
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_main_release_or_mq]
     - !reference [.except_no_tests_no_deploy]
     - !reference [.except_deploy]
@@ -380,6 +396,7 @@ notify_ebpf_complexity_changes:
 test_ebpf_complexity_changes:
   extends: .notify_ebpf_complexity_changes
   rules:
+    - !reference [.except_rshell_only]
     # Execute this job whenever there are changes to the KMT python files that are used to generate the complexity data
     - changes:
         paths:

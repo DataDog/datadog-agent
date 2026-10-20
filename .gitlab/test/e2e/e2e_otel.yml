@@ -7,6 +7,7 @@ new-e2e-otel-eks-init:
   extends: .new_e2e_template
   timeout: 1h 05m
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_otel_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -27,6 +28,7 @@ new-e2e-otel-eks-init:
 new-e2e-otel-eks:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_otel_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -45,6 +47,7 @@ new-e2e-otel-eks:
 new-e2e-otel:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_otel_or_e2e_changes]
     - !reference [.manual]
   needs:

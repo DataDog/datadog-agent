@@ -5,6 +5,7 @@
 new-e2e-npm-packages:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -20,6 +21,7 @@ new-e2e-npm-packages:
 new-e2e-npm-docker:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -40,6 +42,7 @@ new-e2e-npm-eks-init:
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -57,6 +60,7 @@ new-e2e-npm-eks-init:
 new-e2e-npm-eks:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -75,6 +79,7 @@ new-e2e-npm-eks:
 new-e2e-npm:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -94,6 +99,7 @@ new-e2e-netpath:
     # agent-qa:<pipeline>-<sha>-linux image built by qa_agent_linux
     - qa_agent_linux
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_netpath_or_e2e_changes]
     - !reference [.manual]
   variables:

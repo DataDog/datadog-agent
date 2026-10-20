@@ -17,6 +17,7 @@
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_language-detection_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -31,6 +32,7 @@ new-e2e-process-ecs:
     - qa_agent_linux
     - qa_dca
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -47,6 +49,7 @@ new-e2e-process:
     - qa_agent_linux
     - qa_dca
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]
   variables:

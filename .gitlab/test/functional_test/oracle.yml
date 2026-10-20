@@ -5,6 +5,7 @@ oracle:
   stage: functional_test
   needs: ["go_deps"]
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_light_pipeline]
     - when: on_success
   services:

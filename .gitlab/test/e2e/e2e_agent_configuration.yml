@@ -24,6 +24,7 @@
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_x64
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_acfg_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
@@ -35,6 +36,7 @@ new-e2e-agent-configuration:
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_x64
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_subcommands_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
@@ -47,6 +49,7 @@ new-e2e-agent-subcommands:
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_rc_or_e2e_changes]
     - !reference [.manual]
   variables:

@@ -5,6 +5,7 @@
 .new_e2e_fleet_template:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -60,6 +61,7 @@ new-e2e-fleet-config-macos:
       fi
     - !reference [.new_e2e_template, script]
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy]
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH # Temporary execution + allow failure for main branch, to stress test the system. NOT_NIGHTLY is used to skip all the main run if we need to disable with the feature flag. It would not handle the load
@@ -105,6 +107,7 @@ new-e2e-installer-script:
   extends: .new_e2e_template
   timeout: 25m
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -128,6 +131,7 @@ new-e2e-installer-script:
 new-e2e-installer:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -162,6 +166,7 @@ new-e2e-installer:
 new-e2e-installer-ansible:
   extends: .new_e2e_template
   rules:
+    - !reference [.except_rshell_only]
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   needs:
