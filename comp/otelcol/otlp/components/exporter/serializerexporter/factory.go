@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -261,7 +262,21 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		hostGetter = cfg.HostProvider
 	}
 	// Create the metrics translator
-	tr, err := translatorFromConfig(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
+	newTranslator := translatorFromConfig
+	if f.ipath == ddot && nativeOTelHistogramsGate.IsEnabled() {
+		// OTel histograms cannot go over the v2 sketches intake.
+		agentSerializer, ok := s.(*serializer.Serializer)
+		if !ok {
+			return nil, fmt.Errorf("feature gate %s needs the agent serializer", nativeOTelHistogramsGate.ID())
+		}
+		if domains := agentSerializer.SketchesV2Domains(); len(domains) > 0 {
+			return nil, fmt.Errorf("feature gate %s needs the v3 sketches intake for every metrics destination, but these use v2: %s; "+
+				"list them in serializer_experimental_use_v3_api.sketches.endpoints and do not use zlib compression",
+				nativeOTelHistogramsGate.ID(), strings.Join(domains, ", "))
+		}
+		newTranslator = minimalTranslatorFromConfig
+	}
+	tr, err := newTranslator(params.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, f.statsIn, f.options...)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
