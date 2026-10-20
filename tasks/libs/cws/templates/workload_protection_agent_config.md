@@ -37,13 +37,13 @@ The following settings can be configured under `runtime_security_config` in the 
 {% endif %}
 
 ## `security-agent` configuration parameters
-<div class="alert alert-warning">From <code>7.77</code>, the security-agent runtime for CWS is effectively deprecated: it is not used anymore and this section can be ignored.</div>
+<div class="alert alert-warning">The Security Agent is required for Workload Protection. Without it, no Workload Protection events reach Datadog.</div>
 
 <div class="alert alert-info">Parameters can be provided in two different manners: through environment variables (given to the Datadog Agent container for example) or by editing the <code>/etc/datadog-agent/security-agent.yaml</code> configuration file.</div>
 
 | Setting | Type | Default | Description |
 | ------- | ---- | ------- | ----------- |
-| **Environment variable**<br>`DD_RUNTIME_SECURITY_CONFIG_ENABLED`<br><br>**YAML attribute**<br>`runtime_security_config.enabled` | bool | false | Enables Workload Protection for agent versions < `7.77`. |
+| **Environment variable**<br>`DD_RUNTIME_SECURITY_CONFIG_ENABLED`<br><br>**YAML attribute**<br>`runtime_security_config.enabled` | bool | false | Enables Workload Protection in the Security Agent. |
 
 
 [1]: /security/workload_protection/
