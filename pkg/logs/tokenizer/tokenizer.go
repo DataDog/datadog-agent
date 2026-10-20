@@ -121,7 +121,8 @@ func (t *Tokenizer) tokenizeCapped(input []byte) ([]Token, []int) {
 
 // TokenizeBorrowed returns a BorrowedTokens view aliasing the reusable scratch
 // buffers, valid only until the next call on t (hence not thread-safe). This is
-// the per-line hot path; consumers that retain the tokens must Clone them.
+// the per-line hot path; consumers that retain the tokens must copy them
+// first (Clone or Retained).
 func (t *Tokenizer) TokenizeBorrowed(input []byte) BorrowedTokens {
 	return NewBorrowedTokens(t.tokenizeCapped(input))
 }

@@ -39,8 +39,13 @@ func (b BorrowedTokens) Len() int { return len(b.tokens) }
 // Empty reports whether there are no tokens.
 func (b BorrowedTokens) Empty() bool { return len(b.tokens) == 0 }
 
+// HasIndices reports whether the view carries a start offset for every token.
+// Views from TokenizeBorrowed always do; non-empty views from Retained do not.
+func (b BorrowedTokens) HasIndices() bool { return len(b.indices) == len(b.tokens) }
+
 // Retained returns a view backed by an owned copy, safe to store across calls.
 // Indices are dropped; only the labeler window uses them, before any retention.
+// Limit needs the offsets to cut, so it returns a retained view whole.
 func (b BorrowedTokens) Retained() BorrowedTokens {
 	return BorrowedTokens{tokens: slices.Clone(b.tokens)}
 }
@@ -48,13 +53,24 @@ func (b BorrowedTokens) Retained() BorrowedTokens {
 // Limit returns the prefix of the view whose tokens start before maxBytes
 // (maxBytes <= 0 means no limit), giving the labeler a narrower window than the
 // sampler. The result is a sub-view over the same backing.
+//
+// Limit is not the same as tokenizing only the first maxBytes. A token that
+// starts before maxBytes keeps the shape it has in the full input: a run that
+// crosses the boundary keeps its full length bucket (D5, not D2), and an IPv4
+// address that crosses it stays one IPv4 token.
+//
+// Limit finds the cut from the start offsets. A view without them (see
+// HasIndices), such as one from Retained, is returned whole: Limit cannot tell
+// which of its tokens start before maxBytes. Trim before retaining, as the
+// preprocessor does. When Limit cuts, it caps the result's capacity at the
+// cut, so appending to it can never overwrite the tokens after the cut.
 func (b BorrowedTokens) Limit(maxBytes int) BorrowedTokens {
 	if maxBytes <= 0 {
 		return b
 	}
 	for i, idx := range b.indices {
 		if idx >= maxBytes {
-			return BorrowedTokens{tokens: b.tokens[:i], indices: b.indices[:i]}
+			return BorrowedTokens{tokens: b.tokens[:i:i], indices: b.indices[:i:i]}
 		}
 	}
 	return b
