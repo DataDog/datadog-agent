@@ -487,7 +487,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
+			checkSampler.commitNow(false, &agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
@@ -810,7 +810,7 @@ func (agg *BufferedAggregator) Flush(trigger flushTrigger) {
 	if trigger.serializationDone != nil {
 		agg.mu.Lock()
 		for _, sampler := range agg.checkSamplers {
-			sampler.commit(float64(trigger.time.UnixNano())/1e9, &agg.flushFilterList)
+			sampler.commitNow(true, &agg.flushFilterList)
 		}
 		agg.mu.Unlock()
 	}

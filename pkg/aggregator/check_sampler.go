@@ -30,6 +30,7 @@ type bucketBounds struct {
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
+	lastCommitSecond       int64
 	id                     checkid.ID
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
@@ -208,8 +209,11 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
+	cs.commitSeriesWithFlush(timestamp, filterList, cs.metrics.Flush)
+}
 
-	series, errors := cs.metrics.Flush(timestamp)
+func (cs *CheckSampler) commitSeriesWithFlush(timestamp float64, filterList *metricname.Matcher, flush func(float64) ([]*metrics.Serie, map[ckey.ContextKey]error)) {
+	series, errors := flush(timestamp)
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
@@ -336,4 +340,34 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 		lower: bucket.LowerBound,
 		upper: bucket.UpperBound,
 	}
+}
+
+// Intermediate boundaries do not age run-based context or bucket baselines.
+func (cs *CheckSampler) commitIntermediate(timestamp float64, filterList *metricname.Matcher) {
+	cs.commitSeriesWithFlush(timestamp, filterList, cs.metrics.FlushIntermediate)
+	cs.commitSketches(timestamp, filterList)
+}
+
+// commitNow keeps ordinary final commits, delaying only a wire-second collision.
+// Periodic attempts in an already committed second can wait for the next tick.
+// The caller holds agg.mu. This deliberately blocks checks while waiting, with
+// no per-submission GIL release. The responsiveness cost is benchmarked explicitly.
+func (cs *CheckSampler) commitNow(periodic bool, filterList *metricname.Matcher) {
+	now := time.Now()
+	if now.Unix() <= cs.lastCommitSecond {
+		if periodic {
+			return
+		}
+		for now.Unix() <= cs.lastCommitSecond {
+			time.Sleep(time.Until(time.Unix(cs.lastCommitSecond+1, 0)))
+			now = time.Now()
+		}
+	}
+	timestamp := float64(now.UnixNano()) / 1e9
+	if periodic {
+		cs.commitIntermediate(timestamp, filterList)
+	} else {
+		cs.commit(timestamp, filterList)
+	}
+	cs.lastCommitSecond = now.Unix()
 }

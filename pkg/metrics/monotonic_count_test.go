@@ -216,14 +216,14 @@ func TestMonotonicCount_FlushFirstValue(t *testing.T) {
 
 // A reset must not discard increments already accumulated in this window.
 func TestMonotonicCountResetPreservesEarlierContributions(t *testing.T) {
- mc := &MonotonicCount{}
- mc.addSample(&MetricSample{Value: 100}, 1)
- mc.flush(1)
- for _, value := range []float64{110, 5, 15} {
-  mc.addSample(&MetricSample{Value: value, FlushFirstValue: true}, 2)
- }
- series, err := mc.flush(3)
- if err != nil || len(series) != 1 || series[0].Points[0].Value != 25 {
-  t.Fatalf("expected 10 + 5 + 10 after reset, got %#v, %v", series, err)
- }
+	mc := &MonotonicCount{}
+	mc.addSample(&MetricSample{Value: 100}, 1)
+	mc.flush(1)
+	for _, value := range []float64{110, 5, 15} {
+		mc.addSample(&MetricSample{Value: value, FlushFirstValue: true}, 2)
+	}
+	series, err := mc.flush(3)
+	if err != nil || len(series) != 1 || series[0].Points[0].Value != 25 {
+		t.Fatalf("expected 10 + 5 + 10 after reset, got %#v, %v", series, err)
+	}
 }

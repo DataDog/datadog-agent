@@ -170,3 +170,19 @@ func (c *CheckMetricsTelemetryAccumulator) Flush() {
 	tlmCheckMetricsWaiting.Set(waiting, "sum")
 	tlmCheckMetricsActive.Set(total-waiting, "sum")
 }
+
+// FlushIntermediate preserves the historate baseline until the check finishes.
+func (cm *CheckMetrics) FlushIntermediate(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
+	var series []*Serie
+	errors := make(map[ckey.ContextKey]error)
+	for key, metric := range cm.metrics {
+		if h, ok := metric.(*Historate); ok {
+			previousSample, previousTimestamp := h.previousSample, h.previousTimestamp
+			series = flushToSeries(key, metric, timestamp, series, errors)
+			h.previousSample, h.previousTimestamp = previousSample, previousTimestamp
+		} else {
+			series = flushToSeries(key, metric, timestamp, series, errors)
+		}
+	}
+	return series, errors
+}

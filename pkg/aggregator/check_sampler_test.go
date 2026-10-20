@@ -864,3 +864,166 @@ func testSketchSeriesSourcePreserved(t *testing.T, store *tags.Store) {
 func TestSketchSeriesSourcePreserved(t *testing.T) {
 	testWithTagsStore(t, testSketchSeriesSourcePreserved)
 }
+
+// Shared contract tests for the frozen PR and literal periodic prototype.
+// Only compareIntermediate differs: it invokes each revision's actual sampler boundary.
+func comparisonSampler(t *testing.T) *CheckSampler {
+	t.Helper()
+	cs := newCheckSampler(2, true, true, time.Hour, false, tags.NewStore(true, "comparison"), checkid.ID("comparison"), nooptagger.NewComponent())
+	comparisonConfigure(cs)
+	t.Cleanup(cs.release)
+	return cs
+}
+func comparisonAdd(cs *CheckSampler, kind metrics.MetricType, value, ts float64, first bool) {
+	cs.addSample(&metrics.MetricSample{Name: "comparison.metric", Mtype: kind, Value: value, Timestamp: ts, SampleRate: 1, FlushFirstValue: first}, filterlistimpl.NewNoopTagMatcher())
+}
+func comparisonPoints(cs *CheckSampler, suffix string) []float64 {
+	series, _ := cs.flush()
+	var values []float64
+	for _, s := range series {
+		if s.Name == "comparison.metric"+suffix {
+			for _, p := range s.Points {
+				values = append(values, p.Value)
+			}
+		}
+	}
+	return values
+}
+func TestComparisonHistorateContinuity(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.HistorateType, 100, 1, false)
+	comparisonAdd(cs, metrics.HistorateType, 120, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.HistorateType, 150, 3, false)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{20, 30}, comparisonPoints(cs, ".avg"), "intermediate commit must preserve the 120 -> 150 rate contribution")
+}
+func TestComparisonCountConservation(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.CountType, 3, 1, false)
+	comparisonAdd(cs, metrics.CountType, 7, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.CountType, 5, 3, false)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{10, 5}, comparisonPoints(cs, ""))
+}
+func TestComparisonRateContinuity(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.RateType, 100, 1, false)
+	comparisonAdd(cs, metrics.RateType, 120, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.RateType, 150, 3, false)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{20, 30}, comparisonPoints(cs, ""))
+}
+func TestComparisonMonotonicResetConservation(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.MonotonicCountType, 100, 1, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.MonotonicCountType, 110, 2, true)
+	comparisonAdd(cs, metrics.MonotonicCountType, 5, 3, true)
+	comparisonAdd(cs, metrics.MonotonicCountType, 15, 4, true)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{25}, comparisonPoints(cs, ""), "10 before reset + 5 reset value + 10 after reset")
+}
+func TestComparisonGaugeFinalValue(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.GaugeType, 1, 1, false)
+	comparisonAdd(cs, metrics.GaugeType, 2, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.GaugeType, 3, 3, false)
+	cs.commit(101, nil)
+	require.Equal(t, []float64{2, 3}, comparisonPoints(cs, ""))
+}
+
+func comparisonConfigure(_ *CheckSampler)                 {}
+func comparisonIntermediate(cs *CheckSampler, ts float64) { cs.commitIntermediate(ts, nil) }
+
+func TestComparisonHistogramConservation(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.HistogramType, 10, 1, false)
+	comparisonAdd(cs, metrics.HistogramType, 20, 2, false)
+	comparisonIntermediate(cs, 100)
+	comparisonAdd(cs, metrics.HistogramType, 60, 3, false)
+	cs.commit(101, nil)
+	series, _ := cs.flush()
+	counts := map[float64]float64{}
+	averages := map[float64]float64{}
+	for _, s := range series {
+		for _, p := range s.Points {
+			if s.Name == "comparison.metric.count" {
+				counts[p.Ts] = p.Value
+			}
+			if s.Name == "comparison.metric.avg" {
+				averages[p.Ts] = p.Value
+			}
+		}
+	}
+	var count, sum float64
+	for ts, n := range counts {
+		count += n
+		sum += n * averages[ts]
+	}
+	require.Equal(t, float64(3), count)
+	require.Equal(t, float64(90), sum)
+}
+func TestComparisonDistributionConservation(t *testing.T) {
+	cs := comparisonSampler(t)
+	cs.addBucket(&metrics.HistogramBucket{Name: "comparison.bucket", Value: 7, LowerBound: 1, UpperBound: 1, Timestamp: 1}, filterlistimpl.NewNoopTagMatcher())
+	comparisonIntermediate(cs, 100)
+	cs.addBucket(&metrics.HistogramBucket{Name: "comparison.bucket", Value: 11, LowerBound: 1, UpperBound: 1, Timestamp: 2}, filterlistimpl.NewNoopTagMatcher())
+	cs.commit(101, nil)
+	_, sketches := cs.flush()
+	var count int64
+	for _, s := range sketches {
+		for _, p := range s.Points {
+			count += p.Sketch.Basic.Cnt
+		}
+	}
+	require.Equal(t, int64(18), count)
+}
+func TestComparisonBucketBaselineAcrossIntermediateExpiry(t *testing.T) {
+	for _, multiple := range []bool{false, true} {
+		t.Run(map[bool]string{false: "single", true: "multiple"}[multiple], func(t *testing.T) {
+			cs := comparisonSampler(t)
+			bucket := func(v int64, ts float64) {
+				cs.addBucket(&metrics.HistogramBucket{Name: "comparison.bucket", Value: v, LowerBound: 1, UpperBound: 2, Timestamp: ts, Monotonic: true, MultipleBuckets: multiple}, filterlistimpl.NewNoopTagMatcher())
+			}
+			bucket(100, 1)
+			for ts := 100.; ts < 104; ts++ {
+				comparisonIntermediate(cs, ts)
+			}
+			bucket(125, 104)
+			cs.commit(105, nil)
+			_, sketches := cs.flush()
+			var count int64
+			for _, s := range sketches {
+				for _, p := range s.Points {
+					count += p.Sketch.Basic.Cnt
+				}
+			}
+			require.Equal(t, int64(25), count, "periodic context expiry within one run must not forget a bucket baseline")
+		})
+	}
+}
+
+func TestCorrectedPeriodicFinalTimestampCollision(t *testing.T) {
+	cs := comparisonSampler(t)
+	comparisonAdd(cs, metrics.CountType, 7, 1, false)
+	cs.commitNow(true, nil)
+	first := cs.lastCommitSecond
+	comparisonAdd(cs, metrics.CountType, 11, 2, false)
+	cs.commitNow(false, nil)
+	series, _ := cs.flush()
+	points := map[int64]float64{}
+	var total float64
+	for _, s := range series {
+		for _, p := range s.Points {
+			require.NotContains(t, points, int64(p.Ts))
+			points[int64(p.Ts)] = p.Value
+			total += p.Value
+		}
+	}
+	require.Equal(t, float64(18), total)
+	require.Greater(t, cs.lastCommitSecond, first)
+}
