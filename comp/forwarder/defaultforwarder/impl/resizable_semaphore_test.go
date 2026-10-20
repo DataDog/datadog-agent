@@ -10,117 +10,123 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// isClosed reports whether ch is closed without blocking.
+func isClosed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
 func TestResizableSemaphoreBlocksAtLimit(t *testing.T) {
-	s := newResizableSemaphore(2)
-	ctx := context.Background()
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(2)
+		ctx := context.Background()
 
-	require.NoError(t, s.Acquire(ctx, 1))
-	require.NoError(t, s.Acquire(ctx, 1))
+		require.NoError(t, s.Acquire(ctx, 1))
+		require.NoError(t, s.Acquire(ctx, 1))
 
-	// The third Acquire must block until a token is released.
-	acquired := make(chan struct{})
-	go func() {
-		_ = s.Acquire(ctx, 1)
-		close(acquired)
-	}()
+		// The third Acquire must block until a token is released.
+		acquired := make(chan struct{})
+		go func() {
+			_ = s.Acquire(ctx, 1)
+			close(acquired)
+		}()
 
-	select {
-	case <-acquired:
-		t.Fatal("Acquire should block when the limit is reached")
-	case <-time.After(50 * time.Millisecond):
-	}
+		synctest.Wait()
+		require.False(t, isClosed(acquired), "Acquire should block when the limit is reached")
 
-	s.Release(1)
-	select {
-	case <-acquired:
-	case <-time.After(time.Second):
-		t.Fatal("Acquire should unblock once a token is released")
-	}
+		s.Release(1)
+		synctest.Wait()
+		assert.True(t, isClosed(acquired), "Acquire should unblock once a token is released")
+	})
 }
 
 func TestResizableSemaphoreSetLimitUpWakesWaiters(t *testing.T) {
-	s := newResizableSemaphore(1)
-	ctx := context.Background()
-	require.NoError(t, s.Acquire(ctx, 1))
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		ctx := context.Background()
+		require.NoError(t, s.Acquire(ctx, 1))
 
-	acquired := make(chan struct{})
-	go func() {
-		_ = s.Acquire(ctx, 1)
-		close(acquired)
-	}()
+		acquired := make(chan struct{})
+		go func() {
+			_ = s.Acquire(ctx, 1)
+			close(acquired)
+		}()
 
-	// Waiter is blocked at limit 1; raising the limit must wake it.
-	select {
-	case <-acquired:
-		t.Fatal("Acquire should block before the limit is raised")
-	case <-time.After(50 * time.Millisecond):
-	}
+		// Waiter is blocked at limit 1; raising the limit must wake it.
+		synctest.Wait()
+		require.False(t, isClosed(acquired), "Acquire should block before the limit is raised")
 
-	s.SetLimit(2)
-	select {
-	case <-acquired:
-	case <-time.After(time.Second):
-		t.Fatal("raising the limit should wake the blocked acquirer")
-	}
+		s.SetLimit(2)
+		synctest.Wait()
+		assert.True(t, isClosed(acquired), "raising the limit should wake the blocked acquirer")
+	})
 }
 
 func TestResizableSemaphoreSetLimitDownDoesNotCancelInFlight(t *testing.T) {
-	s := newResizableSemaphore(3)
-	ctx := context.Background()
-	require.NoError(t, s.Acquire(ctx, 1))
-	require.NoError(t, s.Acquire(ctx, 1))
-	require.NoError(t, s.Acquire(ctx, 1))
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(3)
+		ctx := context.Background()
+		require.NoError(t, s.Acquire(ctx, 1))
+		require.NoError(t, s.Acquire(ctx, 1))
+		require.NoError(t, s.Acquire(ctx, 1))
 
-	// Lowering the limit below the in-flight count must not panic or block;
-	// it only prevents new acquisitions until enough tokens are released.
-	s.SetLimit(1)
+		// Lowering the limit below the in-flight count must not panic or block;
+		// it only prevents new acquisitions until enough tokens are released.
+		s.SetLimit(1)
 
-	blocked := make(chan struct{})
-	go func() {
-		_ = s.Acquire(ctx, 1)
-		close(blocked)
-	}()
-	select {
-	case <-blocked:
-		t.Fatal("Acquire should block while in-flight exceeds the lowered limit")
-	case <-time.After(50 * time.Millisecond):
-	}
+		acquired := make(chan struct{})
+		go func() {
+			_ = s.Acquire(ctx, 1)
+			close(acquired)
+		}()
+		synctest.Wait()
+		require.False(t, isClosed(acquired), "Acquire should block while in-flight exceeds the lowered limit")
 
-	// At limit 1 the waiter can only proceed once in-flight drops to 0, i.e. all
-	// three original holders release.
-	s.Release(1)
-	s.Release(1)
-	s.Release(1)
-	select {
-	case <-blocked:
-	case <-time.After(time.Second):
-		t.Fatal("Acquire should proceed once in-flight drops below the new limit")
-	}
+		// At limit 1 the waiter can only proceed once in-flight drops to 0, i.e.
+		// all three original holders release.
+		s.Release(1)
+		s.Release(1)
+		synctest.Wait()
+		require.False(t, isClosed(acquired), "Acquire should block until in-flight drops below the new limit")
+
+		s.Release(1)
+		synctest.Wait()
+		assert.True(t, isClosed(acquired), "Acquire should proceed once in-flight drops below the new limit")
+	})
 }
 
 func TestResizableSemaphoreContextCancellation(t *testing.T) {
-	s := newResizableSemaphore(1)
-	require.NoError(t, s.Acquire(context.Background(), 1))
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		require.NoError(t, s.Acquire(context.Background(), 1))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- s.Acquire(ctx, 1)
-	}()
+		ctx, cancel := context.WithCancel(context.Background())
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.Acquire(ctx, 1)
+		}()
 
-	cancel()
-	select {
-	case err := <-errCh:
-		assert.ErrorIs(t, err, context.Canceled)
-	case <-time.After(time.Second):
-		t.Fatal("Acquire should return when the context is cancelled")
-	}
+		synctest.Wait()
+		cancel()
+		synctest.Wait()
+		select {
+		case err := <-errCh:
+			assert.ErrorIs(t, err, context.Canceled)
+		default:
+			t.Fatal("Acquire should return when the context is cancelled")
+		}
+	})
 }
 
 func TestSaturatedDurationAccumulates(t *testing.T) {
@@ -175,43 +181,45 @@ func TestSaturatedDurationTracksLimitChanges(t *testing.T) {
 // down at runtime while many goroutines acquire and release, and that the
 // number of concurrently held tokens never exceeds the limit in force.
 func TestResizableSemaphoreScalingUnderLoad(t *testing.T) {
-	const initialLimit = 4
-	s := newResizableSemaphore(initialLimit)
+	synctest.Test(t, func(t *testing.T) {
+		const initialLimit = 4
+		s := newResizableSemaphore(initialLimit)
 
-	var maxLimit atomic.Int64
-	maxLimit.Store(initialLimit)
-	var inFlight atomic.Int64
+		var maxLimit atomic.Int64
+		maxLimit.Store(initialLimit)
+		var inFlight atomic.Int64
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+		ctx, cancel := context.WithCancel(context.Background())
 
-	var wg sync.WaitGroup
-	for range 32 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for ctx.Err() == nil {
-				if err := s.Acquire(ctx, 1); err != nil {
-					return
+		var wg sync.WaitGroup
+		for range 32 {
+			wg.Go(func() {
+				for ctx.Err() == nil {
+					if err := s.Acquire(ctx, 1); err != nil {
+						return
+					}
+					cur := inFlight.Add(1)
+					// Held tokens must never exceed the highest limit ever set.
+					assert.LessOrEqual(t, cur, maxLimit.Load())
+					// Hold the token for a while so that every goroutine
+					// eventually blocks and the bubble's clock can advance.
+					time.Sleep(time.Millisecond)
+					inFlight.Add(-1)
+					s.Release(1)
 				}
-				cur := inFlight.Add(1)
-				// Held tokens must never exceed the highest limit ever set.
-				assert.LessOrEqual(t, cur, maxLimit.Load())
-				inFlight.Add(-1)
-				s.Release(1)
-			}
-		}()
-	}
-
-	// Scale the limit up and down repeatedly while load is running.
-	for _, limit := range []int64{8, 2, 16, 1, 6} {
-		if limit > maxLimit.Load() {
-			maxLimit.Store(limit)
+			})
 		}
-		s.SetLimit(limit)
-		time.Sleep(20 * time.Millisecond)
-	}
 
-	cancel()
-	wg.Wait()
+		// Scale the limit up and down repeatedly while load is running.
+		for _, limit := range []int64{8, 2, 16, 1, 6} {
+			if limit > maxLimit.Load() {
+				maxLimit.Store(limit)
+			}
+			s.SetLimit(limit)
+			time.Sleep(20 * time.Millisecond)
+		}
+
+		cancel()
+		wg.Wait()
+	})
 }
