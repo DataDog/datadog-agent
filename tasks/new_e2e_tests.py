@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
@@ -38,6 +39,7 @@ from tasks.libs.common.utils import (
     get_repo_root,
     gitlab_section,
     running_in_ci,
+    running_in_gitlab_ci,
 )
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
@@ -624,7 +626,7 @@ def run(
         args["timeout"] = _compute_go_test_timeout(timeout)
 
         remaining_tries = max_retries - attempt
-        if remaining_tries > 0:
+        if remaining_tries > 0 and not _stacks_cleaned_up_by_job():
             # If any tries are left, avoid destroying infra on failure
             env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
         else:
@@ -702,7 +704,8 @@ def run(
 
     # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
     # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
-    if to_teardown:
+    # Not needed when the job after_script cleans up all the stacks
+    if to_teardown and not _stacks_cleaned_up_by_job():
         print(
             color_message(
                 f"Tearing down {len(to_teardown)} leftover test infras",
@@ -941,11 +944,16 @@ def cleanup_remote_stacks(ctx, stack_regex):
         print(f"Failed to destroy stack {stack}")
 
 
+def _stacks_cleaned_up_by_job() -> bool:
+    """Returns True if the stacks are cleaned up by the GitLab job after_script (`cleanup_job_stacks`) rather than by the tests."""
+    return running_in_gitlab_ci() and os.getenv("REMOTE_STACK_CLEANING") == "true"
+
+
 @task
-def cleanup_orphaned_stacks(ctx):
+def cleanup_job_stacks(ctx):
     """
-    Request the cleanup of the stacks recorded by the current e2e CI job when no other job will clean them up.
-    Meant to run in the job after_script, see `stacks_cleanup_reason` for the cases handled.
+    Request the cleanup of the stacks recorded by the current e2e CI job.
+    Meant to run in the job after_script, see `stacks_cleanup_reason` for the stacks that are kept.
     """
     if not running_in_ci():
         raise Exit("This task is meant to run in an e2e CI job after_script", code=1)
@@ -965,16 +973,20 @@ def cleanup_orphaned_stacks(ctx):
 
     reason = stacks_cleanup_reason(os.environ["CI_JOB_STATUS"], init_only, consumers)
     if reason is None:
-        print(f"Keeping stacks {', '.join(stacks)}, they are cleaned up by the tests or the pipeline cleanup job")
+        print(f"Keeping stacks {', '.join(stacks)} for the jobs consuming them")
         return
 
     print(f"Requesting the cleanup of stacks {', '.join(stacks)}, {reason}")
-    for stack in stacks:
-        # The job may have been interrupted during a Pulumi operation, leaving the stack locked
-        exit_code, stdout, stderr, _ = destroy_remote_stack_api(CI_STACK_PREFIX + stack, ctx, cancel_first=True)
-        print(f"Stack {stack}: {stdout} {stderr}")
-        if exit_code != 0:
-            print(color_message(f"Failed to request the cleanup of stack {stack}", Color.RED))
+    # The job may have been interrupted during a Pulumi operation, leaving the stack locked.
+    # No context is passed, each thread builds its own as invoke contexts are not thread-safe.
+    with ThreadPoolExecutor() as executor:
+        results = executor.map(
+            lambda stack: destroy_remote_stack_api(CI_STACK_PREFIX + stack, cancel_first=True), stacks
+        )
+        for exit_code, stdout, stderr, stack in results:
+            print(f"Stack {stack}: {stdout} {stderr}")
+            if exit_code != 0:
+                print(color_message(f"Failed to request the cleanup of stack {stack}", Color.RED))
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:

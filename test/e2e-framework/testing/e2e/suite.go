@@ -147,7 +147,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -160,7 +159,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
 	testingcomponents "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -683,6 +681,12 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 	}
 }
 
+// stacksCleanedUpByJob returns true if the stacks are cleaned up by the GitLab job after_script rather than by
+// the tests, see the `new-e2e-tests.cleanup-job-stacks` invoke task.
+func stacksCleanedUpByJob() bool {
+	return os.Getenv("GITLAB_CI") == "true" && os.Getenv("REMOTE_STACK_CLEANING") == "true"
+}
+
 // IsWithinCI returns true if the test suite is running in a CI environment.
 func (bs *BaseSuite[Env]) IsWithinCI() bool {
 	return os.Getenv("GITLAB_CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true"
@@ -739,14 +743,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	for id, provisioner := range bs.originalProvisioners {
-		// Look up the Pulumi stack name for the diagnose and remote-cleanup paths. The
-		// local Destroy path uses bs.params.stackName directly and does not depend on
-		// this lookup, so a failure here must NOT skip Destroy. In practice this lookup
-		// only fails when no Pulumi state exists (e.g. our unit tests with mock
-		// provisioners).
+		// Look up the Pulumi stack name for the diagnose path. The Destroy path uses
+		// bs.params.stackName directly and does not depend on this lookup, so a failure
+		// here must NOT skip Destroy. In practice this lookup only fails when no Pulumi
+		// state exists (e.g. our unit tests with mock provisioners).
 		stackName, stackNameErr := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 		if stackNameErr != nil {
-			utils.Logf(bs.T(), "unable to get pulumi stack name (used by diagnose / remote cleanup): %v", stackNameErr)
+			utils.Logf(bs.T(), "unable to get pulumi stack name (used by diagnose): %v", stackNameErr)
 		}
 
 		// Run provisioner Diagnose before tearing down the stack. Requires the looked-up stack name.
@@ -763,33 +766,8 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 
-		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
-			// Remote cleanup requires the looked-up Pulumi stack name. Skip if unavailable.
-			if stackNameErr != nil {
-				utils.Logf(bs.T(), "skipping remote stack cleaning because pulumi stack name lookup failed")
-				continue
-			}
-			fullStackName := "organization/e2eci/" + stackName
-			utils.Logf(bs.T(), "Remote stack cleaning enabled for stack %s", fullStackName)
-
-			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-			// After 10s, the API will time out without an error, this can happen on high workload but the stack will still be created from the agent-ci-api
-			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false,cancel_first=bool:true", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				utils.Logf(bs.T(), "WARNING: Unable to destroy stack %s: %s", stackName, out)
-				_, err := bs.datadogClient.PostEvent(&datadog.Event{
-					Title: pointer.Ptr("Unable to destroy stack " + stackName),
-					Text:  pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s: %s", stackName, out)),
-					Tags:  []string{"test:e2e", "stack:destroy", "stack_name:" + stackName, "service:stackcleaner-worker", "ci.job.name:" + os.Getenv("CI_JOB_NAME"), "ci.job.id:" + os.Getenv("CI_JOB_ID"), "ci.pipeline.id:" + os.Getenv("CI_PIPELINE_ID")},
-				})
-				if err != nil {
-					utils.Logf(bs.T(), "Unable to post event: %v", err)
-				}
-			} else {
-				utils.Logf(bs.T(), "Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
-				utils.Logf(bs.T(), "Stack cleaner trigger output: %s", out)
-			}
+		if stacksCleanedUpByJob() {
+			utils.Logf(bs.T(), "Stack %s will be cleaned up by the job after_script", bs.params.stackName)
 		} else {
 			utils.Logf(bs.T(), "Destroying stack %s with provisioner %s", bs.params.stackName, id)
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from invoke.context import Context
 
-from tasks.new_e2e_tests import cleanup_orphaned_stacks
+from tasks.new_e2e_tests import _stacks_cleaned_up_by_job, cleanup_job_stacks
 from tasks.tools.e2e_stacks import (
     RECORDED_STACKS_FILE,
     destroy_remote_stack_api,
@@ -56,8 +56,8 @@ class TestStacksCleanupReason(unittest.TestCase):
         self.assertIsNotNone(stacks_cleanup_reason("canceled", True, [job("x", "running")]))
 
     def test_regular_job(self):
-        self.assertIsNone(stacks_cleanup_reason("success", False, None))
-        self.assertIsNone(stacks_cleanup_reason("failed", False, None))
+        self.assertIsNotNone(stacks_cleanup_reason("success", False, None))
+        self.assertIsNotNone(stacks_cleanup_reason("failed", False, None))
 
     def test_init_job_consumers_canceled(self):
         consumers = [job("x", "canceled"), job("x 1/2", "skipped")]
@@ -72,7 +72,7 @@ class TestStacksCleanupReason(unittest.TestCase):
 
 
 @patch("tasks.new_e2e_tests.running_in_ci", new=MagicMock(return_value=True))
-class TestCleanupOrphanedStacks(unittest.TestCase):
+class TestCleanupJobStacks(unittest.TestCase):
     def setUp(self):
         self.tmpdir = TemporaryDirectory()
         self.addCleanup(self.tmpdir.cleanup)
@@ -94,7 +94,7 @@ class TestCleanupOrphanedStacks(unittest.TestCase):
             patch("tasks.new_e2e_tests.get_gitlab_repo", return_value=repo),
             patch("tasks.new_e2e_tests.destroy_remote_stack_api", destroy),
         ):
-            cleanup_orphaned_stacks(Context())
+            cleanup_job_stacks(Context())
         return destroy
 
     def test_init_job_with_canceled_consumer(self):
@@ -111,6 +111,12 @@ class TestCleanupOrphanedStacks(unittest.TestCase):
         destroy = self.run_task("canceled", [job("new-e2e-containers-eks", "created")])
         destroy.assert_called_once()
 
+    def test_regular_job(self):
+        self.env["E2E_INIT_ONLY"] = "false"
+        destroy = self.run_task("success", [])
+        destroy.assert_called_once()
+        self.assertTrue(destroy.call_args.kwargs["cancel_first"])
+
 
 @patch.dict(os.environ, {"CI_JOB_NAME": "job", "CI_JOB_ID": "2", "CI_PIPELINE_ID": "1", "CI_COMMIT_REF_NAME": "branch"})
 class TestDestroyRemoteStackApi(unittest.TestCase):
@@ -124,3 +130,20 @@ class TestDestroyRemoteStackApi(unittest.TestCase):
         destroy_remote_stack_api("organization/e2eci/stack", Context(), cancel_first=True)
         self.assertIn("stack_name=organization/e2eci/stack,", run.call_args.kwargs["attrs"])
         self.assertTrue(run.call_args.kwargs["attrs"].endswith(",cancel_first=bool:true"))
+
+
+class TestStacksCleanedUpByJob(unittest.TestCase):
+    @patch("tasks.new_e2e_tests.running_in_gitlab_ci", new=MagicMock(return_value=True))
+    def test_gitlab_with_remote_cleaning(self):
+        with patch.dict(os.environ, {"REMOTE_STACK_CLEANING": "true"}):
+            self.assertTrue(_stacks_cleaned_up_by_job())
+
+    @patch("tasks.new_e2e_tests.running_in_gitlab_ci", new=MagicMock(return_value=True))
+    def test_gitlab_without_remote_cleaning(self):
+        with patch.dict(os.environ, {"REMOTE_STACK_CLEANING": ""}):
+            self.assertFalse(_stacks_cleaned_up_by_job())
+
+    @patch("tasks.new_e2e_tests.running_in_gitlab_ci", new=MagicMock(return_value=False))
+    def test_not_in_gitlab(self):
+        with patch.dict(os.environ, {"REMOTE_STACK_CLEANING": "true"}):
+            self.assertFalse(_stacks_cleaned_up_by_job())

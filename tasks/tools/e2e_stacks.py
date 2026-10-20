@@ -88,13 +88,14 @@ def init_job_consumers(init_job_name: str, jobs: list) -> list:
 def stacks_cleanup_reason(job_status: str, init_only: bool, consumers: list | None) -> str | None:
     """Returns why the stacks of a job must be cleaned up from its after_script, or None to keep them.
 
-    The tests teardown cleans the stacks up, except when:
-    - the job is canceled, the teardown never runs
-    - the job only initializes stacks for consumer jobs, which will never run if they were all canceled
+    The stacks are cleaned up at the end of every job, except for init jobs (E2E_INIT_ONLY) whose stacks are kept
+    for the jobs consuming them, unless the init job or all of its consumers were canceled.
     """
 
     if job_status == "canceled":
         return "the job was canceled"
-    if init_only and consumers and all(job.status in FINAL_UNUSED_JOB_STATUSES for job in consumers):
+    if not init_only:
+        return "the job is over"
+    if consumers and all(job.status in FINAL_UNUSED_JOB_STATUSES for job in consumers):
         return "every job consuming the stacks was canceled: " + ", ".join(job.name for job in consumers)
     return None
