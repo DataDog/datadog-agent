@@ -1415,6 +1415,58 @@ func TestDequeueExitedDeletesCurrentExecEntry(t *testing.T) {
 	assertChildrenConsistency(t, resolver)
 }
 
+func TestPidCacheDeletion(t *testing.T) {
+	resolver, err := newResolver()
+	require.NoError(t, err)
+	resolver.pidCacheMap = newFakeEBPMap()
+
+	putPidCache := func(pid uint32, forkTimestamp, exitTimestamp uint64) {
+		pidCache := make([]byte, model.PidCacheEntrySize)
+		binary.NativeEndian.PutUint64(pidCache[8:16], forkTimestamp)
+		binary.NativeEndian.PutUint64(pidCache[16:24], exitTimestamp)
+		require.NoError(t, resolver.pidCacheMap.Put(pid, pidCache))
+	}
+	hasPidCache := func(pid uint32) bool {
+		_, err := resolver.pidCacheMap.LookupBytes(pid)
+		return err == nil
+	}
+	exit := func(pid uint32) {
+		resolver.AddForkEntry(newFakeForkEvent(0, int(pid), 123, resolver), model.CGroupContext{}, nil)
+		resolver.DeleteEntry(pid, time.Now())
+	}
+
+	t.Run("exited", func(t *testing.T) {
+		putPidCache(5000300, 100, 200)
+		exit(5000300)
+
+		// kept until the deadline expires
+		resolver.flushPidCacheDeleteQueue(time.Now())
+		assert.True(t, hasPidCache(5000300))
+
+		resolver.flushPidCacheDeleteQueue(time.Now().Add(pidCacheDeleteDelay))
+		assert.False(t, hasPidCache(5000300))
+		assert.Empty(t, resolver.pidCacheDeleteQueue)
+	})
+
+	t.Run("not-exited", func(t *testing.T) {
+		putPidCache(5000301, 100, 0)
+		exit(5000301)
+		assert.Empty(t, resolver.pidCacheDeleteQueue)
+		assert.True(t, hasPidCache(5000301))
+	})
+
+	t.Run("pid-reused", func(t *testing.T) {
+		putPidCache(5000302, 100, 200)
+		exit(5000302)
+
+		// the pid is reused by a new process before the deadline
+		putPidCache(5000302, 300, 0)
+		resolver.flushPidCacheDeleteQueue(time.Now().Add(pidCacheDeleteDelay))
+		assert.True(t, hasPidCache(5000302))
+		assert.Empty(t, resolver.pidCacheDeleteQueue)
+	})
+}
+
 func TestTryReparentFromKernelPPid(t *testing.T) {
 	t.Run("same-ppid-noop", func(t *testing.T) {
 		resolver, err := newResolver()

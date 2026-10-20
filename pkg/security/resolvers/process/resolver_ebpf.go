@@ -69,7 +69,18 @@ const (
 
 	// eksPodIdentityAgentBinary is the well-known binary name of the EKS Pod Identity Agent
 	eksPodIdentityAgentBinary = "eks-pod-identity-agent"
+
+	// pidCacheDeleteDelay is how long a pid_cache kernel entry is kept after its process exited, so that late
+	// (reordered) events of that process can still be resolved from the kernel maps
+	pidCacheDeleteDelay = 10 * time.Second
 )
+
+// pidCacheDeletion describes a pid_cache kernel entry scheduled for deletion
+type pidCacheDeletion struct {
+	pid           uint32
+	forkTimestamp uint64
+	deadline      time.Time
+}
 
 // EBPFResolver resolved process context
 type EBPFResolver struct {
@@ -134,6 +145,9 @@ type EBPFResolver struct {
 	procFallbackLimiter *utils.Limiter[uint32]
 
 	exitedQueue []uint32
+
+	// pidCacheDeleteQueue holds the pid_cache kernel entries of exited processes, ordered by deadline
+	pidCacheDeleteQueue []pidCacheDeletion
 
 	// preReparentCb, if non-nil, is invoked just before an entry's parent
 	// link is updated (e.g. subreaper or procfs reparenting). It is called
@@ -439,6 +453,59 @@ func (p *EBPFResolver) DequeueExited() {
 	}
 
 	p.exitedQueue = p.exitedQueue[0:0]
+
+	p.flushPidCacheDeleteQueue(now)
+}
+
+// lookupPidCacheTimestamps returns the fork and exit timestamps of the pid_cache kernel entry of the given pid
+func (p *EBPFResolver) lookupPidCacheTimestamps(pid uint32) (uint64, uint64, bool) {
+	pidCache, err := p.pidCacheMap.LookupBytes(pid)
+	if err != nil || len(pidCache) < model.PidCacheEntrySize {
+		return 0, 0, false
+	}
+	return binary.NativeEndian.Uint64(pidCache[8:16]), binary.NativeEndian.Uint64(pidCache[16:24]), true
+}
+
+// schedulePidCacheDeletion schedules the deletion of the pid_cache kernel entry of an exited process
+func (p *EBPFResolver) schedulePidCacheDeletion(pid uint32, now time.Time) {
+	if p.pidCacheMap == nil {
+		return
+	}
+
+	// only schedule the deletion of an entry flagged as exited by the kernel, a null exit timestamp means
+	// that the pid was already reused by a new process
+	forkTimestamp, exitTimestamp, ok := p.lookupPidCacheTimestamps(pid)
+	if !ok || exitTimestamp == 0 {
+		return
+	}
+
+	p.pidCacheDeleteQueue = append(p.pidCacheDeleteQueue, pidCacheDeletion{
+		pid:           pid,
+		forkTimestamp: forkTimestamp,
+		deadline:      now.Add(pidCacheDeleteDelay),
+	})
+}
+
+// flushPidCacheDeleteQueue deletes the pid_cache kernel entries whose deadline expired
+func (p *EBPFResolver) flushPidCacheDeleteQueue(now time.Time) {
+	var i int
+	for ; i < len(p.pidCacheDeleteQueue); i++ {
+		deletion := p.pidCacheDeleteQueue[i]
+		if deletion.deadline.After(now) {
+			break
+		}
+
+		// the pid may have been reused in the meantime, make sure the entry still belongs to the exited process
+		if forkTimestamp, _, ok := p.lookupPidCacheTimestamps(deletion.pid); ok && forkTimestamp == deletion.forkTimestamp {
+			if err := p.pidCacheMap.Delete(deletion.pid); err != nil && !errors.Is(err, lib.ErrKeyNotExist) {
+				seclog.Debugf("couldn't delete pid_cache entry of pid %d: %v", deletion.pid, err)
+			}
+		}
+	}
+
+	if i > 0 {
+		p.pidCacheDeleteQueue = append(p.pidCacheDeleteQueue[:0], p.pidCacheDeleteQueue[i:]...)
+	}
 }
 
 // NewProcessCacheEntry returns a new process cache entry
@@ -1043,6 +1110,8 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 
 	markExecChainExited(entry, exitTime)
 	delete(p.entryCache, entry.Pid)
+
+	p.schedulePidCacheDeletion(entry.Pid, time.Now())
 }
 
 // DeleteEntry tries to delete an entry in the process cache
