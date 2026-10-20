@@ -123,6 +123,28 @@ func TestSetupSystemdPreloadUnit(t *testing.T) {
 	}
 }
 
+func TestHostPreloadNeedsRepair(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		preload string
+		want    bool
+	}{
+		{"uninstalled", "", true},
+		{"unrelated preload", "/usr/lib/other.so\n", true},
+		{"commented launcher", "# /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so\n", true},
+		{"inline comment", "/usr/lib/other.so # /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so\n", true},
+		{"persistent launcher", "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so\n", false},
+		{"tmpfs launcher", "/run/datadog-apm-inject/$LIB/launcher.preload.so\n", false},
+		{"space-separated entries", "/usr/lib/other.so /run/datadog-apm-inject/$LIB/launcher.preload.so\n", false},
+		{"colon-separated entries", "/usr/lib/other.so:/run/datadog-apm-inject/$LIB/launcher.preload.so\n", false},
+		{"active before inline comment", "/run/datadog-apm-inject/$LIB/launcher.preload.so # disabled copy\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, hostPreloadNeedsRepair([]byte(tc.preload)))
+		})
+	}
+}
+
 func TestSetLDPreloadConfig(t *testing.T) {
 	a := &InjectorInstaller{
 		installPath: "/tmp/stable",
@@ -153,9 +175,29 @@ func TestSetLDPreloadConfig(t *testing.T) {
 			expected: []byte("/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n"),
 		},
 		{
+			name:     "Launcher path inside another entry is not replaced",
+			input:    []byte("/tmp/stable/inject/launcher.preload.so.backup\n"),
+			expected: []byte("/tmp/stable/inject/launcher.preload.so.backup\n/tmp/stable/inject/launcher.preload.so\n"),
+		},
+		{
 			name:     "File contains old preload instructions",
 			input:    []byte("banana\n/opt/datadog/apm/inject/launcher.preload.so\ntomato"),
 			expected: []byte("banana\n/tmp/stable/inject/launcher.preload.so\ntomato"),
+		},
+		{
+			name:     "Colon-separated entries are replaced in place",
+			input:    []byte("/abc/def/preload.so:/opt/datadog/apm/inject/launcher.preload.so\n"),
+			expected: []byte("/abc/def/preload.so:/tmp/stable/inject/launcher.preload.so\n"),
+		},
+		{
+			name:     "Additional colon-separated launchers are removed",
+			input:    []byte("/opt/datadog/apm/inject/launcher.preload.so:/tmp/stable/inject/launcher.preload.so\n"),
+			expected: []byte("/tmp/stable/inject/launcher.preload.so\n"),
+		},
+		{
+			name:     "Commented launcher does not count as installed",
+			input:    []byte("# /tmp/stable/inject/launcher.preload.so\n"),
+			expected: []byte("# /tmp/stable/inject/launcher.preload.so\n/tmp/stable/inject/launcher.preload.so\n"),
 		},
 	}
 
@@ -193,12 +235,16 @@ func TestRemoveLDPreloadConfig(t *testing.T) {
 		"/abc/def/preload.so /tmp/stable/inject/launcher.preload.so": "/abc/def/preload.so",
 		// File contains unrelated entries with no newline (reformatted by customer?)
 		"/abc/def/preload.so /tmp/stable/inject/launcher.preload.so /def/abc/preload.so": "/abc/def/preload.so /def/abc/preload.so",
+		"/abc/def/preload.so:/tmp/stable/inject/launcher.preload.so:/def/abc/preload.so": "/abc/def/preload.so:/def/abc/preload.so",
 		// File contains unrelated entries with no newline (reformatted by customer?)
 		"/tmp/stable/inject/launcher.preload.so /def/abc/preload.so": "/def/abc/preload.so",
+		"/tmp/stable/inject/launcher.preload.so:/def/abc/preload.so": "/def/abc/preload.so",
 		// File doesn't contain the entry to remove (removed by customer?)
-		"/abc/def/preload.so /def/abc/preload.so": "/abc/def/preload.so /def/abc/preload.so",
+		"/abc/def/preload.so /def/abc/preload.so":       "/abc/def/preload.so /def/abc/preload.so",
+		"/tmp/stable/inject/launcher.preload.so.backup": "/tmp/stable/inject/launcher.preload.so.backup",
 		// File contains a dynamic entry
 		"/tmp/stable/inject/$lib/launcher.preload.so": "",
+		"# /tmp/stable/inject/launcher.preload.so\n":  "# /tmp/stable/inject/launcher.preload.so\n",
 	} {
 		output, err := a.deleteLDPreloadConfigContent(context.TODO(), []byte(input))
 		assert.Nil(t, err)

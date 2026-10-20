@@ -7,8 +7,23 @@
 
 package common
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apminject"
+import (
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apminject"
+)
 
-func apmInjectorRequiresReinstall() bool {
-	return apminject.RequiresReinstall()
+func apmInjectorRequiresReinstall(mode string) bool {
+	if apminject.RequiresReinstallForIncompatibleVersion() {
+		return true
+	}
+	switch mode {
+	case env.APMInstrumentationEnabledDocker:
+		return apminject.DockerRuntimeNeedsRepair()
+	case env.APMInstrumentationEnabledHost:
+		return apminject.HostPreloadNeedsRepair()
+	case env.APMInstrumentationEnabledAll, env.APMInstrumentationNotSet:
+		return apminject.AllInstrumentationNeedsRepair()
+	default:
+		return false
+	}
 }
