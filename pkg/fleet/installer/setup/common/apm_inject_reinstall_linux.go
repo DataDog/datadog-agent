@@ -12,3 +12,15 @@ import "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apminject"
 func apmInjectorRequiresReinstall() bool {
 	return apminject.RequiresReinstall()
 }
+
+func apmDockerInjectorRequiresReinstall() bool {
+	return apminject.DockerRuntimeNeedsRepair()
+}
+
+func apmHostInjectorRequiresReinstall() bool {
+	return apminject.HostPreloadNeedsRepair()
+}
+
+func apmAllInjectorRequiresReinstall() bool {
+	return apminject.AllInstrumentationNeedsRepair()
+}

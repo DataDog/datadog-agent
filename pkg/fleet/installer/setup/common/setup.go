@@ -261,6 +261,15 @@ func (s *Setup) prepareAPMInjectorReinstall(ctx context.Context, packages []pack
 	if !installed {
 		return false, nil
 	}
+	if s.Env.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationEnabledDocker && detectDockerInjectorReinstall() {
+		return true, nil
+	}
+	if s.Env.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationEnabledHost && detectHostInjectorReinstall() {
+		return true, nil
+	}
+	if s.Env.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationEnabledAll && detectAllInjectorReinstall() {
+		return true, nil
+	}
 	if !installingAgent {
 		// The public Agent install script installs its DEB/RPM first and then
 		// invokes the standalone APM SSI setup flavor. That flavor does not
@@ -277,6 +286,9 @@ func (s *Setup) prepareAPMInjectorReinstall(ctx context.Context, packages []pack
 }
 
 var detectAPMInjectorReinstall = apmInjectorRequiresReinstall
+var detectDockerInjectorReinstall = apmDockerInjectorRequiresReinstall
+var detectHostInjectorReinstall = apmHostInjectorRequiresReinstall
+var detectAllInjectorReinstall = apmAllInjectorRequiresReinstall
 
 // samePackageVersion tolerates the Debian revision suffix used by setup package
 // requests but not by OCI repository links. All other tag content remains part

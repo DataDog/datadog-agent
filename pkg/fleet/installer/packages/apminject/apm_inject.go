@@ -371,13 +371,15 @@ func (a *InjectorInstaller) setLDPreloadConfigContent(ctx context.Context, ldSoP
 	replaced := false
 	staleRemoved := 0
 	pattern := regexp.MustCompile(a.allKnownLauncherPattern())
-	out := []byte(pattern.ReplaceAllStringFunc(string(ldSoPreload), func(_ string) string {
-		if !replaced {
-			replaced = true
-			return launcherPreloadPath
-		}
-		staleRemoved++
-		return ""
+	out := []byte(mapActivePreloadLines(string(ldSoPreload), func(line string) string {
+		return pattern.ReplaceAllStringFunc(line, func(_ string) string {
+			if !replaced {
+				replaced = true
+				return launcherPreloadPath
+			}
+			staleRemoved++
+			return ""
+		})
 	}))
 	if replaced {
 		if staleRemoved > 0 {
@@ -502,12 +504,51 @@ func (a *InjectorInstaller) allKnownLauncherPattern() string {
 	return "(" + strings.Join(alts, "|") + ")"
 }
 
+// mapActivePreloadLines transforms only the part of each line before '#'.
+// glibc ignores everything from '#' through the end of the line.
+func mapActivePreloadLines(preload string, transform func(string) string) string {
+	var out strings.Builder
+	for _, line := range strings.SplitAfter(preload, "\n") {
+		active, comment, hasComment := strings.Cut(line, "#")
+		out.WriteString(transform(active))
+		if hasComment {
+			out.WriteByte('#')
+			out.WriteString(comment)
+		}
+	}
+	return out.String()
+}
+
+func activePreloadEntries(preload string) []string {
+	var entries []string
+	for _, line := range strings.Split(preload, "\n") {
+		line, _, _ = strings.Cut(line, "#")
+		entries = append(entries, strings.FieldsFunc(line, func(r rune) bool {
+			return r == ':' || r == ' ' || r == '\t' || r == '\n' || r == '\r'
+		})...)
+	}
+	return entries
+}
+
+func hostPreloadNeedsRepair(preload []byte) bool {
+	installer := &InjectorInstaller{installPath: injectorPath, tmpfsInjectDir: defaultTmpfsInjectDir}
+	matcher := regexp.MustCompile("^" + installer.allKnownLauncherPattern() + "$")
+	for _, entry := range activePreloadEntries(string(preload)) {
+		if matcher.MatchString(entry) {
+			return false
+		}
+	}
+	return true
+}
+
 // removeKnownLauncherEntries strips every known launcher entry from ldSoPreload,
 // including surrounding whitespace. Used by deleteLDPreloadConfigContent.
 func (a *InjectorInstaller) removeKnownLauncherEntries(ldSoPreload []byte) []byte {
 	p := a.allKnownLauncherPattern()
 	matcher := regexp.MustCompile("^" + p + "(\\s*)|(\\s*)" + p)
-	return []byte(matcher.ReplaceAllString(string(ldSoPreload), ""))
+	return []byte(mapActivePreloadLines(string(ldSoPreload), func(line string) string {
+		return matcher.ReplaceAllString(line, "")
+	}))
 }
 
 // deleteLDPreloadConfigContent removes all launcher entries from /etc/ld.so.preload.
