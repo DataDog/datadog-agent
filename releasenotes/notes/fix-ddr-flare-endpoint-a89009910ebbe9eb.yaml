@@ -2,6 +2,9 @@
 fixes:
   - |
     Fix flare uploads failing when ``dd_url`` uses a Datadog Disaster Recovery
-    endpoint. Flares sent to custom hostnames under a recognized Datadog site now
-    use that site's flare endpoint. Telemetry intake destinations and third-party
+    endpoint. For customer-specific DDR aliases, the flare destination uses the
+    explicitly configured ``site`` (``DD_SITE``), since the alias's DNS suffix
+    does not identify the organization's region. If the site is missing or invalid,
+    the upload stops with a configuration error. Other custom Datadog hostnames
+    use their site's flare endpoint. Telemetry intake destinations and third-party
     proxy URLs are unchanged.

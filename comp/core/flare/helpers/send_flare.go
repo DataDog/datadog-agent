@@ -271,7 +271,10 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	}
 
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
-	baseURL, _ := buildFlareBaseURL(url)
+	baseURL, err := buildFlareBaseURL(cfg, url)
+	if err != nil {
+		return "", err
+	}
 
 	transport := httputils.CreateHTTPTransport(cfg)
 	client := &http.Client{
@@ -335,26 +338,42 @@ func isRetryableFlareError(err error) bool {
 }
 
 // buildFlareBaseURL returns the versioned flare domain for a given raw endpoint URL.
-func buildFlareBaseURL(rawURL string) (string, error) {
+func buildFlareBaseURL(cfg pkgconfigmodel.Reader, rawURL string) (string, error) {
 	flareURL, err := configUtils.AddAgentVersionToDomain(rawURL, "flare")
 	if err != nil || flareURL != rawURL {
 		return flareURL, err
 	}
 
-	// Unlike telemetry, flares have one destination per site, independent of the
-	// customer-chosen intake URL (including DDR delegated domains). Keep this
-	// fallback here: AddAgentVersionToDomain is shared with the metrics forwarder,
-	// where rewriting custom intake domains would bypass DDR failover.
-	if site := configUtils.ExtractSiteFromURL(rawURL); site != "" {
-		return configUtils.AddAgentVersionToSite(site, "flare"), nil
+	site := configUtils.ExtractSiteFromURL(rawURL)
+	if site == "" {
+		return rawURL, nil
 	}
-	return rawURL, nil
+	// DDR aliases can serve an org in a different region from their DNS suffix.
+	// Use the explicitly configured support-upload site rather than guessing US1
+	// or following telemetry failover. Without it, stop before sending credentials.
+	if configUtils.IsMRFAliasURL(rawURL) {
+		if !cfg.IsConfigured("site") || strings.TrimSpace(cfg.GetString("site")) == "" {
+			return "", errors.New("cannot determine the flare site from a DDR alias: configure site (DD_SITE) with your organization's Datadog site")
+		}
+		site = strings.TrimRight(strings.ToLower(strings.TrimSpace(cfg.GetString("site"))), ".")
+		if site == "" || configUtils.ExtractSiteFromURL("https://"+site) != site {
+			return "", errors.New("cannot build the flare endpoint for a DDR alias: site (DD_SITE) must be a recognized Datadog site")
+		}
+	}
+	// Flares have a site-specific destination, independent of customer-chosen intake
+	// URLs. Keep this fallback here: the shared AddAgentVersionToDomain also serves
+	// the metrics forwarder, where rewriting custom domains would bypass DDR failover.
+	return configUtils.AddAgentVersionToSite(site, "flare"), nil
 }
 
 // GetFlareEndpoint creates the flare endpoint URL
 func GetFlareEndpoint(cfg config.Reader) string {
 	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
-	flareRoute, _ := buildFlareBaseURL(configUtils.GetInfraEndpoint(cfg))
+	flareRoute, err := buildFlareBaseURL(cfg, configUtils.GetInfraEndpoint(cfg))
+	if err != nil {
+		log.Warnf("Could not determine the flare endpoint: %v", err)
+		return ""
+	}
 	return flareRoute + datadogSupportURL
 }
 

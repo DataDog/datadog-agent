@@ -566,6 +566,32 @@ func TestAPIEndpointFromURL(t *testing.T) {
 	}
 }
 
+func TestIsMRFAliasURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected bool
+	}{
+		{"https://org.mrf.datadoghq.com", true},
+		{"https://org.mrf.us3.datadoghq.com:443", true},
+		{"https://ORG.MRF.DATADOGHQ.COM.", true},
+		{"https://org.mrf.ddog-gov.com", true},
+		{"https://org.mrf.datad0g.com", true},
+		{"https://app.mrf.datadoghq.com", false},
+		{"https://APP.MRF.DATADOGHQ.COM.", false},
+		{"https://app.datadoghq.com", false},
+		{"https://org.mrf.notdatadoghq.com", false},
+		{"https://org.mrf.datadoghq.com.attacker.net", false},
+		{"https://proxy.example.com", false},
+		{"http://\x7f", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsMRFAliasURL(tt.url))
+		})
+	}
+}
+
 func TestAddAgentVersionToSite(t *testing.T) {
 	tests := []struct {
 		site          string

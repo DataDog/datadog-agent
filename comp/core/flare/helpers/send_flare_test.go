@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,54 +41,151 @@ func TestBuildFlareBaseURL(t *testing.T) {
 
 	tests := []struct {
 		rawURL   string
+		site     string
 		expected string
 	}{
-		{"https://app.datadoghq.com", prefix + "datadoghq.com"},
-		{"https://app.mrf.datadoghq.com", prefix + "mrf.datadoghq.com"},
-		{"https://org.mrf.datadoghq.com", prefix + "datadoghq.com."},
-		{"https://org.mrf.us3.datadoghq.com", prefix + "us3.datadoghq.com."},
-		{"https://org.mrf.ap1.datadoghq.com", prefix + "ap1.datadoghq.com."},
-		{"https://custom.datadoghq.com", prefix + "datadoghq.com."},
-		{"https://custom.agent.datadoghq.com", prefix + "datadoghq.com."},
-		{"https://app.custom.datadoghq.com", prefix + "datadoghq.com."},
-		{"https://app.datadoghq.internal", "https://app.datadoghq.internal"},
-		{"https://app.myproxy.com", "https://app.myproxy.com"},
-		{"https://datadog.corp.example.com", "https://datadog.corp.example.com"},
-		{"https://my-proxy.notdatadoghq.com", "https://my-proxy.notdatadoghq.com"},
-		{"https://evil.datadoghq.com.attacker.net", "https://evil.datadoghq.com.attacker.net"},
-		{"https://org.mrf.us5.datadoghq.com", prefix + "us5.datadoghq.com."},
-		{"https://org.mrf.datadoghq.eu", prefix + "datadoghq.eu."},
-		{"https://org.mrf.ddog-gov.com", prefix + "ddog-gov.com."},
-		{"https://org.mrf.datad0g.com", prefix + "datad0g.com."},
-		{"https://ORG.MRF.US3.DATADOGHQ.COM", prefix + "us3.datadoghq.com."},
-		{"https://org.mrf.datadoghq.com.", prefix + "datadoghq.com."},
-		{"https://app.datadoghq.com.", prefix + "datadoghq.com."},
-		{"http://org.mrf.us3.datadoghq.com:8080/intake?foo=bar", prefix + "us3.datadoghq.com."},
-		{"http://app.myproxy.com:8080/intake?foo=bar", "http://app.myproxy.com:8080/intake?foo=bar"},
-		{"", ""},
-		{"not-a-url", "not-a-url"},
+		{"https://app.datadoghq.com", "", prefix + "datadoghq.com"},
+		{"https://app.mrf.datadoghq.com", "", prefix + "mrf.datadoghq.com"},
+		{"https://org.mrf.datadoghq.com", "datadoghq.com", prefix + "datadoghq.com."},
+		{"https://org.mrf.us3.datadoghq.com", "us3.datadoghq.com", prefix + "us3.datadoghq.com."},
+		{"https://org.mrf.ap1.datadoghq.com", "ap1.datadoghq.com", prefix + "ap1.datadoghq.com."},
+		{"https://custom.datadoghq.com", "", prefix + "datadoghq.com."},
+		{"https://custom.agent.datadoghq.com", "", prefix + "datadoghq.com."},
+		{"https://app.custom.datadoghq.com", "", prefix + "datadoghq.com."},
+		{"https://app.datadoghq.internal", "", "https://app.datadoghq.internal"},
+		{"https://app.myproxy.com", "", "https://app.myproxy.com"},
+		{"https://datadog.corp.example.com", "", "https://datadog.corp.example.com"},
+		{"https://my-proxy.notdatadoghq.com", "", "https://my-proxy.notdatadoghq.com"},
+		{"https://evil.datadoghq.com.attacker.net", "", "https://evil.datadoghq.com.attacker.net"},
+		{"https://org.mrf.us5.datadoghq.com", "us5.datadoghq.com", prefix + "us5.datadoghq.com."},
+		{"https://org.mrf.datadoghq.eu", "datadoghq.eu", prefix + "datadoghq.eu."},
+		{"https://org.mrf.ddog-gov.com", "ddog-gov.com", prefix + "ddog-gov.com."},
+		{"https://org.mrf.datad0g.com", "datad0g.com", prefix + "datad0g.com."},
+		{"https://ORG.MRF.US3.DATADOGHQ.COM", "us3.datadoghq.com", prefix + "us3.datadoghq.com."},
+		{"https://org.mrf.datadoghq.com.", "datadoghq.com", prefix + "datadoghq.com."},
+		{"https://app.datadoghq.com.", "", prefix + "datadoghq.com."},
+		{"http://org.mrf.us3.datadoghq.com:8080/intake?foo=bar", "us3.datadoghq.com", prefix + "us3.datadoghq.com."},
+		{"http://app.myproxy.com:8080/intake?foo=bar", "", "http://app.myproxy.com:8080/intake?foo=bar"},
+		{"", "", ""},
+		{"not-a-url", "", "not-a-url"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.rawURL, func(t *testing.T) {
-			actual, err := buildFlareBaseURL(tt.rawURL)
+			cfg.SetInTest("site", tt.site)
+			actual, err := buildFlareBaseURL(cfg, tt.rawURL)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
 
 	t.Run("invalid URL", func(t *testing.T) {
-		actual, err := buildFlareBaseURL("http://\x7f")
+		actual, err := buildFlareBaseURL(cfg, "http://\x7f")
 		require.Error(t, err)
 		assert.Empty(t, actual)
 	})
 
 	t.Run("FQDN conversion disabled", func(t *testing.T) {
 		cfg.SetInTest("convert_dd_site_fqdn.enabled", false)
-		actual, err := buildFlareBaseURL("https://org.mrf.us3.datadoghq.com")
+		cfg.SetInTest("site", "us3.datadoghq.com")
+		actual, err := buildFlareBaseURL(cfg, "https://org.mrf.us3.datadoghq.com")
 		require.NoError(t, err)
 		assert.Equal(t, prefix+"us3.datadoghq.com", actual)
 	})
+}
+
+func TestGetFlareEndpointDDRAliasSiteSelection(t *testing.T) {
+	t.Setenv("DD_SITE", "")
+	v, err := version.Agent()
+	require.NoError(t, err)
+	prefix := fmt.Sprintf("https://%d-%d-%d-flare.agent.", v.Major, v.Minor, v.Patch)
+	tests := []struct {
+		name     string
+		site     string
+		expected string
+	}{
+		{"US3 org behind a global alias", "us3.datadoghq.com", prefix + "us3.datadoghq.com./support/flare"},
+		{"US5 org behind a global alias", "us5.datadoghq.com", prefix + "us5.datadoghq.com./support/flare"},
+		{"US1 explicitly configured", "datadoghq.com", prefix + "datadoghq.com./support/flare"},
+		{"normalized configured site", " US3.DATADOGHQ.COM. ", prefix + "us3.datadoghq.com./support/flare"},
+		{"missing configured site", "", ""},
+		{"unrecognized configured site", "example.com", ""},
+		{"site must not be a service hostname", "app.datadoghq.com", ""},
+		{"site must not contain a URL scheme", "https://us3.datadoghq.com", ""},
+		{"site must not contain a port", "us3.datadoghq.com:443", ""},
+		{"site must not contain a path", "us3.datadoghq.com/path", ""},
+		{"site must not spoof a Datadog suffix", "us3.datadoghq.com.attacker.net", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("dd_url", "https://org.mrf.datadoghq.com")
+			if tt.site != "" {
+				cfg.SetInTest("site", tt.site)
+			}
+			assert.Equal(t, tt.expected, GetFlareEndpoint(cfg))
+		})
+	}
+	t.Run("site from environment", func(t *testing.T) {
+		t.Setenv("DD_SITE", "us5.datadoghq.com")
+		cfg := config.NewMock(t)
+		cfg.SetInTest("dd_url", "https://org.mrf.datadoghq.com")
+		assert.Equal(t, prefix+"us5.datadoghq.com./support/flare", GetFlareEndpoint(cfg))
+	})
+	t.Run("regional alias suffix does not override configured site", func(t *testing.T) {
+		cfg := config.NewMock(t)
+		cfg.SetInTest("dd_url", "https://org.mrf.us3.datadoghq.com")
+		cfg.SetInTest("site", "us5.datadoghq.com")
+		assert.Equal(t, prefix+"us5.datadoghq.com./support/flare", GetFlareEndpoint(cfg))
+	})
+}
+
+func TestSendToRejectsDDRAliasWithoutValidSite(t *testing.T) {
+	t.Setenv("DD_SITE", "")
+	for _, site := range []string{"", "example.com", "app.datadoghq.com", "https://us3.datadoghq.com"} {
+		t.Run(site, func(t *testing.T) {
+			var requestReceived atomic.Bool
+			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requestReceived.Store(true)
+				w.WriteHeader(http.StatusBadGateway)
+			}))
+			defer proxy.Close()
+			cfg := config.NewMock(t)
+			cfg.SetInTest("proxy.https", proxy.URL)
+			if site != "" {
+				cfg.SetInTest("site", site)
+			}
+			_, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", "https://org.mrf.datadoghq.com", FlareSource{})
+			require.ErrorContains(t, err, "site (DD_SITE)")
+			assert.False(t, requestReceived.Load(), "configuration errors must stop the request before credentials or archives are sent")
+		})
+	}
+}
+
+func TestSendToDDRAliasUsesConfiguredSite(t *testing.T) {
+	v, err := version.Agent()
+	require.NoError(t, err)
+	for _, site := range []string{"us3.datadoghq.com", "us5.datadoghq.com"} {
+		t.Run(site, func(t *testing.T) {
+			targets := make(chan string, 1)
+			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				targets <- r.Host
+				w.WriteHeader(http.StatusBadGateway)
+			}))
+			defer proxy.Close()
+			cfg := config.NewMock(t)
+			cfg.SetInTest("site", site)
+			cfg.SetInTest("proxy.https", proxy.URL)
+			_, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", "https://org.mrf.datadoghq.com", FlareSource{})
+			require.Error(t, err, "the local proxy deliberately rejects the connection")
+			select {
+			case target := <-targets:
+				assert.Equal(t, fmt.Sprintf("%d-%d-%d-flare.agent.%s.:443", v.Major, v.Minor, v.Patch, site), target)
+			default:
+				t.Fatal("the request did not reach the local proxy")
+			}
+		})
+	}
 }
 
 func TestFlareHasRightForm(t *testing.T) {
