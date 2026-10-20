@@ -94,13 +94,9 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 }
 
 // PeerTagKeys returns the peer-tag attribute keys the Concentrator currently
-// aggregates stats on. Callers that pre-populate span meta with peer tags
-// (e.g. the OTel Datadog connector) should call it per batch rather than
-// caching the result. The returned slice is shared and must not be modified.
-//
+// aggregates stats on.
 // The key set is cached and rebuilt via AgentConfig.PeerTagsCache when the
-// live semantic registry has been replaced by one built from different payload
-// bytes (its Fingerprint() differs from the cached snapshot's Fingerprint). Concurrent callers that observe staleness may
+// live semantic registry has been updated. Concurrent callers that observe staleness may
 // rebuild from different live registries if a swap happens between their loads.
 // An older snapshot winning the last Store is benign: the next call detects the
 // fingerprint mismatch and repairs the cache, making it eventually consistent.
