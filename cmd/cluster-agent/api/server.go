@@ -195,6 +195,14 @@ func validateToken(ipc ipc.Component) func(http.Handler) http.Handler {
 	}
 }
 
+// isNodeStatusPath returns whether path is exactly /api/v1/info/node/<node>/status.
+// A query string is refused: "?x=/status" would otherwise open /api/v1/info/node/<node>.
+func isNodeStatusPath(path string) bool {
+	segments := strings.Split(path, "/")
+	return strings.HasPrefix(path, "/api/v1/info/node/") && !strings.Contains(path, "?") &&
+		len(segments) == 7 && segments[5] != "" && segments[6] == "status"
+}
+
 // isExternal returns whether the path is an endpoint used by Node Agents.
 func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
@@ -209,6 +217,7 @@ func isExternalPath(path string) bool {
 		strings.HasPrefix(path, "/api/v1/cluster/id") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/clusterchecks/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/endpointschecks/") && len(strings.Split(path, "/")) == 6 ||
+		isNodeStatusPath(path) ||
 		strings.HasPrefix(path, "/api/v1/instrumentation/") && len(strings.Split(path, "/")) == 5 ||
 		strings.HasPrefix(path, "/api/v1/metadata/namespace/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/tags/cf/apps/") && len(strings.Split(path, "/")) == 7 ||

@@ -10,6 +10,7 @@ package nvidia
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"unsafe"
 
@@ -984,6 +985,26 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				Value:      value,
 				Type:       metrics.GaugeType,
 			}}, 0, nil
+		},
+	})
+
+	// Report the node unschedulable state on every device, MIG slices included, like device.total.
+	apis = append(apis, apiCallInfo{
+		Name: "node_unschedulable",
+		Handler: func(_ ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			if deps == nil || deps.NodeUnschedulable == nil {
+				return nil, 0, errUnsupportedDevice
+			}
+			var samples []Sample
+			for _, p := range deps.NodeUnschedulable.Points() {
+				samples = append(samples, &Metric{
+					baseSample: baseSample{tags: slices.Clone(p.Tags)},
+					Name:       "device.unavailable",
+					Value:      p.Value,
+					Type:       metrics.GaugeType,
+				})
+			}
+			return samples, 0, nil
 		},
 	})
 

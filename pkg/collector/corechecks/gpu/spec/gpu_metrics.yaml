@@ -925,20 +925,31 @@ metrics:
       metric_type: gauge
       description: >-
         Whether the GPU is unavailable for the reason in the unavailable_reason
-        tag. The lost reason means NVML reports the GPU as inaccessible
-        (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
-        0 means available, 1 means unavailable.
+        tag, 0 or 1. The lost reason means NVML reports the GPU as inaccessible
+        (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus); it
+        is reported on every run for non-MIG physical devices. The unschedulable
+        reason, with gpu.unschedulable_nodes.enabled, means the Kubernetes node is
+        cordoned or matches a gpu.unschedulable_nodes label or condition rule; each
+        cause is an unschedulable_reason tag (cordoned, <key>:<value> or
+        <type>:<status>). These node-level series are reported for every device
+        that reports gpu.device.total, MIG slices included (filter on
+        gpu_slicing_mode to count physical GPUs), carry the device tags and, like
+        gpu.device.total, the tags of the workloads on the device (count GPUs per
+        gpu_uuid), and are sparse: 1 while the tagset applies, then 0 for 10
+        minutes after it stops applying, then no data.
       aggregation: absolute_usage
     tagsets:
       - device
     custom_tags:
       - unavailable_reason
+      - unschedulable_reason
+    optional: true
     validator:
       values: [0, 1]
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
+        mig: true
         physical: true
         vgpu: true
   device.needs_recovery:

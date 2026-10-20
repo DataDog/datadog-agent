@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	gpumodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -73,6 +74,7 @@ type Check struct {
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
+	nodeUnschedulable   *nodeunschedulable.Cache         // nodeUnschedulable is the unschedulable state of the node, nil unless gpu.unschedulable_nodes.enabled; refreshed before the collectors run
 }
 
 type checkTelemetry struct {
@@ -212,6 +214,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		}
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
+	c.nodeUnschedulable = nodeunschedulable.New(pkgconfigsetup.Datadog())
 
 	return nil
 }
@@ -260,6 +263,7 @@ func (c *Check) ensureInitCollectors() error {
 				DeviceEventsGatherer: c.deviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
 				PRMCache:             c.prmCache,
+				NodeUnschedulable:    c.nodeUnschedulable,
 				Telemetry:            c.telemetry.collectorTelemetry,
 				Workloadmeta:         c.wmeta,
 				Config:               *c.gpuConfig,
@@ -407,6 +411,10 @@ func (c *Check) Run() error {
 		if err := c.prmCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
 			log.Warnf("error refreshing PRM cache: %v", err)
 		}
+	}
+
+	if c.nodeUnschedulable != nil {
+		c.nodeUnschedulable.Refresh(currentExecutionTime)
 	}
 
 	// start device event gatherer if we have not already
