@@ -43,8 +43,7 @@ func findLogsProfileIssue(issues map[string]*healthplatformpayload.Issue) *healt
 	return nil
 }
 
-// Covers what the unit tests cannot: module registration, the scheduler, the real config plan,
-// the store, the forwarder, and Extra.recommendation as the intake receives it.
+// Covers registration, scheduling, the real plan, the store and the forwarder end to end.
 func TestLogsProfileRecommendationSurvivesFullPipeline(t *testing.T) {
 	logsmetrics.ResetMissedBytesForTest()
 	logsmetrics.ResetPipelineMonitorForTest()

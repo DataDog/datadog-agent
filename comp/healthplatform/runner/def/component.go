@@ -13,8 +13,7 @@ package runner
 
 import "errors"
 
-// ErrStateUnknown, wrapped or returned by a HealthCheckFunc, keeps its active
-// issues unchanged for this run without logging a warning.
+// ErrStateUnknown keeps a check's active issues for this run without logging a warning.
 var ErrStateUnknown = errors.New("health check state unknown")
 
 // IssueReport is the lightweight value that HealthCheckFunc implementations

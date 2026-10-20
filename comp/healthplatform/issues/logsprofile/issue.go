@@ -69,8 +69,7 @@ var profileTradeoffs = map[string]string{
 	profilerec.ProfileHighThroughput:  "One pipeline per CPU core, up to 16; more CPU and memory under load.",
 }
 
-// recommendation is the check-time state as it crosses Context. Its JSON tags are the wire
-// contract with the check.
+// recommendation is the check-time state carried in Context.
 type recommendation struct {
 	Profile             string        `json:"profile"`
 	ProfileVersion      int           `json:"profile_version"`

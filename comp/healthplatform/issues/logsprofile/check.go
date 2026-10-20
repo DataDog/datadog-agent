@@ -121,8 +121,7 @@ func (o observation) healthy() bool {
 	return !o.missed && o.state == logsmetrics.BackpressureHealthy
 }
 
-// Run reports the profile to apply and keeps reporting it until the pipeline has stayed
-// healthy for min_healthy_period.
+// Run reports the profile to apply until the pipeline stays healthy for min_healthy_period.
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -167,8 +166,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	settled := !c.healthySince.IsZero() && now.Sub(c.healthySince) >= c.minHealthyPeriod()
 
 	if c.held == nil {
-		// A persisted issue from before a restart stays open until the pipeline settles, or until the verify
-		// window passes with nothing left to recommend (e.g. the profile is applied but loss continues).
+		// A persisted issue stays open until the pipeline settles or the verify window passes.
 		if settled || now.Sub(c.started) >= c.verifyWindow() {
 			return nil, nil
 		}
