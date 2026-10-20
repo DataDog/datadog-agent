@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
@@ -34,8 +36,8 @@ type remoteTestIdentity struct {
 	clusterID    string
 }
 
-func (i *remoteTestIdentity) DeploymentID() string { return i.deploymentID }
-func (i *remoteTestIdentity) ClusterID() string    { return i.clusterID }
+func (i *remoteTestIdentity) DeploymentIDWithContext(context.Context) string { return i.deploymentID }
+func (i *remoteTestIdentity) ClusterIDWithContext(context.Context) string    { return i.clusterID }
 
 func newTestRemoteIssueLoader(t *testing.T, resourceID, agentType string, handler http.HandlerFunc) *remoteIssueLoader {
 	t.Helper()
@@ -45,7 +47,7 @@ func newTestRemoteIssueLoader(t *testing.T, resourceID, agentType string, handle
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"api_key": " api-key\n",
 	})
-	loader := newRemoteIssueLoader(cfg, agentType, func() string { return resourceID })
+	loader := newRemoteIssueLoader(cfg, agentType, func(context.Context) string { return resourceID })
 	loader.baseURL = server.URL
 	loader.httpClient.Transport = server.Client().Transport
 	return loader
@@ -70,7 +72,7 @@ func TestNewRemoteIssueLoaderUsesAPISite(t *testing.T) {
 		"dd_url": "https://metrics.example.com",
 	})
 
-	loader := newRemoteIssueLoader(cfg, remoteIssuesNodeAgentType, func() string { return "daemonset-uid" })
+	loader := newRemoteIssueLoader(cfg, remoteIssuesNodeAgentType, func(context.Context) string { return "daemonset-uid" })
 	assert.Equal(t, "https://api.datadoghq.eu.", loader.baseURL)
 }
 
@@ -226,7 +228,7 @@ func TestRemoteIssueLoaderLoadClusterAgent(t *testing.T) {
 func TestRemoteIssueLoaderLoadRequiresAPIKey(t *testing.T) {
 	loader := &remoteIssueLoader{
 		config:     config.NewMock(t),
-		resourceID: func() string { return "daemonset-uid" },
+		resourceID: func(context.Context) string { return "daemonset-uid" },
 	}
 
 	snapshot, err := loader.load(context.Background())
@@ -242,6 +244,31 @@ func TestRemoteIssueLoaderLoadRequiresResourceID(t *testing.T) {
 	snapshot, err := loader.load(context.Background())
 	assert.Nil(t, snapshot)
 	assert.ErrorContains(t, err, "resource ID is required")
+}
+
+func TestRemoteIssueLoaderIdentityDeadline(t *testing.T) {
+	for _, startupTimeout := range []time.Duration{time.Minute, time.Second} {
+		t.Run(startupTimeout.String(), func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{"api_key": "api-key"})
+			synctest.Test(t, func(t *testing.T) {
+				calls := 0
+				loader := newRemoteIssueLoader(cfg, remoteIssuesNodeAgentType, func(ctx context.Context) string {
+					calls++
+					<-ctx.Done()
+					return ""
+				})
+				ctx, cancel := context.WithTimeout(context.Background(), startupTimeout)
+				defer cancel()
+
+				start := time.Now()
+				state, err := loader.load(ctx)
+				assert.Nil(t, state)
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+				assert.Equal(t, min(10*time.Second, startupTimeout), time.Since(start))
+				assert.Equal(t, 1, calls)
+			})
+		})
+	}
 }
 
 func TestRemoteIssueLoaderLoadRequiresHTTPS(t *testing.T) {
@@ -392,7 +419,7 @@ func TestNewRemoteIssueLoaderIfEnabled(t *testing.T) {
 			if test.wantAgentType != "" {
 				require.NotNil(t, loader)
 				assert.Equal(t, test.wantAgentType, loader.agentType)
-				assert.Equal(t, test.wantResourceID, loader.resourceID())
+				assert.Equal(t, test.wantResourceID, loader.resourceID(context.Background()))
 			} else {
 				assert.Nil(t, loader)
 			}
