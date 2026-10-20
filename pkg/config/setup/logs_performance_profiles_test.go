@@ -16,8 +16,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// throughputLadder is the monotonic superset chain: each profile must contain
-// every setting of the one before it, at the same value, plus its own.
+// throughputLadder lists profiles that must each contain the previous one's settings.
 var throughputLadder = []string{"high-concurrency", "high-throughput", "max-throughput"}
 
 func TestThroughputLadderIsMonotonicSuperset(t *testing.T) {
@@ -116,8 +115,7 @@ logs_config:
 }
 
 func TestLowResourceNeverRaisesPipelinesOnSmallHost(t *testing.T) {
-	// On a single-core host the default pipeline count is already 1; low-resource
-	// must not raise it to 2.
+	// low-resource must not raise a single-core host to 2 pipelines.
 	prev := runtime.GOMAXPROCS(1)
 	defer runtime.GOMAXPROCS(prev)
 
@@ -329,18 +327,14 @@ func TestLogsPerformanceProfileExists(t *testing.T) {
 }
 
 func TestLogsPerformanceProfileV1AlwaysExists(t *testing.T) {
-	// Bare `profile: <name>` resolves to v1, so every published profile must
-	// define a version 1.
+	// A bare profile name resolves to v1, so every profile must define it.
 	for name, versions := range logsPerformanceProfiles {
 		_, ok := versions[1]
 		assert.Truef(t, ok, "profile %q must define version 1", name)
 	}
 }
 
-// The profile config is intentionally undocumented in the datadog.yaml
-// template (shipping as a hidden feature). These tests guard that hiding it
-// from the template did not make the feature unreachable: the keys must stay
-// bound to the schema and to their environment variables.
+// The profile keys must stay bound to the schema and to their environment variables.
 func TestLogsPerformanceProfileKeysRemainKnown(t *testing.T) {
 	cfg := newTestConf(t)
 
@@ -376,8 +370,7 @@ logs_config:
   profile: high-throughput
 `)
 
-	// The full agent runs the override pass, then re-runs after fleet policies
-	// merge. Re-applying with no new sources must not change the result.
+	// Re-applying after fleet policies merge, with no new sources, must not change the result.
 	ApplyLogsPerformanceProfile(cfg)
 	ApplyLogsPerformanceProfile(cfg)
 
@@ -410,9 +403,7 @@ logs_config:
 	ApplyLogsPerformanceProfile(cfg)
 	require.Equal(t, highThroughputPipelines(), cfg.GetInt("logs_config.pipelines"))
 
-	// Fleet policies then pin a knob the profile also sets. The re-run must let
-	// the fleet value win rather than have the first pass's post-init write
-	// (which outranks SourceFleetPolicies) shadow it.
+	// A fleet-policy knob must win over the first pass's post-init write.
 	cfg.Set("logs_config.pipelines", 1, pkgconfigmodel.SourceFleetPolicies)
 	ApplyLogsPerformanceProfile(cfg)
 
