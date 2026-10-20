@@ -2425,8 +2425,6 @@ code.cloudfoundry.org/diego-db-helpers v0.3.0 h1:LPVZ47sOr4e3MLbTUbBX7pTDWhP2XWI
 code.cloudfoundry.org/diego-db-helpers v0.3.0/go.mod h1:eFhaHV7SOqZWV+lV9ZSjPTXfq3AO3e55lsAnfKvUozg=
 code.cloudfoundry.org/garden v0.7.0 h1:uoDzPDXYcNCcgFD3SULE9W01XtY4R2V5TfX/psvYFa0=
 code.cloudfoundry.org/garden v0.7.0/go.mod h1:zeXkvSjpZDtq38hAEELiw9rWLdyRkBIp2343RbC9K1Y=
-code.cloudfoundry.org/lager/v3 v3.90.0 h1:BlIboiXg91DaCuxjR2Uu89BEOpTT5GDn0CH8mxt3quc=
-code.cloudfoundry.org/lager/v3 v3.90.0/go.mod h1:lB+0jDPi5kdC308uxGcdTHSVz7HvK88oOkTeWVwrs54=
 code.cloudfoundry.org/lager/v3 v3.91.0 h1:9Ydc9QENtQ0tI0hqdIrYVHtM7g0Vou8xG5kPAFxWVNI=
 code.cloudfoundry.org/lager/v3 v3.91.0/go.mod h1:j4v5jKYn/nRqOCkL9XoSRmDnjpZH5fITFrlK6veKIBs=
 code.cloudfoundry.org/locket v1.1.0 h1:UW1NmuPzDHNNOuYnZ0tyLanL7aQHXnto1Ej3BCp7uS4=
@@ -3515,8 +3513,6 @@ github.com/google/pprof v0.0.0-20210609004039-a478d1d731e9/go.mod h1:kpwsk12EmLe
 github.com/google/pprof v0.0.0-20210720184732-4bb14d4b1be1/go.mod h1:kpwsk12EmLew5upagYY7GY0pfYCcupk39gWOCRROcvE=
 github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26/go.mod h1:dDKJzRmX4S37WGHujM7tX//fmj1uioxKzKxz3lo4HJo=
 github.com/google/pprof v0.0.0-20240227163752-401108e1b7e7/go.mod h1:czg5+yv1E0ZGTi6S6vVK1mke0fV+FaUhNGcd6VRS9Ik=
-github.com/google/pprof v0.0.0-20261006160405-d99a6174ef52 h1:fYZBNW/L8htMW8QjQFsw+pjcoHaV9wFlJ+T6Q6SaHFs=
-github.com/google/pprof v0.0.0-20261006160405-d99a6174ef52/go.mod h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=
 github.com/google/pprof v0.0.0-20261012231050-2af12c3f4d87 h1:P18JvwDzBYAeC8SIfnee/YJzKk1dysuN6rUwmF6CxZY=
 github.com/google/pprof v0.0.0-20261012231050-2af12c3f4d87/go.mod h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
@@ -4341,8 +4337,6 @@ github.com/oliveagle/jsonpath v0.1.4 h1:Sr/ffH5YSyQKjSNfvDFkQqAqh3kn/QxF/7j2jjpf
 github.com/oliveagle/jsonpath v0.1.4/go.mod h1:diWEHhuLqib29heQcHYHyaLcxFC3KpKa/5ihkZBs1Z8=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/ginkgo v1.16.5/go.mod h1:+E8gABHa3K6zRBolWtd+ROzc/U5bkGt0FwiG042wbpU=
-github.com/onsi/ginkgo/v2 v2.33.0 h1:C8gBA6Uc2ZEubiV+SXiu5tZnMTwEmXHgkJwGozKtZf8=
-github.com/onsi/ginkgo/v2 v2.33.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/ginkgo/v2 v2.33.1 h1:62XfWJbEIjPSCSDYrsCPP/SHcmH7O0M8ne8zfqQ2iz4=
 github.com/onsi/ginkgo/v2 v2.33.1/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.44.0 h1:eAiGl3Pw5jz5GQdDff0BcxYpAX1JxW8xD7mFUuwNfZQ=
@@ -5888,8 +5882,6 @@ golang.org/x/sys v0.49.0 h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=
 golang.org/x/sys v0.49.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
 golang.org/x/telemetry v0.0.0-20240228155512-f48c80bd79b2/go.mod h1:TeRTkGYfJXctD9OcfyVLyj2J3IxLnKwHJR8f4D8a3YE=
 golang.org/x/telemetry v0.0.0-20240521205824-bda55230c457/go.mod h1:pRgIJT+bRLFKnoM1ldnzKoxTIn14Yxz928LQRYYgIN0=
-golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157 h1:DftxASHKl6JolFPqoN+2WrFO53JvkHwRXvFqf8gsivA=
-golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157/go.mod h1:i+ivNqjDnTF3WTElsdk5g9V5DTSBYgdNo7xTU9SDwYA=
 golang.org/x/telemetry v0.0.0-20261009151841-97e8ea77aa2a h1:wnveMBKHwx8/nIb8WYT5P9vtefdXOvIWxzycCkc5n6Q=
 golang.org/x/telemetry v0.0.0-20261009151841-97e8ea77aa2a/go.mod h1:i+ivNqjDnTF3WTElsdk5g9V5DTSBYgdNo7xTU9SDwYA=
 golang.org/x/term v0.0.0-20201117132131-f5c789dd3221/go.mod h1:Nr5EML6q2oocZ2LXRh80K7BxOlk5/8JxuGnuhpl+muw=
@@ -6049,8 +6041,6 @@ golang.org/x/tools v0.20.0/go.mod h1:WvitBU7JJf6A4jOdg4S1tviW9bhUxkgeCui/0JHctQg
 golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d/go.mod h1:aiJjzUbINMkxbQROHiO6hDPo2LHcIPhhQsa9DLh0yGk=
 golang.org/x/tools v0.22.0/go.mod h1:aCwcsjqvq7Yqt6TNyX7QMU2enbQ/Gt0bo6krSeEri+c=
 golang.org/x/tools v0.24.0/go.mod h1:YhNqVBIfWHdzvTLs0d8LCuMhkKUgSUKldakyV7W/WDQ=
-golang.org/x/tools v0.51.0 h1:k4Xc/1Om9jwkBJBo4NVLMSARBoWtK10mx+W5BnXCeAI=
-golang.org/x/tools v0.51.0/go.mod h1:9eEncMayCV6zRMGhR5eZEC2iBx98qWcF1HZ9Z7wJOoA=
 golang.org/x/tools v0.52.0 h1:ryxg4U63oaUYk7uOLTF37n43f4qgtGvqV4Ioit1BaEs=
 golang.org/x/tools v0.52.0/go.mod h1:ItcP5UNaVGG+Yc4eIYmaFLNJ4soEopkx5Y2d4lcEurs=
 golang.org/x/tools/go/expect v0.1.1-deprecated h1:jpBZDwmgPhXsKZC6WhL20P4b/wmnpsEAGHaNy0n/rJM=
