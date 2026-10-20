@@ -828,3 +828,45 @@ func TestInternalTelemetryProgressDuringStream(t *testing.T) {
 	}
 	require.True(t, found, "feedback metrics must be retained")
 }
+
+// Both a final flush and already accepted samples are ready before the input
+// loop starts. Final delivery must not depend on select choosing 100 samples
+// before choosing the flush. No producers remain active during this scenario.
+func TestComparisonFinalFlushIncludesAcceptedCheckInput(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	agg.handleRegisterSampler("accepted")
+	sender := newCheckSender("accepted", "", agg.checkItems, agg.serviceCheckIn, agg.eventIn, agg.orchestratorMetadataIn, agg.orchestratorManifestIn, agg.eventPlatformIn)
+	n := cap(agg.checkItems) - 1
+	require.Greater(t, n, 0)
+	for i := 0; i < n; i++ {
+		sender.Count("accepted.count", 1, "", nil)
+	}
+	sender.Commit()
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+	produced := make(chan struct{}, 1)
+	finished := make(chan struct{})
+	close(finished)
+	trigger := flushTrigger{trigger: trigger{time: time.Now(), blockChan: produced, waitForSerializer: true}, seriesSink: &series, sketchesSink: &sketches}
+	trigger.serializationDone = finished
+	agg.flushChan = make(chan flushTrigger, 1)
+	agg.flushChan <- trigger
+	go agg.run()
+	defer agg.Stop()
+	select {
+	case <-produced:
+	case <-time.After(5 * time.Second):
+		t.Fatal("final flush stalled")
+	}
+	total := 0.
+	for _, s := range series {
+		if s.Name == "accepted.count" {
+			for _, p := range s.Points {
+				total += p.Value
+			}
+		}
+	}
+	require.Equal(t, float64(n), total, "accepted samples must reach the final payload before shutdown")
+}

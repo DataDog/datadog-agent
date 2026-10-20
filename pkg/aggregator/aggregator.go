@@ -847,6 +847,13 @@ func (agg *BufferedAggregator) run() {
 			close(stop)
 			return
 		case trigger := <-agg.flushChan:
+			// A final synchronous flush must include input already accepted before it.
+			// Capture the length so a concurrent producer cannot extend this drain.
+			if trigger.waitForSerializer {
+				for pending := len(agg.checkItems); pending > 0; pending-- {
+					(<-agg.checkItems).handle(agg)
+				}
+			}
 			agg.Flush(trigger)
 
 			// Do this here, rather than in the Flush():
