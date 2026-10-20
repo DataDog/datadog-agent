@@ -73,6 +73,8 @@ type CWSPtracerCtx struct {
 	client              net.Conn
 	clientReady         chan bool
 	msgDataChan         chan []byte
+	pendingMsgData      []byte // owned by the network sender, retained across reconnects
+	syscallMessages     *syscallMessageBuffer
 	helloMsg            *ebpfless.Message
 	processCache        *ProcessCache
 	traceesReported     []int
@@ -197,12 +199,16 @@ func (ctx *CWSPtracerCtx) sendMsg(msg *ebpfless.Message) error {
 		return err
 	}
 
+	ctx.enqueueMsgData(data)
+	return nil
+}
+
+func (ctx *CWSPtracerCtx) enqueueMsgData(data []byte) {
 	select {
 	case ctx.msgDataChan <- data:
 	default:
 		logger.Errorf("unable to send message")
 	}
-	return nil
 }
 
 func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
@@ -239,15 +245,20 @@ func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
 // returns nil if client needs to be reconnected
 func (ctx *CWSPtracerCtx) sendMessagesLoop() error {
 	for {
+		if ctx.pendingMsgData != nil {
+			// Retry the failed message before dequeuing anything else. Putting
+			// a failed fork back at the queue's tail would let exec overtake it.
+			if err := ctx.sendMsgData(ctx.pendingMsgData); err != nil {
+				logger.Debugf("error sending msg: %v", err)
+				return nil
+			}
+			ctx.pendingMsgData = nil
+		}
 		select {
 		case <-ctx.cancel.Done():
 			return errors.New("Exiting")
 		case data := <-ctx.msgDataChan:
-			if err := ctx.sendMsgData(data); err != nil {
-				logger.Debugf("error sending msg: %v", err)
-				ctx.msgDataChan <- data
-				return nil
-			}
+			ctx.pendingMsgData = data
 		}
 	}
 }
@@ -399,6 +410,9 @@ func initCWSPtracerAttach(pids []int, probeAddr string, opts Opts) (*CWSPtracerC
 
 // CWSCleanup cleans up the ptracer
 func (ctx *CWSPtracerCtx) CWSCleanup() {
+	if ctx.syscallMessages != nil {
+		ctx.syscallMessages.close()
+	}
 	ctx.cancelFnc()
 	ctx.wg.Wait()
 	if ctx.stopSignalForwarder != nil {
@@ -454,6 +468,13 @@ func (ctx *CWSPtracerCtx) StartCWSPtracer() (int, error) {
 	if ctx.probeAddr == "" {
 		logger.Debugf("sending message: %s", ctx.helloMsg)
 	} else {
+		initial := make([]processIdentity, 0, len(ctx.PIDs))
+		for _, pid := range ctx.PIDs {
+			if process := ctx.processCache.Get(pid); process != nil {
+				initial = append(initial, process.identity())
+			}
+		}
+		ctx.syscallMessages = newSyscallMessageBuffer(initial, ctx.enqueueMsgData)
 		ctx.handleClientConnection()
 	}
 
@@ -462,6 +483,11 @@ func (ctx *CWSPtracerCtx) StartCWSPtracer() (int, error) {
 	}
 
 	exitCode, err := ctx.Trace()
+	if ctx.syscallMessages != nil {
+		// Flush before the existing network-drain grace period, including
+		// messages belonging to short-lived children with missing forks.
+		ctx.syscallMessages.close()
+	}
 	if err != nil {
 		return 0, err
 	}

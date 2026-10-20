@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vmihailenco/msgpack/v5"
+
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"golang.org/x/sys/unix"
@@ -58,13 +60,45 @@ func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.Syscall
 	}
 	ctx.resolveProcessContext(process)
 	msg.PID = uint32(process.Tgid)
-	msg.Timestamp = uint64(time.Now().UnixNano())
+	observed := time.Now()
+	msg.Timestamp = uint64(observed.UnixNano())
 	msg.ContainerID = process.ContainerID
 	msg.CGroupID = process.CGroupID
-	_ = ctx.sendMsg(&ebpfless.Message{
+	message := &ebpfless.Message{
 		Type:    ebpfless.MessageTypeSyscall,
 		Syscall: msg,
-	})
+	}
+	if ctx.syscallMessages == nil {
+		_ = ctx.sendMsg(message)
+		return
+	}
+
+	// Serialize before handing off to the emission goroutine. In particular,
+	// neither the ptracer's Process nor its mutable syscall messages cross it.
+	logger.Debugf("queueing message: %s", message)
+	data, err := msgpack.Marshal(message)
+	if err != nil {
+		logger.Errorf("unable to marshal message: %v", err)
+		return
+	}
+	outgoing := outgoingSyscall{
+		owner:    process.identity(),
+		kind:     msg.Type,
+		observed: observed,
+		data:     data,
+	}
+	if msg.Type == ebpfless.SyscallTypeFork {
+		outgoing.child = outgoing.owner
+		if parent := ctx.processCache.Get(int(msg.Fork.PPID)); parent != nil {
+			outgoing.owner = parent.identity()
+		} else {
+			_, startTime, _ := readProcessStat(int(msg.Fork.PPID))
+			outgoing.owner = processIdentity{pid: msg.Fork.PPID, startTime: startTime}
+		}
+	}
+	if !ctx.syscallMessages.enqueue(outgoing) {
+		logger.Errorf("unable to queue syscall message")
+	}
 }
 
 func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, process *Process, handler syscallHandler) {
@@ -179,6 +213,7 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceR
 		ctx.handleClone(binary.NativeEndian.Uint64(data), process, ppid)
 	case ForkNr, VforkNr:
 		if parent := ctx.processCache.Get(ppid); parent != nil {
+			process.forkPPID = uint32(parent.Tgid)
 			ctx.sendSyscallMsg(process, &ebpfless.SyscallMsg{
 				Type: ebpfless.SyscallTypeFork,
 				Fork: &ebpfless.ForkSyscallMsg{

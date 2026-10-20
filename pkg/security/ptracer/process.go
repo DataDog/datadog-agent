@@ -66,6 +66,8 @@ type SocketInfo struct {
 type Process struct {
 	Pid                      int
 	Tgid                     int
+	startTime                uint64
+	forkPPID                 uint32
 	CGroupID                 containerutils.CGroupID
 	ContainerID              containerutils.ContainerID
 	containerContextResolved bool
@@ -77,9 +79,12 @@ type Process struct {
 
 // NewProcess returns a new process
 func NewProcess(pid int) *Process {
+	tgid := getPidTGID(pid)
+	_, startTime, _ := readProcessStat(tgid)
 	return &Process{
 		Pid:        pid,
-		Tgid:       pid,
+		Tgid:       tgid,
+		startTime:  startTime,
 		Nr:         make(map[int]*ebpfless.SyscallMsg),
 		FdToSocket: make(map[int32]SocketInfo),
 
@@ -89,6 +94,19 @@ func NewProcess(pid int) *Process {
 		},
 		FsRes: &FSResources{},
 	}
+}
+
+func (p *Process) identity() processIdentity {
+	return processIdentity{pid: uint32(p.Tgid), startTime: p.startTime}
+}
+
+func (p *Process) execPPID() uint32 {
+	if p.forkPPID != 0 {
+		return p.forkPPID
+	}
+	// The fork may not have been handled yet, or this may be an initial
+	// tracee. Resolve its parent while it is stopped at exec, not at flush.
+	return getPidPPID(p.Pid)
 }
 
 var errPipeFd = errors.New("pipe fd")
@@ -163,6 +181,18 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	// share resources, parent should never be nil
 	if cloneFlags&unix.CLONE_THREAD != 0 {
 		process.Tgid = parent.Tgid
+		process.startTime = parent.startTime
+	}
+	switch {
+	case cloneFlags&unix.CLONE_THREAD != 0:
+		// A thread belongs to the same process, with the same known parent.
+		process.forkPPID = parent.forkPPID
+	case cloneFlags&unix.CLONE_PARENT != 0:
+		// The creator is not the child's parent, and may have been reparented.
+		// Its original fork PPID is insufficient: keep the procfs fallback.
+		process.forkPPID = 0
+	default:
+		process.forkPPID = uint32(parent.Tgid)
 	}
 	process.CGroupID = parent.CGroupID
 	process.ContainerID = parent.ContainerID
