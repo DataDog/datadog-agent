@@ -57,6 +57,7 @@ ALL_TAGS = set([
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
+    "rc_x509",  # includes the native Remote Config x509 client
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
     "sharedlibrarycheck",
@@ -114,6 +115,7 @@ AGENT_TAGS = set([
     "otlp",
     "podman",
     "python",
+    "rc_x509",
     "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
