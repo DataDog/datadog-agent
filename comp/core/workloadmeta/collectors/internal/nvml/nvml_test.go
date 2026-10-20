@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -45,13 +46,13 @@ func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
 	config := config.NewMock(t)
 	config.SetInTest("gpu.enabled", true)
 
-	return newCollector(store, config)
+	return newCollector(store, config, noopsimpl.NewComponent())
 }
 
 func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
 	env.SetFeatures(t, env.NVML)
 
-	c := newCollector(nil, config.NewMock(t))
+	c := newCollector(nil, config.NewMock(t), noopsimpl.NewComponent())
 	err := c.Start(context.Background(), nil)
 
 	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring is disabled"), err)

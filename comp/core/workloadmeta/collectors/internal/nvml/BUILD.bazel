@@ -19,10 +19,13 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/def",
             "//pkg/config/env",
             "//pkg/errors",
             "//pkg/gpu/config",
+            "//pkg/gpu/config/consts",
+            "//pkg/gpu/containers",
             "//pkg/gpu/safenvml",
             "//pkg/util/gpu",
             "//pkg/util/kubernetes/kubelet",
@@ -51,10 +54,13 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/def",
             "//pkg/config/env",
             "//pkg/errors",
             "//pkg/gpu/config",
+            "//pkg/gpu/config/consts",
+            "//pkg/gpu/containers",
             "//pkg/gpu/safenvml",
             "//pkg/util/gpu",
             "//pkg/util/kubernetes/kubelet",
@@ -101,6 +107,9 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/mock",
             "//comp/core/workloadmeta/def",
             "//comp/core/workloadmeta/mock",
             "//pkg/config/env",
@@ -115,6 +124,9 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/impl/noops",
+            "//comp/core/telemetry/mock",
             "//comp/core/workloadmeta/def",
             "//comp/core/workloadmeta/mock",
             "//pkg/config/env",
