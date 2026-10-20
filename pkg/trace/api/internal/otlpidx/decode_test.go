@@ -337,3 +337,22 @@ func TestResourceAttributesOnPayload(t *testing.T) {
 	assert.Equal(t, "svc", s2.Service())
 	assert.Equal(t, "prod", s2.Env())
 }
+
+// TestDecodeResourceSpansLimit checks that a request of up to maxResourceSpans ResourceSpans
+// decodes, and that one more is rejected (so the receiver falls back to pdata) rather than
+// allocating a payload for each.
+func TestDecodeResourceSpansLimit(t *testing.T) {
+	emptyResourceSpans := func(n int) []byte {
+		var b []byte
+		for range n {
+			b = protowire.AppendTag(b, fExportResourceSpans, protowire.BytesType)
+			b = protowire.AppendBytes(b, nil)
+		}
+		return b
+	}
+	tps, err := decodeForTest(emptyResourceSpans(maxResourceSpans))
+	require.NoError(t, err)
+	assert.Len(t, tps, maxResourceSpans)
+	_, err = decodeForTest(emptyResourceSpans(maxResourceSpans + 1))
+	assert.ErrorIs(t, err, ErrTooManyResourceSpans)
+}

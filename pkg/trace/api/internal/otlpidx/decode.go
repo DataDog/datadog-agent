@@ -31,6 +31,16 @@ const maxAnyValueDepth = 32
 
 var errMaxDepth = errors.New("otlpidx: attribute nesting exceeds maximum depth")
 
+// maxResourceSpans bounds the ResourceSpans decoded from one request. Each becomes its own
+// payload with its own string table, all held until the request is decoded, so a request of
+// many tiny ResourceSpans would otherwise allocate thousands of times its size. Real requests
+// carry one ResourceSpans per distinct resource, far fewer than this.
+const maxResourceSpans = 4096
+
+// ErrTooManyResourceSpans is returned for a request with more than maxResourceSpans
+// ResourceSpans. The caller falls back to pdata, which holds them more cheaply.
+var ErrTooManyResourceSpans = errors.New("otlpidx: too many ResourceSpans in one request")
+
 // Field numbers from opentelemetry/proto (collector/trace/v1, trace/v1, common/v1, resource/v1).
 const (
 	fExportResourceSpans = 1
@@ -200,6 +210,9 @@ func Decode(ctx context.Context, b []byte, opts Options) ([]Payload, error) {
 		if f.num != fExportResourceSpans || f.typ != protowire.BytesType {
 			continue
 		}
+		if len(out) == maxResourceSpans {
+			return nil, ErrTooManyResourceSpans
+		}
 		p, err := decodeResourceSpans(ctx, f.val, opts)
 		if err != nil {
 			return nil, err
@@ -268,8 +281,12 @@ type rawSpan struct {
 
 // stringTableHint estimates the number of distinct strings in a ResourceSpans of n bytes, so the
 // string table doesn't repeatedly grow on small payloads. Keys and values repeat across spans,
-// so the count grows much slower than the payload and is capped.
+// so the count grows much slower than the payload and is capped. Tiny ResourceSpans get a tiny
+// table, so a request of many of them can't allocate a 32-entry table for each.
 func stringTableHint(n int) int {
+	if n < 256 {
+		return 8
+	}
 	return min(max(n/32, 32), 128)
 }
 
