@@ -30,6 +30,8 @@ type ContainerApp struct {
 const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	ContainerAppNameEnvVar = "CONTAINER_APP_NAME"
+	// ContainerAppJobNameEnvVar is set on Azure Container Apps jobs.
+	ContainerAppJobNameEnvVar = "CONTAINER_APP_JOB_NAME"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	ContainerAppDNSSuffix = "CONTAINER_APP_ENV_DNS_SUFFIX"
 	//nolint:revive // TODO(SERV) Fix revive linter
@@ -68,6 +70,13 @@ const (
 // GetTags returns a map of Azure-related tags
 func (c *ContainerApp) GetTags() map[string]string {
 	appName := os.Getenv(ContainerAppNameEnvVar)
+	resourceKind := "containerapps"
+	if appName == "" {
+		if jobName := os.Getenv(ContainerAppJobNameEnvVar); jobName != "" {
+			appName = jobName
+			resourceKind = "jobs"
+		}
+	}
 	appDNSSuffix := os.Getenv(ContainerAppDNSSuffix)
 
 	appDNSSuffixTokens := strings.Split(appDNSSuffix, ".")
@@ -121,7 +130,7 @@ func (c *ContainerApp) GetTags() map[string]string {
 	}
 
 	if subscriptionID != "" && resourceGroup != "" {
-		resourceID := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", subscriptionID, resourceGroup, strings.ToLower(appName))
+		resourceID := fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/%s/%v", subscriptionID, resourceGroup, resourceKind, strings.ToLower(appName))
 		tags["resource_id"] = resourceID
 		tags[acaResourceID] = resourceID
 
@@ -219,6 +228,9 @@ func (c *ContainerApp) AddStartMetric(metricAgent *serverlessMetrics.ServerlessM
 }
 
 func isContainerAppService() bool {
-	_, exists := os.LookupEnv(ContainerAppNameEnvVar)
+	if _, exists := os.LookupEnv(ContainerAppNameEnvVar); exists {
+		return true
+	}
+	_, exists := os.LookupEnv(ContainerAppJobNameEnvVar)
 	return exists
 }

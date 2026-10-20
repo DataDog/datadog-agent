@@ -32,6 +32,15 @@ func TestGetCloudServiceType(t *testing.T) {
 	assert.Equal(t, "appservice", GetCloudServiceType().GetOrigin())
 }
 
+func TestGetCloudServiceTypeForContainerAppJob(t *testing.T) {
+	t.Setenv(ContainerAppJobNameEnvVar, "test-job")
+	cloudService := GetCloudServiceType()
+	assert.Equal(t, "containerapp", cloudService.GetOrigin())
+
+	_, ok := cloudService.(*ContainerApp)
+	assert.True(t, ok)
+}
+
 func TestGetCloudServiceTypeForCloudRunJob(t *testing.T) {
 	t.Setenv("CLOUD_RUN_JOB", "test-job")
 	cloudService := GetCloudServiceType()

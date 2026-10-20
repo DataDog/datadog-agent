@@ -82,6 +82,30 @@ func TestGetContainerAppTagsBeforeInit(t *testing.T) {
 	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/containerapps/test_app", tags["aca.resource.id"])
 }
 
+func TestGetContainerAppJobTags(t *testing.T) {
+	service := NewContainerApp()
+	t.Setenv(ContainerAppJobNameEnvVar, "test_job_name")
+	t.Setenv("CONTAINER_APP_ENV_DNS_SUFFIX", "test.bluebeach.eastus.azurecontainerapps.io")
+	t.Setenv(AzureSubscriptionIdEnvVar, "test_subscription_id")
+	t.Setenv(AzureResourceGroupEnvVar, "test_resource_group")
+
+	original, existed := os.LookupEnv(ContainerAppNameEnvVar)
+	os.Unsetenv(ContainerAppNameEnvVar)
+	t.Cleanup(func() {
+		if existed {
+			os.Setenv(ContainerAppNameEnvVar, original)
+		}
+	})
+
+	tags := service.GetTags()
+	assert.Equal(t, "test_job_name", tags["app_name"])
+	assert.Equal(t, "test_job_name", tags[acaAppName])
+	assert.Equal(t, "containerapp", tags["origin"])
+	jobResourceID := "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.app/jobs/test_job_name"
+	assert.Equal(t, jobResourceID, tags["resource_id"])
+	assert.Equal(t, jobResourceID, tags[acaResourceID])
+}
+
 func TestGetContainerAppTagsEmptyDNSSuffix(t *testing.T) {
 	service := NewContainerApp()
 	t.Setenv("CONTAINER_APP_NAME", "test_app")
