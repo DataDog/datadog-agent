@@ -10,6 +10,7 @@ import (
 	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 const scanMaxPoints = 120
@@ -191,6 +192,12 @@ type seriesAggregateSupport interface {
 	SupportsAggregate(ref observer.SeriesRef, agg observer.Aggregate) bool
 }
 
+// seriesMetricTypeReader is an optional scalar accessor for a series' stored
+// metric type that avoids allocating a full SeriesMeta on detector hot paths.
+type seriesMetricTypeReader interface {
+	SeriesMetricType(ref observer.SeriesRef) (metrics.MetricType, bool)
+}
+
 // tailPointReader is implemented by storage that can snapshot a bounded tail
 // without first materializing the whole retained range.
 type tailPointReader interface {
@@ -230,6 +237,53 @@ func supportsSeriesAggregate(storage observer.StorageReader, ref observer.Series
 		return support.SupportsAggregate(ref, agg)
 	}
 	return true
+}
+
+func seriesMetricType(storage observer.StorageReader, ref observer.SeriesRef) (metrics.MetricType, bool) {
+	if reader, ok := storage.(seriesMetricTypeReader); ok {
+		return reader.SeriesMetricType(ref)
+	}
+	meta := storage.GetSeriesMeta(ref)
+	if meta == nil {
+		return observer.UnknownType, false
+	}
+	return meta.MetricType, true
+}
+
+func acceptsMetric(kind observer.MetricKind, metricType metrics.MetricType) bool {
+	switch kind {
+	case observer.MetricKindUnspecified:
+		return true
+	case observer.QuantityGauge:
+		return metricType == metrics.GaugeType
+	default:
+		return false
+	}
+}
+
+func acceptsSeriesForKind(storage observer.StorageReader, ref observer.SeriesRef, kind observer.MetricKind) bool {
+	if kind == observer.MetricKindUnspecified {
+		return true
+	}
+	metricType, ok := seriesMetricType(storage, ref)
+	if !ok {
+		return false
+	}
+	return acceptsMetric(kind, metricType)
+}
+
+func aggregationsForKind(kind observer.MetricKind, configured []observer.Aggregate) []observer.Aggregate {
+	if kind == observer.QuantityGauge {
+		return []observer.Aggregate{observer.AggregateAverage}
+	}
+	return configured
+}
+
+func detectorInstanceName(baseName string, kind observer.MetricKind) string {
+	if kind == observer.MetricKindUnspecified {
+		return baseName
+	}
+	return baseName + "/" + kind.String()
 }
 
 // workloadSeriesRefs returns the workload series refs used by detector hot

@@ -136,6 +136,27 @@ func TestAppendPointWindow(t *testing.T) {
 	require.Equal(t, []observer.Point{{Timestamp: 3}, {Timestamp: 4}, {Timestamp: 5}}, points)
 }
 
+func TestAnomalyDedupKeyDistinguishesMetricKind(t *testing.T) {
+	deduper := newAnomalyDeduper(10)
+	base := observer.Anomaly{
+		SourceRef:    &observer.QueryHandle{Ref: 1, Aggregate: observer.AggregateAverage},
+		DetectorName: "scanmw",
+		MetricKind:   observer.MetricKindUnspecified,
+		Timestamp:    100,
+	}
+	gauge := base
+	gauge.MetricKind = observer.QuantityGauge
+
+	acceptedBase, _ := deduper.accept(anomalyDedupKeyFor(base), 0)
+	require.True(t, acceptedBase)
+
+	acceptedDup, _ := deduper.accept(anomalyDedupKeyFor(base), 0)
+	require.False(t, acceptedDup)
+
+	acceptedGauge, _ := deduper.accept(anomalyDedupKeyFor(gauge), 0)
+	require.True(t, acceptedGauge, "different MetricKind instances must deduplicate independently")
+}
+
 type seriesListOnlyStorage struct {
 	metas      []observer.SeriesMeta
 	listCalls  int

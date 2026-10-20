@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -564,4 +566,33 @@ func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
 	// trigger would NOT fire on its own without cpProb inflating it.
 	assert.Less(t, mass, 0.7,
 		"short-run mass (%.4f) without cpProb should be below CPMassThreshold (0.7)", mass)
+}
+
+func TestBOCPDDetector_QuantityGaugeRouting(t *testing.T) {
+	cfg := DefaultBOCPDConfig()
+	cfg.WarmupPoints = 20
+	cfg.Kind = observer.QuantityGauge
+	d := NewBOCPDDetector(cfg)
+
+	require.Equal(t, "bocpd/QUANTITY_GAUGE", d.Name())
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage}, d.config.Aggregations)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 40; i++ {
+		val := 100.0
+		if i >= 20 {
+			val = 140.0
+		}
+		storage.AddWithKeyAndHostComposite("ns", "gauge.metric", "host", val, int64(i+1), tagset.CompositeTags{}, 1, metrics.GaugeType)
+		storage.AddWithKeyAndHostComposite("ns", "counter.metric", "host", val, int64(i+1), tagset.CompositeTags{}, 2, metrics.CounterType)
+		storage.AddWithKeyAndHostComposite("ns", "unknown.metric", "host", val, int64(i+1), tagset.CompositeTags{}, 3, observer.UnknownType)
+	}
+
+	res := d.Detect(storage, 40)
+	require.Len(t, res.Anomalies, 1)
+	assert.Equal(t, "gauge.metric", res.Anomalies[0].Source.Name)
+	assert.Equal(t, observer.AggregateAverage, res.Anomalies[0].Source.Aggregate)
+	assert.Equal(t, "bocpd", res.Anomalies[0].DetectorName)
+	assert.Equal(t, observer.QuantityGauge, res.Anomalies[0].MetricKind)
+	assert.Len(t, d.series, 1, "excluded series must not allocate BOCPD state")
 }

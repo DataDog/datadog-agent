@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -212,4 +214,40 @@ func TestScanMW_PreloadedReplayFiresAsDataTimeAdvances(t *testing.T) {
 	}
 
 	assert.True(t, fired, "preloaded replay should detect the step change as dataTime advances")
+}
+
+func TestScanMW_QuantityGaugeRoutingAndUnknownToGaugeTransition(t *testing.T) {
+	cfg := DefaultScanMWConfig()
+	cfg.Kind = observer.QuantityGauge
+	d := NewScanMWDetectorWithConfig(cfg)
+
+	require.Equal(t, "scanmw/QUANTITY_GAUGE", d.Name())
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage}, d.Aggregations)
+
+	storage := newTimeSeriesStorage()
+	for i := 0; i < 40; i++ {
+		val := 50.0
+		if i >= 20 {
+			val = 200.0
+		}
+		storage.AddWithKeyAndHostComposite("ns", "gauge.metric", "host", val, int64(i+1), tagset.CompositeTags{}, 1, metrics.GaugeType)
+		storage.AddWithKeyAndHostComposite("ns", "count.metric", "host", val, int64(i+1), tagset.CompositeTags{}, 2, metrics.CountType)
+		storage.AddWithKeyAndHostComposite("ns", "late.gauge", "host", val, int64(i+1), tagset.CompositeTags{}, 3, observer.UnknownType)
+	}
+
+	res := d.Detect(storage, 40)
+	require.Len(t, res.Anomalies, 1)
+	assert.Equal(t, "gauge.metric", res.Anomalies[0].Source.Name)
+	assert.Equal(t, observer.AggregateAverage, res.Anomalies[0].Source.Aggregate)
+	assert.Equal(t, "scanmw", res.Anomalies[0].DetectorName)
+	assert.Equal(t, observer.QuantityGauge, res.Anomalies[0].MetricKind)
+	assert.Len(t, d.series, 1, "only the gauge series should allocate ScanMW state")
+
+	// Transition late.gauge from UnknownType to GaugeType without changing SeriesGeneration;
+	// cachedRefs must still pick it up on the next advance.
+	storage.AddWithKeyAndHostComposite("ns", "late.gauge", "host", 200.0, 41, tagset.CompositeTags{}, 3, metrics.GaugeType)
+	res2 := d.Detect(storage, 41)
+	require.Len(t, res2.Anomalies, 1)
+	assert.Equal(t, "late.gauge", res2.Anomalies[0].Source.Name)
+	assert.Len(t, d.series, 2)
 }

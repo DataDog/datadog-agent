@@ -31,6 +31,52 @@ type scanmwSeriesState struct {
 	segmentStartTime int64
 }
 
+// ScanMWConfig holds configuration for the ScanMW detector.
+type ScanMWConfig struct {
+	// Kind optionally restricts detection to a specific metric category.
+	Kind observer.MetricKind `json:"kind,omitempty"`
+
+	// MinSegment is the minimum number of points in each segment. Default: 12.
+	MinSegment int `json:"min_segment"`
+
+	// MinPoints is the minimum total points before detection runs. Default: 30.
+	MinPoints int `json:"min_points"`
+
+	// MaxPoints bounds the scan window. Default: 120.
+	MaxPoints int `json:"max_points"`
+
+	// SignificanceThreshold is the maximum p-value for the best split to be
+	// considered a changepoint. Default: 1e-8.
+	SignificanceThreshold float64 `json:"significance_threshold"`
+
+	// MinEffectSize is the minimum |rank-biserial correlation| for reporting.
+	// Default: 0.85.
+	MinEffectSize float64 `json:"min_effect_size"`
+
+	// MinDeviationMAD is the minimum |post_median - pre_median| / MAD.
+	// Default: 3.0.
+	MinDeviationMAD float64 `json:"min_deviation_mad"`
+
+	// Aggregations to run detection on. Default: [Average, Count].
+	Aggregations []observer.Aggregate `json:"-"`
+}
+
+// DefaultScanMWConfig returns a ScanMWConfig with default settings.
+func DefaultScanMWConfig() ScanMWConfig {
+	return ScanMWConfig{
+		MinSegment:            12,
+		MinPoints:             30,
+		MaxPoints:             scanMaxPoints,
+		SignificanceThreshold: 1e-8,
+		MinEffectSize:         0.85,
+		MinDeviationMAD:       3.0,
+		Aggregations: []observer.Aggregate{
+			observer.AggregateAverage,
+			observer.AggregateCount,
+		},
+	}
+}
+
 // ScanMWDetector detects changepoints by scanning all possible split points
 // with the Mann-Whitney U test. It picks the split that gives the most
 // significant test result (smallest p-value), making it a non-parametric
@@ -43,9 +89,14 @@ type scanmwSeriesState struct {
 // the segment start so subsequent scans only examine post-change data.
 type ScanMWDetector struct {
 	ready bool
+	name  string
+
+	// Kind optionally restricts detection to a specific metric category.
+	Kind observer.MetricKind
+
 	// MinSegment is the minimum number of points in each segment.
 	// Default: 12
-	MinSegment int
+	MinSegment int `json:"min_segment"`
 
 	// MinPoints is the minimum total points before detection runs.
 	// Default: 30
@@ -82,24 +133,32 @@ type ScanMWDetector struct {
 
 // NewScanMWDetector creates a ScanMW detector with default settings.
 func NewScanMWDetector() *ScanMWDetector {
-	return &ScanMWDetector{
-		MinSegment:            12,
-		MinPoints:             30,
-		MaxPoints:             scanMaxPoints,
-		SignificanceThreshold: 1e-8,
-		MinEffectSize:         0.85,
-		MinDeviationMAD:       3.0,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		},
-		series: make(map[scanmwStateKey]*scanmwSeriesState),
+	return NewScanMWDetectorWithConfig(DefaultScanMWConfig())
+}
+
+// NewScanMWDetectorWithConfig creates a ScanMW detector from a ScanMWConfig.
+func NewScanMWDetectorWithConfig(cfg ScanMWConfig) *ScanMWDetector {
+	d := &ScanMWDetector{
+		Kind:                  cfg.Kind,
+		MinSegment:            cfg.MinSegment,
+		MinPoints:             cfg.MinPoints,
+		MaxPoints:             cfg.MaxPoints,
+		SignificanceThreshold: cfg.SignificanceThreshold,
+		MinEffectSize:         cfg.MinEffectSize,
+		MinDeviationMAD:       cfg.MinDeviationMAD,
+		Aggregations:          cfg.Aggregations,
+		series:                make(map[scanmwStateKey]*scanmwSeriesState),
 	}
+	d.ensureDefaults()
+	return d
 }
 
 // Name returns the detector name.
 func (d *ScanMWDetector) Name() string {
-	return "scanmw"
+	if d.name != "" {
+		return d.name
+	}
+	return detectorInstanceName("scanmw", d.Kind)
 }
 
 func (d *ScanMWDetector) Ready() bool { return d.ready }
@@ -154,6 +213,9 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 	var allAnomalies []observer.Anomaly
 
 	for i, ref := range d.cachedRefs {
+		if !acceptsSeriesForKind(storage, ref, d.Kind) {
+			continue
+		}
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
@@ -323,7 +385,8 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	anomaly := observer.Anomaly{
 		Type:                observer.AnomalyTypeMetric,
 		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Host: series.Host, Tags: series.Tags, Aggregate: agg},
-		DetectorName:        d.Name(),
+		DetectorName:        "scanmw",
+		MetricKind:          d.Kind,
 		Timestamp:           changePtTime,
 		Score:               &score,
 		SamplingIntervalSec: d.workspace.medianPointInterval(points),
@@ -373,4 +436,6 @@ func (d *ScanMWDetector) ensureDefaults() {
 			observer.AggregateCount,
 		}
 	}
+	d.Aggregations = aggregationsForKind(d.Kind, d.Aggregations)
+	d.name = detectorInstanceName("scanmw", d.Kind)
 }

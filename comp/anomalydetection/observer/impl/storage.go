@@ -768,6 +768,18 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 	}
 }
 
+// SeriesMetricType returns the stored metric type for a series ref without
+// allocating a SeriesMeta struct.
+func (s *timeSeriesStorage) SeriesMetricType(ref observer.SeriesRef) (metrics.MetricType, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ss := s.resolveByID(ref)
+	if ss == nil {
+		return observer.UnknownType, false
+	}
+	return ss.MetricType, true
+}
+
 // seriesMeta is lightweight series metadata including point count,
 // used for API listing without materializing point data.
 type seriesMeta struct {

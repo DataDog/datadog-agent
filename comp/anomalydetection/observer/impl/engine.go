@@ -25,6 +25,7 @@ type anomalyDedupKey struct {
 	sourceRef       observerdef.SeriesRef
 	sourceAggregate observerdef.Aggregate
 	detectorName    string
+	metricKind      observerdef.MetricKind
 	timestamp       int64
 }
 
@@ -73,6 +74,7 @@ func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
 		sourceRef:       anomaly.SourceRef.Ref,
 		sourceAggregate: anomaly.SourceRef.Aggregate,
 		detectorName:    anomaly.DetectorName,
+		metricKind:      anomaly.MetricKind,
 		timestamp:       anomaly.Timestamp,
 	}
 }

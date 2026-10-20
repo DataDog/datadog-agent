@@ -11,6 +11,8 @@
 package observer
 
 import (
+	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -21,6 +23,68 @@ import (
 
 // UnknownType represents a metric whose type is unavailable during replay.
 const UnknownType metrics.MetricType = -1
+
+// MetricKind classifies a metric series into an anomaly-detection routing category.
+type MetricKind int
+
+const (
+	// MetricKindUnspecified preserves the default behavior of processing all metric types.
+	MetricKindUnspecified MetricKind = iota
+	// QuantityGauge routes only GaugeType metrics on the average aggregation.
+	QuantityGauge
+)
+
+// String returns the canonical symbolic name for a MetricKind.
+func (k MetricKind) String() string {
+	switch k {
+	case MetricKindUnspecified:
+		return ""
+	case QuantityGauge:
+		return "QUANTITY_GAUGE"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+// ParseMetricKind parses a symbolic MetricKind string.
+func ParseMetricKind(raw string) (MetricKind, error) {
+	switch strings.TrimSpace(raw) {
+	case "":
+		return MetricKindUnspecified, nil
+	case "QUANTITY_GAUGE":
+		return QuantityGauge, nil
+	default:
+		return MetricKindUnspecified, fmt.Errorf("unsupported metric kind %q", raw)
+	}
+}
+
+// MarshalJSON encodes MetricKind as its symbolic string name.
+func (k MetricKind) MarshalJSON() ([]byte, error) {
+	switch k {
+	case MetricKindUnspecified, QuantityGauge:
+		return json.Marshal(k.String())
+	default:
+		return nil, fmt.Errorf("unsupported metric kind %d", int(k))
+	}
+}
+
+// UnmarshalJSON decodes MetricKind from its symbolic string name.
+func (k *MetricKind) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*k = MetricKindUnspecified
+		return nil
+	}
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("metric kind must be a string: %w", err)
+	}
+	parsed, err := ParseMetricKind(raw)
+	if err != nil {
+		return err
+	}
+	*k = parsed
+	return nil
+}
 
 // Handle is the lightweight observation interface passed to other components.
 type Handle interface {
@@ -253,6 +317,8 @@ type Anomaly struct {
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
+	// MetricKind identifies the routed metric category for this detector instance, if any.
+	MetricKind MetricKind
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext

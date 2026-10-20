@@ -13,6 +13,7 @@ import (
 	"sort"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -145,6 +146,17 @@ func (s *instrumentedStorage) ListSeries(filter observerdef.SeriesFilter) []obse
 
 func (s *instrumentedStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.SeriesMeta {
 	return s.inner.GetSeriesMeta(ref)
+}
+
+func (s *instrumentedStorage) SeriesMetricType(ref observerdef.SeriesRef) (metrics.MetricType, bool) {
+	if reader, ok := s.inner.(seriesMetricTypeReader); ok {
+		return reader.SeriesMetricType(ref)
+	}
+	meta := s.inner.GetSeriesMeta(ref)
+	if meta == nil {
+		return observerdef.UnknownType, false
+	}
+	return meta.MetricType, true
 }
 
 func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) (observerdef.MetricContext, bool) {

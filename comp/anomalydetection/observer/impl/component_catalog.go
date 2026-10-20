@@ -224,34 +224,28 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			{
-				name:        "scanmw",
-				displayName: "ScanMW",
-				kind:        componentDetector,
-				factory: func(cfg any) any {
-					c := cfg.(*ScanMWDetector)
-					d := NewScanMWDetector()
-					d.MinPoints = c.MinPoints
-					d.MaxPoints = c.MaxPoints
-					return d
-				},
+				name:           "scanmw",
+				displayName:    "ScanMW",
+				kind:           componentDetector,
+				defaultConfig:  DefaultScanMWConfig(),
+				factory:        func(cfg any) any { return NewScanMWDetectorWithConfig(cfg.(ScanMWConfig)) },
+				defaultEnabled: false,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := *defaults.(*ScanMWDetector)
+					cfg := defaults.(ScanMWConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("scanmw: failed to parse JSON config: %w", err)
 					}
-					return &cfg, nil
+					return cfg, nil
 				},
-				defaultEnabled: false,
-				defaultConfig:  NewScanMWDetector(),
 				readConfig: func(reader ConfigReader, prefix string) any {
-					d := NewScanMWDetector()
+					cfg := DefaultScanMWConfig()
 					if k := prefix + "min_points"; reader.IsConfigured(k) {
-						d.MinPoints = reader.GetInt(k)
+						cfg.MinPoints = reader.GetInt(k)
 					}
 					if k := prefix + "max_points"; reader.IsConfigured(k) {
-						d.MaxPoints = reader.GetInt(k)
+						cfg.MaxPoints = reader.GetInt(k)
 					}
-					return d
+					return cfg
 				},
 			},
 			{

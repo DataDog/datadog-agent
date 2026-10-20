@@ -53,6 +53,9 @@ type bocpdSeriesState struct {
 
 // BOCPDConfig holds configuration for the BOCPD detector.
 type BOCPDConfig struct {
+	// Kind optionally restricts detection to a specific metric category.
+	Kind observer.MetricKind `json:"kind,omitempty"`
+
 	// WarmupPoints is the number of initial points used for baseline estimation.
 	// A longer warmup captures more of the metric's natural variability, reducing
 	// false positives from normal fluctuation. Default: 60 (~1 minute at 1Hz).
@@ -119,6 +122,7 @@ func DefaultBOCPDConfig() BOCPDConfig {
 // posterior state and processes only newly visible points on each advance.
 type BOCPDDetector struct {
 	config BOCPDConfig
+	name   string
 	ready  bool
 
 	// per-(series, aggregation) state.
@@ -170,15 +174,20 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	if len(config.Aggregations) == 0 {
 		config.Aggregations = defaults.Aggregations
 	}
+	config.Aggregations = aggregationsForKind(config.Kind, config.Aggregations)
 	return &BOCPDDetector{
 		config: config,
+		name:   detectorInstanceName("bocpd", config.Kind),
 		series: make(map[bocpdStateKey]*bocpdSeriesState),
 	}
 }
 
 // Name returns the detector name.
 func (b *BOCPDDetector) Name() string {
-	return "bocpd"
+	if b.name != "" {
+		return b.name
+	}
+	return detectorInstanceName("bocpd", b.config.Kind)
 }
 
 func (b *BOCPDDetector) Ready() bool { return b.ready }
@@ -204,6 +213,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 	var allAnomalies []observer.Anomaly
 
 	for _, ref := range b.cachedRefs {
+		if !acceptsSeriesForKind(storage, ref, b.config.Kind) {
+			continue
+		}
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
 		for _, agg := range b.config.Aggregations {
 			if !supportsSeriesAggregate(storage, ref, agg) {
@@ -469,7 +481,8 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 	return &observer.Anomaly{
 		Type:         observer.AnomalyTypeMetric,
 		Source:       source,
-		DetectorName: b.Name(),
+		DetectorName: "bocpd",
+		MetricKind:   b.config.Kind,
 		Timestamp:    p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMean:         state.baselineMean,

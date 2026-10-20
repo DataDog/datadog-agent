@@ -5,7 +5,44 @@
 
 package observer
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
+
+func TestMetricKindJSON(t *testing.T) {
+	type payload struct {
+		Kind MetricKind `json:"kind,omitempty"`
+	}
+
+	var p payload
+	if err := json.Unmarshal([]byte(`{"kind":"QUANTITY_GAUGE"}`), &p); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+	if p.Kind != QuantityGauge {
+		t.Fatalf("got kind %v, want %v", p.Kind, QuantityGauge)
+	}
+
+	encoded, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("unexpected marshal error: %v", err)
+	}
+	if string(encoded) != `{"kind":"QUANTITY_GAUGE"}` {
+		t.Fatalf("got %s, want %s", string(encoded), `{"kind":"QUANTITY_GAUGE"}`)
+	}
+
+	var empty payload
+	if err := json.Unmarshal([]byte(`{}`), &empty); err != nil {
+		t.Fatalf("unexpected unmarshal error on empty payload: %v", err)
+	}
+	if empty.Kind != MetricKindUnspecified {
+		t.Fatalf("got kind %v, want %v", empty.Kind, MetricKindUnspecified)
+	}
+
+	if err := json.Unmarshal([]byte(`{"kind":"INVALID"}`), &p); err == nil {
+		t.Fatal("expected error for unsupported metric kind")
+	}
+}
 
 func TestFormatAnomaly(t *testing.T) {
 	series := SeriesDescriptor{Name: "cpu.user", Aggregate: AggregateAverage}
