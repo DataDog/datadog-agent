@@ -22,8 +22,7 @@ type logsPerformanceProfile struct {
 	settings    map[string]interface{} // config key -> forced value
 }
 
-// pipelineCountSentinel is a logs_config.pipelines value resolved at apply time
-// to min(max, cores), so a profile never raises the count above the host's cores.
+// pipelineCountSentinel resolves to min(max, cores) at apply time.
 type pipelineCountSentinel struct{ max int }
 
 // pipelinesAtMost resolves to min(n, GOMAXPROCS).
@@ -48,9 +47,7 @@ func mergeProfileSettings(maps ...map[string]interface{}) map[string]interface{}
 	return out
 }
 
-// Throughput profiles form a monotonic ladder, each a superset of the previous,
-// so escalating never lowers a setting a lower tier raised:
-// high-concurrency ⊂ high-throughput ⊂ max-throughput.
+// Throughput profiles are supersets: high-concurrency ⊂ high-throughput ⊂ max-throughput.
 var (
 	highConcurrencySettings = map[string]interface{}{
 		"logs_config.batch_max_concurrent_send": 20,
@@ -65,11 +62,7 @@ var (
 	})
 )
 
-// logsPerformanceProfiles is the catalog, keyed by name then version.
-//
-// Published (name, version) pairs are IMMUTABLE: improved tuning must ship as a
-// new version so upgrades never silently change a host's config. A bare profile
-// name resolves to version 1, so version 1 must always exist.
+// logsPerformanceProfiles is keyed by name then version; ship tuning changes as a new version.
 var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 	"high-concurrency": {
 		1: {
@@ -117,15 +110,13 @@ var logsPerformanceProfiles = map[string]map[int]logsPerformanceProfile{
 	},
 }
 
-// LogsPerformanceProfileSetting is a single config key/value that a profile
-// applies. Used to describe the active profile (e.g. in the agent status).
+// LogsPerformanceProfileSetting is one config key/value a profile applies.
 type LogsPerformanceProfileSetting struct {
 	Key   string
 	Value interface{}
 }
 
-// isLogsPerformanceProfileOff reports whether the given profile name disables
-// profiles (empty or one of the explicit "off" aliases).
+// isLogsPerformanceProfileOff reports whether name is empty or an "off" alias.
 func isLogsPerformanceProfileOff(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "", "off", "none", "default":
@@ -139,8 +130,7 @@ func configuredLogsPerformanceProfile(config pkgconfigmodel.Reader) string {
 	return strings.ToLower(strings.TrimSpace(config.GetString("logs_config.profile")))
 }
 
-// resolveLogsPerformanceProfileVersion maps an unset (0) version to 1 for
-// upgrade-safety; otherwise returns the version unchanged.
+// resolveLogsPerformanceProfileVersion maps an unset (0) version to 1.
 func resolveLogsPerformanceProfileVersion(version int) int {
 	if version == 0 {
 		return 1
@@ -148,8 +138,7 @@ func resolveLogsPerformanceProfileVersion(version int) int {
 	return version
 }
 
-// lookupLogsPerformanceProfile resolves the profile selected by config to its
-// definition, name, and version. ok is false when no valid profile is active.
+// lookupLogsPerformanceProfile resolves the configured profile; ok is false when none is active.
 func lookupLogsPerformanceProfile(config pkgconfigmodel.Reader) (profile logsPerformanceProfile, name string, version int, ok bool) {
 	name = configuredLogsPerformanceProfile(config)
 	if isLogsPerformanceProfileOff(name) {
@@ -167,8 +156,7 @@ func lookupLogsPerformanceProfile(config pkgconfigmodel.Reader) (profile logsPer
 	return profile, name, version, true
 }
 
-// ResolvedLogsPerformanceProfile reports the active profile's name, version, and
-// settings (sorted by key). ok is false when no valid profile is active.
+// ResolvedLogsPerformanceProfile reports the active profile and its settings sorted by key.
 func ResolvedLogsPerformanceProfile(config pkgconfigmodel.Reader) (name string, version int, settings []LogsPerformanceProfileSetting, ok bool) {
 	profile, name, version, ok := lookupLogsPerformanceProfile(config)
 	if !ok {
@@ -180,17 +168,13 @@ func ResolvedLogsPerformanceProfile(config pkgconfigmodel.Reader) (name string, 
 	return name, version, settings, true
 }
 
-// LogsPerformanceProfileExists reports whether a profile with the given name is
-// defined in the catalog (in any version). Useful for validating a recommended
-// profile name without a config object.
+// LogsPerformanceProfileExists reports whether name is in the catalog.
 func LogsPerformanceProfileExists(name string) bool {
 	_, ok := logsPerformanceProfiles[name]
 	return ok
 }
 
-// LogsPerformanceProfileCovers reports whether active is a superset of candidate
-// (applies every candidate setting at the same value), so callers can avoid
-// recommending a switch that would only lower settings. Compares version 1.
+// LogsPerformanceProfileCovers reports whether active's version 1 applies every candidate setting at the same value.
 func LogsPerformanceProfileCovers(active, candidate string) bool {
 	if isLogsPerformanceProfileOff(active) || isLogsPerformanceProfileOff(candidate) {
 		return false
@@ -212,10 +196,7 @@ func LogsPerformanceProfileCovers(active, candidate string) bool {
 	return true
 }
 
-// profileYieldSources are the sources a profile must not override: anything the
-// user, a policy, or runtime set, as opposed to defaults or the profile's own
-// SourceConfigPostInit writes. This lets a customer pick a profile and still
-// tweak individual logs_config.* knobs on top of it.
+// profileYieldSources are the sources a profile never overrides.
 var profileYieldSources = map[pkgconfigmodel.Source]struct{}{
 	pkgconfigmodel.SourceFile:               {},
 	pkgconfigmodel.SourceEnvVar:             {},
@@ -227,8 +208,7 @@ var profileYieldSources = map[pkgconfigmodel.Source]struct{}{
 	pkgconfigmodel.SourceCLI:                {},
 }
 
-// keyExplicitlySet reports whether key has a value from a source the profile
-// should yield to, read per-source so the profile's own write does not mask it.
+// keyExplicitlySet reports whether key is set by a source in profileYieldSources.
 func keyExplicitlySet(config pkgconfigmodel.Reader, key string) bool {
 	for _, vs := range config.GetAllSources(key) {
 		if vs.Value == nil {
@@ -241,8 +221,7 @@ func keyExplicitlySet(config pkgconfigmodel.Reader, key string) bool {
 	return false
 }
 
-// allProfileSettingKeys returns the union of every config key any catalog profile
-// can write, sorted. Used to clear a previous apply's writes before re-evaluating.
+// allProfileSettingKeys returns every key any profile can write, sorted.
 func allProfileSettingKeys() []string {
 	seen := map[string]struct{}{}
 	for _, versions := range logsPerformanceProfiles {
@@ -260,21 +239,8 @@ func allProfileSettingKeys() []string {
 	return keys
 }
 
-// ApplyLogsPerformanceProfile expands logs_config.profile into the underlying
-// logs_config.* settings, writing at SourceConfigPostInit. It yields to any key
-// the user, a policy, or runtime set, so explicit settings win over the profile.
-//
-// It is idempotent: each call first clears its own prior SourceConfigPostInit
-// writes, so it can be safely re-run after additional config sources merge. The
-// full agent merges fleet policies only after the initial override pass, so this
-// must run again afterward (see comp/core/config) — otherwise a profile selected
-// by fleet policy is never expanded, and the first pass's post-init writes (which
-// outrank SourceFleetPolicies) would shadow a fleet-policy knob override that is
-// meant to win over the profile.
+// ApplyLogsPerformanceProfile expands logs_config.profile at SourceConfigPostInit; it is idempotent.
 func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
-	// Drop any values a previous apply wrote so this pass reflects the current
-	// config state instead of stacking on top of, or being shadowed by, stale
-	// post-init writes.
 	for _, key := range allProfileSettingKeys() {
 		config.UnsetForSource(key, pkgconfigmodel.SourceConfigPostInit)
 	}
@@ -302,7 +268,6 @@ func ApplyLogsPerformanceProfile(config pkgconfigmodel.Config) {
 
 	var kept []string
 	for _, key := range sortedSettingKeys(profile.settings) {
-		// An explicitly-set key wins over the profile.
 		if keyExplicitlySet(config, key) {
 			kept = append(kept, fmt.Sprintf("%s (%v)", key, config.Get(key)))
 			continue
