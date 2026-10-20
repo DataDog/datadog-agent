@@ -574,23 +574,29 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	seriesSink metrics.SerieSink,
 	sketchesSink metrics.SketchesSink,
 ) {
+	// Detach under the mutex; stream sinks can block on serialization, which
+	// may synchronously submit internal telemetry back into this aggregator.
+	type batch struct {
+		series   metrics.Series
+		sketches metrics.SketchSeriesList
+	}
+	var batches []batch
 	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	//nolint:revive // TODO(AML) Fix revive linter
-	for checkId, checkSampler := range agg.checkSamplers {
-		checkSeries, sketches := checkSampler.flush()
-		for _, s := range checkSeries {
-			seriesSink.Append(s)
+	for checkID, sampler := range agg.checkSamplers {
+		series, sketches := sampler.flush()
+		batches = append(batches, batch{series, sketches})
+		if sampler.deregistered {
+			sampler.release()
+			delete(agg.checkSamplers, checkID)
 		}
-
-		for _, sk := range sketches {
-			sketchesSink.Append(sk)
+	}
+	agg.mu.Unlock()
+	for _, batch := range batches {
+		for _, serie := range batch.series {
+			seriesSink.Append(serie)
 		}
-
-		if checkSampler.deregistered {
-			checkSampler.release()
-			delete(agg.checkSamplers, checkId)
+		for _, sketch := range batch.sketches {
+			sketchesSink.Append(sketch)
 		}
 	}
 }
@@ -846,12 +852,16 @@ func (agg *BufferedAggregator) run() {
 			// Do this here, rather than in the Flush():
 			// - make sure Shrink doesn't happen concurrently with sample processing.
 			// - we don't need to Shrink() on stop
+			agg.mu.Lock()
 			agg.tagsStore.Shrink()
+			agg.mu.Unlock()
 
 			aggregatorEventPlatformErrorLogged = false
 
 		case matcher := <-agg.filterListChan:
+			agg.mu.Lock()
 			agg.flushFilterList = matcher
+			agg.mu.Unlock()
 		case matcher := <-agg.tagFilterListChan:
 			agg.setFilterList(matcher)
 		case <-agg.health.C:
@@ -919,6 +929,8 @@ func (agg *BufferedAggregator) run() {
 // Set a new filterlist, ensuring we also clear the context resolver strip cache
 // for each check sampler.
 func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
 	for _, cs := range agg.checkSamplers {
 		cs.clearStripCache()
 	}

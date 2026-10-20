@@ -788,3 +788,43 @@ func TestSenderGaugeWithTimestampValidation(t *testing.T) {
 	assert.Error(t, err)
 	assert.Len(t, s.itemChan, 0)
 }
+
+// Model a streaming serializer that feeds metrics back before accepting a point.
+// The default sender must progress even when the ordinary input loop is paused.
+type telemetryFeedbackSink struct{ submit func() }
+
+func (s telemetryFeedbackSink) Append(_ *metrics.Serie) { s.submit() }
+func TestInternalTelemetryProgressDuringStream(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	sender, err := demux.GetDefaultSender()
+	require.NoError(t, err)
+	sender.Gauge("feedback.initial", 1, "", nil)
+	sender.Commit()
+	done := make(chan struct{})
+	go func() {
+		var sketches metrics.SketchSeriesList
+		agg.getSeriesAndSketches(time.Now(), telemetryFeedbackSink{submit: func() {
+			for i := 0; i <= cap(agg.checkItems); i++ {
+				sender.Gauge("feedback.during", float64(i), "", nil)
+			}
+			sender.Commit()
+		}}, &sketches)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("internal telemetry deadlocked against the stream")
+	}
+	series, _ := agg.GetSeriesAndSketches(time.Now())
+	found := false
+	for _, s := range series {
+		if s.Name == "feedback.during" {
+			found = true
+			require.Equal(t, float64(cap(agg.checkItems)), s.Points[0].Value)
+		}
+	}
+	require.True(t, found, "feedback metrics must be retained")
+}
