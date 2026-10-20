@@ -783,14 +783,23 @@ func TestCreateChunks(t *testing.T) {
 				traceID1 = 123           // sampled by 50% rate
 				traceID2 = 1237892138897 // not sampled by 50% rate
 				traceID3 = 1237892138898 // not sampled by 50% rate
+				traceID4 = 1237892138899 // tracer-provided dm on a non-first span
+				traceID5 = 1237892138900 // tracer-provided dm only in the W3C tracestate
+				traceID6 = 1237892138901 // malformed tracer-provided dm
 			)
 			traces := map[uint64]pb.Trace{
 				traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
 				traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
 				traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
+				traceID4: {{TraceID: traceID4, SpanID: 1}, {TraceID: traceID4, SpanID: 2, Meta: map[string]string{"_dd.p.dm": "-12"}}},
+				traceID5: {{TraceID: traceID5, SpanID: 1, Meta: map[string]string{"w3c.tracestate": "dd=s:2;t.dm:-11,foo=bar"}}, {TraceID: traceID5, SpanID: 2}},
+				traceID6: {{TraceID: traceID6, SpanID: 1}, {TraceID: traceID6, SpanID: 2, Meta: map[string]string{"_dd.p.dm": "abc"}}},
 			}
 			priorities := map[uint64]sampler.SamplingPriority{
 				traceID3: sampler.PriorityUserKeep,
+				traceID4: sampler.PriorityUserKeep,
+				traceID5: sampler.PriorityUserKeep,
+				traceID6: sampler.PriorityUserKeep,
 			}
 			chunks := o.createChunks(traces, priorities)
 			require.Len(t, chunks, len(traces))
@@ -812,103 +821,18 @@ func TestCreateChunks(t *testing.T) {
 					case traceID3:
 						require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"], "traceID3: dm must be -4")
 						require.Equal(t, int32(2), c.Priority, "traceID3: priority must be 2")
+					case traceID4:
+						require.Equal(t, "-12", c.Spans[0].Meta["_dd.p.dm"], "traceID4: tracer dm must be preserved")
+					case traceID5:
+						require.Equal(t, "-11", c.Spans[0].Meta["_dd.p.dm"], "traceID5: tracestate dm must be preserved")
+					case traceID6:
+						require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"], "traceID6: malformed dm must fall back to -4")
 					}
 				}
 			}
 		})
 	}
 }
-
-func TestCreateChunksDecisionMaker(t *testing.T) {
-	const traceID = 123 // sampled by the 50% probabilistic rate
-	for _, tt := range []struct {
-		name     string
-		priority *sampler.SamplingPriority
-		spans    pb.Trace
-		want     string
-	}{
-		{
-			name:     "priority with adaptive rule dm is preserved",
-			priority: ptrPriority(sampler.PriorityUserKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1, Meta: map[string]string{"_dd.p.dm": "-12"}}, {TraceID: traceID, SpanID: 2}},
-			want:     "-12",
-		},
-		{
-			name:     "priority with remote user rule dm is preserved",
-			priority: ptrPriority(sampler.PriorityUserKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1, Meta: map[string]string{"_dd.p.dm": "-11"}}},
-			want:     "-11",
-		},
-		{
-			name:     "priority with agent rate dm is preserved",
-			priority: ptrPriority(sampler.PriorityAutoKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1, Meta: map[string]string{"_dd.p.dm": "-0"}}},
-			want:     "-0",
-		},
-		{
-			name:     "priority with dm on a non-first span is preserved on the first span",
-			priority: ptrPriority(sampler.PriorityUserKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1}, {TraceID: traceID, SpanID: 2, Meta: map[string]string{"_dd.p.dm": "-12"}}},
-			want:     "-12",
-		},
-		{
-			name:     "priority with dm only in tracestate is preserved",
-			priority: ptrPriority(sampler.PriorityUserKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1, Meta: map[string]string{"w3c.tracestate": "foo=bar, dd=s:2;t.dm:-3;t.tid:66"}}},
-			want:     "-3",
-		},
-		{
-			name:     "dm attribute takes precedence over tracestate",
-			priority: ptrPriority(sampler.PriorityUserKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1, Meta: map[string]string{"w3c.tracestate": "dd=s:2;t.dm:-3", "_dd.p.dm": "-12"}}},
-			want:     "-12",
-		},
-		{
-			name:     "priority without dm falls back to manual",
-			priority: ptrPriority(sampler.PriorityUserKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1}, {TraceID: traceID, SpanID: 2}},
-			want:     "-4",
-		},
-		{
-			name:     "priority with malformed dm falls back to manual",
-			priority: ptrPriority(sampler.PriorityUserKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1, Meta: map[string]string{"_dd.p.dm": "12"}}, {TraceID: traceID, SpanID: 2, Meta: map[string]string{"_dd.p.dm": "-1a"}}},
-			want:     "-4",
-		},
-		{
-			name:     "priority with malformed tracestate dm falls back to manual",
-			priority: ptrPriority(sampler.PriorityUserKeep),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1, Meta: map[string]string{"w3c.tracestate": "dd=s:2;t.dm:-;x=t.dm:-5"}}},
-			want:     "-4",
-		},
-		{
-			name:  "no priority uses the probabilistic sampler dm",
-			spans: pb.Trace{{TraceID: traceID, SpanID: 1, Meta: map[string]string{"_dd.p.dm": "-12"}}},
-			want:  "-9",
-		},
-		{
-			name:     "drop priority does not set dm",
-			priority: ptrPriority(sampler.PriorityUserDrop),
-			spans:    pb.Trace{{TraceID: traceID, SpanID: 1}},
-			want:     "",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := NewTestConfig(t)
-			cfg.OTLPReceiver.ProbabilisticSampling = 50
-			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-			priorities := map[uint64]sampler.SamplingPriority{}
-			if tt.priority != nil {
-				priorities[traceID] = *tt.priority
-			}
-			chunks := o.createChunks(map[uint64]pb.Trace{traceID: tt.spans}, priorities)
-			require.Len(t, chunks, 1)
-			require.Equal(t, tt.want, chunks[0].Spans[0].Meta["_dd.p.dm"])
-		})
-	}
-}
-
-func ptrPriority(p sampler.SamplingPriority) *sampler.SamplingPriority { return &p }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
 	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
@@ -1219,45 +1143,6 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 				require.Len(out.Chunks, 1)
 				require.Equal(int32(2), out.Chunks[0].Priority)
 				require.Equal("-12", out.Chunks[0].Spans[0].Meta["_dd.p.dm"])
-			},
-		},
-		{
-			// decision maker only available in the W3C tracestate `dd` member
-			in: []testutil.OTLPResourceSpan{
-				{
-					Spans: []*testutil.OTLPSpan{
-						{
-							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-							Name:       "first",
-							TraceState: "dd=s:2;p:0123456789abcdef;t.dm:-11,foo=bar",
-							Attributes: map[string]interface{}{"_sampling_priority_v1": 2},
-						},
-					},
-				},
-			},
-			fn: func(out *pb.TracerPayload) {
-				require.Len(out.Chunks, 1)
-				require.Equal(int32(2), out.Chunks[0].Priority)
-				require.Equal("-11", out.Chunks[0].Spans[0].Meta["_dd.p.dm"])
-			},
-		},
-		{
-			// upstream OpenTelemetry SDK setting a manual priority without a decision maker
-			in: []testutil.OTLPResourceSpan{
-				{
-					Spans: []*testutil.OTLPSpan{
-						{
-							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-							Name:       "first",
-							Attributes: map[string]interface{}{"sampling.priority": 2},
-						},
-					},
-				},
-			},
-			fn: func(out *pb.TracerPayload) {
-				require.Len(out.Chunks, 1)
-				require.Equal(int32(2), out.Chunks[0].Priority)
-				require.Equal("-4", out.Chunks[0].Spans[0].Meta["_dd.p.dm"])
 			},
 		},
 	} {
