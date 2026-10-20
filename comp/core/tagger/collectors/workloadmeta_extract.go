@@ -1126,7 +1126,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 	tagList.AddLow(tags.InferenceWorkloadComponent, component)
 	// Serve labels do not identify LLMs. Require the official Ray LLM image too.
 	if cluster := pod.Labels[kubernetes.RayClusterLabelKey]; cluster != "" && pod.Labels[kubernetes.RayServeLabelKey] == "true" && isRayLLMPod(pod) {
-		tagList.AddLow(tags.InferenceWorkload, cluster)
+		tagList.AddLow(tags.InferenceWorkload, rayClusterWorkloadName(cluster))
 		component := pod.Labels[kubernetes.RayNodeTypeLabelKey]
 		if component == "worker" && pod.Labels[kubernetes.RayNodeGroupLabelKey] != "" {
 			component = pod.Labels[kubernetes.RayNodeGroupLabelKey]
@@ -1161,6 +1161,18 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["pods"], c.globK8sResourcesLabels["pods"], tagList)
 	}
+}
+
+// rayClusterWorkloadName follows the backend rule for generated RayCluster names.
+func rayClusterWorkloadName(name string) string {
+	if suffix := strings.LastIndex(name, "-"); suffix > 0 {
+		value := name[suffix+1:]
+		// Kubernetes generates five characters from this alphabet.
+		if len(value) == 5 && strings.Trim(value, "bcdfghjklmnpqrstvwxz2456789") == "" {
+			return name[:suffix]
+		}
+	}
+	return name
 }
 
 func isRayLLMPod(pod *workloadmeta.KubernetesPod) bool {

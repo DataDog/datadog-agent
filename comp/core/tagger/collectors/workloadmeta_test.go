@@ -2554,10 +2554,10 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 		wantWorkload  string
 		wantComponent string
 	}{
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "head", group: "headgroup", wantWorkload: "ray-aggregated-4spzc", wantComponent: "head"},
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "aggregated", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "worker", group: "aggregated", wantWorkload: "ray-aggregated-4spzc", wantComponent: "aggregated"},
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "decode", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "decode", wantWorkload: "ray-disaggregated-hc686", wantComponent: "decode"},
-		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "prefill", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "prefill", wantWorkload: "ray-disaggregated-hc686", wantComponent: "prefill"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "head", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "head", group: "headgroup", wantWorkload: "ray-aggregated", wantComponent: "head"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "aggregated", cluster: "ray-aggregated-4spzc", serve: "true", nodeType: "worker", group: "aggregated", wantWorkload: "ray-aggregated", wantComponent: "aggregated"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "decode", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "decode", wantWorkload: "ray-disaggregated", wantComponent: "decode"},
+		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "prefill", cluster: "ray-disaggregated-hc686", serve: "true", nodeType: "worker", group: "prefill", wantWorkload: "ray-disaggregated", wantComponent: "prefill"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "custom group", cluster: "serve", serve: "true", nodeType: "worker", group: "gpu-workers", wantWorkload: "serve", wantComponent: "gpu-workers"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no group", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "no node type", cluster: "serve", serve: "true", group: "decode", wantWorkload: "serve"},
@@ -5986,6 +5986,30 @@ func TestHandleProcess(t *testing.T) {
 				require.Len(t, result, 1)
 				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
 			}
+		})
+	}
+}
+
+func TestRayClusterWorkloadName(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		want string
+	}{
+		{name: "nlq-mixed-nqlnx", want: "nlq-mixed"},
+		{name: "nlq-mixed-24567", want: "nlq-mixed"},
+		{name: "nlq-mixed-nqlnx-bcdfg", want: "nlq-mixed-nqlnx"},
+		{name: "nlq-mixed", want: "nlq-mixed"},
+		{name: "nlq-mixed-abcde", want: "nlq-mixed-abcde"},
+		{name: "nlq-mixed-12345", want: "nlq-mixed-12345"},
+		{name: "nlq-mixed-bcdf", want: "nlq-mixed-bcdf"},
+		{name: "nlq-mixed-bcdfgh", want: "nlq-mixed-bcdfgh"},
+		{name: "nlq-mixed-", want: "nlq-mixed-"},
+		{name: "-bcdfg", want: "-bcdfg"},
+		{name: "bcdfg", want: "bcdfg"},
+		{name: "", want: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, rayClusterWorkloadName(tt.name))
 		})
 	}
 }
