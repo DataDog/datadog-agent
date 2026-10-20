@@ -37,7 +37,7 @@ func TestPassthroughCorrelations(t *testing.T) {
 	}
 }
 
-func TestStreamingStorageUsesProductionRetention(t *testing.T) {
+func TestStreamingStorageUsesProductionPolicies(t *testing.T) {
 	settings, err := observerimpl.ParseSettingsFromJSON(map[string]json.RawMessage{
 		"bocpd": json.RawMessage(`{"enabled":true,"max_run_length":240}`),
 	})
@@ -45,10 +45,17 @@ func TestStreamingStorageUsesProductionRetention(t *testing.T) {
 	cfg := streamingStorageCfg(settings, false)
 	require.Equal(t, 240, cfg.MaxPointsPerSeries)
 	production := observerimpl.StorageConfigForComponents(settings)
-	require.Equal(t, production.MaxPointsPerSeries, cfg.MaxPointsPerSeries)
-	require.Equal(t, production.PointRetentionSecs, cfg.PointRetentionSecs)
+	// These flags capture already-emitted results; they do not change inputs
+	// or detector-facing storage. Every other policy must match production.
+	cfg.MaxCorrelations = production.MaxCorrelations
+	cfg.TrackCorrelationHistory = production.TrackCorrelationHistory
+	cfg.TrackAnomalyHistory = production.TrackAnomalyHistory
+	cfg.TrackDetectorOutputHistory = production.TrackDetectorOutputHistory
+	require.Equal(t, production, cfg)
 	require.Equal(t, int64(3616), cfg.PointRetentionSecs)
-	require.Positive(t, cfg.MaxSeries)
+	require.Positive(t, cfg.InactiveSeriesTTLSeconds)
+	require.Positive(t, cfg.InactiveSeriesCheckIntervalSeconds)
+
 }
 
 func TestStreamingStorageWithoutDetectorsRemainsBounded(t *testing.T) {

@@ -331,9 +331,12 @@ synchronously, detector/correlator analysis advances with the same scheduler as
 the live Observer, and an end-of-input flush analyzes the final timestamp. The
 stream uses both production point-count and time limits derived from the enabled
 detectors, retaining one additional pending scheduler bucket. Observation memory
-remains bounded by detector windows and series cardinality. The testbench still
-disables inactivity eviction; this matches point-history retention, not every
-production storage policy.
+remains bounded by detector windows and series cardinality. Streaming also uses
+production defaults for series capacity, the eviction floor, inactivity TTL, and
+inactivity-check cadence (five minutes for both inactivity settings). Idle-series
+eviction removes the associated detector state through the same engine path.
+These are production defaults; deployment-specific Agent storage overrides are
+not automatically imported into the testbench.
 
 Headless output still retains anomaly and correlation history because the
 evaluator consumes the complete result set. Pathological runs that emit an

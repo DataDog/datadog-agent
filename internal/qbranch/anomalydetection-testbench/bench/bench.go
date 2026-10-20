@@ -739,12 +739,10 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 	return cfg
 }
 
-// streamingStorageCfg derives bounded retention from the configured detectors,
-// but disables inactivity eviction so headless output retains complete scenario state.
+// streamingStorageCfg preserves production storage policies for the configured
+// detectors. Only output-history capture is enabled for finite replay evaluation.
 func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.StorageConfigForComponents(settings)
-	cfg.InactiveSeriesTTLSeconds = 0
-	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
 	cfg.TrackAnomalyHistory = true
