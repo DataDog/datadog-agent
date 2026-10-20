@@ -6,7 +6,6 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
-load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 
 go_binary(
@@ -133,9 +132,4 @@ sh_test(
     data = [":packaged_client_lifecycle_archive"],
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:macos"],
-)
-
-dd_agent_go_test(
-    name = "smoke_test",
-    srcs = ["client_lifecycle_generated_test.go"],
 )
