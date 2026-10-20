@@ -1,0 +1,34 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+package __PKG__
+
+import (
+__MODULE_TEST_STD_IMPORTS__
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+__MODULE_TEST_CFG_IMPORT__	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+)
+
+// TestModuleWiring pins what the registry and scheduler see: the names, and
+// which built-in check (if any) the module registers with its source and
+// interval.
+func TestModuleWiring(t *testing.T) {
+	h, _ := hostnamemock.NewMock("node-a")
+	deps := __MODULE_TEST_DEPS__
+	m := NewModule(deps)
+
+	assert.Equal(t, IssueName, m.IssueName())
+	assert.Equal(t, IssueType, m.IssueType())
+
+	issue, err := m.BuildIssue(nil)
+	require.NoError(t, err)
+	assert.Equal(t, IssueName, issue.IssueName)
+	assert.Equal(t, IssueType, issue.IssueType)
+
+__MODULE_TEST_CHECKS__
+}

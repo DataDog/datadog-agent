@@ -1,0 +1,86 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+__BUILD_TAG_LINE__package __PKG__
+
+import (
+__TEST_STD_IMPORTS__
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+__TEST_IMPORTS__	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+)
+
+// These tests cover the wiring through the detect seam: IDs, the healthy and
+// error paths, and vanishing instances. Detection itself is tested in detect_test.go.
+
+func newTestChecker(t *testing.T, host string, detect func() ([]instance, error)) *checker {
+	t.Helper()
+	h, _ := hostnamemock.NewMock(hostnamemock.MockHostname(host))
+	return &checker{__TEST_CHECKER_FIELDS____TEST_STATE_INIT__detect: detect}
+}
+
+func TestCheckerRun(t *testing.T) {
+	instances := __SAMPLE_INSTANCES__
+
+	t.Run("reports one issue per instance while the condition is present", func(t *testing.T) {
+		c := newTestChecker(t, "node-a", func() ([]instance, error) { return instances, nil })
+
+		reports, err := c.Run()
+
+		require.NoError(t, err)
+		require.Len(t, reports, len(instances))
+		ids := map[string]struct{}{}
+		for __TEST_RANGE__ := range reports {
+			assert.Equal(t, IssueName, r.IssueName)
+			assert.Equal(t, __TEST_ID_CALL__, r.IssueID)
+			assert.NotEmpty(t, r.Context)
+			ids[r.IssueID] = struct{}{}
+		}
+		assert.Len(t, ids, len(instances), "each instance needs its own issue ID")
+	})
+
+	t.Run("returns nil, nil when healthy so the scheduler resolves the issue", func(t *testing.T) {
+		c := newTestChecker(t, "node-a", func() ([]instance, error) { return nil, nil })
+
+		reports, err := c.Run()
+
+		require.NoError(t, err)
+		assert.Nil(t, reports)
+	})
+
+	t.Run("an instance that disappears is no longer reported so the scheduler resolves it", func(t *testing.T) {
+		current := instances
+		c := newTestChecker(t, "node-a", func() ([]instance, error) { return current, nil })
+__TEST_NO_HOLD__
+		before, err := c.Run()
+		require.NoError(t, err)
+		require.NotEmpty(t, before)
+
+		current = nil
+		after, err := c.Run()
+		require.NoError(t, err)
+		assert.Nil(t, after)
+	})
+
+	t.Run("propagates detection errors without resolving", func(t *testing.T) {
+		c := newTestChecker(t, "node-a", func() ([]instance, error) { return nil, errors.New("boom") })
+
+		reports, err := c.Run()
+
+		require.Error(t, err)
+		assert.Nil(t, reports)
+	})
+}
+__TEST_EXTRA__
+func TestInstanceIssueIDScoping(t *testing.T) {
+	healthy := func() ([]instance, error) { return nil, nil }
+	a := newTestChecker(t, "node-a", healthy)
+	b := newTestChecker(t, "node-b", healthy)
+
+	assert.True(t, strings.HasPrefix(a.instanceIssueID(__ID_ARG_EMPTY__), IssueID+":"))
+	assert.Equal(t, a.instanceIssueID(__ID_ARG_EMPTY__), a.instanceIssueID(__ID_ARG_EMPTY__), "IDs must be stable across runs")
+	assert.NotEqual(t, a.instanceIssueID(__ID_ARG_EMPTY__), b.instanceIssueID(__ID_ARG_EMPTY__), "different hosts must not share an ID")
+__ID_MULTI_ASSERTS__}
