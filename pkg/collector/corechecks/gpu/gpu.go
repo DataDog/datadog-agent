@@ -496,6 +496,10 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 			log.Debugf("Container %s is a Datadog container, skipping for device assignment", container.Name)
 			continue
 		}
+		if containers.IsKAIReservationContainer(c.wmeta, container) {
+			log.Debugf("Container %s belongs to a KAI Scheduler reservation pod, skipping for device assignment", container.Name)
+			continue
+		}
 
 		gpuContainers++
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
