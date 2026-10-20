@@ -2567,9 +2567,17 @@ func TestRayInferenceTagsPropagateToPodAndContainer(t *testing.T) {
 		{image: "rayproject/ray-llm:2.59.0-py312-cu130-aarch64", name: "unrelated pod"},
 		{name: "generic Ray Serve", image: "rayproject/ray:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", group: "decode"},
 		{name: "Ray ML", image: "rayproject/ray-ml:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
-		{name: "custom registry", image: "example.com/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
-		{name: "custom namespace", image: "docker.io/example/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
-		{name: "similar image", image: "rayproject/ray-llm-custom:2.59.0", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "custom registry", image: "example.com/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom namespace", image: "docker.io/example/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom Ray LLM image", image: "rayproject/ray-llm-custom:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "private Ray LLM service", image: "example.com/team/llm/apps/ray-llm-service:vllm-stable-nydus@sha256:0123456789abcdef", cluster: "nlq-mixed-nqlnx", serve: "true", nodeType: "worker", group: "a10", wantWorkload: "nlq-mixed", wantComponent: "a10"},
+		{name: "vLLM image", image: "vllm/vllm-openai:latest", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "custom vLLM image", image: "example.com/team/custom-vllm-server:latest", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
+		{name: "LLM registry only", image: "ray-llm.example.com/team/ray:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "LLM namespace only", image: "example.com/vllm/ray:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "LLM tag only", image: "example.com/team/ray:vllm-stable-nydus", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "generic LLM image", image: "example.com/team/llm-training:latest", cluster: "serve", serve: "true", nodeType: "worker"},
+		{name: "vLLM without Serve", image: "vllm/vllm-openai:latest", cluster: "batch", nodeType: "worker"},
 		{name: "missing image", cluster: "serve", serve: "true", nodeType: "worker"},
 		{name: "explicit Docker Hub", image: "docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
 		{name: "Docker Hub index", image: "index.docker.io/rayproject/ray-llm:2.59.0", cluster: "serve", serve: "true", nodeType: "worker", wantWorkload: "serve", wantComponent: "worker"},
@@ -2647,7 +2655,7 @@ func TestRayLLMContainerIdentification(t *testing.T) {
 	assert.False(t, isRayLLMPod(&workloadmeta.KubernetesPod{
 		Containers: []workloadmeta.OrchestratorContainer{
 			{Name: "ray-worker", Image: workloadmeta.ContainerImage{Name: "rayproject/ray"}},
-			{Name: "sidecar", Image: workloadmeta.ContainerImage{Name: "rayproject/ray-llm"}},
+			{Name: "sidecar", Image: workloadmeta.ContainerImage{Name: "vllm/vllm-openai"}},
 		},
 	}))
 	for _, name := range []string{"ray-head", "ray-worker"} {

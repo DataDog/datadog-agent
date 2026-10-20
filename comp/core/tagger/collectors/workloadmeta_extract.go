@@ -1124,7 +1124,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 		}
 	}
 	tagList.AddLow(tags.InferenceWorkloadComponent, component)
-	// Serve labels do not identify LLMs. Require the official Ray LLM image too.
+	// KubeRay adds the Serve labels. Also require an LLM serving image.
 	if cluster := pod.Labels[kubernetes.RayClusterLabelKey]; cluster != "" && pod.Labels[kubernetes.RayServeLabelKey] == "true" && isRayLLMPod(pod) {
 		tagList.AddLow(tags.InferenceWorkload, rayClusterWorkloadName(cluster))
 		component := pod.Labels[kubernetes.RayNodeTypeLabelKey]
@@ -1182,10 +1182,11 @@ func isRayLLMPod(pod *workloadmeta.KubernetesPod) bool {
 		if container.Name != "ray-head" && container.Name != "ray-worker" {
 			continue
 		}
-		// Image.Name excludes the tag and digest. Match the full repository so
-		// custom images with the same short name do not qualify.
-		switch container.Image.Name {
-		case "rayproject/ray-llm", "docker.io/rayproject/ray-llm", "index.docker.io/rayproject/ray-llm", "registry-1.docker.io/rayproject/ray-llm":
+		// Image.Name excludes the tag and digest. Check only the repository
+		// basename so registry and namespace names cannot qualify a pod.
+		name := container.Image.Name
+		name = strings.ToLower(name[strings.LastIndex(name, "/")+1:])
+		if strings.Contains(name, "ray-llm") || strings.Contains(name, "vllm") {
 			return true
 		}
 	}
