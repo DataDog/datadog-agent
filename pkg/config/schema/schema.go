@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -77,6 +78,9 @@ func getSysprobeSchema() (*jsonschema.Schema, error) {
 var (
 	coreSchemaGetter     = getCoreSchema
 	sysprobeSchemaGetter = getSysprobeSchema
+
+	m               sync.Mutex
+	violationsCache = map[model.SchemaID][]Violation{}
 )
 
 func getSchema(schemaID model.SchemaID) (*jsonschema.Schema, error) {
@@ -93,6 +97,7 @@ func getSchema(schemaID model.SchemaID) (*jsonschema.Schema, error) {
 type Violation struct {
 	Message       string
 	Path          string
+	SettingKey    string
 	ActualType    string
 	ExpectedTypes []string
 }
@@ -110,11 +115,24 @@ func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	return normalized, nil
 }
 
-func collectViolations(ve *jsonschema.ValidationError, out *[]Violation) {
+func collectViolations(ve *jsonschema.ValidationError, cfg model.Reader, out *[]Violation) {
 	if len(ve.Causes) == 0 {
 		violation := Violation{
 			Message: ve.Error(),
 			Path:    jsonpointer.Pointer(ve.InstanceLocation).String(),
+		}
+		if cfg != nil {
+			key := ""
+			for _, chunk := range jsonpointer.Pointer(ve.InstanceLocation) {
+				if key != "" {
+					key += "."
+				}
+				key += chunk
+				if cfg.IsSetting(key) {
+					violation.SettingKey = key
+					break
+				}
+			}
 		}
 		if typeError, ok := ve.ErrorKind.(*kind.Type); ok {
 			violation.ActualType = typeError.Got
@@ -124,11 +142,11 @@ func collectViolations(ve *jsonschema.ValidationError, out *[]Violation) {
 		return
 	}
 	for _, cause := range ve.Causes {
-		collectViolations(cause, out)
+		collectViolations(cause, cfg, out)
 	}
 }
 
-func validateData(sch *jsonschema.Schema, data interface{}) ([]Violation, error) {
+func validateData(sch *jsonschema.Schema, cfg model.Reader, data interface{}) ([]Violation, error) {
 	if sch == nil {
 		return nil, errors.New("no embedded schema")
 	}
@@ -142,7 +160,7 @@ func validateData(sch *jsonschema.Schema, data interface{}) ([]Violation, error)
 		return []Violation{{Message: err.Error()}}, nil
 	}
 	var out []Violation
-	collectViolations(ve, &out)
+	collectViolations(ve, cfg, &out)
 	return out, nil
 }
 
@@ -158,7 +176,7 @@ func ValidateYAML(data []byte, schemaID model.SchemaID) ([]Violation, error) {
 	if err != nil {
 		return nil, err
 	}
-	return validateData(sch, config)
+	return validateData(sch, nil, config)
 }
 
 // customerConfig returns the settings set by the customer (file, env vars, secrets, ...etc), excluding defaults.
@@ -261,13 +279,23 @@ func ValidateConfig(config model.Reader, ID model.SchemaID) ([]Violation, error)
 	if err != nil {
 		return nil, err
 	}
-	res, err := validateData(sch, normalized)
+	res, err := validateData(sch, config, normalized)
 	if err != nil {
 		return nil, err
 	}
-	return slices.DeleteFunc(res, func(violation Violation) bool {
+	res = slices.DeleteFunc(res, func(violation Violation) bool {
 		return isUnresolvedSecret(config, normalized, violation)
-	}), nil
+	})
+	violationsCache[ID] = res
+	return res, nil
+}
+
+// ResetViolationsCache clears the validation results cached by ValidateConfig. It is meant for tests validating
+// several configurations within the same process.
+func ResetViolationsCache() {
+	m.Lock()
+	defer m.Unlock()
+	clear(violationsCache)
 }
 
 // Skip type errors for placeholders, but validate ENC-looking values returned by the secret backend.

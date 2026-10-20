@@ -15,6 +15,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/schema"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -87,11 +89,41 @@ var (
 	}
 )
 
-// Validate checks the configuration for unexpected unicode and unknown DD_* environment variables. Every resulting
-// warning is added to the config warnings.
+// Validate checks the configuration for unexpected unicode and unknown DD_* environment variables, and validates it
+// against its schema, reverting invalid settings to their default. Every resulting warning is added to the config
+// warnings.
 func (c *ntmConfig) Validate() {
 	c.findUnexpectedUnicode()
 	c.findUnknownEnvVars(os.Environ())
+	c.validateSchema()
+}
+
+// validateSchema validates the configuration against its schema and reverts every invalid setting to its default
+func (c *ntmConfig) validateSchema() {
+	violations, err := schema.ValidateConfig(c, c.schemaID)
+	if err != nil {
+		log.Errorf("could not validate config against schema: %s", err)
+		return
+	}
+
+	c.Lock()
+	defer c.Unlock()
+	for _, v := range violations {
+		if v.SettingKey == "" {
+			c.warnings = append(c.warnings, "invalid configuration: "+v.Message)
+			continue
+		}
+		c.warnings = append(c.warnings, fmt.Sprintf("invalid value for '%s', reverting to default. Error: %s", v.SettingKey, v.Message))
+
+		defaultValue := c.leafAtPathFromNode(v.SettingKey, c.defaults).Get()
+		newTree, err := c.insertValueIntoTree(v.SettingKey, defaultValue, model.SourceConfigPostInit)
+		if err != nil {
+			_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
+		} else if newTree != nil {
+			// a new node was allocated, merge it into root
+			c.root, _ = c.root.Merge(newTree)
+		}
+	}
 }
 
 // registerKnownEnvVars registers environment variables bound to a setting, so they are not reported as unknown
