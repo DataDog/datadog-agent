@@ -3,28 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package authoredscripts
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/artifactstore"
 )
 
 const (
 	artifactDigestIDPrefix       = "sha256-"
-	datadogAgentCacheDirectory   = "datadog-agent"
 	authoredScriptCacheDirectory = "dd-authored-script"
 )
-
-// LocalArtifact identifies an immutable artifact directory that is ready for use.
-type LocalArtifact = artifactstore.Artifact
 
 // PackageMaterializer materializes an authored-script package. MaterializationID must
 // identify every materialization choice not represented by the package digest.
@@ -60,17 +52,20 @@ func NewArtifactResolver(rootDirectory string, materializer PackageMaterializer)
 	}, nil
 }
 
+// NewDefaultArtifactResolver creates an artifact resolver rooted in the
+// platform-specific authored-script cache directory.
+func NewDefaultArtifactResolver(materializer PackageMaterializer) (*ArtifactResolver, error) {
+	rootDirectory, err := defaultArtifactStoreRoot()
+	if err != nil {
+		return nil, err
+	}
+	return NewArtifactResolver(rootDirectory, materializer)
+}
+
 // NewUserArtifactResolver creates an artifact resolver rooted in the current user's
 // authored-script cache directory.
 func NewUserArtifactResolver(materializer PackageMaterializer) (*ArtifactResolver, error) {
-	userCacheDirectory, err := os.UserCacheDir()
-	if err != nil {
-		return nil, fmt.Errorf("could not locate the OS user cache: %w", err)
-	}
-	return NewArtifactResolver(
-		filepath.Join(userCacheDirectory, datadogAgentCacheDirectory, authoredScriptCacheDirectory),
-		materializer,
-	)
+	return NewDefaultArtifactResolver(materializer)
 }
 
 // Resolve returns a validated local artifact, downloading and publishing it on
@@ -93,7 +88,7 @@ func (r *ArtifactResolver) Resolve(ctx context.Context, descriptor Descriptor) (
 	if err != nil {
 		return LocalArtifact{}, fmt.Errorf("could not ensure authored-script package %q version %q: %w", descriptor.Package, descriptor.Version, err)
 	}
-	return artifact, nil
+	return LocalArtifact{Directory: artifact.Directory}, nil
 }
 
 func (r *ArtifactResolver) artifactKey(descriptor Descriptor) artifactstore.Key {

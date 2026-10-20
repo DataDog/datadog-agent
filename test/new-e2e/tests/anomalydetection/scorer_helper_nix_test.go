@@ -81,8 +81,6 @@ anomaly_detection:
     bocpd:
       enabled: true
       warmup_points: 5
-    rrcf:
-      enabled: false
     holt_residual:
       enabled: false
     tukey_biweight:

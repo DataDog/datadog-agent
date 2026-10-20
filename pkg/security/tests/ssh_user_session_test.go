@@ -498,7 +498,7 @@ func TestSSHUserSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("ssh_then_pwd", func(t *testing.T) {
 		data := getResolvedSSHEvent(t, test, testUser)
@@ -547,7 +547,7 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	// Cleanup: restore log after test completion
 	t.Cleanup(func() {
@@ -669,7 +669,7 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("second_ssh_multiplexed", func(t *testing.T) {
 		// 5) Must use master
@@ -820,7 +820,7 @@ func TestSSHUserSessionSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("ssh_session_started_before_agent", func(t *testing.T) {
 		err = test.GetEventSent(t, func() error {

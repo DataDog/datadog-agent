@@ -440,7 +440,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 88 {
+	if len(data) < 96 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -471,7 +471,9 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	m.Detached = binary.NativeEndian.Uint16(data[50:52]) != 0
 
 	m.NamespaceInode = binary.NativeEndian.Uint32(data[52:56])
-	return 88, nil
+	m.MountFlags = NormalizeMountFlagsFromVFS(binary.NativeEndian.Uint32(data[56:60]))
+	// data[60:64] - padding
+	return 96, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -548,8 +550,7 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Flags = binary.NativeEndian.Uint32(data[0:4])
 	e.Mode = binary.NativeEndian.Uint32(data[4:8])
-	e.SampleCookie = binary.NativeEndian.Uint32(data[8:12])
-	// data[12:16] is padding
+	e.SampleCookie = binary.NativeEndian.Uint64(data[8:16])
 	return n + 16, nil
 }
 
@@ -1362,9 +1363,8 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
-	// read+22:read+24 is C struct padding
-	e.SampleCookie = binary.NativeEndian.Uint32(data[read+24 : read+28])
-	// read+28:read+32 is sample_padding
+	// read+22:read+24 is C struct padding to 8-align the u64 sample_cookie
+	e.SampleCookie = binary.NativeEndian.Uint64(data[read+24 : read+32])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1393,9 +1393,8 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.AddrFamily = binary.NativeEndian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 	e.Protocol = binary.NativeEndian.Uint16(data[read+20 : read+22])
-	// read+22:read+24 is C struct padding
-	e.SampleCookie = binary.NativeEndian.Uint32(data[read+24 : read+28])
-	// read+28:read+32 is sample_padding
+	// read+22:read+24 is C struct padding to 8-align the u64 sample_cookie
+	e.SampleCookie = binary.NativeEndian.Uint64(data[read+24 : read+32])
 
 	// readjust IP size depending on the protocol
 	switch e.AddrFamily {
@@ -1410,12 +1409,12 @@ func (e *ConnectEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SampleRefreshEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 4 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Cookie = binary.NativeEndian.Uint32(data[0:4])
-	return 4, nil
+	e.Cookie = binary.NativeEndian.Uint64(data[0:8])
+	return 8, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1428,13 +1427,20 @@ func (e *OTelProcessCtxEvent) UnmarshalBinary(data []byte) (int, error) {
 	return 4, nil
 }
 
-// UnmarshalBinary unmarshalls a binary representation of itself
+// UnmarshalBinary unmarshalls a binary representation of itself.
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 72 {
+	if len(data) < 88 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.EventReason = SyscallDriftEventReason(binary.NativeEndian.Uint64(data[0:8]))
+
+	if e.EventReason == SampleReason {
+		e.SyscallID = binary.NativeEndian.Uint32(data[72:76])
+		// data[76:80] is C struct padding to 8-align the u64 sample_cookie
+		e.SampleCookie = binary.NativeEndian.Uint64(data[80:88])
+		return 88, nil
+	}
 
 	for i, b := range data[8:72] {
 		// compute the ID of the syscall
@@ -1444,7 +1450,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 			}
 		}
 	}
-	return 72, nil
+	return 88, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1670,14 +1676,16 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
-	const size = 24
+	const size = 40
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Attempted = binary.NativeEndian.Uint64(data[0:8])
 	e.Used = binary.NativeEndian.Uint64(data[8:16])
-	e.Cookie = binary.NativeEndian.Uint64(data[16:24])
+	e.AttemptedHostUserNS = binary.NativeEndian.Uint64(data[16:24])
+	e.UsedHostUserNS = binary.NativeEndian.Uint64(data[24:32])
+	e.Cookie = binary.NativeEndian.Uint64(data[32:40])
 
 	return size, nil
 }

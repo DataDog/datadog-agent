@@ -160,7 +160,7 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 
 	// End-to-end check: the tracer is injected into a freshly-spawned process
 	// and the resulting trace lands in fakeintake.
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))
@@ -344,8 +344,8 @@ func (s *packageApmInjectSuite) TestAgentDowngradeReinstallsAPMInject() {
 func (s *packageApmInjectSuite) TestSystemdServiceRebootBrokenInjector() {
 	s.requireSystemd()
 
-	s.host.InstallDocker()
-	// InstallDocker starts the daemon but some packages, notably SUSE's, do
+	s.host.PrepareDocker()
+	// PrepareDocker starts the daemon but some packages, notably SUSE's, do
 	// not enable it. Enable it explicitly so Docker and datadog-apm-inject are
 	// part of the same boot transaction and exercise the service ordering.
 	s.Env().RemoteHost.MustExecute("sudo systemctl enable docker.service")

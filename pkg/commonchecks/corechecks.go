@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
+	amdgpu "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/amd"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nccl"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/networkv2"
@@ -74,6 +75,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/vdi"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -101,7 +103,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
+	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, filterStore, tagger, telemetry))
 	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(flare, cfg))
 
@@ -114,6 +116,9 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(kubeletconfig.CheckName, kubeletconfig.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterContextualCheck(gpu.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
 		return gpu.Factory(tagger, telemetryForMode(ctx), store)
+	}))
+	corecheckLoader.RegisterContextualCheck(amdgpu.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return amdgpu.Factory(tagger, telemetryForMode(ctx), store)
 	}))
 	corecheckLoader.RegisterContextualCheck(nccl.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
 		return nccl.Factory(tagger, telemetryForMode(ctx), store)
@@ -154,6 +159,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg, ncmComp))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
 	corecheckLoader.RegisterCheck(thermal.CheckName, thermal.Factory())
+	corecheckLoader.RegisterCheck(vdi.CheckName, vdi.Factory())
 
 	registerSystemProbeChecks(tagger)
 }

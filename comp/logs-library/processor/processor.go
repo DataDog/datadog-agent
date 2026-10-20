@@ -6,9 +6,7 @@
 package processor
 
 import (
-	"bytes"
 	"context"
-	"regexp"
 	"slices"
 	"sync"
 
@@ -49,6 +47,7 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
+	configChanMu              sync.Mutex // serializes the failover config updates sent on configChan
 	failoverConfig            failoverConfig
 
 	// Telemetry
@@ -97,11 +96,19 @@ func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmode
 	}
 }
 
-// updateFailoverConfig sends the updated config to the processor to update
+// updateFailoverConfig sends the updated config to the processor to update.
+//
+// Config notifications run synchronously in the goroutine that changed the setting (such as the
+// remote config client), and keep reaching processors stopped by a pipeline restart, so this must
+// never block: an update the run loop has not consumed yet is replaced by the latest one.
 func (p *Processor) updateFailoverConfig() {
 	if p.config == nil {
 		return
 	}
+
+	// Read the config under the lock so that the last update sent is built from the latest config.
+	p.configChanMu.Lock()
+	defer p.configChanMu.Unlock()
 
 	conf := failoverConfig{
 		isFailoverActive: p.config.GetBool(configMRFFailoverLogs),
@@ -118,6 +125,12 @@ func (p *Processor) updateFailoverConfig() {
 		conf.failoverServiceAllowlist = serviceAllowlist
 	}
 
+	// Only this function sends on configChan, under the lock: once a pending update is dropped,
+	// the send cannot block.
+	select {
+	case <-p.configChan:
+	default:
+	}
 	p.configChan <- conf
 }
 
@@ -243,6 +256,12 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
+	return applyProcessingRules(msg, p.processingRules)
+}
+
+// applyProcessingRules applies processingRules and the rules of the message source to msg, in place,
+// and returns false when a rule filters the message out.
+func applyProcessingRules(msg *message.Message, processingRules []*config.ProcessingRule) bool {
 	var content = msg.GetContent()
 
 	// Use the internal scrubbing implementation of the Agent
@@ -252,7 +271,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	if msg.Origin != nil && msg.Origin.LogSource != nil {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
-	rules := append(p.processingRules, extraRules...)
+	rules := append(processingRules, extraRules...)
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
@@ -268,12 +287,10 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
+			var matched bool
+			content, matched = config.ApplyMaskSequence(content, rule)
+			if matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
 			}
 		case config.ExcludeTruncated:
 			if msg.IsTruncated {
@@ -297,27 +314,20 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	return true // we want to send this message
 }
 
-// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
-// to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
-	prefix, _ := r.LiteralPrefix()
-	if prefix == "" {
-		return true
-	}
-
-	return bytes.Contains(content, []byte(prefix))
-}
-
 // GetHostname returns the hostname to applied the given log message
 func (p *Processor) GetHostname(msg *message.Message) string {
+	return hostnameFor(msg, p.hostname)
+}
+
+func hostnameFor(msg *message.Message, hostname hostnameinterface.Component) string {
 	if msg.Hostname != "" {
 		return msg.Hostname
 	}
 
-	if p.hostname == nil {
+	if hostname == nil {
 		return "unknown"
 	}
-	hname, err := p.hostname.Get(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		// this scenario is not likely to happen since
 		// the agent cannot start without a hostname

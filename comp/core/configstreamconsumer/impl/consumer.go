@@ -343,8 +343,10 @@ func (c *consumer) registerOnce() error {
 	defer conn.Close()
 
 	sessionID, refreshInterval, err := helper.RegisterRemoteAgent(c.ctx, client, helper.RegistrationRequest{
-		Flavor:      flavor.GetFlavor(),
-		DisplayName: c.params.ClientName,
+		Flavor: flavor.GetFlavor(),
+		// Suffixed so this shows up as a distinct entry from the remoteagent component's own
+		// registration in `agent status` instead of looking like a duplicate registration.
+		DisplayName: c.params.ClientName + " (configstreamconsumer)",
 		// Sentinel URI: the consumer registers no services, so core never dials back.
 		APIEndpointURI: "https://configstream-consumer/" + c.params.ClientName,
 	}, queryTimeout, defaultRefreshInterval, c.log)

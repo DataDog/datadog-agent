@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // QueuedNetworkDeviceError is used to indicate that the new network Device was queued until its namespace handle is
@@ -55,16 +56,36 @@ func (tcr *Resolver) PushNewTCClassifierRequest(request TcClassifierRequest) {
 	}
 }
 
+// networkNamespaceHandleRequest represents an async request for a handle on the network namespace of a process.
+type networkNamespaceHandleRequest struct {
+	nsID uint32
+	pid  uint32
+}
+
+// PushNetworkNamespaceHandleRequest queues a network namespace handle request for async processing.
+func (tcr *Resolver) PushNetworkNamespaceHandleRequest(nsID uint32, pid uint32) {
+	if !tcr.config.NetworkEnabled || nsID == 0 {
+		return
+	}
+
+	select {
+	case tcr.netnsHandleRequests <- networkNamespaceHandleRequest{nsID: nsID, pid: pid}:
+	default:
+		// a request is pushed for every event, so a dropped one is pushed again by the next event of its namespace
+	}
+}
+
 func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 	for {
+		// select picks a random ready case, so a cancelled context alone wouldn't stop the queue from being drained
+		if tcr.ctx.Err() != nil {
+			return
+		}
+
 		select {
 		case <-tcr.ctx.Done():
 			return
-		case request, ok := <-tcr.tcRequests:
-			if !ok {
-				return
-			}
-
+		case request := <-tcr.tcRequests:
 			if err := tcr.setupNewTCClassifier(request.Device); err != nil {
 				var qnde QueuedNetworkDeviceError
 				if errors.As(err, &qnde) {
@@ -74,6 +95,10 @@ func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 
 				tcr.reportTCClassifierError(err, request.Device)
 			}
+		case request := <-tcr.netnsHandleRequests:
+			_, _ = tcr.SaveNetworkNamespaceHandleLazy(request.nsID, func() *utils.NSPath {
+				return utils.NewNSPathFromPid(request.pid, utils.NetNsType)
+			})
 		}
 	}
 }

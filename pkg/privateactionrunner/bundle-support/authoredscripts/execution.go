@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package authoredscripts
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -24,6 +23,11 @@ const (
 )
 
 var errOutputLimitExceeded = errors.New("authored-script output limit exceeded")
+
+type commandController interface {
+	cancel() error
+	terminate() error
+}
 
 // Result contains the observable result of an authored-script execution.
 type Result struct {
@@ -61,8 +65,13 @@ func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Resu
 	cmd.Stderr = stderr
 
 	start := time.Now()
-	if err := cmd.Start(); err != nil {
-		return Result{ExitCode: -1, Duration: time.Since(start)}, err
+	controller, err := startCommand(cmd)
+	if err != nil {
+		result := Result{ExitCode: -1, Duration: time.Since(start)}
+		if errors.Is(err, os.ErrPermission) {
+			return result, executionDeniedError(err)
+		}
+		return result, err
 	}
 
 	waitCh := make(chan error, 1)
@@ -75,14 +84,14 @@ func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Resu
 	select {
 	case runErr = <-waitCh:
 	case <-ctx.Done():
-		cancellationErr = cancelCommand(cmd)
+		cancellationErr = controller.cancel()
 		runErr = <-waitCh
 	case <-stdout.LimitReachedSignal():
-		cancellationErr = cancelCommand(cmd)
+		cancellationErr = controller.cancel()
 		runErr = <-waitCh
 	}
 
-	terminationErr := terminateCommand(cmd)
+	terminationErr := controller.terminate()
 	result := Result{
 		ExitCode: -1,
 		Stdout:   stdout.String(),

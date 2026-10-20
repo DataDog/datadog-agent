@@ -7,14 +7,12 @@ package config
 
 import (
 	"time"
-
-	"go.uber.org/atomic"
 )
 
 // NewMockEndpoint creates a new reliable endpoint with default test values
 func NewMockEndpoint() Endpoint {
 	return Endpoint{
-		apiKey:            atomic.NewString("mock-api-key"),
+		credential:        newEndpointCredential("mock-api-key", false),
 		configSettingPath: "api_key",
 		Host:              "localhost",
 		Port:              443,
@@ -65,7 +63,7 @@ func NewMockEndpointWithOptions(opts map[string]interface{}) Endpoint {
 		e.Port = port
 	}
 	if apiKey, ok := opts["api_key"].(string); ok {
-		e.apiKey = atomic.NewString(apiKey)
+		e.credential = newEndpointCredential(apiKey, false)
 	}
 	if useSSL, ok := opts["use_ssl"].(bool); ok {
 		e.useSSL = useSSL

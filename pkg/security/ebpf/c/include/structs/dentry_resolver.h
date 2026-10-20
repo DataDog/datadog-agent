@@ -25,6 +25,7 @@ struct process_path_key_t {
     u32 padding;
     struct path_key_t process_path_key;
     struct path_key_t file_path_key;
+    char comm[TASK_COMM_LEN];
 };
 
 struct bind_connect_sample_key_t {
@@ -37,8 +38,7 @@ struct bind_connect_sample_key_t {
 };
 
 struct sample_entry_t {
-    u32 cookie;
-    u32 padding;
+    u64 cookie;
     u64 last_refresh_ns;
 };
 

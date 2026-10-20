@@ -42,7 +42,7 @@ var (
 // NewPodDisruptionBudgetV1Beta1Factory returns a new PodDisruptionBudgets metric family generator factory.
 func NewPodDisruptionBudgetV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &pdbv1beta1Factory{
-		client: client.Cl,
+		client: client.InformerCl,
 	}
 }
 

@@ -45,6 +45,8 @@ processors:
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor
     v0.159.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatorateprocessor
+    v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor
@@ -78,11 +80,17 @@ receivers:
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver
     v0.159.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver
+    v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver
     v0.159.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver
+    v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver
+    v0.159.0
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver
     v0.159.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver
     v0.159.0
@@ -96,4 +104,8 @@ receivers:
     v0.159.0
 replaces:
 - github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
+# Fix for VULN-100741 (https://datadoghq.atlassian.net/browse/VULN-100741): backport of upstream PR
+# https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/49295 onto v0.159.0.
+# Remove once on v0.162.0 or later.
+- github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver => github.com/DataDog/opentelemetry-collector-contrib/receiver/fluentforwardreceiver v0.0.0-20261012160954-5a5a3b47622d
 - github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def

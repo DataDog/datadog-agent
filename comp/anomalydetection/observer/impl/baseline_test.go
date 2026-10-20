@@ -25,14 +25,13 @@ type alwaysFiringDetector struct {
 // baselineTestDetector can model independently timed detector baselines and
 // records series reclamation from another detector's baseline completion.
 type baselineTestDetector struct {
-	name          string
-	readyAtSec    int64
-	ready         bool
-	source        observerdef.SeriesDescriptor
-	ref           observerdef.SeriesRef
-	emitAfterSec  int64
-	includeSource bool
-	removed       []observerdef.SeriesRef
+	name         string
+	readyAtSec   int64
+	ready        bool
+	source       observerdef.SeriesDescriptor
+	ref          observerdef.SeriesRef
+	emitAfterSec int64
+	removed      []observerdef.SeriesRef
 }
 
 func (d *baselineTestDetector) Name() string { return d.name }
@@ -46,12 +45,9 @@ func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64
 	}
 	anomaly := observerdef.Anomaly{
 		Source:       d.source,
+		SourceRef:    &observerdef.QueryHandle{Ref: d.ref, Aggregate: AggregateAverage},
 		DetectorName: d.name,
 		Timestamp:    dataSec,
-		Title:        "anomaly",
-	}
-	if d.includeSource {
-		anomaly.SourceRef = &observerdef.QueryHandle{Ref: d.ref, Aggregate: AggregateAverage}
 	}
 	return observerdef.DetectionResult{Anomalies: []observerdef.Anomaly{anomaly}}
 }
@@ -67,7 +63,6 @@ func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int6
 			Source:       observerdef.SeriesDescriptor{Namespace: d.namespace, Name: d.name, Aggregate: AggregateAverage},
 			DetectorName: "always_firing",
 			Timestamp:    dataTime,
-			Title:        "anomaly",
 			SourceRef:    &observerdef.QueryHandle{Ref: d.ref, Aggregate: AggregateAverage},
 		}},
 	}
@@ -241,12 +236,11 @@ func TestBaseline_WaitingDetectorDoesNotMuteUntilReady(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
 	detector := &baselineTestDetector{
-		name:          "waiting",
-		readyAtSec:    200,
-		emitAfterSec:  100,
-		includeSource: true,
-		ref:           ref,
-		source:        observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
+		name:         "waiting",
+		readyAtSec:   200,
+		emitAfterSec: 100,
+		ref:          ref,
+		source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
 	}
 	e := newEngine(engineConfig{storage: storage, detectors: []observerdef.Detector{detector}, baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true}})
 
@@ -265,13 +259,12 @@ func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	ref := storage.Add("ns", "cpu", 1.0, 100, nil).Ref
 	source := observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage}
-	fast := &baselineTestDetector{name: "fast", source: source, ref: ref, includeSource: true}
+	fast := &baselineTestDetector{name: "fast", source: source, ref: ref}
 	slow := &baselineTestDetector{
-		name:          "slow",
-		readyAtSec:    400,
-		source:        source,
-		ref:           ref,
-		includeSource: true,
+		name:       "slow",
+		readyAtSec: 400,
+		source:     source,
+		ref:        ref,
 	}
 	e := newEngine(engineConfig{
 		storage:   storage,
@@ -294,11 +287,10 @@ func TestBaseline_FastDetectorForwardsWhileSlowerDetectorStillAnalyses(t *testin
 	storage := newTimeSeriesStorage()
 	ref := storage.Add("ns", "memory", 1.0, 100, nil).Ref
 	fast := &baselineTestDetector{
-		name:          "fast",
-		source:        observerdef.SeriesDescriptor{Namespace: "ns", Name: "memory", Aggregate: AggregateAverage},
-		ref:           ref,
-		emitAfterSec:  200,
-		includeSource: true,
+		name:         "fast",
+		source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "memory", Aggregate: AggregateAverage},
+		ref:          ref,
+		emitAfterSec: 200,
 	}
 	slow := &baselineTestDetector{name: "slow", readyAtSec: 400, emitAfterSec: 1<<62 - 1}
 	correlator := &recordingCorrelator{}
@@ -419,7 +411,6 @@ func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int
 			Source:       observerdef.SeriesDescriptor{Namespace: meta.Namespace, Name: meta.Name, Host: meta.Host, Tags: meta.Tags, Aggregate: AggregateAverage},
 			DetectorName: "storage_aware",
 			Timestamp:    dataTime,
-			Title:        "anomaly",
 			SourceRef:    &observerdef.QueryHandle{Ref: meta.Ref, Aggregate: AggregateAverage},
 		})
 	}

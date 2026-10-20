@@ -1,0 +1,8 @@
+enhancements:
+  - |
+    The Agent now uses the v3 metrics intake for every Datadog-owned
+    destination URL, such as ``metrics.agent.<site>``, PrivateLink
+    endpoints, and organization custom subdomains, not only
+    ``app.<site>``. To keep using the v2 intake, set
+    ``use_v3_api.series.enabled`` to ``false``, or add a per-URL entry
+    to ``use_v3_api.series.endpoints``.

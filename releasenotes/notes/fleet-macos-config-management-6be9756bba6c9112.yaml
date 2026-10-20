@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    macOS Agent packages now ship the Fleet installer daemon and support remote configuration
+    management. A configuration deployment can be started, promoted and reverted from Fleet
+    Automation on a Mac; the Agent is restarted against the experiment configuration and, if the
+    experiment is not promoted, restored to the configuration it was running before. On macOS, the
+    Agent now reads its system-probe configuration from ``/opt/datadog-agent/etc/system-probe.yaml``.
