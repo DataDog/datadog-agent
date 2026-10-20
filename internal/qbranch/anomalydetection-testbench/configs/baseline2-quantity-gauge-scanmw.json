@@ -1,0 +1,17 @@
+{
+  "components": {
+    "bocpd": {
+      "enabled": false
+    },
+    "scanmw": {
+      "enabled": true,
+      "kind": "QUANTITY_GAUGE"
+    },
+    "anomaly_scorer": {
+      "enabled": true,
+      "correlation_events": true,
+      "correlation_event_threshold": "high",
+      "cooldown_secs": 0
+    }
+  }
+}

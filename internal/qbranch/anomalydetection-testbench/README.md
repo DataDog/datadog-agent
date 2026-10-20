@@ -282,6 +282,7 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 | Param | Default | Description |
 |-------|---------|-------------|
+| `kind` | `""` | Optional metric category filter (`"QUANTITY_GAUGE"` restricts to `GaugeType` on `avg`) |
 | `warmup_points` | 120 | Points used to build the initial baseline |
 | `hazard` | 0.05 | Prior P(changepoint) per time step — primary sensitivity knob |
 | `cp_threshold` | 0.6 | Posterior P(changepoint) threshold to fire — primary FP/FN knob |
@@ -291,6 +292,27 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `prior_variance_scale` | 10.0 | Diffuseness of prior over the mean |
 | `min_variance` | 1.0 | Variance floor (numerical stability) |
 | `recovery_points` | 10 | Consecutive quiet points needed to exit alert state |
+
+#### `scanmw`
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `kind` | `""` | Optional metric category filter (`"QUANTITY_GAUGE"` restricts to `GaugeType` on `avg`) |
+| `min_points` | 30 | Minimum visible points before scanning |
+| `max_points` | 120 | Maximum window size scanned |
+| `min_segment` | 12 | Minimum points on each side of a candidate split |
+| `significance_threshold` | 1e-8 | Maximum Mann–Whitney p-value |
+| `min_effect_size` | 0.85 | Minimum absolute rank-biserial correlation |
+| `min_deviation_mad` | 3.0 | Minimum `|post_median - pre_median| / MAD` |
+| `min_relative_change` | 0.0 | Minimum `|post_median - pre_median| / |pre_median|` (`0` disables the gate) |
+
+### Gauge Level-Detection PoC Profiles
+
+Three reproducible comparison profiles live under `configs/` (run with `--baseline-duration 0` and `--include-detector-anomalies`):
+
+- `configs/baseline1-default.json`: ScanMW on all metric types and default aggregations (`avg`, `count`), with no relative-change gate.
+- `configs/baseline2-quantity-gauge-scanmw.json`: ScanMW restricted to `QUANTITY_GAUGE` (`GaugeType` on `avg`), with no relative-change gate.
+- `configs/poc-quantity-gauge-scanmw-5pct.json`: ScanMW restricted to `QUANTITY_GAUGE` (`GaugeType` on `avg`) with `min_relative_change: 0.05`.
 
 #### `time_cluster`
 
