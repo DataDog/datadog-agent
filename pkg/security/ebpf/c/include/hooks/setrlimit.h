@@ -94,8 +94,8 @@ int hook_lsm_task_setrlimit(unsigned long long *ctx)
 {
     handle_task_setrlimit((struct task_struct *)ctx[0]);
 
-    // never deny the operation
-    return 0;
+    // preserve and return the incoming result
+    return ctx[3];
 }
 
 static __always_inline int
