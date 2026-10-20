@@ -21,6 +21,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.82.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.82.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.1 // indirect
@@ -52,13 +53,17 @@ require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
-	github.com/mdlayher/socket v0.7.0 // indirect
+	github.com/mattn/go-colorable v0.1.15 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
+	github.com/mdlayher/socket v0.8.0 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -168,3 +173,5 @@ replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/tes
 replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 
 replace github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
+
+replace github.com/DataDog/datadog-agent/comp/core/status => ../../comp/core/status

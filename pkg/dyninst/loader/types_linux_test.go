@@ -9,17 +9,17 @@ import (
 )
 
 func TestCgoAlignment_typeInfo(t *testing.T) {
-	ebpftest.TestCgoAlignment[typeInfo](t)
+	ebpftest.AssertCgoAlignment[typeInfo](t)
 }
 
 func TestCgoAlignment_probeParams(t *testing.T) {
-	ebpftest.TestCgoAlignment[probeParams](t)
+	ebpftest.AssertCgoAlignment[probeParams](t)
 }
 
 func TestCgoAlignment_throttlerParams(t *testing.T) {
-	ebpftest.TestCgoAlignment[throttlerParams](t)
+	ebpftest.AssertCgoAlignment[throttlerParams](t)
 }
 
 func TestCgoAlignment_stats(t *testing.T) {
-	ebpftest.TestCgoAlignment[stats](t)
+	ebpftest.AssertCgoAlignment[stats](t)
 }

@@ -26,7 +26,9 @@ impl CheckConfig {
 }
 
 /// Instance configuration for the datasecurity check.
-#[derive(Debug, Default, Deserialize)]
+///
+/// No `Debug`: holds credentials (see [`Connection`]).
+#[derive(Default, Deserialize)]
 pub struct CheckConfig {
     pub task_id: String,
     pub scanning_rules: Vec<ScanningRule>,
@@ -34,7 +36,9 @@ pub struct CheckConfig {
 }
 
 /// A single scan sub task: a query to run against one data source.
-#[derive(Debug, Default, Deserialize)]
+///
+/// No `Debug`: embeds a [`Connection`].
+#[derive(Default, Deserialize)]
 pub struct SubTask {
     pub sub_task_id: String,
     pub connection: Connection,
@@ -72,7 +76,9 @@ where
 }
 
 /// Database connection parameters for a sub task.
-#[derive(Debug, Default, Deserialize)]
+///
+/// No `Debug`: a derived one would print `password` and `ssl_password` in clear text.
+#[derive(Default, Deserialize)]
 pub struct Connection {
     /// Hostname, or a directory path for a Unix socket (e.g. `/var/run/postgresql`).
     pub host: String,
