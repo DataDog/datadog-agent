@@ -37,7 +37,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -933,7 +933,7 @@ func newSysprobeNvmlStateNotifier() sysprobeNvmlStateNotifier {
 			Released:   state,
 			TTLSeconds: int(ttl / time.Second),
 		}
-		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfig.GPUMonitoringModule)
+		_, err := sysprobeclient.Post[struct{}](client, spNvmlReleaseEndpoint, body, sysconfigtypes.GPUMonitoringModule)
 		return err
 	}
 }
