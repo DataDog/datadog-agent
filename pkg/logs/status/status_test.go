@@ -202,7 +202,6 @@ func TestStatusPerformanceProfile(t *testing.T) {
 	status = Get(true)
 	require.NotNil(t, status.PerformanceProfile)
 	assert.Equal(t, "high-throughput", status.PerformanceProfile.Name)
-	assert.Equal(t, 1, status.PerformanceProfile.Version)
 	require.NotEmpty(t, status.PerformanceProfile.Settings)
 
 	var foundPipelines bool

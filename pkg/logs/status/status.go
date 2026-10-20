@@ -125,7 +125,6 @@ type PerformanceProfileSetting struct {
 // PerformanceProfile is the active profile and the settings it controls, or nil when off.
 type PerformanceProfile struct {
 	Name     string                      `json:"name"`
-	Version  int                         `json:"version"`
 	Settings []PerformanceProfileSetting `json:"settings,omitempty"`
 }
 

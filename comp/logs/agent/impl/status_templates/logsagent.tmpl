@@ -26,7 +26,7 @@
 
   Performance Profile
   {{ printDashes "Performance Profile" "=" }}
-    Profile: {{ .PerformanceProfile.Name }} (version {{ .PerformanceProfile.Version }})
+    Profile: {{ .PerformanceProfile.Name }}
   {{- range $setting := .PerformanceProfile.Settings }}
     {{ $setting.Key }}: {{ $setting.Value }} (source: {{ $setting.Source }})
   {{- end }}

@@ -62,11 +62,11 @@ func (b *Builder) getPerformanceProfile(verbose bool) *PerformanceProfile {
 	if b.config == nil {
 		return nil
 	}
-	name, version, settings, ok := pkgconfigsetup.ResolvedLogsPerformanceProfile(b.config)
+	name, settings, ok := pkgconfigsetup.ResolvedLogsPerformanceProfile(b.config)
 	if !ok {
 		return nil
 	}
-	pp := &PerformanceProfile{Name: name, Version: version}
+	pp := &PerformanceProfile{Name: name}
 	if !verbose {
 		return pp
 	}

@@ -21,7 +21,7 @@
     {{- if .PerformanceProfile }}
       <span class="stat_subtitle">Performance Profile</span>
       <span class="stat_subdata">
-        <strong>Profile:</strong> {{ .PerformanceProfile.Name }} (version {{ .PerformanceProfile.Version }})<br>
+        <strong>Profile:</strong> {{ .PerformanceProfile.Name }}<br>
         {{- range $setting := .PerformanceProfile.Settings }}
         {{ $setting.Key }}: {{ $setting.Value }} (source: {{ $setting.Source }})<br>
         {{- end }}
