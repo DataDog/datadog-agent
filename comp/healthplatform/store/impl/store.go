@@ -95,7 +95,6 @@ type healthPlatformImpl struct {
 	// Persistence: lifecycle state only — proto payload is not stored here.
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
-	remoteLoader    *remoteIssueLoader
 
 	// Issue observers: receive issue events outside issuesMux.
 	observersMu sync.RWMutex
@@ -273,23 +272,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 	isKubernetes := configenv.IsKubernetes()
 	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
 	persistRemotelyOnKubernetes := reqs.Config.GetBool("health_platform.persist_remotely_on_kubernetes")
-	var persistence issuesPersistence
-	var remoteLoader *remoteIssueLoader
+	var persistence issuesPersistence = &noopPersistence{}
 	switch {
 	case isKubernetes && persistRemotelyOnKubernetes:
 		if persistOnKubernetes {
 			reqs.Log.Warn("Both health_platform.persist_on_kubernetes and health_platform.persist_remotely_on_kubernetes are enabled; remote persistence takes precedence")
 		}
 		reqs.Log.Info("Running on Kubernetes: remote health platform persistence enabled")
-		persistence = &noopPersistence{}
-		remoteLoader = newRemoteIssueLoaderIfEnabled(reqs, agentFlavor, selfIdent)
+		if remote := newRemoteIssueLoaderIfEnabled(reqs, agentFlavor, selfIdent); remote != nil {
+			persistence = remote
+		}
 	case !isKubernetes || persistOnKubernetes:
 		runPath := reqs.Config.GetString("run_path")
 		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
 	default:
 		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled")
-		persistence = &noopPersistence{}
 	}
 
 	// Initialize the health platform implementation
@@ -307,7 +305,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		persistedIssues: make(map[string]*PersistedIssue),
 		persistence:     persistence,
-		remoteLoader:    remoteLoader,
 	}
 
 	// Register lifecycle hooks for component start/stop
@@ -345,13 +342,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start starts the health platform component
 func (h *healthPlatformImpl) start(ctx context.Context) error {
 	h.log.Info("Starting health platform component")
-	var err error
-	if h.remoteLoader != nil {
-		err = h.loadFromRemote(ctx)
-	} else {
-		err = h.loadFromDisk()
-	}
-	if err != nil {
+	if err := h.loadPersistedState(ctx); err != nil {
 		h.log.Warn("Failed to restore persisted issues: " + err.Error())
 	}
 	return nil
@@ -726,45 +717,13 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 // Persistence Methods
 // ============================================================================
 
-// loadFromDisk restores lifecycle state from the persistence layer.
-func (h *healthPlatformImpl) loadFromDisk() error {
-	state, err := h.persistence.load()
+// loadPersistedState restores lifecycle state from the persistence layer.
+func (h *healthPlatformImpl) loadPersistedState(ctx context.Context) error {
+	state, err := h.persistence.load(ctx)
 	if err != nil {
 		return err
 	}
 	return h.restorePersistedState(state)
-}
-
-// loadFromRemote restores the backend's active issues for startup reconciliation.
-func (h *healthPlatformImpl) loadFromRemote(ctx context.Context) error {
-	issues, err := h.remoteLoader.load(ctx)
-	if err != nil {
-		return err
-	}
-
-	now := time.Now().Format(time.RFC3339)
-	state := &PersistedState{
-		Version:   persistedStateVersion,
-		UpdatedAt: now,
-		Issues:    make(map[string]*PersistedIssue, len(issues)),
-	}
-	for issueID, issue := range issues {
-		state.Issues[issueID] = &PersistedIssue{
-			IssueID:        issueID,
-			IssueType:      issue.IssueName,
-			ProtoIssueType: issue.IssueType,
-			Category:       issue.Category,
-			State:          IssueStateActive,
-			FirstSeen:      now,
-			LastSeen:       now,
-		}
-	}
-	if err := h.restorePersistedState(state); err != nil {
-		return err
-	}
-
-	h.log.Infof("Loaded %d active remote health platform issues", len(issues))
-	return nil
 }
 
 // restorePersistedState restores lifecycle state into the in-memory store.

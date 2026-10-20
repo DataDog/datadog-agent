@@ -44,6 +44,8 @@ type remoteIssueLoader struct {
 	httpClient *http.Client
 }
 
+var _ issuesPersistence = (*remoteIssueLoader)(nil)
+
 type remoteIssuesResponse struct {
 	Data *remoteIssueResource `json:"data"`
 }
@@ -117,7 +119,7 @@ func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string, identity r
 	return newRemoteIssueLoader(reqs.Config, remoteIssuesNodeAgentType, identity.DeploymentID)
 }
 
-func (r *remoteIssueLoader) load(ctx context.Context) (map[string]remoteIssue, error) {
+func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
 	apiKey := configutils.SanitizeAPIKey(r.config.GetString("api_key"))
 	if apiKey == "" {
 		return nil, errors.New("API key is required for remote issue restoration")
@@ -183,10 +185,26 @@ func (r *remoteIssueLoader) load(ctx context.Context) (map[string]remoteIssue, e
 		return nil, errors.New("remote issue response has no issues")
 	}
 
-	issues := make(map[string]remoteIssue, len(*resource.Attributes.Issues))
+	now := time.Now().Format(time.RFC3339)
+	state := &PersistedState{
+		Version:   persistedStateVersion,
+		UpdatedAt: now,
+		Issues:    make(map[string]*PersistedIssue, len(*resource.Attributes.Issues)),
+	}
 	for _, issue := range *resource.Attributes.Issues {
-		issues[issue.IssueID] = issue
+		state.Issues[issue.IssueID] = &PersistedIssue{
+			IssueID:        issue.IssueID,
+			IssueType:      issue.IssueName,
+			ProtoIssueType: issue.IssueType,
+			Category:       issue.Category,
+			State:          IssueStateActive,
+			FirstSeen:      now,
+			LastSeen:       now,
+		}
 	}
 
-	return issues, nil
+	return state, nil
 }
+
+// Health Platform egress sends updates to Datadog.
+func (r *remoteIssueLoader) save(_ *PersistedState) error { return nil }
