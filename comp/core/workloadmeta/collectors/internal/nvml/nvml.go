@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -27,6 +28,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,6 +53,7 @@ type collector struct {
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
+	kaiSchedulerEnabled                bool
 	lastCollectionTimestamp            time.Time
 	deviceCache                        ddnvml.DeviceCache
 	// lastPublishedGPUs keeps the last GPU entity published per UUID, so that
@@ -258,8 +261,10 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 	}
 
 	if config != nil {
-		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
-		collector.gpuMonitoringEnabled = config.GetBool("gpu.enabled")
+		gpuCfg := gpuconfig.New()
+		collector.integrateWithWorkloadmetaProcesses = gpuCfg.IntegrateWithWorkloadmetaProcesses
+		collector.gpuMonitoringEnabled = gpuCfg.GPUMonitoringEnabled
+		collector.kaiSchedulerEnabled = gpuCfg.KAISchedulerEnabled
 	}
 
 	return collector
@@ -493,19 +498,33 @@ var (
 	migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
 )
 
-// createContainerGPUEvents publishes the Container<->GPU edge for DRA-allocated
-// devices, resolving each container's CDI device nodes to NVML UUIDs. It
+// createContainerGPUEvents publishes the Container<->GPU edge for the
+// allocations the kubelet PodResources API does not describe: DRA-allocated
+// devices, resolved from each container's CDI device nodes to NVML UUIDs, and
+// KAI Scheduler fractional GPUs, resolved through KAI's reservation pods. It
 // repairs the container->device edge that the regex guess in
 // pkg/gpu/containers cannot make on a DRA node, where the allocated device name
-// is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID.
+// is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID,
+// and that it cannot make at all for a KAI fraction, which never appears as an
+// allocation.
 func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
 	var events []workloadmeta.CollectorEvent
-	// Containers that still claim a DRA device, whether or not this pull could
+	// Containers that still claim a device, whether or not this pull could
 	// resolve it. Retraction keys off this rather than off resolution success:
 	// a transient read failure would otherwise unset the mapping and set it
 	// again on the next pull, flapping the pod tags on the device's metrics.
 	claiming := make(map[string]struct{})
 	published := make(map[string][]string)
+
+	// KAI resolution is pod-driven rather than container-driven -- the GPU UUID
+	// lives on a different pod than the workload -- so it is resolved up front
+	// and merged into each container's UUIDs below, rather than inside the
+	// loop.
+	var kai kaiFractions
+	if c.kaiSchedulerEnabled {
+		kai = c.kaiFractionalGPUs(deviceCache)
+		maps.Copy(claiming, kai.claiming)
+	}
 
 	for _, container := range c.store.ListContainers() {
 		// One event per container, not per device: workloadmeta replaces the
@@ -547,6 +566,24 @@ func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []w
 		if hasCDIDevices {
 			claiming[container.ID] = struct{}{}
 		}
+
+		// Merge the KAI fractions into the same slice rather than emitting a
+		// second event: workloadmeta replaces the per-source entity on each
+		// Set, so two events for one container would leave only the last one's
+		// UUIDs. A container can legitimately hold both, a DRA-allocated
+		// device and a KAI fraction of another GPU.
+		for _, uuid := range kai.uuidsByContainer[container.ID] {
+			if !slices.Contains(uuids, uuid) {
+				uuids = append(uuids, uuid)
+			}
+		}
+		if _, incomplete := kai.partial[container.ID]; incomplete {
+			// The pod shares more GPUs than this pull could resolve. Fall into
+			// the same guard the DRA path uses below, so that the smaller set
+			// cannot replace a mapping published when all of them resolved.
+			allResolved = false
+		}
+
 		if len(uuids) == 0 {
 			continue
 		}

@@ -35,6 +35,7 @@ go_library(
 dd_agent_go_test(
     name = "procfs_test",
     srcs = [
+        "proc_maps_parser_test.go",
         "proc_mem_test.go",
         "snapshot_bound_sockets_test.go",
     ],
