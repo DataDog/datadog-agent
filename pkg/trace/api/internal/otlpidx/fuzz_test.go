@@ -86,11 +86,11 @@ func fuzzSeeds(f *testing.F) [][]byte {
 }
 
 // FuzzDecodeExportRequest checks that the decoder never panics, that every string reference in
-// its output is in bounds, and that it agrees with pdata. The decoder may reject encodings pdata
-// tolerates (e.g. an unterminated group in an unknown field), since the receiver then falls back
-// to pdata, but whenever it succeeds it must produce the same payloads and spans, and it must
-// decode pdata's own encoding of any request pdata accepts (unless attributes nest deeper than
-// the decoder allows).
+// its output is in bounds, and that it agrees with pdata. It must reject whatever pdata rejects.
+// It may also reject encodings pdata tolerates (e.g. an unterminated group in an unknown field,
+// or a repeated singular message, which protobuf merges), since the receiver then falls back to
+// pdata, but whenever it succeeds it must produce the same payloads and spans, and it must decode
+// pdata's own encoding of any request pdata accepts (unless it exceeds the decoder's limits).
 func FuzzDecodeExportRequest(f *testing.F) {
 	for _, s := range fuzzSeeds(f) {
 		f.Add(s)
@@ -107,6 +107,11 @@ func FuzzDecodeExportRequest(f *testing.F) {
 		}
 		for _, opts := range fuzzOptions() {
 			if ps, err := Decode(context.Background(), b, opts); err == nil {
+				// The raw decode used for benchmarking skips scope attributes, so it can't
+				// reject them.
+				if pdataErr != nil && !opts.SkipSemantics {
+					t.Fatalf("pdata rejects the request (%v) but the decoder (%+v) accepts it", pdataErr, opts)
+				}
 				for _, p := range ps {
 					checkRefs(t, p.TracerPayload)
 				}
@@ -119,7 +124,7 @@ func FuzzDecodeExportRequest(f *testing.F) {
 			}
 			ps, err := Decode(context.Background(), canonical, opts)
 			if err != nil {
-				if !errors.Is(err, errMaxDepth) && !errors.Is(err, ErrTooManyResourceSpans) {
+				if !errors.Is(err, errMaxDepth) && !errors.Is(err, ErrTooManyResourceSpans) && !errors.Is(err, errStrindex) {
 					t.Fatalf("the decoder (%+v) rejects pdata's encoding of the request: %v", opts, err)
 				}
 				continue

@@ -8,6 +8,7 @@ package otlpidx
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -336,6 +337,75 @@ func TestResourceAttributesOnPayload(t *testing.T) {
 	assert.False(t, hasAttr(tp, s2.Attributes(), "deployment.environment.name"))
 	assert.Equal(t, "svc", s2.Service())
 	assert.Equal(t, "prod", s2.Env())
+}
+
+// pbBytes encodes a length-delimited field.
+func pbBytes(num protowire.Number, parts ...[]byte) []byte {
+	b := protowire.AppendTag(nil, num, protowire.BytesType)
+	return protowire.AppendBytes(b, slices.Concat(parts...))
+}
+
+// pbVarint encodes a varint field.
+func pbVarint(num protowire.Number, v uint64) []byte {
+	return protowire.AppendVarint(protowire.AppendTag(nil, num, protowire.VarintType), v)
+}
+
+// TestDecodeStrict checks that the decoder rejects what pdata rejects (wire types, ID lengths,
+// field 0), as well as repeated singular messages, which protobuf merges and the decoder leaves
+// to the pdata fallback, and that it reads the deprecated instrumentation_library_spans when
+// scope_spans is absent, as pdata does.
+func TestDecodeStrict(t *testing.T) {
+	str := func(s string) []byte { return []byte(s) }
+	kv := pbBytes(fResourceAttributes, pbBytes(fKeyValueKey, str("service.name")), pbBytes(fKeyValueValue, pbBytes(fAnyString, str("svc"))))
+	resource := pbBytes(fResourceSpansResource, kv)
+	span := func(fields ...[]byte) []byte {
+		return pbBytes(fScopeSpansSpans, slices.Concat(append([][]byte{
+			pbBytes(fSpanTraceID, traceA[:]), pbBytes(fSpanSpanID, []byte{0, 0, 0, 0, 0, 0, 0, 1}), pbBytes(fSpanName, str("op")),
+		}, fields...)...))
+	}
+	scopeSpans := pbBytes(fResourceSpansScopeSpans, span())
+	request := func(rs ...[]byte) []byte { return pbBytes(fExportResourceSpans, rs...) }
+
+	for _, tc := range []struct {
+		name string
+		req  []byte
+	}{
+		{"varint where a message is expected", pbVarint(fExportResourceSpans, 1)},
+		{"varint span name", request(resource, pbBytes(fResourceSpansScopeSpans, span(pbVarint(fSpanName, 1))))},
+		{"bytes span kind", request(resource, pbBytes(fResourceSpansScopeSpans, span(pbBytes(fSpanKind, str("x")))))},
+		{"varint dropped count ignored by the decoder", request(resource, pbBytes(fResourceSpansScopeSpans, span(pbBytes(10, str("x")))))},
+		{"7-byte span ID", request(resource, pbBytes(fResourceSpansScopeSpans, span(pbBytes(fSpanSpanID, make([]byte, 7)))))},
+		{"9-byte link span ID", request(resource, pbBytes(fResourceSpansScopeSpans, span(pbBytes(fSpanLinks, pbBytes(fLinkSpanID, make([]byte, 9))))))},
+		{"field 0", request(resource, scopeSpans, pbBytes(0, str("x")))},
+		{"repeated resource", request(resource, resource, scopeSpans)},
+		{"repeated scope", request(resource, pbBytes(fResourceSpansScopeSpans, pbBytes(fScopeSpansScope), pbBytes(fScopeSpansScope), span()))},
+		{"repeated attribute value", request(pbBytes(fResourceSpansResource, pbBytes(fResourceAttributes, pbBytes(fKeyValueKey, str("k")),
+			pbBytes(fKeyValueValue, pbBytes(fAnyString, str("a"))), pbBytes(fKeyValueValue, pbBytes(fAnyString, str("b"))))), scopeSpans)},
+		{"scope_spans and deprecated spans", request(resource, scopeSpans, pbBytes(fResourceSpansDeprecatedScopeSpans, span()))},
+		{"group", request(resource, scopeSpans, protowire.AppendTag(protowire.AppendTag(nil, 99, protowire.StartGroupType), 99, protowire.EndGroupType))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := decodeForTest(tc.req)
+			assert.Error(t, err)
+		})
+	}
+
+	t.Run("deprecated instrumentation_library_spans", func(t *testing.T) {
+		tps, err := decodeForTest(request(resource, pbBytes(fResourceSpansDeprecatedScopeSpans, span())))
+		require.NoError(t, err)
+		require.Len(t, tps[0].Chunks, 1)
+		require.Len(t, tps[0].Chunks[0].Spans, 1)
+		assert.Equal(t, "svc", tps[0].Chunks[0].Spans[0].Service())
+		// pdata reads it the same way.
+		req := ptraceotlp.NewExportRequest()
+		require.NoError(t, req.UnmarshalProto(request(resource, pbBytes(fResourceSpansDeprecatedScopeSpans, span()))))
+		assert.Equal(t, 1, req.Traces().SpanCount())
+	})
+	t.Run("link without trace ID", func(t *testing.T) {
+		tps, err := decodeForTest(request(resource, pbBytes(fResourceSpansScopeSpans, span(pbBytes(fSpanLinks, pbBytes(fLinkSpanID, make([]byte, 8)))))))
+		require.NoError(t, err)
+		assert.Equal(t, make([]byte, 16), tps[0].Chunks[0].Spans[0].Links()[0].TraceID())
+	})
 }
 
 // TestDecodeResourceSpansLimit checks that a request of up to maxResourceSpans ResourceSpans

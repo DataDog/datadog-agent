@@ -47,8 +47,12 @@ const (
 
 	fResourceSpansResource   = 1
 	fResourceSpansScopeSpans = 2
+	// fResourceSpansDeprecatedScopeSpans is the pre-1.0 instrumentation_library_spans field,
+	// which has the ScopeSpans layout and replaces scope_spans when that is absent.
+	fResourceSpansDeprecatedScopeSpans = 1000
 
 	fResourceAttributes = 1
+	fResourceEntityRefs = 3
 
 	fScopeSpansScope = 1
 	fScopeSpansSpans = 2
@@ -93,10 +97,93 @@ const (
 	fAnyArray  = 5
 	fAnyKvlist = 6
 	fAnyBytes  = 7
+	// fAnyStrindex is string_value_strindex, an index into a profiles dictionary, which traces
+	// don't use.
+	fAnyStrindex = 8
 
 	fArrayValues  = 1
 	fKvlistValues = 1
 )
+
+// wireTypes holds, for each field of a message that pdata's generated unmarshaller knows and
+// indexed by field number, the bit of its wire type. pdata rejects a known field with any other
+// wire type, so the decoder does too, including for fields it ignores; unknown fields allow any
+// wire type and are skipped.
+type wireTypes []uint8
+
+const anyWireType = 0xff
+
+func newWireTypes(defs map[protowire.Number]protowire.Type) wireTypes {
+	var n protowire.Number
+	for num := range defs {
+		n = max(n, num)
+	}
+	w := make(wireTypes, n+1)
+	for i := range w {
+		w[i] = anyWireType
+	}
+	for num, typ := range defs {
+		w[num] = 1 << typ
+	}
+	return w
+}
+
+// ok reports whether f is an unknown field or has its known wire type. It is kept small enough to
+// be inlined into the decoding loops, which return wireTypeError otherwise.
+func (w wireTypes) ok(f field) bool {
+	return int(f.num) >= len(w) || w[f.num]&(1<<f.typ) != 0
+}
+
+func wireTypeError(num protowire.Number, typ protowire.Type) error {
+	return fmt.Errorf("otlpidx: wrong wire type %d for field %d", typ, num)
+}
+
+const (
+	wtBytes   = protowire.BytesType
+	wtVarint  = protowire.VarintType
+	wtFixed64 = protowire.Fixed64Type
+	wtFixed32 = protowire.Fixed32Type
+)
+
+// Wire types of the OTLP trace messages, from pdata's generated unmarshallers.
+var (
+	exportWireTypes = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes})
+	// ResourceSpans' deprecated field 1000 is checked separately to keep this table small.
+	resourceSpansWireTypes = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes, 2: wtBytes, 3: wtBytes})
+	resourceWireTypes      = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes, 2: wtVarint, 3: wtBytes})
+	entityRefWireTypes     = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes, 2: wtBytes, 3: wtBytes, 4: wtBytes})
+	scopeSpansWireTypes    = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes, 2: wtBytes, 3: wtBytes})
+	scopeWireTypes         = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes, 2: wtBytes, 3: wtBytes, 4: wtVarint})
+	spanWireTypes          = newWireTypes(map[protowire.Number]protowire.Type{
+		1: wtBytes, 2: wtBytes, 3: wtBytes, 4: wtBytes, 5: wtBytes, 6: wtVarint, 7: wtFixed64, 8: wtFixed64,
+		9: wtBytes, 10: wtVarint, 11: wtBytes, 12: wtVarint, 13: wtBytes, 14: wtVarint, 15: wtBytes, 16: wtFixed32,
+	})
+	eventWireTypes    = newWireTypes(map[protowire.Number]protowire.Type{1: wtFixed64, 2: wtBytes, 3: wtBytes, 4: wtVarint})
+	linkWireTypes     = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes, 2: wtBytes, 3: wtBytes, 4: wtBytes, 5: wtVarint, 6: wtFixed32})
+	statusWireTypes   = newWireTypes(map[protowire.Number]protowire.Type{2: wtBytes, 3: wtVarint})
+	keyValueWireTypes = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes, 2: wtBytes, 3: wtVarint})
+	anyValueWireTypes = newWireTypes(map[protowire.Number]protowire.Type{
+		1: wtBytes, 2: wtVarint, 3: wtVarint, 4: wtFixed64, 5: wtBytes, 6: wtBytes, 7: wtBytes, fAnyStrindex: wtVarint,
+	})
+	// ArrayValue and KeyValueList.
+	valuesWireTypes = newWireTypes(map[protowire.Number]protowire.Type{1: wtBytes})
+)
+
+// errRepeatedMessage is returned for a repeated occurrence of a singular message field, which
+// protobuf merges. The decoder doesn't implement merging, so the receiver falls back to pdata.
+var errRepeatedMessage = errors.New("otlpidx: repeated singular message field")
+
+// errStrindex is returned for an AnyValue string_value_strindex, which pdata keeps as the value
+// but which has no V1 equivalent, so the receiver falls back to pdata.
+var errStrindex = errors.New("otlpidx: unsupported string_value_strindex")
+
+// checkID returns an error unless an ID field is empty or n bytes long, as pdata requires.
+func checkID(b []byte, n int) error {
+	if len(b) != 0 && len(b) != n {
+		return fmt.Errorf("otlpidx: invalid ID length %d", len(b))
+	}
+	return nil
+}
 
 // field is a single decoded protobuf field. For bytes-typed fields val is set; for varint
 // and fixed fields u64 holds the value.
@@ -107,12 +194,17 @@ type field struct {
 	u64 uint64
 }
 
-// next consumes one field from b. Unknown wire types are rejected, unknown field numbers are
-// returned to the caller to ignore.
+// next consumes one field from b. Unknown field numbers are returned to the caller to ignore.
+// Groups are rejected: OTLP has none, and pdata's handling of them in unknown fields is
+// inconsistent (it accepts some malformed groups and rejects some well-formed ones), so such
+// requests are left to the pdata fallback.
 func next(b []byte) (field, []byte, error) {
 	num, typ, n := protowire.ConsumeTag(b)
 	if n < 0 {
 		return field{}, nil, protowire.ParseError(n)
+	}
+	if !num.IsValid() {
+		return field{}, nil, fmt.Errorf("otlpidx: invalid field number %d", num)
 	}
 	b = b[n:]
 	f := field{num: num, typ: typ}
@@ -128,7 +220,7 @@ func next(b []byte) (field, []byte, error) {
 	case protowire.BytesType:
 		f.val, n = protowire.ConsumeBytes(b)
 	default:
-		n = protowire.ConsumeFieldValue(num, typ, b)
+		return field{}, nil, fmt.Errorf("otlpidx: unsupported wire type %d for field %d", typ, num)
 	}
 	if n < 0 {
 		return field{}, nil, protowire.ParseError(n)
@@ -150,9 +242,10 @@ const (
 //
 // It is kept small enough to be inlined into the decoding loops.
 func shortBytesField(b []byte) (num protowire.Number, val, rest []byte, ok bool) {
-	// A tag under 0x80 (one byte) with the bytes wire type. Requiring three bytes keeps the
-	// function small; a two-byte field (an empty value at the end of a message) uses next.
-	if len(b) < 3 || b[0]&0x87 != byte(protowire.BytesType) {
+	// A tag under 0x80 (one byte) with the bytes wire type and a valid (non-zero) field number.
+	// Requiring three bytes keeps the function small; a two-byte field (an empty value at the
+	// end of a message) uses next, as does field 0, which next rejects.
+	if len(b) < 3 || b[0]&0x87 != byte(protowire.BytesType) || b[0] < 0x08 {
 		return
 	}
 	hdr, n := 2, int(b[1])
@@ -207,7 +300,10 @@ func Decode(ctx context.Context, b []byte, opts Options) ([]Payload, error) {
 			return nil, err
 		}
 		b = rest
-		if f.num != fExportResourceSpans || f.typ != protowire.BytesType {
+		if !exportWireTypes.ok(f) {
+			return nil, wireTypeError(f.num, f.typ)
+		}
+		if f.num != fExportResourceSpans {
 			continue
 		}
 		if len(out) == maxResourceSpans {
@@ -305,7 +401,7 @@ func decodeResourceSpans(ctx context.Context, b []byte, opts Options) (Payload, 
 	}
 	// Pass 1: protobuf permits fields in any order, so locate the resource before decoding
 	// spans, which need the resource attributes.
-	resource, err := lastBytesField(b, fResourceSpansResource)
+	resource, scopeSpansField, err := scanResourceSpans(b)
 	if err != nil {
 		return Payload{}, err
 	}
@@ -319,7 +415,7 @@ func decodeResourceSpans(ctx context.Context, b []byte, opts Options) (Payload, 
 			return Payload{}, err
 		}
 		b = rest
-		if f.num != fResourceSpansScopeSpans || f.typ != protowire.BytesType {
+		if f.num != scopeSpansField {
 			continue
 		}
 		if err := d.decodeScopeSpans(f.val); err != nil {
@@ -352,7 +448,16 @@ func (d *decoder) decodeResource(ctx context.Context, resource []byte) error {
 			return err
 		}
 		b = rest
-		if f.num != fResourceAttributes || f.typ != protowire.BytesType {
+		if !resourceWireTypes.ok(f) {
+			return wireTypeError(f.num, f.typ)
+		}
+		if f.num == fResourceEntityRefs {
+			if err := checkEntityRef(f.val); err != nil {
+				return err
+			}
+			continue
+		}
+		if f.num != fResourceAttributes {
 			continue
 		}
 		k, v, err := d.decodeKeyValue(f.val, 0)
@@ -381,27 +486,79 @@ func (d *decoder) decodeResource(ctx context.Context, resource []byte) error {
 	return nil
 }
 
-// lastBytesField returns the value of the last bytes-typed field num in the message b, so that
-// fields which must be decoded first can be found without collecting the others.
-func lastBytesField(b []byte, num protowire.Number) ([]byte, error) {
-	var val []byte
+// scanResourceSpans checks the wire types of a ResourceSpans' fields and returns its resource and
+// the field holding its scope spans: scope_spans, or the deprecated instrumentation_library_spans
+// when scope_spans is absent, as pdata's MigrateTraces does. A request with both falls back to
+// pdata, which still validates the deprecated ones it discards.
+func scanResourceSpans(b []byte) (resource []byte, scopeSpansField protowire.Number, err error) {
+	var hasResource, hasScopeSpans, hasDeprecated bool
 	for len(b) > 0 {
 		f, rest, err := next(b)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		b = rest
-		if f.num == num && f.typ == protowire.BytesType {
-			val = f.val
+		if !resourceSpansWireTypes.ok(f) {
+			return nil, 0, wireTypeError(f.num, f.typ)
+		}
+		switch f.num {
+		case fResourceSpansResource:
+			if hasResource {
+				return nil, 0, errRepeatedMessage
+			}
+			resource, hasResource = f.val, true
+		case fResourceSpansScopeSpans:
+			hasScopeSpans = true
+		case fResourceSpansDeprecatedScopeSpans:
+			if f.typ != protowire.BytesType {
+				return nil, 0, wireTypeError(f.num, f.typ)
+			}
+			hasDeprecated = true
 		}
 	}
-	return val, nil
+	switch {
+	case hasScopeSpans && hasDeprecated:
+		return nil, 0, errors.New("otlpidx: both scope_spans and deprecated instrumentation_library_spans")
+	case hasDeprecated:
+		return resource, fResourceSpansDeprecatedScopeSpans, nil
+	}
+	return resource, fResourceSpansScopeSpans, nil
+}
+
+// checkEntityRef checks the wire types of a resource's entity_ref, which the decoder doesn't use
+// but pdata decodes and validates.
+func checkEntityRef(b []byte) error {
+	for len(b) > 0 {
+		f, rest, err := next(b)
+		if err != nil {
+			return err
+		}
+		b = rest
+		if !entityRefWireTypes.ok(f) {
+			return wireTypeError(f.num, f.typ)
+		}
+	}
+	return nil
 }
 
 func (d *decoder) decodeScopeSpans(b []byte) error {
-	scope, err := lastBytesField(b, fScopeSpansScope)
-	if err != nil {
-		return err
+	var scope []byte
+	var hasScope bool
+	for rest := b; len(rest) > 0; {
+		f, r, err := next(rest)
+		if err != nil {
+			return err
+		}
+		rest = r
+		if !scopeSpansWireTypes.ok(f) {
+			return wireTypeError(f.num, f.typ)
+		}
+		if f.num == fScopeSpansScope {
+			if hasScope {
+				return errRepeatedMessage
+			}
+			scope, hasScope = f.val, true
+		}
 	}
 	var lib scopeInfo
 	for len(scope) > 0 {
@@ -410,8 +567,8 @@ func (d *decoder) decodeScopeSpans(b []byte) error {
 			return err
 		}
 		scope = rest
-		if f.typ != protowire.BytesType {
-			continue
+		if !scopeWireTypes.ok(f) {
+			return wireTypeError(f.num, f.typ)
 		}
 		switch f.num {
 		case fScopeName:
@@ -432,7 +589,8 @@ func (d *decoder) decodeScopeSpans(b []byte) error {
 			return err
 		}
 		b = rest
-		if f.num != fScopeSpansSpans || f.typ != protowire.BytesType {
+		// Wire types were checked above.
+		if f.num != fScopeSpansSpans {
 			continue
 		}
 		span, raw, err := d.decodeSpan(f.val)
@@ -640,17 +798,26 @@ func (d *decoder) decodeSpan(b []byte) (*idx.Span, rawSpan, error) {
 			}
 			b = rest
 		}
+		if !spanWireTypes.ok(f) {
+			return nil, raw, wireTypeError(f.num, f.typ)
+		}
 		switch f.num {
 		case fSpanTraceID:
 			// Like pdata, an empty trace_id is the zero ID; pdata also encodes the zero ID this way.
-			if len(f.val) != 0 && len(f.val) != 16 {
-				return nil, raw, fmt.Errorf("otlpidx: invalid trace_id length %d", len(f.val))
+			if err := checkID(f.val, 16); err != nil {
+				return nil, raw, err
 			}
 			raw.traceID = [16]byte{}
 			copy(raw.traceID[:], f.val)
 		case fSpanSpanID:
+			if err := checkID(f.val, 8); err != nil {
+				return nil, raw, err
+			}
 			span.SpanID = spanIDFromBytes(f.val)
 		case fSpanParentSpanID:
+			if err := checkID(f.val, 8); err != nil {
+				return nil, raw, err
+			}
 			span.ParentID = spanIDFromBytes(f.val)
 		case fSpanTraceState:
 			if len(f.val) > 0 {
@@ -704,6 +871,10 @@ func (d *decoder) decodeSpan(b []byte) (*idx.Span, rawSpan, error) {
 					return nil, raw, err
 				}
 				msg = srest
+				if !statusWireTypes.ok(sf) {
+					return nil, raw, wireTypeError(sf.num, sf.typ)
+				}
+				// A repeated status merges field by field, as protobuf does.
 				switch sf.num {
 				case fStatusCode:
 					raw.statusCode = sf.u64
@@ -731,6 +902,9 @@ func (d *decoder) decodeEvent(b []byte) (*idx.SpanEvent, bool, error) {
 			return nil, false, err
 		}
 		b = rest
+		if !eventWireTypes.ok(f) {
+			return nil, false, wireTypeError(f.num, f.typ)
+		}
 		switch f.num {
 		case fEventTime:
 			ev.Time = f.u64
@@ -759,10 +933,21 @@ func (d *decoder) decodeLink(b []byte) (*idx.SpanLink, error) {
 			return nil, err
 		}
 		b = rest
+		if !linkWireTypes.ok(f) {
+			return nil, wireTypeError(f.num, f.typ)
+		}
 		switch f.num {
 		case fLinkTraceID:
-			l.TraceID = append([]byte(nil), f.val...)
+			if err := checkID(f.val, 16); err != nil {
+				return nil, err
+			}
+			// Like pdata, an empty trace_id is the zero ID.
+			l.TraceID = make([]byte, 16)
+			copy(l.TraceID, f.val)
 		case fLinkSpanID:
+			if err := checkID(f.val, 8); err != nil {
+				return nil, err
+			}
 			l.SpanID = spanIDFromBytes(f.val)
 		case fLinkTraceState:
 			l.TracestateRef = d.strings.AddBytes(f.val)
@@ -779,6 +964,9 @@ func (d *decoder) decodeLink(b []byte) (*idx.SpanLink, error) {
 			l.Attributes[k] = v
 		}
 	}
+	if l.TraceID == nil {
+		l.TraceID = make([]byte, 16)
+	}
 	return l, nil
 }
 
@@ -786,30 +974,28 @@ func (d *decoder) decodeKeyValue(b []byte, depth int) (uint32, *idx.AnyValue, er
 	var key uint32
 	var val *idx.AnyValue
 	for len(b) > 0 {
+		var f field
 		if num, fv, rest, ok := shortBytesField(b); ok {
-			b = rest
-			switch num {
-			case fKeyValueKey:
-				key = d.strings.AddBytes(fv)
-				d.keys.add(keySig(fv))
-			case fKeyValueValue:
-				var err error
-				if val, err = d.decodeAnyValue(fv, depth); err != nil {
-					return 0, nil, err
-				}
+			f, b = field{num: num, typ: protowire.BytesType, val: fv}, rest
+		} else {
+			var err error
+			if f, rest, err = next(b); err != nil {
+				return 0, nil, err
 			}
-			continue
+			b = rest
 		}
-		f, rest, err := next(b)
-		if err != nil {
-			return 0, nil, err
+		if !keyValueWireTypes.ok(f) {
+			return 0, nil, wireTypeError(f.num, f.typ)
 		}
-		b = rest
 		switch f.num {
 		case fKeyValueKey:
 			key = d.strings.AddBytes(f.val)
 			d.keys.add(keySig(f.val))
 		case fKeyValueValue:
+			if val != nil {
+				return 0, nil, errRepeatedMessage
+			}
+			var err error
 			if val, err = d.decodeAnyValue(f.val, depth); err != nil {
 				return 0, nil, err
 			}
@@ -856,7 +1042,11 @@ func (d *decoder) decodeAnyValue(b []byte, depth int) (*idx.AnyValue, error) {
 			return nil, err
 		}
 		b = rest
-		// Last oneof member wins, matching protobuf semantics.
+		if !anyValueWireTypes.ok(f) {
+			return nil, wireTypeError(f.num, f.typ)
+		}
+		// Last oneof member wins, matching protobuf semantics (and pdata, which replaces message
+		// members rather than merging them).
 		switch f.num {
 		case fAnyString:
 			v.Value = d.strRef(d.strings.AddBytes(f.val))
@@ -874,6 +1064,9 @@ func (d *decoder) decodeAnyValue(b []byte, depth int) (*idx.AnyValue, error) {
 			v.Value = w
 		case fAnyBytes:
 			v.Value = &idx.AnyValue_BytesValue{BytesValue: append([]byte(nil), f.val...)}
+		case fAnyStrindex:
+			// pdata keeps it as the value, which has no V1 equivalent; leave it to pdata.
+			return nil, errStrindex
 		case fAnyArray:
 			arr := &idx.ArrayValue{}
 			inner := f.val
@@ -883,6 +1076,9 @@ func (d *decoder) decodeAnyValue(b []byte, depth int) (*idx.AnyValue, error) {
 					return nil, err
 				}
 				inner = arest
+				if !valuesWireTypes.ok(af) {
+					return nil, wireTypeError(af.num, af.typ)
+				}
 				if af.num != fArrayValues {
 					continue
 				}
@@ -902,6 +1098,9 @@ func (d *decoder) decodeAnyValue(b []byte, depth int) (*idx.AnyValue, error) {
 					return nil, err
 				}
 				inner = krest
+				if !valuesWireTypes.ok(kf) {
+					return nil, wireTypeError(kf.num, kf.typ)
+				}
 				if kf.num != fKvlistValues {
 					continue
 				}
