@@ -1718,6 +1718,33 @@ func TestServerlessMetadataWrappedCommandEnabled(t *testing.T) {
 	}
 }
 
+func TestAASMetadataEnabled(t *testing.T) {
+	const envVar = "DD_SERVERLESS_AAS_EXTENSION_METADATA_ENABLED"
+	const key = "serverless.aas_extension_metadata_enabled"
+	for _, tc := range []struct {
+		name string
+		env  string
+		want bool
+	}{
+		{name: "unset"},
+		{name: "zero", env: "0"},
+		{name: "one", env: "1", want: true},
+		{name: "false", env: "false"},
+		{name: "true", env: "true", want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(envVar, tc.env)
+			if tc.env == "" {
+				require.NoError(t, os.Unsetenv(envVar))
+			}
+			conf := newEmptyMockConf(t)
+			InitConfig(conf)
+			assert.True(t, conf.IsKnown(key))
+			assert.Equal(t, tc.want, conf.GetBool(key))
+		})
+	}
+}
+
 func TestDisableCoreAgent(t *testing.T) {
 	pkgconfigmodel.CleanOverride(t)
 	conf := newEmptyMockConf(t)

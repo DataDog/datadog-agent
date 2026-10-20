@@ -545,6 +545,12 @@ Package runner implements a component to generate metadata payload at the right 
 
 Package securityagent is the metadata provider for security-agent process
 
+### [comp/metadata/serverlessaas](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessaas)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessaas defines the Azure App Service extension metadata component.
+
 ### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
 
 *Datadog Team*: serverless-azure-and-gcp fleet-automation

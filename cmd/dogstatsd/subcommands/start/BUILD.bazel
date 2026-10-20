@@ -49,6 +49,8 @@ go_library(
         "//comp/metadata/resources/impl",
         "//comp/metadata/runner/def",
         "//comp/metadata/runner/fx",
+        "//comp/metadata/serverlessaas/def",
+        "//comp/metadata/serverlessaas/fx",
         "//comp/serializer/logscompression/fx",
         "//comp/serializer/metricscompression/fx",
         "//pkg/serializer",

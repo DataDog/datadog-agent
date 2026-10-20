@@ -15,11 +15,16 @@ import (
 )
 
 func TestStartCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{MakeCommand("defaultLogFile")},
-		[]string{"start", "--cfgpath", "PATH"},
-		start,
-		func(cliParams *CLIParams, _ config.Params) {
-			require.Equal(t, "PATH", cliParams.confPath)
+	for _, flag := range []string{"0", "1"} {
+		t.Run("aas_metadata_"+flag, func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_AAS_EXTENSION_METADATA_ENABLED", flag)
+			fxutil.TestOneShotSubcommand(t,
+				[]*cobra.Command{MakeCommand("defaultLogFile")},
+				[]string{"start", "--cfgpath", "PATH"},
+				start,
+				func(cliParams *CLIParams, _ config.Params) {
+					require.Equal(t, "PATH", cliParams.confPath)
+				})
 		})
+	}
 }

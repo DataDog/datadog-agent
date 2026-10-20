@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	resourcesmock "github.com/DataDog/datadog-agent/comp/metadata/resources/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -48,6 +49,24 @@ func makeRequires(deps testDeps) Requires {
 		Serializer: deps.Serializer,
 		Hostname:   deps.Hostname,
 	}
+}
+
+func TestAASDisablesHostProvider(t *testing.T) {
+	original := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.Dogstatsd)
+	t.Cleanup(func() { flavor.SetFlavor(original) })
+	ret := NewComponent(makeRequires(fxutil.Test[testDeps](t,
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]any{
+				"serverless.aas_extension_metadata_enabled": true,
+			})
+		}),
+		resourcesmock.MockModule(),
+		fx.Provide(func() serializer.MetricSerializer { return nil }),
+		hostnameimpl.MockModule(),
+	)))
+	assert.Nil(t, ret.MetadataProvider.Callback)
 }
 
 func TestNewHostProviderDefaultIntervals(t *testing.T) {

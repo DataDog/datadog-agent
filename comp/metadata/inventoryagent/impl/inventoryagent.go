@@ -94,6 +94,7 @@ func NewComponent(deps Requires) Provides {
 		client:       deps.IPCClient,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
+	ia.Enabled = ia.Enabled && util.HostMetadataEnabled(deps.Config)
 
 	if ia.Enabled {
 		// We want to be notified when the configuration is updated

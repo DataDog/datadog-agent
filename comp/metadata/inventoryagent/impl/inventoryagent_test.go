@@ -92,6 +92,18 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprob
 	return p.Comp.(*inventoryagent)
 }
 
+func TestAASDisablesHostProvider(t *testing.T) {
+	original := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.Dogstatsd)
+	t.Cleanup(func() { flavor.SetFlavor(original) })
+	p := getProvides(t, map[string]any{
+		"serverless.aas_extension_metadata_enabled": true,
+		"enable_metadata_collection":                true,
+		"inventories_enabled":                       true,
+	}, nil)
+	assert.Nil(t, p.Provider.Callback)
+}
+
 func TestSet(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 

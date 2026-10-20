@@ -28,6 +28,7 @@ import (
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -166,6 +167,25 @@ func getTestInventoryHost(t *testing.T) *invHost {
 		)),
 	)
 	return p.Comp.(*invHost)
+}
+
+func TestAASDisablesHostProvider(t *testing.T) {
+	original := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.Dogstatsd)
+	t.Cleanup(func() { flavor.SetFlavor(original) })
+	p := NewComponent(makeRequires(fxutil.Test[testDeps](t,
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]any{
+				"serverless.aas_extension_metadata_enabled": true,
+				"enable_metadata_collection":                true,
+				"inventories_enabled":                       true,
+			})
+		}),
+		fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+		hostnameimpl.MockModule(),
+	)))
+	assert.Nil(t, p.Provider.Callback)
 }
 
 func TestGetPayload(t *testing.T) {
