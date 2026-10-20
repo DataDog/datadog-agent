@@ -416,9 +416,8 @@ logs_config:
 				return
 			}
 			assert.Equal(t, tt.candidate, plan.Name)
-			assert.Equal(t, 1, plan.Version)
 			assert.NotEmpty(t, plan.Description)
-			assert.Len(t, plan.Current, len(logsPerformanceProfiles[tt.candidate][1].settings))
+			assert.Len(t, plan.Current, len(logsPerformanceProfiles[tt.candidate].settings))
 			for i := 1; i < len(plan.Current); i++ {
 				assert.Less(t, plan.Current[i-1].Key, plan.Current[i].Key)
 			}
@@ -426,7 +425,7 @@ logs_config:
 			var changeKeys []string
 			for _, c := range plan.Changes {
 				changeKeys = append(changeKeys, c.Key)
-				want := resolveProfileSettingValue(logsPerformanceProfiles[tt.candidate][1].settings[c.Key])
+				want := resolveProfileSettingValue(logsPerformanceProfiles[tt.candidate].settings[c.Key])
 				assert.Equal(t, want, c.To, c.Key)
 				assert.False(t, profileValuesEqual(c.From, c.To), c.Key)
 			}
@@ -464,15 +463,6 @@ logs_config:
 			assert.Equal(t, min(2, runtime.GOMAXPROCS(0)), c.To)
 		}
 	}
-}
-
-func TestLatestLogsPerformanceProfileVersion(t *testing.T) {
-	v, ok := LatestLogsPerformanceProfileVersion("high-throughput")
-	assert.True(t, ok)
-	assert.Equal(t, 1, v)
-
-	_, ok = LatestLogsPerformanceProfileVersion("does-not-exist")
-	assert.False(t, ok)
 }
 
 func TestProfileValuesEqual(t *testing.T) {

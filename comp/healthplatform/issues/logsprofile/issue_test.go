@@ -21,7 +21,6 @@ import (
 func sampleWire() recommendation {
 	return recommendation{
 		Profile:             profilerec.ProfileHighConcurrency,
-		ProfileVersion:      1,
 		ProfileDescription:  "Raises send concurrency.",
 		ProfileKeySource:    "default",
 		ReasonCode:          profilerec.ReasonSendStageSaturatedHighLatency,
@@ -113,7 +112,7 @@ func TestBuildIssue(t *testing.T) {
 				assert.EqualValues(t, i+1, step.Order)
 			}
 			assert.Contains(t, issue.Remediation.Steps[1].Text, "logs_config.profile: high-concurrency")
-			assert.Contains(t, issue.Remediation.Steps[1].Text, "logs_config.profile_version: 1")
+			assert.NotContains(t, issue.Remediation.Steps[1].Text, "profile_version")
 		})
 	}
 }
@@ -141,7 +140,7 @@ func TestBuildIssue_ExtraContract(t *testing.T) {
 	rec := extraRecommendation(t, issue)
 	assert.Equal(t, "logs_performance_profile", rec["kind"])
 	assert.Equal(t, "high-concurrency", rec["profile"])
-	assert.Equal(t, float64(1), rec["profile_version"])
+	assert.NotContains(t, rec, "profile_version")
 	assert.Equal(t, float64(1), rec["schema_version"])
 	assert.Equal(t, "send_stage_saturated_high_latency", rec["reason_code"])
 	assert.Equal(t, "default", rec["profile_key_source"])

@@ -131,7 +131,6 @@ func TestLogsProfileRecommendationSurvivesFullPipeline(t *testing.T) {
 	require.NotEmpty(t, rec, "recommendation must arrive as an object, not a string")
 	assert.Equal(t, "logs_performance_profile", rec["kind"].GetStringValue())
 	assert.Equal(t, "high-concurrency", rec["profile"].GetStringValue())
-	assert.Equal(t, float64(1), rec["profile_version"].GetNumberValue())
 	assert.NotEmpty(t, rec["changes"].GetListValue().GetValues())
 
 	evidence := rec["evidence"].GetListValue().GetValues()

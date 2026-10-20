@@ -20,7 +20,7 @@ type (
 
 // ActiveProfile returns the active profile name, or "" when none is active.
 func ActiveProfile(cfg pkgconfigmodel.Reader) string {
-	name, _, _, _ := pkgconfigsetup.ResolvedLogsPerformanceProfile(cfg)
+	name, _, _ := pkgconfigsetup.ResolvedLogsPerformanceProfile(cfg)
 	return name
 }
 

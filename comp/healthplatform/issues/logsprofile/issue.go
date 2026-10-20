@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -72,7 +71,6 @@ var profileTradeoffs = map[string]string{
 // recommendation is the check-time state carried in Context.
 type recommendation struct {
 	Profile             string        `json:"profile"`
-	ProfileVersion      int           `json:"profile_version"`
 	ProfileDescription  string        `json:"profile_description,omitempty"`
 	ProfileKeySource    string        `json:"profile_key_source,omitempty"`
 	ReasonCode          string        `json:"reason_code"`
@@ -190,18 +188,18 @@ func tags(profile string) []string {
 }
 
 func remediationSteps(w recommendation) []*healthplatform.RemediationStep {
-	profile, version := w.Profile, strconv.Itoa(w.ProfileVersion)
+	profile := w.Profile
 	texts := []string{
 		"Run `sudo datadog-agent status` and check the Logs Agent Backpressure section to confirm which stage is saturated.",
 	}
 	if profile == "" {
 		texts = append(texts, "Apply the profile named in the Recommended Performance Profile section of `sudo datadog-agent status` with `logs_config.profile`, then restart the Agent.")
 	} else if w.ProfileKeySource == string(pkgconfigmodel.SourceEnvVar) {
-		texts = append(texts, fmt.Sprintf("`logs_config.profile` is set by an environment variable on this host. Set `DD_LOGS_CONFIG_PROFILE=%s` and `DD_LOGS_CONFIG_PROFILE_VERSION=%s` instead, then restart the Agent.",
-			profile, version))
+		texts = append(texts, fmt.Sprintf("`logs_config.profile` is set by an environment variable on this host. Set `DD_LOGS_CONFIG_PROFILE=%s` instead, then restart the Agent.",
+			profile))
 	} else {
-		texts = append(texts, fmt.Sprintf("Deploy the profile from Fleet Automation, or set `logs_config.profile: %s` and `logs_config.profile_version: %s` in datadog.yaml and restart the Agent.",
-			profile, version))
+		texts = append(texts, fmt.Sprintf("Deploy the profile from Fleet Automation, or set `logs_config.profile: %s` in datadog.yaml and restart the Agent.",
+			profile))
 	}
 	if w.ProfileDescription != "" {
 		texts = append(texts, "What the profile changes: "+w.ProfileDescription+" Settings set explicitly on this host keep their values.")
@@ -223,7 +221,6 @@ func recommendationExtra(w recommendation) map[string]any {
 	rec := map[string]any{
 		"kind":               recommendationKind,
 		"profile":            w.Profile,
-		"profile_version":    w.ProfileVersion,
 		"evidence":           evidence(w),
 		"tradeoffs":          tradeoffs(w),
 		"schema_version":     recommendationSchemaVersion,

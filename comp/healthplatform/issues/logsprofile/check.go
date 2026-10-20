@@ -228,7 +228,6 @@ func (c *checker) build(k kind, profile, code, reason, bottleneck string, obs ob
 
 	w := recommendation{
 		Profile:             plan.Name,
-		ProfileVersion:      plan.Version,
 		ProfileDescription:  plan.Description,
 		ProfileKeySource:    plan.ProfileKeySource,
 		ReasonCode:          code,

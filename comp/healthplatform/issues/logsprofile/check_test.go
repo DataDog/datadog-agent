@@ -39,7 +39,6 @@ type env struct {
 func changePlan(profile string) (profilerec.Plan, bool) {
 	return profilerec.Plan{
 		Name:             profile,
-		Version:          1,
 		Description:      "Raises send concurrency.",
 		ProfileKeySource: "default",
 		Current:          []profilerec.PlanSetting{{Key: "logs_config.batch_max_concurrent_send", Value: 0, Source: "default"}},
@@ -410,7 +409,7 @@ func TestRun_PlanGate(t *testing.T) {
 		{
 			name: "only blocked keys",
 			ok:   true,
-			plan: profilerec.Plan{Name: "high-concurrency", Version: 1, Blocked: []profilerec.PlanBlockedKey{{Key: "logs_config.batch_max_concurrent_send", Source: "file"}}},
+			plan: profilerec.Plan{Name: "high-concurrency", Blocked: []profilerec.PlanBlockedKey{{Key: "logs_config.batch_max_concurrent_send", Source: "file"}}},
 		},
 	}
 	for _, tt := range tests {

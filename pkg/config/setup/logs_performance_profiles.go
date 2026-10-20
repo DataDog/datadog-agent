@@ -217,7 +217,6 @@ type LogsPerformanceProfileCurrentSetting struct {
 // LogsPerformanceProfilePlan describes what switching to a profile would change.
 type LogsPerformanceProfilePlan struct {
 	Name             string
-	Version          int
 	Description      string
 	Current          []LogsPerformanceProfileCurrentSetting
 	Changes          []LogsPerformanceProfileChange
@@ -225,29 +224,14 @@ type LogsPerformanceProfilePlan struct {
 	ProfileKeySource string
 }
 
-// LatestLogsPerformanceProfileVersion returns the version new deployments should pin for name.
-func LatestLogsPerformanceProfileVersion(name string) (int, bool) {
-	versions, ok := logsPerformanceProfiles[name]
-	if !ok || len(versions) == 0 {
-		return 0, false
-	}
-	latest := 0
-	for v := range versions {
-		latest = max(latest, v)
-	}
-	return latest, true
-}
-
-// PlanLogsPerformanceProfile describes what switching to candidate (latest version) would change on this config. ok is false if candidate is not in the catalog.
+// PlanLogsPerformanceProfile describes what switching to candidate would change; ok is false if it is not in the catalog.
 func PlanLogsPerformanceProfile(config pkgconfigmodel.Reader, candidate string) (LogsPerformanceProfilePlan, bool) {
-	version, ok := LatestLogsPerformanceProfileVersion(candidate)
+	profile, ok := logsPerformanceProfiles[candidate]
 	if !ok {
 		return LogsPerformanceProfilePlan{}, false
 	}
-	profile := logsPerformanceProfiles[candidate][version]
 	plan := LogsPerformanceProfilePlan{
 		Name:             candidate,
-		Version:          version,
 		Description:      profile.description,
 		ProfileKeySource: string(config.GetSource("logs_config.profile")),
 	}
