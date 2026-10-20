@@ -9,7 +9,10 @@ package serializers
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	modelutils "github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
+	seclrules "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/schemas"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -92,6 +96,84 @@ func TestCustomEventVariables_WithVariableStore(t *testing.T) {
 	// The non-scoped variable "my_flag" should appear in the event context variables.
 	require.NotNil(t, s.EventContextSerializer.Variables)
 	assert.Equal(t, true, s.EventContextSerializer.Variables["my_flag"])
+}
+
+func TestCustomEventVariables_ConcurrentRuleSetAction(t *testing.T) {
+	ruleOpts, evalOpts := seclrules.NewBothOpts(map[eval.EventType]bool{"*": true})
+	ruleSet := seclrules.NewRuleSet(&model.Model{}, func() eval.Event {
+		return model.NewFakeEvent()
+	}, ruleOpts, evalOpts)
+
+	policyRule := &seclrules.PolicyRule{
+		Accepted: true,
+		Def: &seclrules.RuleDefinition{
+			ID:         "set_serialized_value",
+			Expression: `open.file.path != ""`,
+			Actions: []*seclrules.ActionDefinition{{
+				Set: &seclrules.SetDefinition{
+					Name:  "serialized_value",
+					Field: "open.file.path",
+				},
+			}},
+		},
+	}
+	require.NoError(t, ruleSet.PopulateFieldsWithRuleActionsData([]*seclrules.PolicyRule{policyRule}, seclrules.PolicyLoaderOpts{}).ErrorOrNil())
+	_, err := ruleSet.AddRule(policyRule)
+	require.NoError(t, err)
+
+	values := [2]string{
+		"/tmp/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"/tmp/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	}
+	ruleEvent := model.NewFakeEvent()
+	ruleEvent.Type = uint32(model.FileOpenEventType)
+	ruleEvent.SetFieldValue("open.file.path", values[0])
+	require.True(t, ruleSet.Evaluate(ruleEvent))
+
+	customRule := events.NewCustomRule(
+		events.AnomalyDetectionRuleID,
+		events.AnomalyDetectionRuleDesc,
+		&eval.Opts{VariableStore: ruleSet.GetVariableStore()},
+	)
+	anomalyEvent := newAnomalyEvent()
+	scrubber := newTestScrubber(t)
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		<-start
+		for i := 0; i < 1000; i++ {
+			ruleEvent.SetFieldValue("open.file.path", values[i%len(values)])
+			if !ruleSet.Evaluate(ruleEvent) {
+				errs <- errors.New("set action rule did not match")
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		<-start
+		for i := 0; i < 1000; i++ {
+			serializer := NewEventSerializer(anomalyEvent, customRule, scrubber)
+			value, found := serializer.EventContextSerializer.Variables["serialized_value"]
+			if !found || (value != values[0] && value != values[1]) {
+				errs <- fmt.Errorf("unexpected serialized variable value %q", value)
+				return
+			}
+		}
+	}()
+
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
 }
 
 func TestCustomEventVariables_WithoutVariableStore(t *testing.T) {

@@ -6,6 +6,8 @@
 // Package eval holds eval related files
 package eval
 
+import "sync"
+
 // MacroStore represents a store of SECL Macros
 type MacroStore struct {
 	macros []*Macro
@@ -57,10 +59,13 @@ func (s *MacroStore) Contains(id string) bool {
 // VariableStore represents a store of SECL variables
 type VariableStore struct {
 	Variables map[string]SECLVariable
+	sync.RWMutex
 }
 
 // Add adds a variable
 func (s *VariableStore) Add(name string, variable SECLVariable) *VariableStore {
+	s.Lock()
+	defer s.Unlock()
 	if s.Variables == nil {
 		s.Variables = make(map[string]SECLVariable)
 	}
@@ -70,7 +75,12 @@ func (s *VariableStore) Add(name string, variable SECLVariable) *VariableStore {
 
 // Get returns the variable
 func (s *VariableStore) Get(name string) SECLVariable {
-	if s == nil || s.Variables == nil {
+	if s == nil {
+		return nil
+	}
+	s.RLock()
+	defer s.RUnlock()
+	if s.Variables == nil {
 		return nil
 	}
 	return s.Variables[name]
