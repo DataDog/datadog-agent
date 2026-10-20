@@ -276,6 +276,7 @@ func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) stri
 	*pfan = adproto.FileActivityNode{
 		MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
 		Name:           escape(fan.Name),
+		IsPattern:      fan.IsPattern,
 		File:           fileInfoToProto(fan.File),
 		GenerationType: adproto.GenerationType(fan.GenerationType),
 		Open:           openNodeToProto(fan.Open),

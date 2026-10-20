@@ -581,7 +581,12 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 
 	// Group sibling files into patterns before encoding, even in
 	// directories below the insert-time fan-out threshold.
-	m.retargetSampleCookies(p, p.FinalizePatterns())
+	p.Lock()
+	if p.ActivityTree != nil {
+		p.ActivityTree.FinalizePatterns()
+		m.retargetSampleCookies(p, p.ActivityTree.Stats.TakeMovedNodes())
+	}
+	p.Unlock()
 
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
@@ -869,11 +874,9 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	var (
-		tags     [][]string
-		profiles = make([]*profile.Profile, 0, len(m.profiles))
-	)
+	var tags [][]string
 	m.profilesLock.Lock()
+	profiles := make([]*profile.Profile, 0, len(m.profiles))
 	for selector, prof := range m.profiles {
 		profiles = append(profiles, prof)
 		if prof.IsEnabled() {
@@ -1102,8 +1105,14 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	}
 	m.ensureVersionContext(secprof, imageTag)
 
-	// Insert the event into the profile's activity tree
-	inserted, processNode, eventNodeBase, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
+	secprof.Lock()
+	inserted, processNode, eventNodeBase, err := secprof.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	if err == nil {
+		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
+		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
+	}
+	secprof.Unlock()
 	if err != nil {
 		if !activity_tree.IsExpectedFilterError(err) {
 			m.incrementInsertionError(event.GetEventType(), err)
@@ -1111,32 +1120,35 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		}
 		return nil, false
 	}
-	m.retargetSampleCookies(secprof, secprof.TakeMovedNodes())
-
-	// Register the sample cookie → (process node, event node) mapping for sample refresh events
-	if processNode != nil {
-		var sampleCookie uint64
-		switch event.GetEventType() {
-		case model.FileOpenEventType:
-			sampleCookie = event.Open.SampleCookie
-		case model.BindEventType:
-			sampleCookie = event.Bind.SampleCookie
-		case model.ConnectEventType:
-			sampleCookie = event.Connect.SampleCookie
-		case model.SyscallsEventType:
-			sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
-		}
-		if sampleCookie != 0 {
-			m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
-				profile:       secprof,
-				processNode:   processNode,
-				eventNodeBase: eventNodeBase,
-				imageTag:      imageTag,
-			})
-		}
-	}
 
 	return secprof, inserted
+}
+
+// registerSampleCookie maps the event's sample cookie to its nodes. Callers must hold prof's lock.
+func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profile, processNode *activity_tree.ProcessNode, eventNodeBase *activity_tree.NodeBase, imageTag string) {
+	if processNode == nil {
+		return
+	}
+	var sampleCookie uint64
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		sampleCookie = event.Open.SampleCookie
+	case model.BindEventType:
+		sampleCookie = event.Bind.SampleCookie
+	case model.ConnectEventType:
+		sampleCookie = event.Connect.SampleCookie
+	case model.SyscallsEventType:
+		sampleCookie = event.Syscalls.SampleCookie // 0 for drain events
+	}
+	if sampleCookie == 0 {
+		return
+	}
+	m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
+		profile:       prof,
+		processNode:   processNode,
+		eventNodeBase: eventNodeBase,
+		imageTag:      imageTag,
+	})
 }
 
 // buildWorkloadSelector creates a workload selector from the event's container tags
@@ -1265,7 +1277,7 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	return secprof, nil
 }
 
-// pathPatternConfig returns the path-pattern mining configuration of v2
+// pathPatternConfig returns the path-pattern merging configuration of v2
 // profiles: built-in defaults overridden by the user-facing settings.
 func (m *ManagerV2) pathPatternConfig() activity_tree.PathPatternConfig {
 	cfg := activity_tree.DefaultPathPatternConfig()
@@ -1749,7 +1761,8 @@ func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
 }
 
 // retargetSampleCookies points the cookies of prof whose event node was
-// folded by a path-pattern merge at the node that absorbed it.
+// folded by a path-pattern merge at the node that absorbed it. Callers must
+// hold prof's lock since the merge.
 func (m *ManagerV2) retargetSampleCookies(prof *profile.Profile, moved map[*activity_tree.NodeBase]*activity_tree.NodeBase) {
 	if len(moved) == 0 {
 		return

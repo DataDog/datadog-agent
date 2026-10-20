@@ -203,7 +203,7 @@ func WithDNSMatchMaxDepth(dnsMatchMaxDepth int) Opts {
 	}
 }
 
-// WithPathPatterns enables path-pattern mining on the profile's
+// WithPathPatterns enables path-pattern merging on the profile's
 // ActivityTree with the provided configuration.
 func WithPathPatterns(cfg activity_tree.PathPatternConfig) Opts {
 	return func(p *Profile) {
@@ -352,29 +352,6 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	defer p.Unlock()
 
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
-}
-
-// FinalizePatterns runs the save-time path-pattern merge pass and returns
-// the nodes it folded, mapped to the nodes that absorbed them.
-func (p *Profile) FinalizePatterns() map[*activity_tree.NodeBase]*activity_tree.NodeBase {
-	p.Lock()
-	defer p.Unlock()
-	if p.ActivityTree == nil {
-		return nil
-	}
-	p.ActivityTree.FinalizePatterns()
-	return p.ActivityTree.Stats.TakeMovedNodes()
-}
-
-// TakeMovedNodes returns the nodes folded by insert-time merges since the
-// last call, mapped to the nodes that absorbed them.
-func (p *Profile) TakeMovedNodes() map[*activity_tree.NodeBase]*activity_tree.NodeBase {
-	p.Lock()
-	defer p.Unlock()
-	if p.ActivityTree == nil {
-		return nil
-	}
-	return p.ActivityTree.Stats.TakeMovedNodes()
 }
 
 // ComputeInMemorySize returns the legacy shallow size estimate of the profile in memory

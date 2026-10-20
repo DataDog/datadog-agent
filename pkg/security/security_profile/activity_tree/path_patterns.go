@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
-// PathPatternConfig controls sibling pattern mining on FileNode maps.
-// Mining is opt-in per ActivityTree via Stats.SetPathPatternConfig; v2
+// PathPatternConfig controls path-pattern merging of sibling FileNodes.
+// Merging is opt-in per ActivityTree via Stats.SetPathPatternConfig; v2
 // security profiles enable it, v1 profiles and activity dumps leave it
 // off.
 type PathPatternConfig struct {
@@ -334,34 +334,52 @@ func structureSignature(name string) string {
 	return out.String()
 }
 
+// tokenizedName holds a sibling name and its tokens for one merge pass.
+type tokenizedName struct {
+	name   string
+	tokens []nameToken
+}
+
+func tokenizeNames(names []string) []tokenizedName {
+	out := make([]tokenizedName, len(names))
+	for i, name := range names {
+		out[i] = tokenizedName{name: name, tokens: tokenizeName(name)}
+	}
+	return out
+}
+
+func namesOf(members []tokenizedName) []string {
+	out := make([]string, len(members))
+	for i, member := range members {
+		out[i] = member.name
+	}
+	return out
+}
+
 // buildTemplate returns the merged name for a cluster of same-signature
 // siblings, keeping tokens on which all siblings agree and replacing the
 // others with the placeholder of their class. Mixed letter/digit tokens
 // keep the letter prefix and suffix shared by all siblings.
 // Examples: [sess-1, sess-22] -> "sess-<num>", [sess1, sess22] -> "sess<num>".
-func buildTemplate(names []string) string {
-	if len(names) == 0 {
+func buildTemplate(members []tokenizedName) string {
+	if len(members) == 0 {
 		return ""
 	}
-	if len(names) == 1 {
-		return names[0]
+	if len(members) == 1 {
+		return members[0].name
 	}
-	tokenized := make([][]nameToken, len(names))
-	for i, n := range names {
-		tokenized[i] = tokenizeName(n)
-	}
-	ref := tokenized[0]
+	ref := members[0].tokens
 	var out strings.Builder
-	texts := make([]string, len(names))
+	texts := make([]string, len(members))
 	for k, tok := range ref {
 		allSame := true
-		for i, toks := range tokenized {
-			if k >= len(toks) {
+		for i, member := range members {
+			if k >= len(member.tokens) {
 				allSame = false
 				texts[i] = ""
 				continue
 			}
-			texts[i] = toks[k].text
+			texts[i] = member.tokens[k].text
 			if texts[i] != tok.text {
 				allSame = false
 			}
@@ -404,11 +422,11 @@ func alnumTemplate(texts []string) string {
 }
 
 // affixKey identifies the letter prefix and suffix of every mixed
-// letter/digit token of name, so that families such as sess1, sess2 are
+// letter/digit token of a name, so that families such as sess1, sess2 are
 // split from unrelated random IDs sharing the same signature.
-func affixKey(name string) string {
+func affixKey(tokens []nameToken) string {
 	var key strings.Builder
-	for _, tok := range tokenizeName(name) {
+	for _, tok := range tokens {
 		if tok.class != classAlnum {
 			continue
 		}
@@ -420,10 +438,9 @@ func affixKey(name string) string {
 	return key.String()
 }
 
-// hasSharedLetters reports whether an affixKey carries a letter prefix or
-// suffix. Keys of names without mixed tokens are empty and count as shared.
-func hasSharedLetters(key string) bool {
-	return key == "" || strings.Trim(key, "\x00") != ""
+// hasLetterAffix reports whether an affixKey carries a letter prefix or suffix.
+func hasLetterAffix(key string) bool {
+	return strings.Trim(key, "\x00") != ""
 }
 
 // Thresholds of a random-looking mixed token: generated IDs are long and
@@ -454,10 +471,10 @@ func hasMixedCase(s string) bool {
 	return lower && upper
 }
 
-// looksRandom reports whether name holds a mixed letter/digit token that
+// looksRandom reports whether a name holds a mixed letter/digit token that
 // looks generated rather than chosen.
-func looksRandom(name string) bool {
-	for _, tok := range tokenizeName(name) {
+func looksRandom(tokens []nameToken) bool {
+	for _, tok := range tokens {
 		if tok.class != classAlnum || len(tok.text) < minRandomTokenLen {
 			continue
 		}
@@ -468,45 +485,46 @@ func looksRandom(name string) bool {
 	return false
 }
 
-// mostlyRandom reports whether more than half of names look random.
-func mostlyRandom(names []string) bool {
+// mostlyRandom reports whether more than half of members look random.
+func mostlyRandom(members []tokenizedName) bool {
 	random := 0
-	for _, n := range names {
-		if looksRandom(n) {
+	for _, member := range members {
+		if looksRandom(member.tokens) {
 			random++
 		}
 	}
-	return 2*random > len(names)
+	return 2*random > len(members)
 }
 
 // clusterMembers splits a signature bucket into the member sets to
 // template: one per affix family sharing letters with at least
 // minGroupSize members, then the remaining members together when they
 // are numerous enough and mostly look like generated IDs.
-func clusterMembers(members []string, minGroupSize int) [][]string {
-	families := make(map[string][]string)
+func clusterMembers(members []tokenizedName, minGroupSize int) [][]tokenizedName {
+	families := make(map[string][]tokenizedName)
 	var keys []string
-	for _, m := range members {
-		k := affixKey(m)
-		if _, ok := families[k]; !ok {
-			keys = append(keys, k)
+	for _, member := range members {
+		key := affixKey(member.tokens)
+		if _, ok := families[key]; !ok {
+			keys = append(keys, key)
 		}
-		families[k] = append(families[k], m)
+		families[key] = append(families[key], member)
 	}
 	sort.Strings(keys)
 	var (
-		out  [][]string
-		rest []string
+		out  [][]tokenizedName
+		rest []tokenizedName
 	)
-	for _, k := range keys {
-		if len(families[k]) >= minGroupSize && hasSharedLetters(k) {
-			out = append(out, families[k])
+	for _, key := range keys {
+		// An empty key means no mixed token (sess-1, sess-2): nothing to split.
+		if len(families[key]) >= minGroupSize && (key == "" || hasLetterAffix(key)) {
+			out = append(out, families[key])
 		} else {
-			rest = append(rest, families[k]...)
+			rest = append(rest, families[key]...)
 		}
 	}
 	if len(rest) >= minGroupSize && mostlyRandom(rest) {
-		sort.Strings(rest)
+		sort.Slice(rest, func(i, j int) bool { return rest[i].name < rest[j].name })
 		out = append(out, rest)
 	}
 	return out
@@ -518,8 +536,8 @@ type templatePart struct {
 }
 
 // parseTemplate splits a template into literal and placeholder parts.
-// ok is false when the template holds no placeholder.
-func parseTemplate(template string) (parts []templatePart, ok bool) {
+// hasPlaceholder is false when the template holds no placeholder.
+func parseTemplate(template string) (parts []templatePart, hasPlaceholder bool) {
 	literalStart := 0
 	for i := 0; i < len(template); i++ {
 		if template[i] != '<' {
@@ -537,22 +555,35 @@ func parseTemplate(template string) (parts []templatePart, ok bool) {
 			parts = append(parts, templatePart{literal: template[literalStart:i]})
 		}
 		parts = append(parts, templatePart{class: class})
-		ok = true
+		hasPlaceholder = true
 		i += end
 		literalStart = i + 1
 	}
 	if literalStart < len(template) {
 		parts = append(parts, templatePart{literal: template[literalStart:]})
 	}
-	return parts, ok
+	return parts, hasPlaceholder
 }
 
-// isPatternName reports whether name holds a placeholder, either mined or
-// written by the PathsReducer. A literal "*", found in profiles saved
-// before the reducer wrote placeholders, is not a pattern.
+// isPatternName reports whether name reads as a template. Real file names
+// can too: FileNode.IsPattern tells whether a node is a pattern.
 func isPatternName(name string) bool {
-	_, ok := parseTemplate(name)
-	return ok
+	if strings.IndexByte(name, '<') < 0 {
+		return false
+	}
+	_, hasPlaceholder := parseTemplate(name)
+	return hasPlaceholder
+}
+
+// reducedComponentIsPattern reports whether the PathsReducer wrote a
+// placeholder in name, rawName being the component before reduction.
+func reducedComponentIsPattern(name, rawName string) bool {
+	return name != rawName && !isPatternName(rawName) && isPatternName(name)
+}
+
+// isMergeCandidate excludes patterns and literal names that read as a template.
+func isMergeCandidate(name string, child *FileNode) bool {
+	return child != nil && !child.IsPattern && !isPatternName(name)
 }
 
 // templateScope tells which nodes a template may stand for.
@@ -572,8 +603,8 @@ const (
 // node. Otherwise <alnum> is limited to directories and <alpha> is
 // refused, so fixed names (tmp / var / etc) never collapse into <alpha>.
 func templateScopeOf(template string) templateScope {
-	parts, ok := parseTemplate(template)
-	if !ok {
+	parts, hasPlaceholder := parseTemplate(template)
+	if !hasPlaceholder {
 		return scopeNone
 	}
 	scope := scopeNone
@@ -600,11 +631,11 @@ func templateScopeOf(template string) templateScope {
 // directoryMembers returns the members that already have children. A
 // directory created by the current insert is still empty, so directory-only
 // templates are mostly installed by FinalizePatterns.
-func directoryMembers(children map[string]*FileNode, members []string) []string {
-	var out []string
-	for _, name := range members {
-		if c := children[name]; c != nil && len(c.Children) > 0 {
-			out = append(out, name)
+func directoryMembers(children map[string]*FileNode, members []tokenizedName) []tokenizedName {
+	var out []tokenizedName
+	for _, member := range members {
+		if c := children[member.name]; c != nil && len(c.Children) > 0 {
+			out = append(out, member)
 		}
 	}
 	return out
@@ -668,12 +699,12 @@ type signatureBucket struct {
 	members   []string
 }
 
-// groupChildrenBySignature partitions non-pattern children by structural
-// signature, sorted by signature for deterministic iteration.
+// groupChildrenBySignature partitions the merge candidates of children by
+// structural signature, sorted by signature for deterministic iteration.
 func groupChildrenBySignature(children map[string]*FileNode) []signatureBucket {
 	byKey := make(map[string][]string)
 	for name, child := range children {
-		if child == nil || child.IsPattern {
+		if !isMergeCandidate(name, child) {
 			continue
 		}
 		sig := child.signatureOf(name)
@@ -815,6 +846,8 @@ func collapseBucket(children map[string]*FileNode, template string, members []st
 	owner := head
 	if existing != nil && existing != head {
 		existing.mergeInto(head, stats)
+		// existing may be a literal file whose name equals the template.
+		existing.IsPattern = true
 		owner = existing
 		if stats != nil {
 			stats.FileNodes--
@@ -870,7 +903,7 @@ func mergeBuckets(children map[string]*FileNode, buckets []signatureBucket, minG
 		if len(b.members) < threshold {
 			continue
 		}
-		for _, members := range clusterMembers(b.members, threshold) {
+		for _, members := range clusterMembers(tokenizeNames(b.members), threshold) {
 			template := buildTemplate(members)
 			if len(members) < minGroupSize && !strings.Contains(template, datePlaceholder) {
 				continue
@@ -888,7 +921,7 @@ func mergeBuckets(children map[string]*FileNode, buckets []signatureBucket, minG
 					continue
 				}
 			}
-			if collapseBucket(children, template, members, stats) {
+			if collapseBucket(children, template, namesOf(members), stats) {
 				collapsed++
 			}
 		}
@@ -897,22 +930,23 @@ func mergeBuckets(children map[string]*FileNode, buckets []signatureBucket, minG
 }
 
 // maybeMergeChildren runs a merge pass on the signature bucket of name
-// when mining is enabled and the child count exceeds the configured
-// fan-out threshold. Other buckets did not change since the last insert.
+// when path-pattern merging is enabled and the child count exceeds the
+// configured fan-out threshold. Other buckets did not change since the
+// last insert.
 func maybeMergeChildren(children map[string]*FileNode, name string, stats *Stats) int {
 	cfg := pathPatternCfgFrom(stats)
 	if !cfg.Enabled || cfg.MaxChildren <= 0 || len(children) <= cfg.MaxChildren || cfg.MinGroupSizeOnInsert < 2 {
 		return 0
 	}
 	child := children[name]
-	if child == nil || child.IsPattern {
+	if !isMergeCandidate(name, child) {
 		return 0
 	}
 	sig := child.signatureOf(name)
 	var members []string
-	for n, c := range children {
-		if c != nil && !c.IsPattern && c.signatureOf(n) == sig {
-			members = append(members, n)
+	for siblingName, sibling := range children {
+		if isMergeCandidate(siblingName, sibling) && sibling.signatureOf(siblingName) == sig {
+			members = append(members, siblingName)
 		}
 	}
 	if len(members) < 2 {
@@ -947,21 +981,22 @@ func findChildWithPatternFallback(children map[string]*FileNode, name string, la
 		return nil, false
 	}
 	var best *FileNode
-	for _, c := range children {
-		if c == nil || !c.IsPattern {
+	for _, child := range children {
+		if child == nil || !child.IsPattern {
 			continue
 		}
-		m := c.matcher()
-		if (lastComponent && m.directoryOnly) || !m.re.MatchString(name) {
+		childCompiledPattern := child.matcher()
+		if (lastComponent && childCompiledPattern.directoryOnly) || !childCompiledPattern.re.MatchString(name) {
 			continue
 		}
 		if best == nil {
-			best = c
+			best = child
 			continue
 		}
-		bm := best.matcher()
-		if m.specificity > bm.specificity || (m.specificity == bm.specificity && c.Name < best.Name) {
-			best = c
+		bestCompiledPattern := best.matcher()
+		if childCompiledPattern.specificity > bestCompiledPattern.specificity ||
+			(childCompiledPattern.specificity == bestCompiledPattern.specificity && child.Name < best.Name) {
+			best = child
 		}
 	}
 	return best, best != nil
@@ -983,13 +1018,29 @@ func withPatternComponent(path, rest, name, owner string) string {
 	return path[:start] + owner + path[start+len(name):]
 }
 
-// rulePathFromProfilePath converts a profile path to a SECL path value,
-// turning typed placeholders into "*" globs.
-func rulePathFromProfilePath(path string) string {
-	parts, ok := parseTemplate(path)
-	if !ok {
-		return pathutils.CheckForPatterns(path)
+// rulePathFromProfilePath converts a profile path to a SECL path value, globbing
+// the components flagged in isPattern (the flags of its last components).
+func rulePathFromProfilePath(path string, isPattern []bool) string {
+	components := strings.Split(path, "/")
+	offset := len(components) - len(isPattern)
+	globbed := false
+	for i, pattern := range isPattern {
+		if !pattern || offset+i < 0 {
+			continue
+		}
+		components[offset+i] = templateGlob(components[offset+i])
+		globbed = true
 	}
+	out := pathutils.CheckForPatterns(strings.Join(components, "/"))
+	if globbed && !strings.HasPrefix(out, "~") {
+		out = "~" + out
+	}
+	return out
+}
+
+// templateGlob turns the placeholders of template into "*" globs.
+func templateGlob(template string) string {
+	parts, _ := parseTemplate(template)
 	var glob strings.Builder
 	for _, p := range parts {
 		if p.literal != "" {
@@ -998,11 +1049,7 @@ func rulePathFromProfilePath(path string) string {
 			glob.WriteByte('*')
 		}
 	}
-	out := pathutils.CheckForPatterns(glob.String())
-	if !strings.HasPrefix(out, "~") {
-		out = "~" + out
-	}
-	return out
+	return glob.String()
 }
 
 func pathPatternCfgFrom(stats *Stats) PathPatternConfig {

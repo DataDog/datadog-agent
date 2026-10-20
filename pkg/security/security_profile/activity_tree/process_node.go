@@ -432,6 +432,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		filePath = fileEvent.PathnameStr
 	}
 
+	rawFilePath := filePath
 	if reducer != nil {
 		filePath = reducer.ReducePath(filePath, fileEvent, pn)
 	}
@@ -440,6 +441,8 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	if nextParentIndex == 0 {
 		return false, nil
 	}
+	rawParent, nextRawParentIndex := ExtractFirstParent(rawFilePath)
+	rawRest := rawFilePath[nextRawParentIndex:]
 
 	child, ok := findChildWithPatternFallback(pn.Files, parent, len(filePath) <= nextParentIndex+1, stats)
 	if ok {
@@ -448,29 +451,30 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		}
 		rest := filePath[nextParentIndex:]
 		filePath = withPatternComponent(filePath, filePath, parent, child.Name)
-		return child.InsertFileEvent(fileEvent, event, rest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
+		return child.InsertFileEvent(fileEvent, event, rest, rawRest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
 	}
 
 	if !dryRun {
 		if pn.Files == nil {
 			pn.Files = make(map[string]*FileNode)
 		}
+		isPattern := reducedComponentIsPattern(parent, rawParent)
 		if len(filePath) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
-			node := NewFileNode(fileEvent, event, parent, imageTagID, generationType, filePath, resolvers)
+			node := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, filePath, resolvers)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
 			stats.SizeBytes += node.size()
 			owner := insertChildAndMerge(pn.Files, parent, node, stats)
 			return true, &owner.NodeBase
 		}
-		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, filePath, resolvers)
+		newChild := NewFileNode(nil, nil, parent, isPattern, imageTagID, generationType, filePath, resolvers)
 		stats.FileNodes++
 		stats.SizeBytes += newChild.size()
 		owner := insertChildAndMerge(pn.Files, parent, newChild, stats)
 		rest := filePath[nextParentIndex:]
 		filePath = withPatternComponent(filePath, filePath, parent, owner.Name)
-		_, leafNodeBase := owner.InsertFileEvent(fileEvent, event, rest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
+		_, leafNodeBase := owner.InsertFileEvent(fileEvent, event, rest, rawRest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
 		return true, leafNodeBase
 	}
 	return true, nil

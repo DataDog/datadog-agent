@@ -75,7 +75,7 @@ func TestBuildTemplate(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, buildTemplate(tc.names))
+			assert.Equal(t, tc.want, buildTemplate(tokenizeNames(tc.names)))
 		})
 	}
 }
@@ -322,7 +322,7 @@ func TestLooksRandom(t *testing.T) {
 		"a7k2":         false,
 		"session":      false,
 	} {
-		assert.Equal(t, want, looksRandom(name), name)
+		assert.Equal(t, want, looksRandom(tokenizeName(name)), name)
 	}
 }
 
@@ -515,13 +515,13 @@ func TestMergeChildren_ExistingPatternAbsorbsNewBucket(t *testing.T) {
 func TestCollapseBucket_RewritesPathnames(t *testing.T) {
 	children := map[string]*FileNode{}
 	for _, id := range []string{"1001", "1002", "1003"} {
-		dir := NewFileNode(nil, nil, id, 0, Unknown, "", nil)
+		dir := NewFileNode(nil, nil, id, false, 0, Unknown, "", nil)
 		dir.Children = map[string]*FileNode{
-			"out.log": NewFileNode(&model.FileEvent{}, nil, "out.log", 0, Unknown, "/var/job/"+id+"/out.log", nil),
+			"out.log": NewFileNode(&model.FileEvent{}, nil, "out.log", false, 0, Unknown, "/var/job/"+id+"/out.log", nil),
 		}
 		children[id] = dir
 	}
-	children["1004"] = NewFileNode(&model.FileEvent{}, nil, "1004", 0, Unknown, "/var/job/1004", nil)
+	children["1004"] = NewFileNode(&model.FileEvent{}, nil, "1004", false, 0, Unknown, "/var/job/1004", nil)
 
 	mergeChildren(children, 3, NewActivityTreeNodeStats())
 
@@ -536,19 +536,21 @@ func TestCollapseBucket_RewritesPathnames(t *testing.T) {
 }
 
 func TestRulePathFromProfilePath(t *testing.T) {
-	assert.Equal(t, `~"/var/job/*/out.log"`, rulePathFromProfilePath("/var/job/<num>/out.log"))
-	assert.Equal(t, `~"/tmp/sess-*"`, rulePathFromProfilePath("/tmp/sess-<alpha>"))
-	assert.Equal(t, `"/etc/passwd"`, rulePathFromProfilePath("/etc/passwd"))
-	assert.Equal(t, `~"/var/run/docker/overlay2/*/merged"`, rulePathFromProfilePath("/var/run/docker/overlay2/<container_id>/merged"))
-	assert.Equal(t, `~"/sys/fs/cgroup/kubepods-*.slice"`, rulePathFromProfilePath("/sys/fs/cgroup/kubepods-<any>.slice"))
+	assert.Equal(t, `~"/var/job/*/out.log"`, rulePathFromProfilePath("/var/job/<num>/out.log", []bool{false, false, true, false}))
+	assert.Equal(t, `~"/tmp/sess-*"`, rulePathFromProfilePath("/tmp/sess-<alpha>", []bool{false, true}))
+	assert.Equal(t, `"/etc/passwd"`, rulePathFromProfilePath("/etc/passwd", []bool{false, false}))
+	assert.Equal(t, `~"/var/run/docker/overlay2/*/merged"`, rulePathFromProfilePath("/var/run/docker/overlay2/<container_id>/merged", []bool{false, false, false, false, true, false}))
+	assert.Equal(t, `~"/sys/fs/cgroup/kubepods-*.slice"`, rulePathFromProfilePath("/sys/fs/cgroup/kubepods-<any>.slice", []bool{false, false, false, true}))
+	// a real file named like a placeholder is not a glob
+	assert.Equal(t, `"/tmp/<any>"`, rulePathFromProfilePath("/tmp/<any>", []bool{false, false}))
 }
 
 // The PathsReducer writes placeholders, so its output is a pattern node
 // from the first event, in every tree type.
 func TestInsertFileEvent_ReducerWritesPatternNodes(t *testing.T) {
 	for name, stats := range map[string]*Stats{
-		"mining enabled":  enablePatternsTestStats(),
-		"mining disabled": NewActivityTreeNodeStats(),
+		"merging enabled":  enablePatternsTestStats(),
+		"merging disabled": NewActivityTreeNodeStats(),
 	} {
 		t.Run(name, func(t *testing.T) {
 			pn := &ProcessNode{Files: make(map[string]*FileNode), NodeBase: NewNodeBase()}
@@ -573,6 +575,62 @@ func TestInsertFileEvent_ReducerWritesPatternNodes(t *testing.T) {
 			assert.False(t, proc.Children["self"].IsPattern)
 		})
 	}
+}
+
+func TestInsertFileEvent_PlaceholderLikeFileNameStaysLiteral(t *testing.T) {
+	pn := &ProcessNode{Files: make(map[string]*FileNode), NodeBase: NewNodeBase()}
+	stats := enablePatternsTestStats()
+	reducer := NewPathsReducer()
+	insert := func(path string) bool {
+		ev := newTestEvent(path)
+		isNew, _ := pn.InsertFileEvent(&ev.Open.File, ev, 1, Unknown, stats, false, reducer, nil)
+		return isNew
+	}
+
+	assert.True(t, insert("/tmp/<any>"))
+	tmp := pn.Files["tmp"]
+	if !assert.NotNil(t, tmp) || !assert.NotNil(t, tmp.Children["<any>"]) {
+		return
+	}
+	assert.False(t, tmp.Children["<any>"].IsPattern)
+	assert.True(t, insert("/tmp/payload"), "a literal <any> must not absorb its siblings")
+
+	tmp.Children["<any>"] = reloadFileNode(tmp.Children["<any>"])
+	assert.False(t, tmp.Children["<any>"].IsPattern)
+	assert.True(t, insert("/tmp/other"), "nor after a reload")
+	assert.False(t, insert("/tmp/<any>"), "the literal file itself is still known")
+
+	at := &ActivityTree{Stats: stats, ProcessNodes: []*ProcessNode{pn}}
+	fimPaths, _ := at.ExtractPaths(false, true, false)
+	var rulePaths []string
+	for _, paths := range fimPaths {
+		rulePaths = append(rulePaths, paths...)
+	}
+	assert.Contains(t, rulePaths, `"/tmp/<any>"`)
+	assert.NotContains(t, rulePaths, `~"/tmp/*"`)
+}
+
+func TestMergeChildren_SkipsPlaceholderLikeNames(t *testing.T) {
+	children := map[string]*FileNode{}
+	for _, n := range []string{"<any>-1", "<any>-2", "<any>-3"} {
+		children[n] = newTestFileLeaf(n)
+	}
+
+	mergeChildren(children, 3, NewActivityTreeNodeStats())
+
+	assert.Equal(t, []string{"<any>-1", "<any>-2", "<any>-3"}, childrenNames(children))
+}
+
+func TestMergeChildren_LiteralNamedLikeTemplateBecomesPattern(t *testing.T) {
+	children := map[string]*FileNode{"sess-<alpha>": newTestFileLeaf("sess-<alpha>")}
+	for _, n := range []string{"sess-aaa", "sess-bbb", "sess-ccc"} {
+		children[n] = newTestFileLeaf(n)
+	}
+
+	mergeChildren(children, 3, NewActivityTreeNodeStats())
+
+	assert.Equal(t, []string{"sess-<alpha>"}, childrenNames(children))
+	assert.True(t, children["sess-<alpha>"].IsPattern)
 }
 
 func TestFindChildWithPatternFallback(t *testing.T) {
@@ -655,10 +713,10 @@ func TestFindChildWithPatternFallback_PrefersMostSpecific(t *testing.T) {
 	}
 }
 
-// The class lives in the name, so a pattern decoded from a stored profile
-// keeps its strictness.
+// A pattern decoded from a stored profile keeps its strictness.
 func TestFindChildWithPatternFallback_StrictAfterReload(t *testing.T) {
-	reloaded := &FileNode{Name: "<num>", IsPattern: isPatternName("<num>")}
+	reloaded := reloadFileNode(&FileNode{Name: "<num>", IsPattern: true, NodeBase: NewNodeBase()})
+	assert.True(t, reloaded.IsPattern)
 	children := map[string]*FileNode{"<num>": reloaded}
 	stats := enablePatternsTestStats()
 
@@ -673,7 +731,7 @@ func TestFindChildWithPatternFallback_StrictAfterReload(t *testing.T) {
 // A literal "*", written by the PathsReducer in older profiles, must not
 // act as a wildcard.
 func TestFindChildWithPatternFallback_ReducerStarIsLiteral(t *testing.T) {
-	star := NewFileNode(nil, nil, "*", 0, Unknown, "", nil)
+	star := reloadFileNode(&FileNode{Name: "*", NodeBase: NewNodeBase()})
 	assert.False(t, star.IsPattern)
 	children := map[string]*FileNode{"*": star}
 	stats := enablePatternsTestStats()
@@ -929,7 +987,7 @@ func TestInsertFileEvent_ReturnsLiveNodeAfterMerge(t *testing.T) {
 	}
 }
 
-// Pattern mining must be a no-op on trees that did not opt in (v1
+// Pattern merging must be a no-op on trees that did not opt in (v1
 // profiles, activity dumps).
 func TestInsertFileEvent_DisabledByDefaultOnV1Trees(t *testing.T) {
 	pn := &ProcessNode{
@@ -988,6 +1046,12 @@ func newTestEvent(path string) *model.Event {
 			PathnameStr:           path,
 		}},
 	}
+}
+
+// reloadFileNode round-trips fn through the profile protobuf encoding.
+func reloadFileNode(fn *FileNode) *FileNode {
+	encoded := fileActivityNodeToProto(fn, func(uint64) string { return "" })
+	return protoDecodeFileActivityNode(encoded, func(string) uint64 { return 0 })
 }
 
 func insertTestPath(pn *ProcessNode, path string, stats *Stats, dryRun bool) bool {

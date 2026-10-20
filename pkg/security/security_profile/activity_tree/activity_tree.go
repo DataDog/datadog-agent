@@ -1095,8 +1095,8 @@ func processSubtreeSizeBytes(pn *ProcessNode) int64 {
 }
 
 // FinalizePatterns runs a merge pass on every FileNode map in the tree
-// using MinGroupSize as the threshold. No-op when pattern
-// mining is disabled on the tree. Idempotent.
+// using MinGroupSize as the threshold. No-op when path-pattern
+// merging is disabled on the tree. Idempotent.
 func (at *ActivityTree) FinalizePatterns() {
 	if at == nil {
 		return
@@ -1167,14 +1167,17 @@ func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(proce
 	cb(processNode)
 }
 
-func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+// visitFileNode calls cb on every leaf with the IsPattern flags of its path.
+// cb must not retain isPattern, its backing array is reused.
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, isPattern []bool, cb func(fileNode *FileNode, isPattern []bool)) {
+	isPattern = append(isPattern, fileNode.IsPattern)
 	if len(fileNode.Children) == 0 {
-		cb(fileNode)
+		cb(fileNode, isPattern)
 		return
 	}
 
 	for _, file := range fileNode.Children {
-		at.visitFileNode(file, cb)
+		at.visitFileNode(file, isPattern, cb)
 	}
 }
 
@@ -1195,13 +1198,11 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 		var fimPaths []string
 		if fimEnabled {
 			for _, file := range processNode.Files {
-				at.visitFileNode(file, func(fileNode *FileNode) {
-					path, ok := modifiedPaths[fileNode.File.PathnameStr]
-					if !ok {
-						modifiedPaths[fileNode.File.PathnameStr] = rulePathFromProfilePath(fileNode.File.PathnameStr)
-						path = modifiedPaths[fileNode.File.PathnameStr]
+				at.visitFileNode(file, nil, func(fileNode *FileNode, isPattern []bool) {
+					if fileNode.File == nil {
+						return
 					}
-					if len(path) > 0 {
+					if path := rulePathFromProfilePath(fileNode.File.PathnameStr, isPattern); len(path) > 0 {
 						fimPaths = append(fimPaths, path)
 					}
 				})
