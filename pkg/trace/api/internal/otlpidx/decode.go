@@ -6,9 +6,9 @@
 // Package otlpidx decodes OTLP ExportTraceServiceRequest protobuf bytes directly into the
 // idx (V1) internal trace representation, without going through pdata.
 //
-// PROTOTYPE (see otlp-to-v1-plan.md): the Datadog semantic mapping in semantics.go covers the
-// default ReceiveResourceSpansV2 configuration only. Hostname/source resolution, container tags,
-// peer tags, top-level-by-kind and tracestate sample rates are not implemented yet.
+// The Datadog semantic mapping in semantics.go mirrors the OTLP receiver's ReceiveResourceSpansV2
+// path (see Supported for the configurations it covers). Requests the decoder rejects are left to
+// the receiver's pdata path.
 package otlpidx
 
 import (
@@ -294,7 +294,7 @@ type Options struct {
 	HostFromAttributesHandler attributes.HostFromAttributesHandler
 	// ResourceAttributesOnPayload stores resource attributes once in the payload's Attributes
 	// instead of copying them into every span. The V1 intake doesn't yet propagate payload
-	// attributes to spans (see otlp-to-v1-plan.md), so this is off by default.
+	// attributes to spans, so this is off by default.
 	ResourceAttributesOnPayload bool
 	// SkipSemantics disables the Datadog semantic mapping, leaving only the raw decode. Used to
 	// benchmark the decode cost in isolation.
