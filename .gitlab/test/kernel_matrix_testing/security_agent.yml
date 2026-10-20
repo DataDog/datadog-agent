@@ -200,15 +200,6 @@ kmt_run_secagent_tests_x64:
       - TAG: *kmt_secagent_kernels_x64
         TEST_SET: [cws_host]
 
-kmt_run_secagent_tests_x64_peds:
-  extends: .kmt_run_secagent_tests_x64
-  variables:
-    ARCH: "x86_64"
-  parallel:
-    matrix:
-      - TAG: *kmt_secagent_kernels_x64
-        TEST_SET: [cws_peds]
-
 kmt_run_secagent_tests_x64_wprofiles:
   extends: .kmt_run_secagent_tests_x64
   variables:
@@ -266,15 +257,6 @@ kmt_run_secagent_tests_arm64:
     matrix:
       - TAG: *kmt_secagent_kernels_arm64
         TEST_SET: [cws_host]
-
-kmt_run_secagent_tests_arm64_peds:
-  extends: .kmt_run_secagent_tests_arm64
-  variables:
-    ARCH: "arm64"
-  parallel:
-    matrix:
-      - TAG: *kmt_secagent_kernels_arm64
-        TEST_SET: [cws_peds]
 
 kmt_run_secagent_tests_arm64_wprofiles:
   extends: .kmt_run_secagent_tests_arm64
@@ -340,7 +322,6 @@ kmt_secagent_tests_join1_arm64:
     - .kmt_secagent_tests_join
   needs:
     - kmt_run_secagent_tests_arm64
-    - kmt_run_secagent_tests_arm64_peds
     - kmt_run_secagent_tests_arm64_wprofiles
 
 kmt_secagent_tests_join2_arm64:
@@ -369,13 +350,12 @@ kmt_secagent_tests_join1_x64:
   needs:
     - kmt_run_secagent_tests_x64
     - kmt_run_secagent_tests_x64_wprofiles
-    - kmt_run_secagent_tests_x64_ebpfless
 
 kmt_secagent_tests_join2_x64:
   extends:
     - .kmt_secagent_tests_join
   needs:
-    - kmt_run_secagent_tests_x64_peds
+    - kmt_run_secagent_tests_x64_ebpfless
     - kmt_run_secagent_tests_x64_docker
 
 kmt_secagent_cleanup_x64:
