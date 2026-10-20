@@ -72,6 +72,7 @@ type Resolver struct {
 	netnsHandleRequests chan networkNamespaceHandleRequest
 	errorCounters       map[string]*atomic.Int64
 	ctx                 context.Context
+	cancel              context.CancelFunc
 	wg                  sync.WaitGroup
 }
 
@@ -357,15 +358,23 @@ func (nr *Resolver) Start(ctx context.Context) error {
 		return nil
 	}
 
-	nr.ctx = ctx
+	nr.ctx, nr.cancel = context.WithCancel(ctx)
 	nr.startTcClassifierLoopGoroutine()
 
 	nr.wg.Add(1)
 	go func() {
 		defer nr.wg.Done()
-		nr.flushNamespaces(ctx)
+		nr.flushNamespaces(nr.ctx)
 	}()
 	return nil
+}
+
+// Stop stops the goroutines started by Start and waits for them to exit
+func (nr *Resolver) Stop() {
+	if nr.cancel != nil {
+		nr.cancel()
+	}
+	nr.wg.Wait()
 }
 
 func (nr *Resolver) manualFlushNamespaces() {
@@ -527,7 +536,7 @@ func (nr *Resolver) SendStats() error {
 func (nr *Resolver) Close() {
 	close(nr.tcRequests)
 
-	nr.wg.Wait()
+	nr.Stop()
 
 	if nr.networkNamespaces != nil {
 		nr.Lock()

@@ -2832,6 +2832,9 @@ func (p *EBPFProbe) Stop() {
 
 // Close the probe
 func (p *EBPFProbe) Close() error {
+	// the namespace resolver goroutines clone TC programs, they must be done before the manager stops
+	p.Resolvers.NamespaceResolver.Stop()
+
 	for i, col := range p.rawPacketFilterCollections {
 		if col != nil {
 			col.Close()
