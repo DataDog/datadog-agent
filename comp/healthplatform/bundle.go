@@ -17,6 +17,7 @@ package healthplatform
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/fx"
 
@@ -86,6 +87,10 @@ func bootstrapBuiltInHealthChecks(
 			for _, once := range registry.GetBuiltInStartupHealthChecks() {
 				go func() {
 					newIDs, err := runner.Run(once.Source, once.Fn)
+					if errors.Is(err, runnerdef.ErrStateUnknown) {
+						logger.Debugf("built-in once-check %q state unknown at startup: %v", once.Source, err)
+						return
+					}
 					if err != nil {
 						logger.Warnf("built-in once-check %q failed at startup: %v", once.Source, err)
 						return

@@ -152,7 +152,7 @@ func buildIssue(k kind, ctx map[string]string) (*healthplatform.Issue, error) {
 		Severity:    k.severity,
 		Source:      issueSource,
 		Extra:       extra,
-		Tags:        []string{"logs", "performance-profile", w.Profile},
+		Tags:        tags(w.Profile),
 		Remediation: &healthplatform.Remediation{
 			Summary: fmt.Sprintf("Apply the %s logs performance profile and restart the Agent.", name),
 			Steps:   remediationSteps(w),
@@ -183,15 +183,21 @@ func describe(w recommendation, name string) string {
 	return strings.Join(sentences, " ")
 }
 
+func tags(profile string) []string {
+	if profile == "" {
+		return []string{"logs", "performance-profile"}
+	}
+	return []string{"logs", "performance-profile", profile}
+}
+
 func remediationSteps(w recommendation) []*healthplatform.RemediationStep {
 	profile, version := w.Profile, strconv.Itoa(w.ProfileVersion)
-	if profile == "" {
-		profile, version = "<profile>", "<version>"
-	}
 	texts := []string{
 		"Run `sudo datadog-agent status` and check the Logs Agent Backpressure section to confirm which stage is saturated.",
 	}
-	if w.ProfileKeySource == string(pkgconfigmodel.SourceEnvVar) {
+	if profile == "" {
+		texts = append(texts, "Apply the profile named in the Recommended Performance Profile section of `sudo datadog-agent status` with `logs_config.profile`, then restart the Agent.")
+	} else if w.ProfileKeySource == string(pkgconfigmodel.SourceEnvVar) {
 		texts = append(texts, fmt.Sprintf("`logs_config.profile` is set by an environment variable on this host. Set `DD_LOGS_CONFIG_PROFILE=%s` and `DD_LOGS_CONFIG_PROFILE_VERSION=%s` instead, then restart the Agent.",
 			profile, version))
 	} else {

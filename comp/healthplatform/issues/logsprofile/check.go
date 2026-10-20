@@ -32,16 +32,23 @@ const (
 // maxListed caps each settings list on the wire.
 const maxListed = 10
 
+// Fallbacks for non-positive durations, matching the schema defaults.
+const (
+	defaultInterval         = time.Minute
+	defaultMinHealthyPeriod = 10 * time.Minute
+)
+
 type held struct {
 	kind    kind
 	context map[string]string
 }
 
 type checker struct {
-	cfg      config.Component
-	hostname hostnameinterface.Component
-	window   profilerec.LossWindow
-	started  time.Time
+	cfg       config.Component
+	hostname  hostnameinterface.Component
+	window    profilerec.LossWindow
+	started   time.Time
+	lastKnown time.Time
 
 	logsRunning   func() bool
 	backpressure  func() logsmetrics.BackpressureSummary
@@ -67,7 +74,32 @@ func newChecker(cfg config.Component, hostname hostnameinterface.Component) *che
 		now:           time.Now,
 	}
 	c.started = c.now()
+	c.lastKnown = c.started
 	return c
+}
+
+func positiveOr(d, fallback time.Duration) time.Duration {
+	if d > 0 {
+		return d
+	}
+	return fallback
+}
+
+func (c *checker) interval() time.Duration {
+	return positiveOr(c.cfg.GetDuration(cfgInterval), defaultInterval)
+}
+
+func (c *checker) minHealthyPeriod() time.Duration {
+	return positiveOr(c.cfg.GetDuration(cfgMinHealthyPeriod), defaultMinHealthyPeriod)
+}
+
+// unknown keeps active issues, but resolves them once the pipeline has been unobservable for a verify window.
+func (c *checker) unknown(reason string) ([]runnerdef.IssueReport, error) {
+	if c.now().Sub(c.lastKnown) >= c.verifyWindow() {
+		c.held, c.healthySince = nil, time.Time{}
+		return nil, nil
+	}
+	return nil, fmt.Errorf("logsprofile: %s: %w", reason, runnerdef.ErrStateUnknown)
 }
 
 // logsEnabled mirrors the logs agent's own gate, which still honours the deprecated log_enabled.
@@ -100,14 +132,15 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 		return nil, nil
 	}
 	if !c.logsRunning() {
-		return nil, fmt.Errorf("logsprofile: logs agent not running: %w", runnerdef.ErrStateUnknown)
+		return c.unknown("logs agent not running")
 	}
 	summary := c.backpressure()
 	if summary.State == "" {
-		return nil, fmt.Errorf("logsprofile: no pipeline monitor registered: %w", runnerdef.ErrStateUnknown)
+		return c.unknown("no pipeline monitor registered")
 	}
 
 	now := c.now()
+	c.lastKnown = now
 	counters := c.counters()
 	missed, delivering := c.window.Observe(counters, now)
 	dropped := c.window.DroppedRecently(now)
@@ -131,7 +164,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 	} else if c.healthySince.IsZero() {
 		c.healthySince = now
 	}
-	settled := !c.healthySince.IsZero() && now.Sub(c.healthySince) >= c.cfg.GetDuration(cfgMinHealthyPeriod)
+	settled := !c.healthySince.IsZero() && now.Sub(c.healthySince) >= c.minHealthyPeriod()
 
 	if c.held == nil {
 		// A persisted issue from before a restart stays open until the pipeline settles, or until the verify
@@ -230,7 +263,7 @@ func (c *checker) build(k kind, profile, code, reason, bottleneck string, obs ob
 
 // verifyWindow is how long after a deploy the issue should take to clear: settle, then reach the backend.
 func (c *checker) verifyWindow() time.Duration {
-	return c.cfg.GetDuration(cfgMinHealthyPeriod) + c.cfg.GetDuration(cfgInterval) + c.cfg.GetDuration(cfgForwarderInterval)
+	return c.minHealthyPeriod() + c.interval() + c.cfg.GetDuration(cfgForwarderInterval)
 }
 
 func (c *checker) report(h *held) []runnerdef.IssueReport {

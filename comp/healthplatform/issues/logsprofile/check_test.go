@@ -58,7 +58,7 @@ func newEnv(t *testing.T, yaml string) *env {
 		plan:    changePlan,
 	}
 	e.c.now = func() time.Time { return e.now }
-	e.c.started = e.now
+	e.c.started, e.c.lastKnown = e.now, e.now
 	e.c.logsRunning = func() bool { return e.running }
 	e.c.backpressure = func() logsmetrics.BackpressureSummary { return e.summary }
 	e.c.counters = func() profilerec.Counters { return e.counters }
@@ -146,6 +146,36 @@ func TestRun_GatesResolveOrKeepState(t *testing.T) {
 		_, err := e.tick(0)
 		assert.ErrorIs(t, err, runnerdef.ErrStateUnknown)
 	})
+	t.Run("unknown past the verify window resolves", func(t *testing.T) {
+		e := newEnv(t, "logs_enabled: true")
+		e.running = false
+		reports, err := e.tick(e.c.verifyWindow())
+		assert.NoError(t, err)
+		assert.Empty(t, reports)
+	})
+}
+
+func TestRun_HeldIssueResolvesWhenPipelineStaysUnobservable(t *testing.T) {
+	e := newReadyEnv(t)
+	e.summary = saturated(sendStage, 27*time.Minute, true)
+	e.counters = profilerec.Counters{Missed: 4096}
+	e.report(t, time.Minute)
+
+	e.summary = logsmetrics.BackpressureSummary{}
+	_, err := e.tick(time.Minute)
+	require.ErrorIs(t, err, runnerdef.ErrStateUnknown, "a brief gap keeps the issue")
+
+	reports, err := e.tick(e.c.verifyWindow())
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+	assert.Nil(t, e.c.held)
+}
+
+func TestNonPositiveDurationsUseDefaults(t *testing.T) {
+	e := newEnv(t, "logs_enabled: true\nhealth_platform:\n  logs_profile_recommendation:\n    interval: 0s\n    min_healthy_period: -1m")
+	assert.Equal(t, defaultInterval, e.c.interval())
+	assert.Equal(t, defaultMinHealthyPeriod, e.c.minHealthyPeriod())
+	assert.Equal(t, defaultInterval, (&recommendedModule{checker: e.c}).BuiltInPeriodicHealthCheck().Interval)
 }
 
 func TestRun_LossReportsHigh(t *testing.T) {

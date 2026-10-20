@@ -67,7 +67,7 @@ func (m *recommendedModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPerio
 			Fn:         m.checker.Run,
 			IssueNames: []string{SuggestedIssueName},
 		},
-		Interval: m.deps.Config.GetDuration(cfgInterval),
+		Interval: m.checker.interval(),
 	}
 }
 

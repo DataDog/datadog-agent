@@ -231,6 +231,10 @@ func TestBuildIssue_WithoutRecommendationOffersNoDeploy(t *testing.T) {
 			assert.NotEmpty(t, issue.Description)
 			assert.NotEmpty(t, issue.Remediation.Steps)
 			assert.NotContains(t, issue.Extra.GetFields(), "recommendation")
+			assert.NotContains(t, issue.Tags, "")
+			for _, step := range issue.Remediation.Steps {
+				assert.NotContains(t, step.Text, "<profile>")
+			}
 		})
 	}
 }
