@@ -115,6 +115,7 @@ dd_agent_go_test(
         "token_graph_test.go",
         "tokenizer_benchmark_test.go",
         "tokenizer_test.go",
+        "tokenizer_test_helpers_test.go",
         "user_samples_test.go",
     ],
     embed = [":preprocessor"],

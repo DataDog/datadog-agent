@@ -5,7 +5,7 @@
 
 // Command gentokentables generates the preprocessor's token_tables_gen.go from
 // the master token list below: the SWAR keyword matcher (getSpecialToken),
-// tokenToString, isImportant, and the special-character lookup. Edit the lists
+// tokenToString, IsImportant, and the special-character lookup. Edit the lists
 // here and run `go generate ./pkg/logs/internal/decoder/preprocessor` (or
 // `bazel run //pkg/logs/internal/decoder/preprocessor:token_tables`) — do not
 // hand-edit the generated file.
@@ -28,7 +28,7 @@ type keywordToken struct {
 	Const    string   // Token constant name
 	Debug    string   // tokenToString output
 	Keywords []string // keywords that map to this token (uppercase)
-	Critical bool     // reported by isImportant
+	Critical bool     // reported by IsImportant
 }
 
 // charToken is a token matched from a single byte.
@@ -250,12 +250,12 @@ func genGetSpecialToken(b *strings.Builder, maxLen int) {
 }
 
 // genTokenMeta emits the display string and severity of each named token as a
-// data table. token_tables.go derives tokenToString and isImportant from it at
+// data table. token_tables.go derives tokenToString and IsImportant from it at
 // init; the D*/C* run tokens are handled there, not listed here.
 func genTokenMeta(b *strings.Builder) {
 	b.WriteString(`
 // tokenMeta is the display string and critical-severity flag for each named
-// token. Consumed by token_tables.go (tokenToString, isImportant).
+// token. Consumed by token_tables.go (tokenToString, IsImportant).
 var tokenMeta = []struct {
 	tok      Token
 	debug    string

@@ -95,7 +95,7 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 // Tokenize returns freshly-allocated, caller-owned tokens and start indices,
 // safe to retain. It is the public API for callers that store tokens (config
 // samples, timestamp formats, sampler rules). The per-line preprocessing
-// pipeline uses tokenizeBorrowed instead to avoid these allocations.
+// pipeline uses TokenizeBorrowed instead to avoid these allocations.
 func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
 	tokens, indices := t.tokenizeCapped(input)
 	if len(tokens) == 0 {
@@ -112,7 +112,7 @@ func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
 
 // tokenizeCapped applies the maxEvalBytes limit and tokenizes into the scratch
 // buffers, returning the borrowed slices. Shared by Tokenize (which copies them)
-// and tokenizeBorrowed (which wraps them).
+// and TokenizeBorrowed (which wraps them).
 func (t *Tokenizer) tokenizeCapped(input []byte) ([]Token, []int) {
 	maxBytes := len(input)
 	if t.maxEvalBytes > 0 && t.maxEvalBytes < maxBytes {
@@ -121,11 +121,11 @@ func (t *Tokenizer) tokenizeCapped(input []byte) ([]Token, []int) {
 	return t.tokenizeIntoBuffers(input[:maxBytes])
 }
 
-// tokenizeBorrowed returns a BorrowedTokens view aliasing the reusable scratch
+// TokenizeBorrowed returns a BorrowedTokens view aliasing the reusable scratch
 // buffers, valid only until the next call on t (hence not thread-safe). This is
 // the per-line hot path; consumers that retain the tokens must Clone them.
-func (t *Tokenizer) tokenizeBorrowed(input []byte) BorrowedTokens {
-	return newBorrowedTokens(t.tokenizeCapped(input))
+func (t *Tokenizer) TokenizeBorrowed(input []byte) BorrowedTokens {
+	return NewBorrowedTokens(t.tokenizeCapped(input))
 }
 
 // emitToken appends one token (and its start index) to the reusable buffers,
@@ -166,7 +166,7 @@ func (t *Tokenizer) emitToken(input []byte, token Token, start, end int) {
 
 // tokenizeIntoBuffers scans input a single time and emits tokens into the
 // reusable buffers. The returned slices alias those buffers (see
-// tokenizeBorrowed for the lifetime contract).
+// TokenizeBorrowed for the lifetime contract).
 func (t *Tokenizer) tokenizeIntoBuffers(input []byte) ([]Token, []int) {
 	if len(input) == 0 {
 		return nil, nil
@@ -256,7 +256,7 @@ func (t *Tokenizer) collapseIPv4Tail() {
 	t.idxBuf = t.idxBuf[:n-ipv4TokenWidth+1]
 }
 
-// tokensToString converts a list of tokens to a debug string.
+// TokensToString converts a list of tokens to a debug string.
 func TokensToString(tokens []Token) string {
 	var builder strings.Builder
 	for _, t := range tokens {
@@ -265,7 +265,7 @@ func TokensToString(tokens []Token) string {
 	return builder.String()
 }
 
-// isMatch compares two sequences of tokens and returns true if they match within the
+// IsMatch compares two sequences of tokens and returns true if they match within the
 // given threshold. if the token strings are different lengths, the shortest string is
 // used for comparison. This function is optimized to exit early if the match is impossible
 // without having to compare all of the tokens.

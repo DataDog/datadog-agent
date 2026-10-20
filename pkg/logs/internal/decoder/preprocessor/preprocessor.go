@@ -69,7 +69,7 @@ func (p *Preprocessor) Process(msg *message.Message) {
 func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 	// tokens is a borrowed view, valid until the next line is tokenized; stages
 	// that retain it clone first (see BorrowedTokens).
-	tokens := p.tokenizer.tokenizeBorrowed(msg.GetContent())
+	tokens := p.tokenizer.TokenizeBorrowed(msg.GetContent())
 
 	var label Label
 	switch {
@@ -83,7 +83,7 @@ func (p *Preprocessor) tokenizeLabelAndAggregate(msg *message.Message) {
 		label = aggregate
 	default:
 		// The labeler sees a narrower window than the sampler (labelerMaxBytes).
-		label = p.labeler.Label(msg.GetContent(), tokens.limit(p.labelerMaxBytes))
+		label = p.labeler.Label(msg.GetContent(), tokens.Limit(p.labelerMaxBytes))
 	}
 
 	for _, completed := range p.aggregator.Process(msg, label, tokens) {

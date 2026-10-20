@@ -35,7 +35,7 @@ func BenchmarkTokenizerOwnership(b *testing.B) {
 			b.Run("Borrowed", func(b *testing.B) {
 				tok := NewTokenizer(0)
 				for n := 0; n < b.N; n++ {
-					tok.tokenizeBorrowed(tc.input)
+					tok.TokenizeBorrowed(tc.input)
 				}
 			})
 		})
@@ -75,7 +75,7 @@ func BenchmarkTokenizerThroughput(b *testing.B) {
 			tok := NewTokenizer(0)
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				tok.tokenizeBorrowed(tc.input)
+				tok.TokenizeBorrowed(tc.input)
 			}
 			b.ReportMetric(mibPerSec(b, len(tc.input)), "MiB/s")
 		})

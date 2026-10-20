@@ -9,7 +9,7 @@ import "strings"
 
 // tokenDebug and importantToken are lookup tables built once from the generated
 // data (tokenMeta, specialChars in token_tables_gen.go). They back tokenToString
-// and isImportant with a plain array index instead of a switch.
+// and IsImportant with a plain array index instead of a switch.
 var (
 	tokenDebug     [256]string
 	importantToken [256]bool
@@ -36,9 +36,9 @@ func tokenToString(token Token) string {
 	return tokenDebug[token]
 }
 
-// isImportant reports whether any token is a critical-severity keyword; such
+// IsImportant reports whether any token is a critical-severity keyword; such
 // logs bypass adaptive sampling.
-func isImportant(tokens []Token) bool {
+func IsImportant(tokens []Token) bool {
 	for _, t := range tokens {
 		if importantToken[t] {
 			return true
