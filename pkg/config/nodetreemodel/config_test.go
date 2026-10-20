@@ -1687,6 +1687,182 @@ func TestSequenceID(t *testing.T) {
 	assert.Equal(t, uint64(3), config.GetSequenceID())
 }
 
+func TestSetWithLock(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.SetDefault("nullable", nil)
+	config.BuildSchema()
+
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.False(t, config.SetWithLock("a", model.SourceAgentRuntime, func(current interface{}, _ model.Source) (interface{}, bool) {
+		assert.Equal(t, 1, current)
+		return 2, false
+	}))
+	assert.Equal(t, 1, config.GetInt("a"))
+
+	assert.True(t, config.SetWithLock("a", model.SourceAgentRuntime, func(current interface{}, _ model.Source) (interface{}, bool) {
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 2, config.GetInt("a"))
+
+	assert.True(t, config.SetWithLock("A", model.SourceAgentRuntime, func(current interface{}, _ model.Source) (interface{}, bool) {
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 3, config.GetInt("a"))
+
+	config.Set("nullable", nil, model.SourceAgentRuntime)
+	assert.True(t, config.SetWithLock("nullable", model.SourceAgentRuntime, func(current interface{}, _ model.Source) (interface{}, bool) {
+		assert.Nil(t, current)
+		return map[string]interface{}{"value": 4}, true
+	}))
+	assert.Equal(t, 4, config.GetStringMap("nullable")["value"])
+
+	assert.False(t, config.SetWithLock("nullable", model.SourceAgentRuntime, func(current interface{}, _ model.Source) (interface{}, bool) {
+		current.(map[string]interface{})["value"] = 5
+		return current, false
+	}))
+	assert.Equal(t, 4, config.GetStringMap("nullable")["value"])
+}
+
+func TestSetWithLockShadowedByHigherSource(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	config.Set("a", 1, model.SourceFile)
+	config.Set("a", 2, model.SourceSecret)
+	config.Set("a", 10, model.SourceCLI)
+	assert.False(t, config.SetWithLock("a", model.SourceSecret, func(current interface{}, oldSource model.Source) (interface{}, bool) {
+		// Overwriting builds on the secret layer's own value, never on CLI's.
+		assert.Equal(t, model.SourceSecret, oldSource)
+		assert.Equal(t, 2, current)
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 10, config.GetInt("a"))
+
+	config.UnsetForSource("a", model.SourceCLI)
+	assert.Equal(t, 3, config.GetInt("a"))
+	assert.Equal(t, model.SourceSecret, config.GetSource("a"))
+}
+
+func TestSetWithLockReadsUpToSource(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	type call struct {
+		value  interface{}
+		source model.Source
+	}
+	seen := func(source model.Source) call {
+		var got call
+		config.SetWithLock("a", source, func(current interface{}, oldSource model.Source) (interface{}, bool) {
+			got = call{current, oldSource}
+			return nil, false
+		})
+		return got
+	}
+
+	assert.Equal(t, call{0, model.SourceDefault}, seen(model.SourceSecret), "empty layers, falls back to the default")
+
+	config.Set("a", 1, model.SourceFile)
+	assert.Equal(t, call{1, model.SourceFile}, seen(model.SourceSecret), "skips empty layers down to file")
+
+	config.Set("a", 2, model.SourceConfigPostInit)
+	config.Set("a", 3, model.SourceAgentRuntime)
+	assert.Equal(t, call{2, model.SourceConfigPostInit}, seen(model.SourceConfigPostInit), "own layer, not the higher runtime value")
+	assert.Equal(t, call{1, model.SourceFile}, seen(model.SourceFile), "own layer")
+	assert.Equal(t, call{2, model.SourceConfigPostInit}, seen(model.SourceSecret), "empty layer gets the closest lower layer, not the resolved value")
+	assert.Equal(t, call{3, model.SourceAgentRuntime}, seen(model.SourceCLI), "empty top layer gets the resolved value")
+}
+
+func TestSetWithLockUnknownKeySkipsCallback(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	called := false
+	assert.False(t, config.SetWithLock("missing", model.SourceAgentRuntime, func(interface{}, model.Source) (interface{}, bool) {
+		called = true
+		return 1, true
+	}))
+	assert.False(t, called)
+}
+
+func TestSetWithLockNotifiesAfterUnlock(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	var notified []interface{}
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
+		// Would deadlock if receivers ran under the write lock.
+		notified = append(notified, config.Get(key))
+	})
+
+	var applied []bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		applied = append(applied, config.SetWithLock("a", model.SourceAgentRuntime, func(interface{}, model.Source) (interface{}, bool) { return 1, true }))
+		// Unchanged value: no notification.
+		applied = append(applied, config.SetWithLock("a", model.SourceAgentRuntime, func(interface{}, model.Source) (interface{}, bool) { return 1, true }))
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("SetWithLock deadlocked notifying receivers")
+	}
+	assert.Equal(t, []bool{true, true}, applied)
+	assert.Equal(t, []interface{}{1}, notified)
+}
+
+func TestSetWithLockRejectsNilCallback(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	assert.Panics(t, func() {
+		config.SetWithLock("a", model.SourceAgentRuntime, nil)
+	})
+	assert.Equal(t, 0, config.GetInt("a"))
+}
+
+func TestSetWithLockUnlocksAfterCallbackPanic(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	assert.Panics(t, func() {
+		config.SetWithLock("a", model.SourceAgentRuntime, func(interface{}, model.Source) (interface{}, bool) {
+			panic("update failed")
+		})
+	})
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.Equal(t, 1, config.GetInt("a"))
+}
+
+func TestSetWithLockSerializesConcurrentWriters(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	const writers = 100
+	var wg sync.WaitGroup
+	for range writers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			config.SetWithLock("a", model.SourceAgentRuntime, func(current interface{}, _ model.Source) (interface{}, bool) {
+				return current.(int) + 1, true
+			})
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, writers, config.GetInt("a"))
+}
+
 func TestParseEnvSplitComma(t *testing.T) {
 	t.Setenv("TEST_MY_LIST", "a,b,c")
 	t.Setenv("TEST_MY_LIST_2", "")

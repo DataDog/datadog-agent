@@ -99,27 +99,34 @@ func (fq *fileQuerier) queryHash(hash uint64) *sbomtypes.Package {
 }
 
 func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
-	if pkg := fq.queryHash(murmur3.StringSum64(path)); pkg != nil {
+	if pkg := fq.queryHash(murmur3.StringSum64(path)); pkg != nil || !fq.usrMerged {
 		return pkg
 	}
-
-	// On usr-merged layouts /bin and /usr/bin are the same tree, so the package
-	// database and the resolved exec path may use either prefix for one file.
-	if fq.usrMerged {
-		if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
-			if result := fq.queryHash(murmur3.StringSum64("/usr" + path)); result != nil {
-				return result
-			}
-		}
-
-		if after, ok := strings.CutPrefix(path, "/usr"); ok && (strings.HasPrefix(after, "/bin") || strings.HasPrefix(after, "/sbin") || strings.HasPrefix(after, "/lib")) {
-			if result := fq.queryHash(murmur3.StringSum64(after)); result != nil {
-				return result
-			}
-		}
+	if alias := pathAlias(path); alias != "" {
+		return fq.queryHash(murmur3.StringSum64(alias))
 	}
-
 	return nil
+}
+
+// queryHashes returns the package owning the file of hash, or on a usr-merged
+// layout the file of alias, the hash of its alias, when alias is set.
+func (fq *fileQuerier) queryHashes(hash, alias uint64) *sbomtypes.Package {
+	if pkg := fq.queryHash(hash); pkg != nil || !fq.usrMerged || alias == 0 {
+		return pkg
+	}
+	return fq.queryHash(alias)
+}
+
+// pathAlias returns path under the other prefix of a usr-merged layout, where /bin
+// and /usr/bin are one tree, or "" for other paths.
+func pathAlias(path string) string {
+	if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
+		return "/usr" + path
+	}
+	if after, ok := strings.CutPrefix(path, "/usr"); ok && (strings.HasPrefix(after, "/bin") || strings.HasPrefix(after, "/sbin") || strings.HasPrefix(after, "/lib")) {
+		return after
+	}
+	return ""
 }
 
 func (fq *fileQuerier) len() int {

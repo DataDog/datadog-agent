@@ -28,8 +28,8 @@ const (
 	defaultAPIServerTimeout = 20 * time.Second
 )
 
-// APIServerDiscoveryProvider is a discovery provider that uses the Kubernetes
-// API Server as its data source.
+// APIServerDiscoveryProvider is a discovery provider that selects collectors from
+// the groups and resources exposed by the Kubernetes API server.
 type APIServerDiscoveryProvider struct {
 	result []collectors.K8sCollector
 	seen   map[string]struct{}
@@ -43,13 +43,8 @@ func NewAPIServerDiscoveryProvider() *APIServerDiscoveryProvider {
 	}
 }
 
-// Discover returns collectors to enable based on information exposed by the API server.
-func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.K8sCollector, error) {
-	groups, resources, err := GetServerGroupsAndResources()
-	if err != nil {
-		return nil, err
-	}
-
+// Discover returns collectors to enable based on groups and resources exposed by the API server.
+func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory, groups []*v1.APIGroup, resources []*v1.APIResourceList) ([]collectors.K8sCollector, error) {
 	if len(resources) == 0 {
 		return nil, errors.New("failed to discover resources from API groups")
 	}
@@ -65,7 +60,11 @@ func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInve
 	return p.result, nil
 }
 
-// GetServerGroupsAndResources accesses the api server to retrieve the registered groups and resources
+// ServerGroupsAndResourcesFunc returns the groups and resources registered in the API server.
+type ServerGroupsAndResourcesFunc func() ([]*v1.APIGroup, []*v1.APIResourceList, error)
+
+// GetServerGroupsAndResources accesses the api server to retrieve the registered groups and resources. When only some
+// API group versions fail, it returns the partial result along with a [discovery.ErrGroupDiscoveryFailed] error.
 func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultAPIServerTimeout)
 	defer cancel()
@@ -80,15 +79,11 @@ func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error
 		if !discovery.IsGroupDiscoveryFailedError(err) {
 			return nil, nil, err
 		}
-		// We don't handle API group errors here because we assume API groups used
-		// by collectors in the orchestrator check will always be part of the result
-		// even though it might be incomplete due to discovery failures on other
-		// groups.
 		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
 			log.Warnc(fmt.Sprintf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr), orchestrator.ExtraLogContext...)
 		}
 	}
-	return groups, resources, nil
+	return groups, resources, err
 }
 
 func (p *APIServerDiscoveryProvider) addCollector(collector collectors.K8sCollector) {
