@@ -20,12 +20,12 @@
 // Deviations from upstream, all mechanical:
 //   - the package, the imports
 //   - VisitRelocations and DynValue are called as the free functions of
-//     otel_tls_upstream_pfelf.go, since the pinned pfelf has neither,
+//     upstream_pfelf.go, since the pinned pfelf has neither,
 //   - one nolint, for a fmt.Errorf this repo's linter wants as errors.New.
 
 //go:build linux
 
-package process
+package otelthreadctx
 
 import (
 	"debug/elf" //nolint:depguard

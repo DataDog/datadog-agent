@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
-
 	processcontextpb "go.opentelemetry.io/proto/slim/otlp/processcontext/v1development"
 	"google.golang.org/protobuf/proto"
 )
@@ -111,12 +109,18 @@ func IsMappingName(pathname string) bool {
 	return false
 }
 
+// Memory is the address space of the target process.
+type Memory interface {
+	// Read reports a short read as an error.
+	Read(addr uint64, buf []byte) error
+}
+
 // Read returns the process context whose header sits at headerAddr in mem.
 //
 // The publication protocol is a seqlock: the publisher zeroes the timestamp, writes the
 // payload location, then stores a strictly increasing timestamp. A payload is only
 // accepted if the timestamp is non-zero and unchanged across the copy.
-func Read(mem procfs.Mem, headerAddr uint64) (ProcessContext, error) {
+func Read(mem Memory, headerAddr uint64) (ProcessContext, error) {
 	var lastErr error
 	for range readAttempts {
 		ctx, err := readOnce(mem, headerAddr)
@@ -132,7 +136,7 @@ func Read(mem procfs.Mem, headerAddr uint64) (ProcessContext, error) {
 	return nil, lastErr
 }
 
-func readOnce(mem procfs.Mem, headerAddr uint64) (ProcessContext, error) {
+func readOnce(mem Memory, headerAddr uint64) (ProcessContext, error) {
 	buf := make([]byte, headerSize)
 	if err := mem.Read(headerAddr, buf); err != nil {
 		return nil, fmt.Errorf("cannot read the process context header: %w", err)

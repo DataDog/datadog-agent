@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -1622,13 +1623,13 @@ func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 // Not safe for concurrent use.
 type OTelProcessContextSnapshot struct {
 	resolver *EBPFResolver
-	target   otelTargetProcess
+	target   *otelthreadctx.Target
 }
 
 // NewOTelProcessContextSnapshot returns a snapshot to resolve a walk's
 // processes through.
 func (p *EBPFResolver) NewOTelProcessContextSnapshot() *OTelProcessContextSnapshot {
-	return &OTelProcessContextSnapshot{resolver: p}
+	return &OTelProcessContextSnapshot{resolver: p, target: otelthreadctx.NewTarget(kernel.HostProc())}
 }
 
 // Resolve resolves the OTel process context of pid.
@@ -1641,7 +1642,7 @@ func (s *OTelProcessContextSnapshot) Resolve(pid uint32) {
 		return
 	}
 
-	p.resolveAndUpdateOTelTLS(pid, &s.target)
+	p.resolveAndUpdateOTelTLS(pid, s.target)
 }
 
 // resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
@@ -1651,7 +1652,7 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 	// resolution's allocations, and this loop runs one for every process that
 	// publishes or updates an OTel process context. Owned by this goroutine,
 	// which is why it needs no synchronization.
-	target := new(otelTargetProcess)
+	target := otelthreadctx.NewTarget(kernel.HostProc())
 
 	for {
 		select {
@@ -1678,56 +1679,62 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 // resolveAndUpdateOTelTLS resolves pid's OTel process context through target,
 // which it rebinds to pid: callers pass a target they own and reuse across
 // calls rather than one per resolution.
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetProcess) {
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelthreadctx.Target) {
 	start := time.Now()
-	target.reset(pid)
+	target.Reset(pid)
 
-	procCtx, err := target.processContext()
-	if err != nil {
-		p.reportSpanCtxError(spanCtxStepProcessCtx, pid, err)
+	res, err := target.Resolve(otelTLSRegistry{otelTLSMap: p.otelTLSMap})
+	var stepErr *otelthreadctx.StepError
+	if err != nil && !errors.As(err, &stepErr) {
+		stepErr = &otelthreadctx.StepError{Step: otelthreadctx.StepLayout, Err: err}
+	}
+	if stepErr != nil && stepErr.Step == otelthreadctx.StepProcessContext {
+		p.reportSpanCtxError(spanCtxStepProcessCtx, pid, stepErr.Err)
 		return
 	}
-	if procCtx == nil {
-		// The process publishes no OTel process context at all.
+	if res.ProcessContext == nil {
 		return
 	}
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
 	seclog.Debugf("read the OTel process context of pid %d", pid)
 
-	p.applyOTelTracerMetadata(pid, procCtx)
+	p.applyOTelTracerMetadata(pid, res.ProcessContext)
 
-	attributeKeys, err := otelAttributeKeys(procCtx)
-	if err != nil {
-		p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
+	if stepErr != nil && stepErr.Step == otelthreadctx.StepAttributeKeys {
+		p.reportSpanCtx(spanCtxStepOTelTLS, pid, stepErr.Err)
 		return
 	}
-	p.attachOTelAttributeKeys(pid, attributeKeys)
+	p.attachOTelAttributeKeys(pid, res.AttributeKeys)
 
-	value, lookupErr := p.otelTLSMap.LookupBytes(pid)
-	if lookupErr != nil {
-		seclog.Errorf("kernel map lookup error: %v", lookupErr)
+	var layoutErr error
+	if stepErr != nil {
+		layoutErr = stepErr.Err
 	}
-	if value == nil {
-		// Not registered yet: do the expensive ELF parse and register offsets for eBPF to read.
-		res, resolveErr := target.resolveTLSOffsets(procCtx)
-		if resolveErr == nil {
-			resolveErr = p.updateOTelTLS(pid, res)
-			p.reportOTelTLSLatency(start, true)
-		}
-		p.reportSpanCtx(spanCtxStepOTelTLS, pid, resolveErr)
-		return
+	p.reportSpanCtx(spanCtxStepOTelTLS, pid, layoutErr)
+	if layoutErr == nil || res.LayoutResolved {
+		p.reportOTelTLSLatency(start, res.LayoutResolved)
 	}
-
-	p.reportSpanCtx(spanCtxStepOTelTLS, pid, nil)
-	p.reportOTelTLSLatency(start, false)
 }
 
-func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
-	value := serializeOTelTLSValue(res)
-	if err := p.otelTLSMap.Put(pid, value); err != nil {
+// otelTLSRegistry stores layouts in the otel_tls map.
+type otelTLSRegistry struct {
+	otelTLSMap ebpf.Map
+}
+
+// Registered implements otelthreadctx.Registry.
+func (r otelTLSRegistry) Registered(pid uint32) bool {
+	value, err := r.otelTLSMap.LookupBytes(pid)
+	if err != nil {
+		seclog.Errorf("kernel map lookup error: %v", err)
+	}
+	return value != nil
+}
+
+// Register implements otelthreadctx.Registry.
+func (r otelTLSRegistry) Register(pid uint32, layout otelthreadctx.Layout) error {
+	if err := r.otelTLSMap.Put(pid, layout.Serialize()); err != nil {
 		return fmt.Errorf("%w: %w", errSpanCtxMapError, err)
 	}
-
 	return nil
 }
 

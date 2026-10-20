@@ -303,7 +303,7 @@ OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifact
 # so there is no musl counterpart to build.
 #
 # musl is covered by TestResolveOTelTLSMuslDTV in
-# pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
+# pkg/security/otelthreadctx/layout_test.go instead: the only thing musl
 # changes is the DTV layout its libc reports, which is resolved entirely in
 # user space and needs neither eBPF nor a VM.
 def build_otel_tls_artifacts(build_dir, arch: Arch):
