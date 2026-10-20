@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: The trace-agent now decodes OTLP traces received over gRPC directly
+    into its V1 trace representation and processes them like other V1
+    traces, which reduces the CPU time and memory allocated for OTLP trace
+    ingestion. The resulting spans match the previous behavior, with these
+    differences: instrumentation scope attributes keep their original type
+    instead of being converted to strings (numbers are sent as numeric
+    values, and arrays and maps are flattened into dotted keys), and spans
+    with an unspecified span kind are reported as ``internal``.
+    Configurations that use the legacy OTLP options
+    (``disable_receive_resource_spans_v2``,
+    ``disable_operation_and_resource_name_logic_v2``,
+    ``disable_otlp_container_tags_v2``, ``span_name_as_resource_name`` or
+    ``span_name_remappings``) keep the previous behavior. To restore the
+    previous behavior otherwise, add ``disable_otlp_idx`` to
+    ``apm_config.features`` (or ``DD_APM_FEATURES``).
