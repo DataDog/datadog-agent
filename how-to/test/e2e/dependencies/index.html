@@ -4496,7 +4496,7 @@ These <code>-e2e</code> variants are already the default for tests running on AW
 <p>None of the three mechanisms above exist on Azure or GCP:</p>
 <ul>
 <li><strong>Container images</strong>: no pull-through cache (<code>InternalDockerhubMirror()</code> falls back to plain <code>registry-1.docker.io</code>). Use the most reliable mirror available instead — <code>mirror.gcr.io</code> on GCP; Azure has no blessed equivalent, ask #agent-devx-help.</li>
-<li><strong>Prebaked images</strong>: no <code>-e2e</code> AMI equivalent. <code>docker.InstallDocker</code> / <code>docker.InstallCompose</code> (<code>test/e2e-framework/components/docker/install.go</code>) install Docker at provision time as the accepted exception for these clouds.</li>
+<li><strong>Prebaked images</strong>: no <code>-e2e</code> AMI equivalent. <code>PackageManager.RuntimeInstallDocker</code> (<code>test/e2e-framework/components/os/</code>) installs Docker and a pinned docker-compose at provision time as the accepted exception for these clouds. It fails on AWS.</li>
 <li><strong>S3 artifact bucket</strong>: <code>HostArtifactClient</code> returns <code>not implemented</code> (see above), with no fallback.</li>
 </ul>
 
