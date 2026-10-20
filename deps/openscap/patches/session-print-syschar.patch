@@ -1,6 +1,6 @@
 --- a/src/OVAL/oval_sysModel.c
 +++ b/src/OVAL/oval_sysModel.c
-@@ -411,3 +411,19 @@ int oval_syschar_model_export(struct oval_syschar_model *model, const char *file
+@@ -415,3 +415,19 @@ int oval_syschar_model_export(struct oval_syschar_model *model, const char *file
  	return oscap_xml_save_filename_free(file, doc);
  }
  
@@ -36,15 +36,18 @@
   * @param model the specified syschar model
 --- a/src/XCCDF/public/xccdf_session.h
 +++ b/src/XCCDF/public/xccdf_session.h
-@@ -530,6 +530,14 @@ OSCAP_API int xccdf_session_export_check_engine_plugins(struct xccdf_session *se
+@@ -533,6 +533,17 @@ OSCAP_API int xccdf_session_export_check_engine_plugins(struct xccdf_session *se
   */
  OSCAP_API int xccdf_session_export_arf(struct xccdf_session *session);
  
 +/**
-+ * Print system characteristics.
++ * Print the system characteristics of the last evaluation on standard
++ * output: one oval_system_characteristics document per OVAL file of the
++ * session, in the order the session loaded them. A session without OVAL
++ * prints nothing.
 + * @memberof xccdf_session
 + * @param session XCCDF Session
-+ * @returns zero on success
++ * @returns zero on success, nonzero on failure (oscap_seterr is set)
 + */
 +OSCAP_API int xccdf_session_print_syschar(struct xccdf_session *session);
 +
@@ -53,40 +56,37 @@
   * before this to parse XCCDF file to the policy_model.
 --- a/src/XCCDF/xccdf_session.c
 +++ b/src/XCCDF/xccdf_session.c
-@@ -1831,6 +1831,39 @@ int xccdf_session_export_arf(struct xccdf_session *session)
+@@ -1853,6 +1853,36 @@ int xccdf_session_export_arf(struct xccdf_session *session)
  	return 0;
  }
  
-+static struct oval_result_system *_xccdf_oval_session_get_first_result_system(struct oval_agent_session *oval_session)
++static struct oval_syschar_model *_xccdf_oval_session_get_syschar_model(struct oval_agent_session *oval_session)
 +{
 +	struct oval_results_model *rmodel = oval_agent_get_results_model(oval_session);
++	if (rmodel == NULL)
++		return NULL;
 +	struct oval_result_system_iterator *rsystem_it = oval_results_model_get_systems(rmodel);
-+	struct oval_result_system *rsystem = NULL;
-+	if (oval_result_system_iterator_has_more(rsystem_it)) {
-+		rsystem = oval_result_system_iterator_next(rsystem_it);
-+	}
++	struct oval_syschar_model *model = NULL;
++	if (oval_result_system_iterator_has_more(rsystem_it))
++		model = oval_result_system_get_syschar_model(oval_result_system_iterator_next(rsystem_it));
 +	oval_result_system_iterator_free(rsystem_it);
-+	return rsystem;
-+}
-+
-+static struct oval_result_system *_xccdf_session_get_first_result_system(struct xccdf_session *session)
-+{
-+	if (session->oval.agents) {
-+		for (int i = 0; session->oval.agents[i]; i++) {
-+			return _xccdf_oval_session_get_first_result_system(session->oval.agents[i]);
-+		}
-+	}
-+
-+	return NULL;
++	return model;
 +}
 +
 +int xccdf_session_print_syschar(struct xccdf_session *session)
 +{
-+	struct oval_result_system *sys = _xccdf_session_get_first_result_system(session);
-+	struct oval_syschar_model *syschar_model = oval_result_system_get_syschar_model(sys);
-+	if (syschar_model != NULL)
-+		oval_syschar_model_print(syschar_model);
-+
++	if (session->oval.agents == NULL)
++		return 0;
++	for (int i = 0; session->oval.agents[i] != NULL; i++) {
++		struct oval_agent_session *agent = session->oval.agents[i];
++		struct oval_syschar_model *model = _xccdf_oval_session_get_syschar_model(agent);
++		if (model == NULL) {
++			oscap_seterr(OSCAP_EFAMILY_OSCAP, "No system characteristics for OVAL file '%s'.", oval_agent_get_filename(agent));
++			return 1;
++		}
++		if (oval_syschar_model_print(model) < 0)
++			return 1;
++	}
 +	return 0;
 +}
 +
@@ -95,35 +95,28 @@
  
 --- a/src/common/elements.c
 +++ b/src/common/elements.c
-@@ -257,6 +257,40 @@ int oscap_xml_save_filename_free(const char *filename, xmlDocPtr doc)
+@@ -279,6 +279,33 @@ int oscap_xml_save_filename_free(const char *filename, xmlDocPtr doc)
  	return ret;
  }
  
 +int oscap_xml_print(xmlDocPtr doc)
 +{
-+	xmlOutputBufferPtr buff;
-+	int xmlCode;
-+
-+	int fd = 1;
-+	if (fd == -1)
-+		return -1;
-+
-+	buff = xmlOutputBufferCreateFile(stdout, NULL);
++	/*
++	 * Write through stdio, as the printf of the caller does, so that the
++	 * document follows what the caller printed before.
++	 */
++	xmlOutputBufferPtr buff = xmlOutputBufferCreateFile(stdout, NULL);
 +	if (buff == NULL) {
-+		close(fd);
-+		oscap_setxmlerr(xmlGetLastError());
-+		dW("xmlOutputBufferCreateFile() failed.");
++		oscap_seterr(OSCAP_EFAMILY_XML, "Cannot write to standard output.");
 +		return -1;
 +	}
 +
-+	xmlCode = xmlSaveFormatFileTo(buff, doc, "UTF-8", 1);
-+
-+	if (xmlCode <= 0) {
-+		oscap_setxmlerr(xmlGetLastError());
-+		dW("No bytes exported: xmlCode: %d.", xmlCode);
++	int xmlCode = xmlSaveFormatFileTo(buff, doc, "UTF-8", 1);
++	if (xmlCode <= 0 || fflush(stdout) == EOF || ferror(stdout)) {
++		oscap_seterr(OSCAP_EFAMILY_XML, "Cannot print the XML document on standard output.");
++		return -1;
 +	}
-+
-+	return (xmlCode >= 1) ? 1 : -1;
++	return 1;
 +}
 +
 +int oscap_xml_print_free(xmlDocPtr doc)
@@ -138,21 +131,21 @@
  	// Look-up xsi namespace pointer. We can be pretty sure that this namespace
 --- a/src/common/elements.h
 +++ b/src/common/elements.h
-@@ -76,6 +76,20 @@ int oscap_xml_save_filename(const char *filename, xmlDocPtr doc);
+@@ -85,6 +85,20 @@ int oscap_xml_save_fd(int fd, xmlDocPtr doc);
   */
  int oscap_xml_save_filename_free(const char *filename, xmlDocPtr doc);
  
 +/**
-+ * Print XML Document.
++ * Print XML Document on standard output.
 + * @param doc the XML document content
-+ * @return 1 on success, -1 on failure (oscap_seterr is set appropriatly).
++ * @return 1 on success, -1 on failure (oscap_seterr is set).
 + */
 +int oscap_xml_print(xmlDocPtr doc);
 +
 +/**
-+ * Print XML Document and dispose the document afterwards.
++ * Print XML Document on standard output and dispose the document afterwards.
 + * @param doc the XML document content
-+ * @return 1 on success, -1 on failure (oscap_seterr is set appropriatly).
++ * @return 1 on success, -1 on failure (oscap_seterr is set).
 + */
 +int oscap_xml_print_free(xmlDocPtr doc);
 +
@@ -184,7 +177,7 @@ diff --git a/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.c b/test
 new file mode 100644
 --- /dev/null
 +++ b/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.c
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,67 @@
 +// SPDX-License-Identifier: LGPL-2.1-or-later
 +
 +#ifdef HAVE_CONFIG_H
@@ -200,12 +193,13 @@ new file mode 100644
 +/*
 + * Evaluate the XCCDF document of the first argument and write what
 + * xccdf_session_print_syschar prints on standard output to the file of
-+ * the second.
++ * the second. Exit 2 when xccdf_session_print_syschar reports a failure,
++ * and 3 when it reports none but its output was lost.
 + */
 +int main(int argc, char *argv[])
 +{
 +	struct xccdf_session *session;
-+	int fd, saved, ret;
++	int fd, saved, ret, flushed;
 +
 +	if (argc != 3) {
 +		fprintf(stderr, "usage: %s xccdf out\n", argv[0]);
@@ -218,7 +212,7 @@ new file mode 100644
 +		xccdf_session_free(session);
 +		return 1;
 +	}
-+	fd = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0644);
++	fd = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0600);
 +	if (fd < 0) {
 +		perror(argv[2]);
 +		xccdf_session_free(session);
@@ -233,8 +227,9 @@ new file mode 100644
 +	}
 +	close(fd);
 +	ret = xccdf_session_print_syschar(session);
-+	if (fflush(stdout) != 0 || dup2(saved, STDOUT_FILENO) < 0) {
-+		perror(argv[2]);
++	flushed = fflush(stdout);
++	if (dup2(saved, STDOUT_FILENO) < 0) {
++		perror("dup2");
 +		xccdf_session_free(session);
 +		return 1;
 +	}
@@ -242,7 +237,11 @@ new file mode 100644
 +	xccdf_session_free(session);
 +	if (ret != 0) {
 +		fprintf(stderr, "xccdf_session_print_syschar returned %d\n", ret);
-+		return 1;
++		return 2;
++	}
++	if (flushed != 0) {
++		fprintf(stderr, "xccdf_session_print_syschar returned 0, and its output was lost\n");
++		return 3;
 +	}
 +	return 0;
 +}
@@ -250,7 +249,7 @@ diff --git a/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.sh b/tes
 new file mode 100755
 --- /dev/null
 +++ b/tests/API/XCCDF/unittests/test_xccdf_session_print_syschar.sh
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,34 @@
 +#!/usr/bin/env bash
 +
 +. "$builddir/tests/test_common.sh"
@@ -265,10 +264,23 @@ new file mode 100755
 +result=$(mktemp -t "${name}.out.XXXXXX")
 +echo "Result file = $result"
 +
++# One document per OVAL file of the session.
 +bash "$RUN_WRAPPER" "./${name}" "$srcdir/test_single_rule.xccdf.xml" "$result"
-+
++[[ "$(grep -c '^<?xml' "$result")" -eq 1 ]]
 +assert_exists 1 '/oval_system_characteristics'
 +assert_exists 1 '/oval_system_characteristics/collected_objects/object[@id="oval:x:obj:1"][@flag="complete"]'
 +assert_exists 1 '/oval_system_characteristics/system_data/ind-sys:variable_item[ind-sys:value="100"]'
++
++bash "$RUN_WRAPPER" "./${name}" "$srcdir/test_multiple_oval_files_with_same_basename.xccdf.xml" "$result"
++[[ "$(grep -c '^<?xml' "$result")" -eq 2 ]]
++
++# A session without OVAL prints nothing.
++bash "$RUN_WRAPPER" "./${name}" "$srcdir/test_xccdf_results_arf_no_oval.xccdf.xml" "$result"
++[[ ! -s "$result" ]]
++
++# A document that cannot be written is a failure the caller sees.
++ret=0
++bash "$RUN_WRAPPER" "./${name}" "$srcdir/test_single_rule.xccdf.xml" /dev/full || ret=$?
++[[ $ret -eq 2 ]]
 +
 +rm -f "$result"
