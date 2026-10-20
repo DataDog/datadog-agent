@@ -452,6 +452,6 @@ func TestCurrentBottleneckComponentRequiresMonitorBeforeWindow(t *testing.T) {
 func TestCanBackpressureMatchesDestinationMonitorTag(t *testing.T) {
 	unreliable := client.NewDestinationMetadata("sender", "0", "unreliable", "1", "").MonitorTag()
 	reliable := client.NewDestinationMetadata("sender", "0", "reliable", "1", "").MonitorTag()
-	assert.False(t, canBackpressure(unreliable), unreliable)
-	assert.True(t, canBackpressure(reliable), reliable)
+	assert.False(t, CanBackpressure(unreliable), unreliable)
+	assert.True(t, CanBackpressure(reliable), reliable)
 }

@@ -109,7 +109,7 @@ func mostDownstreamSaturated(stages []Stage, sat func(Stage) bool) string {
 	best := ""
 	bestRank := -1
 	for _, s := range stages {
-		if !sat(s) {
+		if !logsmetrics.CanBackpressure(s.Name) || !sat(s) {
 			continue
 		}
 		if r := ComponentRank(s.Name); r > bestRank {
@@ -172,7 +172,7 @@ func ReadCounters(m *expvar.Map) Counters {
 	}
 	return Counters{
 		Dropped:         droppedTotal(m),
-		Missed:          intVar(m, "BytesMissed"),
+		Missed:          intVar(m, "MonitoredPipelineBytesMissed"),
 		Processed:       intVar(m, "LogsProcessed"),
 		Sent:            intVar(m, "LogsSent"),
 		Errors:          intVar(m, "DestinationErrors"),

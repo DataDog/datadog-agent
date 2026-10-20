@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Logs Agent status now reports the active ``logs_config.profile`` and
+    recommends a performance profile when recent file-rotation loss coincides
+    with saturation in a blocking stage of the monitored logs pipeline. Verbose
+    status includes each profile setting's effective value and configuration
+    source.

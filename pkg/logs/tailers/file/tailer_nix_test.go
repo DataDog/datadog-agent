@@ -164,6 +164,7 @@ func TestStopAfterFileRotationRealFileMissedBytes(t *testing.T) {
 	require.Equal(t, "real-file-service", summaries[0].Service)
 	require.Equal(t, int64(fileSize-readOffset), summaries[0].Bytes)
 	require.Equal(t, int64(1), summaries[0].Rotations)
+	require.Equal(t, int64(fileSize-readOffset), metrics.MonitoredPipelineBytesMissed.Value())
 }
 
 func TestStopAfterFileRotationSkipMissedBytes(t *testing.T) {
@@ -173,6 +174,7 @@ func TestStopAfterFileRotationSkipMissedBytes(t *testing.T) {
 	tailer, _ := newMissedBytesTailer(t, 1024, 4096)
 	tailer.skipMissedBytes = true
 	missedBefore := metrics.BytesMissed.Value()
+	monitoredBefore := metrics.MonitoredPipelineBytesMissed.Value()
 
 	tailer.StopAfterFileRotation()
 	tailer.bytesRead.Add(512)
@@ -184,6 +186,7 @@ func TestStopAfterFileRotationSkipMissedBytes(t *testing.T) {
 	}
 
 	require.Equal(t, int64(3072), metrics.BytesMissed.Value()-missedBefore)
+	require.Equal(t, int64(0), metrics.MonitoredPipelineBytesMissed.Value()-monitoredBefore)
 	require.Empty(t, metrics.MissedBytesSnapshot())
 }
 

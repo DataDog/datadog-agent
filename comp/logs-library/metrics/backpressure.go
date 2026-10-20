@@ -63,8 +63,9 @@ func outranks[T int64 | float64](candidate, incumbent *ComponentBackpressure, ca
 	return candidate.Instance < incumbent.Instance
 }
 
-// canBackpressure excludes NonBlockingSend destinations, which drop rather than block when full.
-func canBackpressure(component string) bool {
+// CanBackpressure reports whether a component can block upstream pipeline stages.
+// NonBlockingSend destinations drop rather than block when full.
+func CanBackpressure(component string) bool {
 	return !strings.HasPrefix(component, "destination_unreliable_")
 }
 
@@ -133,7 +134,7 @@ func DeriveBackpressure(snaps []ComponentSnapshot) BackpressureSummary {
 
 	blocking := make([]ComponentBackpressure, 0, len(comps))
 	for _, c := range comps {
-		if canBackpressure(c.Component) {
+		if CanBackpressure(c.Component) {
 			blocking = append(blocking, c)
 		}
 	}
@@ -218,7 +219,7 @@ func bottleneckDuringLoss(summary BackpressureSummary, lossWindowStartedAt, now 
 	untimed := false
 	for i := range summary.Components {
 		component := &summary.Components[i]
-		if !canBackpressure(component.Component) {
+		if !CanBackpressure(component.Component) {
 			continue
 		}
 		if !component.HasLastSaturated && (component.Saturated30mSeconds > 0 || component.Saturated1mSeconds > 0) {

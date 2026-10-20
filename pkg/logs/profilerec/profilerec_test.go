@@ -86,6 +86,19 @@ func TestBottleneck(t *testing.T) {
 			},
 			"strategy",
 		},
+		{
+			"non-blocking destination cannot explain upstream loss",
+			[]Stage{{Name: "destination_unreliable_0", CurrentlySaturated: true}},
+			"",
+		},
+		{
+			"non-blocking destination does not hide a blocking stage",
+			[]Stage{
+				{Name: "processor", CurrentlySaturated: true},
+				{Name: "destination_unreliable_0", CurrentlySaturated: true},
+			},
+			"processor",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -144,6 +157,7 @@ func TestRecommend(t *testing.T) {
 		},
 		{name: "no loss", stages: workerSat, signals: Signals{Delivering: true}, wantNil: true},
 		{name: "missed with nothing saturated", stages: []Stage{{Name: "processor"}}, signals: Signals{MissedRecently: true, Delivering: true}, wantNil: true},
+		{name: "missed with only non-blocking destination saturated", stages: []Stage{{Name: "destination_unreliable_0", CurrentlySaturated: true}}, signals: Signals{MissedRecently: true, Delivering: true}, wantNil: true},
 		{name: "send stage not delivering", stages: workerSat, signals: Signals{MissedRecently: true}, wantNil: true},
 		{name: "already on recommended profile", stages: workerSat, active: ProfileHighConcurrency, signals: Signals{MissedRecently: true, Delivering: true}, wantNil: true},
 		{name: "active profile covers recommendation", stages: workerSat, active: ProfileHighThroughput, signals: Signals{MissedRecently: true, Delivering: true}, wantNil: true},
@@ -176,7 +190,8 @@ func TestReadCounters(t *testing.T) {
 		i.Set(v)
 		m.Set(key, i)
 	}
-	set("BytesMissed", 4096)
+	set("BytesMissed", 8192)
+	set("MonitoredPipelineBytesMissed", 4096)
 	set("LogsProcessed", 100)
 	set("LogsSent", 90)
 	set("DestinationErrors", 4)

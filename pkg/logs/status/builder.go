@@ -480,7 +480,7 @@ func (b *Builder) getMetricsStatus(verbose bool) map[string]string {
 	metrics["RetryCount"] = strconv.FormatInt(b.logsExpVars.Get("RetryCount").(*expvar.Int).Value(), 10)
 	if verbose {
 		metrics["LogsDropped"] = strconv.FormatInt(counters.Dropped, 10)
-		metrics["BytesMissed"] = strconv.FormatInt(counters.Missed, 10)
+		metrics["BytesMissed"] = strconv.FormatInt(b.logsExpVars.Get("BytesMissed").(*expvar.Int).Value(), 10)
 		metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
 		metrics["EncodedBytesSent"] = strconv.FormatInt(b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value(), 10)
 		metrics["LogsTruncated"] = strconv.FormatInt(b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value(), 10)
