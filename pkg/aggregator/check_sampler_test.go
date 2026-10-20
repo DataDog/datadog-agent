@@ -10,6 +10,7 @@ package aggregator
 import (
 	"math"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -1008,22 +1009,45 @@ func TestComparisonBucketBaselineAcrossIntermediateExpiry(t *testing.T) {
 }
 
 func TestCorrectedPeriodicFinalTimestampCollision(t *testing.T) {
-	cs := comparisonSampler(t)
-	comparisonAdd(cs, metrics.CountType, 7, 1, false)
-	cs.commitNow(true, nil)
-	first := cs.lastCommitSecond
-	comparisonAdd(cs, metrics.CountType, 11, 2, false)
-	cs.commitNow(false, nil)
-	series, _ := cs.flush()
-	points := map[int64]float64{}
-	var total float64
-	for _, s := range series {
-		for _, p := range s.Points {
-			require.NotContains(t, points, int64(p.Ts))
-			points[int64(p.Ts)] = p.Value
-			total += p.Value
+	synctest.Test(t, func(t *testing.T) {
+		cs := comparisonSampler(t)
+		comparisonAdd(cs, metrics.CountType, 7, 1, false)
+		cs.commitNow(true, nil)
+		first := cs.lastCommitSecond
+		comparisonAdd(cs, metrics.CountType, 11, 2, false)
+		cs.commitNow(false, nil)
+		series, _ := cs.flush()
+		points := map[int64]float64{}
+		var total float64
+		for _, s := range series {
+			for _, p := range s.Points {
+				require.NotContains(t, points, int64(p.Ts))
+				points[int64(p.Ts)] = p.Value
+				total += p.Value
+			}
 		}
+		require.Equal(t, float64(18), total)
+		require.Greater(t, cs.lastCommitSecond, first)
+	})
+}
+
+func TestPeriodicReclaimsFlushedGaugeContexts(t *testing.T) {
+	cs := comparisonSampler(t)
+	add := func(value float64) {
+		cs.addSample(&metrics.MetricSample{Name: "reclaimed.gauge", Mtype: metrics.GaugeType, Value: value, Timestamp: 1, SampleRate: 1, Tags: []string{"stable:tag"}}, filterlistimpl.NewNoopTagMatcher())
 	}
-	require.Equal(t, float64(18), total)
-	require.Greater(t, cs.lastCommitSecond, first)
+	add(7)
+	cs.commitIntermediate(100, nil)
+	require.Zero(t, cs.contextResolver.length())
+	series, _ := cs.flush()
+	require.Len(t, series, 1)
+	require.Equal(t, "reclaimed.gauge", series[0].Name)
+	require.Equal(t, float64(7), series[0].Points[0].Value)
+	require.Equal(t, "stable:tag", series[0].Tags.Join(","))
+	add(11)
+	cs.commitIntermediate(101, nil)
+	series, _ = cs.flush()
+	require.Len(t, series, 1)
+	require.Equal(t, float64(11), series[0].Points[0].Value)
+	require.Equal(t, "stable:tag", series[0].Tags.Join(","))
 }

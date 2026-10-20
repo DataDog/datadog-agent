@@ -346,6 +346,16 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 func (cs *CheckSampler) commitIntermediate(timestamp float64, filterList *metricname.Matcher) {
 	cs.commitSeriesWithFlush(timestamp, filterList, cs.metrics.FlushIntermediate)
 	cs.commitSketches(timestamp, filterList)
+	// Flushed gauges have no baseline to retain. Keep stateful metrics and
+	// distribution contexts, including sketches still in the current second.
+	var expired []ckey.ContextKey
+	for key, entry := range cs.contextResolver.resolver.contextsByKey {
+		if entry.context.mtype == metrics.GaugeType {
+			expired = append(expired, key)
+			cs.contextResolver.resolver.remove(key)
+		}
+	}
+	cs.metrics.Expire(expired, timestamp)
 }
 
 // commitNow keeps ordinary final commits, delaying only a wire-second collision.
