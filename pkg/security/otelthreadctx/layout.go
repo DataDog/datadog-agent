@@ -5,7 +5,11 @@
 
 //go:build linux
 
-package process
+// Package otelthreadctx resolves and reads the OpenTelemetry thread context a
+// process publishes per thread (OTEP 4947), once its process context (OTEP 4719)
+// told how. The eBPF probe resolves the layout here and reads records in eBPF.
+// It stays free of agent dependencies so that cws-instrumentation can link it.
+package otelthreadctx
 
 import (
 	"bufio"
@@ -15,6 +19,7 @@ import (
 	"fmt"
 	"iter"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,8 +32,7 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/tls"
 
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs/procmaps"
 )
 
 const (
@@ -121,12 +125,12 @@ var otelNativeWriter = otelWriter{
 	runtimeLang: otelRuntimeNative,
 }
 
-// otelTLSValueSize is the serialized size of struct otel_tls_t in
+// LayoutValueSize is the serialized size of struct otel_tls_t in
 // pkg/security/ebpf/c/include/structs/span_context.h.
-const otelTLSValueSize = 48
+const LayoutValueSize = 48
 
 // otelDTVInfo describes how to walk the Dynamic Thread Vector (DTV) for a
-// process's libc. The signed fields here and in otelTLSResolution must stay
+// process's libc. The signed fields here and in Layout must stay
 // 64-bit to match struct otel_dtv_info_t / otel_tls_t in
 // structs/span_context.h, which explains why.
 type otelDTVInfo struct {
@@ -136,11 +140,12 @@ type otelDTVInfo struct {
 	multiplier uint32
 }
 
-// otelTLSResolution is everything eBPF needs to read otel_thread_ctx_v1 for
-// one process at trace time; serialized as struct otel_tls_t.
-type otelTLSResolution struct {
+// Layout is everything a reader needs to read otel_thread_ctx_v1 for one
+// process at trace time: the eBPF probe gets it serialized as struct
+// otel_tls_t.
+type Layout struct {
 	// runtimeLang is the otel_runtime_language enum: Go processes use the
-	// pprof-labels reader (go_labels.go) rather than TLS.
+	// pprof-labels reader rather than TLS.
 	runtimeLang uint32
 	// moduleID is the TLS module ID for dynamic TLS, or 0 for static TLS.
 	moduleID uint32
@@ -153,9 +158,9 @@ type otelTLSResolution struct {
 	v8 otelV8Layout
 }
 
-// serializeOTelTLSValue serializes res as struct otel_tls_t.
-func serializeOTelTLSValue(res otelTLSResolution) []byte {
-	buf := make([]byte, otelTLSValueSize)
+// Serialize serializes res as struct otel_tls_t.
+func (res Layout) Serialize() []byte {
+	buf := make([]byte, LayoutValueSize)
 	binary.NativeEndian.PutUint32(buf[0:4], res.runtimeLang)
 	binary.NativeEndian.PutUint32(buf[4:8], res.moduleID)
 	binary.NativeEndian.PutUint64(buf[8:16], uint64(res.tlsOffset))
@@ -182,16 +187,19 @@ type otelTLSModule struct {
 // both what marks it as loaded code and the anchor elfLoadBias needs.
 type otelMappedObject struct {
 	path string
-	exec procfs.MapsEntry
+	exec procmaps.MapsEntry
 }
 
-// otelTargetProcess holds per-pid state for OTel TLS resolution. The maps
+// Target holds per-pid state for OTel TLS resolution. The maps
 // fields memoize /proc/<pid>/maps, needed both to find the module exporting
 // otel_thread_ctx_v1 and to find the libc the DTV layout comes from.
 //
-// One instance is reused across resolutions: every field is reset by reset(),
+// One instance is reused across resolutions: every field is reset by Reset(),
 // while the mapsObjects backing array is kept.
-type otelTargetProcess struct {
+type Target struct {
+	// procRoot is the mount point of the procfs pid lives in.
+	procRoot string
+
 	pid     uint32
 	pidStr  string
 	exePath string
@@ -205,15 +213,21 @@ type otelTargetProcess struct {
 	procCtxAddr uint64
 }
 
-func (p *otelTargetProcess) resetMapsObjects() {
+// NewTarget returns a target resolving processes through the procfs mounted at
+// procRoot. Bind it to a process with Reset.
+func NewTarget(procRoot string) *Target {
+	return &Target{procRoot: procRoot}
+}
+
+func (p *Target) resetMapsObjects() {
 	clear(p.mapsObjects)
 	p.mapsObjects = p.mapsObjects[:0]
 }
 
-// reset rebinds the target to pid, dropping everything memoized for the
+// Reset rebinds the target to pid, dropping everything memoized for the
 // previous one. The backing array of mapsObjects survives, so it still holds
 // the previous target's paths past the new length until they are overwritten.
-func (p *otelTargetProcess) reset(pid uint32) {
+func (p *Target) Reset(pid uint32) {
 	p.pid = pid
 	p.pidStr = strconv.FormatUint(uint64(pid), 10)
 	p.exePath = ""
@@ -225,47 +239,47 @@ func (p *otelTargetProcess) reset(pid uint32) {
 	p.procCtxAddr = 0
 }
 
-// resolveTLSOffsets resolves the otel_thread_ctx_v1's access model from its
+// ResolveLayout resolves the otel_thread_ctx_v1's access model from its
 // defining ELF object (tls.Resolve), then reads the loader-resolved GOT/TLSDESC
 // slot from the live process (locateOTelTLS).
-func (p *otelTargetProcess) resolveTLSOffsets(procCtx otelprocessctx.ProcessContext) (otelTLSResolution, error) {
+func (p *Target) ResolveLayout(procCtx otelprocessctx.ProcessContext) (Layout, error) {
 	// The writer is picked from what the process itself published, not its
 	// tracer's reported language: see otelWriterFrom.
 	writer, err := otelWriterFrom(procCtx)
 
 	if err != nil {
-		return otelTLSResolution{}, err
+		return Layout{}, err
 	}
 	module, sym, err := p.findOTelTLSModule(writer.symbolName)
 	if err != nil {
-		return otelTLSResolution{}, err
+		return Layout{}, err
 	}
 	defer module.file.Close()
 
 	if sym.Size != writer.symbolSize {
-		return otelTLSResolution{}, fmt.Errorf("%w: TLS export has wrong size %d", errSpanCtxMalformed, sym.Size)
+		return Layout{}, fmt.Errorf("%w: TLS export has wrong size %d", ErrMalformed, sym.Size)
 	}
 	tlsVar, err := tls.Resolve(module.file, sym)
 	if err != nil {
-		return otelTLSResolution{}, fmt.Errorf("%w: %w", errSpanCtxUnsupported, err)
+		return Layout{}, fmt.Errorf("%w: %w", ErrUnsupported, err)
 	}
 
 	res, err := p.locateOTelTLS(module.loadBias, tlsVar)
 	if err != nil {
-		return otelTLSResolution{}, err
+		return Layout{}, err
 	}
 	res.runtimeLang = writer.runtimeLang
 	res.v8 = writer.v8
 	return res, nil
 }
 
-// otelAttributeKeys reads the attribute key names out of procCtx. Their
-// absence means the process isn't using the TLS reader (e.g. it's a Go
-// process, handled instead by go_labels.go).
-func otelAttributeKeys(procCtx otelprocessctx.ProcessContext) ([]string, error) {
+// AttributeKeys reads the attribute key names out of procCtx. Their absence
+// means the process isn't using the TLS reader (e.g. it's a Go process, handled
+// instead by the pprof labels reader).
+func AttributeKeys(procCtx otelprocessctx.ProcessContext) ([]string, error) {
 	attributeKeys, err := otelprocessctx.KeyAttributeKeyMap(procCtx)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errSpanCtxNotApplicable, err)
+		return nil, fmt.Errorf("%w: %w", ErrNotApplicable, err)
 	}
 	return attributeKeys, nil
 }
@@ -286,10 +300,10 @@ func otelWriterFrom(procCtx otelprocessctx.ProcessContext) (otelWriter, error) {
 	}, nil
 }
 
-// processContext reads the OTel process context of the target, which the maps
+// ProcessContext reads the OTel process context of the target, which the maps
 // parse the module lookup does anyway has already located. It returns (nil,
 // nil) when the process publishes no OTEL_CTX mapping.
-func (p *otelTargetProcess) processContext() (otelprocessctx.ProcessContext, error) {
+func (p *Target) ProcessContext() (otelprocessctx.ProcessContext, error) {
 	if _, err := p.tlsCandidateObjects(); err != nil {
 		return nil, err
 	}
@@ -297,7 +311,7 @@ func (p *otelTargetProcess) processContext() (otelprocessctx.ProcessContext, err
 		return nil, nil
 	}
 
-	mem, err := procfs.OpenMem(p.pid)
+	mem, err := procmaps.OpenMem(p.procRoot, p.pid)
 	if err != nil {
 		return nil, err
 	}
@@ -311,10 +325,10 @@ func (p *otelTargetProcess) processContext() (otelprocessctx.ProcessContext, err
 }
 
 // exe returns the resolved target of /proc/<pid>/exe, memoized.
-func (p *otelTargetProcess) exe() (string, error) {
+func (p *Target) exe() (string, error) {
 	if !p.exeDone {
 		p.exeDone = true
-		exePath, err := os.Readlink(kernel.HostProc(p.pidStr, "exe"))
+		exePath, err := os.Readlink(filepath.Join(p.procRoot, p.pidStr, "exe"))
 		if err != nil {
 			p.exeErr = fmt.Errorf("resolve /proc/%s/exe: %w", p.pidStr, err)
 		} else {
@@ -324,14 +338,14 @@ func (p *otelTargetProcess) exe() (string, error) {
 	return p.exePath, p.exeErr
 }
 
-func (p *otelTargetProcess) fsPath(path string) string {
-	return kernel.HostProc(p.pidStr, "root", path)
+func (p *Target) fsPath(path string) string {
+	return filepath.Join(p.procRoot, p.pidStr, "root", path)
 }
 
-func (p *otelTargetProcess) maps() (iter.Seq[procfs.MapsEntry], func() error) {
+func (p *Target) maps() (iter.Seq[procmaps.MapsEntry], func() error) {
 	var iterErr error
-	seq := func(yield func(v procfs.MapsEntry) bool) {
-		mapsPath := kernel.HostProc(p.pidStr, "maps")
+	seq := func(yield func(v procmaps.MapsEntry) bool) {
+		mapsPath := filepath.Join(p.procRoot, p.pidStr, "maps")
 		file, err := os.Open(mapsPath)
 		if err != nil {
 			iterErr = fmt.Errorf("open %s: %w", mapsPath, err)
@@ -342,7 +356,7 @@ func (p *otelTargetProcess) maps() (iter.Seq[procfs.MapsEntry], func() error) {
 		scanner := bufio.NewScanner(file)
 		scanner.Buffer(make([]byte, 128), bufio.MaxScanTokenSize)
 		for scanner.Scan() {
-			if entry, ok := procfs.ParseMapsLine(scanner.Bytes()); ok {
+			if entry, ok := procmaps.ParseMapsLine(scanner.Bytes()); ok {
 				if !yield(entry) {
 					return
 				}
@@ -356,7 +370,7 @@ func (p *otelTargetProcess) maps() (iter.Seq[procfs.MapsEntry], func() error) {
 	return seq, func() error { return iterErr }
 }
 
-func (p *otelTargetProcess) tlsCandidateObjects() ([]otelMappedObject, error) {
+func (p *Target) tlsCandidateObjects() ([]otelMappedObject, error) {
 	if p.mapsDone {
 		return p.mapsObjects, p.mapsErr
 	}
@@ -365,7 +379,7 @@ func (p *otelTargetProcess) tlsCandidateObjects() ([]otelMappedObject, error) {
 	return p.mapsObjects, p.mapsErr
 }
 
-func (p *otelTargetProcess) loadTLSCandidateObjects() error {
+func (p *Target) loadTLSCandidateObjects() error {
 	entries, errf := p.maps()
 	for entry := range entries {
 		// Since we're already parsing the maps here, set the procCtxAddr.
@@ -385,7 +399,7 @@ func (p *otelTargetProcess) loadTLSCandidateObjects() error {
 }
 
 // recordCandidate records path anchored at exec unless it is already recorded.
-func (p *otelTargetProcess) recordCandidate(path string, exec procfs.MapsEntry) {
+func (p *Target) recordCandidate(path string, exec procmaps.MapsEntry) {
 	for i := len(p.mapsObjects) - 1; i >= 0; i-- {
 		if p.mapsObjects[i].path == path {
 			return
@@ -396,9 +410,9 @@ func (p *otelTargetProcess) recordCandidate(path string, exec procfs.MapsEntry) 
 
 // otelTLSCandidatePath returns the cleaned pathname of a mapping that could
 // hold the otel_thread_ctx_v1 export: file-backed, readable and executable.
-func otelTLSCandidatePath(e procfs.MapsEntry) (string, bool) {
+func otelTLSCandidatePath(e procmaps.MapsEntry) (string, bool) {
 	// Cheapest test first: it rejects everything but the loaded objects.
-	if !procfs.FilterReadableOnly(e) || !procfs.FilterExecutableOnly(e) {
+	if !procmaps.FilterReadableOnly(e) || !procmaps.FilterExecutableOnly(e) {
 		return "", false
 	}
 	path := stripDeletedMapsSuffix(e.Pathname)
@@ -416,7 +430,7 @@ func stripDeletedMapsSuffix(path string) string {
 // symbolName as an STT_TLS symbol. The returned ELF file is left open for
 // tls.Resolve, which reads the same object's relocations; callers must Close()
 // it.
-func (p *otelTargetProcess) findOTelTLSModule(symbolName string) (*otelTLSModule, *libpf.Symbol, error) {
+func (p *Target) findOTelTLSModule(symbolName string) (*otelTLSModule, *libpf.Symbol, error) {
 	objects, err := p.tlsCandidateObjects()
 	if err != nil {
 		return nil, nil, err
@@ -448,9 +462,9 @@ func (p *otelTargetProcess) findOTelTLSModule(symbolName string) (*otelTLSModule
 	}
 
 	if lastCandidateErr != nil {
-		return nil, nil, fmt.Errorf("%w: %w", errSpanCtxMalformed, lastCandidateErr)
+		return nil, nil, fmt.Errorf("%w: %w", ErrMalformed, lastCandidateErr)
 	}
-	return nil, nil, fmt.Errorf("%w: TLS symbol %q not found in currently mapped readable ELF objects", errSpanCtxNotApplicable, symbolName)
+	return nil, nil, fmt.Errorf("%w: TLS symbol %q not found in currently mapped readable ELF objects", ErrNotApplicable, symbolName)
 }
 
 // findOTelTLSSymbol looks up symbolName in ef: first in the dynamic symbol
@@ -478,33 +492,33 @@ func findOTelTLSSymbol(ef *pfelf.File, symbolName string) *libpf.Symbol {
 
 // locateOTelTLS reads the loader-resolved GOT/TLSDESC slot out of the live
 // process and produces the final tls_offset, module_id and dtv_info handed to
-// eBPF.
-func (p *otelTargetProcess) locateOTelTLS(bias uint64, tlsVar tls.Var) (otelTLSResolution, error) {
-	mem, err := procfs.OpenMem(p.pid)
+// the reader.
+func (p *Target) locateOTelTLS(bias uint64, tlsVar tls.Var) (Layout, error) {
+	mem, err := procmaps.OpenMem(p.procRoot, p.pid)
 	if err != nil {
-		return otelTLSResolution{}, err
+		return Layout{}, err
 	}
 	defer mem.Close()
 
 	loc, err := tlsVar.Locate(remotememory.RemoteMemory{ReaderAt: mem}, libpf.Address(bias))
 	if err != nil {
-		// A failed read keeps its errno for classifySpanCtxError. Anything
-		// else is a slot the loader left unapplied or holding no plausible
-		// location.
+		// A failed read keeps its errno, which tells a vanished or forbidden
+		// target apart. Anything else is a slot the loader left unapplied or
+		// holding no plausible location.
 		if errno := syscall.Errno(0); errors.As(err, &errno) {
-			return otelTLSResolution{}, err
+			return Layout{}, err
 		}
-		return otelTLSResolution{}, fmt.Errorf("%w: locate %v: %w", errSpanCtxMalformed, tlsVar, err)
+		return Layout{}, fmt.Errorf("%w: locate %v: %w", ErrMalformed, tlsVar, err)
 	}
 
 	if loc.ModuleID == 0 {
-		return otelTLSResolution{tlsOffset: int64(loc.Offset)}, nil
+		return Layout{tlsOffset: int64(loc.Offset)}, nil
 	}
 	dtv, err := p.dtvInfo()
 	if err != nil {
-		return otelTLSResolution{}, err
+		return Layout{}, err
 	}
-	return otelTLSResolution{
+	return Layout{
 		tlsOffset: int64(loc.Offset),
 		moduleID:  uint32(loc.ModuleID),
 		dtvInfo:   dtv,
@@ -529,7 +543,7 @@ func isPotentialLibcDSO(path string) bool {
 // __tls_get_addr through the OTel eBPF profiler's libc package -- the same
 // extraction the profiler relies on, rather than a hardcoded table of per-libc,
 // per-architecture constants.
-func (p *otelTargetProcess) dtvInfo() (otelDTVInfo, error) {
+func (p *Target) dtvInfo() (otelDTVInfo, error) {
 	objects, err := p.tlsCandidateObjects()
 	if err != nil {
 		return otelDTVInfo{}, err
@@ -553,7 +567,7 @@ func (p *otelTargetProcess) dtvInfo() (otelDTVInfo, error) {
 		return info, nil
 	}
 
-	return otelDTVInfo{}, fmt.Errorf("%w: no mapped object exposes a recognizable __tls_get_addr", errSpanCtxUnsupported)
+	return otelDTVInfo{}, fmt.Errorf("%w: no mapped object exposes a recognizable __tls_get_addr", ErrUnsupported)
 }
 
 // extractDTVInfo reads the DTV layout out of one ELF object, reporting false

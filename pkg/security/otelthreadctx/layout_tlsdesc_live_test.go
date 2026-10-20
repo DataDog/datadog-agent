@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package process
+package otelthreadctx
 
 import (
 	"os"
@@ -17,10 +17,12 @@ import (
 	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/ebpf-profiler/tls"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // TestLiveDlopenBigTLSDescResolution dlopens a TLSDESC module too large for the
-// static-TLS surplus and resolves it the way resolveTLSOffsets does. Its
+// static-TLS surplus and resolves it the way ResolveLayout does. Its
 // tls_index often lives on a heap below 4GiB, which a magnitude cut on the
 // TLSDESC argument would mistake for a static offset.
 func TestLiveDlopenBigTLSDescResolution(t *testing.T) {
@@ -44,10 +46,10 @@ func TestLiveDlopenBigTLSDescResolution(t *testing.T) {
 	// The library is mapped before dlopen applies its relocations; the process
 	// context is only published from inside it, once dlopen has returned.
 	pid := uint32(cmd.Process.Pid)
-	var target otelTargetProcess
+	target := NewTarget(kernel.ProcFSRoot())
 	require.Eventually(t, func() bool {
-		target.reset(pid)
-		procCtx, err := target.processContext()
+		target.Reset(pid)
+		procCtx, err := target.ProcessContext()
 		return err == nil && procCtx != nil
 	}, 5*time.Second, 20*time.Millisecond, "fixture never published its process context")
 
@@ -65,6 +67,10 @@ func TestLiveDlopenBigTLSDescResolution(t *testing.T) {
 	require.NotZero(t, res.moduleID, "dlopen of _big must resolve through the DTV")
 	require.Zero(t, res.tlsOffset, "otel_thread_ctx_v1 is at offset 0 of the TLS block")
 	require.NotZero(t, res.dtvInfo.multiplier)
+}
+
+func isBazelTest() bool {
+	return os.Getenv("TEST_SRCDIR") != "" || os.Getenv("RUNFILES_DIR") != "" || os.Getenv("RUNFILES_MANIFEST_FILE") != ""
 }
 
 func otelTLSTestArtifact(t *testing.T, envName string) string {

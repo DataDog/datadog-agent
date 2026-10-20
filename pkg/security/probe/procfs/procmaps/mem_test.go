@@ -5,8 +5,7 @@
 
 //go:build linux
 
-// Package procfs holds procfs related files
-package procfs
+package procmaps
 
 import (
 	"math"
@@ -20,7 +19,7 @@ import (
 func TestMemReadUint64(t *testing.T) {
 	var probe uint64 = 0x1122334455667788
 
-	mem, err := OpenMem(uint32(os.Getpid()))
+	mem, err := OpenMem("/proc", uint32(os.Getpid()))
 	require.NoError(t, err)
 	defer mem.Close()
 
@@ -30,7 +29,7 @@ func TestMemReadUint64(t *testing.T) {
 }
 
 func TestMemReadUnreadable(t *testing.T) {
-	mem, err := OpenMem(uint32(os.Getpid()))
+	mem, err := OpenMem("/proc", uint32(os.Getpid()))
 	require.NoError(t, err)
 	defer mem.Close()
 
