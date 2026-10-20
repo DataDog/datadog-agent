@@ -248,12 +248,18 @@ func TestOTLPIdxSampleMatchesReceiver(t *testing.T) {
 func TestOTLPIdxSupported(t *testing.T) {
 	cfg := NewTestConfig(t)
 	assert.True(t, otlpidx.Supported(cfg))
-	for _, legacy := range []func(*config.AgentConfig){
-		func(c *config.AgentConfig) { c.Features["disable_receive_resource_spans_v2"] = struct{}{} },
+	for _, legacyNames := range []func(*config.AgentConfig){
 		func(c *config.AgentConfig) { c.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{} },
-		func(c *config.AgentConfig) { c.Features["disable_otlp_container_tags_v2"] = struct{}{} },
 		func(c *config.AgentConfig) { c.OTLPReceiver.SpanNameAsResourceName = true },
 		func(c *config.AgentConfig) { c.OTLPReceiver.SpanNameRemappings = map[string]string{"a": "b"} },
+	} {
+		cfg := NewTestConfig(t)
+		legacyNames(cfg)
+		assert.True(t, otlpidx.Supported(cfg), "legacy name logic is implemented")
+	}
+	for _, legacy := range []func(*config.AgentConfig){
+		func(c *config.AgentConfig) { c.Features["disable_receive_resource_spans_v2"] = struct{}{} },
+		func(c *config.AgentConfig) { c.Features["disable_otlp_container_tags_v2"] = struct{}{} },
 	} {
 		cfg := NewTestConfig(t)
 		legacy(cfg)

@@ -54,8 +54,7 @@ agents:
 }
 
 // otlpIngestIdxTestSuite runs the same checks with the trace-agent's direct OTLP to V1 decoder
-// enabled, and without the legacy operation and resource name flag, which would force the
-// pdata / v04 path.
+// enabled, with the default operation and resource name logic.
 type otlpIngestIdxTestSuite struct {
 	otlpIngestTestSuite
 }

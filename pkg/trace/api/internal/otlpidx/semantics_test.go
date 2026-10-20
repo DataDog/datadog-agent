@@ -63,6 +63,17 @@ var semanticsFixtures = []semanticsFixture{
 		},
 	},
 	{
+		// The legacy resource name logic reads the resource's attributes before the span's.
+		name: "http method on resource and span", kind: ptrace.SpanKindServer, spanName: "handler",
+		res:   map[string]any{"http.request.method": "PUT"},
+		attrs: map[string]any{"http.request.method": "GET", "http.route": "/r"},
+	},
+	{
+		name: "non-string operation and resource name", kind: ptrace.SpanKindServer, spanName: "op",
+		res:   map[string]any{"resource.name": 42},
+		attrs: map[string]any{"operation.name": true},
+	},
+	{
 		// Status2Error's HTTP status code fallback reads span attributes only.
 		name: "error status with resource status code", kind: ptrace.SpanKindClient, spanName: "GET", status: ptrace.StatusCodeError,
 		res: map[string]any{"http.status_code": "503"},
@@ -263,7 +274,40 @@ func putValue(dst pcommon.Value, v any) {
 // must agree. Attribute types may differ (native AnyValue vs Meta strings / Metrics doubles),
 // so string attributes are compared by value and numeric attributes against Metrics.
 func TestSemanticsMatchV04(t *testing.T) {
-	cfg := config.New()
+	for _, nc := range nameConfigs {
+		t.Run(nc.name, func(t *testing.T) {
+			testSemanticsMatchV04(t, nc.conf())
+		})
+	}
+}
+
+// nameConfigs are the operation and resource name configurations: the default logic and the
+// legacy one selected by any of three options.
+var nameConfigs = []struct {
+	name string
+	conf func() *config.AgentConfig
+}{
+	{"default", newTestConf},
+	{"span name as resource name", func() *config.AgentConfig {
+		c := newTestConf()
+		c.OTLPReceiver.SpanNameAsResourceName = true
+		return c
+	}},
+	{"span name remappings", func() *config.AgentConfig {
+		c := newTestConf()
+		c.OTLPReceiver.SpanNameAsResourceName = true
+		c.OTLPReceiver.SpanNameRemappings = map[string]string{"GET /users/{id}": "users.get", "POST": "post.remapped"}
+		return c
+	}},
+	{"operation and resource name logic v1", func() *config.AgentConfig {
+		c := newTestConf()
+		c.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+		c.OTLPReceiver.SpanNameRemappings = map[string]string{"my.lib.server": "lib.server"}
+		return c
+	}},
+}
+
+func testSemanticsMatchV04(t *testing.T, cfg *config.AgentConfig) {
 	for _, fx := range semanticsFixtures {
 		t.Run(fx.name, func(t *testing.T) {
 			td := ptrace.NewTraces()
@@ -289,7 +333,7 @@ func TestSemanticsMatchV04(t *testing.T) {
 
 			b, err := ptraceotlp.NewExportRequestFromTraces(td).MarshalProto()
 			require.NoError(t, err)
-			for _, opts := range []Options{{}, {ResourceAttributesOnPayload: true}} {
+			for _, opts := range []Options{{Conf: cfg}, {Conf: cfg, ResourceAttributesOnPayload: true}} {
 				tps, err := decodeForTest(b, opts)
 				require.NoError(t, err)
 				assertMatchesV04(t, want, tps[0], tps[0].Chunks[0].Spans[0])

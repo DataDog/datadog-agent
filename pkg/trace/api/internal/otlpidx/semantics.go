@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -149,6 +150,66 @@ func (a attrAccessor) GetFloat64(key string) (float64, bool) {
 		return v.DoubleValue, true
 	}
 	return 0, false
+}
+
+// resSpanLookup is transform.AttrStringLookup over the resource attributes (minus those consumed as
+// container tags, as today's conversion passes them), then the span's: like
+// transform.GetOTelAttrValInResAndSpanAttrs, the first of the keys present in the resource decides
+// its value in pcommon.Value.AsString form, and the span is only read if that value is empty.
+type resSpanLookup struct {
+	d    *decoder
+	span map[uint32]*idx.AnyValue
+}
+
+func (l resSpanLookup) LookupString(keys ...string) string {
+	for _, attrs := range [2]map[uint32]*idx.AnyValue{l.d.resAttrs, l.span} {
+		for _, k := range keys {
+			ref := l.d.strings.Lookup(k)
+			if v, ok := attrs[ref]; ref != 0 && ok {
+				if s := l.d.asString(v); s != "" {
+					return s
+				}
+				break
+			}
+		}
+	}
+	return ""
+}
+
+// asString returns v formatted by pcommon.Value.AsString. Non-string values go through pdata,
+// which only the legacy name logic needs.
+func (d *decoder) asString(v *idx.AnyValue) string {
+	if s, ok := v.GetValue().(*idx.AnyValue_StringValueRef); ok {
+		return d.strings.Get(s.StringValueRef)
+	}
+	pv := pcommon.NewValueEmpty()
+	d.toPdata(pv, v)
+	return pv.AsString()
+}
+
+func (d *decoder) toPdata(dst pcommon.Value, v *idx.AnyValue) {
+	switch x := v.GetValue().(type) {
+	case *idx.AnyValue_StringValueRef:
+		dst.SetStr(d.strings.Get(x.StringValueRef))
+	case *idx.AnyValue_BoolValue:
+		dst.SetBool(x.BoolValue)
+	case *idx.AnyValue_IntValue:
+		dst.SetInt(x.IntValue)
+	case *idx.AnyValue_DoubleValue:
+		dst.SetDouble(x.DoubleValue)
+	case *idx.AnyValue_BytesValue:
+		dst.SetEmptyBytes().FromRaw(x.BytesValue)
+	case *idx.AnyValue_ArrayValue:
+		s := dst.SetEmptySlice()
+		for _, e := range x.ArrayValue.GetValues() {
+			d.toPdata(s.AppendEmpty(), e)
+		}
+	case *idx.AnyValue_KeyValueList:
+		m := dst.SetEmptyMap()
+		for _, kv := range x.KeyValueList.GetKeyValues() {
+			d.toPdata(m.PutEmpty(d.strings.Get(kv.GetKey())), kv.GetValue())
+		}
+	}
 }
 
 // metricsAccessor reads only the span's attributes, and its numeric attributes as float64 whether
@@ -547,9 +608,20 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 	if d.spanKeys.intersects(&cf.version) {
 		version = transform.LookupSemanticStringWithAccessor(acc, semantics.ConceptServiceVersion, true)
 	}
-	name := transform.GetOTelOperationNameV2WithAccessor(view, acc)
+	var name, resource string
+	if d.namesV1 {
+		// The legacy logic, for span_name_as_resource_name, span_name_remappings and
+		// disable_operation_and_resource_name_logic_v2, as transform.OtelSpanToDDSpan does.
+		lookup := resSpanLookup{d: d, span: attrs}
+		conf := d.opts.Conf.OTLPReceiver
+		name = transform.GetOTelOperationNameV1WithLookup(view, d.strings.Get(lib.nameRef), lookup,
+			conf.SpanNameAsResourceName, conf.SpanNameRemappings, true)
+		resource = transform.GetOTelResourceV1WithLookup(view, lookup)
+	} else {
+		name = transform.GetOTelOperationNameV2WithAccessor(view, acc)
+		resource = transform.GetOTelResourceV2WithAccessor(view, acc)
+	}
 	name, _ = normalizeutil.NormalizeName(name)
-	resource := transform.GetOTelResourceV2WithAccessor(view, acc)
 	typ := transform.GetOTelSpanTypeWithAccessor(view, acc)
 	var httpCode int64
 	var hasHTTPCode bool

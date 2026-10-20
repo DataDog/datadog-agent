@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
 
 // maxAnyValueDepth bounds recursion through nested ArrayValue / KeyValueList attributes.
@@ -376,8 +377,9 @@ type decoder struct {
 	lastTraceIDRef uint32
 	spanCount      int
 	// topLevelByKind and scopeConvention cache the enable_otlp_compute_top_level_by_span_kind and
-	// (inverted) disable_otel_scope_convention feature flags.
-	topLevelByKind, scopeConvention bool
+	// (inverted) disable_otel_scope_convention feature flags, and namesV1 whether the legacy
+	// operation and resource name logic applies (transform.OperationAndResourceNameV2Enabled).
+	topLevelByKind, scopeConvention, namesV1 bool
 	// lastTracestate is the previous span's raw tracestate, and lastSampleRate the sampling
 	// probability decoded from it (ok false if none).
 	lastTracestate   string
@@ -421,6 +423,7 @@ func decodeResourceSpans(ctx context.Context, b []byte, opts Options) (Payload, 
 	if opts.Conf != nil {
 		d.topLevelByKind = opts.Conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
 		d.scopeConvention = !opts.Conf.HasFeature("disable_otel_scope_convention")
+		d.namesV1 = !transform.OperationAndResourceNameV2Enabled(opts.Conf)
 	}
 	// Pass 1: protobuf permits fields in any order, so locate the resource before decoding
 	// spans, which need the resource attributes.

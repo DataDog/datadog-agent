@@ -21,8 +21,5 @@ enhancements:
     counts; spans with an unspecified span kind are reported as
     ``internal``; spans are grouped into traces by their full 128-bit trace
     ID; and a ``_sample_rate`` attribute sent as a string is read as a
-    number. Configurations that use the legacy OTLP options
-    (``disable_receive_resource_spans_v2``,
-    ``disable_operation_and_resource_name_logic_v2``,
-    ``disable_otlp_container_tags_v2``, ``span_name_as_resource_name`` or
-    ``span_name_remappings``) keep the default behavior.
+    number. Configurations that use the legacy ``disable_receive_resource_spans_v2``
+    or ``disable_otlp_container_tags_v2`` options keep the default behavior.

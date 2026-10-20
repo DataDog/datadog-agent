@@ -24,11 +24,11 @@ import (
 const keyStatsComputed = "_dd.stats_computed"
 
 // Supported reports whether the decoder implements the receiver behaviour selected by conf. It
-// covers only the default ReceiveResourceSpansV2 path: callers must fall back to the pdata path
-// when a legacy option is set.
+// covers the ReceiveResourceSpansV2 path, including the legacy operation and resource name options
+// (span_name_as_resource_name, span_name_remappings, disable_operation_and_resource_name_logic_v2):
+// callers must fall back to the pdata path when the legacy receiver or container tags are selected.
 func Supported(conf *config.AgentConfig) bool {
-	return transform.OperationAndResourceNameV2Enabled(conf) &&
-		!conf.HasFeature("disable_receive_resource_spans_v2") &&
+	return !conf.HasFeature("disable_receive_resource_spans_v2") &&
 		!conf.HasFeature("disable_otlp_container_tags_v2")
 }
 
