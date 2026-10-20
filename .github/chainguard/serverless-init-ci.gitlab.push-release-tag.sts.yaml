@@ -4,12 +4,15 @@
 # GitHub has no tags-only permission, so `contents: write` is limited to
 # protected `main` web pipelines that run `main`'s `.gitlab-ci.yml`. A
 # feature-branch pipeline with an edited CI file cannot get this token.
+# project_id pins the GitLab project, so a new project that reuses the path
+# after a rename or delete cannot get this token either.
 issuer: https://gitlab.ddbuild.io
 
 subject_pattern: "project_path:ddoghq/serverless-init-ci:ref_type:branch:ref:main"
 
 claim_pattern:
   project_path: "^ddoghq/serverless-init-ci$"
+  project_id: "^13839$"
   ref: "^main$"
   ref_type: "^branch$"
   ref_protected: "^true$"
