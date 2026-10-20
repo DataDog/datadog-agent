@@ -86,6 +86,7 @@ func TestIntegrationsRespectVerbose(t *testing.T) {
 	assert.Nil(t, sourceStatus.Info)
 
 	verboseStatus := Get(true)
+	assert.NotNil(t, verboseStatus.ComponentUtilization, "a registered monitor with no snapshots serializes as []")
 	require.Len(t, verboseStatus.Integrations, 1)
 	require.Len(t, verboseStatus.Integrations[0].Sources, 1)
 	verboseSourceStatus := verboseStatus.Integrations[0].Sources[0]

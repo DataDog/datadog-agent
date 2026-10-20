@@ -104,7 +104,7 @@ func componentRank(name string) int {
 
 // getComponentUtilization returns per-component snapshots sorted in pipeline order.
 func (b *Builder) getComponentUtilization(snaps []logsMetrics.ComponentSnapshot) []ComponentUtilization {
-	if snaps == nil {
+	if b.pipelineMonitor == nil {
 		return nil
 	}
 	result := make([]ComponentUtilization, 0, len(snaps))
