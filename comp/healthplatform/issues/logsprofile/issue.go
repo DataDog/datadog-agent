@@ -154,7 +154,7 @@ func buildIssue(k kind, ctx map[string]string) (*healthplatform.Issue, error) {
 		Extra:       extra,
 		Tags:        []string{"logs", "performance-profile", w.Profile},
 		Remediation: &healthplatform.Remediation{
-			Summary: fmt.Sprintf("Apply the %s logs performance profile; the Agent restarts to pick it up.", name),
+			Summary: fmt.Sprintf("Apply the %s logs performance profile and restart the Agent.", name),
 			Steps:   remediationSteps(w),
 		},
 	}, nil
@@ -195,7 +195,7 @@ func remediationSteps(w recommendation) []*healthplatform.RemediationStep {
 		texts = append(texts, fmt.Sprintf("`logs_config.profile` is set by an environment variable on this host. Set `DD_LOGS_CONFIG_PROFILE=%s` and `DD_LOGS_CONFIG_PROFILE_VERSION=%s` instead, then restart the Agent.",
 			profile, version))
 	} else {
-		texts = append(texts, fmt.Sprintf("Deploy the profile from Fleet Automation, or set `logs_config.profile: %s` and `logs_config.profile_version: %s` in datadog.yaml and restart the Agent. Deploying from Fleet restarts the Agent for you.",
+		texts = append(texts, fmt.Sprintf("Deploy the profile from Fleet Automation, or set `logs_config.profile: %s` and `logs_config.profile_version: %s` in datadog.yaml and restart the Agent.",
 			profile, version))
 	}
 	if w.ProfileDescription != "" {

@@ -55,7 +55,7 @@ const (
 
 	unknownValue = "unknown"
 
-	profileRecommendationHint = " If Agent Health also reports \"Logs Performance Profile Recommended\" (`logs_performance_profile_recommended`) on this host, applying that profile is the one-click fix."
+	profileRecommendationHint = " If Agent Health also reports \"Logs Performance Profile Recommended\" (`logs_performance_profile_recommended`) on this host, applying that profile is the recommended next step."
 )
 
 // sourceLoss is one tuple's share of the host total. Its JSON tags are the wire
