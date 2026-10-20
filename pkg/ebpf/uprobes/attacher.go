@@ -55,6 +55,8 @@ var (
 	ErrInternalDDogProcessRejected = errors.New("internal datadog process rejected")
 	// ErrNoMatchingRule is returned when no rule matches the shared library path.
 	ErrNoMatchingRule = errors.New("no matching rule")
+
+	errProcessDoesNotExist = errors.New("process does not exist")
 	// regex that defines internal DataDog processes
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|host-profiler|system-probe|agent)")
 
@@ -900,6 +902,12 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 	inspectResult, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	ua.telemetry.binaryInspectionNs.Observe(float64(time.Since(inspectStart).Nanoseconds()))
 	if err != nil {
+		// Distinguish errors between "process does not exist anymore" and "file is not found"
+		// by checking if the process root directory exists.
+		processRoot := ua.config.ProcRoot + "/" + strconv.FormatUint(uint64(fpath.PID), 10)
+		if _, statErr := os.Stat(processRoot); statErr != nil {
+			return errProcessDoesNotExist
+		}
 		return utils.NewUnknownAttachmentError(fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err))
 	}
 
