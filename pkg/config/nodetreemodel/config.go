@@ -1068,6 +1068,7 @@ func (c *ntmConfig) bindEnv(key string, envvars []string) {
 		envvars = []string{c.mergeWithEnvPrefix(key)}
 	}
 	c.configEnvVars[key] = append(c.configEnvVars[key], envvars...)
+	registerKnownEnvVars(envvars...)
 }
 
 // MergeConfig merges in another config
