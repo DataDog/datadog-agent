@@ -1053,7 +1053,7 @@ const workerUtilizationGaugeMetricName = "collector__worker_utilization"
 func assertWorkerUtilizationGaugeAbsent(t *testing.T, workerName string) {
 	t.Helper()
 
-	families, err := telemetryimpl.GetCompatComponent().Gather(false)
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	for _, family := range families {
