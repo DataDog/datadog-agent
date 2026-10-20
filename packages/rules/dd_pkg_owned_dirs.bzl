@@ -16,8 +16,9 @@ def _normalize(path):
 def _files_destinations(pfi):
     declared = []
     trees = []
+    owns_tree_dirs = pfi.attributes.get("rpm_own_tree_dirs", False)
     for dest, src in pfi.dest_src_map.items():
-        if src.is_directory:
+        if src.is_directory and not owns_tree_dirs:
             trees.append(dest)
         else:
             declared.append(dest)
@@ -49,8 +50,8 @@ def owned_parent_dirs(declared, trees, roots):
 
     Args:
       declared: normalized absolute paths the package already provides.
-      trees: normalized absolute destinations of TreeArtifacts, which the
-        package installs but does not own.
+      trees: normalized absolute destinations of TreeArtifacts the package
+        installs without owning them (no `rpm_own_tree_dirs` attribute).
       roots: normalized absolute paths of the directories the package owns.
 
     Returns:

@@ -1,6 +1,6 @@
 """Tests for dd_pkg_owned_dirs.bzl."""
 
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mkdirs", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mkdirs", "pkg_mklink")
 load("@rules_pkg//pkg:providers.bzl", "PackageDirsInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
 load("@rules_testing//lib:util.bzl", "util")
@@ -55,6 +55,18 @@ def _test_parent_dirs(name):
         renames = {name + "_tree": "openssl"},
     )
     util.helper_target(
+        _tree,
+        name = name + "_owned_tree",
+    )
+    util.helper_target(
+        pkg_files,
+        name = name + "_owned_tree_files",
+        srcs = [name + "_owned_tree"],
+        attributes = pkg_attributes(rpm_own_tree_dirs = True),
+        prefix = "/opt/agent/share",
+        renames = {name + "_owned_tree": "doc"},
+    )
+    util.helper_target(
         pkg_filegroup,
         name = name + "_group",
         srcs = [name + "_nested", name + "_link"],
@@ -68,6 +80,7 @@ def _test_parent_dirs(name):
             name + "_outside",
             name + "_declared",
             name + "_tree_files",
+            name + "_owned_tree_files",
         ],
     )
     analysis_test(
@@ -88,6 +101,7 @@ def _test_parent_dirs_impl(env, target):
         "/opt/agent/embedded",
         "/opt/agent/embedded/include",
         "/opt/agent/embedded/include/openssl",
+        "/opt/agent/share",
         "/opt/agent/sources",
         "/opt/agent/sources/systemd",
     ])
