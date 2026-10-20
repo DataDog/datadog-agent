@@ -9,7 +9,6 @@ package egressimpl
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -82,7 +81,6 @@ func NewComponent(reqs Requires) egressdef.Component {
 		reqs.Log.Warn("Health platform egress: failed to get hostname: " + err.Error())
 		hostname = ""
 	}
-	hostname = strings.TrimSpace(hostname)
 
 	interval := reqs.Config.GetDuration("health_platform.forwarder.interval")
 	if interval <= 0 {
@@ -102,7 +100,7 @@ func NewComponent(reqs Requires) egressdef.Component {
 		doneCh:      make(chan struct{}),
 	}
 
-	// Register before OnStart so persisted state can pre-populate resolvedCh.
+	// Register before OnStart so loadFromDisk can pre-populate resolvedCh.
 	reqs.Store.RegisterIssuesObserver(storedef.IssuesObserver{
 		ResolvedCh: e.resolvedCh,
 	})

@@ -96,7 +96,6 @@ type healthPlatformImpl struct {
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
 	remoteLoader    *remoteIssueLoader
-	remoteSnapshot  *remoteIssueSnapshot
 
 	// Issue observers: receive issue events outside issuesMux.
 	observersMu sync.RWMutex
@@ -108,27 +107,6 @@ type healthPlatformImpl struct {
 
 type telemetryMetrics struct {
 	issuesCounter telemetry.Counter
-}
-
-type persistenceMode uint8
-
-const (
-	persistenceModeDisk persistenceMode = iota
-	persistenceModeDisabled
-	persistenceModeRemote
-)
-
-func selectPersistenceMode(isKubernetes, persistOnKubernetes, persistRemotelyOnKubernetes bool) persistenceMode {
-	if !isKubernetes {
-		return persistenceModeDisk
-	}
-	if persistRemotelyOnKubernetes {
-		return persistenceModeRemote
-	}
-	if persistOnKubernetes {
-		return persistenceModeDisk
-	}
-	return persistenceModeDisabled
 }
 
 // IssueState is a type alias for the proto enum healthplatform.IssueState.
@@ -297,19 +275,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 	persistRemotelyOnKubernetes := reqs.Config.GetBool("health_platform.persist_remotely_on_kubernetes")
 	var persistence issuesPersistence
 	var remoteLoader *remoteIssueLoader
-	switch selectPersistenceMode(isKubernetes, persistOnKubernetes, persistRemotelyOnKubernetes) {
-	case persistenceModeRemote:
+	switch {
+	case isKubernetes && persistRemotelyOnKubernetes:
 		if persistOnKubernetes {
 			reqs.Log.Warn("Both health_platform.persist_on_kubernetes and health_platform.persist_remotely_on_kubernetes are enabled; remote persistence takes precedence")
 		}
 		reqs.Log.Info("Running on Kubernetes: remote health platform persistence enabled")
 		persistence = &noopPersistence{}
 		remoteLoader = newRemoteIssueLoaderIfEnabled(reqs, agentFlavor, selfIdent)
-	case persistenceModeDisk:
+	case !isKubernetes || persistOnKubernetes:
 		runPath := reqs.Config.GetString("run_path")
 		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
-	case persistenceModeDisabled:
+	default:
 		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled")
 		persistence = &noopPersistence{}
 	}
@@ -438,11 +416,7 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	}
 	h.issuesMux.RUnlock()
 
-	if previousIssue == nil && h.remoteSnapshot.contains(issue.Id) {
-		h.log.Debugf("health platform: issue %s was already active in remote state", issue.Id)
-	} else {
-		h.handleIssueStateChange(issue.Source, previousIssue, issue)
-	}
+	h.handleIssueStateChange(issue.Source, previousIssue, issue)
 	h.storeIssue(issue.IssueName, issue)
 	return nil
 }
@@ -763,7 +737,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 
 // loadFromRemote restores the backend's active issues for startup reconciliation.
 func (h *healthPlatformImpl) loadFromRemote(ctx context.Context) error {
-	snapshot, err := h.remoteLoader.load(ctx)
+	issues, err := h.remoteLoader.load(ctx)
 	if err != nil {
 		return err
 	}
@@ -772,9 +746,9 @@ func (h *healthPlatformImpl) loadFromRemote(ctx context.Context) error {
 	state := &PersistedState{
 		Version:   persistedStateVersion,
 		UpdatedAt: now,
-		Issues:    make(map[string]*PersistedIssue, len(snapshot.issues)),
+		Issues:    make(map[string]*PersistedIssue, len(issues)),
 	}
-	for issueID, issue := range snapshot.issues {
+	for issueID, issue := range issues {
 		state.Issues[issueID] = &PersistedIssue{
 			IssueID:        issueID,
 			IssueType:      issue.IssueName,
@@ -789,8 +763,7 @@ func (h *healthPlatformImpl) loadFromRemote(ctx context.Context) error {
 		return err
 	}
 
-	h.remoteSnapshot = snapshot
-	h.log.Infof("Loaded %d active remote health platform issues", len(snapshot.issues))
+	h.log.Infof("Loaded %d active remote health platform issues", len(issues))
 	return nil
 }
 

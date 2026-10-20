@@ -58,10 +58,10 @@ On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store 
 
 Persistence depends on the process and environment:
 
-- Non-Kubernetes Agents use the local `issues.json` file.
-- Kubernetes Agents with `health_platform.persist_on_kubernetes: true` also use that file, which requires a durable `run_path` volume.
-- The long-running Kubernetes node Agent and Cluster Agent load recent open issue IDs from `https://api.<site>` when `health_platform.persist_remotely_on_kubernetes: true` and `api_key` is configured. Node Agent requests use the DaemonSet UID with `agent_type=node`; Cluster Agent requests use the cluster UUID with `agent_type=cluster`. The response's org ID is used to match locally detected issue IDs to the backend snapshot. Standard Agent proxy settings apply, but the metrics-intake `dd_url` override does not. This implementation is load-only; the existing Health Platform egress remains the write path. If local and remote Kubernetes persistence are both enabled, remote persistence takes precedence.
-- Otherwise on Kubernetes, Cluster Check Runners, one-shot Agent commands, Agents without an API key, Agents using the local FIPS proxy, and Agents with TLS certificate verification disabled use no-op persistence.
+- Non-Kubernetes Agents use the local `issues.json` file. Kubernetes Agents can opt in with `health_platform.persist_on_kubernetes: true` and a durable `run_path` volume.
+- With `health_platform.persist_remotely_on_kubernetes: true`, Kubernetes node Agents and Cluster Agents restore active issues from `https://api.<site>` using `api_key`. Requests use the DaemonSet UID (`agent_type=node`) or cluster UUID (`agent_type=cluster`); returned issue IDs match Agent issue IDs directly. Standard proxy settings apply; `dd_url` does not. Existing Health Platform egress continues to send updates.
+- Remote restoration takes precedence over local persistence. It is disabled for Cluster Check Runners, one-shot commands, missing API keys, the local FIPS proxy, and disabled TLS certificate verification.
+- Kubernetes persistence is disabled by default.
 
 ## Cluster-wide issue collapse (`deployment_id`)
 
