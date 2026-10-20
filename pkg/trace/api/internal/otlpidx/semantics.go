@@ -616,6 +616,15 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 		d.lastTraceIDRef = d.strings.Add(hex.EncodeToString(raw.traceID[:]))
 	}
 	attrs[d.constRef(&d.refs.traceID, "otel.trace_id")] = d.stringValue(d.lastTraceIDRef)
+	// transform.Status2Error falls back to the HTTP status code read through a string-only Meta
+	// accessor before resource attributes are merged into Meta: numeric status codes (stored in
+	// Metrics) and resource attributes never qualify. Look it up before the numeric
+	// http.status_code below replaces a string one, which today's Meta keeps alongside the metric.
+	var errHTTPCode string
+	if ptrace.StatusCode(raw.statusCode) == ptrace.StatusCodeError && raw.statusMsgRef == 0 {
+		spanOnly := stringOnlyAccessor{attrAccessor{strings: d.strings, keys: &d.lookupKeys, span: attrs}}
+		errHTTPCode = semantics.LookupString(reg, spanOnly, semantics.ConceptHTTPStatusCode)
+	}
 	if hasHTTPCode && httpCode >= 0 {
 		attrs[d.strings.Add("http.status_code")] = d.intValue(httpCode)
 	}
@@ -672,15 +681,14 @@ func (d *decoder) spanSemantics(span *idx.Span, raw *rawSpan, lib scopeInfo) {
 	if raw.statusMsgRef != 0 {
 		attrs[d.strings.Add("otel.status_description")] = d.stringValue(raw.statusMsgRef)
 	}
-	// Mirrors transform.Status2Error, which falls back to the HTTP status code read through a
-	// string-only Meta accessor: numeric status codes (stored in Metrics) never qualify.
+	// Mirrors transform.Status2Error, with the HTTP status code fallback looked up above.
 	if status == ptrace.StatusCodeError {
 		span.Error = true
 		errMsgKey := d.strings.Add("error.msg")
 		if _, ok := attrs[errMsgKey]; !ok {
 			if raw.statusMsgRef != 0 {
 				attrs[errMsgKey] = d.stringValue(raw.statusMsgRef)
-			} else if code := semantics.LookupString(reg, stringOnlyAccessor{acc}, semantics.ConceptHTTPStatusCode); code != "" {
+			} else if code := errHTTPCode; code != "" {
 				msg := code
 				if codeInt, err := strconv.Atoi(code); err == nil {
 					if text := http.StatusText(codeInt); text != "" {

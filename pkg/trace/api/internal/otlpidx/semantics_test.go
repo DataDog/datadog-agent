@@ -63,6 +63,15 @@ var semanticsFixtures = []semanticsFixture{
 		},
 	},
 	{
+		// Status2Error's HTTP status code fallback reads span attributes only.
+		name: "error status with resource status code", kind: ptrace.SpanKindClient, spanName: "GET", status: ptrace.StatusCodeError,
+		res: map[string]any{"http.status_code": "503"},
+	},
+	{
+		name: "error status with string span status code", kind: ptrace.SpanKindClient, spanName: "GET", status: ptrace.StatusCodeError,
+		attrs: map[string]any{"http.status_code": "503"},
+	},
+	{
 		name: "db client", kind: ptrace.SpanKindClient, spanName: "SELECT",
 		attrs: map[string]any{"db.system": "postgresql", "db.statement": "SELECT 1", "db.namespace": "shop"},
 	},
