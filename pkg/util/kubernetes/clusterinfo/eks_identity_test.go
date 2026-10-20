@@ -41,7 +41,10 @@ func TestGetClusterAgentEKSIdentityTagsRejectsIncompleteIdentity(t *testing.T) {
 	original := getEKSClusterIdentity
 	t.Cleanup(func() { getEKSClusterIdentity = original })
 	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
-		return &identity.ClusterIdentity{ClusterARN: "arn:aws:eks:us-west-2:123456789012:cluster/orders"}, nil
+		// No valid cluster ARN: the account and Region are derived from the ARN, so an
+		// identity that cannot be anchored to a well-formed ARN yields no tags and must be
+		// rejected rather than emitting partial, unauthenticated tag values.
+		return &identity.ClusterIdentity{ClusterName: "orders"}, nil
 	}
 
 	tags, err := GetClusterAgentEKSIdentityTags(t.Context())
