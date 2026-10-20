@@ -32,6 +32,7 @@ import (
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
+	remotedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/remote/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -39,15 +40,12 @@ import (
 
 // Requires defines the dependencies for the health-platform component
 type Requires struct {
-	Lifecycle compdef.Lifecycle
-	Config    config.Component
-	Log       log.Component
-	Telemetry telemetry.Component
-	Hostname  hostnameinterface.Component
-	// RemoteRestoration is supplied only by long-running Agent processes. The
-	// Health Platform bundle is also used by one-shot CLI commands, which must
-	// not perform backend restoration during their startup.
-	RemoteRestoration *healthplatformdef.RemoteRestorationParams `optional:"true"`
+	Lifecycle    compdef.Lifecycle
+	Config       config.Component
+	Log          log.Component
+	Telemetry    telemetry.Component
+	Hostname     hostnameinterface.Component
+	RemoteIssues remotedef.Component
 	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
 	// selfident). Optional because only selfident's kubeapiserver build reads
 	// it: on flavors without that tag (iot, heroku, the cloudfoundry cluster
@@ -115,11 +113,11 @@ const (
 	IssueStateActive   = healthplatform.IssueState_ISSUE_STATE_ACTIVE
 	IssueStateResolved = healthplatform.IssueState_ISSUE_STATE_RESOLVED
 
-	// resolvedIssueTTL is the time after which resolved issues are pruned from persistence.
+	// resolvedIssueTTL is the time after which resolved issues are pruned from the persistence file.
 	resolvedIssueTTL = 24 * time.Hour
 
-	// persistedStateVersion is the persistence schema version used by this binary.
-	// restorePersistedState refuses to load state with a different version.
+	// persistedStateVersion is the on-disk schema version written by this binary.
+	// restorePersistedState refuses to load files with a different version (no migration).
 	persistedStateVersion = 2
 )
 
@@ -279,9 +277,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			reqs.Log.Warn("Both health_platform.persist_on_kubernetes and health_platform.persist_remotely_on_kubernetes are enabled; remote persistence takes precedence")
 		}
 		reqs.Log.Info("Running on Kubernetes: remote health platform persistence enabled")
-		if remote := newRemoteIssueLoaderIfEnabled(reqs, agentFlavor, selfIdent); remote != nil {
-			persistence = remote
-		}
+		persistence = newRemotePersistence(reqs.RemoteIssues)
 	case !isKubernetes || persistOnKubernetes:
 		runPath := reqs.Config.GetString("run_path")
 		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")

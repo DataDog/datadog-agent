@@ -15,13 +15,6 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
-// RemoteRestorationParams enables backend-backed issue restoration for a
-// long-running Agent process. Other processes that wire the Health Platform
-// bundle, such as one-shot CLI commands, intentionally leave this unsupplied.
-type RemoteRestorationParams struct {
-	Enabled bool
-}
-
 // IssuesObserver holds the channels the store writes issue events into.
 // It is the extension point for reactive integrations — e.g. an MCP server
 // exposing issues to AI agents for proactive remediation.
