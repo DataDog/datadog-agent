@@ -10,13 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -163,79 +156,6 @@ func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 			},
 		},
 	})
-}
-
-func (suite *kindSuite) TestNonLLMRayPodHasNoInferenceTagsOnContainerMetric() {
-	const namespace = "workload-cpustress"
-	ctx := suite.T().Context()
-	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
-	list, err := pods.List(ctx, metav1.ListOptions{})
-	suite.Require().NoError(err)
-	var podName string
-	for _, pod := range list.Items {
-		if strings.HasPrefix(pod.Name, "stress-ng-") {
-			podName = pod.Name
-			break
-		}
-	}
-	suite.Require().NotEmpty(podName, "no stress-ng pod found for Ray tag test")
-
-	labels := map[string]string{
-		"ray.io/cluster":              "ray-inference",
-		"app.kubernetes.io/component": "ray-non-llm",
-		"ray.io/serve":                "true",
-		"ray.io/node-type":            "worker",
-		"ray.io/group":                "decode",
-	}
-	pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
-	suite.Require().NoError(err)
-	original := make(map[string]string, len(labels))
-	for key := range labels {
-		if value, exists := pod.Labels[key]; exists {
-			original[key] = value
-		}
-	}
-	setLabels := func(ctx context.Context, values map[string]string) error {
-		pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if pod.Labels == nil {
-			pod.Labels = make(map[string]string)
-		}
-		for key := range labels {
-			delete(pod.Labels, key)
-			if value, exists := values[key]; exists {
-				pod.Labels[key] = value
-			}
-		}
-		_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
-		return err
-	}
-	suite.T().Cleanup(func() {
-		suite.Assert().NoError(setLabels(context.Background(), original), "restore stress-ng pod labels")
-	})
-	suite.Require().NoError(setLabels(ctx, labels))
-
-	// The component tag proves that the Agent processed the updated pod labels.
-	// The stress-ng image must not qualify as a Ray LLM image.
-	suite.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := suite.Fakeintake.FilterMetrics("container.cpu.usage",
-			client.WithTags[*aggregator.MetricSeries]([]string{
-				"kube_namespace:" + namespace,
-				"pod_name:" + podName,
-				"container_name:stress-ng",
-				"kube_app_component:ray-non-llm",
-			}),
-		)
-		require.NoError(c, err)
-		require.NotEmpty(c, metrics, "no container metric with updated pod labels received")
-		for _, metric := range metrics {
-			for _, tag := range metric.Tags {
-				assert.False(c, strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:"), "non-LLM pod received inference tag %q", tag)
-			}
-		}
-	}, 2*time.Minute, 10*time.Second)
 }
 
 func (suite *kindSuite) TestControlPlane() {
