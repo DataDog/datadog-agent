@@ -27,6 +27,7 @@ common --experimental_action_cache_gc_max_age=7d
 common --experimental_disk_cache_gc_max_age=7d
 common --experimental_disk_cache_gc_max_size=30G # Cap applied whenever --disk_cache is also set, no-op otherwise. Override in user.bazelrc (50G good, 100G ideal)
 common --experimental_install_base_gc_max_age=7d
+common --experimental_platform_in_output_dir # Bazel 10 default: --platforms builds get their own bazel-out
 common --experimental_proto_descriptor_sets_include_source_info # Preserve comments in generated pb.go
 common --experimental_strict_repo_env # Do not leak uncontrolled environment variables into repository rules
 common --experimental_ui_max_stdouterr_bytes=1073741819 # why?
