@@ -89,7 +89,7 @@ func TestPipeSecurityDescriptorUsesResolvedAgentAccount(t *testing.T) {
 
 	sddl, err := pipeSecurityDescriptor()
 	require.NoError(t, err)
-	assert.Equal(t, pipeClientAccess, daclGrants(t, sddl)[customAgentSID])
+	assert.Equal(t, windows.ACCESS_MASK(pipeClientAccess), daclGrants(t, sddl)[customAgentSID])
 }
 
 func TestListenFailsClosedWhenAgentAccountIsUnresolved(t *testing.T) {
