@@ -61,6 +61,11 @@ func isOTelProcessCtxNaming(tracer *Tracer, process *Process, regs syscall.Ptrac
 // OTEP 4719 does not require the naming to succeed. It runs on the trace loop,
 // so every tracee waits on the ELF analysis.
 func (ctx *CWSPtracerCtx) resolveOTelProcessContext(process *Process) {
+	// With no layout ever registered, otelSpanContext reads nothing either.
+	if ctx.opts.SpanContextDisabled {
+		return
+	}
+
 	ctx.otelTarget.Reset(uint32(process.Tgid))
 
 	res, err := ctx.otelTarget.Resolve(otelRegistry{cache: ctx.processCache})

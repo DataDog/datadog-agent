@@ -35,6 +35,8 @@ const (
 	envProcScanRate = "DD_CWS_INSTRUMENTATION_PROC_SCAN_RATE"
 	// envSeccompDisabled defines the environment variable to disable seccomp
 	envSeccompDisabled = "DD_CWS_INSTRUMENTATION_SECCOMP_DISABLED"
+	// envSpanContextDisabled defines the environment variable to disable the span context reader
+	envSpanContextDisabled = "DD_CWS_INSTRUMENTATION_SPAN_CONTEXT_DISABLED"
 )
 
 const (
@@ -58,6 +60,8 @@ const (
 	scanProcEveryOpt = "proc-scan-rate"
 	// disableSeccompOpt disable seccomp
 	disableSeccompOpt = "disable-seccomp"
+	// disableSpanContextOpt disable the span context reader
+	disableSpanContextOpt = "disable-span-context"
 	// pidOpt attach mode
 	pidOpt = "pid"
 	// pidPerTracer number of pid per tracer
@@ -65,18 +69,19 @@ const (
 )
 
 type traceCliParams struct {
-	ProbeAddr        string
-	Verbose          bool
-	Debug            bool
-	UID              int32
-	GID              int32
-	Async            bool
-	StatsDisabled    bool
-	ProcScanDisabled bool
-	ScanProcEvery    string
-	SeccompDisabled  bool
-	PIDs             []int
-	PIDPerTracer     int
+	ProbeAddr           string
+	Verbose             bool
+	Debug               bool
+	UID                 int32
+	GID                 int32
+	Async               bool
+	StatsDisabled       bool
+	ProcScanDisabled    bool
+	ScanProcEvery       string
+	SeccompDisabled     bool
+	SpanContextDisabled bool
+	PIDs                []int
+	PIDPerTracer        int
 }
 
 func envToBool(name string) bool {
@@ -102,13 +107,14 @@ func Command() []*cobra.Command {
 			}
 
 			opts := ptracer.Opts{
-				Creds:            creds,
-				Verbose:          params.Verbose,
-				Debug:            params.Debug,
-				Async:            params.Async,
-				StatsDisabled:    params.StatsDisabled,
-				ProcScanDisabled: params.ProcScanDisabled,
-				SeccompDisabled:  params.SeccompDisabled,
+				Creds:               creds,
+				Verbose:             params.Verbose,
+				Debug:               params.Debug,
+				Async:               params.Async,
+				StatsDisabled:       params.StatsDisabled,
+				ProcScanDisabled:    params.ProcScanDisabled,
+				SeccompDisabled:     params.SeccompDisabled,
+				SpanContextDisabled: params.SpanContextDisabled,
 			}
 
 			if params.ScanProcEvery != "" {
@@ -183,6 +189,9 @@ func Command() []*cobra.Command {
 						if params.SeccompDisabled {
 							args = append(args, "--"+disableSeccompOpt)
 						}
+						if params.SpanContextDisabled {
+							args = append(args, "--"+disableSpanContextOpt)
+						}
 
 						for _, pid := range set {
 							args = append(args, "--"+pidOpt, strconv.Itoa(pid))
@@ -240,6 +249,7 @@ func Command() []*cobra.Command {
 	traceCmd.Flags().BoolVar(&params.ProcScanDisabled, disableProcScanOpt, envToBool(envProcScanDisabled), "disable proc scan")
 	traceCmd.Flags().StringVar(&params.ScanProcEvery, scanProcEveryOpt, os.Getenv(envProcScanRate), "proc scan rate")
 	traceCmd.Flags().BoolVar(&params.SeccompDisabled, disableSeccompOpt, envToBool(envSeccompDisabled), "disable seccomp")
+	traceCmd.Flags().BoolVar(&params.SpanContextDisabled, disableSpanContextOpt, envToBool(envSpanContextDisabled), "disable the OTel span context reader")
 	traceCmd.Flags().IntSliceVar(&params.PIDs, pidOpt, nil, "attach tracer to pid")
 	traceCmd.Flags().IntVar(&params.PIDPerTracer, pidPerTracer, math.MaxInt, "maximum number of pid per tracer")
 
