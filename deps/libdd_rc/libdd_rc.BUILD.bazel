@@ -255,6 +255,54 @@ genrule(
     target_compatible_with = ["@platforms//os:macos"],
 )
 
+# The published Go bridge links a version-agnostic -laws_lc_fips_crypto name,
+# while the runtime dylib deliberately retains its crate-versioned install
+# name. Keep both names in the build prefix: this copy is a link-time input and
+# the versioned file above is the runtime artifact that remains in the package.
+genrule(
+    name = "aws_lc_fips_crypto_macos_linker_file",
+    srcs = [":aws_lc_fips_crypto_dylib_file"],
+    outs = ["libaws_lc_fips_crypto.dylib"],
+    cmd = "cp $(execpath :aws_lc_fips_crypto_dylib_file) $@",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_macos_header_file",
+    srcs = ["include/libdd_rc.h"],
+    prefix = "embedded/include",
+    strip_prefix = "include",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_files(
+    name = "rc_x509_ffi_macos_native_files",
+    srcs = [
+        ":aws_lc_fips_crypto_dylib_file",
+        ":aws_lc_fips_crypto_macos_linker_file",
+        ":rc_x509_ffi",
+    ],
+    prefix = "embedded/lib",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_filegroup(
+    name = "rc_x509_ffi_macos_build_files",
+    srcs = [
+        ":rc_x509_ffi_macos_header_file",
+        ":rc_x509_ffi_macos_native_files",
+    ],
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_install(
+    name = "install_rc_x509_ffi_macos_build_files",
+    srcs = [":rc_x509_ffi_macos_build_files"],
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//visibility:public"],
+)
+
 # The AWS-LC build script exposes a tree artifact. Materialize its Windows
 # runtime DLL as a regular declared file so the Agent package graph can place
 # it beside agent.exe. This target itself is built in the MSVC configuration by
