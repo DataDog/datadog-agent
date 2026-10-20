@@ -177,16 +177,19 @@ func (d *Data) holds(report []sbomtypes.PackageWithInstalledFiles) bool {
 
 // keepUsage copies onto the packages of d the usage recorded in prev, and the
 // times it started being recorded and was last forwarded. A package keeps the
-// usage of its build, combined with that of the builds of its name only prev
-// holds, the builds an upgrade replaced, when d holds a single build of the
-// name. Kernels install side by side, and a removed kernel keeps its usage.
+// usage of its build, combined with that of the builds of its name and
+// architecture only prev holds, the builds an upgrade replaced, when d holds a
+// single build of them, or of its name across a change of architecture. Kernels
+// install side by side, and a removed kernel keeps its usage.
 func (d *Data) keepUsage(prev *Data) {
 	held := make(map[sbomtypes.Package]bool, len(d.packages))
-	builds := make(map[string]int)
+	builds := make(map[packageLine]int)
+	names := make(map[string]int)
 	for _, pkg := range d.packages {
 		if b := packageBuild(pkg); !held[b] {
 			held[b] = true
-			builds[pkg.Name]++
+			builds[lineOf(pkg)]++
+			names[pkg.Name]++
 		}
 	}
 
@@ -196,12 +199,14 @@ func (d *Data) keepUsage(prev *Data) {
 	}
 	d.forwardedAt = prev.forwardedAt
 	kept := make(map[sbomtypes.Package]sbomtypes.Package, len(prev.packages))
-	replaced := make(map[string]sbomtypes.Package)
+	replaced := make(map[packageLine]sbomtypes.Package)
+	replacedNames := make(map[string]sbomtypes.Package)
 	for _, pkg := range prev.packages {
 		if b := packageBuild(pkg); held[b] {
 			kept[b] = combineUsage(kept[b], pkg)
 		} else {
-			replaced[pkg.Name] = combineUsage(replaced[pkg.Name], pkg)
+			replaced[lineOf(pkg)] = combineUsage(replaced[lineOf(pkg)], pkg)
+			replacedNames[pkg.Name] = combineUsage(replacedNames[pkg.Name], pkg)
 		}
 	}
 	prev.mu.RUnlock()
@@ -209,8 +214,12 @@ func (d *Data) keepUsage(prev *Data) {
 	for i := range d.packages {
 		pkg := &d.packages[i]
 		usage := kept[packageBuild(*pkg)]
-		if builds[pkg.Name] == 1 {
-			usage = combineUsage(usage, replaced[pkg.Name])
+		if line := lineOf(*pkg); builds[line] == 1 {
+			if r, ok := replaced[line]; ok {
+				usage = combineUsage(usage, r)
+			} else if names[pkg.Name] == 1 {
+				usage = combineUsage(usage, replacedNames[pkg.Name])
+			}
 		}
 		pkg.LastAccess, pkg.SuidBit, pkg.AccessedByRoot = usage.LastAccess, usage.SuidBit, usage.AccessedByRoot
 	}
@@ -225,6 +234,16 @@ func combineUsage(usage, pkg sbomtypes.Package) sbomtypes.Package {
 	usage.SuidBit = usage.SuidBit || pkg.SuidBit
 	usage.AccessedByRoot = usage.AccessedByRoot || pkg.AccessedByRoot
 	return usage
+}
+
+// packageLine names the builds of a package that replace one another. rpm
+// installs the builds of several architectures side by side.
+type packageLine struct {
+	name, arch string
+}
+
+func lineOf(pkg sbomtypes.Package) packageLine {
+	return packageLine{pkg.Name, pkg.Arch}
 }
 
 // packageBuild returns pkg stripped of its usage, which leaves the fields

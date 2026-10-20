@@ -1562,8 +1562,8 @@ func TestKeepUsageKeepsObservationStart(t *testing.T) {
 }
 
 // TestKeepUsage checks the usage a rescan keeps. A package keeps the usage of
-// its build, combined with that of the builds of its name the rescan no longer
-// finds, as an upgrade replaces them.
+// its build, combined with that of the builds of its name and architecture the
+// rescan no longer finds, as an upgrade replaces them.
 func TestKeepUsage(t *testing.T) {
 	seen := time.Unix(1700000000, 0)
 	used := func(pkg sbomtypes.Package, at time.Time, suid, root bool) sbomtypes.Package {
@@ -1575,6 +1575,9 @@ func TestKeepUsage(t *testing.T) {
 	}
 	gzip := func(version string) sbomtypes.Package {
 		return sbomtypes.Package{Name: "gzip", Version: version}
+	}
+	glibc := func(release, arch string) sbomtypes.Package {
+		return sbomtypes.Package{Name: "glibc", Version: "2.39", Release: release, Arch: arch}
 	}
 
 	tests := []struct {
@@ -1624,6 +1627,24 @@ func TestKeepUsage(t *testing.T) {
 			prev: []sbomtypes.Package{used(gzip("1.12"), seen, false, true), gzip("1.12")},
 			scan: []sbomtypes.Package{gzip("1.13"), gzip("1.13")},
 			want: []sbomtypes.Package{used(gzip("1.13"), seen, false, true), used(gzip("1.13"), seen, false, true)},
+		},
+		{
+			name: "upgrade of the builds of two architectures",
+			prev: []sbomtypes.Package{used(glibc("37.el10", "x86_64"), seen, false, true), glibc("37.el10", "i686")},
+			scan: []sbomtypes.Package{glibc("38.el10", "x86_64"), glibc("38.el10", "i686")},
+			want: []sbomtypes.Package{used(glibc("38.el10", "x86_64"), seen, false, true), glibc("38.el10", "i686")},
+		},
+		{
+			name: "upgrade that drops an architecture",
+			prev: []sbomtypes.Package{used(glibc("37.el10", "x86_64"), seen, false, true), used(glibc("37.el10", "i686"), seen, true, false)},
+			scan: []sbomtypes.Package{glibc("38.el10", "x86_64")},
+			want: []sbomtypes.Package{used(glibc("38.el10", "x86_64"), seen, false, true)},
+		},
+		{
+			name: "upgrade that changes the architecture",
+			prev: []sbomtypes.Package{used(sbomtypes.Package{Name: "python3-six", Version: "1.16.0", Arch: "x86_64"}, seen, false, true)},
+			scan: []sbomtypes.Package{{Name: "python3-six", Version: "1.17.0", Arch: "noarch"}},
+			want: []sbomtypes.Package{used(sbomtypes.Package{Name: "python3-six", Version: "1.17.0", Arch: "noarch"}, seen, false, true)},
 		},
 	}
 
