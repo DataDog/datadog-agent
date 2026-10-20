@@ -203,7 +203,8 @@ func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
 func (h *healthPlatformImpl) resolvedIssue(p *PersistedIssue) *healthplatform.Issue {
 	resolved := &healthplatform.Issue{}
 	if len(p.Issue) > 0 {
-		if err := protojson.Unmarshal(p.Issue, resolved); err != nil {
+		// Fields from a newer agent-payload must not discard the rest of the issue after a downgrade.
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(p.Issue, resolved); err != nil {
 			h.log.Warnf("health platform: failed to restore issue %s for resolution, sending minimal: %v", p.IssueID, err)
 			resolved = &healthplatform.Issue{}
 		}

@@ -756,6 +756,36 @@ func TestLoadFromDiskLegacyFileWithoutIssueFallsBackToMinimal(t *testing.T) {
 	assert.Equal(t, IssueStateResolved, got.PersistedIssue.State)
 }
 
+func TestLoadFromDiskIssueWithUnknownFieldKeepsContent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issues.json")
+	now := time.Now().Format(time.RFC3339)
+	state := map[string]interface{}{
+		"version":    persistedStateVersion,
+		"updated_at": now,
+		"issues": map[string]interface{}{
+			"t:id": map[string]interface{}{
+				"issue_type": "t", "state": "resolved", "first_seen": now, "last_seen": now,
+				"resolved_at": now, "issue": map[string]interface{}{"title": "Disk full", "fieldFromNewerPayload": true},
+			},
+		},
+	}
+	data, err := json.Marshal(state)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0644))
+
+	h := newTestStore(t)
+	h.persistence = newDiskPersistence(path, logmock.New(t))
+	ch := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
+	require.NoError(t, h.loadFromDisk())
+
+	require.Len(t, ch, 1)
+	got := <-ch
+	assert.Equal(t, "t:id", got.Id)
+	assert.Equal(t, "Disk full", got.Title)
+}
+
 func TestLoadFromDiskCorruptIssueFallsBackToMinimal(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "issues.json")
