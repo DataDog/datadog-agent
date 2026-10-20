@@ -768,10 +768,11 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	factories = append(factories, replacementFactories...)
 
 	// hpav2Factory (registered above via manageResourcesReplacement) only
-	// runs when autoscaling/v2 isn't served by the cluster. On clusters that
-	// do serve it, the upstream KSM generator handles HPAs directly and
-	// never gets the ownerRef enrichment, so add it here as an always-on
-	// extended collector, mirroring NewExtendedPodFactory.
+	// runs when the cluster serves autoscaling/v2beta2 but not
+	// autoscaling/v2. On clusters that serve autoscaling/v2, the upstream
+	// KSM generator handles HPAs directly and never gets the ownerRef
+	// enrichment, so add it here as an always-on extended collector,
+	// mirroring NewExtendedPodFactory.
 	if apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler") {
 		factories = append(factories, customresources.NewExtendedHorizontalPodAutoscalerFactory(c))
 		collectors = lo.Uniq(append(collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended"))

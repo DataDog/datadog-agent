@@ -75,7 +75,7 @@ static u64 __attribute__((always_inline)) read_go_g_register() {
 
 // --- Go pprof labels reader (for dd-trace-go) ---
 // dd-trace-go sets goroutine-level pprof labels (e.g. "span id",
-// "local root span id"). Rather than interpret them in eBPF, we copy the raw
+// "trace id"). Rather than interpret them in eBPF, we copy the raw
 // key/value bytes into the go_labels_ctx ring and let user space parse them
 // (mirrors the syscall_ctx design).
 //

@@ -34,7 +34,7 @@ from tasks.libs.build.bazel import bazel
 from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
-from tasks.libs.common.git import get_modified_files
+from tasks.libs.common.git import get_modified_files, get_untracked_files
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import (
@@ -987,7 +987,9 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         best_module_path = Path(get_go_module(modified_file))
 
-        # Check if the package is in the target list of the module we want to test
+        # Check if the package is in the target list of the module we want to test.
+        # Use a prefix check: after normpath the `./pkg` target becomes `pkg`,
+        # which a substring check would also find in `internal/somepkg`.
         targeted = False
 
         assert best_module_path, f"No module found for {modified_file}"
@@ -999,7 +1001,8 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         targets = module.lint_targets if lint else module.test_targets
 
         for target in targets:
-            if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
+            target_path = os.path.normpath(os.path.join(best_module_path, target))
+            if modified_file.startswith(f"./{target_path}/"):
                 targeted = True
                 break
         if not targeted:
@@ -1410,6 +1413,10 @@ def should_run_all_tests(ctx, trigger_files):
 def get_go_modified_files(ctx):
     base_branch = _get_release_json_value("base_branch")
     files = get_modified_files(ctx, base_branch=base_branch)
+    # git diff only sees files known to git; include untracked files so that
+    # brand-new packages are detected before being staged (no-op in CI).
+    untracked = list(get_untracked_files(ctx))
+    files.extend(file for file in untracked if file not in files)
     return [
         file
         for file in files
