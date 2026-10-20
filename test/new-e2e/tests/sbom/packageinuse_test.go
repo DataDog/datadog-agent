@@ -240,7 +240,8 @@ type usageOnlyKubeadmSuite struct {
 
 // packageInUseProvisioner provisions the RHEL 10 single-node kubeadm cluster of
 // TestSBOMKubeadmSuite with the SBOM workloads, and the Agent with
-// packageInUseHelmValues and helmValues.
+// packageInUseHelmValues and helmValues. The fake intake keeps an hour of SBOMs,
+// and each query reads them all.
 func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[environments.Kubernetes] {
 	return provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
@@ -248,7 +249,7 @@ func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[en
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),
 			),
-			scenkubeadm.WithFakeintakeOptions(fakeintake.WithMemory(2048), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
+			scenkubeadm.WithFakeintakeOptions(fakeintake.WithCPU(2048), fakeintake.WithMemory(4096), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
 			scenkubeadm.WithDeploySBOMWorkloads(),
 			scenkubeadm.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
@@ -410,8 +411,8 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 			assert.LessOrEqualf(c, age, inUseWindowSec, "%s LastSeenRunning is %ds old, expected <= %ds while in use", d.inUsePkg, age, inUseWindowSec)
 			// The workload runs as root and the in-use binary is not setuid, so the
 			// security enrichment must reflect that on the in-use component.
-			assert.Equalf(c, "true", s.packageProperty(repo, d.inUsePkg, propRunningAsRoot), "%s RunningAsRoot should be true (workload runs as root)", d.inUsePkg)
-			assert.Equalf(c, "false", s.packageProperty(repo, d.inUsePkg, propHasSetSuidBit), "%s HasSetSuidBit should be false (not a setuid binary)", d.inUsePkg)
+			assert.Equalf(c, "true", s.packageProperty(c, repo, d.inUsePkg, propRunningAsRoot), "%s RunningAsRoot should be true (workload runs as root)", d.inUsePkg)
+			assert.Equalf(c, "false", s.packageProperty(c, repo, d.inUsePkg, propHasSetSuidBit), "%s HasSetSuidBit should be false (not a setuid binary)", d.inUsePkg)
 		}, 5*time.Minute, 15*time.Second, "%s SBOM never reported %s as in-use after starting the service", d.name, d.inUsePkg)
 	})
 
@@ -454,8 +455,8 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 			require.Truef(c, nrPresent, "%s carries no %s property yet", d.nonRootPkg, propLastSeenRunning)
 			require.Positivef(c, nrTS, "%s was never reported in use", d.nonRootPkg)
 
-			suidVal := s.packageProperty(repo, d.suidPkg, propHasSetSuidBit)
-			rootVal := s.packageProperty(repo, d.nonRootPkg, propRunningAsRoot)
+			suidVal := s.packageProperty(c, repo, d.suidPkg, propHasSetSuidBit)
+			rootVal := s.packageProperty(c, repo, d.nonRootPkg, propRunningAsRoot)
 			s.T().Logf("PKG-IN-USE[%s] security: %s HasSetSuidBit=%q (ts=%d), %s RunningAsRoot=%q (ts=%d)", d.name, d.suidPkg, suidVal, suidTS, d.nonRootPkg, rootVal, nrTS)
 
 			assert.Equalf(c, "true", suidVal, "%s HasSetSuidBit should be true (a setuid-root binary of it was run)", d.suidPkg)
@@ -482,7 +483,7 @@ func (s *packageInUseSuite) runPackageInUse(d pkgInUseDistro) {
 
 			// Read the newest payload, not the max across payloads: the max would
 			// still see the earlier in-use payloads and never observe the reset.
-			v := s.packageProperty(repo, d.inUsePkg, propLastSeenRunning)
+			v := s.packageProperty(c, repo, d.inUsePkg, propLastSeenRunning)
 			require.NotEmptyf(c, v, "%s carries no %s property", d.inUsePkg, propLastSeenRunning)
 			s.T().Logf("PKG-IN-USE[%s] refresh: %s LastSeenRunning=%q", d.name, d.inUsePkg, v)
 			assert.Equalf(c, "0", v, "%s LastSeenRunning should reset to 0 after a package-DB refresh, got %q", d.inUsePkg, v)
@@ -601,11 +602,11 @@ func (s *packageInUseSuite) runUpgrade(d pkgInUseDistro) {
 		rescanAt := scans[len(scans)-1].Unix()
 		// The loop runs the binary every 15s, so a payload stamped 20s past the
 		// rescan follows a run of the upgraded build.
-		control, _ := strconv.ParseInt(s.packageProperty(repo, d.controlPkg, propLastSeenRunning), 10, 64)
+		control, _ := strconv.ParseInt(s.packageProperty(c, repo, d.controlPkg, propLastSeenRunning), 10, 64)
 		require.Greaterf(c, control, rescanAt+20, "%s LastSeenRunning %d in the newest payload is within 20s of the rescan at %d", d.controlPkg, control, rescanAt)
 
-		dpkg := s.packageProperty(repo, "dpkg", propLastSeenRunning)
-		inUse, _ := strconv.ParseInt(s.packageProperty(repo, d.inUsePkg, propLastSeenRunning), 10, 64)
+		dpkg := s.packageProperty(c, repo, "dpkg", propLastSeenRunning)
+		inUse, _ := strconv.ParseInt(s.packageProperty(c, repo, d.inUsePkg, propLastSeenRunning), 10, 64)
 		s.T().Logf("PKG-IN-USE[%s] upgraded at %d, rescans %v: dpkg LastSeenRunning=%q, %s LastSeenRunning=%d", d.name, upgradedAt, scans, dpkg, d.inUsePkg, inUse)
 		assert.Equalf(c, "0", dpkg, "dpkg LastSeenRunning should reset to 0 after the rescan, got %q", dpkg)
 		// Known gap: the image SBOM lacks the version the upgrade installed, so the package keeps the usage of the build it replaced.
@@ -1062,20 +1063,25 @@ func (s *packageInUseSuite) hostEpoch(shell string) int64 {
 	return n
 }
 
+// fetchSBOMs returns the SBOMs intake holds, parsed from one fetch of its SBOM
+// history. Each FilterSBOMs call fetches that whole history again.
+func fetchSBOMs(c require.TestingT, intake *fakeintakeclient.Client) *aggregator.SBOMAggregator {
+	payloads, err := intake.GetRawPayloads("/api/v2/sbom")
+	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := aggregator.NewSBOMAggregator()
+	require.NoErrorf(c, agg.UnmarshallPayloads(payloads), "Failed to parse the SBOMs of fake intake")
+	return &agg
+}
+
 // newestHostSBOM returns the components of the newest full host SBOM intake
 // collected after after.
 func newestHostSBOM(c require.TestingT, intake *fakeintakeclient.Client, after time.Time) []*cyclonedx_v1_4.Component {
-	ids, err := intake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, intake)
 
 	newest := after
 	var components []*cyclonedx_v1_4.Component
-	for _, id := range ids {
-		payloads, err := intake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+	for _, id := range agg.GetNames() {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1140,16 +1146,11 @@ func usageWindowOf(sb usageSBOM, window time.Duration) (open, closed bool) {
 
 // hostUsageSBOMs returns the host SBOMs with a body the fake intake holds.
 func hostUsageSBOMs(c require.TestingT, intake *fakeintakeclient.Client) []usageSBOM {
-	ids, err := intake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, intake)
 
 	var sboms []usageSBOM
-	for _, id := range ids {
-		payloads, err := intake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+	for _, id := range agg.GetNames() {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1161,19 +1162,14 @@ func hostUsageSBOMs(c require.TestingT, intake *fakeintakeclient.Client) []usage
 
 // repoUsageSBOMs returns the successful SBOMs with a body of the images of repo.
 func (s *packageInUseSuite) repoUsageSBOMs(c require.TestingT, repo string) []usageSBOM {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, s.Fakeintake)
 
 	var sboms []usageSBOM
-	for _, id := range ids {
+	for _, id := range agg.GetNames() {
 		if !strings.Contains(id, repo+"@") {
 			continue
 		}
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1243,18 +1239,13 @@ func assertUsageDefaulted(c assert.TestingT, sb usageSBOM) {
 // oldestHostSBOM returns the components of the first host SBOM with a body the
 // fake intake received, and how many host SBOMs with a body it holds.
 func oldestHostSBOM(c require.TestingT, intake *fakeintakeclient.Client) ([]*cyclonedx_v1_4.Component, int) {
-	ids, err := intake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, intake)
 
 	var oldest time.Time
 	var components []*cyclonedx_v1_4.Component
 	bodies := 0
-	for _, id := range ids {
-		payloads, err := intake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+	for _, id := range agg.GetNames() {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_HOST_FILE_SYSTEM || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1321,19 +1312,13 @@ type enrichedImage struct {
 // property marks the payloads the enrichment merge has been through, which are
 // the ones worth asserting on.
 func (s *packageInUseSuite) enrichedImages(c *myCollectT) []enrichedImage {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, s.Fakeintake)
 
 	var images []enrichedImage
-	for _, id := range ids {
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-
+	for _, id := range agg.GetNames() {
 		var newest time.Time
 		var components []*cyclonedx_v1_4.Component
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1365,18 +1350,15 @@ func (s *packageInUseSuite) enrichedImages(c *myCollectT) []enrichedImage {
 // reported as in use (a diagnostic for when the targeted package is not the one
 // that flipped).
 func (s *packageInUseSuite) packageUsage(c *myCollectT, repo, pkg string) (maxTS int64, present bool, inUse []string) {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
-	ids = lo.Filter(ids, func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
+	agg := fetchSBOMs(c, s.Fakeintake)
+	ids := lo.Filter(agg.GetNames(), func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
 	if len(ids) == 0 {
-		s.dumpSBOMInventory()
+		s.dumpSBOMInventory(agg)
 	}
 	require.NotEmptyf(c, ids, "No SBOM id for %s yet", repo)
 
 	payloads := lo.FlatMap(ids, func(id string, _ int) []*aggregator.SBOMPayload {
-		p, err := s.Fakeintake.FilterSBOMs(id)
-		assert.NoErrorf(c, err, "Failed to query fake intake")
-		return p
+		return agg.GetPayloadsByName(id)
 	})
 	payloads = lo.Filter(payloads, func(p *aggregator.SBOMPayload, _ int) bool {
 		return p.GetType() == sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS &&
@@ -1411,20 +1393,13 @@ func (s *packageInUseSuite) packageUsage(c *myCollectT, repo, pkg string) (maxTS
 // packageProperty returns the value of the named runtime property on the given
 // package's component from the most recently collected SBOM payload for the
 // repo, or "" if absent.
-func (s *packageInUseSuite) packageProperty(repo, pkg, name string) string {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	if err != nil {
-		return ""
-	}
-	ids = lo.Filter(ids, func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
+func (s *packageInUseSuite) packageProperty(c require.TestingT, repo, pkg, name string) string {
+	agg := fetchSBOMs(c, s.Fakeintake)
+	ids := lo.Filter(agg.GetNames(), func(id string, _ int) bool { return strings.Contains(id, repo+"@") })
 	var value string
 	var newest time.Time
 	for _, id := range ids {
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1521,19 +1496,13 @@ func (s *packageInUseSuite) runComponentListPreserved() {
 // the merge has been through, which leaves the raw Trivy ones as the baseline to
 // compare against.
 func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, s.Fakeintake)
 
 	var images []imagePayloads
-	for _, id := range ids {
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-
+	for _, id := range agg.GetNames() {
 		img := imagePayloads{id: id}
 		var newest time.Time
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil {
 				continue
 			}
@@ -1561,18 +1530,13 @@ func (s *packageInUseSuite) imagePayloads(c *myCollectT) []imagePayloads {
 // repoPayloads counts the successful SBOM payloads of the images of repo sent
 // in use, enriched with runtime usage and raw.
 func (s *packageInUseSuite) repoPayloads(c require.TestingT, repo string) (enriched, raw int) {
-	ids, err := s.Fakeintake.GetSBOMIDs()
-	require.NoErrorf(c, err, "Failed to query fake intake")
+	agg := fetchSBOMs(c, s.Fakeintake)
 
-	for _, id := range ids {
+	for _, id := range agg.GetNames() {
 		if !strings.Contains(id, repo+"@") {
 			continue
 		}
-		payloads, err := s.Fakeintake.FilterSBOMs(id)
-		if err != nil {
-			continue
-		}
-		for _, p := range payloads {
+		for _, p := range agg.GetPayloadsByName(id) {
 			if p.GetType() != sbom.SBOMSourceType_CONTAINER_IMAGE_LAYERS || p.Status != sbom.SBOMStatus_SUCCESS || p.GetCyclonedx() == nil || !p.GetInUse() {
 				continue
 			}
@@ -1710,21 +1674,12 @@ func (s *packageInUseSuite) keepActive(d pkgInUseDistro) {
 // most once even though it is called from a retry loop.
 var pkgInUseInventoryOnce sync.Once
 
-// dumpSBOMInventory logs every SBOM id with its type and status once, to diagnose
-// a missing payload (e.g. the image was never scanned or never enriched).
-func (s *packageInUseSuite) dumpSBOMInventory() {
+// dumpSBOMInventory logs every SBOM id of agg with its type and status once, to
+// diagnose a missing payload (e.g. the image was never scanned or never enriched).
+func (s *packageInUseSuite) dumpSBOMInventory(agg *aggregator.SBOMAggregator) {
 	pkgInUseInventoryOnce.Do(func() {
-		ids, err := s.Fakeintake.GetSBOMIDs()
-		if err != nil {
-			s.T().Logf("PKG-IN-USE inventory: GetSBOMIDs error: %v", err)
-			return
-		}
-		for _, id := range ids {
-			ps, err := s.Fakeintake.FilterSBOMs(id)
-			if err != nil {
-				continue
-			}
-			for _, p := range ps {
+		for _, id := range agg.GetNames() {
+			for _, p := range agg.GetPayloadsByName(id) {
 				s.T().Logf("PKG-IN-USE inventory id=%q type=%v status=%v", id, p.GetType(), p.Status)
 			}
 		}
