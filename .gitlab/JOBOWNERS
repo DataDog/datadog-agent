@@ -250,6 +250,7 @@ new-e2e-data-security*                  @DataDog/sensitive-data-scanner
 new-e2e-otel*                           @DataDog/opentelemetry-agent
 # --- Fleet / installer (non-Windows) ---
 new-e2e-fleet*                          @DataDog/fleet
+new-e2e-kubernetes-install              @DataDog/fleet
 new-e2e-installer*                      @DataDog/fleet
 # --- Agent packaging (install scripts, step-by-step, package signing) ---
 new-e2e-agent-platform-*                @DataDog/fleet

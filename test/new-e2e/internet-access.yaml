@@ -4,6 +4,10 @@
 #         untriaged (reason not documented yet).
 # Policy: see "Avoiding external dependencies" in test/new-e2e/codereview_guideline.md.
 entries:
+- file: test/new-e2e/tests/kubernetes-install/install_test.go
+  function: TestKubernetesInstall
+  status: debt
+  reason: Copies published onboarding commands, including public Helm charts and image registries, without rewriting them. Requires agent-devx review before activation; mirroring would test different instructions.
 - file: test/e2e-framework/scenarios/aws/ec2/run_args.go
   function: ParamsFromEnvironment
   status: justified

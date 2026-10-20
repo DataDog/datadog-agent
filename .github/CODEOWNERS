@@ -1126,6 +1126,8 @@
 /test/new-e2e/tests/ssi                                         @DataDog/injection-platform
 /test/new-e2e/tests/ssi-gradual-rollout                         @DataDog/apm-release-platform
 /test/new-e2e/tests/fleet                                       @DataDog/fleet @DataDog/windows-products
+/test/new-e2e/tests/kubernetes-install                          @DataDog/fleet
+/.gitlab/kubernetes-install.yml                                @DataDog/fleet @DataDog/agent-devx
 /test/new-e2e/tests/installer                                   @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer/script                            @DataDog/fleet @DataDog/data-observability
 /test/new-e2e/tests/sbom                                        @DataDog/agent-security
