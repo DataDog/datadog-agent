@@ -126,7 +126,7 @@ type PerformanceProfileSetting struct {
 type PerformanceProfile struct {
 	Name     string                      `json:"name"`
 	Version  int                         `json:"version"`
-	Settings []PerformanceProfileSetting `json:"settings"`
+	Settings []PerformanceProfileSetting `json:"settings,omitempty"`
 }
 
 // Status provides some information about logs-agent.
