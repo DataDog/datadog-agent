@@ -210,6 +210,18 @@ func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.Pr
 	}
 
 	prev := p.entryCache[key]
+	if prev == nil && entry.PPid != 0 && entry.PPid != key.Pid && key.Pid != 1 {
+		// The instrumentation may release an exec without its fork after a
+		// bounded wait. Reconstruct the pre-exec node from the observed PPID,
+		// without publishing a synthetic fork or inventing its birth time.
+		prev = model.NewProcessCacheEntry()
+		prev.Pid = key.Pid
+		prev.PPid = entry.PPid
+		prev.Source = model.ProcessCacheEntryFromPlaceholder
+		if parent := p.entryCache[CacheResolverKey{Pid: entry.PPid, NSID: key.NSID}]; parent != nil {
+			parent.Fork(prev)
+		}
+	}
 	if prev != nil {
 		prev.Exec(entry)
 

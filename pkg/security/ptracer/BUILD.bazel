@@ -10,8 +10,10 @@ go_library(
         "fim_handlers.go",
         "hooks.go",
         "logger.go",
+        "message_buffer.go",
         "network_handlers.go",
         "proc.go",
+        "proc_stat.go",
         "process.go",
         "process_handlers.go",
         "ptracer.go",
@@ -109,16 +111,28 @@ go_library(
 
 dd_agent_go_test(
     name = "ptracer_test",
-    srcs = ["ptracer_test.go"],
+    srcs = [
+        "message_buffer_test.go",
+        "proc_stat_test.go",
+        "ptracer_test.go",
+    ],
     embed = [":ptracer"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/security/proto/ebpfless",
             "@com_github_kraken_hpc_go_fork//:go-fork",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@com_github_vmihailenco_msgpack_v5//:msgpack",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/security/proto/ebpfless",
             "@com_github_kraken_hpc_go_fork//:go-fork",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@com_github_vmihailenco_msgpack_v5//:msgpack",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
