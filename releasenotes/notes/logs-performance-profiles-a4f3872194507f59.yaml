@@ -8,8 +8,8 @@ features:
     settings (pipeline count, batching, channel sizes, and compression) so
     operators can tune the Logs Agent for a given workload shape without
     setting each option individually. Individual ``logs_config`` settings set
-    explicitly (via the config file, environment variables, or remote config)
-    take precedence over the profile, so a profile can serve as a starting
+    explicitly (via the config file, environment variables, Fleet Automation,
+    remote config, the command line, or at runtime) take precedence over the profile, so a profile can serve as a starting
     point that is further customized. Profiles are off by default, in which
     case the Agent keeps its standard default settings. The companion
     ``logs_config.profile_version`` option pins an immutable profile version so
