@@ -94,9 +94,11 @@ behavior across two runs without being affected by the correlator output.
 | `holt_residual` | disabled | Holt forecasting residual detector |
 | `tukey_biweight` | disabled | Robust location and scale detector using Tukey biweight |
 
-Headless streaming bounds stored points by the enabled detectors' window sizes,
-without a time cutoff based on an assumed sampling cadence. This preserves the
-required history for slowly sampled metrics. Retained replay remains unbounded.
+Headless streaming uses production's detector-derived point-count and time
+retention limits (120 points and 1,816 seconds for the default BOCPD window).
+Slowly sampled metrics can therefore retain fewer points, just as in production.
+Retained replay remains unbounded and serves as a diagnostic reference; identical
+detections between the two modes are not guaranteed.
 For JSON eval configs, set `bocpd.warmup_points` explicitly to `40` to match the
 replay profile; an explicit component config otherwise uses production defaults.
 
@@ -327,10 +329,11 @@ Headless runs stream by default. Metric and log parquet readers are merged into
 one timestamp-ordered observation stream. Each observation is ingested
 synchronously, detector/correlator analysis advances with the same scheduler as
 the live Observer, and an end-of-input flush analyzes the final timestamp. The
-stream derives a point-count limit from the enabled detectors, retaining one
-additional pending scheduler bucket. Native metric history has no fixed time
-cutoff: slow series need the same number of points as fast series. Observation
-memory remains bounded by detector windows and series cardinality.
+stream uses both production point-count and time limits derived from the enabled
+detectors, retaining one additional pending scheduler bucket. Observation memory
+remains bounded by detector windows and series cardinality. The testbench still
+disables inactivity eviction; this matches point-history retention, not every
+production storage policy.
 
 Headless output still retains anomaly and correlation history because the
 evaluator consumes the complete result set. Pathological runs that emit an

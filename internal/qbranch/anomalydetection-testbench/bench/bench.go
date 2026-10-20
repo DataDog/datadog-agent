@@ -743,11 +743,6 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 // but disables inactivity eviction so headless output retains complete scenario state.
 func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.StorageConfigForComponents(settings)
-	// Bound by required point count, not an assumed sampling cadence: recorded
-	// series can be slower than the Agent's 15-second retention estimate.
-	if cfg.MaxPointsPerSeries > 0 {
-		cfg.PointRetentionSecs = 0
-	}
 	cfg.InactiveSeriesTTLSeconds = 0
 	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1

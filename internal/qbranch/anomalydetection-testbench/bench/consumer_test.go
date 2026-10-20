@@ -37,14 +37,17 @@ func TestPassthroughCorrelations(t *testing.T) {
 	}
 }
 
-func TestStreamingStorageUsesPointBounds(t *testing.T) {
+func TestStreamingStorageUsesProductionRetention(t *testing.T) {
 	settings, err := observerimpl.ParseSettingsFromJSON(map[string]json.RawMessage{
 		"bocpd": json.RawMessage(`{"enabled":true,"max_run_length":240}`),
 	})
 	require.NoError(t, err)
 	cfg := streamingStorageCfg(settings, false)
 	require.Equal(t, 240, cfg.MaxPointsPerSeries)
-	require.Zero(t, cfg.PointRetentionSecs, "slow series must retain the same detector window")
+	production := observerimpl.StorageConfigForComponents(settings)
+	require.Equal(t, production.MaxPointsPerSeries, cfg.MaxPointsPerSeries)
+	require.Equal(t, production.PointRetentionSecs, cfg.PointRetentionSecs)
+	require.Equal(t, int64(3616), cfg.PointRetentionSecs)
 	require.Positive(t, cfg.MaxSeries)
 }
 
