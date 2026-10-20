@@ -26,6 +26,7 @@ crate.annotation(
     crate = "rc-x509-proto",
     patch_args = ["-p1"],
     patches = ["//deps/libdd_rc:rc-x509-proto-protobuf-include.patch"],
+    repositories = ["libdd_rc_crates"],
 )
 
 # libdd-rc enables this cfg for its workspace in .cargo/config.toml. The
@@ -33,10 +34,12 @@ crate.annotation(
 # tracing/tracing-core, so reproduce it narrowly in the isolated crate graph.
 crate.annotation(
     crate = "tracing",
+    repositories = ["libdd_rc_crates"],
     rustc_flags = ["--cfg=tracing_unstable"],
 )
 crate.annotation(
     crate = "tracing-core",
+    repositories = ["libdd_rc_crates"],
     rustc_flags = ["--cfg=tracing_unstable"],
     # Cargo declares this edge under cfg(tracing_unstable), which
     # crate_universe cannot infer from a custom rustc cfg.
@@ -50,6 +53,7 @@ crate.annotation(
     crate = "cmake",
     patch_args = ["-p1"],
     patches = ["//deps/libdd_rc:cmake-forward-failed-output.patch"],
+    repositories = ["libdd_rc_crates"],
 )
 
 # rc-crypto's FIPS feature reaches aws-lc-rs through both rcgen/aws_lc_rs and
@@ -63,6 +67,7 @@ crate.annotation(
     gen_build_script = "off",
     patch_args = ["-p1"],
     patches = ["//deps/libdd_rc:aws-lc-sys-unused-fips-backend.patch"],
+    repositories = ["libdd_rc_crates"],
 )
 
 # TODO: update as needed
@@ -108,6 +113,7 @@ exports_files(["LICENSE"], visibility = ["//visibility:public"])
         "//deps/libdd_rc:aws-lc-fips-sys-hermetic-msvc.patch",
         "//deps/libdd_rc:aws-lc-sys-nasm-command.patch",
     ],
+    repositories = ["libdd_rc_crates"],
 )
 
 inject_repo(crate, "go_work_sdk", "libclang_windows", "nasm_windows", "protobuf")
