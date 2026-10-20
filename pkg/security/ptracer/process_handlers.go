@@ -500,6 +500,7 @@ func handlePrctl(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 	msg.Prctl = &ebpfless.PrctlSyscallMsg{
 		Option: int(tracer.ReadArgInt32(regs, 0)),
 	}
+	process.otelProcessCtxNaming = isOTelProcessCtxNaming(tracer, process, regs)
 	if msg.Prctl.Option == unix.PR_SET_NAME {
 		name, err := tracer.ReadArgString(process.Pid, regs, 1)
 		if err != nil {
