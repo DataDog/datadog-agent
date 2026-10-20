@@ -136,7 +136,6 @@ func TestNewComponentPersistence(t *testing.T) {
 	tests := []struct {
 		name                      string
 		kubernetes, local, remote bool
-		remoteDisabled            bool
 		wantDisk, wantRemote      bool
 	}{
 		{name: "non-Kubernetes uses disk", wantDisk: true},
@@ -145,7 +144,6 @@ func TestNewComponentPersistence(t *testing.T) {
 		{name: "Kubernetes local persistence", kubernetes: true, local: true, wantDisk: true},
 		{name: "Kubernetes remote persistence", kubernetes: true, remote: true, wantRemote: true},
 		{name: "remote takes precedence", kubernetes: true, local: true, remote: true, wantRemote: true},
-		{name: "remote disabled for process", kubernetes: true, local: true, remote: true, remoteDisabled: true},
 	}
 
 	for _, test := range tests {
@@ -163,16 +161,16 @@ func TestNewComponentPersistence(t *testing.T) {
 				"run_path": t.TempDir(),
 			})
 			provided, err := NewComponent(Requires{
-				Lifecycle:         compdef.NewTestLifecycle(t),
-				Config:            cfg,
-				Log:               logmock.New(t),
-				Telemetry:         telemetrymock.New(t),
-				RemoteRestoration: &storedef.RemoteRestorationParams{Enabled: !test.remoteDisabled},
+				Lifecycle:    compdef.NewTestLifecycle(t),
+				Config:       cfg,
+				Log:          logmock.New(t),
+				Telemetry:    telemetrymock.New(t),
+				RemoteIssues: &fakeRemoteIssueLoader{},
 			})
 			require.NoError(t, err)
 			h := provided.Comp.(*healthPlatformImpl)
 			if test.wantRemote {
-				assert.IsType(t, &remoteIssueLoader{}, h.persistence)
+				assert.IsType(t, &remotePersistence{}, h.persistence)
 			} else if test.wantDisk {
 				assert.IsType(t, &diskPersistence{}, h.persistence)
 			} else {
