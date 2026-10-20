@@ -344,8 +344,12 @@ func describeCause(bp *backpressureWire, atLoss string, rotations int64) string 
 	if bp == nil || bp.Bottleneck == nil {
 		return ""
 	}
-	return fmt.Sprintf("The %s stage of the logs pipeline is %s, saturated for %s of the last 30 minutes.",
-		bp.Bottleneck.Component, strings.ToLower(bp.State), fmtSeconds(bp.Bottleneck.Saturated30mSeconds))
+	if bp.State == logsmetrics.BackpressureSaturated {
+		return fmt.Sprintf("The %s stage of the logs pipeline is saturated, and has been for %s of the last 30 minutes.",
+			bp.Bottleneck.Component, fmtSeconds(bp.Bottleneck.Saturated30mSeconds))
+	}
+	return fmt.Sprintf("The %s stage of the logs pipeline was saturated for %s of the last 30 minutes.",
+		bp.Bottleneck.Component, fmtSeconds(bp.Bottleneck.Saturated30mSeconds))
 }
 
 // firstRemediationStep names the stage to fix so the reader can skip to the matching branch.

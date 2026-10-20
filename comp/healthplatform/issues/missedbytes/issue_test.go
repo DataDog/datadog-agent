@@ -363,6 +363,8 @@ func TestBuildIssue_FirstRemediationStep(t *testing.T) {
 			},
 			wantStep:    []string{"`strategy`", "was saturated earlier in the last 30 minutes"},
 			notWantStep: []string{"`strategy` is saturated now"},
+			wantDesc:    []string{"strategy stage of the logs pipeline was saturated for 2m of the last 30 minutes"},
+			notWantDesc: []string{"warning"},
 		},
 		{
 			name:      "blamed rotations beyond the total are discarded",
