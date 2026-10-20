@@ -12,7 +12,7 @@
 //
 // This package imports only the Go standard library. It must not import
 // anything from pkg/logs or comp, so any package in the Agent's root Go module
-// can depend on it.
+// can depend on it. A depguard rule in .golangci.yml enforces this.
 //
 // # Concurrency
 //
