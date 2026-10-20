@@ -431,6 +431,24 @@ func (f *fakeContainerTagger) GlobalTags(_ types.TagCardinality) ([]string, erro
 	return nil, nil
 }
 
+type blockingContainerTagger struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (t *blockingContainerTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	t.once.Do(func() {
+		close(t.started)
+	})
+	<-t.release
+	return nil, nil
+}
+
+func (t *blockingContainerTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
 // newInsertionTestManagerV2 builds a ManagerV2 able to insert events in profiles: profiles and anomaly
 // detection are enabled, and anomalies are sent as soon as a profile starts. The returned slice collects the
 // events sent as anomalies.
@@ -477,20 +495,22 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 			TimeResolver:   timeResolver,
 			HashResolver:   &hash.Resolver{},
 		},
-		kernelVersion:          &kernel.Version{},
-		pathsReducer:           activity_tree.NewPathsReducer(),
-		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
-		profilePendingEvents:   make(map[containerutils.CGroupID]*pendingProfile),
-		queueSize:              atomic.NewUint64(0),
-		pendingProfiles:        atomic.NewUint64(0),
-		resolvedCgroups:        make(map[containerutils.CGroupID]struct{}),
-		localStorage:           localStorage,
-		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
-		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
-		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
-		sampleCookieMap:        cookieMap,
-		cleanupProfilesRemoved: atomic.NewUint64(0),
-		imageExcluder:          imgExcluder,
+		kernelVersion:               &kernel.Version{},
+		pathsReducer:                activity_tree.NewPathsReducer(),
+		profiles:                    make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		profilePendingEvents:        make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:                   atomic.NewUint64(0),
+		pendingProfiles:             atomic.NewUint64(0),
+		resolvedCgroups:             make(map[containerutils.CGroupID]struct{}),
+		localStorage:                localStorage,
+		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
+		pendingProfileRemovals:      make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:             cookieMap,
+		tagResolutionEventsDropped:  atomic.NewUint64(0),
+		tagResolutionCgroupsExpired: atomic.NewUint64(0),
+		cleanupProfilesRemoved:      atomic.NewUint64(0),
+		imageExcluder:               imgExcluder,
 		sendAnomalyDetection: func(event *model.Event) {
 			anomalies = append(anomalies, event)
 		},
@@ -793,6 +813,68 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	assert.NotContains(t, m.profiles, testSelector, "the profile should be removed once the cleanup delay is over")
 }
 
+func TestManagerV2_staleCGroupDeletionKeepsReplacementWorkload(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+
+	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	require.True(t, inserted)
+	require.Len(t, p.Instances, 1)
+	oldEntry := p.Instances[0].GCroupCacheEntry
+	m.resolvedCgroups[oldEntry.GetCGroupID()] = struct{}{}
+
+	deletionStarted := make(chan struct{})
+	releaseDeletion := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			close(releaseDeletion)
+		})
+	}
+	t.Cleanup(release)
+
+	require.NoError(t, m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, func(*cgroupModel.CacheEntry) {
+		close(deletionStarted)
+		<-releaseDeletion
+	}))
+	require.NoError(t, m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted))
+
+	deleteDone := make(chan struct{})
+	go func() {
+		defer close(deleteDone)
+		m.resolvers.CGroupResolver.Delete(oldEntry.GetCGroupInode())
+	}()
+
+	select {
+	case <-deletionStarted:
+	case <-time.After(time.Second):
+		t.Fatal("deletion notification did not start")
+	}
+
+	replacement := m.resolvers.CGroupResolver.Add(model.CGroupContext{
+		CGroupID:      oldEntry.GetCGroupID(),
+		CGroupPathKey: model.PathKey{Inode: 4243, MountID: 1},
+	})
+	require.NotNil(t, replacement)
+	require.NotSame(t, oldEntry, replacement)
+
+	event := newTestEventV2(model.ExecEventType, "v1", "new")
+	event.ProcessContext.Process.CGroup.CGroupPathKey = model.PathKey{Inode: 4243, MountID: 1}
+	_, inserted = m.insertEventIntoProfile(event)
+	require.True(t, inserted)
+
+	release()
+	select {
+	case <-deleteDone:
+	case <-time.After(time.Second):
+		t.Fatal("deletion did not finish")
+	}
+
+	require.Len(t, p.Instances, 1)
+	assert.Same(t, replacement, p.Instances[0].GCroupCacheEntry)
+	assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+	assert.Contains(t, m.resolvedCgroups, replacement.GetCGroupID())
+}
+
 // TestManagerV2_ProcessEventWithoutCWS verifies that without CWS, whatever the profile flags,
 // ProcessEvent returns before it records the cgroup or queues the event.
 func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
@@ -824,6 +906,32 @@ func (fh *lazyTimeFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.Base
 		ev.Timestamp = time.Now()
 	}
 	return ev.Timestamp
+}
+
+type fixedTimeFieldHandlers struct {
+	*model.FakeFieldHandlers
+	timestamp time.Time
+}
+
+func (fh *fixedTimeFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
+	ev.Timestamp = fh.timestamp
+	return ev.Timestamp
+}
+
+func TestManagerV2_createNewProfileResolvesEventTime(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	expected := time.Now().Add(-time.Minute).Round(time.Microsecond)
+	event := newTestEventV2(model.ExecEventType, "v1", "known")
+	event.Timestamp = time.Time{}
+	event.FieldHandlers = &fixedTimeFieldHandlers{
+		FakeFieldHandlers: &model.FakeFieldHandlers{},
+		timestamp:         expected,
+	}
+
+	p, err := m.createNewProfile(testSelector, event)
+	require.NoError(t, err)
+	assert.Equal(t, expected, p.Metadata.Start)
+	assert.Equal(t, expected, p.Metadata.End)
 }
 
 func TestManagerV2_queueAndResolvePendingEvents(t *testing.T) {
@@ -867,6 +975,160 @@ func TestManagerV2_queueAndResolvePendingEvents(t *testing.T) {
 		require.Len(t, *anomalies, 1)
 		require.Len(t, (*anomalies)[0].Rules, 1)
 		assert.Equal(t, "rule_1", (*anomalies)[0].Rules[0].RuleID)
+	})
+
+	t.Run("drops a lone pending event when tags resolve after 10 seconds", func(t *testing.T) {
+		m, anomalies := newInsertionTestManagerV2(t)
+		tagger := &fakeContainerTagger{}
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+		ev := newTestEventV2(model.ExecEventType, "v1", "known")
+		ev.Timestamp = time.Now().Add(-11 * time.Second)
+		ev.ProcessContext.Process.ContainerContext.Tags = nil
+		m.queueEventForTagResolution(ev, nil)
+
+		tagger.tags = []string{"image_name:" + testImageName, "image_tag:v1"}
+		m.resolvePendingEvents()
+
+		assert.Empty(t, m.profiles)
+		assert.Empty(t, *anomalies)
+		assert.Equal(t, uint64(0), m.queueSize.Load())
+		assert.Equal(t, uint64(1), m.pendingProfiles.Load())
+		assert.Equal(t, uint64(1), m.tagResolutionEventsDropped.Load())
+		require.NotNil(t, m.profilePendingEvents[ev.ProcessContext.Process.CGroup.CGroupID])
+		assert.Zero(t, m.profilePendingEvents[ev.ProcessContext.Process.CGroup.CGroupID].events.Len())
+	})
+
+	t.Run("keeps live events behind a periodic drain for the same cgroup", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		tagger := &fakeContainerTagger{}
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+		for _, variant := range []string{"first", "second"} {
+			ev := newTestEventV2(model.ExecEventType, "v1", variant)
+			ev.ProcessContext.Process.ContainerContext.Tags = nil
+			m.queueEventForTagResolution(ev, nil)
+		}
+
+		firstAnomaly := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() {
+			releaseOnce.Do(func() {
+				close(releaseFirst)
+			})
+		}
+		t.Cleanup(release)
+
+		var anomalyLock sync.Mutex
+		var anomalyOrder []string
+		m.sendAnomalyDetection = func(event *model.Event) {
+			anomalyLock.Lock()
+			anomalyOrder = append(anomalyOrder, event.ProcessContext.Process.FileEvent.BasenameStr)
+			first := len(anomalyOrder) == 1
+			anomalyLock.Unlock()
+			if first {
+				close(firstAnomaly)
+				<-releaseFirst
+			}
+		}
+
+		tagger.tags = []string{"image_name:" + testImageName, "image_tag:v1"}
+		resolveDone := make(chan struct{})
+		go func() {
+			defer close(resolveDone)
+			m.resolvePendingEvents()
+		}()
+
+		select {
+		case <-firstAnomaly:
+		case <-time.After(time.Second):
+			t.Fatal("periodic drain did not start")
+		}
+
+		liveDone := make(chan struct{})
+		go func() {
+			defer close(liveDone)
+			m.processEventWithResolvedTags(newTestEventV2(model.ExecEventType, "v1", "live"))
+		}()
+
+		require.Eventually(t, func() bool {
+			m.profilePendingEventsLock.Lock()
+			defer m.profilePendingEventsLock.Unlock()
+			pending := m.profilePendingEvents[containerutils.CGroupID("/docker/"+testContainerID)]
+			return pending != nil && pending.events.Len() == 1
+		}, time.Second, time.Millisecond)
+
+		release()
+		select {
+		case <-liveDone:
+		case <-time.After(time.Second):
+			t.Fatal("live event did not finish")
+		}
+		select {
+		case <-resolveDone:
+		case <-time.After(time.Second):
+			t.Fatal("periodic drain did not finish")
+		}
+
+		anomalyLock.Lock()
+		defer anomalyLock.Unlock()
+		assert.Equal(t, []string{"first", "second", "live"}, anomalyOrder)
+	})
+
+	t.Run("resolves tags without holding the pending queue lock", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		tagger := &blockingContainerTagger{
+			started: make(chan struct{}),
+			release: make(chan struct{}),
+		}
+		var releaseOnce sync.Once
+		release := func() {
+			releaseOnce.Do(func() {
+				close(tagger.release)
+			})
+		}
+		t.Cleanup(release)
+		m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+		ev := newTestEventV2(model.ExecEventType, "v1", "known")
+		ev.ProcessContext.Process.ContainerContext.Tags = nil
+		m.queueEventForTagResolution(ev, nil)
+
+		resolveDone := make(chan struct{})
+		go func() {
+			defer close(resolveDone)
+			m.resolvePendingEvents()
+		}()
+
+		select {
+		case <-tagger.started:
+		case <-time.After(time.Second):
+			t.Fatal("tag resolution did not start")
+		}
+
+		queued := make(chan struct{})
+		go func() {
+			defer close(queued)
+			other := newTestEventV2(model.ExecEventType, "v1", "new")
+			other.ProcessContext.Process.ContainerContext.ContainerID = "other"
+			other.ProcessContext.Process.ContainerContext.Tags = nil
+			other.ProcessContext.Process.CGroup.CGroupID = "/docker/other"
+			m.queueEventForTagResolution(other, nil)
+		}()
+
+		select {
+		case <-queued:
+		case <-time.After(time.Second):
+			t.Fatal("pending queue was blocked by tag resolution")
+		}
+
+		release()
+		select {
+		case <-resolveDone:
+		case <-time.After(time.Second):
+			t.Fatal("tag resolution did not finish")
+		}
 	})
 
 	t.Run("drains pending events even if short-lived container cgroup already exited", func(t *testing.T) {

@@ -1,5 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library", "go_source")
 load("//bazel/rules/cws_codegen:defs.bzl", "easyjson", "easyjson_stubs")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:go_split_generated *_easyjson.go
 
@@ -53,5 +54,17 @@ go_source(
         "@com_github_mailru_easyjson//jwriter",
         "@org_golang_x_time//rate",
         "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+dd_agent_go_test(
+    name = "events_test",
+    srcs = ["ad_limiter_test.go"],
+    embed = [":events"],
+    deps = [
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
