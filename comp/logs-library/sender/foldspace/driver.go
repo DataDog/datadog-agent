@@ -80,6 +80,9 @@ type Driver struct {
 	// misadmitLogged keeps an admission that signals a driver or configuration
 	// bug from logging once per record.
 	misadmitLogged atomic.Bool
+	// dropLogLimit bounds the warnings for records dropped as too large, empty,
+	// or unrouted, which a single source can produce on every line.
+	dropLogLimit *log.Limit
 
 	wake       []chan struct{}
 	notifyWake chan struct{}
@@ -177,6 +180,7 @@ func NewDriver(opts DriverOptions) *Driver {
 		nonMRFRoute:     AllSenders(n) &^ opts.MRFRoute,
 		pending:         newPendingTable(),
 		startNanos:      time.Now().UnixNano(),
+		dropLogLimit:    log.NewLogLimit(10, 10*time.Minute),
 		wake:            wake,
 		notifyWake:      make(chan struct{}, 1),
 		capacity:        make(chan struct{}, 1),
@@ -393,9 +397,6 @@ func (d *Driver) offer(item ingestItem) {
 		switch admission {
 		case Accepted:
 			return
-		case TooLarge, Empty, Unrouted:
-			d.releaseUnsent(id)
-			return
 		case Refused:
 			d.pending.take(id)
 			select {
@@ -409,14 +410,48 @@ func (d *Driver) offer(item ingestItem) {
 			d.pending.take(id)
 			return
 		default:
-			// Unroutable, or a code this package does not know. Neither can
-			// succeed on retry, and retrying would spin this goroutine forever.
-			if d.misadmitLogged.CompareAndSwap(false, true) {
-				log.Errorf("foldspace: record not admitted (%v); releasing it unsent", admission)
-			}
-			d.releaseUnsent(id)
+			// TooLarge, Empty, Unrouted, Unroutable, or a code this package does
+			// not know. None can succeed on retry, and retrying would spin this
+			// goroutine forever.
+			d.dropUnadmitted(id, admission, len(item.record.Body))
 			return
 		}
+	}
+}
+
+// dropUnadmitted counts and reports a record the core will never carry, then
+// releases it to the auditor unsent.
+func (d *Driver) dropUnadmitted(id uint64, admission Admission, contentLength int) {
+	reason := unadmittedReason(admission)
+	metrics.TlmFoldspaceUnadmitted.Inc(reason)
+	switch admission {
+	case TooLarge, Empty, Unrouted:
+		if d.dropLogLimit.ShouldLog() {
+			log.Warnf("foldspace: dropped record reason=%s ContentLength=%d", reason, contentLength)
+		}
+	default:
+		if d.misadmitLogged.CompareAndSwap(false, true) {
+			log.Errorf("foldspace: record not admitted (%v); releasing it unsent", admission)
+		}
+	}
+	d.releaseUnsent(id)
+}
+
+// unadmittedReason is the reason tag TlmFoldspaceUnadmitted records for an
+// admission. These are tag values, so renaming one breaks any query that
+// filters on it.
+func unadmittedReason(admission Admission) string {
+	switch admission {
+	case TooLarge:
+		return "too_large"
+	case Empty:
+		return "empty"
+	case Unrouted:
+		return "unrouted"
+	case Unroutable:
+		return "unroutable"
+	default:
+		return "unknown"
 	}
 }
 
